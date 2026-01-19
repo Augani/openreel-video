@@ -79,8 +79,8 @@ const renderFrameWithGPU = async (
   renderer: Renderer,
   frame: ImageBitmap,
   transform: ClipTransform,
-  canvasWidth: number,
-  canvasHeight: number,
+  _canvasWidth: number,
+  _canvasHeight: number,
 ): Promise<ImageBitmap | null> => {
   try {
     const device = renderer.getDevice();
@@ -93,10 +93,7 @@ const renderFrameWithGPU = async (
     const texture = renderer.createTextureFromImage(frame);
 
     const gpuTransform = {
-      position: {
-        x: transform.position.x * canvasWidth,
-        y: transform.position.y * canvasHeight,
-      },
+      position: transform.position,
       scale: transform.scale,
       rotation: transform.rotation,
       anchor: transform.anchor,
@@ -124,8 +121,8 @@ const renderFrameWithGPU = async (
 const renderAllLayersWithGPU = async (
   renderer: Renderer,
   layers: GPULayer[],
-  canvasWidth: number,
-  canvasHeight: number,
+  _canvasWidth: number,
+  _canvasHeight: number,
 ): Promise<ImageBitmap | null> => {
   try {
     const device = renderer.getDevice();
@@ -145,10 +142,7 @@ const renderAllLayersWithGPU = async (
       textures.push(texture);
 
       const gpuTransform = {
-        position: {
-          x: layer.transform.position.x * canvasWidth,
-          y: layer.transform.position.y * canvasHeight,
-        },
+        position: layer.transform.position,
         scale: layer.transform.scale,
         rotation: layer.transform.rotation,
         anchor: layer.transform.anchor,
@@ -2284,7 +2278,10 @@ export const Preview: React.FC = () => {
           const frameDuration = 1000 / 30;
 
           // Playback state
+          // currentMediaTime: time in the source video (advances at speed rate)
+          // currentPlayheadTime: time in the timeline (advances at normal rate)
           let currentMediaTime = mediaStartTime;
+          let currentPlayheadTime = timelinePosition;
           let lastFrameTimestamp = performance.now();
           let frameCount = 0;
 
@@ -2334,8 +2331,10 @@ export const Preview: React.FC = () => {
 
               if (!frameResult || !frameResult.canvas) {
                 console.warn("[Preview] No frame at time", currentMediaTime);
-                // Skip to next frame time
-                currentMediaTime += frameDuration / 1000;
+                // Skip to next frame - advance both times keeping them in sync
+                const skipTime = frameDuration / 1000;
+                currentPlayheadTime += skipTime;
+                currentMediaTime += skipTime * currentSpeed;
                 if (isActive) {
                   animationRef.current =
                     requestAnimationFrame(processNextFrame);
@@ -2351,7 +2350,9 @@ export const Preview: React.FC = () => {
                 "height" in frameCanvas ? frameCanvas.height : 0;
               if (frameWidth === 0 || frameHeight === 0) {
                 console.warn("[Preview] Frame has zero dimensions, skipping");
-                currentMediaTime += frameDuration / 1000;
+                const skipTime = frameDuration / 1000;
+                currentPlayheadTime += skipTime;
+                currentMediaTime += skipTime * currentSpeed;
                 if (isActive) {
                   animationRef.current =
                     requestAnimationFrame(processNextFrame);
@@ -2359,9 +2360,7 @@ export const Preview: React.FC = () => {
                 return;
               }
 
-              // Calculate current playhead position
-              const currentPlayhead =
-                clip.startTime + (currentMediaTime - (clip.inPoint || 0));
+              const currentPlayhead = currentPlayheadTime;
 
               if (currentPlayhead >= actualEndTime) {
                 setPlayheadPosition(0);
@@ -2471,10 +2470,13 @@ export const Preview: React.FC = () => {
                 duration > 0 ? duration * 1000 : frameDuration;
               const targetTime = actualFrameDuration / rateRef.current;
 
-              // Advance media time based on frame duration and effective clip speed
-              // (currentSpeed already includes linked audio clip speed from earlier calculation)
-              const timeAdvance = (actualFrameDuration / 1000) * currentSpeed;
-              currentMediaTime += timeAdvance;
+              // Advance times:
+              // - playhead advances at normal rate (1x)
+              // - media time advances at speed rate (for fetching correct video frames)
+              const normalTimeAdvance = actualFrameDuration / 1000;
+              const mediaTimeAdvance = normalTimeAdvance * currentSpeed;
+              currentPlayheadTime += normalTimeAdvance;
+              currentMediaTime += mediaTimeAdvance;
 
               const delay = Math.max(0, targetTime - elapsed);
               lastFrameTimestamp = now;
@@ -3030,16 +3032,9 @@ export const Preview: React.FC = () => {
                   );
                   for (const { transform, frame } of trackFrames) {
                     if (frame instanceof ImageBitmap) {
-                      const normalizedTransform = {
-                        ...transform,
-                        position: {
-                          x: 0.5 + transform.position.x / canvas.width,
-                          y: 0.5 + transform.position.y / canvas.height,
-                        },
-                      };
                       gpuLayers.push({
                         bitmap: frame,
-                        transform: normalizedTransform,
+                        transform,
                       });
                     }
                   }
