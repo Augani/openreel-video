@@ -162,23 +162,6 @@ export const EditorInterface: React.FC = () => {
     useKeyboardShortcuts();
   useAutoSave();
 
-  // Show loading state while initializing
-  if (initializing || !initialized) {
-    return (
-      <div className="w-full h-full bg-background flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-text-secondary text-sm">Initializing editor...</p>
-          <p className="text-text-muted text-xs mt-2">{initStatus}</p>
-          {initError && (
-            <p className="text-red-500 text-xs mt-2">{initError}</p>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  // Resizable Timeline State
   const [timelineHeight, setTimelineHeight] = useState(320);
   const isDraggingRef = useRef(false);
 
@@ -194,7 +177,6 @@ export const EditorInterface: React.FC = () => {
       if (!isDraggingRef.current) return;
 
       const newHeight = window.innerHeight - e.clientY;
-      // Clamp height between 200px and 60% of screen height
       const maxHeight = window.innerHeight * 0.6;
       setTimelineHeight(Math.max(200, Math.min(newHeight, maxHeight)));
     };
@@ -213,6 +195,21 @@ export const EditorInterface: React.FC = () => {
       window.removeEventListener("mouseup", handleMouseUp);
     };
   }, []);
+
+  if (initializing || !initialized) {
+    return (
+      <div className="w-full h-full bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-text-secondary text-sm">Initializing editor...</p>
+          <p className="text-text-muted text-xs mt-2">{initStatus}</p>
+          {initError && (
+            <p className="text-red-500 text-xs mt-2">{initError}</p>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full h-full bg-background flex flex-col overflow-hidden font-sans select-none relative z-20 text-xs text-text-secondary">
