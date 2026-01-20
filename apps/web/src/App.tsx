@@ -5,10 +5,12 @@ import { ScriptViewDialog } from "./components/editor/ScriptViewDialog";
 import { SearchModal } from "./components/editor/SearchModal";
 import { MobileBlocker } from "./components/MobileBlocker";
 import { WelcomeScreen } from "./components/welcome";
+import { RecoveryDialog } from "./components/welcome/RecoveryDialog";
 import { SharePage } from "./pages/SharePage";
 import { useUIStore } from "./stores/ui-store";
 import { useProjectStore } from "./stores/project-store";
 import { useRouter } from "./hooks/use-router";
+import { useProjectRecovery } from "./hooks/useProjectRecovery";
 import { SOCIAL_MEDIA_PRESETS, type SocialMediaCategory } from "@openreel/core";
 
 const PRESET_DIMENSIONS: Record<string, SocialMediaCategory> = {
@@ -23,6 +25,7 @@ function App() {
   const { activeModal, closeModal, skipWelcomeScreen } = useUIStore();
   const { openModal: openSearchModal } = useUIStore();
   const createNewProject = useProjectStore((state) => state.createNewProject);
+  const { showDialog, availableSaves, recover, dismiss } = useProjectRecovery();
 
   const { route, params, navigate, parsedDimensions, fps } = useRouter();
   const hasHandledInitialRoute = useRef(false);
@@ -129,6 +132,16 @@ function App() {
         onClose={closeModal}
       />
       <SearchModal isOpen={activeModal === "search"} onClose={closeModal} />
+      {showDialog && availableSaves.length > 0 && (
+        <RecoveryDialog
+          saves={availableSaves}
+          onRecover={async (saveId) => {
+            const success = await recover(saveId);
+            if (success) navigate("editor");
+          }}
+          onDismiss={dismiss}
+        />
+      )}
     </div>
   );
 }

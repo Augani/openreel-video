@@ -1,5 +1,6 @@
 import { v4 as uuidv4 } from "uuid";
 import type { Project, ProjectSettings, Timeline } from "@openreel/core";
+import { generateProjectName } from "../../utils/project-names";
 
 export const DEFAULT_PROJECT_SETTINGS: ProjectSettings = {
   width: 1920,
@@ -42,13 +43,14 @@ export function createDefaultTimeline(): Timeline {
 }
 
 export function createEmptyProject(
-  name: string = "Untitled Project",
+  name?: string,
   settings?: Partial<ProjectSettings>,
 ): Project {
   const now = Date.now();
+  const projectName = name || generateProjectName();
   return {
     id: uuidv4(),
-    name,
+    name: projectName,
     createdAt: now,
     modifiedAt: now,
     settings: { ...DEFAULT_PROJECT_SETTINGS, ...settings },

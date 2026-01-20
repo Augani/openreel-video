@@ -31,6 +31,7 @@ import {
 import { ExportDialog } from "./ExportDialog";
 import { ScreenRecorder } from "./ScreenRecorder";
 import { HistoryPanel } from "./inspector/HistoryPanel";
+import { ProjectSwitcher } from "./ProjectSwitcher";
 import { toast } from "../../stores/notification-store";
 
 type ExportType =
@@ -623,10 +624,12 @@ export const Toolbar: React.FC = () => {
               />
             </svg>
           </div>
-          <span className="text-lg font-medium text-text-primary tracking-wide">
-            Open Reel Video
+          <span className="text-lg font-medium text-text-primary tracking-wide hidden lg:block">
+            Open Reel
           </span>
         </div>
+        <div className="h-6 w-px bg-border hidden md:block" />
+        <ProjectSwitcher />
       </div>
 
       <div className="flex-1 max-w-2xl mx-12 relative group">

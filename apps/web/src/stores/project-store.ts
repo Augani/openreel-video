@@ -49,6 +49,11 @@ import {
   calculateTimelineDuration,
   type ClipHistoryEntry,
 } from "./project/index";
+import {
+  saveMediaBlob,
+  deleteMediaBlob,
+  loadProjectMedia,
+} from "../services/media-storage";
 
 /**
  * ProjectState - Complete state interface for project management
@@ -590,6 +595,13 @@ export const useProjectStore = create<ProjectState>()(
 
           set({ project: updatedProject });
 
+          saveMediaBlob(
+            updatedProject.id,
+            newMediaItem.id,
+            file,
+            newMediaItem.metadata,
+          ).catch((err) => console.warn("[ProjectStore] Failed to persist media blob:", err));
+
           return {
             success: true,
             actionId: newMediaItem.id,
@@ -617,6 +629,9 @@ export const useProjectStore = create<ProjectState>()(
         const result = await actionExecutor.execute(action, project);
         if (result.success) {
           set({ project: { ...project } });
+          deleteMediaBlob(mediaId).catch((err) =>
+            console.warn("[ProjectStore] Failed to delete media blob:", err),
+          );
         }
         return result;
       },
@@ -2076,15 +2091,31 @@ export const useProjectStore = create<ProjectState>()(
       recoverFromAutoSave: async (saveId: string) => {
         const recoveredProject = await autoSaveManager.recover(saveId);
         if (recoveredProject) {
-          // When recovering, must reset action history to prevent undo/redo pointing to stale state
-          // Create fresh ActionHistory and ActionExecutor to sync with recovered project
+          const storedMedia = await loadProjectMedia(recoveredProject.id);
+          const blobMap = new Map(storedMedia.map((m) => [m.id, m.blob]));
+
+          const restoredItems = recoveredProject.mediaLibrary.items.map(
+            (item) => ({
+              ...item,
+              blob: blobMap.get(item.id) || item.blob,
+            }),
+          );
+
+          const projectWithMedia: Project = {
+            ...recoveredProject,
+            mediaLibrary: {
+              ...recoveredProject.mediaLibrary,
+              items: restoredItems,
+            },
+          };
+
           const newHistory = new ActionHistory();
           const newExecutor = new ActionExecutor(newHistory);
           set({
-            project: recoveredProject,
+            project: projectWithMedia,
             actionHistory: newHistory,
             actionExecutor: newExecutor,
-            clipUndoStack: [], // Clear clip-specific undo/redo stacks too
+            clipUndoStack: [],
             clipRedoStack: [],
             error: null,
           });

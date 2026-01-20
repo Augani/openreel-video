@@ -1,64 +1,88 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { Clock, Trash2, Film } from "lucide-react";
 import {
-  Clock,
-  Trash2,
-  ChevronRight,
-  Film,
-  Calendar,
-  HardDrive,
-} from "lucide-react";
+  checkForRecovery,
+  type AutoSaveMetadata,
+} from "../../services/auto-save";
+import { useProjectStore } from "../../stores/project-store";
 
 interface RecentProject {
   id: string;
+  saveId: string;
   name: string;
   lastModified: number;
-  thumbnailUrl?: string;
-  duration?: number;
-  width?: number;
-  height?: number;
 }
 
 interface RecentProjectsProps {
   onProjectSelected?: () => void;
 }
 
-const STORAGE_KEY = "openreel-recent-projects";
-
 export const RecentProjects: React.FC<RecentProjectsProps> = ({
   onProjectSelected,
 }) => {
   const [recentProjects, setRecentProjects] = useState<RecentProject[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadingProjectId, setLoadingProjectId] = useState<string | null>(null);
+  const recoverFromAutoSave = useProjectStore(
+    (state) => state.recoverFromAutoSave,
+  );
 
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        const projects = JSON.parse(stored) as RecentProject[];
-        setRecentProjects(projects.slice(0, 10));
+    async function loadProjects() {
+      try {
+        const saves = await checkForRecovery();
+        const projectMap = new Map<string, AutoSaveMetadata>();
+
+        for (const save of saves) {
+          if (!projectMap.has(save.projectId)) {
+            projectMap.set(save.projectId, save);
+          }
+        }
+
+        const projects: RecentProject[] = Array.from(projectMap.values())
+          .sort((a, b) => b.timestamp - a.timestamp)
+          .slice(0, 10)
+          .map((save) => ({
+            id: save.projectId,
+            saveId: save.id,
+            name: save.projectName,
+            lastModified: save.timestamp,
+          }));
+
+        setRecentProjects(projects);
+      } catch (error) {
+        console.error("Failed to load recent projects:", error);
+      } finally {
+        setIsLoading(false);
       }
-    } catch (error) {
-      console.error("Failed to load recent projects:", error);
-    } finally {
-      setIsLoading(false);
     }
+
+    loadProjects();
   }, []);
 
   const handleSelectProject = useCallback(
-    (_project: RecentProject) => {
-      onProjectSelected?.();
+    async (project: RecentProject) => {
+      setLoadingProjectId(project.id);
+      try {
+        const success = await recoverFromAutoSave(project.saveId);
+        if (success) {
+          onProjectSelected?.();
+        }
+      } catch (error) {
+        console.error("Failed to load project:", error);
+      } finally {
+        setLoadingProjectId(null);
+      }
     },
-    [onProjectSelected],
+    [recoverFromAutoSave, onProjectSelected],
   );
 
   const handleRemoveProject = useCallback(
     (projectId: string, event: React.MouseEvent) => {
       event.stopPropagation();
-      const updated = recentProjects.filter((p) => p.id !== projectId);
-      setRecentProjects(updated);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+      setRecentProjects((prev) => prev.filter((p) => p.id !== projectId));
     },
-    [recentProjects],
+    [],
   );
 
   const formatDate = (timestamp: number): string => {
@@ -74,14 +98,6 @@ export const RecentProjects: React.FC<RecentProjectsProps> = ({
     if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`;
 
     return date.toLocaleDateString();
-  };
-
-  const formatDuration = (seconds?: number): string => {
-    if (!seconds) return "";
-    if (seconds < 60) return `${seconds}s`;
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return secs > 0 ? `${mins}m ${secs}s` : `${mins}m`;
   };
 
   if (isLoading) {
@@ -113,78 +129,58 @@ export const RecentProjects: React.FC<RecentProjectsProps> = ({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-medium text-text-primary">
           Recent Projects ({recentProjects.length})
         </h3>
       </div>
 
-      <div className="grid gap-3">
-        {recentProjects.map((project) => (
-          <button
-            key={project.id}
-            onClick={() => handleSelectProject(project)}
-            className="group flex items-center gap-4 p-4 bg-background-tertiary rounded-xl border border-border hover:border-border-hover hover:bg-background-elevated transition-all text-left"
-          >
-            <div className="w-20 h-12 bg-background rounded-lg overflow-hidden flex-shrink-0 border border-border">
-              {project.thumbnailUrl ? (
-                <img
-                  src={project.thumbnailUrl}
-                  alt={project.name}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center">
-                  <Film size={18} className="text-text-muted" />
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+        {recentProjects.map((project) => {
+          const isLoadingThis = loadingProjectId === project.id;
+          return (
+            <div
+              key={project.id}
+              className="group relative flex flex-col bg-background-tertiary rounded-xl border border-border hover:border-primary/40 hover:bg-background-elevated transition-all overflow-hidden"
+            >
+              <button
+                onClick={() => handleSelectProject(project)}
+                disabled={isLoadingThis}
+                className="flex flex-col flex-1 text-left disabled:opacity-70"
+              >
+                <div className="aspect-video w-full bg-background flex items-center justify-center border-b border-border">
+                  {isLoadingThis ? (
+                    <div className="w-8 h-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+                  ) : (
+                    <Film size={32} className="text-text-muted/50 group-hover:text-primary/50 transition-colors" />
+                  )}
                 </div>
-              )}
-            </div>
 
-            <div className="flex-1 min-w-0">
-              <h4 className="text-sm font-medium text-text-primary truncate group-hover:text-primary transition-colors">
-                {project.name}
-              </h4>
-              <div className="flex items-center gap-4 mt-1.5">
-                <div className="flex items-center gap-1.5 text-[11px] text-text-muted">
-                  <Calendar size={11} />
-                  <span>{formatDate(project.lastModified)}</span>
-                </div>
-                {project.duration && (
-                  <div className="flex items-center gap-1.5 text-[11px] text-text-muted">
+                <div className="p-3 flex-1">
+                  <h4 className="text-sm font-medium text-text-primary truncate group-hover:text-primary transition-colors">
+                    {project.name}
+                  </h4>
+                  <div className="flex items-center gap-1.5 mt-1.5 text-xs text-text-muted">
                     <Clock size={11} />
-                    <span>{formatDuration(project.duration)}</span>
+                    <span>{formatDate(project.lastModified)}</span>
                   </div>
-                )}
-                {project.width && project.height && (
-                  <div className="flex items-center gap-1.5 text-[11px] text-text-muted">
-                    <HardDrive size={11} />
-                    <span>
-                      {project.width}×{project.height}
-                    </span>
-                  </div>
-                )}
-              </div>
-            </div>
+                </div>
+              </button>
 
-            <div className="flex items-center gap-2">
               <button
                 onClick={(e) => handleRemoveProject(project.id, e)}
-                className="p-2 text-text-muted hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all rounded-lg hover:bg-red-500/10"
+                className="absolute top-2 right-2 p-1.5 text-text-muted hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all rounded-lg bg-background/80 hover:bg-red-500/10 backdrop-blur-sm"
                 title="Remove from recent"
               >
                 <Trash2 size={14} />
               </button>
-              <ChevronRight
-                size={16}
-                className="text-text-muted group-hover:text-primary transition-colors"
-              />
             </div>
-          </button>
-        ))}
+          );
+        })}
       </div>
 
-      <p className="text-xs text-text-muted text-center pt-4">
+      <p className="text-xs text-text-muted text-center">
         Recent projects are stored locally in your browser
       </p>
     </div>
