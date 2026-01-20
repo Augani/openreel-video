@@ -1,4 +1,6 @@
 import type { Timeline } from "./timeline";
+import type { TextClip } from "../text/types";
+import type { ShapeClip, SVGClip, StickerClip } from "../graphics/types";
 
 export interface ProjectSettings {
   readonly width: number;
@@ -16,6 +18,10 @@ export interface Project {
   readonly settings: ProjectSettings;
   readonly mediaLibrary: MediaLibrary;
   readonly timeline: Timeline;
+  readonly textClips?: TextClip[];
+  readonly shapeClips?: ShapeClip[];
+  readonly svgClips?: SVGClip[];
+  readonly stickerClips?: StickerClip[];
 }
 
 export interface MediaLibrary {

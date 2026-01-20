@@ -1878,6 +1878,27 @@ export class GraphicsEngine {
     this.animationEngine.clearCache();
   }
 
+  loadShapeClips(clips: ShapeClip[]): void {
+    this.shapeClips.clear();
+    for (const clip of clips) {
+      this.shapeClips.set(clip.id, clip);
+    }
+  }
+
+  loadSVGClips(clips: SVGClip[]): void {
+    this.svgClips.clear();
+    for (const clip of clips) {
+      this.svgClips.set(clip.id, clip);
+    }
+  }
+
+  loadStickerClips(clips: StickerClip[]): void {
+    this.stickerClips.clear();
+    for (const clip of clips) {
+      this.stickerClips.set(clip.id, clip);
+    }
+  }
+
   /**
    * Creates a graphic animation configuration.
    *

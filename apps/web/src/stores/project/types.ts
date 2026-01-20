@@ -288,6 +288,7 @@ export interface ProjectState {
   checkForRecovery: () => Promise<AutoSaveMetadata[]>;
   recoverFromAutoSave: (saveId: string) => Promise<boolean>;
   forceSave: () => Promise<void>;
+  getFullProject: () => Project;
 }
 
 export type {

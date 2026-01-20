@@ -55,6 +55,7 @@ import {
   loadProjectMedia,
 } from "../services/media-storage";
 import { restoreMediaItem } from "../utils/media-recovery";
+import { projectManager } from "../services/project-manager";
 
 /**
  * ProjectState - Complete state interface for project management
@@ -429,8 +430,25 @@ export const useProjectStore = create<ProjectState>()(
         });
       },
 
-      // Load an existing project
       loadProject: (project: Project) => {
+        const titleEngine = useEngineStore.getState().getTitleEngine();
+        const graphicsEngine = useEngineStore.getState().getGraphicsEngine();
+
+        if (titleEngine && project.textClips) {
+          titleEngine.loadTextClips(project.textClips);
+        }
+        if (graphicsEngine) {
+          if (project.shapeClips) {
+            graphicsEngine.loadShapeClips(project.shapeClips);
+          }
+          if (project.svgClips) {
+            graphicsEngine.loadSVGClips(project.svgClips);
+          }
+          if (project.stickerClips) {
+            graphicsEngine.loadStickerClips(project.stickerClips);
+          }
+        }
+
         const newHistory = new ActionHistory();
         const newExecutor = new ActionExecutor(newHistory);
         set({
@@ -2110,9 +2128,19 @@ export const useProjectStore = create<ProjectState>()(
       // Auto-save methods
       initializeAutoSave: async () => {
         await initializeAutoSave();
-        // Start auto-save with getter function that always returns current project
-        // This prevents passing stale project reference at initialization time
-        autoSaveManager.start(() => get().project);
+        autoSaveManager.start(() => {
+          const { project } = get();
+          const titleEngine = useEngineStore.getState().getTitleEngine();
+          const graphicsEngine = useEngineStore.getState().getGraphicsEngine();
+
+          return {
+            ...project,
+            textClips: titleEngine?.getAllTextClips() || [],
+            shapeClips: graphicsEngine?.getAllShapeClips() || [],
+            svgClips: graphicsEngine?.getAllSVGClips() || [],
+            stickerClips: graphicsEngine?.getAllStickerClips() || [],
+          };
+        });
 
         // Subscribe to project state changes to mark as dirty for auto-save
         // Uses Zustand's subscribeWithSelector middleware to detect changes to project object only
@@ -2150,6 +2178,24 @@ export const useProjectStore = create<ProjectState>()(
             },
           };
 
+          const titleEngine = useEngineStore.getState().getTitleEngine();
+          const graphicsEngine = useEngineStore.getState().getGraphicsEngine();
+
+          if (titleEngine && recoveredProject.textClips) {
+            titleEngine.loadTextClips(recoveredProject.textClips);
+          }
+          if (graphicsEngine) {
+            if (recoveredProject.shapeClips) {
+              graphicsEngine.loadShapeClips(recoveredProject.shapeClips);
+            }
+            if (recoveredProject.svgClips) {
+              graphicsEngine.loadSVGClips(recoveredProject.svgClips);
+            }
+            if (recoveredProject.stickerClips) {
+              graphicsEngine.loadStickerClips(recoveredProject.stickerClips);
+            }
+          }
+
           const newHistory = new ActionHistory();
           const newExecutor = new ActionExecutor(newHistory);
           set({
@@ -2160,6 +2206,8 @@ export const useProjectStore = create<ProjectState>()(
             clipRedoStack: [],
             error: null,
           });
+
+          await projectManager.addToRecent(projectWithMedia);
           return true;
         }
         return false;
@@ -2167,7 +2215,31 @@ export const useProjectStore = create<ProjectState>()(
 
       forceSave: async () => {
         const { project } = get();
-        await autoSaveManager.forceSave(project);
+        const titleEngine = useEngineStore.getState().getTitleEngine();
+        const graphicsEngine = useEngineStore.getState().getGraphicsEngine();
+
+        const fullProject: Project = {
+          ...project,
+          textClips: titleEngine?.getAllTextClips() || [],
+          shapeClips: graphicsEngine?.getAllShapeClips() || [],
+          svgClips: graphicsEngine?.getAllSVGClips() || [],
+          stickerClips: graphicsEngine?.getAllStickerClips() || [],
+        };
+        await autoSaveManager.forceSave(fullProject);
+      },
+
+      getFullProject: (): Project => {
+        const { project } = get();
+        const titleEngine = useEngineStore.getState().getTitleEngine();
+        const graphicsEngine = useEngineStore.getState().getGraphicsEngine();
+
+        return {
+          ...project,
+          textClips: titleEngine?.getAllTextClips() || [],
+          shapeClips: graphicsEngine?.getAllShapeClips() || [],
+          svgClips: graphicsEngine?.getAllSVGClips() || [],
+          stickerClips: graphicsEngine?.getAllStickerClips() || [],
+        };
       },
 
       // Text clip actions

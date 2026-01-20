@@ -482,7 +482,7 @@ class ProjectManager {
     });
   }
 
-  private async addToRecent(
+  async addToRecent(
     project: Project,
     fileHandle?: FileSystemFileHandle,
   ): Promise<void> {
