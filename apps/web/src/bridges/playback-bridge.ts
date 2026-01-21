@@ -15,6 +15,7 @@ export class PlaybackBridge {
   private unsubscribeTimelineStore: (() => void) | null = null;
   private unsubscribePlaybackEvents: (() => void) | null = null;
   private initialized = false;
+  private isUpdatingProject = false;
 
   async initialize(): Promise<void> {
     if (this.initialized) {
@@ -126,7 +127,9 @@ export class PlaybackBridge {
           const currentTime = timelineStore.playheadPosition;
           const wasPlaying = timelineStore.playbackState === "playing";
 
+          this.isUpdatingProject = true;
           this.playbackController.setProject(project);
+          this.isUpdatingProject = false;
 
           this.playbackController.scrubTo(currentTime);
           if (wasPlaying) {
@@ -144,6 +147,10 @@ export class PlaybackBridge {
   private syncPlaybackState(
     controllerState: "stopped" | "playing" | "paused" | "seeking",
   ): void {
+    if (this.isUpdatingProject) {
+      return;
+    }
+
     const timelineStore = useTimelineStore.getState();
     const currentState = timelineStore.playbackState;
 
