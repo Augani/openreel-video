@@ -214,7 +214,7 @@ export const HistoryPanel: React.FC = () => {
                 />
                 <button
                   onClick={handleCreateSnapshot}
-                  className="px-2 py-1 bg-primary text-black rounded text-xs hover:bg-primary/80 transition-colors"
+                  className="px-2 py-1 bg-primary text-white rounded text-xs hover:bg-primary/80 transition-colors"
                 >
                   Save
                 </button>

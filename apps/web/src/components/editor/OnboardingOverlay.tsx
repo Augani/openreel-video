@@ -8,7 +8,6 @@ import {
   Wand2,
   Download,
   HelpCircle,
-  Sparkles,
 } from "lucide-react";
 import { Dialog, DialogContent } from "@openreel/ui";
 
@@ -33,7 +32,7 @@ const ONBOARDING_STEPS: OnboardingStep[] = [
     title: "Welcome to OpenReel",
     description:
       "A professional video editor right in your browser. Let's take a quick tour of the key features.",
-    icon: <Sparkles size={32} className="text-primary" />,
+    icon: <Wand2 size={32} className="text-primary" />,
     tips: [
       "No installation required - everything runs in your browser",
       "Your projects are saved locally and never leave your device",
@@ -201,7 +200,7 @@ export const OnboardingOverlay: React.FC<OnboardingOverlayProps> = ({
 
           <button
             onClick={handleNext}
-            className="flex items-center gap-1 px-5 py-2 bg-primary text-black rounded-lg text-sm font-medium hover:bg-primary/80 transition-colors"
+            className="flex items-center gap-1 px-5 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/80 transition-colors"
           >
             {isLastStep ? "Get Started" : "Next"}
             {!isLastStep && <ChevronRight size={16} />}

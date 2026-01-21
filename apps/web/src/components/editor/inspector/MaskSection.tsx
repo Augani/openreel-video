@@ -357,8 +357,8 @@ export const MaskSection: React.FC<MaskSectionProps> = ({ clipId }) => {
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-2 p-2 bg-gradient-to-r from-purple-500/20 to-blue-500/20 rounded-lg border border-purple-500/30">
-        <Square size={16} className="text-purple-400" />
+      <div className="flex items-center gap-2 p-2 bg-gradient-to-r bg-primary/10 rounded-lg border border-primary/30">
+        <Square size={16} className="text-primary" />
         <div className="flex-1">
           <span className="text-[11px] font-medium text-text-primary">
             Masking

@@ -151,3 +151,14 @@ export {
   type BeatSyncState,
   type BeatSyncOptions,
 } from "./beat-sync-bridge";
+
+export {
+  SilenceCutBridge,
+  getSilenceCutBridge,
+  disposeSilenceCutBridge,
+  DEFAULT_SILENCE_SETTINGS,
+  type SilenceSettings,
+  type SilentRegion,
+  type SilenceAnalysisResult,
+  type SilenceProgressCallback,
+} from "./silence-cut-bridge";

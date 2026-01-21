@@ -185,8 +185,8 @@ export const NestedSequenceSection: React.FC<NestedSequenceSectionProps> = ({
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-2 p-2 bg-gradient-to-r from-purple-500/20 to-indigo-500/20 rounded-lg border border-purple-500/30">
-        <Layers size={16} className="text-purple-400" />
+      <div className="flex items-center gap-2 p-2 bg-gradient-to-r bg-primary/10 rounded-lg border border-primary/30">
+        <Layers size={16} className="text-primary" />
         <div className="flex-1">
           <span className="text-[11px] font-medium text-text-primary">
             Nested Sequences
@@ -198,9 +198,9 @@ export const NestedSequenceSection: React.FC<NestedSequenceSectionProps> = ({
       </div>
 
       {currentCompound && (
-        <div className="p-3 bg-purple-500/10 border border-purple-500/20 rounded-lg space-y-2">
+        <div className="p-3 bg-primary/10 border border-primary/20 rounded-lg space-y-2">
           <div className="flex items-center gap-2">
-            <FolderOpen size={14} className="text-purple-400" />
+            <FolderOpen size={14} className="text-primary" />
             <span className="text-[11px] font-medium text-text-primary">
               {currentCompound.name}
             </span>
@@ -243,7 +243,7 @@ export const NestedSequenceSection: React.FC<NestedSequenceSectionProps> = ({
           disabled={selectedClips.length < 2}
           className={`w-full py-2.5 rounded-lg text-[11px] font-medium flex items-center justify-center gap-2 transition-colors ${
             selectedClips.length >= 2
-              ? "bg-purple-500/20 border border-purple-500/30 text-purple-400 hover:bg-purple-500/30"
+              ? "bg-primary/20 border border-primary/30 text-primary hover:bg-primary/20"
               : "bg-background-tertiary text-text-muted cursor-not-allowed"
           }`}
         >

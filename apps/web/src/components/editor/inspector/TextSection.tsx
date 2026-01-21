@@ -82,7 +82,7 @@ const ToggleButtonGroup: React.FC<{
         onClick={() => onChange(option.value)}
         className={`p-1.5 rounded transition-colors ${
           value === option.value
-            ? "bg-primary text-black"
+            ? "bg-primary text-white"
             : "bg-background-tertiary border border-border text-text-secondary hover:text-text-primary"
         }`}
         title={option.label}
@@ -315,7 +315,7 @@ export const TextSection: React.FC<TextSectionProps> = ({ clipId }) => {
               }
               className={`p-1.5 rounded transition-colors ${
                 style.fontWeight === "bold"
-                  ? "bg-primary text-black"
+                  ? "bg-primary text-white"
                   : "bg-background-secondary border border-border text-text-secondary hover:text-text-primary"
               }`}
               title="Bold"
@@ -330,7 +330,7 @@ export const TextSection: React.FC<TextSectionProps> = ({ clipId }) => {
               }
               className={`p-1.5 rounded transition-colors ${
                 style.fontStyle === "italic"
-                  ? "bg-primary text-black"
+                  ? "bg-primary text-white"
                   : "bg-background-secondary border border-border text-text-secondary hover:text-text-primary"
               }`}
               title="Italic"
@@ -346,7 +346,7 @@ export const TextSection: React.FC<TextSectionProps> = ({ clipId }) => {
               }
               className={`p-1.5 rounded transition-colors ${
                 style.textDecoration === "underline"
-                  ? "bg-primary text-black"
+                  ? "bg-primary text-white"
                   : "bg-background-secondary border border-border text-text-secondary hover:text-text-primary"
               }`}
               title="Underline"
@@ -401,7 +401,7 @@ export const TextSection: React.FC<TextSectionProps> = ({ clipId }) => {
             </button>
             <button
               onClick={handleCenterBoth}
-              className="p-1.5 rounded bg-primary text-black transition-colors"
+              className="p-1.5 rounded bg-primary text-white transition-colors"
               title="Center Both"
             >
               <Crosshair size={12} />

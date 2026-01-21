@@ -154,7 +154,7 @@ const TransitionPreview: React.FC<{
   return (
     <div className="relative w-full h-8 rounded overflow-hidden bg-background-secondary mb-2">
       <div
-        className="absolute inset-0 bg-blue-500/30"
+        className="absolute inset-0 bg-primary/20"
         style={{ ...styles.clipA, transition: "none" }}
       />
       <div

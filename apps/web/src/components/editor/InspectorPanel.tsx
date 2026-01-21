@@ -35,6 +35,7 @@ import {
   ClipTransitionSection,
   BackgroundRemovalSection,
   AutoReframeSection,
+  AutoCutSilenceSection,
   CropSection,
   SpeedSection,
   MotionPresetsPanel,
@@ -627,6 +628,13 @@ export const InspectorPanel: React.FC = () => {
               </div>
             )}
 
+            {/* AI Auto Cut Silence - Video and Audio clips */}
+            {showAudioEffects && (
+              <div className="mb-4">
+                <AutoCutSilenceSection clipId={clipId} />
+              </div>
+            )}
+
             {/* Transform */}
             {showTransformControls && (
               <Section title="Transform" sectionId="transform">
@@ -730,7 +738,7 @@ export const InspectorPanel: React.FC = () => {
                             }
                             className={`py-1.5 rounded text-[9px] capitalize transition-colors ${
                               (transform.fitMode || "none") === mode
-                                ? "bg-primary text-black"
+                                ? "bg-primary text-white"
                                 : "bg-background-tertiary border border-border text-text-secondary hover:text-text-primary"
                             }`}
                           >
@@ -1026,7 +1034,7 @@ export const InspectorPanel: React.FC = () => {
                   {showVideoControls && (
                     <button
                       onClick={handleRemoveBackground}
-                      className="w-full py-2 bg-background-tertiary hover:bg-primary hover:text-black border border-border hover:border-primary rounded-lg text-[10px] transition-all"
+                      className="w-full py-2 bg-background-tertiary hover:bg-primary hover:text-white border border-border hover:border-primary rounded-lg text-[10px] transition-all"
                     >
                       Remove Background
                     </button>
@@ -1040,7 +1048,7 @@ export const InspectorPanel: React.FC = () => {
                           ? "bg-green-500/20 border-green-500 text-green-400"
                           : isEnhancingAudio
                             ? "bg-background-tertiary border-border text-text-muted cursor-not-allowed"
-                            : "bg-background-tertiary hover:bg-primary hover:text-black border-border hover:border-primary"
+                            : "bg-background-tertiary hover:bg-primary hover:text-white border-border hover:border-primary"
                       }`}
                     >
                       {isEnhancingAudio ? (
@@ -1058,7 +1066,7 @@ export const InspectorPanel: React.FC = () => {
                   {showVideoEffects && (
                     <button
                       onClick={handleAutoColor}
-                      className="w-full py-2 bg-background-tertiary hover:bg-primary hover:text-black border border-border hover:border-primary rounded-lg text-[10px] transition-all"
+                      className="w-full py-2 bg-background-tertiary hover:bg-primary hover:text-white border border-border hover:border-primary rounded-lg text-[10px] transition-all"
                     >
                       Auto-Color
                     </button>
@@ -1151,7 +1159,7 @@ export const InspectorPanel: React.FC = () => {
                     }
                     className={`py-1.5 rounded text-[10px] capitalize transition-colors ${
                       (selectedSubtitle.style?.position || "bottom") === pos
-                        ? "bg-primary text-black"
+                        ? "bg-primary text-white"
                         : "bg-background-tertiary border border-border text-text-secondary hover:text-text-primary"
                     }`}
                   >

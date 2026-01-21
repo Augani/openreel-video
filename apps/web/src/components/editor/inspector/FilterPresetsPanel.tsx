@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo } from "react";
-import { Film, Camera, Moon, Palette, Sparkles, Check } from "lucide-react";
+import { Film, Camera, Moon, Palette, Wand2, Check } from "lucide-react";
 import { Slider } from "@openreel/ui";
 import { useProjectStore } from "../../../stores/project-store";
 import { useUIStore } from "../../../stores/ui-store";
@@ -17,7 +17,7 @@ const CATEGORY_ICONS: Record<string, React.ElementType> = {
   vintage: Camera,
   mood: Moon,
   color: Palette,
-  stylized: Sparkles,
+  stylized: Wand2,
 };
 
 interface PresetCardProps {
@@ -169,7 +169,7 @@ export const FilterPresetsPanel: React.FC<FilterPresetsPanelProps> = ({
               onClick={() => setSelectedCategory(category.id as FilterCategory)}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] whitespace-nowrap transition-colors ${
                 selectedCategory === category.id
-                  ? "bg-primary text-black font-medium"
+                  ? "bg-primary text-white font-medium"
                   : "bg-background-tertiary text-text-secondary hover:text-text-primary"
               }`}
             >

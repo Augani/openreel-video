@@ -79,7 +79,7 @@ const StrokeStyleSelector: React.FC<{
             className={`px-2 py-1 text-[9px] rounded transition-colors ${
               (style.value === undefined && value === undefined) ||
               (style.value && value && style.value[0] === value[0])
-                ? "bg-primary text-black"
+                ? "bg-primary text-white"
                 : "bg-background-tertiary border border-border text-text-secondary hover:text-text-primary"
             }`}
             title={style.label}

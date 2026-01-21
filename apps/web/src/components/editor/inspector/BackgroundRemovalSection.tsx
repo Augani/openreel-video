@@ -3,7 +3,7 @@ import {
   User,
   ImageIcon,
   Palette,
-  Sparkles,
+  Droplets,
   Loader2,
   Info,
 } from "lucide-react";
@@ -28,7 +28,7 @@ const BACKGROUND_MODES: {
   label: string;
   icon: React.ReactNode;
 }[] = [
-  { value: "blur", label: "Blur", icon: <Sparkles size={14} /> },
+  { value: "blur", label: "Blur", icon: <Droplets size={14} /> },
   { value: "color", label: "Color", icon: <Palette size={14} /> },
   { value: "image", label: "Image", icon: <ImageIcon size={14} /> },
   { value: "transparent", label: "Transparent", icon: <User size={14} /> },
@@ -150,9 +150,9 @@ export const BackgroundRemovalSection: React.FC<
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between p-2 bg-gradient-to-r from-purple-500/20 to-pink-500/20 rounded-lg border border-purple-500/30">
+      <div className="flex items-center justify-between p-2 bg-primary/10 rounded-lg border border-primary/30">
         <div className="flex items-center gap-2">
-          <User size={16} className="text-purple-400" />
+          <User size={16} className="text-primary" />
           <div>
             <span className="text-[11px] font-medium text-text-primary">
               Background Removal
@@ -167,7 +167,7 @@ export const BackgroundRemovalSection: React.FC<
           disabled={isInitializing || isProcessing}
           className={`px-3 py-1 text-[10px] font-medium rounded transition-colors ${
             settings.enabled
-              ? "bg-purple-500 text-white"
+              ? "bg-primary text-white"
               : "bg-background-tertiary text-text-secondary hover:bg-background-secondary"
           }`}
         >
@@ -194,7 +194,7 @@ export const BackgroundRemovalSection: React.FC<
                   onClick={() => updateSettings({ mode: mode.value })}
                   className={`flex flex-col items-center gap-1 p-2 rounded transition-colors ${
                     settings.mode === mode.value
-                      ? "bg-purple-500/30 border border-purple-500"
+                      ? "bg-primary/20 border border-primary"
                       : "bg-background-secondary hover:bg-background-primary border border-transparent"
                   }`}
                 >
@@ -241,7 +241,7 @@ export const BackgroundRemovalSection: React.FC<
                     onClick={() => updateSettings({ backgroundColor: color })}
                     className={`w-6 h-6 rounded border-2 transition-all ${
                       settings.backgroundColor === color
-                        ? "border-purple-500 scale-110"
+                        ? "border-primary scale-110"
                         : "border-transparent hover:scale-105"
                     }`}
                     style={{ backgroundColor: color }}
@@ -335,8 +335,8 @@ export const BackgroundRemovalSection: React.FC<
             />
           </div>
 
-          <div className="flex items-start gap-2 p-2 bg-blue-500/10 rounded border border-blue-500/20">
-            <Info size={14} className="text-blue-400 flex-shrink-0 mt-0.5" />
+          <div className="flex items-start gap-2 p-2 bg-primary/10 rounded border border-primary/20">
+            <Info size={14} className="text-primary flex-shrink-0 mt-0.5" />
             <p className="text-[9px] text-text-muted">
               Background removal is processed in real-time. For best results,
               export your video after previewing.

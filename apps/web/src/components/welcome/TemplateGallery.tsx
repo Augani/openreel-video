@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo, useEffect } from "react";
-import { Search, Loader2, Sparkles } from "lucide-react";
+import { Search, Loader2, Layers } from "lucide-react";
 import { Input } from "@openreel/ui";
 import { useEngineStore } from "../../stores/engine-store";
 import {
@@ -192,7 +192,7 @@ export const TemplateGallery: React.FC<TemplateGalleryProps> = ({
       {filteredTemplates.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16">
           <div className="w-14 h-14 rounded-2xl bg-background-tertiary flex items-center justify-center mb-4">
-            <Sparkles size={24} className="text-text-muted" />
+            <Layers size={24} className="text-text-muted" />
           </div>
           <p className="text-base font-medium text-text-primary mb-1">
             No templates found

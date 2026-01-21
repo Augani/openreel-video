@@ -70,7 +70,7 @@ const TemplateCard: React.FC<TemplateCardProps> = ({
       <div className="flex items-start gap-3 w-full">
         <div
           className={`w-10 h-10 shrink-0 rounded-lg flex items-center justify-center ${
-            isSelected ? "bg-primary text-black" : "bg-background-secondary"
+            isSelected ? "bg-primary text-white" : "bg-background-secondary"
           }`}
         >
           <Icon size={18} />
@@ -110,7 +110,7 @@ const TemplateCard: React.FC<TemplateCardProps> = ({
             e.stopPropagation();
             onApply();
           }}
-          className="mt-3 w-full py-1.5 text-[10px] font-medium bg-primary text-black rounded-md hover:bg-primary/90 transition-colors"
+          className="mt-3 w-full py-1.5 text-[10px] font-medium bg-primary text-white rounded-md hover:bg-primary/90 transition-colors"
         >
           Use This Template
         </button>
@@ -381,7 +381,7 @@ export const TemplatesBrowserPanel: React.FC<TemplatesBrowserPanelProps> = ({
           onClick={() => setSelectedCategory("all")}
           className={`shrink-0 px-3 py-1.5 rounded-lg text-[10px] whitespace-nowrap transition-colors ${
             selectedCategory === "all"
-              ? "bg-primary text-black font-medium"
+              ? "bg-primary text-white font-medium"
               : "bg-background-tertiary text-text-secondary hover:text-text-primary"
           }`}
         >
@@ -395,7 +395,7 @@ export const TemplatesBrowserPanel: React.FC<TemplatesBrowserPanelProps> = ({
               onClick={() => setSelectedCategory(category.id)}
               className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] whitespace-nowrap transition-colors ${
                 selectedCategory === category.id
-                  ? "bg-primary text-black font-medium"
+                  ? "bg-primary text-white font-medium"
                   : "bg-background-tertiary text-text-secondary hover:text-text-primary"
               }`}
             >

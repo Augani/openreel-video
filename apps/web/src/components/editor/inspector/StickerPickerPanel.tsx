@@ -140,7 +140,7 @@ export const StickerPickerPanel: React.FC = () => {
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2 p-2 bg-gradient-to-r from-pink-500/20 to-rose-500/20 rounded-lg border border-pink-500/30">
-        <Smile size={16} className="text-pink-400" />
+        <Smile size={16} className="text-primary" />
         <div>
           <span className="text-[11px] font-medium text-text-primary">
             Stickers & Emojis
@@ -156,7 +156,7 @@ export const StickerPickerPanel: React.FC = () => {
           onClick={() => setActiveTab("emojis")}
           className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-[10px] transition-colors ${
             activeTab === "emojis"
-              ? "bg-primary text-black font-medium"
+              ? "bg-primary text-white font-medium"
               : "bg-background-tertiary text-text-secondary hover:text-text-primary"
           }`}
         >
@@ -167,7 +167,7 @@ export const StickerPickerPanel: React.FC = () => {
           onClick={() => setActiveTab("stickers")}
           className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-[10px] transition-colors ${
             activeTab === "stickers"
-              ? "bg-primary text-black font-medium"
+              ? "bg-primary text-white font-medium"
               : "bg-background-tertiary text-text-secondary hover:text-text-primary"
           }`}
         >
@@ -200,7 +200,7 @@ export const StickerPickerPanel: React.FC = () => {
               onClick={() => setSelectedCategory(cat.id)}
               className={`px-2 py-1 rounded text-[9px] whitespace-nowrap transition-colors flex items-center gap-1 ${
                 selectedCategory === cat.id
-                  ? "bg-primary text-black"
+                  ? "bg-primary text-white"
                   : "bg-background-tertiary text-text-muted hover:text-text-primary"
               }`}
             >
@@ -221,7 +221,7 @@ export const StickerPickerPanel: React.FC = () => {
                 onClick={() => setSelectedCategory(cat.id)}
                 className={`px-2 py-1 rounded text-[9px] whitespace-nowrap transition-colors ${
                   selectedCategory === cat.id
-                    ? "bg-primary text-black"
+                    ? "bg-primary text-white"
                     : "bg-background-tertiary text-text-muted hover:text-text-primary"
                 }`}
               >

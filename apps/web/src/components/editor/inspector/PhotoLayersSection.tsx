@@ -261,7 +261,7 @@ export const PhotoLayersSection: React.FC<PhotoLayersSectionProps> = ({
         <p className="text-[10px] text-text-muted">No layers</p>
         <button
           onClick={onAddLayer}
-          className="mt-2 px-3 py-1.5 text-[10px] bg-primary text-black rounded hover:bg-primary/90 transition-colors"
+          className="mt-2 px-3 py-1.5 text-[10px] bg-primary text-white rounded hover:bg-primary/90 transition-colors"
         >
           Add Layer
         </button>

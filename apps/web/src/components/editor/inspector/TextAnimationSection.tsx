@@ -1,5 +1,5 @@
 import React, { useCallback } from "react";
-import { Sparkles, Clock, Play } from "lucide-react";
+import { Type, Clock, Play } from "lucide-react";
 import { useProjectStore } from "../../../stores/project-store";
 import type { TextAnimationPreset, TextAnimationParams } from "@openreel/core";
 import {
@@ -186,7 +186,7 @@ export const TextAnimationSection: React.FC<TextAnimationSectionProps> = ({
   if (!textClip) {
     return (
       <div className="p-4 text-center">
-        <Sparkles size={24} className="mx-auto mb-2 text-text-muted" />
+        <Type size={24} className="mx-auto mb-2 text-text-muted" />
         <p className="text-[10px] text-text-muted">No text clip selected</p>
       </div>
     );

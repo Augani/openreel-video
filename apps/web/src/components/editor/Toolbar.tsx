@@ -14,7 +14,7 @@ import {
   Check,
   FileCode,
   Settings,
-  Sparkles,
+  Zap,
   Circle,
   History,
 } from "lucide-react";
@@ -655,7 +655,7 @@ export const Toolbar: React.FC = () => {
   }> = [
     {
       label: getRecommendedLabel(),
-      icon: Sparkles,
+      icon: Zap,
       desc: `${projectRes} H.264 - Best for your video`,
       type: "mp4",
       recommended: true,
@@ -1015,7 +1015,7 @@ export const Toolbar: React.FC = () => {
                     onClick={() => setIsExportDialogOpen(true)}
                   >
                     <div className="p-2 bg-primary/10 rounded-lg text-primary transition-colors">
-                      <Sparkles size={18} />
+                      <Settings size={18} />
                     </div>
                     <div className="flex-1">
                       <div className="text-sm font-medium text-primary transition-colors">

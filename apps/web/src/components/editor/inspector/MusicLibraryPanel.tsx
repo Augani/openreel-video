@@ -55,7 +55,7 @@ const SoundCard: React.FC<SoundCardProps> = ({
           onClick={isPlaying ? onStop : onPlay}
           className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${
             isPlaying
-              ? "bg-primary text-black"
+              ? "bg-primary text-white"
               : "bg-background-secondary hover:bg-primary/20"
           }`}
         >
@@ -83,7 +83,7 @@ const SoundCard: React.FC<SoundCardProps> = ({
         </div>
         <button
           onClick={onAdd}
-          className="p-1.5 rounded-md bg-primary/20 hover:bg-primary text-primary hover:text-black transition-colors"
+          className="p-1.5 rounded-md bg-primary/20 hover:bg-primary text-primary hover:text-white transition-colors"
           title="Add to timeline"
         >
           <Plus size={14} />
@@ -274,7 +274,7 @@ export const MusicLibraryPanel: React.FC = () => {
           onClick={() => setActiveTab("music")}
           className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-[10px] transition-colors ${
             activeTab === "music"
-              ? "bg-primary text-black font-medium"
+              ? "bg-primary text-white font-medium"
               : "bg-background-tertiary text-text-secondary hover:text-text-primary"
           }`}
         >
@@ -285,7 +285,7 @@ export const MusicLibraryPanel: React.FC = () => {
           onClick={() => setActiveTab("sfx")}
           className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-[10px] transition-colors ${
             activeTab === "sfx"
-              ? "bg-primary text-black font-medium"
+              ? "bg-primary text-white font-medium"
               : "bg-background-tertiary text-text-secondary hover:text-text-primary"
           }`}
         >
@@ -314,7 +314,7 @@ export const MusicLibraryPanel: React.FC = () => {
             onClick={() => setSelectedGenre("all")}
             className={`px-2 py-1 rounded text-[9px] whitespace-nowrap transition-colors ${
               selectedGenre === "all"
-                ? "bg-primary text-black"
+                ? "bg-primary text-white"
                 : "bg-background-tertiary text-text-muted hover:text-text-primary"
             }`}
           >
@@ -326,7 +326,7 @@ export const MusicLibraryPanel: React.FC = () => {
               onClick={() => setSelectedGenre(genre.id)}
               className={`px-2 py-1 rounded text-[9px] whitespace-nowrap transition-colors ${
                 selectedGenre === genre.id
-                  ? "bg-primary text-black"
+                  ? "bg-primary text-white"
                   : "bg-background-tertiary text-text-muted hover:text-text-primary"
               }`}
             >
@@ -342,7 +342,7 @@ export const MusicLibraryPanel: React.FC = () => {
             onClick={() => setSelectedSfxCategory("all")}
             className={`px-2 py-1 rounded text-[9px] whitespace-nowrap transition-colors ${
               selectedSfxCategory === "all"
-                ? "bg-primary text-black"
+                ? "bg-primary text-white"
                 : "bg-background-tertiary text-text-muted hover:text-text-primary"
             }`}
           >
@@ -354,7 +354,7 @@ export const MusicLibraryPanel: React.FC = () => {
               onClick={() => setSelectedSfxCategory(cat.id)}
               className={`px-2 py-1 rounded text-[9px] whitespace-nowrap transition-colors ${
                 selectedSfxCategory === cat.id
-                  ? "bg-primary text-black"
+                  ? "bg-primary text-white"
                   : "bg-background-tertiary text-text-muted hover:text-text-primary"
               }`}
             >
@@ -372,7 +372,7 @@ export const MusicLibraryPanel: React.FC = () => {
               onClick={() => toggleMood(mood.id)}
               className={`px-2 py-0.5 rounded-full text-[8px] transition-colors ${
                 selectedMoods.includes(mood.id)
-                  ? "bg-primary text-black"
+                  ? "bg-primary text-white"
                   : "bg-background-secondary text-text-muted hover:text-text-primary"
               }`}
             >

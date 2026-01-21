@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo } from "react";
-import { Mic, MicOff, Languages, Sparkles, AlertCircle } from "lucide-react";
+import { Mic, MicOff, Languages, AlertCircle } from "lucide-react";
 import { useEngineStore } from "../../../stores/engine-store";
 import { useProjectStore } from "../../../stores/project-store";
 import { SpeechToTextEngine } from "@openreel/core";
@@ -141,7 +141,7 @@ export const AutoCaptionPanel: React.FC = () => {
   return (
     <div className="space-y-4 w-full min-w-0 max-w-full">
       <div className="flex items-center gap-2 p-2 bg-primary/10 rounded-lg border border-primary/30">
-        <Sparkles size={16} className="text-primary" />
+        <Mic size={16} className="text-primary" />
         <div>
           <span className="text-[11px] font-medium text-text-primary">
             Auto-Caption
@@ -233,7 +233,7 @@ export const AutoCaptionPanel: React.FC = () => {
             </span>
             <button
               onClick={handleApplySegments}
-              className="px-2 py-1 text-[10px] bg-primary text-black rounded hover:bg-primary/80 transition-colors"
+              className="px-2 py-1 text-[10px] bg-primary text-white rounded hover:bg-primary/80 transition-colors"
             >
               Add to Timeline
             </button>
@@ -259,7 +259,7 @@ export const AutoCaptionPanel: React.FC = () => {
         {!isTranscribing ? (
           <button
             onClick={handleStartTranscription}
-            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-primary text-black rounded-lg hover:bg-primary/80 transition-colors"
+            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-primary text-white rounded-lg hover:bg-primary/80 transition-colors"
           >
             <Mic size={16} />
             <span className="text-[11px] font-medium">Start Recording</span>

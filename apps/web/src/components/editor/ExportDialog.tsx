@@ -12,7 +12,6 @@ import {
   HardDrive,
   Video,
   Share2,
-  Sparkles,
   Cpu,
   Gauge,
   Zap,
@@ -317,7 +316,7 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
                   }`}
                 >
                   <div className="flex items-center gap-2">
-                    <Sparkles size={14} />
+                    <Zap size={14} />
                     <span className="font-medium">For Your Video</span>
                   </div>
                   <span className="text-[10px] text-text-muted mt-0.5 ml-5">
@@ -630,7 +629,7 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
                 <div className="col-span-2 border-t border-border pt-4 mt-2">
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2">
-                      <Sparkles size={14} className="text-primary" />
+                      <Zap size={14} className="text-primary" />
                       <Label htmlFor="upscaling-switch" className="text-xs font-medium text-text-secondary">
                         Enhance Quality (Upscaling)
                       </Label>

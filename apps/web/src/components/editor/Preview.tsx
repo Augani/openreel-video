@@ -238,6 +238,9 @@ export const Preview: React.FC = () => {
   // Throttle store updates during interaction (update at most every 32ms ~30fps)
   const lastStoreUpdateRef = useRef<number>(0);
   const STORE_UPDATE_THROTTLE_MS = 32;
+  // Throttle playhead updates during playback to reduce React re-renders
+  const lastPlayheadUpdateRef = useRef<number>(0);
+  const PLAYHEAD_UPDATE_THROTTLE_MS = 50;
   // Live transform state for immediate visual feedback during interaction
   const [liveTransform, setLiveTransform] = useState<{
     position: { x: number; y: number };
@@ -1940,7 +1943,11 @@ export const Preview: React.FC = () => {
             );
           }
 
-          setPlayheadPosition(currentPlayhead);
+          const nowNoClip = performance.now();
+          if (nowNoClip - lastPlayheadUpdateRef.current >= PLAYHEAD_UPDATE_THROTTLE_MS) {
+            lastPlayheadUpdateRef.current = nowNoClip;
+            setPlayheadPosition(currentPlayhead);
+          }
           rafId = requestAnimationFrame(() => { drawFrame(); });
           return;
         }
@@ -1949,7 +1956,11 @@ export const Preview: React.FC = () => {
         const cached = videoCache.get(clip.mediaId);
 
         if (!cached) {
-          setPlayheadPosition(currentPlayhead);
+          const nowNoCached = performance.now();
+          if (nowNoCached - lastPlayheadUpdateRef.current >= PLAYHEAD_UPDATE_THROTTLE_MS) {
+            lastPlayheadUpdateRef.current = nowNoCached;
+            setPlayheadPosition(currentPlayhead);
+          }
           rafId = requestAnimationFrame(() => { drawFrame(); });
           return;
         }
@@ -2084,7 +2095,11 @@ export const Preview: React.FC = () => {
           );
         }
 
-        setPlayheadPosition(currentPlayhead);
+        const nowPlayhead = performance.now();
+        if (nowPlayhead - lastPlayheadUpdateRef.current >= PLAYHEAD_UPDATE_THROTTLE_MS) {
+          lastPlayheadUpdateRef.current = nowPlayhead;
+          setPlayheadPosition(currentPlayhead);
+        }
 
         // Schedule next frame using requestVideoFrameCallback for better sync with 4K
         if (supportsVideoFrameCallback && currentVideo && !currentVideo.paused) {
@@ -2514,7 +2529,11 @@ export const Preview: React.FC = () => {
                 );
               }
 
-              setPlayheadPosition(currentPlayhead);
+              const nowPh = performance.now();
+              if (nowPh - lastPlayheadUpdateRef.current >= PLAYHEAD_UPDATE_THROTTLE_MS) {
+                lastPlayheadUpdateRef.current = nowPh;
+                setPlayheadPosition(currentPlayhead);
+              }
 
               const now = performance.now();
               const elapsed = now - lastFrameTimestamp;
@@ -3287,7 +3306,11 @@ export const Preview: React.FC = () => {
 
           frameCount++;
           masterClock.reportVideoTime(currentPlayhead);
-          setPlayheadPosition(currentPlayhead);
+          const nowMulti = performance.now();
+          if (nowMulti - lastPlayheadUpdateRef.current >= PLAYHEAD_UPDATE_THROTTLE_MS) {
+            lastPlayheadUpdateRef.current = nowMulti;
+            setPlayheadPosition(currentPlayhead);
+          }
 
           const now = performance.now();
           const elapsed = now - lastFrameTimestamp;

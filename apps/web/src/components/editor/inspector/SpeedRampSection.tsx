@@ -400,8 +400,8 @@ export const SpeedRampSection: React.FC<SpeedRampSectionProps> = ({ clip }) => {
           onClick={handleReverseToggle}
           className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-[10px] rounded-lg border transition-colors ${
             isReverse
-              ? "bg-orange-500/20 border-orange-500 text-orange-400"
-              : "bg-background-tertiary border-border text-text-secondary hover:border-orange-500/50"
+              ? "bg-primary/20 border-primary text-primary"
+              : "bg-background-tertiary border-border text-text-secondary hover:border-primary/50"
           }`}
         >
           <RotateCcw size={12} />
@@ -476,7 +476,7 @@ export const SpeedRampSection: React.FC<SpeedRampSectionProps> = ({ clip }) => {
         {isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
         <span className="font-medium">Freeze Frames</span>
         {freezeFrames.length > 0 && (
-          <span className="ml-auto text-[9px] text-cyan-400">
+          <span className="ml-auto text-[9px] text-primary">
             {freezeFrames.length} freeze
           </span>
         )}
@@ -486,7 +486,7 @@ export const SpeedRampSection: React.FC<SpeedRampSectionProps> = ({ clip }) => {
         <div className="space-y-2">
           <button
             onClick={handleCreateFreezeFrame}
-            className="w-full flex items-center justify-center gap-1.5 py-2 text-[10px] bg-cyan-500/20 border border-cyan-500/30 text-cyan-400 rounded-lg hover:bg-cyan-500/30 transition-colors"
+            className="w-full flex items-center justify-center gap-1.5 py-2 text-[10px] bg-primary/20 border border-primary/30 text-primary rounded-lg hover:bg-primary/20 transition-colors"
           >
             <Pause size={12} />
             Add Freeze Frame at Playhead
@@ -499,12 +499,12 @@ export const SpeedRampSection: React.FC<SpeedRampSectionProps> = ({ clip }) => {
                   key={ff.id}
                   className="flex items-center gap-2 p-1.5 bg-background-tertiary rounded text-[9px]"
                 >
-                  <Pause size={10} className="text-cyan-400" />
+                  <Pause size={10} className="text-primary" />
                   <span className="text-text-secondary">
                     {ff.startTime.toFixed(2)}s
                   </span>
                   <span className="text-text-muted">for</span>
-                  <span className="text-cyan-400 font-mono">
+                  <span className="text-primary font-mono">
                     {ff.duration.toFixed(1)}s
                   </span>
                   <button

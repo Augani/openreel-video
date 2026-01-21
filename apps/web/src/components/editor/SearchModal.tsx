@@ -21,7 +21,6 @@ import {
   Clock,
   Eye,
   Sliders,
-  Sparkles,
 } from "lucide-react";
 import { Dialog, DialogContent, Input } from "@openreel/ui";
 import { useUIStore } from "../../stores/ui-store";
@@ -180,7 +179,7 @@ const SEARCHABLE_EFFECTS: SearchItem[] = [
     name: "Keyframes",
     category: "Animation",
     keywords: ["keyframe", "animate", "animation", "ease", "interpolate"],
-    icon: Sparkles,
+    icon: Zap,
     description: "Animate properties over time",
     sectionId: "keyframes",
     clipTypes: ["video", "image", "text", "shape"],
@@ -200,7 +199,7 @@ const SEARCHABLE_EFFECTS: SearchItem[] = [
     name: "Motion Presets",
     category: "Animation",
     keywords: ["motion", "preset", "zoom", "pan", "shake", "bounce"],
-    icon: Sparkles,
+    icon: Zap,
     description: "Pre-built motion animations",
     sectionId: "motion-presets",
     clipTypes: ["video", "image"],
@@ -270,7 +269,7 @@ const CATEGORIES = [
   { id: "video", name: "Video", icon: Video },
   { id: "audio", name: "Audio", icon: Music2 },
   { id: "text", name: "Text", icon: Type },
-  { id: "animation", name: "Animation", icon: Sparkles },
+  { id: "animation", name: "Animation", icon: Zap },
 ];
 
 interface SearchModalProps {
@@ -451,7 +450,7 @@ export const SearchModal: React.FC<SearchModalProps> = ({
               onClick={() => setSelectedCategory(cat.id)}
               className={`px-3 py-1.5 rounded-lg text-[11px] font-medium transition-all ${
                 selectedCategory === cat.id
-                  ? "bg-primary text-black"
+                  ? "bg-primary text-white"
                   : "text-text-secondary hover:text-text-primary hover:bg-background-elevated"
               }`}
             >
@@ -489,7 +488,7 @@ export const SearchModal: React.FC<SearchModalProps> = ({
                     <div
                       className={`p-2 rounded-lg ${
                         index === selectedIndex
-                          ? "bg-primary text-black"
+                          ? "bg-primary text-white"
                           : "bg-background-tertiary text-text-secondary"
                       }`}
                     >

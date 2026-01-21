@@ -256,7 +256,7 @@ export const EmphasisAnimationSection: React.FC<
           onClick={() => handleTypeChange("none")}
           className={`py-2 rounded-lg text-[10px] font-medium transition-all ${
             currentAnimation.type === "none"
-              ? "bg-primary text-black"
+              ? "bg-primary text-white"
               : "bg-background-tertiary border border-border text-text-secondary hover:text-text-primary"
           }`}
         >
@@ -283,7 +283,7 @@ export const EmphasisAnimationSection: React.FC<
                 onClick={() => handleTypeChange(anim.type)}
                 className={`py-2 px-2 rounded-lg text-[10px] transition-all text-left ${
                   currentAnimation.type === anim.type
-                    ? "bg-primary text-black"
+                    ? "bg-primary text-white"
                     : "bg-background-tertiary border border-border text-text-secondary hover:text-text-primary hover:border-primary/50"
                 }`}
               >
@@ -563,7 +563,7 @@ export const EmphasisAnimationSection: React.FC<
                       className={`py-1.5 rounded text-[9px] transition-all ${
                         currentAnimation.focusPoint?.x === preset.x &&
                         currentAnimation.focusPoint?.y === preset.y
-                          ? "bg-primary text-black"
+                          ? "bg-primary text-white"
                           : "bg-background-tertiary border border-border text-text-muted hover:text-text-primary"
                       }`}
                     >

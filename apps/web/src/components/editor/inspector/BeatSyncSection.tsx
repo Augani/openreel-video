@@ -202,7 +202,7 @@ export const BeatSyncSection: React.FC<BeatSyncSectionProps> = ({ clipId }) => {
                     onClick={() => setManualBpm(bpm)}
                     className={`py-1.5 rounded text-[9px] transition-colors ${
                       manualBpm === bpm
-                        ? "bg-primary text-black"
+                        ? "bg-primary text-white"
                         : "bg-background-secondary border border-border text-text-secondary hover:text-text-primary"
                     }`}
                   >

@@ -207,7 +207,7 @@ export const KeyboardShortcutsOverlay: React.FC<
             onClick={() => setActiveCategory("all")}
             className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${
               activeCategory === "all"
-                ? "bg-primary text-black"
+                ? "bg-primary text-white"
                 : "text-text-secondary hover:text-text-primary hover:bg-background-tertiary"
             }`}
           >
@@ -219,7 +219,7 @@ export const KeyboardShortcutsOverlay: React.FC<
               onClick={() => setActiveCategory(category)}
               className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${
                 activeCategory === category
-                  ? "bg-primary text-black"
+                  ? "bg-primary text-white"
                   : "text-text-secondary hover:text-text-primary hover:bg-background-tertiary"
               }`}
             >

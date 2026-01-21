@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from "react";
 import {
   Clock,
-  Sparkles,
+  Layers,
   ArrowRight,
   Smartphone,
   Monitor,
@@ -333,7 +333,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ initialTab }) => {
               onClick={() => setViewMode("templates")}
               className="rounded-xl"
             >
-              <Sparkles size={16} />
+              <Layers size={16} />
               Browse templates
             </Button>
             <Button

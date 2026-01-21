@@ -7,7 +7,6 @@ import {
   Video,
   Layers,
   ChevronRight,
-  Sparkles,
   Wand2,
   FileStack,
   Volume2,
@@ -149,7 +148,7 @@ export const AIGenTab: React.FC = () => {
           <p className="text-[11px] text-text-muted mt-1">Automate your editing with intelligent features</p>
         </div>
 
-        <FeatureSection title="Content Generation" icon={Sparkles}>
+        <FeatureSection title="Content Generation" icon={Wand2}>
           <FeatureCard
             icon={Mic}
             title="Text to Speech"

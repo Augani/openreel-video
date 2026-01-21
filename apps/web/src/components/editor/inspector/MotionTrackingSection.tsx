@@ -149,8 +149,8 @@ export const MotionTrackingSection: React.FC<MotionTrackingSectionProps> = ({
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-2 p-2 bg-gradient-to-r from-cyan-500/20 to-blue-500/20 rounded-lg border border-cyan-500/30">
-        <Target size={16} className="text-cyan-400" />
+      <div className="flex items-center gap-2 p-2 bg-primary/10 rounded-lg border border-primary/30">
+        <Target size={16} className="text-primary" />
         <div className="flex-1">
           <span className="text-[11px] font-medium text-text-primary">
             Motion Tracking
@@ -318,7 +318,7 @@ export const MotionTrackingSection: React.FC<MotionTrackingSectionProps> = ({
 
           <button
             onClick={handleStartTracking}
-            className="w-full py-2.5 bg-cyan-500/20 border border-cyan-500/30 rounded-lg text-[11px] font-medium text-cyan-400 hover:bg-cyan-500/30 flex items-center justify-center gap-2 transition-colors"
+            className="w-full py-2.5 bg-primary hover:bg-primary-hover rounded-lg text-[11px] font-medium text-white flex items-center justify-center gap-2 transition-colors"
           >
             <Target size={14} />
             Start Tracking
@@ -330,8 +330,8 @@ export const MotionTrackingSection: React.FC<MotionTrackingSectionProps> = ({
         <div className="space-y-3 p-3 bg-background-tertiary rounded-lg">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-cyan-400 rounded-full animate-pulse" />
-              <span className="text-[11px] font-medium text-cyan-400">
+              <div className="w-2 h-2 bg-primary rounded-full animate-pulse" />
+              <span className="text-[11px] font-medium text-primary">
                 Tracking in Progress
               </span>
             </div>
@@ -353,7 +353,7 @@ export const MotionTrackingSection: React.FC<MotionTrackingSectionProps> = ({
             </div>
             <div className="w-full h-2 bg-background-secondary rounded-full overflow-hidden">
               <div
-                className="h-full bg-gradient-to-r from-cyan-500 to-blue-500 transition-all duration-200"
+                className="h-full bg-primary transition-all duration-200"
                 style={{ width: `${state.progress}%` }}
               />
             </div>

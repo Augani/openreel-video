@@ -171,7 +171,7 @@ export const SVGSection: React.FC<SVGSectionProps> = ({ clipId }) => {
                   onClick={() => handleColorModeChange(mode)}
                   className={`px-2 py-1 text-[9px] rounded capitalize transition-colors ${
                     colorStyle.colorMode === mode
-                      ? "bg-primary text-black"
+                      ? "bg-primary text-white"
                       : "bg-background-tertiary border border-border text-text-secondary hover:text-text-primary"
                   }`}
                 >

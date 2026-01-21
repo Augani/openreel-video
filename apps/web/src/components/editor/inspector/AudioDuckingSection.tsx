@@ -135,8 +135,8 @@ export const AudioDuckingSection: React.FC<AudioDuckingSectionProps> = ({
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-2 p-2 bg-gradient-to-r from-orange-500/20 to-amber-500/20 rounded-lg border border-orange-500/30">
-        <VolumeX size={16} className="text-orange-400" />
+      <div className="flex items-center gap-2 p-2 bg-primary/10 rounded-lg border border-primary/30">
+        <VolumeX size={16} className="text-primary" />
         <div className="flex-1">
           <span className="text-[11px] font-medium text-text-primary">
             Audio Ducking
@@ -370,7 +370,7 @@ export const AudioDuckingSection: React.FC<AudioDuckingSectionProps> = ({
               {!isApplied ? (
                 <button
                   onClick={handleApplyDucking}
-                  className="w-full py-2.5 bg-orange-500/20 border border-orange-500/30 rounded-lg text-[11px] font-medium text-orange-400 hover:bg-orange-500/30 flex items-center justify-center gap-2 transition-colors"
+                  className="w-full py-2.5 bg-primary hover:bg-primary-hover rounded-lg text-[11px] font-medium text-white flex items-center justify-center gap-2 transition-colors"
                 >
                   <VolumeX size={14} />
                   Apply Ducking
