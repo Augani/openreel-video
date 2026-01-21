@@ -3,6 +3,7 @@ import { RotateCcw } from "lucide-react";
 import type { Clip } from "@openreel/core";
 import { getSpeedEngine } from "@openreel/core";
 import { useProjectStore } from "../../../stores/project-store";
+import { Input, Switch, Label } from "@openreel/ui";
 
 interface SpeedSectionProps {
   clip: Clip;
@@ -174,13 +175,13 @@ export const SpeedSection: React.FC<SpeedSectionProps> = ({ clip }) => {
       </div>
 
       <div className="space-y-2">
-        <label className="text-xs text-text-tertiary">Custom Speed</label>
+        <Label className="text-xs text-text-tertiary">Custom Speed</Label>
         <div className="flex gap-2">
-          <input
+          <Input
             type="number"
-            min="0.1"
-            max="100"
-            step="0.1"
+            min={0.1}
+            max={100}
+            step={0.1}
             value={customSpeed}
             onChange={(e) => setCustomSpeed(e.target.value)}
             onBlur={handleCustomSpeed}
@@ -189,7 +190,7 @@ export const SpeedSection: React.FC<SpeedSectionProps> = ({ clip }) => {
                 handleCustomSpeed();
               }
             }}
-            className="flex-1 px-3 py-2 bg-background-tertiary border border-border rounded-lg text-sm text-text-primary focus:outline-none focus:border-primary transition-colors"
+            className="flex-1 bg-background-tertiary border-border text-text-primary"
             placeholder="1.0"
           />
           <span className="flex items-center text-xs text-text-tertiary">
@@ -203,18 +204,14 @@ export const SpeedSection: React.FC<SpeedSectionProps> = ({ clip }) => {
 
       {hasAudio() && (
         <div className="flex items-center justify-between p-3 rounded-lg bg-background-tertiary border border-border">
-          <span className="text-xs text-text-secondary">
+          <Label htmlFor="affect-audio" className="text-xs text-text-secondary">
             Apply speed to audio
-          </span>
-          <label className="relative inline-flex items-center cursor-pointer">
-            <input
-              type="checkbox"
-              checked={affectAudio}
-              onChange={(e) => setAffectAudio(e.target.checked)}
-              className="sr-only peer"
-            />
-            <div className="w-9 h-5 bg-background-elevated peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-primary rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary"></div>
-          </label>
+          </Label>
+          <Switch
+            id="affect-audio"
+            checked={affectAudio}
+            onCheckedChange={setAffectAudio}
+          />
         </div>
       )}
 

@@ -36,7 +36,7 @@ import { MusicLibraryPanel } from "./inspector/MusicLibraryPanel";
 import { MultiCameraPanel } from "./inspector/MultiCameraPanel";
 import { TextToSpeechPanel } from "./inspector/TextToSpeechPanel";
 import { AspectRatioMatchDialog } from "./dialogs/AspectRatioMatchDialog";
-import { IconButton, Input } from "@openreel/ui";
+import { IconButton, Input, ScrollArea } from "@openreel/ui";
 
 const formatDuration = (seconds: number): string => {
   const mins = Math.floor(seconds / 60);
@@ -707,47 +707,48 @@ export const AssetsPanel: React.FC = () => {
 
       {/* Content based on active tab */}
       {activeTab === "media" && (
-        <div
-          className={`flex-1 overflow-y-auto px-5 pb-5 custom-scrollbar ${
-            isDragOver ? "bg-primary/5" : ""
-          }`}
+        <ScrollArea
+          className={`flex-1 ${isDragOver ? "bg-primary/5" : ""}`}
           onDrop={handleDrop}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
         >
-          {filteredItems.length === 0 ? (
-            <EmptyState onImport={triggerFileInput} />
-          ) : (
-            <div className="grid grid-cols-2 gap-3">
-              {filteredItems.map((item) => (
-                <MediaThumbnail
-                  key={item.id}
-                  item={item}
-                  isSelected={isSelected(item.id)}
-                  onSelect={() => handleSelectItem(item.id)}
-                  onDelete={() => handleDeleteItem(item.id)}
-                  onReplace={() => handleReplaceAsset(item.id)}
-                  onDragStart={(e) => handleItemDragStart(e, item)}
-                  onAddToTimeline={() => handleAddToTimeline(item)}
-                />
-              ))}
-            </div>
-          )}
-
-          {/* Drop zone indicator */}
-          {isDragOver && (
-            <div className="absolute inset-4 border-2 border-dashed border-primary rounded-xl flex items-center justify-center bg-primary/5 pointer-events-none z-50 backdrop-blur-sm">
-              <div className="text-primary text-sm font-bold bg-background-secondary px-4 py-2 rounded-full shadow-lg">
-                Drop files to import
+          <div className="px-5 pb-5">
+            {filteredItems.length === 0 ? (
+              <EmptyState onImport={triggerFileInput} />
+            ) : (
+              <div className="grid grid-cols-2 gap-3">
+                {filteredItems.map((item) => (
+                  <MediaThumbnail
+                    key={item.id}
+                    item={item}
+                    isSelected={isSelected(item.id)}
+                    onSelect={() => handleSelectItem(item.id)}
+                    onDelete={() => handleDeleteItem(item.id)}
+                    onReplace={() => handleReplaceAsset(item.id)}
+                    onDragStart={(e) => handleItemDragStart(e, item)}
+                    onAddToTimeline={() => handleAddToTimeline(item)}
+                  />
+                ))}
               </div>
-            </div>
-          )}
-        </div>
+            )}
+
+            {/* Drop zone indicator */}
+            {isDragOver && (
+              <div className="absolute inset-4 border-2 border-dashed border-primary rounded-xl flex items-center justify-center bg-primary/5 pointer-events-none z-50 backdrop-blur-sm">
+                <div className="text-primary text-sm font-bold bg-background-secondary px-4 py-2 rounded-full shadow-lg">
+                  Drop files to import
+                </div>
+              </div>
+            )}
+          </div>
+        </ScrollArea>
       )}
 
       {/* Graphics Tab Content (Task 16) */}
       {activeTab === "graphics" && (
-        <div className="flex-1 overflow-y-auto px-5 pb-5 custom-scrollbar">
+        <ScrollArea className="flex-1">
+          <div className="px-5 pb-5">
           {/* Backgrounds Section */}
           <div className="mb-6">
             <div className="flex items-center justify-between mb-3">
@@ -955,13 +956,14 @@ export const AssetsPanel: React.FC = () => {
               )}
             </div>
           </div>
-        </div>
+          </div>
+        </ScrollArea>
       )}
 
       {/* Text Tab Content */}
       {activeTab === "text" && (
-        <div className="flex-1 overflow-y-auto px-5 pb-5 custom-scrollbar">
-          <div className="space-y-3">
+        <ScrollArea className="flex-1">
+          <div className="px-5 pb-5 space-y-3">
             <button
               onClick={async () => {
                 const state = useProjectStore.getState();
@@ -1067,13 +1069,14 @@ export const AssetsPanel: React.FC = () => {
               ))}
             </div>
           </div>
-        </div>
+        </ScrollArea>
       )}
 
       {/* AI Tab Content */}
       {activeTab === "ai" && (
-        <div className="flex-1 overflow-y-auto p-4 space-y-6">
-          <TemplatesBrowserPanel />
+        <ScrollArea className="flex-1">
+          <div className="p-4 space-y-6">
+            <TemplatesBrowserPanel />
           <div className="border-t border-border pt-4">
             <AutoCaptionPanel />
           </div>
@@ -1089,7 +1092,8 @@ export const AssetsPanel: React.FC = () => {
           <div className="border-t border-border pt-4">
             <MultiCameraPanel />
           </div>
-        </div>
+          </div>
+        </ScrollArea>
       )}
 
       {aspectRatioDialogData && (

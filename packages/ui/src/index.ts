@@ -1,6 +1,9 @@
 export { cn } from "./lib/utils"
 
+export { Alert, AlertTitle, AlertDescription } from "./components/alert"
 export { Button, buttonVariants, type ButtonProps } from "./components/button"
+export { Card, CardHeader, CardFooter, CardTitle, CardDescription, CardContent } from "./components/card"
+export { Checkbox } from "./components/checkbox"
 export { IconButton, type IconButtonProps } from "./components/icon-button"
 export { Collapsible, CollapsibleTrigger, CollapsibleContent } from "./components/collapsible"
 export {
@@ -52,6 +55,7 @@ export {
 export { Input } from "./components/input"
 export { Label } from "./components/label"
 export { Popover, PopoverTrigger, PopoverContent } from "./components/popover"
+export { Progress } from "./components/progress"
 export {
   Select,
   SelectGroup,
@@ -64,6 +68,8 @@ export {
   SelectScrollUpButton,
   SelectScrollDownButton,
 } from "./components/select"
+export { ScrollArea, ScrollBar } from "./components/scroll-area"
+export { Skeleton } from "./components/skeleton"
 export { Slider } from "./components/slider"
 export { LabeledSlider, InspectorSlider, type LabeledSliderProps, type InspectorSliderProps } from "./components/labeled-slider"
 export { Switch } from "./components/switch"

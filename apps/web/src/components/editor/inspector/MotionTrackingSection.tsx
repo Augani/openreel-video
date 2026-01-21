@@ -12,7 +12,7 @@ import {
   Settings2,
   RefreshCw,
 } from "lucide-react";
-import { Slider } from "@openreel/ui";
+import { Slider, Checkbox, Label } from "@openreel/ui";
 import {
   getMotionTrackingBridge,
   type MotionTrackingState,
@@ -428,46 +428,52 @@ export const MotionTrackingSection: React.FC<MotionTrackingSectionProps> = ({
           </div>
 
           <div className="space-y-2">
-            <label className="text-[10px] font-medium text-text-secondary">
+            <Label className="text-[10px] font-medium text-text-secondary">
               Transform Options
-            </label>
+            </Label>
             <div className="grid grid-cols-2 gap-2">
-              <label className="flex items-center gap-2 p-2 bg-background-tertiary rounded-lg cursor-pointer hover:bg-background-secondary transition-colors">
-                <input
-                  type="checkbox"
+              <div className="flex items-center gap-2 p-2 bg-background-tertiary rounded-lg">
+                <Checkbox
+                  id="apply-scale"
                   checked={applyScale}
-                  onChange={(e) => {
-                    setApplyScale(e.target.checked);
+                  onCheckedChange={(checked) => {
+                    const value = checked === true;
+                    setApplyScale(value);
                     if (isApplied) {
-                      bridge.setApplyScale(clipId, e.target.checked);
+                      bridge.setApplyScale(clipId, value);
                     }
                   }}
-                  className="w-3.5 h-3.5 rounded border-border accent-primary"
                 />
-                <div className="flex items-center gap-1">
+                <Label
+                  htmlFor="apply-scale"
+                  className="flex items-center gap-1 cursor-pointer"
+                >
                   <Maximize2 size={10} className="text-text-muted" />
                   <span className="text-[10px] text-text-secondary">Scale</span>
-                </div>
-              </label>
-              <label className="flex items-center gap-2 p-2 bg-background-tertiary rounded-lg cursor-pointer hover:bg-background-secondary transition-colors">
-                <input
-                  type="checkbox"
+                </Label>
+              </div>
+              <div className="flex items-center gap-2 p-2 bg-background-tertiary rounded-lg">
+                <Checkbox
+                  id="apply-rotation"
                   checked={applyRotation}
-                  onChange={(e) => {
-                    setApplyRotation(e.target.checked);
+                  onCheckedChange={(checked) => {
+                    const value = checked === true;
+                    setApplyRotation(value);
                     if (isApplied) {
-                      bridge.setApplyRotation(clipId, e.target.checked);
+                      bridge.setApplyRotation(clipId, value);
                     }
                   }}
-                  className="w-3.5 h-3.5 rounded border-border accent-primary"
                 />
-                <div className="flex items-center gap-1">
+                <Label
+                  htmlFor="apply-rotation"
+                  className="flex items-center gap-1 cursor-pointer"
+                >
                   <RotateCcw size={10} className="text-text-muted" />
                   <span className="text-[10px] text-text-secondary">
                     Rotation
                   </span>
-                </div>
-              </label>
+                </Label>
+              </div>
             </div>
           </div>
 

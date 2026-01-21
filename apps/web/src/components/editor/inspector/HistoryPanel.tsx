@@ -13,7 +13,7 @@ import {
   FileCode,
   Smile,
 } from "lucide-react";
-import { Input } from "@openreel/ui";
+import { Input, ScrollArea } from "@openreel/ui";
 import { useProjectStore } from "../../../stores/project-store";
 import type { HistorySnapshot } from "@openreel/core";
 
@@ -232,7 +232,7 @@ export const HistoryPanel: React.FC = () => {
         )}
       </div>
 
-      <div className="flex-1 overflow-y-auto">
+      <ScrollArea className="flex-1">
         {combinedHistory.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-text-muted">
             <History size={24} className="mb-2 opacity-30" />
@@ -289,7 +289,7 @@ export const HistoryPanel: React.FC = () => {
             })}
           </div>
         )}
-      </div>
+      </ScrollArea>
 
       <div className="p-2 border-t border-border bg-background-tertiary">
         <div className="flex items-center justify-between text-[10px] text-text-muted">

@@ -1,5 +1,6 @@
 import React from "react";
 import { Loader2, CheckCircle, XCircle, Clock } from "lucide-react";
+import { Progress, ScrollArea } from "@openreel/ui";
 import {
   useProcessingStore,
   PROCESSING_TYPE_LABELS,
@@ -47,12 +48,7 @@ const TaskItem: React.FC<{ task: ProcessingTask }> = ({ task }) => {
         </div>
         {task.status === "processing" && (
           <div className="mt-1">
-            <div className="h-1 bg-black/30 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-blue-500 transition-all duration-300"
-                style={{ width: `${task.progress}%` }}
-              />
-            </div>
+            <Progress value={task.progress} className="h-1 bg-black/30" />
             <p className="text-[9px] text-text-muted mt-0.5 truncate">
               {task.message}
             </p>
@@ -108,19 +104,16 @@ export const ProcessingOverlay: React.FC = () => {
               {progress}%
             </span>
           </div>
-          <div className="h-2 bg-black/30 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-gradient-to-r from-blue-500 to-cyan-500 transition-all duration-300"
-              style={{ width: `${progress}%` }}
-            />
-          </div>
+          <Progress value={progress} className="h-2 bg-black/30" />
         </div>
 
-        <div className="space-y-2 max-h-48 overflow-y-auto">
-          {activeTasks.map((task) => (
-            <TaskItem key={task.id} task={task} />
-          ))}
-        </div>
+        <ScrollArea className="max-h-48">
+          <div className="space-y-2">
+            {activeTasks.map((task) => (
+              <TaskItem key={task.id} task={task} />
+            ))}
+          </div>
+        </ScrollArea>
 
         <p className="text-[10px] text-text-muted text-center mt-4">
           Please wait while effects are being applied...

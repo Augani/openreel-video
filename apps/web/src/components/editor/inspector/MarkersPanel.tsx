@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Flag, Plus, Trash2, Edit2, Check, X } from "lucide-react";
-import { Input } from "@openreel/ui";
+import { Input, ScrollArea } from "@openreel/ui";
 import { useProjectStore } from "../../../stores/project-store";
 import { getPlaybackBridge } from "../../../bridges/playback-bridge";
 import type { Marker } from "@openreel/core";
@@ -84,8 +84,9 @@ export const MarkersPanel: React.FC = () => {
           <p className="text-[10px] mt-1">Press M at playhead to add markers</p>
         </div>
       ) : (
-        <div className="space-y-1 max-h-96 overflow-y-auto">
-          {markers
+        <ScrollArea className="max-h-96">
+          <div className="space-y-1">
+            {markers
             .sort((a, b) => a.time - b.time)
             .map((marker) => (
               <div
@@ -171,7 +172,8 @@ export const MarkersPanel: React.FC = () => {
                 )}
               </div>
             ))}
-        </div>
+          </div>
+        </ScrollArea>
       )}
     </div>
   );
