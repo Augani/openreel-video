@@ -49,31 +49,31 @@ const FeatureCard: React.FC<FeatureCardProps> = ({
 }) => (
   <button
     onClick={onClick}
-    className={`w-full p-3 rounded-xl border text-left transition-all group ${
+    className={`w-full min-w-0 p-3 rounded-xl border text-left transition-all group ${
       isActive
         ? `${activeBorder} ${activeBg} ring-1 ${activeRing}`
         : "border-border bg-background-tertiary hover:border-border-strong hover:bg-background-elevated"
     }`}
   >
-    <div className="flex items-center gap-3">
+    <div className="flex items-center gap-3 min-w-0">
       <div
-        className={`w-10 h-10 rounded-lg flex items-center justify-center transition-colors ${
+        className={`w-10 h-10 shrink-0 rounded-lg flex items-center justify-center transition-colors ${
           isActive ? iconBg : "bg-background-secondary group-hover:bg-background-tertiary"
         }`}
       >
         <Icon size={20} className={isActive ? iconColor : "text-text-secondary group-hover:text-text-primary"} />
       </div>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center justify-between">
-          <span className="text-[12px] font-semibold text-text-primary">
+      <div className="flex-1 min-w-0 overflow-hidden">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-[12px] font-semibold text-text-primary truncate">
             {title}
           </span>
           <ChevronRight
             size={14}
-            className={`transition-transform ${isActive ? "rotate-90 text-text-primary" : "text-text-muted group-hover:text-text-secondary"}`}
+            className={`shrink-0 transition-transform ${isActive ? "rotate-90 text-text-primary" : "text-text-muted group-hover:text-text-secondary"}`}
           />
         </div>
-        <p className="text-[10px] text-text-muted mt-0.5 line-clamp-1">{description}</p>
+        <p className="text-[10px] text-text-muted mt-0.5 truncate">{description}</p>
       </div>
     </div>
   </button>
@@ -86,12 +86,12 @@ interface FeatureSectionProps {
 }
 
 const FeatureSection: React.FC<FeatureSectionProps> = ({ title, icon: Icon, children }) => (
-  <div className="space-y-2">
+  <div className="space-y-2 min-w-0">
     <div className="flex items-center gap-2 px-1">
-      <Icon size={12} className="text-text-muted" />
+      <Icon size={12} className="text-text-muted shrink-0" />
       <span className="text-[10px] font-semibold text-text-muted uppercase tracking-wider">{title}</span>
     </div>
-    <div className="space-y-1.5">{children}</div>
+    <div className="space-y-1.5 min-w-0">{children}</div>
   </div>
 );
 
@@ -123,15 +123,15 @@ export const AIGenTab: React.FC = () => {
 
   if (activeFeature) {
     return (
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col overflow-hidden w-full min-w-0">
         <button
           onClick={() => setActiveFeature(null)}
-          className="flex items-center gap-2 px-4 py-3 text-text-secondary hover:text-text-primary transition-colors border-b border-border bg-background-secondary"
+          className="flex items-center gap-2 px-4 py-3 text-text-secondary hover:text-text-primary transition-colors border-b border-border bg-background-secondary shrink-0"
         >
           <ChevronRight size={14} className="rotate-180" />
           <span className="text-[11px] font-medium">Back to AI Tools</span>
         </button>
-        <ScrollArea className="flex-1">
+        <ScrollArea className="flex-1 w-full">
           <div className="p-4">{renderActivePanel()}</div>
         </ScrollArea>
       </div>
@@ -139,8 +139,8 @@ export const AIGenTab: React.FC = () => {
   }
 
   return (
-    <ScrollArea className="flex-1">
-      <div className="p-4 space-y-6">
+    <ScrollArea className="flex-1 w-full">
+      <div className="p-4 space-y-6 min-w-0">
         <div className="text-center pb-2">
           <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 mb-3">
             <Wand2 size={24} className="text-primary" />
