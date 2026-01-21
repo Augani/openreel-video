@@ -1,7 +1,8 @@
 import { useProjectStore } from '../../../stores/project-store';
-import type { TextLayer, TextStyle } from '../../../types/project';
+import type { TextLayer, TextStyle, TextFillType, Gradient } from '../../../types/project';
 import { AlignLeft, AlignCenter, AlignRight, Bold, Italic, Underline, CaseUpper, CaseLower, CaseSensitive, Strikethrough } from 'lucide-react';
 import { FontPicker } from '../../ui/FontPicker';
+import { GradientPicker } from '../../ui/GradientPicker';
 import { Slider } from '@openreel/ui';
 
 interface Props {
@@ -224,22 +225,64 @@ export function TextSection({ layer }: Props) {
         </button>
       </div>
 
-      <div>
-        <label className="block text-[10px] text-muted-foreground mb-1">Color</label>
-        <div className="flex items-center gap-2">
-          <input
-            type="color"
-            value={layer.style.color}
-            onChange={(e) => handleStyleChange({ color: e.target.value })}
-            className="w-8 h-8 rounded border border-input cursor-pointer"
-          />
-          <input
-            type="text"
-            value={layer.style.color}
-            onChange={(e) => handleStyleChange({ color: e.target.value })}
-            className="flex-1 px-2 py-1.5 text-xs bg-background border border-input rounded-md focus:outline-none focus:ring-1 focus:ring-primary font-mono"
-          />
+      <div className="space-y-3 p-3 bg-secondary/50 rounded-lg">
+        <div className="flex items-center justify-between">
+          <label className="text-xs font-medium">Fill</label>
+          <div className="flex gap-1">
+            <button
+              onClick={() => handleStyleChange({ fillType: 'solid' as TextFillType })}
+              className={`px-2 py-1 text-[10px] rounded-md transition-colors ${
+                (layer.style.fillType ?? 'solid') === 'solid'
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-secondary text-secondary-foreground hover:bg-accent'
+              }`}
+            >
+              Solid
+            </button>
+            <button
+              onClick={() => {
+                const gradient: Gradient = layer.style.gradient ?? {
+                  type: 'linear',
+                  angle: 90,
+                  stops: [
+                    { offset: 0, color: layer.style.color },
+                    { offset: 1, color: '#8b5cf6' },
+                  ],
+                };
+                handleStyleChange({ fillType: 'gradient' as TextFillType, gradient });
+              }}
+              className={`px-2 py-1 text-[10px] rounded-md transition-colors ${
+                layer.style.fillType === 'gradient'
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-secondary text-secondary-foreground hover:bg-accent'
+              }`}
+            >
+              Gradient
+            </button>
+          </div>
         </div>
+
+        {(layer.style.fillType ?? 'solid') === 'solid' ? (
+          <div className="flex items-center gap-2">
+            <input
+              type="color"
+              value={layer.style.color}
+              onChange={(e) => handleStyleChange({ color: e.target.value })}
+              className="w-8 h-8 rounded border border-input cursor-pointer"
+            />
+            <input
+              type="text"
+              value={layer.style.color}
+              onChange={(e) => handleStyleChange({ color: e.target.value })}
+              className="flex-1 px-2 py-1.5 text-xs bg-background border border-input rounded-md focus:outline-none focus:ring-1 focus:ring-primary font-mono"
+            />
+          </div>
+        ) : (
+          <GradientPicker
+            value={layer.style.gradient}
+            onChange={(gradient) => handleStyleChange({ gradient })}
+          />
+        )}
       </div>
 
       <div className="grid grid-cols-2 gap-2">

@@ -77,6 +77,8 @@ export interface ImageLayer extends BaseLayer {
   flipVertical: boolean;
 }
 
+export type TextFillType = 'solid' | 'gradient';
+
 export interface TextStyle {
   fontFamily: string;
   fontSize: number;
@@ -87,7 +89,9 @@ export interface TextStyle {
   verticalAlign: 'top' | 'middle' | 'bottom';
   lineHeight: number;
   letterSpacing: number;
+  fillType: TextFillType;
   color: string;
+  gradient: Gradient | null;
   strokeColor: string | null;
   strokeWidth: number;
   backgroundColor: string | null;
@@ -268,7 +272,9 @@ export const DEFAULT_TEXT_STYLE: TextStyle = {
   verticalAlign: 'top',
   lineHeight: 1.4,
   letterSpacing: 0,
+  fillType: 'solid',
   color: '#ffffff',
+  gradient: null,
   strokeColor: null,
   strokeWidth: 0,
   backgroundColor: null,

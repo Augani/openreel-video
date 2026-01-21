@@ -660,6 +660,47 @@ function renderTextLayer(ctx: CanvasRenderingContext2D, layer: TextLayer) {
     ctx.fill();
   }
 
+  let fillStyle: string | CanvasGradient = style.color;
+  if (style.fillType === 'gradient' && style.gradient) {
+    const textWidth = Math.max(...lines.map((line) => ctx.measureText(line).width));
+    const textHeight = lines.length * lineHeight;
+
+    let gradientStartX = 0;
+    if (style.textAlign === 'center') gradientStartX = (transform.width - textWidth) / 2;
+    else if (style.textAlign === 'right') gradientStartX = transform.width - textWidth;
+
+    if (style.gradient.type === 'linear') {
+      const angleRad = (style.gradient.angle * Math.PI) / 180;
+      const cos = Math.cos(angleRad);
+      const sin = Math.sin(angleRad);
+      const halfWidth = textWidth / 2;
+      const halfHeight = textHeight / 2;
+      const len = Math.abs(halfWidth * cos) + Math.abs(halfHeight * sin);
+
+      const centerX = gradientStartX + halfWidth;
+      const centerY = halfHeight;
+      const gradient = ctx.createLinearGradient(
+        centerX - len * cos,
+        centerY - len * sin,
+        centerX + len * cos,
+        centerY + len * sin
+      );
+      style.gradient.stops.forEach((stop) => {
+        gradient.addColorStop(stop.offset, stop.color);
+      });
+      fillStyle = gradient;
+    } else {
+      const centerX = gradientStartX + textWidth / 2;
+      const centerY = textHeight / 2;
+      const radius = Math.max(textWidth, textHeight) / 2;
+      const gradient = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, radius);
+      style.gradient.stops.forEach((stop) => {
+        gradient.addColorStop(stop.offset, stop.color);
+      });
+      fillStyle = gradient;
+    }
+  }
+
   lines.forEach((line, i) => {
     const y = i * lineHeight;
 
@@ -671,7 +712,7 @@ function renderTextLayer(ctx: CanvasRenderingContext2D, layer: TextLayer) {
       ctx.strokeText(line, textX, y);
     }
 
-    ctx.fillStyle = style.color;
+    ctx.fillStyle = fillStyle;
     ctx.fillText(line, textX, y);
   });
 }
