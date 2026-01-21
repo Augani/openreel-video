@@ -21,8 +21,8 @@ import {
   Clock,
   Eye,
   Sliders,
-  Sparkles,
 } from "lucide-react";
+import { Dialog, DialogContent, Input } from "@openreel/ui";
 import { useUIStore } from "../../stores/ui-store";
 
 interface SearchItem {
@@ -179,7 +179,7 @@ const SEARCHABLE_EFFECTS: SearchItem[] = [
     name: "Keyframes",
     category: "Animation",
     keywords: ["keyframe", "animate", "animation", "ease", "interpolate"],
-    icon: Sparkles,
+    icon: Zap,
     description: "Animate properties over time",
     sectionId: "keyframes",
     clipTypes: ["video", "image", "text", "shape"],
@@ -199,7 +199,7 @@ const SEARCHABLE_EFFECTS: SearchItem[] = [
     name: "Motion Presets",
     category: "Animation",
     keywords: ["motion", "preset", "zoom", "pan", "shake", "bounce"],
-    icon: Sparkles,
+    icon: Zap,
     description: "Pre-built motion animations",
     sectionId: "motion-presets",
     clipTypes: ["video", "image"],
@@ -269,7 +269,7 @@ const CATEGORIES = [
   { id: "video", name: "Video", icon: Video },
   { id: "audio", name: "Audio", icon: Music2 },
   { id: "text", name: "Text", icon: Type },
-  { id: "animation", name: "Animation", icon: Sparkles },
+  { id: "animation", name: "Animation", icon: Zap },
 ];
 
 interface SearchModalProps {
@@ -414,19 +414,11 @@ export const SearchModal: React.FC<SearchModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div
-      className="fixed inset-0 z-[100] flex items-start justify-center pt-[15vh]"
-      onClick={onClose}
-    >
-      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" />
-
-      <div
-        className="relative w-full max-w-2xl bg-background-secondary border border-border rounded-2xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-4 duration-200"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-2xl p-0 gap-0 top-[15vh] translate-y-0 bg-background-secondary border-border rounded-2xl overflow-hidden">
         <div className="flex items-center gap-3 px-4 py-3 border-b border-border">
           <Search size={18} className="text-text-muted" />
-          <input
+          <Input
             ref={inputRef}
             type="text"
             value={query}
@@ -436,7 +428,7 @@ export const SearchModal: React.FC<SearchModalProps> = ({
                 ? `Search effects for ${selectedClipType} clip...`
                 : "Search all effects and tools..."
             }
-            className="flex-1 bg-transparent text-text-primary placeholder:text-text-muted text-sm outline-none"
+            className="flex-1 bg-transparent border-0 text-text-primary focus-visible:ring-0"
           />
           {query && (
             <button
@@ -458,7 +450,7 @@ export const SearchModal: React.FC<SearchModalProps> = ({
               onClick={() => setSelectedCategory(cat.id)}
               className={`px-3 py-1.5 rounded-lg text-[11px] font-medium transition-all ${
                 selectedCategory === cat.id
-                  ? "bg-primary text-black"
+                  ? "bg-primary text-white"
                   : "text-text-secondary hover:text-text-primary hover:bg-background-elevated"
               }`}
             >
@@ -496,7 +488,7 @@ export const SearchModal: React.FC<SearchModalProps> = ({
                     <div
                       className={`p-2 rounded-lg ${
                         index === selectedIndex
-                          ? "bg-primary text-black"
+                          ? "bg-primary text-white"
                           : "bg-background-tertiary text-text-secondary"
                       }`}
                     >
@@ -542,8 +534,8 @@ export const SearchModal: React.FC<SearchModalProps> = ({
             <span>ESC Close</span>
           </div>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 };
 

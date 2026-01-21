@@ -57,7 +57,7 @@ const TextPlaceholderInput: React.FC<PlaceholderInputProps> = ({
     <div className="space-y-2">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Type size={12} className="text-blue-400" />
+          <Type size={12} className="text-primary" />
           <span className="text-[11px] font-medium text-text-primary">
             {placeholder.label}
           </span>
@@ -143,7 +143,7 @@ const MediaPlaceholderInput: React.FC<PlaceholderInputProps> = ({
           {allowedTypes.includes("video") ? (
             <Video size={12} className="text-green-400" />
           ) : (
-            <Image size={12} className="text-purple-400" />
+            <Image size={12} className="text-primary" />
           )}
           <span className="text-[11px] font-medium text-text-primary">
             {placeholder.label}
@@ -204,7 +204,7 @@ const MediaPlaceholderInput: React.FC<PlaceholderInputProps> = ({
               )}
               {selectedMediaId === media.id && (
                 <div className="absolute top-1 right-1 w-4 h-4 bg-primary rounded-full flex items-center justify-center">
-                  <Check size={10} className="text-black" />
+                  <Check size={10} className="text-white" />
                 </div>
               )}
             </button>
@@ -425,7 +425,7 @@ export const TemplateVariablesPanel: React.FC<TemplateVariablesPanelProps> = ({
           disabled={!canApply}
           className={`w-full py-2 rounded-lg text-[11px] font-medium transition-all ${
             canApply
-              ? "bg-primary text-black hover:bg-primary/90"
+              ? "bg-primary text-white hover:bg-primary/90"
               : "bg-background-tertiary text-text-muted cursor-not-allowed"
           }`}
         >

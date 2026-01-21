@@ -1,7 +1,16 @@
 import React from "react";
-import { Maximize2, X } from "lucide-react";
+import { Maximize2 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  Button,
+} from "@openreel/ui";
 
 interface AspectRatioMatchDialogProps {
+  isOpen: boolean;
   videoWidth: number;
   videoHeight: number;
   currentWidth: number;
@@ -11,6 +20,7 @@ interface AspectRatioMatchDialogProps {
 }
 
 export const AspectRatioMatchDialog: React.FC<AspectRatioMatchDialogProps> = ({
+  isOpen,
   videoWidth,
   videoHeight,
   currentWidth,
@@ -22,31 +32,23 @@ export const AspectRatioMatchDialog: React.FC<AspectRatioMatchDialogProps> = ({
   const currentAspect = (currentWidth / currentHeight).toFixed(2);
 
   return (
-    <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/50 backdrop-blur-sm">
-      <div className="bg-background-secondary border border-border rounded-xl shadow-2xl max-w-md w-full mx-4 overflow-hidden">
-        <div className="flex items-center justify-between p-4 border-b border-border">
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onCancel()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
               <Maximize2 size={20} className="text-primary" />
             </div>
-            <h2 className="text-lg font-semibold text-text-primary">
-              Match Video Dimensions?
-            </h2>
+            <div>
+              <DialogTitle>Match Video Dimensions?</DialogTitle>
+              <DialogDescription className="mt-1">
+                The video you're adding has different dimensions than your current project settings.
+              </DialogDescription>
+            </div>
           </div>
-          <button
-            onClick={onCancel}
-            className="p-1 rounded-lg hover:bg-background-tertiary text-text-secondary hover:text-text-primary transition-colors"
-          >
-            <X size={18} />
-          </button>
-        </div>
+        </DialogHeader>
 
-        <div className="p-6 space-y-4">
-          <p className="text-sm text-text-secondary">
-            The video you're adding has different dimensions than your current
-            project settings.
-          </p>
-
+        <div className="space-y-4 py-4">
           <div className="space-y-3">
             <div className="flex items-center justify-between p-3 rounded-lg bg-background-tertiary">
               <div>
@@ -83,21 +85,15 @@ export const AspectRatioMatchDialog: React.FC<AspectRatioMatchDialogProps> = ({
           </p>
         </div>
 
-        <div className="flex gap-3 p-4 border-t border-border bg-background-tertiary/30">
-          <button
-            onClick={onCancel}
-            className="flex-1 px-4 py-2.5 rounded-lg bg-background-secondary border border-border hover:bg-background-tertiary text-text-secondary hover:text-text-primary transition-colors text-sm font-medium"
-          >
+        <div className="flex gap-3">
+          <Button variant="outline" className="flex-1" onClick={onCancel}>
             Keep Current
-          </button>
-          <button
-            onClick={onConfirm}
-            className="flex-1 px-4 py-2.5 rounded-lg bg-primary hover:bg-primary-hover text-white transition-colors text-sm font-medium shadow-lg shadow-primary/20"
-          >
+          </Button>
+          <Button className="flex-1" onClick={onConfirm}>
             Match Video
-          </button>
+          </Button>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 };

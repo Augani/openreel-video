@@ -1,13 +1,14 @@
-import React, { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect } from "react";
 import {
   Clock,
-  Sparkles,
+  Layers,
   ArrowRight,
   Smartphone,
   Monitor,
   Square,
   FolderOpen,
 } from "lucide-react";
+import { Button, Switch, Label } from "@openreel/ui";
 import { useProjectStore } from "../../stores/project-store";
 import { useUIStore } from "../../stores/ui-store";
 import { SOCIAL_MEDIA_PRESETS, type SocialMediaCategory } from "@openreel/core";
@@ -189,13 +190,14 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ initialTab }) => {
     return (
       <div className="fixed inset-0 z-50 bg-background flex flex-col">
         <header className="flex items-center justify-between px-6 py-4 border-b border-border">
-          <button
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={() => setViewMode("home")}
-            className="flex items-center gap-2 text-sm text-text-secondary hover:text-text-primary transition-colors"
           >
             <ArrowRight className="rotate-180" size={16} />
             Back
-          </button>
+          </Button>
           <h2 className="text-sm font-medium text-text-primary">Templates</h2>
           <div className="w-16" />
         </header>
@@ -210,13 +212,14 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ initialTab }) => {
     return (
       <div className="fixed inset-0 z-50 bg-background flex flex-col">
         <header className="flex items-center justify-between px-6 py-4 border-b border-border">
-          <button
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={() => setViewMode("home")}
-            className="flex items-center gap-2 text-sm text-text-secondary hover:text-text-primary transition-colors"
           >
             <ArrowRight className="rotate-180" size={16} />
             Back
-          </button>
+          </Button>
           <h2 className="text-sm font-medium text-text-primary">
             Recent Projects
           </h2>
@@ -325,46 +328,47 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ initialTab }) => {
           </div>
 
           <div className="flex items-center justify-center gap-3">
-            <button
+            <Button
+              variant="outline"
               onClick={() => setViewMode("templates")}
-              className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-text-secondary hover:text-text-primary bg-background-secondary hover:bg-background-tertiary border border-border hover:border-border-hover rounded-xl transition-all duration-150"
+              className="rounded-xl"
             >
-              <Sparkles size={16} />
+              <Layers size={16} />
               Browse templates
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="outline"
               onClick={() => setViewMode("recent")}
-              className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-text-secondary hover:text-text-primary bg-background-secondary hover:bg-background-tertiary border border-border hover:border-border-hover rounded-xl transition-all duration-150"
+              className="rounded-xl"
             >
               <Clock size={16} />
               Recent projects
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="outline"
               onClick={() => navigate("editor")}
-              className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-text-secondary hover:text-text-primary bg-background-secondary hover:bg-background-tertiary border border-border hover:border-border-hover rounded-xl transition-all duration-150"
+              className="rounded-xl"
             >
               <FolderOpen size={16} />
               Open editor
-            </button>
+            </Button>
           </div>
         </div>
 
         <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-4">
-          <label className="flex items-center gap-2 cursor-pointer group">
-            <div className="relative">
-              <input
-                type="checkbox"
-                checked={skipWelcomeScreen}
-                onChange={(e) => setSkipWelcomeScreen(e.target.checked)}
-                className="sr-only peer"
-              />
-              <div className="w-8 h-[18px] bg-background-tertiary rounded-full peer-checked:bg-primary/80 transition-colors border border-border" />
-              <div className="absolute top-[3px] left-[3px] w-[12px] h-[12px] bg-text-muted rounded-full peer-checked:translate-x-[14px] peer-checked:bg-white transition-all" />
-            </div>
-            <span className="text-xs text-text-muted group-hover:text-text-secondary transition-colors">
+          <div className="flex items-center gap-2">
+            <Switch
+              id="skip-welcome"
+              checked={skipWelcomeScreen}
+              onCheckedChange={setSkipWelcomeScreen}
+            />
+            <Label
+              htmlFor="skip-welcome"
+              className="text-xs text-text-muted cursor-pointer"
+            >
               Skip on startup
-            </span>
-          </label>
+            </Label>
+          </div>
 
           <span className="text-text-muted/30">·</span>
 

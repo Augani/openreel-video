@@ -13,6 +13,15 @@ import {
 } from "lucide-react";
 import { useProjectStore } from "../../../stores/project-store";
 import type { TextStyle, FontWeight } from "@openreel/core";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+  SelectGroup,
+  SelectLabel,
+} from "@openreel/ui";
 
 const ColorPicker: React.FC<{
   label: string;
@@ -73,7 +82,7 @@ const ToggleButtonGroup: React.FC<{
         onClick={() => onChange(option.value)}
         className={`p-1.5 rounded transition-colors ${
           value === option.value
-            ? "bg-primary text-black"
+            ? "bg-primary text-white"
             : "bg-background-tertiary border border-border text-text-secondary hover:text-text-primary"
         }`}
         title={option.label}
@@ -155,22 +164,25 @@ const FontSelector: React.FC<{
   return (
     <div className="flex items-center justify-between">
       <span className="text-[10px] text-text-secondary">Font</span>
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="px-2 py-1 text-[10px] text-text-primary bg-background-tertiary border border-border rounded outline-none focus:border-primary cursor-pointer max-w-[140px]"
-        style={{ fontFamily: value }}
-      >
-        {Object.entries(FONT_CATEGORIES).map(([category, fonts]) => (
-          <optgroup key={category} label={category}>
-            {fonts.map((font) => (
-              <option key={font} value={font} style={{ fontFamily: font }}>
-                {font}
-              </option>
-            ))}
-          </optgroup>
-        ))}
-      </select>
+      <Select value={value} onValueChange={onChange}>
+        <SelectTrigger className="max-w-[140px] bg-background-tertiary border-border text-text-primary text-[10px]">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent className="bg-background-secondary border-border max-h-80">
+          {Object.entries(FONT_CATEGORIES).map(([category, fonts]) => (
+            <SelectGroup key={category}>
+              <SelectLabel className="text-text-muted text-[10px] font-medium">
+                {category}
+              </SelectLabel>
+              {fonts.map((font) => (
+                <SelectItem key={font} value={font} style={{ fontFamily: font }}>
+                  {font}
+                </SelectItem>
+              ))}
+            </SelectGroup>
+          ))}
+        </SelectContent>
+      </Select>
     </div>
   );
 };
@@ -303,7 +315,7 @@ export const TextSection: React.FC<TextSectionProps> = ({ clipId }) => {
               }
               className={`p-1.5 rounded transition-colors ${
                 style.fontWeight === "bold"
-                  ? "bg-primary text-black"
+                  ? "bg-primary text-white"
                   : "bg-background-secondary border border-border text-text-secondary hover:text-text-primary"
               }`}
               title="Bold"
@@ -318,7 +330,7 @@ export const TextSection: React.FC<TextSectionProps> = ({ clipId }) => {
               }
               className={`p-1.5 rounded transition-colors ${
                 style.fontStyle === "italic"
-                  ? "bg-primary text-black"
+                  ? "bg-primary text-white"
                   : "bg-background-secondary border border-border text-text-secondary hover:text-text-primary"
               }`}
               title="Italic"
@@ -334,7 +346,7 @@ export const TextSection: React.FC<TextSectionProps> = ({ clipId }) => {
               }
               className={`p-1.5 rounded transition-colors ${
                 style.textDecoration === "underline"
-                  ? "bg-primary text-black"
+                  ? "bg-primary text-white"
                   : "bg-background-secondary border border-border text-text-secondary hover:text-text-primary"
               }`}
               title="Underline"
@@ -389,7 +401,7 @@ export const TextSection: React.FC<TextSectionProps> = ({ clipId }) => {
             </button>
             <button
               onClick={handleCenterBoth}
-              className="p-1.5 rounded bg-primary text-black transition-colors"
+              className="p-1.5 rounded bg-primary text-white transition-colors"
               title="Center Both"
             >
               <Crosshair size={12} />

@@ -427,7 +427,7 @@ export const CropOverlay: React.FC<CropOverlayProps> = ({
               onClick={() => handleAspectRatio(ratio.value)}
               className={`px-3 py-1.5 text-xs rounded transition-colors ${
                 lockedAspect === ratio.value
-                  ? "bg-primary text-black font-medium"
+                  ? "bg-primary text-white font-medium"
                   : "bg-white/10 text-white hover:bg-white/20"
               }`}
             >

@@ -1,4 +1,4 @@
-import React, { useCallback, useState, useRef, useEffect } from "react";
+import React, { useCallback, useState, useEffect } from "react";
 import {
   Search,
   Command,
@@ -14,7 +14,7 @@ import {
   Check,
   FileCode,
   Settings,
-  Sparkles,
+  Zap,
   Circle,
   History,
 } from "lucide-react";
@@ -37,6 +37,16 @@ import { ScreenRecorder } from "./ScreenRecorder";
 import { HistoryPanel } from "./inspector/HistoryPanel";
 import { ProjectSwitcher } from "./ProjectSwitcher";
 import { toast } from "../../stores/notification-store";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+} from "@openreel/ui";
 
 type ExportType =
   | "mp4"
@@ -131,8 +141,6 @@ export const Toolbar: React.FC = () => {
 
     setExportEstimates(estimates);
   }, [deviceProfile, project.timeline?.duration, project.settings.width, project.settings.height]);
-
-  const exportMenuRef = useRef<HTMLDivElement>(null);
 
   const handleSearch = useCallback(() => {
     openModal("search");
@@ -568,19 +576,6 @@ export const Toolbar: React.FC = () => {
     [project],
   );
 
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (
-        exportMenuRef.current &&
-        !exportMenuRef.current.contains(event.target as Node)
-      ) {
-        setIsExportOpen(false);
-      }
-    };
-
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
 
   const handleRecordingComplete = useCallback(
     async (screenBlob: Blob, webcamBlob?: Blob) => {
@@ -660,7 +655,7 @@ export const Toolbar: React.FC = () => {
   }> = [
     {
       label: getRecommendedLabel(),
-      icon: Sparkles,
+      icon: Zap,
       desc: `${projectRes} H.264 - Best for your video`,
       type: "mp4",
       recommended: true,
@@ -839,50 +834,74 @@ export const Toolbar: React.FC = () => {
       </div>
 
       <div className="flex items-center gap-4">
-        <button
-          onClick={toggleTheme}
-          className="p-2 rounded-lg hover:bg-background-elevated text-text-secondary hover:text-text-primary transition-colors"
-          title={`Theme: ${themeMode}`}
-        >
-          {themeMode === "light" ? (
-            <Sun size={16} />
-          ) : themeMode === "dark" ? (
-            <Moon size={16} />
-          ) : (
-            <SunMoon size={16} />
-          )}
-        </button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              onClick={toggleTheme}
+              className="p-2 rounded-lg hover:bg-background-elevated text-text-secondary hover:text-text-primary transition-colors"
+            >
+              {themeMode === "light" ? (
+                <Sun size={16} />
+              ) : themeMode === "dark" ? (
+                <Moon size={16} />
+              ) : (
+                <SunMoon size={16} />
+              )}
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>Theme: {themeMode}</p>
+          </TooltipContent>
+        </Tooltip>
 
-        <button
-          onClick={() => useUIStore.getState().openModal("scriptView")}
-          className="p-2 rounded-lg hover:bg-background-elevated text-text-secondary hover:text-text-primary transition-colors"
-          title="Script View - View/Import JSON"
-        >
-          <FileCode size={16} />
-        </button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              onClick={() => useUIStore.getState().openModal("scriptView")}
+              className="p-2 rounded-lg hover:bg-background-elevated text-text-secondary hover:text-text-primary transition-colors"
+            >
+              <FileCode size={16} />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>Script View - View/Import JSON</p>
+          </TooltipContent>
+        </Tooltip>
 
-        <button
-          onClick={() => setIsHistoryOpen(!isHistoryOpen)}
-          className={`p-2 rounded-lg transition-colors ${
-            isHistoryOpen
-              ? "bg-primary/20 text-primary"
-              : "hover:bg-background-elevated text-text-secondary hover:text-text-primary"
-          }`}
-          title="History - Undo/Redo actions"
-        >
-          <History size={16} />
-        </button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              onClick={() => setIsHistoryOpen(!isHistoryOpen)}
+              className={`p-2 rounded-lg transition-colors ${
+                isHistoryOpen
+                  ? "bg-primary/20 text-primary"
+                  : "hover:bg-background-elevated text-text-secondary hover:text-text-primary"
+              }`}
+            >
+              <History size={16} />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>History - Undo/Redo</p>
+          </TooltipContent>
+        </Tooltip>
 
-        <button
-          onClick={() => setIsRecorderOpen(true)}
-          className="flex items-center gap-2 px-3 py-2 bg-error/10 hover:bg-error/20 text-error rounded-lg transition-colors"
-          title="Screen Recording"
-        >
-          <Circle size={14} className="fill-current" />
-          <span className="text-sm font-medium">Record</span>
-        </button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              onClick={() => setIsRecorderOpen(true)}
+              className="flex items-center gap-2 px-3 py-2 bg-error/10 hover:bg-error/20 text-error rounded-lg transition-colors"
+            >
+              <Circle size={14} className="fill-current" />
+              <span className="text-sm font-medium">Record</span>
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>Screen Recording</p>
+          </TooltipContent>
+        </Tooltip>
 
-        <div className="relative" ref={exportMenuRef}>
+        <div className="relative">
           {exportState.isExporting ? (
             <div className="h-10 px-4 bg-background-secondary border border-border rounded-lg flex items-center gap-3 min-w-[200px]">
               <Loader2 size={14} className="text-primary animate-spin" />
@@ -922,111 +941,102 @@ export const Toolbar: React.FC = () => {
               <span className="text-xs text-primary">Downloaded!</span>
             </div>
           ) : (
-            <>
-              <button
-                onClick={() => setIsExportOpen(!isExportOpen)}
-                className={`h-10 px-4 bg-primary hover:bg-primary-hover active:bg-primary-active text-white font-bold rounded-lg flex items-center gap-2 transition-all shadow-[0_0_20px_rgba(34,197,94,0.3)] hover:shadow-[0_0_30px_rgba(34,197,94,0.5)] transform hover:-translate-y-0.5 ${
-                  isExportOpen ? "translate-y-0 shadow-none" : ""
-                }`}
-              >
-                <span className="text-sm tracking-wider">EXPORT</span>
-                <ChevronDown
-                  size={14}
-                  className={`transition-transform duration-200 ${
-                    isExportOpen ? "rotate-180" : ""
+            <DropdownMenu open={isExportOpen} onOpenChange={setIsExportOpen}>
+              <DropdownMenuTrigger asChild>
+                <button
+                  className={`h-10 px-4 bg-primary hover:bg-primary-hover active:bg-primary-active text-white font-bold rounded-lg flex items-center gap-2 transition-all shadow-[0_0_20px_rgba(34,197,94,0.3)] hover:shadow-[0_0_30px_rgba(34,197,94,0.5)] transform hover:-translate-y-0.5 ${
+                    isExportOpen ? "translate-y-0 shadow-none" : ""
                   }`}
-                />
-              </button>
-
-              {isExportOpen && (
-                <div className="absolute top-full right-0 mt-2 w-72 bg-background-secondary border border-border rounded-xl shadow-2xl overflow-hidden z-50">
-                  <div className="p-3 space-y-1 max-h-[400px] overflow-y-auto">
-                    {exportOptions.map((option, index) =>
-                      option.separator ? (
-                        <div
-                          key={`sep-${index}`}
-                          className="border-t border-border my-2"
-                        />
-                      ) : (
-                        <button
-                          key={option.type + index}
-                          className={`w-full flex items-center gap-3 p-3 rounded-lg transition-colors text-left group ${
-                            option.recommended
-                              ? "bg-primary/10 hover:bg-primary/20 border border-primary/30"
-                              : "hover:bg-background-tertiary"
-                          }`}
-                          onClick={() => handleExport(option.type)}
-                        >
-                          <div
-                            className={`p-2 rounded-lg transition-colors ${
-                              option.recommended
-                                ? "bg-primary/20 text-primary"
-                                : "bg-background-tertiary group-hover:bg-background-elevated text-text-secondary group-hover:text-primary"
-                            }`}
-                          >
-                            <option.icon size={18} />
-                          </div>
-                          <div className="flex-1">
-                            <div
-                              className={`text-sm font-medium transition-colors ${
-                                option.recommended
-                                  ? "text-primary"
-                                  : "text-text-primary group-hover:text-primary"
-                              }`}
-                            >
-                              {option.label}
-                              {option.recommended && (
-                                <span className="ml-2 text-[10px] bg-primary/20 text-primary px-1.5 py-0.5 rounded">
-                                  Best Match
-                                </span>
-                              )}
-                            </div>
-                            <div className="text-xs text-text-muted mt-0.5">
-                              {option.desc}
-                            </div>
-                            {exportEstimates.get(option.type) && (
-                              <div className="text-[10px] text-text-secondary mt-1">
-                                Est. {exportEstimates.get(option.type)?.formatted}
-                              </div>
-                            )}
-                          </div>
-                        </button>
-                      ),
-                    )}
-
-                    <div className="border-t border-border pt-2 mt-2">
-                      <button
-                        className="w-full flex items-center gap-3 p-3 hover:bg-primary/10 rounded-lg transition-colors text-left group"
-                        onClick={() => {
-                          setIsExportOpen(false);
-                          setIsExportDialogOpen(true);
-                        }}
+                >
+                  <span className="text-sm tracking-wider">EXPORT</span>
+                  <ChevronDown
+                    size={14}
+                    className={`transition-transform duration-200 ${
+                      isExportOpen ? "rotate-180" : ""
+                    }`}
+                  />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-72 p-0 rounded-xl bg-background-secondary border-border">
+                <div className="p-3 space-y-1 max-h-[400px] overflow-y-auto">
+                  {exportOptions.map((option, index) =>
+                    option.separator ? (
+                      <DropdownMenuSeparator key={`sep-${index}`} />
+                    ) : (
+                      <DropdownMenuItem
+                        key={option.type + index}
+                        className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer ${
+                          option.recommended
+                            ? "bg-primary/10 hover:bg-primary/20 border border-primary/30"
+                            : ""
+                        }`}
+                        onClick={() => handleExport(option.type)}
                       >
-                        <div className="p-2 bg-primary/10 group-hover:bg-primary/20 rounded-lg text-primary transition-colors">
-                          <Sparkles size={18} />
+                        <div
+                          className={`p-2 rounded-lg transition-colors ${
+                            option.recommended
+                              ? "bg-primary/20 text-primary"
+                              : "bg-background-tertiary group-hover:bg-background-elevated text-text-secondary group-hover:text-primary"
+                          }`}
+                        >
+                          <option.icon size={18} />
                         </div>
                         <div className="flex-1">
-                          <div className="text-sm font-medium text-primary transition-colors">
-                            Custom Export...
+                          <div
+                            className={`text-sm font-medium transition-colors ${
+                              option.recommended
+                                ? "text-primary"
+                                : "text-text-primary"
+                            }`}
+                          >
+                            {option.label}
+                            {option.recommended && (
+                              <span className="ml-2 text-[10px] bg-primary/20 text-primary px-1.5 py-0.5 rounded">
+                                Best Match
+                              </span>
+                            )}
                           </div>
                           <div className="text-xs text-text-muted mt-0.5">
-                            Full settings with AI upscaling
+                            {option.desc}
                           </div>
+                          {exportEstimates.get(option.type) && (
+                            <div className="text-[10px] text-text-secondary mt-1">
+                              Est. {exportEstimates.get(option.type)?.formatted}
+                            </div>
+                          )}
                         </div>
-                        <Settings
-                          size={14}
-                          className="text-text-muted group-hover:text-primary transition-colors"
-                        />
-                      </button>
+                      </DropdownMenuItem>
+                    ),
+                  )}
+
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    className="flex items-center gap-3 p-3 rounded-lg cursor-pointer"
+                    onClick={() => setIsExportDialogOpen(true)}
+                  >
+                    <div className="p-2 bg-primary/10 rounded-lg text-primary transition-colors">
+                      <Settings size={18} />
                     </div>
-                  </div>
-                  <div className="bg-background-tertiary px-3 py-2.5 text-xs text-center text-text-muted border-t border-border">
-                    {project.settings.width}×{project.settings.height} •{" "}
-                    {project.settings.frameRate}fps
-                  </div>
+                    <div className="flex-1">
+                      <div className="text-sm font-medium text-primary transition-colors">
+                        Custom Export...
+                      </div>
+                      <div className="text-xs text-text-muted mt-0.5">
+                        Full settings with AI upscaling
+                      </div>
+                    </div>
+                    <Settings
+                      size={14}
+                      className="text-text-muted"
+                    />
+                  </DropdownMenuItem>
                 </div>
-              )}
-            </>
+                <div className="bg-background-tertiary px-3 py-2.5 text-xs text-center text-text-muted border-t border-border">
+                  {project.settings.width}×{project.settings.height} •{" "}
+                  {project.settings.frameRate}fps
+                </div>
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
         </div>
       </div>

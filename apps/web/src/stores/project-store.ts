@@ -152,6 +152,7 @@ export interface ProjectState {
     trimStart: boolean,
   ) => Promise<ActionResult>;
   getClip: (clipId: string) => Clip | undefined;
+  separateAudio: (clipId: string) => Promise<ActionResult>;
   updateClipTransform: (
     clipId: string,
     transform: Partial<Transform>,
@@ -994,6 +995,92 @@ export const useProjectStore = create<ProjectState>()(
 
           set({ project: finalProject });
         }
+        return result;
+      },
+
+      separateAudio: async (clipId: string) => {
+        const { project, actionExecutor, addTrack } = get();
+
+        const videoClip = project.timeline.tracks
+          .flatMap((t) => t.clips)
+          .find((c) => c.id === clipId);
+
+        if (!videoClip) {
+          return {
+            success: false,
+            error: { code: "CLIP_NOT_FOUND" as const, message: "Clip not found" },
+          };
+        }
+
+        const mediaItem = project.mediaLibrary.items.find(
+          (m) => m.id === videoClip.mediaId,
+        );
+
+        if (
+          !mediaItem ||
+          mediaItem.type !== "video" ||
+          !mediaItem.metadata?.channels ||
+          mediaItem.metadata.channels === 0
+        ) {
+          return {
+            success: false,
+            error: {
+              code: "MEDIA_NOT_FOUND" as const,
+              message: "Media has no audio to separate",
+            },
+          };
+        }
+
+        let audioTrack = project.timeline.tracks.find((t) => t.type === "audio");
+        if (!audioTrack) {
+          const trackResult = await addTrack("audio");
+          if (!trackResult.success) {
+            return {
+              success: false,
+              error: {
+                code: "TRACK_NOT_FOUND" as const,
+                message: "Failed to create audio track",
+              },
+            };
+          }
+          const { project: updatedProject } = get();
+          audioTrack = updatedProject.timeline.tracks.find(
+            (t) => t.type === "audio",
+          );
+        }
+
+        if (!audioTrack) {
+          return {
+            success: false,
+            error: {
+              code: "TRACK_NOT_FOUND" as const,
+              message: "Could not find or create audio track",
+            },
+          };
+        }
+
+        const projectCopy = structuredClone(get().project);
+        const action: Action = {
+          type: "clip/add",
+          id: uuidv4(),
+          timestamp: Date.now(),
+          params: {
+            trackId: audioTrack.id,
+            mediaId: videoClip.mediaId,
+            startTime: videoClip.startTime,
+          },
+        };
+
+        const result = await actionExecutor.execute(action, projectCopy);
+
+        if (result.success) {
+          const finalProject: Project = {
+            ...projectCopy,
+            modifiedAt: Date.now(),
+          };
+          set({ project: finalProject });
+        }
+
         return result;
       },
 
@@ -3317,8 +3404,29 @@ export const useProjectStore = create<ProjectState>()(
 
         const effect = effectsBridge.getEffect(clipId, effectId);
         if (effect) {
-          // Trigger re-render by updating project state
-          set({ project: { ...get().project, modifiedAt: Date.now() } });
+          const { project } = get();
+          const updatedTracks = project.timeline.tracks.map((track) => ({
+            ...track,
+            clips: track.clips.map((clip) => {
+              if (clip.id === clipId) {
+                const updatedEffects = clip.effects.map((e) =>
+                  e.id === effectId
+                    ? { ...e, params: { ...e.params, ...params } }
+                    : e,
+                );
+                return { ...clip, effects: updatedEffects };
+              }
+              return clip;
+            }),
+          }));
+
+          set({
+            project: {
+              ...project,
+              timeline: { ...project.timeline, tracks: updatedTracks },
+              modifiedAt: Date.now(),
+            },
+          });
         }
         return effect || null;
       },

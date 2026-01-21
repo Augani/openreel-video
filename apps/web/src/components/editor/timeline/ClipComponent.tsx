@@ -6,6 +6,7 @@ import { useUIStore } from "../../../stores/ui-store";
 import { useTimelineStore } from "../../../stores/timeline-store";
 import { calculateSnap, generateWaveformPath, getClipStyle } from "./utils";
 import { ClipContextMenu } from "./ClipContextMenu";
+import { ContextMenu, ContextMenuTrigger } from "@openreel/ui";
 
 interface ClipComponentProps {
   clip: Clip;
@@ -50,8 +51,6 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
   const [dragOffset, setDragOffset] = useState(0);
   const [isTrimming, setIsTrimming] = useState(false);
   const [trimEdge, setTrimEdge] = useState<"left" | "right" | null>(null);
-  const [showContextMenu, setShowContextMenu] = useState(false);
-  const [contextMenuPos, setContextMenuPos] = useState({ x: 0, y: 0 });
   const trimStartRef = useRef<{
     mouseX: number;
     startTime: number;
@@ -90,18 +89,6 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
     setIsDragging(true);
 
     onSelect(clip.id, e.shiftKey || e.metaKey);
-  };
-
-  const handleContextMenu = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-
-    if (!isSelected) {
-      onSelect(clip.id, false);
-    }
-
-    setContextMenuPos({ x: e.clientX, y: e.clientY });
-    setShowContextMenu(true);
   };
 
   const handleTrimMouseDown =
@@ -234,27 +221,28 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
   const isInteracting = isDragging || isTrimming;
 
   return (
-    <div
-      ref={clipRef}
-      onClick={handleClick}
-      onMouseDown={handleMouseDown}
-      onContextMenu={handleContextMenu}
-      className={`group absolute top-1 bottom-1 rounded-lg overflow-hidden shadow-sm ${
-        isDragging ? "cursor-grabbing opacity-80 z-20" : "cursor-grab"
-      } ${
-        isSelected
-          ? "ring-2 ring-primary border-primary z-10"
-          : "border-opacity-30 hover:border-opacity-60 hover:brightness-110"
-      } ${clipStyle.bg} border ${clipStyle.border} ${
-        track.locked ? "cursor-not-allowed opacity-60" : ""
-      }`}
-      style={{
-        transform: `translateX(${left}px)`,
-        width: `${width}px`,
-        willChange: isInteracting ? 'transform, width' : 'auto',
-        transition: isInteracting ? 'none' : 'opacity 150ms, box-shadow 150ms',
-      }}
-    >
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
+        <div
+          ref={clipRef}
+          onClick={handleClick}
+          onMouseDown={handleMouseDown}
+          className={`group absolute top-1 bottom-1 rounded-lg overflow-hidden shadow-sm ${
+            isDragging ? "cursor-grabbing opacity-80 z-20" : "cursor-grab"
+          } ${
+            isSelected
+              ? "ring-2 ring-primary border-primary z-10"
+              : "border-opacity-30 hover:border-opacity-60 hover:brightness-110"
+          } ${clipStyle.bg} border ${clipStyle.border} ${
+            track.locked ? "cursor-not-allowed opacity-60" : ""
+          }`}
+          style={{
+            transform: `translateX(${left}px)`,
+            width: `${width}px`,
+            willChange: isInteracting ? 'transform, width' : 'auto',
+            transition: isInteracting ? 'none' : 'opacity 150ms, box-shadow 150ms',
+          }}
+        >
       {isVideo &&
         (mediaItem?.filmstripThumbnails?.length || mediaItem?.thumbnailUrl) && (
           <div className="absolute inset-0 flex pointer-events-none">
@@ -410,14 +398,9 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
         </>
       )}
 
-      {showContextMenu && (
-        <ClipContextMenu
-          clip={clip}
-          x={contextMenuPos.x}
-          y={contextMenuPos.y}
-          onClose={() => setShowContextMenu(false)}
-        />
-      )}
-    </div>
+        </div>
+      </ContextMenuTrigger>
+      <ClipContextMenu clip={clip} track={track} />
+    </ContextMenu>
   );
 };

@@ -12,10 +12,14 @@ import {
   ChevronDown,
 } from "lucide-react";
 import type { PhotoBlendMode, PhotoLayer } from "@openreel/core";
+import {
+  LabeledSlider as Slider,
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from "@openreel/ui";
 
-/**
- * Available blend modes
- */
 const BLEND_MODES: { value: PhotoBlendMode; label: string }[] = [
   { value: "normal", label: "Normal" },
   { value: "multiply", label: "Multiply" },
@@ -33,96 +37,37 @@ const BLEND_MODES: { value: PhotoBlendMode; label: string }[] = [
   { value: "luminosity", label: "Luminosity" },
 ];
 
-/**
- * Slider Component
- */
-const Slider: React.FC<{
-  label: string;
-  value: number;
-  onChange: (value: number) => void;
-  min?: number;
-  max?: number;
-  step?: number;
-  unit?: string;
-}> = ({ label, value, onChange, min = 0, max = 100, step = 1, unit = "" }) => {
-  const percentage = ((value - min) / (max - min)) * 100;
-
-  return (
-    <div className="space-y-1">
-      <div className="flex items-center justify-between">
-        <span className="text-[10px] text-text-secondary">{label}</span>
-        <span className="text-[10px] font-mono text-text-primary">
-          {value.toFixed(step < 1 ? 1 : 0)}
-          {unit}
-        </span>
-      </div>
-      <div className="h-1.5 bg-background-tertiary rounded-full relative overflow-hidden">
-        <input
-          type="range"
-          min={min}
-          max={max}
-          step={step}
-          value={value}
-          onChange={(e) => onChange(parseFloat(e.target.value))}
-          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-        />
-        <div
-          className="absolute top-0 left-0 h-full bg-text-secondary rounded-full transition-all"
-          style={{ width: `${percentage}%` }}
-        />
-        <div
-          className="absolute top-1/2 -translate-y-1/2 w-2.5 h-2.5 bg-white rounded-full shadow-sm pointer-events-none transition-all"
-          style={{ left: `calc(${percentage}% - 5px)` }}
-        />
-      </div>
-    </div>
-  );
-};
-
-/**
- * Blend Mode Selector Component
- */
 const BlendModeSelector: React.FC<{
   value: PhotoBlendMode;
   onChange: (mode: PhotoBlendMode) => void;
 }> = ({ value, onChange }) => {
-  const [isOpen, setIsOpen] = useState(false);
-
   const selectedMode =
     BLEND_MODES.find((m) => m.value === value) || BLEND_MODES[0];
 
   return (
-    <div className="relative">
-      <div className="flex items-center justify-between">
-        <span className="text-[10px] text-text-secondary">Blend Mode</span>
-        <button
-          onClick={() => setIsOpen(!isOpen)}
-          className="flex items-center gap-1 px-2 py-1 text-[10px] bg-background-tertiary border border-border rounded hover:border-primary transition-colors"
-        >
-          <span className="text-text-primary">{selectedMode.label}</span>
-          <ChevronDown size={12} className="text-text-muted" />
-        </button>
-      </div>
-      {isOpen && (
-        <div className="absolute right-0 top-full mt-1 w-32 max-h-48 overflow-y-auto bg-background-secondary border border-border rounded-lg shadow-lg z-20">
+    <div className="flex items-center justify-between">
+      <span className="text-[10px] text-text-secondary">Blend Mode</span>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button className="flex items-center gap-1 px-2 py-1 text-[10px] bg-background-tertiary border border-border rounded hover:border-primary transition-colors">
+            <span className="text-text-primary">{selectedMode.label}</span>
+            <ChevronDown size={12} className="text-text-muted" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-32 max-h-48 overflow-y-auto">
           {BLEND_MODES.map((mode) => (
-            <button
+            <DropdownMenuItem
               key={mode.value}
-              onClick={() => {
-                onChange(mode.value);
-                setIsOpen(false);
-              }}
-              className={`w-full px-3 py-1.5 text-left text-[10px] hover:bg-background-tertiary transition-colors ${
-                mode.value === value
-                  ? "text-primary bg-background-tertiary"
-                  : "text-text-primary"
+              onClick={() => onChange(mode.value)}
+              className={`text-[10px] ${
+                mode.value === value ? "text-primary bg-background-tertiary" : ""
               }`}
             >
               {mode.label}
-            </button>
+            </DropdownMenuItem>
           ))}
-        </div>
-      )}
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   );
 };
@@ -316,7 +261,7 @@ export const PhotoLayersSection: React.FC<PhotoLayersSectionProps> = ({
         <p className="text-[10px] text-text-muted">No layers</p>
         <button
           onClick={onAddLayer}
-          className="mt-2 px-3 py-1.5 text-[10px] bg-primary text-black rounded hover:bg-primary/90 transition-colors"
+          className="mt-2 px-3 py-1.5 text-[10px] bg-primary text-white rounded hover:bg-primary/90 transition-colors"
         >
           Add Layer
         </button>

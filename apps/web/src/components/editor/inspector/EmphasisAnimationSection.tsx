@@ -1,5 +1,6 @@
 import React, { useCallback, useMemo } from "react";
 import { RotateCcw, Target, Zap, Clock } from "lucide-react";
+import { Slider } from "@openreel/ui";
 import { useProjectStore } from "../../../stores/project-store";
 import { useEngineStore } from "../../../stores/engine-store";
 import type { EmphasisAnimation, EmphasisAnimationType } from "@openreel/core";
@@ -255,7 +256,7 @@ export const EmphasisAnimationSection: React.FC<
           onClick={() => handleTypeChange("none")}
           className={`py-2 rounded-lg text-[10px] font-medium transition-all ${
             currentAnimation.type === "none"
-              ? "bg-primary text-black"
+              ? "bg-primary text-white"
               : "bg-background-tertiary border border-border text-text-secondary hover:text-text-primary"
           }`}
         >
@@ -282,7 +283,7 @@ export const EmphasisAnimationSection: React.FC<
                 onClick={() => handleTypeChange(anim.type)}
                 className={`py-2 px-2 rounded-lg text-[10px] transition-all text-left ${
                   currentAnimation.type === anim.type
-                    ? "bg-primary text-black"
+                    ? "bg-primary text-white"
                     : "bg-background-tertiary border border-border text-text-secondary hover:text-text-primary hover:border-primary/50"
                 }`}
               >
@@ -309,16 +310,14 @@ export const EmphasisAnimationSection: React.FC<
                   {currentAnimation.speed.toFixed(1)}x
                 </span>
               </div>
-              <input
-                type="range"
+              <Slider
                 min={0.1}
                 max={3}
                 step={0.1}
-                value={currentAnimation.speed}
-                onChange={(e) =>
-                  handleAnimationChange({ speed: parseFloat(e.target.value) })
+                value={[currentAnimation.speed]}
+                onValueChange={(value) =>
+                  handleAnimationChange({ speed: value[0] })
                 }
-                className="w-full h-1.5 bg-background-tertiary rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:shadow-sm"
               />
             </div>
 
@@ -331,18 +330,16 @@ export const EmphasisAnimationSection: React.FC<
                   {Math.round(currentAnimation.intensity * 100)}%
                 </span>
               </div>
-              <input
-                type="range"
+              <Slider
                 min={0.1}
                 max={2}
                 step={0.1}
-                value={currentAnimation.intensity}
-                onChange={(e) =>
+                value={[currentAnimation.intensity]}
+                onValueChange={(value) =>
                   handleAnimationChange({
-                    intensity: parseFloat(e.target.value),
+                    intensity: value[0],
                   })
                 }
-                className="w-full h-1.5 bg-background-tertiary rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:shadow-sm"
               />
             </div>
 
@@ -387,18 +384,16 @@ export const EmphasisAnimationSection: React.FC<
                   {formatTime(currentAnimation.startTime ?? 0)}
                 </span>
               </div>
-              <input
-                type="range"
+              <Slider
                 min={0}
                 max={clipDuration}
                 step={0.1}
-                value={currentAnimation.startTime ?? 0}
-                onChange={(e) =>
+                value={[currentAnimation.startTime ?? 0]}
+                onValueChange={(value) =>
                   handleAnimationChange({
-                    startTime: parseFloat(e.target.value),
+                    startTime: value[0],
                   })
                 }
-                className="w-full h-1.5 bg-background-tertiary rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:shadow-sm"
               />
             </div>
 
@@ -413,22 +408,20 @@ export const EmphasisAnimationSection: React.FC<
                     : "Full clip"}
                 </span>
               </div>
-              <input
-                type="range"
+              <Slider
                 min={0}
                 max={clipDuration - (currentAnimation.startTime ?? 0)}
                 step={0.1}
-                value={
+                value={[
                   currentAnimation.animationDuration ??
                   clipDuration - (currentAnimation.startTime ?? 0)
-                }
-                onChange={(e) => {
-                  const val = parseFloat(e.target.value);
+                ]}
+                onValueChange={(value) => {
+                  const val = value[0];
                   handleAnimationChange({
                     animationDuration: val > 0 ? val : undefined,
                   });
                 }}
-                className="w-full h-1.5 bg-background-tertiary rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:shadow-sm"
               />
               <div className="flex justify-between text-[9px] text-text-muted">
                 <span>0s</span>
@@ -468,18 +461,16 @@ export const EmphasisAnimationSection: React.FC<
                     {(currentAnimation.zoomScale || 1.5).toFixed(1)}x
                   </span>
                 </div>
-                <input
-                  type="range"
+                <Slider
                   min={1.1}
                   max={3}
                   step={0.1}
-                  value={currentAnimation.zoomScale || 1.5}
-                  onChange={(e) =>
+                  value={[currentAnimation.zoomScale || 1.5]}
+                  onValueChange={(value) =>
                     handleAnimationChange({
-                      zoomScale: parseFloat(e.target.value),
+                      zoomScale: value[0],
                     })
                   }
-                  className="w-full h-1.5 bg-background-tertiary rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:shadow-sm"
                 />
               </div>
 
@@ -492,18 +483,16 @@ export const EmphasisAnimationSection: React.FC<
                     {((currentAnimation.holdDuration || 0.3) * 100).toFixed(0)}%
                   </span>
                 </div>
-                <input
-                  type="range"
+                <Slider
                   min={0}
                   max={1}
                   step={0.05}
-                  value={currentAnimation.holdDuration || 0.3}
-                  onChange={(e) =>
+                  value={[currentAnimation.holdDuration || 0.3]}
+                  onValueChange={(value) =>
                     handleAnimationChange({
-                      holdDuration: parseFloat(e.target.value),
+                      holdDuration: value[0],
                     })
                   }
-                  className="w-full h-1.5 bg-background-tertiary rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:shadow-sm"
                 />
               </div>
 
@@ -516,42 +505,38 @@ export const EmphasisAnimationSection: React.FC<
                     <span className="text-[9px] text-text-muted">
                       X Position
                     </span>
-                    <input
-                      type="range"
+                    <Slider
                       min={0}
                       max={1}
                       step={0.05}
-                      value={currentAnimation.focusPoint?.x || 0.5}
-                      onChange={(e) =>
+                      value={[currentAnimation.focusPoint?.x || 0.5]}
+                      onValueChange={(value) =>
                         handleAnimationChange({
                           focusPoint: {
-                            x: parseFloat(e.target.value),
+                            x: value[0],
                             y: currentAnimation.focusPoint?.y || 0.5,
                           },
                         })
                       }
-                      className="w-full h-1.5 bg-background-tertiary rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-2.5 [&::-webkit-slider-thumb]:h-2.5 [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:rounded-full"
                     />
                   </div>
                   <div className="space-y-1">
                     <span className="text-[9px] text-text-muted">
                       Y Position
                     </span>
-                    <input
-                      type="range"
+                    <Slider
                       min={0}
                       max={1}
                       step={0.05}
-                      value={currentAnimation.focusPoint?.y || 0.5}
-                      onChange={(e) =>
+                      value={[currentAnimation.focusPoint?.y || 0.5]}
+                      onValueChange={(value) =>
                         handleAnimationChange({
                           focusPoint: {
                             x: currentAnimation.focusPoint?.x || 0.5,
-                            y: parseFloat(e.target.value),
+                            y: value[0],
                           },
                         })
                       }
-                      className="w-full h-1.5 bg-background-tertiary rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-2.5 [&::-webkit-slider-thumb]:h-2.5 [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:rounded-full"
                     />
                   </div>
                 </div>
@@ -578,7 +563,7 @@ export const EmphasisAnimationSection: React.FC<
                       className={`py-1.5 rounded text-[9px] transition-all ${
                         currentAnimation.focusPoint?.x === preset.x &&
                         currentAnimation.focusPoint?.y === preset.y
-                          ? "bg-primary text-black"
+                          ? "bg-primary text-white"
                           : "bg-background-tertiary border border-border text-text-muted hover:text-text-primary"
                       }`}
                     >

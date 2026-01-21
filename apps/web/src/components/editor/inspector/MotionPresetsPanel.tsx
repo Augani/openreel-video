@@ -6,7 +6,6 @@ import React, {
   useRef,
 } from "react";
 import {
-  Sparkles,
   Play,
   ArrowRight,
   ArrowLeft,
@@ -270,7 +269,7 @@ const PresetCard: React.FC<PresetCardProps> = ({
           ref={previewRef}
           className="w-10 h-10 rounded bg-primary/80 flex items-center justify-center"
         >
-          <Play size={16} className="text-black" />
+          <Play size={16} className="text-white" />
         </div>
         {isApplied && (
           <div className="absolute top-2 right-2">
@@ -516,7 +515,7 @@ export const MotionPresetsPanel: React.FC<MotionPresetsPanelProps> = ({
   if (!targetClipId) {
     return (
       <div className="p-4 text-center">
-        <Sparkles size={24} className="mx-auto mb-2 text-text-muted" />
+        <Zap size={24} className="mx-auto mb-2 text-text-muted" />
         <p className="text-[10px] text-text-muted">
           Select a clip to apply motion presets
         </p>
@@ -527,7 +526,7 @@ export const MotionPresetsPanel: React.FC<MotionPresetsPanelProps> = ({
   if (!clip) {
     return (
       <div className="p-4 text-center">
-        <Sparkles size={24} className="mx-auto mb-2 text-text-muted" />
+        <Zap size={24} className="mx-auto mb-2 text-text-muted" />
         <p className="text-[10px] text-text-muted">Clip not found</p>
       </div>
     );
@@ -535,8 +534,8 @@ export const MotionPresetsPanel: React.FC<MotionPresetsPanelProps> = ({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2 p-2 bg-gradient-to-r from-violet-500/20 to-purple-500/20 rounded-lg border border-violet-500/30">
-        <Sparkles size={16} className="text-violet-400" />
+      <div className="flex items-center gap-2 p-2 bg-primary/10 rounded-lg border border-primary/30">
+        <Zap size={16} className="text-primary" />
         <div>
           <span className="text-[11px] font-medium text-text-primary">
             Motion Presets
@@ -601,7 +600,7 @@ export const MotionPresetsPanel: React.FC<MotionPresetsPanelProps> = ({
               onClick={() => setSelectedCategory(category.id)}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] whitespace-nowrap transition-colors relative ${
                 selectedCategory === category.id
-                  ? "bg-primary text-black font-medium"
+                  ? "bg-primary text-white font-medium"
                   : "bg-background-tertiary text-text-secondary hover:text-text-primary"
               }`}
             >

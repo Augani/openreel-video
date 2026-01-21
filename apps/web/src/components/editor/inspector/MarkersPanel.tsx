@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Flag, Plus, Trash2, Edit2, Check, X } from "lucide-react";
+import { Input, ScrollArea } from "@openreel/ui";
 import { useProjectStore } from "../../../stores/project-store";
 import { getPlaybackBridge } from "../../../bridges/playback-bridge";
 import type { Marker } from "@openreel/core";
@@ -83,8 +84,9 @@ export const MarkersPanel: React.FC = () => {
           <p className="text-[10px] mt-1">Press M at playhead to add markers</p>
         </div>
       ) : (
-        <div className="space-y-1 max-h-96 overflow-y-auto">
-          {markers
+        <ScrollArea className="max-h-96">
+          <div className="space-y-1">
+            {markers
             .sort((a, b) => a.time - b.time)
             .map((marker) => (
               <div
@@ -101,11 +103,11 @@ export const MarkersPanel: React.FC = () => {
 
                 {editingId === marker.id ? (
                   <div className="flex-1 space-y-2">
-                    <input
+                    <Input
                       type="text"
                       value={editLabel}
                       onChange={(e) => setEditLabel(e.target.value)}
-                      className="w-full px-2 py-1 bg-background-secondary border border-border rounded text-xs text-text-primary focus:outline-none focus:border-primary"
+                      className="h-7 text-xs bg-background-secondary border-border text-text-primary"
                       placeholder="Marker label"
                     />
                     <div className="flex gap-1">
@@ -170,7 +172,8 @@ export const MarkersPanel: React.FC = () => {
                 )}
               </div>
             ))}
-        </div>
+          </div>
+        </ScrollArea>
       )}
     </div>
   );

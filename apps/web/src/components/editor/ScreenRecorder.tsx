@@ -1,6 +1,5 @@
 import React, { useEffect, useRef } from "react";
 import {
-  X,
   Monitor,
   Mic,
   MicOff,
@@ -20,6 +19,17 @@ import {
 } from "../../services/screen-recorder";
 import { RecordingCountdown } from "./RecordingCountdown";
 import { RecordingControls } from "./RecordingControls";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@openreel/ui";
 
 interface ScreenRecorderProps {
   isOpen: boolean;
@@ -128,22 +138,16 @@ export const ScreenRecorder: React.FC<ScreenRecorderProps> = ({
   }
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm">
-      <div className="w-full max-w-2xl bg-background-secondary rounded-xl border border-border shadow-2xl overflow-hidden">
-        <div className="flex items-center justify-between p-4 border-b border-border bg-background-tertiary">
+    <Dialog open onOpenChange={(open) => !open && handleCancel()}>
+      <DialogContent className="max-w-2xl p-0 gap-0 bg-background-secondary border-border overflow-hidden">
+        <DialogHeader className="p-4 border-b border-border bg-background-tertiary space-y-0">
           <div className="flex items-center gap-3">
             <Circle size={20} className="text-error fill-error animate-pulse" />
-            <h2 className="text-lg font-bold text-text-primary">
+            <DialogTitle className="text-lg font-bold text-text-primary">
               Screen Recording
-            </h2>
+            </DialogTitle>
           </div>
-          <button
-            onClick={handleCancel}
-            className="p-2 text-text-muted hover:text-text-primary rounded-lg hover:bg-background-secondary transition-colors"
-          >
-            <X size={20} />
-          </button>
-        </div>
+        </DialogHeader>
 
         <div className="p-6 space-y-6">
           {!isSupported && (
@@ -190,23 +194,22 @@ export const ScreenRecorder: React.FC<ScreenRecorderProps> = ({
                 <label className="block text-xs text-text-muted mb-2">
                   Resolution
                 </label>
-                <select
+                <Select
                   value={options.video.resolution}
-                  onChange={(e) =>
-                    setVideoOption(
-                      "resolution",
-                      e.target.value as VideoResolution,
-                    )
-                  }
-                  className="w-full px-3 py-2 bg-background-tertiary border border-border rounded-lg text-sm text-text-primary focus:outline-none focus:border-primary"
+                  onValueChange={(v) => setVideoOption("resolution", v as VideoResolution)}
                   disabled={!isSupported}
                 >
-                  {RESOLUTION_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
+                  <SelectTrigger className="w-full bg-background-tertiary border-border text-text-primary">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-background-secondary border-border">
+                    {RESOLUTION_OPTIONS.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <p className="text-[10px] text-text-muted mt-1">
                   {
                     RESOLUTION_OPTIONS.find(
@@ -220,23 +223,22 @@ export const ScreenRecorder: React.FC<ScreenRecorderProps> = ({
                 <label className="block text-xs text-text-muted mb-2">
                   Frame Rate
                 </label>
-                <select
-                  value={options.video.frameRate}
-                  onChange={(e) =>
-                    setVideoOption(
-                      "frameRate",
-                      parseInt(e.target.value) as FrameRate,
-                    )
-                  }
-                  className="w-full px-3 py-2 bg-background-tertiary border border-border rounded-lg text-sm text-text-primary focus:outline-none focus:border-primary"
+                <Select
+                  value={String(options.video.frameRate)}
+                  onValueChange={(v) => setVideoOption("frameRate", parseInt(v) as FrameRate)}
                   disabled={!isSupported}
                 >
-                  {FRAMERATE_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
+                  <SelectTrigger className="w-full bg-background-tertiary border-border text-text-primary">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-background-secondary border-border">
+                    {FRAMERATE_OPTIONS.map((opt) => (
+                      <SelectItem key={opt.value} value={String(opt.value)}>
+                        {opt.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
           </div>
@@ -326,22 +328,21 @@ export const ScreenRecorder: React.FC<ScreenRecorderProps> = ({
                   <label className="block text-xs text-text-muted mb-2">
                     Webcam Resolution
                   </label>
-                  <select
+                  <Select
                     value={options.webcam.resolution}
-                    onChange={(e) =>
-                      setWebcamOption(
-                        "resolution",
-                        e.target.value as WebcamResolution,
-                      )
-                    }
-                    className="w-full px-3 py-2 bg-background-tertiary border border-border rounded-lg text-sm text-text-primary focus:outline-none focus:border-primary"
+                    onValueChange={(v) => setWebcamOption("resolution", v as WebcamResolution)}
                   >
-                    {WEBCAM_RESOLUTION_OPTIONS.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
+                    <SelectTrigger className="w-full bg-background-tertiary border-border text-text-primary">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-background-secondary border-border">
+                      {WEBCAM_RESOLUTION_OPTIONS.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 {webcamStream && (
@@ -396,7 +397,7 @@ export const ScreenRecorder: React.FC<ScreenRecorderProps> = ({
             </button>
           </div>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 };

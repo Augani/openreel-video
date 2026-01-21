@@ -5,49 +5,14 @@ import {
   getBlendModeName,
   type BlendMode,
 } from "@openreel/core";
-
-const Slider: React.FC<{
-  label: string;
-  value: number;
-  onChange: (value: number) => void;
-  min?: number;
-  max?: number;
-  step?: number;
-  unit?: string;
-}> = ({ label, value, onChange, min = 0, max = 100, step = 1, unit = "%" }) => {
-  const percentage = ((value - min) / (max - min)) * 100;
-
-  return (
-    <div className="space-y-1">
-      <div className="flex items-center justify-between">
-        <span className="text-[10px] text-text-secondary">{label}</span>
-        <span className="text-[10px] font-mono text-text-primary">
-          {value.toFixed(step < 1 ? 1 : 0)}
-          {unit}
-        </span>
-      </div>
-      <div className="h-1.5 bg-background-tertiary rounded-full relative overflow-hidden">
-        <input
-          type="range"
-          min={min}
-          max={max}
-          step={step}
-          value={value}
-          onChange={(e) => onChange(parseFloat(e.target.value))}
-          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-        />
-        <div
-          className="absolute top-0 left-0 h-full bg-text-secondary rounded-full transition-all"
-          style={{ width: `${percentage}%` }}
-        />
-        <div
-          className="absolute top-1/2 -translate-y-1/2 w-2.5 h-2.5 bg-white rounded-full shadow-sm pointer-events-none transition-all"
-          style={{ left: `calc(${percentage}% - 5px)` }}
-        />
-      </div>
-    </div>
-  );
-};
+import {
+  LabeledSlider as Slider,
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@openreel/ui";
 
 interface BlendingSectionProps {
   clipId: string;
@@ -118,17 +83,21 @@ export const BlendingSection: React.FC<BlendingSectionProps> = ({ clipId }) => {
     <div className="space-y-3">
       <div className="space-y-1">
           <span className="text-[10px] text-text-secondary">Blend Mode</span>
-          <select
+          <Select
             value={blendMode}
-            onChange={(e) => handleBlendModeChange(e.target.value as BlendMode)}
-            className="w-full px-3 py-2 text-sm text-text-primary bg-background-tertiary border border-border rounded-lg outline-none focus:border-primary cursor-pointer"
+            onValueChange={(v) => handleBlendModeChange(v as BlendMode)}
           >
-            {availableBlendModes.map((mode) => (
-              <option key={mode} value={mode}>
-                {getBlendModeName(mode)}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger className="w-full bg-background-tertiary border-border text-text-primary">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent className="bg-background-secondary border-border">
+              {availableBlendModes.map((mode) => (
+                <SelectItem key={mode} value={mode}>
+                  {getBlendModeName(mode)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <p className="text-[9px] text-text-muted">
             {blendMode === "normal" && "Default blending, no special effect"}
             {blendMode === "multiply" && "Darkens by multiplying colors"}

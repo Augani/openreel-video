@@ -1,7 +1,15 @@
 import React, { useCallback } from "react";
-import { Sparkles, Clock, Play } from "lucide-react";
+import { Type, Clock, Play } from "lucide-react";
 import { useProjectStore } from "../../../stores/project-store";
 import type { TextAnimationPreset, TextAnimationParams } from "@openreel/core";
+import {
+  LabeledSlider,
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@openreel/ui";
 
 interface PresetInfo {
   value: TextAnimationPreset;
@@ -58,34 +66,7 @@ const ANIMATION_PRESETS: PresetInfo[] = [
   },
 ];
 
-const Slider: React.FC<{
-  label: string;
-  value: number;
-  onChange: (value: number) => void;
-  min: number;
-  max: number;
-  step?: number;
-  unit?: string;
-}> = ({ label, value, onChange, min, max, step = 0.1, unit = "s" }) => (
-  <div className="space-y-1">
-    <div className="flex items-center justify-between">
-      <span className="text-[10px] text-text-secondary">{label}</span>
-      <span className="text-[10px] font-mono text-text-muted">
-        {value.toFixed(1)}
-        {unit}
-      </span>
-    </div>
-    <input
-      type="range"
-      value={value}
-      onChange={(e) => onChange(parseFloat(e.target.value))}
-      min={min}
-      max={max}
-      step={step}
-      className="w-full h-1 bg-background-tertiary rounded-lg appearance-none cursor-pointer accent-primary"
-    />
-  </div>
-);
+const Slider = LabeledSlider;
 
 const PresetSelector: React.FC<{
   value: TextAnimationPreset;
@@ -93,17 +74,18 @@ const PresetSelector: React.FC<{
 }> = ({ value, onChange }) => (
   <div className="space-y-2">
     <span className="text-[10px] text-text-secondary">Animation Preset</span>
-    <select
-      value={value}
-      onChange={(e) => onChange(e.target.value as TextAnimationPreset)}
-      className="w-full px-3 py-2 text-sm text-text-primary bg-background-tertiary border border-border rounded-lg outline-none focus:border-primary cursor-pointer"
-    >
-      {ANIMATION_PRESETS.map((preset) => (
-        <option key={preset.value} value={preset.value}>
-          {preset.label}
-        </option>
-      ))}
-    </select>
+    <Select value={value} onValueChange={(v) => onChange(v as TextAnimationPreset)}>
+      <SelectTrigger className="w-full bg-background-tertiary border-border text-text-primary">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent className="bg-background-secondary border-border max-h-60">
+        {ANIMATION_PRESETS.map((preset) => (
+          <SelectItem key={preset.value} value={preset.value}>
+            {preset.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
     <p className="text-[9px] text-text-muted">
       {ANIMATION_PRESETS.find((p) => p.value === value)?.description}
     </p>
@@ -124,17 +106,18 @@ const EasingSelector: React.FC<{
   return (
     <div className="space-y-1">
       <span className="text-[10px] text-text-secondary">Easing</span>
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-full px-2 py-1 text-[10px] text-text-primary bg-background-tertiary border border-border rounded outline-none focus:border-primary cursor-pointer"
-      >
-        {easingOptions.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
+      <Select value={value} onValueChange={onChange}>
+        <SelectTrigger className="w-full bg-background-tertiary border-border text-text-primary text-[10px]">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent className="bg-background-secondary border-border">
+          {easingOptions.map((option) => (
+            <SelectItem key={option.value} value={option.value}>
+              {option.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </div>
   );
 };
@@ -203,7 +186,7 @@ export const TextAnimationSection: React.FC<TextAnimationSectionProps> = ({
   if (!textClip) {
     return (
       <div className="p-4 text-center">
-        <Sparkles size={24} className="mx-auto mb-2 text-text-muted" />
+        <Type size={24} className="mx-auto mb-2 text-text-muted" />
         <p className="text-[10px] text-text-muted">No text clip selected</p>
       </div>
     );

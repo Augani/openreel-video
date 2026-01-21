@@ -37,6 +37,12 @@ import {
 import { GPUCompositor, initializeGPUCompositor } from "./gpu-compositor";
 import { getRendererFactory, type Renderer } from "./renderer-factory";
 import { keyframeEngine } from "./keyframe-engine";
+import {
+  type GifFrameCache,
+  createGifFrameCache,
+  getGifFrameAtTime,
+  isAnimatedGif,
+} from "../media/gif-decoder";
 
 const DEFAULT_CACHE_CONFIG: FrameCacheConfig = {
   maxFrames: 100,
@@ -65,6 +71,7 @@ export class VideoEngine {
   private mediabunny: typeof import("mediabunny") | null = null;
   private initialized = false;
   private frameCache: Map<string, CachedFrame> = new Map();
+  private gifFrameCache: Map<string, GifFrameCache> = new Map();
   private cacheConfig: FrameCacheConfig;
   private cacheStats = { hits: 0, misses: 0 };
   private preloadQueue: PreloadRequest[] = [];
@@ -407,7 +414,7 @@ export class VideoEngine {
             track.type === "graphics") &&
           !track.hidden,
       )
-      .sort((a, b) => b.originalIndex - a.originalIndex);
+      .sort((a, b) => a.originalIndex - b.originalIndex);
 
     const canvas = new OffscreenCanvas(width, height);
     const ctx = canvas.getContext("2d") as OffscreenCanvasRenderingContext2D;
@@ -430,7 +437,28 @@ export class VideoEngine {
 
           if (mediaItem.type === "image") {
             try {
-              bitmap = await createImageBitmap(mediaItem.blob);
+              if (isAnimatedGif(mediaItem.blob)) {
+                let gifCache = this.gifFrameCache.get(mediaItem.id);
+                if (!gifCache) {
+                  const newCache = await createGifFrameCache(mediaItem.blob);
+                  if (newCache) {
+                    this.gifFrameCache.set(mediaItem.id, newCache);
+                    gifCache = newCache;
+                  }
+                }
+                if (gifCache && gifCache.frames.length > 0) {
+                  const clipLocalTime = time - clip.startTime;
+                  const frameIndex = getGifFrameAtTime(
+                    gifCache,
+                    clipLocalTime * 1000,
+                  );
+                  bitmap = gifCache.frames[frameIndex];
+                } else {
+                  bitmap = await createImageBitmap(mediaItem.blob);
+                }
+              } else {
+                bitmap = await createImageBitmap(mediaItem.blob);
+              }
             } catch (error) {
               console.warn(
                 `Failed to create ImageBitmap for image ${mediaItem.id}:`,
@@ -912,6 +940,7 @@ export class VideoEngine {
       speedEngine.getSourceTimeAtPlaybackTime(clip.id, clipLocalTime);
 
     const animatedTransform = this.getAnimatedTransform(clip, clipLocalTime);
+    const animatedEffects = this.getAnimatedEffects(clip, clipLocalTime);
 
     return {
       clipId: clip.id,
@@ -919,9 +948,54 @@ export class VideoEngine {
       media: null as unknown as Blob,
       sourceTime,
       transform: animatedTransform,
-      effects: clip.effects,
+      effects: animatedEffects,
       opacity: animatedTransform.opacity,
     };
+  }
+
+  private getAnimatedEffects(clip: Clip, localTime: number): Effect[] {
+    const keyframes = clip.keyframes || [];
+    const baseEffects = clip.effects || [];
+
+    if (keyframes.length === 0) {
+      return baseEffects;
+    }
+
+    const effectPropertyMap: Record<string, string> = {
+      "effect.brightness": "brightness",
+      "effect.contrast": "contrast",
+      "effect.saturation": "saturation",
+      "effect.blur": "blur",
+    };
+
+    const animatedParams: Record<string, number> = {};
+
+    for (const [keyframeProp, paramName] of Object.entries(effectPropertyMap)) {
+      const effectKfs = keyframeEngine.getKeyframesForProperty(
+        keyframes,
+        keyframeProp,
+      );
+      if (effectKfs.length > 0) {
+        const result = keyframeEngine.getValueAtTime(effectKfs, localTime);
+        if (typeof result.value === "number") {
+          animatedParams[paramName] = result.value;
+        }
+      }
+    }
+
+    if (Object.keys(animatedParams).length === 0) {
+      return baseEffects;
+    }
+
+    return baseEffects.map((effect) => {
+      const updatedParams = { ...effect.params };
+      for (const [paramName, value] of Object.entries(animatedParams)) {
+        if (effect.type === paramName || paramName in updatedParams) {
+          updatedParams[paramName] = value;
+        }
+      }
+      return { ...effect, params: updatedParams };
+    });
   }
 
   private getAnimatedTransform(clip: Clip, localTime: number): Transform {

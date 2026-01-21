@@ -194,6 +194,7 @@ export class PlaybackController {
 
     this.state = "playing";
 
+    await this.preloadAudioBuffers();
     await this.masterClock.play();
     await this.startAudioPlayback();
 
@@ -274,6 +275,7 @@ export class PlaybackController {
     const clampedTime = Math.max(0, Math.min(time, duration));
 
     this.masterClock.seek(clampedTime);
+    this.realtimeAudioGraph.seekTo(clampedTime);
 
     if (wasPlaying) {
       this.stopAudioPlayback();
@@ -312,6 +314,7 @@ export class PlaybackController {
     const clampedTime = Math.max(0, Math.min(time, duration));
 
     this.masterClock.seek(clampedTime);
+    this.realtimeAudioGraph.seekTo(clampedTime);
 
     this.emitEvent({
       type: "timeupdate",
@@ -581,6 +584,70 @@ export class PlaybackController {
   }
 
   private audioBufferCache: Map<string, AudioBuffer> = new Map();
+  private audioDecodePromises: Map<string, Promise<AudioBuffer | null>> =
+    new Map();
+
+  private async preloadAudioBuffers(): Promise<void> {
+    if (!this.project) return;
+
+    const { timeline, mediaLibrary } = this.project;
+    const mediaIdsToPreload = new Set<string>();
+
+    for (const track of timeline.tracks) {
+      if (track.type !== "audio" && track.type !== "video") continue;
+
+      for (const clip of track.clips) {
+        const mediaItem = mediaLibrary.items.find((m) => m.id === clip.mediaId);
+        if (mediaItem?.blob && !this.audioBufferCache.has(mediaItem.id)) {
+          mediaIdsToPreload.add(mediaItem.id);
+        }
+      }
+    }
+
+    const decodePromises: Promise<AudioBuffer | null>[] = [];
+
+    for (const mediaId of mediaIdsToPreload) {
+      const mediaItem = mediaLibrary.items.find((m) => m.id === mediaId);
+      if (mediaItem?.blob) {
+        decodePromises.push(this.decodeAudioBuffer(mediaItem));
+      }
+    }
+
+    await Promise.all(decodePromises);
+  }
+
+  private async decodeAudioBuffer(mediaItem: {
+    id: string;
+    blob?: Blob | null;
+  }): Promise<AudioBuffer | null> {
+    if (this.audioBufferCache.has(mediaItem.id)) {
+      return this.audioBufferCache.get(mediaItem.id) || null;
+    }
+
+    if (this.audioDecodePromises.has(mediaItem.id)) {
+      return this.audioDecodePromises.get(mediaItem.id) || null;
+    }
+
+    if (!mediaItem.blob) return null;
+
+    const audioContext = this.masterClock.getAudioContext();
+
+    const decodePromise = mediaItem.blob
+      .arrayBuffer()
+      .then((arrayBuffer) => audioContext.decodeAudioData(arrayBuffer))
+      .then((buffer) => {
+        this.audioBufferCache.set(mediaItem.id, buffer);
+        this.audioDecodePromises.delete(mediaItem.id);
+        return buffer;
+      })
+      .catch(() => {
+        this.audioDecodePromises.delete(mediaItem.id);
+        return null;
+      });
+
+    this.audioDecodePromises.set(mediaItem.id, decodePromise);
+    return decodePromise;
+  }
 
   private getOrDecodeAudioBuffer(mediaItem: {
     id: string;
@@ -591,13 +658,7 @@ export class PlaybackController {
 
     if (!mediaItem.blob) return null;
 
-    const audioContext = this.masterClock.getAudioContext();
-
-    mediaItem.blob.arrayBuffer().then((arrayBuffer) => {
-      audioContext.decodeAudioData(arrayBuffer).then((buffer) => {
-        this.audioBufferCache.set(mediaItem.id, buffer);
-      });
-    });
+    this.decodeAudioBuffer(mediaItem);
 
     return null;
   }

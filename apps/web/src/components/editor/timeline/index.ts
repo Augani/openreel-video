@@ -1,6 +1,5 @@
 export * from "./types";
 export * from "./utils";
-export { IconButton } from "./IconButton";
 export { Playhead } from "./Playhead";
 export { TimeRuler } from "./TimeRuler";
 export { TrackHeader } from "./TrackHeader";

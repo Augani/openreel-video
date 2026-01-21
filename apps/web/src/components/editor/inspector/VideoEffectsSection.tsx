@@ -11,51 +11,16 @@ import type {
   VideoEffect,
   VideoEffectType,
 } from "../../../bridges/effects-bridge";
+import {
+  LabeledSlider,
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+} from "@openreel/ui";
 
-const EffectSlider: React.FC<{
-  label: string;
-  value: number;
-  onChange: (value: number) => void;
-  min?: number;
-  max?: number;
-  step?: number;
-  unit?: string;
-}> = ({ label, value, onChange, min = 0, max = 100, step = 1, unit = "" }) => {
-  const percentage = ((value - min) / (max - min)) * 100;
-
-  return (
-    <div className="space-y-1">
-      <div className="flex items-center justify-between">
-        <span className="text-[10px] text-text-secondary">{label}</span>
-        <span className="text-[10px] font-mono text-text-primary bg-background-tertiary px-1.5 py-0.5 rounded border border-border">
-          {value.toFixed(step < 1 ? 1 : 0)}
-          {unit}
-        </span>
-      </div>
-      <div className="flex items-center gap-2">
-        <div className="flex-1 h-1.5 bg-background-tertiary rounded-full relative overflow-hidden">
-          <input
-            type="range"
-            min={min}
-            max={max}
-            step={step}
-            value={value}
-            onChange={(e) => onChange(parseFloat(e.target.value))}
-            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-          />
-          <div
-            className="absolute top-0 left-0 h-full bg-text-secondary rounded-full transition-all"
-            style={{ width: `${percentage}%` }}
-          />
-          <div
-            className="absolute top-1/2 -translate-y-1/2 w-2.5 h-2.5 bg-white rounded-full shadow-sm pointer-events-none transition-all"
-            style={{ left: `calc(${percentage}% - 5px)` }}
-          />
-        </div>
-      </div>
-    </div>
-  );
-};
+const EffectSlider = LabeledSlider;
 
 /**
  * Effect Item Component - displays a single effect with controls
@@ -402,81 +367,60 @@ const EffectItem: React.FC<{
   );
 };
 
-/**
- * Effect Type Selector - dropdown to add new effects
- */
+const EFFECT_TYPES: {
+  type: VideoEffectType;
+  label: string;
+  category: string;
+}[] = [
+  { type: "brightness", label: "Brightness", category: "Basic" },
+  { type: "contrast", label: "Contrast", category: "Basic" },
+  { type: "saturation", label: "Saturation", category: "Basic" },
+  { type: "temperature", label: "Temperature", category: "Color" },
+  { type: "tint", label: "Tint", category: "Color" },
+  { type: "blur", label: "Blur", category: "Blur" },
+  { type: "motion-blur", label: "Motion Blur", category: "Blur" },
+  { type: "radial-blur", label: "Radial Blur", category: "Blur" },
+  { type: "sharpen", label: "Sharpen", category: "Creative" },
+  { type: "vignette", label: "Vignette", category: "Creative" },
+  { type: "grain", label: "Film Grain", category: "Creative" },
+  { type: "shadow", label: "Drop Shadow", category: "Stylize" },
+  { type: "glow", label: "Glow", category: "Stylize" },
+  { type: "chromatic-aberration", label: "Chromatic Aberration", category: "Stylize" },
+];
+
+const EFFECT_CATEGORIES = [...new Set(EFFECT_TYPES.map((e) => e.category))];
+
 const EffectTypeSelector: React.FC<{
   onSelect: (type: VideoEffectType) => void;
 }> = ({ onSelect }) => {
-  const [isOpen, setIsOpen] = React.useState(false);
-
-  const effectTypes: {
-    type: VideoEffectType;
-    label: string;
-    category: string;
-  }[] = [
-    { type: "brightness", label: "Brightness", category: "Basic" },
-    { type: "contrast", label: "Contrast", category: "Basic" },
-    { type: "saturation", label: "Saturation", category: "Basic" },
-    { type: "temperature", label: "Temperature", category: "Color" },
-    { type: "tint", label: "Tint", category: "Color" },
-    { type: "blur", label: "Blur", category: "Blur" },
-    { type: "motion-blur", label: "Motion Blur", category: "Blur" },
-    { type: "radial-blur", label: "Radial Blur", category: "Blur" },
-    { type: "sharpen", label: "Sharpen", category: "Creative" },
-    { type: "vignette", label: "Vignette", category: "Creative" },
-    { type: "grain", label: "Film Grain", category: "Creative" },
-    { type: "shadow", label: "Drop Shadow", category: "Stylize" },
-    { type: "glow", label: "Glow", category: "Stylize" },
-    {
-      type: "chromatic-aberration",
-      label: "Chromatic Aberration",
-      category: "Stylize",
-    },
-  ];
-
-  const categories = [...new Set(effectTypes.map((e) => e.category))];
-
   return (
-    <div className="relative">
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="w-full py-2 bg-primary/10 border border-primary/30 rounded-lg text-[10px] text-primary hover:bg-primary/20 transition-colors"
-      >
-        + Add Effect
-      </button>
-      {isOpen && (
-        <>
-          <div
-            className="fixed inset-0 z-10"
-            onClick={() => setIsOpen(false)}
-          />
-          <div className="absolute top-full left-0 right-0 mt-1 bg-background-secondary border border-border rounded-lg shadow-lg z-20 max-h-64 overflow-y-auto">
-            {categories.map((category) => (
-              <div key={category}>
-                <div className="px-3 py-1.5 text-[9px] font-medium text-text-muted uppercase tracking-wider bg-background-tertiary">
-                  {category}
-                </div>
-                {effectTypes
-                  .filter((e) => e.category === category)
-                  .map((effect) => (
-                    <button
-                      key={effect.type}
-                      onClick={() => {
-                        onSelect(effect.type);
-                        setIsOpen(false);
-                      }}
-                      className="w-full px-3 py-2 text-left text-[10px] text-text-primary hover:bg-background-tertiary transition-colors"
-                    >
-                      {effect.label}
-                    </button>
-                  ))}
-              </div>
-            ))}
-          </div>
-        </>
-      )}
-    </div>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button className="w-full py-2 bg-primary/10 border border-primary/30 rounded-lg text-[10px] text-primary hover:bg-primary/20 transition-colors">
+          + Add Effect
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-48 max-h-64 overflow-y-auto">
+        {EFFECT_CATEGORIES.map((category) => (
+          <React.Fragment key={category}>
+            <DropdownMenuLabel className="text-[9px] uppercase tracking-wider text-text-muted">
+              {category}
+            </DropdownMenuLabel>
+            {EFFECT_TYPES
+              .filter((e) => e.category === category)
+              .map((effect) => (
+                <DropdownMenuItem
+                  key={effect.type}
+                  onClick={() => onSelect(effect.type)}
+                  className="text-[10px]"
+                >
+                  {effect.label}
+                </DropdownMenuItem>
+              ))}
+          </React.Fragment>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 };
 

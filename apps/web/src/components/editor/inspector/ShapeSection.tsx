@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { useProjectStore } from "../../../stores/project-store";
 import type { ShapeStyle, FillStyle, StrokeStyle } from "@openreel/core";
+import { LabeledSlider as Slider } from "@openreel/ui";
 
 const ColorPicker: React.FC<{
   label: string;
@@ -57,49 +58,6 @@ const NumberInput: React.FC<{
   </div>
 );
 
-const Slider: React.FC<{
-  label: string;
-  value: number;
-  onChange: (value: number) => void;
-  min?: number;
-  max?: number;
-  step?: number;
-  unit?: string;
-}> = ({ label, value, onChange, min = 0, max = 100, step = 1, unit = "" }) => {
-  const percentage = ((value - min) / (max - min)) * 100;
-
-  return (
-    <div className="space-y-1">
-      <div className="flex items-center justify-between">
-        <span className="text-[10px] text-text-secondary">{label}</span>
-        <span className="text-[10px] font-mono text-text-primary">
-          {value.toFixed(step < 1 ? 1 : 0)}
-          {unit}
-        </span>
-      </div>
-      <div className="h-1.5 bg-background-tertiary rounded-full relative overflow-hidden">
-        <input
-          type="range"
-          min={min}
-          max={max}
-          step={step}
-          value={value}
-          onChange={(e) => onChange(parseFloat(e.target.value))}
-          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-        />
-        <div
-          className="absolute top-0 left-0 h-full bg-text-secondary rounded-full transition-all"
-          style={{ width: `${percentage}%` }}
-        />
-        <div
-          className="absolute top-1/2 -translate-y-1/2 w-2.5 h-2.5 bg-white rounded-full shadow-sm pointer-events-none transition-all"
-          style={{ left: `calc(${percentage}% - 5px)` }}
-        />
-      </div>
-    </div>
-  );
-};
-
 const StrokeStyleSelector: React.FC<{
   value: number[] | undefined;
   onChange: (dashArray: number[] | undefined) => void;
@@ -121,7 +79,7 @@ const StrokeStyleSelector: React.FC<{
             className={`px-2 py-1 text-[9px] rounded transition-colors ${
               (style.value === undefined && value === undefined) ||
               (style.value && value && style.value[0] === value[0])
-                ? "bg-primary text-black"
+                ? "bg-primary text-white"
                 : "bg-background-tertiary border border-border text-text-secondary hover:text-text-primary"
             }`}
             title={style.label}

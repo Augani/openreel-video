@@ -19,7 +19,8 @@ import {
   ChevronUp,
   ChevronDown,
   Trash2,
-  X,
+  Plus,
+  ChevronDown as ChevronDownIcon,
 } from "lucide-react";
 import { useProjectStore } from "../../stores/project-store";
 import { useTimelineStore } from "../../stores/timeline-store";
@@ -28,6 +29,16 @@ import { useEngineStore } from "../../stores/engine-store";
 import { getPlaybackBridge } from "../../bridges/playback-bridge";
 import {
   IconButton,
+  Popover,
+  PopoverTrigger,
+  PopoverContent,
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from "@openreel/ui";
+import {
   Playhead,
   TimeRuler,
   TrackHeader,
@@ -637,22 +648,7 @@ export const Timeline: React.FC = () => {
     [tracks],
   );
 
-  const textTracks = tracks.filter((t) => t.type === "text");
-  const graphicsTracks = tracks.filter((t) => t.type === "graphics");
-  const videoTracks = tracks.filter((t) => t.type === "video");
-  const imageTracks = tracks.filter((t) => t.type === "image");
-  const audioTracks = tracks.filter((t) => t.type === "audio");
-
-  const visualOrderTracks = useMemo(
-    () => [
-      ...textTracks,
-      ...graphicsTracks,
-      ...videoTracks,
-      ...imageTracks,
-      ...audioTracks,
-    ],
-    [textTracks, graphicsTracks, videoTracks, imageTracks, audioTracks],
-  );
+  const visualOrderTracks = useMemo(() => tracks, [tracks]);
 
   return (
     <div className="h-full bg-background border-t border-border flex flex-col">
@@ -700,132 +696,145 @@ export const Timeline: React.FC = () => {
 
           <div className="w-px h-6 bg-border mx-1" />
 
-          <div className="flex bg-background-tertiary rounded-lg p-1 border border-border">
-            <IconButton
-              icon={Film}
-              onClick={() => addTrack("video")}
-              title="Add Video Track"
-            />
-            <IconButton
-              icon={Music}
-              onClick={() => addTrack("audio")}
-              title="Add Audio Track"
-            />
-            <IconButton
-              icon={Image}
-              onClick={() => addTrack("image")}
-              title="Add Image Track"
-            />
-            <IconButton
-              icon={Type}
-              onClick={() => addTrack("text")}
-              title="Add Text Track"
-            />
-            <IconButton
-              icon={Shapes}
-              onClick={() => addTrack("graphics")}
-              title="Add Graphics Track"
-            />
-          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 border border-primary/20 transition-colors"
+                title="Add new track"
+              >
+                <Plus size={14} />
+                <span className="text-[11px] font-semibold">Add Track</span>
+                <ChevronDownIcon size={12} className="ml-0.5 opacity-60" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" sideOffset={8} className="w-48">
+              <DropdownMenuItem onClick={() => addTrack("video")}>
+                <Film size={16} className="text-green-400" />
+                <span>Video Track</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => addTrack("audio")}>
+                <Music size={16} className="text-blue-400" />
+                <span>Audio Track</span>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => addTrack("image")}>
+                <Image size={16} className="text-purple-400" />
+                <span>Image Track</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => addTrack("text")}>
+                <Type size={16} className="text-yellow-400" />
+                <span>Text Track</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => addTrack("graphics")}>
+                <Shapes size={16} className="text-pink-400" />
+                <span>Graphics Track</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
 
           <div className="w-px h-6 bg-border mx-1" />
 
-          <div className="relative">
-            <button
-              onClick={() => setShowLayersPanel(!showLayersPanel)}
-              className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg transition-colors ${
-                showLayersPanel
-                  ? "bg-primary/20 text-primary"
-                  : "hover:bg-background-elevated text-text-secondary hover:text-text-primary"
-              }`}
-              title="Manage track layers"
+          <Popover open={showLayersPanel} onOpenChange={setShowLayersPanel}>
+            <PopoverTrigger asChild>
+              <button
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg transition-colors ${
+                  showLayersPanel
+                    ? "bg-primary/20 text-primary"
+                    : "hover:bg-background-elevated text-text-secondary hover:text-text-primary"
+                }`}
+                title="Manage track layers"
+              >
+                <Layers size={14} />
+                <span className="text-[10px] font-medium tracking-wide">LAYERS</span>
+              </button>
+            </PopoverTrigger>
+            <PopoverContent
+              align="start"
+              sideOffset={8}
+              className="w-64 p-0 bg-background-secondary border-border"
             >
-              <Layers size={14} />
-              <span className="text-[10px] font-medium">LAYERS</span>
-            </button>
-            {showLayersPanel && (
-              <div className="absolute top-full left-0 mt-2 w-64 bg-background-secondary border border-border rounded-lg shadow-xl z-50 overflow-hidden">
-                <div className="flex items-center justify-between px-3 py-2 border-b border-border bg-background-tertiary">
-                  <span className="text-xs font-medium text-text-primary">
-                    Track Layers
-                  </span>
-                  <button
-                    onClick={() => setShowLayersPanel(false)}
-                    className="p-1 rounded hover:bg-background-elevated text-text-muted hover:text-text-primary"
-                  >
-                    <X size={12} />
-                  </button>
-                </div>
-                <div className="p-2 max-h-60 overflow-y-auto">
-                  {tracks.length === 0 ? (
-                    <p className="text-xs text-text-muted text-center py-4">
-                      No tracks yet
-                    </p>
-                  ) : (
-                    <div className="space-y-1">
-                      {tracks.map((track, index) => {
-                        const info = getTrackInfo(track, index);
-                        return (
-                          <div
-                            key={track.id}
-                            className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-background-tertiary group"
-                          >
-                            <div
-                              className={`w-6 h-6 rounded flex items-center justify-center ${info.bgLight}`}
-                            >
-                              <info.icon size={12} className={info.textColor} />
-                            </div>
-                            <span className="text-xs text-text-primary flex-1">
-                              {track.name || info.label}
-                            </span>
-                            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <button
-                                onClick={() =>
-                                  index > 0 && reorderTrack(track.id, index - 1)
-                                }
-                                disabled={index === 0}
-                                className="p-1 rounded hover:bg-background-elevated disabled:opacity-30"
-                                title="Move up"
-                              >
-                                <ChevronUp size={10} />
-                              </button>
-                              <button
-                                onClick={() =>
-                                  index < tracks.length - 1 &&
-                                  reorderTrack(track.id, index + 1)
-                                }
-                                disabled={index === tracks.length - 1}
-                                className="p-1 rounded hover:bg-background-elevated disabled:opacity-30"
-                                title="Move down"
-                              >
-                                <ChevronDown size={10} />
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
+              <div className="flex items-center justify-between px-3 py-2.5 border-b border-border bg-background-tertiary">
+                <span className="text-xs font-semibold text-text-primary">
+                  Track Layers
+                </span>
               </div>
-            )}
-          </div>
+              <div className="p-2 max-h-60 overflow-y-auto">
+                {tracks.length === 0 ? (
+                  <p className="text-xs text-text-muted text-center py-6">
+                    No tracks yet
+                  </p>
+                ) : (
+                  <div className="space-y-0.5">
+                    {tracks.map((track, index) => {
+                      const info = getTrackInfo(track, index);
+                      return (
+                        <div
+                          key={track.id}
+                          className="flex items-center gap-2.5 px-2 py-2 rounded-md hover:bg-background-tertiary group transition-colors cursor-default"
+                        >
+                          <div
+                            className={`w-7 h-7 rounded-md flex items-center justify-center ${info.bgLight}`}
+                          >
+                            <info.icon size={14} className={info.textColor} />
+                          </div>
+                          <span className="text-[11px] font-medium text-text-primary flex-1 truncate">
+                            {track.name || info.label}
+                          </span>
+                          <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              onClick={() =>
+                                index > 0 && reorderTrack(track.id, index - 1)
+                              }
+                              disabled={index === 0}
+                              className="p-1.5 rounded-md hover:bg-background-elevated disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                              title="Move up"
+                            >
+                              <ChevronUp size={12} />
+                            </button>
+                            <button
+                              onClick={() =>
+                                index < tracks.length - 1 &&
+                                reorderTrack(track.id, index + 1)
+                              }
+                              disabled={index === tracks.length - 1}
+                              className="p-1.5 rounded-md hover:bg-background-elevated disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                              title="Move down"
+                            >
+                              <ChevronDown size={12} />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </PopoverContent>
+          </Popover>
         </div>
 
-        <div className="font-mono text-primary text-sm font-bold tracking-widest bg-background-tertiary px-3 py-1 rounded border border-primary/20 shadow-[0_0_10px_rgba(34,197,94,0.1)]">
+        <div className="font-mono text-primary text-sm font-bold tracking-wider bg-background-tertiary px-4 py-1.5 rounded-lg border border-primary/20 shadow-[0_0_12px_rgba(34,197,94,0.15)]">
           {formatTimecode(playheadPosition)}
         </div>
 
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 text-text-secondary bg-background-tertiary rounded-lg px-2 py-1 border border-border">
-            <button onClick={zoomOut} className="hover:text-text-primary px-1">
-              -
+        <div className="flex items-center gap-2">
+          <div className="flex items-center bg-background-tertiary rounded-lg border border-border overflow-hidden">
+            <button
+              onClick={zoomOut}
+              className="w-8 h-8 flex items-center justify-center text-text-secondary hover:text-text-primary hover:bg-background-elevated transition-colors border-r border-border"
+              title="Zoom out"
+            >
+              <span className="text-base font-medium">−</span>
             </button>
-            <span className="text-xs w-12 text-center font-mono">
+            <span className="text-[11px] w-14 text-center font-mono text-text-secondary tabular-nums">
               {Math.round(pixelsPerSecond)}px/s
             </span>
-            <button onClick={zoomIn} className="hover:text-text-primary px-1">
-              +
+            <button
+              onClick={zoomIn}
+              className="w-8 h-8 flex items-center justify-center text-text-secondary hover:text-text-primary hover:bg-background-elevated transition-colors border-l border-border"
+              title="Zoom in"
+            >
+              <span className="text-base font-medium">+</span>
             </button>
           </div>
           <IconButton icon={Maximize2} title="Maximize timeline" />
@@ -874,63 +883,7 @@ export const Timeline: React.FC = () => {
               className="flex flex-col"
               style={{ transform: `translateY(-${scrollY}px)` }}
             >
-              {textTracks.map((track, i) => (
-                <div
-                  key={track.id}
-                  className={draggedTrackId === track.id ? "opacity-50" : ""}
-                >
-                  <TrackHeader
-                    track={track}
-                    index={i}
-                    onDragStart={handleTrackDragStart}
-                    onDragOver={handleTrackDragOver}
-                    onDrop={handleTrackDrop}
-                  />
-                </div>
-              ))}
-              {graphicsTracks.map((track, i) => (
-                <div
-                  key={track.id}
-                  className={draggedTrackId === track.id ? "opacity-50" : ""}
-                >
-                  <TrackHeader
-                    track={track}
-                    index={i}
-                    onDragStart={handleTrackDragStart}
-                    onDragOver={handleTrackDragOver}
-                    onDrop={handleTrackDrop}
-                  />
-                </div>
-              ))}
-              {videoTracks.map((track, i) => (
-                <div
-                  key={track.id}
-                  className={draggedTrackId === track.id ? "opacity-50" : ""}
-                >
-                  <TrackHeader
-                    track={track}
-                    index={i}
-                    onDragStart={handleTrackDragStart}
-                    onDragOver={handleTrackDragOver}
-                    onDrop={handleTrackDrop}
-                  />
-                </div>
-              ))}
-              {imageTracks.map((track, i) => (
-                <div
-                  key={track.id}
-                  className={draggedTrackId === track.id ? "opacity-50" : ""}
-                >
-                  <TrackHeader
-                    track={track}
-                    index={i}
-                    onDragStart={handleTrackDragStart}
-                    onDragOver={handleTrackDragOver}
-                    onDrop={handleTrackDrop}
-                  />
-                </div>
-              ))}
-              {audioTracks.map((track, i) => (
+              {visualOrderTracks.map((track, i) => (
                 <div
                   key={track.id}
                   className={draggedTrackId === track.id ? "opacity-50" : ""}
@@ -966,7 +919,7 @@ export const Timeline: React.FC = () => {
               style={{ width: `${timelineDuration * pixelsPerSecond}px` }}
               className="min-w-full"
             >
-              {textTracks.map((track) => (
+              {visualOrderTracks.map((track) => (
                 <TrackLane
                   key={track.id}
                   track={track}
@@ -981,105 +934,13 @@ export const Timeline: React.FC = () => {
                   onDropMedia={handleDropMedia}
                   onMoveClip={handleMoveClip}
                   onSnapIndicator={handleSnapIndicator}
-                  onTrimTextClip={handleTrimTextClip}
-                  onMoveTextClip={handleMoveTextClip}
-                  onTrimShapeClip={handleTrimShapeClip}
-                  scrollX={scrollX}
-                  trackHeight={getTrackHeight(track.id)}
-                  onResizeTrack={setTrackHeightById}
-                />
-              ))}
-
-              {graphicsTracks.map((track) => (
-                <TrackLane
-                  key={track.id}
-                  track={track}
-                  allTracks={visualOrderTracks}
-                  pixelsPerSecond={pixelsPerSecond}
-                  selectedClipIds={selectedClipIds}
-                  textClips={getTextClipsForTrack(track.id)}
-                  shapeClips={getShapeClipsForTrack(track.id)}
-                  trackHeights={trackHeightsMap}
-                  timelineRef={tracksRef}
-                  onSelectClip={handleSelectClip}
-                  onDropMedia={handleDropMedia}
-                  onMoveClip={handleMoveClip}
-                  onSnapIndicator={handleSnapIndicator}
-                  onTrimTextClip={handleTrimTextClip}
-                  onMoveTextClip={handleMoveTextClip}
-                  onTrimShapeClip={handleTrimShapeClip}
-                  scrollX={scrollX}
-                  trackHeight={getTrackHeight(track.id)}
-                  onResizeTrack={setTrackHeightById}
-                />
-              ))}
-
-              {videoTracks.map((track) => (
-                <TrackLane
-                  key={track.id}
-                  track={track}
-                  allTracks={visualOrderTracks}
-                  pixelsPerSecond={pixelsPerSecond}
-                  selectedClipIds={selectedClipIds}
-                  textClips={getTextClipsForTrack(track.id)}
-                  shapeClips={getShapeClipsForTrack(track.id)}
-                  trackHeights={trackHeightsMap}
-                  timelineRef={tracksRef}
-                  onSelectClip={handleSelectClip}
-                  onDropMedia={handleDropMedia}
-                  onMoveClip={handleMoveClip}
-                  onSnapIndicator={handleSnapIndicator}
-                  onTrimClip={handleTrimClip}
-                  onTrimTextClip={handleTrimTextClip}
-                  onMoveTextClip={handleMoveTextClip}
-                  onTrimShapeClip={handleTrimShapeClip}
-                  scrollX={scrollX}
-                  trackHeight={getTrackHeight(track.id)}
-                  onResizeTrack={setTrackHeightById}
-                />
-              ))}
-
-              {imageTracks.map((track) => (
-                <TrackLane
-                  key={track.id}
-                  track={track}
-                  allTracks={visualOrderTracks}
-                  pixelsPerSecond={pixelsPerSecond}
-                  selectedClipIds={selectedClipIds}
-                  textClips={getTextClipsForTrack(track.id)}
-                  shapeClips={getShapeClipsForTrack(track.id)}
-                  trackHeights={trackHeightsMap}
-                  timelineRef={tracksRef}
-                  onSelectClip={handleSelectClip}
-                  onDropMedia={handleDropMedia}
-                  onMoveClip={handleMoveClip}
-                  onSnapIndicator={handleSnapIndicator}
-                  onTrimClip={handleTrimClip}
-                  onTrimTextClip={handleTrimTextClip}
-                  onMoveTextClip={handleMoveTextClip}
-                  onTrimShapeClip={handleTrimShapeClip}
-                  scrollX={scrollX}
-                  trackHeight={getTrackHeight(track.id)}
-                  onResizeTrack={setTrackHeightById}
-                />
-              ))}
-
-              {audioTracks.map((track) => (
-                <TrackLane
-                  key={track.id}
-                  track={track}
-                  allTracks={visualOrderTracks}
-                  pixelsPerSecond={pixelsPerSecond}
-                  selectedClipIds={selectedClipIds}
-                  textClips={getTextClipsForTrack(track.id)}
-                  shapeClips={getShapeClipsForTrack(track.id)}
-                  trackHeights={trackHeightsMap}
-                  timelineRef={tracksRef}
-                  onSelectClip={handleSelectClip}
-                  onDropMedia={handleDropMedia}
-                  onMoveClip={handleMoveClip}
-                  onSnapIndicator={handleSnapIndicator}
-                  onTrimClip={handleTrimClip}
+                  onTrimClip={
+                    track.type === "video" ||
+                    track.type === "image" ||
+                    track.type === "audio"
+                      ? handleTrimClip
+                      : undefined
+                  }
                   onTrimTextClip={handleTrimTextClip}
                   onMoveTextClip={handleMoveTextClip}
                   onTrimShapeClip={handleTrimShapeClip}

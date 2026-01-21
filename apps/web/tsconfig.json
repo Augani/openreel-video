@@ -10,7 +10,9 @@
     "paths": {
       "@/*": ["./src/*"],
       "@openreel/core": ["../../packages/core/src/index.ts"],
-      "@openreel/core/*": ["../../packages/core/src/*"]
+      "@openreel/core/*": ["../../packages/core/src/*"],
+      "@openreel/ui": ["../../packages/ui/src/index.ts"],
+      "@openreel/ui/*": ["../../packages/ui/src/*"]
     }
   },
   "include": ["src"]

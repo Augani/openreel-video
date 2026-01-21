@@ -8,6 +8,7 @@ import {
   Play,
   CheckCircle,
 } from "lucide-react";
+import { Slider } from "@openreel/ui";
 import {
   getAutoReframeEngine,
   initializeAutoReframeEngine,
@@ -197,9 +198,9 @@ export const AutoReframeSection: React.FC<AutoReframeSectionProps> = ({
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between p-2 bg-gradient-to-r from-blue-500/20 to-cyan-500/20 rounded-lg border border-blue-500/30">
+      <div className="flex items-center justify-between p-2 bg-primary/10 rounded-lg border border-primary/30">
         <div className="flex items-center gap-2">
-          <Maximize2 size={16} className="text-blue-400" />
+          <Maximize2 size={16} className="text-primary" />
           <div>
             <span className="text-[11px] font-medium text-text-primary">
               Auto Reframe
@@ -224,7 +225,7 @@ export const AutoReframeSection: React.FC<AutoReframeSectionProps> = ({
                   onClick={() => handleSelectPlatform(platform)}
                   className={`flex items-center gap-1 p-2 rounded text-[9px] transition-colors ${
                     selectedPlatform === platform
-                      ? "bg-blue-500/30 border border-blue-500 text-text-primary"
+                      ? "bg-primary/20 border border-primary text-text-primary"
                       : "bg-background-secondary hover:bg-background-primary border border-transparent text-text-secondary"
                   }`}
                 >
@@ -252,7 +253,7 @@ export const AutoReframeSection: React.FC<AutoReframeSectionProps> = ({
                   className={`p-2 rounded text-[9px] transition-colors ${
                     reframeSettings.targetAspectRatio === ratio &&
                     !selectedPlatform
-                      ? "bg-blue-500/30 border border-blue-500 text-text-primary"
+                      ? "bg-primary/20 border border-primary text-text-primary"
                       : "bg-background-secondary hover:bg-background-primary border border-transparent text-text-secondary"
                   }`}
                 >
@@ -271,17 +272,16 @@ export const AutoReframeSection: React.FC<AutoReframeSectionProps> = ({
               {Math.round(reframeSettings.trackingSpeed * 100)}%
             </span>
           </div>
-          <input
-            type="range"
+          <Slider
             min={0}
             max={100}
-            value={reframeSettings.trackingSpeed * 100}
-            onChange={(e) =>
+            step={1}
+            value={[reframeSettings.trackingSpeed * 100]}
+            onValueChange={(value) =>
               updateLocalSettings({
-                trackingSpeed: parseInt(e.target.value) / 100,
+                trackingSpeed: value[0] / 100,
               })
             }
-            className="w-full h-1.5 bg-background-secondary rounded-full appearance-none cursor-pointer accent-blue-500"
           />
         </div>
 
@@ -292,15 +292,14 @@ export const AutoReframeSection: React.FC<AutoReframeSectionProps> = ({
               {Math.round(reframeSettings.smoothing * 100)}%
             </span>
           </div>
-          <input
-            type="range"
+          <Slider
             min={0}
             max={100}
-            value={reframeSettings.smoothing * 100}
-            onChange={(e) =>
-              updateLocalSettings({ smoothing: parseInt(e.target.value) / 100 })
+            step={1}
+            value={[reframeSettings.smoothing * 100]}
+            onValueChange={(value) =>
+              updateLocalSettings({ smoothing: value[0] / 100 })
             }
-            className="w-full h-1.5 bg-background-secondary rounded-full appearance-none cursor-pointer accent-blue-500"
           />
         </div>
 
@@ -313,17 +312,16 @@ export const AutoReframeSection: React.FC<AutoReframeSectionProps> = ({
               {Math.round(reframeSettings.centerBias * 100)}%
             </span>
           </div>
-          <input
-            type="range"
+          <Slider
             min={0}
             max={100}
-            value={reframeSettings.centerBias * 100}
-            onChange={(e) =>
+            step={1}
+            value={[reframeSettings.centerBias * 100]}
+            onValueChange={(value) =>
               updateLocalSettings({
-                centerBias: parseInt(e.target.value) / 100,
+                centerBias: value[0] / 100,
               })
             }
-            className="w-full h-1.5 bg-background-secondary rounded-full appearance-none cursor-pointer accent-blue-500"
           />
         </div>
 
@@ -339,7 +337,7 @@ export const AutoReframeSection: React.FC<AutoReframeSectionProps> = ({
             }
             className={`w-8 h-4 rounded-full transition-colors ${
               reframeSettings.followSubject
-                ? "bg-blue-500"
+                ? "bg-primary"
                 : "bg-background-secondary"
             }`}
           >
@@ -363,7 +361,7 @@ export const AutoReframeSection: React.FC<AutoReframeSectionProps> = ({
             </div>
             <div className="h-1 bg-background-secondary rounded-full overflow-hidden">
               <div
-                className="h-full bg-blue-500 transition-all duration-300"
+                className="h-full bg-primary transition-all duration-300"
                 style={{ width: `${progress}%` }}
               />
             </div>
@@ -373,11 +371,7 @@ export const AutoReframeSection: React.FC<AutoReframeSectionProps> = ({
         <button
           onClick={handleAnalyze}
           disabled={isInitializing || isProcessing}
-          className={`w-full py-2 rounded text-[11px] font-medium transition-colors flex items-center justify-center gap-2 ${
-            isApplied
-              ? "bg-green-500 hover:bg-green-600 text-white"
-              : "bg-blue-500 hover:bg-blue-600 disabled:bg-blue-500/50 text-white"
-          }`}
+          className="w-full py-2 rounded text-[11px] font-medium transition-colors flex items-center justify-center gap-2 bg-primary hover:bg-primary-hover disabled:bg-primary/50 text-white"
         >
           {isInitializing || isProcessing ? (
             <>

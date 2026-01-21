@@ -61,32 +61,32 @@ const TemplateCard: React.FC<TemplateCardProps> = ({
   return (
     <div
       onClick={onSelect}
-      className={`relative p-3 rounded-lg border cursor-pointer transition-all ${
+      className={`relative p-3 rounded-lg border cursor-pointer transition-all w-full max-w-full box-border ${
         isSelected
           ? "border-primary bg-primary/10 ring-1 ring-primary"
           : "border-border bg-background-tertiary hover:border-primary/50"
       }`}
     >
-      <div className="flex items-start gap-3">
+      <div className="flex items-start gap-3 w-full">
         <div
-          className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-            isSelected ? "bg-primary text-black" : "bg-background-secondary"
+          className={`w-10 h-10 shrink-0 rounded-lg flex items-center justify-center ${
+            isSelected ? "bg-primary text-white" : "bg-background-secondary"
           }`}
         >
           <Icon size={18} />
         </div>
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <span className="text-[11px] font-medium text-text-primary truncate">
               {template.name}
             </span>
             {template.id.startsWith("builtin-") && (
-              <span className="px-1.5 py-0.5 text-[8px] bg-status-info/20 text-status-info rounded">
+              <span className="px-1.5 py-0.5 text-[8px] bg-status-info/20 text-status-info rounded shrink-0">
                 Built-in
               </span>
             )}
             {template.source === "cloud" && (
-              <span className="px-1.5 py-0.5 text-[8px] bg-primary/20 text-primary rounded flex items-center gap-1">
+              <span className="px-1.5 py-0.5 text-[8px] bg-primary/20 text-primary rounded flex items-center gap-1 shrink-0">
                 <Cloud size={8} />
                 Cloud
               </span>
@@ -110,7 +110,7 @@ const TemplateCard: React.FC<TemplateCardProps> = ({
             e.stopPropagation();
             onApply();
           }}
-          className="mt-3 w-full py-1.5 text-[10px] font-medium bg-primary text-black rounded-md hover:bg-primary/90 transition-colors"
+          className="mt-3 w-full py-1.5 text-[10px] font-medium bg-primary text-white rounded-md hover:bg-primary/90 transition-colors"
         >
           Use This Template
         </button>
@@ -325,7 +325,7 @@ export const TemplatesBrowserPanel: React.FC<TemplatesBrowserPanelProps> = ({
 
   if (showVariablesPanel && loadedTemplate) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-4 w-full min-w-0 max-w-full">
         <button
           onClick={handleBackToTemplates}
           className="flex items-center gap-1.5 text-[10px] text-text-muted hover:text-text-primary transition-colors"
@@ -363,10 +363,10 @@ export const TemplatesBrowserPanel: React.FC<TemplatesBrowserPanelProps> = ({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 w-full min-w-0 max-w-full">
       <div className="flex items-center gap-2 p-2 bg-primary/10 rounded-lg border border-primary/30">
-        <FolderOpen size={16} className="text-primary" />
-        <div>
+        <FolderOpen size={16} className="text-primary shrink-0" />
+        <div className="min-w-0 flex-1">
           <span className="text-[11px] font-medium text-text-primary">
             Templates
           </span>
@@ -376,12 +376,12 @@ export const TemplatesBrowserPanel: React.FC<TemplatesBrowserPanelProps> = ({
         </div>
       </div>
 
-      <div className="flex gap-1 overflow-x-auto pb-1">
+      <div className="flex gap-1 overflow-x-auto pb-1 -mx-1 px-1">
         <button
           onClick={() => setSelectedCategory("all")}
-          className={`px-3 py-1.5 rounded-lg text-[10px] whitespace-nowrap transition-colors ${
+          className={`shrink-0 px-3 py-1.5 rounded-lg text-[10px] whitespace-nowrap transition-colors ${
             selectedCategory === "all"
-              ? "bg-primary text-black font-medium"
+              ? "bg-primary text-white font-medium"
               : "bg-background-tertiary text-text-secondary hover:text-text-primary"
           }`}
         >
@@ -393,9 +393,9 @@ export const TemplatesBrowserPanel: React.FC<TemplatesBrowserPanelProps> = ({
             <button
               key={category.id}
               onClick={() => setSelectedCategory(category.id)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] whitespace-nowrap transition-colors ${
+              className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] whitespace-nowrap transition-colors ${
                 selectedCategory === category.id
-                  ? "bg-primary text-black font-medium"
+                  ? "bg-primary text-white font-medium"
                   : "bg-background-tertiary text-text-secondary hover:text-text-primary"
               }`}
             >
@@ -412,7 +412,7 @@ export const TemplatesBrowserPanel: React.FC<TemplatesBrowserPanelProps> = ({
         </div>
       )}
 
-      <div className="space-y-2 max-h-80 overflow-y-auto">
+      <div className="space-y-2 max-h-80 overflow-y-auto overflow-x-hidden">
         {filteredTemplates.length === 0 ? (
           <div className="text-center py-8">
             <FolderOpen

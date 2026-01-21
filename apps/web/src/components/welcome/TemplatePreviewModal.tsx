@@ -1,6 +1,5 @@
-import React, { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo } from "react";
 import {
-  X,
   Play,
   Clock,
   Layers,
@@ -13,6 +12,21 @@ import {
   Hash,
   Music,
 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  Button,
+  Collapsible,
+  CollapsibleTrigger,
+  CollapsibleContent,
+  Input,
+  Switch,
+  Label,
+  Slider,
+} from "@openreel/ui";
 import { useEngineStore } from "../../stores/engine-store";
 import { useProjectStore } from "../../stores/project-store";
 import type {
@@ -56,6 +70,7 @@ export const TemplatePreviewModal: React.FC<TemplatePreviewModalProps> = ({
   const [values, setValues] = useState<ScriptableTemplateReplacements>({});
   const [isApplying, setIsApplying] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   const groupedPlaceholders = useMemo(() => {
     const groups: Record<string, ExtendedPlaceholder[]> = {
@@ -178,13 +193,13 @@ export const TemplatePreviewModal: React.FC<TemplatePreviewModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/70 z-[60] flex items-center justify-center p-4">
-      <div className="bg-background-secondary rounded-2xl border border-border max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
-        <div className="flex items-center justify-between p-5 border-b border-border">
-          <div>
-            <h2 className="text-lg font-semibold text-text-primary">
-              {template.name}
-            </h2>
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-3xl max-h-[90vh] p-0 gap-0 bg-background-secondary border-border overflow-hidden flex flex-col">
+        <DialogHeader className="p-5 border-b border-border space-y-0 shrink-0">
+          <DialogTitle className="text-lg font-semibold text-text-primary">
+            {template.name}
+          </DialogTitle>
+          <DialogDescription asChild>
             <div className="flex items-center gap-4 mt-1.5">
               <div className="flex items-center gap-1.5 text-xs text-text-muted">
                 <Clock size={12} />
@@ -195,14 +210,8 @@ export const TemplatePreviewModal: React.FC<TemplatePreviewModalProps> = ({
                 <span>{template.placeholders.length} editable fields</span>
               </div>
             </div>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-2 text-text-muted hover:text-text-primary transition-colors rounded-lg hover:bg-background-tertiary"
-          >
-            <X size={20} />
-          </button>
-        </div>
+          </DialogDescription>
+        </DialogHeader>
 
         <div className="flex-1 overflow-y-auto p-5">
           <div className="grid md:grid-cols-2 gap-6">
@@ -280,15 +289,15 @@ export const TemplatePreviewModal: React.FC<TemplatePreviewModalProps> = ({
               )}
 
               {groupedPlaceholders.advanced.length > 0 && (
-                <details className="group">
-                  <summary className="text-xs text-text-muted cursor-pointer hover:text-text-secondary transition-colors flex items-center gap-1">
+                <Collapsible open={showAdvanced} onOpenChange={setShowAdvanced}>
+                  <CollapsibleTrigger className="text-xs text-text-muted cursor-pointer hover:text-text-secondary transition-colors flex items-center gap-1">
                     <ChevronRight
                       size={12}
-                      className="group-open:rotate-90 transition-transform"
+                      className={`transition-transform ${showAdvanced ? "rotate-90" : ""}`}
                     />
                     Advanced Options ({groupedPlaceholders.advanced.length})
-                  </summary>
-                  <div className="mt-4 space-y-4 pl-4 border-l border-border">
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="mt-4 space-y-4 pl-4 border-l border-border">
                     {groupedPlaceholders.advanced.map((placeholder) => (
                       <PlaceholderInput
                         key={placeholder.id}
@@ -303,8 +312,8 @@ export const TemplatePreviewModal: React.FC<TemplatePreviewModalProps> = ({
                         }
                       />
                     ))}
-                  </div>
-                </details>
+                  </CollapsibleContent>
+                </Collapsible>
               )}
 
               {error && (
@@ -316,17 +325,14 @@ export const TemplatePreviewModal: React.FC<TemplatePreviewModalProps> = ({
           </div>
         </div>
 
-        <div className="p-5 border-t border-border flex items-center justify-end gap-3">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-sm text-text-secondary hover:text-text-primary transition-colors rounded-lg hover:bg-background-tertiary"
-          >
+        <div className="p-5 border-t border-border flex items-center justify-end gap-3 shrink-0">
+          <Button variant="ghost" onClick={onClose}>
             Cancel
-          </button>
-          <button
+          </Button>
+          <Button
             onClick={handleApply}
             disabled={isApplying}
-            className="px-6 py-2.5 bg-primary text-black text-sm font-medium rounded-lg hover:bg-primary-hover active:bg-primary-active transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-glow"
+            className="shadow-glow"
           >
             {isApplying ? (
               <>
@@ -339,10 +345,10 @@ export const TemplatePreviewModal: React.FC<TemplatePreviewModalProps> = ({
                 <ChevronRight size={16} />
               </>
             )}
-          </button>
+          </Button>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 };
 
@@ -363,7 +369,7 @@ const PlaceholderInput: React.FC<PlaceholderInputProps> = ({
   const renderInput = () => {
     switch (placeholder.type) {
       case "text":
-      case "subtitle":
+      case "subtitle": {
         const maxLength = placeholder.constraints?.maxLength;
         return (
           <div className="space-y-1">
@@ -382,24 +388,24 @@ const PlaceholderInput: React.FC<PlaceholderInputProps> = ({
             )}
           </div>
         );
+      }
 
-      case "number":
-        const min = placeholder.constraints?.min;
-        const max = placeholder.constraints?.max;
+      case "number": {
+        const min = placeholder.constraints?.min ?? 0;
+        const max = placeholder.constraints?.max ?? 100;
         const step = placeholder.constraints?.step || 1;
         const inputType = placeholder.uiHints?.inputType;
 
         if (inputType === "slider") {
           return (
             <div className="flex items-center gap-3">
-              <input
-                type="range"
-                value={Number(displayValue) || 0}
-                onChange={(e) => onChange(Number(e.target.value))}
+              <Slider
+                value={[Number(displayValue) || 0]}
+                onValueChange={(vals) => onChange(vals[0])}
                 min={min}
                 max={max}
                 step={step}
-                className="flex-1 accent-primary"
+                className="flex-1"
               />
               <span className="text-xs text-text-muted w-12 text-right font-mono">
                 {Number(displayValue).toFixed(step < 1 ? 1 : 0)}
@@ -409,33 +415,29 @@ const PlaceholderInput: React.FC<PlaceholderInputProps> = ({
         }
 
         return (
-          <input
+          <Input
             type="number"
             value={Number(displayValue) || 0}
             onChange={(e) => onChange(Number(e.target.value))}
             min={min}
             max={max}
             step={step}
-            className="w-full px-3 py-2.5 text-sm bg-background-tertiary border border-border rounded-lg focus:border-primary focus:outline-none text-text-primary transition-colors"
+            className="bg-background-tertiary border-border text-text-primary"
           />
         );
+      }
 
       case "boolean":
         return (
-          <label className="flex items-center gap-3 cursor-pointer">
-            <div className="relative inline-flex items-center">
-              <input
-                type="checkbox"
-                checked={Boolean(displayValue)}
-                onChange={(e) => onChange(e.target.checked)}
-                className="sr-only peer"
-              />
-              <div className="w-9 h-5 bg-background-tertiary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-text-muted after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary peer-checked:after:bg-black" />
-            </div>
-            <span className="text-sm text-text-secondary">
+          <div className="flex items-center gap-3">
+            <Switch
+              checked={Boolean(displayValue)}
+              onCheckedChange={(checked) => onChange(checked)}
+            />
+            <Label className="text-sm text-text-secondary cursor-pointer">
               {placeholder.description || "Enabled"}
-            </span>
-          </label>
+            </Label>
+          </div>
         );
 
       case "color":
@@ -447,24 +449,24 @@ const PlaceholderInput: React.FC<PlaceholderInputProps> = ({
               onChange={(e) => onChange(e.target.value)}
               className="w-10 h-10 rounded-lg cursor-pointer border border-border"
             />
-            <input
+            <Input
               type="text"
               value={String(displayValue) || "#000000"}
               onChange={(e) => onChange(e.target.value)}
               placeholder="#000000"
-              className="flex-1 px-3 py-2.5 text-sm bg-background-tertiary border border-border rounded-lg focus:border-primary focus:outline-none text-text-primary font-mono transition-colors"
+              className="flex-1 bg-background-tertiary border-border text-text-primary font-mono"
             />
           </div>
         );
 
       default:
         return (
-          <input
+          <Input
             type="text"
             value={String(displayValue)}
             onChange={(e) => onChange(e.target.value)}
             placeholder={String(placeholder.defaultValue || "")}
-            className="w-full px-3 py-2.5 text-sm bg-background-tertiary border border-border rounded-lg focus:border-primary focus:outline-none text-text-primary transition-colors"
+            className="bg-background-tertiary border-border text-text-primary"
           />
         );
     }

@@ -1,5 +1,12 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { X, Keyboard, Search, RotateCcw, ChevronDown } from "lucide-react";
+import { Keyboard, Search, RotateCcw, ChevronDown } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  Input,
+} from "@openreel/ui";
 import {
   keyboardShortcuts,
   formatKeyComboDisplay,
@@ -128,35 +135,29 @@ export const KeyboardShortcutsOverlay: React.FC<
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
-      <div className="w-full max-w-3xl max-h-[80vh] bg-background-secondary rounded-xl border border-border shadow-2xl overflow-hidden flex flex-col">
-        <div className="flex items-center justify-between p-4 border-b border-border bg-background-tertiary">
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-3xl max-h-[80vh] p-0 gap-0 bg-background-secondary border-border overflow-hidden flex flex-col">
+        <DialogHeader className="p-4 border-b border-border bg-background-tertiary space-y-0">
           <div className="flex items-center gap-3">
             <Keyboard size={20} className="text-primary" />
-            <h2 className="text-lg font-bold text-text-primary">
+            <DialogTitle className="text-lg font-bold text-text-primary">
               Keyboard Shortcuts
-            </h2>
+            </DialogTitle>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 text-text-muted hover:text-text-primary rounded-lg hover:bg-background-secondary transition-colors"
-          >
-            <X size={20} />
-          </button>
-        </div>
+        </DialogHeader>
 
         <div className="flex items-center gap-3 p-4 border-b border-border">
           <div className="flex-1 relative">
             <Search
               size={16}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted"
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted z-10"
             />
-            <input
+            <Input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search shortcuts..."
-              className="w-full pl-9 pr-4 py-2 bg-background-tertiary border border-border rounded-lg text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-primary"
+              className="pl-9 bg-background-tertiary border-border text-text-primary"
             />
           </div>
 
@@ -206,7 +207,7 @@ export const KeyboardShortcutsOverlay: React.FC<
             onClick={() => setActiveCategory("all")}
             className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${
               activeCategory === "all"
-                ? "bg-primary text-black"
+                ? "bg-primary text-white"
                 : "text-text-secondary hover:text-text-primary hover:bg-background-tertiary"
             }`}
           >
@@ -218,7 +219,7 @@ export const KeyboardShortcutsOverlay: React.FC<
               onClick={() => setActiveCategory(category)}
               className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${
                 activeCategory === category
-                  ? "bg-primary text-black"
+                  ? "bg-primary text-white"
                   : "text-text-secondary hover:text-text-primary hover:bg-background-tertiary"
               }`}
             >
@@ -302,8 +303,8 @@ export const KeyboardShortcutsOverlay: React.FC<
             to toggle this overlay
           </p>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 };
 

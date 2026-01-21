@@ -115,6 +115,24 @@ const ANIMATABLE_PROPERTIES: AnimatableProperty[] = [
     min: 0,
     max: 100,
   },
+  {
+    id: "volume",
+    label: "Volume",
+    category: "Audio",
+    defaultValue: 1,
+    min: 0,
+    max: 2,
+    step: 0.01,
+  },
+  {
+    id: "pan",
+    label: "Pan",
+    category: "Audio",
+    defaultValue: 0,
+    min: -1,
+    max: 1,
+    step: 0.01,
+  },
 ];
 
 const formatEasingLabel = (easing: string): string => {
@@ -200,6 +218,48 @@ const PropertySelector: React.FC<{
   );
 };
 
+const EasingCurvePreview: React.FC<{ easing: string; size?: number }> = ({
+  easing,
+  size = 16,
+}) => {
+  const getPath = (easingType: string): string => {
+    const easingPaths: Record<string, string> = {
+      linear: "M0,16 L16,0",
+      easeIn: "M0,16 Q8,16 16,0",
+      easeOut: "M0,16 Q8,0 16,0",
+      easeInOut: "M0,16 Q4,16 8,8 Q12,0 16,0",
+      easeInQuad: "M0,16 C0,16 12,16 16,0",
+      easeOutQuad: "M0,16 C4,0 16,0 16,0",
+      easeInOutQuad: "M0,16 C0,16 6,16 8,8 C10,0 16,0 16,0",
+      easeInCubic: "M0,16 C0,16 14,16 16,0",
+      easeOutCubic: "M0,16 C2,0 16,0 16,0",
+      easeInOutCubic: "M0,16 C0,16 5,16 8,8 C11,0 16,0 16,0",
+      easeInElastic: "M0,16 Q2,18 4,16 Q6,14 8,16 Q12,8 16,0",
+      easeOutElastic: "M0,16 Q4,8 8,0 Q10,2 12,0 Q14,-2 16,0",
+      easeInBounce: "M0,16 L4,16 L6,14 L8,16 L12,8 L16,0",
+      easeOutBounce: "M0,16 L4,8 L8,0 L10,2 L12,0 L14,2 L16,0",
+    };
+    return easingPaths[easingType] || easingPaths.linear;
+  };
+
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 16 16"
+      className="text-primary"
+    >
+      <path
+        d={getPath(easing)}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+};
+
 const EasingSelector: React.FC<{
   value: EasingType;
   onChange: (easing: EasingName) => void;
@@ -212,8 +272,10 @@ const EasingSelector: React.FC<{
     <div className="relative">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-1 px-2 py-1 bg-background-tertiary border border-border rounded text-[9px] text-text-secondary hover:text-text-primary transition-colors"
+        className="flex items-center gap-1.5 px-2 py-1 bg-background-tertiary border border-border rounded text-[9px] text-text-secondary hover:text-text-primary hover:border-primary/50 transition-colors"
+        title={`Easing: ${currentLabel}`}
       >
+        <EasingCurvePreview easing={value} size={14} />
         <span>{currentLabel}</span>
         <ChevronDown size={10} />
       </button>
@@ -223,7 +285,7 @@ const EasingSelector: React.FC<{
             className="fixed inset-0 z-10"
             onClick={() => setIsOpen(false)}
           />
-          <div className="absolute top-full right-0 mt-1 bg-background-secondary border border-border rounded-lg shadow-lg z-20 min-w-[140px] max-h-64 overflow-y-auto">
+          <div className="absolute top-full right-0 mt-1 bg-background-secondary border border-border rounded-lg shadow-lg z-20 min-w-[160px] max-h-64 overflow-y-auto">
             {EASING_CATEGORIES.map((category) => (
               <div key={category.name}>
                 <div className="px-3 py-1 text-[8px] font-medium text-text-muted uppercase tracking-wider bg-background-tertiary sticky top-0">
@@ -236,10 +298,11 @@ const EasingSelector: React.FC<{
                       onChange(easing);
                       setIsOpen(false);
                     }}
-                    className={`w-full px-3 py-1.5 text-left text-[10px] hover:bg-background-tertiary transition-colors ${
+                    className={`w-full px-3 py-1.5 text-left text-[10px] hover:bg-background-tertiary transition-colors flex items-center gap-2 ${
                       value === easing ? "text-primary" : "text-text-primary"
                     }`}
                   >
+                    <EasingCurvePreview easing={easing} size={14} />
                     {formatEasingLabel(easing)}
                   </button>
                 ))}

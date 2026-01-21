@@ -75,7 +75,7 @@ const ColorPresetButton: React.FC<{
     onClick={onClick}
     className={`flex items-center gap-1.5 px-2 py-1 rounded text-[9px] transition-colors ${
       isActive
-        ? "bg-primary text-black"
+        ? "bg-primary text-white"
         : "bg-background-tertiary text-text-muted hover:text-text-primary"
     }`}
   >
@@ -255,7 +255,7 @@ export const GreenScreenSection: React.FC<GreenScreenSectionProps> = ({
                   onClick={() => setIsPickingColor(!isPickingColor)}
                   className={`p-1.5 rounded transition-colors ${
                     isPickingColor
-                      ? "bg-primary text-black"
+                      ? "bg-primary text-white"
                       : "bg-background-tertiary text-text-muted hover:text-text-primary"
                   }`}
                   title="Pick color from video"

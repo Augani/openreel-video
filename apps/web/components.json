@@ -1,0 +1,18 @@
+{
+  "$schema": "https://ui.shadcn.com/schema.json",
+  "style": "default",
+  "rsc": false,
+  "tsx": true,
+  "tailwind": {
+    "config": "tailwind.config.js",
+    "css": "src/index.css",
+    "baseColor": "neutral"
+  },
+  "aliases": {
+    "components": "@/components",
+    "ui": "@openreel/ui/components",
+    "utils": "@openreel/ui/lib/utils",
+    "hooks": "@openreel/ui/hooks",
+    "lib": "@openreel/ui/lib"
+  }
+}

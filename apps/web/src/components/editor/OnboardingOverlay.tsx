@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from "react";
 import {
-  X,
   ChevronRight,
   ChevronLeft,
   Play,
@@ -9,8 +8,8 @@ import {
   Wand2,
   Download,
   HelpCircle,
-  Sparkles,
 } from "lucide-react";
+import { Dialog, DialogContent } from "@openreel/ui";
 
 interface OnboardingOverlayProps {
   isOpen: boolean;
@@ -33,7 +32,7 @@ const ONBOARDING_STEPS: OnboardingStep[] = [
     title: "Welcome to OpenReel",
     description:
       "A professional video editor right in your browser. Let's take a quick tour of the key features.",
-    icon: <Sparkles size={32} className="text-primary" />,
+    icon: <Wand2 size={32} className="text-primary" />,
     tips: [
       "No installation required - everything runs in your browser",
       "Your projects are saved locally and never leave your device",
@@ -143,15 +142,9 @@ export const OnboardingOverlay: React.FC<OnboardingOverlayProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-sm">
-      <div className="w-full max-w-lg bg-background-secondary rounded-2xl border border-border shadow-2xl overflow-hidden">
+    <Dialog open onOpenChange={(open) => !open && handleSkip()}>
+      <DialogContent className="max-w-lg p-0 gap-0 bg-background-secondary border-border overflow-hidden">
         <div className="relative p-8 text-center">
-          <button
-            onClick={handleSkip}
-            className="absolute top-4 right-4 p-2 text-text-muted hover:text-text-primary rounded-lg hover:bg-background-tertiary transition-colors"
-          >
-            <X size={20} />
-          </button>
 
           <div className="flex justify-center mb-6">{step.icon}</div>
 
@@ -207,14 +200,14 @@ export const OnboardingOverlay: React.FC<OnboardingOverlayProps> = ({
 
           <button
             onClick={handleNext}
-            className="flex items-center gap-1 px-5 py-2 bg-primary text-black rounded-lg text-sm font-medium hover:bg-primary/80 transition-colors"
+            className="flex items-center gap-1 px-5 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/80 transition-colors"
           >
             {isLastStep ? "Get Started" : "Next"}
             {!isLastStep && <ChevronRight size={16} />}
           </button>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 };
 

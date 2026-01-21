@@ -1,5 +1,16 @@
-import React, { useState } from "react";
-import { RotateCcw, X, Clock, FileVideo, ChevronDown } from "lucide-react";
+import { useState } from "react";
+import { RotateCcw, Clock, FileVideo, ChevronDown } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  Button,
+  Collapsible,
+  CollapsibleTrigger,
+  CollapsibleContent,
+} from "@openreel/ui";
 import type { AutoSaveMetadata } from "../../services/auto-save";
 
 interface RecoveryDialogProps {
@@ -49,36 +60,23 @@ export const RecoveryDialog: React.FC<RecoveryDialogProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div
-        className="absolute inset-0 bg-black/80 backdrop-blur-sm"
-        onClick={onDismiss}
-      />
-
-      <div className="relative bg-background-secondary border border-border rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
-        <div className="p-5 border-b border-border">
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 bg-primary/10 rounded-xl shrink-0">
-                <RotateCcw className="w-5 h-5 text-primary" />
-              </div>
-              <div>
-                <h2 className="text-base font-semibold text-text-primary">
-                  Recover Your Work
-                </h2>
-                <p className="text-sm text-text-secondary mt-0.5">
-                  We found an unsaved project
-                </p>
-              </div>
+    <Dialog open onOpenChange={(open) => !open && onDismiss()}>
+      <DialogContent className="max-w-md p-0 gap-0 bg-background-secondary border-border overflow-hidden">
+        <DialogHeader className="p-5 border-b border-border space-y-0">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-primary/10 rounded-xl shrink-0">
+              <RotateCcw className="w-5 h-5 text-primary" />
             </div>
-            <button
-              onClick={onDismiss}
-              className="p-2 rounded-lg text-text-muted hover:text-text-primary hover:bg-background-tertiary transition-colors shrink-0"
-            >
-              <X className="w-4 h-4" />
-            </button>
+            <div>
+              <DialogTitle className="text-base font-semibold text-text-primary">
+                Recover Your Work
+              </DialogTitle>
+              <DialogDescription className="text-sm text-text-secondary mt-0.5">
+                We found an unsaved project
+              </DialogDescription>
+            </div>
           </div>
-        </div>
+        </DialogHeader>
 
         <div className="p-5">
           <button
@@ -103,65 +101,65 @@ export const RecoveryDialog: React.FC<RecoveryDialogProps> = ({
           </button>
 
           <div className="flex gap-3">
-            <button
+            <Button
+              variant="outline"
               onClick={onDismiss}
-              className="flex-1 px-4 py-2.5 rounded-lg font-medium text-sm text-text-secondary bg-background-tertiary border border-border hover:bg-background-elevated hover:text-text-primary active:scale-[0.98] transition-all"
+              className="flex-1"
             >
               Start Fresh
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={() => handleRecover(mostRecent.id)}
               disabled={selectedSave === mostRecent.id}
-              className="flex-1 px-4 py-2.5 rounded-lg font-medium text-sm text-white bg-primary hover:bg-primary-hover active:scale-[0.98] transition-all disabled:opacity-70 disabled:cursor-not-allowed"
+              className="flex-1"
             >
               {selectedSave === mostRecent.id ? "Recovering..." : "Recover Project"}
-            </button>
+            </Button>
           </div>
 
           {olderSaves.length > 0 && (
-            <div className="mt-4 pt-4 border-t border-border">
-              <button
-                onClick={() => setShowOlderSaves(!showOlderSaves)}
-                className="flex items-center gap-2 text-sm text-text-muted hover:text-text-secondary transition-colors w-full"
-              >
+            <Collapsible
+              open={showOlderSaves}
+              onOpenChange={setShowOlderSaves}
+              className="mt-4 pt-4 border-t border-border"
+            >
+              <CollapsibleTrigger className="flex items-center gap-2 text-sm text-text-muted hover:text-text-secondary transition-colors w-full">
                 <ChevronDown
                   className={`w-4 h-4 transition-transform duration-200 ${showOlderSaves ? "rotate-180" : ""}`}
                 />
                 <span>
                   {olderSaves.length} older {olderSaves.length === 1 ? "save" : "saves"} available
                 </span>
-              </button>
+              </CollapsibleTrigger>
 
-              {showOlderSaves && (
-                <div className="mt-3 space-y-2 max-h-48 overflow-y-auto pr-1 scrollbar-thin">
-                  {olderSaves.map((save) => (
-                    <button
-                      key={save.id}
-                      onClick={() => handleRecover(save.id)}
-                      disabled={selectedSave === save.id}
-                      className="w-full text-left p-3 rounded-lg bg-background-tertiary border border-border hover:border-border-hover hover:bg-background-elevated transition-all group disabled:opacity-70"
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm font-medium text-text-primary truncate group-hover:text-primary transition-colors">
-                            {save.projectName}
-                          </div>
-                          <div className="text-xs text-text-muted mt-1">
-                            {formatDate(save.timestamp)}
-                          </div>
+              <CollapsibleContent className="mt-3 space-y-2 max-h-48 overflow-y-auto pr-1 scrollbar-thin">
+                {olderSaves.map((save) => (
+                  <button
+                    key={save.id}
+                    onClick={() => handleRecover(save.id)}
+                    disabled={selectedSave === save.id}
+                    className="w-full text-left p-3 rounded-lg bg-background-tertiary border border-border hover:border-border-hover hover:bg-background-elevated transition-all group disabled:opacity-70"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium text-text-primary truncate group-hover:text-primary transition-colors">
+                          {save.projectName}
                         </div>
-                        <div className="text-xs text-text-muted/70 shrink-0">
-                          {formatTimeAgo(save.timestamp)}
+                        <div className="text-xs text-text-muted mt-1">
+                          {formatDate(save.timestamp)}
                         </div>
                       </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+                      <div className="text-xs text-text-muted/70 shrink-0">
+                        {formatTimeAgo(save.timestamp)}
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </CollapsibleContent>
+            </Collapsible>
           )}
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 };

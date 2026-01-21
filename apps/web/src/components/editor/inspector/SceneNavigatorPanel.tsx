@@ -160,7 +160,7 @@ export const SceneNavigatorPanel: React.FC<SceneNavigatorPanelProps> = ({
           </div>
           <button
             onClick={handleAddScene}
-            className="flex items-center gap-1 px-2 py-1 bg-primary hover:bg-primary/80 text-black rounded text-[10px] font-medium transition-colors"
+            className="flex items-center gap-1 px-2 py-1 bg-primary hover:bg-primary/80 text-white rounded text-[10px] font-medium transition-colors"
           >
             <Plus size={10} />
             Add
@@ -185,7 +185,7 @@ export const SceneNavigatorPanel: React.FC<SceneNavigatorPanelProps> = ({
                   onClick={() => handleSceneClick(index)}
                   className={`group relative flex items-center gap-1 px-2 py-1 rounded transition-all ${
                     isActive
-                      ? "bg-primary text-black"
+                      ? "bg-primary text-white"
                       : "bg-background-tertiary hover:bg-background-secondary text-text-secondary hover:text-text-primary"
                   }`}
                   title={scene.label}
@@ -240,7 +240,7 @@ export const SceneNavigatorPanel: React.FC<SceneNavigatorPanelProps> = ({
         </div>
         <button
           onClick={handleAddScene}
-          className="flex items-center gap-1 px-2 py-1 bg-primary hover:bg-primary/80 text-black rounded text-[10px] font-medium transition-colors"
+          className="flex items-center gap-1 px-2 py-1 bg-primary hover:bg-primary/80 text-white rounded text-[10px] font-medium transition-colors"
         >
           <Plus size={10} />
           Add Scene
@@ -265,7 +265,7 @@ export const SceneNavigatorPanel: React.FC<SceneNavigatorPanelProps> = ({
               <div
                 className={`flex-shrink-0 w-6 h-6 rounded flex items-center justify-center text-[10px] font-medium ${
                   isActive
-                    ? "bg-primary text-black"
+                    ? "bg-primary text-white"
                     : "bg-background-tertiary text-text-muted"
                 }`}
               >

@@ -1,5 +1,6 @@
 import React, { useCallback, useState, useMemo } from "react";
 import { Smile, Sticker, Search, Plus, X } from "lucide-react";
+import { Input } from "@openreel/ui";
 import { getGraphicsBridge } from "../../../bridges";
 import type { StickerItem, EmojiItem } from "@openreel/core";
 
@@ -28,7 +29,7 @@ const CategoryTab: React.FC<{
  px-3 py-1.5 text-[10px] rounded-lg whitespace-nowrap transition-colors
  ${
    isActive
-     ? "bg-primary text-black font-medium"
+     ? "bg-primary text-white font-medium"
      : "bg-background-tertiary text-text-secondary hover:text-text-primary hover:bg-background-secondary"
  }
  `}
@@ -215,19 +216,19 @@ export const StickerPicker: React.FC<StickerPickerProps> = ({
       <div className="relative">
         <Search
           size={14}
-          className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-muted"
+          className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-muted z-10"
         />
-        <input
+        <Input
           type="text"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           placeholder={`Search ${activeTab}...`}
-          className="w-full pl-8 pr-8 py-1.5 text-[10px] bg-background-tertiary border border-border rounded-lg outline-none focus:border-primary text-text-primary placeholder:text-text-muted"
+          className="pl-8 pr-8 text-[10px] bg-background-tertiary border-border h-7 text-text-primary"
         />
         {searchQuery && (
           <button
             onClick={clearSearch}
-            className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-background-secondary"
+            className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-background-secondary z-10"
           >
             <X size={12} className="text-text-muted" />
           </button>

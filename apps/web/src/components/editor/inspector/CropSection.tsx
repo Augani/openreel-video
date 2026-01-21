@@ -30,7 +30,7 @@ export const CropSection: React.FC<CropSectionProps> = ({ clip }) => {
     <div className="space-y-3">
       <button
         onClick={handleEnableCropMode}
-        className="w-full py-2.5 bg-primary hover:bg-primary/90 text-black rounded-lg text-xs font-medium transition-colors flex items-center justify-center gap-2"
+        className="w-full py-2.5 bg-primary hover:bg-primary/90 text-white rounded-lg text-xs font-medium transition-colors flex items-center justify-center gap-2"
       >
         <Crop size={14} />
         {isCropped ? "Adjust Crop" : "Crop Video"}

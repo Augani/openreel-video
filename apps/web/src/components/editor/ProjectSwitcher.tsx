@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   ChevronDown,
   Plus,
@@ -8,6 +8,7 @@ import {
   Pencil,
   FileVideo,
 } from "lucide-react";
+import { Input } from "@openreel/ui";
 import { useProjectStore } from "../../stores/project-store";
 import { autoSaveManager, type AutoSaveMetadata } from "../../services/auto-save";
 
@@ -149,14 +150,14 @@ export const ProjectSwitcher: React.FC = () => {
             </div>
             {isEditing ? (
               <div className="flex items-center gap-2">
-                <input
+                <Input
                   ref={inputRef}
                   type="text"
                   value={editName}
                   onChange={(e) => setEditName(e.target.value)}
                   onBlur={handleSaveName}
                   onKeyDown={handleKeyDown}
-                  className="flex-1 px-3 py-2 bg-background-secondary border border-primary rounded-lg text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                  className="flex-1 bg-background-secondary border-primary text-text-primary"
                 />
                 <button
                   onClick={handleSaveName}

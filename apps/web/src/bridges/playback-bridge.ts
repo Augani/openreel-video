@@ -15,6 +15,7 @@ export class PlaybackBridge {
   private unsubscribeTimelineStore: (() => void) | null = null;
   private unsubscribePlaybackEvents: (() => void) | null = null;
   private initialized = false;
+  private isUpdatingProject = false;
 
   async initialize(): Promise<void> {
     if (this.initialized) {
@@ -58,12 +59,12 @@ export class PlaybackBridge {
 
       switch (event.type) {
         case "timeupdate":
-          // Update playhead position in timeline store
-          timelineStore.setPlayheadPosition(event.time);
+          if (!this.playbackController?.getIsScrubbing()) {
+            timelineStore.setPlayheadPosition(event.time);
+          }
           break;
 
         case "statechange":
-          // Sync playback state with timeline store
           this.syncPlaybackState(event.state);
           break;
 
@@ -118,12 +119,22 @@ export class PlaybackBridge {
    * Set up subscription to project changes
    */
   private setupProjectSubscription(): void {
-    // Subscribe to project changes to update the playback controller
     this.unsubscribeTimelineStore = useProjectStore.subscribe(
       (state) => state.project,
       (project) => {
         if (this.playbackController) {
+          const timelineStore = useTimelineStore.getState();
+          const currentTime = timelineStore.playheadPosition;
+          const wasPlaying = timelineStore.playbackState === "playing";
+
+          this.isUpdatingProject = true;
           this.playbackController.setProject(project);
+          this.isUpdatingProject = false;
+
+          this.playbackController.scrubTo(currentTime);
+          if (wasPlaying) {
+            this.playbackController.play();
+          }
         }
       },
     );
@@ -136,6 +147,14 @@ export class PlaybackBridge {
   private syncPlaybackState(
     controllerState: "stopped" | "playing" | "paused" | "seeking",
   ): void {
+    if (this.isUpdatingProject) {
+      return;
+    }
+
+    if (this.playbackController?.getIsScrubbing()) {
+      return;
+    }
+
     const timelineStore = useTimelineStore.getState();
     const currentState = timelineStore.playbackState;
 

@@ -12,6 +12,7 @@ import {
   Settings2,
   RefreshCw,
 } from "lucide-react";
+import { Slider, Checkbox, Label } from "@openreel/ui";
 import {
   getMotionTrackingBridge,
   type MotionTrackingState,
@@ -148,8 +149,8 @@ export const MotionTrackingSection: React.FC<MotionTrackingSectionProps> = ({
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-2 p-2 bg-gradient-to-r from-cyan-500/20 to-blue-500/20 rounded-lg border border-cyan-500/30">
-        <Target size={16} className="text-cyan-400" />
+      <div className="flex items-center gap-2 p-2 bg-primary/10 rounded-lg border border-primary/30">
+        <Target size={16} className="text-primary" />
         <div className="flex-1">
           <span className="text-[11px] font-medium text-text-primary">
             Motion Tracking
@@ -280,16 +281,12 @@ export const MotionTrackingSection: React.FC<MotionTrackingSectionProps> = ({
                     {confidenceThreshold}%
                   </span>
                 </div>
-                <input
-                  type="range"
-                  min="30"
-                  max="95"
-                  step="5"
-                  value={confidenceThreshold}
-                  onChange={(e) =>
-                    setConfidenceThreshold(parseInt(e.target.value))
-                  }
-                  className="w-full h-1.5 bg-background-secondary rounded-full appearance-none cursor-pointer accent-primary"
+                <Slider
+                  min={30}
+                  max={95}
+                  step={5}
+                  value={[confidenceThreshold]}
+                  onValueChange={(value) => setConfidenceThreshold(value[0])}
                 />
                 <p className="text-[8px] text-text-muted">
                   Higher = more accurate but may lose track easier
@@ -305,14 +302,12 @@ export const MotionTrackingSection: React.FC<MotionTrackingSectionProps> = ({
                     {smoothing}
                   </span>
                 </div>
-                <input
-                  type="range"
-                  min="0"
-                  max="10"
-                  step="1"
-                  value={smoothing}
-                  onChange={(e) => setSmoothing(parseInt(e.target.value))}
-                  className="w-full h-1.5 bg-background-secondary rounded-full appearance-none cursor-pointer accent-primary"
+                <Slider
+                  min={0}
+                  max={10}
+                  step={1}
+                  value={[smoothing]}
+                  onValueChange={(value) => setSmoothing(value[0])}
                 />
                 <p className="text-[8px] text-text-muted">
                   Reduces jitter in tracking path
@@ -323,7 +318,7 @@ export const MotionTrackingSection: React.FC<MotionTrackingSectionProps> = ({
 
           <button
             onClick={handleStartTracking}
-            className="w-full py-2.5 bg-cyan-500/20 border border-cyan-500/30 rounded-lg text-[11px] font-medium text-cyan-400 hover:bg-cyan-500/30 flex items-center justify-center gap-2 transition-colors"
+            className="w-full py-2.5 bg-primary hover:bg-primary-hover rounded-lg text-[11px] font-medium text-white flex items-center justify-center gap-2 transition-colors"
           >
             <Target size={14} />
             Start Tracking
@@ -335,8 +330,8 @@ export const MotionTrackingSection: React.FC<MotionTrackingSectionProps> = ({
         <div className="space-y-3 p-3 bg-background-tertiary rounded-lg">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-cyan-400 rounded-full animate-pulse" />
-              <span className="text-[11px] font-medium text-cyan-400">
+              <div className="w-2 h-2 bg-primary rounded-full animate-pulse" />
+              <span className="text-[11px] font-medium text-primary">
                 Tracking in Progress
               </span>
             </div>
@@ -358,7 +353,7 @@ export const MotionTrackingSection: React.FC<MotionTrackingSectionProps> = ({
             </div>
             <div className="w-full h-2 bg-background-secondary rounded-full overflow-hidden">
               <div
-                className="h-full bg-gradient-to-r from-cyan-500 to-blue-500 transition-all duration-200"
+                className="h-full bg-primary transition-all duration-200"
                 style={{ width: `${state.progress}%` }}
               />
             </div>
@@ -433,46 +428,52 @@ export const MotionTrackingSection: React.FC<MotionTrackingSectionProps> = ({
           </div>
 
           <div className="space-y-2">
-            <label className="text-[10px] font-medium text-text-secondary">
+            <Label className="text-[10px] font-medium text-text-secondary">
               Transform Options
-            </label>
+            </Label>
             <div className="grid grid-cols-2 gap-2">
-              <label className="flex items-center gap-2 p-2 bg-background-tertiary rounded-lg cursor-pointer hover:bg-background-secondary transition-colors">
-                <input
-                  type="checkbox"
+              <div className="flex items-center gap-2 p-2 bg-background-tertiary rounded-lg">
+                <Checkbox
+                  id="apply-scale"
                   checked={applyScale}
-                  onChange={(e) => {
-                    setApplyScale(e.target.checked);
+                  onCheckedChange={(checked) => {
+                    const value = checked === true;
+                    setApplyScale(value);
                     if (isApplied) {
-                      bridge.setApplyScale(clipId, e.target.checked);
+                      bridge.setApplyScale(clipId, value);
                     }
                   }}
-                  className="w-3.5 h-3.5 rounded border-border accent-primary"
                 />
-                <div className="flex items-center gap-1">
+                <Label
+                  htmlFor="apply-scale"
+                  className="flex items-center gap-1 cursor-pointer"
+                >
                   <Maximize2 size={10} className="text-text-muted" />
                   <span className="text-[10px] text-text-secondary">Scale</span>
-                </div>
-              </label>
-              <label className="flex items-center gap-2 p-2 bg-background-tertiary rounded-lg cursor-pointer hover:bg-background-secondary transition-colors">
-                <input
-                  type="checkbox"
+                </Label>
+              </div>
+              <div className="flex items-center gap-2 p-2 bg-background-tertiary rounded-lg">
+                <Checkbox
+                  id="apply-rotation"
                   checked={applyRotation}
-                  onChange={(e) => {
-                    setApplyRotation(e.target.checked);
+                  onCheckedChange={(checked) => {
+                    const value = checked === true;
+                    setApplyRotation(value);
                     if (isApplied) {
-                      bridge.setApplyRotation(clipId, e.target.checked);
+                      bridge.setApplyRotation(clipId, value);
                     }
                   }}
-                  className="w-3.5 h-3.5 rounded border-border accent-primary"
                 />
-                <div className="flex items-center gap-1">
+                <Label
+                  htmlFor="apply-rotation"
+                  className="flex items-center gap-1 cursor-pointer"
+                >
                   <RotateCcw size={10} className="text-text-muted" />
                   <span className="text-[10px] text-text-secondary">
                     Rotation
                   </span>
-                </div>
-              </label>
+                </Label>
+              </div>
             </div>
           </div>
 

@@ -7,7 +7,7 @@ import {
   ZoomIn,
   ZoomOut,
   RotateCw,
-  Sparkles,
+  Eye,
   Circle,
   Square,
   Diamond,
@@ -23,6 +23,13 @@ import type {
 import { useProjectStore } from "../../../stores/project-store";
 import { useEngineStore } from "../../../stores/engine-store";
 import { toast } from "../../../stores/notification-store";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@openreel/ui";
 
 type MutableGraphicClip = {
   -readonly [K in keyof GraphicClip]: GraphicClip[K];
@@ -56,7 +63,7 @@ const PRESETS: {
   icon: React.ReactNode;
 }[] = [
   { id: "none", label: "None", icon: null },
-  { id: "fade", label: "Fade", icon: <Sparkles size={12} /> },
+  { id: "fade", label: "Fade", icon: <Eye size={12} /> },
   { id: "slide-left", label: "Slide Left", icon: <ArrowLeft size={12} /> },
   { id: "slide-right", label: "Slide Right", icon: <ArrowRight size={12} /> },
   { id: "slide-up", label: "Slide Up", icon: <ArrowUp size={12} /> },
@@ -1054,7 +1061,7 @@ export const ClipTransitionSection: React.FC<ClipTransitionSectionProps> = ({
               onClick={() => setEntryPreset(preset.id)}
               className={`flex items-center justify-center gap-1 py-1.5 px-2 rounded text-[9px] transition-all ${
                 entryPreset === preset.id
-                  ? "bg-primary text-black font-medium"
+                  ? "bg-primary text-white font-medium"
                   : "bg-background-tertiary border border-border text-text-secondary hover:text-text-primary hover:border-text-muted"
               }`}
             >
@@ -1081,17 +1088,18 @@ export const ClipTransitionSection: React.FC<ClipTransitionSectionProps> = ({
             </div>
             <div className="flex-1">
               <label className="text-[9px] text-text-muted">Easing</label>
-              <select
-                value={entryEasing}
-                onChange={(e) => setEntryEasing(e.target.value as EasingType)}
-                className="w-full px-2 py-1 text-[10px] bg-background-tertiary border border-border rounded"
-              >
-                {EASINGS.map((e) => (
-                  <option key={e.id} value={e.id}>
-                    {e.label}
-                  </option>
-                ))}
-              </select>
+              <Select value={entryEasing} onValueChange={(v) => setEntryEasing(v as EasingType)}>
+                <SelectTrigger className="w-full bg-background-tertiary border-border text-text-primary text-[10px] h-7">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-background-secondary border-border">
+                  {EASINGS.map((e) => (
+                    <SelectItem key={e.id} value={e.id}>
+                      {e.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
         )}
@@ -1109,7 +1117,7 @@ export const ClipTransitionSection: React.FC<ClipTransitionSectionProps> = ({
               onClick={() => setExitPreset(preset.id)}
               className={`flex items-center justify-center gap-1 py-1.5 px-2 rounded text-[9px] transition-all ${
                 exitPreset === preset.id
-                  ? "bg-primary text-black font-medium"
+                  ? "bg-primary text-white font-medium"
                   : "bg-background-tertiary border border-border text-text-secondary hover:text-text-primary hover:border-text-muted"
               }`}
             >
@@ -1136,17 +1144,18 @@ export const ClipTransitionSection: React.FC<ClipTransitionSectionProps> = ({
             </div>
             <div className="flex-1">
               <label className="text-[9px] text-text-muted">Easing</label>
-              <select
-                value={exitEasing}
-                onChange={(e) => setExitEasing(e.target.value as EasingType)}
-                className="w-full px-2 py-1 text-[10px] bg-background-tertiary border border-border rounded"
-              >
-                {EASINGS.map((e) => (
-                  <option key={e.id} value={e.id}>
-                    {e.label}
-                  </option>
-                ))}
-              </select>
+              <Select value={exitEasing} onValueChange={(v) => setExitEasing(v as EasingType)}>
+                <SelectTrigger className="w-full bg-background-tertiary border-border text-text-primary text-[10px] h-7">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-background-secondary border-border">
+                  {EASINGS.map((e) => (
+                    <SelectItem key={e.id} value={e.id}>
+                      {e.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
         )}
@@ -1155,7 +1164,7 @@ export const ClipTransitionSection: React.FC<ClipTransitionSectionProps> = ({
       {/* Apply Button */}
       <button
         onClick={applyTransitions}
-        className="w-full py-2 bg-primary hover:bg-primary-hover text-black font-medium rounded-lg text-[11px] transition-all"
+        className="w-full py-2 bg-primary hover:bg-primary-hover text-white font-medium rounded-lg text-[11px] transition-all"
       >
         Apply Transitions
       </button>

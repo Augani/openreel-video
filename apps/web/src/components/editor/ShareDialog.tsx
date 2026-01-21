@@ -1,6 +1,5 @@
-import React, { useState, useCallback } from "react";
+import { useState, useCallback } from "react";
 import {
-  X,
   Upload,
   Link,
   Check,
@@ -11,6 +10,14 @@ import {
   AlertCircle,
   Loader2,
 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  Button,
+  Input,
+} from "@openreel/ui";
 import {
   uploadForSharing,
   getSharePageUrl,
@@ -101,20 +108,16 @@ export const ShareDialog: React.FC<ShareDialogProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm">
-      <div className="w-full max-w-md bg-background-secondary rounded-xl border border-border shadow-2xl overflow-hidden">
-        <div className="flex items-center justify-between p-4 border-b border-border bg-background-tertiary">
+    <Dialog open onOpenChange={(open) => !open && handleClose()}>
+      <DialogContent className="max-w-md p-0 gap-0 bg-background-secondary border-border overflow-hidden">
+        <DialogHeader className="p-4 border-b border-border bg-background-tertiary space-y-0">
           <div className="flex items-center gap-3">
             <Upload size={20} className="text-primary" />
-            <h2 className="text-lg font-bold text-text-primary">Share Video</h2>
+            <DialogTitle className="text-lg font-bold text-text-primary">
+              Share Video
+            </DialogTitle>
           </div>
-          <button
-            onClick={handleClose}
-            className="p-2 text-text-muted hover:text-text-primary rounded-lg hover:bg-background-secondary transition-colors"
-          >
-            <X size={20} />
-          </button>
-        </div>
+        </DialogHeader>
 
         <div className="p-6 space-y-6">
           {status === "idle" && (
@@ -146,13 +149,13 @@ export const ShareDialog: React.FC<ShareDialogProps> = ({
                 </div>
               </div>
 
-              <button
+              <Button
                 onClick={handleUpload}
                 disabled={!videoBlob}
-                className="w-full py-3 bg-primary hover:bg-primary-hover text-white font-bold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full"
               >
                 Generate Share Link
-              </button>
+              </Button>
             </>
           )}
 
@@ -191,11 +194,11 @@ export const ShareDialog: React.FC<ShareDialogProps> = ({
 
               <div className="p-3 bg-background-tertiary rounded-lg">
                 <div className="flex items-center gap-2">
-                  <input
+                  <Input
                     type="text"
                     value={shareUrl}
                     readOnly
-                    className="flex-1 bg-transparent text-sm text-text-primary outline-none truncate"
+                    className="flex-1 bg-transparent border-0 text-text-primary focus-visible:ring-0 truncate"
                   />
                   <button
                     onClick={handleCopy}
@@ -244,27 +247,21 @@ export const ShareDialog: React.FC<ShareDialogProps> = ({
                 <p className="text-xs text-text-muted">{error}</p>
               </div>
 
-              <button
-                onClick={handleUpload}
-                className="w-full py-3 bg-primary hover:bg-primary-hover text-white font-bold rounded-lg transition-colors"
-              >
+              <Button onClick={handleUpload} className="w-full">
                 Try Again
-              </button>
+              </Button>
             </div>
           )}
         </div>
 
         {status === "success" && (
           <div className="px-6 py-4 border-t border-border bg-background-tertiary">
-            <button
-              onClick={handleClose}
-              className="w-full py-2 text-sm text-text-secondary hover:text-text-primary transition-colors"
-            >
+            <Button variant="ghost" onClick={handleClose} className="w-full">
               Done
-            </button>
+            </Button>
           </div>
         )}
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 };

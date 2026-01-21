@@ -35,6 +35,7 @@ import {
   ClipTransitionSection,
   BackgroundRemovalSection,
   AutoReframeSection,
+  AutoCutSilenceSection,
   CropSection,
   SpeedSection,
   MotionPresetsPanel,
@@ -45,6 +46,18 @@ import {
   initializeAudioBridgeEffects,
   DEFAULT_EQ_BANDS,
 } from "../../bridges/audio-bridge-effects";
+import {
+  Input,
+  LabeledSlider,
+  Switch,
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+  SelectGroup,
+  SelectLabel,
+} from "@openreel/ui";
 
 // Initialize engines as singletons
 const chromaKeyEngine = new ChromaKeyEngine({ width: 1920, height: 1080 });
@@ -79,104 +92,6 @@ const Section: React.FC<{
     </div>
   );
 };
-
-const LabeledSlider: React.FC<{
-  label: string;
-  value: number;
-  onChange: (value: number) => void;
-  min?: number;
-  max?: number;
-  step?: number;
-  unit?: string;
-}> = ({ label, value, onChange, min = 0, max = 100, step = 1, unit = "" }) => {
-  const percentage = ((value - min) / (max - min)) * 100;
-
-  return (
-    <div className="space-y-1">
-      <div className="flex items-center justify-between">
-        <span className="text-[10px] text-text-secondary">{label}</span>
-        <span className="text-[10px] font-mono text-text-primary bg-background-tertiary px-1.5 py-0.5 rounded border border-border">
-          {step < 1 ? value.toFixed(1) : Math.round(value)}
-          {unit}
-        </span>
-      </div>
-      <div className="h-1.5 bg-background-tertiary rounded-full relative overflow-hidden">
-        <input
-          type="range"
-          min={min}
-          max={max}
-          step={step}
-          value={value}
-          onChange={(e) => onChange(parseFloat(e.target.value))}
-          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-        />
-        <div
-          className="absolute top-0 left-0 h-full bg-text-secondary rounded-full transition-all"
-          style={{ width: `${Math.max(0, Math.min(100, percentage))}%` }}
-        />
-        <div
-          className="absolute top-1/2 -translate-y-1/2 w-2.5 h-2.5 bg-white rounded-full shadow-sm pointer-events-none transition-all"
-          style={{
-            left: `calc(${Math.max(0, Math.min(100, percentage))}% - 5px)`,
-          }}
-        />
-      </div>
-    </div>
-  );
-};
-
-const Slider: React.FC<{
-  value: number;
-  onChange: (value: number) => void;
-  min?: number;
-  max?: number;
-}> = ({ value, onChange, min = 0, max = 100 }) => {
-  const percentage = ((value - min) / (max - min)) * 100;
-
-  return (
-    <div className="flex items-center gap-3">
-      <div className="flex-1 h-1.5 bg-background-tertiary rounded-full relative overflow-hidden">
-        <input
-          type="range"
-          min={min}
-          max={max}
-          value={value}
-          onChange={(e) => onChange(parseFloat(e.target.value))}
-          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-        />
-        <div
-          className="absolute top-0 left-0 h-full bg-text-secondary rounded-full transition-all"
-          style={{ width: `${percentage}%` }}
-        />
-        <div
-          className="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full shadow-sm pointer-events-none transition-all"
-          style={{ left: `calc(${percentage}% - 6px)` }}
-        />
-      </div>
-      <span className="text-[10px] font-mono text-text-primary w-8 text-right bg-background-tertiary px-1 py-0.5 rounded border border-border">
-        {Math.round(value)}
-      </span>
-    </div>
-  );
-};
-
-const Toggle: React.FC<{
-  value: boolean;
-  onChange: (value: boolean) => void;
-}> = ({ value, onChange }) => (
-  <button
-    onClick={() => onChange(!value)}
-    className={`w-10 h-5 rounded-full transition-colors ${
-      value ? "bg-primary" : "bg-background-tertiary border border-border"
-    }`}
-  >
-    <div
-      className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${
-        value ? "translate-x-5" : "translate-x-0.5"
-      }`}
-    />
-  </button>
-);
 
 const EmptyState: React.FC = () => (
   <div className="flex-1 flex flex-col items-center justify-center p-8 text-center opacity-50">
@@ -390,8 +305,12 @@ export const InspectorPanel: React.FC = () => {
     forceUpdate();
   }, [selectedClip]);
 
+  const [isEnhancingAudio, setIsEnhancingAudio] = useState(false);
+  const [audioEnhanced, setAudioEnhanced] = useState(false);
+
   const handleEnhanceAudio = useCallback(async () => {
     if (!selectedClip) return;
+    setIsEnhancingAudio(true);
     try {
       await initializeAudioBridgeEffects();
       const bridge = getAudioBridgeEffects();
@@ -404,17 +323,24 @@ export const InspectorPanel: React.FC = () => {
         if (i === 4) gain = -2;
         return { ...band, gain };
       });
-      bridge.applyEQ(selectedClip.id, speechEQBands);
-      bridge.applyCompressor(selectedClip.id, {
+      const eqResult = bridge.applyEQ(selectedClip.id, speechEQBands);
+      const compResult = bridge.applyCompressor(selectedClip.id, {
         threshold: -18,
         ratio: 3,
         attack: 0.005,
         release: 0.15,
       });
+      if (eqResult.success && compResult.success) {
+        setAudioEnhanced(true);
+        setTimeout(() => setAudioEnhanced(false), 2000);
+      }
+      forceUpdate();
     } catch (error) {
       console.error("Failed to enhance audio:", error);
+    } finally {
+      setIsEnhancingAudio(false);
     }
-  }, [selectedClip]);
+  }, [selectedClip, forceUpdate]);
 
   const handleAutoColor = useCallback(() => {
     if (!selectedClip) return;
@@ -633,22 +559,22 @@ export const InspectorPanel: React.FC = () => {
                   <label className="text-[10px] text-text-secondary block mb-1">
                     Animation Style
                   </label>
-                  <select
+                  <Select
                     value={defaultAnimationStyle}
-                    onChange={(e) =>
-                      setDefaultAnimationStyle(
-                        e.target.value as CaptionAnimationStyle,
-                      )
-                    }
+                    onValueChange={(v) => setDefaultAnimationStyle(v as CaptionAnimationStyle)}
                     disabled={isTranscribing}
-                    className="w-full px-2 py-1.5 text-[11px] text-text-primary bg-background-secondary border border-border rounded outline-none focus:border-primary cursor-pointer disabled:opacity-50"
                   >
-                    {CAPTION_ANIMATION_STYLES.map((style) => (
-                      <option key={style} value={style}>
-                        {getAnimationStyleDisplayName(style)}
-                      </option>
-                    ))}
-                  </select>
+                    <SelectTrigger className="w-full bg-background-secondary border-border text-text-primary text-[11px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-background-secondary border-border">
+                      {CAPTION_ANIMATION_STYLES.map((style) => (
+                        <SelectItem key={style} value={style}>
+                          {getAnimationStyleDisplayName(style)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 {transcriptionProgress ? (
@@ -699,6 +625,13 @@ export const InspectorPanel: React.FC = () => {
             {clipType === "video" && (
               <div className="mb-4">
                 <AutoReframeSection clipId={clipId} />
+              </div>
+            )}
+
+            {/* AI Auto Cut Silence - Video and Audio clips */}
+            {showAudioEffects && (
+              <div className="mb-4">
+                <AutoCutSilenceSection clipId={clipId} />
               </div>
             )}
 
@@ -805,7 +738,7 @@ export const InspectorPanel: React.FC = () => {
                             }
                             className={`py-1.5 rounded text-[9px] capitalize transition-colors ${
                               (transform.fitMode || "none") === mode
-                                ? "bg-primary text-black"
+                                ? "bg-primary text-white"
                                 : "bg-background-tertiary border border-border text-text-secondary hover:text-text-primary"
                             }`}
                           >
@@ -943,9 +876,9 @@ export const InspectorPanel: React.FC = () => {
                     <span className="text-[10px] text-text-secondary">
                       Enable
                     </span>
-                    <Toggle
-                      value={chromaKeyEnabled}
-                      onChange={handleChromaKeyToggle}
+                    <Switch
+                      checked={chromaKeyEnabled}
+                      onCheckedChange={handleChromaKeyToggle}
                     />
                   </div>
                   {chromaKeyEnabled && (
@@ -961,20 +894,12 @@ export const InspectorPanel: React.FC = () => {
                           className="w-8 h-6 rounded border border-border cursor-pointer"
                         />
                       </div>
-                      <div>
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="text-[10px] text-text-secondary">
-                            Tolerance
-                          </span>
-                          <span className="text-[10px] font-mono">
-                            {Math.round(tolerance)}%
-                          </span>
-                        </div>
-                        <Slider
-                          value={tolerance}
-                          onChange={handleToleranceChange}
-                        />
-                      </div>
+                      <LabeledSlider
+                        label="Tolerance"
+                        value={tolerance}
+                        onChange={handleToleranceChange}
+                        unit="%"
+                      />
                     </>
                   )}
                 </div>
@@ -1109,7 +1034,7 @@ export const InspectorPanel: React.FC = () => {
                   {showVideoControls && (
                     <button
                       onClick={handleRemoveBackground}
-                      className="w-full py-2 bg-background-tertiary hover:bg-primary hover:text-black border border-border hover:border-primary rounded-lg text-[10px] transition-all"
+                      className="w-full py-2 bg-background-tertiary hover:bg-primary hover:text-white border border-border hover:border-primary rounded-lg text-[10px] transition-all"
                     >
                       Remove Background
                     </button>
@@ -1117,15 +1042,31 @@ export const InspectorPanel: React.FC = () => {
                   {showAudioEffects && (
                     <button
                       onClick={handleEnhanceAudio}
-                      className="w-full py-2 bg-background-tertiary hover:bg-primary hover:text-black border border-border hover:border-primary rounded-lg text-[10px] transition-all"
+                      disabled={isEnhancingAudio}
+                      className={`w-full py-2 border rounded-lg text-[10px] transition-all flex items-center justify-center gap-1.5 ${
+                        audioEnhanced
+                          ? "bg-green-500/20 border-green-500 text-green-400"
+                          : isEnhancingAudio
+                            ? "bg-background-tertiary border-border text-text-muted cursor-not-allowed"
+                            : "bg-background-tertiary hover:bg-primary hover:text-white border-border hover:border-primary"
+                      }`}
                     >
-                      Enhance Audio
+                      {isEnhancingAudio ? (
+                        <>
+                          <Loader2 size={12} className="animate-spin" />
+                          Enhancing...
+                        </>
+                      ) : audioEnhanced ? (
+                        "✓ Enhanced"
+                      ) : (
+                        "Enhance Audio"
+                      )}
                     </button>
                   )}
                   {showVideoEffects && (
                     <button
                       onClick={handleAutoColor}
-                      className="w-full py-2 bg-background-tertiary hover:bg-primary hover:text-black border border-border hover:border-primary rounded-lg text-[10px] transition-all"
+                      className="w-full py-2 bg-background-tertiary hover:bg-primary hover:text-white border border-border hover:border-primary rounded-lg text-[10px] transition-all"
                     >
                       Auto-Color
                     </button>
@@ -1171,7 +1112,7 @@ export const InspectorPanel: React.FC = () => {
                   <span className="text-[10px] text-text-secondary">
                     Start Time
                   </span>
-                  <input
+                  <Input
                     type="number"
                     step="0.1"
                     value={selectedSubtitle.startTime.toFixed(2)}
@@ -1180,14 +1121,14 @@ export const InspectorPanel: React.FC = () => {
                         startTime: parseFloat(e.target.value) || 0,
                       })
                     }
-                    className="w-20 px-2 py-1 bg-background-tertiary border border-border rounded text-[10px] text-text-primary text-right focus:outline-none focus:border-primary"
+                    className="w-20 h-7 text-[10px] bg-background-tertiary border-border text-text-primary text-right"
                   />
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] text-text-secondary">
                     End Time
                   </span>
-                  <input
+                  <Input
                     type="number"
                     step="0.1"
                     value={selectedSubtitle.endTime.toFixed(2)}
@@ -1196,7 +1137,7 @@ export const InspectorPanel: React.FC = () => {
                         endTime: parseFloat(e.target.value) || 0,
                       })
                     }
-                    className="w-20 px-2 py-1 bg-background-tertiary border border-border rounded text-[10px] text-text-primary text-right focus:outline-none focus:border-primary"
+                    className="w-20 h-7 text-[10px] bg-background-tertiary border-border text-text-primary text-right"
                   />
                 </div>
               </div>
@@ -1218,7 +1159,7 @@ export const InspectorPanel: React.FC = () => {
                     }
                     className={`py-1.5 rounded text-[10px] capitalize transition-colors ${
                       (selectedSubtitle.style?.position || "bottom") === pos
-                        ? "bg-primary text-black"
+                        ? "bg-primary text-white"
                         : "bg-background-tertiary border border-border text-text-secondary hover:text-text-primary"
                     }`}
                   >
@@ -1233,21 +1174,25 @@ export const InspectorPanel: React.FC = () => {
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] text-text-secondary">Style</span>
-                  <select
+                  <Select
                     value={selectedSubtitle.animationStyle || "none"}
-                    onChange={(e) =>
+                    onValueChange={(v) =>
                       updateSubtitle(selectedSubtitle.id, {
-                        animationStyle: e.target.value as CaptionAnimationStyle,
+                        animationStyle: v as CaptionAnimationStyle,
                       })
                     }
-                    className="px-2 py-1 text-[10px] text-text-primary bg-background-tertiary border border-border rounded outline-none focus:border-primary cursor-pointer"
                   >
-                    {CAPTION_ANIMATION_STYLES.map((style) => (
-                      <option key={style} value={style}>
-                        {getAnimationStyleDisplayName(style)}
-                      </option>
-                    ))}
-                  </select>
+                    <SelectTrigger className="w-auto min-w-[100px] bg-background-tertiary border-border text-text-primary text-[10px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-background-secondary border-border">
+                      {CAPTION_ANIMATION_STYLES.map((style) => (
+                        <SelectItem key={style} value={style}>
+                          {getAnimationStyleDisplayName(style)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <p className="text-[9px] text-text-muted">
                   {selectedSubtitle.animationStyle === "karaoke" &&
@@ -1345,96 +1290,61 @@ export const InspectorPanel: React.FC = () => {
                   <span className="text-[10px] text-text-secondary">
                     Font Family
                   </span>
-                  <select
+                  <Select
                     value={selectedSubtitle.style?.fontFamily || "Inter"}
-                    onChange={(e) =>
+                    onValueChange={(v) =>
                       updateSubtitle(selectedSubtitle.id, {
                         style: {
                           ...(selectedSubtitle.style || {}),
-                          fontFamily: e.target.value,
+                          fontFamily: v,
                         } as typeof selectedSubtitle.style,
                       })
                     }
-                    className="px-2 py-1 text-[10px] text-text-primary bg-background-tertiary border border-border rounded outline-none focus:border-primary cursor-pointer max-w-[120px]"
                   >
-                    <optgroup label="Popular">
-                      {[
-                        "Inter",
-                        "Poppins",
-                        "Montserrat",
-                        "Roboto",
-                        "Open Sans",
-                        "Lato",
-                        "DM Sans",
-                      ].map((font) => (
-                        <option
-                          key={font}
-                          value={font}
-                          style={{ fontFamily: font }}
-                        >
-                          {font}
-                        </option>
-                      ))}
-                    </optgroup>
-                    <optgroup label="Display">
-                      {[
-                        "Bebas Neue",
-                        "Anton",
-                        "Oswald",
-                        "Teko",
-                        "Staatliches",
-                        "Alfa Slab One",
-                      ].map((font) => (
-                        <option
-                          key={font}
-                          value={font}
-                          style={{ fontFamily: font }}
-                        >
-                          {font}
-                        </option>
-                      ))}
-                    </optgroup>
-                    <optgroup label="Elegant">
-                      {[
-                        "Playfair Display",
-                        "Cinzel",
-                        "Lora",
-                        "Merriweather",
-                        "DM Serif Display",
-                      ].map((font) => (
-                        <option
-                          key={font}
-                          value={font}
-                          style={{ fontFamily: font }}
-                        >
-                          {font}
-                        </option>
-                      ))}
-                    </optgroup>
-                    <optgroup label="Handwritten">
-                      {[
-                        "Pacifico",
-                        "Lobster",
-                        "Dancing Script",
-                        "Caveat",
-                        "Permanent Marker",
-                      ].map((font) => (
-                        <option
-                          key={font}
-                          value={font}
-                          style={{ fontFamily: font }}
-                        >
-                          {font}
-                        </option>
-                      ))}
-                    </optgroup>
-                  </select>
+                    <SelectTrigger className="max-w-[120px] bg-background-tertiary border-border text-text-primary text-[10px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-background-secondary border-border max-h-60">
+                      <SelectGroup>
+                        <SelectLabel className="text-text-muted text-[10px] font-medium">Popular</SelectLabel>
+                        {["Inter", "Poppins", "Montserrat", "Roboto", "Open Sans", "Lato", "DM Sans"].map((font) => (
+                          <SelectItem key={font} value={font} style={{ fontFamily: font }}>
+                            {font}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                      <SelectGroup>
+                        <SelectLabel className="text-text-muted text-[10px] font-medium">Display</SelectLabel>
+                        {["Bebas Neue", "Anton", "Oswald", "Teko", "Staatliches", "Alfa Slab One"].map((font) => (
+                          <SelectItem key={font} value={font} style={{ fontFamily: font }}>
+                            {font}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                      <SelectGroup>
+                        <SelectLabel className="text-text-muted text-[10px] font-medium">Elegant</SelectLabel>
+                        {["Playfair Display", "Cinzel", "Lora", "Merriweather", "DM Serif Display"].map((font) => (
+                          <SelectItem key={font} value={font} style={{ fontFamily: font }}>
+                            {font}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                      <SelectGroup>
+                        <SelectLabel className="text-text-muted text-[10px] font-medium">Handwritten</SelectLabel>
+                        {["Pacifico", "Lobster", "Dancing Script", "Caveat", "Permanent Marker"].map((font) => (
+                          <SelectItem key={font} value={font} style={{ fontFamily: font }}>
+                            {font}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] text-text-secondary">
                     Font Size
                   </span>
-                  <input
+                  <Input
                     type="number"
                     min={12}
                     max={72}
@@ -1447,7 +1357,7 @@ export const InspectorPanel: React.FC = () => {
                         } as typeof selectedSubtitle.style,
                       })
                     }
-                    className="w-16 px-2 py-1 bg-background-tertiary border border-border rounded text-[10px] text-text-primary text-right focus:outline-none focus:border-primary"
+                    className="w-16 h-7 text-[10px] bg-background-tertiary border-border text-text-primary text-right"
                   />
                 </div>
               </div>
@@ -1506,23 +1416,21 @@ export const InspectorPanel: React.FC = () => {
                       }}
                       className="w-6 h-6 rounded border border-border cursor-pointer"
                     />
-                    <select
+                    <Select
                       value={
                         selectedSubtitle.style?.backgroundColor?.includes("0.7")
                           ? "0.7"
-                          : selectedSubtitle.style?.backgroundColor?.includes(
-                                "0.5",
-                              )
+                          : selectedSubtitle.style?.backgroundColor?.includes("0.5")
                             ? "0.5"
                             : "1"
                       }
-                      onChange={(e) => {
+                      onValueChange={(v) => {
                         const currentBg =
                           selectedSubtitle.style?.backgroundColor ||
                           "rgba(0, 0, 0, 0.7)";
                         const newBg = currentBg.replace(
                           /[\d.]+\)$/,
-                          `${e.target.value})`,
+                          `${v})`,
                         );
                         updateSubtitle(selectedSubtitle.id, {
                           style: {
@@ -1531,13 +1439,17 @@ export const InspectorPanel: React.FC = () => {
                           } as typeof selectedSubtitle.style,
                         });
                       }}
-                      className="px-1 py-0.5 text-[9px] text-text-primary bg-background-tertiary border border-border rounded outline-none"
                     >
-                      <option value="0">None</option>
-                      <option value="0.5">50%</option>
-                      <option value="0.7">70%</option>
-                      <option value="1">100%</option>
-                    </select>
+                      <SelectTrigger className="w-auto min-w-[50px] bg-background-tertiary border-border text-text-primary text-[9px] h-6">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-background-secondary border-border">
+                        <SelectItem value="0">None</SelectItem>
+                        <SelectItem value="0.5">50%</SelectItem>
+                        <SelectItem value="0.7">70%</SelectItem>
+                        <SelectItem value="1">100%</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
               </div>

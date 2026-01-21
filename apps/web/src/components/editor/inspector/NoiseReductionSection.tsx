@@ -8,52 +8,7 @@ import {
   DEFAULT_NOISE_REDUCTION,
 } from "../../../bridges/audio-bridge-effects";
 import { useProjectStore } from "../../../stores/project-store";
-
-/**
- * Slider Component
- */
-const Slider: React.FC<{
-  label: string;
-  value: number;
-  onChange: (value: number) => void;
-  min?: number;
-  max?: number;
-  step?: number;
-  unit?: string;
-}> = ({ label, value, onChange, min = 0, max = 100, step = 1, unit = "" }) => {
-  const percentage = ((value - min) / (max - min)) * 100;
-
-  return (
-    <div className="space-y-1">
-      <div className="flex items-center justify-between">
-        <span className="text-[10px] text-text-secondary">{label}</span>
-        <span className="text-[10px] font-mono text-text-primary">
-          {value.toFixed(step < 1 ? 1 : 0)}
-          {unit}
-        </span>
-      </div>
-      <div className="h-1.5 bg-background-tertiary rounded-full relative overflow-hidden">
-        <input
-          type="range"
-          min={min}
-          max={max}
-          step={step}
-          value={value}
-          onChange={(e) => onChange(parseFloat(e.target.value))}
-          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-        />
-        <div
-          className="absolute top-0 left-0 h-full bg-text-secondary rounded-full transition-all"
-          style={{ width: `${percentage}%` }}
-        />
-        <div
-          className="absolute top-1/2 -translate-y-1/2 w-2.5 h-2.5 bg-white rounded-full shadow-sm pointer-events-none transition-all"
-          style={{ left: `calc(${percentage}% - 5px)` }}
-        />
-      </div>
-    </div>
-  );
-};
+import { LabeledSlider as Slider } from "@openreel/ui";
 
 /**
  * NoiseReductionSection Props
@@ -169,39 +124,39 @@ export const NoiseReductionSection: React.FC<NoiseReductionSectionProps> = ({
 
     try {
       const bridge = getAudioBridgeEffects();
+      const project = useProjectStore.getState().project;
 
-      // In a real implementation, we would get the audio buffer from the clip
-      // For now, we'll create a mock audio buffer for demonstration
-      // This would typically come from the MediaBridge or AudioEngine
-      const audioContext = new AudioContext();
-      const sampleRate = audioContext.sampleRate;
-      const duration = 1; // 1 second of noise sample
-      const buffer = audioContext.createBuffer(
-        1,
-        sampleRate * duration,
-        sampleRate,
-      );
+      const clip = project.timeline.tracks
+        .flatMap((track) => track.clips)
+        .find((c) => c.id === clipId);
 
-      // Fill with simulated noise (in real implementation, this would be actual audio data)
-      const channelData = buffer.getChannelData(0);
-      for (let i = 0; i < channelData.length; i++) {
-        channelData[i] = (Math.random() * 2 - 1) * 0.1; // Low-level noise
+      if (!clip) {
+        throw new Error("Clip not found");
       }
 
-      // Learn the noise profile
+      const mediaItem = project.mediaLibrary.items.find(
+        (m) => m.id === clip.mediaId,
+      );
+
+      if (!mediaItem?.blob) {
+        throw new Error("No audio data available for this clip");
+      }
+
+      const audioContext = new AudioContext();
+      const arrayBuffer = await mediaItem.blob.arrayBuffer();
+      const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+
       const profile = await bridge.learnNoiseProfile(
-        buffer,
+        audioBuffer,
         `profile-${clipId}`,
       );
       setNoiseProfile(profile);
       setLearningState("success");
 
-      // Auto-enable noise reduction after learning
       if (!enabled) {
         handleToggle(true);
       }
 
-      // Reset success state after 2 seconds
       setTimeout(() => {
         setLearningState("idle");
       }, 2000);
@@ -215,7 +170,6 @@ export const NoiseReductionSection: React.FC<NoiseReductionSectionProps> = ({
           : "Failed to learn noise profile",
       );
 
-      // Reset error state after 3 seconds
       setTimeout(() => {
         setLearningState("idle");
         setErrorMessage(null);

@@ -14,62 +14,9 @@ import {
 import type { Transition, Clip } from "@openreel/core";
 import type { TransitionType } from "@openreel/core";
 import { toast } from "../../../stores/notification-store";
+import { LabeledSlider, Switch } from "@openreel/ui";
 
-/**
- * Slider Component for transition parameters
- */
-const TransitionSlider: React.FC<{
-  label: string;
-  value: number;
-  onChange: (value: number) => void;
-  min?: number;
-  max?: number;
-  step?: number;
-  unit?: string;
-}> = ({
-  label,
-  value,
-  onChange,
-  min = 0,
-  max = 100,
-  step = 0.1,
-  unit = "",
-}) => {
-  const percentage = ((value - min) / (max - min)) * 100;
-
-  return (
-    <div className="space-y-1">
-      <div className="flex items-center justify-between">
-        <span className="text-[10px] text-text-secondary">{label}</span>
-        <span className="text-[10px] font-mono text-text-primary bg-background-tertiary px-1.5 py-0.5 rounded border border-border">
-          {value.toFixed(step < 1 ? 1 : 0)}
-          {unit}
-        </span>
-      </div>
-      <div className="flex items-center gap-2">
-        <div className="flex-1 h-1.5 bg-background-tertiary rounded-full relative overflow-hidden">
-          <input
-            type="range"
-            min={min}
-            max={max}
-            step={step}
-            value={value}
-            onChange={(e) => onChange(parseFloat(e.target.value))}
-            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-          />
-          <div
-            className="absolute top-0 left-0 h-full bg-text-secondary rounded-full transition-all"
-            style={{ width: `${percentage}%` }}
-          />
-          <div
-            className="absolute top-1/2 -translate-y-1/2 w-2.5 h-2.5 bg-white rounded-full shadow-sm pointer-events-none transition-all"
-            style={{ left: `calc(${percentage}% - 5px)` }}
-          />
-        </div>
-      </div>
-    </div>
-  );
-};
+const TransitionSlider = LabeledSlider;
 
 /**
  * Direction Selector Component
@@ -109,9 +56,6 @@ const DirectionSelector: React.FC<{
   );
 };
 
-/**
- * Toggle Switch Component
- */
 const Toggle: React.FC<{
   label: string;
   value: boolean;
@@ -119,18 +63,7 @@ const Toggle: React.FC<{
 }> = ({ label, value, onChange }) => (
   <div className="flex items-center justify-between">
     <span className="text-[10px] text-text-secondary">{label}</span>
-    <button
-      onClick={() => onChange(!value)}
-      className={`w-10 h-5 rounded-full transition-colors ${
-        value ? "bg-primary" : "bg-background-tertiary border border-border"
-      }`}
-    >
-      <div
-        className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${
-          value ? "translate-x-5" : "translate-x-0.5"
-        }`}
-      />
-    </button>
+    <Switch checked={value} onCheckedChange={onChange} />
   </div>
 );
 
@@ -221,7 +154,7 @@ const TransitionPreview: React.FC<{
   return (
     <div className="relative w-full h-8 rounded overflow-hidden bg-background-secondary mb-2">
       <div
-        className="absolute inset-0 bg-blue-500/30"
+        className="absolute inset-0 bg-primary/20"
         style={{ ...styles.clipA, transition: "none" }}
       />
       <div

@@ -69,3 +69,11 @@ export type {
 } from "./types";
 
 export { QUALITY_PRESETS, AUDIO_QUALITY_PRESETS } from "./types";
+
+export {
+  decodeGif,
+  createGifFrameCache,
+  getGifFrameAtTime,
+  isAnimatedGif,
+} from "./gif-decoder";
+export type { GifFrame, DecodedGif, GifFrameCache } from "./gif-decoder";

@@ -18,6 +18,7 @@ import {
   Move,
   Loader2,
 } from "lucide-react";
+import { IconButton } from "@openreel/ui";
 import { useProjectStore } from "../../stores/project-store";
 import { useTimelineStore } from "../../stores/timeline-store";
 import { useUIStore } from "../../stores/ui-store";
@@ -46,7 +47,6 @@ import {
   type ClipTransform,
   DEFAULT_TRANSFORM,
   formatTime,
-  IconButton,
   renderTextClipToCanvas,
   getActiveTextClips,
   getActiveShapeClips,
@@ -238,6 +238,9 @@ export const Preview: React.FC = () => {
   // Throttle store updates during interaction (update at most every 32ms ~30fps)
   const lastStoreUpdateRef = useRef<number>(0);
   const STORE_UPDATE_THROTTLE_MS = 32;
+  // Throttle playhead updates during playback to reduce React re-renders
+  const lastPlayheadUpdateRef = useRef<number>(0);
+  const PLAYHEAD_UPDATE_THROTTLE_MS = 50;
   // Live transform state for immediate visual feedback during interaction
   const [liveTransform, setLiveTransform] = useState<{
     position: { x: number; y: number };
@@ -350,6 +353,9 @@ export const Preview: React.FC = () => {
     allSubtitlesRef.current = allSubtitles;
   }, [allSubtitles]);
 
+  // Keep a ref to isScrubbing for use in playback loop
+  const isScrubbingRef = useRef(false);
+
   const selectedItems = useUIStore((state) => state.selectedItems);
   const cropMode = useUIStore((state) => state.cropMode);
   const cropClipId = useUIStore((state) => state.cropClipId);
@@ -360,12 +366,17 @@ export const Preview: React.FC = () => {
     playheadPosition,
     playbackState,
     playbackRate,
+    isScrubbing,
     pause,
     togglePlayback,
     seekTo,
     seekRelative,
     setPlayheadPosition,
   } = useTimelineStore();
+
+  useEffect(() => {
+    isScrubbingRef.current = isScrubbing;
+  }, [isScrubbing]);
 
   const isPlaying = playbackState === "playing";
 
@@ -825,18 +836,24 @@ export const Preview: React.FC = () => {
     const audioContext = audioGraph.getAudioContext();
 
     const allTracks = [...audioTracks, ...videoTracks];
+
     for (const track of allTracks) {
       for (const clip of track.clips) {
-        if (audioBufferCacheRef.current.has(clip.mediaId)) continue;
+        if (audioBufferCacheRef.current.has(clip.mediaId)) {
+          continue;
+        }
 
         const mediaItem = getMediaItem(clip.mediaId);
-        if (!mediaItem?.blob) continue;
+        if (!mediaItem?.blob) {
+          continue;
+        }
 
         try {
           const arrayBuffer = await mediaItem.blob.arrayBuffer();
           const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
           audioBufferCacheRef.current.set(clip.mediaId, audioBuffer);
-        } catch {}
+        } catch {
+        }
       }
     }
   }, [getMediaItem]);
@@ -844,19 +861,23 @@ export const Preview: React.FC = () => {
   const getAudioClipsForScheduler = useCallback(
     (time: number): AudioClipSchedule[] => {
       const tracks = timelineTracksRef.current;
-      const audioTracks = tracks.filter(
-        (t) => t.type === "audio" && !t.hidden && !t.muted,
+      const tracksWithAudio = tracks.filter(
+        (t) => (t.type === "audio" || t.type === "video") && !t.hidden && !t.muted,
       );
       const schedules: AudioClipSchedule[] = [];
       const projectStore = useProjectStore.getState();
 
-      for (const track of audioTracks) {
+      for (const track of tracksWithAudio) {
         for (const clip of track.clips) {
           const clipEnd = clip.startTime + clip.duration;
-          if (clipEnd <= time || clip.startTime > time + 1) continue;
+          if (clipEnd <= time || clip.startTime > time + 1) {
+            continue;
+          }
 
           const audioBuffer = audioBufferCacheRef.current.get(clip.mediaId);
-          if (!audioBuffer) continue;
+          if (!audioBuffer) {
+            continue;
+          }
 
           const clipData = projectStore.getClip(clip.id);
           const audioEffects = (clipData?.audioEffects || []).filter(
@@ -1754,10 +1775,10 @@ export const Preview: React.FC = () => {
       const audioGraph = audioGraphRef.current;
       audioGraph.setMasterVolume(isMuted ? 0 : 1);
 
-      const allAudioTracks = timelineTracks.filter(
-        (t) => t.type === "audio" && !t.hidden,
+      const tracksWithAudio = timelineTracks.filter(
+        (t) => (t.type === "audio" || t.type === "video") && !t.hidden,
       );
-      for (const audioTrack of allAudioTracks) {
+      for (const audioTrack of tracksWithAudio) {
         audioGraph.createTrack({
           trackId: audioTrack.id,
           volume: 1,
@@ -1769,17 +1790,23 @@ export const Preview: React.FC = () => {
       }
 
       await audioGraph.resume();
+      audioGraph.seekTo(startPosition);
       audioGraph.startScheduler(() => {
-        const audioTracks = timelineTracks.filter(
-          (t) => t.type === "audio" && !t.hidden,
+        const tracksWithAudio = timelineTracks.filter(
+          (t) => (t.type === "audio" || t.type === "video") && !t.hidden,
         );
         const schedules: AudioClipSchedule[] = [];
-        for (const track of audioTracks) {
+        for (const track of tracksWithAudio) {
           for (const audioClip of track.clips) {
-            const audioItem = getMediaItem(audioClip.mediaId);
-            const audioBuffer = audioItem
-              ? audioBufferCacheRef.current.get(audioClip.mediaId)
-              : undefined;
+            const mediaItem = getMediaItem(audioClip.mediaId);
+            const hasAudio =
+              mediaItem?.type === "audio" ||
+              (mediaItem?.type === "video" &&
+                mediaItem?.metadata?.channels &&
+                mediaItem.metadata.channels > 0);
+            if (!hasAudio) continue;
+
+            const audioBuffer = audioBufferCacheRef.current.get(audioClip.mediaId);
             if (audioBuffer) {
               schedules.push({
                 clipId: audioClip.id,
@@ -1824,11 +1851,19 @@ export const Preview: React.FC = () => {
 
         const currentPlayhead = masterClock.currentTime;
 
-        if (currentPlayhead >= actualEndTime || !masterClock.isPlaying) {
+        if (currentPlayhead >= actualEndTime) {
           cleanup();
           setPlayheadPosition(0);
           startPositionRef.current = 0;
           onEnd();
+          return;
+        }
+
+        if (!masterClock.isPlaying) {
+          cleanup();
+          if (!isScrubbingRef.current) {
+            onEnd();
+          }
           return;
         }
 
@@ -1837,7 +1872,82 @@ export const Preview: React.FC = () => {
         if (!activeClip) {
           ctx.fillStyle = "#000000";
           ctx.fillRect(0, 0, canvas.width, canvas.height);
-          setPlayheadPosition(currentPlayhead);
+
+          const sortedImageClipsNoVideo = [...imageClips].sort(
+            (a, b) => b.trackIndex - a.trackIndex,
+          );
+          for (const { clip: imgClip } of sortedImageClipsNoVideo) {
+            if (
+              currentPlayhead >= imgClip.startTime &&
+              currentPlayhead < imgClip.startTime + imgClip.duration
+            ) {
+              const bitmap = imageBitmapCache.get(imgClip.id);
+              if (bitmap) {
+                const latestImgClip = (() => {
+                  for (const track of timelineTracksRef.current) {
+                    const found = track.clips.find((c) => c.id === imgClip.id);
+                    if (found) return found;
+                  }
+                  return imgClip;
+                })();
+                const imgClipLocalTime = currentPlayhead - imgClip.startTime;
+                const imgTransform = getAnimatedTransform(
+                  (latestImgClip.transform as ClipTransform) || DEFAULT_TRANSFORM,
+                  latestImgClip.keyframes,
+                  imgClipLocalTime,
+                );
+                drawFrameWithTransform(
+                  ctx,
+                  bitmap,
+                  imgTransform,
+                  canvas.width,
+                  canvas.height,
+                );
+              }
+            }
+          }
+
+          const activeShapeClipsNoVideo = getActiveShapeClips(
+            allShapeClipsRef.current,
+            currentPlayhead,
+          );
+          const activeTextClipsNoVideo = getActiveTextClips(
+            allTextClipsRef.current,
+            currentPlayhead,
+          );
+
+          if (activeShapeClipsNoVideo.length > 0 || activeTextClipsNoVideo.length > 0) {
+            renderOverlayClipsInTrackOrder(
+              ctx,
+              timelineTracksRef.current,
+              activeShapeClipsNoVideo,
+              activeTextClipsNoVideo,
+              currentPlayhead,
+              canvas.width,
+              canvas.height,
+              "all",
+            );
+          }
+
+          const activeSubtitlesNoVideo = getActiveSubtitles(
+            allSubtitles,
+            currentPlayhead,
+          );
+          for (const subtitle of activeSubtitlesNoVideo) {
+            renderSubtitleToCanvas(
+              ctx,
+              subtitle,
+              canvas.width,
+              canvas.height,
+              currentPlayhead,
+            );
+          }
+
+          const nowNoClip = performance.now();
+          if (nowNoClip - lastPlayheadUpdateRef.current >= PLAYHEAD_UPDATE_THROTTLE_MS) {
+            lastPlayheadUpdateRef.current = nowNoClip;
+            setPlayheadPosition(currentPlayhead);
+          }
           rafId = requestAnimationFrame(() => { drawFrame(); });
           return;
         }
@@ -1846,7 +1956,11 @@ export const Preview: React.FC = () => {
         const cached = videoCache.get(clip.mediaId);
 
         if (!cached) {
-          setPlayheadPosition(currentPlayhead);
+          const nowNoCached = performance.now();
+          if (nowNoCached - lastPlayheadUpdateRef.current >= PLAYHEAD_UPDATE_THROTTLE_MS) {
+            lastPlayheadUpdateRef.current = nowNoCached;
+            setPlayheadPosition(currentPlayhead);
+          }
           rafId = requestAnimationFrame(() => { drawFrame(); });
           return;
         }
@@ -1981,7 +2095,11 @@ export const Preview: React.FC = () => {
           );
         }
 
-        setPlayheadPosition(currentPlayhead);
+        const nowPlayhead = performance.now();
+        if (nowPlayhead - lastPlayheadUpdateRef.current >= PLAYHEAD_UPDATE_THROTTLE_MS) {
+          lastPlayheadUpdateRef.current = nowPlayhead;
+          setPlayheadPosition(currentPlayhead);
+        }
 
         // Schedule next frame using requestVideoFrameCallback for better sync with 4K
         if (supportsVideoFrameCallback && currentVideo && !currentVideo.paused) {
@@ -2260,7 +2378,7 @@ export const Preview: React.FC = () => {
                     nextResult.track,
                     clipEndTime,
                   );
-                } else {
+                } else if (!isScrubbingRef.current) {
                   setPlayheadPosition(0);
                   startPositionRef.current = 0;
                   pause();
@@ -2312,9 +2430,11 @@ export const Preview: React.FC = () => {
               const currentPlayhead = currentPlayheadTime;
 
               if (currentPlayhead >= actualEndTime) {
-                setPlayheadPosition(0);
-                startPositionRef.current = 0;
-                pause();
+                if (!isScrubbingRef.current) {
+                  setPlayheadPosition(0);
+                  startPositionRef.current = 0;
+                  pause();
+                }
                 input[Symbol.dispose]?.();
                 return;
               }
@@ -2409,7 +2529,11 @@ export const Preview: React.FC = () => {
                 );
               }
 
-              setPlayheadPosition(currentPlayhead);
+              const nowPh = performance.now();
+              if (nowPh - lastPlayheadUpdateRef.current >= PLAYHEAD_UPDATE_THROTTLE_MS) {
+                lastPlayheadUpdateRef.current = nowPh;
+                setPlayheadPosition(currentPlayhead);
+              }
 
               const now = performance.now();
               const elapsed = now - lastFrameTimestamp;
@@ -2609,16 +2733,16 @@ export const Preview: React.FC = () => {
       const audioGraph = audioGraphRef.current;
       audioGraph.setMasterVolume(isMuted ? 0 : 1);
 
-      const allAudioTracks = timelineTracksRef.current.filter(
-        (t) => t.type === "audio" && !t.hidden,
+      const tracksWithAudio = timelineTracksRef.current.filter(
+        (t) => (t.type === "audio" || t.type === "video") && !t.hidden,
       );
-      for (const audioTrack of allAudioTracks) {
+      for (const track of tracksWithAudio) {
         audioGraph.createTrack({
-          trackId: audioTrack.id,
+          trackId: track.id,
           volume: 1,
           pan: 0,
-          muted: audioTrack.muted || false,
-          solo: audioTrack.solo || false,
+          muted: track.muted || false,
+          solo: track.solo || false,
           effects: [],
         });
       }
@@ -2657,6 +2781,7 @@ export const Preview: React.FC = () => {
       masterClock.setDuration(actualEndTime);
       masterClock.seek(playbackStartPosition);
 
+      audioGraph.seekTo(playbackStartPosition);
       audioGraph.startScheduler(getAudioClipsForScheduler);
 
       await masterClock.play();
@@ -2681,7 +2806,7 @@ export const Preview: React.FC = () => {
         const currentPlayhead = masterClock.currentTime;
 
         try {
-          if (currentPlayhead >= actualEndTime || !masterClock.isPlaying) {
+          if (currentPlayhead >= actualEndTime) {
             isProcessingFrame = false;
             cleanupPlaybackResources();
             cleanupAudioResources();
@@ -2689,6 +2814,16 @@ export const Preview: React.FC = () => {
             setPlayheadPosition(0);
             startPositionRef.current = 0;
             pause();
+            return;
+          }
+
+          if (!masterClock.isPlaying) {
+            isProcessingFrame = false;
+            cleanupPlaybackResources();
+            cleanupAudioResources();
+            if (!isScrubbingRef.current) {
+              pause();
+            }
             return;
           }
 
@@ -2737,6 +2872,7 @@ export const Preview: React.FC = () => {
 
             if (nextTime !== null) {
               masterClock.seek(nextTime);
+              audioGraph.seekTo(nextTime);
               isProcessingFrame = false;
               animationRef.current = requestAnimationFrame(
                 processMultiTrackFrame,
@@ -2746,10 +2882,12 @@ export const Preview: React.FC = () => {
               isProcessingFrame = false;
               cleanupPlaybackResources();
               cleanupAudioResources();
-              masterClock.stop();
-              setPlayheadPosition(0);
-              startPositionRef.current = 0;
-              pause();
+              if (!isScrubbingRef.current) {
+                masterClock.stop();
+                setPlayheadPosition(0);
+                startPositionRef.current = 0;
+                pause();
+              }
               return;
             }
           }
@@ -3168,7 +3306,11 @@ export const Preview: React.FC = () => {
 
           frameCount++;
           masterClock.reportVideoTime(currentPlayhead);
-          setPlayheadPosition(currentPlayhead);
+          const nowMulti = performance.now();
+          if (nowMulti - lastPlayheadUpdateRef.current >= PLAYHEAD_UPDATE_THROTTLE_MS) {
+            lastPlayheadUpdateRef.current = nowMulti;
+            setPlayheadPosition(currentPlayhead);
+          }
 
           const now = performance.now();
           const elapsed = now - lastFrameTimestamp;
@@ -3445,7 +3587,25 @@ export const Preview: React.FC = () => {
     const canvasWidth = settings.width;
     const canvasHeight = settings.height;
 
-    const displayScale = canvasRect.width / canvasWidth;
+    const canvasAspect = canvasWidth / canvasHeight;
+    const elementAspect = canvasRect.width / canvasRect.height;
+
+    let actualWidth: number;
+    let actualHeight: number;
+    let letterboxOffsetX = 0;
+    let letterboxOffsetY = 0;
+
+    if (elementAspect > canvasAspect) {
+      actualHeight = canvasRect.height;
+      actualWidth = actualHeight * canvasAspect;
+      letterboxOffsetX = (canvasRect.width - actualWidth) / 2;
+    } else {
+      actualWidth = canvasRect.width;
+      actualHeight = actualWidth / canvasAspect;
+      letterboxOffsetY = (canvasRect.height - actualHeight) / 2;
+    }
+
+    const displayScale = actualWidth / canvasWidth;
 
     const clipWidth = canvasWidth * transform.scale.x * displayScale;
     const clipHeight = canvasHeight * transform.scale.y * displayScale;
@@ -3453,11 +3613,11 @@ export const Preview: React.FC = () => {
     const offsetX = transform.position.x * displayScale;
     const offsetY = transform.position.y * displayScale;
 
-    const canvasOffsetX = canvasRect.left - overlayRect.left;
-    const canvasOffsetY = canvasRect.top - overlayRect.top;
+    const canvasOffsetX = canvasRect.left - overlayRect.left + letterboxOffsetX;
+    const canvasOffsetY = canvasRect.top - overlayRect.top + letterboxOffsetY;
 
-    const centerX = canvasOffsetX + canvasRect.width / 2 + offsetX;
-    const centerY = canvasOffsetY + canvasRect.height / 2 + offsetY;
+    const centerX = canvasOffsetX + actualWidth / 2 + offsetX;
+    const centerY = canvasOffsetY + actualHeight / 2 + offsetY;
 
     return {
       x: centerX - clipWidth / 2,
@@ -3490,7 +3650,26 @@ export const Preview: React.FC = () => {
 
     const canvasWidth = settings.width;
     const canvasHeight = settings.height;
-    const displayScale = canvasRect.width / canvasWidth;
+
+    const canvasAspect = canvasWidth / canvasHeight;
+    const elementAspect = canvasRect.width / canvasRect.height;
+
+    let actualWidth: number;
+    let actualHeight: number;
+    let letterboxOffsetX = 0;
+    let letterboxOffsetY = 0;
+
+    if (elementAspect > canvasAspect) {
+      actualHeight = canvasRect.height;
+      actualWidth = actualHeight * canvasAspect;
+      letterboxOffsetX = (canvasRect.width - actualWidth) / 2;
+    } else {
+      actualWidth = canvasRect.width;
+      actualHeight = actualWidth / canvasAspect;
+      letterboxOffsetY = (canvasRect.height - actualHeight) / 2;
+    }
+
+    const displayScale = actualWidth / canvasWidth;
 
     const lines = text.split("\n");
     const lineHeight = style.fontSize * style.lineHeight;
@@ -3504,8 +3683,8 @@ export const Preview: React.FC = () => {
     const posX = transform.position.x * canvasWidth * displayScale;
     const posY = transform.position.y * canvasHeight * displayScale;
 
-    const canvasOffsetX = canvasRect.left - overlayRect.left;
-    const canvasOffsetY = canvasRect.top - overlayRect.top;
+    const canvasOffsetX = canvasRect.left - overlayRect.left + letterboxOffsetX;
+    const canvasOffsetY = canvasRect.top - overlayRect.top + letterboxOffsetY;
 
     const centerX = canvasOffsetX + posX;
     const centerY = canvasOffsetY + posY;
@@ -3554,7 +3733,26 @@ export const Preview: React.FC = () => {
 
     const canvasWidth = settings.width;
     const canvasHeight = settings.height;
-    const displayScale = canvasRect.width / canvasWidth;
+
+    const canvasAspect = canvasWidth / canvasHeight;
+    const elementAspect = canvasRect.width / canvasRect.height;
+
+    let actualWidth: number;
+    let actualHeight: number;
+    let letterboxOffsetX = 0;
+    let letterboxOffsetY = 0;
+
+    if (elementAspect > canvasAspect) {
+      actualHeight = canvasRect.height;
+      actualWidth = actualHeight * canvasAspect;
+      letterboxOffsetX = (canvasRect.width - actualWidth) / 2;
+    } else {
+      actualWidth = canvasRect.width;
+      actualHeight = actualWidth / canvasAspect;
+      letterboxOffsetY = (canvasRect.height - actualHeight) / 2;
+    }
+
+    const displayScale = actualWidth / canvasWidth;
 
     const shapeWidth = shapeSize * transform.scale.x * displayScale;
     const shapeHeight = shapeSize * transform.scale.y * displayScale;
@@ -3562,8 +3760,8 @@ export const Preview: React.FC = () => {
     const posX = transform.position.x * canvasWidth * displayScale;
     const posY = transform.position.y * canvasHeight * displayScale;
 
-    const canvasOffsetX = canvasRect.left - overlayRect.left;
-    const canvasOffsetY = canvasRect.top - overlayRect.top;
+    const canvasOffsetX = canvasRect.left - overlayRect.left + letterboxOffsetX;
+    const canvasOffsetY = canvasRect.top - overlayRect.top + letterboxOffsetY;
 
     const centerX = canvasOffsetX + posX;
     const centerY = canvasOffsetY + posY;
@@ -3614,7 +3812,26 @@ export const Preview: React.FC = () => {
 
     const canvasWidth = settings.width;
     const canvasHeight = settings.height;
-    const displayScale = canvasRect.width / canvasWidth;
+
+    const canvasAspect = canvasWidth / canvasHeight;
+    const elementAspect = canvasRect.width / canvasRect.height;
+
+    let actualWidth: number;
+    let actualHeight: number;
+    let letterboxOffsetX = 0;
+    let letterboxOffsetY = 0;
+
+    if (elementAspect > canvasAspect) {
+      actualHeight = canvasRect.height;
+      actualWidth = actualHeight * canvasAspect;
+      letterboxOffsetX = (canvasRect.width - actualWidth) / 2;
+    } else {
+      actualWidth = canvasRect.width;
+      actualHeight = actualWidth / canvasAspect;
+      letterboxOffsetY = (canvasRect.height - actualHeight) / 2;
+    }
+
+    const displayScale = actualWidth / canvasWidth;
 
     let baseY: number;
     if (position === "top") {
@@ -3628,10 +3845,10 @@ export const Preview: React.FC = () => {
     const subtitleWidth = canvasWidth * 0.8 * displayScale;
     const subtitleHeight = totalHeight * displayScale;
 
-    const canvasOffsetX = canvasRect.left - overlayRect.left;
-    const canvasOffsetY = canvasRect.top - overlayRect.top;
+    const canvasOffsetX = canvasRect.left - overlayRect.left + letterboxOffsetX;
+    const canvasOffsetY = canvasRect.top - overlayRect.top + letterboxOffsetY;
 
-    const centerX = canvasOffsetX + canvasRect.width / 2;
+    const centerX = canvasOffsetX + actualWidth / 2;
     const topY = canvasOffsetY + baseY * displayScale;
 
     return {
@@ -4635,14 +4852,29 @@ export const Preview: React.FC = () => {
         </div>
       </div>
 
-      {/* Player Controls */}
+      {/* Player Controls with integrated Scrub Bar */}
       <div
-        className={`h-14 border-t border-border px-6 flex items-center justify-between transition-all duration-300 ${
+        className={`border-t border-border transition-all duration-300 ${
           isMaximized || isFullscreen
             ? "absolute bottom-0 left-0 right-0 z-50 bg-background-secondary backdrop-blur-sm"
             : "z-20 bg-background-secondary"
         }`}
       >
+        {/* Scrub Bar - integrated at top of controls */}
+        <div
+          className="h-1.5 bg-background-tertiary cursor-pointer group hover:h-2.5 transition-all relative"
+          onClick={handleScrubClick}
+        >
+          <div
+            className="h-full bg-primary relative pointer-events-none shadow-[0_0_10px_rgba(34,197,94,0.5)]"
+            style={{ width: `${progressPercentage}%` }}
+          >
+            <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full shadow-md opacity-0 group-hover:opacity-100 transition-opacity transform scale-0 group-hover:scale-100 duration-100 border border-black/20" />
+          </div>
+        </div>
+
+        {/* Controls row */}
+        <div className="h-12 px-6 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <div className="font-mono text-text-primary tabular-nums text-sm w-24 tracking-wider">
             {formatTime(playheadPosition)}
@@ -4722,20 +4954,6 @@ export const Preview: React.FC = () => {
             {isMaximized ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
           </button>
         </div>
-      </div>
-
-      {/* Scrub Bar */}
-      <div
-        className={`absolute bottom-14 left-0 right-0 h-1 bg-background-tertiary cursor-pointer group hover:h-2 transition-all ${
-          isMaximized || isFullscreen ? "z-50" : "z-20"
-        }`}
-        onClick={handleScrubClick}
-      >
-        <div
-          className="h-full bg-primary relative pointer-events-none shadow-[0_0_10px_rgba(34,197,94,0.5)]"
-          style={{ width: `${progressPercentage}%` }}
-        >
-          <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full shadow opacity-0 group-hover:opacity-100 transition-opacity transform scale-0 group-hover:scale-100 duration-100 border border-black" />
         </div>
       </div>
     </div>

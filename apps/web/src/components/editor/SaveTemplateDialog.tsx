@@ -1,5 +1,19 @@
-import React, { useState, useCallback } from "react";
-import { X, Upload, Cloud, HardDrive, Check, AlertCircle } from "lucide-react";
+import { useState, useCallback } from "react";
+import { Upload, Cloud, HardDrive, Check, AlertCircle } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  Button,
+  Input,
+  Label,
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@openreel/ui";
 import { useProjectStore } from "../../stores/project-store";
 import { useEngineStore } from "../../stores/engine-store";
 import {
@@ -141,19 +155,13 @@ export const SaveTemplateDialog: React.FC<SaveTemplateDialogProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm">
-      <div className="bg-background border border-border rounded-xl shadow-2xl w-full max-w-lg mx-4">
-        <div className="flex items-center justify-between p-4 border-b border-border">
-          <h2 className="text-lg font-semibold text-text-primary">
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-lg p-0 gap-0 bg-background border-border overflow-hidden">
+        <DialogHeader className="p-4 border-b border-border space-y-0">
+          <DialogTitle className="text-lg font-semibold text-text-primary">
             Save as Template
-          </h2>
-          <button
-            onClick={onClose}
-            className="p-1 hover:bg-background-secondary rounded-lg transition-colors"
-          >
-            <X size={18} className="text-text-muted" />
-          </button>
-        </div>
+          </DialogTitle>
+        </DialogHeader>
 
         <div className="p-4 space-y-4 max-h-[70vh] overflow-y-auto">
           {success && (
@@ -173,15 +181,15 @@ export const SaveTemplateDialog: React.FC<SaveTemplateDialogProps> = ({
           )}
 
           <div className="space-y-2">
-            <label className="block text-xs font-medium text-text-secondary">
+            <Label className="text-xs font-medium text-text-secondary">
               Template Name <span className="text-red-400">*</span>
-            </label>
-            <input
+            </Label>
+            <Input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="My Awesome Template"
-              className="w-full px-3 py-2 text-sm bg-background-secondary border border-border rounded-lg text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-primary/50"
+              className="bg-background-secondary border-border text-text-primary"
               maxLength={50}
             />
             <p className="text-[10px] text-text-muted">
@@ -190,9 +198,9 @@ export const SaveTemplateDialog: React.FC<SaveTemplateDialogProps> = ({
           </div>
 
           <div className="space-y-2">
-            <label className="block text-xs font-medium text-text-secondary">
+            <Label className="text-xs font-medium text-text-secondary">
               Description <span className="text-red-400">*</span>
-            </label>
+            </Label>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
@@ -207,52 +215,53 @@ export const SaveTemplateDialog: React.FC<SaveTemplateDialogProps> = ({
           </div>
 
           <div className="space-y-2">
-            <label className="block text-xs font-medium text-text-secondary">
+            <Label className="text-xs font-medium text-text-secondary">
               Category
-            </label>
-            <select
-              value={category}
-              onChange={(e) => setCategory(e.target.value as TemplateCategory)}
-              className="w-full px-3 py-2 text-sm bg-background-secondary border border-border rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/50"
-            >
-              {TEMPLATE_CATEGORIES.map((cat) => (
-                <option key={cat.id} value={cat.id}>
-                  {cat.name}
-                </option>
-              ))}
-            </select>
+            </Label>
+            <Select value={category} onValueChange={(value) => setCategory(value as TemplateCategory)}>
+              <SelectTrigger className="w-full bg-background-secondary border-border text-text-primary">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="bg-background-secondary border-border">
+                {TEMPLATE_CATEGORIES.map((cat) => (
+                  <SelectItem key={cat.id} value={cat.id}>
+                    {cat.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="space-y-2">
-            <label className="block text-xs font-medium text-text-secondary">
+            <Label className="text-xs font-medium text-text-secondary">
               Tags (comma-separated)
-            </label>
-            <input
+            </Label>
+            <Input
               type="text"
               value={tags}
               onChange={(e) => setTags(e.target.value)}
               placeholder="intro, animated, youtube"
-              className="w-full px-3 py-2 text-sm bg-background-secondary border border-border rounded-lg text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-primary/50"
+              className="bg-background-secondary border-border text-text-primary"
             />
           </div>
 
           <div className="space-y-2">
-            <label className="block text-xs font-medium text-text-secondary">
+            <Label className="text-xs font-medium text-text-secondary">
               Author Name
-            </label>
-            <input
+            </Label>
+            <Input
               type="text"
               value={author}
               onChange={(e) => setAuthor(e.target.value)}
               placeholder="Your name or username"
-              className="w-full px-3 py-2 text-sm bg-background-secondary border border-border rounded-lg text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-primary/50"
+              className="bg-background-secondary border-border text-text-primary"
             />
           </div>
 
           <div className="space-y-2">
-            <label className="block text-xs font-medium text-text-secondary">
+            <Label className="text-xs font-medium text-text-secondary">
               Save Location
-            </label>
+            </Label>
             <div className="grid grid-cols-2 gap-2">
               <button
                 onClick={() => setSaveLocation("cloud")}
@@ -286,32 +295,27 @@ export const SaveTemplateDialog: React.FC<SaveTemplateDialogProps> = ({
         </div>
 
         <div className="flex items-center justify-end gap-2 p-4 border-t border-border">
-          <button
-            onClick={onClose}
-            disabled={isSaving}
-            className="px-4 py-2 text-sm font-medium text-text-secondary hover:text-text-primary bg-background-secondary rounded-lg transition-colors disabled:opacity-50"
-          >
+          <Button variant="ghost" onClick={onClose} disabled={isSaving}>
             Cancel
-          </button>
-          <button
+          </Button>
+          <Button
             onClick={handleSave}
             disabled={isSaving || !name.trim() || !description.trim()}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isSaving ? (
               <>
                 <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
-                <span>Saving...</span>
+                Saving...
               </>
             ) : (
               <>
                 <Upload size={16} />
-                <span>Save Template</span>
+                Save Template
               </>
             )}
-          </button>
+          </Button>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 };

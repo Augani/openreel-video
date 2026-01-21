@@ -344,8 +344,8 @@ export const PiPSection: React.FC<PiPSectionProps> = ({ clipId }) => {
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-2 p-2 bg-gradient-to-r from-blue-500/20 to-indigo-500/20 rounded-lg border border-blue-500/30">
-        <PictureInPicture2 size={16} className="text-blue-400" />
+      <div className="flex items-center gap-2 p-2 bg-gradient-to-r bg-primary/10 rounded-lg border border-primary/30">
+        <PictureInPicture2 size={16} className="text-primary" />
         <div className="flex-1">
           <span className="text-[11px] font-medium text-text-primary">
             Picture-in-Picture

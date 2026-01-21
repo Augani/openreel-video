@@ -13,6 +13,7 @@ import {
   FileCode,
   Smile,
 } from "lucide-react";
+import { Input, ScrollArea } from "@openreel/ui";
 import { useProjectStore } from "../../../stores/project-store";
 import type { HistorySnapshot } from "@openreel/core";
 
@@ -199,7 +200,7 @@ export const HistoryPanel: React.FC = () => {
 
             {isCreatingSnapshot ? (
               <div className="flex items-center gap-2 p-2">
-                <input
+                <Input
                   type="text"
                   value={newSnapshotName}
                   onChange={(e) => setNewSnapshotName(e.target.value)}
@@ -208,12 +209,12 @@ export const HistoryPanel: React.FC = () => {
                     if (e.key === "Escape") setIsCreatingSnapshot(false);
                   }}
                   placeholder="Snapshot name..."
-                  className="flex-1 px-2 py-1 bg-background-tertiary border border-border rounded text-xs text-text-primary placeholder:text-text-muted focus:outline-none focus:border-primary"
+                  className="flex-1 h-7 text-xs bg-background-tertiary border-border text-text-primary"
                   autoFocus
                 />
                 <button
                   onClick={handleCreateSnapshot}
-                  className="px-2 py-1 bg-primary text-black rounded text-xs hover:bg-primary/80 transition-colors"
+                  className="px-2 py-1 bg-primary text-white rounded text-xs hover:bg-primary/80 transition-colors"
                 >
                   Save
                 </button>
@@ -231,7 +232,7 @@ export const HistoryPanel: React.FC = () => {
         )}
       </div>
 
-      <div className="flex-1 overflow-y-auto">
+      <ScrollArea className="flex-1">
         {combinedHistory.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-text-muted">
             <History size={24} className="mb-2 opacity-30" />
@@ -288,7 +289,7 @@ export const HistoryPanel: React.FC = () => {
             })}
           </div>
         )}
-      </div>
+      </ScrollArea>
 
       <div className="p-2 border-t border-border bg-background-tertiary">
         <div className="flex items-center justify-between text-[10px] text-text-muted">

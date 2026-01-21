@@ -45,7 +45,7 @@ const ViewToggleButton: React.FC<{
     onClick={onClick}
     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-medium transition-colors ${
       active
-        ? "bg-primary text-black"
+        ? "bg-primary text-white"
         : "bg-background-tertiary border border-border text-text-secondary hover:text-text-primary"
     }`}
     title={label}

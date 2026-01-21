@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useMemo } from "react";
 import { Smile, Sticker, Search, Plus } from "lucide-react";
+import { Input } from "@openreel/ui";
 import { useProjectStore } from "../../../stores/project-store";
 import {
   stickerLibrary,
@@ -139,7 +140,7 @@ export const StickerPickerPanel: React.FC = () => {
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2 p-2 bg-gradient-to-r from-pink-500/20 to-rose-500/20 rounded-lg border border-pink-500/30">
-        <Smile size={16} className="text-pink-400" />
+        <Smile size={16} className="text-primary" />
         <div>
           <span className="text-[11px] font-medium text-text-primary">
             Stickers & Emojis
@@ -155,7 +156,7 @@ export const StickerPickerPanel: React.FC = () => {
           onClick={() => setActiveTab("emojis")}
           className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-[10px] transition-colors ${
             activeTab === "emojis"
-              ? "bg-primary text-black font-medium"
+              ? "bg-primary text-white font-medium"
               : "bg-background-tertiary text-text-secondary hover:text-text-primary"
           }`}
         >
@@ -166,7 +167,7 @@ export const StickerPickerPanel: React.FC = () => {
           onClick={() => setActiveTab("stickers")}
           className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-[10px] transition-colors ${
             activeTab === "stickers"
-              ? "bg-primary text-black font-medium"
+              ? "bg-primary text-white font-medium"
               : "bg-background-tertiary text-text-secondary hover:text-text-primary"
           }`}
         >
@@ -178,16 +179,16 @@ export const StickerPickerPanel: React.FC = () => {
       <div className="relative">
         <Search
           size={14}
-          className="absolute left-2 top-1/2 -translate-y-1/2 text-text-muted"
+          className="absolute left-2 top-1/2 -translate-y-1/2 text-text-muted z-10"
         />
-        <input
+        <Input
           type="text"
           placeholder={
             activeTab === "emojis" ? "Search emojis..." : "Search stickers..."
           }
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full pl-8 pr-3 py-2 text-[10px] bg-background-secondary rounded-lg border border-border focus:border-primary focus:outline-none"
+          className="pl-8 text-[10px] bg-background-secondary border-border h-8"
         />
       </div>
 
@@ -199,7 +200,7 @@ export const StickerPickerPanel: React.FC = () => {
               onClick={() => setSelectedCategory(cat.id)}
               className={`px-2 py-1 rounded text-[9px] whitespace-nowrap transition-colors flex items-center gap-1 ${
                 selectedCategory === cat.id
-                  ? "bg-primary text-black"
+                  ? "bg-primary text-white"
                   : "bg-background-tertiary text-text-muted hover:text-text-primary"
               }`}
             >
@@ -220,7 +221,7 @@ export const StickerPickerPanel: React.FC = () => {
                 onClick={() => setSelectedCategory(cat.id)}
                 className={`px-2 py-1 rounded text-[9px] whitespace-nowrap transition-colors ${
                   selectedCategory === cat.id
-                    ? "bg-primary text-black"
+                    ? "bg-primary text-white"
                     : "bg-background-tertiary text-text-muted hover:text-text-primary"
                 }`}
               >

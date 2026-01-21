@@ -9,6 +9,7 @@ import {
   User,
   Download,
 } from "lucide-react";
+import { Slider } from "@openreel/ui";
 import { useProjectStore } from "../../../stores/project-store";
 
 const TTS_API_URL = "https://transcribe.openreel.video";
@@ -196,7 +197,7 @@ export const TextToSpeechPanel: React.FC = () => {
   const maxChars = 5000;
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 w-full min-w-0 max-w-full">
       <audio ref={audioRef} onEnded={handleAudioEnded} className="hidden" />
 
       <div className="flex items-center gap-2 p-2 bg-primary/10 rounded-lg border border-primary/30">
@@ -240,7 +241,7 @@ export const TextToSpeechPanel: React.FC = () => {
               onClick={() => setSelectedVoice(voice.id)}
               className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-[10px] transition-colors ${
                 selectedVoice === voice.id
-                  ? "bg-primary text-black font-medium"
+                  ? "bg-primary text-white font-medium"
                   : "bg-background-tertiary text-text-secondary hover:text-text-primary border border-border"
               }`}
             >
@@ -261,14 +262,12 @@ export const TextToSpeechPanel: React.FC = () => {
             {speed.toFixed(1)}x
           </span>
         </div>
-        <input
-          type="range"
-          min="0.5"
-          max="2.0"
-          step="0.1"
-          value={speed}
-          onChange={(e) => setSpeed(parseFloat(e.target.value))}
-          className="w-full h-1.5 bg-background-tertiary rounded-lg appearance-none cursor-pointer accent-primary"
+        <Slider
+          min={0.5}
+          max={2.0}
+          step={0.1}
+          value={[speed]}
+          onValueChange={(value) => setSpeed(value[0])}
         />
         <div className="flex justify-between text-[8px] text-text-muted">
           <span>0.5x</span>
@@ -286,7 +285,7 @@ export const TextToSpeechPanel: React.FC = () => {
       <button
         onClick={generateSpeech}
         disabled={isGenerating || !text.trim()}
-        className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-primary text-black rounded-lg text-[11px] font-medium transition-all hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed"
+        className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-primary text-white rounded-lg text-[11px] font-medium transition-all hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed"
       >
         {isGenerating ? (
           <>
@@ -319,7 +318,7 @@ export const TextToSpeechPanel: React.FC = () => {
             </div>
             <button
               onClick={togglePlayback}
-              className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-black hover:opacity-90 transition-opacity"
+              className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-white hover:opacity-90 transition-opacity"
             >
               {isPlaying ? (
                 <Pause size={14} />
@@ -333,7 +332,7 @@ export const TextToSpeechPanel: React.FC = () => {
             <button
               onClick={addToTimeline}
               disabled={isGenerating}
-              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-primary text-black rounded-lg text-[10px] font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-primary text-white rounded-lg text-[10px] font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
             >
               <Plus size={12} />
               Add to Timeline

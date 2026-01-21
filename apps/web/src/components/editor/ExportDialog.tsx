@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
 import {
-  X,
   Download,
   Settings,
   Monitor,
@@ -13,13 +12,32 @@ import {
   HardDrive,
   Video,
   Share2,
-  Sparkles,
   Cpu,
   Gauge,
   Zap,
   CheckCircle,
   Info,
 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  Button,
+  Input,
+  Tabs,
+  TabsList,
+  TabsTrigger,
+  TabsContent,
+  Slider,
+  Switch,
+  Label,
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@openreel/ui";
 import {
   exportPresetsManager,
   type PlatformExportPreset,
@@ -254,51 +272,40 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm">
-      <div className="w-full max-w-4xl max-h-[85vh] bg-background-secondary rounded-xl border border-border shadow-2xl overflow-hidden flex flex-col">
-        <div className="flex items-center justify-between p-4 border-b border-border bg-background-tertiary">
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-4xl max-h-[85vh] p-0 gap-0 bg-background-secondary border-border overflow-hidden flex flex-col">
+        <DialogHeader className="p-4 border-b border-border bg-background-tertiary space-y-0">
           <div className="flex items-center gap-3">
             <Download size={20} className="text-primary" />
-            <h2 className="text-lg font-bold text-text-primary">
+            <DialogTitle className="text-lg font-bold text-text-primary">
               Export Video
-            </h2>
+            </DialogTitle>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 text-text-muted hover:text-text-primary rounded-lg hover:bg-background-secondary transition-colors"
-          >
-            <X size={20} />
-          </button>
-        </div>
+        </DialogHeader>
 
-        <div className="flex border-b border-border">
-          <button
-            onClick={() => setActiveTab("presets")}
-            className={`flex-1 flex items-center justify-center gap-2 p-3 text-sm font-medium transition-colors ${
-              activeTab === "presets"
-                ? "text-primary border-b-2 border-primary"
-                : "text-text-secondary hover:text-text-primary"
-            }`}
-          >
-            <Star size={16} />
-            Presets
-          </button>
-          <button
-            onClick={() => setActiveTab("custom")}
-            className={`flex-1 flex items-center justify-center gap-2 p-3 text-sm font-medium transition-colors ${
-              activeTab === "custom"
-                ? "text-primary border-b-2 border-primary"
-                : "text-text-secondary hover:text-text-primary"
-            }`}
-          >
-            <Settings size={16} />
-            Custom
-          </button>
-        </div>
+        <Tabs
+          value={activeTab}
+          onValueChange={(v) => setActiveTab(v as "presets" | "custom")}
+          className="flex-1 flex flex-col overflow-hidden"
+        >
+          <TabsList className="flex border-b border-border bg-transparent rounded-none">
+            <TabsTrigger
+              value="presets"
+              className="flex-1 flex items-center justify-center gap-2 p-3 text-sm font-medium rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-primary text-text-secondary hover:text-text-primary"
+            >
+              <Star size={16} />
+              Presets
+            </TabsTrigger>
+            <TabsTrigger
+              value="custom"
+              className="flex-1 flex items-center justify-center gap-2 p-3 text-sm font-medium rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-primary text-text-secondary hover:text-text-primary"
+            >
+              <Settings size={16} />
+              Custom
+            </TabsTrigger>
+          </TabsList>
 
-        <div className="flex-1 overflow-hidden flex">
-          {activeTab === "presets" ? (
-            <>
+          <TabsContent value="presets" className="flex-1 overflow-hidden flex mt-0">
               <div className="w-48 border-r border-border overflow-y-auto">
                 <button
                   onClick={() => setSelectedPlatform("recommended")}
@@ -309,7 +316,7 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
                   }`}
                 >
                   <div className="flex items-center gap-2">
-                    <Sparkles size={14} />
+                    <Zap size={14} />
                     <span className="font-medium">For Your Video</span>
                   </div>
                   <span className="text-[10px] text-text-muted mt-0.5 ml-5">
@@ -385,105 +392,121 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
                   ))}
                 </div>
               </div>
-            </>
-          ) : (
-            <div className="flex-1 overflow-y-auto p-4">
+            </TabsContent>
+
+          <TabsContent value="custom" className="flex-1 overflow-y-auto p-4 mt-0">
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-medium text-text-secondary mb-2">
                     Format
                   </label>
-                  <select
+                  <Select
                     value={customSettings.format}
-                    onChange={(e) =>
+                    onValueChange={(value) =>
                       setCustomSettings({
                         ...customSettings,
-                        format: e.target.value as "mp4" | "webm" | "mov",
+                        format: value as "mp4" | "webm" | "mov",
                       })
                     }
-                    className="w-full px-3 py-2 bg-background-tertiary border border-border rounded-lg text-sm text-text-primary"
                   >
-                    <option value="mp4">MP4</option>
-                    <option value="webm">WebM</option>
-                    <option value="mov">MOV</option>
-                  </select>
+                    <SelectTrigger className="w-full bg-background-tertiary border-border text-text-primary">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-background-secondary border-border">
+                      <SelectItem value="mp4">MP4</SelectItem>
+                      <SelectItem value="webm">WebM</SelectItem>
+                      <SelectItem value="mov">MOV</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <div>
                   <label className="block text-xs font-medium text-text-secondary mb-2">
                     Codec
                   </label>
-                  <select
+                  <Select
                     value={customSettings.codec}
-                    onChange={(e) =>
+                    onValueChange={(value) =>
                       setCustomSettings({
                         ...customSettings,
-                        codec: e.target.value as VideoExportSettings["codec"],
+                        codec: value as VideoExportSettings["codec"],
                       })
                     }
-                    className="w-full px-3 py-2 bg-background-tertiary border border-border rounded-lg text-sm text-text-primary"
                   >
-                    <option value="h264">H.264</option>
-                    <option value="h265">H.265 (HEVC)</option>
-                    <option value="prores">ProRes</option>
-                    <option value="vp9">VP9</option>
-                    <option value="av1">AV1</option>
-                  </select>
+                    <SelectTrigger className="w-full bg-background-tertiary border-border text-text-primary">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-background-secondary border-border">
+                      <SelectItem value="h264">H.264</SelectItem>
+                      <SelectItem value="h265">H.265 (HEVC)</SelectItem>
+                      <SelectItem value="prores">ProRes</SelectItem>
+                      <SelectItem value="vp9">VP9</SelectItem>
+                      <SelectItem value="av1">AV1</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <div>
                   <label className="block text-xs font-medium text-text-secondary mb-2">
                     Resolution
                   </label>
-                  <select
+                  <Select
                     value={`${customSettings.width}x${customSettings.height}`}
-                    onChange={(e) => {
-                      const [w, h] = e.target.value.split("x").map(Number);
+                    onValueChange={(value) => {
+                      const [w, h] = value.split("x").map(Number);
                       setCustomSettings({
                         ...customSettings,
                         width: w,
                         height: h,
                       });
                     }}
-                    className="w-full px-3 py-2 bg-background-tertiary border border-border rounded-lg text-sm text-text-primary"
                   >
-                    <option value="3840x2160">4K (3840x2160)</option>
-                    <option value="2560x1440">2K (2560x1440)</option>
-                    <option value="1920x1080">1080p (1920x1080)</option>
-                    <option value="1280x720">720p (1280x720)</option>
-                    <option value="854x480">480p (854x480)</option>
-                    <option value="1080x1920">Vertical 1080p</option>
-                    <option value="1080x1080">Square 1080</option>
-                  </select>
+                    <SelectTrigger className="w-full bg-background-tertiary border-border text-text-primary">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-background-secondary border-border">
+                      <SelectItem value="3840x2160">4K (3840x2160)</SelectItem>
+                      <SelectItem value="2560x1440">2K (2560x1440)</SelectItem>
+                      <SelectItem value="1920x1080">1080p (1920x1080)</SelectItem>
+                      <SelectItem value="1280x720">720p (1280x720)</SelectItem>
+                      <SelectItem value="854x480">480p (854x480)</SelectItem>
+                      <SelectItem value="1080x1920">Vertical 1080p</SelectItem>
+                      <SelectItem value="1080x1080">Square 1080</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <div>
                   <label className="block text-xs font-medium text-text-secondary mb-2">
                     Frame Rate
                   </label>
-                  <select
-                    value={customSettings.frameRate}
-                    onChange={(e) =>
+                  <Select
+                    value={String(customSettings.frameRate)}
+                    onValueChange={(value) =>
                       setCustomSettings({
                         ...customSettings,
-                        frameRate: Number(e.target.value),
+                        frameRate: Number(value),
                       })
                     }
-                    className="w-full px-3 py-2 bg-background-tertiary border border-border rounded-lg text-sm text-text-primary"
                   >
-                    <option value={24}>24 fps</option>
-                    <option value={25}>25 fps</option>
-                    <option value={30}>30 fps</option>
-                    <option value={50}>50 fps</option>
-                    <option value={60}>60 fps</option>
-                  </select>
+                    <SelectTrigger className="w-full bg-background-tertiary border-border text-text-primary">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-background-secondary border-border">
+                      <SelectItem value="24">24 fps</SelectItem>
+                      <SelectItem value="25">25 fps</SelectItem>
+                      <SelectItem value="30">30 fps</SelectItem>
+                      <SelectItem value="50">50 fps</SelectItem>
+                      <SelectItem value="60">60 fps</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-text-secondary mb-2">
+                  <Label className="block text-xs font-medium text-text-secondary mb-2">
                     Bitrate (kbps)
-                  </label>
-                  <input
+                  </Label>
+                  <Input
                     type="number"
                     value={customSettings.bitrate}
                     onChange={(e) =>
@@ -492,7 +515,7 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
                         bitrate: Number(e.target.value),
                       })
                     }
-                    className="w-full px-3 py-2 bg-background-tertiary border border-border rounded-lg text-sm text-text-primary"
+                    className="bg-background-tertiary border-border text-text-primary"
                     min={1000}
                     max={150000}
                     step={1000}
@@ -500,23 +523,23 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-text-secondary mb-2">
+                  <Label className="block text-xs font-medium text-text-secondary mb-2">
                     Quality
-                  </label>
-                  <input
-                    type="range"
-                    value={customSettings.quality}
-                    onChange={(e) =>
+                  </Label>
+                  <Slider
+                    value={[customSettings.quality]}
+                    onValueChange={(value) =>
                       setCustomSettings({
                         ...customSettings,
-                        quality: Number(e.target.value),
+                        quality: value[0],
                       })
                     }
-                    className="w-full"
                     min={50}
                     max={100}
+                    step={1}
+                    className="w-full"
                   />
-                  <div className="flex justify-between text-[10px] text-text-muted">
+                  <div className="flex justify-between text-[10px] text-text-muted mt-1">
                     <span>Smaller</span>
                     <span>{customSettings.quality}%</span>
                     <span>Better</span>
@@ -528,14 +551,14 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
                     Audio Settings
                   </label>
                   <div className="grid grid-cols-3 gap-2">
-                    <select
+                    <Select
                       value={customSettings.audioSettings.format}
-                      onChange={(e) =>
+                      onValueChange={(value) =>
                         setCustomSettings({
                           ...customSettings,
                           audioSettings: {
                             ...customSettings.audioSettings,
-                            format: e.target.value as
+                            format: value as
                               | "mp3"
                               | "wav"
                               | "aac"
@@ -544,86 +567,86 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
                           },
                         })
                       }
-                      className="px-2 py-1.5 bg-background-tertiary border border-border rounded text-xs text-text-primary"
                     >
-                      <option value="aac">AAC</option>
-                      <option value="mp3">MP3</option>
-                      <option value="wav">WAV</option>
-                    </select>
-                    <select
-                      value={customSettings.audioSettings.sampleRate}
-                      onChange={(e) =>
+                      <SelectTrigger className="bg-background-tertiary border-border text-text-primary text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-background-secondary border-border">
+                        <SelectItem value="aac">AAC</SelectItem>
+                        <SelectItem value="mp3">MP3</SelectItem>
+                        <SelectItem value="wav">WAV</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Select
+                      value={String(customSettings.audioSettings.sampleRate)}
+                      onValueChange={(value) =>
                         setCustomSettings({
                           ...customSettings,
                           audioSettings: {
                             ...customSettings.audioSettings,
-                            sampleRate: Number(e.target.value) as
+                            sampleRate: Number(value) as
                               | 44100
                               | 48000
                               | 96000,
                           },
                         })
                       }
-                      className="px-2 py-1.5 bg-background-tertiary border border-border rounded text-xs text-text-primary"
                     >
-                      <option value={44100}>44.1 kHz</option>
-                      <option value={48000}>48 kHz</option>
-                      <option value={96000}>96 kHz</option>
-                    </select>
-                    <select
-                      value={customSettings.audioSettings.bitrate}
-                      onChange={(e) =>
+                      <SelectTrigger className="bg-background-tertiary border-border text-text-primary text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-background-secondary border-border">
+                        <SelectItem value="44100">44.1 kHz</SelectItem>
+                        <SelectItem value="48000">48 kHz</SelectItem>
+                        <SelectItem value="96000">96 kHz</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Select
+                      value={String(customSettings.audioSettings.bitrate)}
+                      onValueChange={(value) =>
                         setCustomSettings({
                           ...customSettings,
                           audioSettings: {
                             ...customSettings.audioSettings,
-                            bitrate: Number(e.target.value),
+                            bitrate: Number(value),
                           },
                         })
                       }
-                      className="px-2 py-1.5 bg-background-tertiary border border-border rounded text-xs text-text-primary"
                     >
-                      <option value={128}>128 kbps</option>
-                      <option value={192}>192 kbps</option>
-                      <option value={256}>256 kbps</option>
-                      <option value={320}>320 kbps</option>
-                    </select>
+                      <SelectTrigger className="bg-background-tertiary border-border text-text-primary text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-background-secondary border-border">
+                        <SelectItem value="128">128 kbps</SelectItem>
+                        <SelectItem value="192">192 kbps</SelectItem>
+                        <SelectItem value="256">256 kbps</SelectItem>
+                        <SelectItem value="320">320 kbps</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
 
                 <div className="col-span-2 border-t border-border pt-4 mt-2">
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2">
-                      <Sparkles size={14} className="text-primary" />
-                      <label className="text-xs font-medium text-text-secondary">
+                      <Zap size={14} className="text-primary" />
+                      <Label htmlFor="upscaling-switch" className="text-xs font-medium text-text-secondary">
                         Enhance Quality (Upscaling)
-                      </label>
+                      </Label>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() =>
+                    <Switch
+                      id="upscaling-switch"
+                      checked={customSettings.upscaling?.enabled ?? false}
+                      onCheckedChange={(checked) =>
                         setCustomSettings({
                           ...customSettings,
                           upscaling: {
                             ...customSettings.upscaling!,
-                            enabled: !customSettings.upscaling?.enabled,
+                            enabled: checked,
                           },
                         })
                       }
-                      className={`relative w-10 h-5 rounded-full transition-colors ${
-                        customSettings.upscaling?.enabled
-                          ? "bg-primary"
-                          : "bg-background-tertiary border border-border"
-                      }`}
-                    >
-                      <span
-                        className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
-                          customSettings.upscaling?.enabled
-                            ? "translate-x-5"
-                            : ""
-                        }`}
-                      />
-                    </button>
+                    />
                   </div>
 
                   {customSettings.upscaling?.enabled && (
@@ -661,28 +684,26 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
                       </div>
 
                       <div>
-                        <label className="block text-[10px] text-text-muted mb-1.5">
+                        <Label className="block text-[10px] text-text-muted mb-1.5">
                           Sharpening
-                        </label>
-                        <input
-                          type="range"
-                          value={Math.round(
-                            (customSettings.upscaling?.sharpening ?? 0.3) * 100,
-                          )}
-                          onChange={(e) =>
+                        </Label>
+                        <Slider
+                          value={[Math.round((customSettings.upscaling?.sharpening ?? 0.3) * 100)]}
+                          onValueChange={(value) =>
                             setCustomSettings({
                               ...customSettings,
                               upscaling: {
                                 ...customSettings.upscaling!,
-                                sharpening: Number(e.target.value) / 100,
+                                sharpening: value[0] / 100,
                               },
                             })
                           }
-                          className="w-full"
                           min={0}
                           max={100}
+                          step={1}
+                          className="w-full"
                         />
-                        <div className="flex justify-between text-[10px] text-text-muted">
+                        <div className="flex justify-between text-[10px] text-text-muted mt-1">
                           <span>None</span>
                           <span>
                             {Math.round(
@@ -704,9 +725,8 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
                   )}
                 </div>
               </div>
-            </div>
-          )}
-        </div>
+          </TabsContent>
+        </Tabs>
 
         {deviceProfile && (
           <div className="px-4 py-3 border-t border-border bg-background-tertiary/50">
@@ -830,24 +850,20 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
             )}
           </div>
           <div className="flex items-center gap-2">
-            <button
-              onClick={onClose}
-              className="px-4 py-2 text-sm text-text-secondary hover:text-text-primary transition-colors"
-            >
+            <Button variant="ghost" onClick={onClose}>
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={handleExport}
               disabled={activeTab === "presets" && !selectedPreset}
-              className="flex items-center gap-2 px-4 py-2 bg-primary text-black rounded-lg text-sm font-medium hover:bg-primary/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Play size={16} />
               Start Export
-            </button>
+            </Button>
           </div>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 };
 
