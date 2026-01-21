@@ -29,13 +29,8 @@ import type { ShapeType } from "@openreel/core";
 import { useProjectStore } from "../../stores/project-store";
 import { useUIStore } from "../../stores/ui-store";
 import type { MediaItem } from "@openreel/core";
-import { AutoCaptionPanel } from "./inspector/AutoCaptionPanel";
-import { FilterPresetsPanel } from "./inspector/FilterPresetsPanel";
-import { TemplatesBrowserPanel } from "./inspector/TemplatesBrowserPanel";
-import { MusicLibraryPanel } from "./inspector/MusicLibraryPanel";
-import { MultiCameraPanel } from "./inspector/MultiCameraPanel";
-import { TextToSpeechPanel } from "./inspector/TextToSpeechPanel";
 import { AspectRatioMatchDialog } from "./dialogs/AspectRatioMatchDialog";
+import { AIGenTab } from "./AIGenTab";
 import { IconButton, Input, ScrollArea } from "@openreel/ui";
 
 const formatDuration = (seconds: number): string => {
@@ -1060,28 +1055,7 @@ export const AssetsPanel: React.FC = () => {
       )}
 
       {/* AI Tab Content */}
-      {activeTab === "ai" && (
-        <ScrollArea className="flex-1">
-          <div className="p-4 space-y-6">
-            <TemplatesBrowserPanel />
-          <div className="border-t border-border pt-4">
-            <AutoCaptionPanel />
-          </div>
-          <div className="border-t border-border pt-4">
-            <TextToSpeechPanel />
-          </div>
-          <div className="border-t border-border pt-4">
-            <FilterPresetsPanel />
-          </div>
-          <div className="border-t border-border pt-4">
-            <MusicLibraryPanel />
-          </div>
-          <div className="border-t border-border pt-4">
-            <MultiCameraPanel />
-          </div>
-          </div>
-        </ScrollArea>
-      )}
+      {activeTab === "ai" && <AIGenTab />}
 
       {aspectRatioDialogData && (
         <AspectRatioMatchDialog
