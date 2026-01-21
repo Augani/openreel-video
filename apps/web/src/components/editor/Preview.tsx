@@ -18,6 +18,7 @@ import {
   Move,
   Loader2,
 } from "lucide-react";
+import { IconButton } from "@openreel/ui";
 import { useProjectStore } from "../../stores/project-store";
 import { useTimelineStore } from "../../stores/timeline-store";
 import { useUIStore } from "../../stores/ui-store";
@@ -46,7 +47,6 @@ import {
   type ClipTransform,
   DEFAULT_TRANSFORM,
   formatTime,
-  IconButton,
   renderTextClipToCanvas,
   getActiveTextClips,
   getActiveShapeClips,

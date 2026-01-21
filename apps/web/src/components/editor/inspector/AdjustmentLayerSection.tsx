@@ -11,6 +11,7 @@ import {
   Droplet,
   Copy,
 } from "lucide-react";
+import { Slider } from "@openreel/ui";
 import { useEngineStore } from "../../../stores/engine-store";
 import { useProjectStore } from "../../../stores/project-store";
 import type { AdjustmentLayer, BlendMode, Effect } from "@openreel/core";
@@ -306,15 +307,14 @@ export const AdjustmentLayerSection: React.FC<AdjustmentLayerSectionProps> = ({
                   {Math.round(layer.opacity * 100)}%
                 </span>
               </div>
-              <input
-                type="range"
-                min="0"
-                max="100"
-                value={layer.opacity * 100}
-                onChange={(e) =>
-                  handleOpacityChange(layer.id, parseInt(e.target.value) / 100)
+              <Slider
+                min={0}
+                max={100}
+                step={1}
+                value={[layer.opacity * 100]}
+                onValueChange={(value) =>
+                  handleOpacityChange(layer.id, value[0] / 100)
                 }
-                className="w-full h-1.5 bg-background-secondary rounded-full appearance-none cursor-pointer accent-indigo-500"
               />
             </div>
 

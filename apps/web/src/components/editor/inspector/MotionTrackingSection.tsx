@@ -12,6 +12,7 @@ import {
   Settings2,
   RefreshCw,
 } from "lucide-react";
+import { Slider } from "@openreel/ui";
 import {
   getMotionTrackingBridge,
   type MotionTrackingState,
@@ -280,16 +281,12 @@ export const MotionTrackingSection: React.FC<MotionTrackingSectionProps> = ({
                     {confidenceThreshold}%
                   </span>
                 </div>
-                <input
-                  type="range"
-                  min="30"
-                  max="95"
-                  step="5"
-                  value={confidenceThreshold}
-                  onChange={(e) =>
-                    setConfidenceThreshold(parseInt(e.target.value))
-                  }
-                  className="w-full h-1.5 bg-background-secondary rounded-full appearance-none cursor-pointer accent-primary"
+                <Slider
+                  min={30}
+                  max={95}
+                  step={5}
+                  value={[confidenceThreshold]}
+                  onValueChange={(value) => setConfidenceThreshold(value[0])}
                 />
                 <p className="text-[8px] text-text-muted">
                   Higher = more accurate but may lose track easier
@@ -305,14 +302,12 @@ export const MotionTrackingSection: React.FC<MotionTrackingSectionProps> = ({
                     {smoothing}
                   </span>
                 </div>
-                <input
-                  type="range"
-                  min="0"
-                  max="10"
-                  step="1"
-                  value={smoothing}
-                  onChange={(e) => setSmoothing(parseInt(e.target.value))}
-                  className="w-full h-1.5 bg-background-secondary rounded-full appearance-none cursor-pointer accent-primary"
+                <Slider
+                  min={0}
+                  max={10}
+                  step={1}
+                  value={[smoothing]}
+                  onValueChange={(value) => setSmoothing(value[0])}
                 />
                 <p className="text-[8px] text-text-muted">
                   Reduces jitter in tracking path

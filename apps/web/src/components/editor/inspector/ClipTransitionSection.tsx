@@ -23,6 +23,13 @@ import type {
 import { useProjectStore } from "../../../stores/project-store";
 import { useEngineStore } from "../../../stores/engine-store";
 import { toast } from "../../../stores/notification-store";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@openreel/ui";
 
 type MutableGraphicClip = {
   -readonly [K in keyof GraphicClip]: GraphicClip[K];
@@ -1081,17 +1088,18 @@ export const ClipTransitionSection: React.FC<ClipTransitionSectionProps> = ({
             </div>
             <div className="flex-1">
               <label className="text-[9px] text-text-muted">Easing</label>
-              <select
-                value={entryEasing}
-                onChange={(e) => setEntryEasing(e.target.value as EasingType)}
-                className="w-full px-2 py-1 text-[10px] bg-background-tertiary border border-border rounded"
-              >
-                {EASINGS.map((e) => (
-                  <option key={e.id} value={e.id}>
-                    {e.label}
-                  </option>
-                ))}
-              </select>
+              <Select value={entryEasing} onValueChange={(v) => setEntryEasing(v as EasingType)}>
+                <SelectTrigger className="w-full bg-background-tertiary border-border text-text-primary text-[10px] h-7">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-background-secondary border-border">
+                  {EASINGS.map((e) => (
+                    <SelectItem key={e.id} value={e.id}>
+                      {e.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
         )}
@@ -1136,17 +1144,18 @@ export const ClipTransitionSection: React.FC<ClipTransitionSectionProps> = ({
             </div>
             <div className="flex-1">
               <label className="text-[9px] text-text-muted">Easing</label>
-              <select
-                value={exitEasing}
-                onChange={(e) => setExitEasing(e.target.value as EasingType)}
-                className="w-full px-2 py-1 text-[10px] bg-background-tertiary border border-border rounded"
-              >
-                {EASINGS.map((e) => (
-                  <option key={e.id} value={e.id}>
-                    {e.label}
-                  </option>
-                ))}
-              </select>
+              <Select value={exitEasing} onValueChange={(v) => setExitEasing(v as EasingType)}>
+                <SelectTrigger className="w-full bg-background-tertiary border-border text-text-primary text-[10px] h-7">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-background-secondary border-border">
+                  {EASINGS.map((e) => (
+                    <SelectItem key={e.id} value={e.id}>
+                      {e.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
         )}

@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Flag, Plus, Trash2, Edit2, Check, X } from "lucide-react";
+import { Input } from "@openreel/ui";
 import { useProjectStore } from "../../../stores/project-store";
 import { getPlaybackBridge } from "../../../bridges/playback-bridge";
 import type { Marker } from "@openreel/core";
@@ -101,11 +102,11 @@ export const MarkersPanel: React.FC = () => {
 
                 {editingId === marker.id ? (
                   <div className="flex-1 space-y-2">
-                    <input
+                    <Input
                       type="text"
                       value={editLabel}
                       onChange={(e) => setEditLabel(e.target.value)}
-                      className="w-full px-2 py-1 bg-background-secondary border border-border rounded text-xs text-text-primary focus:outline-none focus:border-primary"
+                      className="h-7 text-xs bg-background-secondary border-border text-text-primary"
                       placeholder="Marker label"
                     />
                     <div className="flex gap-1">

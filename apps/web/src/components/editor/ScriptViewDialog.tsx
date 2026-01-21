@@ -1,6 +1,5 @@
-import React, { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo } from "react";
 import {
-  X,
   Copy,
   Download,
   FileCode,
@@ -12,6 +11,18 @@ import {
 import { Light as SyntaxHighlighter } from "react-syntax-highlighter";
 import json from "react-syntax-highlighter/dist/esm/languages/hljs/json";
 import { vs2015 } from "react-syntax-highlighter/dist/esm/styles/hljs";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  Button,
+  Tabs,
+  TabsList,
+  TabsTrigger,
+  TabsContent,
+} from "@openreel/ui";
 import { useProjectStore } from "../../stores/project-store";
 import { createProjectSerializer, createStorageEngine } from "@openreel/core";
 import type { ValidationResult } from "@openreel/core/storage/schema-types";
@@ -23,14 +34,11 @@ interface ScriptViewDialogProps {
   onClose: () => void;
 }
 
-type TabType = "view" | "import";
-
 export const ScriptViewDialog: React.FC<ScriptViewDialogProps> = ({
   isOpen,
   onClose,
 }) => {
   const { project } = useProjectStore();
-  const [activeTab, setActiveTab] = useState<TabType>("view");
   const [importJson, setImportJson] = useState("");
   const [validation, setValidation] = useState<ValidationResult | null>(null);
   const [isValidating, setIsValidating] = useState(false);
@@ -111,206 +119,169 @@ export const ScriptViewDialog: React.FC<ScriptViewDialogProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
-      <div className="bg-background-secondary border border-border rounded-lg shadow-2xl w-full max-w-6xl max-h-[90vh] flex flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-border">
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-6xl max-h-[90vh] p-0 gap-0 bg-background-secondary border-border overflow-hidden flex flex-col">
+        <DialogHeader className="p-4 border-b border-border space-y-0">
           <div className="flex items-center gap-3">
             <FileCode size={20} className="text-primary" />
             <div>
-              <h2 className="text-lg font-semibold text-text-primary">
+              <DialogTitle className="text-lg font-semibold text-text-primary">
                 Script View
-              </h2>
-              <p className="text-xs text-text-muted">
+              </DialogTitle>
+              <DialogDescription className="text-xs text-text-muted">
                 View and import project JSON
-              </p>
+              </DialogDescription>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 rounded-lg hover:bg-background-tertiary text-text-secondary hover:text-text-primary transition-colors"
-          >
-            <X size={18} />
-          </button>
-        </div>
+        </DialogHeader>
 
-        {/* Tabs */}
-        <div className="flex gap-1 p-2 border-b border-border">
-          <button
-            onClick={() => setActiveTab("view")}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              activeTab === "view"
-                ? "bg-background-tertiary text-text-primary"
-                : "text-text-secondary hover:text-text-primary hover:bg-background-elevated"
-            }`}
-          >
-            View & Export
-          </button>
-          <button
-            onClick={() => setActiveTab("import")}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              activeTab === "import"
-                ? "bg-background-tertiary text-text-primary"
-                : "text-text-secondary hover:text-text-primary hover:bg-background-elevated"
-            }`}
-          >
-            Import
-          </button>
-        </div>
+        <Tabs defaultValue="view" className="flex-1 flex flex-col overflow-hidden">
+          <TabsList className="flex gap-1 p-2 border-b border-border bg-transparent rounded-none justify-start">
+            <TabsTrigger
+              value="view"
+              className="px-4 py-2 rounded-lg text-sm font-medium data-[state=active]:bg-background-tertiary data-[state=active]:text-text-primary text-text-secondary hover:text-text-primary hover:bg-background-elevated"
+            >
+              View & Export
+            </TabsTrigger>
+            <TabsTrigger
+              value="import"
+              className="px-4 py-2 rounded-lg text-sm font-medium data-[state=active]:bg-background-tertiary data-[state=active]:text-text-primary text-text-secondary hover:text-text-primary hover:bg-background-elevated"
+            >
+              Import
+            </TabsTrigger>
+          </TabsList>
 
-        {/* Tab Content */}
-        <div className="flex-1 overflow-hidden">
-          {activeTab === "view" && (
-            <div className="h-full flex flex-col">
-              {/* Actions */}
-              <div className="flex gap-2 p-3 border-b border-border">
-                <button
-                  onClick={handleCopy}
-                  className="flex items-center gap-2 px-3 py-2 bg-background-tertiary hover:bg-background-elevated text-text-primary rounded-lg text-sm transition-colors"
-                >
-                  {copySuccess ? (
-                    <>
-                      <CheckCircle2 size={16} className="text-primary" />
-                      Copied!
-                    </>
-                  ) : (
-                    <>
-                      <Copy size={16} />
-                      Copy
-                    </>
-                  )}
-                </button>
-                <button
-                  onClick={handleDownload}
-                  className="flex items-center gap-2 px-3 py-2 bg-background-tertiary hover:bg-background-elevated text-text-primary rounded-lg text-sm transition-colors"
-                >
-                  <Download size={16} />
-                  Download
-                </button>
-                <div className="flex-1" />
-                <a
-                  href="/llm.txt"
-                  download="openreel-llm-documentation.txt"
-                  className="flex items-center gap-2 px-3 py-2 bg-primary/10 hover:bg-primary/20 text-primary rounded-lg text-sm transition-colors"
-                >
-                  <FileCode size={16} />
-                  Download LLM.txt
-                </a>
-              </div>
+          <TabsContent value="view" className="flex-1 flex flex-col overflow-hidden mt-0">
+            <div className="flex gap-2 p-3 border-b border-border">
+              <Button variant="outline" size="sm" onClick={handleCopy}>
+                {copySuccess ? (
+                  <>
+                    <CheckCircle2 size={16} className="text-primary" />
+                    Copied!
+                  </>
+                ) : (
+                  <>
+                    <Copy size={16} />
+                    Copy
+                  </>
+                )}
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleDownload}>
+                <Download size={16} />
+                Download
+              </Button>
+              <div className="flex-1" />
+              <a
+                href="/llm.txt"
+                download="openreel-llm-documentation.txt"
+                className="flex items-center gap-2 px-3 py-2 bg-primary/10 hover:bg-primary/20 text-primary rounded-lg text-sm transition-colors"
+              >
+                <FileCode size={16} />
+                Download LLM.txt
+              </a>
+            </div>
 
-              {/* JSON Display */}
-              <div className="flex-1 overflow-auto custom-scrollbar p-4">
-                <div className="rounded-lg overflow-hidden border border-border">
-                  <SyntaxHighlighter
-                    language="json"
-                    style={vs2015}
-                    showLineNumbers
-                    customStyle={{
-                      margin: 0,
-                      padding: "1rem",
-                      background: "#1e1e1e",
-                      fontSize: "12px",
-                    }}
-                  >
-                    {exportedJson}
-                  </SyntaxHighlighter>
-                </div>
+            <div className="flex-1 overflow-auto custom-scrollbar p-4">
+              <div className="rounded-lg overflow-hidden border border-border">
+                <SyntaxHighlighter
+                  language="json"
+                  style={vs2015}
+                  showLineNumbers
+                  customStyle={{
+                    margin: 0,
+                    padding: "1rem",
+                    background: "#1e1e1e",
+                    fontSize: "12px",
+                  }}
+                >
+                  {exportedJson}
+                </SyntaxHighlighter>
               </div>
             </div>
-          )}
+          </TabsContent>
 
-          {activeTab === "import" && (
-            <div className="h-full flex flex-col gap-4 p-4">
-              {/* Textarea */}
-              <div className="flex-1 flex flex-col gap-2">
-                <label className="text-sm font-medium text-text-secondary">
-                  Paste JSON
-                </label>
-                <textarea
-                  value={importJson}
-                  onChange={(e) => setImportJson(e.target.value)}
-                  placeholder="Paste project JSON here..."
-                  className="flex-1 p-3 bg-background-tertiary border border-border rounded-lg text-text-primary font-mono text-xs resize-none focus:outline-none focus:border-primary"
-                />
-              </div>
-
-              {/* Validation Button */}
-              <button
-                onClick={handleValidate}
-                disabled={!importJson || isValidating}
-                className="px-4 py-2 bg-background-tertiary hover:bg-background-elevated text-text-primary rounded-lg text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isValidating ? "Validating..." : "Validate"}
-              </button>
-
-              {/* Validation Results */}
-              {validation && (
-                <div className="space-y-2">
-                  {validation.valid && (
-                    <div className="flex items-center gap-2 p-3 bg-primary/10 border border-primary/30 rounded-lg">
-                      <CheckCircle2 size={16} className="text-primary" />
-                      <span className="text-sm text-primary">
-                        Valid JSON - Ready to import
-                      </span>
-                    </div>
-                  )}
-
-                  {validation.errors.length > 0 && (
-                    <div className="p-3 bg-error/10 border border-error/30 rounded-lg space-y-1">
-                      <div className="flex items-center gap-2 text-error font-medium text-sm">
-                        <AlertCircle size={16} />
-                        Errors
-                      </div>
-                      <ul className="list-disc list-inside text-xs text-error/80 space-y-0.5">
-                        {validation.errors.map((error, i) => (
-                          <li key={i}>{error}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-
-                  {validation.warnings.length > 0 && (
-                    <div className="p-3 bg-warning/10 border border-warning/30 rounded-lg space-y-1">
-                      <div className="flex items-center gap-2 text-warning font-medium text-sm">
-                        <AlertTriangle size={16} />
-                        Warnings
-                      </div>
-                      <ul className="list-disc list-inside text-xs text-warning/80 space-y-0.5">
-                        {validation.warnings.map((warning, i) => (
-                          <li key={i}>{warning}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-
-                  {validation.missingAssets &&
-                    validation.missingAssets.length > 0 && (
-                      <div className="p-3 bg-background-tertiary border border-border rounded-lg space-y-1">
-                        <div className="text-sm font-medium text-text-secondary">
-                          Missing Assets ({validation.missingAssets.length})
-                        </div>
-                        <p className="text-xs text-text-muted">
-                          These assets will be imported as placeholders and can
-                          be replaced later.
-                        </p>
-                      </div>
-                    )}
-                </div>
-              )}
-
-              {/* Import Button */}
-              <button
-                onClick={handleImport}
-                disabled={!validation?.valid}
-                className="px-4 py-2 bg-primary hover:bg-primary-hover text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <Upload size={16} className="inline mr-2" />
-                Import Project
-              </button>
+          <TabsContent value="import" className="flex-1 flex flex-col gap-4 p-4 overflow-auto mt-0">
+            <div className="flex-1 flex flex-col gap-2">
+              <label className="text-sm font-medium text-text-secondary">
+                Paste JSON
+              </label>
+              <textarea
+                value={importJson}
+                onChange={(e) => setImportJson(e.target.value)}
+                placeholder="Paste project JSON here..."
+                className="flex-1 p-3 bg-background-tertiary border border-border rounded-lg text-text-primary font-mono text-xs resize-none focus:outline-none focus:border-primary"
+              />
             </div>
-          )}
-        </div>
-      </div>
-    </div>
+
+            <Button
+              variant="outline"
+              onClick={handleValidate}
+              disabled={!importJson || isValidating}
+            >
+              {isValidating ? "Validating..." : "Validate"}
+            </Button>
+
+            {validation && (
+              <div className="space-y-2">
+                {validation.valid && (
+                  <div className="flex items-center gap-2 p-3 bg-primary/10 border border-primary/30 rounded-lg">
+                    <CheckCircle2 size={16} className="text-primary" />
+                    <span className="text-sm text-primary">
+                      Valid JSON - Ready to import
+                    </span>
+                  </div>
+                )}
+
+                {validation.errors.length > 0 && (
+                  <div className="p-3 bg-error/10 border border-error/30 rounded-lg space-y-1">
+                    <div className="flex items-center gap-2 text-error font-medium text-sm">
+                      <AlertCircle size={16} />
+                      Errors
+                    </div>
+                    <ul className="list-disc list-inside text-xs text-error/80 space-y-0.5">
+                      {validation.errors.map((err, i) => (
+                        <li key={i}>{err}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {validation.warnings.length > 0 && (
+                  <div className="p-3 bg-warning/10 border border-warning/30 rounded-lg space-y-1">
+                    <div className="flex items-center gap-2 text-warning font-medium text-sm">
+                      <AlertTriangle size={16} />
+                      Warnings
+                    </div>
+                    <ul className="list-disc list-inside text-xs text-warning/80 space-y-0.5">
+                      {validation.warnings.map((warning, i) => (
+                        <li key={i}>{warning}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {validation.missingAssets &&
+                  validation.missingAssets.length > 0 && (
+                    <div className="p-3 bg-background-tertiary border border-border rounded-lg space-y-1">
+                      <div className="text-sm font-medium text-text-secondary">
+                        Missing Assets ({validation.missingAssets.length})
+                      </div>
+                      <p className="text-xs text-text-muted">
+                        These assets will be imported as placeholders and can
+                        be replaced later.
+                      </p>
+                    </div>
+                  )}
+              </div>
+            )}
+
+            <Button onClick={handleImport} disabled={!validation?.valid}>
+              <Upload size={16} />
+              Import Project
+            </Button>
+          </TabsContent>
+        </Tabs>
+      </DialogContent>
+    </Dialog>
   );
 };

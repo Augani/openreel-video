@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import { useState, useCallback } from "react";
 import {
   Smartphone,
   Monitor,
@@ -7,6 +7,7 @@ import {
   Check,
   Info,
 } from "lucide-react";
+import { Button, Input, Label } from "@openreel/ui";
 import { useProjectStore } from "../../stores/project-store";
 import {
   SOCIAL_MEDIA_PRESETS,
@@ -91,15 +92,15 @@ export const StartFromScratch: React.FC<StartFromScratchProps> = ({
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="text-sm font-medium text-text-primary mb-2">
+        <Label className="text-sm font-medium text-text-primary mb-2 block">
           Project Name
-        </h3>
-        <input
+        </Label>
+        <Input
           type="text"
           value={projectName}
           onChange={(e) => setProjectName(e.target.value)}
           placeholder="My Awesome Video"
-          className="w-full max-w-md px-4 py-2.5 text-sm bg-background-tertiary border border-border rounded-lg focus:border-primary focus:outline-none text-text-primary placeholder:text-text-muted transition-all"
+          className="max-w-md bg-background-tertiary border-border text-text-primary"
         />
       </div>
 
@@ -188,10 +189,10 @@ export const StartFromScratch: React.FC<StartFromScratchProps> = ({
       </div>
 
       <div className="flex items-center justify-end gap-3">
-        <button
+        <Button
           onClick={handleCreate}
           disabled={isCreating}
-          className="px-6 py-2.5 bg-primary text-black text-sm font-medium rounded-lg hover:bg-primary-hover active:bg-primary-active transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-glow"
+          className="shadow-glow"
         >
           {isCreating ? (
             <>
@@ -204,7 +205,7 @@ export const StartFromScratch: React.FC<StartFromScratchProps> = ({
               <ChevronRight size={16} />
             </>
           )}
-        </button>
+        </Button>
       </div>
     </div>
   );

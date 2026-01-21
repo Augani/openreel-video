@@ -7,6 +7,7 @@ import {
   Loader2,
   Info,
 } from "lucide-react";
+import { Slider } from "@openreel/ui";
 import {
   getBackgroundRemovalEngine,
   initializeBackgroundRemovalEngine,
@@ -216,15 +217,14 @@ export const BackgroundRemovalSection: React.FC<
                   {settings.blurAmount}px
                 </span>
               </div>
-              <input
-                type="range"
+              <Slider
                 min={0}
                 max={50}
-                value={settings.blurAmount}
-                onChange={(e) =>
-                  updateSettings({ blurAmount: parseInt(e.target.value) })
+                step={1}
+                value={[settings.blurAmount]}
+                onValueChange={(value) =>
+                  updateSettings({ blurAmount: value[0] })
                 }
-                className="w-full h-1.5 bg-background-secondary rounded-full appearance-none cursor-pointer accent-purple-500"
               />
             </div>
           )}
@@ -304,15 +304,14 @@ export const BackgroundRemovalSection: React.FC<
                 {settings.edgeBlur}
               </span>
             </div>
-            <input
-              type="range"
+            <Slider
               min={0}
               max={10}
-              value={settings.edgeBlur}
-              onChange={(e) =>
-                updateSettings({ edgeBlur: parseInt(e.target.value) })
+              step={1}
+              value={[settings.edgeBlur]}
+              onValueChange={(value) =>
+                updateSettings({ edgeBlur: value[0] })
               }
-              className="w-full h-1.5 bg-background-secondary rounded-full appearance-none cursor-pointer accent-purple-500"
             />
           </div>
 
@@ -325,15 +324,14 @@ export const BackgroundRemovalSection: React.FC<
                 {Math.round(settings.threshold * 100)}%
               </span>
             </div>
-            <input
-              type="range"
+            <Slider
               min={0}
               max={100}
-              value={settings.threshold * 100}
-              onChange={(e) =>
-                updateSettings({ threshold: parseInt(e.target.value) / 100 })
+              step={1}
+              value={[settings.threshold * 100]}
+              onValueChange={(value) =>
+                updateSettings({ threshold: value[0] / 100 })
               }
-              className="w-full h-1.5 bg-background-secondary rounded-full appearance-none cursor-pointer accent-purple-500"
             />
           </div>
 

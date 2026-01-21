@@ -1,6 +1,5 @@
-import React, { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
-  X,
   Plus,
   FolderOpen,
   Clock,
@@ -12,6 +11,19 @@ import {
   ChevronRight,
   FileVideo,
 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  Button,
+  Input,
+  Label,
+  Tabs,
+  TabsList,
+  TabsTrigger,
+  TabsContent,
+} from "@openreel/ui";
 import {
   projectManager,
   type RecentProject,
@@ -135,68 +147,58 @@ export const ProjectDialog: React.FC<ProjectDialogProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
-      <div className="w-full max-w-3xl max-h-[80vh] bg-background-secondary rounded-xl border border-border shadow-2xl overflow-hidden flex flex-col">
-        <div className="flex items-center justify-between p-4 border-b border-border bg-background-tertiary">
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-3xl max-h-[80vh] p-0 gap-0 bg-background-secondary border-border overflow-hidden flex flex-col">
+        <DialogHeader className="p-4 border-b border-border bg-background-tertiary space-y-0">
           <div className="flex items-center gap-3">
             <FileVideo size={20} className="text-primary" />
-            <h2 className="text-lg font-bold text-text-primary">
+            <DialogTitle className="text-lg font-bold text-text-primary">
               {mode === "open" ? "Open Project" : "Project"}
-            </h2>
+            </DialogTitle>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 text-text-muted hover:text-text-primary rounded-lg hover:bg-background-secondary transition-colors"
-          >
-            <X size={20} />
-          </button>
-        </div>
+        </DialogHeader>
 
-        <div className="flex border-b border-border">
-          <button
-            onClick={() => setActiveTab("new")}
-            className={`flex-1 flex items-center justify-center gap-2 p-3 text-sm font-medium transition-colors ${
-              activeTab === "new"
-                ? "text-primary border-b-2 border-primary"
-                : "text-text-secondary hover:text-text-primary"
-            }`}
-          >
-            <Plus size={16} />
-            New Project
-          </button>
-          <button
-            onClick={() => setActiveTab("recent")}
-            className={`flex-1 flex items-center justify-center gap-2 p-3 text-sm font-medium transition-colors ${
-              activeTab === "recent"
-                ? "text-primary border-b-2 border-primary"
-                : "text-text-secondary hover:text-text-primary"
-            }`}
-          >
-            <Clock size={16} />
-            Recent ({recentProjects.length})
-          </button>
-        </div>
+        <Tabs
+          value={activeTab}
+          onValueChange={(v) => setActiveTab(v as "new" | "recent")}
+          className="flex-1 flex flex-col overflow-hidden"
+        >
+          <TabsList className="flex border-b border-border bg-transparent rounded-none">
+            <TabsTrigger
+              value="new"
+              className="flex-1 flex items-center justify-center gap-2 p-3 text-sm font-medium rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-primary text-text-secondary hover:text-text-primary"
+            >
+              <Plus size={16} />
+              New Project
+            </TabsTrigger>
+            <TabsTrigger
+              value="recent"
+              className="flex-1 flex items-center justify-center gap-2 p-3 text-sm font-medium rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-primary text-text-secondary hover:text-text-primary"
+            >
+              <Clock size={16} />
+              Recent ({recentProjects.length})
+            </TabsTrigger>
+          </TabsList>
 
-        <div className="flex-1 overflow-y-auto p-4">
-          {activeTab === "new" ? (
+          <TabsContent value="new" className="flex-1 overflow-y-auto p-4 mt-0">
             <div className="space-y-6">
               <div>
-                <label className="block text-xs font-medium text-text-secondary mb-2">
+                <Label className="block text-xs font-medium text-text-secondary mb-2">
                   Project Name
-                </label>
-                <input
+                </Label>
+                <Input
                   type="text"
                   value={projectName}
                   onChange={(e) => setProjectName(e.target.value)}
-                  className="w-full px-3 py-2 bg-background-tertiary border border-border rounded-lg text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-primary"
+                  className="bg-background-tertiary border-border text-text-primary"
                   placeholder="Enter project name"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-text-secondary mb-3">
+                <Label className="block text-xs font-medium text-text-secondary mb-3">
                   Choose a Template
-                </label>
+                </Label>
                 <div className="space-y-4">
                   {Array.from(templates.entries()).map(
                     ([category, categoryTemplates]) => (
@@ -247,88 +249,84 @@ export const ProjectDialog: React.FC<ProjectDialogProps> = ({
                 </div>
               </div>
             </div>
-          ) : (
-            <div>
-              {recentProjects.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-12 text-text-muted">
-                  <Clock size={32} className="mb-3 opacity-30" />
-                  <p className="text-sm">No recent projects</p>
-                  <p className="text-xs mt-1">
-                    Projects you open will appear here
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {recentProjects.map((project) => (
+          </TabsContent>
+
+          <TabsContent value="recent" className="flex-1 overflow-y-auto p-4 mt-0">
+            {recentProjects.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-text-muted">
+                <Clock size={32} className="mb-3 opacity-30" />
+                <p className="text-sm">No recent projects</p>
+                <p className="text-xs mt-1">
+                  Projects you open will appear here
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {recentProjects.map((project) => (
+                  <button
+                    key={project.id}
+                    onClick={() => handleOpenRecent(project)}
+                    disabled={isLoading}
+                    className="w-full flex items-center gap-3 p-3 rounded-lg border border-border hover:border-primary/50 hover:bg-background-tertiary transition-colors group disabled:opacity-50"
+                  >
+                    <div className="w-12 h-12 bg-background-tertiary rounded-lg flex items-center justify-center">
+                      <FileVideo size={20} className="text-text-muted" />
+                    </div>
+                    <div className="flex-1 text-left min-w-0">
+                      <p className="text-sm font-medium text-text-primary truncate">
+                        {project.name}
+                      </p>
+                      <p className="text-[10px] text-text-muted">
+                        {formatDate(project.lastOpened)}
+                        {project.trackCount !== undefined && (
+                          <> · {project.trackCount} tracks</>
+                        )}
+                      </p>
+                    </div>
+                    <ChevronRight
+                      size={16}
+                      className="text-text-muted group-hover:text-primary transition-colors"
+                    />
                     <button
-                      key={project.id}
-                      onClick={() => handleOpenRecent(project)}
-                      disabled={isLoading}
-                      className="w-full flex items-center gap-3 p-3 rounded-lg border border-border hover:border-primary/50 hover:bg-background-tertiary transition-colors group disabled:opacity-50"
+                      onClick={(e) => handleRemoveRecent(project.id, e)}
+                      className="p-1 rounded hover:bg-red-500/20 text-text-muted hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all"
+                      title="Remove from recent"
                     >
-                      <div className="w-12 h-12 bg-background-tertiary rounded-lg flex items-center justify-center">
-                        <FileVideo size={20} className="text-text-muted" />
-                      </div>
-                      <div className="flex-1 text-left min-w-0">
-                        <p className="text-sm font-medium text-text-primary truncate">
-                          {project.name}
-                        </p>
-                        <p className="text-[10px] text-text-muted">
-                          {formatDate(project.lastOpened)}
-                          {project.trackCount !== undefined && (
-                            <> · {project.trackCount} tracks</>
-                          )}
-                        </p>
-                      </div>
-                      <ChevronRight
-                        size={16}
-                        className="text-text-muted group-hover:text-primary transition-colors"
-                      />
-                      <button
-                        onClick={(e) => handleRemoveRecent(project.id, e)}
-                        className="p-1 rounded hover:bg-red-500/20 text-text-muted hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all"
-                        title="Remove from recent"
-                      >
-                        <Trash2 size={14} />
-                      </button>
+                      <Trash2 size={14} />
                     </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </TabsContent>
+        </Tabs>
 
         <div className="flex items-center justify-between p-4 border-t border-border bg-background-tertiary">
-          <button
+          <Button
+            variant="ghost"
             onClick={handleOpenProject}
             disabled={isLoading}
-            className="flex items-center gap-2 px-4 py-2 text-sm text-text-secondary hover:text-text-primary transition-colors disabled:opacity-50"
           >
             <FolderOpen size={16} />
             Open from File...
-          </button>
+          </Button>
           <div className="flex items-center gap-2">
-            <button
-              onClick={onClose}
-              className="px-4 py-2 text-sm text-text-secondary hover:text-text-primary transition-colors"
-            >
+            <Button variant="ghost" onClick={onClose}>
               Cancel
-            </button>
+            </Button>
             {activeTab === "new" && (
-              <button
+              <Button
                 onClick={handleCreateProject}
                 disabled={isLoading || !projectName.trim()}
-                className="flex items-center gap-2 px-4 py-2 bg-primary text-black rounded-lg text-sm font-medium hover:bg-primary/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Plus size={16} />
                 Create Project
-              </button>
+              </Button>
             )}
           </div>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 };
 

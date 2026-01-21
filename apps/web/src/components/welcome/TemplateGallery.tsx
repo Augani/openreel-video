@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useMemo, useEffect } from "react";
 import { Search, Loader2, Sparkles } from "lucide-react";
+import { Input } from "@openreel/ui";
 import { useEngineStore } from "../../stores/engine-store";
 import {
   SOCIAL_MEDIA_CATEGORY_INFO,
@@ -170,14 +171,14 @@ export const TemplateGallery: React.FC<TemplateGalleryProps> = ({
         <div className="relative flex-1 max-w-md">
           <Search
             size={18}
-            className="absolute left-4 top-1/2 -translate-y-1/2 text-text-muted"
+            className="absolute left-4 top-1/2 -translate-y-1/2 text-text-muted z-10"
           />
-          <input
+          <Input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search templates..."
-            className="w-full pl-11 pr-4 py-3 text-sm bg-background-tertiary border border-border rounded-xl focus:border-primary focus:outline-none text-text-primary placeholder:text-text-muted transition-all duration-200"
+            className="pl-11 bg-background-tertiary border-border rounded-xl text-text-primary"
           />
         </div>
       </div>

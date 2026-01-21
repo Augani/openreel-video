@@ -9,6 +9,7 @@ import {
   Clock,
   Volume2,
 } from "lucide-react";
+import { Input } from "@openreel/ui";
 import { useEngineStore } from "../../../stores/engine-store";
 import { useProjectStore } from "../../../stores/project-store";
 import {
@@ -296,14 +297,14 @@ export const MusicLibraryPanel: React.FC = () => {
       <div className="relative">
         <Search
           size={14}
-          className="absolute left-2 top-1/2 -translate-y-1/2 text-text-muted"
+          className="absolute left-2 top-1/2 -translate-y-1/2 text-text-muted z-10"
         />
-        <input
+        <Input
           type="text"
           placeholder="Search sounds..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full pl-8 pr-3 py-2 text-[10px] bg-background-secondary rounded-lg border border-border focus:border-primary focus:outline-none"
+          className="pl-8 text-[10px] bg-background-secondary border-border h-8"
         />
       </div>
 

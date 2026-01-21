@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useMemo } from "react";
 import { Film, Camera, Moon, Palette, Sparkles, Check } from "lucide-react";
+import { Slider } from "@openreel/ui";
 import { useProjectStore } from "../../../stores/project-store";
 import { useUIStore } from "../../../stores/ui-store";
 import { toast } from "../../../stores/notification-store";
@@ -198,21 +199,13 @@ export const FilterPresetsPanel: React.FC<FilterPresetsPanelProps> = ({
               {intensityValue}%
             </span>
           </div>
-          <div className="relative h-1.5">
-            <input
-              type="range"
-              min={0}
-              max={100}
-              value={intensityValue}
-              onChange={(e) => setIntensityValue(parseInt(e.target.value))}
-              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-            />
-            <div className="absolute inset-0 bg-background-secondary rounded-full" />
-            <div
-              className="absolute top-0 left-0 h-full bg-primary rounded-full transition-all"
-              style={{ width: `${intensityValue}%` }}
-            />
-          </div>
+          <Slider
+            min={0}
+            max={100}
+            step={1}
+            value={[intensityValue]}
+            onValueChange={(value) => setIntensityValue(value[0])}
+          />
           <button
             onClick={handleClearEffects}
             className="w-full py-2 text-[10px] text-red-400 hover:text-red-300 bg-red-500/10 rounded-lg transition-colors"

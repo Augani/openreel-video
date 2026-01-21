@@ -58,24 +58,18 @@ describe("RecoveryDialog", () => {
       <RecoveryDialog saves={saves} onRecover={mockOnRecover} onDismiss={mockOnDismiss} />
     );
 
-    const closeButtons = screen.getAllByRole("button");
-    const closeButton = closeButtons.find((btn) => btn.querySelector("svg"));
-    if (closeButton) {
-      fireEvent.click(closeButton);
-    }
+    const closeButton = screen.getByRole("button", { name: /close/i });
+    fireEvent.click(closeButton);
     expect(mockOnDismiss).toHaveBeenCalled();
   });
 
-  it("calls onDismiss when backdrop is clicked", () => {
+  it("calls onDismiss when Escape key is pressed", () => {
     const saves = [createSave()];
-    const { container } = render(
+    render(
       <RecoveryDialog saves={saves} onRecover={mockOnRecover} onDismiss={mockOnDismiss} />
     );
 
-    const backdrop = container.querySelector(".bg-black\\/80");
-    if (backdrop) {
-      fireEvent.click(backdrop);
-    }
+    fireEvent.keyDown(document, { key: "Escape" });
     expect(mockOnDismiss).toHaveBeenCalled();
   });
 

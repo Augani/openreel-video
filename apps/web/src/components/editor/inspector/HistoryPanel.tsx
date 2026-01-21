@@ -13,6 +13,7 @@ import {
   FileCode,
   Smile,
 } from "lucide-react";
+import { Input } from "@openreel/ui";
 import { useProjectStore } from "../../../stores/project-store";
 import type { HistorySnapshot } from "@openreel/core";
 
@@ -199,7 +200,7 @@ export const HistoryPanel: React.FC = () => {
 
             {isCreatingSnapshot ? (
               <div className="flex items-center gap-2 p-2">
-                <input
+                <Input
                   type="text"
                   value={newSnapshotName}
                   onChange={(e) => setNewSnapshotName(e.target.value)}
@@ -208,7 +209,7 @@ export const HistoryPanel: React.FC = () => {
                     if (e.key === "Escape") setIsCreatingSnapshot(false);
                   }}
                   placeholder="Snapshot name..."
-                  className="flex-1 px-2 py-1 bg-background-tertiary border border-border rounded text-xs text-text-primary placeholder:text-text-muted focus:outline-none focus:border-primary"
+                  className="flex-1 h-7 text-xs bg-background-tertiary border-border text-text-primary"
                   autoFocus
                 />
                 <button

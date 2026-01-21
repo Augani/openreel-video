@@ -11,6 +11,7 @@ import { useProjectStore } from "./stores/project-store";
 import { useRouter } from "./hooks/use-router";
 import { useProjectRecovery } from "./hooks/useProjectRecovery";
 import { SOCIAL_MEDIA_PRESETS, type SocialMediaCategory } from "@openreel/core";
+import { TooltipProvider } from "@openreel/ui";
 
 const EditorInterface = lazy(() =>
   import("./components/editor/EditorInterface").then((m) => ({
@@ -129,34 +130,36 @@ function App() {
   const isSharePage = route === "share" && params.shareId;
 
   return (
-    <div className="h-screen w-screen bg-background text-text-primary overflow-hidden">
-      <MobileBlocker />
-      {isSharePage ? (
-        <SharePage shareId={params.shareId!} />
-      ) : showWelcome ? (
-        <WelcomeScreen initialTab={initialTab} />
-      ) : (
-        <Suspense fallback={<LoadingSpinner message="Loading editor..." />}>
-          <EditorInterface />
-        </Suspense>
-      )}
-      <ToastContainer />
-      <ScriptViewDialog
-        isOpen={activeModal === "scriptView"}
-        onClose={closeModal}
-      />
-      <SearchModal isOpen={activeModal === "search"} onClose={closeModal} />
-      {showDialog && availableSaves.length > 0 && (
-        <RecoveryDialog
-          saves={availableSaves}
-          onRecover={async (saveId) => {
-            const success = await recover(saveId);
-            if (success) navigate("editor");
-          }}
-          onDismiss={dismiss}
+    <TooltipProvider>
+      <div className="h-screen w-screen bg-background text-text-primary overflow-hidden">
+        <MobileBlocker />
+        {isSharePage ? (
+          <SharePage shareId={params.shareId!} />
+        ) : showWelcome ? (
+          <WelcomeScreen initialTab={initialTab} />
+        ) : (
+          <Suspense fallback={<LoadingSpinner message="Loading editor..." />}>
+            <EditorInterface />
+          </Suspense>
+        )}
+        <ToastContainer />
+        <ScriptViewDialog
+          isOpen={activeModal === "scriptView"}
+          onClose={closeModal}
         />
-      )}
-    </div>
+        <SearchModal isOpen={activeModal === "search"} onClose={closeModal} />
+        {showDialog && availableSaves.length > 0 && (
+          <RecoveryDialog
+            saves={availableSaves}
+            onRecover={async (saveId) => {
+              const success = await recover(saveId);
+              if (success) navigate("editor");
+            }}
+            onDismiss={dismiss}
+          />
+        )}
+      </div>
+    </TooltipProvider>
   );
 }
 

@@ -9,6 +9,7 @@ import {
   User,
   Download,
 } from "lucide-react";
+import { Slider } from "@openreel/ui";
 import { useProjectStore } from "../../../stores/project-store";
 
 const TTS_API_URL = "https://transcribe.openreel.video";
@@ -261,14 +262,12 @@ export const TextToSpeechPanel: React.FC = () => {
             {speed.toFixed(1)}x
           </span>
         </div>
-        <input
-          type="range"
-          min="0.5"
-          max="2.0"
-          step="0.1"
-          value={speed}
-          onChange={(e) => setSpeed(parseFloat(e.target.value))}
-          className="w-full h-1.5 bg-background-tertiary rounded-lg appearance-none cursor-pointer accent-primary"
+        <Slider
+          min={0.5}
+          max={2.0}
+          step={0.1}
+          value={[speed]}
+          onValueChange={(value) => setSpeed(value[0])}
         />
         <div className="flex justify-between text-[8px] text-text-muted">
           <span>0.5x</span>

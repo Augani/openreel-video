@@ -26,8 +26,8 @@ import { useTimelineStore } from "../../stores/timeline-store";
 import { useUIStore } from "../../stores/ui-store";
 import { useEngineStore } from "../../stores/engine-store";
 import { getPlaybackBridge } from "../../bridges/playback-bridge";
+import { IconButton } from "@openreel/ui";
 import {
-  IconButton,
   Playhead,
   TimeRuler,
   TrackHeader,

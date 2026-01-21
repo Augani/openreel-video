@@ -1,48 +1,13 @@
 import React, { useCallback, useMemo } from "react";
 import { useProjectStore } from "../../../stores/project-store";
-
-const Slider: React.FC<{
-  label: string;
-  value: number;
-  onChange: (value: number) => void;
-  min?: number;
-  max?: number;
-  step?: number;
-  unit?: string;
-}> = ({ label, value, onChange, min = 0, max = 100, step = 1, unit = "" }) => {
-  const percentage = ((value - min) / (max - min)) * 100;
-
-  return (
-    <div className="space-y-1">
-      <div className="flex items-center justify-between">
-        <span className="text-[10px] text-text-secondary">{label}</span>
-        <span className="text-[10px] font-mono text-text-primary">
-          {value.toFixed(step < 1 ? 1 : 0)}
-          {unit}
-        </span>
-      </div>
-      <div className="h-1.5 bg-background-tertiary rounded-full relative overflow-hidden">
-        <input
-          type="range"
-          min={min}
-          max={max}
-          step={step}
-          value={value}
-          onChange={(e) => onChange(parseFloat(e.target.value))}
-          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-        />
-        <div
-          className="absolute top-0 left-0 h-full bg-text-secondary rounded-full transition-all"
-          style={{ width: `${percentage}%` }}
-        />
-        <div
-          className="absolute top-1/2 -translate-y-1/2 w-2.5 h-2.5 bg-white rounded-full shadow-sm pointer-events-none transition-all"
-          style={{ left: `calc(${percentage}% - 5px)` }}
-        />
-      </div>
-    </div>
-  );
-};
+import {
+  LabeledSlider as Slider,
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@openreel/ui";
 
 interface Transform3DSectionProps {
   clipId: string;
@@ -178,18 +143,18 @@ export const Transform3DSection: React.FC<Transform3DSectionProps> = ({
           <span className="text-[10px] text-text-secondary">
             Transform Style
           </span>
-          <select
+          <Select
             value={transformStyle}
-            onChange={(e) =>
-              handleTransformStyleChange(
-                e.target.value as "flat" | "preserve-3d",
-              )
-            }
-            className="w-full px-3 py-2 text-sm text-text-primary bg-background-tertiary border border-border rounded-lg outline-none focus:border-primary cursor-pointer"
+            onValueChange={(v) => handleTransformStyleChange(v as "flat" | "preserve-3d")}
           >
-            <option value="flat">Flat</option>
-            <option value="preserve-3d">Preserve 3D</option>
-          </select>
+            <SelectTrigger className="w-full bg-background-tertiary border-border text-text-primary">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent className="bg-background-secondary border-border">
+              <SelectItem value="flat">Flat</SelectItem>
+              <SelectItem value="preserve-3d">Preserve 3D</SelectItem>
+            </SelectContent>
+          </Select>
           <p className="text-[9px] text-text-muted">
             {transformStyle === "flat" &&
               "Flattens children into the plane of this element"}

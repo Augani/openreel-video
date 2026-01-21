@@ -36,26 +36,7 @@ import { MusicLibraryPanel } from "./inspector/MusicLibraryPanel";
 import { MultiCameraPanel } from "./inspector/MultiCameraPanel";
 import { TextToSpeechPanel } from "./inspector/TextToSpeechPanel";
 import { AspectRatioMatchDialog } from "./dialogs/AspectRatioMatchDialog";
-
-const IconButton = ({
-  icon: Icon,
-  className = "",
-  onClick,
-  title,
-}: {
-  icon: React.ElementType;
-  className?: string;
-  onClick?: () => void;
-  title?: string;
-}) => (
-  <button
-    onClick={onClick}
-    title={title}
-    className={`p-1.5 rounded-lg hover:bg-background-tertiary text-text-secondary hover:text-text-primary transition-colors ${className}`}
-  >
-    <Icon size={14} />
-  </button>
-);
+import { IconButton, Input } from "@openreel/ui";
 
 const formatDuration = (seconds: number): string => {
   const mins = Math.floor(seconds / 60);
@@ -679,14 +660,14 @@ export const AssetsPanel: React.FC = () => {
       {/* Search - only show for media tab */}
       {activeTab === "media" && (
         <div className="px-5 mb-3">
-          <div className="bg-background-tertiary h-9 rounded-lg border border-border flex items-center px-3 gap-2 focus-within:border-primary/50 focus-within:shadow-[0_0_0_1px_rgba(34,197,94,0.2)] transition-all">
-            <Search size={14} className="text-text-muted" />
-            <input
+          <div className="relative">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted z-10" />
+            <Input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search media"
-              className="flex-1 bg-transparent text-xs text-text-primary placeholder:text-text-muted outline-none border-none p-0 focus:ring-0"
+              className="pl-9 text-xs bg-background-tertiary border-border text-text-primary h-9"
             />
           </div>
         </div>
@@ -1111,8 +1092,9 @@ export const AssetsPanel: React.FC = () => {
         </div>
       )}
 
-      {showAspectRatioDialog && aspectRatioDialogData && (
+      {aspectRatioDialogData && (
         <AspectRatioMatchDialog
+          isOpen={showAspectRatioDialog}
           videoWidth={aspectRatioDialogData.videoWidth}
           videoHeight={aspectRatioDialogData.videoHeight}
           currentWidth={project.settings.width}

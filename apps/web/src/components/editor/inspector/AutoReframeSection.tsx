@@ -8,6 +8,7 @@ import {
   Play,
   CheckCircle,
 } from "lucide-react";
+import { Slider } from "@openreel/ui";
 import {
   getAutoReframeEngine,
   initializeAutoReframeEngine,
@@ -271,17 +272,16 @@ export const AutoReframeSection: React.FC<AutoReframeSectionProps> = ({
               {Math.round(reframeSettings.trackingSpeed * 100)}%
             </span>
           </div>
-          <input
-            type="range"
+          <Slider
             min={0}
             max={100}
-            value={reframeSettings.trackingSpeed * 100}
-            onChange={(e) =>
+            step={1}
+            value={[reframeSettings.trackingSpeed * 100]}
+            onValueChange={(value) =>
               updateLocalSettings({
-                trackingSpeed: parseInt(e.target.value) / 100,
+                trackingSpeed: value[0] / 100,
               })
             }
-            className="w-full h-1.5 bg-background-secondary rounded-full appearance-none cursor-pointer accent-blue-500"
           />
         </div>
 
@@ -292,15 +292,14 @@ export const AutoReframeSection: React.FC<AutoReframeSectionProps> = ({
               {Math.round(reframeSettings.smoothing * 100)}%
             </span>
           </div>
-          <input
-            type="range"
+          <Slider
             min={0}
             max={100}
-            value={reframeSettings.smoothing * 100}
-            onChange={(e) =>
-              updateLocalSettings({ smoothing: parseInt(e.target.value) / 100 })
+            step={1}
+            value={[reframeSettings.smoothing * 100]}
+            onValueChange={(value) =>
+              updateLocalSettings({ smoothing: value[0] / 100 })
             }
-            className="w-full h-1.5 bg-background-secondary rounded-full appearance-none cursor-pointer accent-blue-500"
           />
         </div>
 
@@ -313,17 +312,16 @@ export const AutoReframeSection: React.FC<AutoReframeSectionProps> = ({
               {Math.round(reframeSettings.centerBias * 100)}%
             </span>
           </div>
-          <input
-            type="range"
+          <Slider
             min={0}
             max={100}
-            value={reframeSettings.centerBias * 100}
-            onChange={(e) =>
+            step={1}
+            value={[reframeSettings.centerBias * 100]}
+            onValueChange={(value) =>
               updateLocalSettings({
-                centerBias: parseInt(e.target.value) / 100,
+                centerBias: value[0] / 100,
               })
             }
-            className="w-full h-1.5 bg-background-secondary rounded-full appearance-none cursor-pointer accent-blue-500"
           />
         </div>
 

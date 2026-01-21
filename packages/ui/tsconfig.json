@@ -1,0 +1,15 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "jsx": "react-jsx",
+    "rootDir": "src",
+    "outDir": "dist",
+    "baseUrl": ".",
+    "paths": {
+      "@openreel/ui": ["./src/index.ts"],
+      "@openreel/ui/*": ["./src/*"]
+    }
+  },
+  "include": ["src"]
+}

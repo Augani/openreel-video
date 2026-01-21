@@ -20,7 +20,9 @@
     "forceConsistentCasingInFileNames": true,
     "paths": {
       "@openreel/core": ["./packages/core/src/index.ts"],
-      "@openreel/core/*": ["./packages/core/src/*"]
+      "@openreel/core/*": ["./packages/core/src/*"],
+      "@openreel/ui": ["./packages/ui/src/index.ts"],
+      "@openreel/ui/*": ["./packages/ui/src/*"]
     }
   },
   "exclude": ["node_modules", "dist", "build"]

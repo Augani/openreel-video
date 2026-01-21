@@ -9,6 +9,7 @@ import {
   Check,
   RefreshCw,
 } from "lucide-react";
+import { Slider } from "@openreel/ui";
 import { useProjectStore } from "../../../stores/project-store";
 import type { Track } from "@openreel/core";
 
@@ -243,16 +244,14 @@ export const AudioDuckingSection: React.FC<AudioDuckingSectionProps> = ({
                       {settings.threshold} dB
                     </span>
                   </div>
-                  <input
-                    type="range"
-                    min="-50"
-                    max="-10"
-                    step="1"
-                    value={settings.threshold}
-                    onChange={(e) =>
-                      updateSetting("threshold", parseInt(e.target.value))
+                  <Slider
+                    min={-50}
+                    max={-10}
+                    step={1}
+                    value={[settings.threshold]}
+                    onValueChange={(value) =>
+                      updateSetting("threshold", value[0])
                     }
-                    className="w-full h-1.5 bg-background-secondary rounded-full appearance-none cursor-pointer accent-orange-500"
                   />
                   <p className="text-[8px] text-text-muted">
                     Voice level that triggers ducking
@@ -268,16 +267,14 @@ export const AudioDuckingSection: React.FC<AudioDuckingSectionProps> = ({
                       {Math.round(settings.reduction * 100)}%
                     </span>
                   </div>
-                  <input
-                    type="range"
-                    min="0"
-                    max="100"
-                    step="5"
-                    value={settings.reduction * 100}
-                    onChange={(e) =>
-                      updateSetting("reduction", parseInt(e.target.value) / 100)
+                  <Slider
+                    min={0}
+                    max={100}
+                    step={5}
+                    value={[settings.reduction * 100]}
+                    onValueChange={(value) =>
+                      updateSetting("reduction", value[0] / 100)
                     }
-                    className="w-full h-1.5 bg-background-secondary rounded-full appearance-none cursor-pointer accent-orange-500"
                   />
                   <p className="text-[8px] text-text-muted">
                     How much to lower background music
@@ -308,16 +305,14 @@ export const AudioDuckingSection: React.FC<AudioDuckingSectionProps> = ({
                         {settings.attack.toFixed(2)}s
                       </span>
                     </div>
-                    <input
-                      type="range"
-                      min="0.01"
-                      max="0.5"
-                      step="0.01"
-                      value={settings.attack}
-                      onChange={(e) =>
-                        updateSetting("attack", parseFloat(e.target.value))
+                    <Slider
+                      min={0.01}
+                      max={0.5}
+                      step={0.01}
+                      value={[settings.attack]}
+                      onValueChange={(value) =>
+                        updateSetting("attack", value[0])
                       }
-                      className="w-full h-1 bg-background-secondary rounded-full appearance-none cursor-pointer accent-orange-500"
                     />
                     <p className="text-[8px] text-text-muted">
                       How fast volume drops when voice starts
@@ -333,16 +328,14 @@ export const AudioDuckingSection: React.FC<AudioDuckingSectionProps> = ({
                         {settings.release.toFixed(2)}s
                       </span>
                     </div>
-                    <input
-                      type="range"
-                      min="0.1"
-                      max="1"
-                      step="0.05"
-                      value={settings.release}
-                      onChange={(e) =>
-                        updateSetting("release", parseFloat(e.target.value))
+                    <Slider
+                      min={0.1}
+                      max={1}
+                      step={0.05}
+                      value={[settings.release]}
+                      onValueChange={(value) =>
+                        updateSetting("release", value[0])
                       }
-                      className="w-full h-1 bg-background-secondary rounded-full appearance-none cursor-pointer accent-orange-500"
                     />
                     <p className="text-[8px] text-text-muted">
                       How fast volume returns after voice stops
@@ -358,16 +351,14 @@ export const AudioDuckingSection: React.FC<AudioDuckingSectionProps> = ({
                         {settings.holdTime.toFixed(2)}s
                       </span>
                     </div>
-                    <input
-                      type="range"
-                      min="0"
-                      max="0.5"
-                      step="0.05"
-                      value={settings.holdTime}
-                      onChange={(e) =>
-                        updateSetting("holdTime", parseFloat(e.target.value))
+                    <Slider
+                      min={0}
+                      max={0.5}
+                      step={0.05}
+                      value={[settings.holdTime]}
+                      onValueChange={(value) =>
+                        updateSetting("holdTime", value[0])
                       }
-                      className="w-full h-1 bg-background-secondary rounded-full appearance-none cursor-pointer accent-orange-500"
                     />
                     <p className="text-[8px] text-text-muted">
                       Minimum time to stay ducked between words

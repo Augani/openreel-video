@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useMemo } from "react";
 import { Smile, Sticker, Search, Plus } from "lucide-react";
+import { Input } from "@openreel/ui";
 import { useProjectStore } from "../../../stores/project-store";
 import {
   stickerLibrary,
@@ -178,16 +179,16 @@ export const StickerPickerPanel: React.FC = () => {
       <div className="relative">
         <Search
           size={14}
-          className="absolute left-2 top-1/2 -translate-y-1/2 text-text-muted"
+          className="absolute left-2 top-1/2 -translate-y-1/2 text-text-muted z-10"
         />
-        <input
+        <Input
           type="text"
           placeholder={
             activeTab === "emojis" ? "Search emojis..." : "Search stickers..."
           }
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full pl-8 pr-3 py-2 text-[10px] bg-background-secondary rounded-lg border border-border focus:border-primary focus:outline-none"
+          className="pl-8 text-[10px] bg-background-secondary border-border h-8"
         />
       </div>
 

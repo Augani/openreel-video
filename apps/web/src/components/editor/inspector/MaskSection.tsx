@@ -13,6 +13,7 @@ import {
   RefreshCw,
   type LucideIcon,
 } from "lucide-react";
+import { Slider } from "@openreel/ui";
 import { useEngineStore } from "../../../stores/engine-store";
 import { useProjectStore } from "../../../stores/project-store";
 import type { Mask, MaskShape } from "@openreel/core";
@@ -129,14 +130,12 @@ const MaskItem: React.FC<{
                 {mask.feathering}px
               </span>
             </div>
-            <input
-              type="range"
-              min="0"
-              max="100"
-              step="1"
-              value={mask.feathering}
-              onChange={(e) => onUpdateFeathering(parseFloat(e.target.value))}
-              className="w-full h-1 bg-background-secondary rounded-full appearance-none cursor-pointer accent-primary"
+            <Slider
+              min={0}
+              max={100}
+              step={1}
+              value={[mask.feathering]}
+              onValueChange={(value) => onUpdateFeathering(value[0])}
             />
           </div>
 
@@ -147,14 +146,12 @@ const MaskItem: React.FC<{
                 {mask.expansion}px
               </span>
             </div>
-            <input
-              type="range"
-              min="-100"
-              max="100"
-              step="1"
-              value={mask.expansion}
-              onChange={(e) => onUpdateExpansion(parseFloat(e.target.value))}
-              className="w-full h-1 bg-background-secondary rounded-full appearance-none cursor-pointer accent-primary"
+            <Slider
+              min={-100}
+              max={100}
+              step={1}
+              value={[mask.expansion]}
+              onValueChange={(value) => onUpdateExpansion(value[0])}
             />
           </div>
 
@@ -165,14 +162,12 @@ const MaskItem: React.FC<{
                 {Math.round(mask.opacity * 100)}%
               </span>
             </div>
-            <input
-              type="range"
-              min="0"
-              max="1"
-              step="0.01"
-              value={mask.opacity}
-              onChange={(e) => onUpdateOpacity(parseFloat(e.target.value))}
-              className="w-full h-1 bg-background-secondary rounded-full appearance-none cursor-pointer accent-primary"
+            <Slider
+              min={0}
+              max={100}
+              step={1}
+              value={[mask.opacity * 100]}
+              onValueChange={(value) => onUpdateOpacity(value[0] / 100)}
             />
           </div>
 

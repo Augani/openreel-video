@@ -1,5 +1,6 @@
 import React, { useCallback, useRef, useState } from "react";
 import { Upload, X, AlertCircle } from "lucide-react";
+import { Slider } from "@openreel/ui";
 import type { LUTData } from "@openreel/core";
 
 interface LUTLoaderProps {
@@ -12,35 +13,23 @@ const IntensitySlider: React.FC<{
   value: number;
   onChange: (value: number) => void;
 }> = ({ value, onChange }) => {
-  const percentage = value * 100;
+  const percentage = Math.round(value * 100);
 
   return (
     <div className="space-y-1">
       <div className="flex items-center justify-between">
         <span className="text-[10px] text-text-secondary">Intensity</span>
         <span className="text-[10px] font-mono text-text-primary">
-          {Math.round(percentage)}%
+          {percentage}%
         </span>
       </div>
-      <div className="h-1.5 bg-background-tertiary rounded-full relative overflow-hidden">
-        <input
-          type="range"
-          min={0}
-          max={100}
-          step={1}
-          value={percentage}
-          onChange={(e) => onChange(parseFloat(e.target.value) / 100)}
-          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-        />
-        <div
-          className="absolute top-0 left-0 h-full bg-text-secondary rounded-full transition-all"
-          style={{ width: `${percentage}%` }}
-        />
-        <div
-          className="absolute top-1/2 -translate-y-1/2 w-2.5 h-2.5 bg-white rounded-full shadow-sm pointer-events-none transition-all"
-          style={{ left: `calc(${percentage}% - 5px)` }}
-        />
-      </div>
+      <Slider
+        min={0}
+        max={100}
+        step={1}
+        value={[percentage]}
+        onValueChange={(v) => onChange(v[0] / 100)}
+      />
     </div>
   );
 };

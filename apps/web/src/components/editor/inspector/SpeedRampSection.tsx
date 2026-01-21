@@ -15,6 +15,7 @@ import {
   ChevronDown,
   ChevronRight,
 } from "lucide-react";
+import { Slider } from "@openreel/ui";
 import { useProjectStore } from "../../../stores/project-store";
 import { useTimelineStore } from "../../../stores/timeline-store";
 import {
@@ -364,16 +365,12 @@ export const SpeedRampSection: React.FC<SpeedRampSectionProps> = ({ clip }) => {
             {currentSpeed.toFixed(2)}x
           </span>
         </div>
-        <input
-          type="range"
+        <Slider
           min={Math.log(SPEED_MIN)}
           max={Math.log(SPEED_MAX)}
           step={0.01}
-          value={Math.log(currentSpeed)}
-          onChange={(e) =>
-            handleSpeedChange(Math.exp(parseFloat(e.target.value)))
-          }
-          className="w-full h-2 bg-background-tertiary rounded-lg appearance-none cursor-pointer accent-primary"
+          value={[Math.log(currentSpeed)]}
+          onValueChange={(value) => handleSpeedChange(Math.exp(value[0]))}
         />
         <div className="flex justify-between text-[8px] text-text-muted">
           <span>0.1x</span>
