@@ -88,7 +88,11 @@ export interface TextStyle {
   lineHeight: number;
   letterSpacing: number;
   color: string;
+  strokeColor: string | null;
+  strokeWidth: number;
   backgroundColor: string | null;
+  backgroundPadding: number;
+  backgroundRadius: number;
 }
 
 export interface TextLayer extends BaseLayer {
@@ -265,7 +269,11 @@ export const DEFAULT_TEXT_STYLE: TextStyle = {
   lineHeight: 1.4,
   letterSpacing: 0,
   color: '#ffffff',
+  strokeColor: null,
+  strokeWidth: 0,
   backgroundColor: null,
+  backgroundPadding: 8,
+  backgroundRadius: 4,
 };
 
 export const DEFAULT_SHAPE_STYLE: ShapeStyle = {

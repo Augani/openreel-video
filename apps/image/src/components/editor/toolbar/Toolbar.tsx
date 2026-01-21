@@ -17,6 +17,7 @@ import {
 import { useUIStore, Tool } from '../../../stores/ui-store';
 import { useProjectStore } from '../../../stores/project-store';
 import { useHistoryStore } from '../../../stores/history-store';
+import { ZoomControl } from './ZoomControl';
 
 const tools: { id: Tool; icon: React.ElementType; label: string; shortcut: string }[] = [
   { id: 'select', icon: MousePointer2, label: 'Select', shortcut: 'V' },
@@ -32,9 +33,6 @@ export function Toolbar() {
   const {
     activeTool,
     setActiveTool,
-    zoom,
-    zoomIn,
-    zoomOut,
     togglePanelCollapsed,
     toggleInspectorCollapsed,
     setCurrentView,
@@ -135,25 +133,7 @@ export function Toolbar() {
 
       <div className="w-px h-6 bg-border mx-1" />
 
-      <div className="flex items-center gap-2">
-        <button
-          onClick={zoomOut}
-          className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-          title="Zoom out"
-        >
-          <span className="text-xs font-medium">-</span>
-        </button>
-        <span className="text-xs font-medium text-muted-foreground w-12 text-center">
-          {Math.round(zoom * 100)}%
-        </span>
-        <button
-          onClick={zoomIn}
-          className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-          title="Zoom in"
-        >
-          <span className="text-xs font-medium">+</span>
-        </button>
-      </div>
+      <ZoomControl />
 
       <div className="w-px h-6 bg-border mx-1" />
 

@@ -1,7 +1,8 @@
 import { useProjectStore } from '../../../stores/project-store';
 import type { TextLayer, TextStyle } from '../../../types/project';
-import { AlignLeft, AlignCenter, AlignRight, Bold, Italic, Underline, CaseUpper, CaseLower, CaseSensitive } from 'lucide-react';
+import { AlignLeft, AlignCenter, AlignRight, Bold, Italic, Underline, CaseUpper, CaseLower, CaseSensitive, Strikethrough } from 'lucide-react';
 import { FontPicker } from '../../ui/FontPicker';
+import { Slider } from '@openreel/ui';
 
 interface Props {
   layer: TextLayer;
@@ -37,6 +38,12 @@ export function TextSection({ layer }: Props) {
   const toggleUnderline = () => {
     handleStyleChange({
       textDecoration: layer.style.textDecoration === 'underline' ? 'none' : 'underline',
+    });
+  };
+
+  const toggleStrikethrough = () => {
+    handleStyleChange({
+      textDecoration: layer.style.textDecoration === 'line-through' ? 'none' : 'line-through',
     });
   };
 
@@ -144,6 +151,17 @@ export function TextSection({ layer }: Props) {
         >
           <Underline size={14} />
         </button>
+        <button
+          onClick={toggleStrikethrough}
+          className={`p-2 rounded-md transition-colors ${
+            layer.style.textDecoration === 'line-through'
+              ? 'bg-primary text-primary-foreground'
+              : 'bg-secondary text-secondary-foreground hover:bg-accent'
+          }`}
+          title="Strikethrough"
+        >
+          <Strikethrough size={14} />
+        </button>
 
         <div className="w-px bg-border mx-1" />
 
@@ -247,6 +265,115 @@ export function TextSection({ layer }: Props) {
             step={0.1}
           />
         </div>
+      </div>
+
+      <div className="space-y-2 p-3 bg-secondary/50 rounded-lg">
+        <div className="flex items-center justify-between">
+          <label className="text-xs font-medium">Text Stroke</label>
+          <button
+            onClick={() => handleStyleChange({ strokeColor: layer.style.strokeColor ? null : '#000000', strokeWidth: layer.style.strokeColor ? 0 : 2 })}
+            className={`px-2 py-1 text-[10px] rounded-md transition-colors ${
+              layer.style.strokeColor
+                ? 'bg-primary text-primary-foreground'
+                : 'bg-secondary text-secondary-foreground hover:bg-accent'
+            }`}
+          >
+            {layer.style.strokeColor ? 'On' : 'Off'}
+          </button>
+        </div>
+        {layer.style.strokeColor && (
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <input
+                type="color"
+                value={layer.style.strokeColor}
+                onChange={(e) => handleStyleChange({ strokeColor: e.target.value })}
+                className="w-8 h-8 rounded border border-input cursor-pointer"
+              />
+              <input
+                type="text"
+                value={layer.style.strokeColor}
+                onChange={(e) => handleStyleChange({ strokeColor: e.target.value })}
+                className="flex-1 px-2 py-1.5 text-xs bg-background border border-input rounded-md focus:outline-none focus:ring-1 focus:ring-primary font-mono"
+              />
+            </div>
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-[10px] text-muted-foreground">Width</label>
+                <span className="text-[10px] text-muted-foreground">{layer.style.strokeWidth ?? 0}px</span>
+              </div>
+              <Slider
+                value={[layer.style.strokeWidth ?? 0]}
+                onValueChange={([width]) => handleStyleChange({ strokeWidth: width })}
+                min={0}
+                max={10}
+                step={0.5}
+              />
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="space-y-2 p-3 bg-secondary/50 rounded-lg">
+        <div className="flex items-center justify-between">
+          <label className="text-xs font-medium">Background</label>
+          <button
+            onClick={() => handleStyleChange({ backgroundColor: layer.style.backgroundColor ? null : '#000000' })}
+            className={`px-2 py-1 text-[10px] rounded-md transition-colors ${
+              layer.style.backgroundColor
+                ? 'bg-primary text-primary-foreground'
+                : 'bg-secondary text-secondary-foreground hover:bg-accent'
+            }`}
+          >
+            {layer.style.backgroundColor ? 'On' : 'Off'}
+          </button>
+        </div>
+        {layer.style.backgroundColor && (
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <input
+                type="color"
+                value={layer.style.backgroundColor}
+                onChange={(e) => handleStyleChange({ backgroundColor: e.target.value })}
+                className="w-8 h-8 rounded border border-input cursor-pointer"
+              />
+              <input
+                type="text"
+                value={layer.style.backgroundColor}
+                onChange={(e) => handleStyleChange({ backgroundColor: e.target.value })}
+                className="flex-1 px-2 py-1.5 text-xs bg-background border border-input rounded-md focus:outline-none focus:ring-1 focus:ring-primary font-mono"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-[10px] text-muted-foreground">Padding</label>
+                  <span className="text-[10px] text-muted-foreground">{layer.style.backgroundPadding ?? 8}px</span>
+                </div>
+                <Slider
+                  value={[layer.style.backgroundPadding ?? 8]}
+                  onValueChange={([padding]) => handleStyleChange({ backgroundPadding: padding })}
+                  min={0}
+                  max={32}
+                  step={1}
+                />
+              </div>
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-[10px] text-muted-foreground">Radius</label>
+                  <span className="text-[10px] text-muted-foreground">{layer.style.backgroundRadius ?? 4}px</span>
+                </div>
+                <Slider
+                  value={[layer.style.backgroundRadius ?? 4]}
+                  onValueChange={([radius]) => handleStyleChange({ backgroundRadius: radius })}
+                  min={0}
+                  max={32}
+                  step={1}
+                />
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -1,16 +1,20 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import { useProjectStore } from '../../../stores/project-store';
 import { useUIStore } from '../../../stores/ui-store';
 import { useCanvasStore } from '../../../stores/canvas-store';
 import { calculateSnap } from '../../../utils/snapping';
 import type { Layer, ImageLayer, TextLayer, ShapeLayer } from '../../../types/project';
+import { Rulers } from './Rulers';
+
+const RULER_SIZE = 20;
 
 export function Canvas() {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
 
   const { project, selectedLayerIds, selectedArtboardId, updateLayerTransform, selectLayer, deselectAllLayers, addPathLayer } = useProjectStore();
-  const { zoom, panX, panY, setPan, activeTool, showGrid, gridSize, crop, snapToObjects, snapToGuides, snapToGrid, penSettings, drawing, startDrawing, addDrawingPoint, finishDrawing } = useUIStore();
+  const { zoom, panX, panY, setPan, activeTool, showGrid, showRulers, gridSize, crop, snapToObjects, snapToGuides, snapToGrid, penSettings, drawing, startDrawing, addDrawingPoint, finishDrawing } = useUIStore();
   const { setCanvasRef, setContainerRef, startDrag, updateDrag, endDrag, isDragging, dragMode, dragCurrentX, dragCurrentY, guides, smartGuides, setSmartGuides, clearSmartGuides } = useCanvasStore();
 
   const artboard = project?.artboards.find((a) => a.id === selectedArtboardId);
@@ -263,8 +267,17 @@ export function Canvas() {
   }, [render]);
 
   useEffect(() => {
-    const handleResize = () => render();
+    const handleResize = () => {
+      render();
+      if (containerRef.current) {
+        setContainerSize({
+          width: containerRef.current.clientWidth,
+          height: containerRef.current.clientHeight,
+        });
+      }
+    };
     window.addEventListener('resize', handleResize);
+    handleResize();
     return () => window.removeEventListener('resize', handleResize);
   }, [render]);
 
@@ -437,11 +450,17 @@ export function Canvas() {
   return (
     <div
       ref={containerRef}
-      className="flex-1 overflow-hidden cursor-crosshair"
+      className="flex-1 overflow-hidden cursor-crosshair relative"
       style={{
         cursor: activeTool === 'hand' ? 'grab' : activeTool === 'select' ? 'default' : 'crosshair',
       }}
     >
+      {showRulers && (
+        <Rulers
+          containerWidth={containerSize.width}
+          containerHeight={containerSize.height}
+        />
+      )}
       <canvas
         ref={canvasRef}
         onMouseDown={handleMouseDown}
@@ -449,7 +468,13 @@ export function Canvas() {
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
         onWheel={handleWheel}
-        className="w-full h-full"
+        className="absolute"
+        style={{
+          top: showRulers ? RULER_SIZE : 0,
+          left: showRulers ? RULER_SIZE : 0,
+          width: showRulers ? `calc(100% - ${RULER_SIZE}px)` : '100%',
+          height: showRulers ? `calc(100% - ${RULER_SIZE}px)` : '100%',
+        }}
       />
     </div>
   );
@@ -595,7 +620,6 @@ function renderImageLayer(
 function renderTextLayer(ctx: CanvasRenderingContext2D, layer: TextLayer) {
   const { style, content, transform } = layer;
 
-  ctx.fillStyle = style.color;
   ctx.font = `${style.fontStyle} ${style.fontWeight} ${style.fontSize}px ${style.fontFamily}`;
   ctx.textAlign = style.textAlign as CanvasTextAlign;
   ctx.textBaseline = 'top';
@@ -607,8 +631,48 @@ function renderTextLayer(ctx: CanvasRenderingContext2D, layer: TextLayer) {
   if (style.textAlign === 'center') textX = transform.width / 2;
   else if (style.textAlign === 'right') textX = transform.width;
 
+  if (style.backgroundColor) {
+    const padding = style.backgroundPadding ?? 8;
+    const radius = style.backgroundRadius ?? 4;
+    const textWidth = Math.max(...lines.map((line) => ctx.measureText(line).width));
+    const textHeight = lines.length * lineHeight;
+
+    let bgX = -padding;
+    if (style.textAlign === 'center') bgX = (transform.width - textWidth) / 2 - padding;
+    else if (style.textAlign === 'right') bgX = transform.width - textWidth - padding;
+
+    ctx.fillStyle = style.backgroundColor;
+    ctx.beginPath();
+    const bgW = textWidth + padding * 2;
+    const bgH = textHeight + padding * 2;
+    const bgY = -padding;
+    const r = Math.min(radius, bgW / 2, bgH / 2);
+    ctx.moveTo(bgX + r, bgY);
+    ctx.lineTo(bgX + bgW - r, bgY);
+    ctx.quadraticCurveTo(bgX + bgW, bgY, bgX + bgW, bgY + r);
+    ctx.lineTo(bgX + bgW, bgY + bgH - r);
+    ctx.quadraticCurveTo(bgX + bgW, bgY + bgH, bgX + bgW - r, bgY + bgH);
+    ctx.lineTo(bgX + r, bgY + bgH);
+    ctx.quadraticCurveTo(bgX, bgY + bgH, bgX, bgY + bgH - r);
+    ctx.lineTo(bgX, bgY + r);
+    ctx.quadraticCurveTo(bgX, bgY, bgX + r, bgY);
+    ctx.closePath();
+    ctx.fill();
+  }
+
   lines.forEach((line, i) => {
-    ctx.fillText(line, textX, i * lineHeight);
+    const y = i * lineHeight;
+
+    if (style.strokeColor && (style.strokeWidth ?? 0) > 0) {
+      ctx.strokeStyle = style.strokeColor;
+      ctx.lineWidth = style.strokeWidth ?? 1;
+      ctx.lineJoin = 'round';
+      ctx.miterLimit = 2;
+      ctx.strokeText(line, textX, y);
+    }
+
+    ctx.fillStyle = style.color;
+    ctx.fillText(line, textX, y);
   });
 }
 
