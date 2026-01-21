@@ -3,7 +3,7 @@ import type { TextLayer, TextStyle, TextFillType, Gradient } from '../../../type
 import { AlignLeft, AlignCenter, AlignRight, Bold, Italic, Underline, CaseUpper, CaseLower, CaseSensitive, Strikethrough } from 'lucide-react';
 import { FontPicker } from '../../ui/FontPicker';
 import { GradientPicker } from '../../ui/GradientPicker';
-import { Slider } from '@openreel/ui';
+import { Slider, Switch } from '@openreel/ui';
 
 interface Props {
   layer: TextLayer;
@@ -411,6 +411,107 @@ export function TextSection({ layer }: Props) {
                   onValueChange={([radius]) => handleStyleChange({ backgroundRadius: radius })}
                   min={0}
                   max={32}
+                  step={1}
+                />
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="space-y-2 p-3 bg-secondary/50 rounded-lg">
+        <div className="flex items-center justify-between">
+          <label className="text-xs font-medium">Text Shadow</label>
+          <Switch
+            checked={layer.style.textShadow?.enabled ?? false}
+            onCheckedChange={(enabled) =>
+              handleStyleChange({
+                textShadow: {
+                  ...(layer.style.textShadow ?? { enabled: false, color: 'rgba(0, 0, 0, 0.5)', blur: 4, offsetX: 0, offsetY: 2 }),
+                  enabled,
+                },
+              })
+            }
+          />
+        </div>
+        {layer.style.textShadow?.enabled && (
+          <div className="space-y-3">
+            <div>
+              <label className="block text-[10px] text-muted-foreground mb-1.5">Color</label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="color"
+                  value={layer.style.textShadow.color.startsWith('rgba') ? '#000000' : layer.style.textShadow.color}
+                  onChange={(e) =>
+                    handleStyleChange({
+                      textShadow: { ...layer.style.textShadow, color: e.target.value },
+                    })
+                  }
+                  className="w-8 h-8 rounded border border-input cursor-pointer"
+                />
+                <input
+                  type="text"
+                  value={layer.style.textShadow.color}
+                  onChange={(e) =>
+                    handleStyleChange({
+                      textShadow: { ...layer.style.textShadow, color: e.target.value },
+                    })
+                  }
+                  className="flex-1 px-2 py-1.5 text-xs bg-background border border-input rounded-md focus:outline-none focus:ring-1 focus:ring-primary font-mono"
+                />
+              </div>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-[10px] text-muted-foreground">Blur</label>
+                <span className="text-[10px] text-muted-foreground">{layer.style.textShadow.blur}px</span>
+              </div>
+              <Slider
+                value={[layer.style.textShadow.blur]}
+                onValueChange={([blur]) =>
+                  handleStyleChange({
+                    textShadow: { ...layer.style.textShadow, blur },
+                  })
+                }
+                min={0}
+                max={50}
+                step={1}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-[10px] text-muted-foreground">Offset X</label>
+                  <span className="text-[10px] text-muted-foreground">{layer.style.textShadow.offsetX}px</span>
+                </div>
+                <Slider
+                  value={[layer.style.textShadow.offsetX]}
+                  onValueChange={([offsetX]) =>
+                    handleStyleChange({
+                      textShadow: { ...layer.style.textShadow, offsetX },
+                    })
+                  }
+                  min={-30}
+                  max={30}
+                  step={1}
+                />
+              </div>
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-[10px] text-muted-foreground">Offset Y</label>
+                  <span className="text-[10px] text-muted-foreground">{layer.style.textShadow.offsetY}px</span>
+                </div>
+                <Slider
+                  value={[layer.style.textShadow.offsetY]}
+                  onValueChange={([offsetY]) =>
+                    handleStyleChange({
+                      textShadow: { ...layer.style.textShadow, offsetY },
+                    })
+                  }
+                  min={-30}
+                  max={30}
                   step={1}
                 />
               </div>

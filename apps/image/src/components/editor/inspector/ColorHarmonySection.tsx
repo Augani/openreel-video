@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { getAllHarmonies, type HarmonyType } from '../../../utils/color-harmony';
 import { Palette, Copy, Check } from 'lucide-react';
+import { ColorPalettes, QuickColorSwatches } from '../../ui/ColorPalettes';
 
 interface Props {
   baseColor: string;
@@ -81,6 +82,13 @@ export function ColorHarmonySection({ baseColor, onColorSelect }: Props) {
           Click a color to apply, or copy its hex code
         </p>
       </div>
+
+      {onColorSelect && (
+        <>
+          <QuickColorSwatches onColorSelect={onColorSelect} selectedColor={baseColor} />
+          <ColorPalettes onColorSelect={onColorSelect} selectedColor={baseColor} />
+        </>
+      )}
     </div>
   );
 }

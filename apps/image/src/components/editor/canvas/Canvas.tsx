@@ -485,7 +485,7 @@ function renderLayer(
   layer: Layer,
   project: { assets: Record<string, { dataUrl?: string; blobUrl?: string }> }
 ) {
-  const { transform } = layer;
+  const { transform, shadow, glow } = layer;
 
   ctx.save();
   ctx.translate(transform.x, transform.y);
@@ -493,6 +493,41 @@ function renderLayer(
   ctx.scale(transform.scaleX, transform.scaleY);
   ctx.globalAlpha = transform.opacity;
 
+  if (glow.enabled && glow.blur > 0) {
+    ctx.save();
+    ctx.shadowColor = glow.color;
+    ctx.shadowBlur = glow.blur * glow.intensity;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0;
+
+    for (let i = 0; i < 3; i++) {
+      renderLayerContent(ctx, layer, project);
+    }
+    ctx.restore();
+  }
+
+  if (shadow.enabled) {
+    ctx.shadowColor = shadow.color;
+    ctx.shadowBlur = shadow.blur;
+    ctx.shadowOffsetX = shadow.offsetX;
+    ctx.shadowOffsetY = shadow.offsetY;
+  }
+
+  renderLayerContent(ctx, layer, project);
+
+  ctx.shadowColor = 'transparent';
+  ctx.shadowBlur = 0;
+  ctx.shadowOffsetX = 0;
+  ctx.shadowOffsetY = 0;
+
+  ctx.restore();
+}
+
+function renderLayerContent(
+  ctx: CanvasRenderingContext2D,
+  layer: Layer,
+  project: { assets: Record<string, { dataUrl?: string; blobUrl?: string }> }
+) {
   switch (layer.type) {
     case 'image':
       renderImageLayer(ctx, layer as ImageLayer, project);
@@ -504,8 +539,6 @@ function renderLayer(
       renderShapeLayer(ctx, layer as ShapeLayer);
       break;
   }
-
-  ctx.restore();
 }
 
 function applyMotionBlur(
@@ -704,6 +737,13 @@ function renderTextLayer(ctx: CanvasRenderingContext2D, layer: TextLayer) {
     }
   }
 
+  if (style.textShadow?.enabled) {
+    ctx.shadowColor = style.textShadow.color;
+    ctx.shadowBlur = style.textShadow.blur;
+    ctx.shadowOffsetX = style.textShadow.offsetX;
+    ctx.shadowOffsetY = style.textShadow.offsetY;
+  }
+
   lines.forEach((line, i) => {
     const y = i * lineHeight;
 
@@ -718,6 +758,13 @@ function renderTextLayer(ctx: CanvasRenderingContext2D, layer: TextLayer) {
     ctx.fillStyle = fillStyle;
     ctx.fillText(line, textX, y);
   });
+
+  if (style.textShadow?.enabled) {
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0;
+  }
 }
 
 function renderShapeLayer(ctx: CanvasRenderingContext2D, layer: ShapeLayer) {
@@ -727,22 +774,39 @@ function renderShapeLayer(ctx: CanvasRenderingContext2D, layer: ShapeLayer) {
   ctx.beginPath();
 
   switch (shapeType) {
-    case 'rectangle':
-      if (shapeStyle.cornerRadius > 0) {
+    case 'rectangle': {
+      let tl = 0, tr = 0, br = 0, bl = 0;
+
+      if (shapeStyle.individualCorners && shapeStyle.corners) {
+        tl = Math.min(shapeStyle.corners.topLeft, width / 2, height / 2);
+        tr = Math.min(shapeStyle.corners.topRight, width / 2, height / 2);
+        br = Math.min(shapeStyle.corners.bottomRight, width / 2, height / 2);
+        bl = Math.min(shapeStyle.corners.bottomLeft, width / 2, height / 2);
+      } else if (shapeStyle.cornerRadius > 0) {
         const r = Math.min(shapeStyle.cornerRadius, width / 2, height / 2);
-        ctx.moveTo(r, 0);
-        ctx.lineTo(width - r, 0);
-        ctx.quadraticCurveTo(width, 0, width, r);
-        ctx.lineTo(width, height - r);
-        ctx.quadraticCurveTo(width, height, width - r, height);
-        ctx.lineTo(r, height);
-        ctx.quadraticCurveTo(0, height, 0, height - r);
-        ctx.lineTo(0, r);
-        ctx.quadraticCurveTo(0, 0, r, 0);
+        tl = tr = br = bl = r;
+      }
+
+      if (tl > 0 || tr > 0 || br > 0 || bl > 0) {
+        ctx.moveTo(tl, 0);
+        ctx.lineTo(width - tr, 0);
+        if (tr > 0) ctx.quadraticCurveTo(width, 0, width, tr);
+        else ctx.lineTo(width, 0);
+        ctx.lineTo(width, height - br);
+        if (br > 0) ctx.quadraticCurveTo(width, height, width - br, height);
+        else ctx.lineTo(width, height);
+        ctx.lineTo(bl, height);
+        if (bl > 0) ctx.quadraticCurveTo(0, height, 0, height - bl);
+        else ctx.lineTo(0, height);
+        ctx.lineTo(0, tl);
+        if (tl > 0) ctx.quadraticCurveTo(0, 0, tl, 0);
+        else ctx.lineTo(0, 0);
+        ctx.closePath();
       } else {
         ctx.rect(0, 0, width, height);
       }
       break;
+    }
 
     case 'ellipse':
       ctx.ellipse(width / 2, height / 2, width / 2, height / 2, 0, 0, Math.PI * 2);

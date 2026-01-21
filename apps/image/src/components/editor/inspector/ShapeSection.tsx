@@ -4,7 +4,7 @@ import type { ShapeLayer, ShapeStyle, Gradient, FillType, StrokeDashType } from 
 import { Slider } from '@openreel/ui';
 import { GradientPicker } from '../../ui/GradientPicker';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@openreel/ui';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, Link, Unlink } from 'lucide-react';
 
 const DASH_PATTERNS: { value: StrokeDashType; label: string; preview: string }[] = [
   { value: 'solid', label: 'Solid', preview: '━━━━━━' },
@@ -261,18 +261,122 @@ export function ShapeSection({ layer }: Props) {
       </Collapsible>
 
       {layer.shapeType === 'rectangle' && (
-        <div className="p-3 space-y-2 bg-secondary/50 rounded-lg">
-          <div className="flex items-center justify-between mb-1">
-            <label className="text-[10px] text-muted-foreground">Corner Radius</label>
-            <span className="text-[10px] text-muted-foreground">{layer.shapeStyle.cornerRadius}px</span>
+        <div className="p-3 space-y-3 bg-secondary/50 rounded-lg">
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-medium">Corner Radius</label>
+            <button
+              onClick={() => {
+                const currentRadius = layer.shapeStyle.cornerRadius;
+                handleStyleChange({
+                  individualCorners: !layer.shapeStyle.individualCorners,
+                  corners: layer.shapeStyle.individualCorners
+                    ? layer.shapeStyle.corners
+                    : {
+                        topLeft: currentRadius,
+                        topRight: currentRadius,
+                        bottomRight: currentRadius,
+                        bottomLeft: currentRadius,
+                      },
+                });
+              }}
+              className={`flex items-center gap-1 px-2 py-1 text-[10px] rounded-md transition-colors ${
+                layer.shapeStyle.individualCorners
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-secondary text-secondary-foreground hover:bg-accent'
+              }`}
+              title={layer.shapeStyle.individualCorners ? 'Link corners' : 'Unlink corners'}
+            >
+              {layer.shapeStyle.individualCorners ? <Unlink size={12} /> : <Link size={12} />}
+              {layer.shapeStyle.individualCorners ? 'Individual' : 'Uniform'}
+            </button>
           </div>
-          <Slider
-            value={[layer.shapeStyle.cornerRadius]}
-            onValueChange={([radius]) => handleStyleChange({ cornerRadius: radius })}
-            min={0}
-            max={100}
-            step={1}
-          />
+
+          {!layer.shapeStyle.individualCorners ? (
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-[10px] text-muted-foreground">All Corners</label>
+                <span className="text-[10px] text-muted-foreground">{layer.shapeStyle.cornerRadius}px</span>
+              </div>
+              <Slider
+                value={[layer.shapeStyle.cornerRadius]}
+                onValueChange={([radius]) => handleStyleChange({ cornerRadius: radius })}
+                min={0}
+                max={100}
+                step={1}
+              />
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-[10px] text-muted-foreground">Top Left</label>
+                  <span className="text-[10px] text-muted-foreground">{layer.shapeStyle.corners?.topLeft ?? 0}px</span>
+                </div>
+                <Slider
+                  value={[layer.shapeStyle.corners?.topLeft ?? 0]}
+                  onValueChange={([radius]) =>
+                    handleStyleChange({
+                      corners: { ...(layer.shapeStyle.corners ?? { topLeft: 0, topRight: 0, bottomRight: 0, bottomLeft: 0 }), topLeft: radius },
+                    })
+                  }
+                  min={0}
+                  max={100}
+                  step={1}
+                />
+              </div>
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-[10px] text-muted-foreground">Top Right</label>
+                  <span className="text-[10px] text-muted-foreground">{layer.shapeStyle.corners?.topRight ?? 0}px</span>
+                </div>
+                <Slider
+                  value={[layer.shapeStyle.corners?.topRight ?? 0]}
+                  onValueChange={([radius]) =>
+                    handleStyleChange({
+                      corners: { ...(layer.shapeStyle.corners ?? { topLeft: 0, topRight: 0, bottomRight: 0, bottomLeft: 0 }), topRight: radius },
+                    })
+                  }
+                  min={0}
+                  max={100}
+                  step={1}
+                />
+              </div>
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-[10px] text-muted-foreground">Bottom Left</label>
+                  <span className="text-[10px] text-muted-foreground">{layer.shapeStyle.corners?.bottomLeft ?? 0}px</span>
+                </div>
+                <Slider
+                  value={[layer.shapeStyle.corners?.bottomLeft ?? 0]}
+                  onValueChange={([radius]) =>
+                    handleStyleChange({
+                      corners: { ...(layer.shapeStyle.corners ?? { topLeft: 0, topRight: 0, bottomRight: 0, bottomLeft: 0 }), bottomLeft: radius },
+                    })
+                  }
+                  min={0}
+                  max={100}
+                  step={1}
+                />
+              </div>
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-[10px] text-muted-foreground">Bottom Right</label>
+                  <span className="text-[10px] text-muted-foreground">{layer.shapeStyle.corners?.bottomRight ?? 0}px</span>
+                </div>
+                <Slider
+                  value={[layer.shapeStyle.corners?.bottomRight ?? 0]}
+                  onValueChange={([radius]) =>
+                    handleStyleChange({
+                      corners: { ...(layer.shapeStyle.corners ?? { topLeft: 0, topRight: 0, bottomRight: 0, bottomLeft: 0 }), bottomRight: radius },
+                    })
+                  }
+                  min={0}
+                  max={100}
+                  step={1}
+                />
+              </div>
+            </div>
+          )}
         </div>
       )}
 

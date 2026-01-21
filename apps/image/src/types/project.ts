@@ -79,6 +79,14 @@ export interface ImageLayer extends BaseLayer {
 
 export type TextFillType = 'solid' | 'gradient';
 
+export interface TextShadow {
+  enabled: boolean;
+  color: string;
+  blur: number;
+  offsetX: number;
+  offsetY: number;
+}
+
 export interface TextStyle {
   fontFamily: string;
   fontSize: number;
@@ -97,6 +105,7 @@ export interface TextStyle {
   backgroundColor: string | null;
   backgroundPadding: number;
   backgroundRadius: number;
+  textShadow: TextShadow;
 }
 
 export interface TextLayer extends BaseLayer {
@@ -123,6 +132,13 @@ export type FillType = 'solid' | 'gradient';
 
 export type StrokeDashType = 'solid' | 'dashed' | 'dotted' | 'dash-dot' | 'long-dash';
 
+export interface CornerRadius {
+  topLeft: number;
+  topRight: number;
+  bottomRight: number;
+  bottomLeft: number;
+}
+
 export interface ShapeStyle {
   fillType: FillType;
   fill: string | null;
@@ -133,6 +149,8 @@ export interface ShapeStyle {
   strokeOpacity: number;
   strokeDash: StrokeDashType;
   cornerRadius: number;
+  individualCorners: boolean;
+  corners: CornerRadius;
 }
 
 export interface ShapeLayer extends BaseLayer {
@@ -280,6 +298,13 @@ export const DEFAULT_TEXT_STYLE: TextStyle = {
   backgroundColor: null,
   backgroundPadding: 8,
   backgroundRadius: 4,
+  textShadow: {
+    enabled: false,
+    color: 'rgba(0, 0, 0, 0.5)',
+    blur: 4,
+    offsetX: 0,
+    offsetY: 2,
+  },
 };
 
 export const DEFAULT_SHAPE_STYLE: ShapeStyle = {
@@ -292,6 +317,13 @@ export const DEFAULT_SHAPE_STYLE: ShapeStyle = {
   strokeOpacity: 1,
   strokeDash: 'solid',
   cornerRadius: 0,
+  individualCorners: false,
+  corners: {
+    topLeft: 0,
+    topRight: 0,
+    bottomRight: 0,
+    bottomLeft: 0,
+  },
 };
 
 export const CANVAS_PRESETS: { name: string; width: number; height: number; category: string }[] = [
