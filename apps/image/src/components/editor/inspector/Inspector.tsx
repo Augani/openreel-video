@@ -17,6 +17,13 @@ const ImageControlsSection = lazy(() => import('./ImageControlsSection').then(m 
 const BackgroundRemovalSection = lazy(() => import('./BackgroundRemovalSection').then(m => ({ default: m.BackgroundRemovalSection })));
 const TextSection = lazy(() => import('./TextSection').then(m => ({ default: m.TextSection })));
 const ShapeSection = lazy(() => import('./ShapeSection').then(m => ({ default: m.ShapeSection })));
+const LevelsSection = lazy(() => import('./LevelsSection').then(m => ({ default: m.LevelsSection })));
+const CurvesSection = lazy(() => import('./CurvesSection').then(m => ({ default: m.CurvesSection })));
+const ColorBalanceSection = lazy(() => import('./ColorBalanceSection').then(m => ({ default: m.ColorBalanceSection })));
+const MaskSection = lazy(() => import('./MaskSection').then(m => ({ default: m.MaskSection })));
+const SelectionToolsPanel = lazy(() => import('./SelectionToolsPanel').then(m => ({ default: m.SelectionToolsPanel })));
+const EraserToolPanel = lazy(() => import('./EraserToolPanel').then(m => ({ default: m.EraserToolPanel })));
+const DodgeBurnToolPanel = lazy(() => import('./DodgeBurnToolPanel').then(m => ({ default: m.DodgeBurnToolPanel })));
 
 function SectionLoader() {
   return <div className="h-8 animate-pulse bg-muted/30 rounded" />;
@@ -32,11 +39,49 @@ function InspectorContent() {
 
   const singleLayer = selectedLayers.length === 1 ? selectedLayers[0] : null;
 
+  const isSelectionTool = [
+    'marquee-rect',
+    'marquee-ellipse',
+    'lasso',
+    'lasso-polygon',
+    'magic-wand',
+  ].includes(activeTool);
+
   if (selectedLayers.length === 0) {
     if (activeTool === 'pen') {
       return (
         <div className="p-4">
           <PenSettingsSection />
+        </div>
+      );
+    }
+
+    if (isSelectionTool) {
+      return (
+        <div className="p-4">
+          <Suspense fallback={<SectionLoader />}>
+            <SelectionToolsPanel />
+          </Suspense>
+        </div>
+      );
+    }
+
+    if (activeTool === 'eraser') {
+      return (
+        <div className="p-4">
+          <Suspense fallback={<SectionLoader />}>
+            <EraserToolPanel />
+          </Suspense>
+        </div>
+      );
+    }
+
+    if (activeTool === 'dodge' || activeTool === 'burn') {
+      return (
+        <div className="p-4">
+          <Suspense fallback={<SectionLoader />}>
+            <DodgeBurnToolPanel />
+          </Suspense>
         </div>
       );
     }
@@ -99,8 +144,15 @@ function InspectorContent() {
           <BackgroundRemovalSection layer={singleLayer as ImageLayer} />
           <FilterPresetsSection layer={singleLayer as ImageLayer} />
           <ImageAdjustmentsSection layer={singleLayer as ImageLayer} />
+          <LevelsSection layer={singleLayer} />
+          <CurvesSection layer={singleLayer} />
+          <ColorBalanceSection layer={singleLayer} />
         </Suspense>
       )}
+
+      <Suspense fallback={<SectionLoader />}>
+        <MaskSection layer={singleLayer} />
+      </Suspense>
 
       {singleLayer.type === 'text' && (
         <Suspense fallback={<SectionLoader />}>

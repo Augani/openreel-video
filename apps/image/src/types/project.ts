@@ -1,3 +1,10 @@
+import type { LayerMask } from './mask';
+import type {
+  LevelsAdjustment,
+  CurvesAdjustment,
+  ColorBalanceAdjustment,
+} from './adjustments';
+
 export type LayerType = 'image' | 'text' | 'shape' | 'group';
 
 export interface Transform {
@@ -85,6 +92,11 @@ export interface BaseLayer {
   parentId: string | null;
   flipHorizontal: boolean;
   flipVertical: boolean;
+  mask: LayerMask | null;
+  clippingMask: boolean;
+  levels: LevelsAdjustment;
+  curves: CurvesAdjustment;
+  colorBalance: ColorBalanceAdjustment;
 }
 
 export interface ImageLayer extends BaseLayer {
@@ -298,6 +310,9 @@ export const DEFAULT_INNER_SHADOW: InnerShadow = {
   offsetX: 2,
   offsetY: 2,
 };
+
+export { DEFAULT_LAYER_MASK } from './mask';
+export { DEFAULT_LEVELS, DEFAULT_CURVES, DEFAULT_COLOR_BALANCE } from './adjustments';
 
 export const DEFAULT_FILTER: Filter = {
   brightness: 100,

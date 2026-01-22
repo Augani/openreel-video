@@ -2,7 +2,23 @@ import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
 
 export type AppView = 'welcome' | 'editor';
-export type Tool = 'select' | 'hand' | 'text' | 'shape' | 'pen' | 'eyedropper' | 'zoom' | 'crop';
+export type Tool =
+  | 'select'
+  | 'hand'
+  | 'text'
+  | 'shape'
+  | 'pen'
+  | 'eyedropper'
+  | 'zoom'
+  | 'crop'
+  | 'marquee-rect'
+  | 'marquee-ellipse'
+  | 'lasso'
+  | 'lasso-polygon'
+  | 'magic-wand'
+  | 'eraser'
+  | 'dodge'
+  | 'burn';
 export type Panel = 'layers' | 'assets' | 'templates' | 'text' | 'shapes' | 'uploads' | 'elements';
 
 export type CropAspectRatio = 'free' | '1:1' | '4:3' | '3:4' | '16:9' | '9:16' | '3:2' | '2:3' | 'original';
@@ -19,6 +35,33 @@ export interface PenSettings {
   width: number;
   opacity: number;
   smoothing: number;
+}
+
+export interface EraserSettings {
+  size: number;
+  hardness: number;
+  opacity: number;
+  flow: number;
+  mode: 'brush' | 'pencil' | 'block';
+}
+
+export interface SelectionToolSettings {
+  feather: number;
+  antiAlias: boolean;
+  mode: 'new' | 'add' | 'subtract' | 'intersect';
+}
+
+export interface MagicWandSettings {
+  tolerance: number;
+  contiguous: boolean;
+  sampleAllLayers: boolean;
+}
+
+export interface DodgeBurnSettings {
+  type: 'dodge' | 'burn';
+  range: 'shadows' | 'midtones' | 'highlights';
+  exposure: number;
+  size: number;
 }
 
 export interface DrawingState {
@@ -51,6 +94,10 @@ interface UIState {
   showSettingsDialog: boolean;
   penSettings: PenSettings;
   drawing: DrawingState;
+  eraserSettings: EraserSettings;
+  selectionToolSettings: SelectionToolSettings;
+  magicWandSettings: MagicWandSettings;
+  dodgeBurnSettings: DodgeBurnSettings;
 }
 
 interface UIActions {
@@ -91,6 +138,10 @@ interface UIActions {
   addDrawingPoint: (point: { x: number; y: number }) => void;
   finishDrawing: () => { x: number; y: number }[] | null;
   cancelDrawing: () => void;
+  setEraserSettings: (settings: Partial<EraserSettings>) => void;
+  setSelectionToolSettings: (settings: Partial<SelectionToolSettings>) => void;
+  setMagicWandSettings: (settings: Partial<MagicWandSettings>) => void;
+  setDodgeBurnSettings: (settings: Partial<DodgeBurnSettings>) => void;
 }
 
 const ZOOM_LEVELS = [0.1, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4, 5, 8];
@@ -133,6 +184,29 @@ export const useUIStore = create<UIState & UIActions>()(
     drawing: {
       isDrawing: false,
       currentPath: [],
+    },
+    eraserSettings: {
+      size: 20,
+      hardness: 100,
+      opacity: 1,
+      flow: 1,
+      mode: 'brush',
+    },
+    selectionToolSettings: {
+      feather: 0,
+      antiAlias: true,
+      mode: 'new',
+    },
+    magicWandSettings: {
+      tolerance: 32,
+      contiguous: true,
+      sampleAllLayers: false,
+    },
+    dodgeBurnSettings: {
+      type: 'dodge',
+      range: 'midtones',
+      exposure: 50,
+      size: 30,
     },
 
     setCurrentView: (view) => set({ currentView: view }),
@@ -280,5 +354,25 @@ export const useUIStore = create<UIState & UIActions>()(
           currentPath: [],
         },
       }),
+
+    setEraserSettings: (settings) =>
+      set((s) => ({
+        eraserSettings: { ...s.eraserSettings, ...settings },
+      })),
+
+    setSelectionToolSettings: (settings) =>
+      set((s) => ({
+        selectionToolSettings: { ...s.selectionToolSettings, ...settings },
+      })),
+
+    setMagicWandSettings: (settings) =>
+      set((s) => ({
+        magicWandSettings: { ...s.magicWandSettings, ...settings },
+      })),
+
+    setDodgeBurnSettings: (settings) =>
+      set((s) => ({
+        dodgeBurnSettings: { ...s.dodgeBurnSettings, ...settings },
+      })),
   }))
 );

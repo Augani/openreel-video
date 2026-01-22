@@ -7,6 +7,15 @@ interface HistoryEntry {
   timestamp: number;
   description: string;
   state: string;
+  thumbnail?: string;
+}
+
+interface Snapshot {
+  id: string;
+  name: string;
+  timestamp: number;
+  state: string;
+  thumbnail?: string;
 }
 
 interface HistoryState {
@@ -15,10 +24,11 @@ interface HistoryState {
   maxEntries: number;
   isUndoing: boolean;
   isRedoing: boolean;
+  snapshots: Snapshot[];
 }
 
 interface HistoryActions {
-  pushState: (project: Project, description: string) => void;
+  pushState: (project: Project, description: string, thumbnail?: string) => void;
   undo: () => Project | null;
   redo: () => Project | null;
   canUndo: () => boolean;
@@ -27,6 +37,13 @@ interface HistoryActions {
   setMaxEntries: (max: number) => void;
   getUndoDescription: () => string | null;
   getRedoDescription: () => string | null;
+  createSnapshot: (name: string, project: Project, thumbnail?: string) => void;
+  restoreSnapshot: (id: string) => Project | null;
+  deleteSnapshot: (id: string) => void;
+  renameSnapshot: (id: string, name: string) => void;
+  getSnapshots: () => Snapshot[];
+  getEntries: () => HistoryEntry[];
+  goToEntry: (index: number) => Project | null;
 }
 
 const generateId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
@@ -38,8 +55,9 @@ export const useHistoryStore = create<HistoryState & HistoryActions>()(
     maxEntries: 50,
     isUndoing: false,
     isRedoing: false,
+    snapshots: [],
 
-    pushState: (project, description) => {
+    pushState: (project, description, thumbnail) => {
       const { entries, currentIndex, maxEntries, isUndoing, isRedoing } = get();
 
       if (isUndoing || isRedoing) return;
@@ -49,6 +67,7 @@ export const useHistoryStore = create<HistoryState & HistoryActions>()(
         timestamp: Date.now(),
         description,
         state: JSON.stringify(project),
+        thumbnail,
       };
 
       let newEntries = entries.slice(0, currentIndex + 1);
@@ -120,6 +139,52 @@ export const useHistoryStore = create<HistoryState & HistoryActions>()(
         return entries[currentIndex + 1].description;
       }
       return null;
+    },
+
+    createSnapshot: (name, project, thumbnail) => {
+      const { snapshots } = get();
+      const snapshot: Snapshot = {
+        id: generateId(),
+        name,
+        timestamp: Date.now(),
+        state: JSON.stringify(project),
+        thumbnail,
+      };
+      set({ snapshots: [...snapshots, snapshot] });
+    },
+
+    restoreSnapshot: (id) => {
+      const { snapshots } = get();
+      const snapshot = snapshots.find((s) => s.id === id);
+      if (!snapshot) return null;
+      return JSON.parse(snapshot.state) as Project;
+    },
+
+    deleteSnapshot: (id) => {
+      const { snapshots } = get();
+      set({ snapshots: snapshots.filter((s) => s.id !== id) });
+    },
+
+    renameSnapshot: (id, name) => {
+      const { snapshots } = get();
+      set({
+        snapshots: snapshots.map((s) => (s.id === id ? { ...s, name } : s)),
+      });
+    },
+
+    getSnapshots: () => {
+      return get().snapshots;
+    },
+
+    getEntries: () => {
+      return get().entries;
+    },
+
+    goToEntry: (index) => {
+      const { entries } = get();
+      if (index < 0 || index >= entries.length) return null;
+      set({ currentIndex: index });
+      return JSON.parse(entries[index].state) as Project;
     },
   }))
 );

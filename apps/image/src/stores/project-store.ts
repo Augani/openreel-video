@@ -20,6 +20,9 @@ import {
   DEFAULT_FILTER,
   DEFAULT_TEXT_STYLE,
   DEFAULT_SHAPE_STYLE,
+  DEFAULT_LEVELS,
+  DEFAULT_CURVES,
+  DEFAULT_COLOR_BALANCE,
   CanvasSize,
   CanvasBackground,
 } from '../types/project';
@@ -241,6 +244,11 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
                 cropRect: null,
                 flipHorizontal: false,
                 flipVertical: false,
+                mask: null,
+                clippingMask: false,
+                levels: { ...DEFAULT_LEVELS },
+                curves: { ...DEFAULT_CURVES },
+                colorBalance: { ...DEFAULT_COLOR_BALANCE },
               };
               state.project.layers[id] = layer;
               artboard.layerIds.unshift(id);
@@ -285,6 +293,11 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
                 content,
                 style: DEFAULT_TEXT_STYLE,
                 autoSize: true,
+                mask: null,
+                clippingMask: false,
+                levels: { ...DEFAULT_LEVELS },
+                curves: { ...DEFAULT_CURVES },
+                colorBalance: { ...DEFAULT_COLOR_BALANCE },
               };
               state.project.layers[id] = layer;
               artboard.layerIds.unshift(id);
@@ -328,6 +341,11 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
                 flipVertical: false,
                 shapeType,
                 shapeStyle: DEFAULT_SHAPE_STYLE,
+                mask: null,
+                clippingMask: false,
+                levels: { ...DEFAULT_LEVELS },
+                curves: { ...DEFAULT_CURVES },
+                colorBalance: { ...DEFAULT_COLOR_BALANCE },
               };
               state.project.layers[id] = layer;
               artboard.layerIds.unshift(id);
@@ -388,6 +406,11 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
                   strokeWidth,
                 },
                 points: normalizedPoints,
+                mask: null,
+                clippingMask: false,
+                levels: { ...DEFAULT_LEVELS },
+                curves: { ...DEFAULT_CURVES },
+                colorBalance: { ...DEFAULT_COLOR_BALANCE },
               };
               state.project.layers[id] = layer;
               artboard.layerIds.unshift(id);
@@ -456,6 +479,11 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
                 flipVertical: false,
                 childIds,
                 expanded: true,
+                mask: null,
+                clippingMask: false,
+                levels: { ...DEFAULT_LEVELS },
+                curves: { ...DEFAULT_CURVES },
+                colorBalance: { ...DEFAULT_COLOR_BALANCE },
               };
 
               state.project.layers[id] = layer;
