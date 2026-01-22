@@ -1,10 +1,18 @@
-import { useState } from 'react';
-import { Plus, FolderOpen, Image, Layout, FileText, Presentation, Smartphone, Monitor, Star } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Plus, FolderOpen, Image, Layout, FileText, Presentation, Smartphone, Monitor, Star, Trash2, Clock, MoreVertical } from 'lucide-react';
 import { useProjectStore } from '../../stores/project-store';
 import { useUIStore } from '../../stores/ui-store';
-import { CANVAS_PRESETS } from '../../types/project';
+import { CANVAS_PRESETS, Project } from '../../types/project';
+import { loadSavedProject, getSavedProjectIds, deleteSavedProject } from '../../hooks/useAutoSave';
 
 type Category = 'all' | 'Social Media' | 'Presentation' | 'Print' | 'Desktop' | 'Mobile' | 'Logo';
+
+interface SavedProjectInfo {
+  id: string;
+  name: string;
+  updatedAt: number;
+  size: { width: number; height: number };
+}
 
 const categories: { id: Category; label: string; icon: React.ElementType }[] = [
   { id: 'all', label: 'All', icon: Layout },
@@ -21,9 +29,78 @@ export function WelcomeScreen() {
   const [customWidth, setCustomWidth] = useState(1920);
   const [customHeight, setCustomHeight] = useState(1080);
   const [showCustomSize, setShowCustomSize] = useState(false);
+  const [recentProjects, setRecentProjects] = useState<SavedProjectInfo[]>([]);
+  const [projectMenuOpen, setProjectMenuOpen] = useState<string | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
-  const { createProject } = useProjectStore();
+  const { createProject, loadProject } = useProjectStore();
   const { setCurrentView } = useUIStore();
+
+  useEffect(() => {
+    loadRecentProjects();
+  }, []);
+
+  useEffect(() => {
+    const handleClickOutside = () => setProjectMenuOpen(null);
+    if (projectMenuOpen) {
+      document.addEventListener('click', handleClickOutside);
+      return () => document.removeEventListener('click', handleClickOutside);
+    }
+  }, [projectMenuOpen]);
+
+  const loadRecentProjects = () => {
+    const projectIds = getSavedProjectIds();
+    const projects: SavedProjectInfo[] = [];
+
+    for (const id of projectIds) {
+      const project = loadSavedProject(id);
+      if (project) {
+        projects.push({
+          id: project.id,
+          name: project.name,
+          updatedAt: project.updatedAt,
+          size: project.artboards?.[0]?.size ?? { width: 0, height: 0 },
+        });
+      }
+    }
+
+    projects.sort((a, b) => b.updatedAt - a.updatedAt);
+    setRecentProjects(projects);
+  };
+
+  const handleOpenProject = (projectId: string) => {
+    const project = loadSavedProject(projectId);
+    if (project) {
+      loadProject(project);
+      setCurrentView('editor');
+    }
+  };
+
+  const handleDeleteProject = (projectId: string) => {
+    deleteSavedProject(projectId);
+    setRecentProjects((prev) => prev.filter((p) => p.id !== projectId));
+    setDeleteConfirmId(null);
+    setProjectMenuOpen(null);
+  };
+
+  const formatDate = (timestamp: number) => {
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diff = now.getTime() - date.getTime();
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+
+    if (days === 0) {
+      const hours = Math.floor(diff / (1000 * 60 * 60));
+      if (hours === 0) {
+        const minutes = Math.floor(diff / (1000 * 60));
+        return minutes <= 1 ? 'Just now' : `${minutes} minutes ago`;
+      }
+      return hours === 1 ? '1 hour ago' : `${hours} hours ago`;
+    }
+    if (days === 1) return 'Yesterday';
+    if (days < 7) return `${days} days ago`;
+    return date.toLocaleDateString();
+  };
 
   const filteredPresets = selectedCategory === 'all'
     ? CANVAS_PRESETS
@@ -52,7 +129,27 @@ export function WelcomeScreen() {
           </div>
         </div>
         <button
-          onClick={() => {}}
+          onClick={() => {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.orimg,application/json';
+            input.onchange = async (e) => {
+              const file = (e.target as HTMLInputElement).files?.[0];
+              if (file) {
+                try {
+                  const text = await file.text();
+                  const project = JSON.parse(text) as Project;
+                  if (project && project.id && project.artboards) {
+                    loadProject(project);
+                    setCurrentView('editor');
+                  }
+                } catch (err) {
+                  console.error('Failed to load project file:', err);
+                }
+              }
+            };
+            input.click();
+          }}
           className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
         >
           <FolderOpen size={18} />
@@ -160,16 +257,114 @@ export function WelcomeScreen() {
 
           <section>
             <h2 className="text-lg font-semibold text-foreground mb-4">Recent Projects</h2>
-            <div className="flex flex-col items-center justify-center py-16 text-center">
-              <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
-                <FolderOpen size={28} className="text-muted-foreground" />
+            {recentProjects.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16 text-center">
+                <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
+                  <FolderOpen size={28} className="text-muted-foreground" />
+                </div>
+                <p className="text-muted-foreground mb-2">No recent projects</p>
+                <p className="text-sm text-muted-foreground/70">
+                  Create a new project to get started
+                </p>
               </div>
-              <p className="text-muted-foreground mb-2">No recent projects</p>
-              <p className="text-sm text-muted-foreground/70">
-                Create a new project to get started
-              </p>
-            </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                {recentProjects.map((project) => (
+                  <div
+                    key={project.id}
+                    className="group relative flex flex-col p-4 rounded-xl border border-border bg-card hover:border-primary hover:shadow-md transition-all cursor-pointer"
+                    onClick={() => handleOpenProject(project.id)}
+                  >
+                    <div className="flex items-center justify-between mb-3">
+                      <div
+                        className="bg-muted rounded-lg flex items-center justify-center"
+                        style={{
+                          width: Math.min(60, (project.size.width / Math.max(project.size.width, project.size.height)) * 60),
+                          height: Math.min(60, (project.size.height / Math.max(project.size.width, project.size.height)) * 60),
+                        }}
+                      >
+                        <Layout size={16} className="text-muted-foreground" />
+                      </div>
+                      <div className="relative">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setProjectMenuOpen(projectMenuOpen === project.id ? null : project.id);
+                          }}
+                          className="p-1.5 rounded-md opacity-0 group-hover:opacity-100 hover:bg-accent transition-all"
+                        >
+                          <MoreVertical size={16} className="text-muted-foreground" />
+                        </button>
+                        {projectMenuOpen === project.id && (
+                          <div className="absolute right-0 top-full mt-1 z-50 min-w-[140px] rounded-lg border border-border bg-popover shadow-lg py-1">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenProject(project.id);
+                              }}
+                              className="w-full px-3 py-2 text-left text-sm hover:bg-accent transition-colors flex items-center gap-2"
+                            >
+                              <FolderOpen size={14} />
+                              Open
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setDeleteConfirmId(project.id);
+                              }}
+                              className="w-full px-3 py-2 text-left text-sm text-destructive hover:bg-destructive/10 transition-colors flex items-center gap-2"
+                            >
+                              <Trash2 size={14} />
+                              Delete
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <h3 className="text-sm font-medium text-foreground truncate mb-1">{project.name}</h3>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <Clock size={12} />
+                      <span>{formatDate(project.updatedAt)}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground/70 mt-1">
+                      {project.size.width} × {project.size.height}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
           </section>
+
+          {deleteConfirmId && (
+            <div
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+              onClick={() => setDeleteConfirmId(null)}
+            >
+              <div
+                className="bg-card border border-border rounded-xl p-6 max-w-sm mx-4 shadow-xl"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <h3 className="text-base font-semibold text-foreground mb-2">Delete Project?</h3>
+                <p className="text-sm text-muted-foreground mb-6">
+                  This action cannot be undone. The project will be permanently deleted from your browser storage.
+                </p>
+                <div className="flex justify-end gap-3">
+                  <button
+                    onClick={() => setDeleteConfirmId(null)}
+                    className="px-4 py-2 rounded-lg text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => handleDeleteProject(deleteConfirmId)}
+                    className="px-4 py-2 bg-destructive text-destructive-foreground rounded-lg text-sm font-medium hover:bg-destructive/90 transition-colors"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

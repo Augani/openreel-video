@@ -9,6 +9,7 @@ import {
   Undo2,
   Redo2,
   Download,
+  Save,
   PanelLeftClose,
   PanelRightClose,
   Home,
@@ -54,6 +55,17 @@ export function Toolbar() {
     if (state) {
       useProjectStore.getState().loadProject(state);
     }
+  };
+
+  const handleSaveProject = () => {
+    if (!project) return;
+    const blob = new Blob([JSON.stringify(project, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${project.name.replace(/[^a-zA-Z0-9]/g, '_')}.orimg`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -136,6 +148,14 @@ export function Toolbar() {
       <ZoomControl />
 
       <div className="w-px h-6 bg-border mx-1" />
+
+      <button
+        onClick={handleSaveProject}
+        className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+        title="Save Project (Ctrl+S)"
+      >
+        <Save size={18} />
+      </button>
 
       <button
         onClick={openExportDialog}

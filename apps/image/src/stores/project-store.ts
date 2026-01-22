@@ -128,7 +128,7 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
           assets: {},
           activeArtboardId: artboardId,
         };
-        set({ project, selectedLayerIds: [], selectedArtboardId: artboardId, isDirty: false });
+        set({ project, selectedLayerIds: [], selectedArtboardId: artboardId, isDirty: true });
       },
 
       loadProject: (project) => {
