@@ -280,6 +280,8 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
                 glow: DEFAULT_GLOW,
                 filters: DEFAULT_FILTER,
                 parentId: null,
+                flipHorizontal: false,
+                flipVertical: false,
                 content,
                 style: DEFAULT_TEXT_STYLE,
                 autoSize: true,
@@ -322,6 +324,8 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
                 glow: DEFAULT_GLOW,
                 filters: DEFAULT_FILTER,
                 parentId: null,
+                flipHorizontal: false,
+                flipVertical: false,
                 shapeType,
                 shapeStyle: DEFAULT_SHAPE_STYLE,
               };
@@ -374,6 +378,8 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
                 glow: DEFAULT_GLOW,
                 filters: DEFAULT_FILTER,
                 parentId: null,
+                flipHorizontal: false,
+                flipVertical: false,
                 shapeType: 'path',
                 shapeStyle: {
                   ...DEFAULT_SHAPE_STYLE,
@@ -414,6 +420,8 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
                 glow: DEFAULT_GLOW,
                 filters: DEFAULT_FILTER,
                 parentId: null,
+                flipHorizontal: false,
+                flipVertical: false,
                 childIds,
                 expanded: true,
               };

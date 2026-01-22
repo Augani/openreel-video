@@ -580,6 +580,13 @@ function renderLayer(
   ctx.translate(transform.x, transform.y);
   ctx.rotate((transform.rotation * Math.PI) / 180);
   ctx.scale(transform.scaleX, transform.scaleY);
+
+  const skewX = transform.skewX ?? 0;
+  const skewY = transform.skewY ?? 0;
+  if (skewX !== 0 || skewY !== 0) {
+    ctx.transform(1, Math.tan(skewY * Math.PI / 180), Math.tan(skewX * Math.PI / 180), 1, 0, 0);
+  }
+
   ctx.globalAlpha = transform.opacity;
   ctx.globalCompositeOperation = BLEND_MODE_MAP[blendMode] ?? 'source-over';
 
@@ -802,6 +809,17 @@ function renderImageLayer(
 
 function renderTextLayer(ctx: CanvasRenderingContext2D, layer: TextLayer) {
   const { style, content, transform } = layer;
+  const flipH = layer.flipHorizontal ?? false;
+  const flipV = layer.flipVertical ?? false;
+
+  if (flipH || flipV) {
+    ctx.save();
+    ctx.translate(
+      flipH ? transform.width : 0,
+      flipV ? transform.height : 0
+    );
+    ctx.scale(flipH ? -1 : 1, flipV ? -1 : 1);
+  }
 
   ctx.font = `${style.fontStyle} ${style.fontWeight} ${style.fontSize}px ${style.fontFamily}`;
   ctx.textAlign = style.textAlign as CanvasTextAlign;
@@ -916,11 +934,26 @@ function renderTextLayer(ctx: CanvasRenderingContext2D, layer: TextLayer) {
     ctx.shadowOffsetX = 0;
     ctx.shadowOffsetY = 0;
   }
+
+  if (flipH || flipV) {
+    ctx.restore();
+  }
 }
 
 function renderShapeLayer(ctx: CanvasRenderingContext2D, layer: ShapeLayer) {
   const { shapeType, shapeStyle, transform } = layer;
   const { width, height } = transform;
+  const flipH = layer.flipHorizontal ?? false;
+  const flipV = layer.flipVertical ?? false;
+
+  if (flipH || flipV) {
+    ctx.save();
+    ctx.translate(
+      flipH ? width : 0,
+      flipV ? height : 0
+    );
+    ctx.scale(flipH ? -1 : 1, flipV ? -1 : 1);
+  }
 
   ctx.beginPath();
 
@@ -1121,5 +1154,9 @@ function renderShapeLayer(ctx: CanvasRenderingContext2D, layer: ShapeLayer) {
 
     ctx.stroke();
     ctx.setLineDash([]);
+  }
+
+  if (flipH || flipV) {
+    ctx.restore();
   }
 }

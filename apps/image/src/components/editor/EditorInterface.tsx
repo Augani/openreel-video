@@ -5,13 +5,14 @@ import { Canvas } from './canvas/Canvas';
 import { Inspector } from './inspector/Inspector';
 import { LayerPanel } from './layers/LayerPanel';
 import { HistoryPanel } from './panels/HistoryPanel';
+import { GuidePanel } from './panels/GuidePanel';
 import { PagesBar } from './pages/PagesBar';
 import { ExportDialog } from './ExportDialog';
 import { useUIStore } from '../../stores/ui-store';
 import { useProjectStore } from '../../stores/project-store';
-import { Layers, History } from 'lucide-react';
+import { Layers, History, Ruler } from 'lucide-react';
 
-type BottomTab = 'layers' | 'history';
+type BottomTab = 'layers' | 'history' | 'guides';
 
 export function EditorInterface() {
   const { isPanelCollapsed, isInspectorCollapsed, isExportDialogOpen, closeExportDialog } = useUIStore();
@@ -63,6 +64,17 @@ export function EditorInterface() {
                   Layers
                 </button>
                 <button
+                  onClick={() => setBottomTab('guides')}
+                  className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors ${
+                    bottomTab === 'guides'
+                      ? 'text-foreground bg-background border-b-2 border-primary -mb-px'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+                  }`}
+                >
+                  <Ruler size={14} />
+                  Guides
+                </button>
+                <button
                   onClick={() => setBottomTab('history')}
                   className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors ${
                     bottomTab === 'history'
@@ -75,7 +87,9 @@ export function EditorInterface() {
                 </button>
               </div>
               <div className="flex-1 overflow-hidden">
-                {bottomTab === 'layers' ? <LayerPanel /> : <HistoryPanel />}
+                {bottomTab === 'layers' && <LayerPanel />}
+                {bottomTab === 'guides' && <GuidePanel />}
+                {bottomTab === 'history' && <HistoryPanel />}
               </div>
             </div>
           </div>

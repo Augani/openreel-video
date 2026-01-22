@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { getAllHarmonies, type HarmonyType } from '../../../utils/color-harmony';
 import { Palette, Copy, Check } from 'lucide-react';
 import { ColorPalettes, QuickColorSwatches } from '../../ui/ColorPalettes';
+import { SavedColorsSection } from '../../ui/SavedColorsSection';
+import { useColorStore } from '../../../stores/color-store';
 
 interface Props {
   baseColor: string;
@@ -11,12 +13,18 @@ interface Props {
 export function ColorHarmonySection({ baseColor, onColorSelect }: Props) {
   const [copiedColor, setCopiedColor] = useState<string | null>(null);
   const [selectedHarmony, setSelectedHarmony] = useState<HarmonyType>('complementary');
+  const { addRecentColor } = useColorStore();
 
   const isValidHex = /^#[0-9A-Fa-f]{6}$/.test(baseColor);
   if (!isValidHex) return null;
 
   const harmonies = getAllHarmonies(baseColor);
   const activeHarmony = harmonies.find((h) => h.type === selectedHarmony) ?? harmonies[0];
+
+  const handleColorSelect = (color: string) => {
+    addRecentColor(color);
+    onColorSelect?.(color);
+  };
 
   const handleCopyColor = async (color: string) => {
     try {
@@ -58,7 +66,7 @@ export function ColorHarmonySection({ baseColor, onColorSelect }: Props) {
           {activeHarmony.colors.map((color, index) => (
             <div key={index} className="flex-1 flex flex-col items-center gap-1">
               <button
-                onClick={() => onColorSelect?.(color)}
+                onClick={() => handleColorSelect(color)}
                 className="w-full aspect-square rounded-lg border border-border hover:ring-2 hover:ring-primary/50 transition-all cursor-pointer"
                 style={{ backgroundColor: color }}
                 title={`Click to apply ${color}`}
@@ -85,8 +93,13 @@ export function ColorHarmonySection({ baseColor, onColorSelect }: Props) {
 
       {onColorSelect && (
         <>
-          <QuickColorSwatches onColorSelect={onColorSelect} selectedColor={baseColor} />
-          <ColorPalettes onColorSelect={onColorSelect} selectedColor={baseColor} />
+          <SavedColorsSection
+            onColorSelect={handleColorSelect}
+            selectedColor={baseColor}
+            currentColor={baseColor}
+          />
+          <QuickColorSwatches onColorSelect={handleColorSelect} selectedColor={baseColor} />
+          <ColorPalettes onColorSelect={handleColorSelect} selectedColor={baseColor} />
         </>
       )}
     </div>

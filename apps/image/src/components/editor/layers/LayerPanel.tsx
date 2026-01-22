@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Eye, EyeOff, Lock, Unlock, Trash2, Copy, ChevronUp, ChevronDown, ArrowUp, ArrowDown, ArrowUpToLine, ArrowDownToLine, Clipboard, ClipboardCopy, Scissors, Paintbrush, Search, X, Image, Type, Hexagon, Folder } from 'lucide-react';
+import { Eye, EyeOff, Lock, Unlock, Trash2, Copy, ChevronUp, ChevronDown, ArrowUp, ArrowDown, ArrowUpToLine, ArrowDownToLine, Clipboard, ClipboardCopy, Scissors, Paintbrush, Search, X, Image, Type, Hexagon, Folder, FolderPlus, FolderOpen } from 'lucide-react';
 import { useProjectStore } from '../../../stores/project-store';
 import type { Layer, LayerType } from '../../../types/project';
 import {
@@ -43,6 +43,8 @@ export function LayerPanel() {
     pasteLayers,
     copyLayerStyle,
     pasteLayerStyle,
+    groupLayers,
+    ungroupLayers,
   } = useProjectStore();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -300,6 +302,21 @@ export function LayerPanel() {
                       <ContextMenuShortcut>⌘D</ContextMenuShortcut>
                     </ContextMenuItem>
                     <ContextMenuSeparator />
+                    {selectedLayerIds.length > 1 && (
+                      <ContextMenuItem onClick={() => groupLayers(selectedLayerIds)}>
+                        <FolderPlus size={14} className="mr-2" />
+                        Group Selection
+                        <ContextMenuShortcut>⌘G</ContextMenuShortcut>
+                      </ContextMenuItem>
+                    )}
+                    {layer.type === 'group' && (
+                      <ContextMenuItem onClick={() => ungroupLayers(layer.id)}>
+                        <FolderOpen size={14} className="mr-2" />
+                        Ungroup
+                        <ContextMenuShortcut>⌘⇧G</ContextMenuShortcut>
+                      </ContextMenuItem>
+                    )}
+                    {(selectedLayerIds.length > 1 || layer.type === 'group') && <ContextMenuSeparator />}
                     <ContextMenuItem onClick={() => { selectLayer(layer.id); copyLayerStyle(); }}>
                       <Paintbrush size={14} className="mr-2" />
                       Copy Style
@@ -361,8 +378,29 @@ export function LayerPanel() {
         )}
       </div>
 
+      {selectedLayerIds.length > 1 && (
+        <div className="p-2 border-t border-border">
+          <button
+            onClick={() => groupLayers(selectedLayerIds)}
+            className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors"
+          >
+            <FolderPlus size={14} />
+            Group {selectedLayerIds.length} Layers
+          </button>
+        </div>
+      )}
+
       {selectedLayerIds.length === 1 && (
         <div className="p-2 border-t border-border space-y-2">
+          {project?.layers[selectedLayerIds[0]]?.type === 'group' && (
+            <button
+              onClick={() => ungroupLayers(selectedLayerIds[0])}
+              className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md bg-secondary text-secondary-foreground text-xs font-medium hover:bg-secondary/80 transition-colors mb-2"
+            >
+              <FolderOpen size={14} />
+              Ungroup
+            </button>
+          )}
           <div className="flex items-center gap-2">
             <span className="text-[10px] text-muted-foreground w-12">Opacity</span>
             <Slider

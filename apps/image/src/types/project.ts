@@ -8,6 +8,8 @@ export interface Transform {
   rotation: number;
   scaleX: number;
   scaleY: number;
+  skewX: number;
+  skewY: number;
   opacity: number;
 }
 
@@ -76,14 +78,14 @@ export interface BaseLayer {
   glow: Glow;
   filters: Filter;
   parentId: string | null;
+  flipHorizontal: boolean;
+  flipVertical: boolean;
 }
 
 export interface ImageLayer extends BaseLayer {
   type: 'image';
   sourceId: string;
   cropRect: { x: number; y: number; width: number; height: number } | null;
-  flipHorizontal: boolean;
-  flipVertical: boolean;
 }
 
 export type TextFillType = 'solid' | 'gradient';
@@ -253,6 +255,8 @@ export const DEFAULT_TRANSFORM: Transform = {
   rotation: 0,
   scaleX: 1,
   scaleY: 1,
+  skewX: 0,
+  skewY: 0,
   opacity: 1,
 };
 
