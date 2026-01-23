@@ -1,0 +1,188 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 0 0% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 3.9%;
+    --primary: 142.1 76.2% 36.3%;
+    --primary-foreground: 355.7 100% 97.3%;
+    --secondary: 240 4.8% 95.9%;
+    --secondary-foreground: 240 5.9% 10%;
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 3.8% 46.1%;
+    --accent: 240 4.8% 95.9%;
+    --accent-foreground: 240 5.9% 10%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 5.9% 90%;
+    --input: 240 5.9% 90%;
+    --ring: 142.1 76.2% 36.3%;
+    --radius: 0.5rem;
+
+    --color-background-secondary: 250 250 250;
+    --color-background-tertiary: 245 245 245;
+    --color-background-elevated: 255 255 255;
+    --color-text-primary: 10 10 10;
+    --color-text-secondary: 115 115 115;
+    --color-text-muted: 163 163 163;
+    --color-border-hover: 212 212 212;
+    --color-border-active: 163 163 163;
+  }
+
+  .dark {
+    --background: 0 0% 7%;
+    --foreground: 0 0% 95%;
+    --card: 0 0% 9%;
+    --card-foreground: 0 0% 95%;
+    --popover: 0 0% 9%;
+    --popover-foreground: 0 0% 95%;
+    --primary: 142.1 70.6% 45.3%;
+    --primary-foreground: 144.9 80.4% 10%;
+    --secondary: 240 3.7% 15.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 0 0% 15%;
+    --muted-foreground: 240 5% 64.9%;
+    --accent: 0 0% 15%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 50.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 3.7% 20%;
+    --input: 240 3.7% 20%;
+    --ring: 142.1 70.6% 45.3%;
+
+    --color-background-secondary: 23 23 23;
+    --color-background-tertiary: 38 38 38;
+    --color-background-elevated: 32 32 32;
+    --color-text-primary: 250 250 250;
+    --color-text-secondary: 163 163 163;
+    --color-text-muted: 115 115 115;
+    --color-border-hover: 64 64 64;
+    --color-border-active: 82 82 82;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground) / 0.3);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.5);
+}
+
+::selection {
+  background: hsl(var(--primary) / 0.3);
+}
+
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+.canvas-container {
+  background-image:
+    linear-gradient(45deg, hsl(var(--muted)) 25%, transparent 25%),
+    linear-gradient(-45deg, hsl(var(--muted)) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, hsl(var(--muted)) 75%),
+    linear-gradient(-45deg, transparent 75%, hsl(var(--muted)) 75%);
+  background-size: 20px 20px;
+  background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+}
+
+.layer-drag-ghost {
+  opacity: 0.8;
+  background: hsl(var(--primary) / 0.2);
+  border: 2px dashed hsl(var(--primary));
+  border-radius: var(--radius);
+}
+
+.resize-handle {
+  width: 10px;
+  height: 10px;
+  background: white;
+  border: 2px solid hsl(var(--primary));
+  border-radius: 2px;
+  position: absolute;
+  cursor: pointer;
+}
+
+.resize-handle-nw { top: -5px; left: -5px; cursor: nwse-resize; }
+.resize-handle-n { top: -5px; left: 50%; transform: translateX(-50%); cursor: ns-resize; }
+.resize-handle-ne { top: -5px; right: -5px; cursor: nesw-resize; }
+.resize-handle-e { top: 50%; right: -5px; transform: translateY(-50%); cursor: ew-resize; }
+.resize-handle-se { bottom: -5px; right: -5px; cursor: nwse-resize; }
+.resize-handle-s { bottom: -5px; left: 50%; transform: translateX(-50%); cursor: ns-resize; }
+.resize-handle-sw { bottom: -5px; left: -5px; cursor: nesw-resize; }
+.resize-handle-w { top: 50%; left: -5px; transform: translateY(-50%); cursor: ew-resize; }
+
+.rotation-handle {
+  width: 12px;
+  height: 12px;
+  background: white;
+  border: 2px solid hsl(var(--primary));
+  border-radius: 50%;
+  position: absolute;
+  top: -30px;
+  left: 50%;
+  transform: translateX(-50%);
+  cursor: grab;
+}
+
+.rotation-handle:active {
+  cursor: grabbing;
+}
+
+@keyframes pulse-selection {
+  0%, 100% { box-shadow: 0 0 0 2px hsl(var(--primary)); }
+  50% { box-shadow: 0 0 0 4px hsl(var(--primary) / 0.5); }
+}
+
+.selection-box {
+  border: 2px solid hsl(var(--primary));
+  animation: pulse-selection 2s ease-in-out infinite;
+}
