@@ -4511,22 +4511,29 @@ export const Preview: React.FC = () => {
     return null;
   }, [cropMode, cropClipId, timelineTracks]);
 
-  const cropVideoSrc = useMemo(() => {
+  const cropMediaData = useMemo(() => {
     if (!cropMode || !cropClipId || !cropClip) return null;
 
     const mediaItem = getMediaItem(cropClip.mediaId);
     if (!mediaItem) return null;
 
+    let src: string | null = null;
     if (mediaItem.blob) {
-      return URL.createObjectURL(mediaItem.blob);
+      src = URL.createObjectURL(mediaItem.blob);
+    } else if (mediaItem.originalUrl) {
+      src = mediaItem.originalUrl;
     }
 
-    if (mediaItem.originalUrl) {
-      return mediaItem.originalUrl;
-    }
+    if (!src) return null;
 
-    return null;
+    return {
+      src,
+      type: mediaItem.type as "video" | "image",
+    };
   }, [cropMode, cropClipId, cropClip, getMediaItem]);
+
+  const cropVideoSrc = cropMediaData?.src ?? null;
+  const cropMediaType = cropMediaData?.type ?? "video";
 
   const shouldShowCropMode = cropMode && cropClipId && cropClip && cropVideoSrc;
 
@@ -4540,6 +4547,7 @@ export const Preview: React.FC = () => {
         <CropModeView
           clip={cropClip!}
           videoSrc={cropVideoSrc}
+          mediaType={cropMediaType}
           currentTime={playheadPosition}
           canvasWidth={canvasSize.width}
           canvasHeight={canvasSize.height}

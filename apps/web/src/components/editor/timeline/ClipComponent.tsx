@@ -30,6 +30,10 @@ interface ClipComponentProps {
   ) => void;
 }
 
+const AUTO_SCROLL_THRESHOLD = 80;
+const AUTO_SCROLL_SPEED = 10;
+const DRAG_THRESHOLD = 5;
+
 export const ClipComponent: React.FC<ClipComponentProps> = ({
   clip,
   track,
@@ -48,7 +52,10 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
   const { playheadPosition } = useTimelineStore();
   const mediaItem = getMediaItem(clip.mediaId);
   const [isDragging, setIsDragging] = useState(false);
+  const [isPendingDrag, setIsPendingDrag] = useState(false);
   const [dragOffset, setDragOffset] = useState(0);
+  const [dragYOffset, setDragYOffset] = useState(0);
+  const [isInvalidDrop, setIsInvalidDrop] = useState(false);
   const [isTrimming, setIsTrimming] = useState(false);
   const [trimEdge, setTrimEdge] = useState<"left" | "right" | null>(null);
   const trimStartRef = useRef<{
@@ -59,6 +66,18 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
     mouseX: 0,
     startTime: clip.startTime,
     duration: clip.duration,
+  });
+  const dragStartRef = useRef<{ mouseY: number; clipY: number; scrollTop: number }>({
+    mouseY: 0,
+    clipY: 0,
+    scrollTop: 0,
+  });
+  const mousePositionRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const pendingDropRef = useRef<{ time: number; targetTrackId?: string }>({ time: 0 });
+  const dragPendingRef = useRef<{ active: boolean; startX: number; startY: number }>({
+    active: false,
+    startX: 0,
+    startY: 0,
   });
   const clipRef = useRef<HTMLDivElement>(null);
 
@@ -71,7 +90,7 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
   const clipStyle = getClipStyle(track.type);
 
   const handleClick = (e: React.MouseEvent) => {
-    if (isDragging) return;
+    if (isDragging || isPendingDrag) return;
     e.stopPropagation();
     onSelect(clip.id, e.shiftKey || e.metaKey);
   };
@@ -81,14 +100,23 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
     e.stopPropagation();
 
     const rect = clipRef.current?.parentElement?.getBoundingClientRect();
-    if (!rect) return;
+    const clipRect = clipRef.current?.getBoundingClientRect();
+    if (!rect || !clipRect) return;
 
     const clickX = e.clientX - rect.left;
     const clipStartX = clip.startTime * pixelsPerSecond;
     setDragOffset(clickX - clipStartX);
-    setIsDragging(true);
 
-    onSelect(clip.id, e.shiftKey || e.metaKey);
+    dragStartRef.current = {
+      mouseY: e.clientY,
+      clipY: clipRect.top - rect.top,
+      scrollTop: timelineRef.current?.scrollTop || 0,
+    };
+    mousePositionRef.current = { x: e.clientX, y: e.clientY };
+    dragPendingRef.current = { active: true, startX: e.clientX, startY: e.clientY };
+    setDragYOffset(0);
+    setIsInvalidDrop(false);
+    setIsPendingDrag(true);
   };
 
   const handleTrimMouseDown =
@@ -106,9 +134,72 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
     };
 
   useEffect(() => {
+    if (!isPendingDrag) return;
+
+    const handlePendingMouseMove = (e: MouseEvent) => {
+      const dx = e.clientX - dragPendingRef.current.startX;
+      const dy = e.clientY - dragPendingRef.current.startY;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+
+      if (distance >= DRAG_THRESHOLD) {
+        dragPendingRef.current.active = false;
+        setIsPendingDrag(false);
+        setIsDragging(true);
+      }
+    };
+
+    const handlePendingMouseUp = (e: MouseEvent) => {
+      dragPendingRef.current.active = false;
+      setIsPendingDrag(false);
+      onSelect(clip.id, e.shiftKey || e.metaKey);
+    };
+
+    window.addEventListener("mousemove", handlePendingMouseMove);
+    window.addEventListener("mouseup", handlePendingMouseUp);
+
+    return () => {
+      window.removeEventListener("mousemove", handlePendingMouseMove);
+      window.removeEventListener("mouseup", handlePendingMouseUp);
+    };
+  }, [isPendingDrag, clip.id, onSelect]);
+
+  useEffect(() => {
     if (!isDragging) return;
 
+    let animationFrameId: number | null = null;
+
+    const scrollLoop = () => {
+      if (!timelineRef.current) {
+        animationFrameId = requestAnimationFrame(scrollLoop);
+        return;
+      }
+
+      const timeline = timelineRef.current;
+      const timelineRect = timeline.getBoundingClientRect();
+      const mouseY = mousePositionRef.current.y;
+      const timelineTop = timelineRect.top;
+      const timelineBottom = timelineRect.bottom;
+      const canScrollUp = timeline.scrollTop > 0;
+      const canScrollDown = timeline.scrollTop < timeline.scrollHeight - timeline.clientHeight;
+
+      const distanceFromTop = mouseY - timelineTop;
+      const distanceFromBottom = timelineBottom - mouseY;
+
+      if (distanceFromTop < AUTO_SCROLL_THRESHOLD && canScrollUp) {
+        timeline.scrollTop -= AUTO_SCROLL_SPEED;
+      } else if (distanceFromBottom < AUTO_SCROLL_THRESHOLD && canScrollDown) {
+        timeline.scrollTop += AUTO_SCROLL_SPEED;
+      }
+
+      animationFrameId = requestAnimationFrame(scrollLoop);
+    };
+
+    animationFrameId = requestAnimationFrame(scrollLoop);
+
     const handleMouseMove = (e: MouseEvent) => {
+      mousePositionRef.current.x = e.clientX;
+      mousePositionRef.current.y = e.clientY;
+
       const rect = clipRef.current?.parentElement?.getBoundingClientRect();
       const timelineRect = timelineRef.current?.getBoundingClientRect();
       if (!rect || !timelineRect) return;
@@ -125,14 +216,21 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
         pixelsPerSecond,
       );
 
+      const currentScrollTop = timelineRef.current?.scrollTop || 0;
+      const scrollDelta = currentScrollTop - dragStartRef.current.scrollTop;
+      const yDelta = (e.clientY - dragStartRef.current.mouseY) + scrollDelta;
+      setDragYOffset(yDelta);
+
       const scrollTop = timelineRef.current?.scrollTop || 0;
       const mouseY = e.clientY - timelineRect.top + scrollTop;
       let targetTrackId: string | undefined;
+      let hoveredTrackType: string | undefined;
       let cumulativeY = 0;
 
       for (const t of allTracks) {
         const height = trackHeights.get(t.id) || 60;
         if (mouseY >= cumulativeY && mouseY < cumulativeY + height) {
+          hoveredTrackType = t.type;
           if (t.type === track.type && t.id !== track.id) {
             targetTrackId = t.id;
           }
@@ -141,12 +239,27 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
         cumulativeY += height;
       }
 
-      onMoveClip(clip.id, snapResult.time, targetTrackId);
+      const isOverDifferentTrackType = hoveredTrackType !== undefined && hoveredTrackType !== track.type;
+      setIsInvalidDrop(isOverDifferentTrackType);
+
+      pendingDropRef.current = { time: snapResult.time, targetTrackId };
+      onMoveClip(clip.id, snapResult.time, undefined);
       onSnapIndicator(snapResult.snapped ? snapResult.time : null);
     };
 
     const handleMouseUp = () => {
+      if (animationFrameId !== null) {
+        cancelAnimationFrame(animationFrameId);
+      }
+
+      const { time, targetTrackId } = pendingDropRef.current;
+      if (targetTrackId) {
+        onMoveClip(clip.id, time, targetTrackId);
+      }
+
       setIsDragging(false);
+      setDragYOffset(0);
+      setIsInvalidDrop(false);
       onSnapIndicator(null);
     };
 
@@ -154,6 +267,9 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
     window.addEventListener("mouseup", handleMouseUp);
 
     return () => {
+      if (animationFrameId !== null) {
+        cancelAnimationFrame(animationFrameId);
+      }
       window.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("mouseup", handleMouseUp);
     };
@@ -228,19 +344,24 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
           onClick={handleClick}
           onMouseDown={handleMouseDown}
           className={`group absolute top-1 bottom-1 rounded-lg overflow-hidden shadow-sm ${
-            isDragging ? "cursor-grabbing opacity-80 z-20" : "cursor-grab"
+            isDragging
+              ? `cursor-grabbing z-50 ${isInvalidDrop ? "opacity-50 ring-2 ring-red-500 border-red-500" : "opacity-90 shadow-xl"}`
+              : "cursor-grab"
           } ${
-            isSelected
+            isSelected && !isDragging
               ? "ring-2 ring-primary border-primary z-10"
-              : "border-opacity-30 hover:border-opacity-60 hover:brightness-110"
+              : !isDragging ? "border-opacity-30 hover:border-opacity-60 hover:brightness-110" : ""
           } ${clipStyle.bg} border ${clipStyle.border} ${
             track.locked ? "cursor-not-allowed opacity-60" : ""
           }`}
           style={{
-            transform: `translateX(${left}px)`,
+            transform: isDragging
+              ? `translate(${left}px, ${dragYOffset}px)`
+              : `translateX(${left}px)`,
             width: `${width}px`,
             willChange: isInteracting ? 'transform, width' : 'auto',
             transition: isInteracting ? 'none' : 'opacity 150ms, box-shadow 150ms',
+            pointerEvents: isDragging ? 'none' : 'auto',
           }}
         >
       {isVideo &&

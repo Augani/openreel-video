@@ -1,0 +1,19 @@
+{
+  "name": "OpenReel Image",
+  "short_name": "OpenReel",
+  "description": "Professional browser-based graphic design editor",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0a0a",
+  "theme_color": "#22c55e",
+  "orientation": "landscape",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["graphics", "design", "productivity"]
+}

@@ -5,6 +5,7 @@ import type { Clip } from "@openreel/core";
 interface CropModeViewProps {
   clip: Clip;
   videoSrc: string;
+  mediaType: "video" | "image";
   currentTime: number;
   canvasWidth: number;
   canvasHeight: number;
@@ -42,6 +43,7 @@ const ASPECT_RATIOS = [
 export const CropModeView: React.FC<CropModeViewProps> = ({
   clip,
   videoSrc,
+  mediaType,
   currentTime,
   canvasWidth,
   canvasHeight,
@@ -51,6 +53,7 @@ export const CropModeView: React.FC<CropModeViewProps> = ({
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const videoDisplayRef = useRef<HTMLVideoElement>(null);
+  const imageDisplayRef = useRef<HTMLImageElement>(null);
   const initialCrop = clip.transform.crop || {
     x: 0,
     y: 0,
@@ -68,37 +71,65 @@ export const CropModeView: React.FC<CropModeViewProps> = ({
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const video = videoDisplayRef.current;
-    if (!video) return;
-
     setIsLoading(true);
 
-    const handleLoadedMetadata = () => {
-      if (video.videoWidth > 0 && video.videoHeight > 0) {
-        setVideoSize({
-          width: video.videoWidth,
-          height: video.videoHeight,
-        });
+    if (mediaType === "image") {
+      const image = imageDisplayRef.current;
+      if (!image) return;
+
+      const handleLoad = () => {
+        if (image.naturalWidth > 0 && image.naturalHeight > 0) {
+          setVideoSize({
+            width: image.naturalWidth,
+            height: image.naturalHeight,
+          });
+          setIsLoading(false);
+        }
+      };
+
+      const handleError = () => {
+        console.error("[CropModeView] Image load error");
         setIsLoading(false);
-      }
-    };
+      };
 
-    const handleError = () => {
-      console.error("[CropModeView] Video load error");
-      setIsLoading(false);
-    };
+      image.addEventListener("load", handleLoad);
+      image.addEventListener("error", handleError);
+      image.src = videoSrc;
 
-    video.addEventListener("loadedmetadata", handleLoadedMetadata);
-    video.addEventListener("error", handleError);
+      return () => {
+        image.removeEventListener("load", handleLoad);
+        image.removeEventListener("error", handleError);
+      };
+    } else {
+      const video = videoDisplayRef.current;
+      if (!video) return;
 
-    video.src = videoSrc;
-    video.currentTime = currentTime;
+      const handleLoadedMetadata = () => {
+        if (video.videoWidth > 0 && video.videoHeight > 0) {
+          setVideoSize({
+            width: video.videoWidth,
+            height: video.videoHeight,
+          });
+          setIsLoading(false);
+        }
+      };
 
-    return () => {
-      video.removeEventListener("loadedmetadata", handleLoadedMetadata);
-      video.removeEventListener("error", handleError);
-    };
-  }, [videoSrc, currentTime]);
+      const handleError = () => {
+        console.error("[CropModeView] Video load error");
+        setIsLoading(false);
+      };
+
+      video.addEventListener("loadedmetadata", handleLoadedMetadata);
+      video.addEventListener("error", handleError);
+      video.src = videoSrc;
+      video.currentTime = currentTime;
+
+      return () => {
+        video.removeEventListener("loadedmetadata", handleLoadedMetadata);
+        video.removeEventListener("error", handleError);
+      };
+    }
+  }, [videoSrc, currentTime, mediaType]);
 
   const handleMouseDown = (e: React.MouseEvent, handle: DragHandle) => {
     e.preventDefault();
@@ -127,10 +158,12 @@ export const CropModeView: React.FC<CropModeViewProps> = ({
         Math.min(1 - cropStart.height, cropStart.y + deltaY),
       );
     } else if (dragHandle === "nw") {
-      const maxDeltaX = cropStart.x;
-      const maxDeltaY = cropStart.y;
-      const clampedDeltaX = Math.min(deltaX, maxDeltaX);
-      const clampedDeltaY = Math.min(deltaY, maxDeltaY);
+      const minDeltaX = -cropStart.x;
+      const maxDeltaX = cropStart.width - 0.05;
+      const minDeltaY = -cropStart.y;
+      const maxDeltaY = cropStart.height - 0.05;
+      const clampedDeltaX = Math.max(minDeltaX, Math.min(deltaX, maxDeltaX));
+      const clampedDeltaY = Math.max(minDeltaY, Math.min(deltaY, maxDeltaY));
 
       if (lockedAspect) {
         const avgDelta = (clampedDeltaX + clampedDeltaY) / 2;
@@ -145,8 +178,9 @@ export const CropModeView: React.FC<CropModeViewProps> = ({
         newCrop.height = cropStart.height - clampedDeltaY;
       }
     } else if (dragHandle === "ne") {
-      const maxDeltaY = cropStart.y;
-      const clampedDeltaY = Math.min(deltaY, maxDeltaY);
+      const minDeltaY = -cropStart.y;
+      const maxDeltaY = cropStart.height - 0.05;
+      const clampedDeltaY = Math.max(minDeltaY, Math.min(deltaY, maxDeltaY));
 
       if (lockedAspect) {
         const avgDelta = (-deltaX + clampedDeltaY) / 2;
@@ -159,8 +193,9 @@ export const CropModeView: React.FC<CropModeViewProps> = ({
         newCrop.height = cropStart.height - clampedDeltaY;
       }
     } else if (dragHandle === "sw") {
-      const maxDeltaX = cropStart.x;
-      const clampedDeltaX = Math.min(deltaX, maxDeltaX);
+      const minDeltaX = -cropStart.x;
+      const maxDeltaX = cropStart.width - 0.05;
+      const clampedDeltaX = Math.max(minDeltaX, Math.min(deltaX, maxDeltaX));
 
       if (lockedAspect) {
         const avgDelta = (clampedDeltaX - deltaY) / 2;
@@ -194,8 +229,9 @@ export const CropModeView: React.FC<CropModeViewProps> = ({
         );
       }
     } else if (dragHandle === "n") {
-      const maxDelta = cropStart.y;
-      const clampedDelta = Math.min(deltaY, maxDelta);
+      const minDelta = -cropStart.y;
+      const maxDelta = cropStart.height - 0.05;
+      const clampedDelta = Math.max(minDelta, Math.min(deltaY, maxDelta));
       newCrop.y = cropStart.y + clampedDelta;
       newCrop.height = cropStart.height - clampedDelta;
     } else if (dragHandle === "s") {
@@ -204,8 +240,9 @@ export const CropModeView: React.FC<CropModeViewProps> = ({
         Math.max(0.1, cropStart.height + deltaY),
       );
     } else if (dragHandle === "w") {
-      const maxDelta = cropStart.x;
-      const clampedDelta = Math.min(deltaX, maxDelta);
+      const minDelta = -cropStart.x;
+      const maxDelta = cropStart.width - 0.05;
+      const clampedDelta = Math.max(minDelta, Math.min(deltaX, maxDelta));
       newCrop.x = cropStart.x + clampedDelta;
       newCrop.width = cropStart.width - clampedDelta;
     } else if (dragHandle === "e") {
@@ -388,14 +425,23 @@ export const CropModeView: React.FC<CropModeViewProps> = ({
             opacity: isLoading ? 0 : 1,
           }}
         >
-          <video
-            ref={videoDisplayRef}
-            className="w-full h-full"
-            style={{ objectFit: "contain" }}
-            muted
-            playsInline
-            preload="metadata"
-          />
+          {mediaType === "image" ? (
+            <img
+              ref={imageDisplayRef}
+              className="w-full h-full"
+              style={{ objectFit: "contain" }}
+              alt="Crop preview"
+            />
+          ) : (
+            <video
+              ref={videoDisplayRef}
+              className="w-full h-full"
+              style={{ objectFit: "contain" }}
+              muted
+              playsInline
+              preload="metadata"
+            />
+          )}
 
           {!isLoading && videoSize.width > 0 && (
             <>
