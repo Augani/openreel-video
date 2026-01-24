@@ -83,6 +83,9 @@ export interface UIState {
   cropClipId: string | null;
   showWelcomeScreen: boolean;
   skipWelcomeScreen: boolean;
+  motionPathMode: boolean;
+  motionPathClipId: string | null;
+  keyframeEditorOpen: boolean;
   select: (item: SelectionItem, addToSelection?: boolean) => void;
   selectMultiple: (items: SelectionItem[]) => void;
   deselect: (itemId: string) => void;
@@ -121,6 +124,9 @@ export interface UIState {
   setCropMode: (enabled: boolean, clipId?: string) => void;
   setShowWelcomeScreen: (show: boolean) => void;
   setSkipWelcomeScreen: (skip: boolean) => void;
+  setMotionPathMode: (enabled: boolean, clipId?: string) => void;
+  setKeyframeEditorOpen: (open: boolean) => void;
+  toggleKeyframeEditor: () => void;
   exportState: {
     isExporting: boolean;
     progress: number;
@@ -208,6 +214,11 @@ export const useUIStore = create<UIState>()(
 
         cropMode: false,
         cropClipId: null,
+
+        motionPathMode: false,
+        motionPathClipId: null,
+
+        keyframeEditorOpen: false,
 
         showWelcomeScreen: true,
         skipWelcomeScreen: false,
@@ -491,6 +502,21 @@ export const useUIStore = create<UIState>()(
             cropMode: enabled,
             cropClipId: enabled ? clipId || null : null,
           });
+        },
+
+        setMotionPathMode: (enabled: boolean, clipId?: string) => {
+          set({
+            motionPathMode: enabled,
+            motionPathClipId: enabled ? clipId || null : null,
+          });
+        },
+
+        setKeyframeEditorOpen: (open: boolean) => {
+          set({ keyframeEditorOpen: open });
+        },
+
+        toggleKeyframeEditor: () => {
+          set((state) => ({ keyframeEditorOpen: !state.keyframeEditorOpen }));
         },
 
         setShowWelcomeScreen: (show: boolean) => {

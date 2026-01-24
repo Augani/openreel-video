@@ -68,6 +68,7 @@ export const Timeline: React.FC = () => {
     deleteTextClip,
     removeMarker,
     updateMarker,
+    updateClipKeyframes,
   } = useProjectStore();
   const tracks = project.timeline.tracks;
 
@@ -248,6 +249,66 @@ export const Timeline: React.FC = () => {
       select({ type: "clip", id: clipId, trackId }, addToSelection);
     },
     [tracks, select, allTextClips, allShapeClips],
+  );
+
+  const [selectedKeyframeIds, setSelectedKeyframeIds] = useState<string[]>([]);
+
+  const handleKeyframeSelect = useCallback(
+    (keyframeId: string, addToSelection: boolean) => {
+      if (addToSelection) {
+        setSelectedKeyframeIds((prev) =>
+          prev.includes(keyframeId)
+            ? prev.filter((id) => id !== keyframeId)
+            : [...prev, keyframeId]
+        );
+      } else {
+        setSelectedKeyframeIds([keyframeId]);
+      }
+    },
+    []
+  );
+
+  const handleKeyframeMove = useCallback(
+    (keyframeId: string, newTime: number) => {
+      for (const track of tracks) {
+        for (const clip of track.clips) {
+          const keyframe = clip.keyframes?.find((kf) => kf.id === keyframeId);
+          if (keyframe) {
+            const updatedKeyframes = clip.keyframes?.map((kf) =>
+              kf.id === keyframeId ? { ...kf, time: Math.max(0, newTime) } : kf
+            );
+            if (updatedKeyframes) {
+              updateClipKeyframes(clip.id, updatedKeyframes);
+            }
+            return;
+          }
+        }
+      }
+    },
+    [tracks, updateClipKeyframes]
+  );
+
+  const handleKeyframeDelete = useCallback(
+    (keyframeId: string) => {
+      for (const track of tracks) {
+        for (const clip of track.clips) {
+          const keyframe = clip.keyframes?.find((kf) => kf.id === keyframeId);
+          if (keyframe) {
+            const updatedKeyframes = clip.keyframes?.filter(
+              (kf) => kf.id !== keyframeId
+            );
+            if (updatedKeyframes) {
+              updateClipKeyframes(clip.id, updatedKeyframes);
+            }
+            setSelectedKeyframeIds((prev) =>
+              prev.filter((id) => id !== keyframeId)
+            );
+            return;
+          }
+        }
+      }
+    },
+    [tracks, updateClipKeyframes]
   );
 
   const handleSplit = useCallback(async () => {
@@ -615,7 +676,7 @@ export const Timeline: React.FC = () => {
       data-tour="timeline"
       className="h-full bg-background border-t border-border flex flex-col"
     >
-      <div className="h-12 border-b border-border flex items-center justify-between px-4 bg-background-secondary">
+      <div className="h-12 border-b border-border flex items-center justify-between px-4 bg-background-secondary relative z-[100]">
         <div className="flex items-center gap-2">
           <div className="flex bg-background-tertiary rounded-lg p-1 border border-border">
             <IconButton
@@ -670,7 +731,7 @@ export const Timeline: React.FC = () => {
                 <ChevronDownIcon size={12} className="ml-0.5 opacity-60" />
               </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" sideOffset={8} className="w-48">
+            <DropdownMenuContent side="top" align="start" sideOffset={8} className="w-48">
               <DropdownMenuItem onClick={() => addTrack("video")}>
                 <Film size={16} className="text-green-400" />
                 <span>Video Track</span>
@@ -712,6 +773,7 @@ export const Timeline: React.FC = () => {
               </button>
             </PopoverTrigger>
             <PopoverContent
+              side="top"
               align="start"
               sideOffset={8}
               className="w-64 p-0 bg-background-secondary border-border"
@@ -846,20 +908,27 @@ export const Timeline: React.FC = () => {
               className="flex flex-col"
               style={{ transform: `translateY(-${scrollY}px)` }}
             >
-              {visualOrderTracks.map((track, i) => (
-                <div
-                  key={track.id}
-                  className={draggedTrackId === track.id ? "opacity-50" : ""}
-                >
-                  <TrackHeader
-                    track={track}
-                    index={i}
-                    onDragStart={handleTrackDragStart}
-                    onDragOver={handleTrackDragOver}
-                    onDrop={handleTrackDrop}
-                  />
-                </div>
-              ))}
+              {visualOrderTracks.map((track, i) => {
+                const keyframeCount = track.clips.reduce(
+                  (sum, clip) => sum + (clip.keyframes?.length || 0),
+                  0
+                );
+                return (
+                  <div
+                    key={track.id}
+                    className={draggedTrackId === track.id ? "opacity-50" : ""}
+                  >
+                    <TrackHeader
+                      track={track}
+                      index={i}
+                      onDragStart={handleTrackDragStart}
+                      onDragOver={handleTrackDragOver}
+                      onDrop={handleTrackDrop}
+                      keyframeCount={keyframeCount}
+                    />
+                  </div>
+                );
+              })}
             </div>
           </div>
 
@@ -905,6 +974,10 @@ export const Timeline: React.FC = () => {
                   scrollX={scrollX}
                   trackHeight={getTrackHeight(track.id)}
                   onResizeTrack={setTrackHeightById}
+                  onKeyframeSelect={handleKeyframeSelect}
+                  onKeyframeMove={handleKeyframeMove}
+                  onKeyframeDelete={handleKeyframeDelete}
+                  selectedKeyframeIds={selectedKeyframeIds}
                 />
               ))}
 

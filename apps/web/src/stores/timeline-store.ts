@@ -25,6 +25,9 @@ export interface TimelineState {
   loopEnd: number;
   isScrubbing: boolean;
   scrubPosition: number | null;
+  expandedTracks: Set<string>;
+  expandedClipKeyframes: Set<string>;
+  keyframeEditMode: boolean;
   play: () => void;
   pause: () => void;
   stop: () => void;
@@ -56,6 +59,13 @@ export interface TimelineState {
   pixelsToTime: (pixels: number) => number;
   getVisibleTimeRange: () => { start: number; end: number };
   isTimeVisible: (time: number) => boolean;
+  toggleTrackExpanded: (trackId: string) => void;
+  setTrackExpanded: (trackId: string, expanded: boolean) => void;
+  isTrackExpanded: (trackId: string) => boolean;
+  toggleClipKeyframesExpanded: (clipId: string) => void;
+  setClipKeyframesExpanded: (clipId: string, expanded: boolean) => void;
+  isClipKeyframesExpanded: (clipId: string) => boolean;
+  setKeyframeEditMode: (enabled: boolean) => void;
 }
 
 export const useTimelineStore = create<TimelineState>()(
@@ -79,6 +89,11 @@ export const useTimelineStore = create<TimelineState>()(
 
     isScrubbing: false,
     scrubPosition: null,
+
+    expandedTracks: new Set<string>(),
+    expandedClipKeyframes: new Set<string>(),
+    keyframeEditMode: false,
+
     play: () => {
       set({ playbackState: "playing" });
     },
@@ -296,6 +311,66 @@ export const useTimelineStore = create<TimelineState>()(
     isTimeVisible: (time: number) => {
       const { start, end } = get().getVisibleTimeRange();
       return time >= start && time <= end;
+    },
+
+    toggleTrackExpanded: (trackId: string) => {
+      set((state) => {
+        const newSet = new Set(state.expandedTracks);
+        if (newSet.has(trackId)) {
+          newSet.delete(trackId);
+        } else {
+          newSet.add(trackId);
+        }
+        return { expandedTracks: newSet };
+      });
+    },
+
+    setTrackExpanded: (trackId: string, expanded: boolean) => {
+      set((state) => {
+        const newSet = new Set(state.expandedTracks);
+        if (expanded) {
+          newSet.add(trackId);
+        } else {
+          newSet.delete(trackId);
+        }
+        return { expandedTracks: newSet };
+      });
+    },
+
+    isTrackExpanded: (trackId: string) => {
+      return get().expandedTracks.has(trackId);
+    },
+
+    toggleClipKeyframesExpanded: (clipId: string) => {
+      set((state) => {
+        const newSet = new Set(state.expandedClipKeyframes);
+        if (newSet.has(clipId)) {
+          newSet.delete(clipId);
+        } else {
+          newSet.add(clipId);
+        }
+        return { expandedClipKeyframes: newSet };
+      });
+    },
+
+    setClipKeyframesExpanded: (clipId: string, expanded: boolean) => {
+      set((state) => {
+        const newSet = new Set(state.expandedClipKeyframes);
+        if (expanded) {
+          newSet.add(clipId);
+        } else {
+          newSet.delete(clipId);
+        }
+        return { expandedClipKeyframes: newSet };
+      });
+    },
+
+    isClipKeyframesExpanded: (clipId: string) => {
+      return get().expandedClipKeyframes.has(clipId);
+    },
+
+    setKeyframeEditMode: (enabled: boolean) => {
+      set({ keyframeEditMode: enabled });
     },
   })),
 );

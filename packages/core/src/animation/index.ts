@@ -93,3 +93,22 @@ export {
 } from "./animation-exporter";
 
 export type { ExportResult, ExportOptions } from "./animation-exporter";
+
+export {
+  GSAPAnimationEngine,
+  getGSAPEngine,
+  disposeGSAPEngine,
+  easingToGSAP,
+  sampleMotionPath,
+  catmullRomInterpolate,
+  generateBezierPath,
+  generateDefaultControlPoints,
+  keyframesToMotionPath,
+  motionPathToKeyframes,
+} from "./gsap-engine";
+
+export type {
+  GSAPMotionPathPoint,
+  MotionPathConfig,
+  GSAPAnimationConfig,
+} from "./gsap-engine";

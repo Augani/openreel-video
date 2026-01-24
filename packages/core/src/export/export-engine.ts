@@ -276,6 +276,8 @@ export class ExportEngine {
       fullSettings.height,
     );
 
+    this.videoEngine?.resetExportState();
+
     const { timeline } = project;
     const timelineDuration = this.calculateTimelineDuration(timeline);
 
@@ -294,7 +296,6 @@ export class ExportEngine {
     let bytesWritten = 0;
 
     try {
-      // Yield preparing phase
       yield this.createProgress("preparing", 0, totalFrames, 0, 0);
 
       const {
@@ -575,6 +576,8 @@ export class ExportEngine {
     if (!gpuEnabled) {
       console.warn("[ExportEngine] GPU acceleration not available for export");
     }
+
+    this.videoEngine?.resetExportState();
 
     const { timeline } = project;
     const timelineDuration = this.calculateTimelineDuration(timeline);
@@ -974,6 +977,8 @@ export class ExportEngine {
 
     const totalFrames = Math.ceil(timelineDuration * fullSettings.frameRate);
     const simpleCheck = this.isSimpleProject(project);
+
+    this.videoEngine?.resetExportState();
 
     yield this.createProgress("preparing", 0, totalFrames, 0, 0);
 

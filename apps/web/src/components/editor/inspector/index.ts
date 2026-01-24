@@ -57,6 +57,9 @@ export { Transform3DSection } from "./Transform3DSection";
 // Motion Presets
 export { MotionPresetsPanel } from "./MotionPresetsPanel";
 
+// Motion Paths
+export { MotionPathSection } from "./MotionPathSection";
+
 // Emphasis Animation
 export { EmphasisAnimationSection } from "./EmphasisAnimationSection";
 
@@ -82,3 +85,6 @@ export { HistoryPanel } from "./HistoryPanel";
 // Markers & Scenes
 export { MarkersPanel } from "./MarkersPanel";
 export { SceneNavigatorPanel } from "./SceneNavigatorPanel";
+
+// Particle Effects
+export { ParticleEffectsSection } from "./ParticleEffectsSection";

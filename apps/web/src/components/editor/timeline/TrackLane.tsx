@@ -1,4 +1,4 @@
-import React, { useRef, useCallback, useEffect, useState } from "react";
+import React, { useRef, useCallback, useEffect, useState, useMemo } from "react";
 import type {
   Track,
   TextClip,
@@ -9,6 +9,8 @@ import type {
 import { ClipComponent } from "./ClipComponent";
 import { TextClipComponent } from "./TextClipComponent";
 import { ShapeClipComponent } from "./ShapeClipComponent";
+import { KeyframeTrack } from "./KeyframeTrack";
+import { useTimelineStore } from "../../../stores/timeline-store";
 
 type GraphicClipUnion = ShapeClip | SVGClip | StickerClip;
 
@@ -48,6 +50,10 @@ interface TrackLaneProps {
   scrollX: number;
   trackHeight: number;
   onResizeTrack: (trackId: string, newHeight: number) => void;
+  onKeyframeSelect?: (keyframeId: string, addToSelection: boolean) => void;
+  onKeyframeMove?: (keyframeId: string, newTime: number) => void;
+  onKeyframeDelete?: (keyframeId: string) => void;
+  selectedKeyframeIds?: string[];
 }
 
 export const TrackLane: React.FC<TrackLaneProps> = ({
@@ -70,12 +76,22 @@ export const TrackLane: React.FC<TrackLaneProps> = ({
   scrollX,
   trackHeight,
   onResizeTrack,
+  onKeyframeSelect,
+  onKeyframeMove,
+  onKeyframeDelete,
+  selectedKeyframeIds = [],
 }) => {
+  const { isTrackExpanded } = useTimelineStore();
+  const isExpanded = isTrackExpanded(track.id);
   const [isDragOver, setIsDragOver] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
   const laneRef = useRef<HTMLDivElement>(null);
   const resizeStartY = useRef<number>(0);
   const resizeStartHeight = useRef<number>(0);
+
+  const clipsWithKeyframes = useMemo(() => {
+    return track.clips.filter((clip) => clip.keyframes && clip.keyframes.length > 0);
+  }, [track.clips]);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -225,6 +241,26 @@ export const TrackLane: React.FC<TrackLaneProps> = ({
         }`}
         onMouseDown={handleResizeStart}
       />
+      {isExpanded && clipsWithKeyframes.length > 0 && (
+        <div className="absolute left-0 right-0" style={{ top: trackHeight }}>
+          {clipsWithKeyframes.map((clip) => (
+            <div
+              key={`keyframes-${clip.id}`}
+              className="relative"
+              style={{ left: clip.startTime * pixelsPerSecond }}
+            >
+              <KeyframeTrack
+                clip={clip}
+                pixelsPerSecond={pixelsPerSecond}
+                onKeyframeSelect={onKeyframeSelect ?? (() => {})}
+                onKeyframeMove={onKeyframeMove ?? (() => {})}
+                onKeyframeDelete={onKeyframeDelete ?? (() => {})}
+                selectedKeyframeIds={selectedKeyframeIds}
+              />
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 };

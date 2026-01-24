@@ -1,7 +1,8 @@
 import React from "react";
-import { Eye, EyeOff, Volume2, Lock, Trash2 } from "lucide-react";
+import { Eye, EyeOff, Volume2, Lock, Trash2, ChevronDown, ChevronRight } from "lucide-react";
 import type { Track } from "@openreel/core";
 import { useProjectStore } from "../../../stores/project-store";
+import { useTimelineStore } from "../../../stores/timeline-store";
 import { getTrackInfo } from "./utils";
 import {
   ContextMenu,
@@ -16,6 +17,7 @@ interface TrackHeaderProps {
   onDragStart: (e: React.DragEvent, trackId: string) => void;
   onDragOver: (e: React.DragEvent) => void;
   onDrop: (e: React.DragEvent, targetTrackId: string) => void;
+  keyframeCount?: number;
 }
 
 export const TrackHeader: React.FC<TrackHeaderProps> = ({
@@ -24,8 +26,11 @@ export const TrackHeader: React.FC<TrackHeaderProps> = ({
   onDragStart,
   onDragOver,
   onDrop,
+  keyframeCount = 0,
 }) => {
   const { lockTrack, hideTrack, muteTrack, removeTrack } = useProjectStore();
+  const { isTrackExpanded, toggleTrackExpanded } = useTimelineStore();
+  const isExpanded = isTrackExpanded(track.id);
 
   const trackInfo = getTrackInfo(track, index);
   const TrackIcon = trackInfo.icon;
@@ -54,12 +59,26 @@ export const TrackHeader: React.FC<TrackHeaderProps> = ({
           }`}
         >
           <div className="flex items-center gap-2">
+            {keyframeCount > 0 && (
+              <button
+                onClick={(e) => { e.stopPropagation(); toggleTrackExpanded(track.id); }}
+                className="p-0.5 rounded transition-colors hover:bg-background-elevated text-text-muted"
+                title={isExpanded ? "Collapse keyframes" : "Expand keyframes"}
+              >
+                {isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+              </button>
+            )}
             <div className={`w-5 h-5 rounded flex items-center justify-center ${trackInfo.bgLight}`}>
               <TrackIcon size={12} className={trackInfo.textColor} />
             </div>
             <span className={`text-[11px] font-semibold truncate max-w-[70px] ${trackInfo.textColor}`}>
               {track.name || trackInfo.label}
             </span>
+            {keyframeCount > 0 && (
+              <span className="text-[8px] text-text-muted bg-background-elevated px-1 py-0.5 rounded">
+                {keyframeCount}
+              </span>
+            )}
           </div>
 
           <div className="flex items-center gap-1 text-text-secondary">

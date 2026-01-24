@@ -84,7 +84,8 @@ interface ToastItemProps {
   onRemove: (id: string) => void;
 }
 
-const ToastItem: React.FC<ToastItemProps> = ({ notification, onRemove }) => {
+const ToastItem = React.forwardRef<HTMLDivElement, ToastItemProps>(
+  ({ notification, onRemove }, ref) => {
   const [progress, setProgress] = useState(100);
   const isDark =
     typeof document !== "undefined" &&
@@ -112,6 +113,7 @@ const ToastItem: React.FC<ToastItemProps> = ({ notification, onRemove }) => {
 
   return (
     <motion.div
+      ref={ref}
       layout
       initial={{ opacity: 0, x: 100, scale: 0.9 }}
       animate={{ opacity: 1, x: 0, scale: 1 }}
@@ -202,7 +204,9 @@ const ToastItem: React.FC<ToastItemProps> = ({ notification, onRemove }) => {
       )}
     </motion.div>
   );
-};
+});
+
+ToastItem.displayName = "ToastItem";
 
 export const ToastContainer: React.FC = () => {
   const { notifications, removeNotification } = useNotificationStore();

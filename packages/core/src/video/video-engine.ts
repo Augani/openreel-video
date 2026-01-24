@@ -43,6 +43,7 @@ import {
   getGifFrameAtTime,
   isAnimatedGif,
 } from "../media/gif-decoder";
+import { getParticleEngine } from "../effects/particle-engine";
 
 const DEFAULT_CACHE_CONFIG: FrameCacheConfig = {
   maxFrames: 100,
@@ -90,6 +91,8 @@ export class VideoEngine {
   private gpuCompositor: GPUCompositor | null = null;
   private gpuRenderer: Renderer | null = null;
   private effectsEngine: VideoEffectsEngine | null = null;
+  private lastExportTime: number = -1;
+  private exportFrameRate: number = 30;
 
   /**
    * Creates a new VideoEngine instance.
@@ -404,6 +407,7 @@ export class VideoEngine {
     const activeStickerClips = this.getActiveStickerClips(timeline, time);
     const activeSubtitles = this.getActiveSubtitles(timeline, time);
 
+
     const allRenderableTracks = timeline.tracks
       .map((track, idx) => ({ track, originalIndex: idx }))
       .filter(
@@ -414,7 +418,7 @@ export class VideoEngine {
             track.type === "graphics") &&
           !track.hidden,
       )
-      .sort((a, b) => a.originalIndex - b.originalIndex);
+      .sort((a, b) => b.originalIndex - a.originalIndex);
 
     const canvas = new OffscreenCanvas(width, height);
     const ctx = canvas.getContext("2d") as OffscreenCanvasRenderingContext2D;
@@ -627,6 +631,8 @@ export class VideoEngine {
       }
     }
 
+    this.renderParticlesToContext(ctx, time, width, height);
+
     for (const subtitle of activeSubtitles) {
       this.renderSubtitleToCanvasCtx(ctx, subtitle, width, height);
     }
@@ -790,6 +796,7 @@ export class VideoEngine {
       height,
       clipLocalTime,
     );
+
     ctx.drawImage(result.canvas, 0, 0);
   }
 
@@ -864,6 +871,55 @@ export class VideoEngine {
     return subtitles.filter((sub) => {
       return time >= sub.startTime && time < sub.endTime;
     });
+  }
+
+  private renderParticlesToContext(
+    ctx: OffscreenCanvasRenderingContext2D,
+    time: number,
+    width: number,
+    height: number,
+  ): void {
+    const particleEngine = getParticleEngine();
+    particleEngine.setCanvasSize(width, height);
+
+    const deltaTime = this.lastExportTime >= 0
+      ? Math.max(0, time - this.lastExportTime)
+      : 1 / this.exportFrameRate;
+    this.lastExportTime = time;
+
+    particleEngine.update(time, deltaTime);
+    const particles = particleEngine.getParticles();
+
+    if (particles.length === 0) return;
+
+    ctx.save();
+
+    for (const particle of particles) {
+      if (!particle.active || particle.opacity <= 0) continue;
+
+      ctx.globalAlpha = particle.opacity;
+      ctx.fillStyle = particle.color;
+
+      const screenY = height - particle.position.y;
+
+      ctx.beginPath();
+      ctx.arc(
+        particle.position.x,
+        screenY,
+        particle.size / 2,
+        0,
+        Math.PI * 2
+      );
+      ctx.fill();
+    }
+
+    ctx.restore();
+  }
+
+  resetExportState(): void {
+    this.lastExportTime = -1;
+    const particleEngine = getParticleEngine();
+    particleEngine.reset();
   }
 
   private renderSubtitleToCanvasCtx(

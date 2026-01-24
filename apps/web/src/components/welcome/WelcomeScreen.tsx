@@ -16,6 +16,7 @@ import { TemplateGallery } from "./TemplateGallery";
 import { RecentProjects } from "./RecentProjects";
 import { useRouter } from "../../hooks/use-router";
 import { useEditorPreload } from "../../hooks/useEditorPreload";
+import { useAnalytics, AnalyticsEvents } from "../../hooks/useAnalytics";
 
 interface FormatOption {
   id: string;
@@ -139,6 +140,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ initialTab }) => {
   const skipWelcomeScreen = useUIStore((state) => state.skipWelcomeScreen);
   const createNewProject = useProjectStore((state) => state.createNewProject);
   const { navigate } = useRouter();
+  const { track } = useAnalytics();
 
   const [viewMode, setViewMode] = useState<ViewMode>(initialTab ?? "home");
   const [hoveredFormat, setHoveredFormat] = useState<string | null>(null);
@@ -153,9 +155,16 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ initialTab }) => {
         height: preset.height,
         frameRate: preset.frameRate,
       });
+      track(AnalyticsEvents.PROJECT_CREATED, {
+        preset: option.preset,
+        width: preset.width,
+        height: preset.height,
+        frameRate: preset.frameRate ?? 30,
+        source: "quick_start",
+      });
       navigate("editor");
     },
-    [createNewProject, navigate],
+    [createNewProject, navigate, track],
   );
 
   const handleTemplateApplied = useCallback(() => {

@@ -5,6 +5,7 @@ import {
   type AutoSaveMetadata,
 } from "../../services/auto-save";
 import { useProjectStore } from "../../stores/project-store";
+import { useAnalytics, AnalyticsEvents } from "../../hooks/useAnalytics";
 
 interface RecentProject {
   id: string;
@@ -26,6 +27,7 @@ export const RecentProjects: React.FC<RecentProjectsProps> = ({
   const recoverFromAutoSave = useProjectStore(
     (state) => state.recoverFromAutoSave,
   );
+  const { track } = useAnalytics();
 
   useEffect(() => {
     async function loadProjects() {
@@ -66,6 +68,9 @@ export const RecentProjects: React.FC<RecentProjectsProps> = ({
       try {
         const success = await recoverFromAutoSave(project.saveId);
         if (success) {
+          track(AnalyticsEvents.PROJECT_OPENED, {
+            source: "recent_projects",
+          });
           onProjectSelected?.();
         }
       } catch (error) {
@@ -74,7 +79,7 @@ export const RecentProjects: React.FC<RecentProjectsProps> = ({
         setLoadingProjectId(null);
       }
     },
-    [recoverFromAutoSave, onProjectSelected],
+    [recoverFromAutoSave, onProjectSelected, track],
   );
 
   const handleRemoveProject = useCallback(
