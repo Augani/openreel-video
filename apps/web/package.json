@@ -16,6 +16,7 @@
     "clean": "rm -rf dist node_modules/.vite && find src -name '*.js' -o -name '*.js.map' -o -name '*.d.ts' -o -name '*.d.ts.map' | xargs rm -f 2>/dev/null || true"
   },
   "dependencies": {
+    "@gsap/react": "^2.1.2",
     "@openreel/core": "workspace:*",
     "@openreel/ui": "workspace:*",
     "@radix-ui/react-context-menu": "^2.2.16",
@@ -31,7 +32,9 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "framer-motion": "^12.23.24",
+    "gsap": "^3.14.2",
     "lucide-react": "^0.555.0",
+    "posthog-js": "^1.335.2",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-syntax-highlighter": "^16.1.0",

@@ -1,5 +1,15 @@
 import React from "react";
-import { Copy, Clipboard, Trash2, Scissors, Music } from "lucide-react";
+import {
+  Copy,
+  Layers,
+  Trash2,
+  Scissors,
+  Music,
+  Sparkles,
+  Volume2,
+  Film,
+  Image,
+} from "lucide-react";
 import type { Clip, Track } from "@openreel/core";
 import { useProjectStore } from "../../../stores/project-store";
 import { useTimelineStore } from "../../../stores/timeline-store";
@@ -8,6 +18,10 @@ import {
   ContextMenuItem,
   ContextMenuSeparator,
   ContextMenuShortcut,
+  ContextMenuSub,
+  ContextMenuSubTrigger,
+  ContextMenuSubContent,
+  ContextMenuLabel,
 } from "@openreel/ui";
 
 interface ClipContextMenuProps {
@@ -29,6 +43,9 @@ export const ClipContextMenu: React.FC<ClipContextMenuProps> = ({
     splitClip,
     separateAudio,
     getMediaItem,
+    copyEffects,
+    pasteEffects,
+    copiedEffects,
   } = useProjectStore();
   const { playheadPosition } = useTimelineStore();
 
@@ -37,11 +54,17 @@ export const ClipContextMenu: React.FC<ClipContextMenuProps> = ({
     playheadPosition <= clip.startTime + clip.duration;
 
   const mediaItem = getMediaItem(clip.mediaId);
+  const isVideo = track.type === "video";
+  const isAudio = track.type === "audio";
+  const isImage = track.type === "image";
   const isVideoWithAudio =
-    track.type === "video" &&
+    isVideo &&
     mediaItem?.type === "video" &&
     mediaItem?.metadata?.channels &&
     mediaItem.metadata.channels > 0;
+
+  const hasEffects = clip.effects && clip.effects.length > 0;
+  const hasCopiedEffects = copiedEffects && copiedEffects.length > 0;
 
   const handleCopy = () => {
     copyClips([clip.id]);
@@ -75,33 +98,77 @@ export const ClipContextMenu: React.FC<ClipContextMenuProps> = ({
     onClose?.();
   };
 
+  const handleCopyEffects = () => {
+    copyEffects(clip.id);
+    onClose?.();
+  };
+
+  const handlePasteEffects = async () => {
+    await pasteEffects(clip.id);
+    onClose?.();
+  };
+
+  const getClipTypeLabel = () => {
+    if (isVideo) return "Video Clip";
+    if (isAudio) return "Audio Clip";
+    if (isImage) return "Image Clip";
+    return "Clip";
+  };
+
+  const getClipTypeIcon = () => {
+    if (isVideo) return <Film className="mr-2 h-3 w-3 text-primary" />;
+    if (isAudio) return <Volume2 className="mr-2 h-3 w-3 text-blue-400" />;
+    if (isImage) return <Image className="mr-2 h-3 w-3 text-purple-400" />;
+    return null;
+  };
+
   return (
-    <ContextMenuContent className="min-w-[200px]">
+    <ContextMenuContent className="min-w-[220px]">
+      <ContextMenuLabel className="flex items-center text-[10px] text-text-muted">
+        {getClipTypeIcon()}
+        {getClipTypeLabel()}
+      </ContextMenuLabel>
+      <ContextMenuSeparator />
+
       <ContextMenuItem onClick={handleCopy}>
         <Copy className="mr-2 h-4 w-4" />
-        Copy
+        Copy Clip
         <ContextMenuShortcut>⌘C</ContextMenuShortcut>
       </ContextMenuItem>
       <ContextMenuItem onClick={handleDuplicate}>
-        <Clipboard className="mr-2 h-4 w-4" />
-        Duplicate
+        <Layers className="mr-2 h-4 w-4" />
+        Duplicate to New Track
         <ContextMenuShortcut>⌘D</ContextMenuShortcut>
       </ContextMenuItem>
-      <ContextMenuItem onClick={handleRippleDelete}>
-        <Trash2 className="mr-2 h-4 w-4" />
-        Ripple Delete
-        <ContextMenuShortcut>⌫</ContextMenuShortcut>
-      </ContextMenuItem>
-      <ContextMenuItem onClick={handleDelete}>
-        <Trash2 className="mr-2 h-4 w-4" />
-        Delete
-      </ContextMenuItem>
+
       <ContextMenuSeparator />
+
       <ContextMenuItem onClick={handleSplit} disabled={!isPlayheadOnClip}>
         <Scissors className="mr-2 h-4 w-4" />
         Split at Playhead
         <ContextMenuShortcut>S</ContextMenuShortcut>
       </ContextMenuItem>
+
+      {(isVideo || isImage) && (
+        <>
+          <ContextMenuSeparator />
+          <ContextMenuSub>
+            <ContextMenuSubTrigger>
+              <Sparkles className="mr-2 h-4 w-4" />
+              Effects
+            </ContextMenuSubTrigger>
+            <ContextMenuSubContent>
+              <ContextMenuItem onClick={handleCopyEffects} disabled={!hasEffects}>
+                Copy Effects
+              </ContextMenuItem>
+              <ContextMenuItem onClick={handlePasteEffects} disabled={!hasCopiedEffects}>
+                Paste Effects
+              </ContextMenuItem>
+            </ContextMenuSubContent>
+          </ContextMenuSub>
+        </>
+      )}
+
       {isVideoWithAudio && (
         <>
           <ContextMenuSeparator />
@@ -111,6 +178,37 @@ export const ClipContextMenu: React.FC<ClipContextMenuProps> = ({
           </ContextMenuItem>
         </>
       )}
+
+      {isAudio && (
+        <>
+          <ContextMenuSeparator />
+          <ContextMenuSub>
+            <ContextMenuSubTrigger>
+              <Volume2 className="mr-2 h-4 w-4" />
+              Audio
+            </ContextMenuSubTrigger>
+            <ContextMenuSubContent>
+              <ContextMenuItem onClick={handleCopyEffects} disabled={!hasEffects}>
+                Copy Audio Effects
+              </ContextMenuItem>
+              <ContextMenuItem onClick={handlePasteEffects} disabled={!hasCopiedEffects}>
+                Paste Audio Effects
+              </ContextMenuItem>
+            </ContextMenuSubContent>
+          </ContextMenuSub>
+        </>
+      )}
+
+      <ContextMenuSeparator />
+      <ContextMenuItem onClick={handleRippleDelete} className="text-red-400">
+        <Trash2 className="mr-2 h-4 w-4" />
+        Ripple Delete
+        <ContextMenuShortcut>⌫</ContextMenuShortcut>
+      </ContextMenuItem>
+      <ContextMenuItem onClick={handleDelete} className="text-red-400">
+        <Trash2 className="mr-2 h-4 w-4" />
+        Delete
+      </ContextMenuItem>
     </ContextMenuContent>
   );
 };

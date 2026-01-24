@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { X, CheckCircle2, XCircle, AlertTriangle, Info } from "lucide-react";
 import {
   useNotificationStore,
@@ -83,8 +84,8 @@ interface ToastItemProps {
   onRemove: (id: string) => void;
 }
 
-const ToastItem: React.FC<ToastItemProps> = ({ notification, onRemove }) => {
-  const [isExiting, setIsExiting] = useState(false);
+const ToastItem = React.forwardRef<HTMLDivElement, ToastItemProps>(
+  ({ notification, onRemove }, ref) => {
   const [progress, setProgress] = useState(100);
   const isDark =
     typeof document !== "undefined" &&
@@ -110,79 +111,105 @@ const ToastItem: React.FC<ToastItemProps> = ({ notification, onRemove }) => {
     return () => clearInterval(interval);
   }, [duration]);
 
-  const handleClose = () => {
-    setIsExiting(true);
-    setTimeout(() => onRemove(notification.id), 200);
-  };
-
   return (
-    <div
+    <motion.div
+      ref={ref}
+      layout
+      initial={{ opacity: 0, x: 100, scale: 0.9 }}
+      animate={{ opacity: 1, x: 0, scale: 1 }}
+      exit={{ opacity: 0, x: 100, scale: 0.9 }}
+      transition={{
+        type: "spring",
+        stiffness: 500,
+        damping: 30,
+        opacity: { duration: 0.2 },
+      }}
       className={`
- relative overflow-hidden
- min-w-[320px] max-w-[420px]
- rounded-xl border shadow-lg
- ${config.bg} ${config.border}
- backdrop-blur-xl
- transform transition-all duration-200 ease-out
- ${isExiting ? "translate-x-full opacity-0" : "translate-x-0 opacity-100"}
- animate-in slide-in-from-right-full
- `}
+        relative overflow-hidden
+        min-w-[320px] max-w-[420px]
+        rounded-xl border shadow-lg
+        ${config.bg} ${config.border}
+        backdrop-blur-xl
+      `}
     >
       <div className="flex items-start gap-3 p-4">
-        <div className={`flex-shrink-0 mt-0.5 ${config.icon}`}>
+        <motion.div
+          initial={{ scale: 0, rotate: -180 }}
+          animate={{ scale: 1, rotate: 0 }}
+          transition={{
+            type: "spring",
+            stiffness: 500,
+            damping: 25,
+            delay: 0.1,
+          }}
+          className={`flex-shrink-0 mt-0.5 ${config.icon}`}
+        >
           {ICONS[notification.type]}
-        </div>
+        </motion.div>
 
         <div className="flex-1 min-w-0 pr-2">
-          <p
+          <motion.p
+            initial={{ opacity: 0, y: 5 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.05 }}
             className={`text-sm font-semibold ${isDark ? "text-zinc-100" : "text-zinc-900"}`}
           >
             {notification.title}
-          </p>
+          </motion.p>
           {notification.message && (
-            <p
+            <motion.p
+              initial={{ opacity: 0, y: 5 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
               className={`text-xs mt-1 leading-relaxed ${isDark ? "text-zinc-400" : "text-zinc-600"}`}
             >
               {notification.message}
-            </p>
+            </motion.p>
           )}
         </div>
 
         {notification.dismissible && (
-          <button
-            onClick={handleClose}
+          <motion.button
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.2 }}
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.9 }}
+            onClick={() => onRemove(notification.id)}
             className={`
- flex-shrink-0 p-1.5 rounded-lg
- transition-colors duration-150
- ${
-   isDark
-     ? "hover:bg-white/10 text-zinc-500 hover:text-zinc-300"
-     : "hover:bg-black/5 text-zinc-400 hover:text-zinc-600"
- }
- `}
+              flex-shrink-0 p-1.5 rounded-lg
+              transition-colors duration-150
+              ${
+                isDark
+                  ? "hover:bg-white/10 text-zinc-500 hover:text-zinc-300"
+                  : "hover:bg-black/5 text-zinc-400 hover:text-zinc-600"
+              }
+            `}
             aria-label="Dismiss notification"
           >
             <X size={16} />
-          </button>
+          </motion.button>
         )}
       </div>
 
       {duration > 0 && (
         <div className="absolute bottom-0 left-0 right-0 h-1 bg-black/5 dark:bg-white/5">
-          <div
-            className={`h-full ${config.progress} transition-all duration-50 ease-linear`}
-            style={{ width: `${progress}%` }}
+          <motion.div
+            initial={{ width: "100%" }}
+            animate={{ width: `${progress}%` }}
+            transition={{ duration: 0.05, ease: "linear" }}
+            className={`h-full ${config.progress}`}
           />
         </div>
       )}
-    </div>
+    </motion.div>
   );
-};
+});
+
+ToastItem.displayName = "ToastItem";
 
 export const ToastContainer: React.FC = () => {
   const { notifications, removeNotification } = useNotificationStore();
-
-  if (notifications.length === 0) return null;
 
   return (
     <div
@@ -190,13 +217,15 @@ export const ToastContainer: React.FC = () => {
       role="region"
       aria-label="Notifications"
     >
-      {notifications.map((notification) => (
-        <ToastItem
-          key={notification.id}
-          notification={notification}
-          onRemove={removeNotification}
-        />
-      ))}
+      <AnimatePresence mode="popLayout">
+        {notifications.map((notification) => (
+          <ToastItem
+            key={notification.id}
+            notification={notification}
+            onRemove={removeNotification}
+          />
+        ))}
+      </AnimatePresence>
     </div>
   );
 };

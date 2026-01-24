@@ -90,12 +90,14 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
   const clipStyle = getClipStyle(track.type);
 
   const handleClick = (e: React.MouseEvent) => {
+    if (e.button !== 0) return;
     if (isDragging || isPendingDrag) return;
     e.stopPropagation();
     onSelect(clip.id, e.shiftKey || e.metaKey);
   };
 
   const handleMouseDown = (e: React.MouseEvent) => {
+    if (e.button !== 0) return;
     if (track.locked || isTrimming) return;
     e.stopPropagation();
 
@@ -121,6 +123,7 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
 
   const handleTrimMouseDown =
     (edge: "left" | "right") => (e: React.MouseEvent) => {
+      if (e.button !== 0) return;
       if (track.locked || !onTrimClip) return;
       e.stopPropagation();
       setIsTrimming(true);

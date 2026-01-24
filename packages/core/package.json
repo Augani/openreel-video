@@ -35,6 +35,7 @@
   "dependencies": {
     "@ffmpeg/ffmpeg": "^0.12.15",
     "@ffmpeg/util": "^0.12.2",
+    "gsap": "^3.14.2",
     "idb-keyval": "^6.2.2",
     "immer": "^11.0.1",
     "mediabunny": "^1.25.3",

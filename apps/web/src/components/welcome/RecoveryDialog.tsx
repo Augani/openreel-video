@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { RotateCcw, Clock, FileVideo, ChevronDown } from "lucide-react";
+import { RotateCcw, Clock, FileVideo, ChevronDown, Trash2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -17,6 +17,7 @@ interface RecoveryDialogProps {
   saves: AutoSaveMetadata[];
   onRecover: (saveId: string) => void;
   onDismiss: () => void;
+  onClearAll?: () => void;
 }
 
 function formatTimeAgo(timestamp: number): string {
@@ -48,11 +49,21 @@ export const RecoveryDialog: React.FC<RecoveryDialogProps> = ({
   saves,
   onRecover,
   onDismiss,
+  onClearAll,
 }) => {
   const [showOlderSaves, setShowOlderSaves] = useState(false);
   const [selectedSave, setSelectedSave] = useState<string | null>(null);
+  const [isClearing, setIsClearing] = useState(false);
   const mostRecent = saves[0];
   const olderSaves = saves.slice(1);
+
+  const handleClearAll = async () => {
+    if (!onClearAll) return;
+    setIsClearing(true);
+    await onClearAll();
+    setIsClearing(false);
+    onDismiss();
+  };
 
   const handleRecover = (saveId: string) => {
     setSelectedSave(saveId);
@@ -123,14 +134,26 @@ export const RecoveryDialog: React.FC<RecoveryDialogProps> = ({
               onOpenChange={setShowOlderSaves}
               className="mt-4 pt-4 border-t border-border"
             >
-              <CollapsibleTrigger className="flex items-center gap-2 text-sm text-text-muted hover:text-text-secondary transition-colors w-full">
-                <ChevronDown
-                  className={`w-4 h-4 transition-transform duration-200 ${showOlderSaves ? "rotate-180" : ""}`}
-                />
-                <span>
-                  {olderSaves.length} older {olderSaves.length === 1 ? "save" : "saves"} available
-                </span>
-              </CollapsibleTrigger>
+              <div className="flex items-center justify-between">
+                <CollapsibleTrigger className="flex items-center gap-2 text-sm text-text-muted hover:text-text-secondary transition-colors">
+                  <ChevronDown
+                    className={`w-4 h-4 transition-transform duration-200 ${showOlderSaves ? "rotate-180" : ""}`}
+                  />
+                  <span>
+                    {olderSaves.length} older {olderSaves.length === 1 ? "save" : "saves"} available
+                  </span>
+                </CollapsibleTrigger>
+                {onClearAll && (
+                  <button
+                    onClick={handleClearAll}
+                    disabled={isClearing}
+                    className="p-1.5 rounded-lg text-text-muted hover:text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-50"
+                    title="Clear all saved projects"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
 
               <CollapsibleContent className="mt-3 space-y-2 max-h-48 overflow-y-auto pr-1 scrollbar-thin">
                 {olderSaves.map((save) => (

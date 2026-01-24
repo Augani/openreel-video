@@ -12,6 +12,9 @@ import {
   type CaptionAnimationStyle,
   CAPTION_ANIMATION_STYLES,
   getAnimationStyleDisplayName,
+  getParticleEngine,
+  type ParticleEffect,
+  type ParticleConfig,
 } from "@openreel/core";
 import {
   VideoEffectsSection,
@@ -40,6 +43,8 @@ import {
   SpeedSection,
   MotionPresetsPanel,
   EmphasisAnimationSection,
+  MotionPathSection,
+  ParticleEffectsSection,
 } from "./inspector";
 import {
   getAudioBridgeEffects,
@@ -101,6 +106,74 @@ const EmptyState: React.FC = () => (
     </p>
   </div>
 );
+
+const ParticleEffectsSectionWrapper: React.FC<{
+  clipId: string;
+  clipDuration: number;
+  clipStartTime: number;
+}> = ({ clipId, clipDuration, clipStartTime }) => {
+  const [updateTrigger, setUpdateTrigger] = React.useState(0);
+  const particleEngine = React.useMemo(() => getParticleEngine(), []);
+
+  const effects = React.useMemo(() => {
+    return particleEngine.getEffectsForClip(clipId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clipId, particleEngine, updateTrigger]);
+
+  const handleAddEffect = React.useCallback(
+    (effect: ParticleEffect) => {
+      particleEngine.addEffect(effect);
+      setUpdateTrigger((v) => v + 1);
+    },
+    [particleEngine]
+  );
+
+  const handleUpdateEffect = React.useCallback(
+    (effectId: string, config: Partial<ParticleConfig>) => {
+      particleEngine.updateEffect(effectId, config);
+      setUpdateTrigger((v) => v + 1);
+    },
+    [particleEngine]
+  );
+
+  const handleRemoveEffect = React.useCallback(
+    (effectId: string) => {
+      particleEngine.removeEffect(effectId);
+      setUpdateTrigger((v) => v + 1);
+    },
+    [particleEngine]
+  );
+
+  const handleToggleEffect = React.useCallback(
+    (effectId: string, enabled: boolean) => {
+      particleEngine.toggleEffect(effectId, enabled);
+      setUpdateTrigger((v) => v + 1);
+    },
+    [particleEngine]
+  );
+
+  const handleUpdateTiming = React.useCallback(
+    (effectId: string, startTime: number, duration: number) => {
+      particleEngine.updateEffectTiming(effectId, startTime, duration);
+      setUpdateTrigger((v) => v + 1);
+    },
+    [particleEngine]
+  );
+
+  return (
+    <ParticleEffectsSection
+      clipId={clipId}
+      clipDuration={clipDuration}
+      clipStartTime={clipStartTime}
+      effects={effects}
+      onAddEffect={handleAddEffect}
+      onUpdateEffect={handleUpdateEffect}
+      onRemoveEffect={handleRemoveEffect}
+      onToggleEffect={handleToggleEffect}
+      onUpdateTiming={handleUpdateTiming}
+    />
+  );
+};
 
 export const InspectorPanel: React.FC = () => {
   // Stores
@@ -526,7 +599,10 @@ export const InspectorPanel: React.FC = () => {
     clipType === "sticker";
 
   return (
-    <div className="w-80 bg-background-secondary border-l border-border flex flex-col overflow-y-auto h-full custom-scrollbar">
+    <div
+      data-tour="inspector"
+      className="w-80 bg-background-secondary border-l border-border flex flex-col overflow-y-auto h-full custom-scrollbar"
+    >
       <div className="p-5">
         <h3 className="text-sm font-bold text-text-primary mb-5 tracking-tight">
           Inspector
@@ -851,6 +927,43 @@ export const InspectorPanel: React.FC = () => {
                 <MotionPresetsPanel clipId={clipId} />
               </Section>
             )}
+
+            {/* Motion Path - Animate position along a path */}
+            {(clipType === "video" ||
+              clipType === "image" ||
+              clipType === "text" ||
+              clipType === "shape" ||
+              clipType === "svg" ||
+              clipType === "sticker") && (
+              <Section
+                title="Motion Path"
+                sectionId="motion-path"
+                defaultOpen={false}
+              >
+                <MotionPathSection clipId={clipId} />
+              </Section>
+            )}
+
+            {/* Particle Effects - Visual particle systems */}
+            {(clipType === "video" ||
+              clipType === "image" ||
+              clipType === "text" ||
+              clipType === "shape" ||
+              clipType === "svg" ||
+              clipType === "sticker") &&
+              selectedClip && (
+                <Section
+                  title="Particle Effects"
+                  sectionId="particle-effects"
+                  defaultOpen={false}
+                >
+                  <ParticleEffectsSectionWrapper
+                    clipId={clipId}
+                    clipDuration={selectedClip.duration}
+                    clipStartTime={selectedClip.startTime}
+                  />
+                </Section>
+              )}
 
             {/* Emphasis Animation - Looping animations while clip is visible */}
             {(clipType === "video" ||

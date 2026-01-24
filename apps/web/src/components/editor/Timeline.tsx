@@ -43,7 +43,6 @@ import {
   TimeRuler,
   TrackHeader,
   TrackLane,
-  SubtitleTrackLane,
   BeatMarkerOverlay,
   MarkerIndicator,
   formatTimecode,
@@ -62,7 +61,6 @@ export const Timeline: React.FC = () => {
     canRedo,
     splitClip,
     removeClip,
-    addClip,
     addTrack,
     reorderTrack,
     deleteShapeClip,
@@ -70,6 +68,7 @@ export const Timeline: React.FC = () => {
     deleteTextClip,
     removeMarker,
     updateMarker,
+    updateClipKeyframes,
   } = useProjectStore();
   const tracks = project.timeline.tracks;
 
@@ -134,9 +133,6 @@ export const Timeline: React.FC = () => {
     currentY: number;
   } | null>(null);
 
-  const [selectedSubtitleIds, setSelectedSubtitleIds] = React.useState<
-    string[]
-  >([]);
   const timelineDuration = useMemo(() => {
     let maxEnd = 0;
     for (const track of tracks) {
@@ -153,7 +149,6 @@ export const Timeline: React.FC = () => {
     for (const track of tracks) {
       height += getTrackHeight(track.id);
     }
-    height += 40;
     return height;
   }, [tracks, getTrackHeight]);
 
@@ -256,6 +251,66 @@ export const Timeline: React.FC = () => {
     [tracks, select, allTextClips, allShapeClips],
   );
 
+  const [selectedKeyframeIds, setSelectedKeyframeIds] = useState<string[]>([]);
+
+  const handleKeyframeSelect = useCallback(
+    (keyframeId: string, addToSelection: boolean) => {
+      if (addToSelection) {
+        setSelectedKeyframeIds((prev) =>
+          prev.includes(keyframeId)
+            ? prev.filter((id) => id !== keyframeId)
+            : [...prev, keyframeId]
+        );
+      } else {
+        setSelectedKeyframeIds([keyframeId]);
+      }
+    },
+    []
+  );
+
+  const handleKeyframeMove = useCallback(
+    (keyframeId: string, newTime: number) => {
+      for (const track of tracks) {
+        for (const clip of track.clips) {
+          const keyframe = clip.keyframes?.find((kf) => kf.id === keyframeId);
+          if (keyframe) {
+            const updatedKeyframes = clip.keyframes?.map((kf) =>
+              kf.id === keyframeId ? { ...kf, time: Math.max(0, newTime) } : kf
+            );
+            if (updatedKeyframes) {
+              updateClipKeyframes(clip.id, updatedKeyframes);
+            }
+            return;
+          }
+        }
+      }
+    },
+    [tracks, updateClipKeyframes]
+  );
+
+  const handleKeyframeDelete = useCallback(
+    (keyframeId: string) => {
+      for (const track of tracks) {
+        for (const clip of track.clips) {
+          const keyframe = clip.keyframes?.find((kf) => kf.id === keyframeId);
+          if (keyframe) {
+            const updatedKeyframes = clip.keyframes?.filter(
+              (kf) => kf.id !== keyframeId
+            );
+            if (updatedKeyframes) {
+              updateClipKeyframes(clip.id, updatedKeyframes);
+            }
+            setSelectedKeyframeIds((prev) =>
+              prev.filter((id) => id !== keyframeId)
+            );
+            return;
+          }
+        }
+      }
+    },
+    [tracks, updateClipKeyframes]
+  );
+
   const handleSplit = useCallback(async () => {
     if (selectedClipIds.length === 1) {
       await splitClip(selectedClipIds[0], playheadPosition);
@@ -298,42 +353,7 @@ export const Timeline: React.FC = () => {
 
   const handleBackgroundClick = useCallback(() => {
     clearSelection();
-    setSelectedSubtitleIds([]);
   }, [clearSelection]);
-
-  const handleSelectSubtitle = useCallback(
-    (subtitleId: string, addToSelection: boolean) => {
-      setSelectedSubtitleIds((prev) =>
-        addToSelection
-          ? prev.includes(subtitleId)
-            ? prev.filter((id) => id !== subtitleId)
-            : [...prev, subtitleId]
-          : [subtitleId],
-      );
-      select({ id: subtitleId, type: "subtitle" }, addToSelection);
-    },
-    [select],
-  );
-
-  const { addSubtitle } = useProjectStore();
-  const handleAddSubtitle = useCallback(
-    (startTime: number) => {
-      addSubtitle({
-        id: `subtitle-${Date.now()}`,
-        text: "New subtitle",
-        startTime,
-        endTime: startTime + 2,
-        style: {
-          fontFamily: "Inter",
-          fontSize: 24,
-          color: "#ffffff",
-          backgroundColor: "transparent",
-          position: "bottom",
-        },
-      });
-    },
-    [addSubtitle],
-  );
 
   const handleBoxSelectionStart = useCallback(
     (e: React.MouseEvent) => {
@@ -450,10 +470,11 @@ export const Timeline: React.FC = () => {
   }, [isBoxSelecting, handleBoxSelectionEnd]);
 
   const handleDropMedia = useCallback(
-    async (trackId: string, mediaId: string, startTime: number) => {
-      await addClip(trackId, mediaId, startTime);
+    async (_trackId: string, mediaId: string, startTime: number) => {
+      const { addClipToNewTrack } = useProjectStore.getState();
+      await addClipToNewTrack(mediaId, startTime);
     },
-    [addClip],
+    [],
   );
 
   const { moveClip } = useProjectStore();
@@ -651,8 +672,11 @@ export const Timeline: React.FC = () => {
   const visualOrderTracks = useMemo(() => tracks, [tracks]);
 
   return (
-    <div className="h-full bg-background border-t border-border flex flex-col">
-      <div className="h-12 border-b border-border flex items-center justify-between px-4 bg-background-secondary">
+    <div
+      data-tour="timeline"
+      className="h-full bg-background border-t border-border flex flex-col"
+    >
+      <div className="h-12 border-b border-border flex items-center justify-between px-4 bg-background-secondary relative z-[100]">
         <div className="flex items-center gap-2">
           <div className="flex bg-background-tertiary rounded-lg p-1 border border-border">
             <IconButton
@@ -707,7 +731,7 @@ export const Timeline: React.FC = () => {
                 <ChevronDownIcon size={12} className="ml-0.5 opacity-60" />
               </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" sideOffset={8} className="w-48">
+            <DropdownMenuContent side="top" align="start" sideOffset={8} className="w-48">
               <DropdownMenuItem onClick={() => addTrack("video")}>
                 <Film size={16} className="text-green-400" />
                 <span>Video Track</span>
@@ -749,6 +773,7 @@ export const Timeline: React.FC = () => {
               </button>
             </PopoverTrigger>
             <PopoverContent
+              side="top"
               align="start"
               sideOffset={8}
               className="w-64 p-0 bg-background-secondary border-border"
@@ -847,7 +872,7 @@ export const Timeline: React.FC = () => {
         onClick={handleBackgroundClick}
       >
         <div className="flex shrink-0">
-          <div className="w-24 h-8 bg-background-tertiary border-b border-r border-border shrink-0" />
+          <div className="w-32 h-8 bg-background-tertiary border-b border-r border-border shrink-0" />
           <div className="flex-1 overflow-hidden relative">
             <div
               style={{
@@ -878,30 +903,32 @@ export const Timeline: React.FC = () => {
         </div>
 
         <div className="flex-1 flex overflow-hidden">
-          <div className="w-24 bg-background-secondary border-r border-border shrink-0 z-20 shadow-lg overflow-hidden">
+          <div className="w-32 bg-background-secondary border-r border-border shrink-0 z-20 shadow-lg overflow-hidden">
             <div
               className="flex flex-col"
               style={{ transform: `translateY(-${scrollY}px)` }}
             >
-              {visualOrderTracks.map((track, i) => (
-                <div
-                  key={track.id}
-                  className={draggedTrackId === track.id ? "opacity-50" : ""}
-                >
-                  <TrackHeader
-                    track={track}
-                    index={i}
-                    onDragStart={handleTrackDragStart}
-                    onDragOver={handleTrackDragOver}
-                    onDrop={handleTrackDrop}
-                  />
-                </div>
-              ))}
-              <div className="h-10 px-2 flex items-center bg-purple-500/10 border-b border-border/50">
-                <span className="text-[10px] font-bold text-purple-400">
-                  Subtitles
-                </span>
-              </div>
+              {visualOrderTracks.map((track, i) => {
+                const keyframeCount = track.clips.reduce(
+                  (sum, clip) => sum + (clip.keyframes?.length || 0),
+                  0
+                );
+                return (
+                  <div
+                    key={track.id}
+                    className={draggedTrackId === track.id ? "opacity-50" : ""}
+                  >
+                    <TrackHeader
+                      track={track}
+                      index={i}
+                      onDragStart={handleTrackDragStart}
+                      onDragOver={handleTrackDragOver}
+                      onDrop={handleTrackDrop}
+                      keyframeCount={keyframeCount}
+                    />
+                  </div>
+                );
+              })}
             </div>
           </div>
 
@@ -947,17 +974,12 @@ export const Timeline: React.FC = () => {
                   scrollX={scrollX}
                   trackHeight={getTrackHeight(track.id)}
                   onResizeTrack={setTrackHeightById}
+                  onKeyframeSelect={handleKeyframeSelect}
+                  onKeyframeMove={handleKeyframeMove}
+                  onKeyframeDelete={handleKeyframeDelete}
+                  selectedKeyframeIds={selectedKeyframeIds}
                 />
               ))}
-
-              <SubtitleTrackLane
-                subtitles={project.timeline.subtitles}
-                pixelsPerSecond={pixelsPerSecond}
-                selectedSubtitleIds={selectedSubtitleIds}
-                onSelectSubtitle={handleSelectSubtitle}
-                onAddSubtitle={handleAddSubtitle}
-                scrollX={scrollX}
-              />
 
               <BeatMarkerOverlay
                 pixelsPerSecond={pixelsPerSecond}
@@ -1017,7 +1039,7 @@ export const Timeline: React.FC = () => {
           position={playheadPosition}
           pixelsPerSecond={pixelsPerSecond}
           scrollX={scrollX}
-          headerOffset={96}
+          headerOffset={128}
         />
       </div>
     </div>

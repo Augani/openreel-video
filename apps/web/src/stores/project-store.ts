@@ -126,6 +126,10 @@ export interface ProjectState {
     mediaId: string,
     startTime: number,
   ) => Promise<ActionResult>;
+  addClipToNewTrack: (
+    mediaId: string,
+    startTime?: number,
+  ) => Promise<ActionResult>;
   removeClip: (clipId: string) => Promise<ActionResult>;
   moveClip: (
     clipId: string,
@@ -223,8 +227,8 @@ export interface ProjectState {
   ) => TextClip | null;
   getAvailableAnimationPresets: () => TextAnimationPreset[];
 
-  // Subtitle actions
-  addSubtitle: (subtitle: import("@openreel/core").Subtitle) => void;
+  // Subtitle actions - subtitles are created as text clips on a Captions track
+  addSubtitle: (subtitle: import("@openreel/core").Subtitle) => Promise<void>;
   removeSubtitle: (subtitleId: string) => void;
   updateSubtitle: (
     subtitleId: string,
@@ -998,6 +1002,76 @@ export const useProjectStore = create<ProjectState>()(
         return result;
       },
 
+      addClipToNewTrack: async (mediaId: string, startTime?: number) => {
+        const { project, addTrack, getMediaItem } = get();
+
+        const mediaItem = getMediaItem(mediaId);
+        if (!mediaItem) {
+          return {
+            success: false,
+            error: {
+              code: "MEDIA_NOT_FOUND" as const,
+              message: "Media item not found",
+            },
+          };
+        }
+
+        let trackType: "video" | "audio" | "image" | "text" | "graphics";
+        if (mediaItem.type === "video") {
+          trackType = "video";
+        } else if (mediaItem.type === "audio") {
+          trackType = "audio";
+        } else if (mediaItem.type === "image") {
+          trackType = "image";
+        } else {
+          trackType = "video";
+        }
+
+        const clipStartTime =
+          startTime !== undefined
+            ? startTime
+            : calculateTimelineDuration(project);
+
+        const trackResult = await addTrack(trackType);
+        if (!trackResult.success) {
+          return trackResult;
+        }
+
+        const { project: updatedProject, actionExecutor: exec } = get();
+        const newTrack = updatedProject.timeline.tracks.find(
+          (t) => t.clips.length === 0 && t.type === trackType,
+        );
+
+        if (!newTrack) {
+          return {
+            success: false,
+            error: {
+              code: "TRACK_NOT_FOUND" as const,
+              message: "Could not find newly created track",
+            },
+          };
+        }
+
+        const projectCopy = structuredClone(updatedProject);
+        const action: Action = {
+          type: "clip/add",
+          id: uuidv4(),
+          timestamp: Date.now(),
+          params: { trackId: newTrack.id, mediaId, startTime: clipStartTime },
+        };
+
+        const result = await exec.execute(action, projectCopy);
+
+        if (result.success) {
+          const finalProject: Project = {
+            ...projectCopy,
+            modifiedAt: Date.now(),
+          };
+          set({ project: finalProject });
+        }
+        return result;
+      },
+
       separateAudio: async (clipId: string) => {
         const { project, actionExecutor, addTrack } = get();
 
@@ -1332,7 +1406,7 @@ export const useProjectStore = create<ProjectState>()(
       },
 
       duplicateClip: async (clipId: string) => {
-        const { getClip, project, actionExecutor } = get();
+        const { getClip, project, addTrack } = get();
         const clip = getClip(clipId);
         if (!clip) {
           return {
@@ -1357,25 +1431,52 @@ export const useProjectStore = create<ProjectState>()(
           };
         }
 
-        const newStartTime = clip.startTime + clip.duration;
+        const trackResult = await addTrack(track.type);
+        if (!trackResult.success) {
+          return trackResult;
+        }
+
+        const { project: updatedProject, actionExecutor } = get();
+        const newTrack = updatedProject.timeline.tracks.find(
+          (t) => t.clips.length === 0 && t.type === track.type,
+        );
+
+        if (!newTrack) {
+          return {
+            success: false,
+            error: {
+              code: "TRACK_NOT_FOUND" as const,
+              message: "Could not find newly created track",
+            },
+          };
+        }
+
+        const projectCopy = structuredClone(updatedProject);
         const action: Action = {
           type: "clip/add",
           id: uuidv4(),
           timestamp: Date.now(),
           params: {
-            trackId: track.id,
+            trackId: newTrack.id,
             mediaId: clip.mediaId,
-            startTime: newStartTime,
+            startTime: clip.startTime,
             duration: clip.duration,
             inPoint: clip.inPoint,
             outPoint: clip.outPoint,
             volume: clip.volume,
-            effects: clip.effects,
+            effects: structuredClone(clip.effects),
+            keyframes: clip.keyframes ? structuredClone(clip.keyframes) : undefined,
+            transform: clip.transform ? structuredClone(clip.transform) : undefined,
           },
         };
-        const result = await actionExecutor.execute(action, project);
+
+        const result = await actionExecutor.execute(action, projectCopy);
         if (result.success) {
-          set({ project: { ...project } });
+          const finalProject: Project = {
+            ...projectCopy,
+            modifiedAt: Date.now(),
+          };
+          set({ project: finalProject });
         }
         return result;
       },
@@ -2541,21 +2642,61 @@ export const useProjectStore = create<ProjectState>()(
         return textAnimationEngine.getAvailablePresets();
       },
 
-      // Subtitle actions
+      // Subtitle actions - subtitles are now created as text clips on a "Captions" track
 
       /**
-       * Add a subtitle to the timeline
+       * Add a subtitle as a text clip on a Captions track
        */
-      addSubtitle: (subtitle) => {
-        set((state) => ({
-          project: {
-            ...state.project,
-            timeline: {
-              ...state.project.timeline,
-              subtitles: [...state.project.timeline.subtitles, subtitle],
-            },
-          },
-        }));
+      addSubtitle: async (subtitle) => {
+        const { project, addTrack, createTextClip } = get();
+
+        let captionsTrack = project.timeline.tracks.find(
+          (t) => t.type === "text" && t.name === "Captions"
+        );
+
+        if (!captionsTrack) {
+          const result = await addTrack("text");
+          if (!result?.success) return;
+
+          const updatedProject = get().project;
+          const newTracks = updatedProject.timeline.tracks.filter(
+            (t) => t.type === "text" && !project.timeline.tracks.some((old) => old.id === t.id)
+          );
+          captionsTrack = newTracks[0];
+
+          if (captionsTrack) {
+            set((state) => ({
+              project: {
+                ...state.project,
+                timeline: {
+                  ...state.project.timeline,
+                  tracks: state.project.timeline.tracks.map((t) =>
+                    t.id === captionsTrack!.id ? { ...t, name: "Captions" } : t
+                  ),
+                },
+              },
+            }));
+            captionsTrack = { ...captionsTrack, name: "Captions" };
+          }
+        }
+
+        if (!captionsTrack) return;
+
+        const duration = subtitle.endTime - subtitle.startTime;
+        const style = subtitle.style;
+
+        createTextClip(
+          captionsTrack.id,
+          subtitle.startTime,
+          subtitle.text,
+          duration,
+          style ? {
+            fontFamily: style.fontFamily,
+            fontSize: style.fontSize,
+            color: style.color,
+            backgroundColor: style.backgroundColor || undefined,
+          } : undefined
+        );
       },
 
       /**

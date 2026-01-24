@@ -159,7 +159,7 @@ export interface ProjectState {
   ) => TextClip | null;
   getAvailableAnimationPresets: () => TextAnimationPreset[];
 
-  addSubtitle: (subtitle: Subtitle) => void;
+  addSubtitle: (subtitle: Subtitle) => Promise<void>;
   removeSubtitle: (subtitleId: string) => void;
   updateSubtitle: (subtitleId: string, updates: Partial<Subtitle>) => void;
   getSubtitle: (subtitleId: string) => Subtitle | undefined;

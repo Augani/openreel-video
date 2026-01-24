@@ -5,9 +5,12 @@ import { AssetsPanel } from "./AssetsPanel";
 import { Preview } from "./Preview";
 import { InspectorPanel } from "./InspectorPanel";
 import { Timeline } from "./Timeline";
+import { KeyframeEditorPanel } from "./KeyframeEditorPanel";
 import { KeyboardShortcutsOverlay } from "./KeyboardShortcutsOverlay";
 import { PanelErrorBoundary } from "../ErrorBoundary";
+import { SpotlightTour, MoGraphTour } from "./tour";
 import { useProjectStore } from "../../stores/project-store";
+import { useUIStore } from "../../stores/ui-store";
 import { useEngineStore } from "../../stores/engine-store";
 import { useKeyboardShortcuts } from "../../hooks/useKeyboardShortcuts";
 import {
@@ -162,6 +165,83 @@ export const EditorInterface: React.FC = () => {
     useKeyboardShortcuts();
   useAutoSave();
 
+  const { keyframeEditorOpen, setKeyframeEditorOpen, getSelectedClipIds } = useUIStore();
+  const { project, updateClipKeyframes } = useProjectStore();
+  const tracks = project.timeline.tracks;
+
+  const [selectedKeyframeIds, setSelectedKeyframeIds] = React.useState<string[]>([]);
+  const [copiedKeyframes, setCopiedKeyframes] = React.useState<import("@openreel/core").Keyframe[]>([]);
+
+  const selectedClip = React.useMemo(() => {
+    const selectedIds = getSelectedClipIds();
+    if (selectedIds.length === 0) return null;
+    const clipId = selectedIds[0];
+    for (const track of tracks) {
+      const clip = track.clips.find((c) => c.id === clipId);
+      if (clip) return clip;
+    }
+    return null;
+  }, [getSelectedClipIds, tracks]);
+
+  const handleUpdateKeyframe = React.useCallback(
+    (keyframeId: string, updates: Partial<import("@openreel/core").Keyframe>) => {
+      if (!selectedClip?.keyframes) return;
+      const keyframes = selectedClip.keyframes.map((kf) =>
+        kf.id === keyframeId ? { ...kf, ...updates } : kf
+      );
+      updateClipKeyframes(selectedClip.id, keyframes);
+    },
+    [selectedClip, updateClipKeyframes]
+  );
+
+  const handleDeleteKeyframe = React.useCallback(
+    (keyframeId: string) => {
+      if (!selectedClip?.keyframes) return;
+      const keyframes = selectedClip.keyframes.filter((kf) => kf.id !== keyframeId);
+      updateClipKeyframes(selectedClip.id, keyframes);
+      setSelectedKeyframeIds((prev) => prev.filter((id) => id !== keyframeId));
+    },
+    [selectedClip, updateClipKeyframes]
+  );
+
+  const handleCopyKeyframes = React.useCallback(
+    (keyframeIds: string[]) => {
+      if (!selectedClip?.keyframes) return;
+      const toCopy = selectedClip.keyframes.filter((kf) => keyframeIds.includes(kf.id));
+      setCopiedKeyframes(toCopy);
+    },
+    [selectedClip]
+  );
+
+  const handlePasteKeyframes = React.useCallback(
+    (clipId: string, time: number) => {
+      const targetClip = tracks.flatMap((t) => t.clips).find((c) => c.id === clipId);
+      if (!targetClip) return;
+      const newKeyframes = copiedKeyframes.map((kf) => ({
+        ...kf,
+        id: `kf-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+        time: kf.time + time,
+      }));
+      updateClipKeyframes(clipId, [...(targetClip.keyframes || []), ...newKeyframes]);
+    },
+    [copiedKeyframes, tracks, updateClipKeyframes]
+  );
+
+  const handleSelectKeyframe = React.useCallback(
+    (keyframeId: string, addToSelection: boolean) => {
+      if (addToSelection) {
+        setSelectedKeyframeIds((prev) =>
+          prev.includes(keyframeId)
+            ? prev.filter((id) => id !== keyframeId)
+            : [...prev, keyframeId]
+        );
+      } else {
+        setSelectedKeyframeIds([keyframeId]);
+      }
+    },
+    []
+  );
+
   const [timelineHeight, setTimelineHeight] = useState(320);
   const isDraggingRef = useRef(false);
 
@@ -229,6 +309,22 @@ export const EditorInterface: React.FC = () => {
         <PanelErrorBoundary name="Inspector">
           <InspectorPanel />
         </PanelErrorBoundary>
+
+        {keyframeEditorOpen && (
+          <PanelErrorBoundary name="Keyframe Editor">
+            <KeyframeEditorPanel
+              clip={selectedClip}
+              onClose={() => setKeyframeEditorOpen(false)}
+              onUpdateKeyframe={handleUpdateKeyframe}
+              onDeleteKeyframe={handleDeleteKeyframe}
+              onCopyKeyframes={handleCopyKeyframes}
+              onPasteKeyframes={handlePasteKeyframes}
+              selectedKeyframeIds={selectedKeyframeIds}
+              onSelectKeyframe={handleSelectKeyframe}
+              copiedKeyframes={copiedKeyframes}
+            />
+          </PanelErrorBoundary>
+        )}
       </div>
 
       {/* Resizable Handle */}
@@ -253,6 +349,9 @@ export const EditorInterface: React.FC = () => {
         isOpen={showShortcutsOverlay}
         onClose={() => setShowShortcutsOverlay(false)}
       />
+
+      <SpotlightTour />
+      <MoGraphTour />
     </div>
   );
 };

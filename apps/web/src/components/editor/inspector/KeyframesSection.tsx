@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { useProjectStore } from "../../../stores/project-store";
 import { useTimelineStore } from "../../../stores/timeline-store";
+import { useEngineStore } from "../../../stores/engine-store";
 import {
   KeyframeEngine,
   EASING_CATEGORIES,
@@ -380,12 +381,33 @@ interface KeyframesSectionProps {
 export const KeyframesSection: React.FC<KeyframesSectionProps> = ({
   clipId,
 }) => {
-  const { getClip, updateClipKeyframes } = useProjectStore();
+  const { getClip, updateClipKeyframes, project } = useProjectStore();
   const playheadPosition = useTimelineStore((state) => state.playheadPosition);
+  const getGraphicsEngine = useEngineStore((state) => state.getGraphicsEngine);
+  const getTitleEngine = useEngineStore((state) => state.getTitleEngine);
 
   const [selectedProperty, setSelectedProperty] = useState<string | null>(null);
 
-  const clip = useMemo(() => getClip(clipId), [clipId, getClip]);
+  const clip = useMemo(() => {
+    const timelineClip = getClip(clipId);
+    if (timelineClip) return timelineClip;
+
+    const graphicsEngine = getGraphicsEngine();
+    const svgClip = graphicsEngine?.getSVGClip(clipId);
+    if (svgClip) return svgClip;
+
+    const shapeClip = graphicsEngine?.getShapeClip(clipId);
+    if (shapeClip) return shapeClip;
+
+    const stickerClip = graphicsEngine?.getStickerClip(clipId);
+    if (stickerClip) return stickerClip;
+
+    const titleEngine = getTitleEngine();
+    const textClip = titleEngine?.getTextClip(clipId);
+    if (textClip) return textClip;
+
+    return undefined;
+  }, [clipId, getClip, getGraphicsEngine, getTitleEngine, project.modifiedAt]);
   const keyframes = clip?.keyframes || [];
 
   const propertiesWithKeyframes = useMemo(() => {

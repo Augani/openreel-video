@@ -41,8 +41,9 @@ export const TimeRuler: React.FC<TimeRulerProps> = ({
     return unsubscribe;
   }, []);
 
-  const visibleStart = scrollX / pixelsPerSecond;
-  const visibleEnd = (scrollX + viewportWidth) / pixelsPerSecond;
+  const safePixelsPerSecond = pixelsPerSecond > 0 ? pixelsPerSecond : 100;
+  const visibleStart = scrollX / safePixelsPerSecond;
+  const visibleEnd = (scrollX + viewportWidth) / safePixelsPerSecond;
 
   const visibleBeatMarkers = useMemo(() => {
     if (beatState.beatMarkers.length === 0) return [];
@@ -54,20 +55,43 @@ export const TimeRuler: React.FC<TimeRulerProps> = ({
     );
   }, [beatState.beatMarkers, visibleStart, visibleEnd]);
 
-  const getTickInterval = () => {
-    if (pixelsPerSecond > 200) return 0.1;
-    if (pixelsPerSecond > 100) return 0.5;
-    if (pixelsPerSecond > 50) return 1;
-    if (pixelsPerSecond > 20) return 5;
-    return 10;
+  const getTickConfig = () => {
+    if (safePixelsPerSecond > 500) {
+      return { minor: 0.01, major: 0.1, labelEvery: 0.5 };
+    }
+    if (safePixelsPerSecond > 200) {
+      return { minor: 0.05, major: 0.5, labelEvery: 1 };
+    }
+    if (safePixelsPerSecond > 100) {
+      return { minor: 0.1, major: 1, labelEvery: 1 };
+    }
+    if (safePixelsPerSecond > 50) {
+      return { minor: 0.5, major: 1, labelEvery: 5 };
+    }
+    if (safePixelsPerSecond > 20) {
+      return { minor: 1, major: 5, labelEvery: 5 };
+    }
+    return { minor: 5, major: 10, labelEvery: 10 };
   };
 
-  const tickInterval = getTickInterval();
-  const startTick = Math.floor(visibleStart / tickInterval) * tickInterval;
-  const ticks: number[] = [];
+  const tickConfig = getTickConfig();
+  const rawStartTick = Math.floor(visibleStart / tickConfig.minor) * tickConfig.minor;
+  const startTick = Math.max(0, rawStartTick);
 
-  for (let t = startTick; t <= visibleEnd + tickInterval; t += tickInterval) {
-    ticks.push(t);
+  interface TickMark {
+    time: number;
+    isMajor: boolean;
+    showLabel: boolean;
+  }
+
+  const ticks: TickMark[] = [];
+  for (let t = startTick; t <= visibleEnd + tickConfig.minor; t += tickConfig.minor) {
+    if (t < 0) continue;
+    const roundedTime = Math.round(t * 10000) / 10000;
+    if (!isFinite(roundedTime) || isNaN(roundedTime)) continue;
+    const isMajor = roundedTime === 0 || Math.abs(roundedTime % tickConfig.major) < 0.0001;
+    const showLabel = roundedTime === 0 || Math.abs(roundedTime % tickConfig.labelEvery) < 0.0001;
+    ticks.push({ time: roundedTime, isMajor, showLabel });
   }
 
   const scrollXRef = useRef(scrollX);
@@ -79,9 +103,9 @@ export const TimeRuler: React.FC<TimeRulerProps> = ({
       if (!grandparent) return 0;
       const rect = grandparent.getBoundingClientRect();
       const x = e.clientX - rect.left + scrollXRef.current;
-      return Math.max(0, x / pixelsPerSecond);
+      return Math.max(0, x / safePixelsPerSecond);
     },
-    [pixelsPerSecond],
+    [safePixelsPerSecond],
   );
 
   const handleMouseDown = useCallback(
@@ -129,13 +153,21 @@ export const TimeRuler: React.FC<TimeRulerProps> = ({
       onMouseDown={handleMouseDown}
       style={{ cursor: isDragging ? "grabbing" : "pointer" }}
     >
-      {ticks.map((time) => (
+      {ticks.map((tick) => (
         <div
-          key={time}
-          className="absolute border-l border-border h-3 text-[9px] font-mono text-text-muted pl-1 pointer-events-none"
-          style={{ left: `${time * pixelsPerSecond}px` }}
+          key={`tick-${tick.time}`}
+          className={`absolute border-l pointer-events-none ${
+            tick.isMajor
+              ? "border-border h-4"
+              : "border-border/50 h-2"
+          }`}
+          style={{ left: `${tick.time * safePixelsPerSecond}px` }}
         >
-          {formatTimecode(time).slice(3)}
+          {tick.showLabel && tick.time >= 0 && (
+            <span className="text-[9px] font-mono text-text-muted pl-1 whitespace-nowrap">
+              {formatTimecode(Math.max(0, tick.time)).slice(3)}
+            </span>
+          )}
         </div>
       ))}
 
@@ -147,7 +179,7 @@ export const TimeRuler: React.FC<TimeRulerProps> = ({
               ? "w-[2px] h-5 bg-orange-500"
               : "w-px h-3 bg-orange-400/50"
           }`}
-          style={{ left: `${marker.time * pixelsPerSecond}px` }}
+          style={{ left: `${marker.time * safePixelsPerSecond}px` }}
         />
       ))}
 

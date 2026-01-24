@@ -31,6 +31,7 @@ import {
   getSpeedEngine,
   getMasterClock,
   getRealtimeAudioGraph,
+  getParticleEngine,
   type Effect,
   type AudioClipSchedule,
   type TextClip,
@@ -60,8 +61,11 @@ import {
   getAnimatedTransform,
   applyEmphasisAnimation,
   CropModeView,
+  MotionPathOverlay,
+  ParticleRenderer,
 } from "./preview/index";
 import { ProcessingOverlay } from "./ProcessingOverlay";
+import type { MotionPathConfig, GSAPMotionPathPoint } from "@openreel/core";
 
 const getAdaptivePoolSize = (width: number, height: number): number => {
   const pixels = width * height;
@@ -361,6 +365,8 @@ export const Preview: React.FC = () => {
   const cropClipId = useUIStore((state) => state.cropClipId);
   const setCropMode = useUIStore((state) => state.setCropMode);
   const exportState = useUIStore((state) => state.exportState);
+  const motionPathMode = useUIStore((state) => state.motionPathMode);
+  const motionPathClipId = useUIStore((state) => state.motionPathClipId);
 
   const {
     playheadPosition,
@@ -379,6 +385,96 @@ export const Preview: React.FC = () => {
   }, [isScrubbing]);
 
   const isPlaying = playbackState === "playing";
+
+  const motionPathClip = React.useMemo(() => {
+    if (!motionPathMode || !motionPathClipId) return null;
+    for (const track of project.timeline.tracks) {
+      const clip = track.clips.find((c) => c.id === motionPathClipId);
+      if (clip) return clip;
+    }
+    return null;
+  }, [motionPathMode, motionPathClipId, project.timeline.tracks]);
+
+  const [motionPathConfig, setMotionPathConfig] = React.useState<MotionPathConfig | null>(null);
+
+  React.useEffect(() => {
+    if (motionPathClip) {
+      setMotionPathConfig({
+        clipId: motionPathClip.id,
+        enabled: true,
+        pathType: "bezier",
+        points: [],
+        showPath: true,
+        autoOrient: false,
+        alignOrigin: [0.5, 0.5],
+      });
+    } else {
+      setMotionPathConfig(null);
+    }
+  }, [motionPathClip]);
+
+  const handleMotionPathPointMove = React.useCallback(
+    (index: number, x: number, y: number) => {
+      setMotionPathConfig((prev) => {
+        if (!prev) return prev;
+        const newPoints = [...prev.points];
+        newPoints[index] = { ...newPoints[index], x, y };
+        return { ...prev, points: newPoints };
+      });
+    },
+    []
+  );
+
+  const handleMotionPathPointAdd = React.useCallback(
+    (point: GSAPMotionPathPoint) => {
+      setMotionPathConfig((prev) => {
+        if (!prev) return prev;
+        const newPoints = [...prev.points, point].sort((a, b) => a.time - b.time);
+        return { ...prev, points: newPoints };
+      });
+    },
+    []
+  );
+
+  const handleMotionPathPointRemove = React.useCallback((index: number) => {
+    setMotionPathConfig((prev) => {
+      if (!prev) return prev;
+      const newPoints = prev.points.filter((_, i) => i !== index);
+      return { ...prev, points: newPoints };
+    });
+  }, []);
+
+  const handleMotionPathControlPointMove = React.useCallback(
+    (pointIndex: number, handleType: "cp1" | "cp2", x: number, y: number) => {
+      setMotionPathConfig((prev) => {
+        if (!prev) return prev;
+        const newPoints = [...prev.points];
+        const point = newPoints[pointIndex];
+        if (!point.controlPoints) {
+          point.controlPoints = { cp1: { x: 0, y: 0 }, cp2: { x: 0, y: 0 } };
+        }
+        point.controlPoints[handleType] = { x, y };
+        return { ...prev, points: newPoints };
+      });
+    },
+    []
+  );
+
+  const particleEngine = React.useMemo(() => getParticleEngine(), []);
+  const [particleUpdateTrigger, setParticleUpdateTrigger] = React.useState(
+    () => particleEngine.getChangeVersion()
+  );
+
+  React.useEffect(() => {
+    const unsubscribe = particleEngine.onEffectsChange(() => {
+      setParticleUpdateTrigger(particleEngine.getChangeVersion());
+    });
+    return unsubscribe;
+  }, [particleEngine]);
+
+  const particleEffects = React.useMemo(() => {
+    return particleEngine.getAllEffects();
+  }, [particleEngine, particleUpdateTrigger]);
 
   // Calculate the actual end time for playback (where clips actually end)
   // This needs to recalculate whenever the timeline changes
@@ -4540,6 +4636,7 @@ export const Preview: React.FC = () => {
   return (
     <div
       ref={containerRef}
+      data-tour="preview"
       className="flex-1 bg-background flex flex-col relative group overflow-hidden"
     >
       {/* Crop Mode View - Full Screen Overlay */}
@@ -4598,6 +4695,37 @@ export const Preview: React.FC = () => {
 
           {/* Processing Overlay */}
           <ProcessingOverlay />
+
+          {/* Motion Path Overlay */}
+          {motionPathMode && motionPathConfig && motionPathClip && (
+            <div className="absolute inset-0 pointer-events-auto z-30">
+              <MotionPathOverlay
+                config={motionPathConfig}
+                canvasWidth={settings.width}
+                canvasHeight={settings.height}
+                currentTime={playheadPosition - motionPathClip.startTime}
+                clipDuration={motionPathClip.duration}
+                onPointMove={handleMotionPathPointMove}
+                onPointAdd={handleMotionPathPointAdd}
+                onPointRemove={handleMotionPathPointRemove}
+                onControlPointMove={handleMotionPathControlPointMove}
+                disabled={isPlaying}
+              />
+            </div>
+          )}
+
+          {/* Particle Effects Renderer */}
+          {particleEffects.length > 0 && (
+            <div className="absolute inset-0 pointer-events-none z-20">
+              <ParticleRenderer
+                effects={particleEffects}
+                width={settings.width}
+                height={settings.height}
+                currentTime={playheadPosition}
+                isPlaying={isPlaying}
+              />
+            </div>
+          )}
 
           {/* Export Overlay */}
           {exportState.isExporting && (

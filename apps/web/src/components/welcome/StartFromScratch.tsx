@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { Button, Input, Label } from "@openreel/ui";
 import { useProjectStore } from "../../stores/project-store";
+import { useAnalytics, AnalyticsEvents } from "../../hooks/useAnalytics";
 import {
   SOCIAL_MEDIA_PRESETS,
   SOCIAL_MEDIA_CATEGORY_INFO,
@@ -61,6 +62,7 @@ export const StartFromScratch: React.FC<StartFromScratchProps> = ({
 }) => {
   const createNewProject = useProjectStore((state) => state.createNewProject);
   const updateSettings = useProjectStore((state) => state.updateSettings);
+  const { track } = useAnalytics();
   const [selectedPreset, setSelectedPreset] =
     useState<SocialMediaCategory>("youtube-video");
   const [projectName, setProjectName] = useState("");
@@ -76,6 +78,14 @@ export const StartFromScratch: React.FC<StartFromScratchProps> = ({
     createNewProject(projectName.trim() || `${info?.name || "New"} Project`);
     await updateSettings(settings);
 
+    track(AnalyticsEvents.PROJECT_CREATED, {
+      preset: selectedPreset,
+      width: preset.width,
+      height: preset.height,
+      frameRate: preset.frameRate || 30,
+      source: "start_from_scratch",
+    });
+
     setTimeout(() => {
       setIsCreating(false);
       onProjectCreated?.();
@@ -87,6 +97,8 @@ export const StartFromScratch: React.FC<StartFromScratchProps> = ({
     projectName,
     info,
     onProjectCreated,
+    track,
+    selectedPreset,
   ]);
 
   return (

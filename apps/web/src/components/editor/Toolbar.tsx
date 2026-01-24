@@ -17,6 +17,10 @@ import {
   Zap,
   Circle,
   History,
+  HelpCircle,
+  Diamond,
+  Sparkles,
+  Play,
 } from "lucide-react";
 import { useProjectStore } from "../../stores/project-store";
 import { useUIStore } from "../../stores/ui-store";
@@ -37,6 +41,8 @@ import { ScreenRecorder } from "./ScreenRecorder";
 import { HistoryPanel } from "./inspector/HistoryPanel";
 import { ProjectSwitcher } from "./ProjectSwitcher";
 import { toast } from "../../stores/notification-store";
+import { useAnalytics, AnalyticsEvents } from "../../hooks/useAnalytics";
+import { startTour, ONBOARDING_KEY, startMoGraphTour, MOGRAPH_TOUR_KEY } from "./tour";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -71,7 +77,7 @@ interface ExportState {
 
 export const Toolbar: React.FC = () => {
   const { project } = useProjectStore();
-  const { openModal, selectedItems, setExportState: setGlobalExportState } =
+  const { openModal, selectedItems, setExportState: setGlobalExportState, keyframeEditorOpen, toggleKeyframeEditor } =
     useUIStore();
   const { mode: themeMode, toggleTheme } = useThemeStore();
   const [isExportOpen, setIsExportOpen] = useState(false);
@@ -79,6 +85,17 @@ export const Toolbar: React.FC = () => {
   const [isRecorderOpen, setIsRecorderOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const { importMedia } = useProjectStore();
+  const { track } = useAnalytics();
+
+  const handleStartTour = useCallback(() => {
+    localStorage.removeItem(ONBOARDING_KEY);
+    startTour();
+  }, []);
+
+  const handleStartMoGraphTour = useCallback(() => {
+    localStorage.removeItem(MOGRAPH_TOUR_KEY);
+    startMoGraphTour();
+  }, []);
 
   const hasSelectedClip = selectedItems.some(
     (item) =>
@@ -193,6 +210,10 @@ export const Toolbar: React.FC = () => {
               complete: true,
               phase: "Downloaded!",
             }));
+            track(AnalyticsEvents.PROJECT_EXPORTED, {
+              format: "wav",
+              duration: project.timeline?.duration ?? 0,
+            });
           } else {
             throw new Error(finalResult?.error?.message || "Export failed");
           }
@@ -385,6 +406,15 @@ export const Toolbar: React.FC = () => {
           }
 
           if (finalResult?.success) {
+            track(AnalyticsEvents.PROJECT_EXPORTED, {
+              format: videoSettings.format ?? "mp4",
+              codec: videoSettings.codec ?? "h264",
+              width: videoSettings.width ?? project.settings.width,
+              height: videoSettings.height ?? project.settings.height,
+              frameRate: videoSettings.frameRate ?? project.settings.frameRate,
+              duration: project.timeline?.duration ?? 0,
+              exportType: type,
+            });
             if (useStreaming) {
               setExportState((prev) => ({
                 ...prev,
@@ -426,7 +456,7 @@ export const Toolbar: React.FC = () => {
         }));
       }
     },
-    [project],
+    [project, track],
   );
 
   const handleCancelExport = useCallback(() => {
@@ -536,6 +566,16 @@ export const Toolbar: React.FC = () => {
         }
 
         if (finalResult?.success) {
+          track(AnalyticsEvents.PROJECT_EXPORTED, {
+            format: settings.format,
+            codec: settings.codec,
+            width: settings.width,
+            height: settings.height,
+            frameRate: settings.frameRate,
+            duration: project.timeline?.duration ?? 0,
+            exportType: "custom",
+            upscaling: settings.upscaling?.enabled ?? false,
+          });
           if (useStreaming) {
             setExportState((prev) => ({
               ...prev,
@@ -573,7 +613,7 @@ export const Toolbar: React.FC = () => {
         }));
       }
     },
-    [project],
+    [project, track],
   );
 
 
@@ -834,6 +874,31 @@ export const Toolbar: React.FC = () => {
       </div>
 
       <div className="flex items-center gap-4">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              className="p-2 rounded-lg hover:bg-background-elevated text-text-secondary hover:text-text-primary transition-colors"
+            >
+              <HelpCircle size={16} />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuItem onClick={handleStartTour} className="gap-2">
+              <Play size={14} />
+              <span>Editor Tour</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={handleStartMoGraphTour} className="gap-2">
+              <Sparkles size={14} className="text-purple-400" />
+              <span>Animation & Effects Tour</span>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem className="gap-2 text-text-muted">
+              <Command size={14} />
+              <span>Press ? for shortcuts</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
         <Tooltip>
           <TooltipTrigger asChild>
             <button
@@ -865,6 +930,24 @@ export const Toolbar: React.FC = () => {
           </TooltipTrigger>
           <TooltipContent>
             <p>Script View - View/Import JSON</p>
+          </TooltipContent>
+        </Tooltip>
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              onClick={toggleKeyframeEditor}
+              className={`p-2 rounded-lg transition-colors ${
+                keyframeEditorOpen
+                  ? "bg-primary/20 text-primary"
+                  : "hover:bg-background-elevated text-text-secondary hover:text-text-primary"
+              }`}
+            >
+              <Diamond size={16} />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>Keyframe Editor</p>
           </TooltipContent>
         </Tooltip>
 

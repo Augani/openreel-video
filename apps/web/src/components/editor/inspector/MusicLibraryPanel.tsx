@@ -109,8 +109,6 @@ export const MusicLibraryPanel: React.FC = () => {
   const getSoundLibraryEngine = useEngineStore(
     (state) => state.getSoundLibraryEngine,
   );
-  const addTrack = useProjectStore((state) => state.addTrack);
-  const addClip = useProjectStore((state) => state.addClip);
   const importMedia = useProjectStore((state) => state.importMedia);
   const project = useProjectStore((state) => state.project);
 
@@ -223,32 +221,10 @@ export const MusicLibraryPanel: React.FC = () => {
       }
 
       const mediaId = importResult.actionId;
-
-      const audioTracks = project.timeline.tracks.filter(
-        (t) => t.type === "audio",
-      );
-
-      let targetTrack =
-        audioTracks.length > 0 ? audioTracks[audioTracks.length - 1] : null;
-
-      if (!targetTrack) {
-        await addTrack("audio");
-        const updatedProject = useProjectStore.getState().project;
-        targetTrack =
-          updatedProject.timeline.tracks.find((t) => t.type === "audio") ||
-          null;
-      }
-
-      if (targetTrack) {
-        const trackEndTime = targetTrack.clips.reduce((max, clip) => {
-          const clipEnd = clip.startTime + clip.duration;
-          return clipEnd > max ? clipEnd : max;
-        }, 0);
-
-        await addClip(targetTrack.id, mediaId, trackEndTime);
-      }
+      const { addClipToNewTrack } = useProjectStore.getState();
+      await addClipToNewTrack(mediaId);
     },
-    [project, getSoundLibraryEngine, addTrack, addClip, importMedia],
+    [project, getSoundLibraryEngine, importMedia],
   );
 
   const toggleMood = useCallback((mood: MoodTag) => {

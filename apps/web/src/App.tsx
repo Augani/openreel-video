@@ -38,7 +38,7 @@ function App() {
   const { activeModal, closeModal, skipWelcomeScreen } = useUIStore();
   const { openModal: openSearchModal } = useUIStore();
   const createNewProject = useProjectStore((state) => state.createNewProject);
-  const { showDialog, availableSaves, recover, dismiss } = useProjectRecovery();
+  const { showDialog, availableSaves, recover, dismiss, clearAll } = useProjectRecovery();
 
   const { route, params, navigate, parsedDimensions, fps } = useRouter();
   const hasHandledInitialRoute = useRef(false);
@@ -156,6 +156,7 @@ function App() {
               if (success) navigate("editor");
             }}
             onDismiss={dismiss}
+            onClearAll={clearAll}
           />
         )}
       </div>

@@ -428,55 +428,8 @@ export const AssetsPanel: React.FC = () => {
   );
 
   const addMediaToTimeline = useCallback(async (item: MediaItem) => {
-    const {
-      addClip,
-      addTrack,
-      project: currentProject,
-    } = useProjectStore.getState();
-    const tracks = currentProject.timeline.tracks;
-
-    let targetTrack = tracks.find((t) => {
-      if (item.type === "video") {
-        return t.type === "video";
-      }
-      if (item.type === "image") {
-        return t.type === "image";
-      }
-      if (item.type === "audio") {
-        return t.type === "audio";
-      }
-      return false;
-    });
-
-    if (!targetTrack) {
-      if (item.type === "image") {
-        await addTrack("image", 0);
-        const updatedTracks =
-          useProjectStore.getState().project.timeline.tracks;
-        targetTrack = updatedTracks.find((t) => t.type === "image");
-      } else if (item.type === "video") {
-        targetTrack = tracks.find((t) => t.type === "video");
-      } else if (item.type === "audio") {
-        targetTrack = tracks.find((t) => t.type === "audio");
-      }
-    }
-
-    if (targetTrack) {
-      let startTime = 0;
-      for (const clip of targetTrack.clips) {
-        const clipEnd = clip.startTime + clip.duration;
-        if (clipEnd > startTime) {
-          startTime = clipEnd;
-        }
-      }
-
-      await addClip(targetTrack.id, item.id, startTime);
-    } else {
-      console.error(
-        "AssetsPanel: No suitable track found for media type:",
-        item.type,
-      );
-    }
+    const { addClipToNewTrack } = useProjectStore.getState();
+    await addClipToNewTrack(item.id);
   }, []);
 
   const handleConfirmAspectRatioMatch = useCallback(async () => {
@@ -562,7 +515,10 @@ export const AssetsPanel: React.FC = () => {
   );
 
   return (
-    <div className="w-80 bg-background-secondary border-r border-border flex flex-col h-full relative">
+    <div
+      data-tour="assets"
+      className="w-80 bg-background-secondary border-r border-border flex flex-col h-full relative"
+    >
       {/* Loading overlay */}
       {isImporting && (
         <LoadingIndicator message={importProgress || "Importing media..."} />
