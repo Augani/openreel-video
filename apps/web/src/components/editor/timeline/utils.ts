@@ -90,6 +90,9 @@ export const formatTimecode = (
   timeInSeconds: number,
   frameRate: number = 30,
 ): string => {
+  if (!isFinite(timeInSeconds) || isNaN(timeInSeconds) || timeInSeconds < 0) {
+    return "00:00:00:00";
+  }
   const hours = Math.floor(timeInSeconds / 3600);
   const minutes = Math.floor((timeInSeconds % 3600) / 60);
   const seconds = Math.floor(timeInSeconds % 60);

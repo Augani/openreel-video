@@ -7,7 +7,5 @@ export { TrackLane } from "./TrackLane";
 export { ClipComponent } from "./ClipComponent";
 export { TextClipComponent } from "./TextClipComponent";
 export { ShapeClipComponent } from "./ShapeClipComponent";
-export { SubtitleClip } from "./SubtitleClip";
-export { SubtitleTrackLane } from "./SubtitleTrackLane";
 export { BeatMarkerOverlay } from "./BeatMarkerOverlay";
 export { MarkerIndicator } from "./MarkerIndicator";

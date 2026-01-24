@@ -12,30 +12,7 @@ export const DEFAULT_PROJECT_SETTINGS: ProjectSettings = {
 
 export function createDefaultTimeline(): Timeline {
   return {
-    tracks: [
-      {
-        id: uuidv4(),
-        type: "video",
-        name: "Video 1",
-        clips: [],
-        transitions: [],
-        locked: false,
-        hidden: false,
-        muted: false,
-        solo: false,
-      },
-      {
-        id: uuidv4(),
-        type: "audio",
-        name: "Audio 1",
-        clips: [],
-        transitions: [],
-        locked: false,
-        hidden: false,
-        muted: false,
-        solo: false,
-      },
-    ],
+    tracks: [],
     subtitles: [],
     duration: 0,
     markers: [],

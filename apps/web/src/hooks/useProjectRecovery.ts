@@ -64,11 +64,17 @@ export function useProjectRecovery() {
     setState((prev) => ({ ...prev, showDialog: false }));
   }, []);
 
+  const clearAll = useCallback(async () => {
+    await autoSaveManager.clearAllSaves();
+    setState((prev) => ({ ...prev, availableSaves: [], showDialog: false }));
+  }, []);
+
   return {
     isChecking: state.isChecking,
     availableSaves: state.availableSaves,
     showDialog: state.showDialog,
     recover,
     dismiss,
+    clearAll,
   };
 }

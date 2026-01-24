@@ -43,7 +43,6 @@ import {
   TimeRuler,
   TrackHeader,
   TrackLane,
-  SubtitleTrackLane,
   BeatMarkerOverlay,
   MarkerIndicator,
   formatTimecode,
@@ -62,7 +61,6 @@ export const Timeline: React.FC = () => {
     canRedo,
     splitClip,
     removeClip,
-    addClip,
     addTrack,
     reorderTrack,
     deleteShapeClip,
@@ -134,9 +132,6 @@ export const Timeline: React.FC = () => {
     currentY: number;
   } | null>(null);
 
-  const [selectedSubtitleIds, setSelectedSubtitleIds] = React.useState<
-    string[]
-  >([]);
   const timelineDuration = useMemo(() => {
     let maxEnd = 0;
     for (const track of tracks) {
@@ -153,7 +148,6 @@ export const Timeline: React.FC = () => {
     for (const track of tracks) {
       height += getTrackHeight(track.id);
     }
-    height += 40;
     return height;
   }, [tracks, getTrackHeight]);
 
@@ -298,42 +292,7 @@ export const Timeline: React.FC = () => {
 
   const handleBackgroundClick = useCallback(() => {
     clearSelection();
-    setSelectedSubtitleIds([]);
   }, [clearSelection]);
-
-  const handleSelectSubtitle = useCallback(
-    (subtitleId: string, addToSelection: boolean) => {
-      setSelectedSubtitleIds((prev) =>
-        addToSelection
-          ? prev.includes(subtitleId)
-            ? prev.filter((id) => id !== subtitleId)
-            : [...prev, subtitleId]
-          : [subtitleId],
-      );
-      select({ id: subtitleId, type: "subtitle" }, addToSelection);
-    },
-    [select],
-  );
-
-  const { addSubtitle } = useProjectStore();
-  const handleAddSubtitle = useCallback(
-    (startTime: number) => {
-      addSubtitle({
-        id: `subtitle-${Date.now()}`,
-        text: "New subtitle",
-        startTime,
-        endTime: startTime + 2,
-        style: {
-          fontFamily: "Inter",
-          fontSize: 24,
-          color: "#ffffff",
-          backgroundColor: "transparent",
-          position: "bottom",
-        },
-      });
-    },
-    [addSubtitle],
-  );
 
   const handleBoxSelectionStart = useCallback(
     (e: React.MouseEvent) => {
@@ -450,10 +409,11 @@ export const Timeline: React.FC = () => {
   }, [isBoxSelecting, handleBoxSelectionEnd]);
 
   const handleDropMedia = useCallback(
-    async (trackId: string, mediaId: string, startTime: number) => {
-      await addClip(trackId, mediaId, startTime);
+    async (_trackId: string, mediaId: string, startTime: number) => {
+      const { addClipToNewTrack } = useProjectStore.getState();
+      await addClipToNewTrack(mediaId, startTime);
     },
-    [addClip],
+    [],
   );
 
   const { moveClip } = useProjectStore();
@@ -847,7 +807,7 @@ export const Timeline: React.FC = () => {
         onClick={handleBackgroundClick}
       >
         <div className="flex shrink-0">
-          <div className="w-24 h-8 bg-background-tertiary border-b border-r border-border shrink-0" />
+          <div className="w-32 h-8 bg-background-tertiary border-b border-r border-border shrink-0" />
           <div className="flex-1 overflow-hidden relative">
             <div
               style={{
@@ -878,7 +838,7 @@ export const Timeline: React.FC = () => {
         </div>
 
         <div className="flex-1 flex overflow-hidden">
-          <div className="w-24 bg-background-secondary border-r border-border shrink-0 z-20 shadow-lg overflow-hidden">
+          <div className="w-32 bg-background-secondary border-r border-border shrink-0 z-20 shadow-lg overflow-hidden">
             <div
               className="flex flex-col"
               style={{ transform: `translateY(-${scrollY}px)` }}
@@ -897,11 +857,6 @@ export const Timeline: React.FC = () => {
                   />
                 </div>
               ))}
-              <div className="h-10 px-2 flex items-center bg-purple-500/10 border-b border-border/50">
-                <span className="text-[10px] font-bold text-purple-400">
-                  Subtitles
-                </span>
-              </div>
             </div>
           </div>
 
@@ -949,15 +904,6 @@ export const Timeline: React.FC = () => {
                   onResizeTrack={setTrackHeightById}
                 />
               ))}
-
-              <SubtitleTrackLane
-                subtitles={project.timeline.subtitles}
-                pixelsPerSecond={pixelsPerSecond}
-                selectedSubtitleIds={selectedSubtitleIds}
-                onSelectSubtitle={handleSelectSubtitle}
-                onAddSubtitle={handleAddSubtitle}
-                scrollX={scrollX}
-              />
 
               <BeatMarkerOverlay
                 pixelsPerSecond={pixelsPerSecond}
@@ -1017,7 +963,7 @@ export const Timeline: React.FC = () => {
           position={playheadPosition}
           pixelsPerSecond={pixelsPerSecond}
           scrollX={scrollX}
-          headerOffset={96}
+          headerOffset={128}
         />
       </div>
     </div>
