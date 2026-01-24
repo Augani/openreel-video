@@ -7,6 +7,7 @@ import { InspectorPanel } from "./InspectorPanel";
 import { Timeline } from "./Timeline";
 import { KeyboardShortcutsOverlay } from "./KeyboardShortcutsOverlay";
 import { PanelErrorBoundary } from "../ErrorBoundary";
+import { SpotlightTour } from "./tour";
 import { useProjectStore } from "../../stores/project-store";
 import { useEngineStore } from "../../stores/engine-store";
 import { useKeyboardShortcuts } from "../../hooks/useKeyboardShortcuts";
@@ -253,6 +254,8 @@ export const EditorInterface: React.FC = () => {
         isOpen={showShortcutsOverlay}
         onClose={() => setShowShortcutsOverlay(false)}
       />
+
+      <SpotlightTour />
     </div>
   );
 };

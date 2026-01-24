@@ -526,7 +526,10 @@ export const InspectorPanel: React.FC = () => {
     clipType === "sticker";
 
   return (
-    <div className="w-80 bg-background-secondary border-l border-border flex flex-col overflow-y-auto h-full custom-scrollbar">
+    <div
+      data-tour="inspector"
+      className="w-80 bg-background-secondary border-l border-border flex flex-col overflow-y-auto h-full custom-scrollbar"
+    >
       <div className="p-5">
         <h3 className="text-sm font-bold text-text-primary mb-5 tracking-tight">
           Inspector

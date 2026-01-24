@@ -611,7 +611,10 @@ export const Timeline: React.FC = () => {
   const visualOrderTracks = useMemo(() => tracks, [tracks]);
 
   return (
-    <div className="h-full bg-background border-t border-border flex flex-col">
+    <div
+      data-tour="timeline"
+      className="h-full bg-background border-t border-border flex flex-col"
+    >
       <div className="h-12 border-b border-border flex items-center justify-between px-4 bg-background-secondary">
         <div className="flex items-center gap-2">
           <div className="flex bg-background-tertiary rounded-lg p-1 border border-border">

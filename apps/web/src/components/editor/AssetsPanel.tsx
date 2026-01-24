@@ -515,7 +515,10 @@ export const AssetsPanel: React.FC = () => {
   );
 
   return (
-    <div className="w-80 bg-background-secondary border-r border-border flex flex-col h-full relative">
+    <div
+      data-tour="assets"
+      className="w-80 bg-background-secondary border-r border-border flex flex-col h-full relative"
+    >
       {/* Loading overlay */}
       {isImporting && (
         <LoadingIndicator message={importProgress || "Importing media..."} />

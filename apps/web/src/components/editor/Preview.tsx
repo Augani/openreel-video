@@ -4540,6 +4540,7 @@ export const Preview: React.FC = () => {
   return (
     <div
       ref={containerRef}
+      data-tour="preview"
       className="flex-1 bg-background flex flex-col relative group overflow-hidden"
     >
       {/* Crop Mode View - Full Screen Overlay */}

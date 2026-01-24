@@ -17,6 +17,7 @@ import {
   Zap,
   Circle,
   History,
+  HelpCircle,
 } from "lucide-react";
 import { useProjectStore } from "../../stores/project-store";
 import { useUIStore } from "../../stores/ui-store";
@@ -37,6 +38,7 @@ import { ScreenRecorder } from "./ScreenRecorder";
 import { HistoryPanel } from "./inspector/HistoryPanel";
 import { ProjectSwitcher } from "./ProjectSwitcher";
 import { toast } from "../../stores/notification-store";
+import { startTour, ONBOARDING_KEY } from "./tour";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -79,6 +81,11 @@ export const Toolbar: React.FC = () => {
   const [isRecorderOpen, setIsRecorderOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const { importMedia } = useProjectStore();
+
+  const handleStartTour = useCallback(() => {
+    localStorage.removeItem(ONBOARDING_KEY);
+    startTour();
+  }, []);
 
   const hasSelectedClip = selectedItems.some(
     (item) =>
@@ -834,6 +841,20 @@ export const Toolbar: React.FC = () => {
       </div>
 
       <div className="flex items-center gap-4">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              onClick={handleStartTour}
+              className="p-2 rounded-lg hover:bg-background-elevated text-text-secondary hover:text-text-primary transition-colors"
+            >
+              <HelpCircle size={16} />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>Help & Tour</p>
+          </TooltipContent>
+        </Tooltip>
+
         <Tooltip>
           <TooltipTrigger asChild>
             <button
