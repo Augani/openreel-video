@@ -32,6 +32,7 @@ export { FilterPresetsPanel } from "./FilterPresetsPanel";
 export { TextSection } from "./TextSection";
 export { TextAnimationSection } from "./TextAnimationSection";
 export { AutoCaptionPanel } from "./AutoCaptionPanel";
+export { AudioTextSyncPanel } from "./AudioTextSyncPanel";
 
 // Graphics & Shapes
 export { ShapeSection } from "./ShapeSection";

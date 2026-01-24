@@ -7,3 +7,4 @@ export * from "./transcription-service";
 export * from "./caption-animation-renderer";
 export * from "./text-animation-presets";
 export * from "./character-animator";
+export * from "./audio-text-sync-engine";

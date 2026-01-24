@@ -45,6 +45,7 @@ import {
   EmphasisAnimationSection,
   MotionPathSection,
   ParticleEffectsSection,
+  AudioTextSyncPanel,
 } from "./inspector";
 import {
   getAudioBridgeEffects,
@@ -709,6 +710,13 @@ export const InspectorPanel: React.FC = () => {
               <div className="mb-4">
                 <AutoCutSilenceSection clipId={clipId} />
               </div>
+            )}
+
+            {/* Beat Sync - Sync other clips to this audio's beats */}
+            {clipType === "audio" && (
+              <Section title="Beat Sync" sectionId="beat-sync" defaultOpen={false}>
+                <AudioTextSyncPanel clipId={clipId} />
+              </Section>
             )}
 
             {/* Transform */}
