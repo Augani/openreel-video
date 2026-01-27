@@ -113,8 +113,8 @@ export class ActionExecutor {
       };
     }
 
-    const inverseAction = this.history.undo();
-    if (!inverseAction) {
+    const inverseActions = this.history.undoGroup();
+    if (inverseActions.length === 0) {
       return {
         success: false,
         error: {
@@ -124,12 +124,12 @@ export class ActionExecutor {
       };
     }
 
-    // Resolve any special markers in the inverse action
-    const resolvedAction = this.resolveSpecialMarkers(inverseAction);
-
     try {
-      await this.applyAction(resolvedAction as TimelineAction, project);
-      return { success: true, actionId: inverseAction.id };
+      for (const inverseAction of inverseActions) {
+        const resolvedAction = this.resolveSpecialMarkers(inverseAction);
+        await this.applyAction(resolvedAction as TimelineAction, project);
+      }
+      return { success: true, actionId: inverseActions[0].id };
     } catch (error) {
       return {
         success: false,
@@ -152,8 +152,8 @@ export class ActionExecutor {
       };
     }
 
-    const action = this.history.redo();
-    if (!action) {
+    const actions = this.history.redoGroup();
+    if (actions.length === 0) {
       return {
         success: false,
         error: {
@@ -164,8 +164,10 @@ export class ActionExecutor {
     }
 
     try {
-      await this.applyAction(action as TimelineAction, project);
-      return { success: true, actionId: action.id };
+      for (const action of actions) {
+        await this.applyAction(action as TimelineAction, project);
+      }
+      return { success: true, actionId: actions[0].id };
     } catch (error) {
       return {
         success: false,

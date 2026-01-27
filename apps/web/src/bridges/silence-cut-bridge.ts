@@ -144,6 +144,9 @@ export class SilenceCutBridge {
 
     onProgress?.(0, "Preparing cuts...");
 
+    const actionHistory = store.actionHistory;
+    actionHistory.beginGroup("Cut silence");
+
     try {
       for (let i = 0; i < sortedRegions.length; i++) {
         const region = sortedRegions[i];
@@ -202,6 +205,8 @@ export class SilenceCutBridge {
       const message =
         error instanceof Error ? error.message : "Unknown error occurred";
       return { success: false, error: message };
+    } finally {
+      actionHistory.endGroup();
     }
   }
 
