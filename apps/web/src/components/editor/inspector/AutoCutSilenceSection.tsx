@@ -186,7 +186,7 @@ export const AutoCutSilenceSection: React.FC<AutoCutSilenceSectionProps> = ({
             </div>
             <Slider
               min={0}
-              max={0.5}
+              max={2}
               step={0.05}
               value={[settings.paddingBefore]}
               onValueChange={(value) =>
@@ -205,7 +205,7 @@ export const AutoCutSilenceSection: React.FC<AutoCutSilenceSectionProps> = ({
             </div>
             <Slider
               min={0}
-              max={0.5}
+              max={2}
               step={0.05}
               value={[settings.paddingAfter]}
               onValueChange={(value) =>
