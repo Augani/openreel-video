@@ -905,6 +905,7 @@ export const Preview: React.FC = () => {
               volume: audioClip.volume ?? 1,
               pan: 0,
               effects: enabledEffects,
+              speed: audioClip.speed ?? 1,
             });
           }
         }
@@ -990,6 +991,7 @@ export const Preview: React.FC = () => {
             volume: clip.volume ?? 1,
             pan: 0,
             effects: audioEffects,
+            speed: clip.speed ?? 1,
           });
         }
       }
@@ -1914,6 +1916,7 @@ export const Preview: React.FC = () => {
                 volume: 1,
                 pan: 0,
                 effects: [],
+                speed: audioClip.speed ?? 1,
               });
             }
           }

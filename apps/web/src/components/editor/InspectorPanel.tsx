@@ -20,7 +20,6 @@ import {
   VideoEffectsSection,
   GreenScreenSection,
   PiPSection,
-  SpeedRampSection,
   MaskSection,
   ColorGradingSection,
   AudioEffectsSection,
@@ -1048,12 +1047,6 @@ export const InspectorPanel: React.FC = () => {
                 defaultOpen={false}
               >
                 <PiPSection clipId={clipId} />
-              </Section>
-            )}
-
-            {showVideoControls && selectedClip && (
-              <Section title="Speed & Time" defaultOpen={false}>
-                <SpeedRampSection clip={selectedClip} />
               </Section>
             )}
 

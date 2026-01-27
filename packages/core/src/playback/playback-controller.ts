@@ -576,6 +576,7 @@ export class PlaybackController {
           volume: clip.volume,
           pan: 0,
           effects: clip.audioEffects || [],
+          speed: clip.speed ?? 1,
         });
       }
     }

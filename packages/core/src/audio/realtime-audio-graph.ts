@@ -14,6 +14,7 @@ export interface AudioClipSchedule {
   volume: number;
   pan: number;
   effects: Effect[];
+  speed: number;
 }
 
 export interface TrackConfig {
@@ -482,6 +483,7 @@ export class RealtimeAudioGraph {
 
     const source = this.audioContext.createBufferSource();
     source.buffer = schedule.audioBuffer;
+    source.playbackRate.value = schedule.speed;
 
     const clipGain = this.audioContext.createGain();
     clipGain.gain.value = schedule.volume;
