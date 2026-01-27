@@ -114,21 +114,7 @@ export const AutoCutSilenceSection: React.FC<AutoCutSilenceSectionProps> = ({
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between p-2 bg-primary/10 rounded-lg border border-primary/30">
-        <div className="flex items-center gap-2">
-          <Scissors size={16} className="text-primary" />
-          <div>
-            <span className="text-[11px] font-medium text-text-primary">
-              Auto Cut Silence
-            </span>
-            <p className="text-[9px] text-text-muted">
-              Remove silent sections automatically
-            </p>
-          </div>
-        </div>
-      </div>
-
-      <div className="space-y-3 p-3 bg-background-tertiary rounded-lg">
+      <div className="space-y-3">
         <div>
           <div className="flex items-center justify-between mb-1">
             <label className="text-[10px] text-text-secondary flex items-center gap-1">
