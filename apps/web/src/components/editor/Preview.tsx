@@ -2290,6 +2290,7 @@ export const Preview: React.FC = () => {
     }
 
     let isActive = true;
+    let nativeCleanup: (() => void) | null = null;
     const playbackStartPosition = startPositionRef.current;
 
     const findAllClipsAtTime = (time: number) => {
@@ -3519,13 +3520,13 @@ export const Preview: React.FC = () => {
 
       if (nativeCheck.canUse && nativeCheck.clips.length > 0) {
         try {
-          const cleanup = await startNativeVideoPlayback(
+          nativeCleanup = await startNativeVideoPlayback(
             nativeCheck.clips,
             nativeCheck.imageClips || [],
             playbackStartPosition,
             () => pause(),
           );
-          return cleanup;
+          return nativeCleanup;
         } catch (error) {
           console.warn(
             "[Preview] Native video playback failed, falling back to MediaBunny:",
@@ -3546,6 +3547,10 @@ export const Preview: React.FC = () => {
       const masterClock = getMasterClock();
       if (masterClock.isPlaying || masterClock.isPaused) {
         startPositionRef.current = masterClock.currentTime;
+      }
+      if (nativeCleanup) {
+        nativeCleanup();
+        nativeCleanup = null;
       }
       if (animationRef.current) {
         cancelAnimationFrame(animationRef.current);

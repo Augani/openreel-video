@@ -599,15 +599,20 @@ export class ActionExecutor {
 
       case "clip/merge": {
         const params = action.params as { clipId: string; originalClip: Clip };
+        const origStart = params.originalClip.startTime;
+        const origEnd = origStart + params.originalClip.duration;
+        const origMediaId = params.originalClip.mediaId;
         timeline.tracks = timeline.tracks.map((track: MutableTrack) => {
           if (track.id === params.originalClip.trackId) {
             const filteredClips = track.clips.filter((c: MutableClip) => {
-              // Keep clips that aren't part of the split
-              return (
-                c.id !== params.clipId &&
-                c.startTime !==
-                  params.originalClip.startTime + params.originalClip.duration
-              );
+              if (c.id === params.clipId) return false;
+              if (c.mediaId === origMediaId) {
+                const clipEnd = c.startTime + c.duration;
+                if (c.startTime >= origStart && clipEnd <= origEnd) {
+                  return false;
+                }
+              }
+              return true;
             });
             return { ...track, clips: [...filteredClips, params.originalClip] };
           }
