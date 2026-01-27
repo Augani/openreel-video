@@ -244,7 +244,7 @@ export const Preview: React.FC = () => {
   const STORE_UPDATE_THROTTLE_MS = 32;
   // Throttle playhead updates during playback to reduce React re-renders
   const lastPlayheadUpdateRef = useRef<number>(0);
-  const PLAYHEAD_UPDATE_THROTTLE_MS = 50;
+  const PLAYHEAD_UPDATE_THROTTLE_MS = 16;
   // Live transform state for immediate visual feedback during interaction
   const [liveTransform, setLiveTransform] = useState<{
     position: { x: number; y: number };
@@ -1928,13 +1928,7 @@ export const Preview: React.FC = () => {
 
       let isActive = true;
       let rafId: number | null = null;
-      let videoFrameCallbackId: number | null = null;
       let currentClipId: string | null = null;
-      let currentVideo: HTMLVideoElement | null = null;
-
-      // Check if requestVideoFrameCallback is supported
-      const supportsVideoFrameCallback =
-        "requestVideoFrameCallback" in HTMLVideoElement.prototype;
 
       const findClipAtTime = (time: number) => {
         for (const { clip, mediaItem } of clips) {
@@ -2068,7 +2062,6 @@ export const Preview: React.FC = () => {
 
         if (currentClipId !== clip.id) {
           currentClipId = clip.id;
-          currentVideo = video;
           if (video.paused) {
             video.play().catch(() => {});
           }
@@ -2200,35 +2193,15 @@ export const Preview: React.FC = () => {
           setPlayheadPosition(currentPlayhead);
         }
 
-        // Schedule next frame using requestVideoFrameCallback for better sync with 4K
-        if (supportsVideoFrameCallback && currentVideo && !currentVideo.paused) {
-          videoFrameCallbackId = (
-            currentVideo as HTMLVideoElement & {
-              requestVideoFrameCallback: (
-                callback: () => void,
-              ) => number;
-            }
-          ).requestVideoFrameCallback(() => {
-            drawFrame();
-          });
-        } else {
-          rafId = requestAnimationFrame(() => {
-            drawFrame();
-          });
-        }
+        rafId = requestAnimationFrame(() => {
+          drawFrame();
+        });
       };
 
       const cleanup = () => {
         isActive = false;
         nativePlaybackActiveRef.current = false;
         if (rafId) cancelAnimationFrame(rafId);
-        if (videoFrameCallbackId && currentVideo) {
-          (
-            currentVideo as HTMLVideoElement & {
-              cancelVideoFrameCallback: (id: number) => void;
-            }
-          ).cancelVideoFrameCallback?.(videoFrameCallbackId);
-        }
 
         for (const [, { video, url }] of videoCache) {
           video.pause();
