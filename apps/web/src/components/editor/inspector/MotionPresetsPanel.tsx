@@ -534,18 +534,6 @@ export const MotionPresetsPanel: React.FC<MotionPresetsPanelProps> = ({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2 p-2 bg-primary/10 rounded-lg border border-primary/30">
-        <Zap size={16} className="text-primary" />
-        <div>
-          <span className="text-[11px] font-medium text-text-primary">
-            Motion Presets
-          </span>
-          <p className="text-[9px] text-text-muted">
-            Animate clips with presets
-          </p>
-        </div>
-      </div>
-
       {(appliedState.entrance ||
         appliedState.exit ||
         appliedState.emphasis) && (

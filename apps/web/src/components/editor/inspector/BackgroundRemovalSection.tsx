@@ -150,18 +150,7 @@ export const BackgroundRemovalSection: React.FC<
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between p-2 bg-primary/10 rounded-lg border border-primary/30">
-        <div className="flex items-center gap-2">
-          <User size={16} className="text-primary" />
-          <div>
-            <span className="text-[11px] font-medium text-text-primary">
-              Background Removal
-            </span>
-            <p className="text-[9px] text-text-muted">
-              AI-powered background effects
-            </p>
-          </div>
-        </div>
+      <div className="flex justify-end">
         <button
           onClick={handleToggleEnabled}
           disabled={isInitializing || isProcessing}

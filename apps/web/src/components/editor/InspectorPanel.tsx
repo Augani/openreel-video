@@ -621,95 +621,85 @@ export const InspectorPanel: React.FC = () => {
               </p>
             </div>
 
-            {/* Generate Subtitles Section - Video clips only - Prominent position */}
             {clipType === "video" && (
-              <div className="mb-4 p-3 bg-primary/10 rounded-lg border border-primary/30">
-                <div className="flex items-center gap-2 mb-3">
-                  <Captions size={14} className="text-primary" />
-                  <span className="text-xs font-bold text-primary">
-                    AI Auto-Captions
-                  </span>
-                </div>
-
-                {/* Animation Style Selector */}
-                <div className="mb-3">
-                  <label className="text-[10px] text-text-secondary block mb-1">
-                    Animation Style
-                  </label>
-                  <Select
-                    value={defaultAnimationStyle}
-                    onValueChange={(v) => setDefaultAnimationStyle(v as CaptionAnimationStyle)}
-                    disabled={isTranscribing}
-                  >
-                    <SelectTrigger className="w-full bg-background-secondary border-border text-text-primary text-[11px]">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="bg-background-secondary border-border">
-                      {CAPTION_ANIMATION_STYLES.map((style) => (
-                        <SelectItem key={style} value={style}>
-                          {getAnimationStyleDisplayName(style)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {transcriptionProgress ? (
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <Loader2
-                        size={12}
-                        className="animate-spin text-primary"
-                      />
-                      <span className="text-[10px] text-text-primary">
-                        {transcriptionProgress.message}
-                      </span>
-                    </div>
-                    <div className="h-1.5 bg-background-tertiary rounded-full overflow-hidden">
-                      <div
-                        className={`h-full transition-all duration-300 ${
-                          transcriptionProgress.phase === "error"
-                            ? "bg-red-500"
-                            : transcriptionProgress.phase === "complete"
-                              ? "bg-green-500"
-                              : "bg-primary"
-                        }`}
-                        style={{ width: `${transcriptionProgress.progress}%` }}
-                      />
-                    </div>
+              <Section title="AI Auto-Captions" sectionId="auto-captions" defaultOpen={false}>
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-[10px] text-text-secondary block mb-1">
+                      Animation Style
+                    </label>
+                    <Select
+                      value={defaultAnimationStyle}
+                      onValueChange={(v) => setDefaultAnimationStyle(v as CaptionAnimationStyle)}
+                      disabled={isTranscribing}
+                    >
+                      <SelectTrigger className="w-full bg-background-secondary border-border text-text-primary text-[11px]">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-background-secondary border-border">
+                        {CAPTION_ANIMATION_STYLES.map((style) => (
+                          <SelectItem key={style} value={style}>
+                            {getAnimationStyleDisplayName(style)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
-                ) : (
-                  <button
-                    onClick={handleGenerateSubtitles}
-                    disabled={isTranscribing}
-                    className="w-full py-2 bg-primary hover:bg-primary/80 text-black rounded-lg text-[11px] font-medium transition-all flex items-center justify-center gap-2"
-                  >
-                    <Captions size={14} />
-                    Generate Captions
-                  </button>
-                )}
-              </div>
+
+                  {transcriptionProgress ? (
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <Loader2
+                          size={12}
+                          className="animate-spin text-primary"
+                        />
+                        <span className="text-[10px] text-text-primary">
+                          {transcriptionProgress.message}
+                        </span>
+                      </div>
+                      <div className="h-1.5 bg-background-tertiary rounded-full overflow-hidden">
+                        <div
+                          className={`h-full transition-all duration-300 ${
+                            transcriptionProgress.phase === "error"
+                              ? "bg-red-500"
+                              : transcriptionProgress.phase === "complete"
+                                ? "bg-green-500"
+                                : "bg-primary"
+                          }`}
+                          style={{ width: `${transcriptionProgress.progress}%` }}
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={handleGenerateSubtitles}
+                      disabled={isTranscribing}
+                      className="w-full py-2 bg-primary hover:bg-primary/80 text-black rounded-lg text-[11px] font-medium transition-all flex items-center justify-center gap-2"
+                    >
+                      <Captions size={14} />
+                      Generate Captions
+                    </button>
+                  )}
+                </div>
+              </Section>
             )}
 
-            {/* AI Background Removal - Video clips only */}
             {clipType === "video" && (
-              <div className="mb-4">
+              <Section title="Background Removal" sectionId="background-removal" defaultOpen={false}>
                 <BackgroundRemovalSection clipId={clipId} />
-              </div>
+              </Section>
             )}
 
-            {/* AI Auto Reframe - Video clips only */}
             {clipType === "video" && (
-              <div className="mb-4">
+              <Section title="Auto Reframe" sectionId="auto-reframe" defaultOpen={false}>
                 <AutoReframeSection clipId={clipId} />
-              </div>
+              </Section>
             )}
 
-            {/* AI Auto Cut Silence - Video and Audio clips */}
             {showAudioEffects && (
-              <div className="mb-4">
+              <Section title="Auto Cut Silence" sectionId="auto-cut-silence" defaultOpen={false}>
                 <AutoCutSilenceSection clipId={clipId} />
-              </div>
+              </Section>
             )}
 
             {/* Beat Sync - Sync other clips to this audio's beats */}

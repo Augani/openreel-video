@@ -122,14 +122,9 @@ export const ParticleEffectsSection: React.FC<ParticleEffectsSectionProps> = ({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2 text-text-primary">
-        <Sparkles size={16} className="text-primary" />
-        <span className="text-sm font-semibold">Particle Effects</span>
-      </div>
-
       <div className="flex gap-2">
         <Select value={selectedPreset} onValueChange={setSelectedPreset}>
-          <SelectTrigger className="flex-1 h-8 text-xs">
+          <SelectTrigger className="flex-1 h-8 text-xs min-w-0 [&>span]:truncate">
             <SelectValue placeholder="Select effect preset..." />
           </SelectTrigger>
           <SelectContent>
@@ -139,13 +134,8 @@ export const ParticleEffectsSection: React.FC<ParticleEffectsSectionProps> = ({
                   {type}
                 </div>
                 {presets.map((preset) => (
-                  <SelectItem key={preset.id} value={preset.id}>
-                    <div className="flex flex-col">
-                      <span>{preset.name}</span>
-                      <span className="text-[10px] text-text-muted">
-                        {preset.description}
-                      </span>
-                    </div>
+                  <SelectItem key={preset.id} value={preset.id} textValue={preset.name}>
+                    {preset.name}
                   </SelectItem>
                 ))}
               </div>

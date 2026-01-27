@@ -1,6 +1,5 @@
 import React, { useState, useCallback, useEffect } from "react";
 import {
-  Maximize2,
   Smartphone,
   Monitor,
   Square,
@@ -198,21 +197,7 @@ export const AutoReframeSection: React.FC<AutoReframeSectionProps> = ({
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between p-2 bg-primary/10 rounded-lg border border-primary/30">
-        <div className="flex items-center gap-2">
-          <Maximize2 size={16} className="text-primary" />
-          <div>
-            <span className="text-[11px] font-medium text-text-primary">
-              Auto Reframe
-            </span>
-            <p className="text-[9px] text-text-muted">
-              Smart crop for any platform
-            </p>
-          </div>
-        </div>
-      </div>
-
-      <div className="space-y-3 p-3 bg-background-tertiary rounded-lg">
+      <div className="space-y-3">
         <div>
           <label className="text-[10px] text-text-secondary block mb-2">
             Platform Presets
