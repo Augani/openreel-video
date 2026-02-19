@@ -40,8 +40,8 @@ export class MasterTimelineClock {
   }
 
   get currentTime(): number {
-    if (this.state === "stopped") return 0;
-    if (this.state === "paused") return this.pausedAt;
+    if (this.state === "stopped" || this.state === "paused")
+      return this.pausedAt;
 
     const elapsed =
       (this.audioContext.currentTime - this.startAudioContextTime) *
