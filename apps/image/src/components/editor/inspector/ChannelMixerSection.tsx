@@ -1,23 +1,36 @@
-import { useState } from 'react';
-import { useProjectStore } from '../../../stores/project-store';
-import type { Layer } from '../../../types/project';
-import type { ChannelMixerAdjustment, ChannelMixerChannel } from '../../../types/adjustments';
-import { DEFAULT_CHANNEL_MIXER } from '../../../types/adjustments';
-import { Blend, RotateCcw } from 'lucide-react';
+import { useState } from "react";
+import { useProjectStore } from "../../../stores/project-store";
+import type { Layer } from "../../../types/project";
+import type {
+  ChannelMixerAdjustment,
+  ChannelMixerChannel,
+} from "../../../types/adjustments";
+import { DEFAULT_CHANNEL_MIXER } from "../../../types/adjustments";
+import { Blend, RotateCcw } from "lucide-react";
 
 interface Props {
   layer: Layer;
 }
 
-type OutputChannel = 'red' | 'green' | 'blue';
+type OutputChannel = "red" | "green" | "blue";
 
 const CHANNEL_COLORS: Record<OutputChannel, string> = {
-  red: 'bg-red-500',
-  green: 'bg-green-500',
-  blue: 'bg-blue-500',
+  red: "bg-red-500",
+  green: "bg-pink-500",
+  blue: "bg-blue-500",
 };
 
-function ChannelSlider({ label, color, value, onChange }: { label: string; color: string; value: number; onChange: (v: number) => void }) {
+function ChannelSlider({
+  label,
+  color,
+  value,
+  onChange,
+}: {
+  label: string;
+  color: string;
+  value: number;
+  onChange: (v: number) => void;
+}) {
   const percentage = ((value + 200) / 400) * 100;
 
   return (
@@ -27,7 +40,9 @@ function ChannelSlider({ label, color, value, onChange }: { label: string; color
           <span className={`w-2 h-2 rounded-full ${color}`} />
           <span className="text-[10px] text-muted-foreground">{label}</span>
         </div>
-        <span className="text-[10px] font-mono text-muted-foreground">{value}%</span>
+        <span className="text-[10px] font-mono text-muted-foreground">
+          {value}%
+        </span>
       </div>
       <input
         type="range"
@@ -44,7 +59,7 @@ function ChannelSlider({ label, color, value, onChange }: { label: string; color
           [&::-webkit-slider-thumb]:shadow-sm
           [&::-webkit-slider-thumb]:cursor-pointer"
         style={{
-          background: `linear-gradient(to right, hsl(var(--secondary)) 0%, hsl(var(--primary)) ${percentage}%, hsl(var(--secondary)) ${percentage}%, hsl(var(--secondary)) 100%)`
+          background: `linear-gradient(to right, hsl(var(--secondary)) 0%, hsl(var(--primary)) ${percentage}%, hsl(var(--secondary)) ${percentage}%, hsl(var(--secondary)) 100%)`,
         }}
       />
     </div>
@@ -53,7 +68,7 @@ function ChannelSlider({ label, color, value, onChange }: { label: string; color
 
 export function ChannelMixerSection({ layer }: Props) {
   const { updateLayer } = useProjectStore();
-  const [activeChannel, setActiveChannel] = useState<OutputChannel>('red');
+  const [activeChannel, setActiveChannel] = useState<OutputChannel>("red");
   const [isExpanded, setIsExpanded] = useState(false);
 
   const channelMixer = layer.channelMixer;
@@ -123,17 +138,19 @@ export function ChannelMixerSection({ layer }: Props) {
         <div className="px-3 pb-3 space-y-3">
           <div className="flex items-center justify-between">
             <div className="flex gap-1">
-              {(['red', 'green', 'blue'] as OutputChannel[]).map((channel) => (
+              {(["red", "green", "blue"] as OutputChannel[]).map((channel) => (
                 <button
                   key={channel}
                   onClick={() => setActiveChannel(channel)}
                   className={`px-2 py-1 text-[10px] rounded transition-colors ${
                     activeChannel === channel
-                      ? 'bg-secondary text-foreground'
-                      : 'text-muted-foreground hover:text-foreground'
+                      ? "bg-secondary text-foreground"
+                      : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
-                  <span className={`inline-block w-2 h-2 rounded-full mr-1 ${CHANNEL_COLORS[channel]}`} />
+                  <span
+                    className={`inline-block w-2 h-2 rounded-full mr-1 ${CHANNEL_COLORS[channel]}`}
+                  />
                   {channel.charAt(0).toUpperCase() + channel.slice(1)}
                 </button>
               ))}
@@ -148,10 +165,30 @@ export function ChannelMixerSection({ layer }: Props) {
           </div>
 
           <div className="space-y-2">
-            <ChannelSlider label="Red" color="bg-red-500" value={currentChannel.red} onChange={(v) => handleValueChange('red', v)} />
-            <ChannelSlider label="Green" color="bg-green-500" value={currentChannel.green} onChange={(v) => handleValueChange('green', v)} />
-            <ChannelSlider label="Blue" color="bg-blue-500" value={currentChannel.blue} onChange={(v) => handleValueChange('blue', v)} />
-            <ChannelSlider label="Constant" color="bg-gray-500" value={currentChannel.constant} onChange={(v) => handleValueChange('constant', v)} />
+            <ChannelSlider
+              label="Red"
+              color="bg-red-500"
+              value={currentChannel.red}
+              onChange={(v) => handleValueChange("red", v)}
+            />
+            <ChannelSlider
+              label="Green"
+              color="bg-pink-500"
+              value={currentChannel.green}
+              onChange={(v) => handleValueChange("green", v)}
+            />
+            <ChannelSlider
+              label="Blue"
+              color="bg-blue-500"
+              value={currentChannel.blue}
+              onChange={(v) => handleValueChange("blue", v)}
+            />
+            <ChannelSlider
+              label="Constant"
+              color="bg-gray-500"
+              value={currentChannel.constant}
+              onChange={(v) => handleValueChange("constant", v)}
+            />
           </div>
 
           <label className="flex items-center gap-2 text-[10px] text-muted-foreground pt-1 border-t border-border/50">

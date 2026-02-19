@@ -151,7 +151,7 @@ export const AudioDuckingSection: React.FC<AudioDuckingSectionProps> = ({
         <div className="flex items-center gap-2">
           <div
             className={`w-2 h-2 rounded-full ${
-              settings.enabled ? "bg-green-400" : "bg-gray-500"
+              settings.enabled ? "bg-pink-400" : "bg-gray-500"
             }`}
           />
           <span className="text-[10px] font-medium text-text-primary">
@@ -377,9 +377,9 @@ export const AudioDuckingSection: React.FC<AudioDuckingSectionProps> = ({
                 </button>
               ) : (
                 <div className="space-y-2">
-                  <div className="flex items-center gap-2 p-2 bg-green-500/10 border border-green-500/20 rounded-lg">
-                    <Check size={12} className="text-green-400" />
-                    <span className="text-[10px] text-green-400">
+                  <div className="flex items-center gap-2 p-2 bg-pink-500/10 border border-pink-500/20 rounded-lg">
+                    <Check size={12} className="text-pink-400" />
+                    <span className="text-[10px] text-pink-400">
                       Ducking Applied
                     </span>
                   </div>

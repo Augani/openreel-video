@@ -119,12 +119,12 @@ export const BeatSyncSection: React.FC<BeatSyncSectionProps> = ({ clipId }) => {
           )}
 
           {beatState.beatAnalysis && (
-            <div className="p-3 bg-green-500/10 border border-green-500/30 rounded-lg">
+            <div className="p-3 bg-pink-500/10 border border-pink-500/30 rounded-lg">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-[10px] text-text-secondary">
                   Detected BPM
                 </span>
-                <span className="text-sm font-bold text-green-400">
+                <span className="text-sm font-bold text-pink-400">
                   {beatState.beatAnalysis.bpm}
                 </span>
               </div>

@@ -264,7 +264,7 @@ export const NoiseReductionSection: React.FC<NoiseReductionSectionProps> = ({
               learningState === "learning"
                 ? "bg-primary/20 text-primary cursor-wait"
                 : learningState === "success"
-                  ? "bg-green-500/20 text-green-500"
+                  ? "bg-pink-500/20 text-pink-500"
                   : learningState === "error"
                     ? "bg-red-500/20 text-red-500"
                     : "bg-primary/10 border border-primary/30 text-primary hover:bg-primary/20"

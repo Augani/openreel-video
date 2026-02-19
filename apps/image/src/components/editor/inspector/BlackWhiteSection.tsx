@@ -1,38 +1,52 @@
-import { useState } from 'react';
-import { useProjectStore } from '../../../stores/project-store';
-import type { Layer } from '../../../types/project';
-import type { BlackWhiteAdjustment } from '../../../types/adjustments';
-import { DEFAULT_BLACK_WHITE } from '../../../types/adjustments';
-import { BLACK_WHITE_PRESETS } from '../../../adjustments/black-white';
-import { SunMoon, RotateCcw } from 'lucide-react';
+import { useState } from "react";
+import { useProjectStore } from "../../../stores/project-store";
+import type { Layer } from "../../../types/project";
+import type { BlackWhiteAdjustment } from "../../../types/adjustments";
+import { DEFAULT_BLACK_WHITE } from "../../../types/adjustments";
+import { BLACK_WHITE_PRESETS } from "../../../adjustments/black-white";
+import { SunMoon, RotateCcw } from "lucide-react";
 
 interface Props {
   layer: Layer;
 }
 
-const COLOR_SLIDERS: { key: keyof BlackWhiteAdjustment; label: string; color: string }[] = [
-  { key: 'reds', label: 'Reds', color: 'bg-red-500' },
-  { key: 'yellows', label: 'Yellows', color: 'bg-yellow-500' },
-  { key: 'greens', label: 'Greens', color: 'bg-green-500' },
-  { key: 'cyans', label: 'Cyans', color: 'bg-cyan-500' },
-  { key: 'blues', label: 'Blues', color: 'bg-blue-500' },
-  { key: 'magentas', label: 'Magentas', color: 'bg-pink-500' },
+const COLOR_SLIDERS: {
+  key: keyof BlackWhiteAdjustment;
+  label: string;
+  color: string;
+}[] = [
+  { key: "reds", label: "Reds", color: "bg-red-500" },
+  { key: "yellows", label: "Yellows", color: "bg-yellow-500" },
+  { key: "greens", label: "Greens", color: "bg-pink-500" },
+  { key: "cyans", label: "Cyans", color: "bg-cyan-500" },
+  { key: "blues", label: "Blues", color: "bg-blue-500" },
+  { key: "magentas", label: "Magentas", color: "bg-pink-500" },
 ];
 
 const PRESET_OPTIONS = [
-  { id: 'default', label: 'Default' },
-  { id: 'highContrast', label: 'High Contrast' },
-  { id: 'infrared', label: 'Infrared' },
-  { id: 'maximumBlack', label: 'Maximum Black' },
-  { id: 'maximumWhite', label: 'Maximum White' },
-  { id: 'neutralDensity', label: 'Neutral Density' },
-  { id: 'redFilter', label: 'Red Filter' },
-  { id: 'yellowFilter', label: 'Yellow Filter' },
-  { id: 'greenFilter', label: 'Green Filter' },
-  { id: 'blueFilter', label: 'Blue Filter' },
+  { id: "default", label: "Default" },
+  { id: "highContrast", label: "High Contrast" },
+  { id: "infrared", label: "Infrared" },
+  { id: "maximumBlack", label: "Maximum Black" },
+  { id: "maximumWhite", label: "Maximum White" },
+  { id: "neutralDensity", label: "Neutral Density" },
+  { id: "redFilter", label: "Red Filter" },
+  { id: "yellowFilter", label: "Yellow Filter" },
+  { id: "greenFilter", label: "Green Filter" },
+  { id: "blueFilter", label: "Blue Filter" },
 ] as const;
 
-function ChannelSlider({ label, color, value, onChange }: { label: string; color: string; value: number; onChange: (v: number) => void }) {
+function ChannelSlider({
+  label,
+  color,
+  value,
+  onChange,
+}: {
+  label: string;
+  color: string;
+  value: number;
+  onChange: (v: number) => void;
+}) {
   const percentage = ((value + 200) / 400) * 100;
 
   return (
@@ -42,7 +56,9 @@ function ChannelSlider({ label, color, value, onChange }: { label: string; color
           <span className={`w-2 h-2 rounded-full ${color}`} />
           <span className="text-[10px] text-muted-foreground">{label}</span>
         </div>
-        <span className="text-[10px] font-mono text-muted-foreground">{value}%</span>
+        <span className="text-[10px] font-mono text-muted-foreground">
+          {value}%
+        </span>
       </div>
       <input
         type="range"
@@ -59,7 +75,7 @@ function ChannelSlider({ label, color, value, onChange }: { label: string; color
           [&::-webkit-slider-thumb]:shadow-sm
           [&::-webkit-slider-thumb]:cursor-pointer"
         style={{
-          background: `linear-gradient(to right, hsl(var(--secondary)) 0%, hsl(var(--primary)) ${percentage}%, hsl(var(--secondary)) ${percentage}%, hsl(var(--secondary)) 100%)`
+          background: `linear-gradient(to right, hsl(var(--secondary)) 0%, hsl(var(--primary)) ${percentage}%, hsl(var(--secondary)) ${percentage}%, hsl(var(--secondary)) 100%)`,
         }}
       />
     </div>
@@ -72,7 +88,10 @@ export function BlackWhiteSection({ layer }: Props) {
 
   const blackWhite = layer.blackWhite;
 
-  const handleValueChange = (key: keyof BlackWhiteAdjustment, value: number | boolean) => {
+  const handleValueChange = (
+    key: keyof BlackWhiteAdjustment,
+    value: number | boolean,
+  ) => {
     updateLayer(layer.id, {
       blackWhite: {
         ...blackWhite,
@@ -82,7 +101,8 @@ export function BlackWhiteSection({ layer }: Props) {
   };
 
   const handlePresetChange = (presetId: string) => {
-    const preset = BLACK_WHITE_PRESETS[presetId as keyof typeof BLACK_WHITE_PRESETS];
+    const preset =
+      BLACK_WHITE_PRESETS[presetId as keyof typeof BLACK_WHITE_PRESETS];
     if (preset) {
       updateLayer(layer.id, {
         blackWhite: {
@@ -142,7 +162,9 @@ export function BlackWhiteSection({ layer }: Props) {
             >
               <option value="">Preset</option>
               {PRESET_OPTIONS.map((preset) => (
-                <option key={preset.id} value={preset.id}>{preset.label}</option>
+                <option key={preset.id} value={preset.id}>
+                  {preset.label}
+                </option>
               ))}
             </select>
             <button
@@ -171,7 +193,9 @@ export function BlackWhiteSection({ layer }: Props) {
               <input
                 type="checkbox"
                 checked={blackWhite.tintEnabled}
-                onChange={(e) => handleValueChange('tintEnabled', e.target.checked)}
+                onChange={(e) =>
+                  handleValueChange("tintEnabled", e.target.checked)
+                }
                 className="w-3 h-3 rounded border-border"
               />
               Tint
@@ -180,32 +204,47 @@ export function BlackWhiteSection({ layer }: Props) {
               <div className="space-y-2 pl-5">
                 <div className="space-y-1">
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] text-muted-foreground">Hue</span>
-                    <span className="text-[10px] font-mono text-muted-foreground">{blackWhite.tintHue}°</span>
+                    <span className="text-[10px] text-muted-foreground">
+                      Hue
+                    </span>
+                    <span className="text-[10px] font-mono text-muted-foreground">
+                      {blackWhite.tintHue}°
+                    </span>
                   </div>
                   <input
                     type="range"
                     value={blackWhite.tintHue}
                     min={0}
                     max={360}
-                    onChange={(e) => handleValueChange('tintHue', Number(e.target.value))}
+                    onChange={(e) =>
+                      handleValueChange("tintHue", Number(e.target.value))
+                    }
                     className="w-full h-1.5 appearance-none rounded-full cursor-pointer"
                     style={{
-                      background: `linear-gradient(to right, hsl(0, 70%, 50%), hsl(60, 70%, 50%), hsl(120, 70%, 50%), hsl(180, 70%, 50%), hsl(240, 70%, 50%), hsl(300, 70%, 50%), hsl(360, 70%, 50%))`
+                      background: `linear-gradient(to right, hsl(0, 70%, 50%), hsl(60, 70%, 50%), hsl(120, 70%, 50%), hsl(180, 70%, 50%), hsl(240, 70%, 50%), hsl(300, 70%, 50%), hsl(360, 70%, 50%))`,
                     }}
                   />
                 </div>
                 <div className="space-y-1">
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] text-muted-foreground">Saturation</span>
-                    <span className="text-[10px] font-mono text-muted-foreground">{blackWhite.tintSaturation}%</span>
+                    <span className="text-[10px] text-muted-foreground">
+                      Saturation
+                    </span>
+                    <span className="text-[10px] font-mono text-muted-foreground">
+                      {blackWhite.tintSaturation}%
+                    </span>
                   </div>
                   <input
                     type="range"
                     value={blackWhite.tintSaturation}
                     min={0}
                     max={100}
-                    onChange={(e) => handleValueChange('tintSaturation', Number(e.target.value))}
+                    onChange={(e) =>
+                      handleValueChange(
+                        "tintSaturation",
+                        Number(e.target.value),
+                      )
+                    }
                     className="w-full h-1.5 appearance-none bg-secondary rounded-full cursor-pointer
                       [&::-webkit-slider-thumb]:appearance-none
                       [&::-webkit-slider-thumb]:w-2.5

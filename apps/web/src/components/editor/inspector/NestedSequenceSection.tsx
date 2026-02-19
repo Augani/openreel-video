@@ -32,8 +32,9 @@ export const NestedSequenceSection: React.FC<NestedSequenceSectionProps> = ({
   const [expandedCompound, setExpandedCompound] = useState<string | null>(null);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
-  const [nestedSequenceEngine, setNestedSequenceEngine] =
-    useState<import("@openreel/core").NestedSequenceEngine | null>(null);
+  const [nestedSequenceEngine, setNestedSequenceEngine] = useState<
+    import("@openreel/core").NestedSequenceEngine | null
+  >(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -331,7 +332,7 @@ export const NestedSequenceSection: React.FC<NestedSequenceSectionProps> = ({
                                 e.stopPropagation();
                                 handleConfirmRename();
                               }}
-                              className="p-1.5 bg-green-500/20 rounded text-green-400 hover:bg-green-500/30 transition-colors"
+                              className="p-1.5 bg-pink-500/20 rounded text-pink-400 hover:bg-pink-500/30 transition-colors"
                             >
                               <Check size={10} />
                             </button>

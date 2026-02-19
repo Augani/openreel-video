@@ -1,27 +1,30 @@
-import { useState } from 'react';
-import { Ruler, Plus, Trash2, X, ArrowRight, ArrowDown } from 'lucide-react';
-import { useCanvasStore, type Guide } from '../../../stores/canvas-store';
-import { useProjectStore } from '../../../stores/project-store';
+import { useState } from "react";
+import { Ruler, Plus, Trash2, X, ArrowRight, ArrowDown } from "lucide-react";
+import { useCanvasStore, type Guide } from "../../../stores/canvas-store";
+import { useProjectStore } from "../../../stores/project-store";
 
 export function GuidePanel() {
-  const { guides, addGuide, removeGuide, updateGuide, clearGuides } = useCanvasStore();
+  const { guides, addGuide, removeGuide, updateGuide, clearGuides } =
+    useCanvasStore();
   const { project, selectedArtboardId } = useProjectStore();
   const [editingGuideId, setEditingGuideId] = useState<string | null>(null);
-  const [editingValue, setEditingValue] = useState('');
+  const [editingValue, setEditingValue] = useState("");
   const [showAddForm, setShowAddForm] = useState(false);
-  const [newGuideType, setNewGuideType] = useState<'horizontal' | 'vertical'>('horizontal');
-  const [newGuidePosition, setNewGuidePosition] = useState('');
+  const [newGuideType, setNewGuideType] = useState<"horizontal" | "vertical">(
+    "horizontal",
+  );
+  const [newGuidePosition, setNewGuidePosition] = useState("");
 
   const artboard = project?.artboards.find((a) => a.id === selectedArtboardId);
 
-  const horizontalGuides = guides.filter((g) => g.type === 'horizontal');
-  const verticalGuides = guides.filter((g) => g.type === 'vertical');
+  const horizontalGuides = guides.filter((g) => g.type === "horizontal");
+  const verticalGuides = guides.filter((g) => g.type === "vertical");
 
   const handleAddGuide = () => {
     const position = parseFloat(newGuidePosition);
     if (!isNaN(position)) {
       addGuide(newGuideType, position);
-      setNewGuidePosition('');
+      setNewGuidePosition("");
       setShowAddForm(false);
     }
   };
@@ -39,32 +42,32 @@ export function GuidePanel() {
       }
     }
     setEditingGuideId(null);
-    setEditingValue('');
+    setEditingValue("");
   };
 
   const handleAddCenterGuides = () => {
     if (artboard) {
-      addGuide('horizontal', artboard.size.height / 2);
-      addGuide('vertical', artboard.size.width / 2);
+      addGuide("horizontal", artboard.size.height / 2);
+      addGuide("vertical", artboard.size.width / 2);
     }
   };
 
   const handleAddThirdsGuides = () => {
     if (artboard) {
-      addGuide('horizontal', artboard.size.height / 3);
-      addGuide('horizontal', (artboard.size.height * 2) / 3);
-      addGuide('vertical', artboard.size.width / 3);
-      addGuide('vertical', (artboard.size.width * 2) / 3);
+      addGuide("horizontal", artboard.size.height / 3);
+      addGuide("horizontal", (artboard.size.height * 2) / 3);
+      addGuide("vertical", artboard.size.width / 3);
+      addGuide("vertical", (artboard.size.width * 2) / 3);
     }
   };
 
   const handleAddEdgeGuides = () => {
     if (artboard) {
       const margin = Math.min(artboard.size.width, artboard.size.height) * 0.1;
-      addGuide('horizontal', margin);
-      addGuide('horizontal', artboard.size.height - margin);
-      addGuide('vertical', margin);
-      addGuide('vertical', artboard.size.width - margin);
+      addGuide("horizontal", margin);
+      addGuide("horizontal", artboard.size.height - margin);
+      addGuide("vertical", margin);
+      addGuide("vertical", artboard.size.width - margin);
     }
   };
 
@@ -75,7 +78,9 @@ export function GuidePanel() {
           <Ruler size={14} className="text-muted-foreground" />
           <h3 className="text-xs font-medium text-foreground">Guides</h3>
         </div>
-        <span className="text-[10px] text-muted-foreground">{guides.length}</span>
+        <span className="text-[10px] text-muted-foreground">
+          {guides.length}
+        </span>
       </div>
 
       <div className="flex-1 overflow-y-auto">
@@ -103,22 +108,22 @@ export function GuidePanel() {
             <div className="p-2 bg-secondary/50 rounded-lg space-y-2">
               <div className="flex gap-1">
                 <button
-                  onClick={() => setNewGuideType('horizontal')}
+                  onClick={() => setNewGuideType("horizontal")}
                   className={`flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded text-[10px] transition-colors ${
-                    newGuideType === 'horizontal'
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-background text-muted-foreground hover:text-foreground'
+                    newGuideType === "horizontal"
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-background text-muted-foreground hover:text-foreground"
                   }`}
                 >
                   <ArrowRight size={10} />
                   Horizontal
                 </button>
                 <button
-                  onClick={() => setNewGuideType('vertical')}
+                  onClick={() => setNewGuideType("vertical")}
                   className={`flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded text-[10px] transition-colors ${
-                    newGuideType === 'vertical'
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-background text-muted-foreground hover:text-foreground'
+                    newGuideType === "vertical"
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-background text-muted-foreground hover:text-foreground"
                   }`}
                 >
                   <ArrowDown size={10} />
@@ -131,10 +136,14 @@ export function GuidePanel() {
                   value={newGuidePosition}
                   onChange={(e) => setNewGuidePosition(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleAddGuide();
-                    if (e.key === 'Escape') setShowAddForm(false);
+                    if (e.key === "Enter") handleAddGuide();
+                    if (e.key === "Escape") setShowAddForm(false);
                   }}
-                  placeholder={newGuideType === 'horizontal' ? 'Y position...' : 'X position...'}
+                  placeholder={
+                    newGuideType === "horizontal"
+                      ? "Y position..."
+                      : "X position..."
+                  }
                   className="flex-1 px-2 py-1 text-[10px] bg-background border border-input rounded focus:outline-none focus:ring-1 focus:ring-primary"
                   autoFocus
                 />
@@ -155,7 +164,9 @@ export function GuidePanel() {
           )}
 
           <div className="space-y-1">
-            <span className="text-[10px] text-muted-foreground font-medium">Quick Presets</span>
+            <span className="text-[10px] text-muted-foreground font-medium">
+              Quick Presets
+            </span>
             <div className="grid grid-cols-3 gap-1">
               <button
                 onClick={handleAddCenterGuides}
@@ -200,8 +211,8 @@ export function GuidePanel() {
                         onChange={(e) => setEditingValue(e.target.value)}
                         onBlur={handleFinishEdit}
                         onKeyDown={(e) => {
-                          if (e.key === 'Enter') handleFinishEdit();
-                          if (e.key === 'Escape') setEditingGuideId(null);
+                          if (e.key === "Enter") handleFinishEdit();
+                          if (e.key === "Escape") setEditingGuideId(null);
                         }}
                         className="flex-1 px-1 py-0.5 text-[10px] bg-background border border-primary rounded focus:outline-none"
                         autoFocus
@@ -229,7 +240,7 @@ export function GuidePanel() {
           {verticalGuides.length > 0 && (
             <div className="space-y-1">
               <div className="flex items-center gap-1.5">
-                <ArrowDown size={10} className="text-green-400" />
+                <ArrowDown size={10} className="text-pink-400" />
                 <span className="text-[10px] text-muted-foreground">
                   Vertical ({verticalGuides.length})
                 </span>
@@ -238,9 +249,9 @@ export function GuidePanel() {
                 {verticalGuides.map((guide) => (
                   <div
                     key={guide.id}
-                    className="flex items-center gap-1 px-2 py-1 rounded bg-green-500/10 group"
+                    className="flex items-center gap-1 px-2 py-1 rounded bg-pink-500/10 group"
                   >
-                    <span className="text-[10px] text-green-400 w-4">X</span>
+                    <span className="text-[10px] text-pink-400 w-4">X</span>
                     {editingGuideId === guide.id ? (
                       <input
                         type="number"
@@ -248,8 +259,8 @@ export function GuidePanel() {
                         onChange={(e) => setEditingValue(e.target.value)}
                         onBlur={handleFinishEdit}
                         onKeyDown={(e) => {
-                          if (e.key === 'Enter') handleFinishEdit();
-                          if (e.key === 'Escape') setEditingGuideId(null);
+                          if (e.key === "Enter") handleFinishEdit();
+                          if (e.key === "Escape") setEditingGuideId(null);
                         }}
                         className="flex-1 px-1 py-0.5 text-[10px] bg-background border border-primary rounded focus:outline-none"
                         autoFocus

@@ -416,14 +416,14 @@ export function Canvas() {
       ctx.rotate((rotation * Math.PI) / 180);
       ctx.translate(-(width / 2) * zoom, -(height / 2) * zoom);
 
-      ctx.strokeStyle = '#22c55e';
+      ctx.strokeStyle = '#ec4899';
       ctx.lineWidth = 2;
       ctx.setLineDash([]);
       ctx.strokeRect(0, 0, width * zoom, height * zoom);
 
       const handleSize = HANDLE_SIZE;
       ctx.fillStyle = '#ffffff';
-      ctx.strokeStyle = '#22c55e';
+      ctx.strokeStyle = '#ec4899';
       ctx.lineWidth = 2;
 
       const handles = [
@@ -445,7 +445,7 @@ export function Canvas() {
       ctx.beginPath();
       ctx.moveTo(width * zoom / 2, 0);
       ctx.lineTo(width * zoom / 2, -ROTATION_HANDLE_DISTANCE);
-      ctx.strokeStyle = '#22c55e';
+      ctx.strokeStyle = '#ec4899';
       ctx.lineWidth = 2;
       ctx.stroke();
 
@@ -453,7 +453,7 @@ export function Canvas() {
       ctx.arc(width * zoom / 2, -ROTATION_HANDLE_DISTANCE, 6, 0, Math.PI * 2);
       ctx.fillStyle = '#ffffff';
       ctx.fill();
-      ctx.strokeStyle = '#22c55e';
+      ctx.strokeStyle = '#ec4899';
       ctx.lineWidth = 2;
       ctx.stroke();
 
@@ -570,8 +570,8 @@ export function Canvas() {
 
     if (isMarqueeSelecting && marqueeRect) {
       ctx.save();
-      ctx.fillStyle = 'rgba(34, 197, 94, 0.1)';
-      ctx.strokeStyle = '#22c55e';
+      ctx.fillStyle = 'rgba(236, 72, 153, 0.1)';
+      ctx.strokeStyle = '#ec4899';
       ctx.lineWidth = 1;
       ctx.setLineDash([4, 4]);
 

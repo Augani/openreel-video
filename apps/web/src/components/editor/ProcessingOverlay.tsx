@@ -15,7 +15,7 @@ const TaskItem: React.FC<{ task: ProcessingTask }> = ({ task }) => {
       case "processing":
         return <Loader2 size={14} className="text-blue-400 animate-spin" />;
       case "completed":
-        return <CheckCircle size={14} className="text-green-400" />;
+        return <CheckCircle size={14} className="text-pink-400" />;
       case "failed":
         return <XCircle size={14} className="text-red-400" />;
     }
@@ -28,7 +28,7 @@ const TaskItem: React.FC<{ task: ProcessingTask }> = ({ task }) => {
       case "processing":
         return "text-blue-400";
       case "completed":
-        return "text-green-400";
+        return "text-pink-400";
       case "failed":
         return "text-red-400";
     }

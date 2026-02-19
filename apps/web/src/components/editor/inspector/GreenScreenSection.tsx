@@ -105,8 +105,9 @@ export const GreenScreenSection: React.FC<GreenScreenSectionProps> = ({
   );
 
   const [isPickingColor, setIsPickingColor] = useState(false);
-  const [chromaKeyEngine, setChromaKeyEngine] =
-    useState<import("@openreel/core").ChromaKeyEngine | null>(null);
+  const [chromaKeyEngine, setChromaKeyEngine] = useState<
+    import("@openreel/core").ChromaKeyEngine | null
+  >(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -220,8 +221,8 @@ export const GreenScreenSection: React.FC<GreenScreenSectionProps> = ({
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-2 p-2 bg-gradient-to-r from-green-500/20 to-emerald-500/20 rounded-lg border border-green-500/30">
-        <Video size={16} className="text-green-400" />
+      <div className="flex items-center gap-2 p-2 bg-gradient-to-r from-pink-500/20 to-emerald-500/20 rounded-lg border border-pink-500/30">
+        <Video size={16} className="text-pink-400" />
         <div className="flex-1">
           <span className="text-[11px] font-medium text-text-primary">
             Green Screen
@@ -234,7 +235,7 @@ export const GreenScreenSection: React.FC<GreenScreenSectionProps> = ({
           onClick={handleToggleEnabled}
           className={`p-1.5 rounded transition-colors ${
             settings.enabled
-              ? "bg-green-500/30 text-green-400"
+              ? "bg-pink-500/30 text-pink-400"
               : "bg-background-tertiary text-text-muted hover:text-text-primary"
           }`}
           title={settings.enabled ? "Disable chroma key" : "Enable chroma key"}
@@ -337,7 +338,7 @@ export const GreenScreenSection: React.FC<GreenScreenSectionProps> = ({
           </p>
           <button
             onClick={handleToggleEnabled}
-            className="mt-2 px-4 py-1.5 text-[10px] bg-green-500/20 text-green-400 hover:bg-green-500/30 rounded-lg transition-colors"
+            className="mt-2 px-4 py-1.5 text-[10px] bg-pink-500/20 text-pink-400 hover:bg-pink-500/30 rounded-lg transition-colors"
           >
             Enable Green Screen
           </button>

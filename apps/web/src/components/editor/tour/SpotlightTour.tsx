@@ -99,7 +99,7 @@ export const SpotlightTour: React.FC = () => {
               transition={{ type: "spring", stiffness: 300, damping: 30 }}
               style={{
                 boxShadow:
-                  "0 0 0 4px rgba(34, 197, 94, 0.2), 0 0 20px rgba(34, 197, 94, 0.3)",
+                  "0 0 0 4px rgba(236, 72, 153, 0.2), 0 0 20px rgba(236, 72, 153, 0.3)",
               }}
             />
           </>

@@ -380,14 +380,14 @@ export const MotionTrackingSection: React.FC<MotionTrackingSectionProps> = ({
 
       {hasTrackingData && !state.isTracking && (
         <div className="space-y-3">
-          <div className="flex items-center gap-2 p-2 bg-green-500/10 border border-green-500/30 rounded-lg">
-            <Check size={14} className="text-green-400" />
+          <div className="flex items-center gap-2 p-2 bg-pink-500/10 border border-pink-500/30 rounded-lg">
+            <Check size={14} className="text-pink-400" />
             <div className="flex-1">
-              <span className="text-[10px] font-medium text-green-400">
+              <span className="text-[10px] font-medium text-pink-400">
                 Tracking Complete
               </span>
               {state.trackingData && (
-                <p className="text-[9px] text-green-300/70">
+                <p className="text-[9px] text-pink-300/70">
                   {state.trackingData.keyframes.length} keyframes captured
                   {state.trackingData.lostFrames.length > 0 &&
                     ` • ${state.trackingData.lostFrames.length} frames lost`}

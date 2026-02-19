@@ -42,7 +42,12 @@ import { HistoryPanel } from "./inspector/HistoryPanel";
 import { ProjectSwitcher } from "./ProjectSwitcher";
 import { toast } from "../../stores/notification-store";
 import { useAnalytics, AnalyticsEvents } from "../../hooks/useAnalytics";
-import { startTour, ONBOARDING_KEY, startMoGraphTour, MOGRAPH_TOUR_KEY } from "./tour";
+import {
+  startTour,
+  ONBOARDING_KEY,
+  startMoGraphTour,
+  MOGRAPH_TOUR_KEY,
+} from "./tour";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -77,8 +82,13 @@ interface ExportState {
 
 export const Toolbar: React.FC = () => {
   const { project } = useProjectStore();
-  const { openModal, selectedItems, setExportState: setGlobalExportState, keyframeEditorOpen, toggleKeyframeEditor } =
-    useUIStore();
+  const {
+    openModal,
+    selectedItems,
+    setExportState: setGlobalExportState,
+    keyframeEditorOpen,
+    toggleKeyframeEditor,
+  } = useUIStore();
   const { mode: themeMode, toggleTheme } = useThemeStore();
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
@@ -110,8 +120,12 @@ export const Toolbar: React.FC = () => {
     error: null,
     complete: false,
   });
-  const [deviceProfile, setDeviceProfile] = useState<DeviceProfile | null>(null);
-  const [exportEstimates, setExportEstimates] = useState<Map<string, TimeEstimate>>(new Map());
+  const [deviceProfile, setDeviceProfile] = useState<DeviceProfile | null>(
+    null,
+  );
+  const [exportEstimates, setExportEstimates] = useState<
+    Map<string, TimeEstimate>
+  >(new Map());
 
   useEffect(() => {
     setGlobalExportState({
@@ -119,7 +133,12 @@ export const Toolbar: React.FC = () => {
       progress: exportState.progress,
       phase: exportState.phase,
     });
-  }, [exportState.isExporting, exportState.progress, exportState.phase, setGlobalExportState]);
+  }, [
+    exportState.isExporting,
+    exportState.progress,
+    exportState.phase,
+    setGlobalExportState,
+  ]);
 
   useEffect(() => {
     if (isExportOpen && !deviceProfile) {
@@ -135,14 +154,56 @@ export const Toolbar: React.FC = () => {
     const duration = project.timeline.duration;
     const estimates = new Map<string, TimeEstimate>();
 
-    const configs: Array<{ key: string; width: number; height: number; frameRate: number; codec: "h264" | "h265" | "vp9" | "av1" }> = [
-      { key: "mp4", width: project.settings.width, height: project.settings.height, frameRate: 30, codec: "h264" },
+    const configs: Array<{
+      key: string;
+      width: number;
+      height: number;
+      frameRate: number;
+      codec: "h264" | "h265" | "vp9" | "av1";
+    }> = [
+      {
+        key: "mp4",
+        width: project.settings.width,
+        height: project.settings.height,
+        frameRate: 30,
+        codec: "h264",
+      },
       { key: "4k", width: 3840, height: 2160, frameRate: 30, codec: "h264" },
-      { key: "4k-60-master", width: 3840, height: 2160, frameRate: 60, codec: "h264" },
-      { key: "4k-master", width: 3840, height: 2160, frameRate: 30, codec: "h264" },
-      { key: "1080p-high", width: 1920, height: 1080, frameRate: 30, codec: "h264" },
-      { key: "1080p-60", width: 1920, height: 1080, frameRate: 60, codec: "h264" },
-      { key: "prores", width: project.settings.width, height: project.settings.height, frameRate: 30, codec: "h264" },
+      {
+        key: "4k-60-master",
+        width: 3840,
+        height: 2160,
+        frameRate: 60,
+        codec: "h264",
+      },
+      {
+        key: "4k-master",
+        width: 3840,
+        height: 2160,
+        frameRate: 30,
+        codec: "h264",
+      },
+      {
+        key: "1080p-high",
+        width: 1920,
+        height: 1080,
+        frameRate: 30,
+        codec: "h264",
+      },
+      {
+        key: "1080p-60",
+        width: 1920,
+        height: 1080,
+        frameRate: 60,
+        codec: "h264",
+      },
+      {
+        key: "prores",
+        width: project.settings.width,
+        height: project.settings.height,
+        frameRate: 30,
+        codec: "h264",
+      },
     ];
 
     for (const config of configs) {
@@ -157,7 +218,12 @@ export const Toolbar: React.FC = () => {
     }
 
     setExportEstimates(estimates);
-  }, [deviceProfile, project.timeline?.duration, project.settings.width, project.settings.height]);
+  }, [
+    deviceProfile,
+    project.timeline?.duration,
+    project.settings.width,
+    project.settings.height,
+  ]);
 
   const handleSearch = useCallback(() => {
     openModal("search");
@@ -359,9 +425,23 @@ export const Toolbar: React.FC = () => {
           let writableStream: FileSystemWritableFileStream | undefined;
           let useStreaming = false;
 
-          if ("showSaveFilePicker" in window && typeof (window as Window & { showSaveFilePicker?: unknown }).showSaveFilePicker === "function") {
+          if (
+            "showSaveFilePicker" in window &&
+            typeof (window as Window & { showSaveFilePicker?: unknown })
+              .showSaveFilePicker === "function"
+          ) {
             try {
-              const showSaveFilePicker = (window as Window & { showSaveFilePicker: (options: { suggestedName: string; types: Array<{ description: string; accept: Record<string, string[]> }> }) => Promise<FileSystemFileHandle> }).showSaveFilePicker;
+              const showSaveFilePicker = (
+                window as Window & {
+                  showSaveFilePicker: (options: {
+                    suggestedName: string;
+                    types: Array<{
+                      description: string;
+                      accept: Record<string, string[]>;
+                    }>;
+                  }) => Promise<FileSystemFileHandle>;
+                }
+              ).showSaveFilePicker;
               const fileHandle = await showSaveFilePicker({
                 suggestedName: `${project.name || "export"}.${getExtension()}`,
                 types: [
@@ -388,7 +468,11 @@ export const Toolbar: React.FC = () => {
             }
           }
 
-          const generator = engine.exportVideoWithFFmpeg(project, videoSettings, writableStream);
+          const generator = engine.exportVideoWithFFmpeg(
+            project,
+            videoSettings,
+            writableStream,
+          );
           let finalResult: ExportResult | undefined;
 
           while (true) {
@@ -519,9 +603,23 @@ export const Toolbar: React.FC = () => {
         let writableStream: FileSystemWritableFileStream | undefined;
         let useStreaming = false;
 
-        if ("showSaveFilePicker" in window && typeof (window as Window & { showSaveFilePicker?: unknown }).showSaveFilePicker === "function") {
+        if (
+          "showSaveFilePicker" in window &&
+          typeof (window as Window & { showSaveFilePicker?: unknown })
+            .showSaveFilePicker === "function"
+        ) {
           try {
-            const showSaveFilePicker = (window as Window & { showSaveFilePicker: (options: { suggestedName: string; types: Array<{ description: string; accept: Record<string, string[]> }> }) => Promise<FileSystemFileHandle> }).showSaveFilePicker;
+            const showSaveFilePicker = (
+              window as Window & {
+                showSaveFilePicker: (options: {
+                  suggestedName: string;
+                  types: Array<{
+                    description: string;
+                    accept: Record<string, string[]>;
+                  }>;
+                }) => Promise<FileSystemFileHandle>;
+              }
+            ).showSaveFilePicker;
             const fileHandle = await showSaveFilePicker({
               suggestedName: `${project.name || "export"}.${ext}`,
               types: [
@@ -548,7 +646,11 @@ export const Toolbar: React.FC = () => {
           }
         }
 
-        const generator = engine.exportVideoWithFFmpeg(project, exportSettings, writableStream);
+        const generator = engine.exportVideoWithFFmpeg(
+          project,
+          exportSettings,
+          writableStream,
+        );
         let finalResult: ExportResult | undefined;
 
         while (true) {
@@ -583,7 +685,10 @@ export const Toolbar: React.FC = () => {
               phase: "Saved!",
             }));
           } else if (finalResult.blob) {
-            downloadBlob(finalResult.blob, `${project.name || "export"}.${ext}`);
+            downloadBlob(
+              finalResult.blob,
+              `${project.name || "export"}.${ext}`,
+            );
             setExportState((prev) => ({
               ...prev,
               complete: true,
@@ -615,7 +720,6 @@ export const Toolbar: React.FC = () => {
     },
     [project, track],
   );
-
 
   const handleRecordingComplete = useCallback(
     async (screenBlob: Blob, webcamBlob?: Blob) => {
@@ -750,81 +854,16 @@ export const Toolbar: React.FC = () => {
   ];
 
   return (
-    <div className="h-16 border-b border-border flex items-center px-6 justify-between bg-background shrink-0 z-30 relative">
+    <div className="h-16 border-b border-border flex items-center px-1 justify-between bg-background shrink-0 z-30 relative">
       <div className="flex items-center gap-4">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 group">
-            <svg
-              viewBox="0 0 490 490"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-              className="w-full h-full text-primary group-hover:scale-110 transition-transform duration-300"
-            >
-              <path
-                d="M245 24.5C123.223 24.5 24.5 123.223 24.5 245s98.723 220.5 220.5 220.5 220.5-98.723 220.5-220.5S366.777 24.5 245 24.5Z"
-                stroke="currentColor"
-                strokeWidth="30.625"
-                className="opacity-100"
-              />
-              <g className="origin-center group-hover:rotate-90 transition-transform duration-500 ease-out">
-                <path
-                  d="M245 98v73.5"
-                  stroke="currentColor"
-                  strokeWidth="24.5"
-                  strokeLinecap="round"
-                />
-                <path
-                  d="M392 245h-73.5"
-                  stroke="currentColor"
-                  strokeWidth="24.5"
-                  strokeLinecap="round"
-                />
-                <path
-                  d="M245 392v-73.5"
-                  stroke="currentColor"
-                  strokeWidth="24.5"
-                  strokeLinecap="round"
-                />
-                <path
-                  d="M98 245h73.5"
-                  stroke="currentColor"
-                  strokeWidth="24.5"
-                  strokeLinecap="round"
-                />
-                <path
-                  d="m348.941 141.059-51.965 51.965"
-                  stroke="currentColor"
-                  strokeWidth="24.5"
-                  strokeLinecap="round"
-                />
-                <path
-                  d="m348.941 348.941-51.965-51.965"
-                  stroke="currentColor"
-                  strokeWidth="24.5"
-                  strokeLinecap="round"
-                />
-                <path
-                  d="m141.059 348.941 51.965-51.965"
-                  stroke="currentColor"
-                  strokeWidth="24.5"
-                  strokeLinecap="round"
-                />
-                <path
-                  d="m141.059 141.059 51.965 51.965"
-                  stroke="currentColor"
-                  strokeWidth="24.5"
-                  strokeLinecap="round"
-                />
-              </g>
-              <path
-                d="M294 245a49 49 0 0 1-49 49 49 49 0 0 1-49-49 49 49 0 0 1 98 0"
-                fill="currentColor"
-                className="group-hover:fill-white transition-colors duration-300"
-              />
-            </svg>
+        <div className="flex items-center gap-3 mr-2">
+          <div className="w-12 h-12 text-primary">
+            {/* <OpenReelLogo className="w-full h-full" /> */}
+
+            <img src="/favicon.svg" alt="Zyka Logo" width={48} height={48} />
           </div>
-          <span className="text-lg font-medium text-text-primary tracking-wide hidden lg:block">
-            Open Reel
+          <span className="text-xl font-semibold text-text-primary tracking-tight">
+            Zyka Editor
           </span>
         </div>
         <div className="h-6 w-px bg-border hidden md:block" />
@@ -876,9 +915,7 @@ export const Toolbar: React.FC = () => {
       <div className="flex items-center gap-4">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button
-              className="p-2 rounded-lg hover:bg-background-elevated text-text-secondary hover:text-text-primary transition-colors"
-            >
+            <button className="p-2 rounded-lg hover:bg-background-elevated text-text-secondary hover:text-text-primary transition-colors">
               <HelpCircle size={16} />
             </button>
           </DropdownMenuTrigger>
@@ -887,7 +924,10 @@ export const Toolbar: React.FC = () => {
               <Play size={14} />
               <span>Editor Tour</span>
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={handleStartMoGraphTour} className="gap-2">
+            <DropdownMenuItem
+              onClick={handleStartMoGraphTour}
+              className="gap-2"
+            >
               <Sparkles size={14} className="text-purple-400" />
               <span>Animation & Effects Tour</span>
             </DropdownMenuItem>
@@ -1040,7 +1080,10 @@ export const Toolbar: React.FC = () => {
                   />
                 </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-72 p-0 rounded-xl bg-background-secondary border-border">
+              <DropdownMenuContent
+                align="end"
+                className="w-72 p-0 rounded-xl bg-background-secondary border-border"
+              >
                 <div className="p-3 space-y-1 max-h-[400px] overflow-y-auto">
                   {exportOptions.map((option, index) =>
                     option.separator ? (
@@ -1108,10 +1151,7 @@ export const Toolbar: React.FC = () => {
                         Full settings with AI upscaling
                       </div>
                     </div>
-                    <Settings
-                      size={14}
-                      className="text-text-muted"
-                    />
+                    <Settings size={14} className="text-text-muted" />
                   </DropdownMenuItem>
                 </div>
                 <div className="bg-background-tertiary px-3 py-2.5 text-xs text-center text-text-muted border-t border-border">
@@ -1147,7 +1187,9 @@ export const Toolbar: React.FC = () => {
           />
           <div className="fixed top-16 right-0 bottom-0 w-80 bg-background-secondary border-l border-border z-50 shadow-2xl animate-in slide-in-from-right duration-200">
             <div className="flex items-center justify-between p-3 border-b border-border">
-              <span className="text-sm font-medium text-text-primary">Action History</span>
+              <span className="text-sm font-medium text-text-primary">
+                Action History
+              </span>
               <button
                 onClick={() => setIsHistoryOpen(false)}
                 className="p-1.5 rounded hover:bg-background-tertiary text-text-muted hover:text-text-primary transition-colors"

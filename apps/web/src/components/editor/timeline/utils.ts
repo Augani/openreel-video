@@ -142,9 +142,9 @@ export const getTrackInfo = (track: Track, index: number): TrackInfo => {
       return {
         label: `G${index + 1}`,
         icon: Shapes,
-        color: "bg-green-500",
-        textColor: "text-green-400",
-        bgLight: "bg-green-500/20",
+        color: "bg-pink-500",
+        textColor: "text-pink-400",
+        bgLight: "bg-pink-500/20",
       };
     default:
       return {

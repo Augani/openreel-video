@@ -33,7 +33,7 @@
     --card-foreground: 240 10% 3.9%;
     --popover: 0 0% 100%;
     --popover-foreground: 240 10% 3.9%;
-    --primary: 142 71% 45%;
+    --primary: 330 81% 60%;
     --primary-foreground: 0 0% 100%;
     --secondary: 240 4.8% 95.9%;
     --secondary-foreground: 240 5.9% 10%;
@@ -45,7 +45,7 @@
     --destructive-foreground: 0 0% 98%;
     --border: 240 5.9% 90%;
     --input: 240 5.9% 90%;
-    --ring: 142 71% 45%;
+    --ring: 330 81% 60%;
     --radius: 0.5rem;
 
     color-scheme: light;
@@ -75,7 +75,7 @@
     --card-foreground: 0 0% 95%;
     --popover: 240 6% 10%;
     --popover-foreground: 0 0% 95%;
-    --primary: 142 71% 45%;
+    --primary: 330 81% 60%;
     --primary-foreground: 0 0% 100%;
     --secondary: 240 4% 16%;
     --secondary-foreground: 0 0% 95%;
@@ -87,7 +87,7 @@
     --destructive-foreground: 0 0% 95%;
     --border: 240 4% 20%;
     --input: 240 4% 20%;
-    --ring: 142 71% 45%;
+    --ring: 330 81% 60%;
 
     color-scheme: dark;
     color: rgb(var(--color-text-primary));
@@ -139,8 +139,8 @@ textarea {
 input:focus,
 select:focus,
 textarea:focus {
-  border-color: #22c55e;
-  box-shadow: 0 0 0 1px #22c55e;
+  border-color: #ec4899;
+  box-shadow: 0 0 0 1px #ec4899;
 }
 
 button {

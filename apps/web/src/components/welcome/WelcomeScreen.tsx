@@ -199,11 +199,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ initialTab }) => {
     return (
       <div className="fixed inset-0 z-50 bg-background flex flex-col">
         <header className="flex items-center justify-between px-6 py-4 border-b border-border">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setViewMode("home")}
-          >
+          <Button variant="ghost" size="sm" onClick={() => setViewMode("home")}>
             <ArrowRight className="rotate-180" size={16} />
             Back
           </Button>
@@ -221,11 +217,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ initialTab }) => {
     return (
       <div className="fixed inset-0 z-50 bg-background flex flex-col">
         <header className="flex items-center justify-between px-6 py-4 border-b border-border">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setViewMode("home")}
-          >
+          <Button variant="ghost" size="sm" onClick={() => setViewMode("home")}>
             <ArrowRight className="rotate-180" size={16} />
             Back
           </Button>
@@ -251,21 +243,29 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ initialTab }) => {
           <div className="flex flex-col items-center text-center mb-12">
             <div className="flex items-center gap-3 mb-6">
               <div className="w-12 h-12 text-primary">
-                <OpenReelLogo className="w-full h-full" />
+                {/* <OpenReelLogo className="w-full h-full" /> */}
+
+                <img
+                  src="/favicon.svg"
+                  alt="Zyka Logo"
+                  width={48}
+                  height={48}
+                />
               </div>
               <span className="text-xl font-semibold text-text-primary tracking-tight">
-                Open Reel Video
+                Zyka Editor
               </span>
             </div>
 
             <h1 className="text-4xl sm:text-5xl font-bold text-text-primary tracking-tight mb-3">
-              From idea to export.
+              Zero limits. Just create.
             </h1>
             <p className="text-xl text-text-secondary mb-8">
-              In your browser.
+              AI-powered editing right in your browser.
             </p>
             <p className="text-base text-text-muted max-w-md">
-              Pick a format and start creating. You can change this anytime.
+              Choose your canvas and bring your vision to life. Switch formats
+              anytime.
             </p>
           </div>
 

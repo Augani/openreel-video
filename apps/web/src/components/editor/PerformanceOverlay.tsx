@@ -42,14 +42,14 @@ export const PerformanceOverlay: React.FC<PerformanceOverlayProps> = ({
 
   const fpsColor =
     !metrics || metrics.fps >= 30
-      ? "text-green-400"
+      ? "text-pink-400"
       : metrics.fps >= 24
         ? "text-yellow-400"
         : "text-red-400";
 
   const memoryColor =
     !metrics || metrics.memoryPercent < 0.7
-      ? "text-green-400"
+      ? "text-pink-400"
       : metrics.memoryPercent < 0.9
         ? "text-yellow-400"
         : "text-red-400";
@@ -57,7 +57,7 @@ export const PerformanceOverlay: React.FC<PerformanceOverlayProps> = ({
   const score = performanceMonitor.getPerformanceScore();
   const scoreColor =
     score >= 70
-      ? "text-green-400"
+      ? "text-pink-400"
       : score >= 40
         ? "text-yellow-400"
         : "text-red-400";

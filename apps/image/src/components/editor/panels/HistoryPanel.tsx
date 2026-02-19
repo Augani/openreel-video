@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState } from "react";
 import {
   History,
   Undo2,
@@ -12,10 +12,10 @@ import {
   Edit2,
   Check,
   X,
-} from 'lucide-react';
-import { useHistoryStore } from '../../../stores/history-store';
-import { useProjectStore } from '../../../stores/project-store';
-import { formatDistanceToNow } from '../../../utils/time';
+} from "lucide-react";
+import { useHistoryStore } from "../../../stores/history-store";
+import { useProjectStore } from "../../../stores/project-store";
+import { formatDistanceToNow } from "../../../utils/time";
 
 export function HistoryPanel() {
   const {
@@ -36,8 +36,10 @@ export function HistoryPanel() {
   const redo = useHistoryStore((s) => s.redo);
 
   const [showSnapshots, setShowSnapshots] = useState(true);
-  const [editingSnapshotId, setEditingSnapshotId] = useState<string | null>(null);
-  const [editingName, setEditingName] = useState('');
+  const [editingSnapshotId, setEditingSnapshotId] = useState<string | null>(
+    null,
+  );
+  const [editingName, setEditingName] = useState("");
 
   const handleUndo = () => {
     const state = undo();
@@ -84,12 +86,12 @@ export function HistoryPanel() {
       renameSnapshot(editingSnapshotId, editingName.trim());
     }
     setEditingSnapshotId(null);
-    setEditingName('');
+    setEditingName("");
   };
 
   const handleCancelRename = () => {
     setEditingSnapshotId(null);
-    setEditingName('');
+    setEditingName("");
   };
 
   return (
@@ -137,10 +139,16 @@ export function HistoryPanel() {
             onClick={() => setShowSnapshots(!showSnapshots)}
             className="w-full flex items-center gap-2 px-3 py-2 hover:bg-accent/50 transition-colors"
           >
-            {showSnapshots ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+            {showSnapshots ? (
+              <ChevronDown size={12} />
+            ) : (
+              <ChevronRight size={12} />
+            )}
             <Bookmark size={12} className="text-muted-foreground" />
             <span className="text-[11px] font-medium">Snapshots</span>
-            <span className="text-[10px] text-muted-foreground ml-auto">{snapshots.length}</span>
+            <span className="text-[10px] text-muted-foreground ml-auto">
+              {snapshots.length}
+            </span>
           </button>
 
           {showSnapshots && (
@@ -171,15 +179,15 @@ export function HistoryPanel() {
                             value={editingName}
                             onChange={(e) => setEditingName(e.target.value)}
                             onKeyDown={(e) => {
-                              if (e.key === 'Enter') handleSaveRename();
-                              if (e.key === 'Escape') handleCancelRename();
+                              if (e.key === "Enter") handleSaveRename();
+                              if (e.key === "Escape") handleCancelRename();
                             }}
                             className="flex-1 px-1 py-0.5 text-[10px] bg-background border border-border rounded"
                             autoFocus
                           />
                           <button
                             onClick={handleSaveRename}
-                            className="p-0.5 text-green-500 hover:text-green-400"
+                            className="p-0.5 text-pink-500 hover:text-pink-400"
                           >
                             <Check size={10} />
                           </button>
@@ -196,14 +204,18 @@ export function HistoryPanel() {
                             onClick={() => handleRestoreSnapshot(snapshot.id)}
                             className="flex-1 text-left"
                           >
-                            <p className="text-[10px] font-medium truncate">{snapshot.name}</p>
+                            <p className="text-[10px] font-medium truncate">
+                              {snapshot.name}
+                            </p>
                             <p className="text-[9px] text-muted-foreground">
                               {formatDistanceToNow(snapshot.timestamp)}
                             </p>
                           </button>
                           <div className="hidden group-hover:flex items-center gap-0.5">
                             <button
-                              onClick={() => handleStartRename(snapshot.id, snapshot.name)}
+                              onClick={() =>
+                                handleStartRename(snapshot.id, snapshot.name)
+                              }
                               className="p-0.5 text-muted-foreground hover:text-foreground"
                             >
                               <Edit2 size={10} />
@@ -246,25 +258,27 @@ export function HistoryPanel() {
                   onClick={() => handleJumpToState(index)}
                   className={`w-full flex items-start gap-2 px-3 py-2 text-left transition-colors ${
                     isCurrent
-                      ? 'bg-primary/10 border-l-2 border-primary'
+                      ? "bg-primary/10 border-l-2 border-primary"
                       : isFuture
-                      ? 'opacity-50 hover:opacity-75 hover:bg-accent/50'
-                      : 'hover:bg-accent'
+                        ? "opacity-50 hover:opacity-75 hover:bg-accent/50"
+                        : "hover:bg-accent"
                   }`}
                 >
                   <div
                     className={`mt-0.5 w-2 h-2 rounded-full flex-shrink-0 ${
                       isCurrent
-                        ? 'bg-primary'
+                        ? "bg-primary"
                         : isFuture
-                        ? 'bg-muted-foreground/30'
-                        : 'bg-muted-foreground/50'
+                          ? "bg-muted-foreground/30"
+                          : "bg-muted-foreground/50"
                     }`}
                   />
                   <div className="min-w-0 flex-1">
                     <p
                       className={`text-xs truncate ${
-                        isCurrent ? 'font-medium text-foreground' : 'text-muted-foreground'
+                        isCurrent
+                          ? "font-medium text-foreground"
+                          : "text-muted-foreground"
                       }`}
                     >
                       {entry.description}

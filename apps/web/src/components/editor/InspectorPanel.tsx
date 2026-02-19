@@ -125,7 +125,7 @@ const ParticleEffectsSectionWrapper: React.FC<{
       particleEngine.addEffect(effect);
       setUpdateTrigger((v) => v + 1);
     },
-    [particleEngine]
+    [particleEngine],
   );
 
   const handleUpdateEffect = React.useCallback(
@@ -133,7 +133,7 @@ const ParticleEffectsSectionWrapper: React.FC<{
       particleEngine.updateEffect(effectId, config);
       setUpdateTrigger((v) => v + 1);
     },
-    [particleEngine]
+    [particleEngine],
   );
 
   const handleRemoveEffect = React.useCallback(
@@ -141,7 +141,7 @@ const ParticleEffectsSectionWrapper: React.FC<{
       particleEngine.removeEffect(effectId);
       setUpdateTrigger((v) => v + 1);
     },
-    [particleEngine]
+    [particleEngine],
   );
 
   const handleToggleEffect = React.useCallback(
@@ -149,7 +149,7 @@ const ParticleEffectsSectionWrapper: React.FC<{
       particleEngine.toggleEffect(effectId, enabled);
       setUpdateTrigger((v) => v + 1);
     },
-    [particleEngine]
+    [particleEngine],
   );
 
   const handleUpdateTiming = React.useCallback(
@@ -157,7 +157,7 @@ const ParticleEffectsSectionWrapper: React.FC<{
       particleEngine.updateEffectTiming(effectId, startTime, duration);
       setUpdateTrigger((v) => v + 1);
     },
-    [particleEngine]
+    [particleEngine],
   );
 
   return (
@@ -621,7 +621,11 @@ export const InspectorPanel: React.FC = () => {
             </div>
 
             {clipType === "video" && (
-              <Section title="AI Auto-Captions" sectionId="auto-captions" defaultOpen={false}>
+              <Section
+                title="AI Auto-Captions"
+                sectionId="auto-captions"
+                defaultOpen={false}
+              >
                 <div className="space-y-3">
                   <div>
                     <label className="text-[10px] text-text-secondary block mb-1">
@@ -629,7 +633,9 @@ export const InspectorPanel: React.FC = () => {
                     </label>
                     <Select
                       value={defaultAnimationStyle}
-                      onValueChange={(v) => setDefaultAnimationStyle(v as CaptionAnimationStyle)}
+                      onValueChange={(v) =>
+                        setDefaultAnimationStyle(v as CaptionAnimationStyle)
+                      }
                       disabled={isTranscribing}
                     >
                       <SelectTrigger className="w-full bg-background-secondary border-border text-text-primary text-[11px]">
@@ -662,10 +668,12 @@ export const InspectorPanel: React.FC = () => {
                             transcriptionProgress.phase === "error"
                               ? "bg-red-500"
                               : transcriptionProgress.phase === "complete"
-                                ? "bg-green-500"
+                                ? "bg-pink-500"
                                 : "bg-primary"
                           }`}
-                          style={{ width: `${transcriptionProgress.progress}%` }}
+                          style={{
+                            width: `${transcriptionProgress.progress}%`,
+                          }}
                         />
                       </div>
                     </div>
@@ -684,26 +692,42 @@ export const InspectorPanel: React.FC = () => {
             )}
 
             {clipType === "video" && (
-              <Section title="Background Removal" sectionId="background-removal" defaultOpen={false}>
+              <Section
+                title="Background Removal"
+                sectionId="background-removal"
+                defaultOpen={false}
+              >
                 <BackgroundRemovalSection clipId={clipId} />
               </Section>
             )}
 
             {clipType === "video" && (
-              <Section title="Auto Reframe" sectionId="auto-reframe" defaultOpen={false}>
+              <Section
+                title="Auto Reframe"
+                sectionId="auto-reframe"
+                defaultOpen={false}
+              >
                 <AutoReframeSection clipId={clipId} />
               </Section>
             )}
 
             {showAudioEffects && (
-              <Section title="Auto Cut Silence" sectionId="auto-cut-silence" defaultOpen={false}>
+              <Section
+                title="Auto Cut Silence"
+                sectionId="auto-cut-silence"
+                defaultOpen={false}
+              >
                 <AutoCutSilenceSection clipId={clipId} />
               </Section>
             )}
 
             {/* Beat Sync - Sync other clips to this audio's beats */}
             {clipType === "audio" && (
-              <Section title="Beat Sync" sectionId="beat-sync" defaultOpen={false}>
+              <Section
+                title="Beat Sync"
+                sectionId="beat-sync"
+                defaultOpen={false}
+              >
                 <AudioTextSyncPanel clipId={clipId} />
               </Section>
             )}
@@ -1149,7 +1173,7 @@ export const InspectorPanel: React.FC = () => {
                       disabled={isEnhancingAudio}
                       className={`w-full py-2 border rounded-lg text-[10px] transition-all flex items-center justify-center gap-1.5 ${
                         audioEnhanced
-                          ? "bg-green-500/20 border-green-500 text-green-400"
+                          ? "bg-pink-500/20 border-pink-500 text-pink-400"
                           : isEnhancingAudio
                             ? "bg-background-tertiary border-border text-text-muted cursor-not-allowed"
                             : "bg-background-tertiary hover:bg-primary hover:text-white border-border hover:border-primary"
@@ -1410,33 +1434,84 @@ export const InspectorPanel: React.FC = () => {
                     </SelectTrigger>
                     <SelectContent className="bg-background-secondary border-border max-h-60">
                       <SelectGroup>
-                        <SelectLabel className="text-text-muted text-[10px] font-medium">Popular</SelectLabel>
-                        {["Inter", "Poppins", "Montserrat", "Roboto", "Open Sans", "Lato", "DM Sans"].map((font) => (
-                          <SelectItem key={font} value={font} style={{ fontFamily: font }}>
+                        <SelectLabel className="text-text-muted text-[10px] font-medium">
+                          Popular
+                        </SelectLabel>
+                        {[
+                          "Inter",
+                          "Poppins",
+                          "Montserrat",
+                          "Roboto",
+                          "Open Sans",
+                          "Lato",
+                          "DM Sans",
+                        ].map((font) => (
+                          <SelectItem
+                            key={font}
+                            value={font}
+                            style={{ fontFamily: font }}
+                          >
                             {font}
                           </SelectItem>
                         ))}
                       </SelectGroup>
                       <SelectGroup>
-                        <SelectLabel className="text-text-muted text-[10px] font-medium">Display</SelectLabel>
-                        {["Bebas Neue", "Anton", "Oswald", "Teko", "Staatliches", "Alfa Slab One"].map((font) => (
-                          <SelectItem key={font} value={font} style={{ fontFamily: font }}>
+                        <SelectLabel className="text-text-muted text-[10px] font-medium">
+                          Display
+                        </SelectLabel>
+                        {[
+                          "Bebas Neue",
+                          "Anton",
+                          "Oswald",
+                          "Teko",
+                          "Staatliches",
+                          "Alfa Slab One",
+                        ].map((font) => (
+                          <SelectItem
+                            key={font}
+                            value={font}
+                            style={{ fontFamily: font }}
+                          >
                             {font}
                           </SelectItem>
                         ))}
                       </SelectGroup>
                       <SelectGroup>
-                        <SelectLabel className="text-text-muted text-[10px] font-medium">Elegant</SelectLabel>
-                        {["Playfair Display", "Cinzel", "Lora", "Merriweather", "DM Serif Display"].map((font) => (
-                          <SelectItem key={font} value={font} style={{ fontFamily: font }}>
+                        <SelectLabel className="text-text-muted text-[10px] font-medium">
+                          Elegant
+                        </SelectLabel>
+                        {[
+                          "Playfair Display",
+                          "Cinzel",
+                          "Lora",
+                          "Merriweather",
+                          "DM Serif Display",
+                        ].map((font) => (
+                          <SelectItem
+                            key={font}
+                            value={font}
+                            style={{ fontFamily: font }}
+                          >
                             {font}
                           </SelectItem>
                         ))}
                       </SelectGroup>
                       <SelectGroup>
-                        <SelectLabel className="text-text-muted text-[10px] font-medium">Handwritten</SelectLabel>
-                        {["Pacifico", "Lobster", "Dancing Script", "Caveat", "Permanent Marker"].map((font) => (
-                          <SelectItem key={font} value={font} style={{ fontFamily: font }}>
+                        <SelectLabel className="text-text-muted text-[10px] font-medium">
+                          Handwritten
+                        </SelectLabel>
+                        {[
+                          "Pacifico",
+                          "Lobster",
+                          "Dancing Script",
+                          "Caveat",
+                          "Permanent Marker",
+                        ].map((font) => (
+                          <SelectItem
+                            key={font}
+                            value={font}
+                            style={{ fontFamily: font }}
+                          >
                             {font}
                           </SelectItem>
                         ))}
@@ -1524,7 +1599,9 @@ export const InspectorPanel: React.FC = () => {
                       value={
                         selectedSubtitle.style?.backgroundColor?.includes("0.7")
                           ? "0.7"
-                          : selectedSubtitle.style?.backgroundColor?.includes("0.5")
+                          : selectedSubtitle.style?.backgroundColor?.includes(
+                                "0.5",
+                              )
                             ? "0.5"
                             : "1"
                       }
@@ -1532,10 +1609,7 @@ export const InspectorPanel: React.FC = () => {
                         const currentBg =
                           selectedSubtitle.style?.backgroundColor ||
                           "rgba(0, 0, 0, 0.7)";
-                        const newBg = currentBg.replace(
-                          /[\d.]+\)$/,
-                          `${v})`,
-                        );
+                        const newBg = currentBg.replace(/[\d.]+\)$/, `${v})`);
                         updateSubtitle(selectedSubtitle.id, {
                           style: {
                             ...(selectedSubtitle.style || {}),

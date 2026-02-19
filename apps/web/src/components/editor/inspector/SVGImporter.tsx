@@ -181,7 +181,7 @@ export const SVGImporter: React.FC<SVGImporterProps> = ({
    status === "error"
      ? "border-red-500 bg-red-500/10"
      : status === "success"
-       ? "border-green-500 bg-green-500/10"
+       ? "border-pink-500 bg-pink-500/10"
        : "border-border hover:border-primary hover:bg-primary/5"
  }
  `}
@@ -191,7 +191,7 @@ export const SVGImporter: React.FC<SVGImporterProps> = ({
           {status === "loading" ? (
             <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
           ) : status === "success" ? (
-            <Check size={24} className="text-green-500" />
+            <Check size={24} className="text-pink-500" />
           ) : status === "error" ? (
             <AlertCircle size={24} className="text-red-500" />
           ) : (
@@ -203,7 +203,7 @@ export const SVGImporter: React.FC<SVGImporterProps> = ({
             {status === "loading" ? (
               <p className="text-[10px] text-text-secondary">Importing...</p>
             ) : status === "success" ? (
-              <p className="text-[10px] text-green-500">
+              <p className="text-[10px] text-pink-500">
                 SVG imported successfully
               </p>
             ) : status === "error" ? (

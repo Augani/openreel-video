@@ -141,7 +141,7 @@ const MediaPlaceholderInput: React.FC<PlaceholderInputProps> = ({
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           {allowedTypes.includes("video") ? (
-            <Video size={12} className="text-green-400" />
+            <Video size={12} className="text-pink-400" />
           ) : (
             <Image size={12} className="text-primary" />
           )}

@@ -87,91 +87,91 @@ export const MarkersPanel: React.FC = () => {
         <ScrollArea className="max-h-96">
           <div className="space-y-1">
             {markers
-            .sort((a, b) => a.time - b.time)
-            .map((marker) => (
-              <div
-                key={marker.id}
-                className="group flex items-center gap-2 p-2 rounded hover:bg-background-tertiary transition-colors"
-              >
+              .sort((a, b) => a.time - b.time)
+              .map((marker) => (
                 <div
-                  className="w-3 h-3 rounded-full flex-shrink-0"
-                  style={{
-                    backgroundColor:
-                      editingId === marker.id ? editColor : marker.color,
-                  }}
-                />
+                  key={marker.id}
+                  className="group flex items-center gap-2 p-2 rounded hover:bg-background-tertiary transition-colors"
+                >
+                  <div
+                    className="w-3 h-3 rounded-full flex-shrink-0"
+                    style={{
+                      backgroundColor:
+                        editingId === marker.id ? editColor : marker.color,
+                    }}
+                  />
 
-                {editingId === marker.id ? (
-                  <div className="flex-1 space-y-2">
-                    <Input
-                      type="text"
-                      value={editLabel}
-                      onChange={(e) => setEditLabel(e.target.value)}
-                      className="h-7 text-xs bg-background-secondary border-border text-text-primary"
-                      placeholder="Marker label"
-                    />
-                    <div className="flex gap-1">
-                      {PRESET_COLORS.map((color) => (
+                  {editingId === marker.id ? (
+                    <div className="flex-1 space-y-2">
+                      <Input
+                        type="text"
+                        value={editLabel}
+                        onChange={(e) => setEditLabel(e.target.value)}
+                        className="h-7 text-xs bg-background-secondary border-border text-text-primary"
+                        placeholder="Marker label"
+                      />
+                      <div className="flex gap-1">
+                        {PRESET_COLORS.map((color) => (
+                          <button
+                            key={color}
+                            onClick={() => setEditColor(color)}
+                            className={`w-5 h-5 rounded border-2 transition-all ${
+                              editColor === color
+                                ? "border-white scale-110"
+                                : "border-transparent"
+                            }`}
+                            style={{ backgroundColor: color }}
+                          />
+                        ))}
+                      </div>
+                      <div className="flex gap-1">
                         <button
-                          key={color}
-                          onClick={() => setEditColor(color)}
-                          className={`w-5 h-5 rounded border-2 transition-all ${
-                            editColor === color
-                              ? "border-white scale-110"
-                              : "border-transparent"
-                          }`}
-                          style={{ backgroundColor: color }}
-                        />
-                      ))}
+                          onClick={handleSaveEdit}
+                          className="flex-1 flex items-center justify-center gap-1 px-2 py-1 bg-pink-500 hover:bg-pink-600 text-white rounded text-xs transition-colors"
+                        >
+                          <Check size={12} />
+                          Save
+                        </button>
+                        <button
+                          onClick={handleCancelEdit}
+                          className="flex-1 flex items-center justify-center gap-1 px-2 py-1 bg-background-secondary hover:bg-background-primary text-text-secondary rounded text-xs transition-colors"
+                        >
+                          <X size={12} />
+                          Cancel
+                        </button>
+                      </div>
                     </div>
-                    <div className="flex gap-1">
+                  ) : (
+                    <>
                       <button
-                        onClick={handleSaveEdit}
-                        className="flex-1 flex items-center justify-center gap-1 px-2 py-1 bg-green-500 hover:bg-green-600 text-white rounded text-xs transition-colors"
+                        onClick={() => handleJumpTo(marker)}
+                        className="flex-1 flex items-center justify-between text-left hover:text-primary transition-colors"
                       >
-                        <Check size={12} />
-                        Save
+                        <span className="text-xs text-text-primary">
+                          {marker.label}
+                        </span>
+                        <span className="text-[10px] font-mono text-text-muted">
+                          {formatTime(marker.time)}
+                        </span>
                       </button>
-                      <button
-                        onClick={handleCancelEdit}
-                        className="flex-1 flex items-center justify-center gap-1 px-2 py-1 bg-background-secondary hover:bg-background-primary text-text-secondary rounded text-xs transition-colors"
-                      >
-                        <X size={12} />
-                        Cancel
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <>
-                    <button
-                      onClick={() => handleJumpTo(marker)}
-                      className="flex-1 flex items-center justify-between text-left hover:text-primary transition-colors"
-                    >
-                      <span className="text-xs text-text-primary">
-                        {marker.label}
-                      </span>
-                      <span className="text-[10px] font-mono text-text-muted">
-                        {formatTime(marker.time)}
-                      </span>
-                    </button>
-                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button
-                        onClick={() => handleStartEdit(marker)}
-                        className="p-1 hover:bg-background-secondary rounded text-text-muted hover:text-primary transition-colors"
-                      >
-                        <Edit2 size={12} />
-                      </button>
-                      <button
-                        onClick={() => removeMarker(marker.id)}
-                        className="p-1 hover:bg-background-secondary rounded text-text-muted hover:text-red-500 transition-colors"
-                      >
-                        <Trash2 size={12} />
-                      </button>
-                    </div>
-                  </>
-                )}
-              </div>
-            ))}
+                      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          onClick={() => handleStartEdit(marker)}
+                          className="p-1 hover:bg-background-secondary rounded text-text-muted hover:text-primary transition-colors"
+                        >
+                          <Edit2 size={12} />
+                        </button>
+                        <button
+                          onClick={() => removeMarker(marker.id)}
+                          className="p-1 hover:bg-background-secondary rounded text-text-muted hover:text-red-500 transition-colors"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              ))}
           </div>
         </ScrollArea>
       )}

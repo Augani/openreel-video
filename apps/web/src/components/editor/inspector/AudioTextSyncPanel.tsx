@@ -1,5 +1,14 @@
 import React, { useCallback, useEffect, useState, useMemo } from "react";
-import { Music, Loader2, AlertCircle, Check, Settings2, Image, Type, Video } from "lucide-react";
+import {
+  Music,
+  Loader2,
+  AlertCircle,
+  Check,
+  Settings2,
+  Image,
+  Type,
+  Video,
+} from "lucide-react";
 import { Button, LabeledSlider } from "@openreel/ui";
 import {
   getBeatSyncBridge,
@@ -19,7 +28,9 @@ const TRACK_ICONS: Record<string, React.ReactNode> = {
   graphics: <Type size={12} />,
 };
 
-export const AudioTextSyncPanel: React.FC<BeatSyncPanelProps> = ({ clipId }) => {
+export const AudioTextSyncPanel: React.FC<BeatSyncPanelProps> = ({
+  clipId,
+}) => {
   const [state, setState] = useState<BeatSyncState | null>(null);
   const [showSettings, setShowSettings] = useState(false);
 
@@ -80,7 +91,9 @@ export const AudioTextSyncPanel: React.FC<BeatSyncPanelProps> = ({ clipId }) => 
     <div className="space-y-4">
       <div className="flex items-center gap-2 text-text-secondary">
         <Music size={14} />
-        <span className="text-[10px]">Sync clips to the beat of this audio</span>
+        <span className="text-[10px]">
+          Sync clips to the beat of this audio
+        </span>
       </div>
 
       {error && (
@@ -96,7 +109,9 @@ export const AudioTextSyncPanel: React.FC<BeatSyncPanelProps> = ({ clipId }) => 
             <div className="space-y-2">
               <div className="flex items-center gap-2">
                 <Loader2 size={12} className="animate-spin text-primary" />
-                <span className="text-[10px] text-text-primary">{progress.message}</span>
+                <span className="text-[10px] text-text-primary">
+                  {progress.message}
+                </span>
               </div>
               <div className="h-1.5 bg-background-tertiary rounded-full overflow-hidden">
                 <div
@@ -119,11 +134,17 @@ export const AudioTextSyncPanel: React.FC<BeatSyncPanelProps> = ({ clipId }) => 
         <div className="space-y-4">
           <div className="flex items-center justify-between p-3 bg-primary/10 rounded-lg border border-primary/30">
             <div>
-              <span className="text-[10px] text-text-secondary block">BPM Detected</span>
-              <span className="text-lg font-bold text-primary">{beatAnalysis.bpm}</span>
+              <span className="text-[10px] text-text-secondary block">
+                BPM Detected
+              </span>
+              <span className="text-lg font-bold text-primary">
+                {beatAnalysis.bpm}
+              </span>
             </div>
             <div className="text-right">
-              <span className="text-[10px] text-text-secondary block">Beats</span>
+              <span className="text-[10px] text-text-secondary block">
+                Beats
+              </span>
               <span className="text-sm font-medium text-text-primary">
                 {beatAnalysis.beats.length}
               </span>
@@ -137,7 +158,8 @@ export const AudioTextSyncPanel: React.FC<BeatSyncPanelProps> = ({ clipId }) => 
 
             {availableTracks.length === 0 ? (
               <p className="text-[10px] text-text-muted p-3 bg-background-tertiary rounded-lg">
-                No other tracks with clips found. Add clips to other tracks first.
+                No other tracks with clips found. Add clips to other tracks
+                first.
               </p>
             ) : (
               <div className="space-y-1">
@@ -153,10 +175,13 @@ export const AudioTextSyncPanel: React.FC<BeatSyncPanelProps> = ({ clipId }) => 
                   >
                     <div className="flex items-center gap-2">
                       {TRACK_ICONS[track.type] || <Video size={12} />}
-                      <span className="text-[11px] text-text-primary">{track.name}</span>
+                      <span className="text-[11px] text-text-primary">
+                        {track.name}
+                      </span>
                     </div>
                     <span className="text-[9px] text-text-muted">
-                      {track.clipCount} {track.clipCount === 1 ? "clip" : "clips"}
+                      {track.clipCount}{" "}
+                      {track.clipCount === 1 ? "clip" : "clips"}
                     </span>
                   </button>
                 ))}
@@ -167,7 +192,8 @@ export const AudioTextSyncPanel: React.FC<BeatSyncPanelProps> = ({ clipId }) => 
           {clipsToSync.length > 0 && (
             <div className="p-2 bg-background-tertiary rounded-lg">
               <span className="text-[9px] text-text-muted">
-                {clipsToSync.length} clips will be synced to {beatAnalysis.beats.length} beats
+                {clipsToSync.length} clips will be synced to{" "}
+                {beatAnalysis.beats.length} beats
               </span>
             </div>
           )}
@@ -184,36 +210,64 @@ export const AudioTextSyncPanel: React.FC<BeatSyncPanelProps> = ({ clipId }) => 
             {showSettings && (
               <div className="space-y-3 p-3 bg-background-tertiary rounded-lg">
                 <div>
-                  <span className="text-[10px] text-text-secondary block mb-2">Sync Mode</span>
+                  <span className="text-[10px] text-text-secondary block mb-2">
+                    Sync Mode
+                  </span>
                   <div className="space-y-1">
-                    {([
-                      { value: "smart", label: "Smart", desc: "Adjust duration to fit nearest beat count" },
-                      { value: "one-per-beat", label: "One per Beat", desc: "Each clip gets exactly one beat" },
-                      { value: "preserve-duration", label: "Preserve Duration", desc: "Keep original duration, snap start to beat" },
-                    ] as const).map((mode) => (
+                    {(
+                      [
+                        {
+                          value: "smart",
+                          label: "Smart",
+                          desc: "Adjust duration to fit nearest beat count",
+                        },
+                        {
+                          value: "one-per-beat",
+                          label: "One per Beat",
+                          desc: "Each clip gets exactly one beat",
+                        },
+                        {
+                          value: "preserve-duration",
+                          label: "Preserve Duration",
+                          desc: "Keep original duration, snap start to beat",
+                        },
+                      ] as const
+                    ).map((mode) => (
                       <button
                         key={mode.value}
-                        onClick={() => handleUpdateConfig({ syncMode: mode.value as SyncMode })}
+                        onClick={() =>
+                          handleUpdateConfig({
+                            syncMode: mode.value as SyncMode,
+                          })
+                        }
                         className={`w-full text-left p-2 rounded transition-colors ${
                           config.syncMode === mode.value
                             ? "bg-primary/20 border border-primary/50"
                             : "bg-background-secondary border border-transparent hover:border-border"
                         }`}
                       >
-                        <span className="text-[10px] text-text-primary block">{mode.label}</span>
-                        <span className="text-[9px] text-text-muted">{mode.desc}</span>
+                        <span className="text-[10px] text-text-primary block">
+                          {mode.label}
+                        </span>
+                        <span className="text-[9px] text-text-muted">
+                          {mode.desc}
+                        </span>
                       </button>
                     ))}
                   </div>
                 </div>
 
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] text-text-secondary">Beat Subdivision</span>
+                  <span className="text-[10px] text-text-secondary">
+                    Beat Subdivision
+                  </span>
                   <div className="flex gap-1">
                     {([1, 2, 4] as const).map((sub) => (
                       <button
                         key={sub}
-                        onClick={() => handleUpdateConfig({ beatSubdivision: sub })}
+                        onClick={() =>
+                          handleUpdateConfig({ beatSubdivision: sub })
+                        }
                         className={`px-2 py-1 text-[9px] rounded transition-colors ${
                           config.beatSubdivision === sub
                             ? "bg-primary text-black"
@@ -237,10 +291,14 @@ export const AudioTextSyncPanel: React.FC<BeatSyncPanelProps> = ({ clipId }) => 
                 />
 
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] text-text-secondary">Downbeats Only</span>
+                  <span className="text-[10px] text-text-secondary">
+                    Downbeats Only
+                  </span>
                   <div className="flex gap-1">
                     <button
-                      onClick={() => handleUpdateConfig({ snapToDownbeats: false })}
+                      onClick={() =>
+                        handleUpdateConfig({ snapToDownbeats: false })
+                      }
                       className={`px-2 py-1 text-[9px] rounded transition-colors ${
                         !config.snapToDownbeats
                           ? "bg-primary text-black"
@@ -250,7 +308,9 @@ export const AudioTextSyncPanel: React.FC<BeatSyncPanelProps> = ({ clipId }) => 
                       All Beats
                     </button>
                     <button
-                      onClick={() => handleUpdateConfig({ snapToDownbeats: true })}
+                      onClick={() =>
+                        handleUpdateConfig({ snapToDownbeats: true })
+                      }
                       className={`px-2 py-1 text-[9px] rounded transition-colors ${
                         config.snapToDownbeats
                           ? "bg-primary text-black"
@@ -276,7 +336,8 @@ export const AudioTextSyncPanel: React.FC<BeatSyncPanelProps> = ({ clipId }) => 
                   >
                     <span className="text-text-muted">Clip {idx + 1}</span>
                     <span className="text-text-primary">
-                      {timing.originalStartTime.toFixed(2)}s → {timing.newStartTime.toFixed(2)}s
+                      {timing.originalStartTime.toFixed(2)}s →{" "}
+                      {timing.newStartTime.toFixed(2)}s
                     </span>
                   </div>
                 ))}
@@ -290,9 +351,11 @@ export const AudioTextSyncPanel: React.FC<BeatSyncPanelProps> = ({ clipId }) => 
           )}
 
           {progress?.phase === "complete" && (
-            <div className="flex items-center gap-2 p-2 bg-green-500/10 rounded-lg border border-green-500/30">
-              <Check size={14} className="text-green-400" />
-              <span className="text-[10px] text-green-400">{progress.message}</span>
+            <div className="flex items-center gap-2 p-2 bg-pink-500/10 rounded-lg border border-pink-500/30">
+              <Check size={14} className="text-pink-400" />
+              <span className="text-[10px] text-pink-400">
+                {progress.message}
+              </span>
             </div>
           )}
 

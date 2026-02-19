@@ -1,10 +1,5 @@
 import React from "react";
-import {
-  Layers,
-  Trash2,
-  Shapes,
-  Type,
-} from "lucide-react";
+import { Layers, Trash2, Shapes, Type } from "lucide-react";
 import type { ShapeClip, SVGClip, StickerClip, TextClip } from "@openreel/core";
 import { useProjectStore } from "../../../stores/project-store";
 import {
@@ -25,19 +20,11 @@ interface GraphicsClipContextMenuProps {
   onDuplicate?: () => void;
 }
 
-export const GraphicsClipContextMenu: React.FC<GraphicsClipContextMenuProps> = ({
-  clip,
-  clipType,
-  onClose,
-  onDelete,
-  onDuplicate,
-}) => {
-  const {
-    deleteShapeClip,
-    deleteSVGClip,
-    deleteStickerClip,
-    deleteTextClip,
-  } = useProjectStore();
+export const GraphicsClipContextMenu: React.FC<
+  GraphicsClipContextMenuProps
+> = ({ clip, clipType, onClose, onDelete, onDuplicate }) => {
+  const { deleteShapeClip, deleteSVGClip, deleteStickerClip, deleteTextClip } =
+    useProjectStore();
 
   const handleDelete = () => {
     if (onDelete) {
@@ -89,7 +76,7 @@ export const GraphicsClipContextMenu: React.FC<GraphicsClipContextMenuProps> = (
       case "text":
         return <Type className="mr-2 h-3 w-3 text-amber-400" />;
       default:
-        return <Shapes className="mr-2 h-3 w-3 text-green-400" />;
+        return <Shapes className="mr-2 h-3 w-3 text-pink-400" />;
     }
   };
 

@@ -395,7 +395,8 @@ export const Preview: React.FC = () => {
     return null;
   }, [motionPathMode, motionPathClipId, project.timeline.tracks]);
 
-  const [motionPathConfig, setMotionPathConfig] = React.useState<MotionPathConfig | null>(null);
+  const [motionPathConfig, setMotionPathConfig] =
+    React.useState<MotionPathConfig | null>(null);
 
   React.useEffect(() => {
     if (motionPathClip) {
@@ -422,18 +423,20 @@ export const Preview: React.FC = () => {
         return { ...prev, points: newPoints };
       });
     },
-    []
+    [],
   );
 
   const handleMotionPathPointAdd = React.useCallback(
     (point: GSAPMotionPathPoint) => {
       setMotionPathConfig((prev) => {
         if (!prev) return prev;
-        const newPoints = [...prev.points, point].sort((a, b) => a.time - b.time);
+        const newPoints = [...prev.points, point].sort(
+          (a, b) => a.time - b.time,
+        );
         return { ...prev, points: newPoints };
       });
     },
-    []
+    [],
   );
 
   const handleMotionPathPointRemove = React.useCallback((index: number) => {
@@ -457,12 +460,12 @@ export const Preview: React.FC = () => {
         return { ...prev, points: newPoints };
       });
     },
-    []
+    [],
   );
 
   const particleEngine = React.useMemo(() => getParticleEngine(), []);
-  const [particleUpdateTrigger, setParticleUpdateTrigger] = React.useState(
-    () => particleEngine.getChangeVersion()
+  const [particleUpdateTrigger, setParticleUpdateTrigger] = React.useState(() =>
+    particleEngine.getChangeVersion(),
   );
 
   React.useEffect(() => {
@@ -949,8 +952,7 @@ export const Preview: React.FC = () => {
           const arrayBuffer = await mediaItem.blob.arrayBuffer();
           const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
           audioBufferCacheRef.current.set(clip.mediaId, audioBuffer);
-        } catch {
-        }
+        } catch {}
       }
     }
   }, [getMediaItem]);
@@ -959,7 +961,8 @@ export const Preview: React.FC = () => {
     (time: number): AudioClipSchedule[] => {
       const tracks = timelineTracksRef.current;
       const tracksWithAudio = tracks.filter(
-        (t) => (t.type === "audio" || t.type === "video") && !t.hidden && !t.muted,
+        (t) =>
+          (t.type === "audio" || t.type === "video") && !t.hidden && !t.muted,
       );
       const schedules: AudioClipSchedule[] = [];
       const projectStore = useProjectStore.getState();
@@ -1904,7 +1907,9 @@ export const Preview: React.FC = () => {
                 mediaItem.metadata.channels > 0);
             if (!hasAudio) continue;
 
-            const audioBuffer = audioBufferCacheRef.current.get(audioClip.mediaId);
+            const audioBuffer = audioBufferCacheRef.current.get(
+              audioClip.mediaId,
+            );
             if (audioBuffer) {
               schedules.push({
                 clipId: audioClip.id,
@@ -1985,7 +1990,8 @@ export const Preview: React.FC = () => {
                 })();
                 const imgClipLocalTime = currentPlayhead - imgClip.startTime;
                 const imgTransform = getAnimatedTransform(
-                  (latestImgClip.transform as ClipTransform) || DEFAULT_TRANSFORM,
+                  (latestImgClip.transform as ClipTransform) ||
+                    DEFAULT_TRANSFORM,
                   latestImgClip.keyframes,
                   imgClipLocalTime,
                 );
@@ -2009,7 +2015,10 @@ export const Preview: React.FC = () => {
             currentPlayhead,
           );
 
-          if (activeShapeClipsNoVideo.length > 0 || activeTextClipsNoVideo.length > 0) {
+          if (
+            activeShapeClipsNoVideo.length > 0 ||
+            activeTextClipsNoVideo.length > 0
+          ) {
             renderOverlayClipsInTrackOrder(
               ctx,
               timelineTracksRef.current,
@@ -2037,11 +2046,16 @@ export const Preview: React.FC = () => {
           }
 
           const nowNoClip = performance.now();
-          if (nowNoClip - lastPlayheadUpdateRef.current >= PLAYHEAD_UPDATE_THROTTLE_MS) {
+          if (
+            nowNoClip - lastPlayheadUpdateRef.current >=
+            PLAYHEAD_UPDATE_THROTTLE_MS
+          ) {
             lastPlayheadUpdateRef.current = nowNoClip;
             setPlayheadPosition(currentPlayhead);
           }
-          rafId = requestAnimationFrame(() => { drawFrame(); });
+          rafId = requestAnimationFrame(() => {
+            drawFrame();
+          });
           return;
         }
 
@@ -2050,11 +2064,16 @@ export const Preview: React.FC = () => {
 
         if (!cached) {
           const nowNoCached = performance.now();
-          if (nowNoCached - lastPlayheadUpdateRef.current >= PLAYHEAD_UPDATE_THROTTLE_MS) {
+          if (
+            nowNoCached - lastPlayheadUpdateRef.current >=
+            PLAYHEAD_UPDATE_THROTTLE_MS
+          ) {
             lastPlayheadUpdateRef.current = nowNoCached;
             setPlayheadPosition(currentPlayhead);
           }
-          rafId = requestAnimationFrame(() => { drawFrame(); });
+          rafId = requestAnimationFrame(() => {
+            drawFrame();
+          });
           return;
         }
 
@@ -2088,7 +2107,10 @@ export const Preview: React.FC = () => {
           clipLocalTime,
         );
 
-        if (latestClip.emphasisAnimation && latestClip.emphasisAnimation.type !== "none") {
+        if (
+          latestClip.emphasisAnimation &&
+          latestClip.emphasisAnimation.type !== "none"
+        ) {
           const emphasisState = applyEmphasisAnimation(
             latestClip.emphasisAnimation,
             clipLocalTime,
@@ -2156,7 +2178,13 @@ export const Preview: React.FC = () => {
           currentPlayhead,
         );
 
-        drawFrameWithTransform(ctx, video, transform, canvas.width, canvas.height);
+        drawFrameWithTransform(
+          ctx,
+          video,
+          transform,
+          canvas.width,
+          canvas.height,
+        );
 
         // Use CPU canvas2D for all overlays - more reliable than GPU compositing
         // Render all text/graphics overlays (they're above the video since backgrounds are separate)
@@ -2188,7 +2216,10 @@ export const Preview: React.FC = () => {
         }
 
         const nowPlayhead = performance.now();
-        if (nowPlayhead - lastPlayheadUpdateRef.current >= PLAYHEAD_UPDATE_THROTTLE_MS) {
+        if (
+          nowPlayhead - lastPlayheadUpdateRef.current >=
+          PLAYHEAD_UPDATE_THROTTLE_MS
+        ) {
           lastPlayheadUpdateRef.current = nowPlayhead;
           setPlayheadPosition(currentPlayhead);
         }
@@ -2221,7 +2252,9 @@ export const Preview: React.FC = () => {
         audioGraph.stopScheduler();
       };
 
-      rafId = requestAnimationFrame(() => { drawFrame(); });
+      rafId = requestAnimationFrame(() => {
+        drawFrame();
+      });
 
       return cleanup;
     },
@@ -2603,7 +2636,10 @@ export const Preview: React.FC = () => {
               }
 
               const nowPh = performance.now();
-              if (nowPh - lastPlayheadUpdateRef.current >= PLAYHEAD_UPDATE_THROTTLE_MS) {
+              if (
+                nowPh - lastPlayheadUpdateRef.current >=
+                PLAYHEAD_UPDATE_THROTTLE_MS
+              ) {
                 lastPlayheadUpdateRef.current = nowPh;
                 setPlayheadPosition(currentPlayhead);
               }
@@ -2718,9 +2754,7 @@ export const Preview: React.FC = () => {
 
     const preCacheAllImageBitmaps = async () => {
       const tracks = timelineTracksRef.current;
-      const imageTracks = tracks.filter(
-        (t) => t.type === "image" && !t.hidden,
-      );
+      const imageTracks = tracks.filter((t) => t.type === "image" && !t.hidden);
 
       for (const track of imageTracks) {
         for (const clip of track.clips) {
@@ -2843,7 +2877,8 @@ export const Preview: React.FC = () => {
         ) as OffscreenCanvasRenderingContext2D;
       }
 
-      const ctx = offscreenCtxRef.current as unknown as CanvasRenderingContext2D;
+      const ctx =
+        offscreenCtxRef.current as unknown as CanvasRenderingContext2D;
       if (!ctx) {
         console.error("[Preview] Failed to get offscreen 2D context");
         pause();
@@ -3349,7 +3384,9 @@ export const Preview: React.FC = () => {
 
             try {
               lastGoodFrameRef.current?.close();
-              lastGoodFrameRef.current = await createImageBitmap(offscreenCanvasRef.current!);
+              lastGoodFrameRef.current = await createImageBitmap(
+                offscreenCanvasRef.current!,
+              );
             } catch {}
           } else if (lastGoodFrameRef.current) {
             ctx.drawImage(
@@ -3380,7 +3417,10 @@ export const Preview: React.FC = () => {
           frameCount++;
           masterClock.reportVideoTime(currentPlayhead);
           const nowMulti = performance.now();
-          if (nowMulti - lastPlayheadUpdateRef.current >= PLAYHEAD_UPDATE_THROTTLE_MS) {
+          if (
+            nowMulti - lastPlayheadUpdateRef.current >=
+            PLAYHEAD_UPDATE_THROTTLE_MS
+          ) {
             lastPlayheadUpdateRef.current = nowMulti;
             setPlayheadPosition(currentPlayhead);
           }
@@ -4899,11 +4939,11 @@ export const Preview: React.FC = () => {
               }}
             >
               {/* Selection border - green for shape clips */}
-              <div className="absolute inset-0 border-2 border-green-500 pointer-events-none" />
+              <div className="absolute inset-0 border-2 border-pink-500 pointer-events-none" />
 
               {/* Move handle (center) */}
               <div
-                className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 bg-green-500/80 rounded-full flex items-center justify-center cursor-move pointer-events-auto hover:bg-green-500 transition-colors"
+                className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 bg-pink-500/80 rounded-full flex items-center justify-center cursor-move pointer-events-auto hover:bg-pink-500 transition-colors"
                 onMouseDown={handleShapeClipMouseDown}
                 title="Drag to move shape"
               >
@@ -4912,37 +4952,37 @@ export const Preview: React.FC = () => {
 
               {/* Corner resize handles */}
               <div
-                className="absolute -left-2 -top-2 w-4 h-4 bg-white border-2 border-green-500 rounded-sm cursor-nw-resize pointer-events-auto hover:bg-green-500 hover:border-white transition-colors"
+                className="absolute -left-2 -top-2 w-4 h-4 bg-white border-2 border-pink-500 rounded-sm cursor-nw-resize pointer-events-auto hover:bg-pink-500 hover:border-white transition-colors"
                 onMouseDown={(e) => handleShapeHandleMouseDown(e, "nw")}
               />
               <div
-                className="absolute -right-2 -top-2 w-4 h-4 bg-white border-2 border-green-500 rounded-sm cursor-ne-resize pointer-events-auto hover:bg-green-500 hover:border-white transition-colors"
+                className="absolute -right-2 -top-2 w-4 h-4 bg-white border-2 border-pink-500 rounded-sm cursor-ne-resize pointer-events-auto hover:bg-pink-500 hover:border-white transition-colors"
                 onMouseDown={(e) => handleShapeHandleMouseDown(e, "ne")}
               />
               <div
-                className="absolute -left-2 -bottom-2 w-4 h-4 bg-white border-2 border-green-500 rounded-sm cursor-sw-resize pointer-events-auto hover:bg-green-500 hover:border-white transition-colors"
+                className="absolute -left-2 -bottom-2 w-4 h-4 bg-white border-2 border-pink-500 rounded-sm cursor-sw-resize pointer-events-auto hover:bg-pink-500 hover:border-white transition-colors"
                 onMouseDown={(e) => handleShapeHandleMouseDown(e, "sw")}
               />
               <div
-                className="absolute -right-2 -bottom-2 w-4 h-4 bg-white border-2 border-green-500 rounded-sm cursor-se-resize pointer-events-auto hover:bg-green-500 hover:border-white transition-colors"
+                className="absolute -right-2 -bottom-2 w-4 h-4 bg-white border-2 border-pink-500 rounded-sm cursor-se-resize pointer-events-auto hover:bg-pink-500 hover:border-white transition-colors"
                 onMouseDown={(e) => handleShapeHandleMouseDown(e, "se")}
               />
 
               {/* Edge resize handles */}
               <div
-                className="absolute left-1/2 -translate-x-1/2 -top-2 w-6 h-4 bg-white border-2 border-green-500 rounded-sm cursor-n-resize pointer-events-auto hover:bg-green-500 hover:border-white transition-colors"
+                className="absolute left-1/2 -translate-x-1/2 -top-2 w-6 h-4 bg-white border-2 border-pink-500 rounded-sm cursor-n-resize pointer-events-auto hover:bg-pink-500 hover:border-white transition-colors"
                 onMouseDown={(e) => handleShapeHandleMouseDown(e, "n")}
               />
               <div
-                className="absolute left-1/2 -translate-x-1/2 -bottom-2 w-6 h-4 bg-white border-2 border-green-500 rounded-sm cursor-s-resize pointer-events-auto hover:bg-green-500 hover:border-white transition-colors"
+                className="absolute left-1/2 -translate-x-1/2 -bottom-2 w-6 h-4 bg-white border-2 border-pink-500 rounded-sm cursor-s-resize pointer-events-auto hover:bg-pink-500 hover:border-white transition-colors"
                 onMouseDown={(e) => handleShapeHandleMouseDown(e, "s")}
               />
               <div
-                className="absolute top-1/2 -translate-y-1/2 -left-2 w-4 h-6 bg-white border-2 border-green-500 rounded-sm cursor-w-resize pointer-events-auto hover:bg-green-500 hover:border-white transition-colors"
+                className="absolute top-1/2 -translate-y-1/2 -left-2 w-4 h-6 bg-white border-2 border-pink-500 rounded-sm cursor-w-resize pointer-events-auto hover:bg-pink-500 hover:border-white transition-colors"
                 onMouseDown={(e) => handleShapeHandleMouseDown(e, "w")}
               />
               <div
-                className="absolute top-1/2 -translate-y-1/2 -right-2 w-4 h-6 bg-white border-2 border-green-500 rounded-sm cursor-e-resize pointer-events-auto hover:bg-green-500 hover:border-white transition-colors"
+                className="absolute top-1/2 -translate-y-1/2 -right-2 w-4 h-6 bg-white border-2 border-pink-500 rounded-sm cursor-e-resize pointer-events-auto hover:bg-pink-500 hover:border-white transition-colors"
                 onMouseDown={(e) => handleShapeHandleMouseDown(e, "e")}
               />
             </div>
@@ -4992,85 +5032,85 @@ export const Preview: React.FC = () => {
 
         {/* Controls row */}
         <div className="h-12 px-6 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="font-mono text-text-primary tabular-nums text-sm w-24 tracking-wider">
-            {formatTime(playheadPosition)}
+          <div className="flex items-center gap-2">
+            <div className="font-mono text-text-primary tabular-nums text-sm w-24 tracking-wider">
+              {formatTime(playheadPosition)}
+            </div>
+
+            {rendererType !== "none" && (
+              <span
+                className={`text-[10px] px-1.5 py-0.5 rounded ${
+                  rendererType === "webgpu"
+                    ? "bg-pink-500/20 text-pink-400"
+                    : "bg-gray-500/20 text-gray-400"
+                }`}
+                title={`Rendering with ${rendererType.toUpperCase()}`}
+              >
+                {rendererType.toUpperCase()}
+              </span>
+            )}
           </div>
 
-          {rendererType !== "none" && (
-            <span
-              className={`text-[10px] px-1.5 py-0.5 rounded ${
-                rendererType === "webgpu"
-                  ? "bg-green-500/20 text-green-400"
-                  : "bg-gray-500/20 text-gray-400"
-              }`}
-              title={`Rendering with ${rendererType.toUpperCase()}`}
+          <div className="flex items-center gap-6">
+            <IconButton
+              icon={SkipBack}
+              onClick={handleSkipBack}
+              title="Skip back 5s"
+            />
+            <button
+              onClick={() => {
+                togglePlayback();
+              }}
+              className="w-10 h-10 rounded-full bg-primary hover:bg-primary-hover active:bg-primary-active flex items-center justify-center text-white transition-all shadow-[0_0_15px_rgba(34,197,94,0.4)] hover:shadow-[0_0_25px_rgba(34,197,94,0.6)] transform hover:scale-105"
             >
-              {rendererType.toUpperCase()}
-            </span>
-          )}
-        </div>
+              {isPlaying ? (
+                <Pause size={18} fill="currentColor" />
+              ) : (
+                <Play size={18} fill="currentColor" className="ml-0.5" />
+              )}
+            </button>
+            <IconButton
+              icon={SkipForward}
+              onClick={handleSkipForward}
+              title="Skip forward 5s"
+            />
+          </div>
 
-        <div className="flex items-center gap-6">
-          <IconButton
-            icon={SkipBack}
-            onClick={handleSkipBack}
-            title="Skip back 5s"
-          />
-          <button
-            onClick={() => {
-              togglePlayback();
-            }}
-            className="w-10 h-10 rounded-full bg-primary hover:bg-primary-hover active:bg-primary-active flex items-center justify-center text-white transition-all shadow-[0_0_15px_rgba(34,197,94,0.4)] hover:shadow-[0_0_25px_rgba(34,197,94,0.6)] transform hover:scale-105"
-          >
-            {isPlaying ? (
-              <Pause size={18} fill="currentColor" />
-            ) : (
-              <Play size={18} fill="currentColor" className="ml-0.5" />
-            )}
-          </button>
-          <IconButton
-            icon={SkipForward}
-            onClick={handleSkipForward}
-            title="Skip forward 5s"
-          />
-        </div>
-
-        <div className="flex gap-2 items-center">
-          <button
-            onClick={() => setIsMuted(!isMuted)}
-            className={`p-2 rounded-lg hover:bg-background-elevated transition-colors ${
-              isMuted
-                ? "text-red-500"
-                : "text-text-secondary hover:text-text-primary"
-            }`}
-          >
-            {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
-          </button>
-          <div className="w-px h-4 bg-border mx-2" />
-          <button
-            onClick={handleFullscreen}
-            title={isFullscreen ? "Exit Full Screen" : "Full Screen"}
-            className={`p-2 rounded-lg transition-colors ${
-              isFullscreen
-                ? "text-primary bg-primary/20"
-                : "text-text-secondary hover:text-text-primary hover:bg-background-elevated"
-            }`}
-          >
-            <Monitor size={16} />
-          </button>
-          <button
-            onClick={handleMaximize}
-            title={isMaximized ? "Restore Size" : "Maximize Preview"}
-            className={`p-2 rounded-lg transition-colors ${
-              isMaximized
-                ? "text-primary bg-primary/20"
-                : "text-text-secondary hover:text-text-primary hover:bg-background-elevated"
-            }`}
-          >
-            {isMaximized ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
-          </button>
-        </div>
+          <div className="flex gap-2 items-center">
+            <button
+              onClick={() => setIsMuted(!isMuted)}
+              className={`p-2 rounded-lg hover:bg-background-elevated transition-colors ${
+                isMuted
+                  ? "text-red-500"
+                  : "text-text-secondary hover:text-text-primary"
+              }`}
+            >
+              {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+            </button>
+            <div className="w-px h-4 bg-border mx-2" />
+            <button
+              onClick={handleFullscreen}
+              title={isFullscreen ? "Exit Full Screen" : "Full Screen"}
+              className={`p-2 rounded-lg transition-colors ${
+                isFullscreen
+                  ? "text-primary bg-primary/20"
+                  : "text-text-secondary hover:text-text-primary hover:bg-background-elevated"
+              }`}
+            >
+              <Monitor size={16} />
+            </button>
+            <button
+              onClick={handleMaximize}
+              title={isMaximized ? "Restore Size" : "Maximize Preview"}
+              className={`p-2 rounded-lg transition-colors ${
+                isMaximized
+                  ? "text-primary bg-primary/20"
+                  : "text-text-secondary hover:text-text-primary hover:bg-background-elevated"
+              }`}
+            >
+              {isMaximized ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+            </button>
+          </div>
         </div>
       </div>
     </div>

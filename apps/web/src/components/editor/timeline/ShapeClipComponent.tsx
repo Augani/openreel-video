@@ -159,7 +159,13 @@ export const ShapeClipComponent: React.FC<ShapeClipComponentProps> = ({
   const colorClass = isShape ? "green" : isSticker ? "pink" : "purple";
 
   const isInteracting = isDragging || isTrimming;
-  const clipType = isShape ? "shape" : isSticker ? (shapeClip.type === "emoji" ? "emoji" : "sticker") : "svg";
+  const clipType = isShape
+    ? "shape"
+    : isSticker
+      ? shapeClip.type === "emoji"
+        ? "emoji"
+        : "sticker"
+      : "svg";
 
   return (
     <ContextMenu>
@@ -178,8 +184,10 @@ export const ShapeClipComponent: React.FC<ShapeClipComponentProps> = ({
           style={{
             transform: `translateX(${left}px)`,
             width: `${Math.max(width, 40)}px`,
-            willChange: isInteracting ? 'transform, width' : 'auto',
-            transition: isInteracting ? 'none' : 'opacity 150ms, box-shadow 150ms',
+            willChange: isInteracting ? "transform, width" : "auto",
+            transition: isInteracting
+              ? "none"
+              : "opacity 150ms, box-shadow 150ms",
           }}
         >
           <div
@@ -205,13 +213,13 @@ export const ShapeClipComponent: React.FC<ShapeClipComponentProps> = ({
           </div>
           {isSelected && (
             <>
-              <div className="absolute inset-0 border-2 border-green-400 rounded-lg pointer-events-none" />
+              <div className="absolute inset-0 border-2 border-pink-400 rounded-lg pointer-events-none" />
               <div
-                className="absolute left-0 top-1/2 -translate-y-1/2 w-1.5 h-6 bg-green-400 rounded-r cursor-ew-resize"
+                className="absolute left-0 top-1/2 -translate-y-1/2 w-1.5 h-6 bg-pink-400 rounded-r cursor-ew-resize"
                 onMouseDown={(e) => handleTrimStart(e, "left")}
               />
               <div
-                className="absolute right-0 top-1/2 -translate-y-1/2 w-1.5 h-6 bg-green-400 rounded-l cursor-ew-resize"
+                className="absolute right-0 top-1/2 -translate-y-1/2 w-1.5 h-6 bg-pink-400 rounded-l cursor-ew-resize"
                 onMouseDown={(e) => handleTrimStart(e, "right")}
               />
             </>

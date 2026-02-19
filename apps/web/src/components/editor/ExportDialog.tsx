@@ -160,11 +160,16 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
     },
   });
 
-  const [deviceProfile, setDeviceProfile] = useState<DeviceProfile | null>(null);
+  const [deviceProfile, setDeviceProfile] = useState<DeviceProfile | null>(
+    null,
+  );
   const [timeEstimate, setTimeEstimate] = useState<TimeEstimate | null>(null);
-  const [codecRecommendations, setCodecRecommendations] = useState<CodecRecommendation[]>([]);
+  const [codecRecommendations, setCodecRecommendations] = useState<
+    CodecRecommendation[]
+  >([]);
   const [isBenchmarking, setIsBenchmarking] = useState(false);
-  const [benchmarkProgress, setBenchmarkProgress] = useState<BenchmarkProgress | null>(null);
+  const [benchmarkProgress, setBenchmarkProgress] =
+    useState<BenchmarkProgress | null>(null);
   const [showDeviceInfo, setShowDeviceInfo] = useState(false);
 
   useEffect(() => {
@@ -177,7 +182,10 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
       getDeviceProfile().then((profile) => {
         setDeviceProfile(profile);
         setCodecRecommendations(
-          getCodecRecommendations(profile, { width: projectWidth, height: projectHeight })
+          getCodecRecommendations(profile, {
+            width: projectWidth,
+            height: projectHeight,
+          }),
         );
       });
     }
@@ -219,7 +227,10 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
       const updatedProfile = await getDeviceProfile(true);
       setDeviceProfile(updatedProfile);
       setCodecRecommendations(
-        getCodecRecommendations(updatedProfile, { width: projectWidth, height: projectHeight })
+        getCodecRecommendations(updatedProfile, {
+          width: projectWidth,
+          height: projectHeight,
+        }),
       );
     } catch (error) {
       console.error("Benchmark failed:", error);
@@ -305,426 +316,435 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="presets" className="flex-1 overflow-hidden flex mt-0">
-              <div className="w-48 border-r border-border overflow-y-auto">
+          <TabsContent
+            value="presets"
+            className="flex-1 overflow-hidden flex mt-0"
+          >
+            <div className="w-48 border-r border-border overflow-y-auto">
+              <button
+                onClick={() => setSelectedPlatform("recommended")}
+                className={`w-full flex flex-col items-start p-3 text-sm transition-colors ${
+                  selectedPlatform === "recommended"
+                    ? "bg-primary/10 text-primary border-r-2 border-primary"
+                    : "text-text-secondary hover:bg-background-tertiary"
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <Zap size={14} />
+                  <span className="font-medium">For Your Video</span>
+                </div>
+                <span className="text-[10px] text-text-muted mt-0.5 ml-5">
+                  {getAspectRatioLabel(aspectType)}
+                </span>
+              </button>
+              <div className="h-px bg-border my-1" />
+              {platforms.map((platform) => (
                 <button
-                  onClick={() => setSelectedPlatform("recommended")}
-                  className={`w-full flex flex-col items-start p-3 text-sm transition-colors ${
-                    selectedPlatform === "recommended"
+                  key={platform}
+                  onClick={() => setSelectedPlatform(platform)}
+                  className={`w-full flex items-center gap-2 p-3 text-sm transition-colors ${
+                    selectedPlatform === platform
                       ? "bg-primary/10 text-primary border-r-2 border-primary"
                       : "text-text-secondary hover:bg-background-tertiary"
                   }`}
                 >
-                  <div className="flex items-center gap-2">
-                    <Zap size={14} />
-                    <span className="font-medium">For Your Video</span>
-                  </div>
-                  <span className="text-[10px] text-text-muted mt-0.5 ml-5">
-                    {getAspectRatioLabel(aspectType)}
-                  </span>
+                  {PLATFORM_ICONS[platform] || <Globe size={14} />}
+                  {platform}
                 </button>
-                <div className="h-px bg-border my-1" />
-                {platforms.map((platform) => (
+              ))}
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4">
+              <div className="grid grid-cols-2 gap-3">
+                {filteredPresets.map((preset) => (
                   <button
-                    key={platform}
-                    onClick={() => setSelectedPlatform(platform)}
-                    className={`w-full flex items-center gap-2 p-3 text-sm transition-colors ${
-                      selectedPlatform === platform
-                        ? "bg-primary/10 text-primary border-r-2 border-primary"
-                        : "text-text-secondary hover:bg-background-tertiary"
+                    key={preset.id}
+                    onClick={() => setSelectedPreset(preset)}
+                    className={`p-4 rounded-lg border text-left transition-colors ${
+                      selectedPreset?.id === preset.id
+                        ? "border-primary bg-primary/10"
+                        : "border-border hover:border-primary/50"
                     }`}
                   >
-                    {PLATFORM_ICONS[platform] || <Globe size={14} />}
-                    {platform}
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        {PLATFORM_ICONS[preset.platform]}
+                        <span className="font-medium text-text-primary">
+                          {preset.name}
+                        </span>
+                      </div>
+                      {preset.recommended && (
+                        <Star
+                          size={12}
+                          className="text-yellow-500 fill-yellow-500"
+                        />
+                      )}
+                    </div>
+                    <p className="text-[10px] text-text-muted mb-2">
+                      {preset.description}
+                    </p>
+                    {"width" in preset.settings && (
+                      <div className="flex items-center gap-3 text-[10px] text-text-secondary">
+                        <span>
+                          {(preset.settings as VideoExportSettings).width}x
+                          {(preset.settings as VideoExportSettings).height}
+                        </span>
+                        <span>
+                          {(preset.settings as VideoExportSettings).frameRate}
+                          fps
+                        </span>
+                        <span>{preset.aspectRatio}</span>
+                      </div>
+                    )}
+                    {preset.maxDuration && (
+                      <div className="flex items-center gap-1 mt-1 text-[10px] text-yellow-500">
+                        <Clock size={10} />
+                        Max {preset.maxDuration}s
+                      </div>
+                    )}
                   </button>
                 ))}
               </div>
+            </div>
+          </TabsContent>
 
-              <div className="flex-1 overflow-y-auto p-4">
-                <div className="grid grid-cols-2 gap-3">
-                  {filteredPresets.map((preset) => (
-                    <button
-                      key={preset.id}
-                      onClick={() => setSelectedPreset(preset)}
-                      className={`p-4 rounded-lg border text-left transition-colors ${
-                        selectedPreset?.id === preset.id
-                          ? "border-primary bg-primary/10"
-                          : "border-border hover:border-primary/50"
-                      }`}
+          <TabsContent
+            value="custom"
+            className="flex-1 overflow-y-auto p-4 mt-0"
+          >
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-text-secondary mb-2">
+                  Format
+                </label>
+                <Select
+                  value={customSettings.format}
+                  onValueChange={(value) =>
+                    setCustomSettings({
+                      ...customSettings,
+                      format: value as "mp4" | "webm" | "mov",
+                    })
+                  }
+                >
+                  <SelectTrigger className="w-full bg-background-tertiary border-border text-text-primary">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-background-secondary border-border">
+                    <SelectItem value="mp4">MP4</SelectItem>
+                    <SelectItem value="webm">WebM</SelectItem>
+                    <SelectItem value="mov">MOV</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-text-secondary mb-2">
+                  Codec
+                </label>
+                <Select
+                  value={customSettings.codec}
+                  onValueChange={(value) =>
+                    setCustomSettings({
+                      ...customSettings,
+                      codec: value as VideoExportSettings["codec"],
+                    })
+                  }
+                >
+                  <SelectTrigger className="w-full bg-background-tertiary border-border text-text-primary">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-background-secondary border-border">
+                    <SelectItem value="h264">H.264</SelectItem>
+                    <SelectItem value="h265">H.265 (HEVC)</SelectItem>
+                    <SelectItem value="prores">ProRes</SelectItem>
+                    <SelectItem value="vp9">VP9</SelectItem>
+                    <SelectItem value="av1">AV1</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-text-secondary mb-2">
+                  Resolution
+                </label>
+                <Select
+                  value={`${customSettings.width}x${customSettings.height}`}
+                  onValueChange={(value) => {
+                    const [w, h] = value.split("x").map(Number);
+                    setCustomSettings({
+                      ...customSettings,
+                      width: w,
+                      height: h,
+                    });
+                  }}
+                >
+                  <SelectTrigger className="w-full bg-background-tertiary border-border text-text-primary">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-background-secondary border-border">
+                    <SelectItem value="3840x2160">4K (3840x2160)</SelectItem>
+                    <SelectItem value="2560x1440">2K (2560x1440)</SelectItem>
+                    <SelectItem value="1920x1080">1080p (1920x1080)</SelectItem>
+                    <SelectItem value="1280x720">720p (1280x720)</SelectItem>
+                    <SelectItem value="854x480">480p (854x480)</SelectItem>
+                    <SelectItem value="1080x1920">Vertical 1080p</SelectItem>
+                    <SelectItem value="1080x1080">Square 1080</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-text-secondary mb-2">
+                  Frame Rate
+                </label>
+                <Select
+                  value={String(customSettings.frameRate)}
+                  onValueChange={(value) =>
+                    setCustomSettings({
+                      ...customSettings,
+                      frameRate: Number(value),
+                    })
+                  }
+                >
+                  <SelectTrigger className="w-full bg-background-tertiary border-border text-text-primary">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-background-secondary border-border">
+                    <SelectItem value="24">24 fps</SelectItem>
+                    <SelectItem value="25">25 fps</SelectItem>
+                    <SelectItem value="30">30 fps</SelectItem>
+                    <SelectItem value="50">50 fps</SelectItem>
+                    <SelectItem value="60">60 fps</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label className="block text-xs font-medium text-text-secondary mb-2">
+                  Bitrate (kbps)
+                </Label>
+                <Input
+                  type="number"
+                  value={customSettings.bitrate}
+                  onChange={(e) =>
+                    setCustomSettings({
+                      ...customSettings,
+                      bitrate: Number(e.target.value),
+                    })
+                  }
+                  className="bg-background-tertiary border-border text-text-primary"
+                  min={1000}
+                  max={150000}
+                  step={1000}
+                />
+              </div>
+
+              <div>
+                <Label className="block text-xs font-medium text-text-secondary mb-2">
+                  Quality
+                </Label>
+                <Slider
+                  value={[customSettings.quality]}
+                  onValueChange={(value) =>
+                    setCustomSettings({
+                      ...customSettings,
+                      quality: value[0],
+                    })
+                  }
+                  min={50}
+                  max={100}
+                  step={1}
+                  className="w-full"
+                />
+                <div className="flex justify-between text-[10px] text-text-muted mt-1">
+                  <span>Smaller</span>
+                  <span>{customSettings.quality}%</span>
+                  <span>Better</span>
+                </div>
+              </div>
+
+              <div className="col-span-2">
+                <label className="block text-xs font-medium text-text-secondary mb-2">
+                  Audio Settings
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  <Select
+                    value={customSettings.audioSettings.format}
+                    onValueChange={(value) =>
+                      setCustomSettings({
+                        ...customSettings,
+                        audioSettings: {
+                          ...customSettings.audioSettings,
+                          format: value as
+                            | "mp3"
+                            | "wav"
+                            | "aac"
+                            | "flac"
+                            | "ogg",
+                        },
+                      })
+                    }
+                  >
+                    <SelectTrigger className="bg-background-tertiary border-border text-text-primary text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-background-secondary border-border">
+                      <SelectItem value="aac">AAC</SelectItem>
+                      <SelectItem value="mp3">MP3</SelectItem>
+                      <SelectItem value="wav">WAV</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Select
+                    value={String(customSettings.audioSettings.sampleRate)}
+                    onValueChange={(value) =>
+                      setCustomSettings({
+                        ...customSettings,
+                        audioSettings: {
+                          ...customSettings.audioSettings,
+                          sampleRate: Number(value) as 44100 | 48000 | 96000,
+                        },
+                      })
+                    }
+                  >
+                    <SelectTrigger className="bg-background-tertiary border-border text-text-primary text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-background-secondary border-border">
+                      <SelectItem value="44100">44.1 kHz</SelectItem>
+                      <SelectItem value="48000">48 kHz</SelectItem>
+                      <SelectItem value="96000">96 kHz</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Select
+                    value={String(customSettings.audioSettings.bitrate)}
+                    onValueChange={(value) =>
+                      setCustomSettings({
+                        ...customSettings,
+                        audioSettings: {
+                          ...customSettings.audioSettings,
+                          bitrate: Number(value),
+                        },
+                      })
+                    }
+                  >
+                    <SelectTrigger className="bg-background-tertiary border-border text-text-primary text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-background-secondary border-border">
+                      <SelectItem value="128">128 kbps</SelectItem>
+                      <SelectItem value="192">192 kbps</SelectItem>
+                      <SelectItem value="256">256 kbps</SelectItem>
+                      <SelectItem value="320">320 kbps</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="col-span-2 border-t border-border pt-4 mt-2">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <Zap size={14} className="text-primary" />
+                    <Label
+                      htmlFor="upscaling-switch"
+                      className="text-xs font-medium text-text-secondary"
                     >
-                      <div className="flex items-start justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          {PLATFORM_ICONS[preset.platform]}
-                          <span className="font-medium text-text-primary">
-                            {preset.name}
-                          </span>
-                        </div>
-                        {preset.recommended && (
-                          <Star
-                            size={12}
-                            className="text-yellow-500 fill-yellow-500"
-                          />
+                      Enhance Quality (Upscaling)
+                    </Label>
+                  </div>
+                  <Switch
+                    id="upscaling-switch"
+                    checked={customSettings.upscaling?.enabled ?? false}
+                    onCheckedChange={(checked) =>
+                      setCustomSettings({
+                        ...customSettings,
+                        upscaling: {
+                          ...customSettings.upscaling!,
+                          enabled: checked,
+                        },
+                      })
+                    }
+                  />
+                </div>
+
+                {customSettings.upscaling?.enabled && (
+                  <div className="space-y-3 pl-6">
+                    <div>
+                      <label className="block text-[10px] text-text-muted mb-1.5">
+                        Quality Mode
+                      </label>
+                      <div className="flex gap-2">
+                        {(["fast", "balanced", "quality"] as const).map(
+                          (mode) => (
+                            <button
+                              key={mode}
+                              type="button"
+                              onClick={() =>
+                                setCustomSettings({
+                                  ...customSettings,
+                                  upscaling: {
+                                    ...customSettings.upscaling!,
+                                    quality: mode as UpscaleQuality,
+                                  },
+                                })
+                              }
+                              className={`flex-1 px-2 py-1.5 text-[10px] rounded border transition-colors ${
+                                customSettings.upscaling?.quality === mode
+                                  ? "border-primary bg-primary/10 text-primary"
+                                  : "border-border text-text-secondary hover:border-primary/50"
+                              }`}
+                            >
+                              {mode.charAt(0).toUpperCase() + mode.slice(1)}
+                            </button>
+                          ),
                         )}
                       </div>
-                      <p className="text-[10px] text-text-muted mb-2">
-                        {preset.description}
-                      </p>
-                      {"width" in preset.settings && (
-                        <div className="flex items-center gap-3 text-[10px] text-text-secondary">
-                          <span>
-                            {(preset.settings as VideoExportSettings).width}x
-                            {(preset.settings as VideoExportSettings).height}
-                          </span>
-                          <span>
-                            {(preset.settings as VideoExportSettings).frameRate}
-                            fps
-                          </span>
-                          <span>{preset.aspectRatio}</span>
-                        </div>
-                      )}
-                      {preset.maxDuration && (
-                        <div className="flex items-center gap-1 mt-1 text-[10px] text-yellow-500">
-                          <Clock size={10} />
-                          Max {preset.maxDuration}s
-                        </div>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </TabsContent>
+                    </div>
 
-          <TabsContent value="custom" className="flex-1 overflow-y-auto p-4 mt-0">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-medium text-text-secondary mb-2">
-                    Format
-                  </label>
-                  <Select
-                    value={customSettings.format}
-                    onValueChange={(value) =>
-                      setCustomSettings({
-                        ...customSettings,
-                        format: value as "mp4" | "webm" | "mov",
-                      })
-                    }
-                  >
-                    <SelectTrigger className="w-full bg-background-tertiary border-border text-text-primary">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="bg-background-secondary border-border">
-                      <SelectItem value="mp4">MP4</SelectItem>
-                      <SelectItem value="webm">WebM</SelectItem>
-                      <SelectItem value="mov">MOV</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-text-secondary mb-2">
-                    Codec
-                  </label>
-                  <Select
-                    value={customSettings.codec}
-                    onValueChange={(value) =>
-                      setCustomSettings({
-                        ...customSettings,
-                        codec: value as VideoExportSettings["codec"],
-                      })
-                    }
-                  >
-                    <SelectTrigger className="w-full bg-background-tertiary border-border text-text-primary">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="bg-background-secondary border-border">
-                      <SelectItem value="h264">H.264</SelectItem>
-                      <SelectItem value="h265">H.265 (HEVC)</SelectItem>
-                      <SelectItem value="prores">ProRes</SelectItem>
-                      <SelectItem value="vp9">VP9</SelectItem>
-                      <SelectItem value="av1">AV1</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-text-secondary mb-2">
-                    Resolution
-                  </label>
-                  <Select
-                    value={`${customSettings.width}x${customSettings.height}`}
-                    onValueChange={(value) => {
-                      const [w, h] = value.split("x").map(Number);
-                      setCustomSettings({
-                        ...customSettings,
-                        width: w,
-                        height: h,
-                      });
-                    }}
-                  >
-                    <SelectTrigger className="w-full bg-background-tertiary border-border text-text-primary">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="bg-background-secondary border-border">
-                      <SelectItem value="3840x2160">4K (3840x2160)</SelectItem>
-                      <SelectItem value="2560x1440">2K (2560x1440)</SelectItem>
-                      <SelectItem value="1920x1080">1080p (1920x1080)</SelectItem>
-                      <SelectItem value="1280x720">720p (1280x720)</SelectItem>
-                      <SelectItem value="854x480">480p (854x480)</SelectItem>
-                      <SelectItem value="1080x1920">Vertical 1080p</SelectItem>
-                      <SelectItem value="1080x1080">Square 1080</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-text-secondary mb-2">
-                    Frame Rate
-                  </label>
-                  <Select
-                    value={String(customSettings.frameRate)}
-                    onValueChange={(value) =>
-                      setCustomSettings({
-                        ...customSettings,
-                        frameRate: Number(value),
-                      })
-                    }
-                  >
-                    <SelectTrigger className="w-full bg-background-tertiary border-border text-text-primary">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="bg-background-secondary border-border">
-                      <SelectItem value="24">24 fps</SelectItem>
-                      <SelectItem value="25">25 fps</SelectItem>
-                      <SelectItem value="30">30 fps</SelectItem>
-                      <SelectItem value="50">50 fps</SelectItem>
-                      <SelectItem value="60">60 fps</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div>
-                  <Label className="block text-xs font-medium text-text-secondary mb-2">
-                    Bitrate (kbps)
-                  </Label>
-                  <Input
-                    type="number"
-                    value={customSettings.bitrate}
-                    onChange={(e) =>
-                      setCustomSettings({
-                        ...customSettings,
-                        bitrate: Number(e.target.value),
-                      })
-                    }
-                    className="bg-background-tertiary border-border text-text-primary"
-                    min={1000}
-                    max={150000}
-                    step={1000}
-                  />
-                </div>
-
-                <div>
-                  <Label className="block text-xs font-medium text-text-secondary mb-2">
-                    Quality
-                  </Label>
-                  <Slider
-                    value={[customSettings.quality]}
-                    onValueChange={(value) =>
-                      setCustomSettings({
-                        ...customSettings,
-                        quality: value[0],
-                      })
-                    }
-                    min={50}
-                    max={100}
-                    step={1}
-                    className="w-full"
-                  />
-                  <div className="flex justify-between text-[10px] text-text-muted mt-1">
-                    <span>Smaller</span>
-                    <span>{customSettings.quality}%</span>
-                    <span>Better</span>
-                  </div>
-                </div>
-
-                <div className="col-span-2">
-                  <label className="block text-xs font-medium text-text-secondary mb-2">
-                    Audio Settings
-                  </label>
-                  <div className="grid grid-cols-3 gap-2">
-                    <Select
-                      value={customSettings.audioSettings.format}
-                      onValueChange={(value) =>
-                        setCustomSettings({
-                          ...customSettings,
-                          audioSettings: {
-                            ...customSettings.audioSettings,
-                            format: value as
-                              | "mp3"
-                              | "wav"
-                              | "aac"
-                              | "flac"
-                              | "ogg",
-                          },
-                        })
-                      }
-                    >
-                      <SelectTrigger className="bg-background-tertiary border-border text-text-primary text-xs">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent className="bg-background-secondary border-border">
-                        <SelectItem value="aac">AAC</SelectItem>
-                        <SelectItem value="mp3">MP3</SelectItem>
-                        <SelectItem value="wav">WAV</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <Select
-                      value={String(customSettings.audioSettings.sampleRate)}
-                      onValueChange={(value) =>
-                        setCustomSettings({
-                          ...customSettings,
-                          audioSettings: {
-                            ...customSettings.audioSettings,
-                            sampleRate: Number(value) as
-                              | 44100
-                              | 48000
-                              | 96000,
-                          },
-                        })
-                      }
-                    >
-                      <SelectTrigger className="bg-background-tertiary border-border text-text-primary text-xs">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent className="bg-background-secondary border-border">
-                        <SelectItem value="44100">44.1 kHz</SelectItem>
-                        <SelectItem value="48000">48 kHz</SelectItem>
-                        <SelectItem value="96000">96 kHz</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <Select
-                      value={String(customSettings.audioSettings.bitrate)}
-                      onValueChange={(value) =>
-                        setCustomSettings({
-                          ...customSettings,
-                          audioSettings: {
-                            ...customSettings.audioSettings,
-                            bitrate: Number(value),
-                          },
-                        })
-                      }
-                    >
-                      <SelectTrigger className="bg-background-tertiary border-border text-text-primary text-xs">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent className="bg-background-secondary border-border">
-                        <SelectItem value="128">128 kbps</SelectItem>
-                        <SelectItem value="192">192 kbps</SelectItem>
-                        <SelectItem value="256">256 kbps</SelectItem>
-                        <SelectItem value="320">320 kbps</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                <div className="col-span-2 border-t border-border pt-4 mt-2">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2">
-                      <Zap size={14} className="text-primary" />
-                      <Label htmlFor="upscaling-switch" className="text-xs font-medium text-text-secondary">
-                        Enhance Quality (Upscaling)
+                    <div>
+                      <Label className="block text-[10px] text-text-muted mb-1.5">
+                        Sharpening
                       </Label>
-                    </div>
-                    <Switch
-                      id="upscaling-switch"
-                      checked={customSettings.upscaling?.enabled ?? false}
-                      onCheckedChange={(checked) =>
-                        setCustomSettings({
-                          ...customSettings,
-                          upscaling: {
-                            ...customSettings.upscaling!,
-                            enabled: checked,
-                          },
-                        })
-                      }
-                    />
-                  </div>
-
-                  {customSettings.upscaling?.enabled && (
-                    <div className="space-y-3 pl-6">
-                      <div>
-                        <label className="block text-[10px] text-text-muted mb-1.5">
-                          Quality Mode
-                        </label>
-                        <div className="flex gap-2">
-                          {(["fast", "balanced", "quality"] as const).map(
-                            (mode) => (
-                              <button
-                                key={mode}
-                                type="button"
-                                onClick={() =>
-                                  setCustomSettings({
-                                    ...customSettings,
-                                    upscaling: {
-                                      ...customSettings.upscaling!,
-                                      quality: mode as UpscaleQuality,
-                                    },
-                                  })
-                                }
-                                className={`flex-1 px-2 py-1.5 text-[10px] rounded border transition-colors ${
-                                  customSettings.upscaling?.quality === mode
-                                    ? "border-primary bg-primary/10 text-primary"
-                                    : "border-border text-text-secondary hover:border-primary/50"
-                                }`}
-                              >
-                                {mode.charAt(0).toUpperCase() + mode.slice(1)}
-                              </button>
-                            ),
+                      <Slider
+                        value={[
+                          Math.round(
+                            (customSettings.upscaling?.sharpening ?? 0.3) * 100,
+                          ),
+                        ]}
+                        onValueChange={(value) =>
+                          setCustomSettings({
+                            ...customSettings,
+                            upscaling: {
+                              ...customSettings.upscaling!,
+                              sharpening: value[0] / 100,
+                            },
+                          })
+                        }
+                        min={0}
+                        max={100}
+                        step={1}
+                        className="w-full"
+                      />
+                      <div className="flex justify-between text-[10px] text-text-muted mt-1">
+                        <span>None</span>
+                        <span>
+                          {Math.round(
+                            (customSettings.upscaling?.sharpening ?? 0.3) * 100,
                           )}
-                        </div>
+                          %
+                        </span>
+                        <span>Max</span>
                       </div>
-
-                      <div>
-                        <Label className="block text-[10px] text-text-muted mb-1.5">
-                          Sharpening
-                        </Label>
-                        <Slider
-                          value={[Math.round((customSettings.upscaling?.sharpening ?? 0.3) * 100)]}
-                          onValueChange={(value) =>
-                            setCustomSettings({
-                              ...customSettings,
-                              upscaling: {
-                                ...customSettings.upscaling!,
-                                sharpening: value[0] / 100,
-                              },
-                            })
-                          }
-                          min={0}
-                          max={100}
-                          step={1}
-                          className="w-full"
-                        />
-                        <div className="flex justify-between text-[10px] text-text-muted mt-1">
-                          <span>None</span>
-                          <span>
-                            {Math.round(
-                              (customSettings.upscaling?.sharpening ?? 0.3) *
-                                100,
-                            )}
-                            %
-                          </span>
-                          <span>Max</span>
-                        </div>
-                      </div>
-
-                      <p className="text-[10px] text-text-muted">
-                        Enhance quality when exporting to higher resolutions
-                        than source. Uses edge-directed interpolation for
-                        sharper details.
-                      </p>
                     </div>
-                  )}
-                </div>
+
+                    <p className="text-[10px] text-text-muted">
+                      Enhance quality when exporting to higher resolutions than
+                      source. Uses edge-directed interpolation for sharper
+                      details.
+                    </p>
+                  </div>
+                )}
               </div>
+            </div>
           </TabsContent>
         </Tabs>
 
@@ -744,7 +764,7 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
                 <div className="flex items-center gap-3">
                   <div className="flex items-center gap-1.5 text-xs">
                     {timeEstimate.confidence === "measured" ? (
-                      <CheckCircle size={12} className="text-green-500" />
+                      <CheckCircle size={12} className="text-pink-500" />
                     ) : (
                       <Gauge size={12} className="text-yellow-500" />
                     )}
@@ -754,22 +774,25 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
                     </span>
                   </div>
 
-                  {shouldRecommendBenchmark(deviceProfile) && !isBenchmarking && (
-                    <button
-                      onClick={handleRunBenchmark}
-                      className="flex items-center gap-1 px-2 py-1 text-[10px] text-primary bg-primary/10 rounded hover:bg-primary/20 transition-colors"
-                    >
-                      <Zap size={10} />
-                      Get accurate estimate
-                    </button>
-                  )}
+                  {shouldRecommendBenchmark(deviceProfile) &&
+                    !isBenchmarking && (
+                      <button
+                        onClick={handleRunBenchmark}
+                        className="flex items-center gap-1 px-2 py-1 text-[10px] text-primary bg-primary/10 rounded hover:bg-primary/20 transition-colors"
+                      >
+                        <Zap size={10} />
+                        Get accurate estimate
+                      </button>
+                    )}
 
                   {isBenchmarking && benchmarkProgress && (
                     <div className="flex items-center gap-2 text-[10px] text-text-muted">
                       <div className="w-16 h-1 bg-background-tertiary rounded-full overflow-hidden">
                         <div
                           className="h-full bg-primary transition-all"
-                          style={{ width: `${benchmarkProgress.progress * 100}%` }}
+                          style={{
+                            width: `${benchmarkProgress.progress * 100}%`,
+                          }}
                         />
                       </div>
                       <span>Testing...</span>
@@ -789,13 +812,21 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
                 </div>
                 <div>
                   <span className="text-text-muted">GPU</span>
-                  <p className="text-text-primary font-medium truncate" title={deviceProfile.gpu.renderer}>
+                  <p
+                    className="text-text-primary font-medium truncate"
+                    title={deviceProfile.gpu.renderer}
+                  >
                     {deviceProfile.gpu.renderer !== "Unknown"
-                      ? deviceProfile.gpu.renderer.replace(/ANGLE \(|, .*\)/g, "").replace(/Direct3D11.*$/g, "").trim()
+                      ? deviceProfile.gpu.renderer
+                          .replace(/ANGLE \(|, .*\)/g, "")
+                          .replace(/Direct3D11.*$/g, "")
+                          .trim()
                       : "Unknown"}
                   </p>
                   <p className="text-[9px] text-text-muted">
-                    {deviceProfile.gpu.hasHardwareEncoding ? "HW Encode" : "Software only"}
+                    {deviceProfile.gpu.hasHardwareEncoding
+                      ? "HW Encode"
+                      : "Software only"}
                   </p>
                 </div>
                 <div>
@@ -806,10 +837,10 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
                         key={rec.codec}
                         className={`px-1 py-0.5 rounded text-[9px] ${
                           rec.speedRating === "fast"
-                            ? "bg-green-500/20 text-green-400"
+                            ? "bg-pink-500/20 text-pink-400"
                             : rec.speedRating === "medium"
-                            ? "bg-yellow-500/20 text-yellow-400"
-                            : "bg-red-500/20 text-red-400"
+                              ? "bg-yellow-500/20 text-yellow-400"
+                              : "bg-red-500/20 text-red-400"
                         }`}
                       >
                         {rec.codec.toUpperCase()}
@@ -840,12 +871,15 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
                     duration,
                   )}
                 </div>
-                {timeEstimate && deviceProfile?.encoding[customSettings.codec as keyof typeof deviceProfile.encoding]?.hardware && (
-                  <div className="flex items-center gap-1 text-green-500">
-                    <Zap size={12} />
-                    Hardware accelerated
-                  </div>
-                )}
+                {timeEstimate &&
+                  deviceProfile?.encoding[
+                    customSettings.codec as keyof typeof deviceProfile.encoding
+                  ]?.hardware && (
+                    <div className="flex items-center gap-1 text-pink-500">
+                      <Zap size={12} />
+                      Hardware accelerated
+                    </div>
+                  )}
               </>
             )}
           </div>

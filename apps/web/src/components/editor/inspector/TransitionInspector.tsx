@@ -158,7 +158,7 @@ const TransitionPreview: React.FC<{
         style={{ ...styles.clipA, transition: "none" }}
       />
       <div
-        className="absolute inset-0 bg-green-500/30"
+        className="absolute inset-0 bg-pink-500/30"
         style={{ ...styles.clipB, transition: "none" }}
       />
       {(type === "dipToBlack" || type === "dipToWhite") && (

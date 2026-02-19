@@ -165,9 +165,9 @@ export const SaveTemplateDialog: React.FC<SaveTemplateDialogProps> = ({
 
         <div className="p-4 space-y-4 max-h-[70vh] overflow-y-auto">
           {success && (
-            <div className="flex items-center gap-2 p-3 bg-green-500/10 border border-green-500/30 rounded-lg">
-              <Check size={16} className="text-green-400" />
-              <span className="text-sm text-green-400">
+            <div className="flex items-center gap-2 p-3 bg-pink-500/10 border border-pink-500/30 rounded-lg">
+              <Check size={16} className="text-pink-400" />
+              <span className="text-sm text-pink-400">
                 Template saved successfully!
               </span>
             </div>
@@ -218,7 +218,10 @@ export const SaveTemplateDialog: React.FC<SaveTemplateDialogProps> = ({
             <Label className="text-xs font-medium text-text-secondary">
               Category
             </Label>
-            <Select value={category} onValueChange={(value) => setCategory(value as TemplateCategory)}>
+            <Select
+              value={category}
+              onValueChange={(value) => setCategory(value as TemplateCategory)}
+            >
               <SelectTrigger className="w-full bg-background-secondary border-border text-text-primary">
                 <SelectValue />
               </SelectTrigger>

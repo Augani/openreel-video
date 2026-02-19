@@ -1,15 +1,15 @@
-import { useState, useRef, useCallback } from 'react';
-import { useProjectStore } from '../../../stores/project-store';
-import type { Layer } from '../../../types/project';
-import type { CurvePoint } from '../../../types/adjustments';
-import { DEFAULT_CURVES } from '../../../types/adjustments';
-import { TrendingUp, RotateCcw } from 'lucide-react';
+import { useState, useRef, useCallback } from "react";
+import { useProjectStore } from "../../../stores/project-store";
+import type { Layer } from "../../../types/project";
+import type { CurvePoint } from "../../../types/adjustments";
+import { DEFAULT_CURVES } from "../../../types/adjustments";
+import { TrendingUp, RotateCcw } from "lucide-react";
 
 interface Props {
   layer: Layer;
 }
 
-type ChannelType = 'master' | 'red' | 'green' | 'blue';
+type ChannelType = "master" | "red" | "green" | "blue";
 
 interface CurveEditorProps {
   points: CurvePoint[];
@@ -23,16 +23,16 @@ function CurveEditor({ points, onChange, channel }: CurveEditorProps) {
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
 
   const channelColors: Record<ChannelType, string> = {
-    master: 'hsl(var(--foreground))',
-    red: '#ef4444',
-    green: '#22c55e',
-    blue: '#3b82f6',
+    master: "hsl(var(--foreground))",
+    red: "#ef4444",
+    green: "#22c55e",
+    blue: "#3b82f6",
   };
 
   const sortedPoints = [...points].sort((a, b) => a.input - b.input);
 
   const getPathD = useCallback(() => {
-    if (sortedPoints.length < 2) return '';
+    if (sortedPoints.length < 2) return "";
 
     const pathPoints = sortedPoints.map((p) => ({
       x: (p.input / 255) * 100,
@@ -72,7 +72,7 @@ function CurveEditor({ points, onChange, channel }: CurveEditorProps) {
       };
       onChange(newPoints);
     },
-    [draggingIndex, sortedPoints, onChange]
+    [draggingIndex, sortedPoints, onChange],
   );
 
   const handleMouseUp = () => {
@@ -114,16 +114,41 @@ function CurveEditor({ points, onChange, channel }: CurveEditorProps) {
         onClick={handleClick}
       >
         <defs>
-          <pattern id="grid" width="25" height="25" patternUnits="userSpaceOnUse">
-            <path d="M 25 0 L 0 0 0 25" fill="none" stroke="hsl(var(--border))" strokeWidth="0.5" opacity="0.5" />
+          <pattern
+            id="grid"
+            width="25"
+            height="25"
+            patternUnits="userSpaceOnUse"
+          >
+            <path
+              d="M 25 0 L 0 0 0 25"
+              fill="none"
+              stroke="hsl(var(--border))"
+              strokeWidth="0.5"
+              opacity="0.5"
+            />
           </pattern>
         </defs>
 
         <rect width="100" height="100" fill="url(#grid)" />
 
-        <line x1="0" y1="100" x2="100" y2="0" stroke="hsl(var(--muted-foreground))" strokeWidth="0.5" strokeDasharray="2 2" opacity="0.3" />
+        <line
+          x1="0"
+          y1="100"
+          x2="100"
+          y2="0"
+          stroke="hsl(var(--muted-foreground))"
+          strokeWidth="0.5"
+          strokeDasharray="2 2"
+          opacity="0.3"
+        />
 
-        <path d={getPathD()} fill="none" stroke={channelColors[channel]} strokeWidth="2" />
+        <path
+          d={getPathD()}
+          fill="none"
+          stroke={channelColors[channel]}
+          strokeWidth="2"
+        />
 
         {sortedPoints.map((point, index) => {
           const x = (point.input / 255) * 100;
@@ -138,10 +163,14 @@ function CurveEditor({ points, onChange, channel }: CurveEditorProps) {
               cx={x}
               cy={y}
               r={isDragging || isHovered ? 4 : 3}
-              fill={isEndpoint ? 'hsl(var(--muted-foreground))' : channelColors[channel]}
+              fill={
+                isEndpoint
+                  ? "hsl(var(--muted-foreground))"
+                  : channelColors[channel]
+              }
               stroke="hsl(var(--background))"
               strokeWidth="1"
-              className={isEndpoint ? 'cursor-not-allowed' : 'cursor-move'}
+              className={isEndpoint ? "cursor-not-allowed" : "cursor-move"}
               onMouseDown={(e) => handleMouseDown(index, e)}
               onDoubleClick={(e) => handleDoubleClick(index, e)}
               onMouseEnter={() => setHoverIndex(index)}
@@ -161,7 +190,7 @@ function CurveEditor({ points, onChange, channel }: CurveEditorProps) {
 
 export function CurvesSection({ layer }: Props) {
   const { updateLayer } = useProjectStore();
-  const [activeChannel, setActiveChannel] = useState<ChannelType>('master');
+  const [activeChannel, setActiveChannel] = useState<ChannelType>("master");
   const [isExpanded, setIsExpanded] = useState(true);
 
   const curves = layer.curves;
@@ -191,10 +220,10 @@ export function CurvesSection({ layer }: Props) {
   };
 
   const channelColors: Record<ChannelType, string> = {
-    master: 'bg-foreground',
-    red: 'bg-red-500',
-    green: 'bg-green-500',
-    blue: 'bg-blue-500',
+    master: "bg-foreground",
+    red: "bg-red-500",
+    green: "bg-pink-500",
+    blue: "bg-blue-500",
   };
 
   return (
@@ -227,20 +256,24 @@ export function CurvesSection({ layer }: Props) {
         <div className="px-3 pb-3 space-y-3">
           <div className="flex items-center justify-between">
             <div className="flex gap-1">
-              {(['master', 'red', 'green', 'blue'] as ChannelType[]).map((channel) => (
-                <button
-                  key={channel}
-                  onClick={() => setActiveChannel(channel)}
-                  className={`px-2 py-1 text-[10px] rounded transition-colors ${
-                    activeChannel === channel
-                      ? 'bg-secondary text-foreground'
-                      : 'text-muted-foreground hover:text-foreground'
-                  }`}
-                >
-                  <span className={`inline-block w-1.5 h-1.5 rounded-full mr-1 ${channelColors[channel]}`} />
-                  {channel.charAt(0).toUpperCase()}
-                </button>
-              ))}
+              {(["master", "red", "green", "blue"] as ChannelType[]).map(
+                (channel) => (
+                  <button
+                    key={channel}
+                    onClick={() => setActiveChannel(channel)}
+                    className={`px-2 py-1 text-[10px] rounded transition-colors ${
+                      activeChannel === channel
+                        ? "bg-secondary text-foreground"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    <span
+                      className={`inline-block w-1.5 h-1.5 rounded-full mr-1 ${channelColors[channel]}`}
+                    />
+                    {channel.charAt(0).toUpperCase()}
+                  </button>
+                ),
+              )}
             </div>
             <button
               onClick={resetCurves}
