@@ -73,6 +73,7 @@ export class RealtimeAudioGraph {
   private impulseResponseCache: Map<string, AudioBuffer> = new Map();
   private isPlaying = false;
   private lastScheduledTime = 0;
+  private seekPending = false;
   private scheduleAheadTime = 0.2;
   private schedulerIntervalId: number | null = null;
 
@@ -583,7 +584,10 @@ export class RealtimeAudioGraph {
     if (this.schedulerIntervalId !== null) return;
 
     this.isPlaying = true;
-    this.lastScheduledTime = this.masterClock.currentTime;
+    if (!this.seekPending) {
+      this.lastScheduledTime = this.masterClock.currentTime;
+    }
+    this.seekPending = false;
 
     const scheduleAudio = () => {
       if (!this.isPlaying) return;
@@ -628,6 +632,7 @@ export class RealtimeAudioGraph {
   seekTo(time: number): void {
     this.stopAllClips();
     this.lastScheduledTime = time;
+    this.seekPending = true;
   }
 
   dispose(): void {
