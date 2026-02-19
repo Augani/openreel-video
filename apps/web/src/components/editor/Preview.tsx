@@ -1889,6 +1889,7 @@ export const Preview: React.FC = () => {
 
       await audioGraph.resume();
       audioGraph.seekTo(startPosition);
+      await masterClock.play();
       audioGraph.startScheduler(() => {
         const tracksWithAudio = timelineTracks.filter(
           (t) => (t.type === "audio" || t.type === "video") && !t.hidden,
@@ -1923,8 +1924,6 @@ export const Preview: React.FC = () => {
         }
         return schedules;
       });
-
-      await masterClock.play();
 
       let isActive = true;
       let rafId: number | null = null;
@@ -2855,9 +2854,8 @@ export const Preview: React.FC = () => {
       masterClock.seek(playbackStartPosition);
 
       audioGraph.seekTo(playbackStartPosition);
-      audioGraph.startScheduler(getAudioClipsForScheduler);
-
       await masterClock.play();
+      audioGraph.startScheduler(getAudioClipsForScheduler);
 
       const frameDuration = 1000 / 30;
       let lastFrameTimestamp = performance.now();
