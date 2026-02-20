@@ -1,5 +1,5 @@
 {
-  "buildCommand": "pnpm build && cp -r apps/web/dist dist",
+  "buildCommand": "pnpm build && rm -rf dist && cp -r apps/web/dist dist",
   "outputDirectory": "dist",
   "installCommand": "pnpm install",
   "framework": "vite",
