@@ -31,6 +31,7 @@ import { useUIStore } from "../../stores/ui-store";
 import type { MediaItem } from "@openreel/core";
 import { AspectRatioMatchDialog } from "./dialogs/AspectRatioMatchDialog";
 import { AIGenTab } from "./AIGenTab";
+import { MontageTab } from "./MontageTab";
 import { IconButton, Input, ScrollArea } from "@openreel/ui";
 
 const formatDuration = (seconds: number): string => {
@@ -273,7 +274,7 @@ export const AssetsPanel: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState<
-    "media" | "text" | "graphics" | "ai"
+    "media" | "text" | "graphics" | "ai" | "montage"
   >("media");
   const [isDragOver, setIsDragOver] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
@@ -590,6 +591,19 @@ export const AssetsPanel: React.FC = () => {
         >
           AI Gen
           {activeTab === "ai" && (
+            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-t-full shadow-[0_-2px_8px_rgba(34,197,94,0.5)]" />
+          )}
+        </button>
+        <button
+          onClick={() => setActiveTab("montage")}
+          className={`pb-3 transition-all relative ${
+            activeTab === "montage"
+              ? "text-primary"
+              : "text-primary/70 hover:text-primary"
+          }`}
+        >
+          Montage
+          {activeTab === "montage" && (
             <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-t-full shadow-[0_-2px_8px_rgba(34,197,94,0.5)]" />
           )}
         </button>
@@ -1012,6 +1026,9 @@ export const AssetsPanel: React.FC = () => {
 
       {/* AI Tab Content */}
       {activeTab === "ai" && <AIGenTab />}
+
+      {/* Montage Tab Content */}
+      {activeTab === "montage" && <MontageTab />}
 
       {aspectRatioDialogData && (
         <AspectRatioMatchDialog
