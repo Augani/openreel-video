@@ -1,7 +1,8 @@
 {
-  "buildCommand": "pnpm build",
-  "outputDirectory": "apps/web/dist",
+  "buildCommand": "pnpm build && cp -r apps/web/dist dist",
+  "outputDirectory": "dist",
   "installCommand": "pnpm install",
+  "framework": "vite",
   "headers": [
     {
       "source": "/(.*)",
