@@ -692,7 +692,7 @@ export const Preview: React.FC = () => {
       gainNodeRef.current.gain.value = isMuted ? 0 : 1;
     }
     if (audioGraphRef.current) {
-      audioGraphRef.current.setMasterVolume(isMuted ? 0 : 1);
+      audioGraphRef.current.setPreviewMuted(isMuted);
     }
   }, [isMuted]);
 
@@ -808,7 +808,7 @@ export const Preview: React.FC = () => {
         audioGraphRef.current = getRealtimeAudioGraph();
       }
       const audioGraph = audioGraphRef.current;
-      audioGraph.setMasterVolume(isMuted ? 0 : 1);
+      audioGraph.setPreviewMuted(isMuted);
 
       const projectStore = useProjectStore.getState();
       const speedEngine = getSpeedEngine();
@@ -1871,7 +1871,7 @@ export const Preview: React.FC = () => {
         audioGraphRef.current = getRealtimeAudioGraph();
       }
       const audioGraph = audioGraphRef.current;
-      audioGraph.setMasterVolume(isMuted ? 0 : 1);
+      audioGraph.setPreviewMuted(isMuted);
 
       const tracksWithAudio = timelineTracks.filter(
         (t) => (t.type === "audio" || t.type === "video") && !t.hidden,
@@ -2803,7 +2803,7 @@ export const Preview: React.FC = () => {
         audioGraphRef.current = getRealtimeAudioGraph();
       }
       const audioGraph = audioGraphRef.current;
-      audioGraph.setMasterVolume(isMuted ? 0 : 1);
+      audioGraph.setPreviewMuted(isMuted);
 
       const tracksWithAudio = timelineTracksRef.current.filter(
         (t) => (t.type === "audio" || t.type === "video") && !t.hidden,

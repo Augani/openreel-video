@@ -9,10 +9,7 @@ import { useProjectStore } from "../../stores/project-store";
 import { ChannelStrip } from "./ChannelStrip";
 import type { ChannelStripState } from "./types";
 import { volumeToDb, formatDb } from "./types";
-import {
-  getRealtimeAudioProcessor,
-  type RealtimeAudioProcessor,
-} from "@openreel/core";
+import { getRealtimeAudioGraph } from "@openreel/core";
 
 export interface AudioMixerProps {
   /** Whether the mixer panel is visible */
@@ -127,8 +124,8 @@ export const AudioMixer: React.FC<AudioMixerProps> = ({
   const muteTrack = useProjectStore((state) => state.muteTrack);
   const soloTrack = useProjectStore((state) => state.soloTrack);
 
-  // Reference to the audio processor
-  const audioProcessorRef = useRef<RealtimeAudioProcessor | null>(null);
+  // Use the same graph as playback so mixer volume affects preview/playback
+  const audioGraphRef = useRef<ReturnType<typeof getRealtimeAudioGraph> | null>(null);
 
   // Local state for master volume and levels
   const [masterVolume, setMasterVolume] = useState(1);
@@ -142,17 +139,51 @@ export const AudioMixer: React.FC<AudioMixerProps> = ({
     Record<string, { peak: number; rms: number }>
   >({});
 
-  // Initialize audio processor reference
-  useEffect(() => {
-    audioProcessorRef.current = getRealtimeAudioProcessor();
-  }, []);
-
-  // Get audio tracks from the timeline (Requirement 20.1)
+  // Get audio tracks from the timeline (Requirement 20.1) – safe if project/timeline not ready
   const audioTracks = useMemo(() => {
-    return project.timeline.tracks.filter(
+    const tracks = project?.timeline?.tracks ?? [];
+    return tracks.filter(
       (track) => track.type === "audio" || track.type === "video",
     );
-  }, [project.timeline.tracks]);
+  }, [project?.timeline?.tracks]);
+
+  useEffect(() => {
+    try {
+      audioGraphRef.current = getRealtimeAudioGraph();
+    } catch (err) {
+      console.warn("[AudioMixer] Realtime audio graph not available:", err);
+      audioGraphRef.current = null;
+    }
+  }, []);
+
+  // Sync initial volume/pan/master from graph when mixer opens (e.g. after playback)
+  useEffect(() => {
+    if (!visible || !audioGraphRef.current) return;
+    const graph = audioGraphRef.current;
+    try {
+      if (typeof graph.getMasterVolume === "function") {
+        setMasterVolume(graph.getMasterVolume());
+      }
+      if (typeof graph.getTrackVolume === "function" && typeof graph.getTrackPan === "function") {
+        setTrackVolumes((prev) => {
+          const next = { ...prev };
+          audioTracks.forEach((t) => {
+            next[t.id] = graph.getTrackVolume(t.id);
+          });
+          return next;
+        });
+        setTrackPans((prev) => {
+          const next = { ...prev };
+          audioTracks.forEach((t) => {
+            next[t.id] = graph.getTrackPan(t.id);
+          });
+          return next;
+        });
+      }
+    } catch (err) {
+      console.warn("[AudioMixer] Failed to sync levels from graph:", err);
+    }
+  }, [visible, audioTracks]);
 
   // Check if any track has solo enabled (for Requirement 20.4)
   const hasSoloedTracks = useMemo(() => {
@@ -174,14 +205,13 @@ export const AudioMixer: React.FC<AudioMixerProps> = ({
     }));
   }, [audioTracks, trackVolumes, trackPans, trackLevels]);
 
-  // Handle volume change (Requirement 20.2)
+  // Handle volume change (Requirement 20.2) – applies to same graph used for playback
   const handleVolumeChange = useCallback((trackId: string, volume: number) => {
     setTrackVolumes((prev) => ({
       ...prev,
       [trackId]: volume,
     }));
-    // Apply volume change to audio processor
-    audioProcessorRef.current?.setTrackVolume(trackId, volume);
+    audioGraphRef.current?.updateTrackVolume(trackId, volume);
   }, []);
 
   // Handle pan change (Requirement 20.3)
@@ -190,8 +220,7 @@ export const AudioMixer: React.FC<AudioMixerProps> = ({
       ...prev,
       [trackId]: pan,
     }));
-    // Apply pan change to audio processor
-    audioProcessorRef.current?.setTrackPan(trackId, pan);
+    audioGraphRef.current?.updateTrackPan(trackId, pan);
   }, []);
 
   // Handle mute toggle (Requirement 20.5)
@@ -219,26 +248,19 @@ export const AudioMixer: React.FC<AudioMixerProps> = ({
   // Handle master volume change
   const handleMasterVolumeChange = useCallback((volume: number) => {
     setMasterVolume(volume);
-    // Apply master volume to audio processor
-    audioProcessorRef.current?.setMasterVolume(volume);
+    audioGraphRef.current?.setMasterVolume(volume);
   }, []);
 
-  // Level metering - updates based on track audibility from audio processor
+  // Level metering – based on track volume and mute/solo
   useEffect(() => {
     if (!visible) return;
 
     const interval = setInterval(() => {
       const newLevels: Record<string, { peak: number; rms: number }> = {};
-      const processor = audioProcessorRef.current;
-
-      // Get effective audibility from audio processor if available
-      const audibilityMap = processor?.getEffectiveAudibility();
 
       audioTracks.forEach((track) => {
-        // Use processor's audibility calculation or fall back to local state
-        const isAudible = audibilityMap
-          ? (audibilityMap.get(track.id) ?? false)
-          : !track.muted && (!hasSoloedTracks || track.solo);
+        const isAudible =
+          !track.muted && (!hasSoloedTracks || track.solo);
         const trackVolume = trackVolumes[track.id] ?? 1;
 
         if (isAudible && trackVolume > 0) {
