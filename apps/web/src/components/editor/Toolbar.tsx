@@ -77,8 +77,15 @@ interface ExportState {
 
 export const Toolbar: React.FC = () => {
   const { project } = useProjectStore();
-  const { openModal, selectedItems, setExportState: setGlobalExportState, keyframeEditorOpen, toggleKeyframeEditor } =
-    useUIStore();
+  const {
+    openModal,
+    selectedItems,
+    setExportState: setGlobalExportState,
+    keyframeEditorOpen,
+    toggleKeyframeEditor,
+    panels,
+    togglePanel,
+  } = useUIStore();
   const { mode: themeMode, toggleTheme } = useThemeStore();
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
@@ -948,6 +955,24 @@ export const Toolbar: React.FC = () => {
           </TooltipTrigger>
           <TooltipContent>
             <p>Keyframe Editor</p>
+          </TooltipContent>
+        </Tooltip>
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              onClick={() => togglePanel("audioMixer")}
+              className={`p-2 rounded-lg transition-colors ${
+                panels.audioMixer?.visible
+                  ? "bg-primary/20 text-primary"
+                  : "hover:bg-background-elevated text-text-secondary hover:text-text-primary"
+              }`}
+            >
+              <Music size={16} />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>Audio Mixer – track volume and master level</p>
           </TooltipContent>
         </Tooltip>
 

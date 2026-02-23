@@ -76,6 +76,11 @@ export class RealtimeAudioGraph {
   private seekPending = false;
   private scheduleAheadTime = 0.2;
   private schedulerIntervalId: number | null = null;
+  /** Persist mixer volume/pan so they survive track recreate (e.g. on seek). */
+  private trackVolumeOverrides: Map<string, number> = new Map();
+  private trackPanOverrides: Map<string, number> = new Map();
+  private masterVolumeOverride = 1;
+  private previewMuted = false;
 
   constructor(masterClock?: MasterTimelineClock) {
     this.masterClock = masterClock || getMasterClock();
@@ -92,15 +97,27 @@ export class RealtimeAudioGraph {
     return this.masterGain;
   }
 
+  /** Set master volume from the mixer (1 = 0 dB, 4 = +12 dB). Persists across preview mute. */
   setMasterVolume(volume: number): void {
-    this.masterGain.gain.setValueAtTime(
-      Math.max(0, Math.min(4, volume)),
-      this.audioContext.currentTime,
-    );
+    this.masterVolumeOverride = Math.max(0, Math.min(4, volume));
+    this.applyMasterGain();
+  }
+
+  /** Mute/unmute preview without changing mixer master volume. */
+  setPreviewMuted(muted: boolean): void {
+    this.previewMuted = muted;
+    this.applyMasterGain();
+  }
+
+  private applyMasterGain(): void {
+    const v = this.previewMuted ? 0 : this.masterVolumeOverride;
+    this.masterGain.gain.setValueAtTime(v, this.audioContext.currentTime);
   }
 
   createTrack(config: TrackConfig): void {
     this.removeTrack(config.trackId);
+    config.volume = this.trackVolumeOverrides.get(config.trackId) ?? config.volume;
+    config.pan = this.trackPanOverrides.get(config.trackId) ?? config.pan;
     this.trackConfigs.set(config.trackId, config);
 
     const inputGain = this.audioContext.createGain();
@@ -384,26 +401,44 @@ export class RealtimeAudioGraph {
   }
 
   updateTrackVolume(trackId: string, volume: number): void {
+    const clamped = Math.max(0, Math.min(4, volume));
+    this.trackVolumeOverrides.set(trackId, clamped);
     const nodes = this.trackNodes.get(trackId);
     const config = this.trackConfigs.get(trackId);
     if (nodes && config) {
-      config.volume = Math.max(0, Math.min(4, volume));
+      config.volume = clamped;
       this.updateTrackAudibility(trackId);
     }
   }
 
   updateTrackPan(trackId: string, pan: number): void {
+    const clamped = Math.max(-1, Math.min(1, pan));
+    this.trackPanOverrides.set(trackId, clamped);
     const nodes = this.trackNodes.get(trackId);
     if (nodes) {
       nodes.panNode.pan.setValueAtTime(
-        Math.max(-1, Math.min(1, pan)),
+        clamped,
         this.audioContext.currentTime,
       );
     }
     const config = this.trackConfigs.get(trackId);
     if (config) {
-      config.pan = pan;
+      config.pan = clamped;
     }
+  }
+
+  getTrackVolume(trackId: string): number {
+    const config = this.trackConfigs.get(trackId);
+    return this.trackVolumeOverrides.get(trackId) ?? config?.volume ?? 1;
+  }
+
+  getTrackPan(trackId: string): number {
+    const config = this.trackConfigs.get(trackId);
+    return this.trackPanOverrides.get(trackId) ?? config?.pan ?? 0;
+  }
+
+  getMasterVolume(): number {
+    return this.masterVolumeOverride;
   }
 
   setTrackMuted(trackId: string, muted: boolean): void {

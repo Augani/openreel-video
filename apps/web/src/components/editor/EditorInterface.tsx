@@ -6,6 +6,7 @@ import { Preview } from "./Preview";
 import { InspectorPanel } from "./InspectorPanel";
 import { Timeline } from "./Timeline";
 import { KeyframeEditorPanel } from "./KeyframeEditorPanel";
+import { AudioMixer } from "../audio-mixer";
 import { KeyboardShortcutsOverlay } from "./KeyboardShortcutsOverlay";
 import { PanelErrorBoundary } from "../ErrorBoundary";
 import { SpotlightTour, MoGraphTour } from "./tour";
@@ -165,7 +166,12 @@ export const EditorInterface: React.FC = () => {
     useKeyboardShortcuts();
   useAutoSave();
 
-  const { keyframeEditorOpen, setKeyframeEditorOpen, getSelectedClipIds } = useUIStore();
+  const {
+    keyframeEditorOpen,
+    getSelectedClipIds,
+    panels,
+    setPanelVisible,
+  } = useUIStore();
   const { project, updateClipKeyframes } = useProjectStore();
   const tracks = project.timeline.tracks;
 
@@ -334,6 +340,16 @@ export const EditorInterface: React.FC = () => {
       >
         <div className="absolute inset-x-0 -top-1 -bottom-1 bg-transparent" />
       </div>
+
+      {/* Audio Mixer (when open) */}
+      {panels.audioMixer?.visible && (
+        <PanelErrorBoundary name="Audio Mixer">
+          <AudioMixer
+            visible
+            onClose={() => setPanelVisible("audioMixer", false)}
+          />
+        </PanelErrorBoundary>
+      )}
 
       {/* BOTTOM PANEL: Timeline */}
       <div
