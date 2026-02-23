@@ -17,6 +17,7 @@ import {
   Minimize2,
   Move,
   Loader2,
+  ZoomIn,
 } from "lucide-react";
 import { IconButton } from "@openreel/ui";
 import { useProjectStore } from "../../stores/project-store";
@@ -215,6 +216,15 @@ export const Preview: React.FC = () => {
   const [rendererType, setRendererType] = useState<string>("none");
   const [isMaximized, setIsMaximized] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [zoomLevel, setZoomLevel] = useState(1);
+  const [showZoomMenu, setShowZoomMenu] = useState(false);
+
+  const ZOOM_OPTIONS = [
+    { label: "100%", value: 1 },
+    { label: "125%", value: 1.25 },
+    { label: "150%", value: 1.5 },
+    { label: "200%", value: 2 },
+  ];
 
   const isDark = useThemeStore((state) => state.isDark);
 
@@ -4529,6 +4539,7 @@ export const Preview: React.FC = () => {
     if (!container) return;
 
     if (!document.fullscreenElement) {
+      setZoomLevel(1);
       container
         .requestFullscreen()
         .then(() => {
@@ -4550,6 +4561,7 @@ export const Preview: React.FC = () => {
   }, []);
 
   const handleMaximize = useCallback(() => {
+    setZoomLevel(1);
     setIsMaximized((prev) => !prev);
   }, []);
 
@@ -4637,7 +4649,7 @@ export const Preview: React.FC = () => {
       <div
         className={`flex-1 relative flex items-center justify-center bg-background-secondary/30 transition-all duration-300 ${
           isMaximized || isFullscreen ? "p-0" : "p-4"
-        }`}
+        } ${zoomLevel > 1 ? "overflow-auto" : ""}`}
         onMouseMove={interactionMode !== "none" ? handleMouseMove : undefined}
         onMouseUp={handleMouseUp}
       >
@@ -4656,9 +4668,9 @@ export const Preview: React.FC = () => {
                   maxWidth: "none",
                 }
               : {
-                  height: "450px",
-                  width: `calc(450px * ${settings.width} / ${settings.height})`,
-                  maxWidth: "800px",
+                  height: `${450 * zoomLevel}px`,
+                  width: `calc(${450 * zoomLevel}px * ${settings.width} / ${settings.height})`,
+                  maxWidth: `${800 * zoomLevel}px`,
                 }
           }
         >
@@ -5045,6 +5057,47 @@ export const Preview: React.FC = () => {
           >
             {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
           </button>
+
+          {/* Zoom Control */}
+          <div className="relative">
+            <button
+              onClick={() => setShowZoomMenu(!showZoomMenu)}
+              className="px-2 py-1 rounded-lg text-xs font-mono text-text-secondary hover:text-text-primary hover:bg-background-elevated transition-colors"
+              title="Preview Zoom"
+            >
+              <div className="flex items-center gap-1">
+                <ZoomIn size={14} />
+                <span>{Math.round(zoomLevel * 100)}%</span>
+              </div>
+            </button>
+            {showZoomMenu && (
+              <>
+                <div
+                  className="fixed inset-0 z-40"
+                  onClick={() => setShowZoomMenu(false)}
+                />
+                <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 bg-background-elevated border border-border rounded-lg shadow-xl py-1 z-50 min-w-[80px]">
+                  {ZOOM_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.value}
+                      onClick={() => {
+                        setZoomLevel(opt.value);
+                        setShowZoomMenu(false);
+                      }}
+                      className={`w-full px-3 py-1.5 text-xs font-mono text-left hover:bg-background-secondary transition-colors ${
+                        zoomLevel === opt.value
+                          ? "text-primary"
+                          : "text-text-secondary"
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+
           <div className="w-px h-4 bg-border mx-2" />
           <button
             onClick={handleFullscreen}
