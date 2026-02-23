@@ -668,6 +668,18 @@ export const AssetsPanel: React.FC = () => {
                     onAddToTimeline={() => handleAddToTimeline(item)}
                   />
                 ))}
+                {/* Add more media tile */}
+                <div className="flex flex-col">
+                  <button
+                    onClick={triggerFileInput}
+                    className="aspect-video bg-background-tertiary rounded-lg border-2 border-dashed border-border hover:border-text-secondary relative flex items-center justify-center cursor-pointer transition-all overflow-hidden shadow-sm group"
+                  >
+                    <div className="flex flex-col items-center gap-1.5">
+                      <Upload size={20} className="text-text-muted group-hover:text-text-secondary transition-colors" />
+                      <span className="text-[10px] text-text-muted group-hover:text-text-secondary transition-colors">Add media</span>
+                    </div>
+                  </button>
+                </div>
               </div>
             )}
 
