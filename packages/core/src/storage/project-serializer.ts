@@ -154,7 +154,17 @@ export class ProjectSerializer {
         for (const track of project.timeline.tracks) {
           if (track.clips) {
             for (const clip of track.clips) {
-              if (clip.mediaId && !mediaIds.has(clip.mediaId)) {
+              const isVirtualClip =
+                clip.mediaId &&
+                (clip.mediaId.startsWith("text-") ||
+                  clip.mediaId.startsWith("shape-") ||
+                  clip.mediaId.startsWith("svg-") ||
+                  clip.mediaId.startsWith("sticker-"));
+              if (
+                clip.mediaId &&
+                !isVirtualClip &&
+                !mediaIds.has(clip.mediaId)
+              ) {
                 result.errors.push(
                   `Clip ${clip.id} references non-existent mediaId: ${clip.mediaId}`,
                 );

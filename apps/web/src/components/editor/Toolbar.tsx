@@ -929,7 +929,7 @@ export const Toolbar: React.FC = () => {
             </button>
           </TooltipTrigger>
           <TooltipContent>
-            <p>Script View - View/Import JSON</p>
+            <p>Project JSON - Export/Import</p>
           </TooltipContent>
         </Tooltip>
 
