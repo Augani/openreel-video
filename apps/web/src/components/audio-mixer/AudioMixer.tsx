@@ -150,8 +150,7 @@ export const AudioMixer: React.FC<AudioMixerProps> = ({
   useEffect(() => {
     try {
       audioGraphRef.current = getRealtimeAudioGraph();
-    } catch (err) {
-      console.warn("[AudioMixer] Realtime audio graph not available:", err);
+    } catch {
       audioGraphRef.current = null;
     }
   }, []);
@@ -180,8 +179,8 @@ export const AudioMixer: React.FC<AudioMixerProps> = ({
           return next;
         });
       }
-    } catch (err) {
-      console.warn("[AudioMixer] Failed to sync levels from graph:", err);
+    } catch {
+      // Graph not ready yet
     }
   }, [visible, audioTracks]);
 

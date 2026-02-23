@@ -168,6 +168,7 @@ export const EditorInterface: React.FC = () => {
 
   const {
     keyframeEditorOpen,
+    setKeyframeEditorOpen,
     getSelectedClipIds,
     panels,
     setPanelVisible,
