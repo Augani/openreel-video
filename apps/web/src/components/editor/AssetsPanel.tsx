@@ -19,6 +19,9 @@ import {
   AlertTriangle,
   RefreshCw,
   Palette,
+  LayoutGrid,
+  Grid2x2,
+  List,
 } from "lucide-react";
 import {
   BACKGROUND_PRESETS,
@@ -45,9 +48,12 @@ const formatDuration = (seconds: number): string => {
  * Media Item Thumbnail Component
  * Shows thumbnail with metadata below (not overlaid)
  */
+type MediaViewMode = "large" | "small" | "list";
+
 const MediaThumbnail: React.FC<{
   item: MediaItem;
   isSelected: boolean;
+  viewMode: MediaViewMode;
   onSelect: () => void;
   onDelete: () => void;
   onReplace: () => void;
@@ -56,6 +62,7 @@ const MediaThumbnail: React.FC<{
 }> = ({
   item,
   isSelected,
+  viewMode,
   onSelect,
   onDelete,
   onReplace,
@@ -93,6 +100,136 @@ const MediaThumbnail: React.FC<{
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
+  const iconColor = item.type === "audio"
+    ? "text-primary/50"
+    : item.type === "image"
+      ? "text-primary/50"
+      : "text-status-info/50";
+
+  const borderClass = item.isPlaceholder
+    ? "border-yellow-500 ring-1 ring-yellow-500/50 shadow-[0_0_10px_rgba(234,179,8,0.3)]"
+    : isSelected
+      ? "border-primary ring-1 ring-primary/50 shadow-[0_0_10px_rgba(34,197,94,0.2)]"
+      : "border-border hover:border-text-secondary";
+
+  const hoverOverlay = (
+    <div className="absolute inset-0 bg-black/40 backdrop-blur-[1px] flex items-center justify-center gap-2 animate-in fade-in duration-200">
+      {item.isPlaceholder ? (
+        <button
+          onClick={(e) => { e.stopPropagation(); onReplace(); }}
+          title="Replace asset"
+          className="p-2 bg-yellow-500/20 rounded-full hover:bg-yellow-500/40 backdrop-blur-sm transition-colors"
+        >
+          <RefreshCw size={14} className="text-yellow-500" />
+        </button>
+      ) : (
+        <>
+          <button
+            onClick={(e) => { e.stopPropagation(); onAddToTimeline(); }}
+            title="Add to timeline"
+            className="p-2 bg-primary/20 rounded-full hover:bg-primary/40 backdrop-blur-sm transition-colors"
+          >
+            <Plus size={14} className="text-primary" />
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); onDelete(); }}
+            title="Delete"
+            className="p-2 bg-red-500/20 rounded-full hover:bg-red-500/40 backdrop-blur-sm transition-colors"
+          >
+            <Trash2 size={14} className="text-red-400" />
+          </button>
+        </>
+      )}
+    </div>
+  );
+
+  // --- List view ---
+  if (viewMode === "list") {
+    return (
+      <div
+        draggable
+        onDragStart={onDragStart}
+        onClick={onSelect}
+        onDoubleClick={(e) => { e.stopPropagation(); onAddToTimeline(); }}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        className={`flex items-center gap-3 px-2 py-1.5 rounded-lg border-2 cursor-pointer transition-all group ${borderClass}`}
+      >
+        {/* Small thumbnail */}
+        <div className="w-12 h-8 rounded bg-background-tertiary relative overflow-hidden flex-shrink-0">
+          {item.thumbnailUrl ? (
+            <img src={item.thumbnailUrl} alt={item.name} className="w-full h-full object-cover" />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center">
+              <Icon size={14} className={iconColor} />
+            </div>
+          )}
+          {item.isPlaceholder && (
+            <div className="absolute inset-0 flex items-center justify-center bg-yellow-500/10">
+              <AlertTriangle size={12} className="text-yellow-500/70" />
+            </div>
+          )}
+        </div>
+
+        {/* Info */}
+        <div className="flex-1 min-w-0">
+          <div
+            className={`text-[11px] truncate font-medium ${isSelected ? "text-primary" : "text-text-primary"}`}
+            title={item.name}
+          >
+            {item.name}
+          </div>
+          <div className="flex items-center gap-1.5 text-[9px] text-text-muted">
+            {item.metadata?.duration && <span>{formatDuration(item.metadata.duration)}</span>}
+            {item.metadata?.duration && formatResolution() && <span>•</span>}
+            {formatResolution() && <span>{formatResolution()}</span>}
+            {(item.metadata?.duration || formatResolution()) && formatFileSize(item.metadata?.fileSize) && <span>•</span>}
+            {formatFileSize(item.metadata?.fileSize) && <span>{formatFileSize(item.metadata?.fileSize)}</span>}
+          </div>
+        </div>
+
+        {/* Hover actions */}
+        {isHovered && (
+          <div className="flex items-center gap-1 flex-shrink-0">
+            {item.isPlaceholder ? (
+              <button
+                onClick={(e) => { e.stopPropagation(); onReplace(); }}
+                title="Replace asset"
+                className="p-1 bg-yellow-500/20 rounded hover:bg-yellow-500/40 transition-colors"
+              >
+                <RefreshCw size={12} className="text-yellow-500" />
+              </button>
+            ) : (
+              <>
+                <button
+                  onClick={(e) => { e.stopPropagation(); onAddToTimeline(); }}
+                  title="Add to timeline"
+                  className="p-1 bg-primary/20 rounded hover:bg-primary/40 transition-colors"
+                >
+                  <Plus size={12} className="text-primary" />
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); onDelete(); }}
+                  title="Delete"
+                  className="p-1 bg-red-500/20 rounded hover:bg-red-500/40 transition-colors"
+                >
+                  <Trash2 size={12} className="text-red-400" />
+                </button>
+              </>
+            )}
+          </div>
+        )}
+
+        {isSelected && (
+          <div className="w-2 h-2 bg-primary rounded-full shadow-[0_0_8px_#22c55e] flex-shrink-0" />
+        )}
+      </div>
+    );
+  }
+
+  // --- Grid view (large & small) ---
+  const thumbnailIconSize = viewMode === "small" ? 16 : 24;
+
   return (
     <div className="flex flex-col">
       {/* Thumbnail container */}
@@ -106,13 +243,7 @@ const MediaThumbnail: React.FC<{
         }}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
-        className={`aspect-video bg-background-tertiary rounded-lg border-2 relative group cursor-pointer transition-all overflow-hidden shadow-sm ${
-          item.isPlaceholder
-            ? "border-yellow-500 ring-1 ring-yellow-500/50 shadow-[0_0_10px_rgba(234,179,8,0.3)]"
-            : isSelected
-              ? "border-primary ring-1 ring-primary/50 shadow-[0_0_10px_rgba(34,197,94,0.2)]"
-              : "border-border hover:border-text-secondary"
-        }`}
+        className={`aspect-video bg-background-tertiary rounded-lg border-2 relative group cursor-pointer transition-all overflow-hidden shadow-sm ${borderClass}`}
       >
         {/* Thumbnail or placeholder */}
         {item.thumbnailUrl ? (
@@ -123,16 +254,7 @@ const MediaThumbnail: React.FC<{
           />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center bg-background-tertiary">
-            <Icon
-              size={24}
-              className={`${
-                item.type === "audio"
-                  ? "text-primary/50"
-                  : item.type === "image"
-                    ? "text-primary/50"
-                    : "text-status-info/50"
-              }`}
-            />
+            <Icon size={thumbnailIconSize} className={iconColor} />
           </div>
         )}
 
@@ -167,50 +289,12 @@ const MediaThumbnail: React.FC<{
         {/* Warning icon overlay for placeholders */}
         {item.isPlaceholder && !isHovered && (
           <div className="absolute inset-0 flex items-center justify-center bg-yellow-500/10">
-            <AlertTriangle size={32} className="text-yellow-500/50" />
+            <AlertTriangle size={viewMode === "small" ? 20 : 32} className="text-yellow-500/50" />
           </div>
         )}
 
         {/* Hover overlay with actions */}
-        {isHovered && (
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-[1px] flex items-center justify-center gap-2 animate-in fade-in duration-200">
-            {item.isPlaceholder ? (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onReplace();
-                }}
-                title="Replace asset"
-                className="p-2 bg-yellow-500/20 rounded-full hover:bg-yellow-500/40 backdrop-blur-sm transition-colors"
-              >
-                <RefreshCw size={14} className="text-yellow-500" />
-              </button>
-            ) : (
-              <>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onAddToTimeline();
-                  }}
-                  title="Add to timeline"
-                  className="p-2 bg-primary/20 rounded-full hover:bg-primary/40 backdrop-blur-sm transition-colors"
-                >
-                  <Plus size={14} className="text-primary" />
-                </button>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onDelete();
-                  }}
-                  title="Delete"
-                  className="p-2 bg-red-500/20 rounded-full hover:bg-red-500/40 backdrop-blur-sm transition-colors"
-                >
-                  <Trash2 size={14} className="text-red-400" />
-                </button>
-              </>
-            )}
-          </div>
-        )}
+        {isHovered && hoverOverlay}
 
         {/* Selection indicator */}
         {isSelected && (
@@ -228,15 +312,17 @@ const MediaThumbnail: React.FC<{
         >
           {item.name}
         </div>
-        <div className="flex items-center gap-1.5 text-[9px] text-text-muted mt-0.5">
-          {formatResolution() && <span>{formatResolution()}</span>}
-          {formatResolution() && formatFileSize(item.metadata?.fileSize) && (
-            <span>•</span>
-          )}
-          {formatFileSize(item.metadata?.fileSize) && (
-            <span>{formatFileSize(item.metadata?.fileSize)}</span>
-          )}
-        </div>
+        {viewMode === "large" && (
+          <div className="flex items-center gap-1.5 text-[9px] text-text-muted mt-0.5">
+            {formatResolution() && <span>{formatResolution()}</span>}
+            {formatResolution() && formatFileSize(item.metadata?.fileSize) && (
+              <span>•</span>
+            )}
+            {formatFileSize(item.metadata?.fileSize) && (
+              <span>{formatFileSize(item.metadata?.fileSize)}</span>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -285,6 +371,7 @@ export const AssetsPanel: React.FC = () => {
     videoHeight: number;
     itemToAdd: MediaItem;
   } | null>(null);
+  const [mediaViewMode, setMediaViewMode] = useState<MediaViewMode>("large");
   const [generatingBackground, setGeneratingBackground] = useState<
     string | null
   >(null);
@@ -599,10 +686,10 @@ export const AssetsPanel: React.FC = () => {
         </button>
       </div>
 
-      {/* Search - only show for media tab */}
+      {/* Search & view toggle - only show for media tab */}
       {activeTab === "media" && (
-        <div className="px-5 mb-3">
-          <div className="relative">
+        <div className="px-5 mb-3 flex items-center gap-2">
+          <div className="relative flex-1">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted z-10" />
             <Input
               type="text"
@@ -611,6 +698,26 @@ export const AssetsPanel: React.FC = () => {
               placeholder="Search media"
               className="pl-9 text-xs bg-background-tertiary border-border text-text-primary h-9"
             />
+          </div>
+          <div className="flex items-center bg-background-tertiary border border-border rounded-lg p-0.5">
+            {([
+              { mode: "large" as const, icon: LayoutGrid, title: "Large icons" },
+              { mode: "small" as const, icon: Grid2x2, title: "Small icons" },
+              { mode: "list" as const, icon: List, title: "List view" },
+            ]).map(({ mode, icon: ViewIcon, title }) => (
+              <button
+                key={mode}
+                onClick={() => setMediaViewMode(mode)}
+                title={title}
+                className={`p-1.5 rounded transition-colors ${
+                  mediaViewMode === mode
+                    ? "bg-background-elevated text-text-primary"
+                    : "text-text-muted hover:text-text-secondary"
+                }`}
+              >
+                <ViewIcon size={13} />
+              </button>
+            ))}
           </div>
         </div>
       )}
@@ -659,12 +766,19 @@ export const AssetsPanel: React.FC = () => {
             {filteredItems.length === 0 ? (
               <EmptyState onImport={triggerFileInput} />
             ) : (
-              <div className="grid grid-cols-2 gap-3">
+              <div className={
+                mediaViewMode === "list"
+                  ? "flex flex-col gap-1.5"
+                  : mediaViewMode === "small"
+                    ? "grid grid-cols-3 gap-2"
+                    : "grid grid-cols-2 gap-3"
+              }>
                 {filteredItems.map((item) => (
                   <MediaThumbnail
                     key={item.id}
                     item={item}
                     isSelected={isSelected(item.id)}
+                    viewMode={mediaViewMode}
                     onSelect={() => handleSelectItem(item.id)}
                     onDelete={() => handleDeleteItem(item.id)}
                     onReplace={() => handleReplaceAsset(item.id)}
@@ -672,6 +786,30 @@ export const AssetsPanel: React.FC = () => {
                     onAddToTimeline={() => handleAddToTimeline(item)}
                   />
                 ))}
+                {/* Add more media tile */}
+                {mediaViewMode === "list" ? (
+                  <button
+                    onClick={triggerFileInput}
+                    className="flex items-center gap-3 px-2 py-1.5 rounded-lg border-2 border-dashed border-border hover:border-text-secondary cursor-pointer transition-all group"
+                  >
+                    <div className="w-12 h-8 rounded bg-background-tertiary flex items-center justify-center flex-shrink-0">
+                      <Upload size={14} className="text-text-muted group-hover:text-text-secondary transition-colors" />
+                    </div>
+                    <span className="text-[11px] text-text-muted group-hover:text-text-secondary transition-colors font-medium">Add media</span>
+                  </button>
+                ) : (
+                  <div className="flex flex-col">
+                    <button
+                      onClick={triggerFileInput}
+                      className="aspect-video bg-background-tertiary rounded-lg border-2 border-dashed border-border hover:border-text-secondary relative flex items-center justify-center cursor-pointer transition-all overflow-hidden shadow-sm group"
+                    >
+                      <div className="flex flex-col items-center gap-1.5">
+                        <Upload size={mediaViewMode === "small" ? 16 : 20} className="text-text-muted group-hover:text-text-secondary transition-colors" />
+                        <span className="text-[10px] text-text-muted group-hover:text-text-secondary transition-colors">Add media</span>
+                      </div>
+                    </button>
+                  </div>
+                )}
               </div>
             )}
 
