@@ -72,6 +72,8 @@ export class ExportFrameDecoder {
   private file: File | Blob;
   private width?: number;
   private initialized = false;
+  private reusableCanvas: OffscreenCanvas | null = null;
+  private reusableCtx: OffscreenCanvasRenderingContext2D | null = null;
 
   constructor(mediabunny: typeof import("mediabunny"), file: File | Blob, width?: number) {
     this.mediabunny = mediabunny;
@@ -120,12 +122,17 @@ export class ExportFrameDecoder {
     const result = await this.sink.getCanvas(timestamp);
     if (!result) return null;
 
-    const clone = new OffscreenCanvas(result.canvas.width, result.canvas.height);
-    const ctx = clone.getContext("2d");
-    if (ctx) {
-      ctx.drawImage(result.canvas, 0, 0);
+    const w = result.canvas.width;
+    const h = result.canvas.height;
+
+    if (!this.reusableCanvas || this.reusableCanvas.width !== w || this.reusableCanvas.height !== h) {
+      this.reusableCanvas = new OffscreenCanvas(w, h);
+      this.reusableCtx = this.reusableCanvas.getContext("2d") as OffscreenCanvasRenderingContext2D;
     }
-    return clone;
+
+    this.reusableCtx!.clearRect(0, 0, w, h);
+    this.reusableCtx!.drawImage(result.canvas, 0, 0);
+    return this.reusableCanvas;
   }
 
   dispose(): void {
@@ -134,6 +141,8 @@ export class ExportFrameDecoder {
       this.input = null;
     }
     this.sink = null;
+    this.reusableCanvas = null;
+    this.reusableCtx = null;
     this.initialized = false;
   }
 }
@@ -142,7 +151,7 @@ export class MediaBunnyEngine {
   private initialized = false;
   private mediabunny: typeof import("mediabunny") | null = null;
   private frameCache: Map<string, FrameCacheEntry> = new Map();
-  private readonly MAX_CACHE_SIZE = 50;
+  private readonly MAX_CACHE_SIZE = 5;
   private exportDecoders: Map<string, ExportFrameDecoder> = new Map();
 
   async initialize(): Promise<void> {
@@ -163,6 +172,12 @@ export class MediaBunnyEngine {
   }
 
   clearFrameCache(): void {
+    for (const entry of this.frameCache.values()) {
+      if (entry.image instanceof OffscreenCanvas) {
+        entry.image.width = 0;
+        entry.image.height = 0;
+      }
+    }
     this.frameCache.clear();
   }
 

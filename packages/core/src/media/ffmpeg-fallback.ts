@@ -1042,6 +1042,49 @@ export class FFmpegFallback {
     }
   }
 
+  async concatenateSegments(
+    segments: Blob[],
+    format: string = "mp4",
+  ): Promise<Blob> {
+    this.ensureLoaded();
+
+    const filenames: string[] = [];
+    const ext = format === "webm" ? "webm" : "mp4";
+
+    for (let i = 0; i < segments.length; i++) {
+      const name = `seg_${String(i).padStart(4, "0")}.${ext}`;
+      const data = new Uint8Array(await segments[i].arrayBuffer());
+      await this.ffmpeg!.writeFile(name, data);
+      filenames.push(name);
+    }
+
+    let concatList = "";
+    for (const name of filenames) {
+      concatList += `file '${name}'\n`;
+    }
+    await this.ffmpeg!.writeFile("concat_list.txt", concatList);
+
+    const outputName = `output.${ext}`;
+    await this.ffmpeg!.exec([
+      "-f", "concat", "-safe", "0",
+      "-i", "concat_list.txt",
+      "-c", "copy",
+      outputName,
+    ]);
+
+    const outputData = await this.ffmpeg!.readFile(outputName);
+    const mimeType = format === "webm" ? "video/webm" : "video/mp4";
+    const blob = new Blob([outputData.buffer as ArrayBuffer], { type: mimeType });
+
+    await this.cleanupFiles([
+      ...filenames,
+      "concat_list.txt",
+      outputName,
+    ]);
+
+    return blob;
+  }
+
   terminate(): void {
     if (this.ffmpeg) {
       this.removeProgressTracking();

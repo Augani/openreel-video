@@ -22,7 +22,6 @@ import { titleEngine } from "../text/title-engine";
 import { graphicsEngine } from "../graphics/graphics-engine";
 import { UpscalingEngine, getUpscalingEngine } from "../video/upscaling";
 import { getMediaEngine } from "../media/mediabunny-engine";
-import { getFFmpegFallback } from "../media/ffmpeg-fallback";
 import { getWavEncoder } from "../wasm/wav";
 
 export class ExportEngine {
@@ -213,6 +212,7 @@ export class ExportEngine {
   async *exportVideo(
     project: Project,
     settings: Partial<VideoExportSettings> = {},
+    writableStream?: FileSystemWritableFileStream,
   ): AsyncGenerator<ExportProgress, ExportResult> {
     this.ensureInitialized();
 
@@ -236,36 +236,34 @@ export class ExportEngine {
     };
 
     if (fullSettings.codec === "prores") {
-      console.warn(
-        `[ExportEngine] ProRes encoding is not supported in browsers. Switching to H.264 high quality.`,
-      );
       fullSettings.codec = "h264";
       fullSettings.format = "mp4";
       fullSettings.bitrate = 25000;
       fullSettings.quality = 95;
     }
 
-    const pixelCount = fullSettings.width * fullSettings.height;
+    const { timeline } = project;
+    const timelineDuration = this.calculateTimelineDuration(timeline);
+
     const isMemoryIntensiveCodec =
       fullSettings.codec === "vp9" ||
       fullSettings.codec === "av1" ||
       fullSettings.codec === "h265";
-    const maxSafePixels = isMemoryIntensiveCodec ? 1920 * 1080 : 3840 * 2160;
+    const isLongVideo = timelineDuration > 120;
 
-    if (pixelCount > maxSafePixels && isMemoryIntensiveCodec) {
-      console.warn(
-        `[ExportEngine] ${fullSettings.codec.toUpperCase()} at ${fullSettings.width}x${fullSettings.height} may cause browser instability. Reducing to 1080p for stability.`,
-      );
-      const aspectRatio = fullSettings.width / fullSettings.height;
-      if (aspectRatio > 1) {
-        fullSettings.width = 1920;
-        fullSettings.height = Math.round(1920 / aspectRatio);
-      } else {
-        fullSettings.height = 1920;
-        fullSettings.width = Math.round(1920 * aspectRatio);
-      }
-      fullSettings.width = Math.round(fullSettings.width / 2) * 2;
-      fullSettings.height = Math.round(fullSettings.height / 2) * 2;
+    let maxW = isMemoryIntensiveCodec ? 1920 : 3840;
+    let maxH = isMemoryIntensiveCodec ? 1080 : 2160;
+    if (isLongVideo) {
+      maxW = Math.min(maxW, 1920);
+      maxH = Math.min(maxH, 1080);
+    }
+    if (fullSettings.width > maxW || fullSettings.height > maxH) {
+      const scale = Math.min(maxW / fullSettings.width, maxH / fullSettings.height, 1);
+      fullSettings.width = Math.round(fullSettings.width * scale / 2) * 2;
+      fullSettings.height = Math.round(fullSettings.height * scale / 2) * 2;
+    }
+    if (isLongVideo && fullSettings.frameRate > 30) {
+      fullSettings.frameRate = 30;
     }
 
     this.abortController = new AbortController();
@@ -278,15 +276,23 @@ export class ExportEngine {
 
     this.videoEngine?.resetExportState();
 
-    const { timeline } = project;
-    const timelineDuration = this.calculateTimelineDuration(timeline);
-
     if (timelineDuration <= 0) {
       return {
         success: false,
         error: this.createError(
           "MUXER_ERROR",
           "Timeline is empty. Add clips before exporting.",
+          "preparing",
+        ),
+      };
+    }
+
+    if (!writableStream) {
+      return {
+        success: false,
+        error: this.createError(
+          "MUXER_ERROR",
+          "No writable stream provided. Export requires a file destination.",
           "preparing",
         ),
       };
@@ -300,7 +306,7 @@ export class ExportEngine {
 
       const {
         Output,
-        BufferTarget,
+        StreamTarget,
         Mp4OutputFormat,
         WebMOutputFormat,
         MovOutputFormat,
@@ -312,6 +318,20 @@ export class ExportEngine {
         getFirstEncodableAudioCodec,
         QUALITY_MEDIUM,
       } = this.mediabunny!;
+
+      const diskWriter = writableStream;
+      const chunkWriter = new WritableStream<{ data: Uint8Array; position: number }>({
+        async write(chunk) {
+          const buf = chunk.data.buffer.slice(
+            chunk.data.byteOffset,
+            chunk.data.byteOffset + chunk.data.byteLength,
+          ) as ArrayBuffer;
+          await diskWriter.seek(chunk.position);
+          await diskWriter.write(buf);
+          bytesWritten += chunk.data.byteLength;
+        },
+      });
+
       let outputFormat;
       switch (fullSettings.format) {
         case "webm":
@@ -322,12 +342,16 @@ export class ExportEngine {
           break;
         case "mp4":
         default:
-          outputFormat = new Mp4OutputFormat({ fastStart: "in-memory" });
+          outputFormat = new Mp4OutputFormat({ fastStart: false });
           break;
       }
 
-      const target = new BufferTarget();
+      const target = new StreamTarget(chunkWriter, {
+        chunked: true,
+        chunkSize: 4 * 1024 * 1024,
+      });
       const output = new Output({ format: outputFormat, target });
+
       const videoCodec = await getFirstEncodableVideoCodec(
         outputFormat.getSupportedVideoCodecs(),
         { width: fullSettings.width, height: fullSettings.height },
@@ -349,10 +373,10 @@ export class ExportEngine {
 
       const videoSource = new VideoSampleSource({
         codec: videoCodec,
-        bitrate: QUALITY_MEDIUM,
+        bitrate: fullSettings.bitrate ? fullSettings.bitrate * 1000 : QUALITY_MEDIUM,
         keyFrameInterval:
           fullSettings.keyframeInterval / fullSettings.frameRate,
-        hardwareAcceleration: "prefer-hardware",
+        hardwareAcceleration: "prefer-software",
       });
       const audioSource = new AudioSampleSource({
         codec: audioCodecResult.codec as "aac" | "opus" | "mp3",
@@ -367,13 +391,36 @@ export class ExportEngine {
 
       await output.start();
 
-      const isIntensiveCodec =
-        fullSettings.codec === "vp9" ||
-        fullSettings.codec === "av1" ||
-        fullSettings.codec === "h265";
-      const microFlushInterval = isIntensiveCodec ? 10 : 20;
-      const majorFlushInterval = 60;
-      const cacheCleanInterval = 180;
+      const audioBuffer = await this.renderTimelineAudio(project, fullSettings);
+      if (audioBuffer) {
+        const audioSamples = AudioSample.fromAudioBuffer(audioBuffer, 0);
+        for (const sample of audioSamples) {
+          await audioSource.add(sample);
+          sample.close();
+        }
+      }
+      audioSource.close();
+
+      const mediaEngine = getMediaEngine();
+      const videoMediaIds: string[] = [];
+      for (const track of project.timeline.tracks) {
+        if (track.type !== "video") continue;
+        for (const clip of track.clips) {
+          const mediaItem = project.mediaLibrary.items.find(
+            (m) => m.id === clip.mediaId,
+          );
+          if (mediaItem?.blob && !videoMediaIds.includes(mediaItem.id)) {
+            videoMediaIds.push(mediaItem.id);
+            try {
+              await mediaEngine.createExportDecoder(
+                mediaItem.id,
+                mediaItem.blob,
+                fullSettings.width,
+              );
+            } catch {}
+          }
+        }
+      }
 
       for (let frame = 0; frame < totalFrames; frame++) {
         if (this.abortController.signal.aborted) {
@@ -416,23 +463,13 @@ export class ExportEngine {
 
         this.currentExport!.framesRendered = frame + 1;
 
-        if ((frame + 1) % microFlushInterval === 0) {
-          await new Promise((resolve) => setTimeout(resolve, 0));
-        }
-
-        if ((frame + 1) % majorFlushInterval === 0) {
-          await new Promise((resolve) => setTimeout(resolve, 10));
-        }
-
-        if ((frame + 1) % cacheCleanInterval === 0) {
+        if ((frame + 1) % 5 === 0) {
           this.videoEngine?.clearVideoElementCache();
+          this.videoEngine?.clearCache();
           try {
-            const mediaEngine = getMediaEngine();
             mediaEngine.clearFrameCache();
-          } catch {
-            // MediaEngine may not be initialized
-          }
-          await new Promise((resolve) => setTimeout(resolve, 10));
+          } catch {}
+          await new Promise((resolve) => setTimeout(resolve, 2));
         }
 
         yield this.createProgress(
@@ -443,24 +480,12 @@ export class ExportEngine {
           bytesWritten,
         );
       }
-      yield this.createProgress(
-        "encoding",
-        0.95,
-        totalFrames,
-        totalFrames,
-        bytesWritten,
-      );
 
-      const audioBuffer = await this.renderTimelineAudio(project, fullSettings);
-      if (audioBuffer) {
-        const audioSamples = AudioSample.fromAudioBuffer(audioBuffer, 0);
-        for (const sample of audioSamples) {
-          await audioSource.add(sample);
-          sample.close();
-        }
-      }
       videoSource.close();
-      audioSource.close();
+      mediaEngine.disposeAllExportDecoders();
+      mediaEngine.clearFrameCache();
+      this.videoEngine?.clearVideoElementCache();
+      this.videoEngine?.clearCache();
 
       yield this.createProgress(
         "muxing",
@@ -471,19 +496,7 @@ export class ExportEngine {
       );
 
       await output.finalize();
-      const buffer = target.buffer;
-      if (!buffer) {
-        throw this.createError(
-          "MUXER_ERROR",
-          "Output buffer is empty",
-          "muxing",
-        );
-      }
-
-      const blob = new Blob([buffer], {
-        type: this.getMimeType(fullSettings.format),
-      });
-      bytesWritten = blob.size;
+      await writableStream.close();
 
       yield this.createProgress(
         "complete",
@@ -495,10 +508,10 @@ export class ExportEngine {
 
       return {
         success: true,
-        blob,
         stats: this.calculateStats(totalFrames, bytesWritten),
       };
     } catch (error) {
+      try { await writableStream.abort(); } catch {}
       if (error && typeof error === "object" && "code" in error) {
         return { success: false, error: error as ExportError };
       }
@@ -514,711 +527,11 @@ export class ExportEngine {
       this.abortController = null;
       this.currentExport = null;
       this.videoEngine?.clearVideoElementCache();
-    }
-  }
-
-  async *exportVideoWithWorker(
-    project: Project,
-    settings: Partial<VideoExportSettings> = {},
-    writableStream?: FileSystemWritableFileStream,
-  ): AsyncGenerator<ExportProgress, ExportResult> {
-    this.ensureInitialized();
-
-    const fullSettings: VideoExportSettings = {
-      ...DEFAULT_VIDEO_SETTINGS,
-      ...settings,
-      audioSettings: {
-        ...DEFAULT_VIDEO_SETTINGS.audioSettings,
-        ...settings.audioSettings,
-      },
-    };
-
-    if (fullSettings.codec === "prores") {
-      console.warn(
-        `[ExportEngine] ProRes encoding is not supported in browsers. Switching to H.264 high quality.`,
-      );
-      fullSettings.codec = "h264";
-      fullSettings.format = "mp4";
-      fullSettings.bitrate = 25000;
-      fullSettings.quality = 95;
-    }
-
-    const pixelCount = fullSettings.width * fullSettings.height;
-    const isMemoryIntensiveCodec =
-      fullSettings.codec === "vp9" ||
-      fullSettings.codec === "av1" ||
-      fullSettings.codec === "h265";
-    const maxSafePixels = isMemoryIntensiveCodec ? 1920 * 1080 : 3840 * 2160;
-
-    if (pixelCount > maxSafePixels && isMemoryIntensiveCodec) {
-      console.warn(
-        `[ExportEngine] ${fullSettings.codec.toUpperCase()} at ${fullSettings.width}x${fullSettings.height} may cause browser instability. Reducing to 1080p for stability.`,
-      );
-      const aspectRatio = fullSettings.width / fullSettings.height;
-      if (aspectRatio > 1) {
-        fullSettings.width = 1920;
-        fullSettings.height = Math.round(1920 / aspectRatio);
-      } else {
-        fullSettings.height = 1920;
-        fullSettings.width = Math.round(1920 * aspectRatio);
-      }
-      fullSettings.width = Math.round(fullSettings.width / 2) * 2;
-      fullSettings.height = Math.round(fullSettings.height / 2) * 2;
-    }
-
-    this.abortController = new AbortController();
-    this.currentExport = { startTime: Date.now(), framesRendered: 0 };
-
-    const gpuEnabled = await this.initializeGPUForExport(
-      fullSettings.width,
-      fullSettings.height,
-    );
-    if (!gpuEnabled) {
-      console.warn("[ExportEngine] GPU acceleration not available for export");
-    }
-
-    this.videoEngine?.resetExportState();
-
-    const { timeline } = project;
-    const timelineDuration = this.calculateTimelineDuration(timeline);
-
-    if (timelineDuration <= 0) {
-      return {
-        success: false,
-        error: this.createError(
-          "MUXER_ERROR",
-          "Timeline is empty. Add clips before exporting.",
-          "preparing",
-        ),
-      };
-    }
-
-    const totalFrames = Math.ceil(timelineDuration * fullSettings.frameRate);
-
-    try {
-      yield this.createProgress("preparing", 0, totalFrames, 0, 0);
-
-      const workerResult = await this.runWorkerExport(
-        project,
-        fullSettings,
-        totalFrames,
-        writableStream,
-      );
-
-      for await (const progress of workerResult.progressGenerator) {
-        if (this.abortController?.signal.aborted) {
-          this.exportWorker?.postMessage({ type: "cancel" });
-          throw this.createError(
-            "CANCELLED",
-            "Export cancelled by user",
-            "rendering",
-          );
-        }
-        yield progress;
-      }
-
-      const result = await workerResult.resultPromise;
-      return result;
-    } catch (error) {
-      if (error && typeof error === "object" && "code" in error) {
-        return { success: false, error: error as ExportError };
-      }
-      return {
-        success: false,
-        error: this.createError(
-          "FRAME_ENCODE_FAILED",
-          error instanceof Error ? error.message : "Unknown error",
-          "rendering",
-        ),
-      };
-    } finally {
-      this.terminateWorker();
-      this.abortController = null;
-      this.currentExport = null;
-      this.videoEngine?.clearVideoElementCache();
-    }
-  }
-
-  private async runWorkerExport(
-    project: Project,
-    settings: VideoExportSettings,
-    totalFrames: number,
-    writableStream?: FileSystemWritableFileStream,
-  ): Promise<{
-    progressGenerator: AsyncGenerator<ExportProgress>;
-    resultPromise: Promise<ExportResult>;
-  }> {
-    let workerReadyResolve: (() => void) | null = null;
-    let resultResolve: ((result: ExportResult) => void) | null = null;
-    let resultReject: ((error: Error) => void) | null = null;
-
-    const workerReadyPromise = new Promise<void>((resolve) => {
-      workerReadyResolve = resolve;
-    });
-
-    const resultPromise = new Promise<ExportResult>((resolve, reject) => {
-      resultResolve = resolve;
-      resultReject = reject;
-    });
-
-    let framesInFlight = 0;
-    const MAX_FRAMES_IN_FLIGHT = writableStream ? 4 : 8;
-    let frameProcessedResolve: (() => void) | null = null;
-
-    this.exportWorker = new Worker(
-      new URL("./export-worker.ts", import.meta.url),
-      { type: "module" },
-    );
-
-    this.exportWorker.onmessage = async (event) => {
-      const { type, blob, error, chunk } = event.data;
-
-      if (type === "ready") {
-        workerReadyResolve?.();
-        return;
-      }
-
-      if (type === "chunk" && writableStream && chunk) {
-        try {
-          await writableStream.write({
-            type: "write",
-            position: chunk.position,
-            data: chunk.data,
-          });
-        } catch (e) {
-          console.error("[ExportEngine] Failed to write chunk:", e);
-        }
-        return;
-      }
-
-      if (type === "frameProcessed") {
-        framesInFlight = Math.max(0, framesInFlight - 1);
-        if (frameProcessedResolve) {
-          frameProcessedResolve();
-          frameProcessedResolve = null;
-        }
-        return;
-      }
-
-      if (type === "complete") {
-        if (writableStream) {
-          try {
-            await writableStream.close();
-          } catch (e) {
-            console.error("[ExportEngine] Failed to close stream:", e);
-          }
-        }
-        const stats = this.calculateStats(totalFrames, blob?.size || 0);
-        resultResolve?.({ success: true, blob, stats });
-        return;
-      }
-
-      if (type === "error") {
-        if (writableStream) {
-          try {
-            await writableStream.abort();
-          } catch {}
-        }
-        resultReject?.(new Error(error || "Worker encoding failed"));
-        return;
-      }
-    };
-
-    this.exportWorker.onerror = (error) => {
-      resultReject?.(new Error(error.message || "Worker error"));
-    };
-
-    this.exportWorker.postMessage({
-      type: "init",
-      settings,
-      projectName: project.name,
-      useStreamTarget: !!writableStream,
-    });
-
-    await workerReadyPromise;
-
-    const self = this;
-
-    async function waitForCapacity(): Promise<void> {
-      if (framesInFlight < MAX_FRAMES_IN_FLIGHT) {
-        return;
-      }
-      await new Promise<void>((resolve) => {
-        frameProcessedResolve = resolve;
-      });
-    }
-
-    async function* generateProgress(): AsyncGenerator<ExportProgress> {
-      for (let frame = 0; frame < totalFrames; frame++) {
-        if (self.abortController?.signal.aborted) {
-          return;
-        }
-
-        await waitForCapacity();
-
-        const time = frame / settings.frameRate;
-        const rendered = await self.videoEngine!.renderFrame(
-          project,
-          time,
-          settings.width,
-          settings.height,
-        );
-
-        const shouldUpscale = self.shouldApplyUpscaling(project, settings);
-        let frameImage = rendered.image;
-
-        if (shouldUpscale && self.upscalingEngine?.isInitialized()) {
-          const upscaled = await self.upscalingEngine.upscaleImageBitmap(
-            frameImage,
-            settings.width,
-            settings.height,
-            settings.upscaling!,
-          );
-          frameImage.close();
-          frameImage = upscaled;
-        }
-
-        framesInFlight++;
-
-        self.exportWorker?.postMessage(
-          {
-            type: "addFrame",
-            frame: frameImage,
-            frameIndex: frame,
-            timestamp: time,
-            totalFrames,
-            settings,
-          },
-          [frameImage],
-        );
-
-        self.currentExport!.framesRendered = frame + 1;
-
-        yield self.createProgress(
-          "rendering",
-          (frame + 1) / totalFrames,
-          totalFrames,
-          frame + 1,
-          0,
-        );
-
-        const cleanupInterval = writableStream ? 10 : 30;
-        if ((frame + 1) % cleanupInterval === 0) {
-          self.videoEngine?.clearVideoElementCache();
-          try {
-            const mediaEngine = getMediaEngine();
-            mediaEngine.clearFrameCache();
-          } catch {
-            // MediaEngine may not be initialized
-          }
-          if (writableStream) {
-            await new Promise((resolve) => setTimeout(resolve, 50));
-          }
-        }
-      }
-
-      while (framesInFlight > 0) {
-        await new Promise<void>((resolve) => {
-          if (framesInFlight === 0) {
-            resolve();
-          } else {
-            frameProcessedResolve = resolve;
-          }
-        });
-      }
-
-      yield self.createProgress("encoding", 0.95, totalFrames, totalFrames, 0);
-
-      const audioBuffer = await self.renderTimelineAudioPublic(project);
-      if (audioBuffer) {
-        const channels: Float32Array[] = [];
-        for (let i = 0; i < audioBuffer.numberOfChannels; i++) {
-          channels.push(audioBuffer.getChannelData(i).slice());
-        }
-        self.exportWorker?.postMessage({
-          type: "addAudio",
-          audioBuffer: {
-            channels,
-            sampleRate: audioBuffer.sampleRate,
-            length: audioBuffer.length,
-          },
-        });
-      }
-
-      yield self.createProgress("muxing", 0.98, totalFrames, totalFrames, 0);
-
-      self.exportWorker?.postMessage({ type: "finalize" });
-    }
-
-    return {
-      progressGenerator: generateProgress(),
-      resultPromise,
-    };
-  }
-
-  private async renderTimelineAudioPublic(
-    project: Project,
-  ): Promise<AudioBuffer | null> {
-    return this.renderTimelineAudio(project);
-  }
-
-  private isSimpleProject(project: Project): { simple: boolean; singleClip?: { mediaId: string; startTime: number; endTime: number; speed: number } } {
-    const { timeline } = project;
-
-    const allTracks = timeline.tracks.filter(t => !t.hidden);
-    const videoTracks = allTracks.filter(t => t.type === "video" || t.type === "image");
-    const textTracks = allTracks.filter(t => t.type === "text");
-    const graphicsTracks = allTracks.filter(t => t.type === "graphics");
-    const audioTracks = allTracks.filter(t => t.type === "audio");
-
-    if (textTracks.length > 0) {
-      return { simple: false };
-    }
-
-    if (graphicsTracks.length > 0) {
-      return { simple: false };
-    }
-
-    if (audioTracks.length > 0 && audioTracks.some(t => t.clips.length > 0)) {
-      return { simple: false };
-    }
-
-    let totalVideoClips = 0;
-    let singleClip: { mediaId: string; startTime: number; endTime: number; speed: number } | undefined;
-    let clipWithEffects = false;
-
-    for (const track of videoTracks) {
-      for (const clip of track.clips) {
-        totalVideoClips++;
-
-        if (clip.effects && clip.effects.length > 0) {
-          clipWithEffects = true;
-        }
-
-        if (clip.keyframes && clip.keyframes.length > 0) {
-          clipWithEffects = true;
-        }
-
-        if (clip.transform) {
-          const t = clip.transform;
-          if (t.scale.x !== 1 || t.scale.y !== 1 || t.rotation !== 0 ||
-              t.position.x !== 0 || t.position.y !== 0 || t.opacity !== 1) {
-            clipWithEffects = true;
-          }
-        }
-
-        if (totalVideoClips === 1 && !clipWithEffects) {
-          const mediaItem = project.mediaLibrary.items.find(m => m.id === clip.mediaId);
-          if (mediaItem?.type === "video") {
-            singleClip = {
-              mediaId: clip.mediaId,
-              startTime: clip.inPoint,
-              endTime: clip.outPoint,
-              speed: clip.speed || 1,
-            };
-          }
-        }
-      }
-    }
-
-    if (clipWithEffects) {
-      return { simple: false };
-    }
-
-    if (totalVideoClips === 1 && singleClip) {
-      return { simple: true, singleClip };
-    }
-
-    return { simple: false };
-  }
-
-  async *exportVideoWithFFmpeg(
-    project: Project,
-    settings: Partial<VideoExportSettings> = {},
-    writableStream?: FileSystemWritableFileStream,
-  ): AsyncGenerator<ExportProgress, ExportResult> {
-
-    if (!this.initialized) {
-      await this.initialize();
-    }
-
-    const fullSettings: VideoExportSettings = {
-      ...DEFAULT_VIDEO_SETTINGS,
-      ...settings,
-      audioSettings: {
-        ...DEFAULT_VIDEO_SETTINGS.audioSettings,
-        ...settings.audioSettings,
-      },
-    };
-
-    if (fullSettings.codec === "prores") {
-      fullSettings.codec = "h264";
-      fullSettings.format = "mp4";
-      fullSettings.bitrate = 25000;
-      fullSettings.quality = 95;
-    }
-
-    this.abortController = new AbortController();
-    this.currentExport = { startTime: Date.now(), framesRendered: 0 };
-
-    const { timeline } = project;
-    const timelineDuration = this.calculateTimelineDuration(timeline);
-
-    if (timelineDuration <= 0) {
-      return {
-        success: false,
-        error: this.createError(
-          "MUXER_ERROR",
-          "Timeline is empty. Add clips before exporting.",
-          "preparing",
-        ),
-      };
-    }
-
-    const totalFrames = Math.ceil(timelineDuration * fullSettings.frameRate);
-    const simpleCheck = this.isSimpleProject(project);
-
-    this.videoEngine?.resetExportState();
-
-    yield this.createProgress("preparing", 0, totalFrames, 0, 0);
-
-    const mediaEngine = getMediaEngine();
-
-    if (!mediaEngine.isAvailable()) {
-      await mediaEngine.initialize();
-    }
-    mediaEngine.clearFrameCache();
-    mediaEngine.disposeAllExportDecoders();
-    this.videoEngine?.clearVideoElementCache();
-
-    try {
-      const ffmpeg = getFFmpegFallback();
-      await ffmpeg.load();
-
-      if (simpleCheck.simple && simpleCheck.singleClip) {
-        const mediaItem = project.mediaLibrary.items.find(m => m.id === simpleCheck.singleClip!.mediaId);
-        if (mediaItem?.blob) {
-          const inputWidth = mediaItem.metadata.width;
-          const inputHeight = mediaItem.metadata.height;
-
-          const clip = project.timeline.tracks
-            .flatMap(t => t.clips)
-            .find(c => c.mediaId === simpleCheck.singleClip!.mediaId);
-
-          const hasClipEffects = clip && (
-            (clip.effects && clip.effects.length > 0) ||
-            (clip.transform && (
-              clip.transform.scale.x !== 1 ||
-              clip.transform.scale.y !== 1 ||
-              clip.transform.rotation !== 0 ||
-              clip.transform.position.x !== 0 ||
-              clip.transform.position.y !== 0 ||
-              clip.transform.opacity !== 1
-            )) ||
-            (clip.keyframes && clip.keyframes.length > 0)
-          );
-
-          const allTracks = project.timeline.tracks.filter(t => !t.hidden);
-          const hasMultipleTracks = allTracks.length > 1;
-          const hasAnyTextOrGraphics = allTracks.some(t =>
-            (t.type === "text" || t.type === "graphics") && t.clips.length > 0
-          );
-
-          const canUseStreamCopy =
-            simpleCheck.singleClip.speed === 1 &&
-            inputWidth === fullSettings.width &&
-            inputHeight === fullSettings.height &&
-            simpleCheck.singleClip.startTime === 0 &&
-            !hasClipEffects &&
-            !hasMultipleTracks &&
-            !hasAnyTextOrGraphics;
-
-
-          let lastProgress: ExportProgress | null = null;
-          const onProgress = (progress: ExportProgress) => {
-            lastProgress = progress;
-          };
-
-          const resultPromise = ffmpeg.exportVideoDirectly(
-            mediaItem.blob,
-            {
-              startTime: simpleCheck.singleClip.startTime,
-              endTime: simpleCheck.singleClip.endTime,
-              width: fullSettings.width,
-              height: fullSettings.height,
-              frameRate: fullSettings.frameRate,
-              format: fullSettings.format === "webm" ? "webm" : "mp4",
-              videoBitrate: `${fullSettings.bitrate}k`,
-              audioBitrate: `${fullSettings.audioSettings.bitrate}k`,
-              speed: simpleCheck.singleClip.speed,
-              writableStream,
-              useStreamCopy: canUseStreamCopy,
-            },
-            onProgress,
-          );
-
-          while (true) {
-            await new Promise((resolve) => setTimeout(resolve, 100));
-
-            if (lastProgress !== null) {
-              const progressToYield = lastProgress as ExportProgress;
-              yield progressToYield;
-              if (progressToYield.phase === "complete") {
-                break;
-              }
-            }
-
-            const isResolved = await Promise.race([
-              resultPromise.then(() => true),
-              new Promise<false>((resolve) => setTimeout(() => resolve(false), 10)),
-            ]);
-
-            if (isResolved) {
-              break;
-            }
-          }
-
-          const blob = await resultPromise;
-
-          return {
-            success: true,
-            blob: blob || undefined,
-            stats: this.calculateStats(totalFrames, blob?.size || 0),
-          };
-        }
-      }
-
-      await this.initializeGPUForExport(
-        fullSettings.width,
-        fullSettings.height,
-      );
-
-      const usedMediaIds = new Set<string>();
-      for (const track of project.timeline.tracks) {
-        for (const clip of track.clips) {
-          if (clip.mediaId) {
-            usedMediaIds.add(clip.mediaId);
-          }
-        }
-      }
-
-      for (const mediaId of usedMediaIds) {
-        const mediaItem = project.mediaLibrary.items.find(m => m.id === mediaId);
-        if (mediaItem?.blob && mediaItem.type === "video") {
-          await mediaEngine.createExportDecoder(mediaId, mediaItem.blob, fullSettings.width);
-        }
-      }
-
-      const self = this;
-
-      async function* generateFrames(): AsyncIterable<{ image: ImageBitmap; frameIndex: number }> {
-        for (let frame = 0; frame < totalFrames; frame++) {
-          if (self.abortController?.signal.aborted) {
-            return;
-          }
-
-          const time = frame / fullSettings.frameRate;
-          const rendered = await self.videoEngine!.renderFrame(
-            project,
-            time,
-            fullSettings.width,
-            fullSettings.height,
-          );
-
-          const shouldUpscale = self.shouldApplyUpscaling(project, fullSettings);
-          let frameImage = rendered.image;
-
-          if (shouldUpscale && self.upscalingEngine?.isInitialized()) {
-            const upscaled = await self.upscalingEngine.upscaleImageBitmap(
-              frameImage,
-              fullSettings.width,
-              fullSettings.height,
-              fullSettings.upscaling!,
-            );
-            frameImage.close();
-            frameImage = upscaled;
-          }
-
-          self.currentExport!.framesRendered = frame + 1;
-
-          if ((frame + 1) % 60 === 0) {
-            self.videoEngine?.clearVideoElementCache();
-            mediaEngine.clearFrameCache();
-          }
-
-          yield { image: frameImage, frameIndex: frame };
-        }
-      }
-
-      let lastProgress: ExportProgress | null = null;
-      const onProgress = (progress: ExportProgress) => {
-        lastProgress = progress;
-      };
-
-      const audioBuffer = await this.renderTimelineAudio(project, fullSettings);
-
-      const resultPromise = ffmpeg.encodeFrameSequence(
-        generateFrames(),
-        {
-          width: fullSettings.width,
-          height: fullSettings.height,
-          frameRate: fullSettings.frameRate,
-          totalFrames,
-          format: fullSettings.format === "webm" ? "webm" : "mp4",
-          videoBitrate: `${fullSettings.bitrate}k`,
-          audioBitrate: `${fullSettings.audioSettings.bitrate}k`,
-          audioBuffer: audioBuffer || undefined,
-          writableStream,
-        },
-        onProgress,
-      );
-
-      while (true) {
-        await new Promise((resolve) => setTimeout(resolve, 100));
-
-        if (lastProgress !== null) {
-          const progressToYield = lastProgress as ExportProgress;
-          yield progressToYield;
-          if (progressToYield.phase === "complete") {
-            break;
-          }
-        }
-
-        const isResolved = await Promise.race([
-          resultPromise.then(() => true),
-          new Promise<false>((resolve) => setTimeout(() => resolve(false), 10)),
-        ]);
-
-        if (isResolved) {
-          break;
-        }
-      }
-
-      const blob = await resultPromise;
-
-      return {
-        success: true,
-        blob: blob || undefined,
-        stats: this.calculateStats(totalFrames, blob?.size || 0),
-      };
-    } catch (error) {
-      if (error && typeof error === "object" && "code" in error) {
-        return { success: false, error: error as ExportError };
-      }
-      return {
-        success: false,
-        error: this.createError(
-          "FRAME_ENCODE_FAILED",
-          error instanceof Error ? error.message : "Unknown error",
-          "rendering",
-        ),
-      };
-    } finally {
-      this.abortController = null;
-      this.currentExport = null;
-      this.videoEngine?.clearVideoElementCache();
-      mediaEngine.disposeAllExportDecoders();
-      mediaEngine.clearFrameCache();
+      this.videoEngine?.clearCache();
+      try {
+        getMediaEngine().disposeAllExportDecoders();
+        getMediaEngine().clearFrameCache();
+      } catch {}
     }
   }
 
@@ -1898,18 +1211,6 @@ export class ExportEngine {
     }
   }
 
-  private getMimeType(format: VideoExportSettings["format"]): string {
-    switch (format) {
-      case "webm":
-        return "video/webm";
-      case "mov":
-        return "video/quicktime";
-      case "mp4":
-      default:
-        return "video/mp4";
-    }
-  }
-
   private getAudioMimeType(format: AudioExportSettings["format"]): string {
     switch (format) {
       case "mp3":
@@ -2094,5 +1395,5 @@ export function downloadBlob(blob: Blob, filename: string): void {
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
 }
