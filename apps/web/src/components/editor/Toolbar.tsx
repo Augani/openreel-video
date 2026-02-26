@@ -28,7 +28,6 @@ import { useThemeStore } from "../../stores/theme-store";
 import { useRouter } from "../../hooks/use-router";
 import {
   getExportEngine,
-  downloadBlob,
   getDeviceProfile,
   estimateExportTime,
   type VideoExportSettings,
@@ -172,22 +171,82 @@ export const Toolbar: React.FC = () => {
     openModal("search");
   }, [openModal]);
 
+  const runExport = useCallback(
+    async (videoSettings: Partial<VideoExportSettings>, _ext: string, writableStream: FileSystemWritableFileStream) => {
+      const engine = getExportEngine();
+      await engine.initialize();
+
+      const generator = engine.exportVideo(project, videoSettings, writableStream);
+      let finalResult: ExportResult | undefined;
+
+      while (true) {
+        const { value, done } = await generator.next();
+        if (done) {
+          finalResult = value;
+          break;
+        }
+        setExportState((prev) => ({
+          ...prev,
+          progress: value.progress * 100,
+          phase: value.phase === "complete" ? "Complete!" : `${value.phase}...`,
+        }));
+      }
+
+      if (finalResult?.success) {
+        setExportState((prev) => ({ ...prev, complete: true, phase: "Saved!" }));
+        track(AnalyticsEvents.PROJECT_EXPORTED, {
+          format: videoSettings.format ?? "mp4",
+          codec: videoSettings.codec ?? "h264",
+          width: videoSettings.width ?? project.settings.width,
+          height: videoSettings.height ?? project.settings.height,
+          frameRate: videoSettings.frameRate ?? project.settings.frameRate,
+          duration: project.timeline?.duration ?? 0,
+        });
+      } else {
+        throw new Error(finalResult?.error?.message || "Export failed");
+      }
+    },
+    [project, track],
+  );
+
+  const showSavePicker = useCallback(async (filename: string, ext: string): Promise<FileSystemWritableFileStream> => {
+    const mimeMap: Record<string, string> = {
+      mp4: "video/mp4",
+      webm: "video/webm",
+      mov: "video/quicktime",
+      wav: "audio/wav",
+    };
+    const handle = await (window as unknown as {
+      showSaveFilePicker: (opts: unknown) => Promise<FileSystemFileHandle>;
+    }).showSaveFilePicker({
+      suggestedName: filename,
+      types: [{
+        description: "Media file",
+        accept: { [mimeMap[ext] || "application/octet-stream"]: [`.${ext}`] },
+      }],
+    });
+    return handle.createWritable();
+  }, []);
+
   const handleExport = useCallback(
     async (type: ExportType) => {
       setIsExportOpen(false);
-      setExportState({
-        isExporting: true,
-        progress: 0,
-        phase: "Initializing...",
-        error: null,
-        complete: false,
-      });
 
       try {
-        const engine = getExportEngine();
-        await engine.initialize();
-
         if (type === "wav") {
+          const writable = await showSavePicker(`${project.name || "export"}.wav`, "wav");
+
+          setExportState({
+            isExporting: true,
+            progress: 0,
+            phase: "Initializing...",
+            error: null,
+            complete: false,
+          });
+
+          const engine = getExportEngine();
+          await engine.initialize();
+
           const audioSettings: Partial<AudioExportSettings> = {
             format: "wav",
             sampleRate: 48000,
@@ -207,257 +266,62 @@ export const Toolbar: React.FC = () => {
             setExportState((prev) => ({
               ...prev,
               progress: value.progress * 100,
-              phase:
-                value.phase === "complete" ? "Complete!" : `${value.phase}...`,
+              phase: value.phase === "complete" ? "Complete!" : `${value.phase}...`,
             }));
           }
 
           if (finalResult?.success && finalResult.blob) {
-            downloadBlob(finalResult.blob, `${project.name || "export"}.wav`);
-            setExportState((prev) => ({
-              ...prev,
-              complete: true,
-              phase: "Downloaded!",
-            }));
+            await finalResult.blob.stream().pipeTo(writable as unknown as WritableStream<Uint8Array>);
+            setExportState((prev) => ({ ...prev, complete: true, phase: "Saved!" }));
             track(AnalyticsEvents.PROJECT_EXPORTED, {
               format: "wav",
               duration: project.timeline?.duration ?? 0,
             });
           } else {
+            try { await writable.abort(); } catch {}
             throw new Error(finalResult?.error?.message || "Export failed");
           }
         } else {
-          const getExportSettings = (): Partial<VideoExportSettings> => {
-            const base = {
-              width: project.settings.width,
-              height: project.settings.height,
-              frameRate: project.settings.frameRate,
-            };
-
-            switch (type) {
-              case "project":
-                return {
-                  ...base,
-                  format: "mov",
-                  codec: "prores",
-                  bitrate: 220000,
-                  quality: 100,
-                };
-              case "4k-60-master":
-                return {
-                  ...base,
-                  width: 3840,
-                  height: 2160,
-                  frameRate: 60,
-                  format: "mov",
-                  codec: "h265",
-                  bitrate: 100000,
-                  quality: 95,
-                };
-              case "4k-master":
-                return {
-                  ...base,
-                  width: 3840,
-                  height: 2160,
-                  frameRate: 30,
-                  format: "mov",
-                  codec: "h265",
-                  bitrate: 80000,
-                  quality: 95,
-                };
-              case "4k-prores":
-                return {
-                  ...base,
-                  width: 3840,
-                  height: 2160,
-                  frameRate: 30,
-                  format: "mov",
-                  codec: "prores",
-                  bitrate: 880000,
-                  quality: 100,
-                };
-              case "4k":
-                return {
-                  ...base,
-                  width: 3840,
-                  height: 2160,
-                  frameRate: 30,
-                  format: "mp4",
-                  codec: "h264",
-                  bitrate: 50000,
-                  quality: 90,
-                };
-              case "1080p-60":
-                return {
-                  ...base,
-                  width: 1920,
-                  height: 1080,
-                  frameRate: 60,
-                  format: "mp4",
-                  codec: "h264",
-                  bitrate: 25000,
-                  quality: 95,
-                };
-              case "1080p-high":
-                return {
-                  ...base,
-                  width: 1920,
-                  height: 1080,
-                  frameRate: 30,
-                  format: "mp4",
-                  codec: "h264",
-                  bitrate: 20000,
-                  quality: 95,
-                };
-              case "prores":
-                return {
-                  ...base,
-                  format: "mov",
-                  codec: "prores",
-                  bitrate: 220000,
-                  quality: 100,
-                };
-              case "gif":
-                return {
-                  ...base,
-                  format: "webm",
-                  codec: "vp9",
-                  bitrate: 8000,
-                };
-              case "mp4":
-              default:
-                return {
-                  ...base,
-                  format: "mp4",
-                  codec: "h264",
-                  bitrate: 12000,
-                  quality: 85,
-                };
-            }
+          const base = {
+            width: project.settings.width,
+            height: project.settings.height,
+            frameRate: project.settings.frameRate,
           };
 
-          const videoSettings = getExportSettings();
-
-          const getExtension = () => {
-            switch (type) {
-              case "4k-60-master":
-              case "4k-master":
-              case "4k-prores":
-              case "prores":
-              case "project":
-                return "mov";
-              case "gif":
-                return "webm";
-              default:
-                return "mp4";
-            }
+          const presets: Record<string, { settings: Partial<VideoExportSettings>; ext: string }> = {
+            mp4: { settings: { ...base, format: "mp4", codec: "h264", bitrate: 12000, quality: 85 }, ext: "mp4" },
+            gif: { settings: { ...base, format: "webm", codec: "vp9", bitrate: 8000 }, ext: "webm" },
+            project: { settings: { ...base, format: "mp4", codec: "h264", bitrate: 12000, quality: 85 }, ext: "mp4" },
+            "4k-60-master": { settings: { ...base, width: 3840, height: 2160, frameRate: 60, format: "mov", codec: "h265", bitrate: 100000, quality: 95 }, ext: "mov" },
+            "4k-master": { settings: { ...base, width: 3840, height: 2160, frameRate: 30, format: "mov", codec: "h265", bitrate: 80000, quality: 95 }, ext: "mov" },
+            "4k-prores": { settings: { ...base, width: 3840, height: 2160, frameRate: 30, format: "mov", codec: "prores", bitrate: 880000, quality: 100 }, ext: "mov" },
+            "4k": { settings: { ...base, width: 3840, height: 2160, frameRate: 30, format: "mp4", codec: "h264", bitrate: 50000, quality: 90 }, ext: "mp4" },
+            "1080p-60": { settings: { ...base, width: 1920, height: 1080, frameRate: 60, format: "mp4", codec: "h264", bitrate: 25000, quality: 95 }, ext: "mp4" },
+            "1080p-high": { settings: { ...base, width: 1920, height: 1080, frameRate: 30, format: "mp4", codec: "h264", bitrate: 20000, quality: 95 }, ext: "mp4" },
+            prores: { settings: { ...base, format: "mov", codec: "prores", bitrate: 220000, quality: 100 }, ext: "mov" },
           };
 
-          const getMimeType = () => {
-            const ext = getExtension();
-            switch (ext) {
-              case "mov":
-                return "video/quicktime";
-              case "webm":
-                return "video/webm";
-              default:
-                return "video/mp4";
-            }
-          };
+          const preset = presets[type] ?? presets.mp4;
+          const writable = await showSavePicker(`${project.name || "export"}.${preset.ext}`, preset.ext);
 
-          let writableStream: FileSystemWritableFileStream | undefined;
-          let useStreaming = false;
-
-          if ("showSaveFilePicker" in window && typeof (window as Window & { showSaveFilePicker?: unknown }).showSaveFilePicker === "function") {
-            try {
-              const showSaveFilePicker = (window as Window & { showSaveFilePicker: (options: { suggestedName: string; types: Array<{ description: string; accept: Record<string, string[]> }> }) => Promise<FileSystemFileHandle> }).showSaveFilePicker;
-              const fileHandle = await showSaveFilePicker({
-                suggestedName: `${project.name || "export"}.${getExtension()}`,
-                types: [
-                  {
-                    description: "Video file",
-                    accept: { [getMimeType()]: [`.${getExtension()}`] },
-                  },
-                ],
-              });
-              writableStream = await fileHandle.createWritable();
-              useStreaming = true;
-            } catch (e) {
-              if ((e as Error).name === "AbortError") {
-                setExportState({
-                  isExporting: false,
-                  progress: 0,
-                  phase: "",
-                  error: null,
-                  complete: false,
-                });
-                return;
-              }
-              useStreaming = false;
-            }
-          }
-
-          const generator = engine.exportVideoWithFFmpeg(project, videoSettings, writableStream);
-          let finalResult: ExportResult | undefined;
-
-          while (true) {
-            const { value, done } = await generator.next();
-            if (done) {
-              finalResult = value;
-              break;
-            }
-            setExportState((prev) => ({
-              ...prev,
-              progress: value.progress * 100,
-              phase:
-                value.phase === "complete" ? "Complete!" : `${value.phase}...`,
-            }));
-          }
-
-          if (finalResult?.success) {
-            track(AnalyticsEvents.PROJECT_EXPORTED, {
-              format: videoSettings.format ?? "mp4",
-              codec: videoSettings.codec ?? "h264",
-              width: videoSettings.width ?? project.settings.width,
-              height: videoSettings.height ?? project.settings.height,
-              frameRate: videoSettings.frameRate ?? project.settings.frameRate,
-              duration: project.timeline?.duration ?? 0,
-              exportType: type,
-            });
-            if (useStreaming) {
-              setExportState((prev) => ({
-                ...prev,
-                complete: true,
-                phase: "Saved!",
-              }));
-            } else if (finalResult.blob) {
-              downloadBlob(
-                finalResult.blob,
-                `${project.name || "export"}.${getExtension()}`,
-              );
-              setExportState((prev) => ({
-                ...prev,
-                complete: true,
-                phase: "Downloaded!",
-              }));
-            } else {
-              throw new Error("Export completed but no output generated");
-            }
-          } else {
-            throw new Error(finalResult?.error?.message || "Export failed");
-          }
-        }
-
-        setTimeout(() => {
           setExportState({
-            isExporting: false,
+            isExporting: true,
             progress: 0,
-            phase: "",
+            phase: "Initializing...",
             error: null,
             complete: false,
           });
+
+          await runExport(preset.settings, preset.ext, writable);
+        }
+
+        setTimeout(() => {
+          setExportState({ isExporting: false, progress: 0, phase: "", error: null, complete: false });
         }, 2000);
       } catch (error) {
+        if (error instanceof Error && error.name === "AbortError") {
+          return;
+        }
         setExportState((prev) => ({
           ...prev,
           isExporting: false,
@@ -465,7 +329,7 @@ export const Toolbar: React.FC = () => {
         }));
       }
     },
-    [project, track],
+    [project, track, runExport, showSavePicker],
   );
 
   const handleCancelExport = useCallback(() => {
@@ -483,17 +347,18 @@ export const Toolbar: React.FC = () => {
   const handleCustomExport = useCallback(
     async (settings: VideoExportSettings) => {
       setIsExportDialogOpen(false);
-      setExportState({
-        isExporting: true,
-        progress: 0,
-        phase: "Initializing...",
-        error: null,
-        complete: false,
-      });
 
       try {
-        const engine = getExportEngine();
-        await engine.initialize();
+        const ext = settings.format === "mov" ? "mov" : settings.format === "webm" ? "webm" : "mp4";
+        const writable = await showSavePicker(`${project.name || "export"}.${ext}`, ext);
+
+        setExportState({
+          isExporting: true,
+          progress: 0,
+          phase: "Initializing...",
+          error: null,
+          complete: false,
+        });
 
         const needsUpscaling =
           settings.width > project.settings.width ||
@@ -507,114 +372,26 @@ export const Toolbar: React.FC = () => {
               : undefined,
         };
 
-        const ext =
-          settings.format === "mov"
-            ? "mov"
-            : settings.format === "webm"
-              ? "webm"
-              : "mp4";
+        await runExport(exportSettings, ext, writable);
 
-        const getMimeType = () => {
-          switch (ext) {
-            case "mov":
-              return "video/quicktime";
-            case "webm":
-              return "video/webm";
-            default:
-              return "video/mp4";
-          }
-        };
-
-        let writableStream: FileSystemWritableFileStream | undefined;
-        let useStreaming = false;
-
-        if ("showSaveFilePicker" in window && typeof (window as Window & { showSaveFilePicker?: unknown }).showSaveFilePicker === "function") {
-          try {
-            const showSaveFilePicker = (window as Window & { showSaveFilePicker: (options: { suggestedName: string; types: Array<{ description: string; accept: Record<string, string[]> }> }) => Promise<FileSystemFileHandle> }).showSaveFilePicker;
-            const fileHandle = await showSaveFilePicker({
-              suggestedName: `${project.name || "export"}.${ext}`,
-              types: [
-                {
-                  description: "Video file",
-                  accept: { [getMimeType()]: [`.${ext}`] },
-                },
-              ],
-            });
-            writableStream = await fileHandle.createWritable();
-            useStreaming = true;
-          } catch (e) {
-            if ((e as Error).name === "AbortError") {
-              setExportState({
-                isExporting: false,
-                progress: 0,
-                phase: "",
-                error: null,
-                complete: false,
-              });
-              return;
-            }
-            useStreaming = false;
-          }
-        }
-
-        const generator = engine.exportVideoWithFFmpeg(project, exportSettings, writableStream);
-        let finalResult: ExportResult | undefined;
-
-        while (true) {
-          const { value, done } = await generator.next();
-          if (done) {
-            finalResult = value;
-            break;
-          }
-          setExportState((prev) => ({
-            ...prev,
-            progress: value.progress * 100,
-            phase:
-              value.phase === "complete" ? "Complete!" : `${value.phase}...`,
-          }));
-        }
-
-        if (finalResult?.success) {
-          track(AnalyticsEvents.PROJECT_EXPORTED, {
-            format: settings.format,
-            codec: settings.codec,
-            width: settings.width,
-            height: settings.height,
-            frameRate: settings.frameRate,
-            duration: project.timeline?.duration ?? 0,
-            exportType: "custom",
-            upscaling: settings.upscaling?.enabled ?? false,
-          });
-          if (useStreaming) {
-            setExportState((prev) => ({
-              ...prev,
-              complete: true,
-              phase: "Saved!",
-            }));
-          } else if (finalResult.blob) {
-            downloadBlob(finalResult.blob, `${project.name || "export"}.${ext}`);
-            setExportState((prev) => ({
-              ...prev,
-              complete: true,
-              phase: "Downloaded!",
-            }));
-          } else {
-            throw new Error("Export completed but no output generated");
-          }
-        } else {
-          throw new Error(finalResult?.error?.message || "Export failed");
-        }
+        track(AnalyticsEvents.PROJECT_EXPORTED, {
+          format: settings.format,
+          codec: settings.codec,
+          width: settings.width,
+          height: settings.height,
+          frameRate: settings.frameRate,
+          duration: project.timeline?.duration ?? 0,
+          exportType: "custom",
+          upscaling: settings.upscaling?.enabled ?? false,
+        });
 
         setTimeout(() => {
-          setExportState({
-            isExporting: false,
-            progress: 0,
-            phase: "",
-            error: null,
-            complete: false,
-          });
+          setExportState({ isExporting: false, progress: 0, phase: "", error: null, complete: false });
         }, 2000);
       } catch (error) {
+        if (error instanceof Error && error.name === "AbortError") {
+          return;
+        }
         setExportState((prev) => ({
           ...prev,
           isExporting: false,
@@ -622,7 +399,7 @@ export const Toolbar: React.FC = () => {
         }));
       }
     },
-    [project, track],
+    [project, track, runExport, showSavePicker],
   );
 
 
@@ -686,13 +463,6 @@ export const Toolbar: React.FC = () => {
   const projectRes = `${project.settings.width}×${project.settings.height}`;
   const aspectRatio = project.settings.width / project.settings.height;
   const isVertical = aspectRatio < 0.9;
-  const isSquare = aspectRatio >= 0.9 && aspectRatio <= 1.1;
-
-  const getRecommendedLabel = () => {
-    if (isVertical) return "TikTok / Reels / Shorts";
-    if (isSquare) return "Instagram Feed";
-    return "YouTube / Social";
-  };
 
   const exportOptions: Array<{
     label: string;
@@ -703,17 +473,11 @@ export const Toolbar: React.FC = () => {
     separator?: boolean;
   }> = [
     {
-      label: getRecommendedLabel(),
+      label: "MP4 Standard",
       icon: Zap,
-      desc: `${projectRes} H.264 - Best for your video`,
+      desc: `${projectRes} H.264 - Web & social`,
       type: "mp4",
       recommended: true,
-    },
-    {
-      label: "Project Resolution",
-      icon: Film,
-      desc: `${projectRes} H.264 - High quality`,
-      type: "project",
     },
     {
       label: "",
@@ -743,12 +507,6 @@ export const Toolbar: React.FC = () => {
       icon: FileVideo,
       desc: "1920×1080 - Smooth playback",
       type: "1080p-60",
-    },
-    {
-      label: "MP4 Standard",
-      icon: FileVideo,
-      desc: `${projectRes} - Web & social`,
-      type: "mp4",
     },
     {
       label: "Audio Only (WAV)",

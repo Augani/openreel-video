@@ -73,12 +73,15 @@ export class VideoEngine {
   private initialized = false;
   private frameCache: Map<string, CachedFrame> = new Map();
   private gifFrameCache: Map<string, GifFrameCache> = new Map();
+  private staticImageCache: Map<string, ImageBitmap> = new Map();
   private cacheConfig: FrameCacheConfig;
   private cacheStats = { hits: 0, misses: 0 };
   private preloadQueue: PreloadRequest[] = [];
   private isPreloading = false;
   private compositeCanvas: OffscreenCanvas | null = null;
   private compositeCtx: OffscreenCanvasRenderingContext2D | null = null;
+  private decodeCanvas: OffscreenCanvas | null = null;
+  private decodeCtx: OffscreenCanvasRenderingContext2D | null = null;
 
   private parallelDecoder: ParallelFrameDecoder | null = null;
   private compositeBuffer: CompositeFrameBuffer | null = null;
@@ -326,9 +329,15 @@ export class VideoEngine {
       }, 3000);
     });
 
-    const canvas = new OffscreenCanvas(width, height);
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return null;
+    if (
+      !this.decodeCanvas ||
+      this.decodeCanvas.width !== width ||
+      this.decodeCanvas.height !== height
+    ) {
+      this.decodeCanvas = new OffscreenCanvas(width, height);
+      this.decodeCtx = this.decodeCanvas.getContext("2d") as OffscreenCanvasRenderingContext2D;
+    }
+    const ctx = this.decodeCtx!;
 
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
@@ -353,7 +362,7 @@ export class VideoEngine {
     ctx.fillRect(0, 0, width, height);
     ctx.drawImage(video, drawX, drawY, drawWidth, drawHeight);
 
-    return createImageBitmap(canvas);
+    return createImageBitmap(this.decodeCanvas);
   }
 
   /**
@@ -361,7 +370,9 @@ export class VideoEngine {
    */
   clearVideoElementCache(): void {
     for (const [, cached] of this.videoElementCache) {
-      cached.video.src = "";
+      cached.video.pause();
+      cached.video.removeAttribute("src");
+      cached.video.load();
       URL.revokeObjectURL(cached.url);
     }
     this.videoElementCache.clear();
@@ -420,8 +431,16 @@ export class VideoEngine {
       )
       .sort((a, b) => b.originalIndex - a.originalIndex);
 
-    const canvas = new OffscreenCanvas(width, height);
-    const ctx = canvas.getContext("2d") as OffscreenCanvasRenderingContext2D;
+    if (
+      !this.compositeCanvas ||
+      this.compositeCanvas.width !== width ||
+      this.compositeCanvas.height !== height
+    ) {
+      this.compositeCanvas = new OffscreenCanvas(width, height);
+      this.compositeCtx = this.compositeCanvas.getContext("2d") as OffscreenCanvasRenderingContext2D;
+    }
+    const canvas = this.compositeCanvas;
+    const ctx = this.compositeCtx!;
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
     ctx.fillStyle = "#000000";
@@ -438,6 +457,7 @@ export class VideoEngine {
           if (!mediaItem?.blob) continue;
 
           let bitmap: ImageBitmap | null = null;
+          let bitmapFromCache = false;
 
           if (mediaItem.type === "image") {
             try {
@@ -457,11 +477,20 @@ export class VideoEngine {
                     clipLocalTime * 1000,
                   );
                   bitmap = gifCache.frames[frameIndex];
+                  bitmapFromCache = true;
                 } else {
                   bitmap = await createImageBitmap(mediaItem.blob);
                 }
               } else {
-                bitmap = await createImageBitmap(mediaItem.blob);
+                const cached = this.staticImageCache.get(mediaItem.id);
+                if (cached) {
+                  bitmap = cached;
+                  bitmapFromCache = true;
+                } else {
+                  bitmap = await createImageBitmap(mediaItem.blob);
+                  this.staticImageCache.set(mediaItem.id, bitmap);
+                  bitmapFromCache = true;
+                }
               }
             } catch (error) {
               console.warn(
@@ -579,7 +608,9 @@ export class VideoEngine {
             if (processedBitmap !== bitmap) {
               processedBitmap.close();
             }
-            bitmap.close();
+            if (!bitmapFromCache) {
+              bitmap.close();
+            }
           }
         }
       } else if (track.type === "graphics") {
@@ -638,15 +669,6 @@ export class VideoEngine {
     }
 
     const imageBitmap = await createImageBitmap(canvas);
-
-    if (this.compositeBuffer) {
-      const frameNumber = Math.floor(time * 30);
-      this.compositeBuffer.writeCompositedFrame(
-        await createImageBitmap(imageBitmap),
-        time,
-        frameNumber,
-      );
-    }
 
     return {
       image: imageBitmap,
@@ -1942,6 +1964,13 @@ export class VideoEngine {
     }
     this.frameCache.clear();
     this.cacheStats = { hits: 0, misses: 0 };
+
+    for (const gifCache of this.gifFrameCache.values()) {
+      for (const frame of gifCache.frames) {
+        try { frame.close(); } catch {}
+      }
+    }
+    this.gifFrameCache.clear();
   }
 
   /**
@@ -2263,8 +2292,14 @@ export class VideoEngine {
   dispose(): void {
     this.clearCache();
     this.clearVideoElementCache();
+    for (const bitmap of this.staticImageCache.values()) {
+      try { bitmap.close(); } catch {}
+    }
+    this.staticImageCache.clear();
     this.compositeCanvas = null;
     this.compositeCtx = null;
+    this.decodeCanvas = null;
+    this.decodeCtx = null;
     this.preloadQueue = [];
     this.initialized = false;
     this.mediabunny = null;

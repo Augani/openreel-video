@@ -139,7 +139,7 @@ async function initialize(
 
     videoSource = new VideoSampleSource({
       codec: videoCodec,
-      bitrate: QUALITY_MEDIUM,
+      bitrate: settings.bitrate ? settings.bitrate * 1000 : QUALITY_MEDIUM,
       keyFrameInterval: settings.keyframeInterval / settings.frameRate,
       hardwareAcceleration: "prefer-hardware",
     });
@@ -268,7 +268,7 @@ async function addAudio(audioData: {
 
 async function finalize() {
   while (frameQueue.length > 0 || isProcessing) {
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await new Promise((resolve) => setTimeout(resolve, 5));
   }
 
   if (cancelled || !output || !videoSource || !audioSource || !target) {
