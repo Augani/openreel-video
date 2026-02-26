@@ -172,7 +172,7 @@ const DEFAULT_SNAP_SETTINGS: SnapSettings = {
   snapToPlayhead: true,
   snapToMarkers: true,
   gridSize: 1, // 1 second
-  snapThreshold: 10, // 10 pixels
+  snapThreshold: 40,
 };
 
 const DEFAULT_PANELS: Record<PanelId, PanelState> = {
@@ -532,8 +532,14 @@ export const useUIStore = create<UIState>()(
       }),
       {
         name: "openreel-ui-preferences",
-        // Only persist user preferences, not transient state (selections, drag state, modals)
-        // This prevents localStorage bloat and ensures clean state on new sessions
+        version: 1,
+        migrate: (persisted: unknown, version: number) => {
+          const state = persisted as Record<string, unknown>;
+          if (version === 0) {
+            state.snapSettings = DEFAULT_SNAP_SETTINGS;
+          }
+          return state;
+        },
         partialize: (state) => ({
           snapSettings: state.snapSettings,
           panels: state.panels,
@@ -544,7 +550,6 @@ export const useUIStore = create<UIState>()(
           showKeyframes: state.showKeyframes,
           autoScroll: state.autoScroll,
           skipWelcomeScreen: state.skipWelcomeScreen,
-          // NOT persisted: selectedItems, isDragging, contextMenu, activeModal, showWelcomeScreen
         }),
       },
     ),

@@ -371,9 +371,9 @@ export class ExportEngine {
         fullSettings.codec === "vp9" ||
         fullSettings.codec === "av1" ||
         fullSettings.codec === "h265";
-      const microFlushInterval = isIntensiveCodec ? 5 : 10;
-      const majorFlushInterval = 30;
-      const cacheCleanInterval = 90;
+      const microFlushInterval = isIntensiveCodec ? 10 : 20;
+      const majorFlushInterval = 60;
+      const cacheCleanInterval = 180;
 
       for (let frame = 0; frame < totalFrames; frame++) {
         if (this.abortController.signal.aborted) {
@@ -421,7 +421,7 @@ export class ExportEngine {
         }
 
         if ((frame + 1) % majorFlushInterval === 0) {
-          await new Promise((resolve) => setTimeout(resolve, 50));
+          await new Promise((resolve) => setTimeout(resolve, 10));
         }
 
         if ((frame + 1) % cacheCleanInterval === 0) {
@@ -432,7 +432,7 @@ export class ExportEngine {
           } catch {
             // MediaEngine may not be initialized
           }
-          await new Promise((resolve) => setTimeout(resolve, 100));
+          await new Promise((resolve) => setTimeout(resolve, 10));
         }
 
         yield this.createProgress(
@@ -662,7 +662,7 @@ export class ExportEngine {
     });
 
     let framesInFlight = 0;
-    const MAX_FRAMES_IN_FLIGHT = writableStream ? 1 : 3;
+    const MAX_FRAMES_IN_FLIGHT = writableStream ? 4 : 8;
     let frameProcessedResolve: (() => void) | null = null;
 
     this.exportWorker = new Worker(

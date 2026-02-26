@@ -21,6 +21,7 @@ import {
   Trash2,
   Plus,
   ChevronDown as ChevronDownIcon,
+  Magnet,
 } from "lucide-react";
 import { useProjectStore } from "../../stores/project-store";
 import { useTimelineStore } from "../../stores/timeline-store";
@@ -94,7 +95,7 @@ export const Timeline: React.FC = () => {
 
   const [showLayersPanel, setShowLayersPanel] = useState(false);
 
-  const { select, selectMultiple, clearSelection, getSelectedClipIds } =
+  const { select, selectMultiple, clearSelection, getSelectedClipIds, snapSettings, toggleSnap } =
     useUIStore();
   const selectedClipIds = getSelectedClipIds();
 
@@ -836,6 +837,21 @@ export const Timeline: React.FC = () => {
               </div>
             </PopoverContent>
           </Popover>
+
+          <div className="w-px h-6 bg-border mx-1" />
+
+          <button
+            onClick={toggleSnap}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg transition-colors ${
+              snapSettings.enabled
+                ? "bg-yellow-500/20 text-yellow-400 border border-yellow-500/30"
+                : "hover:bg-background-elevated text-text-muted hover:text-text-secondary"
+            }`}
+            title={snapSettings.enabled ? "Disable snapping" : "Enable snapping"}
+          >
+            <Magnet size={14} />
+            <span className="text-[10px] font-medium tracking-wide">SNAP</span>
+          </button>
         </div>
 
         <div className="font-mono text-primary text-sm font-bold tracking-wider bg-background-tertiary px-4 py-1.5 rounded-lg border border-primary/20 shadow-[0_0_12px_rgba(34,197,94,0.15)]">
@@ -941,6 +957,53 @@ export const Timeline: React.FC = () => {
             }}
             onMouseDown={handleBoxSelectionStart}
             onMouseMove={handleBoxSelectionMove}
+            onDragOver={(e) => {
+              e.preventDefault();
+              e.dataTransfer.dropEffect = "copy";
+            }}
+            onDrop={(e) => {
+              e.preventDefault();
+              try {
+                const rawData = e.dataTransfer.getData("application/json");
+                if (!rawData) return;
+                const data = JSON.parse(rawData);
+                if (!data?.mediaId) return;
+
+                const rect = tracksRef.current?.getBoundingClientRect();
+                if (!rect) return;
+                const x = e.clientX - rect.left + (tracksRef.current?.scrollLeft ?? 0);
+                const rawTime = Math.max(0, x / pixelsPerSecond);
+
+                const allClips = project.timeline.tracks.flatMap(t => t.clips);
+                let snappedTime = rawTime;
+                if (snapSettings.enabled) {
+                  const threshold = snapSettings.snapThreshold / pixelsPerSecond;
+                  let bestDist = Infinity;
+                  for (const clip of allClips) {
+                    const clipEnd = clip.startTime + clip.duration;
+                    const distToEnd = Math.abs(rawTime - clipEnd);
+                    const distToStart = Math.abs(rawTime - clip.startTime);
+                    if (distToEnd < threshold && distToEnd < bestDist) {
+                      bestDist = distToEnd;
+                      snappedTime = clipEnd;
+                    }
+                    if (distToStart < threshold && distToStart < bestDist) {
+                      bestDist = distToStart;
+                      snappedTime = clip.startTime;
+                    }
+                  }
+                  if (snapSettings.snapToPlayhead) {
+                    const distToPlayhead = Math.abs(rawTime - playheadPosition);
+                    if (distToPlayhead < threshold && distToPlayhead < bestDist) {
+                      snappedTime = playheadPosition;
+                    }
+                  }
+                }
+                handleDropMedia("", data.mediaId, snappedTime);
+              } catch {
+                // ignore
+              }
+            }}
           >
             <div
               style={{ width: `${timelineDuration * pixelsPerSecond}px` }}
