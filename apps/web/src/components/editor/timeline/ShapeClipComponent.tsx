@@ -3,6 +3,10 @@ import { Shapes, FileCode, Smile } from "lucide-react";
 import type { ShapeClip, SVGClip, StickerClip } from "@openreel/core";
 import { ContextMenu, ContextMenuTrigger } from "@openreel/ui";
 import { GraphicsClipContextMenu } from "./GraphicsClipContextMenu";
+import { calculateSnap } from "./utils";
+import { useProjectStore } from "../../../stores/project-store";
+import { useTimelineStore } from "../../../stores/timeline-store";
+import { useUIStore } from "../../../stores/ui-store";
 
 type GraphicClipUnion = ShapeClip | SVGClip | StickerClip;
 
@@ -27,6 +31,8 @@ export const ShapeClipComponent: React.FC<ShapeClipComponentProps> = ({
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState(0);
   const [isTrimming, setIsTrimming] = useState<"left" | "right" | null>(null);
+  const { snapSettings } = useUIStore();
+  const { playheadPosition } = useTimelineStore();
   const trimStartRef = useRef<{
     mouseX: number;
     startTime: number;
@@ -83,10 +89,19 @@ export const ShapeClipComponent: React.FC<ShapeClipComponentProps> = ({
 
       const rect = timelineElement.getBoundingClientRect();
       const x = e.clientX - rect.left - dragOffset;
-      const rawTime = x / pixelsPerSecond;
-      const newStartTime = Math.max(0, rawTime);
-
-      onMoveClip(shapeClip.id, newStartTime);
+      const rawTime = Math.max(0, x / pixelsPerSecond);
+      const allTracks = useProjectStore.getState().project.timeline.tracks;
+      const dragSnapSettings = { ...snapSettings, snapToPlayhead: false };
+      const snapResult = calculateSnap(
+        rawTime,
+        shapeClip.id,
+        allTracks,
+        playheadPosition,
+        dragSnapSettings,
+        pixelsPerSecond,
+        shapeClip.duration,
+      );
+      onMoveClip(shapeClip.id, snapResult.time);
     };
 
     const handleMouseUp = () => {
@@ -100,7 +115,7 @@ export const ShapeClipComponent: React.FC<ShapeClipComponentProps> = ({
       window.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("mouseup", handleMouseUp);
     };
-  }, [isDragging, dragOffset, pixelsPerSecond, shapeClip.id, onMoveClip]);
+  }, [isDragging, dragOffset, pixelsPerSecond, shapeClip.id, shapeClip.duration, onMoveClip, snapSettings, playheadPosition]);
 
   useEffect(() => {
     if (!isTrimming) return;

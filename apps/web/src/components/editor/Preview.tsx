@@ -4859,6 +4859,21 @@ export const Preview: React.FC = () => {
                 <Move size={14} className="text-white" />
               </div>
 
+              {/* Aspect ratio lock toggle */}
+              <button
+                className={`absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-1 text-[10px] rounded pointer-events-auto transition-colors ${
+                  lockAspectRatio
+                    ? "bg-cyan-500 text-white"
+                    : "bg-background-tertiary text-text-secondary border border-border hover:bg-background-elevated"
+                }`}
+                onClick={() => setLockAspectRatio(!lockAspectRatio)}
+                title={
+                  lockAspectRatio ? "Unlock aspect ratio" : "Lock aspect ratio"
+                }
+              >
+                {lockAspectRatio ? "🔒 Locked" : "🔓 Free"}
+              </button>
+
               {/* Corner resize handles */}
               <div
                 className="absolute -left-2 -top-2 w-4 h-4 bg-white border-2 border-cyan-500 rounded-sm cursor-nw-resize pointer-events-auto hover:bg-cyan-500 hover:border-white transition-colors"
@@ -4919,6 +4934,21 @@ export const Preview: React.FC = () => {
               >
                 <Move size={14} className="text-white" />
               </div>
+
+              {/* Aspect ratio lock toggle */}
+              <button
+                className={`absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-1 text-[10px] rounded pointer-events-auto transition-colors ${
+                  lockAspectRatio
+                    ? "bg-green-500 text-white"
+                    : "bg-background-tertiary text-text-secondary border border-border hover:bg-background-elevated"
+                }`}
+                onClick={() => setLockAspectRatio(!lockAspectRatio)}
+                title={
+                  lockAspectRatio ? "Unlock aspect ratio" : "Lock aspect ratio"
+                }
+              >
+                {lockAspectRatio ? "🔒 Locked" : "🔓 Free"}
+              </button>
 
               {/* Corner resize handles */}
               <div

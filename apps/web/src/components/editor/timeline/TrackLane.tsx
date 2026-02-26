@@ -10,7 +10,9 @@ import { ClipComponent } from "./ClipComponent";
 import { TextClipComponent } from "./TextClipComponent";
 import { ShapeClipComponent } from "./ShapeClipComponent";
 import { KeyframeTrack } from "./KeyframeTrack";
+import { calculateSnap } from "./utils";
 import { useTimelineStore } from "../../../stores/timeline-store";
+import { useUIStore } from "../../../stores/ui-store";
 
 type GraphicClipUnion = ShapeClip | SVGClip | StickerClip;
 
@@ -81,8 +83,9 @@ export const TrackLane: React.FC<TrackLaneProps> = ({
   onKeyframeDelete,
   selectedKeyframeIds = [],
 }) => {
-  const { isTrackExpanded } = useTimelineStore();
+  const { isTrackExpanded, playheadPosition } = useTimelineStore();
   const isExpanded = isTrackExpanded(track.id);
+  const { snapSettings } = useUIStore();
   const [isDragOver, setIsDragOver] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
   const laneRef = useRef<HTMLDivElement>(null);
@@ -106,6 +109,7 @@ export const TrackLane: React.FC<TrackLaneProps> = ({
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault();
+      e.stopPropagation();
       setIsDragOver(false);
 
       try {
@@ -125,8 +129,16 @@ export const TrackLane: React.FC<TrackLaneProps> = ({
         const rect = laneRef.current?.getBoundingClientRect();
         if (rect) {
           const x = e.clientX - rect.left + scrollX;
-          const startTime = Math.max(0, x / pixelsPerSecond);
-          onDropMedia(track.id, data.mediaId, startTime);
+          const rawTime = Math.max(0, x / pixelsPerSecond);
+          const snapResult = calculateSnap(
+            rawTime,
+            "",
+            allTracks,
+            playheadPosition,
+            snapSettings,
+            pixelsPerSecond,
+          );
+          onDropMedia(track.id, data.mediaId, snapResult.time);
         }
       } catch {
         // Silently ignore parse errors

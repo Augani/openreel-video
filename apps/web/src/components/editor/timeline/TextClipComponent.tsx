@@ -3,6 +3,10 @@ import { Type } from "lucide-react";
 import type { TextClip } from "@openreel/core";
 import { ContextMenu, ContextMenuTrigger } from "@openreel/ui";
 import { GraphicsClipContextMenu } from "./GraphicsClipContextMenu";
+import { calculateSnap } from "./utils";
+import { useProjectStore } from "../../../stores/project-store";
+import { useTimelineStore } from "../../../stores/timeline-store";
+import { useUIStore } from "../../../stores/ui-store";
 
 interface TextClipComponentProps {
   textClip: TextClip;
@@ -25,6 +29,8 @@ export const TextClipComponent: React.FC<TextClipComponentProps> = ({
   const [isTrimming, setIsTrimming] = useState<"left" | "right" | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState(0);
+  const { snapSettings } = useUIStore();
+  const { playheadPosition } = useTimelineStore();
   const trimStartRef = useRef<{
     mouseX: number;
     startTime: number;
@@ -69,8 +75,19 @@ export const TextClipComponent: React.FC<TextClipComponentProps> = ({
       if (!rect) return;
 
       const x = e.clientX - rect.left - dragOffset;
-      const newTime = Math.max(0, x / pixelsPerSecond);
-      onMoveClip(textClip.id, newTime);
+      const rawTime = Math.max(0, x / pixelsPerSecond);
+      const allTracks = useProjectStore.getState().project.timeline.tracks;
+      const dragSnapSettings = { ...snapSettings, snapToPlayhead: false };
+      const snapResult = calculateSnap(
+        rawTime,
+        textClip.id,
+        allTracks,
+        playheadPosition,
+        dragSnapSettings,
+        pixelsPerSecond,
+        textClip.duration,
+      );
+      onMoveClip(textClip.id, snapResult.time);
     };
 
     const handleMouseUp = () => {
@@ -84,7 +101,7 @@ export const TextClipComponent: React.FC<TextClipComponentProps> = ({
       window.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("mouseup", handleMouseUp);
     };
-  }, [isDragging, textClip.id, pixelsPerSecond, dragOffset, onMoveClip]);
+  }, [isDragging, textClip.id, textClip.duration, pixelsPerSecond, dragOffset, onMoveClip, snapSettings, playheadPosition]);
 
   const handleTrimStart = (e: React.MouseEvent, edge: "left" | "right") => {
     if (e.button !== 0) return;

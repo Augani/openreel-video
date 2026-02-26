@@ -45,6 +45,7 @@ import {
   MotionPathSection,
   ParticleEffectsSection,
   AudioTextSyncPanel,
+  AlignmentSection,
 } from "./inspector";
 import {
   getAudioBridgeEffects,
@@ -856,6 +857,22 @@ export const InspectorPanel: React.FC = () => {
                   <SpeedSection clip={selectedClip as Clip} />
                 </Section>
               )}
+
+            {/* Alignment - Position element on canvas */}
+            {(clipType === "video" ||
+              clipType === "image" ||
+              clipType === "text" ||
+              clipType === "shape" ||
+              clipType === "svg" ||
+              clipType === "sticker") && (
+              <Section
+                title="Alignment"
+                sectionId="alignment"
+                defaultOpen={false}
+              >
+                <AlignmentSection clipId={clipId} />
+              </Section>
+            )}
 
             {/* Blending - Layer compositing blend modes */}
             {(clipType === "video" ||

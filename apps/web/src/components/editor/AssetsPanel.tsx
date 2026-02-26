@@ -499,7 +499,11 @@ export const AssetsPanel: React.FC = () => {
         const file = new File([blob], `${preset.name}_${width}x${height}.png`, {
           type: "image/png",
         });
-        await importMedia(file);
+        const result = await importMedia(file);
+        if (result.success && result.actionId) {
+          const { addClipToNewTrack } = useProjectStore.getState();
+          await addClipToNewTrack(result.actionId);
+        }
       } catch (error) {
         console.error("Failed to generate background:", error);
       } finally {

@@ -210,15 +210,16 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
       const x = e.clientX - rect.left - dragOffset;
       const rawTime = Math.max(0, x / pixelsPerSecond);
 
+      const dragSnapSettings = { ...snapSettings, snapToPlayhead: false };
       const snapResult = calculateSnap(
         rawTime,
         clip.id,
         allTracks,
         playheadPosition,
-        snapSettings,
+        dragSnapSettings,
         pixelsPerSecond,
+        clip.duration,
       );
-
       const currentScrollTop = timelineRef.current?.scrollTop || 0;
       const scrollDelta = currentScrollTop - dragStartRef.current.scrollTop;
       const yDelta = (e.clientY - dragStartRef.current.mouseY) + scrollDelta;
@@ -247,7 +248,7 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
 
       pendingDropRef.current = { time: snapResult.time, targetTrackId };
       onMoveClip(clip.id, snapResult.time, undefined);
-      onSnapIndicator(snapResult.snapped ? snapResult.time : null);
+      onSnapIndicator(snapResult.snapped && snapResult.snapPoint ? snapResult.snapPoint.time : null);
     };
 
     const handleMouseUp = () => {

@@ -137,13 +137,11 @@ async function initialize(
       }
     }
 
-    const isLongVideo = settings.width * settings.height > 1920 * 1080 || streamMode;
-
     videoSource = new VideoSampleSource({
       codec: videoCodec,
       bitrate: QUALITY_MEDIUM,
       keyFrameInterval: settings.keyframeInterval / settings.frameRate,
-      hardwareAcceleration: isLongVideo ? "prefer-software" : "prefer-hardware",
+      hardwareAcceleration: "prefer-hardware",
     });
 
     audioSource = new AudioSampleSource({

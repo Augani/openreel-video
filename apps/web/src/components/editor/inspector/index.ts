@@ -37,6 +37,7 @@ export { AudioTextSyncPanel } from "./AudioTextSyncPanel";
 // Graphics & Shapes
 export { ShapeSection } from "./ShapeSection";
 export { SVGSection } from "./SVGSection";
+export { AlignmentSection } from "./AlignmentSection";
 export { SVGImporter } from "./SVGImporter";
 export { StickerPicker } from "./StickerPicker";
 export { StickerPickerPanel } from "./StickerPickerPanel";
