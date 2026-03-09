@@ -216,16 +216,78 @@ export const Toolbar: React.FC = () => {
       mov: "video/quicktime",
       wav: "audio/wav",
     };
-    const handle = await (window as unknown as {
-      showSaveFilePicker: (opts: unknown) => Promise<FileSystemFileHandle>;
-    }).showSaveFilePicker({
-      suggestedName: filename,
-      types: [{
-        description: "Media file",
-        accept: { [mimeMap[ext] || "application/octet-stream"]: [`.${ext}`] },
-      }],
-    });
-    return handle.createWritable();
+    const mime = mimeMap[ext] || "application/octet-stream";
+
+    if ("showSaveFilePicker" in window) {
+      const handle = await (window as unknown as {
+        showSaveFilePicker: (opts: unknown) => Promise<FileSystemFileHandle>;
+      }).showSaveFilePicker({
+        suggestedName: filename,
+        types: [{
+          description: "Media file",
+          accept: { [mime]: [`.${ext}`] },
+        }],
+      });
+      return handle.createWritable();
+    }
+
+    let buffer = new Uint8Array(16 * 1024 * 1024);
+    let length = 0;
+    let cursor = 0;
+
+    const grow = (needed: number) => {
+      if (needed <= buffer.length) return;
+      let newSize = buffer.length;
+      while (newSize < needed) newSize *= 2;
+      const next = new Uint8Array(newSize);
+      next.set(buffer.subarray(0, length));
+      buffer = next;
+    };
+
+    const triggerDownload = () => {
+      const blob = new Blob([buffer.slice(0, length)], { type: mime });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    };
+
+    const writeBytes = (bytes: Uint8Array, position: number) => {
+      const end = position + bytes.byteLength;
+      grow(end);
+      buffer.set(bytes, position);
+      if (end > length) length = end;
+      cursor = end;
+    };
+
+    return {
+      seek(position: number) {
+        cursor = position;
+        return Promise.resolve();
+      },
+      write(data: unknown) {
+        if (data instanceof ArrayBuffer) {
+          writeBytes(new Uint8Array(data), cursor);
+        } else if (ArrayBuffer.isView(data)) {
+          writeBytes(new Uint8Array(data.buffer, data.byteOffset, data.byteLength), cursor);
+        }
+        return Promise.resolve();
+      },
+      close() {
+        triggerDownload();
+        return Promise.resolve();
+      },
+      abort() {
+        return Promise.resolve();
+      },
+      truncate() {
+        return Promise.resolve();
+      },
+    } as unknown as FileSystemWritableFileStream;
   }, []);
 
   const handleExport = useCallback(
@@ -271,7 +333,18 @@ export const Toolbar: React.FC = () => {
           }
 
           if (finalResult?.success && finalResult.blob) {
-            await finalResult.blob.stream().pipeTo(writable as unknown as WritableStream<Uint8Array>);
+            if ("showSaveFilePicker" in window) {
+              await finalResult.blob.stream().pipeTo(writable as unknown as WritableStream<Uint8Array>);
+            } else {
+              const url = URL.createObjectURL(finalResult.blob);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = `${project.name || "export"}.wav`;
+              document.body.appendChild(a);
+              a.click();
+              document.body.removeChild(a);
+              URL.revokeObjectURL(url);
+            }
             setExportState((prev) => ({ ...prev, complete: true, phase: "Saved!" }));
             track(AnalyticsEvents.PROJECT_EXPORTED, {
               format: "wav",
