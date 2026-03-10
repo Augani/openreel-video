@@ -55,6 +55,8 @@ export interface SettingsState {
   defaultTtsProvider: string;
   defaultLlmProvider: string;
   defaultAggregator: string;
+  elevenLabsModel: string;
+  favoriteVoices: Array<{ voiceId: string; name: string; previewUrl?: string }>;
   configuredServices: string[]; // IDs of services with stored API keys
 
   // Settings dialog state
@@ -68,6 +70,9 @@ export interface SettingsState {
   setDefaultTtsProvider: (provider: string) => void;
   setDefaultLlmProvider: (provider: string) => void;
   setDefaultAggregator: (provider: string) => void;
+  setElevenLabsModel: (model: string) => void;
+  addFavoriteVoice: (voice: { voiceId: string; name: string; previewUrl?: string }) => void;
+  removeFavoriteVoice: (voiceId: string) => void;
   addConfiguredService: (serviceId: string) => void;
   removeConfiguredService: (serviceId: string) => void;
   openSettings: (tab?: string) => void;
@@ -85,6 +90,8 @@ export const useSettingsStore = create<SettingsState>()(
         defaultTtsProvider: "elevenlabs",
         defaultLlmProvider: "openai",
         defaultAggregator: "kie-ai",
+        elevenLabsModel: "eleven_multilingual_v2",
+        favoriteVoices: [],
         configuredServices: [],
 
         settingsOpen: false,
@@ -105,6 +112,21 @@ export const useSettingsStore = create<SettingsState>()(
 
         setDefaultAggregator: (provider: string) =>
           set({ defaultAggregator: provider }),
+
+        setElevenLabsModel: (model: string) =>
+          set({ elevenLabsModel: model }),
+
+        addFavoriteVoice: (voice) => {
+          const { favoriteVoices } = get();
+          if (!favoriteVoices.some((v) => v.voiceId === voice.voiceId)) {
+            set({ favoriteVoices: [...favoriteVoices, voice] });
+          }
+        },
+
+        removeFavoriteVoice: (voiceId: string) => {
+          const { favoriteVoices } = get();
+          set({ favoriteVoices: favoriteVoices.filter((v) => v.voiceId !== voiceId) });
+        },
 
         addConfiguredService: (serviceId: string) => {
           const { configuredServices } = get();
@@ -138,6 +160,8 @@ export const useSettingsStore = create<SettingsState>()(
           defaultTtsProvider: state.defaultTtsProvider,
           defaultLlmProvider: state.defaultLlmProvider,
           defaultAggregator: state.defaultAggregator,
+          elevenLabsModel: state.elevenLabsModel,
+          favoriteVoices: state.favoriteVoices,
           configuredServices: state.configuredServices,
         }),
       },
