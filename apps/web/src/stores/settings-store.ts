@@ -57,6 +57,7 @@ export interface SettingsState {
   defaultAggregator: string;
   elevenLabsModel: string;
   favoriteVoices: Array<{ voiceId: string; name: string; previewUrl?: string }>;
+  favoriteModels: Array<{ modelId: string; name: string }>;
   configuredServices: string[]; // IDs of services with stored API keys
 
   // Settings dialog state
@@ -73,6 +74,8 @@ export interface SettingsState {
   setElevenLabsModel: (model: string) => void;
   addFavoriteVoice: (voice: { voiceId: string; name: string; previewUrl?: string }) => void;
   removeFavoriteVoice: (voiceId: string) => void;
+  addFavoriteModel: (model: { modelId: string; name: string }) => void;
+  removeFavoriteModel: (modelId: string) => void;
   addConfiguredService: (serviceId: string) => void;
   removeConfiguredService: (serviceId: string) => void;
   openSettings: (tab?: string) => void;
@@ -90,8 +93,9 @@ export const useSettingsStore = create<SettingsState>()(
         defaultTtsProvider: "elevenlabs",
         defaultLlmProvider: "openai",
         defaultAggregator: "kie-ai",
-        elevenLabsModel: "eleven_multilingual_v2",
+        elevenLabsModel: "eleven_v3",
         favoriteVoices: [],
+        favoriteModels: [],
         configuredServices: [],
 
         settingsOpen: false,
@@ -128,6 +132,18 @@ export const useSettingsStore = create<SettingsState>()(
           set({ favoriteVoices: favoriteVoices.filter((v) => v.voiceId !== voiceId) });
         },
 
+        addFavoriteModel: (model) => {
+          const { favoriteModels } = get();
+          if (!favoriteModels.some((m) => m.modelId === model.modelId)) {
+            set({ favoriteModels: [...favoriteModels, model] });
+          }
+        },
+
+        removeFavoriteModel: (modelId: string) => {
+          const { favoriteModels } = get();
+          set({ favoriteModels: favoriteModels.filter((m) => m.modelId !== modelId) });
+        },
+
         addConfiguredService: (serviceId: string) => {
           const { configuredServices } = get();
           if (!configuredServices.includes(serviceId)) {
@@ -162,6 +178,7 @@ export const useSettingsStore = create<SettingsState>()(
           defaultAggregator: state.defaultAggregator,
           elevenLabsModel: state.elevenLabsModel,
           favoriteVoices: state.favoriteVoices,
+          favoriteModels: state.favoriteModels,
           configuredServices: state.configuredServices,
         }),
       },

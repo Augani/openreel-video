@@ -8,17 +8,19 @@ import {
   Volume2,
   User,
   Download,
+  FolderPlus,
   Settings,
   Search,
   Star,
   StarOff,
   ChevronDown,
+  Sparkles,
 } from "lucide-react";
-import { Slider } from "@openreel/ui";
+import { Slider, Switch } from "@openreel/ui";
 import { useProjectStore } from "../../../stores/project-store";
 import { useSettingsStore } from "../../../stores/settings-store";
 import { isSessionUnlocked, getSecret } from "../../../services/secure-storage";
-import { OPENREEL_TTS_URL, ELEVENLABS_API_URL } from "../../../config/api-endpoints";
+import { OPENREEL_TTS_URL, ELEVENLABS_API_URL, OPENAI_API_URL, ANTHROPIC_API_URL } from "../../../config/api-endpoints";
 
 type TtsProvider = "piper" | "elevenlabs";
 
@@ -27,12 +29,28 @@ const TTS_PROVIDERS = [
   { id: "elevenlabs" as const, label: "ElevenLabs", description: "Premium AI voices" },
 ];
 
-const ELEVENLABS_MODELS = [
-  { id: "eleven_multilingual_v2", label: "Multilingual v2", description: "Best quality, 29 languages" },
-  { id: "eleven_turbo_v2_5", label: "Turbo v2.5", description: "Low latency, high quality" },
-  { id: "eleven_turbo_v2", label: "Turbo v2", description: "Low latency, English optimized" },
-  { id: "eleven_monolingual_v1", label: "English v1", description: "Legacy English model" },
+// Fallback models used when the API is unavailable
+const FALLBACK_MODELS: ElevenLabsModel[] = [
+  { model_id: "eleven_v3", name: "Eleven v3", description: "Latest ElevenLabs model", can_do_text_to_speech: true, languages: [] },
 ];
+
+const ENHANCE_SYSTEM_PROMPT = `You are a professional voice director transforming text into expressive, emotionally rich scripts for ElevenLabs v3 TTS. Your goal is to turn narration into performance.
+
+Analyze the input for speaker intent, emotional arc, subtext, physical state, relationship dynamics, pacing needs, and environmental context.
+
+Use the 4-Layer System: Delivery (HOW), Tone (emotional color), Texture (voice quality), Subtext (what's beneath). Layer 1-3 tags per emotional beat.
+
+Available tags include: [authoritatively], [hesitantly], [breathlessly], [whispered], [softly], [sighs], [chuckles], [laughs], [sobs], [gasps], [pause:200ms], and many more.
+
+Rules: Do not alter original text. Do not over-tag. Do not use conflicting tags. Output ONLY enhanced text with tags, no explanations.`;
+
+interface ElevenLabsModel {
+  model_id: string;
+  name: string;
+  description?: string;
+  can_do_text_to_speech?: boolean;
+  languages?: Array<{ language_id: string; name: string }>;
+}
 
 interface Voice {
   id: string;
@@ -54,21 +72,27 @@ const PIPER_VOICES: Voice[] = [
   { id: "ryan", name: "Ryan", gender: "male", language: "en-US" },
 ];
 
-// Voice cache to avoid re-fetching
+// Session caches to avoid re-fetching within the same page session
 let cachedElevenLabsVoices: ElevenLabsVoice[] | null = null;
+let cachedElevenLabsModels: ElevenLabsModel[] | null = null;
 
 export const TextToSpeechPanel: React.FC = () => {
   const importMedia = useProjectStore((state) => state.importMedia);
   const project = useProjectStore((state) => state.project);
   const {
     defaultTtsProvider,
+    defaultLlmProvider,
     openSettings,
+    settingsOpen,
     configuredServices,
     elevenLabsModel,
     setElevenLabsModel,
     favoriteVoices,
     addFavoriteVoice,
     removeFavoriteVoice,
+    favoriteModels,
+    addFavoriteModel,
+    removeFavoriteModel,
   } = useSettingsStore();
 
   const defaultProvider: TtsProvider =
@@ -88,6 +112,9 @@ export const TextToSpeechPanel: React.FC = () => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [generatedAudio, setGeneratedAudio] = useState<Blob | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [enhanceText, setEnhanceText] = useState(false);
+  const [isEnhancing, setIsEnhancing] = useState(false);
+  const [enhancedPreview, setEnhancedPreview] = useState<string | null>(null);
 
   // Voice search state
   const [voiceSearch, setVoiceSearch] = useState("");
@@ -96,11 +123,56 @@ export const TextToSpeechPanel: React.FC = () => {
   const [showAllVoices, setShowAllVoices] = useState(false);
   const [previewingVoice, setPreviewingVoice] = useState<string | null>(null);
 
+  // Model state
+  const [allModels, setAllModels] = useState<ElevenLabsModel[]>([]);
+  const [isLoadingModels, setIsLoadingModels] = useState(false);
+  const [showAllModels, setShowAllModels] = useState(false);
+
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioUrlRef = useRef<string | null>(null);
   const previewAudioRef = useRef<HTMLAudioElement | null>(null);
 
   const hasElevenLabsKey = configuredServices.includes("elevenlabs");
+
+  // Fetch ElevenLabs models from API
+  const fetchModels = useCallback(async () => {
+    if (cachedElevenLabsModels) {
+      setAllModels(cachedElevenLabsModels);
+      return;
+    }
+
+    if (!isSessionUnlocked()) {
+      setAllModels(FALLBACK_MODELS);
+      return;
+    }
+
+    const apiKey = await getSecret("elevenlabs");
+    if (!apiKey) {
+      setAllModels(FALLBACK_MODELS);
+      return;
+    }
+
+    setIsLoadingModels(true);
+    try {
+      const response = await fetch(`${ELEVENLABS_API_URL}/models`, {
+        headers: { "xi-api-key": apiKey },
+      });
+
+      if (!response.ok) throw new Error("Failed to fetch models");
+
+      const data = await response.json();
+      // API returns an array of Model objects directly
+      const models = (Array.isArray(data) ? data : []) as ElevenLabsModel[];
+      // Only keep TTS-capable models
+      const ttsModels = models.filter((m) => m.can_do_text_to_speech !== false);
+      cachedElevenLabsModels = ttsModels;
+      setAllModels(ttsModels);
+    } catch {
+      setAllModels(FALLBACK_MODELS);
+    } finally {
+      setIsLoadingModels(false);
+    }
+  }, []);
 
   // Fetch ElevenLabs voices
   const fetchVoices = useCallback(async () => {
@@ -134,41 +206,78 @@ export const TextToSpeechPanel: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (provider === "elevenlabs" && hasElevenLabsKey && allVoices.length === 0) {
-      fetchVoices();
+    if (provider === "elevenlabs" && hasElevenLabsKey) {
+      if (allVoices.length === 0) fetchVoices();
+      if (allModels.length === 0) fetchModels();
     }
-  }, [provider, hasElevenLabsKey, allVoices.length, fetchVoices]);
+  }, [provider, hasElevenLabsKey, allVoices.length, allModels.length, fetchVoices, fetchModels]);
+
+  // Re-fetch when settings dialog closes (user may have just unlocked the session)
+  const prevSettingsOpen = useRef(settingsOpen);
+  useEffect(() => {
+    if (prevSettingsOpen.current && !settingsOpen) {
+      // Settings just closed — re-check if session is now unlocked
+      if (provider === "elevenlabs" && hasElevenLabsKey && isSessionUnlocked()) {
+        if (allVoices.length === 0) fetchVoices();
+        if (allModels.length === 0) fetchModels();
+      }
+    }
+    prevSettingsOpen.current = settingsOpen;
+  }, [settingsOpen, provider, hasElevenLabsKey, allVoices.length, allModels.length, fetchVoices, fetchModels]);
 
   // Preview a voice sample
   const previewVoice = useCallback((previewUrl?: string, voiceId?: string) => {
     if (!previewUrl) return;
 
-    if (previewingVoice === voiceId) {
-      previewAudioRef.current?.pause();
+    // Toggle off if already previewing this voice
+    if (previewAudioRef.current && previewingVoice === voiceId) {
+      previewAudioRef.current.pause();
+      previewAudioRef.current = null;
       setPreviewingVoice(null);
       return;
     }
 
+    // Stop any currently playing preview
     if (previewAudioRef.current) {
       previewAudioRef.current.pause();
+      previewAudioRef.current = null;
     }
 
-    const audio = new Audio(previewUrl);
-    previewAudioRef.current = audio;
     setPreviewingVoice(voiceId ?? null);
 
-    audio.onended = () => setPreviewingVoice(null);
-    audio.play().catch(() => setPreviewingVoice(null));
+    const audio = new Audio();
+    audio.crossOrigin = "anonymous";
+    previewAudioRef.current = audio;
+
+    audio.onended = () => {
+      previewAudioRef.current = null;
+      setPreviewingVoice(null);
+    };
+    audio.onerror = () => {
+      previewAudioRef.current = null;
+      setPreviewingVoice(null);
+    };
+
+    audio.src = previewUrl;
+    audio.play().catch(() => {
+      previewAudioRef.current = null;
+      setPreviewingVoice(null);
+    });
   }, [previewingVoice]);
 
-  const isFavorite = useCallback(
+  const isFavoriteVoice = useCallback(
     (voiceId: string) => favoriteVoices.some((v) => v.voiceId === voiceId),
     [favoriteVoices],
   );
 
-  const toggleFavorite = useCallback(
+  const isFavoriteModel = useCallback(
+    (modelId: string) => favoriteModels.some((m) => m.modelId === modelId),
+    [favoriteModels],
+  );
+
+  const toggleFavoriteVoice = useCallback(
     (voice: ElevenLabsVoice) => {
-      if (isFavorite(voice.voice_id)) {
+      if (isFavoriteVoice(voice.voice_id)) {
         removeFavoriteVoice(voice.voice_id);
       } else {
         addFavoriteVoice({
@@ -178,7 +287,21 @@ export const TextToSpeechPanel: React.FC = () => {
         });
       }
     },
-    [isFavorite, addFavoriteVoice, removeFavoriteVoice],
+    [isFavoriteVoice, addFavoriteVoice, removeFavoriteVoice],
+  );
+
+  const toggleFavoriteModel = useCallback(
+    (model: ElevenLabsModel) => {
+      if (isFavoriteModel(model.model_id)) {
+        removeFavoriteModel(model.model_id);
+      } else {
+        addFavoriteModel({
+          modelId: model.model_id,
+          name: model.name,
+        });
+      }
+    },
+    [isFavoriteModel, addFavoriteModel, removeFavoriteModel],
   );
 
   // Filtered voices for search
@@ -203,6 +326,15 @@ export const TextToSpeechPanel: React.FC = () => {
     if (apiVoice) return apiVoice.name;
     return "TTS";
   }, [provider, selectedVoice, favoriteVoices, allVoices]);
+
+  // Get display name for currently selected model
+  const getSelectedModelName = useCallback((): string => {
+    const model = allModels.find((m) => m.model_id === elevenLabsModel);
+    if (model) return model.name;
+    const favModel = favoriteModels.find((m) => m.modelId === elevenLabsModel);
+    if (favModel) return favModel.name;
+    return elevenLabsModel;
+  }, [elevenLabsModel, allModels, favoriteModels]);
 
   const generateWithPiper = useCallback(async (inputText: string, voice: string, spd: number): Promise<Blob> => {
     const response = await fetch(`${OPENREEL_TTS_URL}/tts`, {
@@ -261,8 +393,98 @@ export const TextToSpeechPanel: React.FC = () => {
     return response.blob();
   }, [elevenLabsModel]);
 
-  const generateSpeech = useCallback(async () => {
+  const enhanceViaLlm = useCallback(async (inputText: string): Promise<string> => {
+    const llmProvider = defaultLlmProvider;
+
+    if (!isSessionUnlocked()) {
+      throw new Error("Session locked. Unlock in Settings > API Keys to use text enhancement.");
+    }
+
+    const apiKey = await getSecret(llmProvider);
+    if (!apiKey) {
+      throw new Error(`${llmProvider === "openai" ? "OpenAI" : "Anthropic"} API key not found. Add it in Settings > API Keys.`);
+    }
+
+    if (llmProvider === "anthropic") {
+      const response = await fetch(`${ANTHROPIC_API_URL}/messages`, {
+        method: "POST",
+        headers: {
+          "x-api-key": apiKey,
+          "anthropic-version": "2023-06-01",
+          "anthropic-dangerous-direct-browser-access": "true",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 2048,
+          system: ENHANCE_SYSTEM_PROMPT,
+          messages: [{ role: "user", content: inputText }],
+        }),
+      });
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error((err as Record<string, unknown>).error
+          ? String((err as Record<string, unknown>).error)
+          : `Anthropic error (${response.status})`);
+      }
+
+      const data = await response.json();
+      const content = (data as { content: Array<{ type: string; text: string }> }).content;
+      return content?.[0]?.text ?? inputText;
+    }
+
+    // OpenAI
+    const response = await fetch(`${OPENAI_API_URL}/chat/completions`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: ENHANCE_SYSTEM_PROMPT },
+          { role: "user", content: inputText },
+        ],
+        max_tokens: 2048,
+      }),
+    });
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      const msg = (err as Record<string, unknown>).error;
+      throw new Error(msg ? String((msg as Record<string, unknown>).message ?? msg) : `OpenAI error (${response.status})`);
+    }
+
+    const data = await response.json();
+    const choices = (data as { choices: Array<{ message: { content: string } }> }).choices;
+    return choices?.[0]?.message?.content ?? inputText;
+  }, [defaultLlmProvider]);
+
+  // Step 1: Enhance text via LLM (shows editable preview, waits for approval)
+  const handleEnhance = useCallback(async () => {
     if (!text.trim()) {
+      setError("Please enter some text");
+      return;
+    }
+
+    setIsEnhancing(true);
+    setError(null);
+
+    try {
+      const result = await enhanceViaLlm(text.trim());
+      setEnhancedPreview(result);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to enhance text");
+    } finally {
+      setIsEnhancing(false);
+    }
+  }, [text, enhanceViaLlm]);
+
+  // Step 2: Generate speech (uses enhanced text if available and approved)
+  const generateSpeech = useCallback(async () => {
+    if (!text.trim() && !enhancedPreview) {
       setError("Please enter some text");
       return;
     }
@@ -277,9 +499,12 @@ export const TextToSpeechPanel: React.FC = () => {
     }
 
     try {
+      // Use enhanced text if available, otherwise original
+      const finalText = (enhanceText && enhancedPreview) ? enhancedPreview : text.trim();
+
       const blob = provider === "elevenlabs"
-        ? await generateWithElevenLabs(text.trim(), selectedVoice)
-        : await generateWithPiper(text.trim(), selectedVoice, speed);
+        ? await generateWithElevenLabs(finalText, selectedVoice)
+        : await generateWithPiper(finalText, selectedVoice, speed);
 
       setGeneratedAudio(blob);
 
@@ -294,7 +519,7 @@ export const TextToSpeechPanel: React.FC = () => {
     } finally {
       setIsGenerating(false);
     }
-  }, [text, selectedVoice, speed, provider, generateWithPiper, generateWithElevenLabs]);
+  }, [text, enhancedPreview, enhanceText, selectedVoice, speed, provider, generateWithPiper, generateWithElevenLabs]);
 
   const togglePlayback = useCallback(() => {
     if (!audioRef.current || !audioUrlRef.current) return;
@@ -312,28 +537,57 @@ export const TextToSpeechPanel: React.FC = () => {
     setIsPlaying(false);
   }, []);
 
+  const importToMediaAssets = useCallback(async (): Promise<string | null> => {
+    if (!generatedAudio || !project) return null;
+
+    const voiceName = getSelectedVoiceName();
+    const timestamp = Date.now();
+    const fileName = `${voiceName}_${timestamp}.wav`;
+
+    const file = new File([generatedAudio], fileName, { type: "audio/wav" });
+    const importResult = await importMedia(file);
+
+    if (!importResult.success || !importResult.actionId) {
+      const errorMsg =
+        typeof importResult.error === "string"
+          ? importResult.error
+          : "Failed to import audio";
+      throw new Error(errorMsg);
+    }
+
+    return importResult.actionId;
+  }, [generatedAudio, project, getSelectedVoiceName, importMedia]);
+
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
+  const saveToMedia = useCallback(async () => {
+    if (!generatedAudio || !project) return;
+
+    setIsGenerating(true);
+    setError(null);
+    setSuccessMsg(null);
+
+    try {
+      await importToMediaAssets();
+      setSuccessMsg("Saved to Media Assets");
+      setTimeout(() => setSuccessMsg(null), 3000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save to media");
+    } finally {
+      setIsGenerating(false);
+    }
+  }, [generatedAudio, project, importToMediaAssets]);
+
   const addToTimeline = useCallback(async () => {
     if (!generatedAudio || !project) return;
 
     setIsGenerating(true);
+    setError(null);
 
     try {
-      const voiceName = getSelectedVoiceName();
-      const timestamp = Date.now();
-      const fileName = `${voiceName}_${timestamp}.wav`;
+      const mediaId = await importToMediaAssets();
+      if (!mediaId) return;
 
-      const file = new File([generatedAudio], fileName, { type: "audio/wav" });
-      const importResult = await importMedia(file);
-
-      if (!importResult.success || !importResult.actionId) {
-        const errorMsg =
-          typeof importResult.error === "string"
-            ? importResult.error
-            : "Failed to import audio";
-        throw new Error(errorMsg);
-      }
-
-      const mediaId = importResult.actionId;
       const { addClipToNewTrack } = useProjectStore.getState();
       await addClipToNewTrack(mediaId);
 
@@ -348,7 +602,7 @@ export const TextToSpeechPanel: React.FC = () => {
     } finally {
       setIsGenerating(false);
     }
-  }, [generatedAudio, project, getSelectedVoiceName, importMedia]);
+  }, [generatedAudio, project, importToMediaAssets]);
 
   const downloadAudio = useCallback(() => {
     if (!generatedAudio) return;
@@ -415,6 +669,7 @@ export const TextToSpeechPanel: React.FC = () => {
                   );
                   setGeneratedAudio(null);
                   setShowAllVoices(false);
+                  setShowAllModels(false);
                 }}
                 className={`flex-1 px-2 py-1.5 rounded-lg text-[10px] transition-colors ${
                   provider === p.id
@@ -438,17 +693,113 @@ export const TextToSpeechPanel: React.FC = () => {
           <label className="text-[10px] font-medium text-text-secondary">
             Model
           </label>
-          <select
-            value={elevenLabsModel}
-            onChange={(e) => setElevenLabsModel(e.target.value)}
-            className="w-full h-8 px-2 rounded-lg border border-border bg-background-tertiary text-[10px] text-text-primary focus:border-primary focus:outline-none"
-          >
-            {ELEVENLABS_MODELS.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.label} — {m.description}
-              </option>
-            ))}
-          </select>
+
+          {/* Favorite models */}
+          {favoriteModels.length > 0 && (
+            <div className="space-y-1.5">
+              <span className="text-[9px] text-text-muted flex items-center gap-1">
+                <Star size={9} className="text-amber-400 fill-amber-400" /> Favorite Models
+              </span>
+              <div className="flex flex-wrap gap-1.5">
+                {favoriteModels.map((fav) => (
+                  <button
+                    key={fav.modelId}
+                    onClick={() => setElevenLabsModel(fav.modelId)}
+                    className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] transition-colors ${
+                      elevenLabsModel === fav.modelId
+                        ? "bg-primary text-white font-medium"
+                        : "bg-background-tertiary text-text-secondary hover:text-text-primary border border-border"
+                    }`}
+                  >
+                    <Star size={8} className="text-amber-400 fill-amber-400" />
+                    <span>{fav.name}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Current model display + browse toggle */}
+          <div className="flex items-center gap-2">
+            <div
+              className="flex-1 h-8 px-2 rounded-lg border border-border bg-background-tertiary text-[10px] text-text-primary flex items-center justify-between cursor-pointer hover:border-primary/50 transition-colors"
+              onClick={() => setShowAllModels(!showAllModels)}
+            >
+              <span className="truncate">
+                {isLoadingModels ? "Loading models..." : getSelectedModelName()}
+              </span>
+              <ChevronDown size={12} className={`shrink-0 text-text-muted transition-transform ${showAllModels ? "rotate-180" : ""}`} />
+            </div>
+          </div>
+
+          {/* Model browser */}
+          {showAllModels && (
+            <div className="border border-border rounded-lg overflow-hidden">
+              <div className="max-h-48 overflow-y-auto">
+                {allModels.length === 0 ? (
+                  <div className="p-3 text-center text-[10px] text-text-muted">
+                    {isLoadingModels ? "Loading models..." : "No models available"}
+                  </div>
+                ) : (
+                  allModels.map((model) => {
+                    const isSelected = elevenLabsModel === model.model_id;
+                    const isFav = isFavoriteModel(model.model_id);
+                    const langCount = model.languages?.length ?? 0;
+
+                    return (
+                      <div
+                        key={model.model_id}
+                        className={`flex items-center gap-2 px-2 py-1.5 cursor-pointer transition-colors ${
+                          isSelected
+                            ? "bg-primary/10 border-l-2 border-primary"
+                            : "hover:bg-background-tertiary border-l-2 border-transparent"
+                        }`}
+                        onClick={() => {
+                          setElevenLabsModel(model.model_id);
+                          setShowAllModels(false);
+                        }}
+                      >
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[10px] font-medium text-text-primary truncate">
+                              {model.name}
+                            </span>
+                          </div>
+                          <div className="text-[8px] text-text-muted truncate">
+                            {model.description
+                              ? (model.description.length > 80 ? model.description.slice(0, 80) + "..." : model.description)
+                              : ""}
+                            {langCount > 0 && ` · ${langCount} languages`}
+                          </div>
+                        </div>
+
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleFavoriteModel(model);
+                          }}
+                          className={`p-1 rounded hover:bg-background-elevated transition-colors shrink-0 ${
+                            isFav ? "text-amber-400" : "text-text-muted hover:text-amber-400"
+                          }`}
+                          title={isFav ? "Remove from favorites" : "Add to favorites"}
+                        >
+                          {isFav ? (
+                            <Star size={10} className="fill-current" />
+                          ) : (
+                            <StarOff size={10} />
+                          )}
+                        </button>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+
+              <div className="px-2 py-1 border-t border-border bg-background-secondary text-[8px] text-text-muted text-center">
+                {allModels.length} models available
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -459,18 +810,57 @@ export const TextToSpeechPanel: React.FC = () => {
         </label>
         <textarea
           value={text}
-          onChange={(e) => setText(e.target.value)}
+          onChange={(e) => { setText(e.target.value); setEnhancedPreview(null); }}
           placeholder="Enter the text you want to convert to speech..."
           className="w-full h-24 px-3 py-2 text-[11px] bg-background-tertiary rounded-lg border border-border focus:border-primary focus:outline-none resize-none"
           maxLength={maxChars}
         />
-        <div className="flex justify-end">
+        <div className="flex items-center justify-between">
+          {/* Enhance toggle (ElevenLabs only) */}
+          {provider === "elevenlabs" ? (
+            <div className="flex items-center gap-1.5">
+              <Switch
+                checked={enhanceText}
+                onCheckedChange={setEnhanceText}
+                className="scale-75 origin-left"
+              />
+              <label className="text-[9px] text-text-muted flex items-center gap-1 cursor-pointer" onClick={() => setEnhanceText(!enhanceText)}>
+                <Sparkles size={10} className={enhanceText ? "text-amber-400" : ""} />
+                Enhance for TTS
+              </label>
+            </div>
+          ) : (
+            <div />
+          )}
           <span
             className={`text-[9px] ${charCount > maxChars * 0.9 ? "text-red-400" : "text-text-muted"}`}
           >
             {charCount}/{maxChars}
           </span>
         </div>
+
+        {/* Enhanced text preview — editable */}
+        {enhancedPreview && enhanceText && (
+          <div className="p-2 bg-amber-500/5 border border-amber-500/20 rounded-lg space-y-1.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1">
+                <Sparkles size={9} className="text-amber-400" />
+                <span className="text-[9px] font-medium text-amber-400">Enhanced — edit below then Generate</span>
+              </div>
+              <button
+                onClick={() => setEnhancedPreview(null)}
+                className="text-[9px] text-text-muted hover:text-red-400 transition-colors"
+              >
+                Discard
+              </button>
+            </div>
+            <textarea
+              value={enhancedPreview}
+              onChange={(e) => setEnhancedPreview(e.target.value)}
+              className="w-full h-24 px-2 py-1.5 text-[10px] bg-background-tertiary rounded-md border border-amber-500/20 focus:border-amber-500/50 focus:outline-none resize-none text-text-primary leading-relaxed"
+            />
+          </div>
+        )}
       </div>
 
       {/* Voice selector */}
@@ -573,14 +963,22 @@ export const TextToSpeechPanel: React.FC = () => {
                 <div className="max-h-48 overflow-y-auto">
                   {filteredVoices.length === 0 ? (
                     <div className="p-3 text-center text-[10px] text-text-muted">
-                      {isLoadingVoices ? "Loading voices..." : allVoices.length === 0 ? "Unlock session to browse voices" : "No voices match your search"}
+                      {isLoadingVoices ? "Loading voices..." : allVoices.length === 0 ? (
+                        <button
+                          onClick={() => openSettings("api-keys")}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-400 hover:bg-amber-500/25 transition-colors font-medium"
+                        >
+                          <Settings size={12} />
+                          Unlock session to browse voices
+                        </button>
+                      ) : "No voices match your search"}
                     </div>
                   ) : (
                     filteredVoices.map((voice) => {
                       const gender = voice.labels?.gender ?? "";
                       const accent = voice.labels?.accent ?? "";
                       const isSelected = selectedVoice === voice.voice_id;
-                      const isFav = isFavorite(voice.voice_id);
+                      const isFav = isFavoriteVoice(voice.voice_id);
 
                       return (
                         <div
@@ -628,7 +1026,7 @@ export const TextToSpeechPanel: React.FC = () => {
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                toggleFavorite(voice);
+                                toggleFavoriteVoice(voice);
                               }}
                               className={`p-1 rounded hover:bg-background-elevated transition-colors ${
                                 isFav ? "text-amber-400" : "text-text-muted hover:text-amber-400"
@@ -684,14 +1082,50 @@ export const TextToSpeechPanel: React.FC = () => {
       )}
 
       {error && (
-        <div className="p-2 bg-red-500/10 border border-red-500/30 rounded-lg">
+        <div className="p-2 bg-red-500/10 border border-red-500/30 rounded-lg flex items-center justify-between gap-2">
           <p className="text-[10px] text-red-400">{error}</p>
+          {error.includes("API key") || error.includes("Session locked") || error.includes("Unlock") ? (
+            <button
+              onClick={() => openSettings("api-keys")}
+              className="shrink-0 px-2 py-1 rounded text-[9px] font-medium bg-red-500/20 text-red-300 hover:bg-red-500/30 transition-colors"
+            >
+              Open Settings
+            </button>
+          ) : null}
         </div>
       )}
 
+      {successMsg && (
+        <div className="p-2 bg-green-500/10 border border-green-500/30 rounded-lg">
+          <p className="text-[10px] text-green-400">{successMsg}</p>
+        </div>
+      )}
+
+      {/* Enhance button: shown when toggle is on and no enhanced text yet */}
+      {enhanceText && provider === "elevenlabs" && !enhancedPreview && (
+        <button
+          onClick={handleEnhance}
+          disabled={isEnhancing || !text.trim()}
+          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-amber-500 text-white rounded-lg text-[11px] font-medium transition-all hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {isEnhancing ? (
+            <>
+              <Loader2 size={14} className="animate-spin" />
+              Enhancing...
+            </>
+          ) : (
+            <>
+              <Sparkles size={14} />
+              Enhance Text
+            </>
+          )}
+        </button>
+      )}
+
+      {/* Generate button */}
       <button
         onClick={generateSpeech}
-        disabled={isGenerating || !text.trim() || (provider === "elevenlabs" && !selectedVoice)}
+        disabled={isGenerating || !text.trim() || (provider === "elevenlabs" && !selectedVoice) || (enhanceText && provider === "elevenlabs" && !enhancedPreview)}
         className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-primary text-white rounded-lg text-[11px] font-medium transition-all hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed"
       >
         {isGenerating ? (
@@ -737,16 +1171,25 @@ export const TextToSpeechPanel: React.FC = () => {
 
           <div className="flex gap-2">
             <button
-              onClick={addToTimeline}
+              onClick={saveToMedia}
               disabled={isGenerating}
               className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-primary text-white rounded-lg text-[10px] font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
             >
+              <FolderPlus size={12} />
+              Save to Media
+            </button>
+            <button
+              onClick={addToTimeline}
+              disabled={isGenerating}
+              className="px-3 py-2 bg-background-secondary border border-border rounded-lg text-[10px] text-text-secondary hover:text-text-primary transition-colors"
+              title="Add to Timeline"
+            >
               <Plus size={12} />
-              Add to Timeline
             </button>
             <button
               onClick={downloadAudio}
               className="px-3 py-2 bg-background-secondary border border-border rounded-lg text-[10px] text-text-secondary hover:text-text-primary transition-colors"
+              title="Download"
             >
               <Download size={12} />
             </button>
@@ -756,7 +1199,7 @@ export const TextToSpeechPanel: React.FC = () => {
 
       <p className="text-[9px] text-text-muted text-center">
         Powered by {provider === "elevenlabs" ? "ElevenLabs" : "Piper TTS"}
-        {provider === "elevenlabs" && ` • ${ELEVENLABS_MODELS.find((m) => m.id === elevenLabsModel)?.label ?? elevenLabsModel}`}
+        {provider === "elevenlabs" && ` · ${getSelectedModelName()}`}
       </p>
     </div>
   );
