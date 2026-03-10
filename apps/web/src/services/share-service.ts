@@ -1,6 +1,6 @@
-const CLOUD_API_URL = import.meta.env.PROD
-  ? "https://openreel-cloud.niiyeboah1996.workers.dev"
-  : "http://localhost:8787";
+import { OPENREEL_CLOUD_URL } from "../config/api-endpoints";
+
+const CLOUD_API_URL = OPENREEL_CLOUD_URL;
 
 export interface ShareResult {
   shareId: string;

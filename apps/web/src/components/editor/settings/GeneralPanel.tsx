@@ -18,9 +18,12 @@ export const GeneralPanel: React.FC = () => {
     setDefaultAggregator,
   } = useSettingsStore();
 
-  const ttsProviders = SERVICE_REGISTRY.filter(
-    (s) => s.id === "elevenlabs" || configuredServices.includes(s.id),
-  );
+  const ttsProviders = [
+    { id: "piper", label: "Piper (Free / Built-in)" },
+    ...SERVICE_REGISTRY.filter(
+      (s) => s.id === "elevenlabs" || configuredServices.includes(s.id),
+    ),
+  ];
 
   const llmProviders = SERVICE_REGISTRY.filter(
     (s) =>
