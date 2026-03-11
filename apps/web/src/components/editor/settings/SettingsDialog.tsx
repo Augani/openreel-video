@@ -7,21 +7,21 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@openreel/ui";
-import { useSettingsStore } from "../../../stores/settings-store";
+import { useSettingsStore, type SettingsTab } from "../../../stores/settings-store";
 import { GeneralPanel } from "./GeneralPanel";
 import { ApiKeysPanel } from "./ApiKeysPanel";
 
-const TABS = [
+const TABS: readonly { id: SettingsTab; label: string; icon: typeof Settings }[] = [
   { id: "general", label: "General", icon: Settings },
   { id: "api-keys", label: "API Keys", icon: Key },
-] as const;
+];
 
 export const SettingsDialog: React.FC = () => {
-  const { settingsOpen, settingsTab, closeSettings } = useSettingsStore();
+  const { settingsOpen, settingsTab, closeSettings, openSettings } = useSettingsStore();
 
-  const setTab = useCallback((tab: string) => {
-    useSettingsStore.setState({ settingsTab: tab });
-  }, []);
+  const setTab = useCallback((tab: SettingsTab) => {
+    openSettings(tab);
+  }, [openSettings]);
 
   return (
     <Dialog open={settingsOpen} onOpenChange={(open) => !open && closeSettings()}>

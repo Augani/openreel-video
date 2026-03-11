@@ -36,6 +36,11 @@ interface MetaRecord {
 let derivedKey: CryptoKey | null = null;
 let inactivityTimer: ReturnType<typeof setTimeout> | null = null;
 
+const MAX_UNLOCK_ATTEMPTS = 5;
+const BASE_BACKOFF_MS = 1_000;
+let failedAttempts = 0;
+let lockedUntil = 0;
+
 // Listeners notified when the session locks (for cache cleanup, etc.)
 const lockListeners: Array<() => void> = [];
 
@@ -223,7 +228,26 @@ export async function setupMasterPassword(password: string): Promise<void> {
  * Unlock the session with the master password.
  * Verifies the password against the stored verification token.
  */
+export function getUnlockBackoffMs(): number {
+  if (failedAttempts === 0) return 0;
+  const now = Date.now();
+  return Math.max(0, lockedUntil - now);
+}
+
 export async function unlockSession(password: string): Promise<boolean> {
+  if (failedAttempts >= MAX_UNLOCK_ATTEMPTS) {
+    throw new Error(
+      "Account locked after too many failed attempts. Reset secure storage to regain access.",
+    );
+  }
+
+  const remaining = getUnlockBackoffMs();
+  if (remaining > 0) {
+    throw new Error(
+      `Too many failed attempts. Try again in ${Math.ceil(remaining / 1000)}s.`,
+    );
+  }
+
   const db = await openDatabase();
   try {
     const saltMeta = await idbTransaction<MetaRecord | undefined>(
@@ -261,15 +285,20 @@ export async function unlockSession(password: string): Promise<boolean> {
       const decrypted = await decrypt(verificationMeta.value as ArrayBuffer, iv, key);
 
       if (decrypted !== "openreel-verify-v1") {
+        failedAttempts++;
+        lockedUntil = Date.now() + BASE_BACKOFF_MS * Math.pow(2, failedAttempts - 1);
         return false;
       }
     } catch {
-      // Decryption failure means wrong password
+      failedAttempts++;
+      lockedUntil = Date.now() + BASE_BACKOFF_MS * Math.pow(2, failedAttempts - 1);
       return false;
     }
 
+    failedAttempts = 0;
+    lockedUntil = 0;
     derivedKey = key;
-  
+
     resetInactivityTimer();
     return true;
   } finally {
@@ -457,6 +486,10 @@ export async function getSecret(id: string): Promise<string | null> {
  * Delete a secret.
  */
 export async function deleteSecret(id: string): Promise<void> {
+  if (!derivedKey) {
+    throw new Error("Session is locked");
+  }
+
   const db = await openDatabase();
   try {
     await idbTransaction(db, STORE_SECRETS, "readwrite", (store) =>

@@ -46,16 +46,21 @@ export const SERVICE_REGISTRY: readonly ServiceConfig[] = [
   },
 ] as const;
 
+export type TtsProvider = "piper" | "elevenlabs";
+export type LlmProvider = "openai" | "anthropic";
+export type AggregatorProvider = "kie-ai" | "freepik";
+export type SettingsTab = "general" | "api-keys";
+
 export interface SettingsState {
   // General preferences
   autoSave: boolean;
-  autoSaveInterval: number; // minutes
+  autoSaveInterval: number;
   language: string;
 
   // AI/Service preferences
-  defaultTtsProvider: string;
-  defaultLlmProvider: string;
-  defaultAggregator: string;
+  defaultTtsProvider: TtsProvider;
+  defaultLlmProvider: LlmProvider;
+  defaultAggregator: AggregatorProvider;
   elevenLabsModel: string;
   favoriteVoices: Array<{ voiceId: string; name: string; previewUrl?: string }>;
   favoriteModels: Array<{ modelId: string; name: string }>;
@@ -67,15 +72,15 @@ export interface SettingsState {
 
   // Settings dialog state
   settingsOpen: boolean;
-  settingsTab: string;
+  settingsTab: SettingsTab;
 
   // Actions
   setAutoSave: (enabled: boolean) => void;
   setAutoSaveInterval: (minutes: number) => void;
   setLanguage: (lang: string) => void;
-  setDefaultTtsProvider: (provider: string) => void;
-  setDefaultLlmProvider: (provider: string) => void;
-  setDefaultAggregator: (provider: string) => void;
+  setDefaultTtsProvider: (provider: TtsProvider) => void;
+  setDefaultLlmProvider: (provider: LlmProvider) => void;
+  setDefaultAggregator: (provider: AggregatorProvider) => void;
   setElevenLabsModel: (model: string) => void;
   addFavoriteVoice: (voice: { voiceId: string; name: string; previewUrl?: string }) => void;
   removeFavoriteVoice: (voiceId: string) => void;
@@ -86,7 +91,7 @@ export interface SettingsState {
   setCachedElevenLabsVoices: (voices: SettingsState["cachedElevenLabsVoices"]) => void;
   setCachedElevenLabsModels: (models: SettingsState["cachedElevenLabsModels"]) => void;
   clearApiCaches: () => void;
-  openSettings: (tab?: string) => void;
+  openSettings: (tab?: SettingsTab) => void;
   closeSettings: () => void;
 }
 
@@ -98,9 +103,9 @@ export const useSettingsStore = create<SettingsState>()(
         autoSaveInterval: 5,
         language: "en",
 
-        defaultTtsProvider: "elevenlabs",
-        defaultLlmProvider: "openai",
-        defaultAggregator: "kie-ai",
+        defaultTtsProvider: "elevenlabs" as TtsProvider,
+        defaultLlmProvider: "openai" as LlmProvider,
+        defaultAggregator: "kie-ai" as AggregatorProvider,
         elevenLabsModel: "eleven_v3",
         favoriteVoices: [],
         favoriteModels: [],
@@ -110,7 +115,7 @@ export const useSettingsStore = create<SettingsState>()(
         cachedElevenLabsModels: null,
 
         settingsOpen: false,
-        settingsTab: "general",
+        settingsTab: "general" as SettingsTab,
 
         setAutoSave: (enabled: boolean) => set({ autoSave: enabled }),
 
@@ -119,13 +124,13 @@ export const useSettingsStore = create<SettingsState>()(
 
         setLanguage: (lang: string) => set({ language: lang }),
 
-        setDefaultTtsProvider: (provider: string) =>
+        setDefaultTtsProvider: (provider: TtsProvider) =>
           set({ defaultTtsProvider: provider }),
 
-        setDefaultLlmProvider: (provider: string) =>
+        setDefaultLlmProvider: (provider: LlmProvider) =>
           set({ defaultLlmProvider: provider }),
 
-        setDefaultAggregator: (provider: string) =>
+        setDefaultAggregator: (provider: AggregatorProvider) =>
           set({ defaultAggregator: provider }),
 
         setElevenLabsModel: (model: string) =>
@@ -178,7 +183,7 @@ export const useSettingsStore = create<SettingsState>()(
         clearApiCaches: () =>
           set({ cachedElevenLabsVoices: null, cachedElevenLabsModels: null }),
 
-        openSettings: (tab?: string) =>
+        openSettings: (tab?: SettingsTab) =>
           set({
             settingsOpen: true,
             settingsTab: tab ?? get().settingsTab,

@@ -1,7 +1,7 @@
 import React from "react";
 import { Switch } from "@openreel/ui";
 import { Label } from "@openreel/ui";
-import { useSettingsStore, SERVICE_REGISTRY } from "../../../stores/settings-store";
+import { useSettingsStore, SERVICE_REGISTRY, type TtsProvider, type LlmProvider, type AggregatorProvider } from "../../../stores/settings-store";
 
 export const GeneralPanel: React.FC = () => {
   const {
@@ -95,7 +95,7 @@ export const GeneralPanel: React.FC = () => {
             </Label>
             <select
               value={defaultTtsProvider}
-              onChange={(e) => setDefaultTtsProvider(e.target.value)}
+              onChange={(e) => setDefaultTtsProvider(e.target.value as TtsProvider)}
               className="h-9 rounded-md border border-input bg-background px-3 text-sm min-w-[140px]"
             >
               {ttsProviders.map((s) => (
@@ -112,7 +112,7 @@ export const GeneralPanel: React.FC = () => {
             </Label>
             <select
               value={defaultLlmProvider}
-              onChange={(e) => setDefaultLlmProvider(e.target.value)}
+              onChange={(e) => setDefaultLlmProvider(e.target.value as LlmProvider)}
               className="h-9 rounded-md border border-input bg-background px-3 text-sm min-w-[140px]"
             >
               {llmProviders.map((s) => (
@@ -134,7 +134,7 @@ export const GeneralPanel: React.FC = () => {
             </div>
             <select
               value={defaultAggregator}
-              onChange={(e) => setDefaultAggregator(e.target.value)}
+              onChange={(e) => setDefaultAggregator(e.target.value as AggregatorProvider)}
               className="h-9 rounded-md border border-input bg-background px-3 text-sm min-w-[140px]"
             >
               {aggregatorProviders.map((s) => (

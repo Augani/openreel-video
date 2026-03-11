@@ -18,12 +18,10 @@ import {
 } from "lucide-react";
 import { Slider, Switch } from "@openreel/ui";
 import { useProjectStore } from "../../../stores/project-store";
-import { useSettingsStore } from "../../../stores/settings-store";
+import { useSettingsStore, type TtsProvider } from "../../../stores/settings-store";
 import { isSessionUnlocked, getSecret } from "../../../services/secure-storage";
 import { apiFetch } from "../../../services/api-proxy";
 import { OPENREEL_TTS_URL } from "../../../config/api-endpoints";
-
-type TtsProvider = "piper" | "elevenlabs";
 
 const TTS_PROVIDERS = [
   { id: "piper" as const, label: "Piper (Free)", description: "Built-in open-source TTS" },
