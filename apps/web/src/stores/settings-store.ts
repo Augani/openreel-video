@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { subscribeWithSelector, persist } from "zustand/middleware";
+import { onSessionLock } from "../services/secure-storage";
 
 export interface ServiceConfig {
   readonly id: string;
@@ -60,6 +61,10 @@ export interface SettingsState {
   favoriteModels: Array<{ modelId: string; name: string }>;
   configuredServices: string[]; // IDs of services with stored API keys
 
+  // Session-scoped API caches (cleared on session lock, not persisted)
+  cachedElevenLabsVoices: Array<{ voice_id: string; name: string; category: string; labels: Record<string, string>; preview_url?: string }> | null;
+  cachedElevenLabsModels: Array<{ model_id: string; name: string; description?: string; can_do_text_to_speech?: boolean; languages?: Array<{ language_id: string; name: string }> }> | null;
+
   // Settings dialog state
   settingsOpen: boolean;
   settingsTab: string;
@@ -78,6 +83,9 @@ export interface SettingsState {
   removeFavoriteModel: (modelId: string) => void;
   addConfiguredService: (serviceId: string) => void;
   removeConfiguredService: (serviceId: string) => void;
+  setCachedElevenLabsVoices: (voices: SettingsState["cachedElevenLabsVoices"]) => void;
+  setCachedElevenLabsModels: (models: SettingsState["cachedElevenLabsModels"]) => void;
+  clearApiCaches: () => void;
   openSettings: (tab?: string) => void;
   closeSettings: () => void;
 }
@@ -97,6 +105,9 @@ export const useSettingsStore = create<SettingsState>()(
         favoriteVoices: [],
         favoriteModels: [],
         configuredServices: [],
+
+        cachedElevenLabsVoices: null,
+        cachedElevenLabsModels: null,
 
         settingsOpen: false,
         settingsTab: "general",
@@ -158,6 +169,15 @@ export const useSettingsStore = create<SettingsState>()(
           });
         },
 
+        setCachedElevenLabsVoices: (voices) =>
+          set({ cachedElevenLabsVoices: voices }),
+
+        setCachedElevenLabsModels: (models) =>
+          set({ cachedElevenLabsModels: models }),
+
+        clearApiCaches: () =>
+          set({ cachedElevenLabsVoices: null, cachedElevenLabsModels: null }),
+
         openSettings: (tab?: string) =>
           set({
             settingsOpen: true,
@@ -185,3 +205,8 @@ export const useSettingsStore = create<SettingsState>()(
     ),
   ),
 );
+
+// Clear API caches when the secure session locks
+onSessionLock(() => {
+  useSettingsStore.getState().clearApiCaches();
+});

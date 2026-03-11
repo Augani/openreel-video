@@ -73,10 +73,6 @@ const PIPER_VOICES: Voice[] = [
   { id: "ryan", name: "Ryan", gender: "male", language: "en-US" },
 ];
 
-// Session caches to avoid re-fetching within the same page session
-let cachedElevenLabsVoices: ElevenLabsVoice[] | null = null;
-let cachedElevenLabsModels: ElevenLabsModel[] | null = null;
-
 export const TextToSpeechPanel: React.FC = () => {
   const importMedia = useProjectStore((state) => state.importMedia);
   const project = useProjectStore((state) => state.project);
@@ -94,6 +90,10 @@ export const TextToSpeechPanel: React.FC = () => {
     favoriteModels,
     addFavoriteModel,
     removeFavoriteModel,
+    cachedElevenLabsVoices,
+    cachedElevenLabsModels,
+    setCachedElevenLabsVoices,
+    setCachedElevenLabsModels,
   } = useSettingsStore();
 
   const defaultProvider: TtsProvider =
@@ -164,14 +164,14 @@ export const TextToSpeechPanel: React.FC = () => {
       const models = (Array.isArray(data) ? data : []) as ElevenLabsModel[];
       // Only keep TTS-capable models
       const ttsModels = models.filter((m) => m.can_do_text_to_speech !== false);
-      cachedElevenLabsModels = ttsModels;
+      setCachedElevenLabsModels(ttsModels);
       setAllModels(ttsModels);
     } catch {
       setAllModels(FALLBACK_MODELS);
     } finally {
       setIsLoadingModels(false);
     }
-  }, []);
+  }, [cachedElevenLabsModels, setCachedElevenLabsModels]);
 
   // Fetch ElevenLabs voices
   const fetchVoices = useCallback(async () => {
@@ -193,14 +193,14 @@ export const TextToSpeechPanel: React.FC = () => {
 
       const data = await response.json();
       const voices = (data.voices ?? []) as ElevenLabsVoice[];
-      cachedElevenLabsVoices = voices;
+      setCachedElevenLabsVoices(voices);
       setAllVoices(voices);
     } catch {
       // Silently fail — user can still use favorites
     } finally {
       setIsLoadingVoices(false);
     }
-  }, []);
+  }, [cachedElevenLabsVoices, setCachedElevenLabsVoices]);
 
   useEffect(() => {
     if (provider === "elevenlabs" && hasElevenLabsKey) {

@@ -36,6 +36,21 @@ interface MetaRecord {
 let derivedKey: CryptoKey | null = null;
 let inactivityTimer: ReturnType<typeof setTimeout> | null = null;
 
+// Listeners notified when the session locks (for cache cleanup, etc.)
+const lockListeners: Array<() => void> = [];
+
+/**
+ * Register a callback invoked whenever the session locks.
+ * Returns an unsubscribe function.
+ */
+export function onSessionLock(listener: () => void): () => void {
+  lockListeners.push(listener);
+  return () => {
+    const idx = lockListeners.indexOf(listener);
+    if (idx >= 0) lockListeners.splice(idx, 1);
+  };
+}
+
 const SESSION_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
 
 function resetInactivityTimer(): void {
@@ -271,6 +286,10 @@ export function lockSession(): void {
   if (inactivityTimer) {
     clearTimeout(inactivityTimer);
     inactivityTimer = null;
+  }
+
+  for (const listener of lockListeners) {
+    listener();
   }
 }
 
