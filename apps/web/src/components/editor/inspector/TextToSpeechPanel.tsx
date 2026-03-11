@@ -106,7 +106,7 @@ export const TextToSpeechPanel: React.FC = () => {
 
   return (
     <div className="space-y-3 w-full min-w-0 max-w-full">
-      <audio ref={audioRef} onEnded={handleAudioEnded} className="hidden" />
+      <audio ref={audioRef as React.RefObject<HTMLAudioElement>} onEnded={handleAudioEnded} className="hidden" />
 
       <div className="flex items-center justify-between p-2 bg-primary/10 rounded-lg border border-primary/30">
         <div className="flex items-center gap-2">

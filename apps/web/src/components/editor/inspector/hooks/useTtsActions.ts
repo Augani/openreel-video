@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import type { TtsProvider } from "../../../../stores/settings-store";
 import { useProjectStore } from "../../../../stores/project-store";
 import { PIPER_VOICES } from "../tts-constants";
@@ -68,6 +68,18 @@ export function useTtsActions(options: UseTtsActionsOptions): UseTtsActionsRetur
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioUrlRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (audioUrlRef.current) {
+        URL.revokeObjectURL(audioUrlRef.current);
+        audioUrlRef.current = null;
+      }
+      if (audioRef.current) {
+        audioRef.current.pause();
+      }
+    };
+  }, []);
 
   const getSelectedVoiceName = useCallback((): string => {
     if (provider === "piper") {

@@ -36,11 +36,14 @@ export const SettingsDialog: React.FC = () => {
           </DialogDescription>
         </DialogHeader>
 
-        {/* Tab bar */}
-        <div className="flex gap-1 p-1 bg-muted rounded-md">
+        <div role="tablist" aria-label="Settings" className="flex gap-1 p-1 bg-muted rounded-md">
           {TABS.map((tab) => (
             <button
               key={tab.id}
+              role="tab"
+              aria-selected={settingsTab === tab.id}
+              aria-controls={`settings-tabpanel-${tab.id}`}
+              id={`settings-tab-${tab.id}`}
               onClick={() => setTab(tab.id)}
               className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-sm transition-colors ${
                 settingsTab === tab.id
@@ -54,8 +57,12 @@ export const SettingsDialog: React.FC = () => {
           ))}
         </div>
 
-        {/* Tab content */}
-        <div className="flex-1 overflow-y-auto pr-1 mt-2">
+        <div
+          role="tabpanel"
+          id={`settings-tabpanel-${settingsTab}`}
+          aria-labelledby={`settings-tab-${settingsTab}`}
+          className="flex-1 overflow-y-auto pr-1 mt-2"
+        >
           {settingsTab === "general" && <GeneralPanel />}
           {settingsTab === "api-keys" && <ApiKeysPanel />}
         </div>
