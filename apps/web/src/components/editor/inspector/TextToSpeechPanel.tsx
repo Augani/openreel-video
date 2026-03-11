@@ -1,12 +1,14 @@
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import {
   Mic,
   Loader2,
   Volume2,
   Settings,
   Sparkles,
+  AlertTriangle,
 } from "lucide-react";
 import { Slider, Switch } from "@openreel/ui";
+import { toast } from "../../../stores/notification-store";
 import { useSettingsStore, type TtsProvider } from "../../../stores/settings-store";
 import { useElevenLabsApi } from "./hooks/useElevenLabsApi";
 import { useTtsActions } from "./hooks/useTtsActions";
@@ -67,6 +69,7 @@ export const TextToSpeechPanel: React.FC = () => {
     isPlaying,
     isEnhancing,
     generatedAudio,
+    hasUnsavedAudio,
     successMsg,
     audioRef,
     getSelectedVoiceName,
@@ -100,6 +103,24 @@ export const TextToSpeechPanel: React.FC = () => {
     if (model) return model.name;
     return elevenLabsModel;
   };
+
+  const warnUnsavedAudio = useCallback(() => {
+    if (hasUnsavedAudio) {
+      toast.warning("Unsaved audio discarded", "Save to media or download next time to keep it.");
+    }
+  }, [hasUnsavedAudio]);
+
+  const handleProviderSwitch = useCallback((newProvider: TtsProvider) => {
+    if (newProvider === provider) return;
+    warnUnsavedAudio();
+    setProvider(newProvider);
+    setSelectedVoice(
+      newProvider === "elevenlabs"
+        ? (favoriteVoices.length > 0 ? favoriteVoices[0].voiceId : "")
+        : "amy",
+    );
+    setGeneratedAudio(null);
+  }, [provider, warnUnsavedAudio, favoriteVoices, setGeneratedAudio]);
 
   const charCount = text.length;
   const maxChars = 5000;
@@ -142,13 +163,7 @@ export const TextToSpeechPanel: React.FC = () => {
                     openSettings("api-keys");
                     return;
                   }
-                  setProvider(p.id);
-                  setSelectedVoice(
-                    p.id === "elevenlabs"
-                      ? (favoriteVoices.length > 0 ? favoriteVoices[0].voiceId : "")
-                      : "amy",
-                  );
-                  setGeneratedAudio(null);
+                  handleProviderSwitch(p.id);
                 }}
                 className={`flex-1 px-2 py-1.5 rounded-lg text-[10px] transition-colors ${
                   provider === p.id
@@ -279,6 +294,15 @@ export const TextToSpeechPanel: React.FC = () => {
           <><Volume2 size={14} /> Generate Speech</>
         )}
       </button>
+
+      {hasUnsavedAudio && (
+        <div className="flex items-center gap-1.5 px-2 py-1.5 bg-amber-500/10 border border-amber-500/30 rounded-lg">
+          <AlertTriangle size={12} className="text-amber-400 shrink-0" />
+          <p className="text-[9px] text-amber-400">
+            Unsaved audio — save to media, add to timeline, or download to keep it.
+          </p>
+        </div>
+      )}
 
       {generatedAudio && (
         <AudioResult

@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import type { TtsProvider } from "../../../../stores/settings-store";
 import { useProjectStore } from "../../../../stores/project-store";
+import { useTtsAudioStore } from "../../../../stores/tts-store";
 import { PIPER_VOICES } from "../tts-constants";
 import type { ElevenLabsVoice } from "../tts-types";
 
@@ -26,6 +27,7 @@ interface UseTtsActionsReturn {
   isPlaying: boolean;
   isEnhancing: boolean;
   generatedAudio: Blob | null;
+  hasUnsavedAudio: boolean;
   successMsg: string | null;
   audioRef: React.RefObject<HTMLAudioElement | null>;
   getSelectedVoiceName: () => string;
@@ -60,26 +62,58 @@ export function useTtsActions(options: UseTtsActionsOptions): UseTtsActionsRetur
   const importMedia = useProjectStore((state) => state.importMedia);
   const project = useProjectStore((state) => state.project);
 
+  // Audio state lives in Zustand store so it survives tab switches
+  const generatedAudio = useTtsAudioStore((s) => s.generatedAudio);
+  const isAudioSaved = useTtsAudioStore((s) => s.isAudioSaved);
+  const audioUrl = useTtsAudioStore((s) => s.audioUrl);
+  const storeSetAudio = useTtsAudioStore((s) => s.setGeneratedAudio);
+  const storeMarkSaved = useTtsAudioStore((s) => s.markAudioSaved);
+  const storeClearAudio = useTtsAudioStore((s) => s.clearAudio);
+
   const [isGenerating, setIsGenerating] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isEnhancing, setIsEnhancing] = useState(false);
-  const [generatedAudio, setGeneratedAudio] = useState<Blob | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const audioUrlRef = useRef<string | null>(null);
 
+  const hasUnsavedAudio = generatedAudio !== null && !isAudioSaved;
+
+  // Warn on browser tab close when unsaved audio exists
+  useEffect(() => {
+    if (!hasUnsavedAudio) return;
+
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [hasUnsavedAudio]);
+
+  // Restore audio src when component remounts with existing audio
+  useEffect(() => {
+    if (audioRef.current && audioUrl) {
+      audioRef.current.src = audioUrl;
+    }
+  }, [audioUrl]);
+
+  // Pause audio on unmount (but don't revoke URL — store owns it)
   useEffect(() => {
     return () => {
-      if (audioUrlRef.current) {
-        URL.revokeObjectURL(audioUrlRef.current);
-        audioUrlRef.current = null;
-      }
       if (audioRef.current) {
         audioRef.current.pause();
       }
     };
   }, []);
+
+  const setGeneratedAudio = useCallback((blob: Blob | null) => {
+    if (blob) {
+      storeSetAudio(blob);
+    } else {
+      storeClearAudio();
+    }
+  }, [storeSetAudio, storeClearAudio]);
 
   const getSelectedVoiceName = useCallback((): string => {
     if (provider === "piper") {
@@ -119,12 +153,6 @@ export function useTtsActions(options: UseTtsActionsOptions): UseTtsActionsRetur
 
     setIsGenerating(true);
     setError(null);
-    setGeneratedAudio(null);
-
-    if (audioUrlRef.current) {
-      URL.revokeObjectURL(audioUrlRef.current);
-      audioUrlRef.current = null;
-    }
 
     try {
       const finalText = (enhanceText && enhancedPreview) ? enhancedPreview : text.trim();
@@ -133,23 +161,21 @@ export function useTtsActions(options: UseTtsActionsOptions): UseTtsActionsRetur
         ? await generateWithElevenLabs(finalText, selectedVoice)
         : await generateWithPiper(finalText, selectedVoice, speed);
 
-      setGeneratedAudio(blob);
-
-      const url = URL.createObjectURL(blob);
-      audioUrlRef.current = url;
+      storeSetAudio(blob);
 
       if (audioRef.current) {
-        audioRef.current.src = url;
+        const url = useTtsAudioStore.getState().audioUrl;
+        if (url) audioRef.current.src = url;
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to generate speech");
     } finally {
       setIsGenerating(false);
     }
-  }, [text, enhancedPreview, enhanceText, selectedVoice, speed, provider, generateWithPiper, generateWithElevenLabs, setError]);
+  }, [text, enhancedPreview, enhanceText, selectedVoice, speed, provider, generateWithPiper, generateWithElevenLabs, setError, storeSetAudio]);
 
   const togglePlayback = useCallback(() => {
-    if (!audioRef.current || !audioUrlRef.current) return;
+    if (!audioRef.current || !audioUrl) return;
 
     if (isPlaying) {
       audioRef.current.pause();
@@ -158,7 +184,7 @@ export function useTtsActions(options: UseTtsActionsOptions): UseTtsActionsRetur
       audioRef.current.play();
       setIsPlaying(true);
     }
-  }, [isPlaying]);
+  }, [isPlaying, audioUrl]);
 
   const handleAudioEnded = useCallback(() => {
     setIsPlaying(false);
@@ -194,6 +220,8 @@ export function useTtsActions(options: UseTtsActionsOptions): UseTtsActionsRetur
 
     try {
       await importToMediaAssets();
+      storeClearAudio();
+      setText("");
       setSuccessMsg("Saved to Media Assets");
       setTimeout(() => setSuccessMsg(null), 3000);
     } catch (err) {
@@ -201,7 +229,7 @@ export function useTtsActions(options: UseTtsActionsOptions): UseTtsActionsRetur
     } finally {
       setIsGenerating(false);
     }
-  }, [generatedAudio, project, importToMediaAssets, setError]);
+  }, [generatedAudio, project, importToMediaAssets, setError, storeClearAudio, setText]);
 
   const addToTimeline = useCallback(async () => {
     if (!generatedAudio || !project) return;
@@ -215,22 +243,18 @@ export function useTtsActions(options: UseTtsActionsOptions): UseTtsActionsRetur
 
       const { addClipToNewTrack } = useProjectStore.getState();
       await addClipToNewTrack(mediaId);
-
+      storeClearAudio();
       setText("");
-      setGeneratedAudio(null);
-      if (audioUrlRef.current) {
-        URL.revokeObjectURL(audioUrlRef.current);
-        audioUrlRef.current = null;
-      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to add to timeline");
     } finally {
       setIsGenerating(false);
     }
-  }, [generatedAudio, project, importToMediaAssets, setText, setError]);
+  }, [generatedAudio, project, importToMediaAssets, setText, setError, storeClearAudio]);
 
   const downloadAudio = useCallback(() => {
     if (!generatedAudio) return;
+    storeMarkSaved();
 
     const voiceName = getSelectedVoiceName();
     const timestamp = Date.now();
@@ -242,13 +266,14 @@ export function useTtsActions(options: UseTtsActionsOptions): UseTtsActionsRetur
     a.download = fileName;
     a.click();
     URL.revokeObjectURL(url);
-  }, [generatedAudio, getSelectedVoiceName]);
+  }, [generatedAudio, getSelectedVoiceName, storeMarkSaved]);
 
   return {
     isGenerating,
     isPlaying,
     isEnhancing,
     generatedAudio,
+    hasUnsavedAudio,
     successMsg,
     audioRef,
     getSelectedVoiceName,
