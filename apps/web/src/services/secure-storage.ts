@@ -33,6 +33,7 @@ interface MetaRecord {
   readonly value: ArrayBuffer | Uint8Array;
 }
 
+let dbInstance: IDBDatabase | null = null;
 let derivedKey: CryptoKey | null = null;
 let inactivityTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -67,7 +68,7 @@ function resetInactivityTimer(): void {
   }, SESSION_TIMEOUT_MS);
 }
 
-function openDatabase(): Promise<IDBDatabase> {
+function createDatabase(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(SECURE_DB_NAME, SECURE_DB_VERSION);
 
@@ -91,6 +92,15 @@ function openDatabase(): Promise<IDBDatabase> {
       }
     };
   });
+}
+
+async function getDatabase(): Promise<IDBDatabase> {
+  if (dbInstance) return dbInstance;
+  dbInstance = await createDatabase();
+  dbInstance.onclose = () => {
+    dbInstance = null;
+  };
+  return dbInstance;
 }
 
 function idbTransaction<T>(
@@ -160,18 +170,14 @@ async function decrypt(encrypted: ArrayBuffer, iv: Uint8Array, key: CryptoKey): 
  * Check if a master password has been configured.
  */
 export async function isMasterPasswordSet(): Promise<boolean> {
-  const db = await openDatabase();
-  try {
-    const meta = await idbTransaction<MetaRecord | undefined>(
-      db,
-      STORE_META,
-      "readonly",
-      (store) => store.get("verification"),
-    );
-    return !!meta;
-  } finally {
-    db.close();
-  }
+  const db = await getDatabase();
+  const meta = await idbTransaction<MetaRecord | undefined>(
+    db,
+    STORE_META,
+    "readonly",
+    (store) => store.get("verification"),
+  );
+  return !!meta;
 }
 
 /**
@@ -204,20 +210,16 @@ export async function setupMasterPassword(password: string): Promise<void> {
   const verificationPlaintext = "openreel-verify-v1";
   const { encrypted: verificationData, iv: verificationIv } = await encrypt(verificationPlaintext, key);
 
-  const db = await openDatabase();
-  try {
-    await idbTransaction(db, STORE_META, "readwrite", (store) =>
-      store.put({ id: "salt", value: salt }),
-    );
-    await idbTransaction(db, STORE_META, "readwrite", (store) =>
-      store.put({ id: "verification", value: verificationData }),
-    );
-    await idbTransaction(db, STORE_META, "readwrite", (store) =>
-      store.put({ id: "verification_iv", value: verificationIv }),
-    );
-  } finally {
-    db.close();
-  }
+  const db = await getDatabase();
+  await idbTransaction(db, STORE_META, "readwrite", (store) =>
+    store.put({ id: "salt", value: salt }),
+  );
+  await idbTransaction(db, STORE_META, "readwrite", (store) =>
+    store.put({ id: "verification", value: verificationData }),
+  );
+  await idbTransaction(db, STORE_META, "readwrite", (store) =>
+    store.put({ id: "verification_iv", value: verificationIv }),
+  );
 
   derivedKey = key;
 
@@ -248,62 +250,58 @@ export async function unlockSession(password: string): Promise<boolean> {
     );
   }
 
-  const db = await openDatabase();
+  const db = await getDatabase();
+  const saltMeta = await idbTransaction<MetaRecord | undefined>(
+    db,
+    STORE_META,
+    "readonly",
+    (store) => store.get("salt"),
+  );
+  const verificationMeta = await idbTransaction<MetaRecord | undefined>(
+    db,
+    STORE_META,
+    "readonly",
+    (store) => store.get("verification"),
+  );
+  const verificationIvMeta = await idbTransaction<MetaRecord | undefined>(
+    db,
+    STORE_META,
+    "readonly",
+    (store) => store.get("verification_iv"),
+  );
+
+  if (!saltMeta || !verificationMeta || !verificationIvMeta) {
+    throw new Error("Master password not configured");
+  }
+
+  const salt = saltMeta.value instanceof Uint8Array
+    ? saltMeta.value
+    : new Uint8Array(saltMeta.value as ArrayBuffer);
+  const key = await deriveKey(password, salt);
+
   try {
-    const saltMeta = await idbTransaction<MetaRecord | undefined>(
-      db,
-      STORE_META,
-      "readonly",
-      (store) => store.get("salt"),
-    );
-    const verificationMeta = await idbTransaction<MetaRecord | undefined>(
-      db,
-      STORE_META,
-      "readonly",
-      (store) => store.get("verification"),
-    );
-    const verificationIvMeta = await idbTransaction<MetaRecord | undefined>(
-      db,
-      STORE_META,
-      "readonly",
-      (store) => store.get("verification_iv"),
-    );
+    const iv = verificationIvMeta.value instanceof Uint8Array
+      ? verificationIvMeta.value
+      : new Uint8Array(verificationIvMeta.value as ArrayBuffer);
+    const decrypted = await decrypt(verificationMeta.value as ArrayBuffer, iv, key);
 
-    if (!saltMeta || !verificationMeta || !verificationIvMeta) {
-      throw new Error("Master password not configured");
-    }
-
-    const salt = saltMeta.value instanceof Uint8Array
-      ? saltMeta.value
-      : new Uint8Array(saltMeta.value as ArrayBuffer);
-    const key = await deriveKey(password, salt);
-
-    try {
-      const iv = verificationIvMeta.value instanceof Uint8Array
-        ? verificationIvMeta.value
-        : new Uint8Array(verificationIvMeta.value as ArrayBuffer);
-      const decrypted = await decrypt(verificationMeta.value as ArrayBuffer, iv, key);
-
-      if (decrypted !== "openreel-verify-v1") {
-        failedAttempts++;
-        lockedUntil = Date.now() + BASE_BACKOFF_MS * Math.pow(2, failedAttempts - 1);
-        return false;
-      }
-    } catch {
+    if (decrypted !== "openreel-verify-v1") {
       failedAttempts++;
       lockedUntil = Date.now() + BASE_BACKOFF_MS * Math.pow(2, failedAttempts - 1);
       return false;
     }
-
-    failedAttempts = 0;
-    lockedUntil = 0;
-    derivedKey = key;
-
-    resetInactivityTimer();
-    return true;
-  } finally {
-    db.close();
+  } catch {
+    failedAttempts++;
+    lockedUntil = Date.now() + BASE_BACKOFF_MS * Math.pow(2, failedAttempts - 1);
+    return false;
   }
+
+  failedAttempts = 0;
+  lockedUntil = 0;
+  derivedKey = key;
+
+  resetInactivityTimer();
+  return true;
 }
 
 /**
@@ -342,70 +340,66 @@ export async function changeMasterPassword(
   const oldKey = derivedKey;
 
   // Decrypt all existing secrets
-  const db = await openDatabase();
-  try {
-    const allSecrets = await new Promise<SecureRecord[]>((resolve, reject) => {
-      const tx = db.transaction(STORE_SECRETS, "readonly");
-      const store = tx.objectStore(STORE_SECRETS);
-      const request = store.getAll();
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error);
+  const db = await getDatabase();
+  const allSecrets = await new Promise<SecureRecord[]>((resolve, reject) => {
+    const tx = db.transaction(STORE_SECRETS, "readonly");
+    const store = tx.objectStore(STORE_SECRETS);
+    const request = store.getAll();
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+
+  const decryptedSecrets: Array<{ id: string; label: string; value: string; createdAt: number }> = [];
+  for (const record of allSecrets) {
+    const iv = record.iv instanceof Uint8Array
+      ? record.iv
+      : new Uint8Array(record.iv as unknown as ArrayBuffer);
+    const value = await decrypt(record.encryptedData, iv, oldKey);
+    decryptedSecrets.push({
+      id: record.id,
+      label: record.label,
+      value,
+      createdAt: record.createdAt,
     });
-
-    const decryptedSecrets: Array<{ id: string; label: string; value: string; createdAt: number }> = [];
-    for (const record of allSecrets) {
-      const iv = record.iv instanceof Uint8Array
-        ? record.iv
-        : new Uint8Array(record.iv as unknown as ArrayBuffer);
-      const value = await decrypt(record.encryptedData, iv, oldKey);
-      decryptedSecrets.push({
-        id: record.id,
-        label: record.label,
-        value,
-        createdAt: record.createdAt,
-      });
-    }
-
-    // Set up new password
-    const newSalt = crypto.getRandomValues(new Uint8Array(SALT_LENGTH));
-    const newKey = await deriveKey(newPassword, newSalt);
-
-    // Store new salt and verification
-    const verificationPlaintext = "openreel-verify-v1";
-    const { encrypted: verificationData, iv: verificationIv } = await encrypt(verificationPlaintext, newKey);
-
-    await idbTransaction(db, STORE_META, "readwrite", (store) =>
-      store.put({ id: "salt", value: newSalt }),
-    );
-    await idbTransaction(db, STORE_META, "readwrite", (store) =>
-      store.put({ id: "verification", value: verificationData }),
-    );
-    await idbTransaction(db, STORE_META, "readwrite", (store) =>
-      store.put({ id: "verification_iv", value: verificationIv }),
-    );
-
-    // Re-encrypt all secrets with new key
-    for (const secret of decryptedSecrets) {
-      const { encrypted, iv } = await encrypt(secret.value, newKey);
-      const record: SecureRecord = {
-        id: secret.id,
-        label: secret.label,
-        encryptedData: encrypted,
-        iv,
-        createdAt: secret.createdAt,
-        updatedAt: Date.now(),
-      };
-      await idbTransaction(db, STORE_SECRETS, "readwrite", (store) =>
-        store.put(record),
-      );
-    }
-
-    derivedKey = newKey;
-    resetInactivityTimer();
-    return true;
-  } finally {
-    db.close();
   }
+
+  // Set up new password
+  const newSalt = crypto.getRandomValues(new Uint8Array(SALT_LENGTH));
+  const newKey = await deriveKey(newPassword, newSalt);
+
+  // Store new salt and verification
+  const verificationPlaintext = "openreel-verify-v1";
+  const { encrypted: verificationData, iv: verificationIv } = await encrypt(verificationPlaintext, newKey);
+
+  await idbTransaction(db, STORE_META, "readwrite", (store) =>
+    store.put({ id: "salt", value: newSalt }),
+  );
+  await idbTransaction(db, STORE_META, "readwrite", (store) =>
+    store.put({ id: "verification", value: verificationData }),
+  );
+  await idbTransaction(db, STORE_META, "readwrite", (store) =>
+    store.put({ id: "verification_iv", value: verificationIv }),
+  );
+
+  // Re-encrypt all secrets with new key
+  for (const secret of decryptedSecrets) {
+    const { encrypted, iv } = await encrypt(secret.value, newKey);
+    const record: SecureRecord = {
+      id: secret.id,
+      label: secret.label,
+      encryptedData: encrypted,
+      iv,
+      createdAt: secret.createdAt,
+      updatedAt: Date.now(),
+    };
+    await idbTransaction(db, STORE_SECRETS, "readwrite", (store) =>
+      store.put(record),
+    );
+  }
+
+  derivedKey = newKey;
+  resetInactivityTimer();
+  return true;
 }
 
 /**
@@ -421,31 +415,27 @@ export async function saveSecret(id: string, label: string, value: string): Prom
 
   const { encrypted, iv } = await encrypt(value, derivedKey);
 
-  const db = await openDatabase();
-  try {
-    // Check if record exists to preserve createdAt
-    const existing = await idbTransaction<SecureRecord | undefined>(
-      db,
-      STORE_SECRETS,
-      "readonly",
-      (store) => store.get(id),
-    );
+  const db = await getDatabase();
+  // Check if record exists to preserve createdAt
+  const existing = await idbTransaction<SecureRecord | undefined>(
+    db,
+    STORE_SECRETS,
+    "readonly",
+    (store) => store.get(id),
+  );
 
-    const record: SecureRecord = {
-      id,
-      label,
-      encryptedData: encrypted,
-      iv,
-      createdAt: existing?.createdAt ?? Date.now(),
-      updatedAt: Date.now(),
-    };
+  const record: SecureRecord = {
+    id,
+    label,
+    encryptedData: encrypted,
+    iv,
+    createdAt: existing?.createdAt ?? Date.now(),
+    updatedAt: Date.now(),
+  };
 
-    await idbTransaction(db, STORE_SECRETS, "readwrite", (store) =>
-      store.put(record),
-    );
-  } finally {
-    db.close();
-  }
+  await idbTransaction(db, STORE_SECRETS, "readwrite", (store) =>
+    store.put(record),
+  );
 }
 
 /**
@@ -459,27 +449,23 @@ export async function getSecret(id: string): Promise<string | null> {
 
   resetInactivityTimer();
 
-  const db = await openDatabase();
-  try {
-    const record = await idbTransaction<SecureRecord | undefined>(
-      db,
-      STORE_SECRETS,
-      "readonly",
-      (store) => store.get(id),
-    );
+  const db = await getDatabase();
+  const record = await idbTransaction<SecureRecord | undefined>(
+    db,
+    STORE_SECRETS,
+    "readonly",
+    (store) => store.get(id),
+  );
 
-    if (!record) {
-      return null;
-    }
-
-    const iv = record.iv instanceof Uint8Array
-      ? record.iv
-      : new Uint8Array(record.iv as unknown as ArrayBuffer);
-
-    return await decrypt(record.encryptedData, iv, derivedKey);
-  } finally {
-    db.close();
+  if (!record) {
+    return null;
   }
+
+  const iv = record.iv instanceof Uint8Array
+    ? record.iv
+    : new Uint8Array(record.iv as unknown as ArrayBuffer);
+
+  return await decrypt(record.encryptedData, iv, derivedKey);
 }
 
 /**
@@ -490,39 +476,31 @@ export async function deleteSecret(id: string): Promise<void> {
     throw new Error("Session is locked");
   }
 
-  const db = await openDatabase();
-  try {
-    await idbTransaction(db, STORE_SECRETS, "readwrite", (store) =>
-      store.delete(id),
-    );
-  } finally {
-    db.close();
-  }
+  const db = await getDatabase();
+  await idbTransaction(db, STORE_SECRETS, "readwrite", (store) =>
+    store.delete(id),
+  );
 }
 
 /**
  * List all stored secret metadata (without decrypted values).
  */
 export async function listSecrets(): Promise<Array<{ id: string; label: string; createdAt: number; updatedAt: number }>> {
-  const db = await openDatabase();
-  try {
-    const records = await new Promise<SecureRecord[]>((resolve, reject) => {
-      const tx = db.transaction(STORE_SECRETS, "readonly");
-      const store = tx.objectStore(STORE_SECRETS);
-      const request = store.getAll();
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error);
-    });
+  const db = await getDatabase();
+  const records = await new Promise<SecureRecord[]>((resolve, reject) => {
+    const tx = db.transaction(STORE_SECRETS, "readonly");
+    const store = tx.objectStore(STORE_SECRETS);
+    const request = store.getAll();
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
 
-    return records.map((r) => ({
-      id: r.id,
-      label: r.label,
-      createdAt: r.createdAt,
-      updatedAt: r.updatedAt,
-    }));
-  } finally {
-    db.close();
-  }
+  return records.map((r) => ({
+    id: r.id,
+    label: r.label,
+    createdAt: r.createdAt,
+    updatedAt: r.updatedAt,
+  }));
 }
 
 /**
@@ -532,6 +510,11 @@ export async function listSecrets(): Promise<Array<{ id: string; label: string; 
 export async function resetSecureStorage(): Promise<void> {
   lockSession();
 
+  if (dbInstance) {
+    dbInstance.close();
+    dbInstance = null;
+  }
+
   return new Promise((resolve, reject) => {
     const request = indexedDB.deleteDatabase(SECURE_DB_NAME);
     request.onsuccess = () => resolve();
@@ -539,9 +522,13 @@ export async function resetSecureStorage(): Promise<void> {
   });
 }
 
-// Lock session when tab is closing
+// Lock session and close database when tab is closing
 if (typeof window !== "undefined") {
   window.addEventListener("beforeunload", () => {
     lockSession();
+    if (dbInstance) {
+      dbInstance.close();
+      dbInstance = null;
+    }
   });
 }
