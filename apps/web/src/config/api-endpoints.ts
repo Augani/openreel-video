@@ -15,7 +15,10 @@ export const OPENREEL_CLOUD_URL = isDev
 /** OpenReel transcription / TTS service */
 export const OPENREEL_TTS_URL = "https://transcribe.openreel.video";
 
-/** Third-party API base URLs */
-export const ELEVENLABS_API_URL = "https://api.elevenlabs.io/v1";
-export const OPENAI_API_URL = "https://api.openai.com/v1";
-export const ANTHROPIC_API_URL = "https://api.anthropic.com/v1";
+/**
+ * Third-party API base URLs.
+ * These are used by the api-proxy service in dev mode (direct calls)
+ * and by the Cloudflare Pages Function proxy in production.
+ * Application code should use apiFetch() from services/api-proxy.ts
+ * instead of importing these directly.
+ */

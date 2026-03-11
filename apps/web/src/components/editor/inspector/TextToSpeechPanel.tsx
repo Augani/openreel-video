@@ -20,7 +20,8 @@ import { Slider, Switch } from "@openreel/ui";
 import { useProjectStore } from "../../../stores/project-store";
 import { useSettingsStore } from "../../../stores/settings-store";
 import { isSessionUnlocked, getSecret } from "../../../services/secure-storage";
-import { OPENREEL_TTS_URL, ELEVENLABS_API_URL, OPENAI_API_URL, ANTHROPIC_API_URL } from "../../../config/api-endpoints";
+import { apiFetch } from "../../../services/api-proxy";
+import { OPENREEL_TTS_URL } from "../../../config/api-endpoints";
 
 type TtsProvider = "piper" | "elevenlabs";
 
@@ -154,9 +155,7 @@ export const TextToSpeechPanel: React.FC = () => {
 
     setIsLoadingModels(true);
     try {
-      const response = await fetch(`${ELEVENLABS_API_URL}/models`, {
-        headers: { "xi-api-key": apiKey },
-      });
+      const response = await apiFetch("elevenlabs", "/models", apiKey);
 
       if (!response.ok) throw new Error("Failed to fetch models");
 
@@ -188,9 +187,7 @@ export const TextToSpeechPanel: React.FC = () => {
 
     setIsLoadingVoices(true);
     try {
-      const response = await fetch(`${ELEVENLABS_API_URL}/voices`, {
-        headers: { "xi-api-key": apiKey },
-      });
+      const response = await apiFetch("elevenlabs", "/voices", apiKey);
 
       if (!response.ok) throw new Error("Failed to fetch voices");
 
@@ -366,14 +363,13 @@ export const TextToSpeechPanel: React.FC = () => {
       throw new Error("ElevenLabs API key not found. Add it in Settings > API Keys.");
     }
 
-    const response = await fetch(
-      `${ELEVENLABS_API_URL}/text-to-speech/${voiceId}`,
+    const response = await apiFetch(
+      "elevenlabs",
+      `/text-to-speech/${voiceId}`,
+      apiKey,
       {
         method: "POST",
-        headers: {
-          "xi-api-key": apiKey,
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           text: inputText,
           model_id: elevenLabsModel,
@@ -406,14 +402,9 @@ export const TextToSpeechPanel: React.FC = () => {
     }
 
     if (llmProvider === "anthropic") {
-      const response = await fetch(`${ANTHROPIC_API_URL}/messages`, {
+      const response = await apiFetch("anthropic", "/messages", apiKey, {
         method: "POST",
-        headers: {
-          "x-api-key": apiKey,
-          "anthropic-version": "2023-06-01",
-          "anthropic-dangerous-direct-browser-access": "true",
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           model: "claude-sonnet-4-20250514",
           max_tokens: 2048,
@@ -435,12 +426,9 @@ export const TextToSpeechPanel: React.FC = () => {
     }
 
     // OpenAI
-    const response = await fetch(`${OPENAI_API_URL}/chat/completions`, {
+    const response = await apiFetch("openai", "/chat/completions", apiKey, {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         model: "gpt-4o-mini",
         messages: [
