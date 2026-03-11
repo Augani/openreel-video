@@ -170,6 +170,13 @@ export async function setupMasterPassword(password: string): Promise<void> {
     throw new Error("Master password must be at least 8 characters");
   }
 
+  const alreadySet = await isMasterPasswordSet();
+  if (alreadySet) {
+    throw new Error(
+      "Master password already configured. Use changeMasterPassword instead.",
+    );
+  }
+
   const salt = crypto.getRandomValues(new Uint8Array(SALT_LENGTH));
   const key = await deriveKey(password, salt);
 
