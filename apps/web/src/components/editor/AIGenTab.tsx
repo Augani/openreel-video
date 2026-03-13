@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import {
   Mic,
   Subtitles,
@@ -18,6 +18,8 @@ import { FilterPresetsPanel } from "./inspector/FilterPresetsPanel";
 import { MusicLibraryPanel } from "./inspector/MusicLibraryPanel";
 import { TemplatesBrowserPanel } from "./inspector/TemplatesBrowserPanel";
 import { MultiCameraPanel } from "./inspector/MultiCameraPanel";
+import { useTtsAudioStore } from "../../stores/tts-store";
+import { toast } from "../../stores/notification-store";
 
 type FeatureId = "templates" | "captions" | "tts" | "filters" | "music" | "multicam" | null;
 
@@ -96,9 +98,17 @@ const FeatureSection: React.FC<FeatureSectionProps> = ({ title, icon: Icon, chil
 
 export const AIGenTab: React.FC = () => {
   const [activeFeature, setActiveFeature] = useState<FeatureId>(null);
+  const ttsHasUnsaved = useTtsAudioStore((s) => s.generatedAudio !== null && !s.isAudioSaved);
+
+  const navigateAway = useCallback((next: FeatureId) => {
+    if (activeFeature === "tts" && next !== "tts" && ttsHasUnsaved) {
+      toast.warning("Unsaved audio discarded", "Save to media or download next time to keep it.");
+    }
+    setActiveFeature(next);
+  }, [activeFeature, ttsHasUnsaved]);
 
   const handleFeatureClick = (id: FeatureId) => {
-    setActiveFeature(activeFeature === id ? null : id);
+    navigateAway(activeFeature === id ? null : id);
   };
 
   const renderActivePanel = () => {
@@ -124,7 +134,7 @@ export const AIGenTab: React.FC = () => {
     return (
       <div className="flex-1 flex flex-col overflow-hidden w-full min-w-0">
         <button
-          onClick={() => setActiveFeature(null)}
+          onClick={() => navigateAway(null)}
           className="flex items-center gap-2 px-4 py-3 text-text-secondary hover:text-text-primary transition-colors border-b border-border bg-background-secondary shrink-0"
         >
           <ChevronRight size={14} className="rotate-180" />

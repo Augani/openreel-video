@@ -47,6 +47,7 @@ import {
   AudioTextSyncPanel,
   AlignmentSection,
 } from "./inspector";
+import { OPENREEL_TTS_URL } from "../../config/api-endpoints";
 import {
   getAudioBridgeEffects,
   initializeAudioBridgeEffects,
@@ -453,7 +454,7 @@ export const InspectorPanel: React.FC = () => {
       let transcriptionService = getTranscriptionService();
       if (!transcriptionService) {
         transcriptionService = initializeTranscriptionService({
-          apiEndpoint: "https://transcribe.openreel.video",
+          apiEndpoint: OPENREEL_TTS_URL,
         });
       }
 

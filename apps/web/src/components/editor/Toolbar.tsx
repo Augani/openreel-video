@@ -40,7 +40,9 @@ import { ExportDialog } from "./ExportDialog";
 import { ScreenRecorder } from "./ScreenRecorder";
 import { HistoryPanel } from "./inspector/HistoryPanel";
 import { ProjectSwitcher } from "./ProjectSwitcher";
+import { SettingsDialog } from "./settings/SettingsDialog";
 import { toast } from "../../stores/notification-store";
+import { useSettingsStore } from "../../stores/settings-store";
 import { useAnalytics, AnalyticsEvents } from "../../hooks/useAnalytics";
 import { startTour, ONBOARDING_KEY, startMoGraphTour, MOGRAPH_TOUR_KEY } from "./tour";
 import {
@@ -88,6 +90,7 @@ export const Toolbar: React.FC = () => {
   } = useUIStore();
   const { mode: themeMode, toggleTheme } = useThemeStore();
   const { navigate } = useRouter();
+  const { openSettings } = useSettingsStore();
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
   const [isRecorderOpen, setIsRecorderOpen] = useState(false);
@@ -771,6 +774,20 @@ export const Toolbar: React.FC = () => {
         <Tooltip>
           <TooltipTrigger asChild>
             <button
+              onClick={() => openSettings()}
+              className="p-2 rounded-lg hover:bg-background-elevated text-text-secondary hover:text-text-primary transition-colors"
+            >
+              <Settings size={16} />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>Settings & API Keys</p>
+          </TooltipContent>
+        </Tooltip>
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
               onClick={() => useUIStore.getState().openModal("scriptView")}
               className="p-2 rounded-lg hover:bg-background-elevated text-text-secondary hover:text-text-primary transition-colors"
             >
@@ -1005,6 +1022,8 @@ export const Toolbar: React.FC = () => {
         onClose={() => setIsRecorderOpen(false)}
         onRecordingComplete={handleRecordingComplete}
       />
+
+      <SettingsDialog />
 
       {isHistoryOpen && (
         <>
