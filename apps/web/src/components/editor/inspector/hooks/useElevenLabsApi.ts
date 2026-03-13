@@ -20,9 +20,9 @@ interface UseElevenLabsApiReturn {
   allModels: ElevenLabsModel[];
   isLoadingVoices: boolean;
   isLoadingModels: boolean;
-  generateWithElevenLabs: (text: string, voiceId: string) => Promise<Blob>;
-  generateWithPiper: (text: string, voice: string, speed: number) => Promise<Blob>;
-  enhanceViaLlm: (text: string) => Promise<string>;
+  generateWithElevenLabs: (text: string, voiceId: string, signal?: AbortSignal) => Promise<Blob>;
+  generateWithPiper: (text: string, voice: string, speed: number, signal?: AbortSignal) => Promise<Blob>;
+  enhanceViaLlm: (text: string, signal?: AbortSignal) => Promise<string>;
 }
 
 export function useElevenLabsApi(options: UseElevenLabsApiOptions): UseElevenLabsApiReturn {
@@ -149,13 +149,12 @@ export function useElevenLabsApi(options: UseElevenLabsApiOptions): UseElevenLab
     }
   }, [provider]);
 
-  const generateWithPiper = useCallback(async (inputText: string, voice: string, spd: number): Promise<Blob> => {
-    const controller = new AbortController();
+  const generateWithPiper = useCallback(async (inputText: string, voice: string, spd: number, signal?: AbortSignal): Promise<Blob> => {
     const response = await fetch(`${OPENREEL_TTS_URL}/tts`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text: inputText, voice, speed: spd }),
-      signal: controller.signal,
+      signal,
     });
 
     if (!response.ok) {
@@ -171,7 +170,7 @@ export function useElevenLabsApi(options: UseElevenLabsApiOptions): UseElevenLab
     return response.blob();
   }, []);
 
-  const generateWithElevenLabs = useCallback(async (inputText: string, voiceId: string): Promise<Blob> => {
+  const generateWithElevenLabs = useCallback(async (inputText: string, voiceId: string, signal?: AbortSignal): Promise<Blob> => {
     if (!isSessionUnlocked()) {
       throw new Error("Session locked. Unlock in Settings > API Keys first.");
     }
@@ -193,6 +192,7 @@ export function useElevenLabsApi(options: UseElevenLabsApiOptions): UseElevenLab
           model_id: elevenLabsModel,
           voice_settings: { stability: 0.5, similarity_boost: 0.75 },
         }),
+        signal,
       },
     );
 
@@ -207,7 +207,7 @@ export function useElevenLabsApi(options: UseElevenLabsApiOptions): UseElevenLab
     return response.blob();
   }, [elevenLabsModel]);
 
-  const enhanceViaLlm = useCallback(async (inputText: string): Promise<string> => {
+  const enhanceViaLlm = useCallback(async (inputText: string, signal?: AbortSignal): Promise<string> => {
     const llmProvider = defaultLlmProvider;
 
     if (!isSessionUnlocked()) {
@@ -229,6 +229,7 @@ export function useElevenLabsApi(options: UseElevenLabsApiOptions): UseElevenLab
           system: ENHANCE_SYSTEM_PROMPT,
           messages: [{ role: "user", content: inputText }],
         }),
+        signal,
       });
 
       if (!response.ok) {
@@ -254,6 +255,7 @@ export function useElevenLabsApi(options: UseElevenLabsApiOptions): UseElevenLab
         ],
         max_tokens: 2048,
       }),
+      signal,
     });
 
     if (!response.ok) {

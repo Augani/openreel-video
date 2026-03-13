@@ -14,9 +14,9 @@ interface UseTtsActionsOptions {
   enhancedPreview: string | null;
   allVoices: ElevenLabsVoice[];
   favoriteVoices: Array<{ voiceId: string; name: string; previewUrl?: string }>;
-  generateWithElevenLabs: (text: string, voiceId: string) => Promise<Blob>;
-  generateWithPiper: (text: string, voice: string, speed: number) => Promise<Blob>;
-  enhanceViaLlm: (text: string) => Promise<string>;
+  generateWithElevenLabs: (text: string, voiceId: string, signal?: AbortSignal) => Promise<Blob>;
+  generateWithPiper: (text: string, voice: string, speed: number, signal?: AbortSignal) => Promise<Blob>;
+  enhanceViaLlm: (text: string, signal?: AbortSignal) => Promise<string>;
   setText: (text: string) => void;
   setError: (error: string | null) => void;
   setEnhancedPreview: (preview: string | null) => void;
@@ -76,6 +76,7 @@ export function useTtsActions(options: UseTtsActionsOptions): UseTtsActionsRetur
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const generateAbortRef = useRef<AbortController | null>(null);
 
   const hasUnsavedAudio = generatedAudio !== null && !isAudioSaved;
 
@@ -98,11 +99,14 @@ export function useTtsActions(options: UseTtsActionsOptions): UseTtsActionsRetur
     }
   }, [audioUrl]);
 
-  // Pause audio on unmount (but don't revoke URL — store owns it)
+  // Pause audio and abort in-flight requests on unmount
   useEffect(() => {
     return () => {
       if (audioRef.current) {
         audioRef.current.pause();
+      }
+      if (generateAbortRef.current) {
+        generateAbortRef.current.abort();
       }
     };
   }, []);
@@ -132,13 +136,18 @@ export function useTtsActions(options: UseTtsActionsOptions): UseTtsActionsRetur
       return;
     }
 
+    generateAbortRef.current?.abort();
+    const controller = new AbortController();
+    generateAbortRef.current = controller;
+
     setIsEnhancing(true);
     setError(null);
 
     try {
-      const result = await enhanceViaLlm(text.trim());
+      const result = await enhanceViaLlm(text.trim(), controller.signal);
       setEnhancedPreview(result);
     } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") return;
       setError(err instanceof Error ? err.message : "Failed to enhance text");
     } finally {
       setIsEnhancing(false);
@@ -151,6 +160,10 @@ export function useTtsActions(options: UseTtsActionsOptions): UseTtsActionsRetur
       return;
     }
 
+    generateAbortRef.current?.abort();
+    const controller = new AbortController();
+    generateAbortRef.current = controller;
+
     setIsGenerating(true);
     setError(null);
 
@@ -158,8 +171,8 @@ export function useTtsActions(options: UseTtsActionsOptions): UseTtsActionsRetur
       const finalText = (enhanceText && enhancedPreview) ? enhancedPreview : text.trim();
 
       const blob = provider === "elevenlabs"
-        ? await generateWithElevenLabs(finalText, selectedVoice)
-        : await generateWithPiper(finalText, selectedVoice, speed);
+        ? await generateWithElevenLabs(finalText, selectedVoice, controller.signal)
+        : await generateWithPiper(finalText, selectedVoice, speed, controller.signal);
 
       storeSetAudio(blob);
 
@@ -168,6 +181,7 @@ export function useTtsActions(options: UseTtsActionsOptions): UseTtsActionsRetur
         if (url) audioRef.current.src = url;
       }
     } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") return;
       setError(err instanceof Error ? err.message : "Failed to generate speech");
     } finally {
       setIsGenerating(false);

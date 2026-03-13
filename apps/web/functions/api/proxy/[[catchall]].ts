@@ -43,6 +43,8 @@ const SERVICE_CONFIG: Record<string, ServiceConfig> = {
 const ALLOWED_ORIGINS = [
   "https://openreel.pages.dev",
   "https://openreel-preview.pages.dev",
+  "http://localhost:5173",
+  "http://localhost:4173",
 ];
 
 const MAX_REQUEST_BODY_BYTES = 1_048_576; // 1 MB
