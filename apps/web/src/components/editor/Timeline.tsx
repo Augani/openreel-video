@@ -22,6 +22,8 @@ import {
   Plus,
   ChevronDown as ChevronDownIcon,
   Magnet,
+  Rows3,
+  Rows2,
 } from "lucide-react";
 import { useProjectStore } from "../../stores/project-store";
 import { useTimelineStore } from "../../stores/timeline-store";
@@ -90,6 +92,8 @@ export const Timeline: React.FC = () => {
     setViewportDimensions,
     zoomIn,
     zoomOut,
+    trackHeight,
+    setTrackHeight,
     setTrackHeightById,
     getTrackHeight,
   } = useTimelineStore();
@@ -860,6 +864,30 @@ export const Timeline: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2">
+          <div className="flex items-center bg-background-tertiary rounded-lg border border-border overflow-hidden">
+            <button
+              onClick={() => { setTrackHeight(80); useTimelineStore.setState({ trackHeights: {} }); }}
+              className={`w-8 h-8 flex items-center justify-center transition-colors border-r border-border ${
+                trackHeight >= 60
+                  ? "text-primary bg-primary/10"
+                  : "text-text-secondary hover:text-text-primary hover:bg-background-elevated"
+              }`}
+              title="Large tracks"
+            >
+              <Rows3 size={14} />
+            </button>
+            <button
+              onClick={() => { setTrackHeight(50); useTimelineStore.setState({ trackHeights: {} }); }}
+              className={`w-8 h-8 flex items-center justify-center transition-colors ${
+                trackHeight < 60
+                  ? "text-primary bg-primary/10"
+                  : "text-text-secondary hover:text-text-primary hover:bg-background-elevated"
+              }`}
+              title="Small tracks"
+            >
+              <Rows2 size={14} />
+            </button>
+          </div>
           <div className="flex items-center bg-background-tertiary rounded-lg border border-border overflow-hidden">
             <button
               onClick={zoomOut}

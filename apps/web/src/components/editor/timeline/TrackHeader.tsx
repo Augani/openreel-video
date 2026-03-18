@@ -29,7 +29,7 @@ export const TrackHeader: React.FC<TrackHeaderProps> = ({
   keyframeCount = 0,
 }) => {
   const { lockTrack, hideTrack, muteTrack, removeTrack } = useProjectStore();
-  const { isTrackExpanded, toggleTrackExpanded } = useTimelineStore();
+  const { isTrackExpanded, toggleTrackExpanded, getTrackHeight } = useTimelineStore();
   const isExpanded = isTrackExpanded(track.id);
 
   const trackInfo = getTrackInfo(track, index);
@@ -52,7 +52,8 @@ export const TrackHeader: React.FC<TrackHeaderProps> = ({
           onDragStart={(e) => onDragStart(e, track.id)}
           onDragOver={onDragOver}
           onDrop={(e) => onDrop(e, track.id)}
-          className={`h-20 border-b border-border flex flex-col justify-between py-2 px-3 relative group transition-colors cursor-grab active:cursor-grabbing ${
+          style={{ height: getTrackHeight(track.id) }}
+          className={`border-b border-border flex flex-col justify-between py-2 px-3 relative group transition-colors cursor-grab active:cursor-grabbing ${
             track.hidden ? "opacity-50" : ""
           } ${
             track.locked ? "bg-background-secondary/50" : "bg-background-tertiary"
