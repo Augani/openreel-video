@@ -95,17 +95,19 @@ export const TrackHeader: React.FC<TrackHeaderProps> = ({
                 {track.hidden ? <EyeOff size={12} /> : <Eye size={12} />}
               </button>
             )}
-            <button
-              onClick={(e) => { e.stopPropagation(); muteTrack(track.id, !track.muted); }}
-              className={`p-1 rounded transition-colors ${
-                track.muted
-                  ? "text-red-500 bg-red-500/10"
-                  : "text-text-muted hover:bg-background-elevated hover:text-text-primary"
-              }`}
-              title={track.muted ? "Unmute" : "Mute"}
-            >
-              <Volume2 size={12} />
-            </button>
+            {track.type !== "image" && (
+              <button
+                onClick={(e) => { e.stopPropagation(); muteTrack(track.id, !track.muted); }}
+                className={`p-1 rounded transition-colors ${
+                  track.muted
+                    ? "text-red-500 bg-red-500/10"
+                    : "text-text-muted hover:bg-background-elevated hover:text-text-primary"
+                }`}
+                title={track.muted ? "Unmute" : "Mute"}
+              >
+                <Volume2 size={12} />
+              </button>
+            )}
             <button
               onClick={(e) => { e.stopPropagation(); lockTrack(track.id, !track.locked); }}
               className={`p-1 rounded transition-colors ${
