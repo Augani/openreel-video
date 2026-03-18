@@ -53,6 +53,7 @@ import {
   saveMediaBlob,
   deleteMediaBlob,
   loadProjectMedia,
+  loadFileHandle,
 } from "../services/media-storage";
 import { restoreMediaItem } from "../utils/media-recovery";
 import { projectManager } from "../services/project-manager";
@@ -475,6 +476,31 @@ export const useProjectStore = create<ProjectState>()(
           clipRedoStack: [],
           error: null,
         });
+
+        // Auto-restore placeholder assets from saved FileSystemFileHandles (same machine)
+        const placeholders = fixedProject.mediaLibrary.items.filter(
+          (item) => item.isPlaceholder && item.sourceFile,
+        );
+        if (placeholders.length > 0 && "FileSystemFileHandle" in window) {
+          (async () => {
+            let restored = 0;
+            for (const item of placeholders) {
+              if (!item.sourceFile) continue;
+              try {
+                const handle = await loadFileHandle(item.sourceFile.name, item.sourceFile.size);
+                if (!handle) continue;
+                const file = await handle.getFile();
+                await get().replaceMediaAsset(item.id, file);
+                restored++;
+              } catch {
+                // Handle stale or permission-denied — silently skip
+              }
+            }
+            if (restored > 0) {
+              console.info(`[ProjectStore] Auto-restored ${restored} asset(s) from file handles`);
+            }
+          })();
+        }
       },
 
       // Rename project
@@ -615,6 +641,7 @@ export const useProjectStore = create<ProjectState>()(
             waveformData: processedMedia.waveformData?.peaks || null,
             filmstripThumbnails:
               filmstripThumbnails.length > 0 ? filmstripThumbnails : undefined,
+            sourceFile: { name: file.name, size: file.size, lastModified: file.lastModified },
           };
 
           const updatedProject = {
@@ -801,6 +828,7 @@ export const useProjectStore = create<ProjectState>()(
             filmstripThumbnails:
               filmstripThumbnails.length > 0 ? filmstripThumbnails : undefined,
             isPlaceholder: false,
+            sourceFile: { name: file.name, size: file.size, lastModified: file.lastModified },
           };
 
           const updatedItems = project.mediaLibrary.items.map((item) =>

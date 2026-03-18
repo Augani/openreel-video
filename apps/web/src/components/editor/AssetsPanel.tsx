@@ -36,6 +36,7 @@ import { AspectRatioMatchDialog } from "./dialogs/AspectRatioMatchDialog";
 import { AIGenTab } from "./AIGenTab";
 import { useTtsAudioStore } from "../../stores/tts-store";
 import { toast } from "../../stores/notification-store";
+import { saveFileHandle } from "../../services/media-storage";
 import { IconButton, Input, ScrollArea } from "@openreel/ui";
 
 const formatDuration = (seconds: number): string => {
@@ -469,11 +470,31 @@ export const AssetsPanel: React.FC = () => {
     [importMedia],
   );
 
-  // Handle drag and drop import
+  // Handle drag and drop import — capture FileSystemFileHandle for each dropped file
   const handleDrop = useCallback(
-    (e: React.DragEvent) => {
+    async (e: React.DragEvent) => {
       e.preventDefault();
       setIsDragOver(false);
+
+      // Try to capture handles before files are consumed
+      if ("getAsFileSystemHandle" in DataTransferItem.prototype) {
+        const handlePromises = Array.from(e.dataTransfer.items)
+          .filter((item) => item.kind === "file")
+          .map(async (item) => {
+            try {
+              const handle = await (item as DataTransferItem & { getAsFileSystemHandle(): Promise<FileSystemHandle> }).getAsFileSystemHandle();
+              if (handle.kind === "file") {
+                const fileHandle = handle as FileSystemFileHandle;
+                const file = await fileHandle.getFile();
+                await saveFileHandle(file.name, file.size, fileHandle);
+              }
+            } catch {
+              // Ignore — handle capture is best-effort
+            }
+          });
+        await Promise.all(handlePromises);
+      }
+
       handleFileImport(e.dataTransfer.files);
     },
     [handleFileImport],

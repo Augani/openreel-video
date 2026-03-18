@@ -97,6 +97,10 @@ export class StorageEngine implements IStorageEngine {
     if (!db.objectStoreNames.contains(STORES.WAVEFORMS)) {
       db.createObjectStore(STORES.WAVEFORMS, { keyPath: "mediaId" });
     }
+
+    if (!db.objectStoreNames.contains(STORES.FILE_HANDLES)) {
+      db.createObjectStore(STORES.FILE_HANDLES, { keyPath: "key" });
+    }
   }
 
   /**
@@ -386,6 +390,28 @@ export class StorageEngine implements IStorageEngine {
       projects: projectCount,
       mediaItems: mediaCount,
     };
+  }
+
+  async saveFileHandle(name: string, size: number, handle: FileSystemFileHandle): Promise<void> {
+    const db = await this.getDb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORES.FILE_HANDLES, "readwrite");
+      const store = tx.objectStore(STORES.FILE_HANDLES);
+      const request = store.put({ key: `${name}:${size}`, handle });
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  async loadFileHandle(name: string, size: number): Promise<FileSystemFileHandle | null> {
+    const db = await this.getDb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORES.FILE_HANDLES, "readonly");
+      const store = tx.objectStore(STORES.FILE_HANDLES);
+      const request = store.get(`${name}:${size}`);
+      request.onsuccess = () => resolve((request.result as { handle: FileSystemFileHandle } | undefined)?.handle ?? null);
+      request.onerror = () => reject(request.error);
+    });
   }
 
   close(): void {

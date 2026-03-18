@@ -1,6 +1,6 @@
 import type { Project, MediaMetadata } from "../types";
 
-export const DB_VERSION = 1;
+export const DB_VERSION = 2;
 
 export const DB_NAME = "openreel-db";
 
@@ -9,6 +9,7 @@ export const STORES = {
   MEDIA: "media",
   CACHE: "cache",
   WAVEFORMS: "waveforms",
+  FILE_HANDLES: "fileHandles",
 } as const;
 
 export interface ProjectRecord {
@@ -44,6 +45,12 @@ export interface WaveformRecord {
   readonly mediaId: string;
   readonly data: number[]; // Serialized from Float32Array
   readonly sampleRate: number;
+}
+
+/** Keyed by "${name}:${size}" — allows restoring assets by filename+size across sessions */
+export interface FileHandleRecord {
+  readonly key: string; // "${name}:${size}"
+  readonly handle: FileSystemFileHandle;
 }
 
 export interface StorageUsage {
@@ -96,6 +103,10 @@ export interface IStorageEngine {
   saveWaveform(record: WaveformRecord): Promise<void>;
   loadWaveform(mediaId: string): Promise<WaveformRecord | null>;
   deleteWaveform(mediaId: string): Promise<void>;
+
+  // File handle operations (for cross-session asset restoration)
+  saveFileHandle(name: string, size: number, handle: FileSystemFileHandle): Promise<void>;
+  loadFileHandle(name: string, size: number): Promise<FileSystemFileHandle | null>;
 
   // Storage info
   getStorageUsage(): Promise<StorageUsage>;
