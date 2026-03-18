@@ -106,6 +106,10 @@ export interface ProjectState {
   replaceMediaAsset: (mediaId: string, file: File) => Promise<ActionResult>;
   renameMedia: (mediaId: string, name: string) => Promise<ActionResult>;
   getMediaItem: (mediaId: string) => MediaItem | undefined;
+  /** Add a pending placeholder for a background KieAI task */
+  addPlaceholderMedia: (item: MediaItem) => void;
+  /** Replace a pending placeholder with the actual result blob */
+  replacePlaceholderMedia: (mediaId: string, blob: Blob, name: string) => Promise<void>;
 
   // Track actions
   addTrack: (
@@ -842,6 +846,99 @@ export const useProjectStore = create<ProjectState>()(
       getMediaItem: (mediaId: string) => {
         const { project } = get();
         return project.mediaLibrary.items.find((item) => item.id === mediaId);
+      },
+
+      addPlaceholderMedia: (item: MediaItem) => {
+        const { project } = get();
+        set({
+          project: {
+            ...project,
+            mediaLibrary: {
+              ...project.mediaLibrary,
+              items: [...project.mediaLibrary.items, item],
+            },
+            modifiedAt: Date.now(),
+          },
+        });
+      },
+
+      replacePlaceholderMedia: async (mediaId: string, blob: Blob, name: string) => {
+        const { project } = get();
+
+        // For images use createImageBitmap (no mediaBridge dependency).
+        // This avoids WASM initialisation races and works immediately in any context.
+        let thumbnailUrl: string | null = null;
+        let width = 0;
+        let height = 0;
+
+        if (blob.size > 0 && blob.type.startsWith("image/")) {
+          try {
+            const bitmap = await createImageBitmap(blob);
+            width = bitmap.width;
+            height = bitmap.height;
+
+            const THUMB_SIZE = 320;
+            const scale = Math.min(THUMB_SIZE / bitmap.width, THUMB_SIZE / bitmap.height, 1);
+            const tw = Math.round(bitmap.width * scale);
+            const th = Math.round(bitmap.height * scale);
+
+            const canvas = new OffscreenCanvas(tw, th);
+            const ctx = canvas.getContext("2d")!;
+            ctx.drawImage(bitmap, 0, 0, tw, th);
+            bitmap.close();
+
+            const thumbBlob = await canvas.convertToBlob({ type: "image/jpeg", quality: 0.75 });
+            thumbnailUrl = await new Promise<string>((resolve) => {
+              const reader = new FileReader();
+              reader.onload = () => resolve(reader.result as string);
+              reader.readAsDataURL(thumbBlob);
+            });
+          } catch (thumbErr) {
+            console.warn("[ProjectStore] KieAI thumbnail generation failed:", thumbErr);
+          }
+        }
+
+        const file = new File([blob], name, { type: blob.type || "image/png" });
+
+        const updatedItem: MediaItem = {
+          id: mediaId,
+          name,
+          type: "image",
+          fileHandle: null,
+          blob: file,
+          metadata: {
+            duration: 0,
+            width,
+            height,
+            frameRate: 0,
+            codec: "",
+            sampleRate: 0,
+            channels: 0,
+            fileSize: file.size,
+          },
+          thumbnailUrl,
+          waveformData: null,
+          isPlaceholder: false,
+          isPending: false,
+        };
+
+        const updatedItems = project.mediaLibrary.items.map((item) =>
+          item.id === mediaId ? updatedItem : item,
+        );
+
+        set({
+          project: {
+            ...project,
+            mediaLibrary: { items: updatedItems },
+            modifiedAt: Date.now(),
+          },
+        });
+
+        try {
+          await saveMediaBlob(project.id, mediaId, file, updatedItem.metadata);
+        } catch (err) {
+          console.error("[ProjectStore] Failed to persist KieAI result blob:", err);
+        }
       },
 
       // Track actions

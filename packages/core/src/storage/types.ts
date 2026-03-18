@@ -1,6 +1,6 @@
 import type { Project, MediaMetadata } from "../types";
 
-export const DB_VERSION = 1;
+export const DB_VERSION = 3;
 
 export const DB_NAME = "openreel-db";
 

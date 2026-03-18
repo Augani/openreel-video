@@ -27,3 +27,24 @@ export {
   uploadFileStream,
   uploadFileBase64,
 } from "./file-upload";
+
+export {
+  IMAGE_MODELS,
+  createImageTask,
+  pollTask,
+  pollTaskOnce,
+  getResultUrl,
+} from "./image-generation";
+
+export type {
+  ImageModelId,
+  ImageModelInput,
+  SeedreamInput,
+  ZImageInput,
+  NanoBanana2Input,
+  Flux2Input,
+  GrokInput,
+  QwenInput,
+  TaskRecord,
+  TaskState,
+} from "./image-generation";

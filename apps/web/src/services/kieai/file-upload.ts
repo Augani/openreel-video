@@ -53,8 +53,8 @@ export async function uploadFileStream(
 ): Promise<UploadedFile> {
   const form = new FormData();
   form.append("file", file);
-  if (options.uploadPath) form.append("uploadPath", options.uploadPath);
-  if (options.fileName)   form.append("fileName",   options.fileName);
+  form.append("uploadPath", options.uploadPath ?? "openreel");
+  if (options.fileName) form.append("fileName", options.fileName);
 
   return kieaiPostForm<UploadedFile>(UPLOAD_STREAM_PATH, form);
 }

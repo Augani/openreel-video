@@ -40,6 +40,10 @@ export interface MediaItem {
   readonly filmstripThumbnails?: FilmstripThumbnail[];
   readonly isPlaceholder?: boolean;
   readonly originalUrl?: string;
+  /** True while a background KieAI generation task is in progress */
+  readonly isPending?: boolean;
+  /** KieAI task ID used to poll for completion */
+  readonly kieaiTaskId?: string;
 }
 
 /** Thumbnail for filmstrip display in timeline */

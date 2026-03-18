@@ -12,8 +12,11 @@ import { getSecret } from "../secure-storage";
 import { KieAIError } from "./types";
 import type { KieAIResponse } from "./types";
 
+/** File upload API base (kieai.redpandaai.co) */
 export const KIEAI_BASE_URL = "https://kieai.redpandaai.co";
-export const KIEAI_SECRET_ID = "kieai-api-key";
+/** Generation API base (api.kie.ai) */
+export const KIEAI_API_BASE_URL = "https://api.kie.ai";
+export const KIEAI_SECRET_ID = "kie-ai";
 
 async function getApiKey(): Promise<string> {
   const key = await getSecret(KIEAI_SECRET_ID);
@@ -26,14 +29,15 @@ async function getApiKey(): Promise<string> {
   return key;
 }
 
-/** POST JSON — used by URL upload and Base64 upload */
+/** POST JSON — used by URL upload, Base64 upload, and task creation */
 export async function kieaiPostJson<TBody extends object, TData>(
   path: string,
   body: TBody,
+  baseUrl = KIEAI_BASE_URL,
 ): Promise<TData> {
   const apiKey = await getApiKey();
 
-  const res = await fetch(`${KIEAI_BASE_URL}${path}`, {
+  const res = await fetch(`${baseUrl}${path}`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -44,10 +48,31 @@ export async function kieaiPostJson<TBody extends object, TData>(
 
   const json = (await res.json()) as KieAIResponse<TData>;
 
-  if (!json.success) {
+  if (!json.success && json.code !== 200) {
     throw new KieAIError(json.code, json.msg);
   }
 
+  return json.data;
+}
+
+/** GET with query params — used for task status polling */
+export async function kieaiGet<TData>(
+  path: string,
+  params: Record<string, string>,
+  baseUrl = KIEAI_API_BASE_URL,
+): Promise<TData> {
+  const apiKey = await getApiKey();
+  const url = new URL(`${baseUrl}${path}`);
+  for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
+
+  const res = await fetch(url.toString(), {
+    headers: { Authorization: `Bearer ${apiKey}` },
+  });
+
+  const json = (await res.json()) as KieAIResponse<TData>;
+  if (!json.success && json.code !== 200) {
+    throw new KieAIError(json.code, json.msg);
+  }
   return json.data;
 }
 
@@ -69,7 +94,7 @@ export async function kieaiPostForm<TData>(
 
   const json = (await res.json()) as KieAIResponse<TData>;
 
-  if (!json.success) {
+  if (!json.success && json.code !== 200) {
     throw new KieAIError(json.code, json.msg);
   }
 
