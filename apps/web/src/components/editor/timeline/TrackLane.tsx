@@ -13,6 +13,8 @@ import { KeyframeTrack } from "./KeyframeTrack";
 import { calculateSnap } from "./utils";
 import { useTimelineStore } from "../../../stores/timeline-store";
 import { useUIStore } from "../../../stores/ui-store";
+import { useProjectStore } from "../../../stores/project-store";
+import { toast } from "../../../stores/notification-store";
 
 type GraphicClipUnion = ShapeClip | SVGClip | StickerClip;
 
@@ -107,11 +109,56 @@ export const TrackLane: React.FC<TrackLaneProps> = ({
   }, []);
 
   const handleDrop = useCallback(
-    (e: React.DragEvent) => {
+    async (e: React.DragEvent) => {
       e.preventDefault();
       e.stopPropagation();
       setIsDragOver(false);
 
+      // External OS file drop (e.g. from Windows Explorer)
+      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        const rect = laneRef.current?.getBoundingClientRect();
+        if (!rect) return;
+        const x = e.clientX - rect.left + scrollX;
+        const rawTime = Math.max(0, x / pixelsPerSecond);
+        const snapResult = calculateSnap(
+          rawTime,
+          "",
+          allTracks,
+          playheadPosition,
+          snapSettings,
+          pixelsPerSecond,
+        );
+        const { importMedia, addClipToNewTrack } = useProjectStore.getState();
+        for (const file of Array.from(e.dataTransfer.files)) {
+          try {
+            const beforeIds = new Set(
+              useProjectStore.getState().project.mediaLibrary.items.map(i => i.id)
+            );
+            const result = await importMedia(file);
+            if (result.success) {
+              const newItem = useProjectStore
+                .getState()
+                .project.mediaLibrary.items.find(i => !beforeIds.has(i.id));
+              if (newItem) {
+                await addClipToNewTrack(newItem.id, snapResult.time);
+                const addedTrack = useProjectStore
+                  .getState()
+                  .project.timeline.tracks.find(t =>
+                    t.clips.some(c => c.mediaId === newItem.id)
+                  );
+                if (addedTrack) {
+                  toast.success(`Added to ${addedTrack.name}`, file.name);
+                }
+              }
+            }
+          } catch (err) {
+            console.error("[TrackLane] External file drop failed:", err);
+          }
+        }
+        return;
+      }
+
+      // Internal drag from assets panel
       try {
         const rawData = e.dataTransfer.getData("application/json");
         if (!rawData) return;
