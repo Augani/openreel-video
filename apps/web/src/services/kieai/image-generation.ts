@@ -105,7 +105,8 @@ export interface TaskRecord {
   taskId: string;
   model: string;
   state: TaskState;
-  resultJson: { resultUrls?: string[]; resultObject?: unknown } | null;
+  /** API returns this as a JSON string — getResultUrl handles parsing */
+  resultJson: string | { resultUrls?: string[]; resultObject?: unknown } | null;
   failCode?: number;
   failMsg?: string;
   costTime?: number;
@@ -165,7 +166,7 @@ export async function pollTask(
     attempt++;
     await new Promise<void>((res, rej) => {
       const t = setTimeout(res, delay);
-      signal?.addEventListener("abort", () => { clearTimeout(t); rej(new DOMException("Aborted", "AbortError")); });
+      signal?.addEventListener("abort", () => { clearTimeout(t); rej(new DOMException("Aborted", "AbortError")); }, { once: true });
     });
   }
 
@@ -191,10 +192,16 @@ export async function pollTaskOnce(taskId: string): Promise<TaskRecord> {
  */
 export function getResultUrl(record: TaskRecord): string {
   // resultJson is returned as a JSON string by the API — parse it if needed
-  const rj: Record<string, unknown> | null =
-    typeof record.resultJson === "string"
-      ? (JSON.parse(record.resultJson) as Record<string, unknown>)
-      : (record.resultJson as Record<string, unknown> | null);
+  let rj: Record<string, unknown> | null = null;
+  if (typeof record.resultJson === "string") {
+    try {
+      rj = JSON.parse(record.resultJson) as Record<string, unknown>;
+    } catch {
+      throw new KieAIError(500, "Failed to parse resultJson from API");
+    }
+  } else {
+    rj = record.resultJson as Record<string, unknown> | null;
+  }
 
   // Try every known field path
   const candidates: unknown[] = [

@@ -872,7 +872,7 @@ export const useProjectStore = create<ProjectState>()(
         set({
           project: {
             ...project,
-            mediaLibrary: { items: updatedItems },
+            mediaLibrary: { ...project.mediaLibrary, items: updatedItems },
             modifiedAt: Date.now(),
           },
         });
@@ -904,9 +904,10 @@ export const useProjectStore = create<ProjectState>()(
             bitmap.close();
 
             const thumbBlob = await canvas.convertToBlob({ type: "image/jpeg", quality: 0.75 });
-            thumbnailUrl = await new Promise<string>((resolve) => {
+            thumbnailUrl = await new Promise<string>((resolve, reject) => {
               const reader = new FileReader();
               reader.onload = () => resolve(reader.result as string);
+              reader.onerror = () => reject(reader.error);
               reader.readAsDataURL(thumbBlob);
             });
           } catch (thumbErr) {
@@ -945,7 +946,7 @@ export const useProjectStore = create<ProjectState>()(
         set({
           project: {
             ...project,
-            mediaLibrary: { items: updatedItems },
+            mediaLibrary: { ...project.mediaLibrary, items: updatedItems },
             modifiedAt: Date.now(),
           },
         });

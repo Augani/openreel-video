@@ -46,9 +46,13 @@ export async function kieaiPostJson<TBody extends object, TData>(
     body: JSON.stringify(body),
   });
 
+  if (!res.ok) {
+    throw new KieAIError(res.status, `HTTP ${res.status}: ${res.statusText}`);
+  }
+
   const json = (await res.json()) as KieAIResponse<TData>;
 
-  if (!json.success && json.code !== 200) {
+  if (json.code !== 200) {
     throw new KieAIError(json.code, json.msg);
   }
 
@@ -69,8 +73,12 @@ export async function kieaiGet<TData>(
     headers: { Authorization: `Bearer ${apiKey}` },
   });
 
+  if (!res.ok) {
+    throw new KieAIError(res.status, `HTTP ${res.status}: ${res.statusText}`);
+  }
+
   const json = (await res.json()) as KieAIResponse<TData>;
-  if (!json.success && json.code !== 200) {
+  if (json.code !== 200) {
     throw new KieAIError(json.code, json.msg);
   }
   return json.data;
@@ -92,9 +100,13 @@ export async function kieaiPostForm<TData>(
     body: form,
   });
 
+  if (!res.ok) {
+    throw new KieAIError(res.status, `HTTP ${res.status}: ${res.statusText}`);
+  }
+
   const json = (await res.json()) as KieAIResponse<TData>;
 
-  if (!json.success && json.code !== 200) {
+  if (json.code !== 200) {
     throw new KieAIError(json.code, json.msg);
   }
 

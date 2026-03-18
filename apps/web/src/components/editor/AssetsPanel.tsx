@@ -542,8 +542,12 @@ export const AssetsPanel: React.FC = () => {
     deleteMedia,
     replaceMediaAsset,
     updateSettings,
+    setKieAIItemState,
   } = useProjectStore();
   const mediaItems = project.mediaLibrary.items;
+
+  // KieAI store
+  const { retryTask } = useKieAIStore();
 
   // UI store
   const { select, isSelected, startDrag } = useUIStore();
@@ -769,7 +773,7 @@ export const AssetsPanel: React.FC = () => {
         toast.error("Asset not found", "Cannot load the image data for this asset.");
         return;
       }
-      const mimeType = blob.type || item.name.match(/\.png$/i) ? "image/png" : "image/jpeg";
+      const mimeType = blob.type || (item.name.match(/\.png$/i) ? "image/png" : "image/jpeg");
       const file = new File([blob], item.name, { type: mimeType as string });
       setKieaiDialog({ file, previewUrl: item.thumbnailUrl });
     } catch (err) {
@@ -777,9 +781,6 @@ export const AssetsPanel: React.FC = () => {
       toast.error("Failed to open KieAI", err instanceof Error ? err.message : "Unknown error");
     }
   }, []);
-
-  const { retryTask } = useKieAIStore();
-  const { setKieAIItemState } = useProjectStore();
 
   const handleRetryKieAI = useCallback((item: MediaItem) => {
     if (!item.kieaiTaskId) return;

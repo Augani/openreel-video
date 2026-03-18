@@ -9,9 +9,10 @@
  * - On exhaustion: marks task as failed; UI shows a manual retry button
  * - On API success: downloads result, replaces placeholder, removes task
  * - Task is ALWAYS removed on API success/fail — never left stuck
+ * - Tasks older than 3 days are auto-expired
  */
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useCallback } from "react";
 import { useProjectStore } from "../stores/project-store";
 import { useKieAIStore, MAX_POLL_RETRIES } from "../stores/kieai-store";
 import { pollTaskOnce, getResultUrl } from "../services/kieai/image-generation";
@@ -20,6 +21,24 @@ import { KieAIError } from "../services/kieai/types";
 const FIRST_POLL_DELAY_MS = 5_000;
 const POLL_INTERVAL_IMAGE_MS = 30_000;
 const POLL_INTERVAL_VIDEO_MS = 120_000;
+
+/** Tasks older than 3 days are expired (KieAI cleans up server-side too) */
+const TASK_MAX_AGE_MS = 3 * 24 * 60 * 60 * 1000;
+
+/** Allowed result URL host for SSRF protection */
+const ALLOWED_RESULT_HOSTS = new Set([
+  "tempfile.aiquickdraw.com",
+  "cdn.kie.ai",
+]);
+
+function isAllowedResultUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return ALLOWED_RESULT_HOSTS.has(parsed.hostname);
+  } catch {
+    return false;
+  }
+}
 
 export function useKieAIPoller() {
   const tasks            = useKieAIStore((s) => s.tasks);
@@ -33,6 +52,17 @@ export function useKieAIPoller() {
   const timersRef   = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const inFlightRef = useRef<Set<string>>(new Set());
 
+  // Use refs for callbacks to avoid stale closures in recursive setTimeout
+  const replacePlaceholderRef = useRef(replacePlaceholder);
+  replacePlaceholderRef.current = replacePlaceholder;
+  const setKieAIItemStateRef = useRef(setKieAIItemState);
+  setKieAIItemStateRef.current = setKieAIItemState;
+
+  const handleExpiredTask = useCallback((taskId: string, mediaId: string) => {
+    markFailed(taskId);
+    setKieAIItemStateRef.current(mediaId, false, true);
+  }, [markFailed]);
+
   useEffect(() => {
     const activeTasks = tasks.filter(
       (t) => t.projectId === projectId && !t.failed,
@@ -41,6 +71,13 @@ export function useKieAIPoller() {
     // Start a polling loop for each new active task
     for (const task of activeTasks) {
       if (timersRef.current.has(task.taskId)) continue;
+      if (inFlightRef.current.has(task.taskId)) continue;
+
+      // Expire tasks older than 3 days
+      if (Date.now() - task.createdAt > TASK_MAX_AGE_MS) {
+        handleExpiredTask(task.taskId, task.mediaId);
+        continue;
+      }
 
       const interval =
         task.type === "video" ? POLL_INTERVAL_VIDEO_MS : POLL_INTERVAL_IMAGE_MS;
@@ -50,10 +87,6 @@ export function useKieAIPoller() {
         ? FIRST_POLL_DELAY_MS - elapsed
         : Math.max(0, interval - (elapsed % interval));
 
-      console.log(
-        `[KieAIPoller] scheduling ${task.taskId} — first poll in ${Math.round(firstDelay / 1000)}s`,
-      );
-
       const doPoll = async () => {
         timersRef.current.delete(task.taskId);
         if (inFlightRef.current.has(task.taskId)) return;
@@ -61,33 +94,41 @@ export function useKieAIPoller() {
 
         try {
           const record = await pollTaskOnce(task.taskId);
-          console.log(`[KieAIPoller] ${task.taskId} state: ${record.state}`);
 
           if (record.state === "success") {
             // API says done — always remove the task, even if download fails
             try {
               const url = getResultUrl(record);
-              console.log(`[KieAIPoller] downloading result: ${url}`);
+
+              if (!isAllowedResultUrl(url)) {
+                throw new KieAIError(403, `Result URL host not allowed: ${url}`);
+              }
+
               const res = await fetch(url);
+              if (!res.ok) {
+                throw new KieAIError(res.status, `Download failed: HTTP ${res.status}`);
+              }
+
               const blob = await res.blob();
-              await replacePlaceholder(task.mediaId, blob, task.suggestedName);
-              console.log(`[KieAIPoller] ✓ replaced placeholder for ${task.taskId}`);
+              if (blob.size === 0) {
+                throw new KieAIError(500, "Downloaded result is empty");
+              }
+
+              await replacePlaceholderRef.current(task.mediaId, blob, task.suggestedName);
             } catch (downloadErr) {
               console.error(`[KieAIPoller] download failed for ${task.taskId}:`, downloadErr);
-              // At minimum clear the pending spinner so the user isn't stuck
-              setKieAIItemState(task.mediaId, false, true);
+              setKieAIItemStateRef.current(task.mediaId, false, true);
             } finally {
               removeTask(task.taskId);
             }
 
           } else if (record.state === "fail") {
             console.warn(`[KieAIPoller] task ${task.taskId} failed: ${record.failMsg}`);
-            setKieAIItemState(task.mediaId, false, true);
+            setKieAIItemStateRef.current(task.mediaId, false, true);
             removeTask(task.taskId);
 
           } else {
-            // Still generating — schedule next poll (no error, don't touch retries)
-            console.log(`[KieAIPoller] ${task.taskId} still ${record.state}, retry in ${interval / 1000}s`);
+            // Still generating — schedule next poll
             const t = setTimeout(doPoll, interval);
             timersRef.current.set(task.taskId, t);
           }
@@ -95,7 +136,7 @@ export function useKieAIPoller() {
           // Auth error — give up immediately, don't count as a retry
           if (err instanceof KieAIError && err.code === 401) {
             console.warn("[KieAIPoller] auth error — stopping poll for", task.taskId);
-            setKieAIItemState(task.mediaId, false, true);
+            setKieAIItemStateRef.current(task.mediaId, false, true);
             removeTask(task.taskId);
             return;
           }
@@ -115,12 +156,8 @@ export function useKieAIPoller() {
               `[KieAIPoller] ${task.taskId} exhausted ${MAX_POLL_RETRIES} retries — marking failed`,
             );
             markFailed(task.taskId);
-            setKieAIItemState(task.mediaId, false, true);
+            setKieAIItemStateRef.current(task.mediaId, false, true);
           } else {
-            console.warn(
-              `[KieAIPoller] poll error for ${task.taskId} (retry ${currentRetries}/${MAX_POLL_RETRIES}):`,
-              err,
-            );
             const t = setTimeout(doPoll, interval);
             timersRef.current.set(task.taskId, t);
           }
@@ -141,13 +178,14 @@ export function useKieAIPoller() {
         timersRef.current.delete(taskId);
       }
     }
-  }, [tasks, projectId, removeTask, incrementRetry, markFailed, replacePlaceholder, setKieAIItemState]);
+  }, [tasks, projectId, removeTask, incrementRetry, markFailed, handleExpiredTask]);
 
   // Cleanup on unmount
   useEffect(() => {
+    const timers = timersRef.current;
     return () => {
-      for (const timer of timersRef.current.values()) clearTimeout(timer);
-      timersRef.current.clear();
+      for (const timer of timers.values()) clearTimeout(timer);
+      timers.clear();
     };
   }, []);
 }
