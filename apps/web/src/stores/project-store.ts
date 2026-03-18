@@ -118,6 +118,7 @@ export interface ProjectState {
   hideTrack: (trackId: string, hidden: boolean) => Promise<ActionResult>;
   muteTrack: (trackId: string, muted: boolean) => Promise<ActionResult>;
   soloTrack: (trackId: string, solo: boolean) => Promise<ActionResult>;
+  renameTrack: (trackId: string, name: string) => void;
   getTrack: (trackId: string) => Track | undefined;
 
   // Clip actions
@@ -458,8 +459,16 @@ export const useProjectStore = create<ProjectState>()(
 
         const newHistory = new ActionHistory();
         const newExecutor = new ActionExecutor(newHistory);
+
+        // Fix legacy projects where timeline.duration was never persisted
+        const computedDuration = project.timeline.tracks.reduce((max, track) =>
+          track.clips.reduce((m, c) => Math.max(m, c.startTime + c.duration), max), 0);
+        const fixedProject = computedDuration > 0 && project.timeline.duration === 0
+          ? { ...project, timeline: { ...project.timeline, duration: computedDuration } }
+          : project;
+
         set({
-          project,
+          project: fixedProject,
           actionHistory: newHistory,
           actionExecutor: newExecutor,
           clipUndoStack: [],
@@ -891,6 +900,24 @@ export const useProjectStore = create<ProjectState>()(
           });
         }
         return result;
+      },
+
+      renameTrack: (trackId: string, name: string) => {
+        const { project } = get();
+        const trimmed = name.trim();
+        if (!trimmed) return;
+        set({
+          project: {
+            ...project,
+            timeline: {
+              ...project.timeline,
+              tracks: project.timeline.tracks.map((t) =>
+                t.id === trackId ? { ...t, name: trimmed } : t
+              ),
+            },
+            modifiedAt: Date.now(),
+          },
+        });
       },
 
       reorderTrack: async (trackId: string, newPosition: number) => {
