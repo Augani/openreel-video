@@ -42,6 +42,8 @@ export interface MediaItem {
   readonly originalUrl?: string;
   /** True while a background KieAI generation task is in progress */
   readonly isPending?: boolean;
+  /** True when polling exhausted all retries — shows manual retry button */
+  readonly kieaiError?: boolean;
   /** KieAI task ID used to poll for completion */
   readonly kieaiTaskId?: string;
 }

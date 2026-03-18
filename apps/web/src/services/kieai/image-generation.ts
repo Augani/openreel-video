@@ -190,10 +190,11 @@ export async function pollTaskOnce(taskId: string): Promise<TaskRecord> {
  * KieAI's resultJson shape varies by model — we try all known field paths.
  */
 export function getResultUrl(record: TaskRecord): string {
-  // Log the full record so we can see the real shape during development
-  console.log("[KieAI] getResultUrl — full record:", JSON.stringify(record, null, 2));
-
-  const rj = record.resultJson as Record<string, unknown> | null;
+  // resultJson is returned as a JSON string by the API — parse it if needed
+  const rj: Record<string, unknown> | null =
+    typeof record.resultJson === "string"
+      ? (JSON.parse(record.resultJson) as Record<string, unknown>)
+      : (record.resultJson as Record<string, unknown> | null);
 
   // Try every known field path
   const candidates: unknown[] = [

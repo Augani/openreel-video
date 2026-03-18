@@ -110,6 +110,8 @@ export interface ProjectState {
   addPlaceholderMedia: (item: MediaItem) => void;
   /** Replace a pending placeholder with the actual result blob */
   replacePlaceholderMedia: (mediaId: string, blob: Blob, name: string) => Promise<void>;
+  /** Flip isPending / kieaiError flags on a placeholder without full replacement */
+  setKieAIItemState: (mediaId: string, isPending: boolean, kieaiError: boolean) => void;
 
   // Track actions
   addTrack: (
@@ -857,6 +859,20 @@ export const useProjectStore = create<ProjectState>()(
               ...project.mediaLibrary,
               items: [...project.mediaLibrary.items, item],
             },
+            modifiedAt: Date.now(),
+          },
+        });
+      },
+
+      setKieAIItemState: (mediaId: string, isPending: boolean, kieaiError: boolean) => {
+        const { project } = get();
+        const updatedItems = project.mediaLibrary.items.map((item) =>
+          item.id === mediaId ? { ...item, isPending, kieaiError } : item,
+        );
+        set({
+          project: {
+            ...project,
+            mediaLibrary: { items: updatedItems },
             modifiedAt: Date.now(),
           },
         });

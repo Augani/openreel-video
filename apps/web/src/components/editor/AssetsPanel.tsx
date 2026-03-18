@@ -48,6 +48,7 @@ import {
 } from "@openreel/ui";
 import { KieAIImageDialog } from "./kieai/KieAIImageDialog";
 import { loadMediaBlob } from "../../services/media-storage";
+import { useKieAIStore } from "../../stores/kieai-store";
 
 const formatDuration = (seconds: number): string => {
   const mins = Math.floor(seconds / 60);
@@ -73,6 +74,7 @@ const MediaThumbnail: React.FC<{
   onDragStart: (e: React.DragEvent) => void;
   onAddToTimeline: () => void;
   onKieAI?: () => void;
+  onRetryKieAI?: () => void;
 }> = ({
   item,
   isSelected,
@@ -83,6 +85,7 @@ const MediaThumbnail: React.FC<{
   onDragStart,
   onAddToTimeline,
   onKieAI,
+  onRetryKieAI,
 }) => {
   const [isHovered, setIsHovered] = useState(false);
 
@@ -121,7 +124,9 @@ const MediaThumbnail: React.FC<{
       ? "text-primary/50"
       : "text-status-info/50";
 
-  const borderClass = item.isPending
+  const borderClass = item.kieaiError
+    ? "border-red-500 ring-1 ring-red-500/50 shadow-[0_0_10px_rgba(239,68,68,0.3)]"
+    : item.isPending
     ? "border-purple-500 ring-1 ring-purple-500/50 shadow-[0_0_10px_rgba(168,85,247,0.3)]"
     : item.isPlaceholder
       ? "border-yellow-500 ring-1 ring-yellow-500/50 shadow-[0_0_10px_rgba(234,179,8,0.3)]"
@@ -131,7 +136,15 @@ const MediaThumbnail: React.FC<{
 
   const hoverOverlay = (
     <div className="absolute inset-0 bg-black/40 backdrop-blur-[1px] flex items-center justify-center gap-2 animate-in fade-in duration-200">
-      {item.isPending ? (
+      {item.kieaiError ? (
+        <button
+          onClick={(e) => { e.stopPropagation(); onRetryKieAI?.(); }}
+          title="Generation failed — click to retry"
+          className="p-2 bg-red-500/20 rounded-full hover:bg-red-500/40 backdrop-blur-sm transition-colors"
+        >
+          <RefreshCw size={14} className="text-red-400" />
+        </button>
+      ) : item.isPending ? (
         <div title="KieAI generation in progress…" className="p-2">
           <div className="h-5 w-5 animate-spin rounded-full border-2 border-purple-400 border-t-transparent" />
         </div>
@@ -196,12 +209,17 @@ const MediaThumbnail: React.FC<{
               <Icon size={14} className={iconColor} />
             </div>
           )}
-          {item.isPending && (
+          {item.kieaiError && (
+            <div className="absolute inset-0 flex items-center justify-center bg-red-500/10">
+              <AlertTriangle size={12} className="text-red-400" />
+            </div>
+          )}
+          {!item.kieaiError && item.isPending && (
             <div className="absolute inset-0 flex items-center justify-center bg-purple-500/10">
               <div className="h-4 w-4 animate-spin rounded-full border-2 border-purple-400 border-t-transparent" />
             </div>
           )}
-          {!item.isPending && item.isPlaceholder && (
+          {!item.kieaiError && !item.isPending && item.isPlaceholder && (
             <div className="absolute inset-0 flex items-center justify-center bg-yellow-500/10">
               <AlertTriangle size={12} className="text-yellow-500/70" />
             </div>
@@ -228,7 +246,15 @@ const MediaThumbnail: React.FC<{
         {/* Hover actions */}
         {isHovered && (
           <div className="flex items-center gap-1 flex-shrink-0">
-            {item.isPending ? (
+            {item.kieaiError ? (
+              <button
+                onClick={(e) => { e.stopPropagation(); onRetryKieAI?.(); }}
+                title="Retry generation"
+                className="p-1 bg-red-500/20 rounded hover:bg-red-500/40 transition-colors"
+              >
+                <RefreshCw size={12} className="text-red-400" />
+              </button>
+            ) : item.isPending ? (
               <div className="p-1" title="Generating…">
                 <div className="h-3 w-3 animate-spin rounded-full border-2 border-purple-400 border-t-transparent" />
               </div>
@@ -341,8 +367,16 @@ const MediaThumbnail: React.FC<{
           </div>
         )}
 
+        {/* KieAI Error Badge */}
+        {item.kieaiError && (
+          <div className="absolute top-1 left-1 px-1.5 py-0.5 bg-red-500 rounded text-[8px] text-white font-bold flex items-center gap-1">
+            <AlertTriangle size={8} />
+            Failed
+          </div>
+        )}
+
         {/* Pending KieAI Badge */}
-        {item.isPending && (
+        {!item.kieaiError && item.isPending && (
           <div className="absolute top-1 left-1 px-1.5 py-0.5 bg-purple-500 rounded text-[8px] text-white font-bold flex items-center gap-1">
             <div className="h-2 w-2 animate-spin rounded-full border border-white border-t-transparent" />
             AI
@@ -350,7 +384,7 @@ const MediaThumbnail: React.FC<{
         )}
 
         {/* Missing Asset Badge */}
-        {!item.isPending && item.isPlaceholder && (
+        {!item.kieaiError && !item.isPending && item.isPlaceholder && (
           <div className="absolute top-1 left-1 px-1.5 py-0.5 bg-yellow-500 rounded text-[8px] text-black font-bold flex items-center gap-1">
             <AlertTriangle size={10} />
             Missing
@@ -364,15 +398,22 @@ const MediaThumbnail: React.FC<{
           </div>
         )}
 
+        {/* Error overlay */}
+        {item.kieaiError && !isHovered && (
+          <div className="absolute inset-0 flex items-center justify-center bg-red-500/10">
+            <AlertTriangle size={viewMode === "small" ? 20 : 32} className="text-red-400/60" />
+          </div>
+        )}
+
         {/* Pending overlay */}
-        {item.isPending && !isHovered && (
+        {!item.kieaiError && item.isPending && !isHovered && (
           <div className="absolute inset-0 flex items-center justify-center bg-purple-500/10">
             <div className="h-8 w-8 animate-spin rounded-full border-4 border-purple-400 border-t-transparent" />
           </div>
         )}
 
         {/* Warning icon overlay for placeholders */}
-        {!item.isPending && item.isPlaceholder && !isHovered && (
+        {!item.kieaiError && !item.isPending && item.isPlaceholder && !isHovered && (
           <div className="absolute inset-0 flex items-center justify-center bg-yellow-500/10">
             <AlertTriangle size={viewMode === "small" ? 20 : 32} className="text-yellow-500/50" />
           </div>
@@ -737,6 +778,16 @@ export const AssetsPanel: React.FC = () => {
     }
   }, []);
 
+  const { retryTask } = useKieAIStore();
+  const { setKieAIItemState } = useProjectStore();
+
+  const handleRetryKieAI = useCallback((item: MediaItem) => {
+    if (!item.kieaiTaskId) return;
+    // Reset error state and re-activate polling
+    setKieAIItemState(item.id, true, false);
+    retryTask(item.kieaiTaskId);
+  }, [retryTask, setKieAIItemState]);
+
   return (
     <div
       data-tour="assets"
@@ -916,7 +967,8 @@ export const AssetsPanel: React.FC = () => {
                     onReplace={() => handleReplaceAsset(item.id)}
                     onDragStart={(e) => handleItemDragStart(e, item)}
                     onAddToTimeline={() => handleAddToTimeline(item)}
-                    onKieAI={item.type === "image" ? () => handleOpenKieAI(item) : undefined}
+                    onKieAI={item.type === "image" && !item.isPending && !item.kieaiError ? () => handleOpenKieAI(item) : undefined}
+                    onRetryKieAI={item.kieaiError && item.kieaiTaskId ? () => handleRetryKieAI(item) : undefined}
                   />
                 ))}
                 {/* Add more media tile */}

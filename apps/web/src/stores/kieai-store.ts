@@ -2,14 +2,18 @@
  * KieAI background task store
  *
  * Tracks pending KieAI generation tasks so the poller can resume them across
- * dialog closes, page refreshes, etc.
+ * dialog closes and page refreshes (tasks live on KieAI servers for ~3 days).
  *
- * Persisted to localStorage so tasks survive a page reload while they're
- * still generating (KieAI tasks live on the server for ~3 days).
+ * Task lifecycle:
+ *   pending → (poll ok) → removed (success / API fail)
+ *   pending → (10 poll errors) → failed  ← user can retry
+ *   failed  → (user clicks retry)        → pending (retries reset)
  */
 
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+
+export const MAX_POLL_RETRIES = 10;
 
 export interface PendingKieAITask {
   /** KieAI task ID returned by createImageTask */
@@ -24,12 +28,19 @@ export interface PendingKieAITask {
   suggestedName: string;
   /** Unix timestamp (ms) when the task was created */
   createdAt: number;
+  /** Number of consecutive poll/download errors */
+  retries: number;
+  /** Set to true when retries >= MAX_POLL_RETRIES — poller stops, UI shows retry button */
+  failed: boolean;
 }
 
 interface KieAIStore {
   tasks: PendingKieAITask[];
-  addTask: (task: PendingKieAITask) => void;
+  addTask: (task: Omit<PendingKieAITask, "retries" | "failed">) => void;
   removeTask: (taskId: string) => void;
+  incrementRetry: (taskId: string) => void;
+  markFailed: (taskId: string) => void;
+  retryTask: (taskId: string) => void;
   getTasksForProject: (projectId: string) => PendingKieAITask[];
 }
 
@@ -39,16 +50,37 @@ export const useKieAIStore = create<KieAIStore>()(
       tasks: [],
 
       addTask: (task) =>
-        set((s) => ({ tasks: [...s.tasks, task] })),
+        set((s) => ({
+          tasks: [...s.tasks, { ...task, retries: 0, failed: false }],
+        })),
 
       removeTask: (taskId) =>
         set((s) => ({ tasks: s.tasks.filter((t) => t.taskId !== taskId) })),
 
+      incrementRetry: (taskId) =>
+        set((s) => ({
+          tasks: s.tasks.map((t) =>
+            t.taskId === taskId ? { ...t, retries: t.retries + 1 } : t,
+          ),
+        })),
+
+      markFailed: (taskId) =>
+        set((s) => ({
+          tasks: s.tasks.map((t) =>
+            t.taskId === taskId ? { ...t, failed: true } : t,
+          ),
+        })),
+
+      retryTask: (taskId) =>
+        set((s) => ({
+          tasks: s.tasks.map((t) =>
+            t.taskId === taskId ? { ...t, retries: 0, failed: false } : t,
+          ),
+        })),
+
       getTasksForProject: (projectId) =>
         get().tasks.filter((t) => t.projectId === projectId),
     }),
-    {
-      name: "kieai-pending-tasks",
-    },
+    { name: "kieai-pending-tasks" },
   ),
 );
