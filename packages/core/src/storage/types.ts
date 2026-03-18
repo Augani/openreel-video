@@ -1,6 +1,6 @@
 import type { Project, MediaMetadata } from "../types";
 
-export const DB_VERSION = 2;
+export const DB_VERSION = 3;
 
 export const DB_NAME = "openreel-db";
 
@@ -10,6 +10,7 @@ export const STORES = {
   CACHE: "cache",
   WAVEFORMS: "waveforms",
   FILE_HANDLES: "fileHandles",
+  DIR_HANDLES: "dirHandles",
 } as const;
 
 export interface ProjectRecord {
@@ -51,6 +52,13 @@ export interface WaveformRecord {
 export interface FileHandleRecord {
   readonly key: string; // "${name}:${size}"
   readonly handle: FileSystemFileHandle;
+}
+
+/** Keyed by projectId — stores the last folder the user relinked from, per project */
+export interface DirHandleRecord {
+  readonly key: string; // projectId
+  readonly handle: FileSystemDirectoryHandle;
+  readonly folderName: string;
 }
 
 export interface StorageUsage {
@@ -107,6 +115,8 @@ export interface IStorageEngine {
   // File handle operations (for cross-session asset restoration)
   saveFileHandle(name: string, size: number, handle: FileSystemFileHandle): Promise<void>;
   loadFileHandle(name: string, size: number): Promise<FileSystemFileHandle | null>;
+  saveDirectoryHandle(projectId: string, handle: FileSystemDirectoryHandle): Promise<void>;
+  loadDirectoryHandle(projectId: string): Promise<{ handle: FileSystemDirectoryHandle; folderName: string } | null>;
 
   // Storage info
   getStorageUsage(): Promise<StorageUsage>;

@@ -54,6 +54,7 @@ import {
   deleteMediaBlob,
   loadProjectMedia,
   loadFileHandle,
+  loadDirectoryHandle,
 } from "../services/media-storage";
 import { restoreMediaItem } from "../utils/media-recovery";
 import { projectManager } from "../services/project-manager";
@@ -104,7 +105,7 @@ export interface ProjectState {
   // Media library actions
   importMedia: (file: File) => Promise<ActionResult>;
   deleteMedia: (mediaId: string) => Promise<ActionResult>;
-  replaceMediaAsset: (mediaId: string, file: File) => Promise<ActionResult>;
+  replaceMediaAsset: (mediaId: string, file: File, sourceFolder?: string) => Promise<ActionResult>;
   renameMedia: (mediaId: string, name: string) => Promise<ActionResult>;
   getMediaItem: (mediaId: string) => MediaItem | undefined;
 
@@ -484,18 +485,49 @@ export const useProjectStore = create<ProjectState>()(
         if (placeholders.length > 0 && "FileSystemFileHandle" in window) {
           (async () => {
             let restored = 0;
+            const stillMissing: typeof placeholders = [];
+
+            // Tier 1: try individual file handles (follow file across folder moves)
             for (const item of placeholders) {
               if (!item.sourceFile) continue;
               try {
                 const handle = await loadFileHandle(item.sourceFile.name, item.sourceFile.size);
-                if (!handle) continue;
+                if (!handle) { stillMissing.push(item); continue; }
                 const file = await handle.getFile();
-                await get().replaceMediaAsset(item.id, file);
+                await get().replaceMediaAsset(item.id, file, item.sourceFile.folder);
                 restored++;
               } catch {
-                // Handle stale or permission-denied — silently skip
+                stillMissing.push(item); // stale handle
               }
             }
+
+            // Tier 2: scan the stored relink folder for files not found via handle
+            if (stillMissing.length > 0) {
+              try {
+                const dirInfo = await loadDirectoryHandle(fixedProject.id);
+                if (dirInfo) {
+                  const fileMap = new Map<string, { file: File; folder: string }>();
+                  const entries = (dirInfo.handle as unknown as { entries: () => AsyncIterableIterator<[string, FileSystemHandle]> }).entries();
+                  for await (const [, fh] of entries) {
+                    if ((fh as FileSystemHandle).kind === "file") {
+                      const f = await (fh as FileSystemFileHandle).getFile();
+                      fileMap.set(`${f.name.toLowerCase()}:${f.size}`, { file: f, folder: dirInfo.folderName });
+                    }
+                  }
+                  for (const item of stillMissing) {
+                    if (!item.sourceFile) continue;
+                    const entry = fileMap.get(`${item.sourceFile.name.toLowerCase()}:${item.sourceFile.size}`);
+                    if (entry) {
+                      try {
+                        await get().replaceMediaAsset(item.id, entry.file, entry.folder);
+                        restored++;
+                      } catch { /* skip */ }
+                    }
+                  }
+                }
+              } catch { /* dir handle stale or unavailable */ }
+            }
+
             if (restored > 0) {
               console.info(`[ProjectStore] Auto-restored ${restored} asset(s) from file handles`);
             }
@@ -739,7 +771,7 @@ export const useProjectStore = create<ProjectState>()(
         return result;
       },
 
-      replaceMediaAsset: async (mediaId: string, file: File) => {
+      replaceMediaAsset: async (mediaId: string, file: File, sourceFolder?: string) => {
         const { project } = get();
 
         try {
@@ -828,7 +860,7 @@ export const useProjectStore = create<ProjectState>()(
             filmstripThumbnails:
               filmstripThumbnails.length > 0 ? filmstripThumbnails : undefined,
             isPlaceholder: false,
-            sourceFile: { name: file.name, size: file.size, lastModified: file.lastModified },
+            sourceFile: { name: file.name, size: file.size, lastModified: file.lastModified, folder: sourceFolder },
           };
 
           const updatedItems = project.mediaLibrary.items.map((item) =>

@@ -36,7 +36,7 @@ import { AspectRatioMatchDialog } from "./dialogs/AspectRatioMatchDialog";
 import { AIGenTab } from "./AIGenTab";
 import { useTtsAudioStore } from "../../stores/tts-store";
 import { toast } from "../../stores/notification-store";
-import { saveFileHandle } from "../../services/media-storage";
+import { saveFileHandle, saveDirectoryHandle } from "../../services/media-storage";
 import { IconButton, Input, ScrollArea } from "@openreel/ui";
 
 const formatDuration = (seconds: number): string => {
@@ -563,29 +563,34 @@ export const AssetsPanel: React.FC = () => {
       return; // user cancelled
     }
 
-    const placeholders = useProjectStore.getState().project.mediaLibrary.items.filter(
-      (item) => item.isPlaceholder,
-    );
+    const { project } = useProjectStore.getState();
+    const placeholders = project.mediaLibrary.items.filter((item) => item.isPlaceholder);
     if (placeholders.length === 0) return;
 
-    // Build a filename → File map from the chosen folder (using entries() for name+handle pairs)
-    const fileMap = new Map<string, File>();
+    // Persist the directory handle for future auto-restore
+    try { await saveDirectoryHandle(project.id, dirHandle); } catch { /* best-effort */ }
+
+    // Build a filename → {File, handle} map (keyed by lowercase name)
+    const fileMap = new Map<string, { file: File; handle: FileSystemFileHandle }>();
     const entries = (dirHandle as unknown as { entries: () => AsyncIterableIterator<[string, FileSystemHandle]> }).entries();
-    for await (const [name, handle] of entries) {
-      if (handle.kind === "file") {
-        const file = await (handle as FileSystemFileHandle).getFile();
-        fileMap.set(name.toLowerCase(), file);
+    for await (const [, fh] of entries) {
+      if ((fh as FileSystemHandle).kind === "file") {
+        const fileHandle = fh as FileSystemFileHandle;
+        const file = await fileHandle.getFile();
+        fileMap.set(file.name.toLowerCase(), { file, handle: fileHandle });
       }
     }
 
     setIsImporting(true);
     let linked = 0;
     for (const item of placeholders) {
-      const match = fileMap.get(item.name.toLowerCase());
-      if (match) {
+      const entry = fileMap.get(item.name.toLowerCase());
+      if (entry) {
         setImportProgress(`Relinking ${item.name}…`);
         try {
-          await replaceMediaAsset(item.id, match);
+          // Save individual file handle for future auto-restore
+          try { await saveFileHandle(entry.file.name, entry.file.size, entry.handle); } catch { /* best-effort */ }
+          await replaceMediaAsset(item.id, entry.file, dirHandle.name);
           linked++;
         } catch (err) {
           console.error(`[AssetsPanel] Failed to relink ${item.name}:`, err);

@@ -41,7 +41,7 @@ export interface MediaItem {
   readonly isPlaceholder?: boolean;
   readonly originalUrl?: string;
   /** File hint stored in JSON for cross-session/cross-machine asset matching */
-  readonly sourceFile?: { name: string; size: number; lastModified: number };
+  readonly sourceFile?: { name: string; size: number; lastModified: number; folder?: string };
 }
 
 /** Thumbnail for filmstrip display in timeline */
