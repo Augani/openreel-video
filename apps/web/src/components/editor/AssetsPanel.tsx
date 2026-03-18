@@ -512,6 +512,57 @@ export const AssetsPanel: React.FC = () => {
     [replaceMediaAsset],
   );
 
+  const handleRelinkFromFolder = useCallback(async () => {
+    if (!("showDirectoryPicker" in window)) {
+      toast.error("Folder picker not supported", "Please relink assets individually using the refresh button on each missing asset.");
+      return;
+    }
+    let dirHandle: FileSystemDirectoryHandle;
+    try {
+      dirHandle = await (window as unknown as { showDirectoryPicker: () => Promise<FileSystemDirectoryHandle> }).showDirectoryPicker();
+    } catch {
+      return; // user cancelled
+    }
+
+    const placeholders = useProjectStore.getState().project.mediaLibrary.items.filter(
+      (item) => item.isPlaceholder,
+    );
+    if (placeholders.length === 0) return;
+
+    // Build a filename → File map from the chosen folder (using entries() for name+handle pairs)
+    const fileMap = new Map<string, File>();
+    const entries = (dirHandle as unknown as { entries: () => AsyncIterableIterator<[string, FileSystemHandle]> }).entries();
+    for await (const [name, handle] of entries) {
+      if (handle.kind === "file") {
+        const file = await (handle as FileSystemFileHandle).getFile();
+        fileMap.set(name.toLowerCase(), file);
+      }
+    }
+
+    setIsImporting(true);
+    let linked = 0;
+    for (const item of placeholders) {
+      const match = fileMap.get(item.name.toLowerCase());
+      if (match) {
+        setImportProgress(`Relinking ${item.name}…`);
+        try {
+          await replaceMediaAsset(item.id, match);
+          linked++;
+        } catch (err) {
+          console.error(`[AssetsPanel] Failed to relink ${item.name}:`, err);
+        }
+      }
+    }
+    setIsImporting(false);
+    setImportProgress("");
+
+    if (linked > 0) {
+      toast.success(`Relinked ${linked} of ${placeholders.length} asset${placeholders.length !== 1 ? "s" : ""}`);
+    } else {
+      toast.error("No matches found", "None of the files in the selected folder matched the missing assets by filename.");
+    }
+  }, [replaceMediaAsset]);
+
   // Handle drag start for timeline placement
   const handleItemDragStart = useCallback(
     (e: React.DragEvent, item: MediaItem) => {
@@ -751,6 +802,13 @@ export const AssetsPanel: React.FC = () => {
             <div className="px-2 py-0.5 rounded-full bg-yellow-500 text-black text-[10px] font-bold">
               {missingAssetsCount}
             </div>
+          </button>
+          <button
+            onClick={handleRelinkFromFolder}
+            className="w-full px-3 py-2 rounded-lg border border-yellow-500/40 bg-yellow-500/5 text-yellow-500 text-xs font-medium transition-all hover:bg-yellow-500/15 flex items-center gap-2"
+          >
+            <RefreshCw size={14} />
+            <span>Relink from Folder…</span>
           </button>
         </div>
       )}

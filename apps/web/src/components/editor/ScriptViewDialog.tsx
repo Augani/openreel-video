@@ -20,6 +20,7 @@ import {
   Button,
 } from "@openreel/ui";
 import { useProjectStore } from "../../stores/project-store";
+import { toast } from "../../stores/notification-store";
 import { createProjectSerializer, createStorageEngine } from "@openreel/core";
 import type { ValidationResult } from "@openreel/core/storage/schema-types";
 
@@ -176,6 +177,15 @@ export const ScriptViewDialog: React.FC<ScriptViewDialogProps> = ({
       if (importedProject) {
         useProjectStore.getState().loadProject(importedProject);
         onClose();
+        const missingCount = importedProject.mediaLibrary.items.filter(
+          (item) => item.isPlaceholder,
+        ).length;
+        if (missingCount > 0) {
+          toast.warning(
+            `${missingCount} asset${missingCount !== 1 ? "s" : ""} need relinking`,
+            "Go to Assets panel → click \"Relink from Folder\" to restore missing media.",
+          );
+        }
       }
     } catch (error) {
       setValidation({
