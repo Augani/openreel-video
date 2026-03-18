@@ -96,7 +96,7 @@ export const TrackHeader: React.FC<TrackHeaderProps> = ({
                 {track.hidden ? <EyeOff size={12} /> : <Eye size={12} />}
               </button>
             )}
-            {track.type !== "image" && (
+            {track.type !== "image" && track.type !== "text" && track.type !== "graphics" && (
               <button
                 onClick={(e) => { e.stopPropagation(); muteTrack(track.id, !track.muted); }}
                 className={`p-1 rounded transition-colors ${
