@@ -1,6 +1,4 @@
-const CLOUD_API_URL = import.meta.env.PROD
-  ? "https://openreel-cloud.niiyeboah1996.workers.dev"
-  : "http://localhost:8787";
+import { OPENREEL_CLOUD_URL } from "../config/api-endpoints";
 
 export interface ShareResult {
   shareId: string;
@@ -70,14 +68,14 @@ export async function uploadForSharing(
       reject(new Error("Upload was cancelled"));
     });
 
-    xhr.open("POST", `${CLOUD_API_URL}/shares`);
+    xhr.open("POST", `${OPENREEL_CLOUD_URL}/shares`);
     xhr.send(formData);
   });
 }
 
 export async function getShareInfo(shareId: string): Promise<ShareInfo | null> {
   try {
-    const response = await fetch(`${CLOUD_API_URL}/shares/${shareId}`);
+    const response = await fetch(`${OPENREEL_CLOUD_URL}/shares/${shareId}`);
 
     if (response.status === 404) {
       return null;
@@ -101,7 +99,7 @@ export async function getShareInfo(shareId: string): Promise<ShareInfo | null> {
 }
 
 export function getShareDownloadUrl(shareId: string): string {
-  return `${CLOUD_API_URL}/shares/${shareId}/download`;
+  return `${OPENREEL_CLOUD_URL}/shares/${shareId}/download`;
 }
 
 export function getSharePageUrl(shareId: string): string {
@@ -136,7 +134,7 @@ export function isShareExpired(expiresAt: number): boolean {
 
 export async function checkShareHealth(): Promise<boolean> {
   try {
-    const response = await fetch(`${CLOUD_API_URL}/health`);
+    const response = await fetch(`${OPENREEL_CLOUD_URL}/health`);
     return response.ok;
   } catch {
     return false;

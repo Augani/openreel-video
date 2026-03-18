@@ -34,6 +34,8 @@ import { useUIStore } from "../../stores/ui-store";
 import type { MediaItem } from "@openreel/core";
 import { AspectRatioMatchDialog } from "./dialogs/AspectRatioMatchDialog";
 import { AIGenTab } from "./AIGenTab";
+import { useTtsAudioStore } from "../../stores/tts-store";
+import { toast } from "../../stores/notification-store";
 import { IconButton, Input, ScrollArea } from "@openreel/ui";
 
 const formatDuration = (seconds: number): string => {
@@ -358,9 +360,18 @@ const LoadingIndicator: React.FC<{ message: string }> = ({ message }) => (
 export const AssetsPanel: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [activeTab, setActiveTab] = useState<
+  const [activeTab, setActiveTabRaw] = useState<
     "media" | "text" | "graphics" | "ai"
   >("media");
+  const ttsHasUnsaved = useTtsAudioStore((s) => s.generatedAudio !== null && !s.isAudioSaved);
+
+  const setActiveTab = useCallback((tab: "media" | "text" | "graphics" | "ai") => {
+    if (activeTab === "ai" && tab !== "ai" && ttsHasUnsaved) {
+      toast.warning("Unsaved audio discarded", "Save to media or download next time to keep it.");
+    }
+    setActiveTabRaw(tab);
+  }, [activeTab, ttsHasUnsaved]);
+
   const [isDragOver, setIsDragOver] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [importProgress, setImportProgress] = useState("");
