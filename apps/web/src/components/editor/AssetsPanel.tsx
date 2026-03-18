@@ -117,13 +117,22 @@ const MediaThumbnail: React.FC<{
   const hoverOverlay = (
     <div className="absolute inset-0 bg-black/40 backdrop-blur-[1px] flex items-center justify-center gap-2 animate-in fade-in duration-200">
       {item.isPlaceholder ? (
-        <button
-          onClick={(e) => { e.stopPropagation(); onReplace(); }}
-          title="Replace asset"
-          className="p-2 bg-yellow-500/20 rounded-full hover:bg-yellow-500/40 backdrop-blur-sm transition-colors"
-        >
-          <RefreshCw size={14} className="text-yellow-500" />
-        </button>
+        <>
+          <button
+            onClick={(e) => { e.stopPropagation(); onReplace(); }}
+            title="Replace asset"
+            className="p-2 bg-yellow-500/20 rounded-full hover:bg-yellow-500/40 backdrop-blur-sm transition-colors"
+          >
+            <RefreshCw size={14} className="text-yellow-500" />
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); onDelete(); }}
+            title="Delete"
+            className="p-2 bg-red-500/20 rounded-full hover:bg-red-500/40 backdrop-blur-sm transition-colors"
+          >
+            <Trash2 size={14} className="text-red-400" />
+          </button>
+        </>
       ) : (
         <>
           <button
@@ -194,13 +203,22 @@ const MediaThumbnail: React.FC<{
         {isHovered && (
           <div className="flex items-center gap-1 flex-shrink-0">
             {item.isPlaceholder ? (
-              <button
-                onClick={(e) => { e.stopPropagation(); onReplace(); }}
-                title="Replace asset"
-                className="p-1 bg-yellow-500/20 rounded hover:bg-yellow-500/40 transition-colors"
-              >
-                <RefreshCw size={12} className="text-yellow-500" />
-              </button>
+              <>
+                <button
+                  onClick={(e) => { e.stopPropagation(); onReplace(); }}
+                  title="Replace asset"
+                  className="p-1 bg-yellow-500/20 rounded hover:bg-yellow-500/40 transition-colors"
+                >
+                  <RefreshCw size={12} className="text-yellow-500" />
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); onDelete(); }}
+                  title="Delete"
+                  className="p-1 bg-red-500/20 rounded hover:bg-red-500/40 transition-colors"
+                >
+                  <Trash2 size={12} className="text-red-400" />
+                </button>
+              </>
             ) : (
               <>
                 <button
