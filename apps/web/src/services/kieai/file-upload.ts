@@ -1,13 +1,20 @@
 /**
  * KieAI File Upload API
  *
- * Three upload strategies, each suited to different use-cases:
+ * Two practical upload strategies for a local browser editor:
  *
- *   uploadFileByUrl    — remote URL → KieAI storage (≤100 MB, 30 s timeout)
- *   uploadFileStream   — local File/Blob binary stream (best for >10 MB)
- *   uploadFileBase64   — base64-encoded string (≤10 MB, JSON-friendly)
+ *   uploadFileStream  — PRIMARY: browser sends File/Blob bytes directly to
+ *                       KieAI via multipart/form-data. Works for any local
+ *                       file regardless of size. Use this for media library
+ *                       assets (images, videos, audio).
  *
- * All methods return an `UploadedFile` describing the stored file.
+ *   uploadFileBase64  — For canvas/thumbnail exports already in base64 form.
+ *                       Limited to ~10 MB due to base64 expansion overhead.
+ *
+ * NOTE: uploadFileByUrl is intentionally not the default here — KieAI's
+ * server fetches the URL, so localhost:* URLs won't work. Only use it for
+ * assets already hosted on a publicly reachable server.
+ *
  * Files are temporary: KieAI auto-deletes them after 3 days.
  *
  * Docs: https://docs.kie.ai/file-upload-api/quickstart
@@ -21,47 +28,24 @@ import type {
   Base64UploadOptions,
 } from "./types";
 
-const UPLOAD_URL_PATH    = "/api/file-url-upload";
 const UPLOAD_STREAM_PATH = "/api/file-stream-upload";
 const UPLOAD_BASE64_PATH = "/api/file-base64-upload";
+const UPLOAD_URL_PATH    = "/api/file-url-upload";
 
 /**
- * Upload a file from a publicly accessible URL.
+ * PRIMARY — Upload a local File or Blob as a binary stream.
  *
- * KieAI downloads the remote file and stores it on its servers.
- * Suitable for remote assets already on the internet.
+ * The browser sends the bytes directly to KieAI's server via
+ * multipart/form-data. No size restrictions beyond server limits.
+ * This is the right choice for media library assets.
  *
- * @param options.fileUrl  - Publicly accessible URL of the file (required)
- * @param options.uploadPath - Server-side directory (optional)
- * @param options.fileName   - Custom server filename (optional, overwrites existing)
- *
- * @example
- * const file = await uploadFileByUrl({
- *   fileUrl: "https://example.com/photo.jpg",
- * });
- * console.log(file.fileUrl); // KieAI-hosted URL
- */
-export async function uploadFileByUrl(
-  options: UrlUploadOptions,
-): Promise<UploadedFile> {
-  return kieaiPostJson<UrlUploadOptions, UploadedFile>(
-    UPLOAD_URL_PATH,
-    options,
-  );
-}
-
-/**
- * Upload a local File or Blob as a binary stream (multipart/form-data).
- *
- * Most efficient for large files (>10 MB). No base64 overhead.
- *
- * @param file           - The File or Blob to upload
- * @param options        - Optional uploadPath / fileName
+ * @param file    - File or Blob from a file picker, drag-drop, or canvas export
+ * @param options - Optional uploadPath / fileName
  *
  * @example
- * const input = document.querySelector('input[type="file"]');
- * const file = await uploadFileStream(input.files[0]);
- * console.log(file.downloadUrl);
+ * // From media library item
+ * const result = await uploadFileStream(mediaItem.blob, { fileName: "input.jpg" });
+ * console.log(result.fileUrl); // pass to a KieAI generation API
  */
 export async function uploadFileStream(
   file: File | Blob,
@@ -76,22 +60,19 @@ export async function uploadFileStream(
 }
 
 /**
- * Upload a file as a base64-encoded string.
+ * Upload a base64-encoded string (e.g. canvas.toDataURL output).
  *
- * Convenient when the file is already in base64 form (e.g. canvas export).
- * Keep files under 10 MB — base64 expands size by ~33%.
+ * Use for canvas frame exports or small thumbnails already in base64 form.
+ * Keep under ~10 MB — base64 expands the payload by ~33%.
  *
- * The `base64Data` string must include the MIME type prefix:
- *   `data:image/jpeg;base64,<data>`
- *
- * @param options.base64Data - Base64 string with MIME prefix (required)
- * @param options.uploadPath - Server-side directory (optional)
- * @param options.fileName   - Custom server filename (optional)
+ * The string must include the MIME prefix: `data:image/jpeg;base64,...`
  *
  * @example
- * const canvas = document.querySelector("canvas");
- * const base64Data = canvas.toDataURL("image/png");
- * const file = await uploadFileBase64({ base64Data, fileName: "frame.png" });
+ * const canvas = document.querySelector("canvas") as HTMLCanvasElement;
+ * const result = await uploadFileBase64({
+ *   base64Data: canvas.toDataURL("image/png"),
+ *   fileName: "frame.png",
+ * });
  */
 export async function uploadFileBase64(
   options: Base64UploadOptions,
@@ -103,22 +84,39 @@ export async function uploadFileBase64(
 }
 
 /**
- * Convenience: choose the best upload strategy automatically.
+ * Upload from a publicly accessible URL.
  *
- * - Blob/File with size > 10 MB  → stream upload
- * - Blob/File with size ≤ 10 MB  → stream upload (still most efficient)
- * - string starting with "data:" → base64 upload
- * - string starting with "http"  → URL upload
+ * KieAI's server fetches the file at the given URL — localhost URLs will NOT
+ * work. Only use this for assets already hosted on a public server (CDN, S3).
+ *
+ * @example
+ * const result = await uploadFileByUrl({ fileUrl: "https://cdn.example.com/photo.jpg" });
+ */
+export async function uploadFileByUrl(
+  options: UrlUploadOptions,
+): Promise<UploadedFile> {
+  return kieaiPostJson<UrlUploadOptions, UploadedFile>(
+    UPLOAD_URL_PATH,
+    options,
+  );
+}
+
+/**
+ * Convenience dispatcher — picks the right method automatically:
+ *
+ * - File | Blob              → uploadFileStream  (always preferred for local files)
+ * - "data:..." string        → uploadFileBase64
+ * - "http..." string         → uploadFileByUrl   (only if publicly reachable)
  */
 export async function uploadFile(
   source: File | Blob | string,
   options: UploadOptions = {},
 ): Promise<UploadedFile> {
-  if (typeof source === "string") {
-    if (source.startsWith("data:")) {
-      return uploadFileBase64({ ...options, base64Data: source });
-    }
-    return uploadFileByUrl({ ...options, fileUrl: source });
+  if (source instanceof Blob) {
+    return uploadFileStream(source, options);
   }
-  return uploadFileStream(source, options);
+  if (source.startsWith("data:")) {
+    return uploadFileBase64({ ...options, base64Data: source });
+  }
+  return uploadFileByUrl({ ...options, fileUrl: source });
 }
