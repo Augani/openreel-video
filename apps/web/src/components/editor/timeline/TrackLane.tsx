@@ -128,7 +128,7 @@ export const TrackLane: React.FC<TrackLaneProps> = ({
           snapSettings,
           pixelsPerSecond,
         );
-        const { importMedia, addClipToNewTrack } = useProjectStore.getState();
+        const { importMedia, addClip } = useProjectStore.getState();
         for (const file of Array.from(e.dataTransfer.files)) {
           try {
             const beforeIds = new Set(
@@ -140,15 +140,8 @@ export const TrackLane: React.FC<TrackLaneProps> = ({
                 .getState()
                 .project.mediaLibrary.items.find(i => !beforeIds.has(i.id));
               if (newItem) {
-                await addClipToNewTrack(newItem.id, snapResult.time);
-                const addedTrack = useProjectStore
-                  .getState()
-                  .project.timeline.tracks.find(t =>
-                    t.clips.some(c => c.mediaId === newItem.id)
-                  );
-                if (addedTrack) {
-                  toast.success(`Added to ${addedTrack.name}`, file.name);
-                }
+                await addClip(track.id, newItem.id, snapResult.time);
+                toast.success(`Added to ${track.name}`, file.name);
               }
             }
           } catch (err) {
@@ -191,7 +184,7 @@ export const TrackLane: React.FC<TrackLaneProps> = ({
         // Silently ignore parse errors
       }
     },
-    [track.id, pixelsPerSecond, scrollX, onDropMedia],
+    [track.id, track.name, pixelsPerSecond, scrollX, onDropMedia],
   );
 
   const handleResizeStart = useCallback(

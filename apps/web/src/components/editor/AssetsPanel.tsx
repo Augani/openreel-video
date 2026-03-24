@@ -570,21 +570,25 @@ export const AssetsPanel: React.FC = () => {
     // Persist the directory handle for future auto-restore
     try { await saveDirectoryHandle(project.id, dirHandle); } catch { /* best-effort */ }
 
-    // Build a filename → {File, handle} map (keyed by lowercase name)
+    // Build a name:size → {File, handle} map for reliable matching
     const fileMap = new Map<string, { file: File; handle: FileSystemFileHandle }>();
     const entries = (dirHandle as unknown as { entries: () => AsyncIterableIterator<[string, FileSystemHandle]> }).entries();
     for await (const [, fh] of entries) {
       if ((fh as FileSystemHandle).kind === "file") {
         const fileHandle = fh as FileSystemFileHandle;
         const file = await fileHandle.getFile();
-        fileMap.set(file.name.toLowerCase(), { file, handle: fileHandle });
+        fileMap.set(`${file.name.toLowerCase()}:${file.size}`, { file, handle: fileHandle });
       }
     }
 
     setIsImporting(true);
     let linked = 0;
     for (const item of placeholders) {
-      const entry = fileMap.get(item.name.toLowerCase());
+      // Match on original source file name + size (same strategy as auto-restore)
+      const key = item.sourceFile
+        ? `${item.sourceFile.name.toLowerCase()}:${item.sourceFile.size}`
+        : null;
+      const entry = key ? fileMap.get(key) : null;
       if (entry) {
         setImportProgress(`Relinking ${item.name}…`);
         try {

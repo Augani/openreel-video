@@ -476,9 +476,13 @@ export const Timeline: React.FC = () => {
   }, [isBoxSelecting, handleBoxSelectionEnd]);
 
   const handleDropMedia = useCallback(
-    async (_trackId: string, mediaId: string, startTime: number) => {
-      const { addClipToNewTrack } = useProjectStore.getState();
-      await addClipToNewTrack(mediaId, startTime);
+    async (trackId: string, mediaId: string, startTime: number) => {
+      const { addClip, addClipToNewTrack } = useProjectStore.getState();
+      if (trackId) {
+        await addClip(trackId, mediaId, startTime);
+      } else {
+        await addClipToNewTrack(mediaId, startTime);
+      }
     },
     [],
   );
