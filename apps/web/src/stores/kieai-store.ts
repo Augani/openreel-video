@@ -5,7 +5,8 @@
  * dialog closes and page refreshes (tasks live on KieAI servers for ~3 days).
  *
  * Task lifecycle:
- *   pending → (poll ok) → removed (success / API fail)
+ *   pending → (poll ok + download ok) → removed (success)
+ *   pending → (poll ok + download fail / API fail / auth fail) → failed ← user can retry
  *   pending → (10 poll errors) → failed  ← user can retry
  *   failed  → (user clicks retry)        → pending (retries reset)
  */

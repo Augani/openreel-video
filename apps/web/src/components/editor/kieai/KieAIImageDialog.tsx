@@ -120,6 +120,7 @@ export function KieAIImageDialog({ open, onClose, sourceFile, previewUrl }: Prop
 
       if (needsUpload) {
         const uploaded = await uploadFileStream(sourceFile);
+        if (ac.signal.aborted) return;
         console.log("[KieAI] upload response:", uploaded);
         // KieAI API may return url under different field names
         uploadedUrl =
@@ -131,6 +132,8 @@ export function KieAIImageDialog({ open, onClose, sourceFile, previewUrl }: Prop
           throw new Error("Upload succeeded but returned no file URL. Check console for response.");
         }
       }
+
+      if (ac.signal.aborted) return;
 
       // Build model-specific input
       let input: Parameters<typeof createImageTask>[1];
@@ -159,6 +162,9 @@ export function KieAIImageDialog({ open, onClose, sourceFile, previewUrl }: Prop
 
       console.log("[KieAI] createTask payload:", { model: selectedModel, input });
       const taskId = await createImageTask(selectedModel, input);
+
+      // Bail out if the user cancelled while the request was in flight
+      if (ac.signal.aborted) return;
 
       // Create a placeholder in the media library immediately
       const ext = "png"; // optimistic; poller will use actual blob mime

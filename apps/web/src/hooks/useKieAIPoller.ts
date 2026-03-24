@@ -96,7 +96,7 @@ export function useKieAIPoller() {
           const record = await pollTaskOnce(task.taskId);
 
           if (record.state === "success") {
-            // API says done — always remove the task, even if download fails
+            // API says done — remove on success, mark failed on download error (retryable)
             try {
               const url = getResultUrl(record);
 
@@ -115,17 +115,17 @@ export function useKieAIPoller() {
               }
 
               await replacePlaceholderRef.current(task.mediaId, blob, task.suggestedName);
+              removeTask(task.taskId);
             } catch (downloadErr) {
               console.error(`[KieAIPoller] download failed for ${task.taskId}:`, downloadErr);
+              markFailed(task.taskId);
               setKieAIItemStateRef.current(task.mediaId, false, true);
-            } finally {
-              removeTask(task.taskId);
             }
 
           } else if (record.state === "fail") {
             console.warn(`[KieAIPoller] task ${task.taskId} failed: ${record.failMsg}`);
             setKieAIItemStateRef.current(task.mediaId, false, true);
-            removeTask(task.taskId);
+            markFailed(task.taskId);
 
           } else {
             // Still generating — schedule next poll
@@ -136,8 +136,8 @@ export function useKieAIPoller() {
           // Auth error — give up immediately, don't count as a retry
           if (err instanceof KieAIError && err.code === 401) {
             console.warn("[KieAIPoller] auth error — stopping poll for", task.taskId);
+            markFailed(task.taskId);
             setKieAIItemStateRef.current(task.mediaId, false, true);
-            removeTask(task.taskId);
             return;
           }
 
