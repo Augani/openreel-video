@@ -11,6 +11,83 @@ import type {
 } from "./types";
 import { DEFAULT_AUDIO_CONFIG } from "./types";
 
+const SEGMENTED_AUDIO_DECODE_THRESHOLD_SECONDS = 120;
+
+type MediaBunnyAudioInput = {
+  getPrimaryAudioTrack(): Promise<import("mediabunny").InputAudioTrack | null>;
+  getAudioTracks(): Promise<import("mediabunny").InputAudioTrack[]>;
+  [Symbol.dispose]?: () => void;
+};
+
+class SegmentedAudioDecoder {
+  private input: MediaBunnyAudioInput | null = null;
+  private sink: InstanceType<typeof import("mediabunny").AudioBufferSink> | null = null;
+  private initialized = false;
+
+  constructor(private readonly file: File | Blob) {}
+
+  async initialize(): Promise<boolean> {
+    if (this.initialized) return true;
+
+    try {
+      const { Input, ALL_FORMATS, BlobSource, AudioBufferSink } =
+        await import("mediabunny");
+
+      this.input = new Input({
+        source: new BlobSource(this.file),
+        formats: ALL_FORMATS,
+      }) as unknown as MediaBunnyAudioInput;
+
+      let audioTrack = await this.input.getPrimaryAudioTrack();
+      if (!audioTrack) {
+        const audioTracks = await this.input.getAudioTracks();
+        audioTrack = audioTracks[0] ?? null;
+      }
+
+      if (!audioTrack) {
+        this.dispose();
+        return false;
+      }
+
+      const canDecode = await audioTrack.canDecode();
+      if (!canDecode) {
+        this.dispose();
+        return false;
+      }
+
+      this.sink = new AudioBufferSink(audioTrack);
+      this.initialized = true;
+      return true;
+    } catch {
+      this.dispose();
+      return false;
+    }
+  }
+
+  async *buffers(
+    startTime: number,
+    endTime: number,
+  ): AsyncGenerator<import("mediabunny").WrappedAudioBuffer, void, unknown> {
+    if (!this.sink) {
+      return;
+    }
+
+    for await (const wrapped of this.sink.buffers(startTime, endTime)) {
+      yield wrapped;
+    }
+  }
+
+  dispose(): void {
+    if (this.input) {
+      this.input[Symbol.dispose]?.();
+      this.input = null;
+    }
+
+    this.sink = null;
+    this.initialized = false;
+  }
+}
+
 /**
  * AudioEngine handles audio rendering and mixing for video projects.
  * Manages audio context, multiple tracks, and applies effects.
@@ -29,6 +106,7 @@ export class AudioEngine {
   private config: AudioEngineConfig;
   private trackNodes: Map<string, AudioTrackNodes> = new Map();
   private mediaBuffers: Map<string, AudioBuffer> = new Map();
+  private segmentedAudioDecoders: Map<string, SegmentedAudioDecoder> = new Map();
 
   /**
    * Creates a new AudioEngine instance.
@@ -132,14 +210,9 @@ export class AudioEngine {
           (m) => m.id === clipInfo.mediaId,
         );
         if (!mediaItem) continue;
-        const audioBuffer = await this.getAudioBuffer(
-          mediaItem,
-          offlineContext,
-        );
-        if (!audioBuffer) continue;
         await this.renderClipToContext(
           offlineContext,
-          audioBuffer,
+          mediaItem,
           clipInfo,
           startTime,
         );
@@ -410,10 +483,28 @@ export class AudioEngine {
 
   private async renderClipToContext(
     context: OfflineAudioContext,
-    audioBuffer: AudioBuffer,
+    mediaItem: MediaItem,
     clipInfo: AudioClipRenderInfo,
     renderStartTime: number,
   ): Promise<void> {
+    if (this.shouldUseSegmentedAudioDecoding(mediaItem, clipInfo)) {
+      const renderedSegment = await this.renderClipToContextFromSegments(
+        context,
+        mediaItem,
+        clipInfo,
+        renderStartTime,
+      );
+      if (renderedSegment) {
+        return;
+      }
+    }
+
+    const audioBuffer = await this.getAudioBuffer(mediaItem, context);
+    if (!audioBuffer) {
+      return;
+    }
+
+    const { gainNode } = this.createClipOutputNodes(context, clipInfo);
     const source = context.createBufferSource();
     source.buffer = audioBuffer;
 
@@ -422,13 +513,7 @@ export class AudioEngine {
 
     source.playbackRate.value = reversed ? -speed : speed;
 
-    const gainNode = context.createGain();
-    gainNode.gain.value = clipInfo.volume;
-    const pannerNode = context.createStereoPanner();
-    pannerNode.pan.value = Math.max(-1, Math.min(1, clipInfo.pan));
     source.connect(gainNode);
-    gainNode.connect(pannerNode);
-    pannerNode.connect(context.destination);
     const contextStartTime = Math.max(
       0,
       clipInfo.timelineStartTime - renderStartTime,
@@ -440,6 +525,108 @@ export class AudioEngine {
       : clipInfo.sourceTime;
 
     source.start(contextStartTime, startOffset, clipInfo.duration);
+  }
+
+  private shouldUseSegmentedAudioDecoding(
+    mediaItem: MediaItem,
+    clipInfo: AudioClipRenderInfo,
+  ): boolean {
+    return (
+      mediaItem.metadata.duration >= SEGMENTED_AUDIO_DECODE_THRESHOLD_SECONDS &&
+      (clipInfo.speed || 1) === 1 &&
+      !clipInfo.reversed
+    );
+  }
+
+  private async renderClipToContextFromSegments(
+    context: OfflineAudioContext,
+    mediaItem: MediaItem,
+    clipInfo: AudioClipRenderInfo,
+    renderStartTime: number,
+  ): Promise<boolean> {
+    const decoder = await this.getSegmentedAudioDecoder(mediaItem);
+    if (!decoder) {
+      return false;
+    }
+
+    const rangeStart = Math.max(0, clipInfo.sourceTime);
+    const rangeEnd = rangeStart + clipInfo.duration;
+    if (rangeEnd <= rangeStart) {
+      return false;
+    }
+
+    const { gainNode } = this.createClipOutputNodes(context, clipInfo);
+    const contextStartTime = Math.max(
+      0,
+      clipInfo.timelineStartTime - renderStartTime,
+    );
+    this.applyFades(gainNode, clipInfo, contextStartTime);
+
+    let rendered = false;
+
+    for await (const wrapped of decoder.buffers(rangeStart, rangeEnd)) {
+      const bufferStart = wrapped.timestamp;
+      const bufferEnd = wrapped.timestamp + wrapped.duration;
+      const overlapStart = Math.max(rangeStart, bufferStart);
+      const overlapEnd = Math.min(rangeEnd, bufferEnd);
+
+      if (overlapEnd <= overlapStart) {
+        continue;
+      }
+
+      const source = context.createBufferSource();
+      source.buffer = wrapped.buffer;
+      source.connect(gainNode);
+      source.start(
+        contextStartTime + (overlapStart - rangeStart),
+        overlapStart - bufferStart,
+        overlapEnd - overlapStart,
+      );
+      rendered = true;
+    }
+
+    return rendered;
+  }
+
+  private createClipOutputNodes(
+    context: OfflineAudioContext,
+    clipInfo: AudioClipRenderInfo,
+  ): {
+    gainNode: GainNode;
+    pannerNode: StereoPannerNode;
+  } {
+    const gainNode = context.createGain();
+    gainNode.gain.value = clipInfo.volume;
+
+    const pannerNode = context.createStereoPanner();
+    pannerNode.pan.value = Math.max(-1, Math.min(1, clipInfo.pan));
+
+    gainNode.connect(pannerNode);
+    pannerNode.connect(context.destination);
+
+    return { gainNode, pannerNode };
+  }
+
+  private async getSegmentedAudioDecoder(
+    mediaItem: MediaItem,
+  ): Promise<SegmentedAudioDecoder | null> {
+    if (!mediaItem.blob) {
+      return null;
+    }
+
+    const cached = this.segmentedAudioDecoders.get(mediaItem.id);
+    if (cached) {
+      return cached;
+    }
+
+    const decoder = new SegmentedAudioDecoder(mediaItem.blob);
+    const initialized = await decoder.initialize();
+    if (!initialized) {
+      return null;
+    }
+
+    this.segmentedAudioDecoders.set(mediaItem.id, decoder);
+    return decoder;
   }
 
   private applyFades(
@@ -685,6 +872,11 @@ export class AudioEngine {
 
   clearCache(): void {
     this.mediaBuffers.clear();
+
+    for (const decoder of this.segmentedAudioDecoders.values()) {
+      decoder.dispose();
+    }
+    this.segmentedAudioDecoders.clear();
   }
 
   async resume(): Promise<void> {

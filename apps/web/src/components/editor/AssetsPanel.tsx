@@ -150,13 +150,6 @@ const MediaThumbnail: React.FC<{
           <div className="h-5 w-5 animate-spin rounded-full border-2 border-purple-400 border-t-transparent" />
         </div>
       ) : item.isPlaceholder ? (
-        <button
-          onClick={(e) => { e.stopPropagation(); onReplace(); }}
-          title="Replace asset"
-          className="p-2 bg-yellow-500/20 rounded-full hover:bg-yellow-500/40 backdrop-blur-sm transition-colors"
-        >
-          <RefreshCw size={14} className="text-yellow-500" />
-        </button>
         <>
           <button
             onClick={(e) => { e.stopPropagation(); onReplace(); }}
@@ -276,13 +269,6 @@ const MediaThumbnail: React.FC<{
                 <div className="h-3 w-3 animate-spin rounded-full border-2 border-purple-400 border-t-transparent" />
               </div>
             ) : item.isPlaceholder ? (
-              <button
-                onClick={(e) => { e.stopPropagation(); onReplace(); }}
-                title="Replace asset"
-                className="p-1 bg-yellow-500/20 rounded hover:bg-yellow-500/40 transition-colors"
-              >
-                <RefreshCw size={12} className="text-yellow-500" />
-              </button>
               <>
                 <button
                   onClick={(e) => { e.stopPropagation(); onReplace(); }}
