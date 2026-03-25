@@ -103,10 +103,7 @@ export const useTimelineStore = create<TimelineState>()(
     },
 
     stop: () => {
-      set({
-        playbackState: "stopped",
-        playheadPosition: 0,
-      });
+      set({ playbackState: "stopped" });
     },
 
     togglePlayback: () => {

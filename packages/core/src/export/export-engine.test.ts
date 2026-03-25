@@ -1,27 +1,71 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
-vi.mock("../video/video-engine", () => ({
-  VideoEngine: vi.fn(),
-  getVideoEngine: vi.fn().mockReturnValue({
+const {
+  mockRenderFrame,
+  mockVideoEngine,
+  mockRenderAudio,
+  mockAudioEngine,
+  mockMediaEngine,
+  mockVideoSourceAdd,
+  mockAudioSourceAdd,
+  mockOutputStart,
+  mockOutputFinalize,
+} = vi.hoisted(() => {
+  const mockRenderFrame = vi.fn().mockResolvedValue({
+    image: { close: vi.fn() },
+    width: 1920,
+    height: 1080,
+  });
+
+  const mockVideoEngine = {
     isInitialized: vi.fn().mockReturnValue(false),
     initialize: vi.fn().mockResolvedValue(undefined),
     initializeGPUCompositor: vi.fn().mockResolvedValue(undefined),
     getGPUCompositor: vi.fn().mockReturnValue(null),
-    renderFrame: vi.fn().mockResolvedValue({
-      image: { close: vi.fn() },
-      width: 1920,
-      height: 1080,
-    }),
-  }),
+    renderFrame: mockRenderFrame,
+    resetExportState: vi.fn(),
+    clearVideoElementCache: vi.fn(),
+    clearCache: vi.fn(),
+  };
+
+  const mockRenderAudio = vi.fn().mockResolvedValue({ buffer: null });
+  const mockAudioEngine = {
+    isInitialized: vi.fn().mockReturnValue(false),
+    initialize: vi.fn().mockResolvedValue(undefined),
+    renderAudio: mockRenderAudio,
+    clearCache: vi.fn(),
+  };
+
+  const mockMediaEngine = {
+    isAvailable: vi.fn().mockReturnValue(true),
+    initialize: vi.fn().mockResolvedValue(undefined),
+    getExportDecoder: vi.fn().mockReturnValue(null),
+    createExportDecoder: vi.fn().mockResolvedValue(null),
+    disposeAllExportDecoders: vi.fn(),
+    clearFrameCache: vi.fn(),
+  };
+
+  return {
+    mockRenderFrame,
+    mockVideoEngine,
+    mockRenderAudio,
+    mockAudioEngine,
+    mockMediaEngine,
+    mockVideoSourceAdd: vi.fn().mockResolvedValue(undefined),
+    mockAudioSourceAdd: vi.fn().mockResolvedValue(undefined),
+    mockOutputStart: vi.fn().mockResolvedValue(undefined),
+    mockOutputFinalize: vi.fn().mockResolvedValue(undefined),
+  };
+});
+
+vi.mock("../video/video-engine", () => ({
+  VideoEngine: vi.fn(),
+  getVideoEngine: vi.fn().mockReturnValue(mockVideoEngine),
 }));
 
 vi.mock("../audio/audio-engine", () => ({
   AudioEngine: vi.fn(),
-  getAudioEngine: vi.fn().mockReturnValue({
-    isInitialized: vi.fn().mockReturnValue(false),
-    initialize: vi.fn().mockResolvedValue(undefined),
-    renderAudio: vi.fn().mockResolvedValue({ buffer: null }),
-  }),
+  getAudioEngine: vi.fn().mockReturnValue(mockAudioEngine),
 }));
 
 vi.mock("../text/title-engine", () => ({
@@ -37,6 +81,77 @@ vi.mock("../graphics/graphics-engine", () => ({
     getAllStickerClips: vi.fn().mockReturnValue([]),
   },
 }));
+
+vi.mock("../media/mediabunny-engine", () => ({
+  getMediaEngine: vi.fn().mockReturnValue(mockMediaEngine),
+}));
+
+vi.mock("mediabunny", () => {
+  class MockMp4OutputFormat {
+    getSupportedVideoCodecs() {
+      return ["avc"];
+    }
+
+    getSupportedAudioCodecs() {
+      return ["aac"];
+    }
+  }
+
+  class MockWebMOutputFormat extends MockMp4OutputFormat {}
+  class MockMovOutputFormat extends MockMp4OutputFormat {}
+
+  class MockOutput {
+    addVideoTrack = vi.fn();
+    addAudioTrack = vi.fn();
+    setMetadataTags = vi.fn();
+    start = mockOutputStart;
+    finalize = mockOutputFinalize;
+  }
+
+  class MockStreamTarget {
+    constructor(
+      _writable: WritableStream<{ data: Uint8Array; position: number }>,
+      _options?: Record<string, unknown>,
+    ) {}
+  }
+
+  class MockVideoSampleSource {
+    add = mockVideoSourceAdd;
+    close = vi.fn();
+
+    constructor(_config: Record<string, unknown>) {}
+  }
+
+  class MockAudioBufferSource {
+    add = mockAudioSourceAdd;
+    close = vi.fn();
+
+    constructor(_config: Record<string, unknown>) {}
+  }
+
+  class MockVideoSample {
+    close = vi.fn();
+
+    constructor(
+      _data: unknown,
+      _init: { timestamp: number; duration: number },
+    ) {}
+  }
+
+  return {
+    Output: MockOutput,
+    StreamTarget: MockStreamTarget,
+    Mp4OutputFormat: MockMp4OutputFormat,
+    WebMOutputFormat: MockWebMOutputFormat,
+    MovOutputFormat: MockMovOutputFormat,
+    VideoSampleSource: MockVideoSampleSource,
+    AudioBufferSource: MockAudioBufferSource,
+    VideoSample: MockVideoSample,
+    getFirstEncodableVideoCodec: vi.fn().mockResolvedValue("avc"),
+    getFirstEncodableAudioCodec: vi.fn().mockResolvedValue("aac"),
+    QUALITY_MEDIUM: 1_000_000,
+  };
+});
 
 import { ExportEngine, getExportEngine } from "./export-engine";
 import {
@@ -119,6 +234,17 @@ describe("ExportEngine", () => {
 
   beforeEach(() => {
     exportEngine = new ExportEngine();
+    vi.clearAllMocks();
+    mockVideoEngine.isInitialized.mockReturnValue(false);
+    mockAudioEngine.isInitialized.mockReturnValue(false);
+    mockMediaEngine.isAvailable.mockReturnValue(true);
+    mockMediaEngine.getExportDecoder.mockReturnValue(null);
+    mockRenderFrame.mockResolvedValue({
+      image: { close: vi.fn() },
+      width: 1920,
+      height: 1080,
+    });
+    mockRenderAudio.mockResolvedValue({ buffer: null });
   });
 
   afterEach(() => {
@@ -274,6 +400,50 @@ describe("ExportEngine", () => {
   describe("cancel", () => {
     it("should not throw when canceling without active export", () => {
       expect(() => exportEngine.cancel()).not.toThrow();
+    });
+  });
+
+  describe("video export", () => {
+    it("should render long export audio in chunks and clear cached audio", async () => {
+      const project = createMockProject({
+        timeline: createMockTimeline({
+          tracks: [
+            createMockTrack({
+              clips: [createMockClip({ duration: 40, outPoint: 40 })],
+            }),
+          ],
+          duration: 40,
+        }),
+      });
+
+      mockRenderAudio.mockResolvedValue({ buffer: { duration: 15 } });
+
+      await exportEngine.initialize();
+
+      const writableStream = {
+        seek: vi.fn().mockResolvedValue(undefined),
+        write: vi.fn().mockResolvedValue(undefined),
+        close: vi.fn().mockResolvedValue(undefined),
+        abort: vi.fn().mockResolvedValue(undefined),
+      } as unknown as FileSystemWritableFileStream;
+
+      const generator = exportEngine.exportVideo(
+        project,
+        { ...DEFAULT_VIDEO_SETTINGS, frameRate: 1, width: 640, height: 360 },
+        writableStream,
+      );
+
+      while (true) {
+        const { done } = await generator.next();
+        if (done) break;
+      }
+
+      expect(mockRenderAudio).toHaveBeenCalledTimes(3);
+      expect(mockRenderAudio).toHaveBeenNthCalledWith(1, project, 0, 15);
+      expect(mockRenderAudio).toHaveBeenNthCalledWith(2, project, 15, 15);
+      expect(mockRenderAudio).toHaveBeenNthCalledWith(3, project, 30, 10);
+      expect(mockAudioSourceAdd).toHaveBeenCalledTimes(3);
+      expect(mockAudioEngine.clearCache).toHaveBeenCalled();
     });
   });
 

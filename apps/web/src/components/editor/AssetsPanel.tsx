@@ -22,6 +22,7 @@ import {
   LayoutGrid,
   Grid2x2,
   List,
+  Sparkles,
 } from "lucide-react";
 import {
   BACKGROUND_PRESETS,
@@ -36,7 +37,19 @@ import { AspectRatioMatchDialog } from "./dialogs/AspectRatioMatchDialog";
 import { AIGenTab } from "./AIGenTab";
 import { useTtsAudioStore } from "../../stores/tts-store";
 import { toast } from "../../stores/notification-store";
-import { IconButton, Input, ScrollArea } from "@openreel/ui";
+import { saveFileHandle, saveDirectoryHandle } from "../../services/media-storage";
+import {
+  IconButton,
+  Input,
+  ScrollArea,
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from "@openreel/ui";
+import { KieAIImageDialog } from "./kieai/KieAIImageDialog";
+import { loadMediaBlob } from "../../services/media-storage";
+import { useKieAIStore } from "../../stores/kieai-store";
 
 const formatDuration = (seconds: number): string => {
   const mins = Math.floor(seconds / 60);
@@ -61,6 +74,8 @@ const MediaThumbnail: React.FC<{
   onReplace: () => void;
   onDragStart: (e: React.DragEvent) => void;
   onAddToTimeline: () => void;
+  onKieAI?: () => void;
+  onRetryKieAI?: () => void;
 }> = ({
   item,
   isSelected,
@@ -70,6 +85,8 @@ const MediaThumbnail: React.FC<{
   onReplace,
   onDragStart,
   onAddToTimeline,
+  onKieAI,
+  onRetryKieAI,
 }) => {
   const [isHovered, setIsHovered] = useState(false);
 
@@ -108,24 +125,58 @@ const MediaThumbnail: React.FC<{
       ? "text-primary/50"
       : "text-status-info/50";
 
-  const borderClass = item.isPlaceholder
-    ? "border-yellow-500 ring-1 ring-yellow-500/50 shadow-[0_0_10px_rgba(234,179,8,0.3)]"
-    : isSelected
-      ? "border-primary ring-1 ring-primary/50 shadow-[0_0_10px_rgba(34,197,94,0.2)]"
-      : "border-border hover:border-text-secondary";
+  const borderClass = item.kieaiError
+    ? "border-red-500 ring-1 ring-red-500/50 shadow-[0_0_10px_rgba(239,68,68,0.3)]"
+    : item.isPending
+    ? "border-purple-500 ring-1 ring-purple-500/50 shadow-[0_0_10px_rgba(168,85,247,0.3)]"
+    : item.isPlaceholder
+      ? "border-yellow-500 ring-1 ring-yellow-500/50 shadow-[0_0_10px_rgba(234,179,8,0.3)]"
+      : isSelected
+        ? "border-primary ring-1 ring-primary/50 shadow-[0_0_10px_rgba(34,197,94,0.2)]"
+        : "border-border hover:border-text-secondary";
 
   const hoverOverlay = (
     <div className="absolute inset-0 bg-black/40 backdrop-blur-[1px] flex items-center justify-center gap-2 animate-in fade-in duration-200">
-      {item.isPlaceholder ? (
+      {item.kieaiError ? (
         <button
-          onClick={(e) => { e.stopPropagation(); onReplace(); }}
-          title="Replace asset"
-          className="p-2 bg-yellow-500/20 rounded-full hover:bg-yellow-500/40 backdrop-blur-sm transition-colors"
+          onClick={(e) => { e.stopPropagation(); onRetryKieAI?.(); }}
+          title="Generation failed — click to retry"
+          className="p-2 bg-red-500/20 rounded-full hover:bg-red-500/40 backdrop-blur-sm transition-colors"
         >
-          <RefreshCw size={14} className="text-yellow-500" />
+          <RefreshCw size={14} className="text-red-400" />
         </button>
+      ) : item.isPending ? (
+        <div title="KieAI generation in progress…" className="p-2">
+          <div className="h-5 w-5 animate-spin rounded-full border-2 border-purple-400 border-t-transparent" />
+        </div>
+      ) : item.isPlaceholder ? (
+        <>
+          <button
+            onClick={(e) => { e.stopPropagation(); onReplace(); }}
+            title="Replace asset"
+            className="p-2 bg-yellow-500/20 rounded-full hover:bg-yellow-500/40 backdrop-blur-sm transition-colors"
+          >
+            <RefreshCw size={14} className="text-yellow-500" />
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); onDelete(); }}
+            title="Delete"
+            className="p-2 bg-red-500/20 rounded-full hover:bg-red-500/40 backdrop-blur-sm transition-colors"
+          >
+            <Trash2 size={14} className="text-red-400" />
+          </button>
+        </>
       ) : (
         <>
+          {item.type === "image" && onKieAI && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onKieAI(); }}
+              title="Create with KieAI"
+              className="p-2 bg-purple-500/20 rounded-full hover:bg-purple-500/40 backdrop-blur-sm transition-colors"
+            >
+              <Sparkles size={14} className="text-purple-300" />
+            </button>
+          )}
           <button
             onClick={(e) => { e.stopPropagation(); onAddToTimeline(); }}
             title="Add to timeline"
@@ -148,6 +199,8 @@ const MediaThumbnail: React.FC<{
   // --- List view ---
   if (viewMode === "list") {
     return (
+      <ContextMenu>
+        <ContextMenuTrigger asChild>
       <div
         draggable
         onDragStart={onDragStart}
@@ -166,7 +219,17 @@ const MediaThumbnail: React.FC<{
               <Icon size={14} className={iconColor} />
             </div>
           )}
-          {item.isPlaceholder && (
+          {item.kieaiError && (
+            <div className="absolute inset-0 flex items-center justify-center bg-red-500/10">
+              <AlertTriangle size={12} className="text-red-400" />
+            </div>
+          )}
+          {!item.kieaiError && item.isPending && (
+            <div className="absolute inset-0 flex items-center justify-center bg-purple-500/10">
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-purple-400 border-t-transparent" />
+            </div>
+          )}
+          {!item.kieaiError && !item.isPending && item.isPlaceholder && (
             <div className="absolute inset-0 flex items-center justify-center bg-yellow-500/10">
               <AlertTriangle size={12} className="text-yellow-500/70" />
             </div>
@@ -193,16 +256,46 @@ const MediaThumbnail: React.FC<{
         {/* Hover actions */}
         {isHovered && (
           <div className="flex items-center gap-1 flex-shrink-0">
-            {item.isPlaceholder ? (
+            {item.kieaiError ? (
               <button
-                onClick={(e) => { e.stopPropagation(); onReplace(); }}
-                title="Replace asset"
-                className="p-1 bg-yellow-500/20 rounded hover:bg-yellow-500/40 transition-colors"
+                onClick={(e) => { e.stopPropagation(); onRetryKieAI?.(); }}
+                title="Retry generation"
+                className="p-1 bg-red-500/20 rounded hover:bg-red-500/40 transition-colors"
               >
-                <RefreshCw size={12} className="text-yellow-500" />
+                <RefreshCw size={12} className="text-red-400" />
               </button>
+            ) : item.isPending ? (
+              <div className="p-1" title="Generating…">
+                <div className="h-3 w-3 animate-spin rounded-full border-2 border-purple-400 border-t-transparent" />
+              </div>
+            ) : item.isPlaceholder ? (
+              <>
+                <button
+                  onClick={(e) => { e.stopPropagation(); onReplace(); }}
+                  title="Replace asset"
+                  className="p-1 bg-yellow-500/20 rounded hover:bg-yellow-500/40 transition-colors"
+                >
+                  <RefreshCw size={12} className="text-yellow-500" />
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); onDelete(); }}
+                  title="Delete"
+                  className="p-1 bg-red-500/20 rounded hover:bg-red-500/40 transition-colors"
+                >
+                  <Trash2 size={12} className="text-red-400" />
+                </button>
+              </>
             ) : (
               <>
+                {item.type === "image" && onKieAI && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onKieAI(); }}
+                    title="Create with KieAI"
+                    className="p-1 bg-purple-500/20 rounded hover:bg-purple-500/40 transition-colors"
+                  >
+                    <Sparkles size={12} className="text-purple-300" />
+                  </button>
+                )}
                 <button
                   onClick={(e) => { e.stopPropagation(); onAddToTimeline(); }}
                   title="Add to timeline"
@@ -226,6 +319,24 @@ const MediaThumbnail: React.FC<{
           <div className="w-2 h-2 bg-primary rounded-full shadow-[0_0_8px_#22c55e] flex-shrink-0" />
         )}
       </div>
+        </ContextMenuTrigger>
+        <ContextMenuContent>
+          {item.type === "image" && onKieAI && (
+            <ContextMenuItem onClick={onKieAI}>
+              <Sparkles size={13} className="mr-2 text-primary" />
+              Create with KieAI
+            </ContextMenuItem>
+          )}
+          <ContextMenuItem onClick={(e) => { (e as React.MouseEvent).stopPropagation?.(); onAddToTimeline(); }}>
+            <Plus size={13} className="mr-2" />
+            Add to Timeline
+          </ContextMenuItem>
+          <ContextMenuItem onClick={(e) => { (e as React.MouseEvent).stopPropagation?.(); onDelete(); }} className="text-red-400 focus:text-red-400">
+            <Trash2 size={13} className="mr-2" />
+            Delete
+          </ContextMenuItem>
+        </ContextMenuContent>
+      </ContextMenu>
     );
   }
 
@@ -233,6 +344,8 @@ const MediaThumbnail: React.FC<{
   const thumbnailIconSize = viewMode === "small" ? 16 : 24;
 
   return (
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
     <div className="flex flex-col">
       {/* Thumbnail container */}
       <div
@@ -273,8 +386,24 @@ const MediaThumbnail: React.FC<{
           </div>
         )}
 
+        {/* KieAI Error Badge */}
+        {item.kieaiError && (
+          <div className="absolute top-1 left-1 px-1.5 py-0.5 bg-red-500 rounded text-[8px] text-white font-bold flex items-center gap-1">
+            <AlertTriangle size={8} />
+            Failed
+          </div>
+        )}
+
+        {/* Pending KieAI Badge */}
+        {!item.kieaiError && item.isPending && (
+          <div className="absolute top-1 left-1 px-1.5 py-0.5 bg-purple-500 rounded text-[8px] text-white font-bold flex items-center gap-1">
+            <div className="h-2 w-2 animate-spin rounded-full border border-white border-t-transparent" />
+            AI
+          </div>
+        )}
+
         {/* Missing Asset Badge */}
-        {item.isPlaceholder && (
+        {!item.kieaiError && !item.isPending && item.isPlaceholder && (
           <div className="absolute top-1 left-1 px-1.5 py-0.5 bg-yellow-500 rounded text-[8px] text-black font-bold flex items-center gap-1">
             <AlertTriangle size={10} />
             Missing
@@ -288,8 +417,22 @@ const MediaThumbnail: React.FC<{
           </div>
         )}
 
+        {/* Error overlay */}
+        {item.kieaiError && !isHovered && (
+          <div className="absolute inset-0 flex items-center justify-center bg-red-500/10">
+            <AlertTriangle size={viewMode === "small" ? 20 : 32} className="text-red-400/60" />
+          </div>
+        )}
+
+        {/* Pending overlay */}
+        {!item.kieaiError && item.isPending && !isHovered && (
+          <div className="absolute inset-0 flex items-center justify-center bg-purple-500/10">
+            <div className="h-8 w-8 animate-spin rounded-full border-4 border-purple-400 border-t-transparent" />
+          </div>
+        )}
+
         {/* Warning icon overlay for placeholders */}
-        {item.isPlaceholder && !isHovered && (
+        {!item.kieaiError && !item.isPending && item.isPlaceholder && !isHovered && (
           <div className="absolute inset-0 flex items-center justify-center bg-yellow-500/10">
             <AlertTriangle size={viewMode === "small" ? 20 : 32} className="text-yellow-500/50" />
           </div>
@@ -327,6 +470,24 @@ const MediaThumbnail: React.FC<{
         )}
       </div>
     </div>
+      </ContextMenuTrigger>
+      <ContextMenuContent>
+        {item.type === "image" && onKieAI && (
+          <ContextMenuItem onClick={onKieAI}>
+            <Sparkles size={13} className="mr-2 text-primary" />
+            Create with KieAI
+          </ContextMenuItem>
+        )}
+        <ContextMenuItem onClick={() => onAddToTimeline()}>
+          <Plus size={13} className="mr-2" />
+          Add to Timeline
+        </ContextMenuItem>
+        <ContextMenuItem onClick={() => onDelete()} className="text-red-400 focus:text-red-400">
+          <Trash2 size={13} className="mr-2" />
+          Delete
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
   );
 };
 
@@ -390,6 +551,9 @@ export const AssetsPanel: React.FC = () => {
     "all" | "solid" | "gradient" | "pattern" | "mesh"
   >("all");
 
+  // KieAI image generation dialog
+  const [kieaiDialog, setKieaiDialog] = useState<{ file: File; previewUrl: string | null } | null>(null);
+
   // Project store
   const {
     project,
@@ -397,8 +561,12 @@ export const AssetsPanel: React.FC = () => {
     deleteMedia,
     replaceMediaAsset,
     updateSettings,
+    setKieAIItemState,
   } = useProjectStore();
   const mediaItems = project.mediaLibrary.items;
+
+  // KieAI store
+  const { retryTask } = useKieAIStore();
 
   // UI store
   const { select, isSelected, startDrag } = useUIStore();
@@ -451,11 +619,31 @@ export const AssetsPanel: React.FC = () => {
     [importMedia],
   );
 
-  // Handle drag and drop import
+  // Handle drag and drop import — capture FileSystemFileHandle for each dropped file
   const handleDrop = useCallback(
-    (e: React.DragEvent) => {
+    async (e: React.DragEvent) => {
       e.preventDefault();
       setIsDragOver(false);
+
+      // Try to capture handles before files are consumed
+      if ("getAsFileSystemHandle" in DataTransferItem.prototype) {
+        const handlePromises = Array.from(e.dataTransfer.items)
+          .filter((item) => item.kind === "file")
+          .map(async (item) => {
+            try {
+              const handle = await (item as DataTransferItem & { getAsFileSystemHandle(): Promise<FileSystemHandle> }).getAsFileSystemHandle();
+              if (handle.kind === "file") {
+                const fileHandle = handle as FileSystemFileHandle;
+                const file = await fileHandle.getFile();
+                await saveFileHandle(file.name, file.size, fileHandle);
+              }
+            } catch {
+              // Ignore — handle capture is best-effort
+            }
+          });
+        await Promise.all(handlePromises);
+      }
+
       handleFileImport(e.dataTransfer.files);
     },
     [handleFileImport],
@@ -511,6 +699,66 @@ export const AssetsPanel: React.FC = () => {
     },
     [replaceMediaAsset],
   );
+
+  const handleRelinkFromFolder = useCallback(async () => {
+    if (!("showDirectoryPicker" in window)) {
+      toast.error("Folder picker not supported", "Please relink assets individually using the refresh button on each missing asset.");
+      return;
+    }
+    let dirHandle: FileSystemDirectoryHandle;
+    try {
+      dirHandle = await (window as unknown as { showDirectoryPicker: () => Promise<FileSystemDirectoryHandle> }).showDirectoryPicker();
+    } catch {
+      return; // user cancelled
+    }
+
+    const { project } = useProjectStore.getState();
+    const placeholders = project.mediaLibrary.items.filter((item) => item.isPlaceholder);
+    if (placeholders.length === 0) return;
+
+    // Persist the directory handle for future auto-restore
+    try { await saveDirectoryHandle(project.id, dirHandle); } catch { /* best-effort */ }
+
+    // Build a name:size → {File, handle} map for reliable matching
+    const fileMap = new Map<string, { file: File; handle: FileSystemFileHandle }>();
+    const entries = (dirHandle as unknown as { entries: () => AsyncIterableIterator<[string, FileSystemHandle]> }).entries();
+    for await (const [, fh] of entries) {
+      if ((fh as FileSystemHandle).kind === "file") {
+        const fileHandle = fh as FileSystemFileHandle;
+        const file = await fileHandle.getFile();
+        fileMap.set(`${file.name.toLowerCase()}:${file.size}`, { file, handle: fileHandle });
+      }
+    }
+
+    setIsImporting(true);
+    let linked = 0;
+    for (const item of placeholders) {
+      // Match on original source file name + size (same strategy as auto-restore)
+      const key = item.sourceFile
+        ? `${item.sourceFile.name.toLowerCase()}:${item.sourceFile.size}`
+        : null;
+      const entry = key ? fileMap.get(key) : null;
+      if (entry) {
+        setImportProgress(`Relinking ${item.name}…`);
+        try {
+          // Save individual file handle for future auto-restore
+          try { await saveFileHandle(entry.file.name, entry.file.size, entry.handle); } catch { /* best-effort */ }
+          await replaceMediaAsset(item.id, entry.file, dirHandle.name);
+          linked++;
+        } catch (err) {
+          console.error(`[AssetsPanel] Failed to relink ${item.name}:`, err);
+        }
+      }
+    }
+    setIsImporting(false);
+    setImportProgress("");
+
+    if (linked > 0) {
+      toast.success(`Relinked ${linked} of ${placeholders.length} asset${placeholders.length !== 1 ? "s" : ""}`);
+    } else {
+      toast.error("No matches found", "None of the files in the selected folder matched the missing assets by filename.");
+    }
+  }, [replaceMediaAsset]);
 
   // Handle drag start for timeline placement
   const handleItemDragStart = useCallback(
@@ -615,6 +863,30 @@ export const AssetsPanel: React.FC = () => {
     (preset) =>
       backgroundCategory === "all" || preset.category === backgroundCategory,
   );
+
+  // Open KieAI dialog for an image asset
+  const handleOpenKieAI = useCallback(async (item: MediaItem) => {
+    try {
+      const blob = await loadMediaBlob(item.id);
+      if (!blob) {
+        toast.error("Asset not found", "Cannot load the image data for this asset.");
+        return;
+      }
+      const mimeType = blob.type || (item.name.match(/\.png$/i) ? "image/png" : "image/jpeg");
+      const file = new File([blob], item.name, { type: mimeType as string });
+      setKieaiDialog({ file, previewUrl: item.thumbnailUrl });
+    } catch (err) {
+      console.error("[KieAI] Failed to load media blob:", err);
+      toast.error("Failed to open KieAI", err instanceof Error ? err.message : "Unknown error");
+    }
+  }, []);
+
+  const handleRetryKieAI = useCallback((item: MediaItem) => {
+    if (!item.kieaiTaskId) return;
+    // Reset error state and re-activate polling
+    setKieAIItemState(item.id, true, false);
+    retryTask(item.kieaiTaskId);
+  }, [retryTask, setKieAIItemState]);
 
   return (
     <div
@@ -752,6 +1024,13 @@ export const AssetsPanel: React.FC = () => {
               {missingAssetsCount}
             </div>
           </button>
+          <button
+            onClick={handleRelinkFromFolder}
+            className="w-full px-3 py-2 rounded-lg border border-yellow-500/40 bg-yellow-500/5 text-yellow-500 text-xs font-medium transition-all hover:bg-yellow-500/15 flex items-center gap-2"
+          >
+            <RefreshCw size={14} />
+            <span>Relink from Folder…</span>
+          </button>
         </div>
       )}
 
@@ -795,6 +1074,8 @@ export const AssetsPanel: React.FC = () => {
                     onReplace={() => handleReplaceAsset(item.id)}
                     onDragStart={(e) => handleItemDragStart(e, item)}
                     onAddToTimeline={() => handleAddToTimeline(item)}
+                    onKieAI={item.type === "image" && !item.isPending && !item.kieaiError ? () => handleOpenKieAI(item) : undefined}
+                    onRetryKieAI={item.kieaiError && item.kieaiTaskId ? () => handleRetryKieAI(item) : undefined}
                   />
                 ))}
                 {/* Add more media tile */}
@@ -1175,6 +1456,15 @@ export const AssetsPanel: React.FC = () => {
           currentHeight={project.settings.height}
           onConfirm={handleConfirmAspectRatioMatch}
           onCancel={handleCancelAspectRatioMatch}
+        />
+      )}
+
+      {kieaiDialog && (
+        <KieAIImageDialog
+          open={true}
+          onClose={() => setKieaiDialog(null)}
+          sourceFile={kieaiDialog.file}
+          previewUrl={kieaiDialog.previewUrl}
         />
       )}
     </div>

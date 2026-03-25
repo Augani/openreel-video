@@ -97,6 +97,14 @@ export class StorageEngine implements IStorageEngine {
     if (!db.objectStoreNames.contains(STORES.WAVEFORMS)) {
       db.createObjectStore(STORES.WAVEFORMS, { keyPath: "mediaId" });
     }
+
+    if (!db.objectStoreNames.contains(STORES.FILE_HANDLES)) {
+      db.createObjectStore(STORES.FILE_HANDLES, { keyPath: "key" });
+    }
+
+    if (!db.objectStoreNames.contains(STORES.DIR_HANDLES)) {
+      db.createObjectStore(STORES.DIR_HANDLES, { keyPath: "key" });
+    }
   }
 
   /**
@@ -386,6 +394,53 @@ export class StorageEngine implements IStorageEngine {
       projects: projectCount,
       mediaItems: mediaCount,
     };
+  }
+
+  async saveFileHandle(name: string, size: number, handle: FileSystemFileHandle): Promise<void> {
+    const db = await this.getDb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORES.FILE_HANDLES, "readwrite");
+      const store = tx.objectStore(STORES.FILE_HANDLES);
+      const request = store.put({ key: `${name}:${size}`, handle });
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  async loadFileHandle(name: string, size: number): Promise<FileSystemFileHandle | null> {
+    const db = await this.getDb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORES.FILE_HANDLES, "readonly");
+      const store = tx.objectStore(STORES.FILE_HANDLES);
+      const request = store.get(`${name}:${size}`);
+      request.onsuccess = () => resolve((request.result as { handle: FileSystemFileHandle } | undefined)?.handle ?? null);
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  async saveDirectoryHandle(projectId: string, handle: FileSystemDirectoryHandle): Promise<void> {
+    const db = await this.getDb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORES.DIR_HANDLES, "readwrite");
+      const store = tx.objectStore(STORES.DIR_HANDLES);
+      const request = store.put({ key: projectId, handle, folderName: handle.name });
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  async loadDirectoryHandle(projectId: string): Promise<{ handle: FileSystemDirectoryHandle; folderName: string } | null> {
+    const db = await this.getDb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORES.DIR_HANDLES, "readonly");
+      const store = tx.objectStore(STORES.DIR_HANDLES);
+      const request = store.get(projectId);
+      request.onsuccess = () => {
+        const rec = request.result as { handle: FileSystemDirectoryHandle; folderName: string } | undefined;
+        resolve(rec ? { handle: rec.handle, folderName: rec.folderName } : null);
+      };
+      request.onerror = () => reject(request.error);
+    });
   }
 
   close(): void {

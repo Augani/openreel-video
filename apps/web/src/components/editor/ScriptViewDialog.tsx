@@ -20,6 +20,7 @@ import {
   Button,
 } from "@openreel/ui";
 import { useProjectStore } from "../../stores/project-store";
+import { toast } from "../../stores/notification-store";
 import { createProjectSerializer, createStorageEngine } from "@openreel/core";
 import type { ValidationResult } from "@openreel/core/storage/schema-types";
 
@@ -69,12 +70,15 @@ export const ScriptViewDialog: React.FC<ScriptViewDialogProps> = ({
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `${project?.name || "project"}.json`;
+    const ts = project?.modifiedAt ?? Date.now();
+    const d = new Date(ts);
+    const dateSuffix = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}_${String(d.getHours()).padStart(2, "0")}-${String(d.getMinutes()).padStart(2, "0")}`;
+    a.download = `${project?.name || "project"}_${dateSuffix}.json`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-  }, [exportedJson, project?.name]);
+  }, [exportedJson, project?.name, project?.modifiedAt]);
 
   const processImportJson = useCallback(
     (jsonString: string) => {
@@ -176,6 +180,15 @@ export const ScriptViewDialog: React.FC<ScriptViewDialogProps> = ({
       if (importedProject) {
         useProjectStore.getState().loadProject(importedProject);
         onClose();
+        const missingCount = importedProject.mediaLibrary.items.filter(
+          (item) => item.isPlaceholder,
+        ).length;
+        if (missingCount > 0) {
+          toast.warning(
+            `${missingCount} asset${missingCount !== 1 ? "s" : ""} need relinking`,
+            "Go to Assets panel → click \"Relink from Folder\" to restore missing media.",
+          );
+        }
       }
     } catch (error) {
       setValidation({

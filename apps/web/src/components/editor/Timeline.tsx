@@ -22,10 +22,13 @@ import {
   Plus,
   ChevronDown as ChevronDownIcon,
   Magnet,
+  Rows3,
+  Rows2,
 } from "lucide-react";
 import { useProjectStore } from "../../stores/project-store";
 import { useTimelineStore } from "../../stores/timeline-store";
 import { useUIStore } from "../../stores/ui-store";
+import { toast } from "../../stores/notification-store";
 import { useEngineStore } from "../../stores/engine-store";
 import { getPlaybackBridge } from "../../bridges/playback-bridge";
 import {
@@ -89,6 +92,8 @@ export const Timeline: React.FC = () => {
     setViewportDimensions,
     zoomIn,
     zoomOut,
+    trackHeight,
+    setTrackHeight,
     setTrackHeightById,
     getTrackHeight,
   } = useTimelineStore();
@@ -471,9 +476,13 @@ export const Timeline: React.FC = () => {
   }, [isBoxSelecting, handleBoxSelectionEnd]);
 
   const handleDropMedia = useCallback(
-    async (_trackId: string, mediaId: string, startTime: number) => {
-      const { addClipToNewTrack } = useProjectStore.getState();
-      await addClipToNewTrack(mediaId, startTime);
+    async (trackId: string, mediaId: string, startTime: number) => {
+      const { addClip, addClipToNewTrack } = useProjectStore.getState();
+      if (trackId) {
+        await addClip(trackId, mediaId, startTime);
+      } else {
+        await addClipToNewTrack(mediaId, startTime);
+      }
     },
     [],
   );
@@ -861,6 +870,30 @@ export const Timeline: React.FC = () => {
         <div className="flex items-center gap-2">
           <div className="flex items-center bg-background-tertiary rounded-lg border border-border overflow-hidden">
             <button
+              onClick={() => { setTrackHeight(80); useTimelineStore.setState({ trackHeights: {} }); }}
+              className={`w-8 h-8 flex items-center justify-center transition-colors border-r border-border ${
+                trackHeight >= 60
+                  ? "text-primary bg-primary/10"
+                  : "text-text-secondary hover:text-text-primary hover:bg-background-elevated"
+              }`}
+              title="Large tracks"
+            >
+              <Rows3 size={14} />
+            </button>
+            <button
+              onClick={() => { setTrackHeight(50); useTimelineStore.setState({ trackHeights: {} }); }}
+              className={`w-8 h-8 flex items-center justify-center transition-colors ${
+                trackHeight < 60
+                  ? "text-primary bg-primary/10"
+                  : "text-text-secondary hover:text-text-primary hover:bg-background-elevated"
+              }`}
+              title="Small tracks"
+            >
+              <Rows2 size={14} />
+            </button>
+          </div>
+          <div className="flex items-center bg-background-tertiary rounded-lg border border-border overflow-hidden">
+            <button
               onClick={zoomOut}
               className="w-8 h-8 flex items-center justify-center text-text-secondary hover:text-text-primary hover:bg-background-elevated transition-colors border-r border-border"
               title="Zoom out"
@@ -961,44 +994,78 @@ export const Timeline: React.FC = () => {
               e.preventDefault();
               e.dataTransfer.dropEffect = "copy";
             }}
-            onDrop={(e) => {
+            onDrop={async (e) => {
               e.preventDefault();
+
+              const rect = tracksRef.current?.getBoundingClientRect();
+              if (!rect) return;
+              const x = e.clientX - rect.left + (tracksRef.current?.scrollLeft ?? 0);
+              const rawTime = Math.max(0, x / pixelsPerSecond);
+
+              const allClips = project.timeline.tracks.flatMap(t => t.clips);
+              let snappedTime = rawTime;
+              if (snapSettings.enabled) {
+                const threshold = snapSettings.snapThreshold / pixelsPerSecond;
+                let bestDist = Infinity;
+                for (const clip of allClips) {
+                  const clipEnd = clip.startTime + clip.duration;
+                  const distToEnd = Math.abs(rawTime - clipEnd);
+                  const distToStart = Math.abs(rawTime - clip.startTime);
+                  if (distToEnd < threshold && distToEnd < bestDist) {
+                    bestDist = distToEnd;
+                    snappedTime = clipEnd;
+                  }
+                  if (distToStart < threshold && distToStart < bestDist) {
+                    bestDist = distToStart;
+                    snappedTime = clip.startTime;
+                  }
+                }
+                if (snapSettings.snapToPlayhead) {
+                  const distToPlayhead = Math.abs(rawTime - playheadPosition);
+                  if (distToPlayhead < threshold && distToPlayhead < bestDist) {
+                    snappedTime = playheadPosition;
+                  }
+                }
+              }
+
+              // External OS file drop (e.g. from Windows Explorer)
+              if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                const { importMedia, addClipToNewTrack } = useProjectStore.getState();
+                for (const file of Array.from(e.dataTransfer.files)) {
+                  try {
+                    const beforeIds = new Set(
+                      useProjectStore.getState().project.mediaLibrary.items.map(i => i.id)
+                    );
+                    const result = await importMedia(file);
+                    if (result.success) {
+                      const newItem = useProjectStore
+                        .getState()
+                        .project.mediaLibrary.items.find(i => !beforeIds.has(i.id));
+                      if (newItem) {
+                        await addClipToNewTrack(newItem.id, snappedTime);
+                        const track = useProjectStore
+                          .getState()
+                          .project.timeline.tracks.find(t =>
+                            t.clips.some(c => c.mediaId === newItem.id)
+                          );
+                        if (track) {
+                          toast.success(`Added to ${track.name}`, file.name);
+                        }
+                      }
+                    }
+                  } catch (err) {
+                    console.error("[Timeline] External file drop failed:", err);
+                  }
+                }
+                return;
+              }
+
+              // Internal drag from assets panel
               try {
                 const rawData = e.dataTransfer.getData("application/json");
                 if (!rawData) return;
                 const data = JSON.parse(rawData);
                 if (!data?.mediaId) return;
-
-                const rect = tracksRef.current?.getBoundingClientRect();
-                if (!rect) return;
-                const x = e.clientX - rect.left + (tracksRef.current?.scrollLeft ?? 0);
-                const rawTime = Math.max(0, x / pixelsPerSecond);
-
-                const allClips = project.timeline.tracks.flatMap(t => t.clips);
-                let snappedTime = rawTime;
-                if (snapSettings.enabled) {
-                  const threshold = snapSettings.snapThreshold / pixelsPerSecond;
-                  let bestDist = Infinity;
-                  for (const clip of allClips) {
-                    const clipEnd = clip.startTime + clip.duration;
-                    const distToEnd = Math.abs(rawTime - clipEnd);
-                    const distToStart = Math.abs(rawTime - clip.startTime);
-                    if (distToEnd < threshold && distToEnd < bestDist) {
-                      bestDist = distToEnd;
-                      snappedTime = clipEnd;
-                    }
-                    if (distToStart < threshold && distToStart < bestDist) {
-                      bestDist = distToStart;
-                      snappedTime = clip.startTime;
-                    }
-                  }
-                  if (snapSettings.snapToPlayhead) {
-                    const distToPlayhead = Math.abs(rawTime - playheadPosition);
-                    if (distToPlayhead < threshold && distToPlayhead < bestDist) {
-                      snappedTime = playheadPosition;
-                    }
-                  }
-                }
                 handleDropMedia("", data.mediaId, snappedTime);
               } catch {
                 // ignore

@@ -225,6 +225,20 @@ export class ActionExecutor {
     } else if (type.startsWith("subtitle/")) {
       this.applySubtitleAction(action as SubtitleAction, project);
     }
+
+    // Recompute timeline duration from clips after any action that may affect it
+    this.recalculateTimelineDuration(project);
+  }
+
+  private recalculateTimelineDuration(project: Project): void {
+    let maxEnd = 0;
+    for (const track of project.timeline.tracks) {
+      for (const clip of track.clips) {
+        const end = clip.startTime + clip.duration;
+        if (end > maxEnd) maxEnd = end;
+      }
+    }
+    (project.timeline as MutableTimeline).duration = maxEnd;
   }
 
   private applyProjectAction(action: ProjectAction, project: Project): void {
