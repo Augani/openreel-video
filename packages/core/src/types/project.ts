@@ -40,6 +40,8 @@ export interface MediaItem {
   readonly filmstripThumbnails?: FilmstripThumbnail[];
   readonly isPlaceholder?: boolean;
   readonly originalUrl?: string;
+  /** File hint stored in JSON for cross-session/cross-machine asset matching */
+  readonly sourceFile?: { name: string; size: number; lastModified: number; folder?: string };
 }
 
 /** Thumbnail for filmstrip display in timeline */

@@ -36,6 +36,7 @@ import { AspectRatioMatchDialog } from "./dialogs/AspectRatioMatchDialog";
 import { AIGenTab } from "./AIGenTab";
 import { useTtsAudioStore } from "../../stores/tts-store";
 import { toast } from "../../stores/notification-store";
+import { saveFileHandle, saveDirectoryHandle } from "../../services/media-storage";
 import { IconButton, Input, ScrollArea } from "@openreel/ui";
 
 const formatDuration = (seconds: number): string => {
@@ -117,13 +118,22 @@ const MediaThumbnail: React.FC<{
   const hoverOverlay = (
     <div className="absolute inset-0 bg-black/40 backdrop-blur-[1px] flex items-center justify-center gap-2 animate-in fade-in duration-200">
       {item.isPlaceholder ? (
-        <button
-          onClick={(e) => { e.stopPropagation(); onReplace(); }}
-          title="Replace asset"
-          className="p-2 bg-yellow-500/20 rounded-full hover:bg-yellow-500/40 backdrop-blur-sm transition-colors"
-        >
-          <RefreshCw size={14} className="text-yellow-500" />
-        </button>
+        <>
+          <button
+            onClick={(e) => { e.stopPropagation(); onReplace(); }}
+            title="Replace asset"
+            className="p-2 bg-yellow-500/20 rounded-full hover:bg-yellow-500/40 backdrop-blur-sm transition-colors"
+          >
+            <RefreshCw size={14} className="text-yellow-500" />
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); onDelete(); }}
+            title="Delete"
+            className="p-2 bg-red-500/20 rounded-full hover:bg-red-500/40 backdrop-blur-sm transition-colors"
+          >
+            <Trash2 size={14} className="text-red-400" />
+          </button>
+        </>
       ) : (
         <>
           <button
@@ -194,13 +204,22 @@ const MediaThumbnail: React.FC<{
         {isHovered && (
           <div className="flex items-center gap-1 flex-shrink-0">
             {item.isPlaceholder ? (
-              <button
-                onClick={(e) => { e.stopPropagation(); onReplace(); }}
-                title="Replace asset"
-                className="p-1 bg-yellow-500/20 rounded hover:bg-yellow-500/40 transition-colors"
-              >
-                <RefreshCw size={12} className="text-yellow-500" />
-              </button>
+              <>
+                <button
+                  onClick={(e) => { e.stopPropagation(); onReplace(); }}
+                  title="Replace asset"
+                  className="p-1 bg-yellow-500/20 rounded hover:bg-yellow-500/40 transition-colors"
+                >
+                  <RefreshCw size={12} className="text-yellow-500" />
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); onDelete(); }}
+                  title="Delete"
+                  className="p-1 bg-red-500/20 rounded hover:bg-red-500/40 transition-colors"
+                >
+                  <Trash2 size={12} className="text-red-400" />
+                </button>
+              </>
             ) : (
               <>
                 <button
@@ -451,11 +470,31 @@ export const AssetsPanel: React.FC = () => {
     [importMedia],
   );
 
-  // Handle drag and drop import
+  // Handle drag and drop import — capture FileSystemFileHandle for each dropped file
   const handleDrop = useCallback(
-    (e: React.DragEvent) => {
+    async (e: React.DragEvent) => {
       e.preventDefault();
       setIsDragOver(false);
+
+      // Try to capture handles before files are consumed
+      if ("getAsFileSystemHandle" in DataTransferItem.prototype) {
+        const handlePromises = Array.from(e.dataTransfer.items)
+          .filter((item) => item.kind === "file")
+          .map(async (item) => {
+            try {
+              const handle = await (item as DataTransferItem & { getAsFileSystemHandle(): Promise<FileSystemHandle> }).getAsFileSystemHandle();
+              if (handle.kind === "file") {
+                const fileHandle = handle as FileSystemFileHandle;
+                const file = await fileHandle.getFile();
+                await saveFileHandle(file.name, file.size, fileHandle);
+              }
+            } catch {
+              // Ignore — handle capture is best-effort
+            }
+          });
+        await Promise.all(handlePromises);
+      }
+
       handleFileImport(e.dataTransfer.files);
     },
     [handleFileImport],
@@ -511,6 +550,66 @@ export const AssetsPanel: React.FC = () => {
     },
     [replaceMediaAsset],
   );
+
+  const handleRelinkFromFolder = useCallback(async () => {
+    if (!("showDirectoryPicker" in window)) {
+      toast.error("Folder picker not supported", "Please relink assets individually using the refresh button on each missing asset.");
+      return;
+    }
+    let dirHandle: FileSystemDirectoryHandle;
+    try {
+      dirHandle = await (window as unknown as { showDirectoryPicker: () => Promise<FileSystemDirectoryHandle> }).showDirectoryPicker();
+    } catch {
+      return; // user cancelled
+    }
+
+    const { project } = useProjectStore.getState();
+    const placeholders = project.mediaLibrary.items.filter((item) => item.isPlaceholder);
+    if (placeholders.length === 0) return;
+
+    // Persist the directory handle for future auto-restore
+    try { await saveDirectoryHandle(project.id, dirHandle); } catch { /* best-effort */ }
+
+    // Build a name:size → {File, handle} map for reliable matching
+    const fileMap = new Map<string, { file: File; handle: FileSystemFileHandle }>();
+    const entries = (dirHandle as unknown as { entries: () => AsyncIterableIterator<[string, FileSystemHandle]> }).entries();
+    for await (const [, fh] of entries) {
+      if ((fh as FileSystemHandle).kind === "file") {
+        const fileHandle = fh as FileSystemFileHandle;
+        const file = await fileHandle.getFile();
+        fileMap.set(`${file.name.toLowerCase()}:${file.size}`, { file, handle: fileHandle });
+      }
+    }
+
+    setIsImporting(true);
+    let linked = 0;
+    for (const item of placeholders) {
+      // Match on original source file name + size (same strategy as auto-restore)
+      const key = item.sourceFile
+        ? `${item.sourceFile.name.toLowerCase()}:${item.sourceFile.size}`
+        : null;
+      const entry = key ? fileMap.get(key) : null;
+      if (entry) {
+        setImportProgress(`Relinking ${item.name}…`);
+        try {
+          // Save individual file handle for future auto-restore
+          try { await saveFileHandle(entry.file.name, entry.file.size, entry.handle); } catch { /* best-effort */ }
+          await replaceMediaAsset(item.id, entry.file, dirHandle.name);
+          linked++;
+        } catch (err) {
+          console.error(`[AssetsPanel] Failed to relink ${item.name}:`, err);
+        }
+      }
+    }
+    setIsImporting(false);
+    setImportProgress("");
+
+    if (linked > 0) {
+      toast.success(`Relinked ${linked} of ${placeholders.length} asset${placeholders.length !== 1 ? "s" : ""}`);
+    } else {
+      toast.error("No matches found", "None of the files in the selected folder matched the missing assets by filename.");
+    }
+  }, [replaceMediaAsset]);
 
   // Handle drag start for timeline placement
   const handleItemDragStart = useCallback(
@@ -751,6 +850,13 @@ export const AssetsPanel: React.FC = () => {
             <div className="px-2 py-0.5 rounded-full bg-yellow-500 text-black text-[10px] font-bold">
               {missingAssetsCount}
             </div>
+          </button>
+          <button
+            onClick={handleRelinkFromFolder}
+            className="w-full px-3 py-2 rounded-lg border border-yellow-500/40 bg-yellow-500/5 text-yellow-500 text-xs font-medium transition-all hover:bg-yellow-500/15 flex items-center gap-2"
+          >
+            <RefreshCw size={14} />
+            <span>Relink from Folder…</span>
           </button>
         </div>
       )}

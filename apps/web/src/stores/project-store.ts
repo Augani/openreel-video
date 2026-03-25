@@ -53,6 +53,8 @@ import {
   saveMediaBlob,
   deleteMediaBlob,
   loadProjectMedia,
+  loadFileHandle,
+  loadDirectoryHandle,
 } from "../services/media-storage";
 import { restoreMediaItem } from "../utils/media-recovery";
 import { projectManager } from "../services/project-manager";
@@ -103,7 +105,7 @@ export interface ProjectState {
   // Media library actions
   importMedia: (file: File) => Promise<ActionResult>;
   deleteMedia: (mediaId: string) => Promise<ActionResult>;
-  replaceMediaAsset: (mediaId: string, file: File) => Promise<ActionResult>;
+  replaceMediaAsset: (mediaId: string, file: File, sourceFolder?: string) => Promise<ActionResult>;
   renameMedia: (mediaId: string, name: string) => Promise<ActionResult>;
   getMediaItem: (mediaId: string) => MediaItem | undefined;
 
@@ -118,6 +120,7 @@ export interface ProjectState {
   hideTrack: (trackId: string, hidden: boolean) => Promise<ActionResult>;
   muteTrack: (trackId: string, muted: boolean) => Promise<ActionResult>;
   soloTrack: (trackId: string, solo: boolean) => Promise<ActionResult>;
+  renameTrack: (trackId: string, name: string) => void;
   getTrack: (trackId: string) => Track | undefined;
 
   // Clip actions
@@ -458,14 +461,78 @@ export const useProjectStore = create<ProjectState>()(
 
         const newHistory = new ActionHistory();
         const newExecutor = new ActionExecutor(newHistory);
+
+        // Fix legacy projects where timeline.duration was never persisted
+        const computedDuration = project.timeline.tracks.reduce((max, track) =>
+          track.clips.reduce((m, c) => Math.max(m, c.startTime + c.duration), max), 0);
+        const fixedProject = computedDuration > 0 && project.timeline.duration === 0
+          ? { ...project, timeline: { ...project.timeline, duration: computedDuration } }
+          : project;
+
         set({
-          project,
+          project: fixedProject,
           actionHistory: newHistory,
           actionExecutor: newExecutor,
           clipUndoStack: [],
           clipRedoStack: [],
           error: null,
         });
+
+        // Auto-restore placeholder assets from saved FileSystemFileHandles (same machine)
+        const placeholders = fixedProject.mediaLibrary.items.filter(
+          (item) => item.isPlaceholder && item.sourceFile,
+        );
+        if (placeholders.length > 0 && "FileSystemFileHandle" in window) {
+          (async () => {
+            let restored = 0;
+            const stillMissing: typeof placeholders = [];
+
+            // Tier 1: try individual file handles (follow file across folder moves)
+            for (const item of placeholders) {
+              if (!item.sourceFile) continue;
+              try {
+                const handle = await loadFileHandle(item.sourceFile.name, item.sourceFile.size);
+                if (!handle) { stillMissing.push(item); continue; }
+                const file = await handle.getFile();
+                await get().replaceMediaAsset(item.id, file, item.sourceFile.folder);
+                restored++;
+              } catch {
+                stillMissing.push(item); // stale handle
+              }
+            }
+
+            // Tier 2: scan the stored relink folder for files not found via handle
+            if (stillMissing.length > 0) {
+              try {
+                const dirInfo = await loadDirectoryHandle(fixedProject.id);
+                if (dirInfo) {
+                  const fileMap = new Map<string, { file: File; folder: string }>();
+                  const entries = (dirInfo.handle as unknown as { entries: () => AsyncIterableIterator<[string, FileSystemHandle]> }).entries();
+                  for await (const [, fh] of entries) {
+                    if ((fh as FileSystemHandle).kind === "file") {
+                      const f = await (fh as FileSystemFileHandle).getFile();
+                      fileMap.set(`${f.name.toLowerCase()}:${f.size}`, { file: f, folder: dirInfo.folderName });
+                    }
+                  }
+                  for (const item of stillMissing) {
+                    if (!item.sourceFile) continue;
+                    const entry = fileMap.get(`${item.sourceFile.name.toLowerCase()}:${item.sourceFile.size}`);
+                    if (entry) {
+                      try {
+                        await get().replaceMediaAsset(item.id, entry.file, entry.folder);
+                        restored++;
+                      } catch { /* skip */ }
+                    }
+                  }
+                }
+              } catch { /* dir handle stale or unavailable */ }
+            }
+
+            if (restored > 0) {
+              console.info(`[ProjectStore] Auto-restored ${restored} asset(s) from file handles`);
+            }
+          })();
+        }
       },
 
       // Rename project
@@ -606,6 +673,7 @@ export const useProjectStore = create<ProjectState>()(
             waveformData: processedMedia.waveformData?.peaks || null,
             filmstripThumbnails:
               filmstripThumbnails.length > 0 ? filmstripThumbnails : undefined,
+            sourceFile: { name: file.name, size: file.size, lastModified: file.lastModified },
           };
 
           const updatedProject = {
@@ -703,7 +771,7 @@ export const useProjectStore = create<ProjectState>()(
         return result;
       },
 
-      replaceMediaAsset: async (mediaId: string, file: File) => {
+      replaceMediaAsset: async (mediaId: string, file: File, sourceFolder?: string) => {
         const { project } = get();
 
         try {
@@ -792,6 +860,7 @@ export const useProjectStore = create<ProjectState>()(
             filmstripThumbnails:
               filmstripThumbnails.length > 0 ? filmstripThumbnails : undefined,
             isPlaceholder: false,
+            sourceFile: { name: file.name, size: file.size, lastModified: file.lastModified, folder: sourceFolder },
           };
 
           const updatedItems = project.mediaLibrary.items.map((item) =>
@@ -891,6 +960,24 @@ export const useProjectStore = create<ProjectState>()(
           });
         }
         return result;
+      },
+
+      renameTrack: (trackId: string, name: string) => {
+        const { project } = get();
+        const trimmed = name.trim();
+        if (!trimmed) return;
+        set({
+          project: {
+            ...project,
+            timeline: {
+              ...project.timeline,
+              tracks: project.timeline.tracks.map((t) =>
+                t.id === trackId ? { ...t, name: trimmed } : t
+              ),
+            },
+            modifiedAt: Date.now(),
+          },
+        });
       },
 
       reorderTrack: async (trackId: string, newPosition: number) => {

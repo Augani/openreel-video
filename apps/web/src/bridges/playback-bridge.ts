@@ -59,7 +59,7 @@ export class PlaybackBridge {
 
       switch (event.type) {
         case "timeupdate":
-          if (!this.playbackController?.getIsScrubbing()) {
+          if (!this.isUpdatingProject && !this.playbackController?.getIsScrubbing()) {
             timelineStore.setPlayheadPosition(event.time);
           }
           break;
@@ -132,6 +132,8 @@ export class PlaybackBridge {
           this.isUpdatingProject = false;
 
           this.playbackController.scrubTo(currentTime);
+          // Explicitly restore position — scrubTo may be blocked by isScrubbing
+          timelineStore.setPlayheadPosition(currentTime);
           if (wasPlaying) {
             this.playbackController.play();
           }
@@ -221,7 +223,9 @@ export class PlaybackBridge {
     if (this.playbackController) {
       this.playbackController.stop();
     }
-    useTimelineStore.getState().stop();
+    const store = useTimelineStore.getState();
+    store.stop();
+    store.seekToStart();
   }
 
   /**
