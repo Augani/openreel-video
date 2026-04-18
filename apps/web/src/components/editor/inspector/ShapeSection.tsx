@@ -9,26 +9,22 @@ import {
 } from "lucide-react";
 import { useProjectStore } from "../../../stores/project-store";
 import type { ShapeStyle, FillStyle, StrokeStyle } from "@openreel/core";
-import { LabeledSlider as Slider } from "@openreel/ui";
+import { ColorPicker, LabeledSlider as Slider } from "@openreel/ui";
 
-const ColorPicker: React.FC<{
+const ColorField: React.FC<{
   label: string;
   value: string;
   onChange: (color: string) => void;
-}> = ({ label, value, onChange }) => (
-  <div className="flex items-center justify-between">
+  showAlpha?: boolean;
+}> = ({ label, value, onChange, showAlpha = false }) => (
+  <div className="flex items-center justify-between gap-2">
     <span className="text-[10px] text-text-secondary">{label}</span>
-    <div className="flex items-center gap-2">
-      <input
-        type="color"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-6 h-6 rounded border border-border cursor-pointer"
-      />
-      <span className="text-[10px] font-mono text-text-muted uppercase">
-        {value}
-      </span>
-    </div>
+    <ColorPicker
+      value={value}
+      onChange={onChange}
+      showAlpha={showAlpha}
+      className="max-w-[170px]"
+    />
   </div>
 );
 
@@ -176,7 +172,7 @@ export const ShapeSection: React.FC<ShapeSectionProps> = ({ clipId }) => {
         <span className="text-[10px] text-text-secondary font-medium">
           Fill
         </span>
-        <ColorPicker
+        <ColorField
           label="Color"
           value={style.fill?.color || "#3b82f6"}
           onChange={(color) =>
@@ -212,7 +208,7 @@ export const ShapeSection: React.FC<ShapeSectionProps> = ({ clipId }) => {
         <span className="text-[10px] text-text-secondary font-medium">
           Stroke
         </span>
-        <ColorPicker
+        <ColorField
           label="Color"
           value={style.stroke?.color || "#1d4ed8"}
           onChange={(color) =>
@@ -279,7 +275,7 @@ export const ShapeSection: React.FC<ShapeSectionProps> = ({ clipId }) => {
         <span className="text-[10px] text-text-secondary font-medium">
           Shadow
         </span>
-        <ColorPicker
+        <ColorField
           label="Color"
           value={style.shadow?.color || "#000000"}
           onChange={(color) =>
@@ -292,6 +288,7 @@ export const ShapeSection: React.FC<ShapeSectionProps> = ({ clipId }) => {
               },
             })
           }
+          showAlpha
         />
         <NumberInput
           label="Offset X"

@@ -3,6 +3,7 @@ import { useProjectStore } from "../../../stores/project-store";
 import type { GraphicAnimation, GraphicAnimationType } from "@openreel/core";
 import { SVG_ANIMATION_PRESETS } from "@openreel/core";
 import {
+  ColorPicker,
   LabeledSlider as Slider,
   Select,
   SelectTrigger,
@@ -11,24 +12,18 @@ import {
   SelectItem,
 } from "@openreel/ui";
 
-const ColorPicker: React.FC<{
+const ColorField: React.FC<{
   label: string;
   value: string;
   onChange: (color: string) => void;
 }> = ({ label, value, onChange }) => (
-  <div className="flex items-center justify-between">
+  <div className="flex items-center justify-between gap-2">
     <span className="text-[10px] text-text-secondary">{label}</span>
-    <div className="flex items-center gap-2">
-      <input
-        type="color"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-6 h-6 rounded border border-border cursor-pointer"
-      />
-      <span className="text-[10px] font-mono text-text-muted uppercase">
-        {value}
-      </span>
-    </div>
+    <ColorPicker
+      value={value}
+      onChange={onChange}
+      className="max-w-[170px]"
+    />
   </div>
 );
 
@@ -183,7 +178,7 @@ export const SVGSection: React.FC<SVGSectionProps> = ({ clipId }) => {
 
           {colorStyle.colorMode !== "none" && (
             <>
-              <ColorPicker
+              <ColorField
                 label="Color"
                 value={colorStyle.tintColor || "#ffffff"}
                 onChange={handleTintColorChange}
