@@ -440,9 +440,9 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
         </span>
       </div>
 
-      {isAudio && (
+      {(isAudio || isVideo) && (
         <>
-          <div className="absolute inset-0 flex items-center opacity-50 px-1 pointer-events-none">
+          <div className={`absolute inset-x-0 px-1 pointer-events-none ${isAudio ? "inset-y-0 flex items-center opacity-50" : "bottom-0 h-1/3 flex items-end opacity-30"}`}>
             {mediaItem?.waveformData ? (
               <svg
                 className="w-full h-full"
@@ -452,13 +452,13 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
                 <path
                   d={generateWaveformPath(mediaItem.waveformData, 100)}
                   stroke="currentColor"
-                  className="text-blue-400"
+                  className={isAudio ? "text-blue-400" : "text-green-300"}
                   fill="none"
                   strokeWidth="1"
                   vectorEffect="non-scaling-stroke"
                 />
               </svg>
-            ) : (
+            ) : isAudio ? (
               <svg className="w-full h-full" preserveAspectRatio="none">
                 <path
                   d="M0,20 Q10,5 20,20 T40,20 T60,20 T80,20 T100,20"
@@ -468,15 +468,17 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
                   vectorEffect="non-scaling-stroke"
                 />
               </svg>
-            )}
+            ) : null}
           </div>
-          <div className="absolute inset-x-0 top-1 flex justify-center opacity-0 group-hover:opacity-60 transition-opacity pointer-events-none">
-            <div className="flex gap-0.5">
-              <div className="w-1 h-1 rounded-full bg-blue-300" />
-              <div className="w-1 h-1 rounded-full bg-blue-300" />
-              <div className="w-1 h-1 rounded-full bg-blue-300" />
+          {isAudio && (
+            <div className="absolute inset-x-0 top-1 flex justify-center opacity-0 group-hover:opacity-60 transition-opacity pointer-events-none">
+              <div className="flex gap-0.5">
+                <div className="w-1 h-1 rounded-full bg-blue-300" />
+                <div className="w-1 h-1 rounded-full bg-blue-300" />
+                <div className="w-1 h-1 rounded-full bg-blue-300" />
+              </div>
             </div>
-          </div>
+          )}
         </>
       )}
 
