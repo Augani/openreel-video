@@ -785,6 +785,12 @@ export const getActiveShapeClips = (
 const svgImageCache = new Map<string, HTMLImageElement>();
 const stickerImageCache = new Map<string, HTMLImageElement>();
 
+let imageLoadCallback: (() => void) | null = null;
+
+export const setImageLoadCallback = (callback: (() => void) | null): void => {
+  imageLoadCallback = callback;
+};
+
 const renderStickerClip = (
   ctx: CanvasRenderingContext2D,
   stickerClip: StickerClip,
@@ -812,6 +818,7 @@ const renderStickerClip = (
   let img = stickerImageCache.get(imageUrl);
   if (!img) {
     img = new Image();
+    img.onload = () => imageLoadCallback?.();
     img.src = imageUrl;
     stickerImageCache.set(imageUrl, img);
   }
@@ -1176,6 +1183,7 @@ const renderSVGClip = (
   if (!img) {
     img = new Image();
     const blob = new Blob([svgContent], { type: "image/svg+xml" });
+    img.onload = () => imageLoadCallback?.();
     img.src = URL.createObjectURL(blob);
     svgImageCache.set(cacheKey, img);
     // Limit cache size to prevent unbounded memory growth, remove oldest on overflow

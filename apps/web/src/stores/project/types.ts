@@ -182,7 +182,7 @@ export interface ProjectState {
   updateShapeTransform: (
     clipId: string,
     transform: Partial<Transform>,
-  ) => ShapeClip | null;
+  ) => ShapeClip | SVGClip | StickerClip | null;
   importSVG: (
     svgContent: string,
     trackId: string,

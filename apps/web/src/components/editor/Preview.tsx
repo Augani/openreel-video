@@ -58,6 +58,7 @@ import {
   drawFrameWithTransform,
   applyEffectsToFrame,
   getTransitionAtTime,
+  setImageLoadCallback,
   renderTransitionFrame,
   getAnimatedTransform,
   applyEmphasisAnimation,
@@ -1546,6 +1547,30 @@ export const Preview: React.FC = () => {
       isDark,
     ],
   );
+
+  const renderFrameDirectlyRef = useRef(renderFrameDirectly);
+  useEffect(() => {
+    renderFrameDirectlyRef.current = renderFrameDirectly;
+  }, [renderFrameDirectly]);
+
+  const isPlayingRef = useRef(isPlaying);
+  useEffect(() => {
+    isPlayingRef.current = isPlaying;
+  }, [isPlaying]);
+
+  const playheadPositionRef = useRef(playheadPosition);
+  useEffect(() => {
+    playheadPositionRef.current = playheadPosition;
+  }, [playheadPosition]);
+
+  useEffect(() => {
+    setImageLoadCallback(() => {
+      if (!isPlayingRef.current) {
+        renderFrameDirectlyRef.current(playheadPositionRef.current);
+      }
+    });
+    return () => setImageLoadCallback(null);
+  }, []);
 
   const renderFallbackFrame = useCallback(
     (time: number) => {

@@ -278,7 +278,7 @@ export interface ProjectState {
   updateShapeTransform: (
     clipId: string,
     transform: Partial<Transform>,
-  ) => ShapeClip | SVGClip | null;
+  ) => ShapeClip | SVGClip | StickerClip | null;
   importSVG: (
     svgContent: string,
     trackId: string,
@@ -3195,6 +3195,21 @@ export const useProjectStore = create<ProjectState>()(
         const svgClip = graphicsEngine.getSVGClip(clipId);
         if (svgClip) {
           const updatedClip = graphicsEngine.updateSVGClip(clipId, {
+            transform,
+          });
+          const { project } = get();
+          set({
+            project: {
+              ...project,
+              modifiedAt: Date.now(),
+            },
+          });
+          return updatedClip || null;
+        }
+
+        const stickerClip = graphicsEngine.getStickerClip(clipId);
+        if (stickerClip) {
+          const updatedClip = graphicsEngine.updateStickerClip(clipId, {
             transform,
           });
           const { project } = get();
