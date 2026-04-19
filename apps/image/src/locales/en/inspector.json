@@ -1,0 +1,17 @@
+{
+  "transform": {
+    "title": "Transform",
+    "x": "X",
+    "y": "Y",
+    "width": "Width",
+    "height": "Height",
+    "rotation": "Rotation",
+    "opacity": "Opacity",
+    "skewX": "Skew X",
+    "skewY": "Skew Y",
+    "flipHorizontal": "Flip Horizontal",
+    "flipVertical": "Flip Vertical",
+    "rotateCounterClockwise": "Rotate 90 degrees Counter-clockwise",
+    "rotateClockwise": "Rotate 90 degrees Clockwise"
+  }
+}

@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { X, Settings, Grid3X3, MousePointer, Save, Palette, Monitor } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useUIStore } from '../../stores/ui-store';
 import { Slider } from '@openreel/ui';
 
@@ -12,6 +13,7 @@ type SettingsTab = 'canvas' | 'snapping' | 'appearance';
 
 export function SettingsDialog({ isOpen, onClose }: Props) {
   const [activeTab, setActiveTab] = useState<SettingsTab>('canvas');
+  const { t } = useTranslation();
 
   const {
     showGrid,
@@ -32,10 +34,10 @@ export function SettingsDialog({ isOpen, onClose }: Props) {
 
   if (!isOpen) return null;
 
-  const tabs: { id: SettingsTab; label: string; icon: React.ReactNode }[] = [
-    { id: 'canvas', label: 'Canvas', icon: <Grid3X3 size={16} /> },
-    { id: 'snapping', label: 'Snapping', icon: <MousePointer size={16} /> },
-    { id: 'appearance', label: 'Appearance', icon: <Palette size={16} /> },
+  const tabs: { id: SettingsTab; label: string; icon: ReactNode }[] = [
+    { id: 'canvas', label: t('settings:tabs.canvas'), icon: <Grid3X3 size={16} /> },
+    { id: 'snapping', label: t('settings:tabs.snapping'), icon: <MousePointer size={16} /> },
+    { id: 'appearance', label: t('settings:tabs.appearance'), icon: <Palette size={16} /> },
   ];
 
   return (
@@ -45,7 +47,7 @@ export function SettingsDialog({ isOpen, onClose }: Props) {
         <div className="flex items-center justify-between px-6 py-4 border-b border-border">
           <div className="flex items-center gap-3">
             <Settings size={20} className="text-primary" />
-            <h2 className="text-lg font-semibold">Settings</h2>
+            <h2 className="text-lg font-semibold">{t('settings:dialog.title')}</h2>
           </div>
           <button
             onClick={onClose}
@@ -76,33 +78,33 @@ export function SettingsDialog({ isOpen, onClose }: Props) {
           <div className="flex-1 p-6 min-h-[300px]">
             {activeTab === 'canvas' && (
               <div className="space-y-6">
-                <h3 className="text-sm font-medium text-foreground mb-4">Canvas Options</h3>
+                <h3 className="text-sm font-medium text-foreground mb-4">{t('settings:canvas.title')}</h3>
 
                 <div className="space-y-4">
                   <ToggleOption
-                    label="Show Grid"
-                    description="Display grid overlay on canvas"
+                    label={t('settings:canvas.showGrid')}
+                    description={t('settings:canvas.showGridDescription')}
                     checked={showGrid}
                     onChange={toggleGrid}
                   />
 
                   <ToggleOption
-                    label="Show Guides"
-                    description="Display alignment guides"
+                    label={t('settings:canvas.showGuides')}
+                    description={t('settings:canvas.showGuidesDescription')}
                     checked={showGuides}
                     onChange={toggleGuides}
                   />
 
                   <ToggleOption
-                    label="Show Rulers"
-                    description="Display rulers on edges"
+                    label={t('settings:canvas.showRulers')}
+                    description={t('settings:canvas.showRulersDescription')}
                     checked={showRulers}
                     onChange={toggleRulers}
                   />
 
                   <div className="pt-2">
                     <div className="flex items-center justify-between mb-2">
-                      <label className="text-sm text-foreground">Grid Size</label>
+                      <label className="text-sm text-foreground">{t('settings:canvas.gridSize')}</label>
                       <span className="text-sm text-muted-foreground">{gridSize}px</span>
                     </div>
                     <Slider
@@ -119,26 +121,26 @@ export function SettingsDialog({ isOpen, onClose }: Props) {
 
             {activeTab === 'snapping' && (
               <div className="space-y-6">
-                <h3 className="text-sm font-medium text-foreground mb-4">Snap Options</h3>
+                <h3 className="text-sm font-medium text-foreground mb-4">{t('settings:snapping.title')}</h3>
 
                 <div className="space-y-4">
                   <ToggleOption
-                    label="Snap to Grid"
-                    description="Snap objects to grid intersections"
+                    label={t('settings:snapping.snapToGrid')}
+                    description={t('settings:snapping.snapToGridDescription')}
                     checked={snapToGrid}
                     onChange={toggleSnapToGrid}
                   />
 
                   <ToggleOption
-                    label="Snap to Guides"
-                    description="Snap objects to guide lines"
+                    label={t('settings:snapping.snapToGuides')}
+                    description={t('settings:snapping.snapToGuidesDescription')}
                     checked={snapToGuides}
                     onChange={toggleSnapToGuides}
                   />
 
                   <ToggleOption
-                    label="Snap to Objects"
-                    description="Snap objects to other objects"
+                    label={t('settings:snapping.snapToObjects')}
+                    description={t('settings:snapping.snapToObjectsDescription')}
                     checked={snapToObjects}
                     onChange={toggleSnapToObjects}
                   />
@@ -148,19 +150,19 @@ export function SettingsDialog({ isOpen, onClose }: Props) {
 
             {activeTab === 'appearance' && (
               <div className="space-y-6">
-                <h3 className="text-sm font-medium text-foreground mb-4">Appearance</h3>
+                <h3 className="text-sm font-medium text-foreground mb-4">{t('settings:appearance.title')}</h3>
 
                 <div className="space-y-4">
                   <div className="flex items-center justify-between p-3 bg-secondary/50 rounded-lg">
                     <div className="flex items-center gap-3">
                       <Monitor size={18} className="text-muted-foreground" />
                       <div>
-                        <p className="text-sm font-medium">Theme</p>
-                        <p className="text-xs text-muted-foreground">Interface appearance</p>
+                        <p className="text-sm font-medium">{t('settings:appearance.theme')}</p>
+                        <p className="text-xs text-muted-foreground">{t('settings:appearance.themeDescription')}</p>
                       </div>
                     </div>
                     <div className="px-3 py-1.5 text-xs bg-primary/20 text-primary rounded-md">
-                      Dark (System)
+                      {t('settings:appearance.themeValue')}
                     </div>
                   </div>
 
@@ -168,12 +170,12 @@ export function SettingsDialog({ isOpen, onClose }: Props) {
                     <div className="flex items-center gap-3 mb-3">
                       <Save size={18} className="text-muted-foreground" />
                       <div>
-                        <p className="text-sm font-medium">Auto Save</p>
-                        <p className="text-xs text-muted-foreground">Automatically save projects</p>
+                        <p className="text-sm font-medium">{t('settings:appearance.autoSave')}</p>
+                        <p className="text-xs text-muted-foreground">{t('settings:appearance.autoSaveDescription')}</p>
                       </div>
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      Projects are automatically saved to browser storage every 30 seconds.
+                      {t('settings:appearance.autoSaveSummary')}
                     </p>
                   </div>
                 </div>

@@ -75,6 +75,9 @@ importers:
       framer-motion:
         specifier: ^12.23.24
         version: 12.23.24(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      i18next:
+        specifier: ^26.0.6
+        version: 26.0.6(typescript@5.9.3)
       lucide-react:
         specifier: ^0.555.0
         version: 0.555.0(react@18.3.1)
@@ -84,6 +87,9 @@ importers:
       react-dom:
         specifier: ^18.3.1
         version: 18.3.1(react@18.3.1)
+      react-i18next:
+        specifier: ^17.0.4
+        version: 17.0.4(i18next@26.0.6(typescript@5.9.3))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)
       tailwind-merge:
         specifier: ^3.4.0
         version: 3.4.0
@@ -120,7 +126,7 @@ importers:
         version: 8.53.0(eslint@9.39.2(jiti@1.21.7))(typescript@5.9.3)
       '@vitejs/plugin-react':
         specifier: ^4.3.1
-        version: 4.7.0(vite@5.4.21(@types/node@22.19.6))
+        version: 4.7.0(vite@5.4.21(@types/node@24.12.2))
       autoprefixer:
         specifier: ^10.4.19
         version: 10.4.22(postcss@8.5.6)
@@ -150,10 +156,10 @@ importers:
         version: 5.9.3
       vite:
         specifier: ^5.3.1
-        version: 5.4.21(@types/node@22.19.6)
+        version: 5.4.21(@types/node@24.12.2)
       vitest:
         specifier: ^1.6.0
-        version: 1.6.1(@types/node@22.19.6)(jsdom@24.1.3)
+        version: 1.6.1(@types/node@24.12.2)(jsdom@24.1.3)
       wrangler:
         specifier: ^3.114.17
         version: 3.114.17(@cloudflare/workers-types@4.20260117.0)
@@ -211,6 +217,9 @@ importers:
       gsap:
         specifier: ^3.14.2
         version: 3.14.2
+      i18next:
+        specifier: ^26.0.6
+        version: 26.0.6(typescript@5.9.3)
       lucide-react:
         specifier: ^0.555.0
         version: 0.555.0(react@18.3.1)
@@ -223,6 +232,9 @@ importers:
       react-dom:
         specifier: ^18.3.1
         version: 18.3.1(react@18.3.1)
+      react-i18next:
+        specifier: ^17.0.4
+        version: 17.0.4(i18next@26.0.6(typescript@5.9.3))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)
       react-syntax-highlighter:
         specifier: ^16.1.0
         version: 16.1.0(react@18.3.1)
@@ -265,7 +277,7 @@ importers:
         version: 8.53.0(eslint@9.39.2(jiti@1.21.7))(typescript@5.9.3)
       '@vitejs/plugin-react':
         specifier: ^4.3.1
-        version: 4.7.0(vite@5.4.21(@types/node@22.19.6))
+        version: 4.7.0(vite@5.4.21(@types/node@24.12.2))
       autoprefixer:
         specifier: ^10.4.19
         version: 10.4.22(postcss@8.5.6)
@@ -298,10 +310,10 @@ importers:
         version: 5.9.3
       vite:
         specifier: ^5.3.1
-        version: 5.4.21(@types/node@22.19.6)
+        version: 5.4.21(@types/node@24.12.2)
       vitest:
         specifier: ^1.6.0
-        version: 1.6.1(@types/node@22.19.6)(jsdom@24.1.3)
+        version: 1.6.1(@types/node@24.12.2)(jsdom@24.1.3)
       wrangler:
         specifier: ^3.114.17
         version: 3.114.17(@cloudflare/workers-types@4.20260117.0)
@@ -344,7 +356,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^1.6.0
-        version: 1.6.1(@types/node@22.19.6)(jsdom@24.1.3)
+        version: 1.6.1(@types/node@24.12.2)(jsdom@24.1.3)
 
   packages/ui:
     dependencies:
@@ -516,6 +528,10 @@ packages:
 
   '@babel/runtime@7.28.4':
     resolution: {integrity: sha512-Q/N6JNWvIvPnLDvjlE1OUBLPQHH6l3CltCEsHIujp45zQUSSh8K+gHnaEX45yAT1nyngnINhvWtzN+Nb9D8RAQ==}
+    engines: {node: '>=6.9.0'}
+
+  '@babel/runtime@7.29.2':
+    resolution: {integrity: sha512-JiDShH45zKHWyGe4ZNVRrCjBz8Nh9TMmZG1kh4QTK8hCBTWBi8Da+i7s1fJw7/lYpM4ccepSNfqzZ/QvABBi5g==}
     engines: {node: '>=6.9.0'}
 
   '@babel/template@7.27.2':
@@ -1935,8 +1951,8 @@ packages:
   '@types/json-schema@7.0.15':
     resolution: {integrity: sha512-5+fP8P8MFNC+AyZCDxrB2pkZFPGzqQWUzpSeuuVLvm8VMcorNYavBqoFcxK8bQz4Qsbn4oUEEem4wDLfcysGHA==}
 
-  '@types/node@22.19.6':
-    resolution: {integrity: sha512-qm+G8HuG6hOHQigsi7VGuLjUVu6TtBo/F05zvX04Mw2uCg9Dv0Qxy3Qw7j41SidlTcl5D/5yg0SEZqOB+EqZnQ==}
+  '@types/node@24.12.2':
+    resolution: {integrity: sha512-A1sre26ke7HDIuY/M23nd9gfB+nrmhtYyMINbjI1zHJxYteKR6qSMX56FsmjMcDb3SMcjJg5BiRRgOCC/yBD0g==}
 
   '@types/prismjs@1.26.5':
     resolution: {integrity: sha512-AUZTa7hQ2KY5L7AmtSiqxlhWxb4ina0yd8hNbl4TWuqnv/pFP0nDMb3YrfSBf4hJVGLh2YEIBfKaBW/9UEl6IQ==}
@@ -2670,6 +2686,9 @@ packages:
     resolution: {integrity: sha512-Y22oTqIU4uuPgEemfz7NDJz6OeKf12Lsu+QC+s3BVpda64lTiMYCyGwg5ki4vFxkMwQdeZDl2adZoqUgdFuTgQ==}
     engines: {node: '>=18'}
 
+  html-parse-stringify@3.0.1:
+    resolution: {integrity: sha512-KknJ50kTInJ7qIScF3jeaFRpMpE8/lfiTdzf/twXyPBLAGrLRTmkz3AdTnKeh40X8k9L2fdYwEp/42WGXIRGcg==}
+
   http-proxy-agent@7.0.2:
     resolution: {integrity: sha512-T1gkAiYYDWYx3V5Bmyu7HcfcvL7mUrTWiM6yOfa3PIphViJ/gFPbvidQ+veqSOHci/PxBcDabeUNCzpOODJZig==}
     engines: {node: '>= 14'}
@@ -2681,6 +2700,14 @@ packages:
   human-signals@5.0.0:
     resolution: {integrity: sha512-AXcZb6vzzrFAUE61HnN4mpLqd/cSIwNQjtNWR0euPm6y0iqx3G4gOXaIDdtdDwZmhwe82LA6+zinmW4UBWVePQ==}
     engines: {node: '>=16.17.0'}
+
+  i18next@26.0.6:
+    resolution: {integrity: sha512-A4U6eCXodIbrhf8EarRurB9/4ebyaurH4+fu4gig9bqxmpSt+fCAFm/GpRQDcN1Xzu/LdFCx4nYHsnM1edIIbg==}
+    peerDependencies:
+      typescript: ^5 || ^6
+    peerDependenciesMeta:
+      typescript:
+        optional: true
 
   iconv-lite@0.6.3:
     resolution: {integrity: sha512-4fCk79wshMdzMp2rH06qWrJE4iolqLhCUH+OiuIgU++RB0+94NlDL81atO7GX55uUKueo0txHNtvEyI6D7WdMw==}
@@ -3191,6 +3218,22 @@ packages:
     peerDependencies:
       react: ^18.3.1
 
+  react-i18next@17.0.4:
+    resolution: {integrity: sha512-hQipmK4EF0y6RO6tt6WuqnmWpWYEXmQUUzecmMBuNsIgYd3smXcG4GtYPWhvgxn0pqMOItKlEO8H24HCs5hc3g==}
+    peerDependencies:
+      i18next: '>= 26.0.1'
+      react: '>= 16.8.0'
+      react-dom: '*'
+      react-native: '*'
+      typescript: ^5 || ^6
+    peerDependenciesMeta:
+      react-dom:
+        optional: true
+      react-native:
+        optional: true
+      typescript:
+        optional: true
+
   react-is@17.0.2:
     resolution: {integrity: sha512-w2GsyukL62IJnlaff/nRegPQR94C/XXamvMWmSHRJ4y7Ts/4ocGRmTHvOs8PSE6pB3dWOrD/nueuU5sduBsQ4w==}
 
@@ -3473,8 +3516,8 @@ packages:
   ufo@1.6.1:
     resolution: {integrity: sha512-9a4/uxlTWJ4+a5i0ooc1rU7C7YOw3wT+UGqdeNNHWnOF9qcMBgLRS+4IYUqbczewFx4mLEig6gawh7X6mFlEkA==}
 
-  undici-types@6.21.0:
-    resolution: {integrity: sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ==}
+  undici-types@7.16.0:
+    resolution: {integrity: sha512-Zz+aZWSj8LE6zoxD+xrjh4VfkIG8Ya6LvYkZqtUQGJPZjYl53ypCaUwWqo7eI0x66KBGeRo+mlBEkMSeSZ38Nw==}
 
   undici@5.29.0:
     resolution: {integrity: sha512-raqeBD6NQK4SkWhQzeYKd1KmIG6dllBOTt55Rmkt4HtI9mwdWtJljnrXjAFUBLTSN67HWrOIZ3EPF4kjUw80Bg==}
@@ -3591,6 +3634,10 @@ packages:
         optional: true
       jsdom:
         optional: true
+
+  void-elements@3.1.0:
+    resolution: {integrity: sha512-Dhxzh5HZuiHQhbvTW9AMetFfBHDMYpo23Uo9btPXgdYP+3T5S+p+jgNy7spra+veYhBP2dCSgxR/i2Y02h5/6w==}
+    engines: {node: '>=0.10.0'}
 
   w3c-xmlserializer@5.0.0:
     resolution: {integrity: sha512-o8qghlI8NZHU1lLPrpi2+Uq7abh4GGPpYANlalzWxyWteJOCsr/P+oPBA49TOLu5FTZO4d3F9MnWJfiMo4BkmA==}
@@ -3823,6 +3870,8 @@ snapshots:
       '@babel/helper-plugin-utils': 7.27.1
 
   '@babel/runtime@7.28.4': {}
+
+  '@babel/runtime@7.29.2': {}
 
   '@babel/template@7.27.2':
     dependencies:
@@ -4974,7 +5023,7 @@ snapshots:
   '@testing-library/dom@10.4.1':
     dependencies:
       '@babel/code-frame': 7.27.1
-      '@babel/runtime': 7.28.4
+      '@babel/runtime': 7.29.2
       '@types/aria-query': 5.0.4
       aria-query: 5.3.0
       dom-accessibility-api: 0.5.16
@@ -5040,9 +5089,9 @@ snapshots:
 
   '@types/json-schema@7.0.15': {}
 
-  '@types/node@22.19.6':
+  '@types/node@24.12.2':
     dependencies:
-      undici-types: 6.21.0
+      undici-types: 7.16.0
 
   '@types/prismjs@1.26.5': {}
 
@@ -5177,7 +5226,7 @@ snapshots:
       '@typescript-eslint/types': 8.53.0
       eslint-visitor-keys: 4.2.1
 
-  '@vitejs/plugin-react@4.7.0(vite@5.4.21(@types/node@22.19.6))':
+  '@vitejs/plugin-react@4.7.0(vite@5.4.21(@types/node@24.12.2))':
     dependencies:
       '@babel/core': 7.28.5
       '@babel/plugin-transform-react-jsx-self': 7.27.1(@babel/core@7.28.5)
@@ -5185,7 +5234,7 @@ snapshots:
       '@rolldown/pluginutils': 1.0.0-beta.27
       '@types/babel__core': 7.20.5
       react-refresh: 0.17.0
-      vite: 5.4.21(@types/node@22.19.6)
+      vite: 5.4.21(@types/node@24.12.2)
     transitivePeerDependencies:
       - supports-color
 
@@ -5846,6 +5895,10 @@ snapshots:
     dependencies:
       whatwg-encoding: 3.1.1
 
+  html-parse-stringify@3.0.1:
+    dependencies:
+      void-elements: 3.1.0
+
   http-proxy-agent@7.0.2:
     dependencies:
       agent-base: 7.1.4
@@ -5861,6 +5914,12 @@ snapshots:
       - supports-color
 
   human-signals@5.0.0: {}
+
+  i18next@26.0.6(typescript@5.9.3):
+    dependencies:
+      '@babel/runtime': 7.29.2
+    optionalDependencies:
+      typescript: 5.9.3
 
   iconv-lite@0.6.3:
     dependencies:
@@ -6326,7 +6385,7 @@ snapshots:
       '@protobufjs/path': 1.1.2
       '@protobufjs/pool': 1.1.0
       '@protobufjs/utf8': 1.1.0
-      '@types/node': 22.19.6
+      '@types/node': 24.12.2
       long: 5.3.2
 
   psl@1.15.0:
@@ -6348,6 +6407,17 @@ snapshots:
       loose-envify: 1.4.0
       react: 18.3.1
       scheduler: 0.23.2
+
+  react-i18next@17.0.4(i18next@26.0.6(typescript@5.9.3))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3):
+    dependencies:
+      '@babel/runtime': 7.29.2
+      html-parse-stringify: 3.0.1
+      i18next: 26.0.6(typescript@5.9.3)
+      react: 18.3.1
+      use-sync-external-store: 1.6.0(react@18.3.1)
+    optionalDependencies:
+      react-dom: 18.3.1(react@18.3.1)
+      typescript: 5.9.3
 
   react-is@17.0.2: {}
 
@@ -6671,7 +6741,7 @@ snapshots:
 
   ufo@1.6.1: {}
 
-  undici-types@6.21.0: {}
+  undici-types@7.16.0: {}
 
   undici@5.29.0:
     dependencies:
@@ -6725,13 +6795,13 @@ snapshots:
 
   uuid@13.0.0: {}
 
-  vite-node@1.6.1(@types/node@22.19.6):
+  vite-node@1.6.1(@types/node@24.12.2):
     dependencies:
       cac: 6.7.14
       debug: 4.4.3
       pathe: 1.1.2
       picocolors: 1.1.1
-      vite: 5.4.21(@types/node@22.19.6)
+      vite: 5.4.21(@types/node@24.12.2)
     transitivePeerDependencies:
       - '@types/node'
       - less
@@ -6743,16 +6813,16 @@ snapshots:
       - supports-color
       - terser
 
-  vite@5.4.21(@types/node@22.19.6):
+  vite@5.4.21(@types/node@24.12.2):
     dependencies:
       esbuild: 0.21.5
       postcss: 8.5.6
       rollup: 4.53.3
     optionalDependencies:
-      '@types/node': 22.19.6
+      '@types/node': 24.12.2
       fsevents: 2.3.3
 
-  vitest@1.6.1(@types/node@22.19.6)(jsdom@24.1.3):
+  vitest@1.6.1(@types/node@24.12.2)(jsdom@24.1.3):
     dependencies:
       '@vitest/expect': 1.6.1
       '@vitest/runner': 1.6.1
@@ -6771,11 +6841,11 @@ snapshots:
       strip-literal: 2.1.1
       tinybench: 2.9.0
       tinypool: 0.8.4
-      vite: 5.4.21(@types/node@22.19.6)
-      vite-node: 1.6.1(@types/node@22.19.6)
+      vite: 5.4.21(@types/node@24.12.2)
+      vite-node: 1.6.1(@types/node@24.12.2)
       why-is-node-running: 2.3.0
     optionalDependencies:
-      '@types/node': 22.19.6
+      '@types/node': 24.12.2
       jsdom: 24.1.3
     transitivePeerDependencies:
       - less
@@ -6786,6 +6856,8 @@ snapshots:
       - sugarss
       - supports-color
       - terser
+
+  void-elements@3.1.0: {}
 
   w3c-xmlserializer@5.0.0:
     dependencies:
