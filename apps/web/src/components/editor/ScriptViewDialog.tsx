@@ -23,6 +23,7 @@ import { useProjectStore } from "../../stores/project-store";
 import { toast } from "../../stores/notification-store";
 import { createProjectSerializer, createStorageEngine } from "@openreel/core";
 import type { ValidationResult } from "@openreel/core/storage/schema-types";
+import { useI18n } from "../../i18n";
 
 SyntaxHighlighter.registerLanguage("json", json);
 
@@ -35,6 +36,7 @@ export const ScriptViewDialog: React.FC<ScriptViewDialogProps> = ({
   isOpen,
   onClose,
 }) => {
+  const { t } = useI18n();
   const { project } = useProjectStore();
   const [activeTab, setActiveTab] = useState<"export" | "import">("export");
   const [importJson, setImportJson] = useState("");
@@ -84,7 +86,6 @@ export const ScriptViewDialog: React.FC<ScriptViewDialogProps> = ({
     (jsonString: string) => {
       setImportJson(jsonString);
       setValidation(null);
-      // Auto-validate
       try {
         const result = serializer.validateProjectJson(jsonString);
         setValidation(result);
@@ -92,13 +93,15 @@ export const ScriptViewDialog: React.FC<ScriptViewDialogProps> = ({
         setValidation({
           valid: false,
           errors: [
-            `Validation error: ${error instanceof Error ? error.message : "Unknown error"}`,
+            t("scriptJson.validationError", {
+              message: error instanceof Error ? error.message : "Unknown error",
+            }),
           ],
           warnings: [],
         });
       }
     },
-    [serializer],
+    [serializer, t],
   );
 
   const handleFileUpload = useCallback(
@@ -119,7 +122,6 @@ export const ScriptViewDialog: React.FC<ScriptViewDialogProps> = ({
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (file) handleFileUpload(file);
-      // Reset so same file can be selected again
       e.target.value = "";
     },
     [handleFileUpload],
@@ -145,12 +147,12 @@ export const ScriptViewDialog: React.FC<ScriptViewDialogProps> = ({
       } else if (file) {
         setValidation({
           valid: false,
-          errors: ["Please upload a .json file"],
+          errors: [t("scriptJson.uploadJsonOnly")],
           warnings: [],
         });
       }
     },
-    [handleFileUpload],
+    [handleFileUpload, t],
   );
 
   const handleValidate = useCallback(() => {
@@ -162,14 +164,16 @@ export const ScriptViewDialog: React.FC<ScriptViewDialogProps> = ({
       setValidation({
         valid: false,
         errors: [
-          `Validation error: ${error instanceof Error ? error.message : "Unknown error"}`,
+          t("scriptJson.validationError", {
+            message: error instanceof Error ? error.message : "Unknown error",
+          }),
         ],
         warnings: [],
       });
     } finally {
       setIsValidating(false);
     }
-  }, [importJson, serializer]);
+  }, [importJson, serializer, t]);
 
   const handleImport = useCallback(() => {
     if (!validation?.valid) return;
@@ -185,8 +189,8 @@ export const ScriptViewDialog: React.FC<ScriptViewDialogProps> = ({
         ).length;
         if (missingCount > 0) {
           toast.warning(
-            `${missingCount} asset${missingCount !== 1 ? "s" : ""} need relinking`,
-            "Go to Assets panel → click \"Relink from Folder\" to restore missing media.",
+            t("scriptJson.relinkWarning.title", { count: missingCount }),
+            t("scriptJson.relinkWarning.description"),
           );
         }
       }
@@ -194,12 +198,14 @@ export const ScriptViewDialog: React.FC<ScriptViewDialogProps> = ({
       setValidation({
         valid: false,
         errors: [
-          `Import error: ${error instanceof Error ? error.message : "Unknown error"}`,
+          t("scriptJson.importError", {
+            message: error instanceof Error ? error.message : "Unknown error",
+          }),
         ],
         warnings: [],
       });
     }
-  }, [importJson, validation, serializer, onClose]);
+  }, [importJson, validation, serializer, onClose, t]);
 
   if (!isOpen) return null;
 
@@ -211,16 +217,15 @@ export const ScriptViewDialog: React.FC<ScriptViewDialogProps> = ({
             <FileCode size={20} className="text-primary" />
             <div>
               <DialogTitle className="text-lg font-semibold text-text-primary">
-                Project JSON
+                {t("scriptJson.title")}
               </DialogTitle>
               <DialogDescription className="text-xs text-text-muted">
-                Export or import project as JSON
+                {t("scriptJson.description")}
               </DialogDescription>
             </div>
           </div>
         </DialogHeader>
 
-        {/* Tab buttons */}
         <div className="flex gap-1 p-2 border-b border-border">
           <button
             onClick={() => setActiveTab("export")}
@@ -230,7 +235,7 @@ export const ScriptViewDialog: React.FC<ScriptViewDialogProps> = ({
                 : "text-text-secondary hover:text-text-primary hover:bg-background-elevated"
             }`}
           >
-            Export JSON
+            {t("scriptJson.tab.export")}
           </button>
           <button
             onClick={() => setActiveTab("import")}
@@ -240,11 +245,10 @@ export const ScriptViewDialog: React.FC<ScriptViewDialogProps> = ({
                 : "text-text-secondary hover:text-text-primary hover:bg-background-elevated"
             }`}
           >
-            Import
+            {t("scriptJson.tab.import")}
           </button>
         </div>
 
-        {/* Tab content */}
         <div className="flex-1 flex flex-col overflow-hidden">
           {activeTab === "export" && (
             <>
@@ -255,18 +259,18 @@ export const ScriptViewDialog: React.FC<ScriptViewDialogProps> = ({
                       {copySuccess ? (
                         <>
                           <CheckCircle2 size={16} className="text-primary" />
-                          Copied!
+                          {t("scriptJson.copied")}
                         </>
                       ) : (
                         <>
                           <Copy size={16} />
-                          Copy
+                          {t("scriptJson.copy")}
                         </>
                       )}
                     </Button>
                     <Button variant="outline" size="sm" onClick={handleDownload}>
                       <Download size={16} />
-                      Download JSON
+                      {t("scriptJson.download")}
                     </Button>
                   </div>
 
@@ -292,7 +296,7 @@ export const ScriptViewDialog: React.FC<ScriptViewDialogProps> = ({
                 <div className="flex-1 flex flex-col items-center justify-center gap-3 p-8 text-center">
                   <FileCode size={40} className="text-text-muted" />
                   <p className="text-sm text-text-secondary">
-                    No project data to export.
+                    {t("scriptJson.noData")}
                   </p>
                 </div>
               )}
@@ -301,7 +305,6 @@ export const ScriptViewDialog: React.FC<ScriptViewDialogProps> = ({
 
           {activeTab === "import" && (
             <div className="flex-1 flex flex-col gap-4 p-4 overflow-auto">
-              {/* File upload drop zone */}
               <input
                 ref={fileInputRef}
                 type="file"
@@ -322,28 +325,27 @@ export const ScriptViewDialog: React.FC<ScriptViewDialogProps> = ({
               >
                 <Upload
                   size={32}
-                  className={
-                    isDragging ? "text-primary" : "text-text-muted"
-                  }
+                  className={isDragging ? "text-primary" : "text-text-muted"}
                 />
                 <div className="text-center">
                   <p className="text-sm text-text-primary font-medium">
                     {isDragging
-                      ? "Drop JSON file here"
-                      : "Drop a JSON file here or click to browse"}
+                      ? t("scriptJson.dropHere")
+                      : t("scriptJson.dropOrBrowse")}
                   </p>
                   <p className="text-xs text-text-muted mt-1">
-                    Accepts .json project files
+                    {t("scriptJson.accepts")}
                   </p>
                 </div>
               </div>
 
-              {/* Show loaded file info */}
               {importJson && (
                 <div className="flex items-center gap-2 p-3 bg-background-tertiary border border-border rounded-lg">
                   <FileCode size={16} className="text-text-secondary" />
                   <span className="text-sm text-text-primary flex-1">
-                    {importJson.length.toLocaleString()} characters loaded
+                    {t("scriptJson.loaded", {
+                      count: importJson.length.toLocaleString(),
+                    })}
                   </span>
                   <Button
                     variant="outline"
@@ -353,7 +355,7 @@ export const ScriptViewDialog: React.FC<ScriptViewDialogProps> = ({
                       setValidation(null);
                     }}
                   >
-                    Clear
+                    {t("scriptJson.clear")}
                   </Button>
                   <Button
                     variant="outline"
@@ -361,19 +363,20 @@ export const ScriptViewDialog: React.FC<ScriptViewDialogProps> = ({
                     onClick={handleValidate}
                     disabled={isValidating}
                   >
-                    {isValidating ? "Validating..." : "Re-validate"}
+                    {isValidating
+                      ? t("scriptJson.validating")
+                      : t("scriptJson.revalidate")}
                   </Button>
                 </div>
               )}
 
-              {/* Validation results */}
               {validation && (
                 <div className="space-y-2">
                   {validation.valid && (
                     <div className="flex items-center gap-2 p-3 bg-primary/10 border border-primary/30 rounded-lg">
                       <CheckCircle2 size={16} className="text-primary" />
                       <span className="text-sm text-primary">
-                        Valid project JSON — ready to import
+                        {t("scriptJson.valid")}
                       </span>
                     </div>
                   )}
@@ -382,7 +385,7 @@ export const ScriptViewDialog: React.FC<ScriptViewDialogProps> = ({
                     <div className="p-3 bg-error/10 border border-error/30 rounded-lg space-y-1">
                       <div className="flex items-center gap-2 text-error font-medium text-sm">
                         <AlertCircle size={16} />
-                        Errors
+                        {t("scriptJson.errors")}
                       </div>
                       <ul className="list-disc list-inside text-xs text-error/80 space-y-0.5">
                         {validation.errors.map((err, i) => (
@@ -396,7 +399,7 @@ export const ScriptViewDialog: React.FC<ScriptViewDialogProps> = ({
                     <div className="p-3 bg-warning/10 border border-warning/30 rounded-lg space-y-1">
                       <div className="flex items-center gap-2 text-warning font-medium text-sm">
                         <AlertTriangle size={16} />
-                        Warnings
+                        {t("scriptJson.warnings")}
                       </div>
                       <ul className="list-disc list-inside text-xs text-warning/80 space-y-0.5">
                         {validation.warnings.map((warning, i) => (
@@ -410,22 +413,22 @@ export const ScriptViewDialog: React.FC<ScriptViewDialogProps> = ({
                     validation.missingAssets.length > 0 && (
                       <div className="p-3 bg-background-tertiary border border-border rounded-lg space-y-1">
                         <div className="text-sm font-medium text-text-secondary">
-                          Missing Assets ({validation.missingAssets.length})
+                          {t("scriptJson.missingAssets", {
+                            count: validation.missingAssets.length,
+                          })}
                         </div>
                         <p className="text-xs text-text-muted">
-                          These assets will be imported as placeholders and can
-                          be replaced later.
+                          {t("scriptJson.missingAssetsDescription")}
                         </p>
                       </div>
                     )}
                 </div>
               )}
 
-              {/* Import button */}
               {importJson && (
                 <Button onClick={handleImport} disabled={!validation?.valid}>
                   <Upload size={16} />
-                  Import Project
+                  {t("scriptJson.importProject")}
                 </Button>
               )}
             </div>

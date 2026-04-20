@@ -1,5 +1,6 @@
 import React from "react";
 import { Sparkles } from "lucide-react";
+import { useI18n } from "../../../i18n";
 
 interface EnhancedTextPreviewProps {
   enhancedPreview: string;
@@ -12,18 +13,19 @@ export const EnhancedTextPreview: React.FC<EnhancedTextPreviewProps> = ({
   onUpdate,
   onDiscard,
 }) => {
+  const { t } = useI18n();
   return (
     <div className="p-2 bg-amber-500/5 border border-amber-500/20 rounded-lg space-y-1.5">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-1">
           <Sparkles size={9} className="text-amber-400" />
-          <span className="text-[9px] font-medium text-amber-400">Enhanced — edit below then Generate</span>
+          <span className="text-[9px] font-medium text-amber-400">{t("enhancedText.title")}</span>
         </div>
         <button
           onClick={onDiscard}
           className="text-[9px] text-text-muted hover:text-red-400 transition-colors"
         >
-          Discard
+          {t("enhancedText.discard")}
         </button>
       </div>
       <textarea

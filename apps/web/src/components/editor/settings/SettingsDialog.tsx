@@ -10,14 +10,15 @@ import {
 import { useSettingsStore, type SettingsTab } from "../../../stores/settings-store";
 import { GeneralPanel } from "./GeneralPanel";
 import { ApiKeysPanel } from "./ApiKeysPanel";
-
-const TABS: readonly { id: SettingsTab; label: string; icon: typeof Settings }[] = [
-  { id: "general", label: "General", icon: Settings },
-  { id: "api-keys", label: "API Keys", icon: Key },
-];
+import { useI18n } from "../../../i18n";
 
 export const SettingsDialog: React.FC = () => {
   const { settingsOpen, settingsTab, closeSettings, openSettings } = useSettingsStore();
+  const { t } = useI18n();
+  const tabs: readonly { id: SettingsTab; label: string; icon: typeof Settings }[] = [
+    { id: "general", label: t("settings.tab.general"), icon: Settings },
+    { id: "api-keys", label: t("settings.tab.apiKeys"), icon: Key },
+  ];
 
   const setTab = useCallback((tab: SettingsTab) => {
     openSettings(tab);
@@ -29,15 +30,15 @@ export const SettingsDialog: React.FC = () => {
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Settings size={18} className="text-primary" />
-            Settings
+            {t("settings.title")}
           </DialogTitle>
           <DialogDescription>
-            Configure preferences and manage API keys for external services.
+            {t("settings.description")}
           </DialogDescription>
         </DialogHeader>
 
-        <div role="tablist" aria-label="Settings" className="flex gap-1 p-1 bg-muted rounded-md">
-          {TABS.map((tab) => (
+        <div role="tablist" aria-label={t("settings.title")} className="flex gap-1 p-1 bg-muted rounded-md">
+          {tabs.map((tab) => (
             <button
               key={tab.id}
               role="tab"

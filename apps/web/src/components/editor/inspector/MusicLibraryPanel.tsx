@@ -21,6 +21,7 @@ import {
   type SFXCategory,
   type MoodTag,
 } from "@openreel/core";
+import { useI18n } from "../../../i18n";
 
 type TabType = "music" | "sfx";
 
@@ -39,6 +40,7 @@ const SoundCard: React.FC<SoundCardProps> = ({
   onStop,
   onAdd,
 }) => {
+  const { t } = useI18n();
   const formatDuration = (seconds: number): string => {
     if (seconds < 60) {
       return `${seconds.toFixed(1)}s`;
@@ -84,7 +86,7 @@ const SoundCard: React.FC<SoundCardProps> = ({
         <button
           onClick={onAdd}
           className="p-1.5 rounded-md bg-primary/20 hover:bg-primary text-primary hover:text-white transition-colors"
-          title="Add to timeline"
+          title={t("music.addToTimeline")}
         >
           <Plus size={14} />
         </button>
@@ -106,6 +108,7 @@ const SoundCard: React.FC<SoundCardProps> = ({
 };
 
 export const MusicLibraryPanel: React.FC = () => {
+  const { t } = useI18n();
   const getSoundLibraryEngine = useEngineStore(
     (state) => state.getSoundLibraryEngine,
   );
@@ -239,9 +242,9 @@ export const MusicLibraryPanel: React.FC = () => {
         <Music size={16} className="text-primary" />
         <div>
           <span className="text-[11px] font-medium text-text-primary">
-            Music & SFX
+            {t("music.title")}
           </span>
-          <p className="text-[9px] text-text-muted">Royalty-free sounds</p>
+          <p className="text-[9px] text-text-muted">{t("music.subtitle")}</p>
         </div>
       </div>
 
@@ -255,7 +258,7 @@ export const MusicLibraryPanel: React.FC = () => {
           }`}
         >
           <Music size={12} />
-          Music
+          {t("music.tab.music")}
         </button>
         <button
           onClick={() => setActiveTab("sfx")}
@@ -266,7 +269,7 @@ export const MusicLibraryPanel: React.FC = () => {
           }`}
         >
           <Zap size={12} />
-          Sound FX
+          {t("music.tab.sfx")}
         </button>
       </div>
 
@@ -277,7 +280,7 @@ export const MusicLibraryPanel: React.FC = () => {
         />
         <Input
           type="text"
-          placeholder="Search sounds..."
+          placeholder={t("music.search")}
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className="pl-8 text-[10px] bg-background-secondary border-border h-8"
@@ -294,7 +297,7 @@ export const MusicLibraryPanel: React.FC = () => {
                 : "bg-background-tertiary text-text-muted hover:text-text-primary"
             }`}
           >
-            All
+            {t("common.all")}
           </button>
           {MUSIC_GENRES.map((genre) => (
             <button
@@ -322,7 +325,7 @@ export const MusicLibraryPanel: React.FC = () => {
                 : "bg-background-tertiary text-text-muted hover:text-text-primary"
             }`}
           >
-            All
+            {t("common.all")}
           </button>
           {SFX_CATEGORIES.map((cat) => (
             <button
@@ -365,9 +368,9 @@ export const MusicLibraryPanel: React.FC = () => {
               size={24}
               className="mx-auto mb-2 text-text-muted opacity-50"
             />
-            <p className="text-[10px] text-text-muted">No sounds found</p>
+            <p className="text-[10px] text-text-muted">{t("music.empty.title")}</p>
             <p className="text-[9px] text-text-muted mt-1">
-              Try adjusting filters
+              {t("music.empty.description")}
             </p>
           </div>
         ) : (
@@ -385,7 +388,7 @@ export const MusicLibraryPanel: React.FC = () => {
       </div>
 
       <p className="text-[9px] text-text-muted text-center">
-        {sounds.length} {activeTab === "music" ? "tracks" : "effects"} available
+        {t(activeTab === "music" ? "music.summary.tracks" : "music.summary.effects", { count: sounds.length })}
       </p>
     </div>
   );

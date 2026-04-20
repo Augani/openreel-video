@@ -17,8 +17,10 @@ import { ModelSelector } from "./ModelSelector";
 import { EnhancedTextPreview } from "./EnhancedTextPreview";
 import { AudioResult } from "./AudioResult";
 import { TTS_PROVIDERS } from "./tts-constants";
+import { useI18n } from "../../../i18n";
 
 export const TextToSpeechPanel: React.FC = () => {
+  const { t } = useI18n();
   const {
     defaultTtsProvider,
     defaultLlmProvider,
@@ -106,9 +108,9 @@ export const TextToSpeechPanel: React.FC = () => {
 
   const warnUnsavedAudio = useCallback(() => {
     if (hasUnsavedAudio) {
-      toast.warning("Unsaved audio discarded", "Save to media or download next time to keep it.");
+      toast.warning(t("aiGen.unsavedAudio.title"), t("aiGen.unsavedAudio.description"));
     }
-  }, [hasUnsavedAudio]);
+  }, [hasUnsavedAudio, t]);
 
   const handleProviderSwitch = useCallback((newProvider: TtsProvider) => {
     if (newProvider === provider) return;
@@ -134,15 +136,15 @@ export const TextToSpeechPanel: React.FC = () => {
           <Mic size={16} className="text-primary" />
           <div>
             <span className="text-[11px] font-medium text-text-primary">
-              Text to Speech
+              {t("tts.title")}
             </span>
-            <p className="text-[9px] text-text-muted">AI voice generation</p>
+            <p className="text-[9px] text-text-muted">{t("tts.subtitle")}</p>
           </div>
         </div>
         <button
           onClick={() => openSettings("api-keys")}
           className="p-1.5 rounded-md hover:bg-background-tertiary text-text-muted hover:text-text-primary transition-colors"
-          title="API Key Settings"
+          title={t("tts.apiKeySettings")}
         >
           <Settings size={14} />
         </button>
@@ -150,7 +152,7 @@ export const TextToSpeechPanel: React.FC = () => {
 
       <div className="space-y-2">
         <label className="text-[10px] font-medium text-text-secondary">
-          Provider
+          {t("tts.provider")}
         </label>
         <div className="flex gap-1.5">
           {TTS_PROVIDERS.map((p) => {
@@ -172,7 +174,7 @@ export const TextToSpeechPanel: React.FC = () => {
                       ? "bg-background-tertiary text-text-muted border border-border opacity-60 cursor-default"
                       : "bg-background-tertiary text-text-secondary hover:text-text-primary border border-border"
                 }`}
-                title={isDisabled ? "Add ElevenLabs API key in Settings" : p.description}
+                title={isDisabled ? t("tts.addElevenLabsKey") : p.description}
               >
                 {p.label}
               </button>
@@ -187,12 +189,12 @@ export const TextToSpeechPanel: React.FC = () => {
 
       <div className="space-y-2">
         <label className="text-[10px] font-medium text-text-secondary">
-          Text
+          {t("tts.text")}
         </label>
         <textarea
           value={text}
           onChange={(e) => { setText(e.target.value); setEnhancedPreview(null); }}
-          placeholder="Enter the text you want to convert to speech..."
+          placeholder={t("tts.placeholder")}
           className="w-full h-24 px-3 py-2 text-[11px] bg-background-tertiary rounded-lg border border-border focus:border-primary focus:outline-none resize-none"
           maxLength={maxChars}
         />
@@ -206,7 +208,7 @@ export const TextToSpeechPanel: React.FC = () => {
               />
               <label className="text-[9px] text-text-muted flex items-center gap-1 cursor-pointer" onClick={() => setEnhanceText(!enhanceText)}>
                 <Sparkles size={10} className={enhanceText ? "text-amber-400" : ""} />
-                Enhance for TTS
+                {t("tts.enhance")}
               </label>
             </div>
           ) : (
@@ -257,7 +259,7 @@ export const TextToSpeechPanel: React.FC = () => {
               onClick={() => openSettings("api-keys")}
               className="shrink-0 px-2 py-1 rounded text-[9px] font-medium bg-red-500/20 text-red-300 hover:bg-red-500/30 transition-colors"
             >
-              Open Settings
+              {t("tts.openSettings")}
             </button>
           )}
         </div>
@@ -276,9 +278,9 @@ export const TextToSpeechPanel: React.FC = () => {
           className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-amber-500 text-white rounded-lg text-[11px] font-medium transition-all hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {isEnhancing ? (
-            <><Loader2 size={14} className="animate-spin" /> Enhancing...</>
+            <><Loader2 size={14} className="animate-spin" /> {t("tts.enhancing")}</>
           ) : (
-            <><Sparkles size={14} /> Enhance Text</>
+            <><Sparkles size={14} /> {t("tts.enhanceText")}</>
           )}
         </button>
       )}
@@ -289,9 +291,9 @@ export const TextToSpeechPanel: React.FC = () => {
         className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-primary text-white rounded-lg text-[11px] font-medium transition-all hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed"
       >
         {isGenerating ? (
-          <><Loader2 size={14} className="animate-spin" /> Generating...</>
+          <><Loader2 size={14} className="animate-spin" /> {t("tts.generating")}</>
         ) : (
-          <><Volume2 size={14} /> Generate Speech</>
+          <><Volume2 size={14} /> {t("tts.generateSpeech")}</>
         )}
       </button>
 
@@ -299,7 +301,7 @@ export const TextToSpeechPanel: React.FC = () => {
         <div className="flex items-center gap-1.5 px-2 py-1.5 bg-amber-500/10 border border-amber-500/30 rounded-lg">
           <AlertTriangle size={12} className="text-amber-400 shrink-0" />
           <p className="text-[9px] text-amber-400">
-            Unsaved audio — save to media, add to timeline, or download to keep it.
+            {t("tts.unsavedHint")}
           </p>
         </div>
       )}
@@ -318,7 +320,7 @@ export const TextToSpeechPanel: React.FC = () => {
       )}
 
       <p className="text-[9px] text-text-muted text-center">
-        Powered by {provider === "elevenlabs" ? "ElevenLabs" : "Piper TTS"}
+        {t("tts.poweredBy", { provider: provider === "elevenlabs" ? "ElevenLabs" : "Piper TTS" })}
         {provider === "elevenlabs" && ` · ${getSelectedModelName()}`}
       </p>
     </div>

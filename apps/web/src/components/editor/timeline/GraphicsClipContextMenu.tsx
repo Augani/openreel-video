@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import type { ShapeClip, SVGClip, StickerClip, TextClip } from "@openreel/core";
 import { useProjectStore } from "../../../stores/project-store";
+import { useI18n } from "../../../i18n";
 import {
   ContextMenuContent,
   ContextMenuItem,
@@ -32,6 +33,7 @@ export const GraphicsClipContextMenu: React.FC<GraphicsClipContextMenuProps> = (
   onDelete,
   onDuplicate,
 }) => {
+  const { t } = useI18n();
   const {
     deleteShapeClip,
     deleteSVGClip,
@@ -70,17 +72,17 @@ export const GraphicsClipContextMenu: React.FC<GraphicsClipContextMenuProps> = (
   const getClipTypeLabel = () => {
     switch (clipType) {
       case "shape":
-        return "Shape";
+        return t("timeline.graphics.shape");
       case "svg":
-        return "SVG";
+        return t("timeline.graphics.svg");
       case "sticker":
-        return "Sticker";
+        return t("timeline.graphics.sticker");
       case "emoji":
-        return "Emoji";
+        return t("timeline.graphics.emoji");
       case "text":
-        return "Text";
+        return t("timeline.graphics.text");
       default:
-        return "Graphics";
+        return t("timeline.graphics.graphics");
     }
   };
 
@@ -97,7 +99,7 @@ export const GraphicsClipContextMenu: React.FC<GraphicsClipContextMenuProps> = (
     <ContextMenuContent className="min-w-[200px]">
       <ContextMenuLabel className="flex items-center text-[10px] text-text-muted">
         {getClipTypeIcon()}
-        {getClipTypeLabel()} Clip
+        {t("timeline.graphics.clipLabel", { type: getClipTypeLabel() })}
       </ContextMenuLabel>
       <ContextMenuSeparator />
 
@@ -105,7 +107,7 @@ export const GraphicsClipContextMenu: React.FC<GraphicsClipContextMenuProps> = (
         <>
           <ContextMenuItem onClick={handleDuplicate}>
             <Layers className="mr-2 h-4 w-4" />
-            Duplicate
+            {t("timeline.menu.duplicate")}
             <ContextMenuShortcut>⌘D</ContextMenuShortcut>
           </ContextMenuItem>
           <ContextMenuSeparator />
@@ -114,7 +116,7 @@ export const GraphicsClipContextMenu: React.FC<GraphicsClipContextMenuProps> = (
 
       <ContextMenuItem onClick={handleDelete} className="text-red-400">
         <Trash2 className="mr-2 h-4 w-4" />
-        Delete
+        {t("common.delete")}
         <ContextMenuShortcut>⌫</ContextMenuShortcut>
       </ContextMenuItem>
     </ContextMenuContent>

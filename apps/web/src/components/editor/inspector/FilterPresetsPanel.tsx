@@ -11,6 +11,7 @@ import {
   type FilterPreset,
   type FilterCategory,
 } from "@openreel/core";
+import { useI18n } from "../../../i18n";
 
 const CATEGORY_ICONS: Record<string, React.ElementType> = {
   cinematic: Film,
@@ -31,6 +32,7 @@ const PresetCard: React.FC<PresetCardProps> = ({
   isApplied,
   onApply,
 }) => {
+  const { t } = useI18n();
   const [isHovered, setIsHovered] = useState(false);
 
   return (
@@ -75,7 +77,7 @@ const PresetCard: React.FC<PresetCardProps> = ({
       {isHovered && !isApplied && (
         <div className="absolute inset-0 flex items-center justify-center bg-background-tertiary/80 rounded-lg">
           <span className="text-[10px] text-primary font-medium">
-            Click to Apply
+            {t("filters.clickToApply")}
           </span>
         </div>
       )}
@@ -90,6 +92,7 @@ interface FilterPresetsPanelProps {
 export const FilterPresetsPanel: React.FC<FilterPresetsPanelProps> = ({
   clipId,
 }) => {
+  const { t } = useI18n();
   const selectedClipIds = useUIStore((state) => state.getSelectedClipIds());
   const addVideoEffect = useProjectStore((state) => state.addVideoEffect);
   const getVideoEffects = useProjectStore((state) => state.getVideoEffects);
@@ -120,7 +123,7 @@ export const FilterPresetsPanel: React.FC<FilterPresetsPanelProps> = ({
       });
 
       setAppliedPresetId(preset.id);
-      toast.success("Filter Applied", `${preset.name} preset applied`);
+      toast.success(t("filters.applied"), t("filters.appliedDescription", { name: preset.name }));
     },
     [targetClipId, addVideoEffect, getVideoEffects, removeVideoEffect],
   );
@@ -134,7 +137,7 @@ export const FilterPresetsPanel: React.FC<FilterPresetsPanelProps> = ({
     });
 
     setAppliedPresetId(null);
-    toast.info("Effects Cleared");
+    toast.info(t("filters.cleared"));
   }, [targetClipId, getVideoEffects, removeVideoEffect]);
 
   if (!targetClipId) {
@@ -142,7 +145,7 @@ export const FilterPresetsPanel: React.FC<FilterPresetsPanelProps> = ({
       <div className="p-4 text-center">
         <Palette size={24} className="mx-auto mb-2 text-text-muted" />
         <p className="text-[10px] text-text-muted">
-          Select a video clip to apply filters
+          {t("filters.empty")}
         </p>
       </div>
     );
@@ -154,9 +157,9 @@ export const FilterPresetsPanel: React.FC<FilterPresetsPanelProps> = ({
         <Palette size={16} className="text-primary" />
         <div>
           <span className="text-[11px] font-medium text-text-primary">
-            Filter Presets
+            {t("filters.title")}
           </span>
-          <p className="text-[9px] text-text-muted">One-click color grades</p>
+          <p className="text-[9px] text-text-muted">{t("filters.subtitle")}</p>
         </div>
       </div>
 
@@ -194,7 +197,7 @@ export const FilterPresetsPanel: React.FC<FilterPresetsPanelProps> = ({
       {appliedPresetId && (
         <div className="space-y-3 p-3 bg-background-tertiary rounded-lg">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] text-text-secondary">Intensity</span>
+            <span className="text-[10px] text-text-secondary">{t("filters.intensity")}</span>
             <span className="text-[10px] font-mono text-text-primary">
               {intensityValue}%
             </span>
@@ -210,14 +213,13 @@ export const FilterPresetsPanel: React.FC<FilterPresetsPanelProps> = ({
             onClick={handleClearEffects}
             className="w-full py-2 text-[10px] text-red-400 hover:text-red-300 bg-red-500/10 rounded-lg transition-colors"
           >
-            Remove All Effects
+            {t("filters.removeAll")}
           </button>
         </div>
       )}
 
       <p className="text-[9px] text-text-muted text-center">
-        {FILTER_PRESETS.length} presets across {FILTER_CATEGORIES.length}{" "}
-        categories
+        {t("filters.summary", { presets: FILTER_PRESETS.length, categories: FILTER_CATEGORIES.length })}
       </p>
     </div>
   );

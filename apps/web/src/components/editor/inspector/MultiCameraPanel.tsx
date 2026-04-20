@@ -12,6 +12,7 @@ import {
 import { useProjectStore } from "../../../stores/project-store";
 import { useEngineStore } from "../../../stores/engine-store";
 import type { MultiCamGroup, CameraAngle } from "@openreel/core";
+import { useI18n } from "../../../i18n";
 
 interface MultiCameraPanelProps {
   onClose?: () => void;
@@ -25,6 +26,7 @@ const AngleCard: React.FC<{
   onRemove: () => void;
   onOffsetChange: (offset: number) => void;
 }> = ({ angle, isActive, onSelect, onRename, onRemove, onOffsetChange }) => {
+  const { t } = useI18n();
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(angle.name);
 
@@ -81,7 +83,7 @@ const AngleCard: React.FC<{
         </button>
       </div>
       <div className="mt-1 flex items-center gap-1">
-        <span className="text-[8px] text-text-muted">Offset:</span>
+        <span className="text-[8px] text-text-muted">{t("multicam.offset")}</span>
         <input
           type="number"
           value={angle.offset.toFixed(2)}
@@ -90,7 +92,7 @@ const AngleCard: React.FC<{
           className="w-16 px-1 py-0.5 text-[8px] bg-background-secondary rounded border border-border focus:border-primary focus:outline-none"
           step="0.1"
         />
-        <span className="text-[8px] text-text-muted">sec</span>
+        <span className="text-[8px] text-text-muted">{t("multicam.seconds")}</span>
       </div>
     </div>
   );
@@ -116,7 +118,9 @@ const GroupSection: React.FC<{
   onOffsetChange,
   onSync,
   onDelete,
-}) => (
+}) => {
+  const { t } = useI18n();
+  return (
   <div className="border border-border rounded-lg overflow-hidden">
     <button
       onClick={onToggle}
@@ -132,7 +136,7 @@ const GroupSection: React.FC<{
         {group.name}
       </span>
       <span className="text-[9px] text-text-muted">
-        {group.angles.length} angles
+        {t("multicam.angles", { count: group.angles.length })}
       </span>
     </button>
     {isExpanded && (
@@ -156,7 +160,7 @@ const GroupSection: React.FC<{
             className="flex-1 flex items-center justify-center gap-1 py-1.5 text-[9px] text-text-secondary hover:text-text-primary bg-background-tertiary rounded transition-colors"
           >
             <Link size={10} />
-            Sync Audio
+            {t("multicam.syncAudio")}
           </button>
           <button
             onClick={onDelete}
@@ -168,9 +172,11 @@ const GroupSection: React.FC<{
       </div>
     )}
   </div>
-);
+  );
+};
 
 export const MultiCameraPanel: React.FC<MultiCameraPanelProps> = () => {
+  const { t } = useI18n();
   const project = useProjectStore((state) => state.project);
   const getMultiCamEngine = useEngineStore((state) => state.getMultiCamEngine);
 
@@ -204,8 +210,8 @@ export const MultiCameraPanel: React.FC<MultiCameraPanelProps> = () => {
         for (const clip of track.clips) {
           clips.push({
             id: clip.id,
-            name: `Clip ${clip.id.slice(-6)}`,
-            trackName: track.name || `Track ${track.id.slice(-4)}`,
+            name: t("multicam.clipName", { id: clip.id.slice(-6) }),
+            trackName: track.name || t("multicam.trackName", { id: track.id.slice(-4) }),
           });
         }
       }
@@ -229,7 +235,7 @@ export const MultiCameraPanel: React.FC<MultiCameraPanelProps> = () => {
     if (!multiCamEngine || selectedClips.length < 2) return;
 
     const group = multiCamEngine.createGroup(
-      `Multi-Cam ${groups.length + 1}`,
+      t("multicam.groupName", { count: groups.length + 1 }),
       selectedClips,
     );
 
@@ -239,7 +245,7 @@ export const MultiCameraPanel: React.FC<MultiCameraPanelProps> = () => {
     useProjectStore.setState((state) => ({
       project: { ...state.project, modifiedAt: Date.now() },
     }));
-  }, [multiCamEngine, selectedClips, groups.length]);
+  }, [multiCamEngine, selectedClips, groups.length, t]);
 
   const handleSelectAngle = useCallback(
     (groupId: string, angleId: string) => {
@@ -322,10 +328,10 @@ export const MultiCameraPanel: React.FC<MultiCameraPanelProps> = () => {
         <Video size={16} className="text-primary" />
         <div className="flex-1">
           <span className="text-[11px] font-medium text-text-primary">
-            Multi-Camera Editing
+            {t("multicam.title")}
           </span>
           <p className="text-[9px] text-text-muted">
-            Sync and switch between camera angles
+            {t("multicam.subtitle")}
           </p>
         </div>
       </div>
@@ -333,7 +339,7 @@ export const MultiCameraPanel: React.FC<MultiCameraPanelProps> = () => {
       {groups.length > 0 && (
         <div className="space-y-2">
           <span className="text-[10px] font-medium text-text-secondary">
-            Camera Groups
+            {t("multicam.groups")}
           </span>
           {groups.map((group) => (
             <GroupSection
@@ -358,10 +364,10 @@ export const MultiCameraPanel: React.FC<MultiCameraPanelProps> = () => {
 
       <div className="space-y-2 pt-2 border-t border-border">
         <span className="text-[10px] font-medium text-text-secondary">
-          Create New Group
+          {t("multicam.createNew")}
         </span>
         <p className="text-[9px] text-text-muted">
-          Select 2+ video clips to create a multi-camera group
+          {t("multicam.selectHint")}
         </p>
 
         {availableClips.length === 0 ? (
@@ -371,7 +377,7 @@ export const MultiCameraPanel: React.FC<MultiCameraPanelProps> = () => {
               className="mx-auto mb-2 text-text-muted opacity-50"
             />
             <p className="text-[10px] text-text-muted">
-              Import video clips to use multi-camera editing
+              {t("multicam.empty")}
             </p>
           </div>
         ) : (
@@ -420,14 +426,14 @@ export const MultiCameraPanel: React.FC<MultiCameraPanelProps> = () => {
               }`}
             >
               <Plus size={12} />
-              Create Group ({selectedClips.length} selected)
+              {t("multicam.createGroup", { count: selectedClips.length })}
             </button>
           </>
         )}
       </div>
 
       <p className="text-[9px] text-text-muted text-center">
-        Switch angles during playback to create cuts
+        {t("multicam.tip")}
       </p>
     </div>
   );

@@ -6,6 +6,7 @@ import {
 } from "../../services/auto-save";
 import { useProjectStore } from "../../stores/project-store";
 import { useAnalytics, AnalyticsEvents } from "../../hooks/useAnalytics";
+import { useI18n } from "../../i18n";
 
 interface RecentProject {
   id: string;
@@ -21,6 +22,7 @@ interface RecentProjectsProps {
 export const RecentProjects: React.FC<RecentProjectsProps> = ({
   onProjectSelected,
 }) => {
+  const { t, formatDate } = useI18n();
   const [recentProjects, setRecentProjects] = useState<RecentProject[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadingProjectId, setLoadingProjectId] = useState<string | null>(null);
@@ -90,19 +92,19 @@ export const RecentProjects: React.FC<RecentProjectsProps> = ({
     [],
   );
 
-  const formatDate = (timestamp: number): string => {
+  const formatRelativeDate = (timestamp: number): string => {
     const date = new Date(timestamp);
     const now = new Date();
     const diffDays = Math.floor(
       (now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24),
     );
 
-    if (diffDays === 0) return "Today";
-    if (diffDays === 1) return "Yesterday";
-    if (diffDays < 7) return `${diffDays} days ago`;
-    if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`;
+    if (diffDays === 0) return t("recent.today");
+    if (diffDays === 1) return t("recent.yesterday");
+    if (diffDays < 7) return t("recent.daysAgo", { count: diffDays });
+    if (diffDays < 30) return t("recent.weeksAgo", { count: Math.floor(diffDays / 7) });
 
-    return date.toLocaleDateString();
+    return formatDate(timestamp);
   };
 
   if (isLoading) {
@@ -110,7 +112,7 @@ export const RecentProjects: React.FC<RecentProjectsProps> = ({
       <div className="flex flex-col items-center justify-center py-20">
         <div className="w-8 h-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin mb-4" />
         <p className="text-sm text-text-secondary">
-          Loading recent projects...
+          {t("recent.loading")}
         </p>
       </div>
     );
@@ -123,11 +125,10 @@ export const RecentProjects: React.FC<RecentProjectsProps> = ({
           <Clock size={24} className="text-text-muted" />
         </div>
         <h3 className="text-base font-medium text-text-primary mb-2">
-          No Recent Projects
+          {t("recent.empty.title")}
         </h3>
         <p className="text-sm text-text-muted text-center max-w-md">
-          Your recently opened projects will appear here. Start a new project or
-          use a template to get started.
+          {t("recent.empty.description")}
         </p>
       </div>
     );
@@ -137,7 +138,7 @@ export const RecentProjects: React.FC<RecentProjectsProps> = ({
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-medium text-text-primary">
-          Recent Projects ({recentProjects.length})
+          {t("recent.title", { count: recentProjects.length })}
         </h3>
       </div>
 
@@ -168,7 +169,7 @@ export const RecentProjects: React.FC<RecentProjectsProps> = ({
                   </h4>
                   <div className="flex items-center gap-1.5 mt-1.5 text-xs text-text-muted">
                     <Clock size={11} />
-                    <span>{formatDate(project.lastModified)}</span>
+                    <span>{formatRelativeDate(project.lastModified)}</span>
                   </div>
                 </div>
               </button>
@@ -176,7 +177,7 @@ export const RecentProjects: React.FC<RecentProjectsProps> = ({
               <button
                 onClick={(e) => handleRemoveProject(project.id, e)}
                 className="absolute top-2 right-2 p-1.5 text-text-muted hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all rounded-lg bg-background/80 hover:bg-red-500/10 backdrop-blur-sm"
-                title="Remove from recent"
+                title={t("recent.remove")}
               >
                 <Trash2 size={14} />
               </button>
@@ -186,7 +187,7 @@ export const RecentProjects: React.FC<RecentProjectsProps> = ({
       </div>
 
       <p className="text-xs text-text-muted text-center">
-        Recent projects are stored locally in your browser
+        {t("recent.storageNote")}
       </p>
     </div>
   );
