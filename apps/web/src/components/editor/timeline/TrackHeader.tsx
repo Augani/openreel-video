@@ -3,6 +3,7 @@ import { Eye, EyeOff, Volume2, Lock, Trash2, ChevronDown, ChevronRight, Pencil }
 import type { Track } from "@openreel/core";
 import { useProjectStore } from "../../../stores/project-store";
 import { useTimelineStore } from "../../../stores/timeline-store";
+import { useI18n } from "../../../i18n";
 import { getTrackInfo } from "./utils";
 import {
   ContextMenu,
@@ -29,6 +30,7 @@ export const TrackHeader: React.FC<TrackHeaderProps> = ({
   onDrop,
   keyframeCount = 0,
 }) => {
+  const { t } = useI18n();
   const { lockTrack, hideTrack, muteTrack, removeTrack, renameTrack } = useProjectStore();
   const { isTrackExpanded, toggleTrackExpanded, getTrackHeight } = useTimelineStore();
   const isExpanded = isTrackExpanded(track.id);
@@ -91,7 +93,7 @@ export const TrackHeader: React.FC<TrackHeaderProps> = ({
               <button
                 onClick={(e) => { e.stopPropagation(); toggleTrackExpanded(track.id); }}
                 className="p-0.5 rounded transition-colors hover:bg-background-elevated text-text-muted"
-                title={isExpanded ? "Collapse keyframes" : "Expand keyframes"}
+                title={isExpanded ? t("timeline.track.collapseKeyframes") : t("timeline.track.expandKeyframes")}
               >
                 {isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
               </button>
@@ -137,7 +139,7 @@ export const TrackHeader: React.FC<TrackHeaderProps> = ({
                     ? "text-yellow-500 bg-yellow-500/10"
                     : "text-text-muted hover:bg-background-elevated hover:text-text-primary"
                 }`}
-                title={track.hidden ? "Show track" : "Hide track"}
+                title={track.hidden ? t("timeline.track.show") : t("timeline.track.hide")}
               >
                 {track.hidden ? <EyeOff size={12} /> : <Eye size={12} />}
               </button>
@@ -150,7 +152,7 @@ export const TrackHeader: React.FC<TrackHeaderProps> = ({
                     ? "text-red-500 bg-red-500/10"
                     : "text-text-muted hover:bg-background-elevated hover:text-text-primary"
                 }`}
-                title={track.muted ? "Unmute" : "Mute"}
+                title={track.muted ? t("timeline.track.unmute") : t("timeline.track.mute")}
               >
                 <Volume2 size={12} />
               </button>
@@ -162,14 +164,14 @@ export const TrackHeader: React.FC<TrackHeaderProps> = ({
                   ? "text-yellow-500 bg-yellow-500/10"
                   : "text-text-muted hover:bg-background-elevated hover:text-text-primary"
               }`}
-              title={track.locked ? "Unlock" : "Lock"}
+              title={track.locked ? t("timeline.track.unlock") : t("timeline.track.lock")}
             >
               <Lock size={12} />
             </button>
             <button
               onClick={(e) => { e.stopPropagation(); handleRemoveTrack(); }}
               className="p-1 rounded transition-colors hover:bg-red-500/20 text-red-400/50 hover:text-red-400"
-              title="Delete track"
+              title={t("timeline.track.delete")}
             >
               <Trash2 size={12} />
             </button>
@@ -183,7 +185,7 @@ export const TrackHeader: React.FC<TrackHeaderProps> = ({
       <ContextMenuContent className="min-w-[160px]">
         <ContextMenuItem onClick={startRename}>
           <Pencil className="mr-2 h-4 w-4" />
-          Rename Track
+          {t("timeline.track.rename")}
         </ContextMenuItem>
         <ContextMenuSeparator />
         <ContextMenuItem
@@ -191,7 +193,7 @@ export const TrackHeader: React.FC<TrackHeaderProps> = ({
           className="text-red-400 focus:text-red-400 hover:text-red-400"
         >
           <Trash2 className="mr-2 h-4 w-4" />
-          Delete Track
+          {t("timeline.track.delete")}
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>

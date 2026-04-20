@@ -14,6 +14,7 @@ import {
   SelectContent,
   SelectItem,
 } from "@openreel/ui";
+import { useI18n } from "../../../i18n";
 
 const CAPTION_STYLE_PRESETS = [
   {
@@ -28,6 +29,7 @@ const CAPTION_STYLE_PRESETS = [
 ];
 
 export const AutoCaptionPanel: React.FC = () => {
+  const { t } = useI18n();
   const getSpeechToTextEngine = useEngineStore(
     (state) => state.getSpeechToTextEngine,
   );
@@ -70,7 +72,7 @@ export const AutoCaptionPanel: React.FC = () => {
       await speechEngine.startLiveTranscription();
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Failed to start transcription",
+        err instanceof Error ? err.message : t("captions.error.start"),
       );
       setIsTranscribing(false);
     }
@@ -128,11 +130,10 @@ export const AutoCaptionPanel: React.FC = () => {
       <div className="p-4 space-y-3">
         <div className="flex items-center gap-2 text-status-warning">
           <AlertCircle size={16} />
-          <span className="text-[11px] font-medium">Browser Not Supported</span>
+          <span className="text-[11px] font-medium">{t("captions.unsupported.title")}</span>
         </div>
         <p className="text-[10px] text-text-muted">
-          Auto-captions require Chrome or Edge browser with Speech Recognition
-          API support.
+          {t("captions.unsupported.description")}
         </p>
       </div>
     );
@@ -144,10 +145,10 @@ export const AutoCaptionPanel: React.FC = () => {
         <Mic size={16} className="text-primary" />
         <div>
           <span className="text-[11px] font-medium text-text-primary">
-            Auto-Caption
+            {t("captions.title")}
           </span>
           <p className="text-[9px] text-text-muted">
-            Generate captions from speech
+            {t("captions.subtitle")}
           </p>
         </div>
       </div>
@@ -156,7 +157,7 @@ export const AutoCaptionPanel: React.FC = () => {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Languages size={14} className="text-text-secondary" />
-            <span className="text-[10px] text-text-secondary">Language</span>
+            <span className="text-[10px] text-text-secondary">{t("captions.language")}</span>
           </div>
           <Select
             value={selectedLanguage}
@@ -177,7 +178,7 @@ export const AutoCaptionPanel: React.FC = () => {
         </div>
 
         <div className="flex items-center justify-between">
-          <span className="text-[10px] text-text-secondary">Caption Style</span>
+          <span className="text-[10px] text-text-secondary">{t("captions.style")}</span>
           <Select
             value={selectedStyle}
             onValueChange={setSelectedStyle}
@@ -207,15 +208,15 @@ export const AutoCaptionPanel: React.FC = () => {
       {isTranscribing && progress && (
         <div className="space-y-2 p-3 bg-background-tertiary rounded-lg">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] text-text-secondary">Status</span>
+            <span className="text-[10px] text-text-secondary">{t("captions.status")}</span>
             <div className="flex items-center gap-1">
               <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
-              <span className="text-[10px] text-red-400">Recording</span>
+              <span className="text-[10px] text-red-400">{t("captions.recording")}</span>
             </div>
           </div>
           <div className="flex items-center justify-between">
             <span className="text-[10px] text-text-secondary">
-              Segments Found
+              {t("captions.segmentsFound")}
             </span>
             <span className="text-[10px] text-text-primary font-mono">
               {progress.segmentsFound}
@@ -228,14 +229,13 @@ export const AutoCaptionPanel: React.FC = () => {
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <span className="text-[10px] text-text-secondary">
-              {segments.length} caption{segments.length !== 1 ? "s" : ""}{" "}
-              detected
+              {t("captions.detected", { count: segments.length })}
             </span>
             <button
               onClick={handleApplySegments}
               className="px-2 py-1 text-[10px] bg-primary text-white rounded hover:bg-primary/80 transition-colors"
             >
-              Add to Timeline
+              {t("captions.addToTimeline")}
             </button>
           </div>
           <div className="max-h-32 overflow-y-auto space-y-1">
@@ -262,7 +262,7 @@ export const AutoCaptionPanel: React.FC = () => {
             className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-primary text-white rounded-lg hover:bg-primary/80 transition-colors"
           >
             <Mic size={16} />
-            <span className="text-[11px] font-medium">Start Recording</span>
+            <span className="text-[11px] font-medium">{t("captions.start")}</span>
           </button>
         ) : (
           <button
@@ -270,14 +270,13 @@ export const AutoCaptionPanel: React.FC = () => {
             className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
           >
             <MicOff size={16} />
-            <span className="text-[11px] font-medium">Stop Recording</span>
+            <span className="text-[11px] font-medium">{t("captions.stop")}</span>
           </button>
         )}
       </div>
 
       <p className="text-[9px] text-text-muted text-center">
-        Speak clearly into your microphone. Captions will be generated in
-        real-time.
+        {t("captions.tip")}
       </p>
     </div>
   );

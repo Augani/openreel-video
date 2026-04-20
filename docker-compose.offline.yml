@@ -1,0 +1,7 @@
+services:
+  openreel-web:
+    image: openreel-offline:latest
+    container_name: openreel-offline
+    ports:
+      - "8080:80"
+    restart: unless-stopped

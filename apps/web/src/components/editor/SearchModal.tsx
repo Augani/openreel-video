@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { Dialog, DialogContent, Input } from "@openreel/ui";
 import { useUIStore } from "../../stores/ui-store";
+import { useI18n } from "../../i18n";
 
 interface SearchItem {
   id: string;
@@ -264,14 +265,6 @@ const SEARCHABLE_EFFECTS: SearchItem[] = [
   },
 ];
 
-const CATEGORIES = [
-  { id: "all", name: "All" },
-  { id: "video", name: "Video", icon: Video },
-  { id: "audio", name: "Audio", icon: Music2 },
-  { id: "text", name: "Text", icon: Type },
-  { id: "animation", name: "Animation", icon: Zap },
-];
-
 interface SearchModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -281,11 +274,19 @@ export const SearchModal: React.FC<SearchModalProps> = ({
   isOpen,
   onClose,
 }) => {
+  const { t } = useI18n();
   const [query, setQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const categories = [
+    { id: "all", name: t("search.all") },
+    { id: "video", name: t("search.video"), icon: Video },
+    { id: "audio", name: t("search.audio"), icon: Music2 },
+    { id: "text", name: t("search.text"), icon: Type },
+    { id: "animation", name: t("search.animation"), icon: Zap },
+  ];
 
   const { selectedItems, setPanelVisible } = useUIStore();
 
@@ -425,8 +426,8 @@ export const SearchModal: React.FC<SearchModalProps> = ({
             onChange={(e) => setQuery(e.target.value)}
             placeholder={
               selectedClipType
-                ? `Search effects for ${selectedClipType} clip...`
-                : "Search all effects and tools..."
+                ? t("search.placeholder.clip", { clipType: selectedClipType })
+                : t("search.placeholder.all")
             }
             className="flex-1 bg-transparent border-0 text-text-primary focus-visible:ring-0"
           />
@@ -444,7 +445,7 @@ export const SearchModal: React.FC<SearchModalProps> = ({
         </div>
 
         <div className="flex items-center gap-2 px-4 py-2 border-b border-border bg-background-tertiary/50">
-          {CATEGORIES.map((cat) => (
+          {categories.map((cat) => (
             <button
               key={cat.id}
               onClick={() => setSelectedCategory(cat.id)}
@@ -466,9 +467,9 @@ export const SearchModal: React.FC<SearchModalProps> = ({
                 size={32}
                 className="mx-auto mb-3 text-text-muted opacity-50"
               />
-              <p className="text-sm text-text-muted">No effects found</p>
+              <p className="text-sm text-text-muted">{t("search.empty.title")}</p>
               <p className="text-xs text-text-muted mt-1">
-                Try a different search term or category
+                {t("search.empty.description")}
               </p>
             </div>
           ) : (
@@ -514,7 +515,7 @@ export const SearchModal: React.FC<SearchModalProps> = ({
                       </p>
                     </div>
                     <div className="text-[10px] text-text-muted">
-                      ↵ to select
+                      {t("search.selectHint")}
                     </div>
                   </button>
                 );
@@ -525,13 +526,12 @@ export const SearchModal: React.FC<SearchModalProps> = ({
 
         <div className="px-4 py-2 border-t border-border bg-background-tertiary/50 flex items-center justify-between">
           <div className="text-[10px] text-text-muted">
-            {filteredEffects.length} effect
-            {filteredEffects.length !== 1 ? "s" : ""} available
+            {t("search.available", { count: filteredEffects.length })}
           </div>
           <div className="flex items-center gap-3 text-[10px] text-text-muted">
-            <span>↑↓ Navigate</span>
-            <span>↵ Select</span>
-            <span>ESC Close</span>
+            <span>{t("search.navigate")}</span>
+            <span>{t("search.select")}</span>
+            <span>{t("search.close")}</span>
           </div>
         </div>
       </DialogContent>

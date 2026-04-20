@@ -50,6 +50,7 @@ import {
 import { KieAIImageDialog } from "./kieai/KieAIImageDialog";
 import { loadMediaBlob } from "../../services/media-storage";
 import { useKieAIStore } from "../../stores/kieai-store";
+import { useI18n } from "../../i18n";
 
 const formatDuration = (seconds: number): string => {
   const mins = Math.floor(seconds / 60);
@@ -88,6 +89,7 @@ const MediaThumbnail: React.FC<{
   onKieAI,
   onRetryKieAI,
 }) => {
+  const { t } = useI18n();
   const [isHovered, setIsHovered] = useState(false);
 
   const getIcon = () => {
@@ -140,27 +142,27 @@ const MediaThumbnail: React.FC<{
       {item.kieaiError ? (
         <button
           onClick={(e) => { e.stopPropagation(); onRetryKieAI?.(); }}
-          title="Generation failed — click to retry"
+          title={t("assets.generationFailedRetry")}
           className="p-2 bg-red-500/20 rounded-full hover:bg-red-500/40 backdrop-blur-sm transition-colors"
         >
           <RefreshCw size={14} className="text-red-400" />
         </button>
       ) : item.isPending ? (
-        <div title="KieAI generation in progress…" className="p-2">
+        <div title={t("assets.kieaiGenerating")} className="p-2">
           <div className="h-5 w-5 animate-spin rounded-full border-2 border-purple-400 border-t-transparent" />
         </div>
       ) : item.isPlaceholder ? (
         <>
           <button
             onClick={(e) => { e.stopPropagation(); onReplace(); }}
-            title="Replace asset"
+            title={t("assets.replaceAsset")}
             className="p-2 bg-yellow-500/20 rounded-full hover:bg-yellow-500/40 backdrop-blur-sm transition-colors"
           >
             <RefreshCw size={14} className="text-yellow-500" />
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); onDelete(); }}
-            title="Delete"
+            title={t("common.delete")}
             className="p-2 bg-red-500/20 rounded-full hover:bg-red-500/40 backdrop-blur-sm transition-colors"
           >
             <Trash2 size={14} className="text-red-400" />
@@ -171,7 +173,7 @@ const MediaThumbnail: React.FC<{
           {item.type === "image" && onKieAI && (
             <button
               onClick={(e) => { e.stopPropagation(); onKieAI(); }}
-              title="Create with KieAI"
+              title={t("assets.createWithKieAI")}
               className="p-2 bg-purple-500/20 rounded-full hover:bg-purple-500/40 backdrop-blur-sm transition-colors"
             >
               <Sparkles size={14} className="text-purple-300" />
@@ -179,14 +181,14 @@ const MediaThumbnail: React.FC<{
           )}
           <button
             onClick={(e) => { e.stopPropagation(); onAddToTimeline(); }}
-            title="Add to timeline"
+            title={t("assets.addToTimeline")}
             className="p-2 bg-primary/20 rounded-full hover:bg-primary/40 backdrop-blur-sm transition-colors"
           >
             <Plus size={14} className="text-primary" />
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); onDelete(); }}
-            title="Delete"
+            title={t("common.delete")}
             className="p-2 bg-red-500/20 rounded-full hover:bg-red-500/40 backdrop-blur-sm transition-colors"
           >
             <Trash2 size={14} className="text-red-400" />
@@ -259,27 +261,27 @@ const MediaThumbnail: React.FC<{
             {item.kieaiError ? (
               <button
                 onClick={(e) => { e.stopPropagation(); onRetryKieAI?.(); }}
-                title="Retry generation"
+                title={t("assets.retryGeneration")}
                 className="p-1 bg-red-500/20 rounded hover:bg-red-500/40 transition-colors"
               >
                 <RefreshCw size={12} className="text-red-400" />
               </button>
             ) : item.isPending ? (
-              <div className="p-1" title="Generating…">
+              <div className="p-1" title={t("assets.generating")}>
                 <div className="h-3 w-3 animate-spin rounded-full border-2 border-purple-400 border-t-transparent" />
               </div>
             ) : item.isPlaceholder ? (
               <>
                 <button
                   onClick={(e) => { e.stopPropagation(); onReplace(); }}
-                  title="Replace asset"
+                  title={t("assets.replaceAsset")}
                   className="p-1 bg-yellow-500/20 rounded hover:bg-yellow-500/40 transition-colors"
                 >
                   <RefreshCw size={12} className="text-yellow-500" />
                 </button>
                 <button
                   onClick={(e) => { e.stopPropagation(); onDelete(); }}
-                  title="Delete"
+                  title={t("common.delete")}
                   className="p-1 bg-red-500/20 rounded hover:bg-red-500/40 transition-colors"
                 >
                   <Trash2 size={12} className="text-red-400" />
@@ -290,7 +292,7 @@ const MediaThumbnail: React.FC<{
                 {item.type === "image" && onKieAI && (
                   <button
                     onClick={(e) => { e.stopPropagation(); onKieAI(); }}
-                    title="Create with KieAI"
+                    title={t("assets.createWithKieAI")}
                     className="p-1 bg-purple-500/20 rounded hover:bg-purple-500/40 transition-colors"
                   >
                     <Sparkles size={12} className="text-purple-300" />
@@ -298,14 +300,14 @@ const MediaThumbnail: React.FC<{
                 )}
                 <button
                   onClick={(e) => { e.stopPropagation(); onAddToTimeline(); }}
-                  title="Add to timeline"
+                  title={t("assets.addToTimeline")}
                   className="p-1 bg-primary/20 rounded hover:bg-primary/40 transition-colors"
                 >
                   <Plus size={12} className="text-primary" />
                 </button>
                 <button
                   onClick={(e) => { e.stopPropagation(); onDelete(); }}
-                  title="Delete"
+                  title={t("common.delete")}
                   className="p-1 bg-red-500/20 rounded hover:bg-red-500/40 transition-colors"
                 >
                   <Trash2 size={12} className="text-red-400" />
@@ -324,16 +326,16 @@ const MediaThumbnail: React.FC<{
           {item.type === "image" && onKieAI && (
             <ContextMenuItem onClick={onKieAI}>
               <Sparkles size={13} className="mr-2 text-primary" />
-              Create with KieAI
+              {t("assets.createWithKieAI")}
             </ContextMenuItem>
           )}
           <ContextMenuItem onClick={(e) => { (e as React.MouseEvent).stopPropagation?.(); onAddToTimeline(); }}>
             <Plus size={13} className="mr-2" />
-            Add to Timeline
+            {t("assets.addToTimeline")}
           </ContextMenuItem>
           <ContextMenuItem onClick={(e) => { (e as React.MouseEvent).stopPropagation?.(); onDelete(); }} className="text-red-400 focus:text-red-400">
             <Trash2 size={13} className="mr-2" />
-            Delete
+            {t("common.delete")}
           </ContextMenuItem>
         </ContextMenuContent>
       </ContextMenu>
@@ -475,41 +477,44 @@ const MediaThumbnail: React.FC<{
         {item.type === "image" && onKieAI && (
           <ContextMenuItem onClick={onKieAI}>
             <Sparkles size={13} className="mr-2 text-primary" />
-            Create with KieAI
+            {t("assets.createWithKieAI")}
           </ContextMenuItem>
         )}
         <ContextMenuItem onClick={() => onAddToTimeline()}>
           <Plus size={13} className="mr-2" />
-          Add to Timeline
+          {t("assets.addToTimeline")}
         </ContextMenuItem>
         <ContextMenuItem onClick={() => onDelete()} className="text-red-400 focus:text-red-400">
           <Trash2 size={13} className="mr-2" />
-          Delete
+          {t("common.delete")}
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>
   );
 };
 
-const EmptyState: React.FC<{ onImport: () => void }> = ({ onImport }) => (
+const EmptyState: React.FC<{ onImport: () => void }> = ({ onImport }) => {
+  const { t } = useI18n();
+  return (
   <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
     <div className="w-16 h-16 rounded-2xl bg-background-tertiary border border-border flex items-center justify-center mb-4 shadow-inner">
       <Upload size={24} className="text-text-muted" />
     </div>
     <p className="text-sm text-text-secondary mb-2 font-medium">
-      No media imported
+      {t("assets.empty.title")}
     </p>
     <p className="text-xs text-text-muted mb-6">
-      Drag files here or click to import
+      {t("assets.empty.description")}
     </p>
     <button
       onClick={onImport}
       className="px-4 py-2 bg-background-elevated hover:bg-background-tertiary border border-border text-text-primary text-xs font-medium rounded-lg transition-all hover:border-primary/50"
     >
-      Import Media
+      {t("assets.importMedia")}
     </button>
   </div>
-);
+  );
+};
 
 const LoadingIndicator: React.FC<{ message: string }> = ({ message }) => (
   <div className="absolute inset-0 bg-background-secondary/90 backdrop-blur-sm flex flex-col items-center justify-center z-50">
@@ -519,6 +524,7 @@ const LoadingIndicator: React.FC<{ message: string }> = ({ message }) => (
 );
 
 export const AssetsPanel: React.FC = () => {
+  const { t } = useI18n();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTabRaw] = useState<
@@ -895,21 +901,21 @@ export const AssetsPanel: React.FC = () => {
     >
       {/* Loading overlay */}
       {isImporting && (
-        <LoadingIndicator message={importProgress || "Importing media..."} />
+        <LoadingIndicator message={importProgress || t("assets.importing")} />
       )}
       {/* Panel Header */}
       <div className="px-5 py-4 flex items-center justify-between">
         <span className="font-bold text-lg text-text-primary tracking-tight">
-          Assets
+          {t("assets.title")}
         </span>
         <div className="flex gap-1">
           <IconButton
             icon={Plus}
             onClick={triggerFileInput}
-            title="Import media"
+            title={t("assets.importMedia")}
           />
-          <IconButton icon={Maximize2} title="Maximize panel" />
-          <IconButton icon={X} title="Close panel" />
+          <IconButton icon={Maximize2} title={t("assets.maximizePanel")} />
+          <IconButton icon={X} title={t("assets.closePanel")} />
         </div>
       </div>
 
@@ -923,7 +929,7 @@ export const AssetsPanel: React.FC = () => {
               : "hover:text-text-secondary"
           }`}
         >
-          Media
+          {t("assets.tab.media")}
           {activeTab === "media" && (
             <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-t-full shadow-[0_-2px_8px_rgba(34,197,94,0.5)]" />
           )}
@@ -936,7 +942,7 @@ export const AssetsPanel: React.FC = () => {
               : "hover:text-text-secondary"
           }`}
         >
-          Text
+          {t("assets.tab.text")}
           {activeTab === "text" && (
             <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-t-full shadow-[0_-2px_8px_rgba(34,197,94,0.5)]" />
           )}
@@ -949,7 +955,7 @@ export const AssetsPanel: React.FC = () => {
               : "hover:text-text-secondary"
           }`}
         >
-          Graphics
+          {t("assets.tab.graphics")}
           {activeTab === "graphics" && (
             <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-t-full shadow-[0_-2px_8px_rgba(34,197,94,0.5)]" />
           )}
@@ -962,7 +968,7 @@ export const AssetsPanel: React.FC = () => {
               : "text-primary/70 hover:text-primary"
           }`}
         >
-          AI Gen
+          {t("assets.tab.ai")}
           {activeTab === "ai" && (
             <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-t-full shadow-[0_-2px_8px_rgba(34,197,94,0.5)]" />
           )}
@@ -978,15 +984,15 @@ export const AssetsPanel: React.FC = () => {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search media"
+              placeholder={t("assets.search")}
               className="pl-9 text-xs bg-background-tertiary border-border text-text-primary h-9"
             />
           </div>
           <div className="flex items-center bg-background-tertiary border border-border rounded-lg p-0.5">
             {([
-              { mode: "large" as const, icon: LayoutGrid, title: "Large icons" },
-              { mode: "small" as const, icon: Grid2x2, title: "Small icons" },
-              { mode: "list" as const, icon: List, title: "List view" },
+              { mode: "large" as const, icon: LayoutGrid, title: t("assets.view.large") },
+              { mode: "small" as const, icon: Grid2x2, title: t("assets.view.small") },
+              { mode: "list" as const, icon: List, title: t("assets.view.list") },
             ]).map(({ mode, icon: ViewIcon, title }) => (
               <button
                 key={mode}
@@ -1018,7 +1024,7 @@ export const AssetsPanel: React.FC = () => {
           >
             <div className="flex items-center gap-2">
               <AlertTriangle size={14} />
-              <span>Show Only Missing Assets</span>
+              <span>{t("assets.showMissingOnly")}</span>
             </div>
             <div className="px-2 py-0.5 rounded-full bg-yellow-500 text-black text-[10px] font-bold">
               {missingAssetsCount}
@@ -1029,7 +1035,7 @@ export const AssetsPanel: React.FC = () => {
             className="w-full px-3 py-2 rounded-lg border border-yellow-500/40 bg-yellow-500/5 text-yellow-500 text-xs font-medium transition-all hover:bg-yellow-500/15 flex items-center gap-2"
           >
             <RefreshCw size={14} />
-            <span>Relink from Folder…</span>
+            <span>{t("assets.relinkFromFolder")}</span>
           </button>
         </div>
       )}
@@ -1087,7 +1093,7 @@ export const AssetsPanel: React.FC = () => {
                     <div className="w-12 h-8 rounded bg-background-tertiary flex items-center justify-center flex-shrink-0">
                       <Upload size={14} className="text-text-muted group-hover:text-text-secondary transition-colors" />
                     </div>
-                    <span className="text-[11px] text-text-muted group-hover:text-text-secondary transition-colors font-medium">Add media</span>
+                    <span className="text-[11px] text-text-muted group-hover:text-text-secondary transition-colors font-medium">{t("assets.addMedia")}</span>
                   </button>
                 ) : (
                   <div className="flex flex-col">
@@ -1097,7 +1103,7 @@ export const AssetsPanel: React.FC = () => {
                     >
                       <div className="flex flex-col items-center gap-1.5">
                         <Upload size={mediaViewMode === "small" ? 16 : 20} className="text-text-muted group-hover:text-text-secondary transition-colors" />
-                        <span className="text-[10px] text-text-muted group-hover:text-text-secondary transition-colors">Add media</span>
+                        <span className="text-[10px] text-text-muted group-hover:text-text-secondary transition-colors">{t("assets.addMedia")}</span>
                       </div>
                     </button>
                   </div>
@@ -1109,7 +1115,7 @@ export const AssetsPanel: React.FC = () => {
             {isDragOver && (
               <div className="absolute inset-4 border-2 border-dashed border-primary rounded-xl flex items-center justify-center bg-primary/5 pointer-events-none z-50 backdrop-blur-sm">
                 <div className="text-primary text-sm font-bold bg-background-secondary px-4 py-2 rounded-full shadow-lg">
-                  Drop files to import
+                  {t("assets.dropToImport")}
                 </div>
               </div>
             )}
@@ -1126,7 +1132,7 @@ export const AssetsPanel: React.FC = () => {
             <div className="flex items-center justify-between mb-3">
               <h4 className="text-xs font-medium text-text-secondary flex items-center gap-1.5">
                 <Palette size={12} />
-                Backgrounds
+                {t("assets.section.backgrounds")}
               </h4>
             </div>
             <div className="flex gap-1.5 mb-3 flex-wrap">
@@ -1175,7 +1181,7 @@ export const AssetsPanel: React.FC = () => {
           {/* Shapes Section */}
           <div className="mb-6">
             <h4 className="text-xs font-medium text-text-secondary mb-3">
-              Shapes
+              {t("assets.section.shapes")}
             </h4>
             <div className="grid grid-cols-4 gap-2">
               {[
@@ -1238,7 +1244,7 @@ export const AssetsPanel: React.FC = () => {
           {/* SVG Import Section */}
           <div className="mb-6">
             <h4 className="text-xs font-medium text-text-secondary mb-3">
-              SVG Import
+              {t("assets.section.svgImport")}
             </h4>
             <button
               onClick={() => {
@@ -1274,7 +1280,7 @@ export const AssetsPanel: React.FC = () => {
                 className="text-text-secondary group-hover:text-primary transition-colors"
               />
               <span className="text-xs text-text-secondary group-hover:text-text-primary">
-                Import SVG File
+                {t("assets.importSvg")}
               </span>
             </button>
           </div>
@@ -1282,7 +1288,7 @@ export const AssetsPanel: React.FC = () => {
           {/* Stickers Section (placeholder) */}
           <div className="mb-6">
             <h4 className="text-xs font-medium text-text-secondary mb-3">
-              Stickers & Emojis
+              {t("assets.section.stickers")}
             </h4>
             <div className="grid grid-cols-4 gap-2">
               {["😀", "🎉", "❤️", "⭐", "🔥", "👍", "🎬", "🎵"].map(
@@ -1356,10 +1362,10 @@ export const AssetsPanel: React.FC = () => {
               className="w-full py-4 bg-background-tertiary rounded-lg border border-border hover:border-primary/50 hover:bg-primary/5 transition-all text-center"
             >
               <span className="text-lg font-bold text-text-primary">
-                Add Title
+                {t("assets.text.addTitle")}
               </span>
               <p className="text-xs text-text-muted mt-1">
-                Click to add text to timeline
+                {t("assets.text.addTitleDesc")}
               </p>
             </button>
             <div className="grid grid-cols-2 gap-2">

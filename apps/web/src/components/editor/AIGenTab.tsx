@@ -20,6 +20,7 @@ import { TemplatesBrowserPanel } from "./inspector/TemplatesBrowserPanel";
 import { MultiCameraPanel } from "./inspector/MultiCameraPanel";
 import { useTtsAudioStore } from "../../stores/tts-store";
 import { toast } from "../../stores/notification-store";
+import { useI18n } from "../../i18n";
 
 type FeatureId = "templates" | "captions" | "tts" | "filters" | "music" | "multicam" | null;
 
@@ -97,15 +98,16 @@ const FeatureSection: React.FC<FeatureSectionProps> = ({ title, icon: Icon, chil
 );
 
 export const AIGenTab: React.FC = () => {
+  const { t } = useI18n();
   const [activeFeature, setActiveFeature] = useState<FeatureId>(null);
   const ttsHasUnsaved = useTtsAudioStore((s) => s.generatedAudio !== null && !s.isAudioSaved);
 
   const navigateAway = useCallback((next: FeatureId) => {
     if (activeFeature === "tts" && next !== "tts" && ttsHasUnsaved) {
-      toast.warning("Unsaved audio discarded", "Save to media or download next time to keep it.");
+      toast.warning(t("aiGen.unsavedAudio.title"), t("aiGen.unsavedAudio.description"));
     }
     setActiveFeature(next);
-  }, [activeFeature, ttsHasUnsaved]);
+  }, [activeFeature, t, ttsHasUnsaved]);
 
   const handleFeatureClick = (id: FeatureId) => {
     navigateAway(activeFeature === id ? null : id);
@@ -138,7 +140,7 @@ export const AIGenTab: React.FC = () => {
           className="flex items-center gap-2 px-4 py-3 text-text-secondary hover:text-text-primary transition-colors border-b border-border bg-background-secondary shrink-0"
         >
           <ChevronRight size={14} className="rotate-180" />
-          <span className="text-[11px] font-medium">Back to AI Tools</span>
+          <span className="text-[11px] font-medium">{t("aiGen.back")}</span>
         </button>
         <ScrollArea className="flex-1 w-full">
           <div className="p-4 w-full min-w-0 overflow-hidden">{renderActivePanel()}</div>
@@ -154,15 +156,15 @@ export const AIGenTab: React.FC = () => {
           <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 mb-3">
             <Wand2 size={24} className="text-primary" />
           </div>
-          <h2 className="text-sm font-semibold text-text-primary">AI-Powered Tools</h2>
-          <p className="text-[11px] text-text-muted mt-1">Automate your editing with intelligent features</p>
+          <h2 className="text-sm font-semibold text-text-primary">{t("aiGen.title")}</h2>
+          <p className="text-[11px] text-text-muted mt-1">{t("aiGen.description")}</p>
         </div>
 
-        <FeatureSection title="Content Generation" icon={Wand2}>
+        <FeatureSection title={t("aiGen.section.content")} icon={Wand2}>
           <FeatureCard
             icon={Mic}
-            title="Text to Speech"
-            description="Generate natural voiceovers from text"
+            title={t("aiGen.tts.title")}
+            description={t("aiGen.tts.description")}
             iconColor="text-blue-400"
             iconBg="bg-blue-500/20"
             activeBorder="border-blue-500/50"
@@ -173,8 +175,8 @@ export const AIGenTab: React.FC = () => {
           />
           <FeatureCard
             icon={Subtitles}
-            title="Auto Captions"
-            description="Automatically generate subtitles from audio"
+            title={t("aiGen.captions.title")}
+            description={t("aiGen.captions.description")}
             iconColor="text-purple-400"
             iconBg="bg-purple-500/20"
             activeBorder="border-purple-500/50"
@@ -185,11 +187,11 @@ export const AIGenTab: React.FC = () => {
           />
         </FeatureSection>
 
-        <FeatureSection title="Templates & Presets" icon={FileStack}>
+        <FeatureSection title={t("aiGen.section.templates")} icon={FileStack}>
           <FeatureCard
             icon={Layers}
-            title="Project Templates"
-            description="Start with pre-built project structures"
+            title={t("aiGen.templates.title")}
+            description={t("aiGen.templates.description")}
             iconColor="text-green-400"
             iconBg="bg-green-500/20"
             activeBorder="border-green-500/50"
@@ -200,8 +202,8 @@ export const AIGenTab: React.FC = () => {
           />
           <FeatureCard
             icon={Palette}
-            title="Filter Presets"
-            description="Apply cinematic color grades instantly"
+            title={t("aiGen.filters.title")}
+            description={t("aiGen.filters.description")}
             iconColor="text-orange-400"
             iconBg="bg-orange-500/20"
             activeBorder="border-orange-500/50"
@@ -212,11 +214,11 @@ export const AIGenTab: React.FC = () => {
           />
         </FeatureSection>
 
-        <FeatureSection title="Media Library" icon={Volume2}>
+        <FeatureSection title={t("aiGen.section.media")} icon={Volume2}>
           <FeatureCard
             icon={Music}
-            title="Music & Sound Effects"
-            description="Browse royalty-free audio for your projects"
+            title={t("aiGen.music.title")}
+            description={t("aiGen.music.description")}
             iconColor="text-pink-400"
             iconBg="bg-pink-500/20"
             activeBorder="border-pink-500/50"
@@ -227,11 +229,11 @@ export const AIGenTab: React.FC = () => {
           />
         </FeatureSection>
 
-        <FeatureSection title="Pro Tools" icon={Video}>
+        <FeatureSection title={t("aiGen.section.pro")} icon={Video}>
           <FeatureCard
             icon={Video}
-            title="Multi-Camera Editing"
-            description="Sync and switch between multiple angles"
+            title={t("aiGen.multicam.title")}
+            description={t("aiGen.multicam.description")}
             iconColor="text-cyan-400"
             iconBg="bg-cyan-500/20"
             activeBorder="border-cyan-500/50"
@@ -244,7 +246,7 @@ export const AIGenTab: React.FC = () => {
 
         <div className="pt-2 border-t border-border">
           <p className="text-[9px] text-text-muted text-center">
-            More AI features coming soon — image generation, auto-edit, and more
+            {t("aiGen.comingSoon")}
           </p>
         </div>
       </div>

@@ -1,0 +1,10 @@
+node_modules
+apps/*/node_modules
+packages/*/node_modules
+apps/web/dist
+.git
+.github
+.serena
+offline-bundle
+*.log
+pnpm-debug.log*

@@ -13,6 +13,7 @@ import { useProjectRecovery } from "./hooks/useProjectRecovery";
 import { useKieAIPoller } from "./hooks/useKieAIPoller";
 import { SOCIAL_MEDIA_PRESETS, type SocialMediaCategory } from "@openreel/core";
 import { TooltipProvider } from "@openreel/ui";
+import { useI18n } from "./i18n";
 
 const EditorInterface = lazy(() =>
   import("./components/editor/EditorInterface").then((m) => ({
@@ -36,6 +37,7 @@ const PRESET_DIMENSIONS: Record<string, SocialMediaCategory> = {
 };
 
 function App() {
+  const { t } = useI18n();
   const { activeModal, closeModal, skipWelcomeScreen } = useUIStore();
   const { openModal: openSearchModal } = useUIStore();
   const createNewProject = useProjectStore((state) => state.createNewProject);
@@ -52,7 +54,7 @@ function App() {
     if (route === "new") {
       hasHandledInitialRoute.current = true;
 
-      let projectName = "New Project";
+      let projectName = t("app.newProject");
       let width = 1920;
       let height = 1080;
       let frameRate = fps;
@@ -64,7 +66,11 @@ function App() {
           width = preset.width;
           height = preset.height;
           frameRate = preset.frameRate || fps;
-          projectName = `New ${presetKey.charAt(0).toUpperCase() + presetKey.slice(1).replace(/-/g, " ")} Project`;
+          const presetLabel = presetKey
+            .charAt(0)
+            .toUpperCase()
+            .concat(presetKey.slice(1).replace(/-/g, " "));
+          projectName = t("app.newProject.preset", { name: presetLabel });
         }
       } else if (parsedDimensions) {
         width = parsedDimensions.width;
@@ -79,11 +85,11 @@ function App() {
 
         const aspectRatio = width / height;
         if (aspectRatio < 1) {
-          projectName = "New Vertical Video";
+          projectName = t("app.newProject.vertical");
         } else if (aspectRatio > 1) {
-          projectName = "New Horizontal Video";
+          projectName = t("app.newProject.horizontal");
         } else {
-          projectName = "New Square Video";
+          projectName = t("app.newProject.square");
         }
       }
 
@@ -102,6 +108,7 @@ function App() {
     createNewProject,
     navigate,
     skipWelcomeScreen,
+    t,
   ]);
 
   const handleKeyDown = useCallback(
@@ -141,7 +148,7 @@ function App() {
         ) : showWelcome ? (
           <WelcomeScreen initialTab={initialTab} />
         ) : (
-          <Suspense fallback={<LoadingSpinner message="Loading editor..." />}>
+          <Suspense fallback={<LoadingSpinner message={t("app.loadingEditor")} />}>
             <EditorInterface />
           </Suspense>
         )}

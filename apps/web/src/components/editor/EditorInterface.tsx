@@ -34,6 +34,7 @@ import {
   initializeTransitionBridge,
   disposeTransitionBridge,
 } from "../../bridges/transition-bridge";
+import { useI18n } from "../../i18n";
 
 /**
  * Auto-save initialization hook
@@ -51,9 +52,10 @@ const useAutoSave = () => {
  * Ensures all engines and bridges are fully initialized before rendering editor
  */
 const useEngineInitialization = () => {
+  const { t } = useI18n();
   const { initialize, initialized, initializing, initError } = useEngineStore();
   const [bridgesReady, setBridgesReady] = useState(false);
-  const [initStatus, setInitStatus] = useState("Starting...");
+  const [initStatus, setInitStatus] = useState(t("editor.init.starting"));
   const [localError, setLocalError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -63,7 +65,7 @@ const useEngineInitialization = () => {
       try {
         const currentState = useEngineStore.getState();
         if (!currentState.initialized && !currentState.initializing) {
-          setInitStatus("Initializing video engine...");
+          setInitStatus(t("editor.init.videoEngine"));
           await initialize();
         } else if (currentState.initializing) {
           await new Promise<void>((resolve) => {
@@ -85,19 +87,19 @@ const useEngineInitialization = () => {
           );
         }
 
-        setInitStatus("Initializing media bridge...");
+        setInitStatus(t("editor.init.mediaBridge"));
         await initializeMediaBridge();
         if (!isMounted) return;
 
-        setInitStatus("Initializing playback bridge...");
+        setInitStatus(t("editor.init.playbackBridge"));
         await initializePlaybackBridge();
         if (!isMounted) return;
 
-        setInitStatus("Initializing render bridge...");
+        setInitStatus(t("editor.init.renderBridge"));
         await initializeRenderBridge();
         if (!isMounted) return;
 
-        setInitStatus("Initializing effects bridge...");
+        setInitStatus(t("editor.init.effectsBridge"));
         const projectState = useProjectStore.getState();
         const { width, height } = projectState.project.settings;
         try {
@@ -110,7 +112,7 @@ const useEngineInitialization = () => {
         }
         if (!isMounted) return;
 
-        setInitStatus("Initializing transition bridge...");
+        setInitStatus(t("editor.init.transitionBridge"));
         try {
           initializeTransitionBridge(width, height);
         } catch (transitionError) {
@@ -128,9 +130,9 @@ const useEngineInitialization = () => {
           setLocalError(
             error instanceof Error ? error.message : "Unknown error",
           );
-          setInitStatus(
-            `Error: ${error instanceof Error ? error.message : "Unknown error"}`,
-          );
+          setInitStatus(t("editor.init.errorPrefix", {
+            message: error instanceof Error ? error.message : "Unknown error",
+          }));
         }
       }
     };
@@ -145,7 +147,7 @@ const useEngineInitialization = () => {
       disposeEffectsBridge();
       disposeTransitionBridge();
     };
-  }, [initialize, initialized, initializing]);
+  }, [initialize, initialized, initializing, t]);
 
   return {
     initialized: initialized && bridgesReady,
@@ -159,6 +161,7 @@ const useEngineInitialization = () => {
  * Main Editor Interface Component
  */
 export const EditorInterface: React.FC = () => {
+  const { t } = useI18n();
   const { initialized, initializing, initError, initStatus } =
     useEngineInitialization();
 
@@ -288,7 +291,7 @@ export const EditorInterface: React.FC = () => {
       <div className="w-full h-full bg-background flex items-center justify-center">
         <div className="text-center">
           <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-text-secondary text-sm">Initializing editor...</p>
+          <p className="text-text-secondary text-sm">{t("editor.init.loading")}</p>
           <p className="text-text-muted text-xs mt-2">{initStatus}</p>
           {initError && (
             <p className="text-red-500 text-xs mt-2">{initError}</p>

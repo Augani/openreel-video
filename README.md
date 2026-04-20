@@ -2,7 +2,20 @@
 
 > **The open source CapCut alternative. Professional video editing in your browser. No uploads. No installs. 100% open source.**
 
+> Remade / 中文增强说明
+>
+> This repository version includes multilingual UI support with Simplified Chinese (`zh-CN`) localization for the web editor.
+>
+> 此版本为添加了多语言能力的增强版，已集成中文简体界面支持，可在 Web 编辑器中切换为中文 UI。
+
 OpenReel Video is a fully-featured browser-based video editor that runs entirely client-side. Built with React, TypeScript, WebCodecs, and WebGPU for professional-grade video editing without the need for expensive software or cloud processing.
+
+## Screenshots
+
+![OpenReel Screenshot 1](imges/0001.png)
+![OpenReel Screenshot 2](imges/0002.png)
+![OpenReel Screenshot 3](imges/0003.png)
+![OpenReel Screenshot 4](imges/0004.png)
 
 **[Try it Live](https://openreel.video)** | **[Documentation](CONTRIBUTING.md)** | **[Discussions](https://github.com/Augani/openreel-video/discussions)** | **[Twitter](https://x.com/python_xi)**
 
@@ -74,6 +87,7 @@ OpenReel Video is a fully-featured browser-based video editor that runs entirely
 - **Unlimited undo/redo** - Full history with recovery
 - **Auto-save** - Never lose work (IndexedDB storage)
 - **Keyboard shortcuts** - Professional workflow
+- **Multilingual UI** - Includes Simplified Chinese (`zh-CN`) interface support for the web editor
 - **Snap to grid** - Magnetic alignment
 - **Track management** - Show/hide, lock/unlock, reorder
 - **Subtitle support** - SRT import with customizable styling
@@ -93,6 +107,10 @@ OpenReel Video is a fully-featured browser-based video editor that runs entirely
 
 ### Try Online
 Visit **[openreel.video](https://openreel.video)** to start editing immediately.
+
+If this Remade branch/version is deployed with the latest web app changes, you can switch the editor language to Simplified Chinese in `Settings -> General -> Language`.
+
+如果你使用的是这个 Remade / 中文增强版本，并且已部署最新 Web 应用改动，可以在 `Settings -> General -> Language` 中切换为简体中文界面。
 
 ### Run Locally
 
@@ -116,6 +134,22 @@ pnpm dev
 pnpm build
 pnpm preview
 ```
+
+### Offline Delivery
+
+This fork also includes a Docker-based offline delivery workflow for environments without internet access.
+
+```bash
+# Build offline bundle
+./scripts/offline-pack.sh
+
+# Or on Windows PowerShell
+./scripts/offline-pack.ps1
+```
+
+The generated `offline-bundle/` directory can be copied to another machine and started locally with Docker. See [OFFLINE-DELIVERY.md](/C:/2026/openreel-video/OFFLINE-DELIVERY.md) for details.
+
+For Windows delivery scenarios, the offline bundle also includes double-click startup and stop scripts.
 
 ---
 

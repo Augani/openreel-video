@@ -12,6 +12,7 @@ import {
   CollapsibleContent,
 } from "@openreel/ui";
 import type { AutoSaveMetadata } from "../../services/auto-save";
+import { useI18n } from "../../i18n";
 
 interface RecoveryDialogProps {
   saves: AutoSaveMetadata[];
@@ -20,29 +21,23 @@ interface RecoveryDialogProps {
   onClearAll?: () => void;
 }
 
-function formatTimeAgo(timestamp: number): string {
+function formatTimeAgo(
+  timestamp: number,
+  t: (key: string, params?: Record<string, string | number>) => string,
+): string {
   const seconds = Math.floor((Date.now() - timestamp) / 1000);
 
-  if (seconds < 60) return "just now";
+  if (seconds < 60) return t("recovery.justNow");
   if (seconds < 3600) {
     const mins = Math.floor(seconds / 60);
-    return `${mins} ${mins === 1 ? "minute" : "minutes"} ago`;
+    return t("recovery.minutesAgo", { count: mins });
   }
   if (seconds < 86400) {
     const hours = Math.floor(seconds / 3600);
-    return `${hours} ${hours === 1 ? "hour" : "hours"} ago`;
+    return t("recovery.hoursAgo", { count: hours });
   }
   const days = Math.floor(seconds / 86400);
-  return `${days} ${days === 1 ? "day" : "days"} ago`;
-}
-
-function formatDate(timestamp: number): string {
-  return new Date(timestamp).toLocaleString(undefined, {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  return t("recovery.daysAgo", { count: days });
 }
 
 export const RecoveryDialog: React.FC<RecoveryDialogProps> = ({
@@ -51,6 +46,7 @@ export const RecoveryDialog: React.FC<RecoveryDialogProps> = ({
   onDismiss,
   onClearAll,
 }) => {
+  const { t, formatDate } = useI18n();
   const [showOlderSaves, setShowOlderSaves] = useState(false);
   const [selectedSave, setSelectedSave] = useState<string | null>(null);
   const [isClearing, setIsClearing] = useState(false);
@@ -80,10 +76,10 @@ export const RecoveryDialog: React.FC<RecoveryDialogProps> = ({
             </div>
             <div>
               <DialogTitle className="text-base font-semibold text-text-primary">
-                Recover Your Work
+                {t("recovery.title")}
               </DialogTitle>
               <DialogDescription className="text-sm text-text-secondary mt-0.5">
-                We found an unsaved project
+                {t("recovery.description")}
               </DialogDescription>
             </div>
           </div>
@@ -103,28 +99,38 @@ export const RecoveryDialog: React.FC<RecoveryDialogProps> = ({
             </div>
             <div className="flex items-center gap-2 text-sm text-text-muted">
               <Clock className="w-4 h-4 shrink-0" />
-              <span>Last saved {formatTimeAgo(mostRecent.timestamp)}</span>
-              <span className="text-text-muted/50">•</span>
+              <span>
+                {t("recovery.lastSaved", {
+                  time: formatTimeAgo(
+                    mostRecent.timestamp,
+                    t as unknown as (key: string, params?: Record<string, string | number>) => string,
+                  ),
+                })}
+              </span>
+              <span className="text-text-muted/50">·</span>
               <span className="text-text-muted/70 truncate">
-                {formatDate(mostRecent.timestamp)}
+                {formatDate(mostRecent.timestamp, {
+                  month: "short",
+                  day: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
               </span>
             </div>
           </button>
 
           <div className="flex gap-3">
-            <Button
-              variant="outline"
-              onClick={onDismiss}
-              className="flex-1"
-            >
-              Start Fresh
+            <Button variant="outline" onClick={onDismiss} className="flex-1">
+              {t("recovery.startFresh")}
             </Button>
             <Button
               onClick={() => handleRecover(mostRecent.id)}
               disabled={selectedSave === mostRecent.id}
               className="flex-1"
             >
-              {selectedSave === mostRecent.id ? "Recovering..." : "Recover Project"}
+              {selectedSave === mostRecent.id
+                ? t("recovery.recovering")
+                : t("recovery.recoverProject")}
             </Button>
           </div>
 
@@ -139,16 +145,14 @@ export const RecoveryDialog: React.FC<RecoveryDialogProps> = ({
                   <ChevronDown
                     className={`w-4 h-4 transition-transform duration-200 ${showOlderSaves ? "rotate-180" : ""}`}
                   />
-                  <span>
-                    {olderSaves.length} older {olderSaves.length === 1 ? "save" : "saves"} available
-                  </span>
+                  <span>{t("recovery.olderSaves", { count: olderSaves.length })}</span>
                 </CollapsibleTrigger>
                 {onClearAll && (
                   <button
                     onClick={handleClearAll}
                     disabled={isClearing}
                     className="p-1.5 rounded-lg text-text-muted hover:text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-50"
-                    title="Clear all saved projects"
+                    title={t("recovery.clearAll")}
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
@@ -169,11 +173,19 @@ export const RecoveryDialog: React.FC<RecoveryDialogProps> = ({
                           {save.projectName}
                         </div>
                         <div className="text-xs text-text-muted mt-1">
-                          {formatDate(save.timestamp)}
+                          {formatDate(save.timestamp, {
+                            month: "short",
+                            day: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
                         </div>
                       </div>
                       <div className="text-xs text-text-muted/70 shrink-0">
-                        {formatTimeAgo(save.timestamp)}
+                        {formatTimeAgo(
+                          save.timestamp,
+                          t as unknown as (key: string, params?: Record<string, string | number>) => string,
+                        )}
                       </div>
                     </div>
                   </button>

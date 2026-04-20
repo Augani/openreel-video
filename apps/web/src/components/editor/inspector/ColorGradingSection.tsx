@@ -16,6 +16,7 @@ import { ColorWheelsControl } from "./ColorWheelsControl";
 import { CurvesEditor } from "./CurvesEditor";
 import { LUTLoader } from "./LUTLoader";
 import { HSLControls } from "./HSLControls";
+import { useI18n } from "../../../i18n";
 
 const SubSection: React.FC<{
   title: string;
@@ -52,6 +53,7 @@ interface ColorGradingSectionProps {
 export const ColorGradingSection: React.FC<ColorGradingSectionProps> = ({
   clipId,
 }) => {
+  const { t } = useI18n();
   const { getColorGrading, updateColorGrading, resetColorGrading } =
     useProjectStore();
 
@@ -127,11 +129,11 @@ export const ColorGradingSection: React.FC<ColorGradingSectionProps> = ({
           className="flex items-center gap-1 px-2 py-1 text-[10px] text-text-muted hover:text-text-primary transition-colors"
         >
           <RotateCcw size={10} />
-          Reset All
+          {t("colorGrading.resetAll")}
         </button>
       </div>
 
-      <SubSection title="Color Wheels" defaultOpen>
+      <SubSection title={t("colorGrading.colorWheels")} defaultOpen>
         <ColorWheelsControl
           values={colorWheelValues}
           onChange={handleColorWheelsChange}
@@ -139,7 +141,7 @@ export const ColorGradingSection: React.FC<ColorGradingSectionProps> = ({
         />
       </SubSection>
 
-      <SubSection title="Curves">
+      <SubSection title={t("colorGrading.curves")}>
         <CurvesEditor
           values={curvesValues}
           onChange={handleCurvesChange}
@@ -147,14 +149,14 @@ export const ColorGradingSection: React.FC<ColorGradingSectionProps> = ({
         />
       </SubSection>
 
-      <SubSection title="LUT">
+      <SubSection title={t("colorGrading.lut")}>
         <LUTLoader
           lutData={colorGrading.lut as LUTData | null}
           onChange={handleLUTChange}
         />
       </SubSection>
 
-      <SubSection title="HSL">
+      <SubSection title={t("colorGrading.hsl")}>
         <HSLControls
           values={hslValues}
           onChange={handleHSLValuesChange}

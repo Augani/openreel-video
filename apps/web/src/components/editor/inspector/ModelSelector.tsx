@@ -2,6 +2,7 @@ import React, { useState, useCallback } from "react";
 import { Star, StarOff, ChevronDown } from "lucide-react";
 import { useSettingsStore } from "../../../stores/settings-store";
 import type { ElevenLabsModel } from "./tts-types";
+import { useI18n } from "../../../i18n";
 
 interface ModelSelectorProps {
   allModels: ElevenLabsModel[];
@@ -12,6 +13,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
   allModels,
   isLoadingModels,
 }) => {
+  const { t } = useI18n();
   const {
     elevenLabsModel,
     setElevenLabsModel,
@@ -52,13 +54,13 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
   return (
     <div className="space-y-2">
       <label className="text-[10px] font-medium text-text-secondary">
-        Model
+        {t("modelSelector.model")}
       </label>
 
       {favoriteModels.length > 0 && (
         <div className="space-y-1.5">
           <span className="text-[9px] text-text-muted flex items-center gap-1">
-            <Star size={9} className="text-amber-400 fill-amber-400" /> Favorite Models
+            <Star size={9} className="text-amber-400 fill-amber-400" /> {t("modelSelector.favorites")}
           </span>
           <div className="flex flex-wrap gap-1.5">
             {favoriteModels.map((fav) => (
@@ -85,7 +87,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
           onClick={() => setShowAllModels(!showAllModels)}
         >
           <span className="truncate">
-            {isLoadingModels ? "Loading models..." : getSelectedModelName()}
+            {isLoadingModels ? t("modelSelector.loading") : getSelectedModelName()}
           </span>
           <ChevronDown size={12} className={`shrink-0 text-text-muted transition-transform ${showAllModels ? "rotate-180" : ""}`} />
         </div>
@@ -96,7 +98,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
           <div className="max-h-48 overflow-y-auto">
             {allModels.length === 0 ? (
               <div className="p-3 text-center text-[10px] text-text-muted">
-                {isLoadingModels ? "Loading models..." : "No models available"}
+                {isLoadingModels ? t("modelSelector.loading") : t("modelSelector.empty")}
               </div>
             ) : (
               allModels.map((model) => {
@@ -127,7 +129,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                         {model.description
                           ? (model.description.length > 80 ? model.description.slice(0, 80) + "..." : model.description)
                           : ""}
-                        {langCount > 0 && ` · ${langCount} languages`}
+                        {langCount > 0 && ` · ${t("modelSelector.languages", { count: langCount })}`}
                       </div>
                     </div>
 
@@ -139,7 +141,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                       className={`p-1 rounded hover:bg-background-elevated transition-colors shrink-0 ${
                         isFav ? "text-amber-400" : "text-text-muted hover:text-amber-400"
                       }`}
-                      title={isFav ? "Remove from favorites" : "Add to favorites"}
+                      title={isFav ? t("modelSelector.removeFavorite") : t("modelSelector.addFavorite")}
                     >
                       {isFav ? (
                         <Star size={10} className="fill-current" />
@@ -154,7 +156,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
           </div>
 
           <div className="px-2 py-1 border-t border-border bg-background-secondary text-[8px] text-text-muted text-center">
-            {allModels.length} models available
+            {t("modelSelector.summary", { count: allModels.length })}
           </div>
         </div>
       )}

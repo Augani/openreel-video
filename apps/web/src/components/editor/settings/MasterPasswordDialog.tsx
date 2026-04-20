@@ -10,6 +10,7 @@ import {
 } from "@openreel/ui";
 import { Input } from "@openreel/ui";
 import { Button } from "@openreel/ui";
+import { useI18n } from "../../../i18n";
 
 interface MasterPasswordDialogProps {
   isOpen: boolean;
@@ -24,6 +25,7 @@ export const MasterPasswordDialog: React.FC<MasterPasswordDialogProps> = ({
   mode,
   onSubmit,
 }) => {
+  const { t } = useI18n();
   const [password, setPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -47,65 +49,58 @@ export const MasterPasswordDialog: React.FC<MasterPasswordDialogProps> = ({
     onClose();
   }, [onClose, resetForm]);
 
-  const handleSubmit = useCallback(async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
+  const handleSubmit = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault();
+      setError(null);
 
-    if (mode === "setup") {
-      if (password.length < 8) {
-        setError("Password must be at least 8 characters");
-        return;
+      if (mode === "setup") {
+        if (password.length < 8) {
+          setError(t("masterPassword.error.passwordLength"));
+          return;
+        }
+        if (password !== confirmPassword) {
+          setError(t("masterPassword.error.passwordMismatch"));
+          return;
+        }
       }
-      if (password !== confirmPassword) {
-        setError("Passwords do not match");
-        return;
-      }
-    }
 
-    if (mode === "change") {
-      if (newPassword.length < 8) {
-        setError("New password must be at least 8 characters");
-        return;
+      if (mode === "change") {
+        if (newPassword.length < 8) {
+          setError(t("masterPassword.error.newPasswordLength"));
+          return;
+        }
+        if (newPassword !== confirmPassword) {
+          setError(t("masterPassword.error.newPasswordMismatch"));
+          return;
+        }
       }
-      if (newPassword !== confirmPassword) {
-        setError("New passwords do not match");
-        return;
-      }
-    }
 
-    setLoading(true);
-    try {
-      const success = await onSubmit(
-        password,
-        mode === "change" ? newPassword : undefined,
-      );
-      if (success) {
-        resetForm();
-      } else {
-        setError(
-          mode === "unlock"
-            ? "Incorrect password"
-            : "Operation failed. Check your current password.",
+      setLoading(true);
+      try {
+        const success = await onSubmit(
+          password,
+          mode === "change" ? newPassword : undefined,
         );
+        if (success) {
+          resetForm();
+        } else {
+          setError(
+            mode === "unlock"
+              ? t("masterPassword.error.incorrectPassword")
+              : t("masterPassword.error.operationFailed"),
+          );
+        }
+      } catch (err) {
+        setError(
+          err instanceof Error ? err.message : t("masterPassword.error.generic"),
+        );
+      } finally {
+        setLoading(false);
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "An error occurred");
-    } finally {
-      setLoading(false);
-    }
-  }, [mode, password, newPassword, confirmPassword, onSubmit, resetForm]);
-
-  const titles = {
-    setup: "Set Master Password",
-    unlock: "Unlock Settings",
-    change: "Change Master Password",
-  };
-
-  const descriptions = {
-    setup: "Create a master password to encrypt your API keys. This password is never stored — only a verification hash is kept.",
-    unlock: "Enter your master password to access encrypted API keys.",
-    change: "Change your master password. All stored keys will be re-encrypted.",
-  };
+    },
+    [mode, password, newPassword, confirmPassword, onSubmit, resetForm, t],
+  );
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
@@ -113,23 +108,33 @@ export const MasterPasswordDialog: React.FC<MasterPasswordDialogProps> = ({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Lock size={18} className="text-primary" />
-            {titles[mode]}
+            {mode === "setup"
+              ? t("masterPassword.title.setup")
+              : mode === "unlock"
+                ? t("masterPassword.title.unlock")
+                : t("masterPassword.title.change")}
           </DialogTitle>
-          <DialogDescription>{descriptions[mode]}</DialogDescription>
+          <DialogDescription>
+            {mode === "setup"
+              ? t("masterPassword.description.setup")
+              : mode === "unlock"
+                ? t("masterPassword.description.unlock")
+                : t("masterPassword.description.change")}
+          </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {mode === "change" && (
             <div className="space-y-2">
               <label className="text-sm font-medium text-text-secondary">
-                Current Password
+                {t("masterPassword.label.currentPassword")}
               </label>
               <div className="relative">
                 <Input
                   type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter current password"
+                  placeholder={t("masterPassword.placeholder.currentPassword")}
                   autoFocus
                   className="pr-10"
                 />
@@ -147,7 +152,9 @@ export const MasterPasswordDialog: React.FC<MasterPasswordDialogProps> = ({
           {(mode === "setup" || mode === "unlock") && (
             <div className="space-y-2">
               <label className="text-sm font-medium text-text-secondary">
-                {mode === "setup" ? "Password" : "Master Password"}
+                {mode === "setup"
+                  ? t("masterPassword.label.password")
+                  : t("masterPassword.label.masterPassword")}
               </label>
               <div className="relative">
                 <Input
@@ -156,8 +163,8 @@ export const MasterPasswordDialog: React.FC<MasterPasswordDialogProps> = ({
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder={
                     mode === "setup"
-                      ? "Min. 8 characters"
-                      : "Enter master password"
+                      ? t("masterPassword.placeholder.minLength")
+                      : t("masterPassword.placeholder.masterPassword")
                   }
                   autoFocus
                   className="pr-10"
@@ -177,7 +184,9 @@ export const MasterPasswordDialog: React.FC<MasterPasswordDialogProps> = ({
             <>
               <div className="space-y-2">
                 <label className="text-sm font-medium text-text-secondary">
-                  {mode === "change" ? "New Password" : "Confirm Password"}
+                  {mode === "change"
+                    ? t("masterPassword.label.newPassword")
+                    : t("masterPassword.label.confirmPassword")}
                 </label>
                 <div className="relative">
                   <Input
@@ -190,8 +199,8 @@ export const MasterPasswordDialog: React.FC<MasterPasswordDialogProps> = ({
                     }
                     placeholder={
                       mode === "change"
-                        ? "Min. 8 characters"
-                        : "Repeat password"
+                        ? t("masterPassword.placeholder.minLength")
+                        : t("masterPassword.placeholder.repeatPassword")
                     }
                     className="pr-10"
                   />
@@ -208,13 +217,13 @@ export const MasterPasswordDialog: React.FC<MasterPasswordDialogProps> = ({
               {mode === "change" && (
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-text-secondary">
-                    Confirm New Password
+                    {t("masterPassword.label.confirmNewPassword")}
                   </label>
                   <Input
                     type={showNewPassword ? "text" : "password"}
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
-                    placeholder="Repeat new password"
+                    placeholder={t("masterPassword.placeholder.repeatNewPassword")}
                   />
                 </div>
               )}
@@ -231,11 +240,7 @@ export const MasterPasswordDialog: React.FC<MasterPasswordDialogProps> = ({
           {mode === "setup" && (
             <div className="flex items-start gap-2 text-xs text-text-muted bg-background-secondary px-3 py-2 rounded-lg">
               <ShieldCheck size={14} className="mt-0.5 shrink-0 text-primary" />
-              <span>
-                Your password is used to derive an encryption key via PBKDF2
-                (100k iterations). API keys are encrypted with AES-256-GCM.
-                If you forget this password, stored keys cannot be recovered.
-              </span>
+              <span>{t("masterPassword.securityNote")}</span>
             </div>
           )}
 
@@ -246,16 +251,16 @@ export const MasterPasswordDialog: React.FC<MasterPasswordDialogProps> = ({
               onClick={handleClose}
               disabled={loading}
             >
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button type="submit" disabled={loading}>
               {loading
-                ? "Processing..."
+                ? t("masterPassword.processing")
                 : mode === "setup"
-                  ? "Set Password"
+                  ? t("masterPassword.submit.setup")
                   : mode === "unlock"
-                    ? "Unlock"
-                    : "Change Password"}
+                    ? t("masterPassword.submit.unlock")
+                    : t("masterPassword.submit.change")}
             </Button>
           </DialogFooter>
         </form>

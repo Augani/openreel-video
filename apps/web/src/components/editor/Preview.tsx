@@ -68,6 +68,7 @@ import {
 } from "./preview/index";
 import { ProcessingOverlay } from "./ProcessingOverlay";
 import type { MotionPathConfig, GSAPMotionPathPoint } from "@openreel/core";
+import { useI18n } from "../../i18n";
 
 const getAdaptivePoolSize = (width: number, height: number): number => {
   const pixels = width * height;
@@ -184,6 +185,7 @@ interface ClipWithPlaceholder {
 }
 
 export const Preview: React.FC = () => {
+  const { t } = useI18n();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
@@ -4803,7 +4805,7 @@ export const Preview: React.FC = () => {
               <div
                 className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 bg-primary/80 rounded-full flex items-center justify-center cursor-move pointer-events-auto hover:bg-primary transition-colors"
                 onMouseDown={handleClipMouseDown}
-                title="Drag to move"
+                title={t("preview.dragMove")}
               >
                 <Move size={14} className="text-white" />
               </div>
@@ -4817,10 +4819,10 @@ export const Preview: React.FC = () => {
                 }`}
                 onClick={() => setLockAspectRatio(!lockAspectRatio)}
                 title={
-                  lockAspectRatio ? "Unlock aspect ratio" : "Lock aspect ratio"
+                  lockAspectRatio ? t("preview.unlockAspectRatio") : t("preview.lockAspectRatio")
                 }
               >
-                {lockAspectRatio ? "🔒 Locked" : "🔓 Free"}
+                {lockAspectRatio ? `🔒 ${t("preview.aspectRatioLocked")}` : `🔓 ${t("preview.aspectRatioFree")}`}
               </button>
 
               {/* Corner resize handles */}
@@ -4879,7 +4881,7 @@ export const Preview: React.FC = () => {
               <div
                 className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 bg-cyan-500/80 rounded-full flex items-center justify-center cursor-move pointer-events-auto hover:bg-cyan-500 transition-colors"
                 onMouseDown={handleTextClipMouseDown}
-                title="Drag to move text"
+                title={t("preview.dragMoveText")}
               >
                 <Move size={14} className="text-white" />
               </div>
@@ -4893,10 +4895,10 @@ export const Preview: React.FC = () => {
                 }`}
                 onClick={() => setLockAspectRatio(!lockAspectRatio)}
                 title={
-                  lockAspectRatio ? "Unlock aspect ratio" : "Lock aspect ratio"
+                  lockAspectRatio ? t("preview.unlockAspectRatio") : t("preview.lockAspectRatio")
                 }
               >
-                {lockAspectRatio ? "🔒 Locked" : "🔓 Free"}
+                {lockAspectRatio ? `🔒 ${t("preview.aspectRatioLocked")}` : `🔓 ${t("preview.aspectRatioFree")}`}
               </button>
 
               {/* Corner resize handles */}
@@ -4955,7 +4957,7 @@ export const Preview: React.FC = () => {
               <div
                 className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 bg-green-500/80 rounded-full flex items-center justify-center cursor-move pointer-events-auto hover:bg-green-500 transition-colors"
                 onMouseDown={handleShapeClipMouseDown}
-                title="Drag to move shape"
+                title={t("preview.dragMoveShape")}
               >
                 <Move size={14} className="text-white" />
               </div>
@@ -4969,10 +4971,10 @@ export const Preview: React.FC = () => {
                 }`}
                 onClick={() => setLockAspectRatio(!lockAspectRatio)}
                 title={
-                  lockAspectRatio ? "Unlock aspect ratio" : "Lock aspect ratio"
+                  lockAspectRatio ? t("preview.unlockAspectRatio") : t("preview.lockAspectRatio")
                 }
               >
-                {lockAspectRatio ? "🔒 Locked" : "🔓 Free"}
+                {lockAspectRatio ? `🔒 ${t("preview.aspectRatioLocked")}` : `🔓 ${t("preview.aspectRatioFree")}`}
               </button>
 
               {/* Corner resize handles */}
@@ -5027,7 +5029,7 @@ export const Preview: React.FC = () => {
               {/* Selection border - yellow/orange for subtitles */}
               <div className="absolute inset-0 border-2 border-yellow-500 rounded-lg pointer-events-none animate-pulse" />
               <div className="absolute -top-6 left-1/2 -translate-x-1/2 px-2 py-0.5 bg-yellow-500 rounded text-[10px] font-medium text-black whitespace-nowrap">
-                Subtitle Selected - Edit in Inspector
+                {t("preview.subtitleSelected")}
               </div>
             </div>
           )}
@@ -5069,7 +5071,7 @@ export const Preview: React.FC = () => {
                   ? "bg-green-500/20 text-green-400"
                   : "bg-gray-500/20 text-gray-400"
               }`}
-              title={`Rendering with ${rendererType.toUpperCase()}`}
+              title={t("preview.renderingWith", { renderer: rendererType.toUpperCase() })}
             >
               {rendererType.toUpperCase()}
             </span>
@@ -5080,7 +5082,7 @@ export const Preview: React.FC = () => {
           <IconButton
             icon={SkipBack}
             onClick={handleSkipBack}
-            title="Skip back 5s"
+            title={t("preview.skipBack")}
           />
           <button
             onClick={() => {
@@ -5097,7 +5099,7 @@ export const Preview: React.FC = () => {
           <IconButton
             icon={SkipForward}
             onClick={handleSkipForward}
-            title="Skip forward 5s"
+            title={t("preview.skipForward")}
           />
         </div>
 
@@ -5118,7 +5120,7 @@ export const Preview: React.FC = () => {
             <button
               onClick={() => setShowZoomMenu(!showZoomMenu)}
               className="px-2 py-1 rounded-lg text-xs font-mono text-text-secondary hover:text-text-primary hover:bg-background-elevated transition-colors"
-              title="Preview Zoom"
+              title={t("preview.zoom")}
             >
               <div className="flex items-center gap-1">
                 <ZoomIn size={14} />
@@ -5156,7 +5158,7 @@ export const Preview: React.FC = () => {
           <div className="w-px h-4 bg-border mx-2" />
           <button
             onClick={handleFullscreen}
-            title={isFullscreen ? "Exit Full Screen" : "Full Screen"}
+            title={isFullscreen ? t("preview.exitFullscreen") : t("preview.fullscreen")}
             className={`p-2 rounded-lg transition-colors ${
               isFullscreen
                 ? "text-primary bg-primary/20"
@@ -5167,7 +5169,7 @@ export const Preview: React.FC = () => {
           </button>
           <button
             onClick={handleMaximize}
-            title={isMaximized ? "Restore Size" : "Maximize Preview"}
+            title={isMaximized ? t("preview.restoreSize") : t("preview.maximize")}
             className={`p-2 rounded-lg transition-colors ${
               isMaximized
                 ? "text-primary bg-primary/20"
