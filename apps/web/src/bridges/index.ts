@@ -162,3 +162,11 @@ export {
   type SilenceAnalysisResult,
   type SilenceProgressCallback,
 } from "./silence-cut-bridge";
+
+export {
+  AgentBridge,
+  getAgentBridge,
+  initializeAgentBridge,
+  disposeAgentBridge,
+  type AgentBridgeOptions,
+} from "./agent-bridge";
