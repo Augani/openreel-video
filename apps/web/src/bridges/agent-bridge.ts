@@ -10,6 +10,7 @@
 
 import { ActionSerializer } from "@openreel/core";
 import type { Action, ActionResult } from "@openreel/core";
+import type { TextStyle } from "@openreel/core";
 import { useProjectStore } from "../stores/project-store";
 import { useAgentStore } from "../stores/agent-store";
 import { getPlaybackBridge } from "./playback-bridge";
@@ -46,6 +47,15 @@ type IncomingFrame =
       maxWidth?: number;
       format?: "jpeg" | "png" | "webp";
       quality?: number;
+    }
+  | {
+      kind: "createTextClip";
+      requestId: string;
+      trackId: string;
+      startTime: number;
+      text: string;
+      duration: number;
+      style?: Partial<TextStyle>;
     };
 
 type OutgoingFrame =
@@ -274,6 +284,24 @@ export class AgentBridge {
       case "captureFrame":
         await this.handleCaptureFrame(frame);
         return;
+      case "createTextClip": {
+        const clip = useProjectStore
+          .getState()
+          .createTextClip(
+            frame.trackId,
+            frame.startTime,
+            frame.text,
+            frame.duration,
+            frame.style,
+          );
+        this.send({
+          kind: "dispatchResult",
+          requestId: frame.requestId,
+          success: !!clip,
+          actionId: clip?.id,
+        });
+        return;
+      }
       default: {
         const exhaustive: never = frame;
         console.warn("[AgentBridge] unknown frame kind:", exhaustive);

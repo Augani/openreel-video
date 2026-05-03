@@ -81,6 +81,7 @@ Dev-only bridge that lets an **external agent** (e.g. a Python process using the
 | agent → editor | `enterFreeze` | Take over editor: pauses playback, shows overlay, blocks user keyboard input. Optional `reason` shown in banner. |
 | agent → editor | `exitFreeze` | Release editor back to user |
 | agent → editor | `captureFrame` | Scrub to `time`, render frame, return base64-encoded JPEG (`maxWidth` default 512, `quality` default 0.8) |
+| agent → editor | `createTextClip` | Create a text clip directly via `TitleEngine` (bypasses the Action pipeline — no undo entry). Required params: `trackId`, `startTime` (s), `text`, `duration` (s). Optional: `style` (`Partial<TextStyle>` — fontFamily, fontSize, fontWeight, color, textAlign, verticalAlign, etc.) |
 | editor → agent | `ready` | Sent on WS open; includes initial project state |
 | editor → agent | `dispatchResult` | Success/failure + optional `mediaId`, `actionId` |
 | editor → agent | `projectState` | Response to `getProjectState` |
