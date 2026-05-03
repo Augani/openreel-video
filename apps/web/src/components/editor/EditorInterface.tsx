@@ -34,6 +34,10 @@ import {
   initializeTransitionBridge,
   disposeTransitionBridge,
 } from "../../bridges/transition-bridge";
+import {
+  initializeAgentBridge,
+  disposeAgentBridge,
+} from "../../bridges/agent-bridge";
 
 /**
  * Auto-save initialization hook
@@ -121,6 +125,23 @@ const useEngineInitialization = () => {
         }
         if (!isMounted) return;
 
+        if (
+          import.meta.env.DEV &&
+          import.meta.env.VITE_ENABLE_AGENT_BRIDGE
+        ) {
+          setInitStatus("Initializing agent bridge...");
+          try {
+            initializeAgentBridge({
+              url: import.meta.env.VITE_AGENT_BRIDGE_URL,
+            });
+          } catch (agentError) {
+            console.error(
+              "[EditorInterface] AgentBridge initialization failed:",
+              agentError,
+            );
+          }
+        }
+
         setBridgesReady(true);
       } catch (error) {
         console.error("Failed to initialize engines/bridges:", error);
@@ -144,6 +165,7 @@ const useEngineInitialization = () => {
       disposeRenderBridge();
       disposeEffectsBridge();
       disposeTransitionBridge();
+      disposeAgentBridge();
     };
   }, [initialize, initialized, initializing]);
 
