@@ -74,14 +74,26 @@ Dev-only bridge that lets an **external agent** (e.g. a Python process using the
 | Direction | Frame kind | Purpose |
 |-----------|-----------|---------|
 | agent → editor | `dispatch` | Execute one serialized Action |
-| agent → editor | `dispatchMany` | Execute a list of Actions (stops on first failure) |
-| agent → editor | `getProjectState` | Request full project snapshot |
+| agent → editor | `dispatchMany` | Execute a list of Actions; optional `groupId` wraps all in one undo group |
+| agent → editor | `getProjectState` | Request full project snapshot (includes `textClips`, `timeline.tracks`, etc.) |
 | agent → editor | `undo` / `redo` | Step through action history |
 | agent → editor | `importMediaByUrl` | Fetch a URL and import as media |
+| agent → editor | `enterFreeze` | Take over editor: pauses playback, shows overlay, blocks user keyboard input. Optional `reason` shown in banner. |
+| agent → editor | `exitFreeze` | Release editor back to user |
+| agent → editor | `captureFrame` | Scrub to `time`, render frame, return base64-encoded JPEG (`maxWidth` default 512, `quality` default 0.8) |
 | editor → agent | `ready` | Sent on WS open; includes initial project state |
 | editor → agent | `dispatchResult` | Success/failure + optional `mediaId`, `actionId` |
 | editor → agent | `projectState` | Response to `getProjectState` |
 | editor → agent | `projectChanged` | Debounced (50 ms) push on every project mutation |
+| editor → agent | `freezeChanged` | Pushed when freeze state changes (e.g. user clicked Stop or pressed Esc) |
+| editor → agent | `frame` | Response to `captureFrame`: `{ time, width, height, mimeType, dataBase64 }` |
+
+**Freeze mode** is tracked in `apps/web/src/stores/agent-store.ts` (`useAgentStore`). While frozen: the editor renders a full-screen scrim with a Stop button; keyboard shortcuts are suppressed (Esc unfreezes); user mouse input is blocked. If the WebSocket disconnects while frozen the editor auto-unfreezes. Freeze is purely a UI gate — the action pipeline, undo history, and auto-save all remain fully functional.
+
+**Frame capture** uses `PlaybackBridge.captureFrameAt(time)` (`apps/web/src/bridges/playback-bridge.ts`) which scrubs the playback controller and resolves the next `framerendered` event (2 s timeout → `DECODE_ERROR`). The agent bridge downscales via `OffscreenCanvas` and encodes with `convertToBlob`.
+
+**Typical agent flow for bulk semantic edits** (e.g. "move all captions down"):
+1. `enterFreeze` → 2. `getProjectState` (read `project.textClips`) → 3. optionally `captureFrame` for visual reasoning → 4. `dispatchMany` with `groupId` → 5. `exitFreeze`. The `groupId` collapses all actions into one Cmd-Z.
 
 Actions are deserialized via `ActionSerializer` and dispatched through `useProjectStore.executeAction()` — validation, undo history, and auto-save all apply unchanged. The bridge reconnects with exponential back-off (1 s → 30 s max) when the server is unavailable.
 
