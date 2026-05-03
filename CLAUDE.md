@@ -65,6 +65,26 @@ React UI  ──►  Zustand stores  ──►  Bridges  ──►  Core engines
 
 The **bridge layer** is the critical seam. Bridges (in `apps/web/src/bridges/`) are singletons with `getXBridge()` / `initializeXBridge()` / `disposeXBridge()` lifecycle helpers re-exported from `bridges/index.ts`. They translate Zustand state changes into engine commands and engine events back into store updates. When wiring a new core feature into the UI, **add or extend a bridge** rather than calling engines directly from components — keeps React decoupled from imperative engine state. Examples: `playback-bridge`, `media-bridge`, `effects-bridge`, `audio-bridge`, `text-bridge`, `graphics-bridge`, `transition-bridge`, `motion-tracking-bridge`, `beat-sync-bridge`, `silence-cut-bridge`.
 
+### AgentBridge (`apps/web/src/bridges/agent-bridge.ts`)
+
+Dev-only bridge that lets an **external agent** (e.g. a Python process using the Anthropic SDK) drive the editor over a local WebSocket (`ws://localhost:8765` by default). Enabled when `VITE_ENABLE_AGENT_BRIDGE=true` is set; initialized in `EditorInterface.tsx`.
+
+**Protocol (JSON frames over WS):**
+
+| Direction | Frame kind | Purpose |
+|-----------|-----------|---------|
+| agent → editor | `dispatch` | Execute one serialized Action |
+| agent → editor | `dispatchMany` | Execute a list of Actions (stops on first failure) |
+| agent → editor | `getProjectState` | Request full project snapshot |
+| agent → editor | `undo` / `redo` | Step through action history |
+| agent → editor | `importMediaByUrl` | Fetch a URL and import as media |
+| editor → agent | `ready` | Sent on WS open; includes initial project state |
+| editor → agent | `dispatchResult` | Success/failure + optional `mediaId`, `actionId` |
+| editor → agent | `projectState` | Response to `getProjectState` |
+| editor → agent | `projectChanged` | Debounced (50 ms) push on every project mutation |
+
+Actions are deserialized via `ActionSerializer` and dispatched through `useProjectStore.executeAction()` — validation, undo history, and auto-save all apply unchanged. The bridge reconnects with exponential back-off (1 s → 30 s max) when the server is unavailable.
+
 ### Action-based editing (undo/redo)
 
 Every edit is a serializable Action processed through `packages/core/src/actions/`:
