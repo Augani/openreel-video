@@ -11,6 +11,8 @@
 import { ActionSerializer } from "@openreel/core";
 import type { Action, ActionResult } from "@openreel/core";
 import { useProjectStore } from "../stores/project-store";
+import { useAgentStore } from "../stores/agent-store";
+import { getPlaybackBridge } from "./playback-bridge";
 
 interface AgentBridgeOptions {
   url?: string;
@@ -20,7 +22,12 @@ interface AgentBridgeOptions {
 
 type IncomingFrame =
   | { kind: "dispatch"; requestId: string; action: unknown }
-  | { kind: "dispatchMany"; requestId: string; actions: unknown[] }
+  | {
+      kind: "dispatchMany";
+      requestId: string;
+      actions: unknown[];
+      groupId?: string;
+    }
   | { kind: "getProjectState"; requestId: string }
   | { kind: "undo"; requestId: string }
   | { kind: "redo"; requestId: string }
@@ -29,6 +36,16 @@ type IncomingFrame =
       requestId: string;
       url: string;
       name: string;
+    }
+  | { kind: "enterFreeze"; requestId: string; reason?: string }
+  | { kind: "exitFreeze"; requestId: string }
+  | {
+      kind: "captureFrame";
+      requestId: string;
+      time: number;
+      maxWidth?: number;
+      format?: "jpeg" | "png" | "webp";
+      quality?: number;
     };
 
 type OutgoingFrame =
@@ -44,7 +61,17 @@ type OutgoingFrame =
       mediaId?: string;
     }
   | { kind: "projectState"; requestId: string; project: unknown }
-  | { kind: "projectChanged"; project: unknown };
+  | { kind: "projectChanged"; project: unknown }
+  | { kind: "freezeChanged"; frozen: boolean; reason: string | null }
+  | {
+      kind: "frame";
+      requestId: string;
+      time: number;
+      width: number;
+      height: number;
+      mimeType: string;
+      dataBase64: string;
+    };
 
 const DEFAULT_URL = "ws://localhost:8765";
 const RECONNECT_INITIAL_MS = 1000;
@@ -60,6 +87,7 @@ export class AgentBridge {
   private reconnectDelay = RECONNECT_INITIAL_MS;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private unsubscribeProjectStore: (() => void) | null = null;
+  private unsubscribeAgentStore: (() => void) | null = null;
   private serializer = new ActionSerializer();
   private projectChangeTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -74,6 +102,7 @@ export class AgentBridge {
     this.disposed = false;
     this.connect();
     this.subscribeToProject();
+    this.subscribeToAgentStore();
   }
 
   isInitialized(): boolean {
@@ -95,6 +124,13 @@ export class AgentBridge {
     if (this.unsubscribeProjectStore) {
       this.unsubscribeProjectStore();
       this.unsubscribeProjectStore = null;
+    }
+    if (this.unsubscribeAgentStore) {
+      this.unsubscribeAgentStore();
+      this.unsubscribeAgentStore = null;
+    }
+    if (useAgentStore.getState().frozen) {
+      useAgentStore.getState().setFrozen(false, null);
     }
     if (this.ws) {
       try {
@@ -131,6 +167,9 @@ export class AgentBridge {
 
     socket.addEventListener("close", () => {
       this.ws = null;
+      if (useAgentStore.getState().frozen) {
+        useAgentStore.getState().setFrozen(false, null);
+      }
       this.scheduleReconnect();
     });
 
@@ -148,6 +187,20 @@ export class AgentBridge {
       this.reconnectTimer = null;
       this.connect();
     }, delay);
+  }
+
+  private subscribeToAgentStore(): void {
+    // Push freeze changes to the agent — including user-initiated "Stop" clicks.
+    let last = useAgentStore.getState().frozen;
+    this.unsubscribeAgentStore = useAgentStore.subscribe((state) => {
+      if (state.frozen === last) return;
+      last = state.frozen;
+      this.send({
+        kind: "freezeChanged",
+        frozen: state.frozen,
+        reason: state.reason,
+      });
+    });
   }
 
   private subscribeToProject(): void {
@@ -177,7 +230,11 @@ export class AgentBridge {
         await this.handleDispatch(frame.requestId, frame.action);
         return;
       case "dispatchMany":
-        await this.handleDispatchMany(frame.requestId, frame.actions);
+        await this.handleDispatchMany(
+          frame.requestId,
+          frame.actions,
+          frame.groupId,
+        );
         return;
       case "getProjectState":
         this.send({
@@ -198,6 +255,24 @@ export class AgentBridge {
       }
       case "importMediaByUrl":
         await this.handleImportByUrl(frame.requestId, frame.url, frame.name);
+        return;
+      case "enterFreeze": {
+        useAgentStore.getState().setFrozen(true, frame.reason ?? null);
+        try {
+          getPlaybackBridge().pause();
+        } catch {
+          // Playback bridge may not be ready yet — freeze state is what matters.
+        }
+        this.replyDispatch(frame.requestId, { success: true });
+        return;
+      }
+      case "exitFreeze": {
+        useAgentStore.getState().setFrozen(false, null);
+        this.replyDispatch(frame.requestId, { success: true });
+        return;
+      }
+      case "captureFrame":
+        await this.handleCaptureFrame(frame);
         return;
       default: {
         const exhaustive: never = frame;
@@ -232,25 +307,33 @@ export class AgentBridge {
   private async handleDispatchMany(
     requestId: string,
     rawActions: unknown[],
+    groupId?: string,
   ): Promise<void> {
     const results: ActionResult[] = [];
-    for (const raw of rawActions) {
-      let action: Action;
-      try {
-        action = this.serializer.deserialize(JSON.stringify(raw));
-      } catch (err) {
-        results.push({
-          success: false,
-          error: {
-            code: "INVALID_PARAMS",
-            message: err instanceof Error ? err.message : "deserialize failed",
-          },
-        });
-        break;
+    const history = useProjectStore.getState().actionHistory;
+    if (groupId) history.beginGroup(groupId);
+    try {
+      for (const raw of rawActions) {
+        let action: Action;
+        try {
+          action = this.serializer.deserialize(JSON.stringify(raw));
+        } catch (err) {
+          results.push({
+            success: false,
+            error: {
+              code: "INVALID_PARAMS",
+              message:
+                err instanceof Error ? err.message : "deserialize failed",
+            },
+          });
+          break;
+        }
+        const result = await useProjectStore.getState().executeAction(action);
+        results.push(result);
+        if (!result.success) break;
       }
-      const result = await useProjectStore.getState().executeAction(action);
-      results.push(result);
-      if (!result.success) break;
+    } finally {
+      if (groupId) history.endGroup();
     }
     const last = results[results.length - 1];
     this.send({
@@ -260,6 +343,73 @@ export class AgentBridge {
       error: last?.error,
       results,
     });
+  }
+
+  private async handleCaptureFrame(
+    frame: Extract<IncomingFrame, { kind: "captureFrame" }>,
+  ): Promise<void> {
+    const { requestId, time } = frame;
+    const maxWidth = frame.maxWidth ?? 512;
+    const format = frame.format ?? "jpeg";
+    const quality = frame.quality ?? 0.8;
+    const mimeType = `image/${format}`;
+    let bitmap: ImageBitmap | null = null;
+    try {
+      bitmap = await getPlaybackBridge().captureFrameAt(time);
+    } catch (err) {
+      this.send({
+        kind: "dispatchResult",
+        requestId,
+        success: false,
+        error: {
+          code: "DECODE_ERROR",
+          message: err instanceof Error ? err.message : "scrub failed",
+        },
+      });
+      return;
+    }
+    if (!bitmap) {
+      this.send({
+        kind: "dispatchResult",
+        requestId,
+        success: false,
+        error: { code: "DECODE_ERROR", message: "frame render timed out" },
+      });
+      return;
+    }
+    try {
+      const scale = Math.min(1, maxWidth / bitmap.width);
+      const w = Math.max(1, Math.round(bitmap.width * scale));
+      const h = Math.max(1, Math.round(bitmap.height * scale));
+      const canvas = new OffscreenCanvas(w, h);
+      const ctx = canvas.getContext("2d");
+      if (!ctx) throw new Error("OffscreenCanvas 2D context unavailable");
+      ctx.drawImage(bitmap, 0, 0, w, h);
+      const blob = await canvas.convertToBlob({ type: mimeType, quality });
+      const buf = await blob.arrayBuffer();
+      const dataBase64 = bytesToBase64(new Uint8Array(buf));
+      this.send({
+        kind: "frame",
+        requestId,
+        time,
+        width: w,
+        height: h,
+        mimeType: blob.type || mimeType,
+        dataBase64,
+      });
+    } catch (err) {
+      this.send({
+        kind: "dispatchResult",
+        requestId,
+        success: false,
+        error: {
+          code: "DECODE_ERROR",
+          message: err instanceof Error ? err.message : "encode failed",
+        },
+      });
+    } finally {
+      bitmap.close?.();
+    }
   }
 
   private async handleImportByUrl(
@@ -325,6 +475,18 @@ export class AgentBridge {
       console.warn("[AgentBridge] send failed:", err);
     }
   }
+}
+
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = "";
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode.apply(
+      null,
+      bytes.subarray(i, i + chunk) as unknown as number[],
+    );
+  }
+  return btoa(binary);
 }
 
 let agentBridgeInstance: AgentBridge | null = null;

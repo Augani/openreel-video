@@ -8,6 +8,7 @@ import { Timeline } from "./Timeline";
 import { KeyframeEditorPanel } from "./KeyframeEditorPanel";
 import { AudioMixer } from "../audio-mixer";
 import { KeyboardShortcutsOverlay } from "./KeyboardShortcutsOverlay";
+import { AgentFreezeOverlay } from "./AgentFreezeOverlay";
 import { PanelErrorBoundary } from "../ErrorBoundary";
 import { SpotlightTour, MoGraphTour } from "./tour";
 import { useProjectStore } from "../../stores/project-store";
@@ -391,6 +392,8 @@ export const EditorInterface: React.FC = () => {
 
       <SpotlightTour />
       <MoGraphTour />
+
+      <AgentFreezeOverlay />
     </div>
   );
 };

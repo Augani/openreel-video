@@ -1,14 +1,27 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { AgentBridge } from "./agent-bridge";
 
-const { mockExecuteAction, mockUndo, mockRedo, mockImportMedia, mockSubscribe } =
-  vi.hoisted(() => ({
-    mockExecuteAction: vi.fn(),
-    mockUndo: vi.fn(),
-    mockRedo: vi.fn(),
-    mockImportMedia: vi.fn(),
-    mockSubscribe: vi.fn(() => () => {}),
-  }));
+const {
+  mockExecuteAction,
+  mockUndo,
+  mockRedo,
+  mockImportMedia,
+  mockSubscribe,
+  mockBeginGroup,
+  mockEndGroup,
+  mockPause,
+  mockCaptureFrameAt,
+} = vi.hoisted(() => ({
+  mockExecuteAction: vi.fn(),
+  mockUndo: vi.fn(),
+  mockRedo: vi.fn(),
+  mockImportMedia: vi.fn(),
+  mockSubscribe: vi.fn(() => () => {}),
+  mockBeginGroup: vi.fn(),
+  mockEndGroup: vi.fn(),
+  mockPause: vi.fn(),
+  mockCaptureFrameAt: vi.fn(),
+}));
 
 const fakeProject = { id: "p-1", name: "test", mediaLibrary: { items: [] } };
 
@@ -20,9 +33,18 @@ vi.mock("../stores/project-store", () => ({
       undo: mockUndo,
       redo: mockRedo,
       importMedia: mockImportMedia,
+      actionHistory: { beginGroup: mockBeginGroup, endGroup: mockEndGroup },
     }),
     subscribe: mockSubscribe,
   },
+}));
+
+// Side-step the heavy engine-store import chain that playback-bridge pulls in.
+vi.mock("./playback-bridge", () => ({
+  getPlaybackBridge: () => ({
+    pause: mockPause,
+    captureFrameAt: mockCaptureFrameAt,
+  }),
 }));
 
 vi.mock("@openreel/core", () => ({
@@ -105,6 +127,10 @@ describe("AgentBridge", () => {
     mockRedo.mockReset();
     mockImportMedia.mockReset();
     mockSubscribe.mockClear();
+    mockBeginGroup.mockReset();
+    mockEndGroup.mockReset();
+    mockPause.mockReset();
+    mockCaptureFrameAt.mockReset();
     bridge = new AgentBridge({
       url: "ws://test",
       webSocketImpl: FakeWebSocketCtor,
@@ -248,6 +274,109 @@ describe("AgentBridge", () => {
     expect(reply.success).toBe(false);
     expect(reply.results).toHaveLength(2);
     expect(reply.error.code).toBe("CLIP_NOT_FOUND");
+  });
+
+  it("wraps a grouped dispatchMany in beginGroup/endGroup so undo is atomic", async () => {
+    mockExecuteAction.mockResolvedValue({ success: true, actionId: "a-1" });
+    bridge.initialize();
+    await flush();
+
+    socket!.receive({
+      kind: "dispatchMany",
+      requestId: "g-1",
+      groupId: "move-captions",
+      actions: [
+        { type: "x/y", id: "1", timestamp: 1, params: {} },
+        { type: "x/y", id: "2", timestamp: 2, params: {} },
+      ],
+    });
+    await flush();
+
+    expect(mockBeginGroup).toHaveBeenCalledWith("move-captions");
+    expect(mockEndGroup).toHaveBeenCalledTimes(1);
+    expect(mockExecuteAction).toHaveBeenCalledTimes(2);
+  });
+
+  it("enterFreeze pauses playback, sets agent-store frozen, and replies success", async () => {
+    const { useAgentStore } = await import("../stores/agent-store");
+    bridge.initialize();
+    await flush();
+
+    socket!.receive({
+      kind: "enterFreeze",
+      requestId: "f-1",
+      reason: "applying caption layout",
+    });
+    await flush();
+
+    expect(mockPause).toHaveBeenCalledTimes(1);
+    expect(useAgentStore.getState().frozen).toBe(true);
+    expect(useAgentStore.getState().reason).toBe("applying caption layout");
+
+    const sent = socket!.sent.map((s) => JSON.parse(s));
+    expect(sent).toContainEqual(
+      expect.objectContaining({
+        kind: "dispatchResult",
+        requestId: "f-1",
+        success: true,
+      }),
+    );
+    expect(sent).toContainEqual(
+      expect.objectContaining({ kind: "freezeChanged", frozen: true }),
+    );
+
+    // Cleanup so other tests start un-frozen.
+    useAgentStore.getState().setFrozen(false);
+  });
+
+  it("captureFrame returns a base64-encoded frame payload", async () => {
+    const fakeBitmap = {
+      width: 1920,
+      height: 1080,
+      close: vi.fn(),
+    } as unknown as ImageBitmap;
+    mockCaptureFrameAt.mockResolvedValue(fakeBitmap);
+
+    // Stub OffscreenCanvas for jsdom.
+    class FakeOffscreenCanvas {
+      constructor(
+        public width: number,
+        public height: number,
+      ) {}
+      getContext() {
+        return { drawImage: vi.fn() };
+      }
+      async convertToBlob() {
+        return {
+          type: "image/jpeg",
+          arrayBuffer: async () => new Uint8Array([1, 2, 3, 4]).buffer,
+        } as unknown as Blob;
+      }
+    }
+    (globalThis as unknown as { OffscreenCanvas: unknown }).OffscreenCanvas =
+      FakeOffscreenCanvas;
+
+    bridge.initialize();
+    await flush();
+
+    socket!.receive({
+      kind: "captureFrame",
+      requestId: "cf-1",
+      time: 1.5,
+      maxWidth: 384,
+    });
+    await flush();
+    await flush();
+
+    expect(mockCaptureFrameAt).toHaveBeenCalledWith(1.5);
+    const frameMsg = socket!.sent.map((s) => JSON.parse(s)).find((m) => m.kind === "frame");
+    expect(frameMsg).toBeDefined();
+    expect(frameMsg.requestId).toBe("cf-1");
+    expect(frameMsg.time).toBe(1.5);
+    expect(frameMsg.mimeType).toBe("image/jpeg");
+    expect(typeof frameMsg.dataBase64).toBe("string");
+    expect(frameMsg.dataBase64.length).toBeGreaterThan(0);
+    expect(fakeBitmap.close).toHaveBeenCalled();
   });
 
   it("dispose() unsubscribes from the project store and closes the socket", async () => {

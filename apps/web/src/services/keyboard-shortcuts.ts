@@ -1,3 +1,5 @@
+import { useAgentStore } from "../stores/agent-store";
+
 export type ShortcutCategory =
   | "playback"
   | "editing"
@@ -527,6 +529,18 @@ class KeyboardShortcutsManager {
       e.target instanceof HTMLInputElement ||
       e.target instanceof HTMLTextAreaElement
     ) {
+      return;
+    }
+
+    // Agent freeze: swallow shortcuts while the agent has the editor.
+    // Esc is reserved as a global "stop agent" affordance.
+    const agent = useAgentStore.getState();
+    if (agent.frozen) {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+        agent.setFrozen(false);
+      }
       return;
     }
 
