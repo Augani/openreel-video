@@ -10,7 +10,7 @@
 
 import { ActionSerializer } from "@openreel/core";
 import type { Action, ActionResult } from "@openreel/core";
-import type { TextStyle } from "@openreel/core";
+import type { TextStyle, TextAnimation, Transform } from "@openreel/core";
 import { useProjectStore } from "../stores/project-store";
 import { useAgentStore } from "../stores/agent-store";
 import { getPlaybackBridge } from "./playback-bridge";
@@ -56,6 +56,14 @@ type IncomingFrame =
       text: string;
       duration: number;
       style?: Partial<TextStyle>;
+    }
+  | {
+      kind: "updateTextClip";
+      requestId: string;
+      clipId: string;
+      style?: Partial<TextStyle>;
+      transform?: Partial<Transform>;
+      animation?: TextAnimation;
     };
 
 type OutgoingFrame =
@@ -284,6 +292,21 @@ export class AgentBridge {
       case "captureFrame":
         await this.handleCaptureFrame(frame);
         return;
+      case "updateTextClip": {
+        const store = useProjectStore.getState();
+        let ok = true;
+        if (frame.style) ok = !!store.updateTextStyle(frame.clipId, frame.style);
+        if (ok && frame.transform)
+          ok = !!store.updateTextTransform(frame.clipId, frame.transform);
+        if (ok && frame.animation)
+          ok = !!store.updateTextAnimation(frame.clipId, frame.animation);
+        this.send({
+          kind: "dispatchResult",
+          requestId: frame.requestId,
+          success: ok,
+        });
+        return;
+      }
       case "createTextClip": {
         const clip = useProjectStore
           .getState()
