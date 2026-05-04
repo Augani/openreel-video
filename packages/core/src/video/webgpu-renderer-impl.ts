@@ -98,10 +98,11 @@ export class WebGPURenderer implements Renderer {
         return false;
       }
 
-      // Request adapter with high-performance preference
-      this.adapter = await navigator.gpu.requestAdapter({
-        powerPreference: "high-performance",
-      });
+      // Request adapter; fall back to default preference if high-performance returns null (common on APUs/integrated GPUs on Linux)
+      this.adapter =
+        (await navigator.gpu.requestAdapter({
+          powerPreference: "high-performance",
+        })) ?? (await navigator.gpu.requestAdapter());
 
       if (!this.adapter) {
         console.warn("[WebGPURenderer] No GPU adapter available");

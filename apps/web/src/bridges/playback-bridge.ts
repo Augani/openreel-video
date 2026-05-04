@@ -285,34 +285,19 @@ export class PlaybackBridge {
   }
 
   /**
-   * Scrub to a time and resolve with the next composited ImageBitmap. Used by
-   * the agent bridge to capture a frame for visual reasoning. Resolves null on
-   * timeout (default 2s) so callers can surface a clean error.
+   * Seek to a time and resolve with the composited ImageBitmap. Used by the
+   * agent bridge to capture a frame for visual reasoning. Resolves null if no
+   * frame could be produced.
+   *
+   * Note: we use seek() rather than scrubTo() because scrubTo routes through
+   * renderFrameWithTimeout() with a tight (~100ms) timeout intended for
+   * live-scrub responsiveness — far seeks that need significant decode work
+   * exceed it. seek() awaits renderFrameAtTime() without a timeout.
    */
-  async captureFrameAt(
-    time: number,
-    timeoutMs = 2000,
-  ): Promise<ImageBitmap | null> {
+  async captureFrameAt(time: number): Promise<ImageBitmap | null> {
     if (!this.playbackController) return null;
-    const controller = this.playbackController;
-    return new Promise((resolve) => {
-      let settled = false;
-      const onFrame = (event: PlaybackEvent) => {
-        if (event.type !== "framerendered" || !event.frame || settled) return;
-        settled = true;
-        controller.removeEventListener("framerendered", onFrame);
-        clearTimeout(timer);
-        resolve(event.frame.image);
-      };
-      const timer = setTimeout(() => {
-        if (settled) return;
-        settled = true;
-        controller.removeEventListener("framerendered", onFrame);
-        resolve(null);
-      }, timeoutMs);
-      controller.addEventListener("framerendered", onFrame);
-      void controller.scrubTo(time);
-    });
+    await this.playbackController.seek(time);
+    return this.playbackController.getCurrentFrame()?.image ?? null;
   }
 
   /**
