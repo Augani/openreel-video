@@ -54,29 +54,29 @@ Tech:
 - fast-check for property tests
 - Zod or Valibot
 
-## 2. Command-Based Editing And History
+## 2. Command-Based Editing And History ✓
 
-- [ ] Replace snapshot-first history with a command/action system.
-- [ ] Define command interface with `apply`, `invert`, and `merge` support.
-- [ ] Implement commands:
-  - [ ] `CreateProject`
-  - [ ] `AddArtboard`
-  - [ ] `RemoveArtboard`
-  - [ ] `UpdateArtboard`
-  - [ ] `AddLayer`
-  - [ ] `RemoveLayer`
-  - [ ] `DuplicateLayer`
-  - [ ] `ReorderLayer`
-  - [ ] `UpdateLayerTransform`
-  - [ ] `UpdateLayerStyle`
-  - [ ] `UpdateText`
-  - [ ] `ApplyAdjustment`
-  - [ ] `ApplyMask`
-  - [ ] `RasterEdit`
-- [ ] Add command coalescing for drag, resize, brush strokes, and slider scrubbing.
-- [ ] Add checkpoint snapshots for large raster edits.
-- [ ] Add undo/redo tests for every command.
-- [ ] Update `HistoryPanel` to show meaningful command names.
+- [x] Replace snapshot-first history with a command/action system.
+- [x] Define command interface with `apply`, `invert`, and `merge` support.
+- [x] Implement commands:
+  - [x] `CreateProject`
+  - [x] `AddArtboard`
+  - [x] `RemoveArtboard`
+  - [x] `UpdateArtboard`
+  - [x] `AddLayer`
+  - [x] `RemoveLayer`
+  - [x] `DuplicateLayer`
+  - [x] `ReorderLayer`
+  - [x] `UpdateLayerTransform`
+  - [x] `UpdateLayerStyle`
+  - [x] `UpdateText`
+  - [x] `ApplyAdjustment`
+  - [x] `ApplyMask`
+  - [x] `RasterEdit`
+- [x] Add command coalescing for drag, resize, brush strokes, and slider scrubbing.
+- [x] Add checkpoint snapshots for large raster edits.
+- [x] Add undo/redo tests for every command.
+- [x] Update `HistoryPanel` to show meaningful command names.
 
 Tech:
 
@@ -494,7 +494,7 @@ Tech:
 
 - [x] Stabilize tests and project schema.
 - [x] Extract `packages/image-core`.
-- [ ] Implement command-based undo/redo.
+- [x] Implement command-based undo/redo.
 - [ ] Move storage to IndexedDB/OPFS.
 - [ ] Extract renderer from React canvas.
 - [ ] Add renderer regression tests.
