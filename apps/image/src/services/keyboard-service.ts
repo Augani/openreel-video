@@ -1,7 +1,6 @@
 import { useEffect } from 'react';
 import { useUIStore } from '../stores/ui-store';
 import { useProjectStore } from '../stores/project-store';
-import { useHistoryStore } from '../stores/history-store';
 
 export function useKeyboardShortcuts() {
   const { setActiveTool, zoomIn, zoomOut, zoomToFit, toggleGrid, toggleGuides, toggleShortcutsPanel, openSettingsDialog } = useUIStore();
@@ -21,8 +20,11 @@ export function useKeyboardShortcuts() {
     groupLayers,
     ungroupLayers,
     project,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
   } = useProjectStore();
-  const { undo, redo, canUndo, canRedo } = useHistoryStore();
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -71,15 +73,9 @@ export function useKeyboardShortcuts() {
           case 'z':
             e.preventDefault();
             if (e.shiftKey) {
-              if (canRedo()) {
-                const state = redo();
-                if (state) useProjectStore.getState().loadProject(state);
-              }
+              if (canRedo()) redo();
             } else {
-              if (canUndo()) {
-                const state = undo();
-                if (state) useProjectStore.getState().loadProject(state);
-              }
+              if (canUndo()) undo();
             }
             break;
 
