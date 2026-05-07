@@ -20,6 +20,7 @@ const LAYER_TYPE_ICONS: Record<LayerType, React.ReactNode> = {
   text: <Type size={12} />,
   shape: <Hexagon size={12} />,
   group: <Folder size={12} />,
+  'smart-object': <FolderOpen size={12} />,
 };
 
 export function LayerPanel() {
@@ -171,7 +172,7 @@ export function LayerPanel() {
           >
             All
           </button>
-          {(['image', 'text', 'shape', 'group'] as LayerType[]).map((type) => (
+          {(['image', 'text', 'shape', 'group', 'smart-object'] as LayerType[]).map((type) => (
             <button
               key={type}
               onClick={() => setFilterType(filterType === type ? 'all' : type)}

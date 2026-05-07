@@ -102,6 +102,7 @@ function makeProject(artboards?: Artboard[]): Project {
     artboards: ab,
     layers: {},
     assets: {},
+    exportPresets: [],
     activeArtboardId: ab[0].id,
   };
 }
