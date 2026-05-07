@@ -28,8 +28,8 @@ Be respectful, constructive, and professional. We're building something great to
 
 ```bash
 # 1. Fork and clone the repository
-git clone https://github.com/augani/openreel.git
-cd openreel
+git clone https://github.com/augani/openreel-video.git
+cd openreel-video
 
 # 2. Install dependencies
 pnpm install
