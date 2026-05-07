@@ -3833,6 +3833,7 @@ export const Preview: React.FC = () => {
   const [hoveredGraphicClipId, setHoveredGraphicClipId] = useState<string | null>(null);
 
   const activeGraphicClips = useMemo(() => {
+    // getActiveShapeClips returns all graphic clip types (shapes, SVGs, and stickers)
     return getActiveShapeClips(allShapeClips, playheadPosition);
   }, [allShapeClips, playheadPosition]);
 
@@ -5175,8 +5176,7 @@ export const Preview: React.FC = () => {
                 >
                   <div className="absolute inset-0 border-2 border-dashed border-white/80 rounded-sm" />
                   <div
-                    role="tooltip"
-                    aria-label="Click to select this graphic"
+                    aria-hidden="true"
                     className="absolute -top-6 left-1/2 -translate-x-1/2 px-2 py-0.5 bg-black/70 rounded text-[10px] text-white whitespace-nowrap"
                   >
                     Click to select
