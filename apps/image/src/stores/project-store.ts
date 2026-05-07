@@ -1,8 +1,16 @@
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
-import { parseProject } from '../services/project-schema';
-import { migrateProject } from '../services/project-migration';
+import {
+  addLayerToProject,
+  createProjectDocument,
+  deserializeProject,
+  duplicateLayerInProject,
+  removeLayerFromProject,
+  reorderArtboardLayers,
+  updateLayerInProject,
+  updateLayerTransformInProject,
+} from '@openreel/image-core/operations';
 import {
   Project,
   Layer,
@@ -120,32 +128,18 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
 
       createProject: (name, size, background) => {
         const artboardId = generateId();
-        const project: Project = {
+        const project = createProjectDocument({
           id: generateId(),
+          artboardId,
           name,
-          createdAt: Date.now(),
-          updatedAt: Date.now(),
-          version: 1,
-          artboards: [
-            {
-              id: artboardId,
-              name: 'Artboard 1',
-              size,
-              background: background ?? { type: 'color', color: '#ffffff' },
-              layerIds: [],
-              position: { x: 0, y: 0 },
-            },
-          ],
-          layers: {},
-          assets: {},
-          activeArtboardId: artboardId,
-        };
+          size,
+          background,
+        });
         set({ project, selectedLayerIds: [], selectedArtboardId: artboardId, isDirty: true });
       },
 
       loadProject: (project) => {
-        const migrated = migrateProject(project as unknown as Record<string, unknown>);
-        const parsed = parseProject(migrated);
+        const parsed = deserializeProject(project as unknown as Record<string, unknown>);
         if (!parsed.success) {
           console.error('[project-store] Invalid project:', parsed.error);
           return;
@@ -273,10 +267,8 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
                 posterize: { ...DEFAULT_POSTERIZE },
                 threshold: { ...DEFAULT_THRESHOLD },
               };
-              state.project.layers[id] = layer;
-              artboard.layerIds.unshift(id);
+              state.project = addLayerToProject(state.project, state.selectedArtboardId, layer);
               state.selectedLayerIds = [id];
-              state.project.updatedAt = Date.now();
               state.isDirty = true;
             }
           }
@@ -329,10 +321,8 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
                 posterize: { ...DEFAULT_POSTERIZE },
                 threshold: { ...DEFAULT_THRESHOLD },
               };
-              state.project.layers[id] = layer;
-              artboard.layerIds.unshift(id);
+              state.project = addLayerToProject(state.project, state.selectedArtboardId, layer);
               state.selectedLayerIds = [id];
-              state.project.updatedAt = Date.now();
               state.isDirty = true;
             }
           }
@@ -384,10 +374,8 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
                 posterize: { ...DEFAULT_POSTERIZE },
                 threshold: { ...DEFAULT_THRESHOLD },
               };
-              state.project.layers[id] = layer;
-              artboard.layerIds.unshift(id);
+              state.project = addLayerToProject(state.project, state.selectedArtboardId, layer);
               state.selectedLayerIds = [id];
-              state.project.updatedAt = Date.now();
               state.isDirty = true;
             }
           }
@@ -456,10 +444,8 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
                 posterize: { ...DEFAULT_POSTERIZE },
                 threshold: { ...DEFAULT_THRESHOLD },
               };
-              state.project.layers[id] = layer;
-              artboard.layerIds.unshift(id);
+              state.project = addLayerToProject(state.project, state.selectedArtboardId, layer);
               state.selectedLayerIds = [id];
-              state.project.updatedAt = Date.now();
               state.isDirty = true;
             }
           }
@@ -536,13 +522,15 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
                 posterize: { ...DEFAULT_POSTERIZE },
                 threshold: { ...DEFAULT_THRESHOLD },
               };
-
-              state.project.layers[id] = layer;
               const firstChildIndex = artboard.layerIds.findIndex((lid) => childIds.includes(lid));
               artboard.layerIds = artboard.layerIds.filter((lid) => !childIds.includes(lid));
-              artboard.layerIds.splice(firstChildIndex, 0, id);
+              state.project = addLayerToProject(
+                state.project,
+                state.selectedArtboardId,
+                layer,
+                Math.max(firstChildIndex, 0),
+              );
               state.selectedLayerIds = [id];
-              state.project.updatedAt = Date.now();
               state.isDirty = true;
             }
           }
@@ -553,19 +541,9 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
       removeLayer: (layerId) => {
         set((state) => {
           if (state.project) {
-            const layer = state.project.layers[layerId];
-            if (layer) {
-              if (layer.type === 'group') {
-                (layer as GroupLayer).childIds.forEach((childId) => {
-                  delete state.project!.layers[childId];
-                });
-              }
-              delete state.project.layers[layerId];
-              state.project.artboards.forEach((artboard) => {
-                artboard.layerIds = artboard.layerIds.filter((id) => id !== layerId);
-              });
+            if (state.project.layers[layerId]) {
+              state.project = removeLayerFromProject(state.project, layerId);
               state.selectedLayerIds = state.selectedLayerIds.filter((id) => id !== layerId);
-              state.project.updatedAt = Date.now();
               state.isDirty = true;
             }
           }
@@ -579,10 +557,8 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
       updateLayer: (layerId, updates) => {
         set((state) => {
           if (state.project) {
-            const layer = state.project.layers[layerId];
-            if (layer) {
-              Object.assign(layer, updates);
-              state.project.updatedAt = Date.now();
+            if (state.project.layers[layerId]) {
+              state.project = updateLayerInProject(state.project, layerId, updates);
               state.isDirty = true;
             }
           }
@@ -592,10 +568,8 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
       updateLayerTransform: (layerId, transform) => {
         set((state) => {
           if (state.project) {
-            const layer = state.project.layers[layerId];
-            if (layer) {
-              Object.assign(layer.transform, transform);
-              state.project.updatedAt = Date.now();
+            if (state.project.layers[layerId]) {
+              state.project = updateLayerTransformInProject(state.project, layerId, transform);
               state.isDirty = true;
             }
           }
@@ -606,29 +580,16 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
         const { project, selectedArtboardId } = get();
         if (!project || !selectedArtboardId) return null;
 
-        const layer = project.layers[layerId];
-        if (!layer) return null;
-
         const newId = generateId();
+        const duplicated = duplicateLayerInProject(project, selectedArtboardId, layerId, newId);
+        if (!duplicated) return null;
+
         set((state) => {
-          if (state.project) {
-            const artboard = state.project.artboards.find((a) => a.id === selectedArtboardId);
-            if (artboard) {
-              const newLayer = JSON.parse(JSON.stringify(layer));
-              newLayer.id = newId;
-              newLayer.name = `${layer.name} copy`;
-              newLayer.transform.x += 20;
-              newLayer.transform.y += 20;
-              state.project.layers[newId] = newLayer;
-              const originalIndex = artboard.layerIds.indexOf(layerId);
-              artboard.layerIds.splice(originalIndex, 0, newId);
-              state.selectedLayerIds = [newId];
-              state.project.updatedAt = Date.now();
-              state.isDirty = true;
-            }
-          }
+          state.project = duplicated.project;
+          state.selectedLayerIds = [duplicated.duplicatedLayerId];
+          state.isDirty = true;
         });
-        return newId;
+        return duplicated.duplicatedLayerId;
       },
 
       duplicateLayers: (layerIds) => {
@@ -678,8 +639,9 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
             if (artboard) {
               const index = artboard.layerIds.indexOf(layerId);
               if (index > 0) {
-                [artboard.layerIds[index - 1], artboard.layerIds[index]] = [artboard.layerIds[index], artboard.layerIds[index - 1]];
-                state.project.updatedAt = Date.now();
+                const layerIds = [...artboard.layerIds];
+                [layerIds[index - 1], layerIds[index]] = [layerIds[index], layerIds[index - 1]];
+                state.project = reorderArtboardLayers(state.project, state.selectedArtboardId, layerIds);
                 state.isDirty = true;
               }
             }
@@ -694,8 +656,9 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
             if (artboard) {
               const index = artboard.layerIds.indexOf(layerId);
               if (index < artboard.layerIds.length - 1) {
-                [artboard.layerIds[index], artboard.layerIds[index + 1]] = [artboard.layerIds[index + 1], artboard.layerIds[index]];
-                state.project.updatedAt = Date.now();
+                const layerIds = [...artboard.layerIds];
+                [layerIds[index], layerIds[index + 1]] = [layerIds[index + 1], layerIds[index]];
+                state.project = reorderArtboardLayers(state.project, state.selectedArtboardId, layerIds);
                 state.isDirty = true;
               }
             }
@@ -708,9 +671,9 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
           if (state.project && state.selectedArtboardId) {
             const artboard = state.project.artboards.find((a) => a.id === state.selectedArtboardId);
             if (artboard) {
-              artboard.layerIds = artboard.layerIds.filter((id) => id !== layerId);
-              artboard.layerIds.unshift(layerId);
-              state.project.updatedAt = Date.now();
+              const layerIds = artboard.layerIds.filter((id) => id !== layerId);
+              layerIds.unshift(layerId);
+              state.project = reorderArtboardLayers(state.project, state.selectedArtboardId, layerIds);
               state.isDirty = true;
             }
           }
@@ -722,9 +685,9 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
           if (state.project && state.selectedArtboardId) {
             const artboard = state.project.artboards.find((a) => a.id === state.selectedArtboardId);
             if (artboard) {
-              artboard.layerIds = artboard.layerIds.filter((id) => id !== layerId);
-              artboard.layerIds.push(layerId);
-              state.project.updatedAt = Date.now();
+              const layerIds = artboard.layerIds.filter((id) => id !== layerId);
+              layerIds.push(layerId);
+              state.project = reorderArtboardLayers(state.project, state.selectedArtboardId, layerIds);
               state.isDirty = true;
             }
           }
@@ -734,12 +697,8 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
       reorderLayers: (layerIds) => {
         set((state) => {
           if (state.project && state.selectedArtboardId) {
-            const artboard = state.project.artboards.find((a) => a.id === state.selectedArtboardId);
-            if (artboard) {
-              artboard.layerIds = layerIds;
-              state.project.updatedAt = Date.now();
-              state.isDirty = true;
-            }
+            state.project = reorderArtboardLayers(state.project, state.selectedArtboardId, layerIds);
+            state.isDirty = true;
           }
         });
       },
