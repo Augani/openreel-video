@@ -338,6 +338,7 @@ export class MediaImportService {
       sampleRate: processedMedia.metadata.sampleRate,
       channels: processedMedia.metadata.channels,
       fileSize: processedMedia.metadata.fileSize,
+      audioTrackCount: processedMedia.metadata.audioTrackCount,
     };
 
     return {

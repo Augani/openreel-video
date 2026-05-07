@@ -59,6 +59,9 @@ export interface Clip {
   readonly speed?: number;
   readonly reversed?: boolean;
   readonly emphasisAnimation?: EmphasisAnimation;
+  /** Zero-based index of the audio track within the source media file to use for this clip.
+   * Undefined or 0 means the primary/first audio track. */
+  readonly audioTrackIndex?: number;
 }
 
 export interface Effect {

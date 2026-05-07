@@ -24,7 +24,10 @@ class SegmentedAudioDecoder {
   private sink: InstanceType<typeof import("mediabunny").AudioBufferSink> | null = null;
   private initialized = false;
 
-  constructor(private readonly file: File | Blob) {}
+  constructor(
+    private readonly file: File | Blob,
+    private readonly audioTrackIndex: number = 0,
+  ) {}
 
   async initialize(): Promise<boolean> {
     if (this.initialized) return true;
@@ -38,11 +41,12 @@ class SegmentedAudioDecoder {
         formats: ALL_FORMATS,
       }) as unknown as MediaBunnyAudioInput;
 
-      let audioTrack = await this.input.getPrimaryAudioTrack();
-      if (!audioTrack) {
-        const audioTracks = await this.input.getAudioTracks();
-        audioTrack = audioTracks[0] ?? null;
-      }
+      const audioTracks = await this.input.getAudioTracks();
+      let audioTrack =
+        audioTracks[this.audioTrackIndex] ??
+        (await this.input.getPrimaryAudioTrack()) ??
+        audioTracks[0] ??
+        null;
 
       if (!audioTrack) {
         this.dispose();
@@ -335,14 +339,19 @@ export class AudioEngine {
       fadeOut: clip.fade?.fadeOut,
       speed: (clip as any).speed || 1,
       reversed: (clip as any).reversed || false,
+      audioTrackIndex: clip.audioTrackIndex,
     };
   }
 
   private async getAudioBuffer(
     mediaItem: MediaItem,
     context: BaseAudioContext,
+    audioTrackIndex: number = 0,
   ): Promise<AudioBuffer | null> {
-    const cached = this.mediaBuffers.get(mediaItem.id);
+    const cacheKey = audioTrackIndex > 0
+      ? `${mediaItem.id}:${audioTrackIndex}`
+      : mediaItem.id;
+    const cached = this.mediaBuffers.get(cacheKey);
     if (cached) return cached;
 
     if (!mediaItem.blob) {
@@ -351,33 +360,38 @@ export class AudioEngine {
     }
 
     try {
-      const arrayBuffer = await mediaItem.blob.arrayBuffer();
-      const audioBuffer = await context.decodeAudioData(arrayBuffer);
-
-      this.mediaBuffers.set(mediaItem.id, audioBuffer);
-      return audioBuffer;
-    } catch (error) {
-      if (mediaItem.type === "video") {
-        try {
-          const audioBuffer = await this.extractAudioFromVideo(
-            mediaItem,
-            context,
-          );
-          if (audioBuffer) {
-            this.mediaBuffers.set(mediaItem.id, audioBuffer);
-            return audioBuffer;
-          }
-        } catch (videoError) {
-          // Video audio extraction failed
-        }
+      if (audioTrackIndex === 0) {
+        const arrayBuffer = await mediaItem.blob.arrayBuffer();
+        const audioBuffer = await context.decodeAudioData(arrayBuffer);
+        this.mediaBuffers.set(cacheKey, audioBuffer);
+        return audioBuffer;
       }
-      return null;
+    } catch {
+      // Fall through to mediabunny extraction
     }
+
+    if (mediaItem.type === "video" || audioTrackIndex > 0) {
+      try {
+        const audioBuffer = await this.extractAudioFromVideo(
+          mediaItem,
+          context,
+          audioTrackIndex,
+        );
+        if (audioBuffer) {
+          this.mediaBuffers.set(cacheKey, audioBuffer);
+          return audioBuffer;
+        }
+      } catch {
+        // Video audio extraction failed
+      }
+    }
+    return null;
   }
 
   private async extractAudioFromVideo(
     mediaItem: MediaItem,
     context: BaseAudioContext,
+    audioTrackIndex: number = 0,
   ): Promise<AudioBuffer | null> {
     if (!mediaItem.blob) return null;
 
@@ -390,18 +404,12 @@ export class AudioEngine {
         formats: ALL_FORMATS,
       });
 
-      let audioTrack = await input.getPrimaryAudioTrack();
-      if (!audioTrack) {
-        const audioTracks = await input.getAudioTracks();
-        if (audioTracks.length > 0) {
-          audioTrack = audioTracks[0];
-        }
-      }
-
-      if (!audioTrack) {
-        input[Symbol.dispose]?.();
-        return null;
-      }
+      const audioTracks = await input.getAudioTracks();
+      let audioTrack =
+        audioTracks[audioTrackIndex] ??
+        (await input.getPrimaryAudioTrack()) ??
+        audioTracks[0] ??
+        null;
 
       const canDecode = await audioTrack.canDecode();
       if (!canDecode) {
@@ -499,7 +507,7 @@ export class AudioEngine {
       }
     }
 
-    const audioBuffer = await this.getAudioBuffer(mediaItem, context);
+    const audioBuffer = await this.getAudioBuffer(mediaItem, context, clipInfo.audioTrackIndex ?? 0);
     if (!audioBuffer) {
       return;
     }
@@ -544,7 +552,7 @@ export class AudioEngine {
     clipInfo: AudioClipRenderInfo,
     renderStartTime: number,
   ): Promise<boolean> {
-    const decoder = await this.getSegmentedAudioDecoder(mediaItem);
+    const decoder = await this.getSegmentedAudioDecoder(mediaItem, clipInfo.audioTrackIndex ?? 0);
     if (!decoder) {
       return false;
     }
@@ -609,23 +617,27 @@ export class AudioEngine {
 
   private async getSegmentedAudioDecoder(
     mediaItem: MediaItem,
+    audioTrackIndex: number = 0,
   ): Promise<SegmentedAudioDecoder | null> {
     if (!mediaItem.blob) {
       return null;
     }
 
-    const cached = this.segmentedAudioDecoders.get(mediaItem.id);
+    const cacheKey = audioTrackIndex > 0
+      ? `${mediaItem.id}:${audioTrackIndex}`
+      : mediaItem.id;
+    const cached = this.segmentedAudioDecoders.get(cacheKey);
     if (cached) {
       return cached;
     }
 
-    const decoder = new SegmentedAudioDecoder(mediaItem.blob);
+    const decoder = new SegmentedAudioDecoder(mediaItem.blob, audioTrackIndex);
     const initialized = await decoder.initialize();
     if (!initialized) {
       return null;
     }
 
-    this.segmentedAudioDecoders.set(mediaItem.id, decoder);
+    this.segmentedAudioDecoders.set(cacheKey, decoder);
     return decoder;
   }
 

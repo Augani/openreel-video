@@ -24,6 +24,8 @@ export interface MediaTrackInfo {
   canDecode: boolean;
   videoBitrate?: number;
   audioBitrate?: number;
+  /** Number of audio tracks in the file (may be > 1 for multi-track video/audio files) */
+  audioTrackCount?: number;
 }
 
 export interface ThumbnailResult {
