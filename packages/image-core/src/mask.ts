@@ -55,13 +55,11 @@ export function createMaskFromSelection(
     ctx.drawImage(tempCanvas, 0, 0);
   }
 
-  return canvas.convertToBlob().then(() => {
+  return canvas.convertToBlob().then((blob) => {
     const reader = new FileReader();
     return new Promise<string>((resolve) => {
-      canvas.convertToBlob().then((blob) => {
-        reader.onload = () => resolve(reader.result as string);
-        reader.readAsDataURL(blob);
-      });
+      reader.onload = () => resolve(reader.result as string);
+      reader.readAsDataURL(blob);
     });
   }) as unknown as string;
 }
@@ -71,13 +69,11 @@ export function createMaskFromImageData(imageData: ImageData): string {
   const ctx = canvas.getContext('2d')!;
   ctx.putImageData(imageData, 0, 0);
 
-  return canvas.convertToBlob().then(() => {
+  return canvas.convertToBlob().then((blob) => {
     return new Promise<string>((resolve) => {
-      canvas.convertToBlob().then((blob) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result as string);
-        reader.readAsDataURL(blob);
-      });
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.readAsDataURL(blob);
     });
   }) as unknown as string;
 }

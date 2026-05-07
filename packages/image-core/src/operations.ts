@@ -78,6 +78,16 @@ function isLayerIdKnown(project: Project, layerId: string): boolean {
   return Object.prototype.hasOwnProperty.call(project.layers, layerId);
 }
 
+function safeAssign<T extends object>(target: T, source: Partial<T>) {
+  for (const [key, value] of Object.entries(source)) {
+    if (key === '__proto__' || key === 'constructor' || key === 'prototype') {
+      continue;
+    }
+
+    Reflect.set(target, key, value);
+  }
+}
+
 export function createProjectDocument({
   id,
   artboardId,
@@ -253,7 +263,7 @@ export function updateLayerTransformInProject(
     return nextProject;
   }
 
-  Object.assign(layer.transform, transform);
+  safeAssign(layer.transform, transform);
   return touchProject(nextProject, timestamp);
 }
 
@@ -269,7 +279,7 @@ export function updateLayerInProject<T extends Layer>(
     return nextProject;
   }
 
-  Object.assign(layer, updates);
+  safeAssign(layer, updates);
   return touchProject(nextProject, timestamp);
 }
 

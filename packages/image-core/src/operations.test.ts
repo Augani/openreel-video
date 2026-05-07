@@ -31,6 +31,7 @@ import {
   removeLayerFromProject,
   reorderArtboardLayers,
   serializeProject,
+  updateLayerInProject,
   validateLayerTree,
 } from './operations';
 
@@ -191,6 +192,28 @@ describe('image-core document operations', () => {
     expect(removed.artboards[0]?.layerIds).toEqual(['layer-1', 'layer-3']);
     expect(removed.layers['layer-2']).toBeUndefined();
     expect(duplicated!.project.layers['layer-2']).toBeDefined();
+  });
+
+  it('ignores prototype-polluting keys during layer updates', () => {
+    const project = createProjectDocument({
+      id: 'project-1',
+      artboardId: 'artboard-1',
+      name: 'Document',
+      size: DEFAULT_SIZE,
+      background: DEFAULT_BG,
+      timestamp: 1,
+    });
+
+    const withLayer = addLayerToProject(project, 'artboard-1', createTextLayer('layer-1'), 0, 2);
+    const updated = updateLayerInProject(
+      withLayer,
+      'layer-1',
+      JSON.parse('{"__proto__":{"polluted":true},"name":"Renamed"}') as never,
+      3,
+    );
+
+    expect(updated.layers['layer-1']?.name).toBe('Renamed');
+    expect(({} as { polluted?: boolean }).polluted).toBeUndefined();
   });
 
   it('reports invalid layer tree invariants', () => {
