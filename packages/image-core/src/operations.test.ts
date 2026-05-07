@@ -29,8 +29,12 @@ import {
   deserializeProject,
   duplicateLayerInProject,
   removeLayerFromProject,
+  renameLayer,
   reorderArtboardLayers,
+  setLayerLocked,
+  setLayerVisible,
   serializeProject,
+  updateLayerTransformInProject,
   updateLayerInProject,
   validateLayerTree,
 } from './operations';
@@ -141,6 +145,19 @@ function createGroupLayer(id: string, childIds: string[]): GroupLayer {
   };
 }
 
+function createProjectWithLayer(layer = createTextLayer('layer-1')) {
+  const project = createProjectDocument({
+    id: 'project-1',
+    artboardId: 'artboard-1',
+    name: 'Document',
+    size: DEFAULT_SIZE,
+    background: DEFAULT_BG,
+    timestamp: 1,
+  });
+
+  return addLayerToProject(project, 'artboard-1', layer, 0, 2);
+}
+
 describe('image-core document operations', () => {
   it('serializes and deserializes a valid project document', () => {
     const project = createProjectDocument({
@@ -192,6 +209,120 @@ describe('image-core document operations', () => {
     expect(removed.artboards[0]?.layerIds).toEqual(['layer-1', 'layer-3']);
     expect(removed.layers['layer-2']).toBeUndefined();
     expect(duplicated!.project.layers['layer-2']).toBeDefined();
+  });
+
+  it('renames a layer without mutating the original project', () => {
+    const project = createProjectWithLayer();
+
+    const renamed = renameLayer(project, 'layer-1', 'Renamed', 3);
+
+    expect(renamed.layers['layer-1']?.name).toBe('Renamed');
+    expect(renamed.updatedAt).toBe(3);
+    expect(project.layers['layer-1']?.name).toBe('Text');
+  });
+
+  it('returns an unchanged project when renaming a missing layer', () => {
+    const project = createProjectWithLayer();
+
+    const renamed = renameLayer(project, 'missing-layer', 'Renamed', 3);
+
+    expect(renamed).toEqual(project);
+    expect(project.layers['layer-1']?.name).toBe('Text');
+  });
+
+  it('updates layer lock state without mutating the original project', () => {
+    const project = createProjectWithLayer();
+
+    const locked = setLayerLocked(project, 'layer-1', true, 3);
+
+    expect(locked.layers['layer-1']?.locked).toBe(true);
+    expect(locked.updatedAt).toBe(3);
+    expect(project.layers['layer-1']?.locked).toBe(false);
+  });
+
+  it('returns an unchanged project when locking a missing layer', () => {
+    const project = createProjectWithLayer();
+
+    const locked = setLayerLocked(project, 'missing-layer', true, 3);
+
+    expect(locked).toEqual(project);
+    expect(project.layers['layer-1']?.locked).toBe(false);
+  });
+
+  it('updates layer visibility without mutating the original project', () => {
+    const project = createProjectWithLayer();
+
+    const hidden = setLayerVisible(project, 'layer-1', false, 3);
+
+    expect(hidden.layers['layer-1']?.visible).toBe(false);
+    expect(hidden.updatedAt).toBe(3);
+    expect(project.layers['layer-1']?.visible).toBe(true);
+  });
+
+  it('returns an unchanged project when updating visibility for a missing layer', () => {
+    const project = createProjectWithLayer();
+
+    const hidden = setLayerVisible(project, 'missing-layer', false, 3);
+
+    expect(hidden).toEqual(project);
+    expect(project.layers['layer-1']?.visible).toBe(true);
+  });
+
+  it('updates layer transforms without mutating the original project', () => {
+    const project = createProjectWithLayer();
+
+    const updated = updateLayerTransformInProject(project, 'layer-1', { x: 120, y: 45 }, 3);
+
+    expect(updated.layers['layer-1']?.transform).toMatchObject({ x: 120, y: 45, width: 200, height: 50 });
+    expect(updated.updatedAt).toBe(3);
+    expect(project.layers['layer-1']?.transform).toMatchObject({ x: 0, y: 0, width: 200, height: 50 });
+  });
+
+  it('returns an unchanged project when updating transforms for a missing layer', () => {
+    const project = createProjectWithLayer();
+
+    const updated = updateLayerTransformInProject(project, 'missing-layer', { x: 120 }, 3);
+
+    expect(updated).toEqual(project);
+    expect(project.layers['layer-1']?.transform.x).toBe(0);
+  });
+
+  it('updates layer properties without mutating the original project', () => {
+    const project = createProjectWithLayer();
+
+    const updated = updateLayerInProject<TextLayer>(
+      project,
+      'layer-1',
+      {
+        name: 'Updated text',
+        visible: false,
+      },
+      3,
+    );
+
+    expect(updated.layers['layer-1']).toMatchObject({
+      name: 'Updated text',
+      visible: false,
+    });
+    expect(updated.updatedAt).toBe(3);
+    expect(project.layers['layer-1']).toMatchObject({
+      name: 'Text',
+      visible: true,
+    });
+  });
+
+  it('returns an unchanged project when updating a missing layer', () => {
+    const project = createProjectWithLayer();
+
+    const updated = updateLayerInProject<TextLayer>(
+      project,
+      'missing-layer',
+      { name: 'Updated text' },
+      3,
+    );
+
+    expect(updated).toEqual(project);
+    expect(project.layers['layer-1']?.name).toBe('Text');
   });
 
   it('ignores prototype-polluting keys during layer updates', () => {
