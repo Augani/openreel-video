@@ -177,6 +177,7 @@ export function LayerPanel() {
               key={type}
               onClick={() => setFilterType(filterType === type ? 'all' : type)}
               onDoubleClick={() => handleSelectAllByType(type)}
+              aria-label={`Filter ${type} layers`}
               className={`p-1.5 rounded transition-colors ${
                 filterType === type ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground hover:bg-accent'
               }`}

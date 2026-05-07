@@ -346,7 +346,7 @@ const EmbeddedProjectReferenceSchema = z.object({
 
 const SmartObjectLayerSchema = BaseLayerSchema.extend({
   type: z.literal('smart-object'),
-  sourceProjectId: z.string().optional(),
+  sourceProjectId: z.string().min(1).optional(),
   embeddedProject: EmbeddedProjectReferenceSchema.optional(),
 }).refine(
   (layer) => layer.sourceProjectId !== undefined || layer.embeddedProject !== undefined,
@@ -411,8 +411,8 @@ const ExportPresetSchema = z.object({
   id: z.string(),
   name: z.string(),
   format: z.enum(['png', 'jpg', 'webp', 'svg', 'pdf']),
-  quality: z.number(),
-  scale: z.number(),
+  quality: z.number().min(0).max(100),
+  scale: z.number().positive(),
   artboardFilter: ExportArtboardFilterSchema,
   backgroundMode: z.enum(['transparent', 'artboard', 'custom']),
   backgroundColor: z.string().optional(),
