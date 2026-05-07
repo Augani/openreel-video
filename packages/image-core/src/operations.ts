@@ -114,6 +114,7 @@ export function createProjectDocument({
     ],
     layers: {},
     assets: {},
+    exportPresets: [],
     activeArtboardId: artboardId,
   };
 }
