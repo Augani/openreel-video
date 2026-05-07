@@ -3905,6 +3905,8 @@ export const Preview: React.FC = () => {
       const canvasRect = canvas.getBoundingClientRect();
 
       const { transform } = clip;
+      // Approximation of the displayed clip size in canvas-coordinate units,
+      // consistent with the value used in shapeClipBounds for the resize overlay.
       const shapeSize = 200;
 
       const canvasWidth = settings.width;
@@ -3952,6 +3954,32 @@ export const Preview: React.FC = () => {
       };
     },
     [settings.width, settings.height],
+  );
+
+  const findGraphicClipAtPoint = useCallback(
+    (clientX: number, clientY: number): ShapeClip | SVGClip | StickerClip | null => {
+      if (!overlayRef.current) return null;
+      const overlayRect = overlayRef.current.getBoundingClientRect();
+      const pointX = clientX - overlayRect.left;
+      const pointY = clientY - overlayRect.top;
+
+      for (let i = activeGraphicClips.length - 1; i >= 0; i--) {
+        const clip = activeGraphicClips[i];
+        const bounds = getGraphicClipDisplayBounds(clip);
+        if (!bounds) continue;
+
+        if (
+          pointX >= bounds.x &&
+          pointX <= bounds.x + bounds.width &&
+          pointY >= bounds.y &&
+          pointY <= bounds.y + bounds.height
+        ) {
+          return clip;
+        }
+      }
+      return null;
+    },
+    [activeGraphicClips, getGraphicClipDisplayBounds],
   );
 
   const selectedSubtitleId = useMemo(() => {
@@ -4226,59 +4254,23 @@ export const Preview: React.FC = () => {
         return;
       }
 
-      if (!overlayRef.current) return;
-      const overlayRect = overlayRef.current.getBoundingClientRect();
-      const mouseX = e.clientX - overlayRect.left;
-      const mouseY = e.clientY - overlayRect.top;
-
-      for (let i = activeGraphicClips.length - 1; i >= 0; i--) {
-        const clip = activeGraphicClips[i];
-        const bounds = getGraphicClipDisplayBounds(clip);
-        if (!bounds) continue;
-
-        if (
-          mouseX >= bounds.x &&
-          mouseX <= bounds.x + bounds.width &&
-          mouseY >= bounds.y &&
-          mouseY <= bounds.y + bounds.height
-        ) {
-          setHoveredGraphicClipId(clip.id);
-          return;
-        }
-      }
-
-      setHoveredGraphicClipId(null);
+      const clip = findGraphicClipAtPoint(e.clientX, e.clientY);
+      setHoveredGraphicClipId(clip ? clip.id : null);
     },
-    [interactionMode, activeGraphicClips, getGraphicClipDisplayBounds],
+    [interactionMode, findGraphicClipAtPoint],
   );
 
   const handleGraphicsClick = useCallback(
     (e: React.MouseEvent) => {
       if (interactionMode !== "none") return;
 
-      if (!overlayRef.current) return;
-      const overlayRect = overlayRef.current.getBoundingClientRect();
-      const clickX = e.clientX - overlayRect.left;
-      const clickY = e.clientY - overlayRect.top;
-
-      for (let i = activeGraphicClips.length - 1; i >= 0; i--) {
-        const clip = activeGraphicClips[i];
-        const bounds = getGraphicClipDisplayBounds(clip);
-        if (!bounds) continue;
-
-        if (
-          clickX >= bounds.x &&
-          clickX <= bounds.x + bounds.width &&
-          clickY >= bounds.y &&
-          clickY <= bounds.y + bounds.height
-        ) {
-          select({ type: "shape-clip", id: clip.id });
-          e.stopPropagation();
-          return;
-        }
+      const clip = findGraphicClipAtPoint(e.clientX, e.clientY);
+      if (clip) {
+        select({ type: "shape-clip", id: clip.id });
+        e.stopPropagation();
       }
     },
-    [interactionMode, activeGraphicClips, getGraphicClipDisplayBounds, select],
+    [interactionMode, findGraphicClipAtPoint, select],
   );
 
   const handleMouseMove = useCallback(
@@ -5182,7 +5174,11 @@ export const Preview: React.FC = () => {
                   }}
                 >
                   <div className="absolute inset-0 border-2 border-dashed border-white/80 rounded-sm" />
-                  <div className="absolute -top-6 left-1/2 -translate-x-1/2 px-2 py-0.5 bg-black/70 rounded text-[10px] text-white whitespace-nowrap">
+                  <div
+                    role="tooltip"
+                    aria-label="Click to select this graphic"
+                    className="absolute -top-6 left-1/2 -translate-x-1/2 px-2 py-0.5 bg-black/70 rounded text-[10px] text-white whitespace-nowrap"
+                  >
                     Click to select
                   </div>
                 </div>
