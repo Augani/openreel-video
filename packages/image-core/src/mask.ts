@@ -29,7 +29,7 @@ export function createMaskFromSelection(
   width: number,
   height: number,
   feather: number = 0
-): string {
+): Promise<string> {
   const canvas = new OffscreenCanvas(width, height);
   const ctx = canvas.getContext('2d')!;
 
@@ -61,10 +61,10 @@ export function createMaskFromSelection(
       reader.onload = () => resolve(reader.result as string);
       reader.readAsDataURL(blob);
     });
-  }) as unknown as string;
+  });
 }
 
-export function createMaskFromImageData(imageData: ImageData): string {
+export function createMaskFromImageData(imageData: ImageData): Promise<string> {
   const canvas = new OffscreenCanvas(imageData.width, imageData.height);
   const ctx = canvas.getContext('2d')!;
   ctx.putImageData(imageData, 0, 0);
@@ -75,7 +75,7 @@ export function createMaskFromImageData(imageData: ImageData): string {
       reader.onload = () => resolve(reader.result as string);
       reader.readAsDataURL(blob);
     });
-  }) as unknown as string;
+  });
 }
 
 export function applyMaskToImageData(
