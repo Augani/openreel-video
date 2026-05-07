@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@imgly/background-removal": "^1.7.0",
+    "@openreel/image-core": "workspace:*",
     "@openreel/ui": "workspace:*",
     "@radix-ui/react-context-menu": "^2.2.16",
     "@radix-ui/react-dialog": "^1.1.15",
