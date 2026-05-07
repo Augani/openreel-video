@@ -12,6 +12,7 @@
     "deploy": "pnpm build && pnpm --filter @openreel/web deploy",
     "deploy:preview": "pnpm build && pnpm --filter @openreel/web deploy:preview",
     "test": "pnpm -r test:run",
+    "test:run": "pnpm -r test:run",
     "test:watch": "pnpm -r test",
     "lint": "pnpm -r lint",
     "typecheck": "pnpm -r typecheck",
