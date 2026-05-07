@@ -822,6 +822,7 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
         if (!copiedStyle || !selectedLayerIds.length || !currentProject) return;
 
         for (const layerId of selectedLayerIds) {
+          // Read from currentProject (updated after each command) to get fresh prevValues.
           const layer = currentProject.layers[layerId];
           if (!layer) continue;
           const styleUpdates: Partial<Layer> = {

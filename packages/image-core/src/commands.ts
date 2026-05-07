@@ -582,9 +582,10 @@ export class GroupLayersCommand implements Command {
     const { childIds } = this.groupLayer;
     childIds.forEach((childId) => {
       if (next.layers[childId]) {
+        const childBefore = this.childLayersBefore[childId];
         next.layers[childId] = {
           ...next.layers[childId],
-          ...(structuredClone(this.childLayersBefore[childId]) ?? {}),
+          ...(childBefore ? structuredClone(childBefore) : {}),
           parentId: this.groupLayer.id,
         };
       }

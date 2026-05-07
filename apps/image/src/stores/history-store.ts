@@ -231,10 +231,10 @@ export const useHistoryStore = create<HistoryState & HistoryActions>()(
         for (let i = 0; i <= index; i++) {
           project = undoStack[i].command.apply(project);
         }
-        // Commands past the target index become the redo stack, with the
-        // next-to-apply command at the end (to be popped first on redo).
-        const futureCommands = undoStack.slice(index + 1).reverse();
-        set({ undoStack: undoStack.slice(0, index + 1), redoStack: futureCommands });
+        // Commands past the target index become the redo stack, reversed so that
+        // the next command to re-apply (index+1) is at the end (popped first on redo).
+        const redoCommands = undoStack.slice(index + 1).reverse();
+        set({ undoStack: undoStack.slice(0, index + 1), redoStack: redoCommands });
         return project;
       } catch {
         return null;
