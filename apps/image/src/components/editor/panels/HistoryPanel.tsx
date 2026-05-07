@@ -18,39 +18,30 @@ import { useProjectStore } from '../../../stores/project-store';
 import { formatDistanceToNow } from '../../../utils/time';
 
 export function HistoryPanel() {
-  const {
-    entries,
-    currentIndex,
-    snapshots,
-    clear,
-    canUndo,
-    canRedo,
-    goToEntry,
-    createSnapshot,
-    restoreSnapshot,
-    deleteSnapshot,
-    renameSnapshot,
-  } = useHistoryStore();
-  const { project, loadProject } = useProjectStore();
-  const undo = useHistoryStore((s) => s.undo);
-  const redo = useHistoryStore((s) => s.redo);
+  const entries = useHistoryStore((s) => s.getEntries());
+  const currentIndex = useHistoryStore((s) => s.getCurrentIndex());
+  const snapshots = useHistoryStore((s) => s.getSnapshots());
+  const clear = useHistoryStore((s) => s.clear);
+  const canUndo = useHistoryStore((s) => s.canUndo);
+  const canRedo = useHistoryStore((s) => s.canRedo);
+  const createSnapshot = useHistoryStore((s) => s.createSnapshot);
+  const restoreSnapshot = useHistoryStore((s) => s.restoreSnapshot);
+  const deleteSnapshot = useHistoryStore((s) => s.deleteSnapshot);
+  const renameSnapshot = useHistoryStore((s) => s.renameSnapshot);
+  const goToEntry = useHistoryStore((s) => s.goToEntry);
+
+  const { project, loadProject, undo, redo } = useProjectStore();
 
   const [showSnapshots, setShowSnapshots] = useState(true);
   const [editingSnapshotId, setEditingSnapshotId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState('');
 
   const handleUndo = () => {
-    const state = undo();
-    if (state) {
-      loadProject(state);
-    }
+    undo();
   };
 
   const handleRedo = () => {
-    const state = redo();
-    if (state) {
-      loadProject(state);
-    }
+    redo();
   };
 
   const handleJumpToState = (index: number) => {
@@ -121,7 +112,7 @@ export function HistoryPanel() {
             <Redo2 size={14} />
           </button>
           <button
-            onClick={clear}
+            onClick={() => clear(project ?? undefined)}
             disabled={entries.length === 0}
             className="p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 disabled:opacity-40 disabled:hover:bg-transparent disabled:cursor-not-allowed transition-colors"
             title="Clear history"
