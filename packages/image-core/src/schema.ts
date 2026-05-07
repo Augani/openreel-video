@@ -211,7 +211,7 @@ const LayerMaskSchema = z.object({
 const BaseLayerSchema = z.object({
   id: z.string(),
   name: z.string(),
-  type: z.enum(['image', 'text', 'shape', 'group']),
+  type: z.enum(['image', 'text', 'shape', 'group', 'smart-object']),
   visible: z.boolean(),
   locked: z.boolean(),
   transform: TransformSchema,
@@ -338,11 +338,29 @@ const GroupLayerSchema = BaseLayerSchema.extend({
   expanded: z.boolean(),
 });
 
+const EmbeddedProjectReferenceSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  version: z.number(),
+});
+
+const SmartObjectLayerSchema = BaseLayerSchema.extend({
+  type: z.literal('smart-object'),
+  sourceProjectId: z.string().min(1).optional(),
+  embeddedProject: EmbeddedProjectReferenceSchema.optional(),
+}).refine(
+  (layer) => layer.sourceProjectId !== undefined || layer.embeddedProject !== undefined,
+  {
+    message: 'Smart object layer must define sourceProjectId or embeddedProject.',
+  },
+);
+
 export const LayerSchema = z.discriminatedUnion('type', [
   ImageLayerSchema,
   TextLayerSchema,
   ShapeLayerSchema,
   GroupLayerSchema,
+  SmartObjectLayerSchema,
 ]);
 
 // ── Project types ─────────────────────────────────────────────────────────────
@@ -384,6 +402,22 @@ const MediaAssetSchema = z.object({
   blobUrl: z.string().optional(),
 });
 
+const ExportArtboardFilterSchema = z.object({
+  mode: z.enum(['all', 'include']),
+  artboardIds: z.array(z.string()),
+});
+
+const ExportPresetSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  format: z.enum(['png', 'jpg', 'webp', 'svg', 'pdf']),
+  quality: z.number().min(0).max(100),
+  scale: z.number().positive(),
+  artboardFilter: ExportArtboardFilterSchema,
+  backgroundMode: z.enum(['transparent', 'artboard', 'custom']),
+  backgroundColor: z.string().optional(),
+});
+
 /** Current project schema (version 1). */
 export const ProjectSchema = z.object({
   id: z.string(),
@@ -394,6 +428,7 @@ export const ProjectSchema = z.object({
   artboards: z.array(ArtboardSchema),
   layers: z.record(z.string(), LayerSchema),
   assets: z.record(z.string(), MediaAssetSchema),
+  exportPresets: z.array(ExportPresetSchema).default([]),
   activeArtboardId: z.string().nullable(),
 });
 

@@ -12,7 +12,7 @@ import type {
   ThresholdAdjustment,
 } from './adjustments';
 
-export type LayerType = 'image' | 'text' | 'shape' | 'group';
+export type LayerType = 'image' | 'text' | 'shape' | 'group' | 'smart-object';
 
 export interface Transform {
   x: number;
@@ -218,7 +218,19 @@ export interface GroupLayer extends BaseLayer {
   expanded: boolean;
 }
 
-export type Layer = ImageLayer | TextLayer | ShapeLayer | GroupLayer;
+export interface EmbeddedProjectReference {
+  id: string;
+  name: string;
+  version: number;
+}
+
+export interface SmartObjectLayer extends BaseLayer {
+  type: 'smart-object';
+  sourceProjectId?: string;
+  embeddedProject?: EmbeddedProjectReference;
+}
+
+export type Layer = ImageLayer | TextLayer | ShapeLayer | GroupLayer | SmartObjectLayer;
 
 export interface CanvasSize {
   width: number;
@@ -258,6 +270,26 @@ export interface MediaAsset {
   blobUrl?: string;
 }
 
+export type ExportFormat = 'png' | 'jpg' | 'webp' | 'svg' | 'pdf';
+
+export type ExportBackgroundMode = 'transparent' | 'artboard' | 'custom';
+
+export interface ExportArtboardFilter {
+  mode: 'all' | 'include';
+  artboardIds: string[];
+}
+
+export interface ExportPreset {
+  id: string;
+  name: string;
+  format: ExportFormat;
+  quality: number;
+  scale: number;
+  artboardFilter: ExportArtboardFilter;
+  backgroundMode: ExportBackgroundMode;
+  backgroundColor?: string;
+}
+
 export interface Project {
   id: string;
   name: string;
@@ -267,6 +299,7 @@ export interface Project {
   artboards: Artboard[];
   layers: Record<string, Layer>;
   assets: Record<string, MediaAsset>;
+  exportPresets: ExportPreset[];
   activeArtboardId: string | null;
 }
 
