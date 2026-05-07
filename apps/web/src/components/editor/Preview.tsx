@@ -378,6 +378,7 @@ export const Preview: React.FC = () => {
   const exportState = useUIStore((state) => state.exportState);
   const motionPathMode = useUIStore((state) => state.motionPathMode);
   const motionPathClipId = useUIStore((state) => state.motionPathClipId);
+  const select = useUIStore((state) => state.select);
 
   const {
     playheadPosition,
@@ -3829,6 +3830,13 @@ export const Preview: React.FC = () => {
 
   const activeShapeClip = selectedShapeClip;
 
+  const [hoveredGraphicClipId, setHoveredGraphicClipId] = useState<string | null>(null);
+
+  const activeGraphicClips = useMemo(() => {
+    // getActiveShapeClips returns all graphic clip types (shapes, SVGs, and stickers)
+    return getActiveShapeClips(allShapeClips, playheadPosition);
+  }, [allShapeClips, playheadPosition]);
+
   const shapeClipBounds = useMemo(() => {
     if (!selectedShapeClip || !canvasRef.current || !overlayRef.current)
       return null;
@@ -3887,6 +3895,93 @@ export const Preview: React.FC = () => {
       isShapeClip: true,
     };
   }, [selectedShapeClip, settings.width, settings.height, canvasSize]);
+
+  const getGraphicClipDisplayBounds = useCallback(
+    (clip: ShapeClip | SVGClip | StickerClip) => {
+      if (!canvasRef.current || !overlayRef.current) return null;
+
+      const canvas = canvasRef.current;
+      const overlay = overlayRef.current;
+      const overlayRect = overlay.getBoundingClientRect();
+      const canvasRect = canvas.getBoundingClientRect();
+
+      const { transform } = clip;
+      // Approximation of the displayed clip size in canvas-coordinate units,
+      // consistent with the value used in shapeClipBounds for the resize overlay.
+      const shapeSize = 200;
+
+      const canvasWidth = settings.width;
+      const canvasHeight = settings.height;
+
+      const canvasAspect = canvasWidth / canvasHeight;
+      const elementAspect = canvasRect.width / canvasRect.height;
+
+      let actualWidth: number;
+      let actualHeight: number;
+      let letterboxOffsetX = 0;
+      let letterboxOffsetY = 0;
+
+      if (elementAspect > canvasAspect) {
+        actualHeight = canvasRect.height;
+        actualWidth = actualHeight * canvasAspect;
+        letterboxOffsetX = (canvasRect.width - actualWidth) / 2;
+      } else {
+        actualWidth = canvasRect.width;
+        actualHeight = actualWidth / canvasAspect;
+        letterboxOffsetY = (canvasRect.height - actualHeight) / 2;
+      }
+
+      const displayScale = actualWidth / canvasWidth;
+
+      const shapeWidth = shapeSize * transform.scale.x * displayScale;
+      const shapeHeight = shapeSize * transform.scale.y * displayScale;
+
+      const posX = transform.position.x * canvasWidth * displayScale;
+      const posY = transform.position.y * canvasHeight * displayScale;
+
+      const canvasOffsetX = canvasRect.left - overlayRect.left + letterboxOffsetX;
+      const canvasOffsetY = canvasRect.top - overlayRect.top + letterboxOffsetY;
+
+      const centerX = canvasOffsetX + posX;
+      const centerY = canvasOffsetY + posY;
+
+      return {
+        x: centerX - shapeWidth / 2,
+        y: centerY - shapeHeight / 2,
+        width: shapeWidth,
+        height: shapeHeight,
+        centerX,
+        centerY,
+      };
+    },
+    [settings.width, settings.height],
+  );
+
+  const findGraphicClipAtPoint = useCallback(
+    (clientX: number, clientY: number): ShapeClip | SVGClip | StickerClip | null => {
+      if (!overlayRef.current) return null;
+      const overlayRect = overlayRef.current.getBoundingClientRect();
+      const pointX = clientX - overlayRect.left;
+      const pointY = clientY - overlayRect.top;
+
+      for (let i = activeGraphicClips.length - 1; i >= 0; i--) {
+        const clip = activeGraphicClips[i];
+        const bounds = getGraphicClipDisplayBounds(clip);
+        if (!bounds) continue;
+
+        if (
+          pointX >= bounds.x &&
+          pointX <= bounds.x + bounds.width &&
+          pointY >= bounds.y &&
+          pointY <= bounds.y + bounds.height
+        ) {
+          return clip;
+        }
+      }
+      return null;
+    },
+    [activeGraphicClips, getGraphicClipDisplayBounds],
+  );
 
   const selectedSubtitleId = useMemo(() => {
     const subtitleSelection = selectedItems.find(
@@ -4151,6 +4246,32 @@ export const Preview: React.FC = () => {
       };
     },
     [activeShapeClip],
+  );
+
+  const handleGraphicsMouseMove = useCallback(
+    (e: React.MouseEvent) => {
+      if (interactionMode !== "none") {
+        setHoveredGraphicClipId(null);
+        return;
+      }
+
+      const clip = findGraphicClipAtPoint(e.clientX, e.clientY);
+      setHoveredGraphicClipId(clip ? clip.id : null);
+    },
+    [interactionMode, findGraphicClipAtPoint],
+  );
+
+  const handleGraphicsClick = useCallback(
+    (e: React.MouseEvent) => {
+      if (interactionMode !== "none") return;
+
+      const clip = findGraphicClipAtPoint(e.clientX, e.clientY);
+      if (clip) {
+        select({ type: "shape-clip", id: clip.id });
+        e.stopPropagation();
+      }
+    },
+    [interactionMode, findGraphicClipAtPoint, select],
   );
 
   const handleMouseMove = useCallback(
@@ -4698,6 +4819,9 @@ export const Preview: React.FC = () => {
                   maxWidth: `${800 * zoomLevel}px`,
                 }
           }
+          onMouseMove={!isPlaying ? handleGraphicsMouseMove : undefined}
+          onClick={!isPlaying ? handleGraphicsClick : undefined}
+          onMouseLeave={() => setHoveredGraphicClipId(null)}
         >
           <canvas
             ref={canvasRef}
@@ -4705,7 +4829,7 @@ export const Preview: React.FC = () => {
             height={settings.height}
             className="w-full h-full object-contain bg-black"
             style={{
-              cursor: "default",
+              cursor: hoveredGraphicClipId && !isPlaying ? "pointer" : "default",
             }}
           />
 
@@ -5031,6 +5155,35 @@ export const Preview: React.FC = () => {
               </div>
             </div>
           )}
+
+          {/* Graphic Clip Hover Indicators */}
+          {!cropMode && !isPlaying &&
+            activeGraphicClips.map((clip) => {
+              if (clip.id === selectedShapeClipId) return null;
+              if (clip.id !== hoveredGraphicClipId) return null;
+              const bounds = getGraphicClipDisplayBounds(clip);
+              if (!bounds) return null;
+              return (
+                <div
+                  key={clip.id}
+                  className="absolute pointer-events-none z-10"
+                  style={{
+                    left: bounds.x,
+                    top: bounds.y,
+                    width: bounds.width,
+                    height: bounds.height,
+                  }}
+                >
+                  <div className="absolute inset-0 border-2 border-dashed border-white/80 rounded-sm" />
+                  <div
+                    aria-hidden="true"
+                    className="absolute -top-6 left-1/2 -translate-x-1/2 px-2 py-0.5 bg-black/70 rounded text-[10px] text-white whitespace-nowrap"
+                  >
+                    Click to select
+                  </div>
+                </div>
+              );
+            })}
         </div>
       </div>
 
