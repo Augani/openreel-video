@@ -1,10 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { useHistoryStore } from './history-store';
 import { useProjectStore } from './project-store';
-import {
-  AddLayerCommand,
-  UpdateLayerTransformCommand,
-} from '@openreel/image-core/commands';
 
 const DEFAULT_SIZE = { width: 1080, height: 1080 };
 
@@ -34,64 +30,21 @@ function getProject() {
   return useProjectStore.getState().project!;
 }
 
-function getArtboardId() {
-  return useProjectStore.getState().selectedArtboardId!;
-}
-
 describe('history-store (command-based)', () => {
   beforeEach(resetStores);
 
   // ── execute / canUndo / canRedo ──────────────────────────────────────────
 
   describe('execute', () => {
-    it('executes a command and records it', () => {
+    it('executes a command and records it in the undo stack', () => {
       createProject();
-      const project = getProject();
-      const artboardId = getArtboardId();
-
-      const layer = {
-        id: 'l-1',
-        name: 'T',
-        type: 'text' as const,
-        visible: true,
-        locked: false,
-        transform: { x: 0, y: 0, width: 100, height: 50, rotation: 0, scaleX: 1, scaleY: 1, skewX: 0, skewY: 0, opacity: 1 },
-        blendMode: { mode: 'normal' as const },
-        shadow: { enabled: false, color: '#000', blur: 10, offsetX: 0, offsetY: 4 },
-        innerShadow: { enabled: false, color: '#000', blur: 10, offsetX: 0, offsetY: 4 },
-        stroke: { enabled: false, color: '#000', width: 1, style: 'solid' as const },
-        glow: { enabled: false, color: '#fff', blur: 20, intensity: 1 },
-        filters: { brightness: 0, contrast: 0, saturation: 0, hue: 0, exposure: 0, vibrance: 0, highlights: 0, shadows: 0, clarity: 0, blur: 0, blurType: 'gaussian' as const, blurAngle: 0, sharpen: 0, vignette: 0, grain: 0, sepia: 0, invert: 0 },
-        parentId: null,
-        flipHorizontal: false,
-        flipVertical: false,
-        mask: null,
-        clippingMask: false,
-        levels: { enabled: false, inputBlack: 0, inputWhite: 255, gamma: 1, outputBlack: 0, outputWhite: 255 },
-        curves: { enabled: false, points: [] },
-        colorBalance: { enabled: false, shadows: [0,0,0] as [number,number,number], midtones: [0,0,0] as [number,number,number], highlights: [0,0,0] as [number,number,number], preserveLuminosity: true },
-        selectiveColor: { enabled: false, colors: {} },
-        blackWhite: { enabled: false, reds: 40, yellows: 60, greens: 40, cyans: 60, blues: 20, magentas: 80, tintEnabled: false, tintColor: '#e0c9a0' },
-        photoFilter: { enabled: false, color: '#f0a000', density: 25, luminosity: true },
-        channelMixer: { enabled: false, red: [100,0,0,0] as [number,number,number,number], green: [0,100,0,0] as [number,number,number,number], blue: [0,0,100,0] as [number,number,number,number], monochrome: false },
-        gradientMap: { enabled: false, stops: [] },
-        posterize: { enabled: false, levels: 4 },
-        threshold: { enabled: false, level: 128 },
-        content: 'T',
-        style: { fontFamily: 'Inter', fontSize: 16, fontWeight: 400, fontStyle: 'normal' as const, textDecoration: 'none' as const, textAlign: 'left' as const, verticalAlign: 'top' as const, lineHeight: 1.4, letterSpacing: 0, fillType: 'solid' as const, color: '#000000', gradient: null, strokeColor: null, strokeWidth: 0, backgroundColor: null, backgroundPadding: 4, backgroundRadius: 2, textShadow: { enabled: false, color: 'rgba(0,0,0,0.5)', blur: 4, offsetX: 2, offsetY: 2 } },
-        autoSize: true,
-      };
-      const cmd = new AddLayerCommand(artboardId, layer, 0);
-      useHistoryStore.getState().execute(cmd, project);
-
+      useProjectStore.getState().addTextLayer('Hello');
       expect(useHistoryStore.getState().undoStack).toHaveLength(1);
       expect(useHistoryStore.getState().redoStack).toHaveLength(0);
     });
 
     it('clears the redo stack on new command', () => {
       createProject();
-      const project = getProject();
-      const artboardId = getArtboardId();
 
       // Create a simple command, execute, undo, then execute another → redo should clear.
       useProjectStore.getState().addTextLayer('A');
@@ -350,8 +303,8 @@ describe('history-store (command-based)', () => {
   describe('multiple undo/redo', () => {
     it('can undo and redo multiple steps in sequence', () => {
       createProject();
-      const id1 = useProjectStore.getState().addTextLayer('First');
-      const id2 = useProjectStore.getState().addTextLayer('Second');
+      useProjectStore.getState().addTextLayer('First');
+      useProjectStore.getState().addTextLayer('Second');
 
       // Undo twice
       useProjectStore.getState().undo();

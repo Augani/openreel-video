@@ -1,4 +1,4 @@
-import type { Artboard, Layer, Project, TextStyle, Transform } from './project';
+import type { Artboard, GroupLayer, Layer, Project, TextStyle, Transform } from './project';
 import type { LayerMask } from './mask';
 import {
   addLayerToProject,
@@ -565,7 +565,7 @@ export class GroupLayersCommand implements Command {
 
   constructor(
     private readonly artboardId: string,
-    private readonly groupLayer: Layer,
+    private readonly groupLayer: GroupLayer,
     private readonly groupInsertIndex: number,
     private readonly prevArtboardLayerIds: string[],
     private readonly childLayersBefore: Record<string, Layer>,
@@ -579,12 +579,12 @@ export class GroupLayersCommand implements Command {
     const next = cloneProject(project);
     const artboard = next.artboards.find((a) => a.id === this.artboardId);
     if (!artboard) return next;
-    const childIds = (this.groupLayer as import('./project').GroupLayer).childIds;
+    const { childIds } = this.groupLayer;
     childIds.forEach((childId) => {
       if (next.layers[childId]) {
         next.layers[childId] = {
           ...next.layers[childId],
-          ...structuredClone(this.childLayersBefore[childId]) ?? {},
+          ...(structuredClone(this.childLayersBefore[childId]) ?? {}),
           parentId: this.groupLayer.id,
         };
       }
@@ -613,7 +613,7 @@ export class UngroupLayersCommand implements Command {
   constructor(
     private readonly artboardId: string,
     private readonly groupId: string,
-    private readonly groupLayer: Layer,
+    private readonly groupLayer: GroupLayer,
     private readonly prevArtboardLayerIds: string[],
     private readonly childLayersBefore: Record<string, Layer>,
   ) {}
@@ -626,7 +626,7 @@ export class UngroupLayersCommand implements Command {
     const next = cloneProject(project);
     const artboard = next.artboards.find((a) => a.id === this.artboardId);
     if (!artboard) return next;
-    const group = next.layers[this.groupId] as import('./project').GroupLayer;
+    const group = next.layers[this.groupId] as GroupLayer;
     if (!group || group.type !== 'group') return next;
     const groupIndex = artboard.layerIds.indexOf(this.groupId);
     const { x: groupX, y: groupY } = group.transform;
@@ -645,7 +645,7 @@ export class UngroupLayersCommand implements Command {
   }
 
   invert(): Command {
-    const childIds = (this.groupLayer as import('./project').GroupLayer).childIds;
+    const { childIds } = this.groupLayer;
     return new GroupLayersCommand(
       this.artboardId,
       structuredClone(this.groupLayer),

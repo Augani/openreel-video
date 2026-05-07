@@ -121,10 +121,11 @@ export const useHistoryStore = create<HistoryState & HistoryActions>()(
       const base = baseProject ?? JSON.stringify(currentProject);
 
       // Attempt to coalesce with the most recent command via Command.merge.
-      if (undoStack.length > 0 && typeof cmd.merge === 'function') {
+      // Merge is called on the LAST (older) command with the NEW command as argument.
+      if (undoStack.length > 0) {
         const last = undoStack[undoStack.length - 1];
-        const merged = cmd.merge.call(last.command, cmd);
-        if (merged !== null && merged !== undefined) {
+        const merged = last.command.merge?.(cmd) ?? null;
+        if (merged !== null) {
           const newProject = cmd.apply(currentProject);
           const updatedStack = [
             ...undoStack.slice(0, -1),
@@ -230,7 +231,10 @@ export const useHistoryStore = create<HistoryState & HistoryActions>()(
         for (let i = 0; i <= index; i++) {
           project = undoStack[i].command.apply(project);
         }
-        set({ undoStack: undoStack.slice(0, index + 1), redoStack: undoStack.slice(index + 1) });
+        // Commands past the target index become the redo stack, with the
+        // next-to-apply command at the end (to be popped first on redo).
+        const futureCommands = undoStack.slice(index + 1).reverse();
+        set({ undoStack: undoStack.slice(0, index + 1), redoStack: futureCommands });
         return project;
       } catch {
         return null;

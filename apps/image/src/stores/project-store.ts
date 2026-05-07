@@ -200,36 +200,28 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
       undo: () => {
         const { project } = get();
         if (!project) return;
-        const histStore = useHistoryStore.getState();
-        const newProject = histStore.undo(project);
+        const newProject = useHistoryStore.getState().undo(project);
         if (newProject) {
-          const parsed = deserializeProject(newProject as unknown as Record<string, unknown>);
-          if (parsed.success) {
-            set({
-              project: parsed.data,
-              selectedLayerIds: [],
-              selectedArtboardId: parsed.data.activeArtboardId,
-              isDirty: false,
-            });
-          }
+          set({
+            project: newProject,
+            selectedLayerIds: [],
+            selectedArtboardId: newProject.activeArtboardId,
+            isDirty: true,
+          });
         }
       },
 
       redo: () => {
         const { project } = get();
         if (!project) return;
-        const histStore = useHistoryStore.getState();
-        const newProject = histStore.redo(project);
+        const newProject = useHistoryStore.getState().redo(project);
         if (newProject) {
-          const parsed = deserializeProject(newProject as unknown as Record<string, unknown>);
-          if (parsed.success) {
-            set({
-              project: parsed.data,
-              selectedLayerIds: [],
-              selectedArtboardId: parsed.data.activeArtboardId,
-              isDirty: false,
-            });
-          }
+          set({
+            project: newProject,
+            selectedLayerIds: [],
+            selectedArtboardId: newProject.activeArtboardId,
+            isDirty: true,
+          });
         }
       },
 
@@ -825,18 +817,20 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
       },
 
       pasteLayerStyle: () => {
-        const { copiedStyle, selectedLayerIds, project } = get();
-        if (!copiedStyle || !selectedLayerIds.length || !project) return;
-        selectedLayerIds.forEach((layerId) => {
-          const layer = project?.layers[layerId];
-          if (!layer) return;
+        const { copiedStyle, selectedLayerIds } = get();
+        let currentProject = get().project;
+        if (!copiedStyle || !selectedLayerIds.length || !currentProject) return;
+
+        for (const layerId of selectedLayerIds) {
+          const layer = currentProject.layers[layerId];
+          if (!layer) continue;
           const styleUpdates: Partial<Layer> = {
-            blendMode: copiedStyle.blendMode ? JSON.parse(JSON.stringify(copiedStyle.blendMode)) : DEFAULT_BLEND_MODE,
-            shadow: copiedStyle.shadow ? JSON.parse(JSON.stringify(copiedStyle.shadow)) : DEFAULT_SHADOW,
-            innerShadow: copiedStyle.innerShadow ? JSON.parse(JSON.stringify(copiedStyle.innerShadow)) : DEFAULT_INNER_SHADOW,
-            stroke: copiedStyle.stroke ? JSON.parse(JSON.stringify(copiedStyle.stroke)) : DEFAULT_STROKE,
-            glow: copiedStyle.glow ? JSON.parse(JSON.stringify(copiedStyle.glow)) : DEFAULT_GLOW,
-            filters: copiedStyle.filters ? JSON.parse(JSON.stringify(copiedStyle.filters)) : DEFAULT_FILTER,
+            blendMode: structuredClone(copiedStyle.blendMode ?? DEFAULT_BLEND_MODE),
+            shadow: structuredClone(copiedStyle.shadow ?? DEFAULT_SHADOW),
+            innerShadow: structuredClone(copiedStyle.innerShadow ?? DEFAULT_INNER_SHADOW),
+            stroke: structuredClone(copiedStyle.stroke ?? DEFAULT_STROKE),
+            glow: structuredClone(copiedStyle.glow ?? DEFAULT_GLOW),
+            filters: structuredClone(copiedStyle.filters ?? DEFAULT_FILTER),
           };
           const prevValues: Partial<Layer> = {
             blendMode: layer.blendMode,
@@ -846,12 +840,10 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
             glow: layer.glow,
             filters: layer.filters,
           };
-          const latestProject = useProjectStore.getState().project;
-          if (!latestProject) return;
           const cmd = new UpdateLayerStyleCommand(layerId, styleUpdates, prevValues, 'Paste layer style');
-          const newProject = execCmd(latestProject, cmd);
-          useProjectStore.setState({ project: newProject, isDirty: true });
-        });
+          currentProject = execCmd(currentProject, cmd);
+        }
+        set({ project: currentProject, isDirty: true });
       },
 
       // ── Group / ungroup ──────────────────────────────────────────────────
