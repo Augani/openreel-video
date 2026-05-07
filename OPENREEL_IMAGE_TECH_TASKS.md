@@ -23,29 +23,29 @@ Tech:
 - Zod or Valibot for project validation
 - Playwright for browser smoke tests
 
-## 1. Extract Image Core
+## 1. Extract Image Core ✓
 
-- [ ] Create `packages/image-core`.
-- [ ] Move shared image document types out of `apps/image/src/types`.
-- [ ] Move pure layer operations out of Zustand stores.
-- [ ] Define a stable document model:
-  - [ ] Document
-  - [ ] Artboard/page
-  - [ ] Layer tree
-  - [ ] Group layer
-  - [ ] Image layer
-  - [ ] Text layer
-  - [ ] Shape/vector layer
-  - [ ] Adjustment layer
-  - [ ] Mask
-  - [ ] Smart object
-  - [ ] Asset reference
-  - [ ] Effects stack
-  - [ ] Selection state
-  - [ ] Export preset
-- [ ] Add pure functions for add, remove, duplicate, group, ungroup, reorder, rename, lock, hide, transform, and style updates.
-- [ ] Add invariant checks for invalid layer trees.
-- [ ] Add serialization and deserialization tests.
+- [x] Create `packages/image-core`.
+- [x] Move shared image document types out of `apps/image/src/types`.
+- [x] Move pure layer operations out of Zustand stores.
+- [x] Define a stable document model:
+  - [x] Document
+  - [x] Artboard/page
+  - [x] Layer tree
+  - [x] Group layer
+  - [x] Image layer
+  - [x] Text layer
+  - [x] Shape/vector layer
+  - [x] Adjustment layer
+  - [x] Mask
+  - [x] Smart object
+  - [x] Asset reference
+  - [x] Effects stack
+  - [x] Selection state
+  - [x] Export preset
+- [x] Add pure functions for add, remove, duplicate, group, ungroup, reorder, rename, lock, hide, transform, and style updates.
+- [x] Add invariant checks for invalid layer trees.
+- [x] Add serialization and deserialization tests.
 
 Tech:
 
@@ -492,8 +492,8 @@ Tech:
 
 ## Suggested Build Order
 
-- [ ] Stabilize tests and project schema.
-- [ ] Extract `packages/image-core`.
+- [x] Stabilize tests and project schema.
+- [x] Extract `packages/image-core`.
 - [ ] Implement command-based undo/redo.
 - [ ] Move storage to IndexedDB/OPFS.
 - [ ] Extract renderer from React canvas.
