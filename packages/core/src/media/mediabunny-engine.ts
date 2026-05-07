@@ -61,6 +61,7 @@ type MediaBunnyInput = {
   getMimeType(): Promise<string>;
   getPrimaryVideoTrack(): Promise<InputVideoTrack | null>;
   getPrimaryAudioTrack(): Promise<InputAudioTrack | null>;
+  getAudioTracks(): Promise<InputAudioTrack[]>;
   getFormat(): Promise<unknown>;
   [Symbol.dispose]?: () => void;
 };
@@ -372,12 +373,20 @@ export class MediaBunnyEngine {
       let channels = 0;
       let audioCodec = "";
       let canDecodeAudio = false;
+      let audioTrackCount = 0;
 
       if (audioTrack) {
         sampleRate = audioTrack.sampleRate;
         channels = audioTrack.numberOfChannels;
         audioCodec = audioTrack.codec || "";
         canDecodeAudio = await audioTrack.canDecode();
+      }
+
+      try {
+        const allAudioTracks = await input.getAudioTracks();
+        audioTrackCount = allAudioTracks.length;
+      } catch {
+        audioTrackCount = audioTrack ? 1 : 0;
       }
 
       return {
@@ -395,6 +404,7 @@ export class MediaBunnyEngine {
         rotation,
         canDecode: canDecodeVideo || canDecodeAudio,
         videoBitrate,
+        audioTrackCount,
       };
     } finally {
       input[Symbol.dispose]?.();

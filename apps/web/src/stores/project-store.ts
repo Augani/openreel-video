@@ -1274,7 +1274,7 @@ export const useProjectStore = create<ProjectState>()(
       },
 
       separateAudio: async (clipId: string) => {
-        const { project, actionExecutor, addTrack } = get();
+        const { project, actionExecutor } = get();
 
         const videoClip = project.timeline.tracks
           .flatMap((t) => t.clips)
@@ -1306,9 +1306,29 @@ export const useProjectStore = create<ProjectState>()(
           };
         }
 
-        let audioTrack = project.timeline.tracks.find((t) => t.type === "audio");
-        if (!audioTrack) {
-          const trackResult = await addTrack("audio");
+        // Determine how many audio tracks to separate
+        const audioTrackCount = mediaItem.metadata.audioTrackCount ?? 1;
+
+        // Apply all track/add and clip/add actions on a single project copy to
+        // avoid race conditions from multiple store updates.
+        const projectCopy = structuredClone(project);
+
+        // Add new audio timeline tracks as needed (reuse existing ones)
+        const existingAudioCount = projectCopy.timeline.tracks.filter(
+          (t) => t.type === "audio",
+        ).length;
+
+        const newTrackIds: string[] = [];
+        for (let i = existingAudioCount; i < audioTrackCount; i++) {
+          const newTrackId = uuidv4();
+          newTrackIds.push(newTrackId);
+          const trackAction: Action = {
+            type: "track/add",
+            id: uuidv4(),
+            timestamp: Date.now(),
+            params: { trackType: "audio", trackId: newTrackId },
+          };
+          const trackResult = await actionExecutor.execute(trackAction, projectCopy);
           if (!trackResult.success) {
             return {
               success: false,
@@ -1318,13 +1338,14 @@ export const useProjectStore = create<ProjectState>()(
               },
             };
           }
-          const { project: updatedProject } = get();
-          audioTrack = updatedProject.timeline.tracks.find(
-            (t) => t.type === "audio",
-          );
         }
 
-        if (!audioTrack) {
+        // Capture audio track IDs from the (now-updated) projectCopy
+        const audioTimelineTracks = projectCopy.timeline.tracks.filter(
+          (t) => t.type === "audio",
+        );
+
+        if (audioTimelineTracks.length === 0) {
           return {
             success: false,
             error: {
@@ -1334,21 +1355,35 @@ export const useProjectStore = create<ProjectState>()(
           };
         }
 
-        const projectCopy = structuredClone(get().project);
-        const action: Action = {
-          type: "clip/add",
-          id: uuidv4(),
-          timestamp: Date.now(),
-          params: {
-            trackId: audioTrack.id,
-            mediaId: videoClip.mediaId,
-            startTime: videoClip.startTime,
-          },
+        // Add one clip per audio track in the source file
+        let lastResult: ActionResult = {
+          success: true,
         };
 
-        const result = await actionExecutor.execute(action, projectCopy);
+        for (let trackIdx = 0; trackIdx < audioTrackCount; trackIdx++) {
+          const targetTrack = audioTimelineTracks[trackIdx];
+          if (!targetTrack) break;
 
-        if (result.success) {
+          const action: Action = {
+            type: "clip/add",
+            id: uuidv4(),
+            timestamp: Date.now(),
+            params: {
+              trackId: targetTrack.id,
+              mediaId: videoClip.mediaId,
+              startTime: videoClip.startTime,
+              audioTrackIndex: trackIdx,
+            },
+          };
+
+          lastResult = await actionExecutor.execute(action, projectCopy);
+
+          if (!lastResult.success) {
+            break;
+          }
+        }
+
+        if (lastResult.success) {
           const finalProject: Project = {
             ...projectCopy,
             modifiedAt: Date.now(),
@@ -1356,7 +1391,7 @@ export const useProjectStore = create<ProjectState>()(
           set({ project: finalProject });
         }
 
-        return result;
+        return lastResult;
       },
 
       removeClip: async (clipId: string) => {

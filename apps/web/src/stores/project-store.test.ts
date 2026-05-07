@@ -609,6 +609,132 @@ describe("ProjectStore", () => {
       expect(useProjectStore.getState().clipboard.length).toBe(1);
     });
   });
+
+  describe("separateAudio", () => {
+    const createProjectWithVideoClip = (audioTrackCount?: number): Project => {
+      const mediaItem: MediaItem = {
+        id: "video-media-1",
+        name: "multi-audio.mp4",
+        type: "video",
+        fileHandle: null,
+        blob: null,
+        metadata: {
+          duration: 10,
+          width: 1920,
+          height: 1080,
+          frameRate: 30,
+          codec: "h264",
+          sampleRate: 48000,
+          channels: 2,
+          fileSize: 1000000,
+          audioTrackCount,
+        },
+        thumbnailUrl: null,
+        waveformData: null,
+      };
+
+      const videoClip: Clip = {
+        id: "video-clip-1",
+        mediaId: "video-media-1",
+        trackId: "video-track-1",
+        startTime: 0,
+        duration: 10,
+        inPoint: 0,
+        outPoint: 10,
+        effects: [],
+        audioEffects: [],
+        transform: {
+          position: { x: 0.5, y: 0.5 },
+          scale: { x: 1, y: 1 },
+          rotation: 0,
+          anchor: { x: 0.5, y: 0.5 },
+          opacity: 1,
+        },
+        volume: 1,
+        keyframes: [],
+      };
+
+      return {
+        id: "test-project",
+        name: "Test",
+        createdAt: Date.now(),
+        modifiedAt: Date.now(),
+        settings: {
+          width: 1920,
+          height: 1080,
+          frameRate: 30,
+          sampleRate: 48000,
+          channels: 2,
+        },
+        mediaLibrary: { items: [mediaItem] },
+        timeline: {
+          tracks: [
+            {
+              id: "video-track-1",
+              type: "video",
+              name: "Video",
+              clips: [videoClip],
+              transitions: [],
+              locked: false,
+              hidden: false,
+              muted: false,
+              solo: false,
+            },
+          ],
+          subtitles: [],
+          duration: 10,
+          markers: [],
+        },
+      };
+    };
+
+    it("should create one audio clip when media has a single audio track", async () => {
+      useProjectStore.getState().loadProject(createProjectWithVideoClip(1));
+      const result = await useProjectStore.getState().separateAudio("video-clip-1");
+
+      expect(result.success).toBe(true);
+      const { project } = useProjectStore.getState();
+      const audioTracks = project.timeline.tracks.filter((t) => t.type === "audio");
+      expect(audioTracks.length).toBe(1);
+      expect(audioTracks[0].clips.length).toBe(1);
+      expect(audioTracks[0].clips[0].mediaId).toBe("video-media-1");
+    });
+
+    it("should create multiple audio clips when media has multiple audio tracks", async () => {
+      useProjectStore.getState().loadProject(createProjectWithVideoClip(3));
+      const result = await useProjectStore.getState().separateAudio("video-clip-1");
+
+      expect(result.success).toBe(true);
+      const { project } = useProjectStore.getState();
+      const audioTracks = project.timeline.tracks.filter((t) => t.type === "audio");
+      expect(audioTracks.length).toBe(3);
+
+      // Each audio track should have one clip with the correct audioTrackIndex
+      for (let i = 0; i < 3; i++) {
+        expect(audioTracks[i].clips.length).toBe(1);
+        expect(audioTracks[i].clips[0].mediaId).toBe("video-media-1");
+        expect(audioTracks[i].clips[0].audioTrackIndex).toBe(i);
+      }
+    });
+
+    it("should default to one audio track when audioTrackCount is undefined", async () => {
+      useProjectStore.getState().loadProject(createProjectWithVideoClip(undefined));
+      const result = await useProjectStore.getState().separateAudio("video-clip-1");
+
+      expect(result.success).toBe(true);
+      const { project } = useProjectStore.getState();
+      const audioTracks = project.timeline.tracks.filter((t) => t.type === "audio");
+      expect(audioTracks.length).toBe(1);
+    });
+
+    it("should return an error when clip is not found", async () => {
+      useProjectStore.getState().createNewProject();
+      const result = await useProjectStore.getState().separateAudio("non-existent-clip");
+
+      expect(result.success).toBe(false);
+      expect(result.error?.code).toBe("CLIP_NOT_FOUND");
+    });
+  });
 });
 
 describe("ProjectStore - Text Clips", () => {

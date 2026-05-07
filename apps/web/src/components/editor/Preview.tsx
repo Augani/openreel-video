@@ -208,6 +208,83 @@ export const Preview: React.FC = () => {
   );
   const audioBufferCacheRef = useRef<Map<string, AudioBuffer>>(new Map());
 
+  /** Returns the cache key for an audio buffer, accounting for multi-track audio files. */
+  const getAudioBufferCacheKey = (mediaId: string, audioTrackIndex?: number): string =>
+    audioTrackIndex && audioTrackIndex > 0
+      ? `${mediaId}:${audioTrackIndex}`
+      : mediaId;
+
+  /**
+   * Loads an AudioBuffer for the given media item and audio track index.
+   * Uses mediabunny for non-primary tracks; falls back to decodeAudioData for the primary track.
+   */
+  const loadAudioBuffer = async (
+    audioContext: AudioContext | BaseAudioContext,
+    blob: Blob,
+    audioTrackIndex: number = 0,
+  ): Promise<AudioBuffer | null> => {
+    if (audioTrackIndex === 0) {
+      try {
+        const arrayBuffer = await blob.arrayBuffer();
+        return await audioContext.decodeAudioData(arrayBuffer);
+      } catch {
+        // Fall through to mediabunny extraction
+      }
+    }
+    // Use mediabunny to extract the specific audio track
+    try {
+      const { Input, ALL_FORMATS, BlobSource, AudioBufferSink } =
+        await import("mediabunny");
+      const input = new Input({ source: new BlobSource(blob), formats: ALL_FORMATS });
+      const audioTracks = await (input as any).getAudioTracks();
+      const track =
+        audioTracks[audioTrackIndex] ??
+        (await (input as any).getPrimaryAudioTrack()) ??
+        audioTracks[0] ??
+        null;
+      if (!track) {
+        (input as any)[Symbol.dispose]?.();
+        return null;
+      }
+      const canDecode = await track.canDecode();
+      if (!canDecode) {
+        (input as any)[Symbol.dispose]?.();
+        return null;
+      }
+      const sink = new AudioBufferSink(track);
+      const duration = await track.computeDuration();
+      if (!duration || duration <= 0) {
+        (input as any)[Symbol.dispose]?.();
+        return null;
+      }
+      // Collect all audio buffers from the sink
+      const chunks: { buffer: AudioBuffer; timestamp: number }[] = [];
+      for await (const wrapped of sink.buffers(0, duration)) {
+        chunks.push({ buffer: wrapped.buffer, timestamp: wrapped.timestamp });
+      }
+      (input as any)[Symbol.dispose]?.();
+      if (chunks.length === 0) return null;
+      // Concatenate all chunks into a single AudioBuffer
+      const sampleRate = chunks[0].buffer.sampleRate;
+      const numChannels = chunks[0].buffer.numberOfChannels;
+      const totalFrames = Math.ceil(duration * sampleRate);
+      const combined = (audioContext as AudioContext).createBuffer
+        ? (audioContext as AudioContext).createBuffer(numChannels, totalFrames, sampleRate)
+        : new OfflineAudioContext(numChannels, totalFrames, sampleRate).createBuffer(numChannels, totalFrames, sampleRate);
+      for (const chunk of chunks) {
+        const offsetFrames = Math.round(chunk.timestamp * sampleRate);
+        for (let ch = 0; ch < numChannels; ch++) {
+          const dest = combined.getChannelData(ch);
+          const src = chunk.buffer.getChannelData(ch);
+          dest.set(src, offsetFrames);
+        }
+      }
+      return combined;
+    } catch {
+      return null;
+    }
+  };
+
   const rendererRef = useRef<Renderer | null>(null);
   const rendererInitializedRef = useRef<boolean>(false);
 
@@ -852,14 +929,24 @@ export const Preview: React.FC = () => {
             }
 
             let audioBuffer = audioBufferCacheRef.current.get(
-              audioClip.mediaId,
+              getAudioBufferCacheKey(audioClip.mediaId, audioClip.audioTrackIndex),
             );
             if (!audioBuffer) {
               try {
                 const audioContext = audioGraph.getAudioContext();
-                const arrayBuffer = await mediaItem.blob.arrayBuffer();
-                audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-                audioBufferCacheRef.current.set(audioClip.mediaId, audioBuffer);
+                const loaded = await loadAudioBuffer(
+                  audioContext,
+                  mediaItem.blob,
+                  audioClip.audioTrackIndex ?? 0,
+                );
+                if (!loaded) {
+                  continue;
+                }
+                audioBuffer = loaded;
+                audioBufferCacheRef.current.set(
+                  getAudioBufferCacheKey(audioClip.mediaId, audioClip.audioTrackIndex),
+                  audioBuffer,
+                );
               } catch (error) {
                 console.warn(
                   `[Preview] Failed to decode audio for clip ${audioClip.id}:`,
@@ -947,7 +1034,8 @@ export const Preview: React.FC = () => {
 
     for (const track of allTracks) {
       for (const clip of track.clips) {
-        if (audioBufferCacheRef.current.has(clip.mediaId)) {
+        const cacheKey = getAudioBufferCacheKey(clip.mediaId, clip.audioTrackIndex);
+        if (audioBufferCacheRef.current.has(cacheKey)) {
           continue;
         }
 
@@ -957,9 +1045,14 @@ export const Preview: React.FC = () => {
         }
 
         try {
-          const arrayBuffer = await mediaItem.blob.arrayBuffer();
-          const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-          audioBufferCacheRef.current.set(clip.mediaId, audioBuffer);
+          const audioBuffer = await loadAudioBuffer(
+            audioContext,
+            mediaItem.blob,
+            clip.audioTrackIndex ?? 0,
+          );
+          if (audioBuffer) {
+            audioBufferCacheRef.current.set(cacheKey, audioBuffer);
+          }
         } catch {
         }
       }
@@ -982,7 +1075,9 @@ export const Preview: React.FC = () => {
             continue;
           }
 
-          const audioBuffer = audioBufferCacheRef.current.get(clip.mediaId);
+          const audioBuffer = audioBufferCacheRef.current.get(
+            getAudioBufferCacheKey(clip.mediaId, clip.audioTrackIndex),
+          );
           if (!audioBuffer) {
             continue;
           }
@@ -1940,7 +2035,9 @@ export const Preview: React.FC = () => {
                 mediaItem.metadata.channels > 0);
             if (!hasAudio) continue;
 
-            const audioBuffer = audioBufferCacheRef.current.get(audioClip.mediaId);
+            const audioBuffer = audioBufferCacheRef.current.get(
+              getAudioBufferCacheKey(audioClip.mediaId, audioClip.audioTrackIndex),
+            );
             if (audioBuffer) {
               schedules.push({
                 clipId: audioClip.id,

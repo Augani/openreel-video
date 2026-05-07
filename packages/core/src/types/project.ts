@@ -65,4 +65,6 @@ export interface MediaMetadata {
   readonly sampleRate: number; // For audio
   readonly channels: number; // For audio
   readonly fileSize: number;
+  /** Number of audio tracks in the file (may be > 1 for multi-track video/audio files) */
+  readonly audioTrackCount?: number;
 }
