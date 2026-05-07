@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
+import { parseProject } from '../services/project-schema';
+import { migrateProject } from '../services/project-migration';
 import {
   Project,
   Layer,
@@ -142,10 +144,17 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
       },
 
       loadProject: (project) => {
+        const migrated = migrateProject(project as unknown as Record<string, unknown>);
+        const parsed = parseProject(migrated);
+        if (!parsed.success) {
+          console.error('[project-store] Invalid project:', parsed.error);
+          return;
+        }
+        const validated = parsed.data;
         set({
-          project,
+          project: validated,
           selectedLayerIds: [],
-          selectedArtboardId: project.activeArtboardId,
+          selectedArtboardId: validated.activeArtboardId,
           isDirty: false,
         });
       },
