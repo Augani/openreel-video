@@ -12,14 +12,27 @@ type FFmpegInstance = {
   exec(args: string[]): Promise<number>;
   on(
     event: string,
-    callback: (data: { progress: number; time?: number }) => void,
+    callback: (data: { progress?: number; time?: number; message?: string; type?: string }) => void,
   ): void;
   off(
     event: string,
-    callback?: (data: { progress: number; time?: number }) => void,
+    callback?: (data: { progress?: number; time?: number; message?: string; type?: string }) => void,
   ): void;
   terminate(): void;
 };
+
+export interface AudioStreamInfo {
+  index: number;
+  codec: string;
+  sampleRate: number;
+  channels: number;
+  channelLayout: string;
+}
+
+export interface AudioProbeResult {
+  audioStreamCount: number;
+  streams: AudioStreamInfo[];
+}
 
 export interface ProxySettings {
   scale: number;
@@ -87,7 +100,7 @@ export class FFmpegFallback {
   private loaded = false;
   private loading: Promise<void> | null = null;
   private progressCallback:
-    | ((data: { progress: number; time?: number }) => void)
+    | ((data: { progress?: number; time?: number; message?: string; type?: string }) => void)
     | null = null;
 
   private calculateBufsize(bitrate: string): string {
@@ -192,16 +205,17 @@ export class FFmpegFallback {
     }
 
     this.progressCallback = ({ progress, time }) => {
+      const p = progress ?? 0;
       let estimatedTimeRemaining = 0;
-      if (totalDuration && time && progress > 0) {
+      if (totalDuration && time && p > 0) {
         const elapsedTime = time / 1000000;
-        const rate = elapsedTime / progress;
-        estimatedTimeRemaining = (1 - progress) * rate;
+        const rate = elapsedTime / p;
+        estimatedTimeRemaining = (1 - p) * rate;
       }
 
       onProgress({
-        phase: progress < 1 ? "encoding" : "complete",
-        progress: Math.min(progress, 1),
+        phase: p < 1 ? "encoding" : "complete",
+        progress: Math.min(p, 1),
         currentFrame: 0,
         totalFrames: 0,
         estimatedTimeRemaining,
@@ -446,6 +460,70 @@ export class FFmpegFallback {
         hasAudio: true,
       };
     } finally {
+      await this.cleanupFiles([inputFilename]);
+    }
+  }
+
+  async probeAudioStreams(file: File | Blob): Promise<AudioProbeResult> {
+    await this.load();
+    this.ensureLoaded();
+
+    const inputFilename = `probe_${Date.now()}`;
+    const logLines: string[] = [];
+
+    const logHandler = (data: { message?: string }) => {
+      if (data.message) {
+        logLines.push(data.message);
+      }
+    };
+
+    try {
+      const inputData = await this.fileToUint8Array(file);
+      await this.ffmpeg!.writeFile(inputFilename, inputData);
+
+      this.ffmpeg!.on("log", logHandler);
+
+      try {
+        await this.ffmpeg!.exec(["-i", inputFilename, "-hide_banner"]);
+      } catch {
+        // FFmpeg exits with error code when no output specified — expected
+      }
+
+      this.ffmpeg!.off("log", logHandler);
+
+      const streams: AudioStreamInfo[] = [];
+      const streamRegex = /Stream #\d+:(\d+).*?: Audio: (\w+)/;
+      const sampleRateRegex = /(\d+) Hz/;
+      const channelRegex = /(mono|stereo|5\.1|7\.1|(\d+) channels)/;
+
+      for (const line of logLines) {
+        const streamMatch = line.match(streamRegex);
+        if (!streamMatch) continue;
+
+        const index = parseInt(streamMatch[1], 10);
+        const codec = streamMatch[2];
+
+        const srMatch = line.match(sampleRateRegex);
+        const sampleRate = srMatch ? parseInt(srMatch[1], 10) : 0;
+
+        const chMatch = line.match(channelRegex);
+        let channels = 2;
+        let channelLayout = "stereo";
+        if (chMatch) {
+          channelLayout = chMatch[1];
+          if (channelLayout === "mono") channels = 1;
+          else if (channelLayout === "stereo") channels = 2;
+          else if (channelLayout === "5.1") channels = 6;
+          else if (channelLayout === "7.1") channels = 8;
+          else if (chMatch[2]) channels = parseInt(chMatch[2], 10);
+        }
+
+        streams.push({ index, codec, sampleRate, channels, channelLayout });
+      }
+
+      return { audioStreamCount: streams.length, streams };
+    } finally {
+      this.ffmpeg!.off("log", logHandler);
       await this.cleanupFiles([inputFilename]);
     }
   }

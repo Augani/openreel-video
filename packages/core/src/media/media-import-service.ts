@@ -105,6 +105,21 @@ export class MediaImportService {
           error: "Could not determine media type",
         };
       }
+
+      if (
+        metadata.hasAudio &&
+        (metadata.audioTrackCount === undefined || metadata.audioTrackCount <= 1)
+      ) {
+        try {
+          const probeResult = await this.ffmpegFallback.probeAudioStreams(file);
+          if (probeResult.audioStreamCount > 1) {
+            metadata.audioTrackCount = probeResult.audioStreamCount;
+          }
+        } catch {
+          // FFmpeg probe failed — keep existing count
+        }
+      }
+
       if (!metadata.canDecode) {
         warnings.push(
           "Codec may not be fully supported. Playback might be limited.",
@@ -259,6 +274,18 @@ export class MediaImportService {
     // Now process with MediaBunny
     const metadata = await this.mediaEngine.extractMetadata(compatibleFile);
     const mediaType = inferMediaType(compatibleFile.type) || "video";
+
+    // Probe original file for audio tracks since WebM transcode may lose them
+    if (metadata.audioTrackCount === undefined || metadata.audioTrackCount <= 1) {
+      try {
+        const probeResult = await this.ffmpegFallback.probeAudioStreams(file);
+        if (probeResult.audioStreamCount > 1) {
+          metadata.audioTrackCount = probeResult.audioStreamCount;
+        }
+      } catch {
+        // FFmpeg probe failed — keep existing count
+      }
+    }
 
     let thumbnails: ThumbnailResult[] = [];
     if (opts.generateThumbnails && metadata.hasVideo) {
