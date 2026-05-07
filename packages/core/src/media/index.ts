@@ -19,7 +19,7 @@ export {
   PROXY_PRESETS,
   PROXY_THRESHOLDS,
 } from "./ffmpeg-fallback";
-export type { ProxySettings, TranscodeOptions } from "./ffmpeg-fallback";
+export type { ProxySettings, TranscodeOptions, AudioProbeResult, AudioStreamInfo } from "./ffmpeg-fallback";
 
 // Media Import Service
 export {

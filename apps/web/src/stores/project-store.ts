@@ -1307,7 +1307,23 @@ export const useProjectStore = create<ProjectState>()(
         }
 
         // Determine how many audio tracks to separate
-        const audioTrackCount = mediaItem.metadata.audioTrackCount ?? 1;
+        let audioTrackCount = mediaItem.metadata.audioTrackCount ?? 1;
+
+        // Re-probe with FFmpeg if count is 1 or unset (handles legacy imports)
+        if (audioTrackCount <= 1 && mediaItem.blob) {
+          try {
+            const { getFFmpegFallback } = await import(
+              "@openreel/core/media"
+            );
+            const ffmpeg = getFFmpegFallback();
+            const probeResult = await ffmpeg.probeAudioStreams(mediaItem.blob);
+            if (probeResult.audioStreamCount > 1) {
+              audioTrackCount = probeResult.audioStreamCount;
+            }
+          } catch {
+            // FFmpeg probe unavailable — proceed with count of 1
+          }
+        }
 
         // Apply all track/add and clip/add actions on a single project copy to
         // avoid race conditions from multiple store updates.
