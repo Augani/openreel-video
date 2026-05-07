@@ -2,19 +2,19 @@
 
 OpenReel Image is currently a strong editor prototype with React UI, Canvas2D rendering, Zustand stores, artboards, layers, text, shapes, uploads, templates, basic export, and background removal. To reach a Canva + Photoshop style product, the next work should focus on engine foundations first, then design workflows, photo workflows, AI, cloud, and quality.
 
-## 0. Baseline Stabilization
+## 0. Baseline Stabilization ✓
 
-- [ ] Keep `pnpm --filter @openreel/image typecheck` passing.
-- [ ] Keep `pnpm --filter @openreel/image test:run` passing.
-- [ ] Replace the placeholder test in `apps/image/src/app.test.ts` with real smoke tests.
-- [ ] Add project creation tests.
-- [ ] Add layer add/remove/duplicate/reorder tests.
-- [ ] Add artboard add/remove/update tests.
-- [ ] Add export service tests for PNG, JPG, and WebP.
-- [ ] Add project schema validation before loading `.orimg` files.
-- [ ] Add project migration support with explicit `version` handling.
-- [ ] Audit all tool panels and mark whether each is fully implemented, partially wired, or UI-only.
-- [ ] Add a feature status matrix for tools, panels, and export formats.
+- [x] Keep `pnpm --filter @openreel/image typecheck` passing.
+- [x] Keep `pnpm --filter @openreel/image test:run` passing.
+- [x] Replace the placeholder test in `apps/image/src/app.test.ts` with real smoke tests.
+- [x] Add project creation tests.
+- [x] Add layer add/remove/duplicate/reorder tests.
+- [x] Add artboard add/remove/update tests.
+- [x] Add export service tests for PNG, JPG, and WebP.
+- [x] Add project schema validation before loading `.orimg` files.
+- [x] Add project migration support with explicit `version` handling.
+- [x] Audit all tool panels and mark whether each is fully implemented, partially wired, or UI-only.
+- [x] Add a feature status matrix for tools, panels, and export formats.
 
 Tech:
 
