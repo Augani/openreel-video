@@ -1,4 +1,3 @@
-import type { Project } from '../types/project';
 
 /** The current document format version. Increment when the schema changes. */
 export const CURRENT_VERSION = 1;
@@ -39,12 +38,3 @@ function migrateV0ToV1(doc: Record<string, unknown>): Record<string, unknown> {
   return updated;
 }
 
-/**
- * Convenience wrapper used by the project store.
- * Migrates the raw object and returns it cast to `Project`.
- * Always run `parseProject` on the result to verify correctness.
- */
-export function migrateAndCast(raw: unknown): Project {
-  const migrated = migrateProject(raw as Record<string, unknown>);
-  return migrated as unknown as Project;
-}
