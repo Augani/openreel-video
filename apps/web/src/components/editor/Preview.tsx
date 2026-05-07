@@ -210,7 +210,7 @@ export const Preview: React.FC = () => {
 
   /** Returns the cache key for an audio buffer, accounting for multi-track audio files. */
   const getAudioBufferCacheKey = (mediaId: string, audioTrackIndex?: number): string =>
-    audioTrackIndex && audioTrackIndex > 0
+    audioTrackIndex !== undefined && audioTrackIndex > 0
       ? `${mediaId}:${audioTrackIndex}`
       : mediaId;
 
@@ -268,9 +268,7 @@ export const Preview: React.FC = () => {
       const sampleRate = chunks[0].buffer.sampleRate;
       const numChannels = chunks[0].buffer.numberOfChannels;
       const totalFrames = Math.ceil(duration * sampleRate);
-      const combined = (audioContext as AudioContext).createBuffer
-        ? (audioContext as AudioContext).createBuffer(numChannels, totalFrames, sampleRate)
-        : new OfflineAudioContext(numChannels, totalFrames, sampleRate).createBuffer(numChannels, totalFrames, sampleRate);
+      const combined = audioContext.createBuffer(numChannels, totalFrames, sampleRate);
       for (const chunk of chunks) {
         const offsetFrames = Math.round(chunk.timestamp * sampleRate);
         for (let ch = 0; ch < numChannels; ch++) {
