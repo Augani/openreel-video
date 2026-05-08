@@ -14,6 +14,7 @@ import {
 import { useProjectStore } from "../../../stores/project-store";
 import type { TextStyle, FontWeight } from "@openreel/core";
 import {
+  ColorPicker,
   Select,
   SelectTrigger,
   SelectValue,
@@ -23,24 +24,22 @@ import {
   SelectLabel,
 } from "@openreel/ui";
 
-const ColorPicker: React.FC<{
+const ColorField: React.FC<{
   label: string;
   value: string;
   onChange: (color: string) => void;
-}> = ({ label, value, onChange }) => (
-  <div className="flex items-center justify-between">
+  showAlpha?: boolean;
+  allowTransparent?: boolean;
+}> = ({ label, value, onChange, showAlpha = false, allowTransparent = false }) => (
+  <div className="flex items-center justify-between gap-2">
     <span className="text-[10px] text-text-secondary">{label}</span>
-    <div className="flex items-center gap-2">
-      <input
-        type="color"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-6 h-6 rounded border border-border cursor-pointer"
-      />
-      <span className="text-[10px] font-mono text-text-muted uppercase">
-        {value}
-      </span>
-    </div>
+    <ColorPicker
+      value={value}
+      onChange={onChange}
+      showAlpha={showAlpha}
+      allowTransparent={allowTransparent}
+      className="max-w-[170px]"
+    />
   </div>
 );
 
@@ -411,15 +410,17 @@ export const TextSection: React.FC<TextSectionProps> = ({ clipId }) => {
       </div>
 
       <div className="space-y-2 p-3 bg-background-tertiary rounded-lg">
-        <ColorPicker
+        <ColorField
           label="Text Color"
           value={style.color}
           onChange={(color) => handleStyleChange({ color })}
         />
-        <ColorPicker
+        <ColorField
           label="Background"
           value={style.backgroundColor || "transparent"}
           onChange={(backgroundColor) => handleStyleChange({ backgroundColor })}
+          showAlpha
+          allowTransparent
         />
       </div>
 
@@ -427,7 +428,7 @@ export const TextSection: React.FC<TextSectionProps> = ({ clipId }) => {
         <span className="text-[10px] text-text-secondary font-medium">
           Stroke
         </span>
-        <ColorPicker
+        <ColorField
           label="Color"
           value={style.strokeColor || "#000000"}
           onChange={(strokeColor) => handleStyleChange({ strokeColor })}
@@ -446,10 +447,11 @@ export const TextSection: React.FC<TextSectionProps> = ({ clipId }) => {
         <span className="text-[10px] text-text-secondary font-medium">
           Shadow
         </span>
-        <ColorPicker
+        <ColorField
           label="Color"
           value={style.shadowColor || "#000000"}
           onChange={(shadowColor) => handleStyleChange({ shadowColor })}
+          showAlpha
         />
         <NumberInput
           label="Offset X"

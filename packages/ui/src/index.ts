@@ -4,6 +4,7 @@ export { Alert, AlertTitle, AlertDescription } from "./components/alert"
 export { Button, buttonVariants, type ButtonProps } from "./components/button"
 export { Card, CardHeader, CardFooter, CardTitle, CardDescription, CardContent } from "./components/card"
 export { Checkbox } from "./components/checkbox"
+export { ColorPicker, type ColorPickerProps } from "./components/color-picker"
 export { IconButton, type IconButtonProps } from "./components/icon-button"
 export { Collapsible, CollapsibleTrigger, CollapsibleContent } from "./components/collapsible"
 export {
