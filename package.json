@@ -38,10 +38,10 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/augani/openreel.git"
+    "url": "https://github.com/Augani/openreel-video.git"
   },
   "bugs": {
-    "url": "https://github.com/augani/openreel/issues"
+    "url": "https://github.com/Augani/openreel-video/issues"
   },
   "homepage": "https://openreel.video",
   "engines": {
