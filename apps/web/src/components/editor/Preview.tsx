@@ -4896,7 +4896,7 @@ export const Preview: React.FC = () => {
       >
         <div
           ref={overlayRef}
-          className={`relative bg-black overflow-hidden transition-all duration-300 ${
+          className={`relative bg-black overflow-visible transition-all duration-300 ${
             isMaximized || isFullscreen
               ? "rounded-none ring-0 shadow-none"
               : "shadow-2xl rounded-xl ring-1 ring-border shadow-[0_0_50px_rgba(0,0,0,0.5)]"
