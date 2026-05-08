@@ -28,7 +28,7 @@ Be respectful, constructive, and professional. We're building something great to
 
 ```bash
 # 1. Fork and clone the repository
-git clone https://github.com/augani/openreel-video.git
+git clone https://github.com/Augani/openreel-video.git
 cd openreel-video
 
 # 2. Install dependencies
@@ -298,14 +298,14 @@ Brief description of changes
 ## Areas to Contribute
 
 ### 🐛 Bug Fixes
-- Check [Issues](https://github.com/augani/openreel/issues?q=is%3Aissue+is%3Aopen+label%3Abug)
+- Check [Issues](https://github.com/Augani/openreel-video/issues?q=is%3Aissue+is%3Aopen+label%3Abug)
 - Reproduce the bug
 - Write a failing test
 - Fix the bug
 - Verify the test passes
 
 ### ✨ New Features
-- Discuss in [Discussions](https://github.com/augani/openreel/discussions) first
+- Discuss in [Discussions](https://github.com/Augani/openreel-video/discussions) first
 - Get approval before large changes
 - Break into smaller PRs if possible
 - Update documentation
@@ -374,7 +374,7 @@ Changes to React components hot reload automatically. For core engine changes, y
 ## Questions?
 
 - **Discord**: [Join our Discord](https://discord.gg/openreeel)
-- **Discussions**: [GitHub Discussions](https://github.com/augani/openreel/discussions)
+- **Discussions**: [GitHub Discussions](https://github.com/Augani/openreel-video/discussions)
 - **Email**: contribute@openreeel.video
 
 ## Recognition

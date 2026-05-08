@@ -148,4 +148,4 @@ Go to Cloudflare Dashboard → Pages → openreel → Deployments → Select pre
 For deployment issues:
 - Check logs: Cloudflare Pages → openreel → Deployments → [Latest] → View logs
 - Wrangler docs: https://developers.cloudflare.com/pages/
-- OpenReel issues: https://github.com/augani/openreel/issues
+- OpenReel issues: https://github.com/Augani/openreel-video/issues
