@@ -32,6 +32,7 @@ export interface UpdateTextClipOptions {
   blendMode?: import("../video/types").BlendMode;
   blendOpacity?: number;
   emphasisAnimation?: import("../graphics/types").EmphasisAnimation;
+  behindSubject?: boolean;
 }
 
 export class TitleEngine {
@@ -124,6 +125,8 @@ export class TitleEngine {
       blendOpacity: updates.blendOpacity ?? existing.blendOpacity,
       emphasisAnimation:
         updates.emphasisAnimation ?? existing.emphasisAnimation,
+      behindSubject:
+        updates.behindSubject ?? existing.behindSubject,
     };
 
     this.textClips.set(id, updatedClip);

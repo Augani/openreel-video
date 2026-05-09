@@ -35,6 +35,7 @@
   "dependencies": {
     "@ffmpeg/ffmpeg": "^0.12.15",
     "@ffmpeg/util": "^0.12.2",
+    "@mediapipe/tasks-vision": "^0.10.35",
     "gsap": "^3.14.2",
     "idb-keyval": "^6.2.2",
     "immer": "^11.0.1",

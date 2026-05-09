@@ -142,6 +142,10 @@ export interface ProjectState {
     clipId: string,
     transform: Partial<Transform>,
   ) => TextClip | null;
+  updateTextBehindSubject: (
+    clipId: string,
+    behindSubject: boolean,
+  ) => TextClip | null;
   getTextClip: (clipId: string) => TextClip | undefined;
   getAllTextClips: () => TextClip[];
   updateTextClipKeyframes: (

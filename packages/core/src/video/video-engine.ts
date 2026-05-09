@@ -44,6 +44,7 @@ import {
   isAnimatedGif,
 } from "../media/gif-decoder";
 import { getParticleEngine } from "../effects/particle-engine";
+import { getPersonSegmentationEngine } from "../ai/person-segmentation-engine";
 
 const DEFAULT_CACHE_CONFIG: FrameCacheConfig = {
   maxFrames: 100,
@@ -446,6 +447,11 @@ export class VideoEngine {
     ctx.fillStyle = "#000000";
     ctx.fillRect(0, 0, width, height);
 
+    let subjectFrame: ImageBitmap | null = null;
+    const activeTextNeedsSubject = activeTextClips.some(
+      (clip) => clip.behindSubject,
+    );
+
     for (const { track } of allRenderableTracks) {
       if (track.type === "video" || track.type === "image") {
         const clips = this.getClipsAtTime(track, time);
@@ -605,6 +611,11 @@ export class VideoEngine {
               height,
             );
 
+            if (activeTextNeedsSubject) {
+              subjectFrame?.close();
+              subjectFrame = await this.captureSubjectFrame(ctx, width, height);
+            }
+
             if (processedBitmap !== bitmap) {
               processedBitmap.close();
             }
@@ -657,10 +668,18 @@ export class VideoEngine {
           (tc) => tc.trackId === track.id,
         );
         for (const textClip of trackTextClips) {
-          this.renderTextClipToCanvasCtx(ctx, textClip, time, width, height);
+          await this.renderTextClipWithSubjectMask(
+            ctx,
+            textClip,
+            time,
+            width,
+            height,
+            subjectFrame,
+          );
         }
       }
     }
+    subjectFrame?.close();
 
     this.renderParticlesToContext(ctx, time, width, height);
 
@@ -740,6 +759,73 @@ export class VideoEngine {
     }
 
     ctx.restore();
+  }
+
+  private async captureSubjectFrame(
+    ctx: OffscreenCanvasRenderingContext2D,
+    width: number,
+    height: number,
+  ): Promise<ImageBitmap | null> {
+    try {
+      return await createImageBitmap(ctx.canvas, 0, 0, width, height);
+    } catch {
+      return null;
+    }
+  }
+
+  private async drawMaskedSubjectFromFrame(
+    ctx: OffscreenCanvasRenderingContext2D,
+    subjectFrame: ImageBitmap | null,
+    width: number,
+    height: number,
+  ): Promise<void> {
+    if (!subjectFrame) return;
+
+    try {
+      const segEngine = getPersonSegmentationEngine();
+      if (!segEngine.isInitialized()) {
+        await segEngine.initialize();
+      }
+
+      const maskResult = await segEngine.getPersonMask(subjectFrame);
+      if (!maskResult) return;
+
+      const personCanvas = new OffscreenCanvas(width, height);
+      const personCtx = personCanvas.getContext("2d");
+      if (!personCtx) return;
+
+      personCtx.drawImage(subjectFrame, 0, 0, width, height);
+
+      const maskCanvas = new OffscreenCanvas(
+        maskResult.width,
+        maskResult.height,
+      );
+      const maskCtx = maskCanvas.getContext("2d");
+      if (!maskCtx) return;
+
+      maskCtx.putImageData(maskResult.mask, 0, 0);
+      personCtx.globalCompositeOperation = "destination-in";
+      personCtx.drawImage(maskCanvas, 0, 0, width, height);
+
+      ctx.drawImage(personCanvas, 0, 0);
+    } catch {
+      // Keep the normal text render if segmentation is unavailable.
+    }
+  }
+
+  private async renderTextClipWithSubjectMask(
+    ctx: OffscreenCanvasRenderingContext2D,
+    textClip: TextClip,
+    time: number,
+    width: number,
+    height: number,
+    subjectFrame: ImageBitmap | null,
+  ): Promise<void> {
+    this.renderTextClipToCanvasCtx(ctx, textClip, time, width, height);
+
+    if (textClip.behindSubject) {
+      await this.drawMaskedSubjectFromFrame(ctx, subjectFrame, width, height);
+    }
   }
 
   private getActiveTextClips(timeline: Timeline, time: number): TextClip[] {

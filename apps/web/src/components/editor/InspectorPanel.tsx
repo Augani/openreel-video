@@ -45,6 +45,7 @@ import {
   ParticleEffectsSection,
   AudioTextSyncPanel,
   AlignmentSection,
+  BehindSubjectSection,
 } from "./inspector";
 import { OPENREEL_TTS_URL } from "../../config/api-endpoints";
 import {
@@ -1171,6 +1172,16 @@ export const InspectorPanel: React.FC = () => {
                 defaultOpen={false}
               >
                 <TextAnimationSection clipId={clipId} />
+              </Section>
+            )}
+
+            {showTextSection && (
+              <Section
+                title="Text Behind Subject"
+                sectionId="text-behind-subject"
+                defaultOpen={false}
+              >
+                <BehindSubjectSection clipId={clipId} />
               </Section>
             )}
 

@@ -219,6 +219,10 @@ export interface ProjectState {
     clipId: string,
     transform: Partial<Transform>,
   ) => TextClip | null;
+  updateTextBehindSubject: (
+    clipId: string,
+    behindSubject: boolean,
+  ) => TextClip | null;
   getTextClip: (clipId: string) => TextClip | undefined;
   getAllTextClips: () => TextClip[];
   updateTextClipKeyframes: (
@@ -2815,6 +2819,25 @@ export const useProjectStore = create<ProjectState>()(
         }
 
         const updatedClip = titleEngine.updateTextClip(clipId, { transform });
+        if (updatedClip) {
+          set({ project: { ...get().project, modifiedAt: Date.now() } });
+        }
+        return updatedClip || null;
+      },
+
+      /**
+       * Toggle text behind subject compositing.
+       */
+      updateTextBehindSubject: (clipId: string, behindSubject: boolean) => {
+        const titleEngine = useEngineStore.getState().getTitleEngine();
+        if (!titleEngine) {
+          console.error("TitleEngine not initialized");
+          return null;
+        }
+
+        const updatedClip = titleEngine.updateTextClip(clipId, {
+          behindSubject,
+        });
         if (updatedClip) {
           set({ project: { ...get().project, modifiedAt: Date.now() } });
         }

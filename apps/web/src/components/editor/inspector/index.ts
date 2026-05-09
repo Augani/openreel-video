@@ -90,3 +90,7 @@ export { SceneNavigatorPanel } from "./SceneNavigatorPanel";
 
 // Particle Effects
 export { ParticleEffectsSection } from "./ParticleEffectsSection";
+
+// Text Behind Subject
+export { BehindSubjectSection } from "./BehindSubjectSection";
+
