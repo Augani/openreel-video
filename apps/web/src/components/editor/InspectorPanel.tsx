@@ -52,6 +52,7 @@ import {
   getAudioBridgeEffects,
   initializeAudioBridgeEffects,
   DEFAULT_EQ_BANDS,
+  DEFAULT_NOISE_REDUCTION,
 } from "../../bridges/audio-bridge-effects";
 import {
   Input,
@@ -389,6 +390,11 @@ export const InspectorPanel: React.FC = () => {
     try {
       await initializeAudioBridgeEffects();
       const bridge = getAudioBridgeEffects();
+      const nrResult = bridge.applyNoiseReduction(selectedClip.id, {
+        ...DEFAULT_NOISE_REDUCTION,
+        threshold: -35,
+        reduction: 0.6,
+      });
       const speechEQBands = DEFAULT_EQ_BANDS.map((band, i) => {
         let gain = 0;
         if (i === 0) gain = -3;
@@ -405,7 +411,7 @@ export const InspectorPanel: React.FC = () => {
         attack: 0.005,
         release: 0.15,
       });
-      if (eqResult.success && compResult.success) {
+      if (nrResult.success && eqResult.success && compResult.success) {
         setAudioEnhanced(true);
         setTimeout(() => setAudioEnhanced(false), 2000);
       }
