@@ -67,6 +67,7 @@ import {
   ParticleRenderer,
 } from "./preview/index";
 import { ProcessingOverlay } from "./ProcessingOverlay";
+import { getPersonSegmentationEngine } from "@openreel/core";
 import type { MotionPathConfig, GSAPMotionPathPoint } from "@openreel/core";
 
 const getAdaptivePoolSize = (width: number, height: number): number => {
@@ -176,6 +177,82 @@ const renderAllLayersWithGPU = async (
   } catch (e) {
     console.error("[renderAllLayersWithGPU] Error:", e);
     return null;
+  }
+};
+
+const hasBehindSubjectText = (textClips: TextClip[]): boolean =>
+  textClips.some((textClip) => textClip.behindSubject);
+
+const captureSubjectFrame = async (
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+): Promise<ImageBitmap | null> => {
+  try {
+    return await createImageBitmap(
+      ctx.canvas as HTMLCanvasElement | OffscreenCanvas,
+      0,
+      0,
+      width,
+      height,
+    );
+  } catch {
+    return null;
+  }
+};
+
+const drawMaskedSubjectFromFrame = async (
+  ctx: CanvasRenderingContext2D,
+  subjectFrame: ImageBitmap | null,
+  canvasWidth: number,
+  canvasHeight: number,
+): Promise<void> => {
+  if (!subjectFrame) return;
+
+  const segEngine = getPersonSegmentationEngine();
+  if (!segEngine.isInitialized()) return;
+
+  try {
+    const maskResult = await segEngine.getPersonMask(subjectFrame);
+    if (!maskResult) return;
+
+    const personCanvas = new OffscreenCanvas(canvasWidth, canvasHeight);
+    const personCtx = personCanvas.getContext("2d");
+    if (!personCtx) return;
+
+    personCtx.drawImage(subjectFrame, 0, 0, canvasWidth, canvasHeight);
+
+    const maskCanvas = new OffscreenCanvas(maskResult.width, maskResult.height);
+    const maskCtx = maskCanvas.getContext("2d");
+    if (!maskCtx) return;
+
+    maskCtx.putImageData(maskResult.mask, 0, 0);
+    personCtx.globalCompositeOperation = "destination-in";
+    personCtx.drawImage(maskCanvas, 0, 0, canvasWidth, canvasHeight);
+
+    ctx.drawImage(personCanvas, 0, 0);
+  } catch {
+    // If segmentation fails for a frame, keep the normal text overlay visible.
+  }
+};
+
+const renderTextClipWithSubjectMask = async (
+  ctx: CanvasRenderingContext2D,
+  textClip: TextClip,
+  canvasWidth: number,
+  canvasHeight: number,
+  time: number,
+  subjectFrame: ImageBitmap | null,
+): Promise<void> => {
+  renderTextClipToCanvas(ctx, textClip, canvasWidth, canvasHeight, time);
+
+  if (textClip.behindSubject) {
+    await drawMaskedSubjectFromFrame(
+      ctx,
+      subjectFrame,
+      canvasWidth,
+      canvasHeight,
+    );
   }
 };
 
@@ -748,7 +825,7 @@ export const Preview: React.FC = () => {
    * "all" renders all overlays (legacy behavior for when no video is present)
    */
   const renderOverlayClipsInTrackOrder = useCallback(
-    (
+    async (
       ctx: CanvasRenderingContext2D,
       tracks: Track[],
       shapeClips: (ShapeClip | SVGClip | StickerClip)[],
@@ -757,6 +834,7 @@ export const Preview: React.FC = () => {
       canvasWidth: number,
       canvasHeight: number,
       mode: "below-video" | "above-video" | "all" = "all",
+      subjectFrame: ImageBitmap | null = null,
     ) => {
       const videoImageTrackIndices = tracks
         .map((t, idx) => ({ track: t, originalIndex: idx }))
@@ -815,12 +893,13 @@ export const Preview: React.FC = () => {
             (tc) => tc.trackId === track.id,
           );
           for (const textClip of trackTextClips) {
-            renderTextClipToCanvas(
+            await renderTextClipWithSubjectMask(
               ctx,
               textClip,
               canvasWidth,
               canvasHeight,
               time,
+              subjectFrame,
             );
           }
         }
@@ -1300,7 +1379,7 @@ export const Preview: React.FC = () => {
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
                 shouldClearCanvas = false;
               }
-              renderOverlayClipsInTrackOrder(
+              await renderOverlayClipsInTrackOrder(
                 ctx,
                 timelineTracks,
                 activeShapeClips,
@@ -1311,7 +1390,7 @@ export const Preview: React.FC = () => {
                 "below-video",
               );
               ctx.drawImage(blendedFrame, 0, 0);
-              renderOverlayClipsInTrackOrder(
+              await renderOverlayClipsInTrackOrder(
                 ctx,
                 timelineTracks,
                 activeShapeClips,
@@ -1320,6 +1399,7 @@ export const Preview: React.FC = () => {
                 canvas.width,
                 canvas.height,
                 "above-video",
+                hasBehindSubjectText(activeTextClips) ? blendedFrame : null,
               );
               hasRenderedFrame = true;
             }
@@ -1337,7 +1417,7 @@ export const Preview: React.FC = () => {
               ctx.fillRect(0, 0, canvas.width, canvas.height);
               shouldClearCanvas = false;
             }
-            renderOverlayClipsInTrackOrder(
+            await renderOverlayClipsInTrackOrder(
               ctx,
               timelineTracks,
               activeShapeClips,
@@ -1348,7 +1428,7 @@ export const Preview: React.FC = () => {
               "below-video",
             );
             ctx.drawImage(validFrame, 0, 0);
-            renderOverlayClipsInTrackOrder(
+            await renderOverlayClipsInTrackOrder(
               ctx,
               timelineTracks,
               activeShapeClips,
@@ -1357,6 +1437,7 @@ export const Preview: React.FC = () => {
               canvas.width,
               canvas.height,
               "above-video",
+              hasBehindSubjectText(activeTextClips) ? validFrame : null,
             );
             hasRenderedFrame = true;
           } else if (incomingFrame) {
@@ -1373,7 +1454,7 @@ export const Preview: React.FC = () => {
               ctx.fillRect(0, 0, canvas.width, canvas.height);
               shouldClearCanvas = false;
             }
-            renderOverlayClipsInTrackOrder(
+            await renderOverlayClipsInTrackOrder(
               ctx,
               timelineTracks,
               activeShapeClips,
@@ -1384,7 +1465,7 @@ export const Preview: React.FC = () => {
               "below-video",
             );
             ctx.drawImage(validFrame, 0, 0);
-            renderOverlayClipsInTrackOrder(
+            await renderOverlayClipsInTrackOrder(
               ctx,
               timelineTracks,
               activeShapeClips,
@@ -1393,6 +1474,7 @@ export const Preview: React.FC = () => {
               canvas.width,
               canvas.height,
               "above-video",
+              hasBehindSubjectText(activeTextClips) ? validFrame : null,
             );
             hasRenderedFrame = true;
           }
@@ -1437,6 +1519,9 @@ export const Preview: React.FC = () => {
               !track.hidden,
           )
           .sort((a, b) => b.originalIndex - a.originalIndex);
+
+        let subjectFrame: ImageBitmap | null = null;
+        const shouldCompositeSubject = hasBehindSubjectText(activeTextClips);
 
         for (const { track } of allRenderableTracks) {
           if (track.type === "video" || track.type === "image") {
@@ -1529,6 +1614,15 @@ export const Preview: React.FC = () => {
                     );
                     hasRenderedFrame = true;
                   }
+
+                  if (shouldCompositeSubject) {
+                    subjectFrame?.close();
+                    subjectFrame = await captureSubjectFrame(
+                      ctx,
+                      canvas.width,
+                      canvas.height,
+                    );
+                  }
                 }
               }
             }
@@ -1551,17 +1645,20 @@ export const Preview: React.FC = () => {
               (tc) => tc.trackId === track.id,
             );
             for (const textClip of trackTextClips) {
-              renderTextClipToCanvas(
+              await renderTextClipWithSubjectMask(
                 ctx,
                 textClip,
                 canvas.width,
                 canvas.height,
                 time,
+                subjectFrame,
               );
+
               hasRenderedFrame = true;
             }
           }
         }
+        subjectFrame?.close();
       }
 
       const activeSubtitles = getActiveSubtitles(allSubtitles, time);
@@ -2096,7 +2193,7 @@ export const Preview: React.FC = () => {
           );
 
           if (activeShapeClipsNoVideo.length > 0 || activeTextClipsNoVideo.length > 0) {
-            renderOverlayClipsInTrackOrder(
+            await renderOverlayClipsInTrackOrder(
               ctx,
               timelineTracksRef.current,
               activeShapeClipsNoVideo,
@@ -2243,11 +2340,14 @@ export const Preview: React.FC = () => {
         );
 
         drawFrameWithTransform(ctx, video, transform, canvas.width, canvas.height);
+        const subjectFrame = hasBehindSubjectText(activeTextClips)
+          ? await captureSubjectFrame(ctx, canvas.width, canvas.height)
+          : null;
 
         // Use CPU canvas2D for all overlays - more reliable than GPU compositing
         // Render all text/graphics overlays (they're above the video since backgrounds are separate)
         if (activeShapeClips.length > 0 || activeTextClips.length > 0) {
-          renderOverlayClipsInTrackOrder(
+          await renderOverlayClipsInTrackOrder(
             ctx,
             timelineTracksRef.current,
             activeShapeClips,
@@ -2256,8 +2356,10 @@ export const Preview: React.FC = () => {
             canvas.width,
             canvas.height,
             "all",
+            subjectFrame,
           );
         }
+        subjectFrame?.close();
 
         const activeSubtitles = getActiveSubtitles(
           allSubtitles,
@@ -2317,6 +2419,7 @@ export const Preview: React.FC = () => {
       getMediaItem,
       isMuted,
       preDecodeAllAudioBuffers,
+      renderOverlayClipsInTrackOrder,
       setPlayheadPosition,
       timelineTracks,
     ],
@@ -3245,8 +3348,11 @@ export const Preview: React.FC = () => {
               )
               .sort((a, b) => b.originalIndex - a.originalIndex);
 
+            const activeTextNeedsSubject = hasBehindSubjectText(activeTextClips);
             const useGPU =
-              rendererRef.current && rendererRef.current.type === "webgpu";
+              rendererRef.current &&
+              rendererRef.current.type === "webgpu" &&
+              !activeTextNeedsSubject;
 
             if (useGPU) {
               const gpuLayers: GPULayer[] = [];
@@ -3353,6 +3459,7 @@ export const Preview: React.FC = () => {
                 bitmap.close();
               }
             } else {
+              let subjectFrame: ImageBitmap | null = null;
               for (const { track, originalIndex } of allRenderableTracks) {
                 if (track.type === "video" || track.type === "image") {
                   const trackFrames = validFrames.filter(
@@ -3366,6 +3473,14 @@ export const Preview: React.FC = () => {
                       canvas.width,
                       canvas.height,
                     );
+                    if (activeTextNeedsSubject) {
+                      subjectFrame?.close();
+                      subjectFrame = await captureSubjectFrame(
+                        ctx,
+                        canvas.width,
+                        canvas.height,
+                      );
+                    }
                   }
                 } else if (track.type === "graphics") {
                   const trackShapeClips = activeShapeClips.filter(
@@ -3385,16 +3500,18 @@ export const Preview: React.FC = () => {
                     (tc) => tc.trackId === track.id,
                   );
                   for (const textClip of trackTextClips) {
-                    renderTextClipToCanvas(
+                    await renderTextClipWithSubjectMask(
                       ctx,
                       textClip,
                       canvas.width,
                       canvas.height,
                       currentPlayhead,
+                      subjectFrame,
                     );
                   }
                 }
               }
+              subjectFrame?.close();
             }
 
             const activeSubtitles = getActiveSubtitles(

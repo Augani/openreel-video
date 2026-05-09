@@ -14,6 +14,7 @@ export interface TextClip {
   readonly blendMode?: import("../video/types").BlendMode;
   readonly blendOpacity?: number;
   readonly emphasisAnimation?: EmphasisAnimation;
+  readonly behindSubject?: boolean;
 }
 
 export interface TextStyle {
