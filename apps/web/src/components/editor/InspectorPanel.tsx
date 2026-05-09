@@ -6,7 +6,6 @@ import { useEngineStore } from "../../stores/engine-store";
 import type { Transform, FitMode, Clip } from "@openreel/core";
 import {
   ChromaKeyEngine,
-  getTranscriptionService,
   initializeTranscriptionService,
   type WhisperTranscriptionProgress,
   type CaptionAnimationStyle,
@@ -193,6 +192,7 @@ export const InspectorPanel: React.FC = () => {
   const [transcriptionProgress, setTranscriptionProgress] =
     useState<WhisperTranscriptionProgress | null>(null);
   const [isTranscribing, setIsTranscribing] = useState(false);
+  const [targetLanguage, setTargetLanguage] = useState("none");
   const [defaultAnimationStyle, setDefaultAnimationStyle] =
     useState<CaptionAnimationStyle>("word-highlight");
 
@@ -457,12 +457,10 @@ export const InspectorPanel: React.FC = () => {
     });
 
     try {
-      let transcriptionService = getTranscriptionService();
-      if (!transcriptionService) {
-        transcriptionService = initializeTranscriptionService({
-          apiEndpoint: OPENREEL_TTS_URL,
-        });
-      }
+      const transcriptionService = initializeTranscriptionService({
+        apiEndpoint: `${OPENREEL_TTS_URL}/transcribe`,
+        targetLanguage: targetLanguage !== "none" ? targetLanguage : undefined,
+      });
 
       const regularClip = getClip(selectedClip.id);
       if (!regularClip) {
@@ -512,6 +510,7 @@ export const InspectorPanel: React.FC = () => {
     getClip,
     addSubtitle,
     defaultAnimationStyle,
+    targetLanguage,
   ]);
 
   // Default transform
@@ -649,6 +648,43 @@ export const InspectorPanel: React.FC = () => {
                             {getAnimationStyleDisplayName(style)}
                           </SelectItem>
                         ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] text-text-secondary block mb-1">
+                      Target Language
+                    </label>
+                    <Select
+                      value={targetLanguage}
+                      onValueChange={setTargetLanguage}
+                      disabled={isTranscribing}
+                    >
+                      <SelectTrigger className="w-full bg-background-secondary border-border text-text-primary text-[11px]">
+                        <SelectValue placeholder="Original (no translation)" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-background-secondary border-border">
+                        <SelectItem value="none">Original (no translation)</SelectItem>
+                        <SelectGroup>
+                          <SelectLabel className="text-[10px]">Translate to</SelectLabel>
+                          <SelectItem value="en">English</SelectItem>
+                          <SelectItem value="es">Spanish</SelectItem>
+                          <SelectItem value="fr">French</SelectItem>
+                          <SelectItem value="de">German</SelectItem>
+                          <SelectItem value="pt">Portuguese</SelectItem>
+                          <SelectItem value="it">Italian</SelectItem>
+                          <SelectItem value="nl">Dutch</SelectItem>
+                          <SelectItem value="ru">Russian</SelectItem>
+                          <SelectItem value="zh">Chinese</SelectItem>
+                          <SelectItem value="ja">Japanese</SelectItem>
+                          <SelectItem value="ko">Korean</SelectItem>
+                          <SelectItem value="ar">Arabic</SelectItem>
+                          <SelectItem value="hi">Hindi</SelectItem>
+                          <SelectItem value="tr">Turkish</SelectItem>
+                          <SelectItem value="pl">Polish</SelectItem>
+                          <SelectItem value="sv">Swedish</SelectItem>
+                        </SelectGroup>
                       </SelectContent>
                     </Select>
                   </div>

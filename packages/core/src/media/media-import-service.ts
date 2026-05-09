@@ -17,6 +17,7 @@ import {
   getFFmpegFallback,
   PROXY_THRESHOLDS,
   type ProxySettings,
+  type TranscodeOptions,
 } from "./ffmpeg-fallback";
 
 export interface MediaImportOptions {
@@ -120,15 +121,27 @@ export class MediaImportService {
         }
       }
 
-      if (!metadata.canDecode) {
-        warnings.push(
-          "Codec may not be fully supported. Playback might be limited.",
-        );
+      const needsTranscode =
+        !metadata.canDecode ||
+        (file.type === "video/quicktime" &&
+          !(await this.canBrowserPlay(file)));
 
-        // Try fallback for unsupported codec
+      if (needsTranscode) {
+        if (!metadata.canDecode) {
+          warnings.push(
+            "Codec may not be fully supported. Playback might be limited.",
+          );
+        }
+
         if (opts.useFallback) {
           try {
-            return await this.importWithFallback(file, opts);
+            return await this.importWithFallback(file, opts, {
+              format: "mp4",
+              videoCodec: "libx264",
+              audioCodec: "aac",
+              videoBitrate: "5M",
+              audioBitrate: "192k",
+            });
           } catch {
             // Continue with original file, just with warning
           }
@@ -258,17 +271,48 @@ export class MediaImportService {
     }
   }
 
+  private canBrowserPlay(file: File | Blob): Promise<boolean> {
+    return new Promise((resolve) => {
+      const video = document.createElement("video");
+      const url = URL.createObjectURL(file);
+      const timeout = setTimeout(() => {
+        cleanup();
+        resolve(false);
+      }, 3000);
+
+      const cleanup = () => {
+        clearTimeout(timeout);
+        video.removeAttribute("src");
+        video.load();
+        URL.revokeObjectURL(url);
+      };
+
+      video.onloadedmetadata = () => {
+        cleanup();
+        resolve(true);
+      };
+      video.onerror = () => {
+        cleanup();
+        resolve(false);
+      };
+      video.src = url;
+    });
+  }
+
   private async importWithFallback(
     file: File,
     opts: Required<MediaImportOptions>,
+    transcodeOpts?: TranscodeOptions,
   ): Promise<MediaImportResult> {
-    // Transcode to compatible format
     const compatibleBlob =
-      await this.ffmpegFallback.transcodeToCompatible(file);
+      await this.ffmpegFallback.transcodeToCompatible(file, undefined, transcodeOpts);
+    const format = transcodeOpts?.format || "webm";
+    const ext = format === "mp4" ? ".mp4" : ".webm";
+    const mime = format === "mp4" ? "video/mp4" : "video/webm";
     const compatibleFile = new File(
       [compatibleBlob],
-      file.name.replace(/\.[^.]+$/, ".webm"),
-      { type: "video/webm" },
+      file.name.replace(/\.[^.]+$/, ext),
+      { type: mime },
     );
 
     // Now process with MediaBunny

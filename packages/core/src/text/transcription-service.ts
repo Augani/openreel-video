@@ -30,6 +30,7 @@ export interface TranscriptionConfig {
   apiEndpoint: string;
   apiKey?: string;
   language?: string;
+  targetLanguage?: string;
   maxSegmentDuration?: number;
   maxWordsPerSegment?: number;
 }
@@ -210,10 +211,19 @@ export class TranscriptionService {
     const formData = new FormData();
     formData.append("audio", audioBlob, "audio.wav");
 
+    if (this.config.language) {
+      formData.append("language", this.config.language);
+    }
+    if (this.config.targetLanguage) {
+      formData.append("target_language", this.config.targetLanguage);
+    }
+
     onProgress?.({
       phase: "transcribing",
       progress: 50,
-      message: "Transcribing audio...",
+      message: this.config.targetLanguage
+        ? `Transcribing and translating to ${this.config.targetLanguage}...`
+        : "Transcribing audio...",
     });
 
     const response = await fetch(this.config.apiEndpoint, {
