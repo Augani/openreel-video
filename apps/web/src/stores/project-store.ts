@@ -1400,6 +1400,14 @@ export const useProjectStore = create<ProjectState>()(
         }
 
         if (lastResult.success) {
+          for (const track of projectCopy.timeline.tracks) {
+            const clipIndex = track.clips.findIndex((c) => c.id === clipId);
+            if (clipIndex !== -1) {
+              (track.clips[clipIndex] as unknown as { volume: number }).volume = 0;
+              break;
+            }
+          }
+
           const finalProject: Project = {
             ...projectCopy,
             modifiedAt: Date.now(),
