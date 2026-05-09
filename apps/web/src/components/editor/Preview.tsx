@@ -208,79 +208,33 @@ export const Preview: React.FC = () => {
   );
   const audioBufferCacheRef = useRef<Map<string, AudioBuffer>>(new Map());
 
-  /** Returns the cache key for an audio buffer, accounting for multi-track audio files. */
   const getAudioBufferCacheKey = (mediaId: string, audioTrackIndex?: number): string =>
-    audioTrackIndex !== undefined && audioTrackIndex > 0
-      ? `${mediaId}:${audioTrackIndex}`
-      : mediaId;
+    `${mediaId}:${audioTrackIndex ?? 0}`;
 
-  /**
-   * Loads an AudioBuffer for the given media item and audio track index.
-   * Uses mediabunny for non-primary tracks; falls back to decodeAudioData for the primary track.
-   */
   const loadAudioBuffer = async (
     audioContext: AudioContext | BaseAudioContext,
     blob: Blob,
     audioTrackIndex: number = 0,
   ): Promise<AudioBuffer | null> => {
+    try {
+      const { getFFmpegFallback } = await import("@openreel/core/media");
+      const ffmpeg = getFFmpegFallback();
+      const wavBlob = await ffmpeg.extractAudioAsWav(blob, audioTrackIndex);
+      const arrayBuffer = await wavBlob.arrayBuffer();
+      return await audioContext.decodeAudioData(arrayBuffer);
+    } catch {
+      // ffmpeg extraction failed — fall back to browser decode for primary track
+    }
+
     if (audioTrackIndex === 0) {
       try {
         const arrayBuffer = await blob.arrayBuffer();
         return await audioContext.decodeAudioData(arrayBuffer);
       } catch {
-        // Fall through to mediabunny extraction
+        return null;
       }
     }
-    // Use mediabunny to extract the specific audio track
-    try {
-      const { Input, ALL_FORMATS, BlobSource, AudioBufferSink } =
-        await import("mediabunny");
-      const input = new Input({ source: new BlobSource(blob), formats: ALL_FORMATS });
-      const audioTracks = await (input as any).getAudioTracks();
-      const track =
-        audioTracks[audioTrackIndex] ??
-        (await (input as any).getPrimaryAudioTrack()) ??
-        audioTracks[0] ??
-        null;
-      if (!track) {
-        (input as any)[Symbol.dispose]?.();
-        return null;
-      }
-      const canDecode = await track.canDecode();
-      if (!canDecode) {
-        (input as any)[Symbol.dispose]?.();
-        return null;
-      }
-      const sink = new AudioBufferSink(track);
-      const duration = await track.computeDuration();
-      if (!duration || duration <= 0) {
-        (input as any)[Symbol.dispose]?.();
-        return null;
-      }
-      // Collect all audio buffers from the sink
-      const chunks: { buffer: AudioBuffer; timestamp: number }[] = [];
-      for await (const wrapped of sink.buffers(0, duration)) {
-        chunks.push({ buffer: wrapped.buffer, timestamp: wrapped.timestamp });
-      }
-      (input as any)[Symbol.dispose]?.();
-      if (chunks.length === 0) return null;
-      // Concatenate all chunks into a single AudioBuffer
-      const sampleRate = chunks[0].buffer.sampleRate;
-      const numChannels = chunks[0].buffer.numberOfChannels;
-      const totalFrames = Math.ceil(duration * sampleRate);
-      const combined = audioContext.createBuffer(numChannels, totalFrames, sampleRate);
-      for (const chunk of chunks) {
-        const offsetFrames = Math.round(chunk.timestamp * sampleRate);
-        for (let ch = 0; ch < numChannels; ch++) {
-          const dest = combined.getChannelData(ch);
-          const src = chunk.buffer.getChannelData(ch);
-          dest.set(src, offsetFrames);
-        }
-      }
-      return combined;
-    } catch {
-      return null;
-    }
+    return null;
   };
 
   const rendererRef = useRef<Renderer | null>(null);
@@ -2047,7 +2001,7 @@ export const Preview: React.FC = () => {
                 startTime: audioClip.startTime,
                 endTime: audioClip.startTime + audioClip.duration,
                 mediaOffset: audioClip.inPoint || 0,
-                volume: 1,
+                volume: audioClip.volume ?? 1,
                 pan: 0,
                 effects: [],
                 speed: audioClip.speed ?? 1,

@@ -292,7 +292,7 @@ export class FFmpegFallback {
     });
   }
 
-  async extractAudioAsWav(file: File | Blob): Promise<Blob> {
+  async extractAudioAsWav(file: File | Blob, streamIndex?: number): Promise<Blob> {
     await this.load();
     this.ensureLoaded();
 
@@ -303,18 +303,20 @@ export class FFmpegFallback {
       const inputData = await this.fileToUint8Array(file);
       await this.ffmpeg!.writeFile(inputFilename, inputData);
 
-      await this.ffmpeg!.exec([
-        "-i",
-        inputFilename,
-        "-vn", // No video
-        "-acodec",
-        "pcm_f32le", // 32-bit float PCM
-        "-ar",
-        "48000", // 48kHz sample rate
-        "-ac",
-        "2", // Stereo
+      const args = ["-i", inputFilename];
+      if (streamIndex !== undefined) {
+        args.push("-map", `0:a:${streamIndex}`);
+      } else {
+        args.push("-vn");
+      }
+      args.push(
+        "-acodec", "pcm_f32le",
+        "-ar", "48000",
+        "-ac", "2",
         outputFilename,
-      ]);
+      );
+
+      await this.ffmpeg!.exec(args);
 
       const data = await this.ffmpeg!.readFile(outputFilename);
       return new Blob([data.buffer as ArrayBuffer], { type: "audio/wav" });

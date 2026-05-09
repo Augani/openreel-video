@@ -42,11 +42,10 @@ class SegmentedAudioDecoder {
       }) as unknown as MediaBunnyAudioInput;
 
       const audioTracks = await this.input.getAudioTracks();
-      let audioTrack =
-        audioTracks[this.audioTrackIndex] ??
-        (await this.input.getPrimaryAudioTrack()) ??
-        audioTracks[0] ??
-        null;
+      let audioTrack = audioTracks[this.audioTrackIndex] ?? null;
+      if (!audioTrack && this.audioTrackIndex === 0) {
+        audioTrack = (await this.input.getPrimaryAudioTrack()) ?? audioTracks[0] ?? null;
+      }
 
       if (!audioTrack) {
         this.dispose();
@@ -348,9 +347,7 @@ export class AudioEngine {
     context: BaseAudioContext,
     audioTrackIndex: number = 0,
   ): Promise<AudioBuffer | null> {
-    const cacheKey = audioTrackIndex > 0
-      ? `${mediaItem.id}:${audioTrackIndex}`
-      : mediaItem.id;
+    const cacheKey = `${mediaItem.id}:${audioTrackIndex}`;
     const cached = this.mediaBuffers.get(cacheKey);
     if (cached) return cached;
 
@@ -360,31 +357,30 @@ export class AudioEngine {
     }
 
     try {
-      if (audioTrackIndex === 0) {
-        const arrayBuffer = await mediaItem.blob.arrayBuffer();
-        const audioBuffer = await context.decodeAudioData(arrayBuffer);
+      const audioBuffer = await this.extractAudioFromVideo(
+        mediaItem,
+        context,
+        audioTrackIndex,
+      );
+      if (audioBuffer) {
         this.mediaBuffers.set(cacheKey, audioBuffer);
         return audioBuffer;
       }
     } catch {
-      // Fall through to mediabunny extraction
+      // mediabunny extraction failed
     }
 
-    if (mediaItem.type === "video" || audioTrackIndex > 0) {
+    if (audioTrackIndex === 0) {
       try {
-        const audioBuffer = await this.extractAudioFromVideo(
-          mediaItem,
-          context,
-          audioTrackIndex,
-        );
-        if (audioBuffer) {
-          this.mediaBuffers.set(cacheKey, audioBuffer);
-          return audioBuffer;
-        }
+        const arrayBuffer = await mediaItem.blob.arrayBuffer();
+        const audioBuffer = await context.decodeAudioData(arrayBuffer);
+        this.mediaBuffers.set(cacheKey, audioBuffer);
+        return audioBuffer;
       } catch {
-        // Video audio extraction failed
+        return null;
       }
     }
+
     return null;
   }
 
@@ -396,95 +392,12 @@ export class AudioEngine {
     if (!mediaItem.blob) return null;
 
     try {
-      const mediabunny = await import("mediabunny");
-      const { Input, ALL_FORMATS, BlobSource, AudioSampleSink } = mediabunny;
-
-      const input = new Input({
-        source: new BlobSource(mediaItem.blob),
-        formats: ALL_FORMATS,
-      });
-
-      const audioTracks = await input.getAudioTracks();
-      let audioTrack =
-        audioTracks[audioTrackIndex] ??
-        (await input.getPrimaryAudioTrack()) ??
-        audioTracks[0] ??
-        null;
-
-      const canDecode = await audioTrack.canDecode();
-      if (!canDecode) {
-        input[Symbol.dispose]?.();
-        return null;
-      }
-
-      const duration = await audioTrack.computeDuration();
-      if (!duration || duration <= 0) {
-        input[Symbol.dispose]?.();
-        return null;
-      }
-
-      const sampleRate = context.sampleRate;
-      const channels = 2;
-      const samplesPerSecond = 1000;
-      const totalSamplePoints = Math.ceil(duration * samplesPerSecond);
-
-      const sink = new AudioSampleSink(audioTrack);
-      const timestamps = Array.from(
-        { length: totalSamplePoints },
-        (_, i) => i / samplesPerSecond,
-      );
-
-      const allSamples: Float32Array[] = [];
-
-      for await (const sample of sink.samplesAtTimestamps(timestamps)) {
-        if (!sample) {
-          allSamples.push(new Float32Array(0));
-          continue;
-        }
-        const bytesNeeded = sample.allocationSize({
-          format: "f32",
-          planeIndex: 0,
-        });
-        const floats = new Float32Array(bytesNeeded / 4);
-        sample.copyTo(floats, { format: "f32", planeIndex: 0 });
-        allSamples.push(floats);
-        sample.close();
-      }
-
-      input[Symbol.dispose]?.();
-
-      const totalFrames = Math.ceil(duration * sampleRate);
-      const leftChannel = new Float32Array(totalFrames);
-      const rightChannel = new Float32Array(totalFrames);
-
-      let frameIndex = 0;
-      for (const sampleData of allSamples) {
-        if (sampleData.length === 0) continue;
-        const numChannels = sampleData.length >= 2 ? 2 : 1;
-        const framesInSample = Math.floor(sampleData.length / numChannels);
-
-        for (let i = 0; i < framesInSample && frameIndex < totalFrames; i++) {
-          if (numChannels === 2) {
-            leftChannel[frameIndex] = sampleData[i * 2] || 0;
-            rightChannel[frameIndex] = sampleData[i * 2 + 1] || 0;
-          } else {
-            leftChannel[frameIndex] = sampleData[i] || 0;
-            rightChannel[frameIndex] = sampleData[i] || 0;
-          }
-          frameIndex++;
-        }
-      }
-
-      if (frameIndex === 0) {
-        return null;
-      }
-
-      const audioBuffer = context.createBuffer(channels, frameIndex, sampleRate);
-      audioBuffer.copyToChannel(leftChannel.subarray(0, frameIndex), 0);
-      audioBuffer.copyToChannel(rightChannel.subarray(0, frameIndex), 1);
-
-      return audioBuffer;
-    } catch (error) {
+      const { getFFmpegFallback } = await import("../media/ffmpeg-fallback");
+      const ffmpeg = getFFmpegFallback();
+      const wavBlob = await ffmpeg.extractAudioAsWav(mediaItem.blob, audioTrackIndex);
+      const arrayBuffer = await wavBlob.arrayBuffer();
+      return await context.decodeAudioData(arrayBuffer);
+    } catch {
       return null;
     }
   }
@@ -623,9 +536,7 @@ export class AudioEngine {
       return null;
     }
 
-    const cacheKey = audioTrackIndex > 0
-      ? `${mediaItem.id}:${audioTrackIndex}`
-      : mediaItem.id;
+    const cacheKey = `${mediaItem.id}:${audioTrackIndex}`;
     const cached = this.segmentedAudioDecoders.get(cacheKey);
     if (cached) {
       return cached;
