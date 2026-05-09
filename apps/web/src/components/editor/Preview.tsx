@@ -67,7 +67,7 @@ import {
   ParticleRenderer,
 } from "./preview/index";
 import { ProcessingOverlay } from "./ProcessingOverlay";
-import { getPersonSegmentationEngine } from "@openreel/core";
+import { getPersonSegmentationEngine, getBackgroundRemovalEngine } from "@openreel/core";
 import type { MotionPathConfig, GSAPMotionPathPoint } from "@openreel/core";
 
 const getAdaptivePoolSize = (width: number, height: number): number => {
@@ -2339,7 +2339,27 @@ export const Preview: React.FC = () => {
           currentPlayhead,
         );
 
-        drawFrameWithTransform(ctx, video, transform, canvas.width, canvas.height);
+        const bgEngine = getBackgroundRemovalEngine();
+        const hasBgRemoval = bgEngine?.isInitialized() && bgEngine.getSettings(clip.id).enabled;
+
+        let videoFrame: HTMLVideoElement | ImageBitmap = video;
+        if (hasBgRemoval) {
+          try {
+            const rawBitmap = await createImageBitmap(video);
+            const processed = await applyEffectsToFrame(clip.id, rawBitmap);
+            if (processed !== rawBitmap) {
+              rawBitmap.close();
+            }
+            videoFrame = processed;
+          } catch {
+            videoFrame = video;
+          }
+        }
+
+        drawFrameWithTransform(ctx, videoFrame, transform, canvas.width, canvas.height);
+        if (videoFrame !== video && videoFrame instanceof ImageBitmap) {
+          videoFrame.close();
+        }
         const subjectFrame = hasBehindSubjectText(activeTextClips)
           ? await captureSubjectFrame(ctx, canvas.width, canvas.height)
           : null;
@@ -3774,6 +3794,20 @@ export const Preview: React.FC = () => {
     project.modifiedAt,
     isDark,
   ]);
+
+  const [previewInvalidateCounter, setPreviewInvalidateCounter] = useState(0);
+  useEffect(() => {
+    const handler = () => setPreviewInvalidateCounter((c) => c + 1);
+    window.addEventListener("openreel:preview-invalidate", handler);
+    return () => window.removeEventListener("openreel:preview-invalidate", handler);
+  }, []);
+
+  useEffect(() => {
+    if (isPlaying || previewInvalidateCounter === 0) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    renderFrameDirectly(playheadPosition);
+  }, [previewInvalidateCounter, isPlaying, renderFrameDirectly, playheadPosition]);
 
   const selectedClipId = useMemo(() => {
     const clipSelection = selectedItems.find((item) => item.type === "clip");

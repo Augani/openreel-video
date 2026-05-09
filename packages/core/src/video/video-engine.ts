@@ -37,6 +37,7 @@ import {
 import { GPUCompositor, initializeGPUCompositor } from "./gpu-compositor";
 import { getRendererFactory, type Renderer } from "./renderer-factory";
 import { keyframeEngine } from "./keyframe-engine";
+import { getBackgroundRemovalEngine } from "../ai/background-removal-engine";
 import {
   type GifFrameCache,
   createGifFrameCache,
@@ -573,6 +574,28 @@ export class VideoEngine {
             };
 
             let processedBitmap = bitmap;
+
+            const bgEngine = getBackgroundRemovalEngine();
+            if (bgEngine && bgEngine.isInitialized()) {
+              const bgSettings = bgEngine.getSettings(clip.id);
+              if (bgSettings.enabled) {
+                try {
+                  const bgResult = await bgEngine.processFrame(
+                    clip.id,
+                    processedBitmap,
+                    processedBitmap.width,
+                    processedBitmap.height,
+                  );
+                  if (bgResult && bgResult !== processedBitmap) {
+                    if (processedBitmap !== bitmap) {
+                      processedBitmap.close();
+                    }
+                    processedBitmap = bgResult;
+                  }
+                } catch {}
+              }
+            }
+
             if (clip.effects && clip.effects.length > 0) {
               try {
                 if (!this.effectsEngine) {
@@ -589,9 +612,12 @@ export class VideoEngine {
                   await Promise.race([initPromise, timeoutPromise]);
                 }
                 const effectsResult = await this.effectsEngine.applyEffects(
-                  bitmap,
+                  processedBitmap,
                   clip.effects,
                 );
+                if (processedBitmap !== bitmap) {
+                  processedBitmap.close();
+                }
                 processedBitmap = effectsResult.image;
               } catch (error) {
                 console.warn(

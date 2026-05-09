@@ -24,6 +24,16 @@ export {
 } from "./clip-manager";
 
 export {
+  AutoEditService,
+  getAutoEditService,
+  DEFAULT_AUTO_EDIT_OPTIONS,
+  type AutoEditOptions,
+  type AutoEditCut,
+  type AutoEditResult,
+  type CutMode,
+} from "./auto-edit-service";
+
+export {
   NestedSequenceEngine,
   getNestedSequenceEngine,
   resetNestedSequenceEngine,

@@ -122,5 +122,6 @@ export interface IStorageEngine {
   getStorageUsage(): Promise<StorageUsage>;
 
   // Database management
+  clearAllData(): Promise<void>;
   close(): void;
 }

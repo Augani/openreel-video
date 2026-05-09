@@ -8,6 +8,7 @@ export * from "./transform-animator";
 export * from "./mask-engine";
 export * from "./composite-engine";
 export * from "./speed-engine";
+export * from "./speed-presets";
 export * from "./keyframe-engine";
 export * from "./chroma-key-engine";
 export * from "./motion-tracking-engine";

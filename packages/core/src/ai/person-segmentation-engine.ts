@@ -16,6 +16,15 @@ export class PersonSegmentationEngine {
   private segmenter: ImageSegmenter | null = null;
   private initialized = false;
   private initializing: Promise<void> | null = null;
+  private cachedMask: SegmentationResult | null = null;
+  private lastSegmentTime = 0;
+  private segmentInterval = 66;
+  private segCanvas: HTMLCanvasElement | null = null;
+  private segCtx: CanvasRenderingContext2D | null = null;
+  private upscaleCanvas: HTMLCanvasElement | null = null;
+  private upscaleCtx: CanvasRenderingContext2D | null = null;
+  private readonly SEG_WIDTH = 512;
+  private readonly SEG_HEIGHT = 288;
 
   async initialize(): Promise<void> {
     if (this.initialized) return;
@@ -40,10 +49,18 @@ export class PersonSegmentationEngine {
         modelAssetPath: MODEL_URL,
         delegate: "GPU",
       },
-      runningMode: "IMAGE",
+      runningMode: "VIDEO",
       outputCategoryMask: false,
       outputConfidenceMasks: true,
     });
+
+    this.segCanvas = document.createElement("canvas");
+    this.segCanvas.width = this.SEG_WIDTH;
+    this.segCanvas.height = this.SEG_HEIGHT;
+    this.segCtx = this.segCanvas.getContext("2d", { willReadFrequently: true });
+
+    this.upscaleCanvas = document.createElement("canvas");
+    this.upscaleCtx = this.upscaleCanvas.getContext("2d", { willReadFrequently: true });
 
     this.initialized = true;
     this.initializing = null;
@@ -53,24 +70,29 @@ export class PersonSegmentationEngine {
     return this.initialized;
   }
 
+  setSegmentInterval(ms: number): void {
+    this.segmentInterval = Math.max(16, ms);
+  }
+
   async getPersonMask(frame: ImageBitmap): Promise<SegmentationResult | null> {
     if (!this.segmenter) return null;
 
-    const width = frame.width;
-    const height = frame.height;
+    const now = performance.now();
+    if (this.cachedMask && now - this.lastSegmentTime < this.segmentInterval) {
+      return this.cachedMask;
+    }
 
-    const canvas = document.createElement("canvas");
-    canvas.width = width;
-    canvas.height = height;
-    const ctx = canvas.getContext("2d")!;
-    ctx.drawImage(frame, 0, 0);
+    const outputWidth = frame.width;
+    const outputHeight = frame.height;
 
-    let maskData: ImageData | null = null;
+    if (!this.segCtx || !this.segCanvas) return null;
 
-    this.segmenter.segment(canvas, (result) => {
+    this.segCtx.drawImage(frame, 0, 0, this.SEG_WIDTH, this.SEG_HEIGHT);
+
+    let rawMask: Float32Array | null = null;
+
+    this.segmenter.segmentForVideo(this.segCanvas, Math.round(now), (result) => {
       if (result.confidenceMasks && result.confidenceMasks.length > 0) {
-        // Selfie segmentation models may return background first and person
-        // second. Prefer the foreground/person mask when it is available.
         const labels = this.segmenter?.getLabels() ?? [];
         const personLabelIndex = labels.findIndex((label) =>
           /foreground|human|person|selfie/i.test(label),
@@ -83,17 +105,7 @@ export class PersonSegmentationEngine {
               : 0;
         const foregroundMask =
           result.confidenceMasks[foregroundMaskIndex] ?? result.confidenceMasks[0];
-        const mask = foregroundMask.getAsFloat32Array();
-        maskData = new ImageData(width, height);
-
-        for (let i = 0; i < mask.length; i++) {
-          const confidence = mask[i];
-          const alpha = Math.round(confidence * 255);
-          maskData.data[i * 4] = 255;
-          maskData.data[i * 4 + 1] = 255;
-          maskData.data[i * 4 + 2] = 255;
-          maskData.data[i * 4 + 3] = alpha;
-        }
+        rawMask = new Float32Array(foregroundMask.getAsFloat32Array());
 
         for (const confidenceMask of result.confidenceMasks) {
           confidenceMask.close();
@@ -101,9 +113,79 @@ export class PersonSegmentationEngine {
       }
     });
 
-    if (!maskData) return null;
+    if (!rawMask) return this.cachedMask;
 
-    return { mask: maskData, width, height };
+    const segMaskData = new ImageData(this.SEG_WIDTH, this.SEG_HEIGHT);
+    for (let i = 0; i < (rawMask as Float32Array).length; i++) {
+      const alpha = Math.round((rawMask as Float32Array)[i] * 255);
+      segMaskData.data[i * 4] = 255;
+      segMaskData.data[i * 4 + 1] = 255;
+      segMaskData.data[i * 4 + 2] = 255;
+      segMaskData.data[i * 4 + 3] = alpha;
+    }
+
+    if (
+      !this.upscaleCanvas || !this.upscaleCtx ||
+      this.upscaleCanvas.width !== outputWidth ||
+      this.upscaleCanvas.height !== outputHeight
+    ) {
+      this.upscaleCanvas!.width = outputWidth;
+      this.upscaleCanvas!.height = outputHeight;
+    }
+
+    const tempCanvas = document.createElement("canvas");
+    tempCanvas.width = this.SEG_WIDTH;
+    tempCanvas.height = this.SEG_HEIGHT;
+    const tempCtx = tempCanvas.getContext("2d")!;
+    tempCtx.putImageData(segMaskData, 0, 0);
+
+    this.upscaleCtx!.imageSmoothingEnabled = true;
+    this.upscaleCtx!.imageSmoothingQuality = "high";
+    this.upscaleCtx!.clearRect(0, 0, outputWidth, outputHeight);
+    this.upscaleCtx!.drawImage(tempCanvas, 0, 0, outputWidth, outputHeight);
+
+    const maskData = this.upscaleCtx!.getImageData(0, 0, outputWidth, outputHeight);
+
+    this.refineEdges(maskData);
+
+    this.cachedMask = { mask: maskData, width: outputWidth, height: outputHeight };
+    this.lastSegmentTime = now;
+    return this.cachedMask;
+  }
+
+  private refineEdges(mask: ImageData): void {
+    const { data, width, height } = mask;
+    const radius = 2;
+    const temp = new Uint8ClampedArray(width * height);
+
+    for (let i = 0; i < data.length; i += 4) {
+      temp[i >> 2] = data[i + 3];
+    }
+
+    for (let y = radius; y < height - radius; y++) {
+      for (let x = radius; x < width - radius; x++) {
+        const idx = y * width + x;
+        const center = temp[idx];
+
+        if (center === 0 || center === 255) continue;
+
+        let sum = 0;
+        let count = 0;
+        for (let dy = -radius; dy <= radius; dy++) {
+          for (let dx = -radius; dx <= radius; dx++) {
+            sum += temp[(y + dy) * width + (x + dx)];
+            count++;
+          }
+        }
+        const smoothed = sum / count;
+
+        const contrast = smoothed < 128
+          ? smoothed * smoothed / 128
+          : 255 - (255 - smoothed) * (255 - smoothed) / 128;
+
+        data[(idx) * 4 + 3] = Math.round(contrast);
+      }
+    }
   }
 
   dispose(): void {
@@ -111,6 +193,11 @@ export class PersonSegmentationEngine {
       this.segmenter.close();
       this.segmenter = null;
     }
+    this.segCanvas = null;
+    this.segCtx = null;
+    this.upscaleCanvas = null;
+    this.upscaleCtx = null;
+    this.cachedMask = null;
     this.initialized = false;
     this.initializing = null;
   }

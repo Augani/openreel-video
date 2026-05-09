@@ -39,6 +39,7 @@ import {
   AutoCutSilenceSection,
   CropSection,
   SpeedSection,
+  SpeedRampSection,
   MotionPresetsPanel,
   EmphasisAnimationSection,
   MotionPathSection,
@@ -48,6 +49,7 @@ import {
   BehindSubjectSection,
 } from "./inspector";
 import { OPENREEL_TTS_URL } from "../../config/api-endpoints";
+import { AutoEditPanel } from "./panels/AutoEditPanel";
 import {
   getAudioBridgeEffects,
   initializeAudioBridgeEffects,
@@ -753,6 +755,13 @@ export const InspectorPanel: React.FC = () => {
               </Section>
             )}
 
+            {/* Auto-Edit - Cut video clips to audio beats */}
+            {showAudioEffects && (
+              <Section title="Beat-Synced Auto-Edit" sectionId="auto-edit" defaultOpen={false}>
+                <AutoEditPanel onClose={() => {}} />
+              </Section>
+            )}
+
             {/* Transform */}
             {showTransformControls && (
               <Section title="Transform" sectionId="transform">
@@ -899,6 +908,22 @@ export const InspectorPanel: React.FC = () => {
                   defaultOpen={true}
                 >
                   <SpeedSection clip={selectedClip as Clip} />
+                </Section>
+              )}
+
+            {/* Speed Curves */}
+            {showVideoControls &&
+              selectedClip &&
+              !selectedClip.mediaId.startsWith("text-") &&
+              !selectedClip.mediaId.startsWith("shape-") &&
+              !selectedClip.mediaId.startsWith("svg-") &&
+              !selectedClip.mediaId.startsWith("sticker-") && (
+                <Section
+                  title="Speed Curves"
+                  sectionId="speed-curves"
+                  defaultOpen={false}
+                >
+                  <SpeedRampSection clip={selectedClip as Clip} />
                 </Section>
               )}
 

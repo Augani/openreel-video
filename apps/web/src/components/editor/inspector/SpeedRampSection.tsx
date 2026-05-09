@@ -23,6 +23,7 @@ import {
   type SpeedKeyframe,
   SPEED_MIN,
   SPEED_MAX,
+  SPEED_CURVE_PRESETS,
 } from "@openreel/core";
 
 interface ClipLike {
@@ -328,6 +329,26 @@ export const SpeedRampSection: React.FC<SpeedRampSectionProps> = ({ clip }) => {
     [clip.id, speedEngine],
   );
 
+  const handleApplyCurvePreset = useCallback(
+    (presetId: string) => {
+      const preset = SPEED_CURVE_PRESETS.find((p) => p.id === presetId);
+      if (!preset) return;
+
+      keyframes.forEach((kf) => speedEngine.removeSpeedKeyframe(clip.id, kf.id));
+
+      for (const kf of preset.keyframes) {
+        const absoluteTime = kf.time * clip.duration;
+        speedEngine.addSpeedKeyframe(clip.id, absoluteTime, kf.speed, kf.easing);
+      }
+
+      setShowCurve(true);
+      useProjectStore.setState((state) => ({
+        project: { ...state.project, modifiedAt: Date.now() },
+      }));
+    },
+    [clip.id, clip.duration, keyframes, speedEngine],
+  );
+
   const handleReset = useCallback(() => {
     speedEngine.setClipSpeed(clip.id, 1, clip.duration);
     speedEngine.setReverse(clip.id, false, clip.duration);
@@ -417,6 +438,24 @@ export const SpeedRampSection: React.FC<SpeedRampSectionProps> = ({ clip }) => {
         >
           Pitch Correct
         </button>
+      </div>
+
+      <div className="space-y-1.5">
+        <span className="text-[10px] font-medium text-text-secondary">
+          Speed Curve Presets
+        </span>
+        <div className="grid grid-cols-2 gap-1">
+          {SPEED_CURVE_PRESETS.map((preset) => (
+            <button
+              key={preset.id}
+              onClick={() => handleApplyCurvePreset(preset.id)}
+              className="py-1.5 px-2 text-[9px] rounded-lg border bg-background-tertiary border-border text-text-secondary hover:border-primary/50 hover:text-primary transition-colors text-left"
+              title={preset.description}
+            >
+              {preset.name}
+            </button>
+          ))}
+        </div>
       </div>
 
       <button
