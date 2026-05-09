@@ -791,6 +791,48 @@ export const setImageLoadCallback = (callback: (() => void) | null): void => {
   imageLoadCallback = callback;
 };
 
+const wrapSVGWithTransparentPadding = (
+  svgContent: string,
+  width: number,
+  height: number,
+  padding: number,
+  viewBox?: { minX: number; minY: number; width: number; height: number },
+): string => {
+  if (padding <= 0) {
+    return svgContent;
+  }
+
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(svgContent, "image/svg+xml");
+  const svgEl = doc.querySelector("svg");
+
+  if (!svgEl) {
+    return svgContent;
+  }
+
+  const vbMinX = viewBox?.minX ?? 0;
+  const vbMinY = viewBox?.minY ?? 0;
+  const vbWidth = viewBox?.width ?? width;
+  const vbHeight = viewBox?.height ?? height;
+
+  const padX = (padding / width) * vbWidth;
+  const padY = (padding / height) * vbHeight;
+
+  const paddedWidth = width + padding * 2;
+  const paddedHeight = height + padding * 2;
+
+  svgEl.setAttribute("width", String(paddedWidth));
+  svgEl.setAttribute("height", String(paddedHeight));
+  svgEl.setAttribute(
+    "viewBox",
+    `${vbMinX - padX} ${vbMinY - padY} ${vbWidth + padX * 2} ${vbHeight + padY * 2}`,
+  );
+  svgEl.setAttribute("overflow", "visible");
+
+  return new XMLSerializer().serializeToString(svgEl);
+};
+
+
 const renderStickerClip = (
   ctx: CanvasRenderingContext2D,
   stickerClip: StickerClip,
@@ -887,11 +929,8 @@ const renderSVGClip = (
 
   ctx.save();
 
-  const posX = transform.position.x * canvasWidth;
-  const posY = transform.position.y * canvasHeight;
-
-  ctx.translate(posX, posY);
-  ctx.rotate((transform.rotation * Math.PI) / 180);
+  const posX = Math.round(transform.position.x * canvasWidth);
+  const posY = Math.round(transform.position.y * canvasHeight);
 
   let animationScale = { x: transform.scale.x, y: transform.scale.y };
   let animationOpacity = transform.opacity;
@@ -1172,21 +1211,54 @@ const renderSVGClip = (
     }
   }
 
-  ctx.translate(animationTranslateX, animationTranslateY);
+  ctx.translate(
+    posX + Math.round(animationTranslateX),
+    posY + Math.round(animationTranslateY),
+  );
+  ctx.rotate((transform.rotation * Math.PI) / 180);
   ctx.scale(animationScale.x, animationScale.y);
   ctx.globalAlpha = animationOpacity;
 
-  // Maintain cache of SVG images to avoid recreating blob URLs and Image objects on every frame
-  const cacheKey = svgClip.id;
+  const svgWidth = viewBox?.width || 200;
+  const svgHeight = viewBox?.height || 200;
+  const svgAspect = svgWidth / svgHeight;
+  const maxScale = Math.max(
+    Math.abs(animationScale.x),
+    Math.abs(animationScale.y),
+    1,
+  );
+  const scaleBucket = Math.ceil(maxScale * 2) / 2;
+
+  let renderWidth: number;
+  let renderHeight: number;
+  if (svgAspect > 1) {
+    renderWidth = Math.ceil(canvasWidth * scaleBucket);
+    renderHeight = Math.ceil(renderWidth / svgAspect);
+  } else {
+    renderHeight = Math.ceil(canvasHeight * scaleBucket);
+    renderWidth = Math.ceil(renderHeight * svgAspect);
+  }
+
+  const svgPad = 16;
+  const paddedWidth = renderWidth + svgPad * 2;
+  const paddedHeight = renderHeight + svgPad * 2;
+  const cacheKey = `${svgClip.id}_${renderWidth}x${renderHeight}`;
   let img = svgImageCache.get(cacheKey);
 
   if (!img) {
+    const scaledContent = wrapSVGWithTransparentPadding(
+      svgContent,
+      renderWidth,
+      renderHeight,
+      svgPad,
+      viewBox ? { minX: viewBox.minX, minY: viewBox.minY, width: svgWidth, height: svgHeight } : undefined,
+    );
+
     img = new Image();
-    const blob = new Blob([svgContent], { type: "image/svg+xml" });
+    const blob = new Blob([scaledContent], { type: "image/svg+xml" });
     img.onload = () => imageLoadCallback?.();
     img.src = URL.createObjectURL(blob);
     svgImageCache.set(cacheKey, img);
-    // Limit cache size to prevent unbounded memory growth, remove oldest on overflow
     if (svgImageCache.size > 50) {
       const firstKey = svgImageCache.keys().next().value;
       if (firstKey) {
@@ -1200,72 +1272,83 @@ const renderSVGClip = (
   }
 
   if (img.complete && img.naturalWidth > 0) {
-    const svgWidth = viewBox?.width || 200;
-    const svgHeight = viewBox?.height || 200;
+    const drawWidth = renderWidth / scaleBucket;
+    const drawHeight = renderHeight / scaleBucket;
+    const padDraw = svgPad / scaleBucket;
 
-    const tempCanvas = document.createElement("canvas");
-    tempCanvas.width = svgWidth;
-    tempCanvas.height = svgHeight;
-    const tempCtx = tempCanvas.getContext("2d");
+    const needsTempCanvas =
+      (colorStyle && colorStyle.colorMode && colorStyle.colorMode !== "none") ||
+      (drawProgress > 0 && drawProgress < 1);
 
-    if (tempCtx) {
-      tempCtx.drawImage(img, 0, 0, svgWidth, svgHeight);
-
-      // Apply color tint to SVG by using 'source-in' composite mode
-      // This multiplies the tint color only where the SVG pixels exist
-      if (
-        colorStyle &&
-        colorStyle.colorMode &&
-        colorStyle.colorMode !== "none"
-      ) {
-        if (
-          colorStyle.colorMode === "tint" ||
-          colorStyle.colorMode === "replace"
-        ) {
-          tempCtx.globalCompositeOperation = "source-in";
-          tempCtx.fillStyle = colorStyle.tintColor || "#ffffff";
-          tempCtx.globalAlpha = colorStyle.tintOpacity ?? 1;
-          tempCtx.fillRect(0, 0, svgWidth, svgHeight);
-        }
-      }
-
-      if (clipRect) {
-        ctx.save();
-        ctx.beginPath();
-        ctx.rect(
-          -svgWidth / 2 + clipRect.x,
-          -svgHeight / 2 + clipRect.y,
-          clipRect.width,
-          clipRect.height,
-        );
-        ctx.clip();
-      }
-
-      // Draw animation: uses line dash offset to progressively reveal the SVG
-      // As drawProgress goes from 0 to 1, the offset decreases, revealing more of the image
-      if (drawProgress > 0 && drawProgress < 1) {
-        const dashLength = Math.max(svgWidth, svgHeight) * 4;
-        const offset = dashLength * (1 - drawProgress);
-        tempCtx.globalCompositeOperation = "destination-in";
-        tempCtx.strokeStyle = "#000";
-        tempCtx.lineWidth = Math.max(svgWidth, svgHeight);
-        tempCtx.setLineDash([dashLength]);
-        tempCtx.lineDashOffset = offset;
-        tempCtx.strokeRect(0, 0, svgWidth, svgHeight);
-        tempCtx.setLineDash([]);
-      }
-
-      ctx.drawImage(
-        tempCanvas,
-        -svgWidth / 2,
-        -svgHeight / 2,
-        svgWidth,
-        svgHeight,
+    if (clipRect) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(
+        -drawWidth / 2 + (clipRect.x / svgWidth) * drawWidth,
+        -drawHeight / 2 + (clipRect.y / svgHeight) * drawHeight,
+        (clipRect.width / svgWidth) * drawWidth,
+        (clipRect.height / svgHeight) * drawHeight,
       );
+      ctx.clip();
+    }
 
-      if (clipRect) {
-        ctx.restore();
+    if (needsTempCanvas) {
+      const tempCanvas = document.createElement("canvas");
+      tempCanvas.width = paddedWidth;
+      tempCanvas.height = paddedHeight;
+      const tempCtx = tempCanvas.getContext("2d");
+
+      if (tempCtx) {
+        tempCtx.drawImage(img, 0, 0, paddedWidth, paddedHeight);
+
+        if (
+          colorStyle &&
+          colorStyle.colorMode &&
+          colorStyle.colorMode !== "none"
+        ) {
+          if (
+            colorStyle.colorMode === "tint" ||
+            colorStyle.colorMode === "replace"
+          ) {
+            tempCtx.globalCompositeOperation = "source-in";
+            tempCtx.fillStyle = colorStyle.tintColor || "#ffffff";
+            tempCtx.globalAlpha = colorStyle.tintOpacity ?? 1;
+            tempCtx.fillRect(0, 0, paddedWidth, paddedHeight);
+          }
+        }
+
+        if (drawProgress > 0 && drawProgress < 1) {
+          const dashLength = Math.max(renderWidth, renderHeight) * 4;
+          const offset = dashLength * (1 - drawProgress);
+          tempCtx.globalCompositeOperation = "destination-in";
+          tempCtx.strokeStyle = "#000";
+          tempCtx.lineWidth = Math.max(renderWidth, renderHeight);
+          tempCtx.setLineDash([dashLength]);
+          tempCtx.lineDashOffset = offset;
+          tempCtx.strokeRect(svgPad, svgPad, renderWidth, renderHeight);
+          tempCtx.setLineDash([]);
+        }
+
+        ctx.drawImage(
+          tempCanvas,
+          -(drawWidth / 2 + padDraw),
+          -(drawHeight / 2 + padDraw),
+          drawWidth + padDraw * 2,
+          drawHeight + padDraw * 2,
+        );
       }
+    } else {
+      ctx.drawImage(
+        img,
+        -(drawWidth / 2 + padDraw),
+        -(drawHeight / 2 + padDraw),
+        drawWidth + padDraw * 2,
+        drawHeight + padDraw * 2,
+      );
+    }
+
+    if (clipRect) {
+      ctx.restore();
     }
   }
 

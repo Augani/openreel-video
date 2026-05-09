@@ -3329,32 +3329,13 @@ export const Preview: React.FC = () => {
                     (sc) => sc.trackId === track.id,
                   );
                   for (const shapeClip of trackShapeClips) {
-                    const offscreen = new OffscreenCanvas(
+                    renderShapeClipToCanvas(
+                      ctx,
+                      shapeClip,
                       canvas.width,
                       canvas.height,
+                      currentPlayhead,
                     );
-                    const offCtx = offscreen.getContext("2d");
-                    if (offCtx) {
-                      renderShapeClipToCanvas(
-                        offCtx as unknown as CanvasRenderingContext2D,
-                        shapeClip,
-                        canvas.width,
-                        canvas.height,
-                        currentPlayhead,
-                      );
-                      const bitmap = await createImageBitmap(offscreen);
-                      tempBitmaps.push(bitmap);
-                      gpuLayers.push({
-                        bitmap,
-                        transform: {
-                          ...DEFAULT_TRANSFORM,
-                          opacity: 1,
-                          scale: { x: 1, y: 1 },
-                          position: { x: 0, y: 0 },
-                          anchor: { x: 0, y: 0 },
-                        },
-                      });
-                    }
                   }
                 } else if (track.type === "text") {
                   const trackTextClips = activeTextClips.filter(
@@ -3944,7 +3925,6 @@ export const Preview: React.FC = () => {
     const canvasRect = canvas.getBoundingClientRect();
 
     const { transform } = selectedShapeClip;
-    const shapeSize = 200;
 
     const canvasWidth = settings.width;
     const canvasHeight = settings.height;
@@ -3969,8 +3949,28 @@ export const Preview: React.FC = () => {
 
     const displayScale = actualWidth / canvasWidth;
 
-    const shapeWidth = shapeSize * transform.scale.x * displayScale;
-    const shapeHeight = shapeSize * transform.scale.y * displayScale;
+    let baseWidth: number;
+    let baseHeight: number;
+
+    if (selectedShapeClip.type === "svg") {
+      const svgClip = selectedShapeClip as SVGClip;
+      const svgWidth = svgClip.viewBox?.width || 200;
+      const svgHeight = svgClip.viewBox?.height || 200;
+      const svgAspect = svgWidth / svgHeight;
+      if (svgAspect > 1) {
+        baseWidth = canvasWidth;
+        baseHeight = canvasWidth / svgAspect;
+      } else {
+        baseHeight = canvasHeight;
+        baseWidth = canvasHeight * svgAspect;
+      }
+    } else {
+      baseWidth = 200;
+      baseHeight = 200;
+    }
+
+    const shapeWidth = baseWidth * transform.scale.x * displayScale;
+    const shapeHeight = baseHeight * transform.scale.y * displayScale;
 
     const posX = transform.position.x * canvasWidth * displayScale;
     const posY = transform.position.y * canvasHeight * displayScale;
@@ -4003,9 +4003,6 @@ export const Preview: React.FC = () => {
       const canvasRect = canvas.getBoundingClientRect();
 
       const { transform } = clip;
-      // Approximation of the displayed clip size in canvas-coordinate units,
-      // consistent with the value used in shapeClipBounds for the resize overlay.
-      const shapeSize = 200;
 
       const canvasWidth = settings.width;
       const canvasHeight = settings.height;
@@ -4030,8 +4027,28 @@ export const Preview: React.FC = () => {
 
       const displayScale = actualWidth / canvasWidth;
 
-      const shapeWidth = shapeSize * transform.scale.x * displayScale;
-      const shapeHeight = shapeSize * transform.scale.y * displayScale;
+      let baseWidth: number;
+      let baseHeight: number;
+
+      if (clip.type === "svg") {
+        const svgClip = clip as SVGClip;
+        const svgW = svgClip.viewBox?.width || 200;
+        const svgH = svgClip.viewBox?.height || 200;
+        const svgAspect = svgW / svgH;
+        if (svgAspect > 1) {
+          baseWidth = canvasWidth;
+          baseHeight = canvasWidth / svgAspect;
+        } else {
+          baseHeight = canvasHeight;
+          baseWidth = canvasHeight * svgAspect;
+        }
+      } else {
+        baseWidth = 200;
+        baseHeight = 200;
+      }
+
+      const shapeWidth = baseWidth * transform.scale.x * displayScale;
+      const shapeHeight = baseHeight * transform.scale.y * displayScale;
 
       const posX = transform.position.x * canvasWidth * displayScale;
       const posY = transform.position.y * canvasHeight * displayScale;
@@ -4825,8 +4842,11 @@ export const Preview: React.FC = () => {
 
   const showTextClipHandles = !isPlaying && selectedTextClip && textClipBounds;
 
+
   const showShapeClipHandles =
-    !isPlaying && selectedShapeClip && shapeClipBounds;
+    !isPlaying &&
+    selectedShapeClip &&
+    shapeClipBounds;
 
   const showSubtitleOverlay =
     !isPlaying && selectedSubtitleObj && subtitleBounds;
@@ -5169,8 +5189,9 @@ export const Preview: React.FC = () => {
                 height: shapeClipBounds.height,
               }}
             >
-              {/* Selection border - green for shape clips */}
-              <div className="absolute inset-0 border-2 border-green-500 pointer-events-none" />
+              {selectedShapeClip.type !== "svg" && (
+                <div className="absolute inset-0 border-2 border-green-500 pointer-events-none" />
+              )}
 
               {/* Move handle (center) */}
               <div
@@ -5256,6 +5277,7 @@ export const Preview: React.FC = () => {
           {/* Graphic Clip Hover Indicators */}
           {!cropMode && !isPlaying &&
             activeGraphicClips.map((clip) => {
+              if (clip.type === "svg") return null;
               if (clip.id === selectedShapeClipId) return null;
               if (clip.id !== hoveredGraphicClipId) return null;
               const bounds = getGraphicClipDisplayBounds(clip);
