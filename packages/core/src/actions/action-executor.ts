@@ -475,7 +475,7 @@ export class ActionExecutor {
               ? mediaItem.metadata.duration
               : 5);
           const newClip = {
-            id: `clip-${Date.now()}`,
+            id: crypto.randomUUID(),
             mediaId: params.mediaId,
             trackId: params.trackId,
             startTime: params.startTime,
@@ -598,7 +598,7 @@ export class ActionExecutor {
 
           const clip2 = {
             ...clip,
-            id: `clip-${Date.now()}`,
+            id: crypto.randomUUID(),
             startTime: splitTime,
             duration: clip.duration - splitOffset,
             inPoint: clip.inPoint + splitOffset,
