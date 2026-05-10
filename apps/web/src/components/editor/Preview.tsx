@@ -2752,6 +2752,8 @@ export const Preview: React.FC = () => {
               const useGPU =
                 rendererRef.current && rendererRef.current.type === "webgpu";
 
+              ctx.fillStyle = "#000000";
+              ctx.fillRect(0, 0, canvas.width, canvas.height);
               if (useGPU && processedFrame instanceof ImageBitmap) {
                 const gpuResult = await renderFrameWithGPU(
                   rendererRef.current!,
@@ -2761,12 +2763,9 @@ export const Preview: React.FC = () => {
                   canvas.height,
                 );
                 if (gpuResult) {
-                  ctx.clearRect(0, 0, canvas.width, canvas.height);
-                  ctx.drawImage(gpuResult, 0, 0);
+                  ctx.drawImage(gpuResult, 0, 0, canvas.width, canvas.height);
                   gpuResult.close();
                 } else {
-                  ctx.fillStyle = "#000000";
-                  ctx.fillRect(0, 0, canvas.width, canvas.height);
                   drawFrameWithTransform(
                     ctx,
                     processedFrame,
@@ -2776,8 +2775,6 @@ export const Preview: React.FC = () => {
                   );
                 }
               } else {
-                ctx.fillStyle = "#000000";
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
                 drawFrameWithTransform(
                   ctx,
                   processedFrame,
@@ -3431,7 +3428,7 @@ export const Preview: React.FC = () => {
                   canvas.height,
                 );
                 if (gpuResult) {
-                  ctx.drawImage(gpuResult, 0, 0);
+                  ctx.drawImage(gpuResult, 0, 0, canvas.width, canvas.height);
                   gpuResult.close();
                 } else {
                   for (const layer of gpuLayers) {
