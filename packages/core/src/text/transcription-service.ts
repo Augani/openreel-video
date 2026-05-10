@@ -220,10 +220,8 @@ export class TranscriptionService {
 
     onProgress?.({
       phase: "transcribing",
-      progress: 50,
-      message: this.config.targetLanguage
-        ? `Transcribing and translating to ${this.config.targetLanguage}...`
-        : "Transcribing audio...",
+      progress: 30,
+      message: "Uploading audio...",
     });
 
     const response = await fetch(this.config.apiEndpoint, {
@@ -243,7 +241,60 @@ export class TranscriptionService {
       );
     }
 
-    return response.json();
+    const submitResult = await response.json();
+
+    if (!submitResult.jobId) {
+      return submitResult as CloudflareWhisperResponse;
+    }
+
+    const baseUrl = this.config.apiEndpoint.replace(/\/transcribe$/, "").replace(/\/$/, "");
+    const pollUrl = `${baseUrl}/jobs/${submitResult.jobId}`;
+
+    return this.pollForResult(pollUrl, onProgress);
+  }
+
+  private async pollForResult(
+    pollUrl: string,
+    onProgress?: (progress: WhisperTranscriptionProgress) => void,
+  ): Promise<CloudflareWhisperResponse> {
+    const maxAttempts = 120;
+    const pollInterval = 3000;
+
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      await new Promise((resolve) => setTimeout(resolve, pollInterval));
+
+      const response = await fetch(pollUrl);
+      if (!response.ok) {
+        if (response.status === 404) {
+          throw new Error("Transcription job not found");
+        }
+        continue;
+      }
+
+      const job = await response.json();
+
+      if (job.status === "processing") {
+        const progress = 30 + Math.round((job.progress || 0) * 0.6);
+        onProgress?.({
+          phase: "transcribing",
+          progress,
+          message: this.config.targetLanguage
+            ? `Transcribing and translating to ${this.config.targetLanguage}...`
+            : "Transcribing audio...",
+        });
+        continue;
+      }
+
+      if (job.status === "completed" && job.result) {
+        return job.result as CloudflareWhisperResponse;
+      }
+
+      if (job.status === "failed") {
+        throw new Error(job.error || "Transcription failed on server");
+      }
+    }
+
+    throw new Error("Transcription timed out after 6 minutes");
   }
 
   private convertToSubtitles(

@@ -1,6 +1,10 @@
 import os
 import tempfile
+import asyncio
+import time
+import uuid
 from typing import Optional
+from dataclasses import dataclass, field
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -35,6 +39,30 @@ MODEL_SIZE = os.environ.get("WHISPER_MODEL", "large-v3-turbo")
 DEVICE = os.environ.get("WHISPER_DEVICE", "cuda")
 COMPUTE_TYPE = os.environ.get("WHISPER_COMPUTE_TYPE", "float16")
 
+JOB_TTL_SECONDS = 600
+
+
+@dataclass
+class TranscriptionJob:
+    id: str
+    status: str = "processing"
+    progress: float = 0
+    result: Optional[dict] = None
+    error: Optional[str] = None
+    created_at: float = field(default_factory=time.time)
+
+
+jobs: dict[str, TranscriptionJob] = {}
+
+
+def cleanup_expired_jobs():
+    now = time.time()
+    expired = [
+        jid for jid, job in jobs.items() if now - job.created_at > JOB_TTL_SECONDS
+    ]
+    for jid in expired:
+        del jobs[jid]
+
 
 def get_model() -> WhisperModel:
     global whisper_model
@@ -52,23 +80,16 @@ async def startup():
     get_model()
 
 
-@app.post("/transcribe")
-async def transcribe(
-    request: Request,
-    audio: UploadFile = File(...),
-    language: Optional[str] = Form(None),
-    target_language: Optional[str] = Form(None),
+async def process_transcription(
+    job_id: str,
+    tmp_path: str,
+    language: Optional[str],
+    target_language: Optional[str],
 ):
-    if not audio.filename:
-        raise HTTPException(status_code=400, detail="No audio file provided")
-
-    suffix = os.path.splitext(audio.filename)[1] or ".wav"
-    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-        file_content = await audio.read()
-        tmp.write(file_content)
-        tmp_path = tmp.name
-
+    job = jobs[job_id]
     try:
+        job.progress = 10
+
         model = get_model()
 
         transcribe_kwargs = {
@@ -86,10 +107,14 @@ async def transcribe(
         if use_whisper_translate:
             transcribe_kwargs["task"] = "translate"
 
+        job.progress = 20
+
         segments, info = model.transcribe(tmp_path, **transcribe_kwargs)
 
         words = []
         full_text = []
+
+        job.progress = 50
 
         for segment in segments:
             full_text.append(segment.text.strip())
@@ -102,6 +127,8 @@ async def transcribe(
                             "end": round(word.end, 2),
                         }
                     )
+
+        job.progress = 80
 
         text = " ".join(full_text)
         detected_language = info.language
@@ -126,7 +153,9 @@ async def transcribe(
             except Exception as e:
                 print(f"Translation failed: {e}")
 
-        return {
+        job.progress = 100
+        job.status = "completed"
+        job.result = {
             "text": text,
             "word_count": len(words),
             "words": words,
@@ -134,8 +163,65 @@ async def transcribe(
             "target_language": target_language,
             "duration": info.duration,
         }
+    except Exception as e:
+        job.status = "failed"
+        job.error = str(e)
     finally:
-        os.unlink(tmp_path)
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+
+
+@app.post("/transcribe")
+async def transcribe(
+    request: Request,
+    audio: UploadFile = File(...),
+    language: Optional[str] = Form(None),
+    target_language: Optional[str] = Form(None),
+):
+    if not audio.filename:
+        raise HTTPException(status_code=400, detail="No audio file provided")
+
+    cleanup_expired_jobs()
+
+    suffix = os.path.splitext(audio.filename)[1] or ".wav"
+    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+        file_content = await audio.read()
+        tmp.write(file_content)
+        tmp_path = tmp.name
+
+    job_id = str(uuid.uuid4())
+    jobs[job_id] = TranscriptionJob(id=job_id)
+
+    asyncio.get_event_loop().run_in_executor(
+        None,
+        lambda: asyncio.run(
+            process_transcription(job_id, tmp_path, language, target_language)
+        ),
+    )
+
+    return {"jobId": job_id, "status": "processing"}
+
+
+@app.get("/jobs/{job_id}")
+async def get_job(job_id: str):
+    job = jobs.get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    response = {
+        "jobId": job.id,
+        "status": job.status,
+        "progress": job.progress,
+    }
+
+    if job.status == "completed":
+        response["result"] = job.result
+    elif job.status == "failed":
+        response["error"] = job.error
+
+    return response
 
 
 @app.post("/")
@@ -168,6 +254,7 @@ async def health():
         "gpu": gpu_name,
         "gpu_available": gpu_available,
         "ready": whisper_model is not None,
+        "active_jobs": len(jobs),
     }
 
 
