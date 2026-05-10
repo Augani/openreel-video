@@ -260,6 +260,15 @@ export const Preview: React.FC = () => {
   const renderBridgeInitialized = useRef<boolean>(false);
   const lastGoodFrameRef = useRef<ImageBitmap | null>(null);
   const offscreenCanvasRef = useRef<OffscreenCanvas | null>(null);
+  const decodeDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const decodeDebounceResolveRef = useRef<((value: ImageBitmap | null) => void) | null>(
+    null,
+  );
+  const decodeRequestSeqRef = useRef(0);
+  const scrubVideoReleaseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+  const lastPreviewRenderTimeRef = useRef(0);
   const offscreenCtxRef = useRef<OffscreenCanvasRenderingContext2D | null>(
     null,
   );
@@ -373,6 +382,69 @@ export const Preview: React.FC = () => {
   const videoElementCacheRef = useRef<
     Map<string, { video: HTMLVideoElement; url: string; lastUsed: number }>
   >(new Map());
+
+  const releaseVideoElement = useCallback(
+    (entry: { video: HTMLVideoElement; url: string }): void => {
+      const { video, url } = entry;
+      video.pause();
+      video.removeAttribute("src");
+      video.onloadedmetadata = null;
+      video.onerror = null;
+      video.load();
+      URL.revokeObjectURL(url);
+    },
+    [],
+  );
+
+  const evictOldestVideoElement = useCallback((): void => {
+    let oldestKey = "";
+    let oldestTime = Infinity;
+    for (const [key, entry] of videoElementCacheRef.current.entries()) {
+      if (entry.lastUsed < oldestTime) {
+        oldestTime = entry.lastUsed;
+        oldestKey = key;
+      }
+    }
+
+    if (!oldestKey) return;
+
+    const oldEntry = videoElementCacheRef.current.get(oldestKey);
+    if (!oldEntry) return;
+
+    releaseVideoElement(oldEntry);
+    videoElementCacheRef.current.delete(oldestKey);
+  }, [releaseVideoElement]);
+
+  const cancelPendingScrubDecode = useCallback((): void => {
+    if (decodeDebounceRef.current) {
+      clearTimeout(decodeDebounceRef.current);
+      decodeDebounceRef.current = null;
+    }
+    decodeDebounceResolveRef.current?.(null);
+    decodeDebounceResolveRef.current = null;
+    decodeRequestSeqRef.current += 1;
+  }, []);
+
+  const releaseScrubVideoElements = useCallback((): void => {
+    if (scrubVideoReleaseTimerRef.current) {
+      clearTimeout(scrubVideoReleaseTimerRef.current);
+      scrubVideoReleaseTimerRef.current = null;
+    }
+    cancelPendingScrubDecode();
+    for (const entry of videoElementCacheRef.current.values()) {
+      releaseVideoElement(entry);
+    }
+    videoElementCacheRef.current.clear();
+  }, [cancelPendingScrubDecode, releaseVideoElement]);
+
+  const scheduleScrubVideoRelease = useCallback((): void => {
+    if (scrubVideoReleaseTimerRef.current) {
+      clearTimeout(scrubVideoReleaseTimerRef.current);
+    }
+    scrubVideoReleaseTimerRef.current = setTimeout(() => {
+      releaseScrubVideoElements();
+    }, 350);
+  }, [releaseScrubVideoElements]);
 
   // Persistent decoder cache for efficient playback (legacy - kept for fallback)
   const decoderCacheRef = useRef<
@@ -634,15 +706,12 @@ export const Preview: React.FC = () => {
       }
       decoderCacheRef.current.clear();
 
-      for (const entry of videoElementCacheRef.current.values()) {
-        entry.video.src = "";
-        URL.revokeObjectURL(entry.url);
-      }
-      videoElementCacheRef.current.clear();
+      releaseScrubVideoElements();
 
       if (videoElementRef.current) {
         videoElementRef.current.pause();
-        videoElementRef.current.src = "";
+        videoElementRef.current.removeAttribute("src");
+        videoElementRef.current.load();
         videoElementRef.current = null;
       }
       if (videoUrlRef.current) {
@@ -651,7 +720,7 @@ export const Preview: React.FC = () => {
       }
       currentVideoMediaIdRef.current = null;
     };
-  }, []);
+  }, [releaseScrubVideoElements]);
 
   // Set canvas internal resolution ONLY when project settings change
   // This follows the WebGPU best practice of keeping internal resolution fixed
@@ -1151,6 +1220,7 @@ export const Preview: React.FC = () => {
     ): Promise<ImageBitmap | null> => {
       const mediaItem = getMediaItem(clip.mediaId);
       if (!mediaItem?.blob) return null;
+      const mediaBlob = mediaItem.blob;
 
       if (mediaItem.type === "image") {
         try {
@@ -1160,121 +1230,226 @@ export const Preview: React.FC = () => {
         }
       }
 
-      try {
-        const clipLocalTime = time - clip.startTime;
-        const speedEngine = getSpeedEngine();
-        const adjustedLocalTime = speedEngine.getSourceTimeAtPlaybackTime(
-          clip.id,
-          clipLocalTime,
-        );
-        const mediaTime = (clip.inPoint || 0) + adjustedLocalTime;
+      const requestSeq = ++decodeRequestSeqRef.current;
+      const isStaleRequest = () => requestSeq !== decodeRequestSeqRef.current;
 
-        const cacheKey = clip.mediaId;
-        let cached = videoElementCacheRef.current.get(cacheKey);
-
-        if (!cached) {
-          const url = URL.createObjectURL(mediaItem.blob);
-          const video = document.createElement("video");
-          video.src = url;
-          video.muted = true;
-          video.playsInline = true;
-          video.preload = "auto";
-          video.crossOrigin = "anonymous";
-
-          await new Promise<void>((resolve, reject) => {
-            const timeoutId = setTimeout(
-              () => reject(new Error("Video load timeout")),
-              10000,
-            );
-            video.onloadedmetadata = () => {
-              clearTimeout(timeoutId);
-              resolve();
-            };
-            video.onerror = () => {
-              clearTimeout(timeoutId);
-              reject(new Error("Video load failed"));
-            };
-          });
-
-          cached = { video, url, lastUsed: Date.now() };
-          videoElementCacheRef.current.set(cacheKey, cached);
-
-          if (videoElementCacheRef.current.size > 8) {
-            let oldestKey = "";
-            let oldestTime = Infinity;
-            for (const [key, entry] of videoElementCacheRef.current.entries()) {
-              if (entry.lastUsed < oldestTime) {
-                oldestTime = entry.lastUsed;
-                oldestKey = key;
-              }
-            }
-            if (oldestKey) {
-              const oldEntry = videoElementCacheRef.current.get(oldestKey);
-              if (oldEntry) {
-                oldEntry.video.src = "";
-                URL.revokeObjectURL(oldEntry.url);
-                videoElementCacheRef.current.delete(oldestKey);
-              }
-            }
-          }
-        }
-
-        cached.lastUsed = Date.now();
-        const { video } = cached;
-
-        const clampedTime = Math.max(
-          0,
-          Math.min(mediaTime, video.duration - 0.001),
-        );
-        if (Math.abs(video.currentTime - clampedTime) > 0.01) {
-          video.currentTime = clampedTime;
-          await new Promise<void>((resolve) => {
-            const onSeeked = () => {
-              video.removeEventListener("seeked", onSeeked);
-              resolve();
-            };
-            video.addEventListener("seeked", onSeeked);
-            setTimeout(resolve, 500);
-          });
-        }
-
-        const tempCanvas = document.createElement("canvas");
-        tempCanvas.width = canvasWidth;
-        tempCanvas.height = canvasHeight;
-        const tempCtx = tempCanvas.getContext("2d");
-        if (!tempCtx) return null;
-
-        const videoAspect = video.videoWidth / video.videoHeight;
-        const canvasAspect = canvasWidth / canvasHeight;
-        let drawWidth = canvasWidth;
-        let drawHeight = canvasHeight;
-        let offsetX = 0;
-        let offsetY = 0;
-
-        if (videoAspect > canvasAspect) {
-          drawHeight = canvasWidth / videoAspect;
-          offsetY = (canvasHeight - drawHeight) / 2;
-        } else {
-          drawWidth = canvasHeight * videoAspect;
-          offsetX = (canvasWidth - drawWidth) / 2;
-        }
-
-        tempCtx.fillStyle = "#000000";
-        tempCtx.fillRect(0, 0, canvasWidth, canvasHeight);
-        tempCtx.drawImage(video, offsetX, offsetY, drawWidth, drawHeight);
-
-        return await createImageBitmap(tempCanvas);
-      } catch {
-        const cached = videoElementCacheRef.current.get(clip.mediaId);
-        if (cached) {
-          cached.video.src = "";
-          URL.revokeObjectURL(cached.url);
-          videoElementCacheRef.current.delete(clip.mediaId);
-        }
-        return null;
+      if (scrubVideoReleaseTimerRef.current) {
+        clearTimeout(scrubVideoReleaseTimerRef.current);
+        scrubVideoReleaseTimerRef.current = null;
       }
+
+      if (decodeDebounceRef.current) {
+        clearTimeout(decodeDebounceRef.current);
+        decodeDebounceRef.current = null;
+      }
+      decodeDebounceResolveRef.current?.(null);
+      decodeDebounceResolveRef.current = null;
+
+      return new Promise<ImageBitmap | null>((resolve) => {
+        decodeDebounceResolveRef.current = resolve;
+        decodeDebounceRef.current = setTimeout(async () => {
+          decodeDebounceRef.current = null;
+          decodeDebounceResolveRef.current = null;
+
+          if (isStaleRequest()) {
+            resolve(null);
+            return;
+          }
+
+          try {
+            const clipLocalTime = time - clip.startTime;
+            const speedEngine = getSpeedEngine();
+            const adjustedLocalTime = speedEngine.getSourceTimeAtPlaybackTime(
+              clip.id,
+              clipLocalTime,
+            );
+            const mediaTime = (clip.inPoint || 0) + adjustedLocalTime;
+
+            const cacheKey = clip.mediaId;
+            let cached = videoElementCacheRef.current.get(cacheKey);
+
+            if (!cached) {
+              const url = URL.createObjectURL(mediaBlob);
+              const video = document.createElement("video");
+              video.src = url;
+              video.muted = true;
+              video.playsInline = true;
+              video.preload = "metadata";
+              video.crossOrigin = "anonymous";
+
+              await new Promise<void>((res, rej) => {
+                const timeoutId = setTimeout(
+                  () => rej(new Error("Video load timeout")),
+                  10000,
+                );
+                video.onloadedmetadata = () => {
+                  clearTimeout(timeoutId);
+                  res();
+                };
+                video.onerror = () => {
+                  clearTimeout(timeoutId);
+                  rej(new Error("Video load failed"));
+                };
+              });
+
+              if (isStaleRequest()) {
+                releaseVideoElement({ video, url });
+                resolve(null);
+                return;
+              }
+
+              cached = { video, url, lastUsed: Date.now() };
+              videoElementCacheRef.current.set(cacheKey, cached);
+
+              while (videoElementCacheRef.current.size > 2) {
+                evictOldestVideoElement();
+              }
+            }
+
+            cached.lastUsed = Date.now();
+            const { video } = cached;
+
+            const clampedTime = Math.max(
+              0,
+              Math.min(mediaTime, video.duration - 0.001),
+            );
+            const seekTime =
+              clampedTime <= 0 && video.duration > 0.002 ? 0.001 : clampedTime;
+            if (
+              Math.abs(video.currentTime - seekTime) > 0.01 ||
+              video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA
+            ) {
+              video.currentTime = seekTime;
+              await new Promise<void>((res) => {
+                let settled = false;
+                let timeoutId: ReturnType<typeof setTimeout> | null = null;
+                const onSeeked = () => {
+                  if (settled) return;
+                  settled = true;
+                  if (timeoutId) clearTimeout(timeoutId);
+                  video.removeEventListener("seeked", onSeeked);
+                  res();
+                };
+                video.addEventListener("seeked", onSeeked);
+                timeoutId = setTimeout(() => {
+                  if (settled) return;
+                  settled = true;
+                  video.removeEventListener("seeked", onSeeked);
+                  res();
+                }, 250);
+              });
+            }
+
+            if (isStaleRequest()) {
+              resolve(null);
+              return;
+            }
+
+            await new Promise<void>((res) => {
+              if (!("requestVideoFrameCallback" in video)) {
+                res();
+                return;
+              }
+
+              let settled = false;
+              let timeoutId: ReturnType<typeof setTimeout> | null = null;
+              const finish = () => {
+                if (settled) return;
+                settled = true;
+                if (timeoutId) clearTimeout(timeoutId);
+                res();
+              };
+
+              video.requestVideoFrameCallback(finish);
+              timeoutId = setTimeout(finish, 300);
+            });
+
+            if (isStaleRequest()) {
+              resolve(null);
+              return;
+            }
+
+            await new Promise<void>((res) => {
+              if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+                res();
+                return;
+              }
+
+              let settled = false;
+              let timeoutId: ReturnType<typeof setTimeout> | null = null;
+              const finish = () => {
+                if (settled) return;
+                settled = true;
+                if (timeoutId) clearTimeout(timeoutId);
+                video.removeEventListener("loadeddata", finish);
+                video.removeEventListener("canplay", finish);
+                res();
+              };
+
+              video.addEventListener("loadeddata", finish);
+              video.addEventListener("canplay", finish);
+              timeoutId = setTimeout(finish, 250);
+            });
+
+            if (isStaleRequest()) {
+              resolve(null);
+              return;
+            }
+
+            const tempCanvas = document.createElement("canvas");
+            tempCanvas.width = canvasWidth;
+            tempCanvas.height = canvasHeight;
+            const tempCtx = tempCanvas.getContext("2d");
+            if (!tempCtx) {
+              resolve(null);
+              return;
+            }
+
+            const videoAspect = video.videoWidth / video.videoHeight;
+            const canvasAspect = canvasWidth / canvasHeight;
+            let drawWidth = canvasWidth;
+            let drawHeight = canvasHeight;
+            let offsetX = 0;
+            let offsetY = 0;
+
+            if (videoAspect > canvasAspect) {
+              drawHeight = canvasWidth / videoAspect;
+              offsetY = (canvasHeight - drawHeight) / 2;
+            } else {
+              drawWidth = canvasHeight * videoAspect;
+              offsetX = (canvasWidth - drawWidth) / 2;
+            }
+
+            tempCtx.fillStyle = "#000000";
+            tempCtx.fillRect(0, 0, canvasWidth, canvasHeight);
+            tempCtx.drawImage(video, offsetX, offsetY, drawWidth, drawHeight);
+
+            const frame = await createImageBitmap(tempCanvas);
+            if (isStaleRequest()) {
+              frame.close();
+              resolve(null);
+              return;
+            }
+            scheduleScrubVideoRelease();
+            resolve(frame);
+          } catch {
+            const cached = videoElementCacheRef.current.get(clip.mediaId);
+            if (cached) {
+              releaseVideoElement(cached);
+              videoElementCacheRef.current.delete(clip.mediaId);
+            }
+            scheduleScrubVideoRelease();
+            resolve(null);
+          }
+        }, 40);
+      });
     },
-    [getMediaItem],
+    [
+      evictOldestVideoElement,
+      getMediaItem,
+      releaseVideoElement,
+      scheduleScrubVideoRelease,
+    ],
   );
 
   // Render a single frame using MediaBunny (for scrubbing/seeking)
@@ -1393,6 +1568,15 @@ export const Preview: React.FC = () => {
                 "above-video",
                 hasBehindSubjectText(activeTextClips) ? blendedFrame : null,
               );
+              if (processedOutgoing !== outgoingFrame) {
+                processedOutgoing.close();
+              }
+              if (processedIncoming !== incomingFrame) {
+                processedIncoming.close();
+              }
+              outgoingFrame.close();
+              incomingFrame.close();
+              blendedFrame.close();
               hasRenderedFrame = true;
             }
           } else if (outgoingFrame) {
@@ -1431,6 +1615,10 @@ export const Preview: React.FC = () => {
               "above-video",
               hasBehindSubjectText(activeTextClips) ? validFrame : null,
             );
+            if (processed !== outgoingFrame) {
+              processed.close();
+            }
+            outgoingFrame.close();
             hasRenderedFrame = true;
           } else if (incomingFrame) {
             const processed = await applyEffectsToFrame(
@@ -1468,6 +1656,10 @@ export const Preview: React.FC = () => {
               "above-video",
               hasBehindSubjectText(activeTextClips) ? validFrame : null,
             );
+            if (processed !== incomingFrame) {
+              processed.close();
+            }
+            incomingFrame.close();
             hasRenderedFrame = true;
           }
         } catch (error) {
@@ -1572,11 +1764,9 @@ export const Preview: React.FC = () => {
                     };
                   }
 
+                  let processedFrame: ImageBitmap | null = null;
                   try {
-                    const processedFrame = await applyEffectsToFrame(
-                      clip.id,
-                      frame,
-                    );
+                    processedFrame = await applyEffectsToFrame(clip.id, frame);
                     if (processedFrame.width > 0 && processedFrame.height > 0) {
                       drawFrameWithTransform(
                         ctx,
@@ -1605,6 +1795,10 @@ export const Preview: React.FC = () => {
                       canvas.height,
                     );
                     hasRenderedFrame = true;
+                  } finally {
+                    if (processedFrame && processedFrame !== frame) {
+                      processedFrame.close();
+                    }
                   }
 
                   if (shouldCompositeSubject) {
@@ -1615,6 +1809,7 @@ export const Preview: React.FC = () => {
                       canvas.height,
                     );
                   }
+                  frame.close();
                 }
               }
             }
@@ -2005,37 +2200,75 @@ export const Preview: React.FC = () => {
         }
       }
 
-      await preDecodeAllAudioBuffers();
+      preDecodeAllAudioBuffers().catch((error) => {
+        console.warn("[Preview] Audio warmup failed:", error);
+      });
 
       const videoCache = new Map<
         string,
         { video: HTMLVideoElement; url: string }
       >();
-      const loadPromises: Promise<void>[] = [];
+      const loadingVideos = new Map<string, Promise<void>>();
 
-      for (const { clip, mediaItem } of clips) {
-        if (!videoCache.has(clip.mediaId) && mediaItem.blob) {
-          const url = URL.createObjectURL(mediaItem.blob);
-          const video = document.createElement("video");
-          video.src = url;
-          video.muted = true;
-          video.playsInline = true;
-          video.preload = "auto";
-
-          videoCache.set(clip.mediaId, { video, url });
-
-          loadPromises.push(
-            new Promise<void>((resolve, reject) => {
-              video.onloadedmetadata = () => resolve();
-              video.onerror = () =>
-                reject(new Error(`Video load failed for ${clip.mediaId}`));
-              setTimeout(() => resolve(), 5000); // Don't fail on timeout, just continue
-            }),
-          );
+      const loadVideoForClip = (
+        clip: (typeof timelineTracks)[0]["clips"][0],
+        mediaItem: NonNullable<ReturnType<typeof getMediaItem>>,
+      ): Promise<void> => {
+        if (videoCache.has(clip.mediaId)) {
+          return Promise.resolve();
         }
+
+        const existingLoad = loadingVideos.get(clip.mediaId);
+        if (existingLoad) {
+          return existingLoad;
+        }
+
+        if (!mediaItem.blob) {
+          return Promise.resolve();
+        }
+
+        const url = URL.createObjectURL(mediaItem.blob);
+        const video = document.createElement("video");
+        video.src = url;
+        video.muted = true;
+        video.playsInline = true;
+        video.preload = "metadata";
+
+        videoCache.set(clip.mediaId, { video, url });
+
+        const loadPromise = new Promise<void>((resolve) => {
+          let settled = false;
+          const finish = () => {
+            if (settled) return;
+            settled = true;
+            video.onloadedmetadata = null;
+            video.onerror = null;
+            loadingVideos.delete(clip.mediaId);
+            resolve();
+          };
+          video.onloadedmetadata = finish;
+          video.onerror = finish;
+          setTimeout(finish, 750);
+        });
+
+        loadingVideos.set(clip.mediaId, loadPromise);
+        return loadPromise;
+      };
+
+      const activeStartClip = clips.find(
+        ({ clip }) =>
+          startPosition >= clip.startTime &&
+          startPosition < clip.startTime + clip.duration,
+      );
+      if (activeStartClip) {
+        await loadVideoForClip(activeStartClip.clip, activeStartClip.mediaItem);
       }
 
-      await Promise.all(loadPromises);
+      for (const entry of clips) {
+        if (entry !== activeStartClip) {
+          loadVideoForClip(entry.clip, entry.mediaItem).catch(() => {});
+        }
+      }
 
       const masterClock = getMasterClock();
       masterClock.setDuration(actualEndTime);
@@ -2220,10 +2453,11 @@ export const Preview: React.FC = () => {
           return;
         }
 
-        const { clip } = activeClip;
+        const { clip, mediaItem } = activeClip;
         const cached = videoCache.get(clip.mediaId);
 
         if (!cached) {
+          await loadVideoForClip(clip, mediaItem);
           const nowNoCached = performance.now();
           if (nowNoCached - lastPlayheadUpdateRef.current >= PLAYHEAD_UPDATE_THROTTLE_MS) {
             lastPlayheadUpdateRef.current = nowNoCached;
@@ -2403,10 +2637,8 @@ export const Preview: React.FC = () => {
         nativePlaybackActiveRef.current = false;
         if (rafId) cancelAnimationFrame(rafId);
 
-        for (const [, { video, url }] of videoCache) {
-          video.pause();
-          video.src = "";
-          URL.revokeObjectURL(url);
+        for (const [, entry] of videoCache) {
+          releaseVideoElement(entry);
         }
         videoCache.clear();
 
@@ -2431,6 +2663,7 @@ export const Preview: React.FC = () => {
       getMediaItem,
       isMuted,
       preDecodeAllAudioBuffers,
+      releaseVideoElement,
       renderOverlayClipsInTrackOrder,
       setPlayheadPosition,
       timelineTracks,
@@ -2952,7 +3185,9 @@ export const Preview: React.FC = () => {
         return;
       }
 
-      await preCacheAllImageBitmaps();
+      preCacheAllImageBitmaps().catch((error) => {
+        console.warn("[Preview] Image warmup failed:", error);
+      });
 
       for (const { clip, trackIndex } of initialClips) {
         if (!playbackResourcesRef.current.has(clip.id)) {
@@ -2975,7 +3210,9 @@ export const Preview: React.FC = () => {
         return;
       }
 
-      await preDecodeAllAudioBuffers();
+      preDecodeAllAudioBuffers().catch((error) => {
+        console.warn("[Preview] Audio warmup failed:", error);
+      });
 
       if (!audioGraphRef.current) {
         audioGraphRef.current = getRealtimeAudioGraph();
@@ -3702,7 +3939,8 @@ export const Preview: React.FC = () => {
       }
       if (videoElementRef.current) {
         videoElementRef.current.pause();
-        videoElementRef.current.src = "";
+        videoElementRef.current.removeAttribute("src");
+        videoElementRef.current.load();
         videoElementRef.current = null;
       }
       if (videoUrlRef.current) {
@@ -3734,6 +3972,12 @@ export const Preview: React.FC = () => {
 
   useEffect(() => {
     if (isPlaying) return;
+    if (isScrubbing) {
+      releaseScrubVideoElements();
+      lastModifiedAtRef.current = project.modifiedAt;
+      lastPreviewRenderTimeRef.current = playheadPosition;
+      return;
+    }
 
     // COMPLETELY skip rendering during resize/move interactions
     // The last rendered frame stays visible, preventing black flashing
@@ -3746,6 +3990,15 @@ export const Preview: React.FC = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
+    const previousRenderTime = lastPreviewRenderTimeRef.current;
+    const isLargeJump =
+      Math.abs(playheadPosition - previousRenderTime) > 1 ||
+      playheadPosition < previousRenderTime - 0.25;
+    if (isLargeJump) {
+      releaseScrubVideoElements();
+    }
+    lastPreviewRenderTimeRef.current = playheadPosition;
+
     const renderFrame = async () => {
       const rendered = await renderFrameDirectly(playheadPosition);
       if (!rendered) {
@@ -3757,8 +4010,10 @@ export const Preview: React.FC = () => {
   }, [
     playheadPosition,
     isPlaying,
+    isScrubbing,
     renderFrameDirectly,
     renderFallbackFrame,
+    releaseScrubVideoElements,
     project.modifiedAt,
     isDark,
   ]);
