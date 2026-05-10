@@ -27,6 +27,7 @@ import type {
 } from "./types";
 import { getSpeedEngine } from "./speed-engine";
 import { getFrameInterpolationEngine } from "./frame-interpolation";
+import { getStabilizationEngine } from "./stabilization";
 import {
   ParallelFrameDecoder,
   getParallelFrameDecoder,
@@ -764,10 +765,33 @@ export class VideoEngine {
               }
             }
 
+            let drawTransform = scaledTransform;
+            if (clip.stabilization?.enabled && clip.stabilization.analyzed) {
+              const stabEngine = getStabilizationEngine();
+              const correction = stabEngine.getCorrectionTransform(
+                clip.id,
+                clipInfo.sourceTime,
+              );
+              if (correction) {
+                drawTransform = {
+                  ...scaledTransform,
+                  position: {
+                    x: scaledTransform.position.x + correction.dx,
+                    y: scaledTransform.position.y + correction.dy,
+                  },
+                  rotation: scaledTransform.rotation + (correction.rotation * 180) / Math.PI,
+                  scale: {
+                    x: scaledTransform.scale.x * correction.scale,
+                    y: scaledTransform.scale.y * correction.scale,
+                  },
+                };
+              }
+            }
+
             this.drawFrameToContext(
               ctx,
               processedBitmap,
-              scaledTransform,
+              drawTransform,
               finalTransform.opacity,
               width,
               height,

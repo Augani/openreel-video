@@ -67,7 +67,7 @@ import {
   ParticleRenderer,
 } from "./preview/index";
 import { ProcessingOverlay } from "./ProcessingOverlay";
-import { getPersonSegmentationEngine, getBackgroundRemovalEngine } from "@openreel/core";
+import { getPersonSegmentationEngine, getBackgroundRemovalEngine, getStabilizationEngine } from "@openreel/core";
 import type { MotionPathConfig, GSAPMotionPathPoint } from "@openreel/core";
 
 interface GPULayer {
@@ -2582,7 +2582,27 @@ export const Preview: React.FC = () => {
           }
         }
 
-        drawFrameWithTransform(ctx, videoFrame, transform, canvas.width, canvas.height);
+        let finalTransform = transform;
+        if (latestClip.stabilization?.enabled && latestClip.stabilization.analyzed) {
+          const stabEngine = getStabilizationEngine();
+          const correction = stabEngine.getCorrectionTransform(clip.id, clipLocalTime);
+          if (correction) {
+            finalTransform = {
+              ...transform,
+              position: {
+                x: transform.position.x + correction.dx,
+                y: transform.position.y + correction.dy,
+              },
+              rotation: transform.rotation + (correction.rotation * 180) / Math.PI,
+              scale: {
+                x: transform.scale.x * correction.scale,
+                y: transform.scale.y * correction.scale,
+              },
+            };
+          }
+        }
+
+        drawFrameWithTransform(ctx, videoFrame, finalTransform, canvas.width, canvas.height);
         if (videoFrame !== video && videoFrame instanceof ImageBitmap) {
           videoFrame.close();
         }

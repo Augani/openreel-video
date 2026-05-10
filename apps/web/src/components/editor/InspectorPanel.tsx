@@ -39,6 +39,7 @@ import {
   AutoCutSilenceSection,
   CropSection,
   SpeedSection,
+  StabilizationSection,
   SpeedRampSection,
   MotionPresetsPanel,
   EmphasisAnimationSection,
@@ -916,6 +917,22 @@ export const InspectorPanel: React.FC = () => {
                   defaultOpen={true}
                 >
                   <SpeedSection clip={selectedClip as Clip} />
+                </Section>
+              )}
+
+            {/* Stabilization */}
+            {showVideoControls &&
+              selectedClip &&
+              !selectedClip.mediaId.startsWith("text-") &&
+              !selectedClip.mediaId.startsWith("shape-") &&
+              !selectedClip.mediaId.startsWith("svg-") &&
+              !selectedClip.mediaId.startsWith("sticker-") && (
+                <Section
+                  title="Stabilization"
+                  sectionId="stabilization"
+                  defaultOpen={false}
+                >
+                  <StabilizationSection clip={selectedClip as Clip} />
                 </Section>
               )}
 

@@ -14,6 +14,7 @@ export { NoiseReductionSection } from "./NoiseReductionSection";
 export { BackgroundRemovalSection } from "./BackgroundRemovalSection";
 export { CropSection } from "./CropSection";
 export { SpeedSection } from "./SpeedSection";
+export { StabilizationSection } from "./StabilizationSection";
 
 // Color Grading
 export { ColorGradingSection } from "./ColorGradingSection";

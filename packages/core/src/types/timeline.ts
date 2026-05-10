@@ -60,6 +60,12 @@ export interface Clip {
   readonly reversed?: boolean;
   readonly smoothSlowMo?: boolean;
   readonly interpolationQuality?: "low" | "medium" | "high";
+  readonly stabilization?: {
+    enabled: boolean;
+    strength: number;
+    cropMode: "auto" | "none";
+    analyzed?: boolean;
+  };
   readonly emphasisAnimation?: EmphasisAnimation;
   /** Zero-based index of the audio track within the source media file to use for this clip.
    * Undefined or 0 means the primary/first audio track. */
