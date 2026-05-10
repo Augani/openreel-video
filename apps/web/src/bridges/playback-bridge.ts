@@ -269,7 +269,7 @@ export class PlaybackBridge {
    */
   async scrubTo(time: number): Promise<void> {
     if (this.playbackController) {
-      await this.playbackController.scrubTo(time);
+      await this.playbackController.seek(time);
     }
     useTimelineStore.getState().updateScrubPosition(time);
   }
