@@ -276,6 +276,9 @@ export class ExportEngine {
     );
 
     this.videoEngine?.resetExportState();
+    if (this.videoEngine) {
+      this.videoEngine.exportMode = true;
+    }
 
     if (timelineDuration <= 0) {
       return {
@@ -483,6 +486,9 @@ export class ExportEngine {
       mediaEngine.clearFrameCache();
       this.videoEngine?.clearVideoElementCache();
       this.videoEngine?.clearCache();
+      if (this.videoEngine) {
+        this.videoEngine.exportMode = false;
+      }
 
       yield this.createProgress(
         "muxing",
@@ -526,6 +532,9 @@ export class ExportEngine {
       this.audioEngine?.clearCache();
       this.videoEngine?.clearVideoElementCache();
       this.videoEngine?.clearCache();
+      if (this.videoEngine) {
+        this.videoEngine.exportMode = false;
+      }
       try {
         getMediaEngine().disposeAllExportDecoders();
         getMediaEngine().clearFrameCache();

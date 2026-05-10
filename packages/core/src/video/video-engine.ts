@@ -99,6 +99,7 @@ export class VideoEngine {
   private effectsEngine: VideoEffectsEngine | null = null;
   private lastExportTime: number = -1;
   private exportFrameRate: number = 30;
+  exportMode: boolean = false;
 
   /**
    * Creates a new VideoEngine instance.
@@ -279,7 +280,7 @@ export class VideoEngine {
 
   private interpFrameCache: Map<string, { bitmap: ImageBitmap; time: number }> =
     new Map();
-  private static readonly INTERP_FRAME_CACHE_MAX = 4;
+  private static readonly INTERP_FRAME_CACHE_MAX = 2;
 
   private getCachedInterpFrame(key: string): ImageBitmap | null {
     const entry = this.interpFrameCache.get(key);
@@ -363,6 +364,17 @@ export class VideoEngine {
       }
 
       if (!frame1 || !frame2) return null;
+
+      if (!this.exportMode) {
+        const canvas = new OffscreenCanvas(frame1.width, frame1.height);
+        const ctx = canvas.getContext("2d")!;
+        ctx.globalAlpha = 1 - interpInfo.t;
+        ctx.drawImage(frame1, 0, 0);
+        ctx.globalAlpha = interpInfo.t;
+        ctx.drawImage(frame2, 0, 0);
+        ctx.globalAlpha = 1;
+        return canvas.transferToImageBitmap();
+      }
 
       const engine = getFrameInterpolationEngine();
       const quality = clip.interpolationQuality ?? "medium";
