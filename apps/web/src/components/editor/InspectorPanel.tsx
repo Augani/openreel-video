@@ -48,7 +48,7 @@ import {
   AlignmentSection,
   BehindSubjectSection,
 } from "./inspector";
-import { OPENREEL_TTS_URL } from "../../config/api-endpoints";
+import { OPENREEL_TRANSCRIBE_URL } from "../../config/api-endpoints";
 import { AutoEditPanel } from "./panels/AutoEditPanel";
 import { HighlightExtractorPanel } from "./panels/HighlightExtractorPanel";
 import {
@@ -462,7 +462,7 @@ export const InspectorPanel: React.FC = () => {
 
     try {
       const transcriptionService = initializeTranscriptionService({
-        apiEndpoint: `${OPENREEL_TTS_URL}/transcribe`,
+        apiEndpoint: `${OPENREEL_TRANSCRIBE_URL}/transcribe`,
         targetLanguage: targetLanguage !== "none" ? targetLanguage : undefined,
       });
 
