@@ -58,6 +58,8 @@ export interface Clip {
   readonly keyframes: Keyframe[];
   readonly speed?: number;
   readonly reversed?: boolean;
+  readonly smoothSlowMo?: boolean;
+  readonly interpolationQuality?: "low" | "medium" | "high";
   readonly emphasisAnimation?: EmphasisAnimation;
   /** Zero-based index of the audio track within the source media file to use for this clip.
    * Undefined or 0 means the primary/first audio track. */

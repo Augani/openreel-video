@@ -26,6 +26,7 @@ import type {
   PreloadRequest,
 } from "./types";
 import { getSpeedEngine } from "./speed-engine";
+import { getFrameInterpolationEngine } from "./frame-interpolation";
 import {
   ParallelFrameDecoder,
   getParallelFrameDecoder,
@@ -276,6 +277,68 @@ export class VideoEngine {
     }
   }
 
+  private async decodeInterpolatedFrame(
+    clip: Clip,
+    mediaItem: MediaItem,
+    _sourceTime: number,
+    _timelineTime: number,
+    width: number,
+    height: number,
+  ): Promise<ImageBitmap | null> {
+    try {
+      const frameRate = mediaItem.metadata?.frameRate ?? 30;
+      const speedEngine = getSpeedEngine();
+      const clipLocalTime = _timelineTime - clip.startTime;
+      const interpInfo = speedEngine.getInterpolationInfo(
+        clip.id,
+        clipLocalTime,
+        frameRate,
+      );
+
+      if (!interpInfo.needsInterpolation) return null;
+
+      const timeBefore = clip.inPoint + interpInfo.frameBefore;
+      const timeAfter = clip.inPoint + interpInfo.frameAfter;
+
+      const frame1 = await this.decodeFrameWithMediaBunny(
+        mediaItem.blob!,
+        timeBefore,
+        width,
+        height,
+        mediaItem.id,
+      );
+      const frame2 = await this.decodeFrameWithMediaBunny(
+        mediaItem.blob!,
+        timeAfter,
+        width,
+        height,
+        mediaItem.id,
+      );
+
+      if (!frame1 || !frame2) return null;
+
+      const engine = getFrameInterpolationEngine();
+      const quality = clip.interpolationQuality ?? "medium";
+      engine.setQuality(quality);
+
+      const result = await engine.interpolate(
+        frame1,
+        frame2,
+        interpInfo.t,
+        mediaItem.id,
+        timeBefore,
+        timeAfter,
+      );
+
+      frame1.close();
+      frame2.close();
+
+      return result.frame;
+    } catch {
+      return null;
+    }
+  }
+
   /**
    * Decode a frame using native video element (fallback method).
    */
@@ -506,13 +569,30 @@ export class VideoEngine {
               );
             }
           } else {
-            bitmap = await this.decodeFrameWithMediaBunny(
-              mediaItem.blob,
-              clipInfo.sourceTime,
-              settings.width,
-              settings.height,
-              clipInfo.mediaId,
-            );
+            const effectiveSpeed = clip.speed ?? 1;
+            const shouldInterpolate =
+              clip.smoothSlowMo === true && effectiveSpeed < 1;
+
+            if (shouldInterpolate && mediaItem.metadata?.frameRate) {
+              bitmap = await this.decodeInterpolatedFrame(
+                clip,
+                mediaItem,
+                clipInfo.sourceTime,
+                time,
+                settings.width,
+                settings.height,
+              );
+            }
+
+            if (!bitmap) {
+              bitmap = await this.decodeFrameWithMediaBunny(
+                mediaItem.blob,
+                clipInfo.sourceTime,
+                settings.width,
+                settings.height,
+                clipInfo.mediaId,
+              );
+            }
             if (!bitmap) {
               bitmap = await this.decodeFrameWithVideoElement(
                 mediaItem.id,

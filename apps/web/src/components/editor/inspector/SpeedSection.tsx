@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from "react";
-import { RotateCcw } from "lucide-react";
+import { RotateCcw, Sparkles } from "lucide-react";
 import type { Clip } from "@openreel/core";
 import { getSpeedEngine } from "@openreel/core";
 import { useProjectStore } from "../../../stores/project-store";
-import { Input, Switch, Label } from "@openreel/ui";
+import { Input, Switch, Label, Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@openreel/ui";
 
 interface SpeedSectionProps {
   clip: Clip;
@@ -227,6 +227,77 @@ export const SpeedSection: React.FC<SpeedSectionProps> = ({ clip }) => {
         {isReversed ? "Reversed" : "Reverse Clip"}
       </button>
 
+      {currentSpeed < 1 && (
+        <div className="space-y-2 p-3 rounded-lg bg-background-tertiary border border-border">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Sparkles size={14} className="text-primary" />
+              <Label htmlFor="smooth-slowmo" className="text-xs text-text-secondary">
+                Smooth Slow Motion
+              </Label>
+            </div>
+            <Switch
+              id="smooth-slowmo"
+              checked={clip.smoothSlowMo ?? false}
+              onCheckedChange={(checked) => {
+                const tracks = project.timeline.tracks.map((track) => {
+                  const clipIndex = track.clips.findIndex((c) => c.id === clip.id);
+                  if (clipIndex === -1) return track;
+                  const updatedClip = { ...track.clips[clipIndex], smoothSlowMo: checked };
+                  const newClips = [...track.clips];
+                  newClips[clipIndex] = updatedClip;
+                  return { ...track, clips: newClips };
+                });
+                useProjectStore.setState({
+                  project: {
+                    ...project,
+                    timeline: { ...project.timeline, tracks },
+                    modifiedAt: Date.now(),
+                  },
+                });
+              }}
+            />
+          </div>
+          {clip.smoothSlowMo && (
+            <div className="space-y-1">
+              <Label className="text-xs text-text-tertiary">Quality</Label>
+              <Select
+                value={clip.interpolationQuality ?? "medium"}
+                onValueChange={(value: "low" | "medium" | "high") => {
+                  const tracks = project.timeline.tracks.map((track) => {
+                    const clipIndex = track.clips.findIndex((c) => c.id === clip.id);
+                    if (clipIndex === -1) return track;
+                    const updatedClip = { ...track.clips[clipIndex], interpolationQuality: value };
+                    const newClips = [...track.clips];
+                    newClips[clipIndex] = updatedClip;
+                    return { ...track, clips: newClips };
+                  });
+                  useProjectStore.setState({
+                    project: {
+                      ...project,
+                      timeline: { ...project.timeline, tracks },
+                      modifiedAt: Date.now(),
+                    },
+                  });
+                }}
+              >
+                <SelectTrigger className="h-8 text-xs bg-background-elevated border-border">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="low">Low (faster)</SelectItem>
+                  <SelectItem value="medium">Medium</SelectItem>
+                  <SelectItem value="high">High (slower)</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-[10px] text-text-tertiary">
+                Uses optical flow to generate smooth in-between frames
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
       {(currentSpeed !== 1 || isReversed) && (
         <div className="p-3 rounded-lg bg-background-tertiary border border-border">
           <div className="text-xs text-text-tertiary mb-1">
@@ -234,6 +305,7 @@ export const SpeedSection: React.FC<SpeedSectionProps> = ({ clip }) => {
           </div>
           <div className="text-sm text-text-primary">
             Speed: {currentSpeed}× {isReversed && "• Reversed"}
+            {clip.smoothSlowMo && " • Smooth"}
           </div>
         </div>
       )}
