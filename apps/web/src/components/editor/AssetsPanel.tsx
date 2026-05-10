@@ -49,8 +49,10 @@ import {
   ContextMenuTrigger,
 } from "@openreel/ui";
 import { KieAIImageDialog } from "./kieai/KieAIImageDialog";
+import { CodexLocalImageDialog } from "./codex/CodexLocalImageDialog";
 import { loadMediaBlob } from "../../services/media-storage";
 import { useKieAIStore } from "../../stores/kieai-store";
+import { useSettingsStore } from "../../stores/settings-store";
 
 const formatDuration = (seconds: number): string => {
   const mins = Math.floor(seconds / 60);
@@ -77,6 +79,7 @@ const MediaThumbnail: React.FC<{
   onAddToTimeline: () => void;
   onKieAI?: () => void;
   onRetryKieAI?: () => void;
+  aiCreateLabel: string;
 }> = ({
   item,
   isSelected,
@@ -88,6 +91,7 @@ const MediaThumbnail: React.FC<{
   onAddToTimeline,
   onKieAI,
   onRetryKieAI,
+  aiCreateLabel,
 }) => {
   const [isHovered, setIsHovered] = useState(false);
 
@@ -147,7 +151,7 @@ const MediaThumbnail: React.FC<{
           <RefreshCw size={14} className="text-red-400" />
         </button>
       ) : item.isPending ? (
-        <div title="KieAI generation in progress…" className="p-2">
+        <div title="AI generation in progress..." className="p-2">
           <div className="h-5 w-5 animate-spin rounded-full border-2 border-purple-400 border-t-transparent" />
         </div>
       ) : item.isPlaceholder ? (
@@ -172,7 +176,7 @@ const MediaThumbnail: React.FC<{
           {item.type === "image" && onKieAI && (
             <button
               onClick={(e) => { e.stopPropagation(); onKieAI(); }}
-              title="Create with KieAI"
+              title={aiCreateLabel}
               className="p-2 bg-purple-500/20 rounded-full hover:bg-purple-500/40 backdrop-blur-sm transition-colors"
             >
               <Sparkles size={14} className="text-purple-300" />
@@ -291,7 +295,7 @@ const MediaThumbnail: React.FC<{
                 {item.type === "image" && onKieAI && (
                   <button
                     onClick={(e) => { e.stopPropagation(); onKieAI(); }}
-                    title="Create with KieAI"
+                    title={aiCreateLabel}
                     className="p-1 bg-purple-500/20 rounded hover:bg-purple-500/40 transition-colors"
                   >
                     <Sparkles size={12} className="text-purple-300" />
@@ -325,7 +329,7 @@ const MediaThumbnail: React.FC<{
           {item.type === "image" && onKieAI && (
             <ContextMenuItem onClick={onKieAI}>
               <Sparkles size={13} className="mr-2 text-primary" />
-              Create with KieAI
+              {aiCreateLabel}
             </ContextMenuItem>
           )}
           <ContextMenuItem onClick={(e) => { (e as React.MouseEvent).stopPropagation?.(); onAddToTimeline(); }}>
@@ -476,7 +480,7 @@ const MediaThumbnail: React.FC<{
         {item.type === "image" && onKieAI && (
           <ContextMenuItem onClick={onKieAI}>
             <Sparkles size={13} className="mr-2 text-primary" />
-            Create with KieAI
+            {aiCreateLabel}
           </ContextMenuItem>
         )}
         <ContextMenuItem onClick={() => onAddToTimeline()}>
@@ -554,6 +558,9 @@ export const AssetsPanel: React.FC = () => {
 
   // KieAI image generation dialog
   const [kieaiDialog, setKieaiDialog] = useState<{ file: File; previewUrl: string | null } | null>(null);
+  const defaultAggregator = useSettingsStore((s) => s.defaultAggregator);
+  const aiCreateLabel =
+    defaultAggregator === "codex-local" ? "Create with Codex Local" : "Create with KieAI";
 
   // Project store
   const {
@@ -1090,6 +1097,7 @@ export const AssetsPanel: React.FC = () => {
                     onAddToTimeline={() => handleAddToTimeline(item)}
                     onKieAI={item.type === "image" && !item.isPending && !item.kieaiError ? () => handleOpenKieAI(item) : undefined}
                     onRetryKieAI={item.kieaiError && item.kieaiTaskId ? () => handleRetryKieAI(item) : undefined}
+                    aiCreateLabel={aiCreateLabel}
                   />
                 ))}
                 {/* Add more media tile */}
@@ -1477,12 +1485,21 @@ export const AssetsPanel: React.FC = () => {
       )}
 
       {kieaiDialog && (
-        <KieAIImageDialog
-          open={true}
-          onClose={() => setKieaiDialog(null)}
-          sourceFile={kieaiDialog.file}
-          previewUrl={kieaiDialog.previewUrl}
-        />
+        defaultAggregator === "codex-local" ? (
+          <CodexLocalImageDialog
+            open={true}
+            onClose={() => setKieaiDialog(null)}
+            sourceFile={kieaiDialog.file}
+            previewUrl={kieaiDialog.previewUrl}
+          />
+        ) : (
+          <KieAIImageDialog
+            open={true}
+            onClose={() => setKieaiDialog(null)}
+            sourceFile={kieaiDialog.file}
+            previewUrl={kieaiDialog.previewUrl}
+          />
+        )
       )}
     </div>
   );

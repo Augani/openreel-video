@@ -16,6 +16,7 @@
     "lint": "pnpm -r lint",
     "typecheck": "pnpm -r typecheck",
     "clean": "pnpm -r clean",
+    "codex:bridge": "node scripts/codex-local-bridge.mjs",
     "claude:help": "cat scripts/claude-review.md",
     "issues": "gh issue list --label needs-claude-review",
     "prs": "gh pr list --label needs-claude-review"

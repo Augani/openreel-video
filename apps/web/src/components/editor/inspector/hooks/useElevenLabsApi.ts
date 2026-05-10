@@ -3,6 +3,7 @@ import type { TtsProvider } from "../../../../stores/settings-store";
 import { useSettingsStore } from "../../../../stores/settings-store";
 import { isSessionUnlocked, getSecret } from "../../../../services/secure-storage";
 import { apiFetch } from "../../../../services/api-proxy";
+import { enhanceTextWithCodexLocal } from "../../../../services/codex-local";
 import { OPENREEL_TTS_URL } from "../../../../config/api-endpoints";
 import type { ElevenLabsVoice, ElevenLabsModel } from "../tts-types";
 import { FALLBACK_MODELS, ENHANCE_SYSTEM_PROMPT } from "../tts-constants";
@@ -31,6 +32,7 @@ export function useElevenLabsApi(options: UseElevenLabsApiOptions): UseElevenLab
   const {
     cachedElevenLabsVoices,
     cachedElevenLabsModels,
+    codexLocalEndpoint,
     setCachedElevenLabsVoices,
     setCachedElevenLabsModels,
   } = useSettingsStore();
@@ -210,6 +212,15 @@ export function useElevenLabsApi(options: UseElevenLabsApiOptions): UseElevenLab
   const enhanceViaLlm = useCallback(async (inputText: string, signal?: AbortSignal): Promise<string> => {
     const llmProvider = defaultLlmProvider;
 
+    if (llmProvider === "codex-local") {
+      return enhanceTextWithCodexLocal({
+        endpoint: codexLocalEndpoint,
+        systemPrompt: ENHANCE_SYSTEM_PROMPT,
+        text: inputText,
+        signal,
+      });
+    }
+
     if (!isSessionUnlocked()) {
       throw new Error("Session locked. Unlock in Settings > API Keys to use text enhancement.");
     }
@@ -267,7 +278,7 @@ export function useElevenLabsApi(options: UseElevenLabsApiOptions): UseElevenLab
     const data = await response.json();
     const choices = (data as { choices: Array<{ message: { content: string } }> }).choices;
     return choices?.[0]?.message?.content ?? inputText;
-  }, [defaultLlmProvider]);
+  }, [codexLocalEndpoint, defaultLlmProvider]);
 
   return {
     allVoices,

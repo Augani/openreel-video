@@ -163,7 +163,7 @@ export const ApiKeysPanel: React.FC = () => {
   }, []);
 
   const availableServices = SERVICE_REGISTRY.filter(
-    (s) => !storedKeys.some((k) => k.id === s.id),
+    (s) => s.authType !== "local-bridge" && !storedKeys.some((k) => k.id === s.id),
   );
 
   // Not set up yet

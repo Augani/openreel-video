@@ -10,12 +10,14 @@ export const GeneralPanel: React.FC = () => {
     defaultTtsProvider,
     defaultLlmProvider,
     defaultAggregator,
+    codexLocalEndpoint,
     configuredServices,
     setAutoSave,
     setAutoSaveInterval,
     setDefaultTtsProvider,
     setDefaultLlmProvider,
     setDefaultAggregator,
+    setCodexLocalEndpoint,
   } = useSettingsStore();
 
   const ttsProviders = [
@@ -29,6 +31,7 @@ export const GeneralPanel: React.FC = () => {
     (s) =>
       s.id === "openai" ||
       s.id === "anthropic" ||
+      s.id === "codex-local" ||
       configuredServices.includes(s.id),
   );
 
@@ -36,8 +39,12 @@ export const GeneralPanel: React.FC = () => {
     (s) =>
       s.id === "kie-ai" ||
       s.id === "freepik" ||
+      s.id === "codex-local" ||
       configuredServices.includes(s.id),
   );
+
+  const usesCodexLocal =
+    defaultLlmProvider === "codex-local" || defaultAggregator === "codex-local";
 
   return (
     <div className="space-y-6 pb-4">
@@ -85,7 +92,7 @@ export const GeneralPanel: React.FC = () => {
         </h3>
         <p className="text-xs text-text-muted">
           Choose which service to use by default for AI features.
-          Configure API keys in the &quot;API Keys&quot; tab first.
+          Configure API keys in the &quot;API Keys&quot; tab first, or run a local bridge for Codex Local.
         </p>
 
         <div className="space-y-3">
@@ -144,6 +151,24 @@ export const GeneralPanel: React.FC = () => {
               ))}
             </select>
           </div>
+
+          {usesCodexLocal && (
+            <div className="space-y-2 rounded-lg border border-border bg-background-secondary p-3">
+              <Label className="text-sm text-text-secondary">
+                Codex Local bridge URL
+              </Label>
+              <input
+                value={codexLocalEndpoint}
+                onChange={(e) => setCodexLocalEndpoint(e.target.value)}
+                placeholder="http://127.0.0.1:14567"
+                className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm font-mono"
+              />
+              <p className="text-xs text-text-muted">
+                OpenReel only connects to loopback hosts for Codex Local.
+                Keep the bridge bound to localhost.
+              </p>
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -1,17 +1,19 @@
 import { create } from "zustand";
 import { subscribeWithSelector, persist } from "zustand/middleware";
 import { onSessionLock } from "../services/secure-storage";
+import { DEFAULT_CODEX_LOCAL_ENDPOINT } from "../services/codex-local";
 
 export interface ServiceConfig {
   readonly id: string;
   readonly label: string;
   readonly description: string;
   readonly docsUrl?: string;
+  readonly authType?: "api-key" | "local-bridge";
 }
 
 /**
- * Registry of supported external services that require API keys.
- * Add new services here as the app integrates more third-party APIs.
+ * Registry of supported external AI services and local bridges.
+ * Add new services here as the app integrates more providers.
  */
 export const SERVICE_REGISTRY: readonly ServiceConfig[] = [
   {
@@ -44,11 +46,18 @@ export const SERVICE_REGISTRY: readonly ServiceConfig[] = [
     description: "AI aggregator for image generation, vectors, and creative assets",
     docsUrl: "https://www.freepik.com/api",
   },
+  {
+    id: "codex-local",
+    label: "Codex Local",
+    description: "Local Codex bridge for AI assistant and image generation workflows",
+    docsUrl: "https://github.com/openai/codex",
+    authType: "local-bridge",
+  },
 ] as const;
 
 export type TtsProvider = "piper" | "elevenlabs";
-export type LlmProvider = "openai" | "anthropic";
-export type AggregatorProvider = "kie-ai" | "freepik";
+export type LlmProvider = "openai" | "anthropic" | "codex-local";
+export type AggregatorProvider = "kie-ai" | "freepik" | "codex-local";
 export type SettingsTab = "general" | "api-keys";
 
 export interface SettingsState {
@@ -61,6 +70,7 @@ export interface SettingsState {
   defaultTtsProvider: TtsProvider;
   defaultLlmProvider: LlmProvider;
   defaultAggregator: AggregatorProvider;
+  codexLocalEndpoint: string;
   elevenLabsModel: string;
   favoriteVoices: Array<{ voiceId: string; name: string; previewUrl?: string }>;
   favoriteModels: Array<{ modelId: string; name: string }>;
@@ -81,6 +91,7 @@ export interface SettingsState {
   setDefaultTtsProvider: (provider: TtsProvider) => void;
   setDefaultLlmProvider: (provider: LlmProvider) => void;
   setDefaultAggregator: (provider: AggregatorProvider) => void;
+  setCodexLocalEndpoint: (endpoint: string) => void;
   setElevenLabsModel: (model: string) => void;
   addFavoriteVoice: (voice: { voiceId: string; name: string; previewUrl?: string }) => void;
   removeFavoriteVoice: (voiceId: string) => void;
@@ -106,6 +117,7 @@ export const useSettingsStore = create<SettingsState>()(
         defaultTtsProvider: "elevenlabs" as TtsProvider,
         defaultLlmProvider: "openai" as LlmProvider,
         defaultAggregator: "kie-ai" as AggregatorProvider,
+        codexLocalEndpoint: DEFAULT_CODEX_LOCAL_ENDPOINT,
         elevenLabsModel: "eleven_v3",
         favoriteVoices: [],
         favoriteModels: [],
@@ -132,6 +144,9 @@ export const useSettingsStore = create<SettingsState>()(
 
         setDefaultAggregator: (provider: AggregatorProvider) =>
           set({ defaultAggregator: provider }),
+
+        setCodexLocalEndpoint: (endpoint: string) =>
+          set({ codexLocalEndpoint: endpoint }),
 
         setElevenLabsModel: (model: string) =>
           set({ elevenLabsModel: model }),
@@ -201,6 +216,7 @@ export const useSettingsStore = create<SettingsState>()(
           defaultTtsProvider: state.defaultTtsProvider,
           defaultLlmProvider: state.defaultLlmProvider,
           defaultAggregator: state.defaultAggregator,
+          codexLocalEndpoint: state.codexLocalEndpoint,
           elevenLabsModel: state.elevenLabsModel,
           favoriteVoices: state.favoriteVoices,
           favoriteModels: state.favoriteModels,
