@@ -35,6 +35,7 @@ export class FrameInterpolationEngine {
   }
 
   setQuality(quality: "low" | "medium" | "high"): void {
+    if (this.config.quality === quality) return;
     this.config = INTERPOLATION_QUALITY_PRESETS[quality];
     this.cpuFlow = new OpticalFlowCPU(this.config);
     if (this.gpuFlow) {

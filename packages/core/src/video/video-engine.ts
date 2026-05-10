@@ -277,6 +277,35 @@ export class VideoEngine {
     }
   }
 
+  private interpFrameCache: Map<string, { bitmap: ImageBitmap; time: number }> =
+    new Map();
+  private static readonly INTERP_FRAME_CACHE_MAX = 4;
+
+  private getCachedInterpFrame(key: string): ImageBitmap | null {
+    const entry = this.interpFrameCache.get(key);
+    if (!entry) return null;
+    entry.time = performance.now();
+    return entry.bitmap;
+  }
+
+  private setCachedInterpFrame(key: string, bitmap: ImageBitmap): void {
+    if (this.interpFrameCache.size >= VideoEngine.INTERP_FRAME_CACHE_MAX) {
+      let oldestKey = "";
+      let oldestTime = Infinity;
+      for (const [k, v] of this.interpFrameCache) {
+        if (v.time < oldestTime) {
+          oldestTime = v.time;
+          oldestKey = k;
+        }
+      }
+      if (oldestKey) {
+        this.interpFrameCache.get(oldestKey)?.bitmap.close();
+        this.interpFrameCache.delete(oldestKey);
+      }
+    }
+    this.interpFrameCache.set(key, { bitmap, time: performance.now() });
+  }
+
   private async decodeInterpolatedFrame(
     clip: Clip,
     mediaItem: MediaItem,
@@ -300,20 +329,38 @@ export class VideoEngine {
       const timeBefore = clip.inPoint + interpInfo.frameBefore;
       const timeAfter = clip.inPoint + interpInfo.frameAfter;
 
-      const frame1 = await this.decodeFrameWithMediaBunny(
-        mediaItem.blob!,
-        timeBefore,
-        width,
-        height,
-        mediaItem.id,
-      );
-      const frame2 = await this.decodeFrameWithMediaBunny(
-        mediaItem.blob!,
-        timeAfter,
-        width,
-        height,
-        mediaItem.id,
-      );
+      const cacheKey1 = `${mediaItem.id}:${timeBefore.toFixed(4)}`;
+      const cacheKey2 = `${mediaItem.id}:${timeAfter.toFixed(4)}`;
+
+      let frame1 = this.getCachedInterpFrame(cacheKey1);
+      if (!frame1) {
+        frame1 = await this.decodeFrameWithMediaBunny(
+          mediaItem.blob!,
+          timeBefore,
+          width,
+          height,
+          mediaItem.id,
+        );
+        if (frame1) {
+          const clone = await createImageBitmap(frame1);
+          this.setCachedInterpFrame(cacheKey1, clone);
+        }
+      }
+
+      let frame2 = this.getCachedInterpFrame(cacheKey2);
+      if (!frame2) {
+        frame2 = await this.decodeFrameWithMediaBunny(
+          mediaItem.blob!,
+          timeAfter,
+          width,
+          height,
+          mediaItem.id,
+        );
+        if (frame2) {
+          const clone = await createImageBitmap(frame2);
+          this.setCachedInterpFrame(cacheKey2, clone);
+        }
+      }
 
       if (!frame1 || !frame2) return null;
 
@@ -329,9 +376,6 @@ export class VideoEngine {
         timeBefore,
         timeAfter,
       );
-
-      frame1.close();
-      frame2.close();
 
       return result.frame;
     } catch {
