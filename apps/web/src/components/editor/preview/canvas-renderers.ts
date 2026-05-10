@@ -1829,8 +1829,7 @@ export const drawFrameWithTransform = (
     sourceHeight = "height" in frame ? frame.height : canvasHeight;
   }
 
-  // Calculate draw size to fit frame within canvas while preserving aspect ratio
-  // Uses 'cover' fit mode: fills canvas while maintaining aspect ratio
+  // Calculate draw size to fit frame within canvas while preserving aspect ratio (contain)
   const sourceAspect = sourceWidth / sourceHeight;
   const canvasAspect = canvasWidth / canvasHeight;
 

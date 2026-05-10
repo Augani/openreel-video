@@ -50,6 +50,7 @@ import {
 } from "./inspector";
 import { OPENREEL_TTS_URL } from "../../config/api-endpoints";
 import { AutoEditPanel } from "./panels/AutoEditPanel";
+import { HighlightExtractorPanel } from "./panels/HighlightExtractorPanel";
 import {
   getAudioBridgeEffects,
   initializeAudioBridgeEffects,
@@ -759,6 +760,13 @@ export const InspectorPanel: React.FC = () => {
             {showAudioEffects && (
               <Section title="Beat-Synced Auto-Edit" sectionId="auto-edit" defaultOpen={false}>
                 <AutoEditPanel onClose={() => {}} />
+              </Section>
+            )}
+
+            {/* AI Highlight Extractor */}
+            {showAudioEffects && (
+              <Section title="AI Highlights" sectionId="ai-highlights" defaultOpen={false}>
+                <HighlightExtractorPanel clipId={clipId} />
               </Section>
             )}
 

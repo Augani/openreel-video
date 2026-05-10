@@ -70,14 +70,6 @@ import { ProcessingOverlay } from "./ProcessingOverlay";
 import { getPersonSegmentationEngine, getBackgroundRemovalEngine } from "@openreel/core";
 import type { MotionPathConfig, GSAPMotionPathPoint } from "@openreel/core";
 
-const getAdaptivePoolSize = (width: number, height: number): number => {
-  const pixels = width * height;
-  if (pixels >= 3840 * 2160) return 6;
-  if (pixels >= 2560 * 1440) return 5;
-  if (pixels >= 1920 * 1080) return 4;
-  return 3;
-};
-
 interface GPULayer {
   bitmap: ImageBitmap;
   transform: ClipTransform;
@@ -2559,24 +2551,8 @@ export const Preview: React.FC = () => {
             canvas.height = settings.height;
           }
 
-          // Validate final canvas dimensions
-          const sinkWidth = canvas.width || settings.width;
-          const sinkHeight = canvas.height || settings.height;
-
-          if (sinkWidth === 0 || sinkHeight === 0) {
-            console.error(
-              "[Preview] Cannot create CanvasSink with zero dimensions",
-            );
-            input[Symbol.dispose]?.();
-            pause();
-            return;
-          }
-
           const sink = new CanvasSink(videoTrack, {
-            width: sinkWidth,
-            height: sinkHeight,
-            fit: "contain",
-            poolSize: getAdaptivePoolSize(sinkWidth, sinkHeight),
+            poolSize: 3,
           });
 
           const speedEngine = getSpeedEngine();
@@ -2900,13 +2876,8 @@ export const Preview: React.FC = () => {
           return null;
         }
 
-        const sinkWidth = settings.width || 1920;
-        const sinkHeight = settings.height || 1080;
         const sink = new CanvasSink(videoTrack, {
-          width: sinkWidth,
-          height: sinkHeight,
-          fit: "contain",
-          poolSize: getAdaptivePoolSize(sinkWidth, sinkHeight),
+          poolSize: 3,
         });
 
         return {
