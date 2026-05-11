@@ -122,15 +122,26 @@ export const TimeRuler: React.FC<TimeRulerProps> = ({
 
   useEffect(() => {
     if (!isDragging) return;
+    let rafId: number | null = null;
+    let latestTime: number | null = null;
 
     const handleMouseMove = (e: MouseEvent) => {
       e.preventDefault();
-      const time = getTimeFromEvent(e);
-      onSeek(time);
+      latestTime = getTimeFromEvent(e);
+      if (rafId === null) {
+        rafId = requestAnimationFrame(() => {
+          rafId = null;
+          if (latestTime !== null) {
+            onSeek(latestTime);
+          }
+        });
+      }
     };
 
     const handleMouseUp = (e: MouseEvent) => {
       e.preventDefault();
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      if (latestTime !== null) onSeek(latestTime);
       setIsDragging(false);
       onScrubEnd?.();
     };
@@ -139,6 +150,7 @@ export const TimeRuler: React.FC<TimeRulerProps> = ({
     window.addEventListener("mouseup", handleMouseUp);
 
     return () => {
+      if (rafId !== null) cancelAnimationFrame(rafId);
       window.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("mouseup", handleMouseUp);
     };

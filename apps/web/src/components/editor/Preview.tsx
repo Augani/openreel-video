@@ -1551,7 +1551,7 @@ export const Preview: React.FC = () => {
             scheduleScrubVideoRelease();
             resolve(null);
           }
-        }, 40);
+        }, 50);
       });
     },
     [
