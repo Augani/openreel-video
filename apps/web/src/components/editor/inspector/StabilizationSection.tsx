@@ -16,6 +16,7 @@ export const StabilizationSection: React.FC<StabilizationSectionProps> = ({
   const [processing, setProcessing] = useState(false);
   const [stage, setStage] = useState<VidstabProgress["stage"] | null>(null);
   const [progress, setProgress] = useState(0);
+  const [error, setError] = useState<string | null>(null);
 
   const stabilization = clip.stabilization ?? {
     enabled: false,
@@ -61,6 +62,7 @@ export const StabilizationSection: React.FC<StabilizationSectionProps> = ({
 
     setProcessing(true);
     setProgress(0);
+    setError(null);
     setStage("downloading");
 
     try {
@@ -84,11 +86,14 @@ export const StabilizationSection: React.FC<StabilizationSectionProps> = ({
           setStage(p.stage);
           setProgress(Math.round(p.progress * 100));
         },
+        { inPoint: clip.inPoint, outPoint: clip.outPoint },
       );
 
       updateStabilization({ enabled: true, analyzed: true });
     } catch (error) {
-      console.warn("Stabilization failed:", error);
+      console.error("Stabilization failed:", error);
+      setStage(null);
+      setError(error instanceof Error ? error.message : "Stabilization failed");
     } finally {
       setProcessing(false);
       setStage(null);
@@ -194,6 +199,12 @@ export const StabilizationSection: React.FC<StabilizationSectionProps> = ({
               style={{ width: `${progress}%` }}
             />
           </div>
+        </div>
+      )}
+
+      {error && !processing && (
+        <div className="rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-[11px] text-destructive">
+          {error}
         </div>
       )}
 

@@ -645,19 +645,37 @@ export class VideoEngine {
             }
 
             if (!bitmap) {
+              const vidstabForDecode = getVidstabEngine();
+              const useStabilizedBlob = vidstabForDecode.hasStabilized(clip.id);
+              const decodeBlob = useStabilizedBlob
+                ? vidstabForDecode.getStabilizedBlob(clip.id)!
+                : mediaItem.blob;
+              const decodeTime = useStabilizedBlob
+                ? clipInfo.sourceTime - clip.inPoint
+                : clipInfo.sourceTime;
+
               bitmap = await this.decodeFrameWithMediaBunny(
-                mediaItem.blob,
-                clipInfo.sourceTime,
+                decodeBlob,
+                decodeTime,
                 settings.width,
                 settings.height,
-                clipInfo.mediaId,
+                useStabilizedBlob ? `stabilized:${clip.id}` : clipInfo.mediaId,
               );
             }
             if (!bitmap) {
+              const vidstabForDecode = getVidstabEngine();
+              const useStabilizedBlob = vidstabForDecode.hasStabilized(clip.id);
+              const decodeBlob = useStabilizedBlob
+                ? vidstabForDecode.getStabilizedBlob(clip.id)!
+                : mediaItem.blob;
+              const decodeTime = useStabilizedBlob
+                ? clipInfo.sourceTime - clip.inPoint
+                : clipInfo.sourceTime;
+
               bitmap = await this.decodeFrameWithVideoElement(
-                mediaItem.id,
-                mediaItem.blob,
-                clipInfo.sourceTime,
+                useStabilizedBlob ? `stabilized:${clip.id}` : mediaItem.id,
+                decodeBlob,
+                decodeTime,
                 settings.width,
                 settings.height,
               );

@@ -1373,9 +1373,8 @@ export const Preview: React.FC = () => {
               clip.id,
               clipLocalTime,
             );
-            const mediaTime = (clip.inPoint || 0) + adjustedLocalTime;
-
             const isStabilized = vidstab.hasStabilized(clip.id);
+            const mediaTime = isStabilized ? adjustedLocalTime : (clip.inPoint || 0) + adjustedLocalTime;
             const cacheKey = isStabilized ? `${clip.mediaId}:stabilized` : clip.mediaId;
             let cached = videoElementCacheRef.current.get(cacheKey);
 
@@ -2344,11 +2343,15 @@ export const Preview: React.FC = () => {
         clip: (typeof timelineTracks)[0]["clips"][0],
         mediaItem: NonNullable<ReturnType<typeof getMediaItem>>,
       ): Promise<void> => {
-        if (videoCache.has(clip.mediaId)) {
+        const vidstabCheck = getVidstabEngine();
+        const clipStabilized = vidstabCheck.hasStabilized(clip.id);
+        const videoCacheId = clipStabilized ? `stabilized:${clip.id}` : clip.mediaId;
+
+        if (videoCache.has(videoCacheId)) {
           return Promise.resolve();
         }
 
-        const existingLoad = loadingVideos.get(clip.mediaId);
+        const existingLoad = loadingVideos.get(videoCacheId);
         if (existingLoad) {
           return existingLoad;
         }
@@ -2358,9 +2361,11 @@ export const Preview: React.FC = () => {
         }
 
         const vidstabEng = getVidstabEngine();
-        const playBlob = (vidstabEng.hasStabilized(clip.id)
+        const isStabilized = vidstabEng.hasStabilized(clip.id);
+        const playBlob = (isStabilized
           ? vidstabEng.getStabilizedBlob(clip.id)
           : mediaItem.blob)!;
+        const cacheId = isStabilized ? `stabilized:${clip.id}` : clip.mediaId;
         const url = URL.createObjectURL(playBlob);
         const video = document.createElement("video");
         video.src = url;
@@ -2368,7 +2373,7 @@ export const Preview: React.FC = () => {
         video.playsInline = true;
         video.preload = "metadata";
 
-        videoCache.set(clip.mediaId, { video, url });
+        videoCache.set(cacheId, { video, url });
 
         const loadPromise = new Promise<void>((resolve) => {
           let settled = false;
@@ -2377,7 +2382,7 @@ export const Preview: React.FC = () => {
             settled = true;
             video.onloadedmetadata = null;
             video.onerror = null;
-            loadingVideos.delete(clip.mediaId);
+            loadingVideos.delete(cacheId);
             resolve();
           };
           video.onloadedmetadata = finish;
@@ -2385,7 +2390,7 @@ export const Preview: React.FC = () => {
           setTimeout(finish, 750);
         });
 
-        loadingVideos.set(clip.mediaId, loadPromise);
+        loadingVideos.set(cacheId, loadPromise);
         return loadPromise;
       };
 
@@ -2588,7 +2593,10 @@ export const Preview: React.FC = () => {
         }
 
         const { clip, mediaItem } = activeClip;
-        const cached = videoCache.get(clip.mediaId);
+        const vidstabPlay = getVidstabEngine();
+        const clipIsStabilized = vidstabPlay.hasStabilized(clip.id);
+        const playbackCacheId = clipIsStabilized ? `stabilized:${clip.id}` : clip.mediaId;
+        const cached = videoCache.get(playbackCacheId);
 
         if (!cached) {
           await loadVideoForClip(clip, mediaItem);
@@ -2628,9 +2636,10 @@ export const Preview: React.FC = () => {
           latestClip.inPoint,
           Math.min(latestClip.outPoint, latestClip.inPoint + adjustedLocalTime),
         );
-        const drift = Math.abs(video.currentTime - sourceTime);
+        const videoTime = clipIsStabilized ? sourceTime - latestClip.inPoint : sourceTime;
+        const drift = Math.abs(video.currentTime - videoTime);
         if (drift > 0.1) {
-          video.currentTime = sourceTime;
+          video.currentTime = videoTime;
         }
 
         let transform = getAnimatedTransform(
