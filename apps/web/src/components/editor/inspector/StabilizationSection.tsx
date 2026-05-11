@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from "react";
-import { Video } from "lucide-react";
+import { Video, Download } from "lucide-react";
 import type { Clip } from "@openreel/core";
-import { getStabilizationEngine } from "@openreel/core";
+import { getVidstabEngine, type VidstabProgress } from "@openreel/core";
 import { useProjectStore } from "../../../stores/project-store";
 import { Switch, Label, Slider, Button } from "@openreel/ui";
 
@@ -13,7 +13,8 @@ export const StabilizationSection: React.FC<StabilizationSectionProps> = ({
   clip,
 }) => {
   const { project, getMediaItem } = useProjectStore();
-  const [analyzing, setAnalyzing] = useState(false);
+  const [processing, setProcessing] = useState(false);
+  const [stage, setStage] = useState<VidstabProgress["stage"] | null>(null);
   const [progress, setProgress] = useState(0);
 
   const stabilization = clip.stabilization ?? {
@@ -22,6 +23,9 @@ export const StabilizationSection: React.FC<StabilizationSectionProps> = ({
     cropMode: "auto" as const,
     analyzed: false,
   };
+
+  const vidstabEngine = getVidstabEngine();
+  const isStabilized = vidstabEngine.hasStabilized(clip.id);
 
   const updateStabilization = useCallback(
     (updates: Partial<typeof stabilization>) => {
@@ -51,77 +55,94 @@ export const StabilizationSection: React.FC<StabilizationSectionProps> = ({
     [clip.id, project, stabilization],
   );
 
-  const handleAnalyze = useCallback(async () => {
+  const handleStabilize = useCallback(async () => {
     const mediaItem = getMediaItem(clip.mediaId);
     if (!mediaItem?.blob) return;
 
-    setAnalyzing(true);
+    setProcessing(true);
     setProgress(0);
+    setStage("downloading");
 
     try {
-      const url = URL.createObjectURL(mediaItem.blob);
-      const video = document.createElement("video");
-      video.src = url;
-      video.muted = true;
-      video.preload = "auto";
-      video.crossOrigin = "anonymous";
-
-      await new Promise<void>((resolve, reject) => {
-        video.onloadedmetadata = () => resolve();
-        video.onerror = () => reject(new Error("Failed to load video"));
-        setTimeout(() => reject(new Error("Timeout")), 10000);
+      await vidstabEngine.load((p) => {
+        setStage(p.stage);
+        setProgress(Math.round(p.progress * 100));
       });
 
-      const duration = clip.outPoint - clip.inPoint;
-      const stabEngine = getStabilizationEngine();
+      setStage("detecting");
+      setProgress(0);
 
-      await stabEngine.analyzeClip(
+      await vidstabEngine.stabilize(
         clip.id,
-        video,
-        duration,
+        mediaItem.blob,
         {
           strength: stabilization.strength,
           cropMode: stabilization.cropMode,
-          analysisInterval: 2,
+          analysisInterval: 1,
         },
-        (p) => setProgress(Math.round(p * 100)),
+        (p) => {
+          setStage(p.stage);
+          setProgress(Math.round(p.progress * 100));
+        },
       );
-
-      video.src = "";
-      URL.revokeObjectURL(url);
 
       updateStabilization({ enabled: true, analyzed: true });
     } catch (error) {
-      console.warn("Stabilization analysis failed:", error);
+      console.warn("Stabilization failed:", error);
     } finally {
-      setAnalyzing(false);
+      setProcessing(false);
+      setStage(null);
     }
-  }, [clip.id, clip.mediaId, clip.outPoint, clip.inPoint, getMediaItem, stabilization.strength, stabilization.cropMode, updateStabilization]);
+  }, [
+    clip.id,
+    clip.mediaId,
+    getMediaItem,
+    vidstabEngine,
+    stabilization.strength,
+    stabilization.cropMode,
+    updateStabilization,
+  ]);
 
   const handleToggle = useCallback(
     (enabled: boolean) => {
-      if (enabled && !stabilization.analyzed) {
-        handleAnalyze();
+      if (enabled && !isStabilized) {
+        handleStabilize();
         return;
       }
       updateStabilization({ enabled });
     },
-    [stabilization.analyzed, handleAnalyze, updateStabilization],
+    [isStabilized, handleStabilize, updateStabilization],
   );
 
   const handleStrengthChange = useCallback(
     (value: number[]) => {
       const strength = value[0];
-      updateStabilization({ strength });
-
-      if (stabilization.analyzed) {
-        const stabEngine = getStabilizationEngine();
-        stabEngine.removeProfile(clip.id);
-        updateStabilization({ strength, analyzed: false, enabled: false });
+      if (isStabilized) {
+        vidstabEngine.removeStabilized(clip.id);
+        updateStabilization({
+          strength,
+          analyzed: false,
+          enabled: false,
+        });
+        return;
       }
+      updateStabilization({ strength });
     },
-    [clip.id, stabilization.analyzed, updateStabilization],
+    [clip.id, isStabilized, vidstabEngine, updateStabilization],
   );
+
+  const stageLabel = (() => {
+    switch (stage) {
+      case "downloading":
+        return "Downloading stabilization engine...";
+      case "detecting":
+        return "Analyzing motion...";
+      case "stabilizing":
+        return "Stabilizing video...";
+      default:
+        return "";
+    }
+  })();
 
   return (
     <div className="space-y-3">
@@ -131,9 +152,9 @@ export const StabilizationSection: React.FC<StabilizationSectionProps> = ({
           Stabilize
         </Label>
         <Switch
-          checked={stabilization.enabled}
+          checked={stabilization.enabled && isStabilized}
           onCheckedChange={handleToggle}
-          disabled={analyzing}
+          disabled={processing}
         />
       </div>
 
@@ -146,18 +167,25 @@ export const StabilizationSection: React.FC<StabilizationSectionProps> = ({
         </div>
         <Slider
           value={[stabilization.strength]}
-          min={0}
+          min={10}
           max={100}
-          step={1}
+          step={5}
           onValueChange={handleStrengthChange}
-          disabled={analyzing}
+          disabled={processing}
         />
       </div>
 
-      {analyzing && (
+      {!vidstabEngine.isLoaded() && !processing && !isStabilized && (
+        <div className="flex items-center gap-2 rounded-md border border-border/60 bg-muted/40 px-3 py-2 text-[11px] text-muted-foreground">
+          <Download className="h-3.5 w-3.5 shrink-0" />
+          <span>First use requires a one-time download (~65 MB)</span>
+        </div>
+      )}
+
+      {processing && stage && (
         <div className="space-y-1">
           <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span>Analyzing motion...</span>
+            <span>{stageLabel}</span>
             <span>{progress}%</span>
           </div>
           <div className="h-1.5 w-full rounded-full bg-muted">
@@ -169,14 +197,14 @@ export const StabilizationSection: React.FC<StabilizationSectionProps> = ({
         </div>
       )}
 
-      {stabilization.analyzed && !analyzing && (
+      {isStabilized && !processing && (
         <Button
           variant="outline"
           size="sm"
           className="w-full"
-          onClick={handleAnalyze}
+          onClick={handleStabilize}
         >
-          Re-analyze
+          Re-stabilize
         </Button>
       )}
     </div>
