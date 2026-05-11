@@ -7,66 +7,121 @@ export function extractDominantMotion(
 ): MotionSample {
   const { width, height, vectors } = flowField;
   const totalBlocks = width * height;
-
-  const dxValues: number[] = [];
-  const dyValues: number[] = [];
+  const motionVectors: Array<{ dx: number; dy: number; magnitude: number }> = [];
 
   for (let i = 0; i < totalBlocks; i++) {
     const dx = vectors[i * 2];
     const dy = vectors[i * 2 + 1];
     if (dx !== 0 || dy !== 0) {
-      dxValues.push(dx);
-      dyValues.push(dy);
+      motionVectors.push({
+        dx,
+        dy,
+        magnitude: Math.hypot(dx, dy),
+      });
     }
   }
 
-  if (dxValues.length === 0) {
+  if (motionVectors.length === 0) {
     return { time: frameTime, dx: 0, dy: 0, rotation: 0 };
   }
 
-  dxValues.sort((a, b) => a - b);
-  dyValues.sort((a, b) => a - b);
-
-  const medianDx = dxValues[Math.floor(dxValues.length / 2)];
-  const medianDy = dyValues[Math.floor(dyValues.length / 2)];
-
-  const rotation = estimateRotation(flowField, medianDx, medianDy);
-
-  return { time: frameTime, dx: medianDx, dy: medianDy, rotation };
+  const dominantMotion = findDominantMotionCluster(motionVectors);
+  return {
+    time: frameTime,
+    dx: dominantMotion.dx,
+    dy: dominantMotion.dy,
+    rotation: 0,
+  };
 }
 
-function estimateRotation(
-  flowField: FlowField,
-  globalDx: number,
-  globalDy: number,
-): number {
-  const { width, height, vectors } = flowField;
-  const centerX = width / 2;
-  const centerY = height / 2;
+function findDominantMotionCluster(
+  motionVectors: Array<{ dx: number; dy: number; magnitude: number }>,
+): { dx: number; dy: number } {
+  const bins = new Map<
+    string,
+    {
+      qdx: number;
+      qdy: number;
+      totalDx: number;
+      totalDy: number;
+      totalMagnitude: number;
+      count: number;
+    }
+  >();
 
-  let rotationSum = 0;
-  let count = 0;
+  for (const vector of motionVectors) {
+    const qdx = Math.round(vector.dx);
+    const qdy = Math.round(vector.dy);
+    const key = `${qdx},${qdy}`;
+    const bin = bins.get(key) ?? {
+      qdx,
+      qdy,
+      totalDx: 0,
+      totalDy: 0,
+      totalMagnitude: 0,
+      count: 0,
+    };
 
-  for (let by = 0; by < height; by++) {
-    for (let bx = 0; bx < width; bx++) {
-      const idx = (by * width + bx) * 2;
-      const dx = vectors[idx] - globalDx;
-      const dy = vectors[idx + 1] - globalDy;
+    bin.totalDx += vector.dx;
+    bin.totalDy += vector.dy;
+    bin.totalMagnitude += vector.magnitude;
+    bin.count += 1;
+    bins.set(key, bin);
+  }
 
-      const rx = bx - centerX;
-      const ry = by - centerY;
-      const dist = Math.sqrt(rx * rx + ry * ry);
+  let bestBin:
+    | {
+        qdx: number;
+        qdy: number;
+        totalDx: number;
+        totalDy: number;
+        totalMagnitude: number;
+        count: number;
+      }
+    | undefined;
 
-      if (dist < 2) continue;
-
-      const cross = rx * dy - ry * dx;
-      rotationSum += cross / (dist * dist);
-      count++;
+  for (const bin of bins.values()) {
+    if (
+      !bestBin ||
+      bin.count > bestBin.count ||
+      (bin.count === bestBin.count &&
+        bin.totalMagnitude > bestBin.totalMagnitude)
+    ) {
+      bestBin = bin;
     }
   }
 
-  if (count === 0) return 0;
-  return rotationSum / count;
+  if (!bestBin) {
+    return { dx: 0, dy: 0 };
+  }
+
+  let clusteredDx = 0;
+  let clusteredDy = 0;
+  let clusteredWeight = 0;
+
+  for (const vector of motionVectors) {
+    if (
+      Math.abs(vector.dx - bestBin.qdx) <= 1 &&
+      Math.abs(vector.dy - bestBin.qdy) <= 1
+    ) {
+      const weight = Math.max(vector.magnitude, 1);
+      clusteredDx += vector.dx * weight;
+      clusteredDy += vector.dy * weight;
+      clusteredWeight += weight;
+    }
+  }
+
+  if (clusteredWeight === 0) {
+    return {
+      dx: bestBin.totalDx / bestBin.count,
+      dy: bestBin.totalDy / bestBin.count,
+    };
+  }
+
+  return {
+    dx: clusteredDx / clusteredWeight,
+    dy: clusteredDy / clusteredWeight,
+  };
 }
 
 export function accumulateMotionPath(samples: MotionSample[]): {
@@ -91,7 +146,15 @@ export function smoothPath(
   values: number[],
   strength: number,
 ): number[] {
-  const radius = Math.max(1, Math.round((strength / 100) * 30));
+  if (values.length <= 1) {
+    return [...values];
+  }
+
+  const maxRadius = Math.max(1, Math.floor((values.length - 1) / 2));
+  const radius = Math.min(
+    maxRadius,
+    Math.max(1, Math.round((strength / 100) * 60)),
+  );
   const kernel = buildGaussianKernel(radius);
   const smoothed: number[] = new Array(values.length);
 
@@ -131,17 +194,20 @@ export function computeCorrections(
   smoothedDy: number[],
   smoothedRotation: number[],
   cropMode: "auto" | "none",
+  analysisWidth: number,
+  analysisHeight: number,
 ): CorrectionTransform[] {
   const corrections: CorrectionTransform[] = [];
-  let maxDisplacement = 0;
+  let maxAbsDx = 0;
+  let maxAbsDy = 0;
 
   for (let i = 0; i < cumDx.length; i++) {
     const corrDx = smoothedDx[i] - cumDx[i];
     const corrDy = smoothedDy[i] - cumDy[i];
     const corrRotation = smoothedRotation[i] - cumRotation[i];
 
-    const displacement = Math.sqrt(corrDx * corrDx + corrDy * corrDy);
-    maxDisplacement = Math.max(maxDisplacement, displacement);
+    maxAbsDx = Math.max(maxAbsDx, Math.abs(corrDx));
+    maxAbsDy = Math.max(maxAbsDy, Math.abs(corrDy));
 
     corrections.push({
       dx: corrDx,
@@ -151,8 +217,13 @@ export function computeCorrections(
     });
   }
 
-  if (cropMode === "auto" && maxDisplacement > 0) {
-    const scaleFactor = 1 + maxDisplacement * 0.005;
+  if (cropMode === "auto" && (maxAbsDx > 0 || maxAbsDy > 0)) {
+    const safeWidth = Math.max(analysisWidth - maxAbsDx * 2, 1);
+    const safeHeight = Math.max(analysisHeight - maxAbsDy * 2, 1);
+    const scaleFactor = Math.max(
+      analysisWidth / safeWidth,
+      analysisHeight / safeHeight,
+    );
     const clampedScale = Math.min(scaleFactor, 1.15);
     for (const correction of corrections) {
       correction.scale = clampedScale;

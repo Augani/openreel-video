@@ -1,5 +1,6 @@
 import type { TransitionType } from "./effects";
 import type { EmphasisAnimation } from "../graphics/types";
+import type { StabilizationProfile } from "../video/stabilization/types";
 
 export interface Timeline {
   readonly tracks: Track[];
@@ -65,6 +66,8 @@ export interface Clip {
     strength: number;
     cropMode: "auto" | "none";
     analyzed?: boolean;
+    analysisVersion?: number;
+    profile?: StabilizationProfile;
   };
   readonly emphasisAnimation?: EmphasisAnimation;
   /** Zero-based index of the audio track within the source media file to use for this clip.

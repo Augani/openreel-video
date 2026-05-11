@@ -1,5 +1,14 @@
-import type { StabilizationProfile, CorrectionTransform, StabilizationConfig } from "./types";
-import { DEFAULT_STABILIZATION_CONFIG } from "./types";
+import type {
+  StabilizationProfile,
+  CorrectionTransform,
+  StabilizationConfig,
+  StabilizationRenderContext,
+} from "./types";
+import type { Clip, Transform } from "../../types/timeline";
+import {
+  DEFAULT_STABILIZATION_CONFIG,
+  STABILIZATION_ANALYSIS_VERSION,
+} from "./types";
 import { OpticalFlowCPU } from "../frame-interpolation/optical-flow-cpu";
 import { INTERPOLATION_QUALITY_PRESETS } from "../frame-interpolation/types";
 import {
@@ -14,26 +23,44 @@ export class StabilizationEngine {
   private flowEngine: OpticalFlowCPU;
 
   constructor() {
-    this.flowEngine = new OpticalFlowCPU(INTERPOLATION_QUALITY_PRESETS.medium);
+    this.flowEngine = new OpticalFlowCPU(INTERPOLATION_QUALITY_PRESETS.high);
   }
 
   hasProfile(clipId: string): boolean {
     return this.profiles.has(clipId);
   }
 
+  setProfile(profile: StabilizationProfile): void {
+    this.profiles.set(profile.clipId, profile);
+  }
+
   async analyzeClip(
     clipId: string,
     videoElement: HTMLVideoElement,
     duration: number,
+    sourceStartTime: number = 0,
     config: StabilizationConfig = DEFAULT_STABILIZATION_CONFIG,
     onProgress?: (progress: number) => void,
   ): Promise<StabilizationProfile> {
-    const fps = 30;
-    const interval = config.analysisInterval;
-    const frameCount = Math.ceil((duration * fps) / interval);
-    const frameInterval = interval / fps;
+    if (!Number.isFinite(duration) || duration <= 0) {
+      throw new Error("Stabilization analysis requires a positive duration");
+    }
 
-    const analysisWidth = Math.min(640, videoElement.videoWidth);
+    if (!Number.isFinite(sourceStartTime) || sourceStartTime < 0) {
+      throw new Error("Stabilization analysis requires a valid source start time");
+    }
+
+    if (videoElement.videoWidth <= 0 || videoElement.videoHeight <= 0) {
+      throw new Error("Stabilization analysis requires loaded video metadata");
+    }
+
+    const fps = 30;
+    const interval = Math.max(1, config.analysisInterval);
+    const frameCount = Math.max(1, Math.ceil((duration * fps) / interval));
+    const frameInterval = interval / fps;
+    const maxRelativeTime = Math.max(duration - 0.001, 0);
+
+    const analysisWidth = Math.min(960, videoElement.videoWidth);
     const analysisHeight = Math.round(
       analysisWidth * (videoElement.videoHeight / videoElement.videoWidth),
     );
@@ -45,19 +72,16 @@ export class StabilizationEngine {
 
     let prevImageData: ImageData | null = null;
     const samples = [];
+    const maxSourceTime = Number.isFinite(videoElement.duration)
+      ? Math.max(videoElement.duration - 0.001, 0)
+      : sourceStartTime + maxRelativeTime;
+    const maxMotionPerSample = Math.max(12, analysisWidth * 0.03);
 
     for (let i = 0; i <= frameCount; i++) {
-      const time = Math.min(i * frameInterval, duration - 0.001);
+      const relativeTime = Math.min(i * frameInterval, maxRelativeTime);
+      const sourceTime = Math.min(sourceStartTime + relativeTime, maxSourceTime);
 
-      videoElement.currentTime = time;
-      await new Promise<void>((resolve) => {
-        const onSeeked = () => {
-          videoElement.removeEventListener("seeked", onSeeked);
-          resolve();
-        };
-        videoElement.addEventListener("seeked", onSeeked);
-        setTimeout(resolve, 1000);
-      });
+      await this.seekVideoFrame(videoElement, sourceTime);
 
       ctx.drawImage(videoElement, 0, 0, analysisWidth, analysisHeight);
       const currentImageData = ctx.getImageData(0, 0, analysisWidth, analysisHeight);
@@ -67,7 +91,10 @@ export class StabilizationEngine {
           prevImageData,
           currentImageData,
         );
-        const sample = extractDominantMotion(flowField, time);
+        const sample = this.clampMotionSample(
+          extractDominantMotion(flowField, sourceTime),
+          maxMotionPerSample,
+        );
         samples.push(sample);
       }
 
@@ -89,6 +116,8 @@ export class StabilizationEngine {
       smoothedDy,
       smoothedRotation,
       config.cropMode,
+      analysisWidth,
+      analysisHeight,
     );
 
     let maxDisplacement = 0;
@@ -104,20 +133,126 @@ export class StabilizationEngine {
       maxDisplacement,
       frameInterval,
       duration,
+      sourceStartTime,
+      analysisDimensions: {
+        width: analysisWidth,
+        height: analysisHeight,
+      },
     };
 
     this.profiles.set(clipId, profile);
     return profile;
   }
 
+  private clampMotionSample(
+    sample: StabilizationProfile["samples"][number],
+    maxMotionPerSample: number,
+  ): StabilizationProfile["samples"][number] {
+    const magnitude = Math.hypot(sample.dx, sample.dy);
+    if (magnitude <= maxMotionPerSample || magnitude === 0) {
+      return sample;
+    }
+
+    const scale = maxMotionPerSample / magnitude;
+    return {
+      ...sample,
+      dx: sample.dx * scale,
+      dy: sample.dy * scale,
+    };
+  }
+
+  private async seekVideoFrame(
+    videoElement: HTMLVideoElement,
+    sourceTime: number,
+  ): Promise<void> {
+    const maxSourceTime = Number.isFinite(videoElement.duration)
+      ? Math.max(videoElement.duration - 0.001, 0)
+      : Math.max(sourceTime, 0);
+    const clampedTime = Math.max(0, Math.min(sourceTime, maxSourceTime));
+    const seekTime =
+      clampedTime <= 0 && maxSourceTime > 0.002 ? 0.001 : clampedTime;
+    const needsSeek =
+      Math.abs(videoElement.currentTime - seekTime) > 0.01 ||
+      videoElement.readyState < HTMLMediaElement.HAVE_CURRENT_DATA;
+
+    if (needsSeek) {
+      await new Promise<void>((resolve) => {
+        let settled = false;
+        const finish = () => {
+          if (settled) return;
+          settled = true;
+          if (timeoutId) {
+            window.clearTimeout(timeoutId);
+          }
+          videoElement.removeEventListener("seeked", onSeeked);
+          resolve();
+        };
+        const onSeeked = () => {
+          finish();
+        };
+        const timeoutId = window.setTimeout(finish, 3000);
+
+        videoElement.addEventListener("seeked", onSeeked);
+        videoElement.currentTime = seekTime;
+      });
+    }
+
+    await this.waitForRenderableFrame(videoElement);
+  }
+
+  private async waitForRenderableFrame(
+    videoElement: HTMLVideoElement,
+  ): Promise<void> {
+    await new Promise<void>((resolve) => {
+      let settled = false;
+      let callbackId: number | null = null;
+
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        if (timeoutId) {
+          window.clearTimeout(timeoutId);
+        }
+        if (
+          callbackId !== null &&
+          typeof videoElement.cancelVideoFrameCallback === "function"
+        ) {
+          videoElement.cancelVideoFrameCallback(callbackId);
+        }
+        resolve();
+      };
+
+      const timeoutId = window.setTimeout(finish, 250);
+
+      if (typeof videoElement.requestVideoFrameCallback === "function") {
+        callbackId = videoElement.requestVideoFrameCallback(() => {
+          finish();
+        });
+        return;
+      }
+
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => {
+          finish();
+        });
+      });
+    });
+  }
+
   getCorrectionTransform(
     clipId: string,
     sourceTime: number,
+    renderContext?: StabilizationRenderContext,
   ): CorrectionTransform | null {
     const profile = this.profiles.get(clipId);
     if (!profile || profile.corrections.length === 0) return null;
 
-    const frameIndex = sourceTime / profile.frameInterval;
+    const relativeSourceTime = Math.max(
+      0,
+      Math.min(sourceTime - profile.sourceStartTime, profile.duration),
+    );
+
+    const frameIndex = relativeSourceTime / profile.frameInterval;
     const idx = Math.min(
       Math.floor(frameIndex),
       profile.corrections.length - 1,
@@ -125,16 +260,39 @@ export class StabilizationEngine {
     const nextIdx = Math.min(idx + 1, profile.corrections.length - 1);
     const frac = frameIndex - idx;
 
-    if (idx === nextIdx) return profile.corrections[idx];
-
     const curr = profile.corrections[idx];
     const next = profile.corrections[nextIdx];
 
-    return {
+    const interpolated = idx === nextIdx
+      ? curr
+      : {
       dx: curr.dx + (next.dx - curr.dx) * frac,
       dy: curr.dy + (next.dy - curr.dy) * frac,
       rotation: curr.rotation + (next.rotation - curr.rotation) * frac,
       scale: curr.scale + (next.scale - curr.scale) * frac,
+      };
+
+    if (!renderContext) {
+      return interpolated;
+    }
+
+    if (renderContext.sourceWidth <= 0 || renderContext.sourceHeight <= 0) {
+      return interpolated;
+    }
+
+    const fitScale = Math.min(
+      renderContext.canvasWidth / renderContext.sourceWidth,
+      renderContext.canvasHeight / renderContext.sourceHeight,
+    );
+    const renderScaleX =
+      (renderContext.sourceWidth / profile.analysisDimensions.width) * fitScale;
+    const renderScaleY =
+      (renderContext.sourceHeight / profile.analysisDimensions.height) * fitScale;
+
+    return {
+      ...interpolated,
+      dx: interpolated.dx * renderScaleX,
+      dy: interpolated.dy * renderScaleY,
     };
   }
 
@@ -145,6 +303,48 @@ export class StabilizationEngine {
   dispose(): void {
     this.profiles.clear();
   }
+}
+
+export function getStabilizedTransform(
+  clip: Clip,
+  transform: Transform,
+  sourceTime: number,
+  renderContext: StabilizationRenderContext,
+): Transform {
+  if (
+    !clip.stabilization?.enabled ||
+    !clip.stabilization.analyzed ||
+    clip.stabilization.analysisVersion !== STABILIZATION_ANALYSIS_VERSION
+  ) {
+    return transform;
+  }
+
+  const engine = getStabilizationEngine();
+  if (!engine.hasProfile(clip.id) && clip.stabilization.profile) {
+    engine.setProfile(clip.stabilization.profile);
+  }
+
+  const correction = engine.getCorrectionTransform(
+    clip.id,
+    sourceTime,
+    renderContext,
+  );
+  if (!correction) {
+    return transform;
+  }
+
+  return {
+    ...transform,
+    position: {
+      x: transform.position.x + correction.dx,
+      y: transform.position.y + correction.dy,
+    },
+    rotation: transform.rotation + (correction.rotation * 180) / Math.PI,
+    scale: {
+      x: transform.scale.x * correction.scale,
+      y: transform.scale.y * correction.scale,
+    },
+  };
 }
 
 let stabilizationEngineInstance: StabilizationEngine | null = null;

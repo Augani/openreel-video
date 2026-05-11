@@ -23,8 +23,8 @@ type FFmpegInstance = {
 };
 
 const VIDSTAB_CORE_CDN = {
-  mt: "https://unpkg.com/@willyjl/ffmpeg.wasm-core-vidstab-mt@0.12.6/dist/esm",
-  st: "https://unpkg.com/@willyjl/ffmpeg.wasm-core-vidstab@0.12.6/dist/esm",
+  mt: "https://mediashares.openreel.video/ffmpeg-vidstab/mt",
+  st: "https://mediashares.openreel.video/ffmpeg-vidstab/st",
 };
 
 export type VidstabProgress = {

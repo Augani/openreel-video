@@ -12,6 +12,13 @@ export interface CorrectionTransform {
   scale: number;
 }
 
+export interface StabilizationRenderContext {
+  canvasWidth: number;
+  canvasHeight: number;
+  sourceWidth: number;
+  sourceHeight: number;
+}
+
 export interface StabilizationProfile {
   clipId: string;
   samples: MotionSample[];
@@ -19,6 +26,11 @@ export interface StabilizationProfile {
   maxDisplacement: number;
   frameInterval: number;
   duration: number;
+  sourceStartTime: number;
+  analysisDimensions: {
+    width: number;
+    height: number;
+  };
 }
 
 export interface StabilizationConfig {
@@ -26,6 +38,8 @@ export interface StabilizationConfig {
   cropMode: "auto" | "none";
   analysisInterval: number;
 }
+
+export const STABILIZATION_ANALYSIS_VERSION = 3;
 
 export const DEFAULT_STABILIZATION_CONFIG: StabilizationConfig = {
   strength: 50,
