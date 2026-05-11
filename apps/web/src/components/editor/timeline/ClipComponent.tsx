@@ -501,27 +501,35 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
       )}
 
       {isSelected && (
-        <div className="absolute inset-0 border-2 border-primary rounded-lg pointer-events-none shadow-[inset_0_0_10px_rgba(34,197,94,0.2)]" />
+        <div className="absolute inset-0 border-2 border-primary rounded-lg pointer-events-none" />
       )}
 
       {(isVideo || isImage || isAudio) && onTrimClip && (
         <>
           <div
             onMouseDown={handleTrimMouseDown("left")}
-            className={`absolute left-0 top-0 bottom-0 w-3 cursor-ew-resize z-20 opacity-0 group-hover:opacity-100 transition-opacity ${
-              isAudio ? "hover:bg-blue-400/50" : isVideo ? "hover:bg-green-400/50" : "hover:bg-purple-400/50"
-            }`}
+            className={`absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize z-20 flex items-center justify-center transition-opacity ${
+              isSelected ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+            } ${isSelected ? "bg-primary" : isAudio ? "hover:bg-blue-400/50" : isVideo ? "hover:bg-green-400/50" : "hover:bg-purple-400/50"}`}
+            style={{ borderRadius: "6px 0 0 6px" }}
             onClick={(e) => e.stopPropagation()}
-            title="Drag to adjust start"
-          />
+          >
+            {isSelected && (
+              <div className="w-0.5 h-3 bg-primary-foreground/80 rounded-full" />
+            )}
+          </div>
           <div
             onMouseDown={handleTrimMouseDown("right")}
-            className={`absolute right-0 top-0 bottom-0 w-3 cursor-ew-resize z-20 opacity-0 group-hover:opacity-100 transition-opacity ${
-              isAudio ? "hover:bg-blue-400/50" : isVideo ? "hover:bg-green-400/50" : "hover:bg-purple-400/50"
-            }`}
+            className={`absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize z-20 flex items-center justify-center transition-opacity ${
+              isSelected ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+            } ${isSelected ? "bg-primary" : isAudio ? "hover:bg-blue-400/50" : isVideo ? "hover:bg-green-400/50" : "hover:bg-purple-400/50"}`}
+            style={{ borderRadius: "0 6px 6px 0" }}
             onClick={(e) => e.stopPropagation()}
-            title="Drag to adjust end"
-          />
+          >
+            {isSelected && (
+              <div className="w-0.5 h-3 bg-primary-foreground/80 rounded-full" />
+            )}
+          </div>
         </>
       )}
 
