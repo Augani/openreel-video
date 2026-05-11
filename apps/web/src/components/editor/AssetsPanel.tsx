@@ -1462,7 +1462,11 @@ export const AssetsPanel: React.FC = () => {
       {activeTab === "ai" && <AIGenTab />}
 
       {/* Templates Tab Content */}
-      {activeTab === "templates" && <TemplatesTab />}
+      {activeTab === "templates" && (
+        <ScrollArea className="flex-1">
+          <TemplatesTab />
+        </ScrollArea>
+      )}
 
       {aspectRatioDialogData && (
         <AspectRatioMatchDialog
