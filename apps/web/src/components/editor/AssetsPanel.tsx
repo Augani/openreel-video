@@ -626,26 +626,28 @@ export const AssetsPanel: React.FC = () => {
       e.preventDefault();
       setIsDragOver(false);
 
-      // Try to capture handles before files are consumed
-      if ("getAsFileSystemHandle" in DataTransferItem.prototype) {
-        const handlePromises = Array.from(e.dataTransfer.items)
-          .filter((item) => item.kind === "file")
-          .map(async (item) => {
-            try {
-              const handle = await (item as DataTransferItem & { getAsFileSystemHandle(): Promise<FileSystemHandle> }).getAsFileSystemHandle();
-              if (handle.kind === "file") {
-                const fileHandle = handle as FileSystemFileHandle;
-                const file = await fileHandle.getFile();
-                await saveFileHandle(file.name, file.size, fileHandle);
-              }
-            } catch {
-              // Ignore — handle capture is best-effort
-            }
-          });
-        await Promise.all(handlePromises);
-      }
+      // Snapshot dataTransfer synchronously — it becomes inert after the first await.
+      const droppedFiles = e.dataTransfer.files;
+      const handlePromises =
+        "getAsFileSystemHandle" in DataTransferItem.prototype
+          ? Array.from(e.dataTransfer.items)
+              .filter((item) => item.kind === "file")
+              .map(async (item) => {
+                try {
+                  const handle = await (item as DataTransferItem & { getAsFileSystemHandle(): Promise<FileSystemHandle> }).getAsFileSystemHandle();
+                  if (handle.kind === "file") {
+                    const fileHandle = handle as FileSystemFileHandle;
+                    const file = await fileHandle.getFile();
+                    await saveFileHandle(file.name, file.size, fileHandle);
+                  }
+                } catch {
+                  // Ignore — handle capture is best-effort
+                }
+              })
+          : [];
 
-      handleFileImport(e.dataTransfer.files);
+      await Promise.all(handlePromises);
+      handleFileImport(droppedFiles);
     },
     [handleFileImport],
   );

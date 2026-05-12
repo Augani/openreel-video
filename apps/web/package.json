@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "vite --port 30067",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "deploy": "wrangler pages deploy dist --project-name=openreel",
