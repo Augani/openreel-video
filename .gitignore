@@ -55,5 +55,8 @@ apps/android
 # Local files
 FEATURES_TWITTER.md
 .claude-tasks.md
-
 CLAUDE.md
+*-PLAN.md
+*-PLAN-*.md
+.playwright-mcp/
+.wrangler/
