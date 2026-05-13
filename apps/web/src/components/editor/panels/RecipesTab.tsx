@@ -191,18 +191,14 @@ export const RecipesTab: React.FC = () => {
 
   if (!selectedClip || !selectedTargetType) {
     return (
-      <div className="px-5 py-6 space-y-4">
-        <div className="rounded-2xl border border-dashed border-border bg-background-tertiary/60 px-4 py-5 text-center">
-          <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-            <Sparkles size={18} />
-          </div>
-          <p className="text-sm font-semibold text-text-primary">
-            Choose a video or image clip
-          </p>
-          <p className="mt-2 text-xs leading-5 text-text-muted">
-            Recipes are clip-scoped. Select a single clip in the timeline, then
-            apply a look, caption treatment, or overlay stack without replacing
-            the rest of the project.
+      <div className="h-full flex-1 min-h-0 flex flex-col items-center justify-center p-6 text-center space-y-3">
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-background-tertiary border border-border shadow-inner text-text-muted">
+          <Sparkles size={24} />
+        </div>
+        <div>
+          <p className="text-sm font-semibold text-text-primary">Select a clip first</p>
+          <p className="mt-1.5 text-xs text-text-muted max-w-[240px] leading-relaxed mx-auto">
+            Choose a video or image in the timeline to apply clip-scoped recipes, looks, and caption treatments.
           </p>
         </div>
       </div>
@@ -210,162 +206,163 @@ export const RecipesTab: React.FC = () => {
   }
 
   return (
-    <div className="px-5 py-4 space-y-4">
-      <div className="rounded-2xl border border-border bg-background-tertiary/70 p-4 shadow-sm">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-text-muted">
-              Target Clip
+    <div className="flex flex-col flex-1 min-h-0 h-full bg-background-secondary overflow-y-auto">
+      {/* Target Info */}
+      <div className="p-4 border-b border-border bg-background-secondary/80 backdrop-blur sticky top-0 z-10 space-y-3">
+        <div className="flex items-center gap-3 bg-background-tertiary rounded-xl p-2 pr-3 border border-border">
+          <div className="w-10 h-10 rounded-lg bg-background-elevated flex items-center justify-center border border-border shrink-0">
+            {selectedTargetType === 'video' ? <span className="text-primary/70 text-[10px]">VIDEO</span> : <span className="text-primary/70 text-[10px]">IMAGE</span>}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-semibold text-text-primary truncate" title={selectedMedia?.name || selectedClip.id}>
+              {selectedMedia?.name || 'Selected Clip'}
             </p>
-            <p className="mt-1 text-sm font-semibold text-text-primary">
-              {selectedMedia?.name || selectedClip.id}
-            </p>
-            <p className="mt-1 text-xs text-text-muted">
-              {selectedTargetType === "video" ? "Video clip" : "Image clip"}
-              {` • ${selectedClip.duration.toFixed(2)}s`}
+            <p className="text-[10px] text-text-muted mt-0.5">
+              {selectedClip.duration.toFixed(1)}s • {appliedTemplates.length} recipes applied
             </p>
           </div>
-          <div className="rounded-full border border-primary/30 bg-primary/10 px-2.5 py-1 text-[10px] font-medium text-primary">
-            {appliedTemplates.length} applied
-          </div>
+        </div>
+
+        {/* Search */}
+        <div className="relative">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search recipes..."
+            className="w-full h-9 pl-9 pr-3 rounded-lg border border-border bg-background-tertiary text-xs text-text-primary placeholder:text-text-muted outline-none focus:border-primary/50 transition-colors"
+          />
         </div>
       </div>
 
-      <div className="relative">
-        <Search
-          size={14}
-          className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted"
-        />
-        <input
-          type="text"
-          value={searchQuery}
-          onChange={(event) => setSearchQuery(event.target.value)}
-          placeholder="Search recipes"
-          className="h-10 w-full rounded-xl border border-border bg-background-secondary pl-9 pr-3 text-xs text-text-primary placeholder:text-text-muted transition-colors focus:border-primary/50 focus:outline-none"
-        />
-      </div>
-
-      <div className="flex flex-wrap gap-2">
-        <button
-          onClick={() => setSelectedCategory("all")}
-          className={`rounded-full border px-3 py-1.5 text-[10px] font-medium capitalize transition-colors ${
-            selectedCategory === "all"
-              ? "border-primary bg-primary/12 text-primary"
-              : "border-border bg-background-tertiary text-text-muted hover:border-primary/30 hover:text-text-primary"
-          }`}
-        >
-          All Recipes
-        </button>
-        {EDITING_TEMPLATE_CATEGORIES.map((category) => (
+      <div className="px-4 py-3 border-b border-border/50 bg-background-secondary">
+        <div className="flex flex-wrap gap-1.5">
           <button
-            key={category.id}
-            onClick={() => setSelectedCategory(category.id)}
-            className={`rounded-full border px-3 py-1.5 text-[10px] font-medium capitalize transition-colors ${
-              selectedCategory === category.id
-                ? "border-primary bg-primary/12 text-primary"
-                : "border-border bg-background-tertiary text-text-muted hover:border-primary/30 hover:text-text-primary"
+            onClick={() => setSelectedCategory("all")}
+            className={`px-3 py-1.5 text-[10px] font-bold rounded-full transition-colors ${
+              selectedCategory === "all"
+                ? "bg-text-primary text-black"
+                : "bg-background-tertiary text-text-muted hover:text-text-primary hover:bg-background-elevated border border-border/50"
             }`}
           >
-            {category.name}
+            ALL
           </button>
-        ))}
+          {EDITING_TEMPLATE_CATEGORIES.map((category) => (
+            <button
+              key={category.id}
+              onClick={() => setSelectedCategory(category.id)}
+              className={`px-3 py-1.5 text-[10px] font-bold rounded-full uppercase transition-colors ${
+                selectedCategory === category.id
+                  ? "bg-text-primary text-black"
+                  : "bg-background-tertiary text-text-muted hover:text-text-primary hover:bg-background-elevated border border-border/50"
+              }`}
+            >
+              {category.name}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {filteredTemplates.length === 0 ? (
-        <div className="rounded-2xl border border-border bg-background-tertiary/60 px-4 py-8 text-center">
-          <p className="text-sm font-medium text-text-primary">No recipes match</p>
-          <p className="mt-2 text-xs text-text-muted">
-            Try a different search or category.
-          </p>
-        </div>
-      ) : (
-        <div className="space-y-3 pb-4">
-          {filteredTemplates.map((template) => {
-            const currentValues =
-              controlValuesByTemplate[template.id] ||
-              getEditingTemplateDefaultControlValues(template);
-            const appliedCount = appliedTemplates.filter(
-              (appliedTemplate) => appliedTemplate.templateId === template.id,
-            ).length;
-            const isExpanded = expandedTemplateId === template.id;
+      <div className="flex-1 p-4 space-y-3">
+        {filteredTemplates.length === 0 ? (
+          <div className="py-12 text-center">
+            <p className="text-text-secondary text-sm font-medium">No recipes match</p>
+            <p className="mt-2 text-xs text-text-muted">Try a different search or category.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-3">
+            {filteredTemplates.map((template) => {
+              const currentValues =
+                controlValuesByTemplate[template.id] ||
+                getEditingTemplateDefaultControlValues(template);
+              const appliedCount = appliedTemplates.filter(
+                (at) => at.templateId === template.id,
+              ).length;
+              const isExpanded = expandedTemplateId === template.id;
 
-            return (
-              <div
-                key={template.id}
-                className="rounded-2xl border border-border bg-background-tertiary/70 p-4 shadow-sm transition-colors hover:border-primary/30"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <p className="truncate text-sm font-semibold text-text-primary">
-                        {template.name}
-                      </p>
-                      {appliedCount > 0 && (
-                        <span className="inline-flex items-center gap-1 rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
-                          <CheckCircle2 size={10} />
-                          {appliedCount}x
-                        </span>
-                      )}
-                    </div>
-                    <p className="mt-1 text-xs leading-5 text-text-muted">
-                      {template.description}
-                    </p>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      <span className="rounded-full border border-border bg-background-secondary px-2 py-1 text-[10px] font-medium text-text-secondary capitalize">
-                        {formatCategoryLabel(template.category)}
-                      </span>
-                      {template.tags.slice(0, 3).map((tag) => (
-                        <span
-                          key={tag}
-                          className="rounded-full bg-background-secondary px-2 py-1 text-[10px] text-text-muted"
-                        >
-                          {tag}
-                        </span>
-                      ))}
+              return (
+                <div
+                  key={template.id}
+                  className="rounded-xl border border-border bg-background-tertiary/50 transition-all hover:bg-background-tertiary overflow-hidden group shadow-sm hover:border-primary/30"
+                >
+                  <div className="p-3">
+                    <div className="flex gap-3">
+                      {/* Icon dummy area */}
+                      <div className="w-12 h-12 rounded-lg bg-background-elevated border border-border/60 flex items-center justify-center shrink-0 shadow-inner group-hover:border-primary/30 transition-colors">
+                        <Wand2 size={18} className={`${appliedCount > 0 ? 'text-primary' : 'text-text-muted'}`} />
+                      </div>
+                      
+                      <div className="flex-1 min-w-0 flex flex-col justify-between">
+                        <div>
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="truncate text-xs font-bold text-text-primary leading-tight">
+                              {template.name}
+                            </p>
+                            {appliedCount > 0 && (
+                              <span className="shrink-0 flex items-center gap-1 rounded bg-primary/10 px-1.5 py-0.5 text-[9px] font-bold text-primary ring-1 ring-primary/20">
+                                <CheckCircle2 size={10} />
+                                {appliedCount}x
+                              </span>
+                            )}
+                          </div>
+                          <p className="mt-0.5 text-[10px] text-text-muted line-clamp-2 leading-relaxed">
+                            {template.description}
+                          </p>
+                        </div>
+                        
+                        <div className="flex items-center justify-between mt-2.5">
+                          <span className="text-[9px] uppercase tracking-wider text-text-muted font-medium">
+                            {formatCategoryLabel(template.category)}
+                          </span>
+                          <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                            {template.controls && template.controls.length > 0 && (
+                              <button
+                                onClick={() => handleExpand(template)}
+                                className={`h-6 px-2 text-[10px] font-medium rounded transition-colors flex items-center gap-1.5 ${
+                                  isExpanded
+                                    ? "bg-primary/20 text-primary border border-primary/30"
+                                    : "bg-background-secondary border border-border hover:text-text-primary text-text-secondary"
+                                }`}
+                              >
+                                <SlidersHorizontal size={10} />
+                                Edit
+                              </button>
+                            )}
+                            <button
+                              onClick={() => void handleApply(template)}
+                              disabled={applyingTemplateId !== null}
+                              className="h-6 px-3 bg-primary text-black text-[10px] font-bold rounded transition-colors hover:bg-primary/80 disabled:opacity-50"
+                            >
+                              {applyingTemplateId === template.id ? "Applying" : "Apply"}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
 
-                  <div className="flex shrink-0 gap-2">
-                    {template.controls && template.controls.length > 0 && (
-                      <button
-                        onClick={() => handleExpand(template)}
-                        className={`inline-flex h-10 items-center gap-2 rounded-xl border px-3 text-[11px] font-medium transition-colors ${
-                          isExpanded
-                            ? "border-primary bg-primary/12 text-primary"
-                            : "border-border bg-background-secondary text-text-secondary hover:border-primary/30 hover:text-text-primary"
-                        }`}
-                      >
-                        <SlidersHorizontal size={13} />
-                        Controls
-                      </button>
-                    )}
-                    <button
-                      onClick={() => void handleApply(template)}
-                      disabled={applyingTemplateId !== null}
-                      className="inline-flex h-10 items-center gap-2 rounded-xl bg-primary px-3 text-[11px] font-semibold text-black transition-all hover:bg-primary/85 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      <Wand2 size={13} />
-                      {applyingTemplateId === template.id ? "Applying" : "Apply"}
-                    </button>
-                  </div>
+                  {/* Controls */}
+                  {isExpanded && template.controls && template.controls.length > 0 && (
+                    <div className="px-3 pb-4 pt-1 bg-background-tertiary border-t border-border/50">
+                       {/* Inject small padding wrapper to give space */}
+                       <div className="space-y-3 pt-3">
+                        <EditingTemplateControls
+                          template={template}
+                          values={currentValues}
+                          onChange={(controlId, value) =>
+                            handleControlChange(template.id, controlId, value)
+                          }
+                        />
+                       </div>
+                    </div>
+                  )}
                 </div>
-
-                {isExpanded && template.controls && template.controls.length > 0 && (
-                  <div className="mt-4 space-y-3 rounded-2xl border border-border/80 bg-background-secondary/80 p-4">
-                    <EditingTemplateControls
-                      template={template}
-                      values={currentValues}
-                      onChange={(controlId, value) =>
-                        handleControlChange(template.id, controlId, value)
-                      }
-                    />
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 };
