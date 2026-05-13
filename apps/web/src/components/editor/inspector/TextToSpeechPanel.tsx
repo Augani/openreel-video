@@ -10,6 +10,8 @@ import {
 import { Slider, Switch } from "@openreel/ui";
 import { toast } from "../../../stores/notification-store";
 import { useSettingsStore, type TtsProvider } from "../../../stores/settings-store";
+import { useProjectStore } from "../../../stores/project-store";
+import { useUIStore } from "../../../stores/ui-store";
 import { useElevenLabsApi } from "./hooks/useElevenLabsApi";
 import { useTtsActions } from "./hooks/useTtsActions";
 import { VoiceBrowser } from "./VoiceBrowser";
@@ -47,6 +49,21 @@ export const TextToSpeechPanel: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [enhanceText, setEnhanceText] = useState(false);
   const [enhancedPreview, setEnhancedPreview] = useState<string | null>(null);
+  const selectedClipIds = useUIStore((state) => state.getSelectedClipIds());
+  const getAllTextClips = useProjectStore((state) => state.getAllTextClips);
+  const projectModifiedAt = useProjectStore((state) => state.project.modifiedAt);
+
+  const selectedTextClips = React.useMemo(() => {
+    const selectedIds = new Set(selectedClipIds);
+    return getAllTextClips()
+      .filter((clip) => selectedIds.has(clip.id))
+      .sort((a, b) => a.startTime - b.startTime);
+  }, [getAllTextClips, projectModifiedAt, selectedClipIds]);
+
+  const selectedText = React.useMemo(
+    () => selectedTextClips.map((clip) => clip.text).join("\n"),
+    [selectedTextClips],
+  );
 
   const {
     allVoices,
@@ -75,6 +92,7 @@ export const TextToSpeechPanel: React.FC = () => {
     getSelectedVoiceName,
     handleEnhance,
     generateSpeech,
+    generateSelectedTextClips,
     togglePlayback,
     handleAudioEnded,
     saveToMedia,
@@ -96,6 +114,7 @@ export const TextToSpeechPanel: React.FC = () => {
     setText,
     setError,
     setEnhancedPreview,
+    selectedTextClips,
   });
 
   const getSelectedModelName = (): string => {
@@ -189,6 +208,28 @@ export const TextToSpeechPanel: React.FC = () => {
         <label className="text-[10px] font-medium text-text-secondary">
           Text
         </label>
+        {selectedTextClips.length > 0 && (
+          <div className="p-2 rounded-lg bg-primary/10 border border-primary/25">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[10px] font-medium text-text-primary">
+                {selectedTextClips.length} selected text clip
+                {selectedTextClips.length === 1 ? "" : "s"}
+              </span>
+              <button
+                onClick={() => {
+                  setText(selectedText);
+                  setEnhancedPreview(null);
+                }}
+                className="px-2 py-1 rounded text-[9px] bg-background-tertiary text-text-secondary hover:text-text-primary transition-colors"
+              >
+                Use Text
+              </button>
+            </div>
+            <p className="mt-1 text-[9px] text-text-muted line-clamp-2">
+              {selectedText}
+            </p>
+          </div>
+        )}
         <textarea
           value={text}
           onChange={(e) => { setText(e.target.value); setEnhancedPreview(null); }}
@@ -294,6 +335,20 @@ export const TextToSpeechPanel: React.FC = () => {
           <><Volume2 size={14} /> Generate Speech</>
         )}
       </button>
+
+      {selectedTextClips.length > 0 && (
+        <button
+          onClick={generateSelectedTextClips}
+          disabled={isGenerating || (provider === "elevenlabs" && !selectedVoice)}
+          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-amber-500 text-white rounded-lg text-[11px] font-medium transition-all hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {isGenerating ? (
+            <><Loader2 size={14} className="animate-spin" /> Generating Selected...</>
+          ) : (
+            <><Volume2 size={14} /> Generate Selected to Timeline</>
+          )}
+        </button>
+      )}
 
       {hasUnsavedAudio && (
         <div className="flex items-center gap-1.5 px-2 py-1.5 bg-amber-500/10 border border-amber-500/30 rounded-lg">

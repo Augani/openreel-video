@@ -24,6 +24,7 @@ import { ThreeJSLayerRenderer } from "./threejs-layer-renderer";
 let lastEffectsLogTime = 0;
 let threeJSRenderer: ThreeJSLayerRenderer | null = null;
 const animationEngine = new AnimationEngine();
+let backdropBlurCanvas: HTMLCanvasElement | null = null;
 
 interface EmphasisState {
   opacity: number;
@@ -1362,6 +1363,73 @@ const renderShapeOnly = (
   canvasHeight: number,
 ): void => {
   const { shapeType, style, transform } = shapeClip;
+  const baseSize = Math.min(canvasWidth, canvasHeight);
+  const shapeSize = baseSize * 0.15;
+  const halfSize = shapeSize / 2;
+
+  if (
+    shapeType === "rectangle" &&
+    style.backdropBlur &&
+    style.backdropBlur > 0
+  ) {
+    const posX = transform.position.x * canvasWidth;
+    const posY = transform.position.y * canvasHeight;
+    const width = Math.max(1, shapeSize * Math.abs(transform.scale.x));
+    const height = Math.max(1, shapeSize * Math.abs(transform.scale.y));
+    const pad = Math.ceil(style.backdropBlur * 2);
+    const sourceX = Math.max(0, Math.floor(posX - width / 2 - pad));
+    const sourceY = Math.max(0, Math.floor(posY - height / 2 - pad));
+    const sourceW = Math.min(canvasWidth - sourceX, Math.ceil(width + pad * 2));
+    const sourceH = Math.min(canvasHeight - sourceY, Math.ceil(height + pad * 2));
+
+    if (sourceW > 0 && sourceH > 0) {
+      backdropBlurCanvas ??= document.createElement("canvas");
+      if (
+        backdropBlurCanvas.width !== sourceW ||
+        backdropBlurCanvas.height !== sourceH
+      ) {
+        backdropBlurCanvas.width = sourceW;
+        backdropBlurCanvas.height = sourceH;
+      }
+      const blurCtx = backdropBlurCanvas.getContext("2d");
+      if (blurCtx) {
+        blurCtx.clearRect(0, 0, sourceW, sourceH);
+        blurCtx.drawImage(
+          ctx.canvas,
+          sourceX,
+          sourceY,
+          sourceW,
+          sourceH,
+          0,
+          0,
+          sourceW,
+          sourceH,
+        );
+
+        ctx.save();
+        ctx.beginPath();
+        const radius = style.cornerRadius || 0;
+        const targetX = posX - width / 2;
+        const targetY = posY - height / 2;
+        if (radius > 0) {
+          ctx.roundRect(
+            targetX,
+            targetY,
+            width,
+            height,
+            Math.min(radius, width / 2, height / 2),
+          );
+        } else {
+          ctx.rect(targetX, targetY, width, height);
+        }
+        ctx.clip();
+        ctx.filter = `blur(${style.backdropBlur}px)`;
+        ctx.drawImage(backdropBlurCanvas, sourceX, sourceY, sourceW, sourceH);
+        ctx.filter = "none";
+        ctx.restore();
+      }
+    }
+  }
 
   ctx.save();
 
@@ -1379,10 +1447,6 @@ const renderShapeOnly = (
     ctx.shadowOffsetX = style.shadow.offsetX || 0;
     ctx.shadowOffsetY = style.shadow.offsetY || 0;
   }
-
-  const baseSize = Math.min(canvasWidth, canvasHeight);
-  const shapeSize = baseSize * 0.15;
-  const halfSize = shapeSize / 2;
 
   const strokeScale = baseSize / 1080;
   ctx.fillStyle = style.fill?.color || "#3b82f6";

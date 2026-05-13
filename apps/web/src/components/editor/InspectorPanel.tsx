@@ -1,5 +1,12 @@
 import React, { useCallback, useMemo, useState } from "react";
-import { ChevronDown, Zap, Captions, Loader2 } from "lucide-react";
+import {
+  ChevronDown,
+  Zap,
+  Captions,
+  Loader2,
+  FlipHorizontal,
+  FlipVertical,
+} from "lucide-react";
 import { useProjectStore } from "../../stores/project-store";
 import { useUIStore } from "../../stores/ui-store";
 import { useEngineStore } from "../../stores/engine-store";
@@ -314,6 +321,14 @@ export const InspectorPanel: React.FC = () => {
     getGraphicsEngine,
     project.modifiedAt,
   ]);
+
+  const selectedTextClipIds = useMemo(() => {
+    const titleEngine = getTitleEngine();
+    if (!titleEngine || selectedClipIds.length < 2) return [];
+
+    const textIds = selectedClipIds.filter((id) => titleEngine.getTextClip(id));
+    return textIds.length === selectedClipIds.length ? textIds : [];
+  }, [selectedClipIds, getTitleEngine, project.modifiedAt]);
 
   // Force re-render trigger - increment to force recalculation of engine values
   const [updateCounter, forceUpdate] = React.useReducer((x) => x + 1, 0);
@@ -803,10 +818,13 @@ export const InspectorPanel: React.FC = () => {
                   />
                   <LabeledSlider
                     label="Scale X"
-                    value={transform.scale.x * 100}
+                    value={Math.abs(transform.scale.x) * 100}
                     onChange={(x) =>
                       handleTransformChange({
-                        scale: { ...transform.scale, x: x / 100 },
+                        scale: {
+                          ...transform.scale,
+                          x: (transform.scale.x < 0 ? -1 : 1) * (x / 100),
+                        },
                       })
                     }
                     min={0}
@@ -816,10 +834,13 @@ export const InspectorPanel: React.FC = () => {
                   />
                   <LabeledSlider
                     label="Scale Y"
-                    value={transform.scale.y * 100}
+                    value={Math.abs(transform.scale.y) * 100}
                     onChange={(y) =>
                       handleTransformChange({
-                        scale: { ...transform.scale, y: y / 100 },
+                        scale: {
+                          ...transform.scale,
+                          y: (transform.scale.y < 0 ? -1 : 1) * (y / 100),
+                        },
                       })
                     }
                     min={0}
@@ -827,6 +848,52 @@ export const InspectorPanel: React.FC = () => {
                     step={1}
                     unit="%"
                   />
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleTransformChange({
+                          scale: {
+                            ...transform.scale,
+                            x:
+                              (transform.scale.x < 0 ? 1 : -1) *
+                              (Math.abs(transform.scale.x) || 1),
+                          },
+                        })
+                      }
+                      className={`flex items-center justify-center gap-2 rounded border px-2 py-2 text-[10px] transition-colors ${
+                        transform.scale.x < 0
+                          ? "border-primary bg-primary text-white"
+                          : "border-border bg-background-tertiary text-text-secondary hover:text-text-primary"
+                      }`}
+                      title="Reflect horizontally"
+                    >
+                      <FlipHorizontal size={14} />
+                      Ngang
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleTransformChange({
+                          scale: {
+                            ...transform.scale,
+                            y:
+                              (transform.scale.y < 0 ? 1 : -1) *
+                              (Math.abs(transform.scale.y) || 1),
+                          },
+                        })
+                      }
+                      className={`flex items-center justify-center gap-2 rounded border px-2 py-2 text-[10px] transition-colors ${
+                        transform.scale.y < 0
+                          ? "border-primary bg-primary text-white"
+                          : "border-border bg-background-tertiary text-text-secondary hover:text-text-primary"
+                      }`}
+                      title="Reflect vertically"
+                    >
+                      <FlipVertical size={14} />
+                      Dọc
+                    </button>
+                  </div>
                   <LabeledSlider
                     label="Rotation"
                     value={transform.rotation}
@@ -1299,6 +1366,21 @@ export const InspectorPanel: React.FC = () => {
                 </div>
               </div>
             )}
+          </>
+        ) : selectedTextClipIds.length > 1 ? (
+          <>
+            <div className="mb-4 p-3 bg-background-tertiary rounded-lg border border-amber-500/30">
+              <p className="text-xs text-text-primary font-medium">
+                {selectedTextClipIds.length} text clips selected
+              </p>
+              <p className="text-[10px] text-text-muted">
+                Changes below apply to all selected text/sub clips.
+              </p>
+            </div>
+
+            <Section title="Text Properties" sectionId="text-properties">
+              <TextSection clipIds={selectedTextClipIds} />
+            </Section>
           </>
         ) : selectedSubtitle ? (
           <>

@@ -23,6 +23,7 @@ import {
   Grid2x2,
   List,
   Sparkles,
+  Focus,
 } from "lucide-react";
 import {
   BACKGROUND_PRESETS,
@@ -1192,6 +1193,53 @@ export const AssetsPanel: React.FC = () => {
               Shapes
             </h4>
             <div className="grid grid-cols-4 gap-2">
+              <button
+                onClick={async () => {
+                  const state = useProjectStore.getState();
+                  const { createShapeClip, addTrack } = state;
+                  const tracksBefore = state.project.timeline.tracks;
+                  await addTrack("graphics", 0);
+                  const tracksAfter =
+                    useProjectStore.getState().project.timeline.tracks;
+                  const newGraphicsTrack = tracksAfter.find(
+                    (t) =>
+                      t.type === "graphics" &&
+                      !tracksBefore.some((bt) => bt.id === t.id),
+                  );
+                  if (newGraphicsTrack) {
+                    createShapeClip(
+                      newGraphicsTrack.id,
+                      0,
+                      "rectangle",
+                      5,
+                      {
+                        backdropBlur: 24,
+                        cornerRadius: 6,
+                        fill: {
+                          type: "solid",
+                          color: "rgba(255, 255, 255, 0.08)",
+                          opacity: 1,
+                        },
+                        stroke: {
+                          color: "rgba(255, 255, 255, 0.35)",
+                          width: 1,
+                          opacity: 1,
+                        },
+                      },
+                    );
+                  }
+                }}
+                className="aspect-square bg-background-tertiary rounded-lg border border-border hover:border-primary/50 hover:bg-primary/5 transition-all flex flex-col items-center justify-center gap-1 group"
+                title="Blur Block"
+              >
+                <Focus
+                  size={20}
+                  className="text-text-secondary group-hover:text-primary transition-colors"
+                />
+                <span className="text-[9px] text-text-muted group-hover:text-text-secondary">
+                  Blur
+                </span>
+              </button>
               {[
                 {
                   type: "rectangle" as ShapeType,

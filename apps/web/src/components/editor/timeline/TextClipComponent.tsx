@@ -168,13 +168,13 @@ export const TextClipComponent: React.FC<TextClipComponentProps> = ({
           ref={clipRef}
           onClick={handleClick}
           onMouseDown={handleMouseDown}
-          className={`absolute top-1 bottom-1 rounded-lg overflow-hidden cursor-grab group ${
+          className={`clip-component absolute top-1 bottom-1 rounded-lg overflow-hidden cursor-grab group ${
             isDragging ? "cursor-grabbing opacity-75" : ""
           } ${
             isSelected
-              ? "ring-2 ring-amber-400 border-amber-400 z-10"
-              : "border-amber-500/30 hover:border-amber-500/60 hover:brightness-110"
-          } bg-amber-500/20 border`}
+              ? "ring-2 ring-amber-300 border-amber-300 bg-amber-500/35 shadow-[0_0_0_1px_rgba(251,191,36,0.45),0_0_16px_rgba(251,191,36,0.2)] z-10"
+              : "border-amber-500/30 bg-amber-500/20 hover:border-amber-500/60 hover:brightness-110"
+          } border`}
           style={{
             transform: `translateX(${left}px)`,
             width: `${Math.max(width, 40)}px`,

@@ -28,6 +28,7 @@ import {
 import { useProjectStore } from "../../stores/project-store";
 import { useTimelineStore } from "../../stores/timeline-store";
 import { useUIStore } from "../../stores/ui-store";
+import type { SelectionItem } from "../../stores/ui-store";
 import { toast } from "../../stores/notification-store";
 import { useEngineStore } from "../../stores/engine-store";
 import { getPlaybackBridge } from "../../bridges/playback-bridge";
@@ -428,10 +429,12 @@ export const Timeline: React.FC = () => {
     const maxTime = maxX / pixelsPerSecond;
 
     let currentY = 0;
-    const selectedItems: { type: "clip"; id: string; trackId: string }[] = [];
+    const selectedItems: SelectionItem[] = [];
+    const textClipIds = new Set(allTextClips.map((clip) => clip.id));
+    const shapeClipIds = new Set(allShapeClips.map((clip) => clip.id));
 
     // Iterate through tracks to find which are overlapped by selection box
-    for (const track of tracks) {
+    for (const track of visualOrderTracks) {
       const trackH = getTrackHeight(track.id);
       const trackMinY = currentY;
       const trackMaxY = currentY + trackH;
@@ -443,7 +446,38 @@ export const Timeline: React.FC = () => {
       const trackOverlaps = minY < trackMaxY && maxY > trackMinY;
 
       if (trackOverlaps) {
-        for (const clip of track.clips) {
+        const selectableItems: SelectionItem[] = [
+          ...track.clips
+            .filter((clip) => !textClipIds.has(clip.id))
+            .filter((clip) => !shapeClipIds.has(clip.id))
+            .map((clip) => ({
+              type: "clip" as const,
+              id: clip.id,
+              trackId: track.id,
+            })),
+          ...allTextClips
+            .filter((clip) => clip.trackId === track.id)
+            .map((clip) => ({
+              type: "text-clip" as const,
+              id: clip.id,
+            trackId: track.id,
+            })),
+          ...allShapeClips
+            .filter((clip) => clip.trackId === track.id)
+            .map((clip) => ({
+              type: "shape-clip" as const,
+              id: clip.id,
+            trackId: track.id,
+            })),
+        ];
+
+        for (const item of selectableItems) {
+          const clip =
+            allTextClips.find((textClip) => textClip.id === item.id) ||
+            allShapeClips.find((shapeClip) => shapeClip.id === item.id) ||
+            track.clips.find((trackClip) => trackClip.id === item.id);
+          if (!clip) continue;
+
           const clipStart = clip.startTime;
           const clipEnd = clip.startTime + clip.duration;
 
@@ -451,11 +485,7 @@ export const Timeline: React.FC = () => {
           const clipOverlaps = minTime < clipEnd && maxTime > clipStart;
 
           if (clipOverlaps) {
-            selectedItems.push({
-              type: "clip",
-              id: clip.id,
-              trackId: track.id,
-            });
+            selectedItems.push(item);
           }
         }
       }
@@ -463,9 +493,9 @@ export const Timeline: React.FC = () => {
       currentY += trackH;
     }
 
-    if (selectedItems.length > 0) {
-      selectMultiple(selectedItems);
-    }
+    selectMultiple(selectedItems);
+
+
 
     setIsBoxSelecting(false);
     setSelectionBox(null);
@@ -476,15 +506,22 @@ export const Timeline: React.FC = () => {
     tracks,
     getTrackHeight,
     selectMultiple,
+    allTextClips,
+    allShapeClips,
   ]);
 
   useEffect(() => {
     if (!isBoxSelecting) return;
 
     const handleMouseUp = () => handleBoxSelectionEnd();
-    document.addEventListener("mouseup", handleMouseUp);
-    return () => document.removeEventListener("mouseup", handleMouseUp);
-  }, [isBoxSelecting, handleBoxSelectionEnd]);
+    const onMouseMove = (e: MouseEvent) => handleBoxSelectionMove(e as unknown as React.MouseEvent);
+    window.addEventListener("mouseup", handleMouseUp);
+    window.addEventListener("mousemove", onMouseMove);
+    return () => {
+      window.removeEventListener("mouseup", handleMouseUp);
+      window.removeEventListener("mousemove", onMouseMove);
+    };
+  }, [isBoxSelecting, handleBoxSelectionEnd, handleBoxSelectionMove]);
 
   const handleDropMedia = useCallback(
     async (trackId: string, mediaId: string, startTime: number) => {

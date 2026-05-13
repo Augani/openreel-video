@@ -2925,61 +2925,115 @@ export const useProjectStore = create<ProjectState>()(
         return textAnimationEngine.getAvailablePresets();
       },
 
-      // Subtitle actions - subtitles are now created as text clips on a "Captions" track
+      // Subtitle actions - generated subtitles are materialized as text clips
 
       /**
-       * Add a subtitle as a text clip on a Captions track
+       * Add a subtitle as a normal text clip on a Captions track so it appears
+       * on the timeline and can be edited like other text.
        */
       addSubtitle: async (subtitle) => {
-        const { project, addTrack, createTextClip } = get();
+        const titleEngine = useEngineStore.getState().getTitleEngine();
+        if (!titleEngine) {
+          console.error("TitleEngine not available yet");
+          return;
+        }
 
+        const { addTrack } = get();
+        let { project } = get();
         let captionsTrack = project.timeline.tracks.find(
-          (t) => t.type === "text" && t.name === "Captions"
+          (track) => track.type === "text" && track.name === "Captions",
         );
 
         if (!captionsTrack) {
+          const existingTrackIds = new Set(
+            project.timeline.tracks.map((track) => track.id),
+          );
           const result = await addTrack("text");
           if (!result?.success) return;
 
-          const updatedProject = get().project;
-          const newTracks = updatedProject.timeline.tracks.filter(
-            (t) => t.type === "text" && !project.timeline.tracks.some((old) => old.id === t.id)
+          project = get().project;
+          captionsTrack = project.timeline.tracks.find(
+            (track) => track.type === "text" && !existingTrackIds.has(track.id),
           );
-          captionsTrack = newTracks[0];
 
-          if (captionsTrack) {
-            set((state) => ({
-              project: {
-                ...state.project,
-                timeline: {
-                  ...state.project.timeline,
-                  tracks: state.project.timeline.tracks.map((t) =>
-                    t.id === captionsTrack!.id ? { ...t, name: "Captions" } : t
-                  ),
-                },
+          if (!captionsTrack) return;
+
+          const captionsTrackId = captionsTrack.id;
+          set((state) => ({
+            project: {
+              ...state.project,
+              timeline: {
+                ...state.project.timeline,
+                tracks: state.project.timeline.tracks.map((track) =>
+                  track.id === captionsTrackId
+                    ? { ...track, name: "Captions" }
+                    : track,
+                ),
               },
-            }));
-            captionsTrack = { ...captionsTrack, name: "Captions" };
-          }
+              modifiedAt: Date.now(),
+            },
+          }));
+          project = get().project;
+          captionsTrack = project.timeline.tracks.find(
+            (track) => track.id === captionsTrackId,
+          );
         }
 
         if (!captionsTrack) return;
 
-        const duration = subtitle.endTime - subtitle.startTime;
+        const duration = Math.max(0.1, subtitle.endTime - subtitle.startTime);
         const style = subtitle.style;
-
-        createTextClip(
-          captionsTrack.id,
-          subtitle.startTime,
-          subtitle.text,
+        const textClip = titleEngine.createTextClip({
+          id: subtitle.id,
+          trackId: captionsTrack.id,
+          startTime: subtitle.startTime,
           duration,
-          style ? {
-            fontFamily: style.fontFamily,
-            fontSize: style.fontSize,
-            color: style.color,
-            backgroundColor: style.backgroundColor || undefined,
-          } : undefined
-        );
+          text: subtitle.text,
+          style: {
+            fontFamily: style?.fontFamily || "Inter",
+            fontSize: style?.fontSize || 48,
+            fontWeight: "bold",
+            color: style?.color || "#ffffff",
+            backgroundColor: style?.backgroundColor || "rgba(0, 0, 0, 0.7)",
+            textAlign: "center",
+          },
+          transform: {
+            position: {
+              x: 0.5,
+              y:
+                style?.position === "top"
+                  ? 0.16
+                  : style?.position === "center"
+                    ? 0.5
+                    : 0.84,
+            },
+          },
+        });
+
+        const { clipUndoStack } = get();
+        const historyEntry: ClipHistoryEntry = {
+          type: "text",
+          clipId: textClip.id,
+          trackId: captionsTrack.id,
+          clipData: { ...textClip },
+        };
+
+        set((state) => {
+          const subtitles = state.project.timeline.subtitles.some(
+            (s) => s.id === subtitle.id,
+          )
+            ? state.project.timeline.subtitles
+            : [...state.project.timeline.subtitles, subtitle];
+          return {
+            project: {
+              ...state.project,
+              timeline: { ...state.project.timeline, subtitles },
+              modifiedAt: Date.now(),
+            },
+            clipUndoStack: [...clipUndoStack, historyEntry],
+            clipRedoStack: [],
+          };
+        });
       },
 
       /**

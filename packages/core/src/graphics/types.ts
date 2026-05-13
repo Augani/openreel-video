@@ -154,6 +154,7 @@ export interface ShapeStyle {
   readonly cornerRadius?: number; // For rectangles
   readonly points?: number; // For stars (number of points)
   readonly innerRadius?: number; // For stars (inner radius ratio 0-1)
+  readonly backdropBlur?: number; // Blur pixels sampled from layers behind this shape
 }
 
 export interface FillStyle {

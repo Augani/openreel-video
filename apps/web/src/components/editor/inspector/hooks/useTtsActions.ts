@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from "react";
+import type { TextClip } from "@openreel/core";
 import type { TtsProvider } from "../../../../stores/settings-store";
 import { useProjectStore } from "../../../../stores/project-store";
 import { useTtsAudioStore } from "../../../../stores/tts-store";
@@ -20,6 +21,7 @@ interface UseTtsActionsOptions {
   setText: (text: string) => void;
   setError: (error: string | null) => void;
   setEnhancedPreview: (preview: string | null) => void;
+  selectedTextClips?: TextClip[];
 }
 
 interface UseTtsActionsReturn {
@@ -33,6 +35,7 @@ interface UseTtsActionsReturn {
   getSelectedVoiceName: () => string;
   handleEnhance: () => Promise<void>;
   generateSpeech: () => Promise<void>;
+  generateSelectedTextClips: () => Promise<void>;
   togglePlayback: () => void;
   handleAudioEnded: () => void;
   saveToMedia: () => Promise<void>;
@@ -57,10 +60,13 @@ export function useTtsActions(options: UseTtsActionsOptions): UseTtsActionsRetur
     setText,
     setError,
     setEnhancedPreview,
+    selectedTextClips = [],
   } = options;
 
   const importMedia = useProjectStore((state) => state.importMedia);
   const project = useProjectStore((state) => state.project);
+  const addTrack = useProjectStore((state) => state.addTrack);
+  const addClip = useProjectStore((state) => state.addClip);
 
   // Audio state lives in Zustand store so it survives tab switches
   const generatedAudio = useTtsAudioStore((s) => s.generatedAudio);
@@ -188,6 +194,141 @@ export function useTtsActions(options: UseTtsActionsOptions): UseTtsActionsRetur
     }
   }, [text, enhancedPreview, enhanceText, selectedVoice, speed, provider, generateWithPiper, generateWithElevenLabs, setError, storeSetAudio]);
 
+  const getOrCreateTtsTrackId = useCallback(async (): Promise<string> => {
+    const currentProject = useProjectStore.getState().project;
+    const existing = currentProject.timeline.tracks.find(
+      (track) => track.type === "audio" && track.name === "TTS",
+    );
+    if (existing) return existing.id;
+
+    const existingTrackIds = new Set(
+      currentProject.timeline.tracks.map((track) => track.id),
+    );
+    const result = await addTrack("audio");
+    if (!result.success) {
+      throw new Error(result.error?.message || "Failed to create TTS track");
+    }
+
+    const updatedProject = useProjectStore.getState().project;
+    const newTrack = updatedProject.timeline.tracks.find(
+      (track) => track.type === "audio" && !existingTrackIds.has(track.id),
+    );
+    if (!newTrack) {
+      throw new Error("Could not find created TTS track");
+    }
+
+    useProjectStore.setState((state) => ({
+      project: {
+        ...state.project,
+        timeline: {
+          ...state.project.timeline,
+          tracks: state.project.timeline.tracks.map((track) =>
+            track.id === newTrack.id ? { ...track, name: "TTS" } : track,
+          ),
+        },
+        modifiedAt: Date.now(),
+      },
+    }));
+
+    return newTrack.id;
+  }, [addTrack]);
+
+  const synthesizeText = useCallback(
+    async (inputText: string, signal?: AbortSignal): Promise<Blob> => {
+      return provider === "elevenlabs"
+        ? generateWithElevenLabs(inputText, selectedVoice, signal)
+        : generateWithPiper(inputText, selectedVoice, speed, signal);
+    },
+    [
+      generateWithElevenLabs,
+      generateWithPiper,
+      provider,
+      selectedVoice,
+      speed,
+    ],
+  );
+
+  const generateSelectedTextClips = useCallback(async () => {
+    const clips = [...selectedTextClips]
+      .filter((clip) => clip.text.trim())
+      .sort((a, b) => a.startTime - b.startTime);
+
+    if (clips.length === 0) {
+      setError("Select one or more text clips on the timeline first");
+      return;
+    }
+
+    generateAbortRef.current?.abort();
+    const controller = new AbortController();
+    generateAbortRef.current = controller;
+
+    setIsGenerating(true);
+    setError(null);
+    setSuccessMsg(null);
+
+    try {
+      const trackId = await getOrCreateTtsTrackId();
+      const voiceName = getSelectedVoiceName();
+      let addedCount = 0;
+
+      for (const clip of clips) {
+        if (controller.signal.aborted) return;
+
+        const blob = await synthesizeText(clip.text.trim(), controller.signal);
+        const safeName = clip.text
+          .trim()
+          .slice(0, 32)
+          .replace(/[\\/:*?"<>|]/g, "")
+          .replace(/\s+/g, "_");
+        const fileName = `${voiceName}_${safeName || "text"}_${Date.now()}.wav`;
+        const file = new File([blob], fileName, { type: "audio/wav" });
+        const importResult = await importMedia(file);
+
+        if (!importResult.success || !importResult.actionId) {
+          throw new Error(
+            importResult.error?.message || "Failed to import generated audio",
+          );
+        }
+
+        const addResult = await addClip(
+          trackId,
+          importResult.actionId,
+          clip.startTime,
+        );
+        if (!addResult.success) {
+          throw new Error(
+            addResult.error?.message || "Failed to place audio on timeline",
+          );
+        }
+        addedCount += 1;
+      }
+
+      storeClearAudio();
+      setSuccessMsg(
+        `Added ${addedCount} voice clip${addedCount === 1 ? "" : "s"} to the TTS track`,
+      );
+      setTimeout(() => setSuccessMsg(null), 3000);
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") return;
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Failed to generate speech for selected text",
+      );
+    } finally {
+      setIsGenerating(false);
+    }
+  }, [
+    addClip,
+    getOrCreateTtsTrackId,
+    getSelectedVoiceName,
+    importMedia,
+    selectedTextClips,
+    setError,
+    storeClearAudio,
+    synthesizeText,
+  ]);
+
   const togglePlayback = useCallback(() => {
     if (!audioRef.current || !audioUrl) return;
 
@@ -293,6 +434,7 @@ export function useTtsActions(options: UseTtsActionsOptions): UseTtsActionsRetur
     getSelectedVoiceName,
     handleEnhance,
     generateSpeech,
+    generateSelectedTextClips,
     togglePlayback,
     handleAudioEnded,
     saveToMedia,

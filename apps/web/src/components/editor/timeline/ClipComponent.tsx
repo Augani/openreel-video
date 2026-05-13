@@ -347,7 +347,7 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
           ref={clipRef}
           onClick={handleClick}
           onMouseDown={handleMouseDown}
-          className={`group absolute top-1 bottom-1 rounded-lg overflow-hidden shadow-sm ${
+          className={`clip-component group absolute top-1 bottom-1 rounded-lg overflow-hidden shadow-sm ${
             isDragging
               ? `cursor-grabbing z-50 ${isInvalidDrop ? "opacity-50 ring-2 ring-red-500 border-red-500" : "opacity-90 shadow-xl"}`
               : "cursor-grab"

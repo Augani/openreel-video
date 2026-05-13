@@ -385,6 +385,7 @@ export const Preview: React.FC = () => {
   const videoUrlRef = useRef<string | null>(null);
   const currentVideoMediaIdRef = useRef<string | null>(null);
   const nativePlaybackActiveRef = useRef<boolean>(false);
+  const nativeDomVideoRef = useRef<HTMLVideoElement | null>(null);
 
   const audioSourceRef = useRef<AudioBufferSourceNode | null>(null);
   const gainNodeRef = useRef<GainNode | null>(null);
@@ -433,6 +434,8 @@ export const Preview: React.FC = () => {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(1);
   const [showZoomMenu, setShowZoomMenu] = useState(false);
+  const [nativeTextOverlayClips, setNativeTextOverlayClips] = useState<TextClip[]>([]);
+  const nativeTextOverlayKeyRef = useRef("");
 
   const ZOOM_OPTIONS = [
     { label: "50%", value: 0.5 },
@@ -456,6 +459,13 @@ export const Preview: React.FC = () => {
     transform: { x: number; y: number; scaleX: number; scaleY: number };
   } | null>(null);
   const pendingTransformRef = useRef<{
+    clipId: string;
+    transform: {
+      position?: { x: number; y: number };
+      scale?: { x: number; y: number };
+    };
+  } | null>(null);
+  const pendingShapeTransformRef = useRef<{
     clipId: string;
     transform: {
       position?: { x: number; y: number };
@@ -609,8 +619,11 @@ export const Preview: React.FC = () => {
 
   // Get subtitles from project timeline
   const allSubtitles = useMemo(() => {
-    return project.timeline.subtitles || [];
-  }, [project.timeline.subtitles]);
+    const textClipIds = new Set(allTextClips.map((clip) => clip.id));
+    return (project.timeline.subtitles || []).filter(
+      (subtitle) => !textClipIds.has(subtitle.id),
+    );
+  }, [project.timeline.subtitles, allTextClips]);
 
   const updateClipTransform = useProjectStore(
     (state) => state.updateClipTransform,
@@ -2026,6 +2039,29 @@ export const Preview: React.FC = () => {
     playheadPositionRef.current = playheadPosition;
   }, [playheadPosition]);
 
+  const syncNativeTextOverlay = useCallback((clips: TextClip[]) => {
+    const key = clips
+      .map(
+        (clip) =>
+          `${clip.id}:${clip.text}:${clip.startTime}:${clip.duration}:` +
+          `${clip.transform.position.x}:${clip.transform.position.y}:` +
+          `${clip.transform.scale.x}:${clip.transform.scale.y}:` +
+          `${clip.transform.rotation}:${clip.transform.opacity}:` +
+          `${clip.style.fontFamily}:${clip.style.fontSize}:` +
+          `${clip.style.fontWeight}:${clip.style.fontStyle}:` +
+          `${clip.style.color}:${clip.style.backgroundColor ?? ""}:` +
+          `${clip.style.strokeColor ?? ""}:${clip.style.strokeWidth ?? ""}:` +
+          `${clip.style.shadowColor ?? ""}:${clip.style.shadowBlur ?? ""}:` +
+          `${clip.style.shadowOffsetX ?? ""}:${clip.style.shadowOffsetY ?? ""}:` +
+          `${clip.style.textAlign}:${clip.style.lineHeight}:` +
+          `${clip.style.letterSpacing}:${clip.style.textDecoration ?? ""}`,
+      )
+      .join("|");
+    if (nativeTextOverlayKeyRef.current === key) return;
+    nativeTextOverlayKeyRef.current = key;
+    setNativeTextOverlayClips(clips);
+  }, []);
+
   useEffect(() => {
     setImageLoadCallback(() => {
       if (!isPlayingRef.current) {
@@ -2288,6 +2324,49 @@ export const Preview: React.FC = () => {
     [timelineTracks, getMediaItem, allTextClips, allShapeClips],
   );
 
+  const isSimpleNativeClip = useCallback(
+    (clip: (typeof timelineTracks)[0]["clips"][0]): boolean => {
+      if (clipNeedsFrameProcessing(clip.id)) return false;
+      if (clip.keyframes && clip.keyframes.length > 0) return false;
+      if (clip.emphasisAnimation && clip.emphasisAnimation.type !== "none") return false;
+      if (clip.stabilization?.enabled) return false;
+
+      const transform = (clip.transform as ClipTransform | undefined) || DEFAULT_TRANSFORM;
+      return (
+        transform.position.x === DEFAULT_TRANSFORM.position.x &&
+        transform.position.y === DEFAULT_TRANSFORM.position.y &&
+        transform.scale.x === DEFAULT_TRANSFORM.scale.x &&
+        transform.scale.y === DEFAULT_TRANSFORM.scale.y &&
+        transform.rotation === DEFAULT_TRANSFORM.rotation &&
+        (transform.opacity ?? 1) === 1 &&
+        !transform.crop &&
+        !transform.borderRadius
+      );
+    },
+    [],
+  );
+
+  const canUseNativeDomVideoLayer = useCallback(
+    (
+      clips: Array<{
+        clip: (typeof timelineTracks)[0]["clips"][0];
+        mediaItem: NonNullable<ReturnType<typeof getMediaItem>>;
+      }>,
+      imageClips: Array<{
+        clip: (typeof timelineTracks)[0]["clips"][0];
+        trackIndex: number;
+      }>,
+    ): boolean => {
+      if (!overlayRef.current) return false;
+      if (imageClips.length > 0) return false;
+      if (allShapeClipsRef.current.length > 0) return false;
+      if (allSubtitlesRef.current.length > 0) return false;
+      if (hasBehindSubjectText(allTextClipsRef.current)) return false;
+      return clips.every(({ clip }) => isSimpleNativeClip(clip));
+    },
+    [isSimpleNativeClip],
+  );
+
   // Start native video playback using hardware-accelerated video elements (handles multiple clips)
   const startNativeVideoPlayback = useCallback(
     async (
@@ -2315,6 +2394,11 @@ export const Preview: React.FC = () => {
       }
 
       nativePlaybackActiveRef.current = true;
+      const useDomVideoLayer = canUseNativeDomVideoLayer(clips, imageClips);
+      const overlayEl = overlayRef.current;
+      if (useDomVideoLayer) {
+        canvas.style.opacity = "0";
+      }
 
       const imageBitmapCache = new Map<string, ImageBitmap>();
       for (const { clip } of imageClips) {
@@ -2476,6 +2560,44 @@ export const Preview: React.FC = () => {
       let isActive = true;
       let rafId: number | null = null;
       let currentClipId: string | null = null;
+      let currentDomVideo: HTMLVideoElement | null = null;
+
+      const detachDomVideo = () => {
+        if (currentDomVideo?.parentElement) {
+          currentDomVideo.parentElement.removeChild(currentDomVideo);
+        }
+        currentDomVideo = null;
+        nativeDomVideoRef.current = null;
+      };
+
+      const attachDomVideo = (video: HTMLVideoElement) => {
+        if (!useDomVideoLayer || !overlayEl) return;
+        canvas.style.opacity = "0";
+        if (currentDomVideo && currentDomVideo !== video) {
+          currentDomVideo.pause();
+          if (currentDomVideo.parentElement) {
+            currentDomVideo.parentElement.removeChild(currentDomVideo);
+          }
+        }
+
+        currentDomVideo = video;
+        nativeDomVideoRef.current = video;
+        video.controls = false;
+        video.muted = true;
+        video.playsInline = true;
+        video.style.position = "absolute";
+        video.style.inset = "0";
+        video.style.width = "100%";
+        video.style.height = "100%";
+        video.style.objectFit = "contain";
+        video.style.backgroundColor = "#000000";
+        video.style.zIndex = "1";
+        video.style.pointerEvents = "none";
+
+        if (video.parentElement !== overlayEl) {
+          overlayEl.appendChild(video);
+        }
+      };
 
       const findClipAtTime = (time: number) => {
         for (const { clip, mediaItem } of clips) {
@@ -2510,6 +2632,11 @@ export const Preview: React.FC = () => {
         const activeClip = findClipAtTime(currentPlayhead);
 
         if (!activeClip) {
+          if (useDomVideoLayer) {
+            detachDomVideo();
+            canvas.style.opacity = "1";
+          }
+
           ctx.fillStyle = "#000000";
           ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -2555,13 +2682,14 @@ export const Preview: React.FC = () => {
             allTextClipsRef.current,
             currentPlayhead,
           );
+          syncNativeTextOverlay(activeTextClipsNoVideo);
 
-          if (activeShapeClipsNoVideo.length > 0 || activeTextClipsNoVideo.length > 0) {
+          if (activeShapeClipsNoVideo.length > 0) {
             await renderOverlayClipsInTrackOrder(
               ctx,
               timelineTracksRef.current,
               activeShapeClipsNoVideo,
-              activeTextClipsNoVideo,
+              [],
               currentPlayhead,
               canvas.width,
               canvas.height,
@@ -2715,6 +2843,22 @@ export const Preview: React.FC = () => {
           allTextClipsRef.current,
           currentPlayhead,
         );
+        const activeTextNeedsSubject = hasBehindSubjectText(activeTextClips);
+        syncNativeTextOverlay(activeTextNeedsSubject ? [] : activeTextClips);
+
+        if (useDomVideoLayer && !activeTextNeedsSubject) {
+          attachDomVideo(video);
+          const nowPlayhead = performance.now();
+          if (nowPlayhead - lastPlayheadUpdateRef.current >= 80) {
+            lastPlayheadUpdateRef.current = nowPlayhead;
+            setPlayheadPosition(currentPlayhead);
+          }
+
+          rafId = requestAnimationFrame(() => {
+            drawFrame();
+          });
+          return;
+        }
 
         const bgEngine = getBackgroundRemovalEngine();
         const hasBgRemoval = bgEngine?.isInitialized() && bgEngine.getSettings(clip.id).enabled;
@@ -2755,18 +2899,18 @@ export const Preview: React.FC = () => {
         if (videoFrame !== video && videoFrame instanceof ImageBitmap) {
           videoFrame.close();
         }
-        const subjectFrame = hasBehindSubjectText(activeTextClips)
+        const subjectFrame = activeTextNeedsSubject
           ? await captureSubjectFrame(ctx, canvas.width, canvas.height)
           : null;
 
         // Use CPU canvas2D for all overlays - more reliable than GPU compositing
         // Render all text/graphics overlays (they're above the video since backgrounds are separate)
-        if (activeShapeClips.length > 0 || activeTextClips.length > 0) {
+        if (activeShapeClips.length > 0 || activeTextNeedsSubject) {
           await renderOverlayClipsInTrackOrder(
             ctx,
             timelineTracksRef.current,
             activeShapeClips,
-            activeTextClips,
+            activeTextNeedsSubject ? activeTextClips : [],
             currentPlayhead,
             canvas.width,
             canvas.height,
@@ -2804,7 +2948,10 @@ export const Preview: React.FC = () => {
       const cleanup = () => {
         isActive = false;
         nativePlaybackActiveRef.current = false;
+        syncNativeTextOverlay([]);
         if (rafId) cancelAnimationFrame(rafId);
+        detachDomVideo();
+        canvas.style.opacity = "1";
 
         for (const [, entry] of videoCache) {
           releaseVideoElement(entry);
@@ -2828,6 +2975,7 @@ export const Preview: React.FC = () => {
     },
     [
       actualEndTime,
+      canUseNativeDomVideoLayer,
       allSubtitles,
       getMediaItem,
       isMuted,
@@ -2835,6 +2983,7 @@ export const Preview: React.FC = () => {
       releaseVideoElement,
       renderOverlayClipsInTrackOrder,
       setPlayheadPosition,
+      syncNativeTextOverlay,
       timelineTracks,
     ],
   );
@@ -2851,6 +3000,7 @@ export const Preview: React.FC = () => {
     }
 
     if (!isPlaying) {
+      syncNativeTextOverlay([]);
       if (animationRef.current) {
         cancelAnimationFrame(animationRef.current);
         animationRef.current = null;
@@ -3579,8 +3729,11 @@ export const Preview: React.FC = () => {
             currentPlayhead,
           );
           const activeTextNeedsSubject = hasBehindSubjectText(activeTextClips);
+          const hasActiveTextOverlays = activeTextClips.length > 0;
           const useGPUFrames =
-            rendererRef.current?.type === "webgpu" && !activeTextNeedsSubject;
+            rendererRef.current?.type === "webgpu" &&
+            !activeTextNeedsSubject &&
+            !hasActiveTextOverlays;
 
           const imageClipFrames: Array<{
             clip: (typeof sortedClips)[0]["clip"];
@@ -3761,7 +3914,8 @@ export const Preview: React.FC = () => {
             const useGPU =
               rendererRef.current &&
               rendererRef.current.type === "webgpu" &&
-              !activeTextNeedsSubject;
+              !activeTextNeedsSubject &&
+              !hasActiveTextOverlays;
 
             if (useGPU) {
               const gpuLayers: GPULayer[] = [];
@@ -4154,6 +4308,7 @@ export const Preview: React.FC = () => {
     isMuted,
     settings.width,
     settings.height,
+    syncNativeTextOverlay,
   ]);
 
   const lastModifiedAtRef = useRef<number>(project.modifiedAt);
@@ -4312,8 +4467,9 @@ export const Preview: React.FC = () => {
 
     const displayScale = actualWidth / canvasWidth;
 
-    const clipWidth = canvasWidth * transform.scale.x * displayScale;
-    const clipHeight = canvasHeight * transform.scale.y * displayScale;
+    const clipWidth = canvasWidth * Math.abs(transform.scale.x) * displayScale;
+    const clipHeight =
+      canvasHeight * Math.abs(transform.scale.y) * displayScale;
 
     const offsetX = transform.position.x * displayScale;
     const offsetY = transform.position.y * displayScale;
@@ -4440,7 +4596,15 @@ export const Preview: React.FC = () => {
     const overlayRect = overlay.getBoundingClientRect();
     const canvasRect = canvas.getBoundingClientRect();
 
-    const { transform } = selectedShapeClip;
+    const baseTransform = selectedShapeClip.transform;
+    const transform =
+      interactionTargetType === "shape-clip" && liveTransform
+        ? {
+            ...baseTransform,
+            position: liveTransform.position,
+            scale: liveTransform.scale,
+          }
+        : baseTransform;
 
     const canvasWidth = settings.width;
     const canvasHeight = settings.height;
@@ -4507,7 +4671,14 @@ export const Preview: React.FC = () => {
       displayScale,
       isShapeClip: true,
     };
-  }, [selectedShapeClip, settings.width, settings.height, canvasSize]);
+  }, [
+    selectedShapeClip,
+    settings.width,
+    settings.height,
+    canvasSize,
+    interactionTargetType,
+    liveTransform,
+  ]);
 
   const getGraphicClipDisplayBounds = useCallback(
     (clip: ShapeClip | SVGClip | StickerClip) => {
@@ -5009,51 +5180,108 @@ export const Preview: React.FC = () => {
           const startTransform = interactionStartRef.current.transform;
           let newScaleX = startTransform.scaleX;
           let newScaleY = startTransform.scaleY;
+          let newX = startTransform.x;
+          let newY = startTransform.y;
 
-          const scaleDeltaX = deltaX / displayScale / 100;
-          const scaleDeltaY = deltaY / displayScale / 100;
+          const baseWidth =
+            shapeClipBounds.width / Math.max(0.001, startTransform.scaleX) /
+            displayScale;
+          const baseHeight =
+            shapeClipBounds.height / Math.max(0.001, startTransform.scaleY) /
+            displayScale;
+          const scaleDeltaX = deltaX / displayScale / baseWidth;
+          const scaleDeltaY = deltaY / displayScale / baseHeight;
+          const keepAspect = lockAspectRatio && activeHandle.length === 2;
 
           switch (activeHandle) {
             case "e":
-            case "se":
-            case "ne":
               newScaleX = Math.max(0.1, startTransform.scaleX + scaleDeltaX);
-              if (lockAspectRatio) newScaleY = newScaleX;
+              newX = startTransform.x + deltaX / displayScale / settings.width / 2;
               break;
             case "w":
-            case "sw":
-            case "nw":
               newScaleX = Math.max(0.1, startTransform.scaleX - scaleDeltaX);
-              if (lockAspectRatio) newScaleY = newScaleX;
+              newX = startTransform.x + deltaX / displayScale / settings.width / 2;
               break;
             case "s":
               newScaleY = Math.max(0.1, startTransform.scaleY + scaleDeltaY);
-              if (lockAspectRatio) newScaleX = newScaleY;
+              newY = startTransform.y + deltaY / displayScale / settings.height / 2;
               break;
             case "n":
               newScaleY = Math.max(0.1, startTransform.scaleY - scaleDeltaY);
-              if (lockAspectRatio) newScaleX = newScaleY;
+              newY = startTransform.y + deltaY / displayScale / settings.height / 2;
+              break;
+            case "se":
+              if (keepAspect) {
+                const delta = Math.max(scaleDeltaX, scaleDeltaY);
+                newScaleX = Math.max(0.1, startTransform.scaleX + delta);
+                newScaleY = Math.max(0.1, startTransform.scaleY + delta);
+              } else {
+                newScaleX = Math.max(0.1, startTransform.scaleX + scaleDeltaX);
+                newScaleY = Math.max(0.1, startTransform.scaleY + scaleDeltaY);
+              }
+              newX = startTransform.x + deltaX / displayScale / settings.width / 2;
+              newY = startTransform.y + deltaY / displayScale / settings.height / 2;
+              break;
+            case "sw":
+              if (keepAspect) {
+                const delta = Math.max(-scaleDeltaX, scaleDeltaY);
+                newScaleX = Math.max(0.1, startTransform.scaleX + delta);
+                newScaleY = Math.max(0.1, startTransform.scaleY + delta);
+              } else {
+                newScaleX = Math.max(0.1, startTransform.scaleX - scaleDeltaX);
+                newScaleY = Math.max(0.1, startTransform.scaleY + scaleDeltaY);
+              }
+              newX = startTransform.x + deltaX / displayScale / settings.width / 2;
+              newY = startTransform.y + deltaY / displayScale / settings.height / 2;
+              break;
+            case "ne":
+              if (keepAspect) {
+                const delta = Math.max(scaleDeltaX, -scaleDeltaY);
+                newScaleX = Math.max(0.1, startTransform.scaleX + delta);
+                newScaleY = Math.max(0.1, startTransform.scaleY + delta);
+              } else {
+                newScaleX = Math.max(0.1, startTransform.scaleX + scaleDeltaX);
+                newScaleY = Math.max(0.1, startTransform.scaleY - scaleDeltaY);
+              }
+              newX = startTransform.x + deltaX / displayScale / settings.width / 2;
+              newY = startTransform.y + deltaY / displayScale / settings.height / 2;
+              break;
+            case "nw":
+              if (keepAspect) {
+                const delta = Math.max(-scaleDeltaX, -scaleDeltaY);
+                newScaleX = Math.max(0.1, startTransform.scaleX + delta);
+                newScaleY = Math.max(0.1, startTransform.scaleY + delta);
+              } else {
+                newScaleX = Math.max(0.1, startTransform.scaleX - scaleDeltaX);
+                newScaleY = Math.max(0.1, startTransform.scaleY - scaleDeltaY);
+              }
+              newX = startTransform.x + deltaX / displayScale / settings.width / 2;
+              newY = startTransform.y + deltaY / displayScale / settings.height / 2;
               break;
           }
 
           newTransform = {
-            position: { x: startTransform.x, y: startTransform.y },
+            position: { x: newX, y: newY },
             scale: { x: newScaleX, y: newScaleY },
           };
         }
 
+        pendingShapeTransformRef.current = {
+          clipId: activeShapeClip.id,
+          transform: newTransform,
+        };
+
         if (!rafIdRef.current) {
           rafIdRef.current = requestAnimationFrame(() => {
-            const now = performance.now();
-            if (
-              now - lastStoreUpdateRef.current >= STORE_UPDATE_THROTTLE_MS &&
-              interactionTargetIdRef.current
-            ) {
-              lastStoreUpdateRef.current = now;
-              updateShapeTransform(
-                interactionTargetIdRef.current,
-                newTransform,
-              );
+            const pending = pendingShapeTransformRef.current;
+            if (pending) {
+              setLiveTransform({
+                position:
+                  pending.transform.position ||
+                  activeShapeClip.transform.position,
+                scale:
+                  pending.transform.scale || activeShapeClip.transform.scale,
+              });
             }
             rafIdRef.current = null;
           });
@@ -5207,6 +5435,9 @@ export const Preview: React.FC = () => {
       textClipBounds,
       activeTextClip,
       updateTextTransform,
+      shapeClipBounds,
+      activeShapeClip,
+      updateShapeTransform,
     ],
   );
 
@@ -5217,6 +5448,13 @@ export const Preview: React.FC = () => {
         pendingTransformRef.current.transform,
       );
       pendingTransformRef.current = null;
+    }
+    if (pendingShapeTransformRef.current) {
+      updateShapeTransform(
+        pendingShapeTransformRef.current.clipId,
+        pendingShapeTransformRef.current.transform,
+      );
+      pendingShapeTransformRef.current = null;
     }
     setInteractionTargetType(null);
     interactionTargetIdRef.current = null;
@@ -5235,7 +5473,12 @@ export const Preview: React.FC = () => {
     if (wasInteracting) {
       renderFrameDirectly(playheadPosition);
     }
-  }, [updateClipTransform, renderFrameDirectly, playheadPosition]);
+  }, [
+    updateClipTransform,
+    updateShapeTransform,
+    renderFrameDirectly,
+    playheadPosition,
+  ]);
 
   const handleCropChange = useCallback(
     (crop: { x: number; y: number; width: number; height: number }) => {
@@ -5264,6 +5507,13 @@ export const Preview: React.FC = () => {
           );
           pendingTransformRef.current = null;
         }
+        if (pendingShapeTransformRef.current) {
+          updateShapeTransform(
+            pendingShapeTransformRef.current.clipId,
+            pendingShapeTransformRef.current.transform,
+          );
+          pendingShapeTransformRef.current = null;
+        }
         if (rafIdRef.current) {
           cancelAnimationFrame(rafIdRef.current);
           rafIdRef.current = null;
@@ -5289,6 +5539,7 @@ export const Preview: React.FC = () => {
     renderFrameDirectly,
     playheadPosition,
     updateClipTransform,
+    updateShapeTransform,
   ]);
 
   const handleScrubClick = useCallback(
@@ -5402,6 +5653,10 @@ export const Preview: React.FC = () => {
   const cropMediaType = cropMediaData?.type ?? "video";
 
   const shouldShowCropMode = cropMode && cropClipId && cropClip && cropVideoSrc;
+  const nativeTextOverlayScale =
+    canvasSize.width > 0 && settings.width > 0
+      ? canvasSize.width / settings.width
+      : 1;
 
   return (
     <div
@@ -5465,6 +5720,59 @@ export const Preview: React.FC = () => {
               cursor: hoveredGraphicClipId && !isPlaying ? "pointer" : "default",
             }}
           />
+
+          {nativeTextOverlayClips.length > 0 && (
+            <div className="absolute inset-0 pointer-events-none z-10 overflow-hidden">
+              {nativeTextOverlayClips.map((clip) => {
+                const translateX =
+                  clip.style.textAlign === "left"
+                    ? "0"
+                    : clip.style.textAlign === "right"
+                      ? "-100%"
+                      : "-50%";
+                const bgColor = clip.style.backgroundColor;
+                const hasBackground =
+                  bgColor && bgColor !== "transparent" && bgColor !== "rgba(0, 0, 0, 0)";
+
+                return (
+                  <div
+                    key={clip.id}
+                    style={{
+                      position: "absolute",
+                      left: `${clip.transform.position.x * 100}%`,
+                      top: `${clip.transform.position.y * 100}%`,
+                      transform: `translate(${translateX}, -50%) rotate(${clip.transform.rotation}deg) scale(${clip.transform.scale.x}, ${clip.transform.scale.y})`,
+                      transformOrigin: "center center",
+                      opacity: clip.transform.opacity,
+                      fontFamily: clip.style.fontFamily,
+                      fontSize: `${clip.style.fontSize * nativeTextOverlayScale}px`,
+                      fontWeight: clip.style.fontWeight,
+                      fontStyle: clip.style.fontStyle,
+                      color: clip.style.color,
+                      backgroundColor: hasBackground ? bgColor : undefined,
+                      padding: hasBackground ? "0.2em 0.35em" : undefined,
+                      textAlign: clip.style.textAlign,
+                      lineHeight: clip.style.lineHeight,
+                      letterSpacing: `${clip.style.letterSpacing * nativeTextOverlayScale}px`,
+                      textDecoration:
+                        clip.style.textDecoration && clip.style.textDecoration !== "none"
+                          ? clip.style.textDecoration
+                          : undefined,
+                      whiteSpace: "pre-wrap",
+                      maxWidth: "90%",
+                      overflowWrap: "break-word",
+                      textShadow:
+                        clip.style.shadowColor && clip.style.shadowBlur
+                          ? `${(clip.style.shadowOffsetX || 0) * nativeTextOverlayScale}px ${(clip.style.shadowOffsetY || 0) * nativeTextOverlayScale}px ${clip.style.shadowBlur * nativeTextOverlayScale}px ${clip.style.shadowColor}`
+                          : undefined,
+                    }}
+                  >
+                    {clip.text}
+                  </div>
+                );
+              })}
+            </div>
+          )}
 
           {/* Processing Overlay */}
           <ProcessingOverlay />

@@ -12,7 +12,7 @@ import {
   Type,
 } from "lucide-react";
 import { useProjectStore } from "../../../stores/project-store";
-import type { TextStyle, FontWeight } from "@openreel/core";
+import type { TextStyle, FontWeight, Transform } from "@openreel/core";
 import {
   ColorPicker,
   Select,
@@ -187,7 +187,8 @@ const FontSelector: React.FC<{
 };
 
 interface TextSectionProps {
-  clipId: string;
+  clipId?: string;
+  clipIds?: string[];
 }
 
 /**
@@ -195,7 +196,7 @@ interface TextSectionProps {
  *
  * - 15.1: Display text content editor and styling controls
  */
-export const TextSection: React.FC<TextSectionProps> = ({ clipId }) => {
+export const TextSection: React.FC<TextSectionProps> = ({ clipId, clipIds }) => {
   const {
     getTextClip,
     updateTextContent,
@@ -204,10 +205,21 @@ export const TextSection: React.FC<TextSectionProps> = ({ clipId }) => {
     project,
   } = useProjectStore();
 
-  const textClip = useMemo(
-    () => getTextClip(clipId),
-    [clipId, getTextClip, project.modifiedAt],
+  const targetClipIds = useMemo(
+    () => (clipIds && clipIds.length > 0 ? clipIds : clipId ? [clipId] : []),
+    [clipId, clipIds],
   );
+  const textClips = useMemo(
+    () =>
+      targetClipIds
+        .map((id) => getTextClip(id))
+        .filter((clip): clip is NonNullable<ReturnType<typeof getTextClip>> =>
+          Boolean(clip),
+        ),
+    [targetClipIds, getTextClip, project.modifiedAt],
+  );
+  const textClip = textClips[0];
+  const isBatchEditing = textClips.length > 1;
 
   const defaultStyle: TextStyle = {
     fontFamily: "Inter",
@@ -231,12 +243,22 @@ export const TextSection: React.FC<TextSectionProps> = ({ clipId }) => {
 
   const style = textClip?.style || defaultStyle;
   const text = textClip?.text || "";
+  const canvasWidth = project.settings.width || 1920;
+  const canvasHeight = project.settings.height || 1080;
+  const transform = textClip?.transform || {
+    position: { x: 0.5, y: 0.5 },
+    scale: { x: 1, y: 1 },
+    rotation: 0,
+    anchor: { x: 0.5, y: 0.5 },
+    opacity: 1,
+  };
 
   const handleTextChange = useCallback(
     (newText: string) => {
-      updateTextContent(clipId, newText);
+      if (!textClip) return;
+      updateTextContent(textClip.id, newText);
     },
-    [clipId, updateTextContent],
+    [textClip, updateTextContent],
   );
 
   const handleStyleChange = useCallback(
@@ -249,24 +271,53 @@ export const TextSection: React.FC<TextSectionProps> = ({ clipId }) => {
           // Font load failed, continue anyway - browser will fallback
         }
       }
-      updateTextStyle(clipId, changes);
+      for (const clip of textClips) {
+        updateTextStyle(clip.id, changes);
+      }
     },
-    [clipId, updateTextStyle, style.fontSize],
+    [textClips, updateTextStyle, style.fontSize],
+  );
+
+  const handleTransformChange = useCallback(
+    (changes: Parameters<typeof updateTextTransform>[1]) => {
+      for (const clip of textClips) {
+        updateTextTransform(clip.id, changes);
+      }
+    },
+    [textClips, updateTextTransform],
+  );
+  const handleEachTransformChange = useCallback(
+    (getChanges: (transform: Transform) => Partial<Transform>) => {
+      for (const clip of textClips) {
+        updateTextTransform(clip.id, getChanges(clip.transform));
+      }
+    },
+    [textClips, updateTextTransform],
   );
 
   const handleCenterHorizontal = useCallback(() => {
     const currentY = textClip?.transform?.position?.y ?? 0.5;
-    updateTextTransform(clipId, { position: { x: 0.5, y: currentY } });
-  }, [clipId, textClip, updateTextTransform]);
+    for (const clip of textClips) {
+      updateTextTransform(clip.id, {
+        position: { x: 0.5, y: clip.transform.position.y ?? currentY },
+      });
+    }
+  }, [textClip, textClips, updateTextTransform]);
 
   const handleCenterVertical = useCallback(() => {
     const currentX = textClip?.transform?.position?.x ?? 0.5;
-    updateTextTransform(clipId, { position: { x: currentX, y: 0.5 } });
-  }, [clipId, textClip, updateTextTransform]);
+    for (const clip of textClips) {
+      updateTextTransform(clip.id, {
+        position: { x: clip.transform.position.x ?? currentX, y: 0.5 },
+      });
+    }
+  }, [textClip, textClips, updateTextTransform]);
 
   const handleCenterBoth = useCallback(() => {
-    updateTextTransform(clipId, { position: { x: 0.5, y: 0.5 } });
-  }, [clipId, updateTextTransform]);
+    for (const clip of textClips) {
+      updateTextTransform(clip.id, { position: { x: 0.5, y: 0.5 } });
+    }
+  }, [textClips, updateTextTransform]);
 
   if (!textClip) {
     return (
@@ -279,16 +330,27 @@ export const TextSection: React.FC<TextSectionProps> = ({ clipId }) => {
 
   return (
     <div className="space-y-4">
-      <div className="space-y-2">
-        <span className="text-[10px] text-text-secondary">Text Content</span>
-        <textarea
-          value={text}
-          onChange={(e) => handleTextChange(e.target.value)}
-          placeholder="Enter text..."
-          className="w-full h-20 px-3 py-2 text-sm text-text-primary bg-background-tertiary border border-border rounded-lg resize-none outline-none focus:border-primary"
-          style={{ fontFamily: style.fontFamily }}
-        />
-      </div>
+      {isBatchEditing ? (
+        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2">
+          <p className="text-[10px] font-medium text-amber-300">
+            Editing {textClips.length} selected text clips
+          </p>
+          <p className="text-[9px] text-text-muted">
+            Style and geometry changes apply to all selected text/sub clips.
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <span className="text-[10px] text-text-secondary">Text Content</span>
+          <textarea
+            value={text}
+            onChange={(e) => handleTextChange(e.target.value)}
+            placeholder="Enter text..."
+            className="w-full h-20 px-3 py-2 text-sm text-text-primary bg-background-tertiary border border-border rounded-lg resize-none outline-none focus:border-primary"
+            style={{ fontFamily: style.fontFamily }}
+          />
+        </div>
+      )}
 
       <div className="space-y-2 p-3 bg-background-tertiary rounded-lg">
         <FontSelector
@@ -374,6 +436,90 @@ export const TextSection: React.FC<TextSectionProps> = ({ clipId }) => {
               textAlign: textAlign as "left" | "center" | "right",
             })
           }
+        />
+      </div>
+
+      <div className="space-y-2 p-3 bg-background-tertiary rounded-lg">
+        <span className="text-[10px] text-text-secondary font-medium">
+          Geometry
+        </span>
+        <NumberInput
+          label="X"
+          value={Math.round(transform.position.x * canvasWidth)}
+          onChange={(x) =>
+            handleEachTransformChange((current) => ({
+              position: {
+                ...current.position,
+                x: x / canvasWidth,
+              },
+            }))
+          }
+          min={-canvasWidth}
+          max={canvasWidth * 2}
+          unit="px"
+        />
+        <NumberInput
+          label="Y"
+          value={Math.round(transform.position.y * canvasHeight)}
+          onChange={(y) =>
+            handleEachTransformChange((current) => ({
+              position: {
+                ...current.position,
+                y: y / canvasHeight,
+              },
+            }))
+          }
+          min={-canvasHeight}
+          max={canvasHeight * 2}
+          unit="px"
+        />
+        <NumberInput
+          label="Scale X"
+          value={Math.round(transform.scale.x * 100)}
+          onChange={(scaleX) =>
+            handleEachTransformChange((current) => ({
+              scale: {
+                ...current.scale,
+                x: scaleX / 100,
+              },
+            }))
+          }
+          min={-300}
+          max={300}
+          unit="%"
+        />
+        <NumberInput
+          label="Scale Y"
+          value={Math.round(transform.scale.y * 100)}
+          onChange={(scaleY) =>
+            handleEachTransformChange((current) => ({
+              scale: {
+                ...current.scale,
+                y: scaleY / 100,
+              },
+            }))
+          }
+          min={-300}
+          max={300}
+          unit="%"
+        />
+        <NumberInput
+          label="Rotation"
+          value={Math.round(transform.rotation)}
+          onChange={(rotation) => handleTransformChange({ rotation })}
+          min={-360}
+          max={360}
+          unit="deg"
+        />
+        <NumberInput
+          label="Opacity"
+          value={Math.round(transform.opacity * 100)}
+          onChange={(opacity) =>
+            handleTransformChange({ opacity: opacity / 100 })
+          }
+          min={0}
+          max={100}
+          unit="%"
         />
       </div>
 

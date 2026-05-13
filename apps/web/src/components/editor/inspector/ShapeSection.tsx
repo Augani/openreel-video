@@ -271,6 +271,22 @@ export const ShapeSection: React.FC<ShapeSectionProps> = ({ clipId }) => {
         </div>
       )}
 
+      {shapeType === "rectangle" && (
+        <div className="space-y-2 p-3 bg-background-tertiary rounded-lg">
+          <span className="text-[10px] text-text-secondary font-medium">
+            Blur Block
+          </span>
+          <Slider
+            label="Backdrop Blur"
+            value={style.backdropBlur || 0}
+            onChange={(backdropBlur) => handleStyleChange({ backdropBlur })}
+            min={0}
+            max={80}
+            unit="px"
+          />
+        </div>
+      )}
+
       <div className="space-y-2 p-3 bg-background-tertiary rounded-lg">
         <span className="text-[10px] text-text-secondary font-medium">
           Shadow
