@@ -976,7 +976,7 @@ export const useProjectStore = create<ProjectState>()(
 
         const snapshot = {
           track: buildEditingTemplateTrack(trackType),
-          position: updatedProject.timeline.tracks.length,
+          position: 0,
         };
         trackSnapshots.push(snapshot);
         updatedProject = insertEditingTemplateTrack(updatedProject, snapshot);
