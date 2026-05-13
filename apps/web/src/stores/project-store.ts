@@ -6,6 +6,7 @@ import type {
   MediaItem,
   Track,
   Clip,
+  Transition,
   Action,
   ActionResult,
   TextClip,
@@ -37,6 +38,7 @@ import type {
   ColorGradingSettings,
 } from "../bridges/effects-bridge";
 import { getEffectsBridge } from "../bridges/effects-bridge";
+import { getTransitionBridge } from "../bridges/transition-bridge";
 import {
   autoSaveManager,
   initializeAutoSave,
@@ -165,6 +167,17 @@ export interface ProjectState {
     trimStart: boolean,
   ) => Promise<ActionResult>;
   getClip: (clipId: string) => Clip | undefined;
+  addClipTransition: (transition: Transition) => Transition | null;
+  updateClipTransition: (
+    transitionId: string,
+    updates: Partial<Pick<Transition, "type" | "duration" | "params">>,
+  ) => Transition | null;
+  removeClipTransition: (transitionId: string) => boolean;
+  getClipTransition: (transitionId: string) => Transition | undefined;
+  getClipTransitionBetweenClips: (
+    clipAId: string,
+    clipBId: string,
+  ) => Transition | undefined;
   separateAudio: (clipId: string) => Promise<ActionResult>;
   updateClipTransform: (
     clipId: string,
@@ -421,6 +434,177 @@ export const useProjectStore = create<ProjectState>()(
     const actionHistory = new ActionHistory();
     const actionExecutor = new ActionExecutor(actionHistory);
 
+    const getProjectClipIds = (project: Project): string[] =>
+      project.timeline.tracks.flatMap((track) =>
+        track.clips.map((clip) => clip.id),
+      );
+
+    const mapClipEffectsToVideoEffects = (effects: Effect[]): VideoEffect[] =>
+      effects.map((effect, order) => ({
+        id: effect.id,
+        type: effect.type as VideoEffectType,
+        enabled: effect.enabled,
+        params: effect.params,
+        order,
+      }));
+
+    const updateProjectClip = (
+      project: Project,
+      clipId: string,
+      updater: (clip: Clip) => Clip,
+    ): Project | null => {
+      let hasUpdatedClip = false;
+
+      const updatedTracks = project.timeline.tracks.map((track) => {
+        let trackUpdated = false;
+
+        const updatedClips = track.clips.map((clip) => {
+          if (clip.id !== clipId) {
+            return clip;
+          }
+
+          hasUpdatedClip = true;
+          trackUpdated = true;
+          return updater(clip);
+        });
+
+        return trackUpdated ? { ...track, clips: updatedClips } : track;
+      });
+
+      if (!hasUpdatedClip) {
+        return null;
+      }
+
+      return {
+        ...project,
+        timeline: { ...project.timeline, tracks: updatedTracks },
+        modifiedAt: Date.now(),
+      };
+    };
+
+    const buildSerializedColorGrading = (clipId: string) => {
+      const effectsBridge = getEffectsBridge();
+      if (!effectsBridge.isInitialized()) {
+        return {};
+      }
+
+      const colorGrading = effectsBridge.getColorGrading(clipId);
+
+      return {
+        ...(colorGrading.colorWheels
+          ? { colorWheels: colorGrading.colorWheels }
+          : {}),
+        ...(colorGrading.curves ? { curves: colorGrading.curves } : {}),
+        ...(colorGrading.lut
+          ? {
+              lut: {
+                data: Array.from(colorGrading.lut.data),
+                size: colorGrading.lut.size,
+                intensity: colorGrading.lut.intensity,
+              },
+            }
+          : {}),
+        ...(colorGrading.hsl ? { hsl: colorGrading.hsl } : {}),
+      };
+    };
+
+    const syncClipEffectsBridge = (project: Project, clipId: string): void => {
+      const effectsBridge = getEffectsBridge();
+      if (!effectsBridge.isInitialized()) {
+        return;
+      }
+
+      const clip = project.timeline.tracks
+        .flatMap((track) => track.clips)
+        .find((candidate) => candidate.id === clipId);
+
+      if (!clip) {
+        effectsBridge.clearEffects(clipId);
+        return;
+      }
+
+      const effects = mapClipEffectsToVideoEffects(clip.effects);
+      effectsBridge.deserializeEffects(clipId, {
+        effects: effects.map((effect) => ({
+          id: effect.id,
+          type: effect.type,
+          enabled: effect.enabled,
+          params: effect.params,
+          order: effect.order,
+        })),
+        colorGrading: buildSerializedColorGrading(clipId),
+      });
+    };
+
+    const syncProjectEffectsBridge = (
+      nextProject: Project,
+      previousProject?: Project,
+    ): void => {
+      const effectsBridge = getEffectsBridge();
+      if (!effectsBridge.isInitialized()) {
+        return;
+      }
+
+      const nextClipIds = new Set(getProjectClipIds(nextProject));
+
+      for (const clipId of previousProject ? getProjectClipIds(previousProject) : []) {
+        if (!nextClipIds.has(clipId)) {
+          effectsBridge.clearEffects(clipId);
+        }
+      }
+
+      for (const clipId of nextClipIds) {
+        syncClipEffectsBridge(nextProject, clipId);
+      }
+    };
+
+    const syncTrackTransitionsBridge = (
+      project: Project,
+      trackId: string,
+    ): void => {
+      const transitionBridge = getTransitionBridge();
+      if (!transitionBridge.isInitialized()) {
+        return;
+      }
+
+      const track = project.timeline.tracks.find(
+        (candidate) => candidate.id === trackId,
+      );
+
+      if (!track) {
+        transitionBridge.clearTransitionsForTrack(trackId);
+        return;
+      }
+
+      transitionBridge.setTransitionsForTrack(trackId, track.transitions);
+    };
+
+    const syncProjectTransitionsBridge = (
+      nextProject: Project,
+      previousProject?: Project,
+    ): void => {
+      const transitionBridge = getTransitionBridge();
+      if (!transitionBridge.isInitialized()) {
+        return;
+      }
+
+      const nextTrackIds = new Set(
+        nextProject.timeline.tracks.map((track) => track.id),
+      );
+
+      for (const trackId of previousProject
+        ? previousProject.timeline.tracks.map((track) => track.id)
+        : []) {
+        if (!nextTrackIds.has(trackId)) {
+          transitionBridge.clearTransitionsForTrack(trackId);
+        }
+      }
+
+      for (const track of nextProject.timeline.tracks) {
+        syncTrackTransitionsBridge(nextProject, track.id);
+      }
+    };
+
     return {
       // Initial state - create empty project (Requirement 1.1)
       project: createEmptyProject(),
@@ -440,8 +624,14 @@ export const useProjectStore = create<ProjectState>()(
       ) => {
         const newHistory = new ActionHistory();
         const newExecutor = new ActionExecutor(newHistory);
+        const previousProject = get().project;
+        const nextProject = createEmptyProject(name, settings);
+
+        syncProjectEffectsBridge(nextProject, previousProject);
+        syncProjectTransitionsBridge(nextProject, previousProject);
+
         set({
-          project: createEmptyProject(name, settings),
+          project: nextProject,
           actionHistory: newHistory,
           actionExecutor: newExecutor,
           clipUndoStack: [],
@@ -451,6 +641,7 @@ export const useProjectStore = create<ProjectState>()(
       },
 
       loadProject: (project: Project) => {
+        const previousProject = get().project;
         const titleEngine = useEngineStore.getState().getTitleEngine();
         const graphicsEngine = useEngineStore.getState().getGraphicsEngine();
 
@@ -478,6 +669,9 @@ export const useProjectStore = create<ProjectState>()(
         const fixedProject = computedDuration > 0 && project.timeline.duration === 0
           ? { ...project, timeline: { ...project.timeline, duration: computedDuration } }
           : project;
+
+        syncProjectEffectsBridge(fixedProject, previousProject);
+        syncProjectTransitionsBridge(fixedProject, previousProject);
 
         set({
           project: fixedProject,
@@ -1609,6 +1803,170 @@ export const useProjectStore = create<ProjectState>()(
         for (const track of project.timeline.tracks) {
           const clip = track.clips.find((c) => c.id === clipId);
           if (clip) return clip;
+        }
+        return undefined;
+      },
+
+      addClipTransition: (transition: Transition) => {
+        const { project } = get();
+        const clip = project.timeline.tracks
+          .flatMap((track) => track.clips)
+          .find((candidate) => candidate.id === transition.clipAId);
+
+        if (!clip) {
+          return null;
+        }
+
+        const track = project.timeline.tracks.find(
+          (candidate) => candidate.id === clip.trackId,
+        );
+        if (!track) {
+          return null;
+        }
+
+        const updatedTrack = {
+          ...track,
+          transitions: [
+            ...track.transitions.filter(
+              (candidate) =>
+                candidate.id !== transition.id &&
+                !(
+                  candidate.clipAId === transition.clipAId &&
+                  candidate.clipBId === transition.clipBId
+                ),
+            ),
+            transition,
+          ],
+        };
+
+        const updatedProject = {
+          ...project,
+          timeline: {
+            ...project.timeline,
+            tracks: project.timeline.tracks.map((candidate) =>
+              candidate.id === track.id ? updatedTrack : candidate,
+            ),
+          },
+          modifiedAt: Date.now(),
+        };
+
+        syncTrackTransitionsBridge(updatedProject, track.id);
+        set({ project: updatedProject });
+
+        return transition;
+      },
+
+      updateClipTransition: (
+        transitionId: string,
+        updates: Partial<Pick<Transition, "type" | "duration" | "params">>,
+      ) => {
+        const { project } = get();
+        let updatedTrackId: string | null = null;
+        let updatedTransition: Transition | null = null;
+
+        const updatedTracks = project.timeline.tracks.map((track) => {
+          let trackUpdated = false;
+
+          const updatedTransitions = track.transitions.map((transition) => {
+            if (transition.id !== transitionId) {
+              return transition;
+            }
+
+            trackUpdated = true;
+            updatedTrackId = track.id;
+            updatedTransition = {
+              ...transition,
+              ...(updates.type !== undefined ? { type: updates.type } : {}),
+              ...(updates.duration !== undefined
+                ? { duration: updates.duration }
+                : {}),
+              ...(updates.params !== undefined
+                ? { params: { ...transition.params, ...updates.params } }
+                : {}),
+            };
+            return updatedTransition;
+          });
+
+          return trackUpdated
+            ? { ...track, transitions: updatedTransitions }
+            : track;
+        });
+
+        if (!updatedTransition || !updatedTrackId) {
+          return null;
+        }
+
+        const updatedProject = {
+          ...project,
+          timeline: { ...project.timeline, tracks: updatedTracks },
+          modifiedAt: Date.now(),
+        };
+
+        syncTrackTransitionsBridge(updatedProject, updatedTrackId);
+        set({ project: updatedProject });
+
+        return updatedTransition;
+      },
+
+      removeClipTransition: (transitionId: string) => {
+        const { project } = get();
+        let updatedTrackId: string | null = null;
+        let hasRemovedTransition = false;
+
+        const updatedTracks = project.timeline.tracks.map((track) => {
+          const updatedTransitions = track.transitions.filter((transition) => {
+            const shouldKeep = transition.id !== transitionId;
+            if (!shouldKeep) {
+              updatedTrackId = track.id;
+              hasRemovedTransition = true;
+            }
+            return shouldKeep;
+          });
+
+          return updatedTransitions.length !== track.transitions.length
+            ? { ...track, transitions: updatedTransitions }
+            : track;
+        });
+
+        if (!hasRemovedTransition || !updatedTrackId) {
+          return false;
+        }
+
+        const updatedProject = {
+          ...project,
+          timeline: { ...project.timeline, tracks: updatedTracks },
+          modifiedAt: Date.now(),
+        };
+
+        syncTrackTransitionsBridge(updatedProject, updatedTrackId);
+        set({ project: updatedProject });
+
+        return true;
+      },
+
+      getClipTransition: (transitionId: string) => {
+        const { project } = get();
+        for (const track of project.timeline.tracks) {
+          const transition = track.transitions.find(
+            (candidate) => candidate.id === transitionId,
+          );
+          if (transition) {
+            return transition;
+          }
+        }
+        return undefined;
+      },
+
+      getClipTransitionBetweenClips: (clipAId: string, clipBId: string) => {
+        const { project } = get();
+        for (const track of project.timeline.tracks) {
+          const transition = track.transitions.find(
+            (candidate) =>
+              candidate.clipAId === clipAId && candidate.clipBId === clipBId,
+          );
+          if (transition) {
+            return transition;
+          }
         }
         return undefined;
       },
@@ -3792,6 +4150,7 @@ export const useProjectStore = create<ProjectState>()(
         effectType: VideoEffectType,
         params?: Record<string, unknown>,
       ) => {
+        const { project } = get();
         const effectsBridge = getEffectsBridge();
         if (!effectsBridge.isInitialized()) {
           console.error("EffectsBridge not initialized");
@@ -3810,8 +4169,27 @@ export const useProjectStore = create<ProjectState>()(
 
         const effect = effectsBridge.getEffect(clipId, result.effectId);
         if (effect) {
-          // Trigger re-render by updating project state
-          set({ project: { ...get().project, modifiedAt: Date.now() } });
+          const updatedProject = updateProjectClip(project, clipId, (clip) => ({
+            ...clip,
+            effects: [
+              ...clip.effects,
+              {
+                id: effect.id,
+                type: effect.type,
+                enabled: effect.enabled,
+                params: effect.params,
+              },
+            ],
+          }));
+
+          if (!updatedProject) {
+            console.error("Failed to persist video effect: clip not found");
+            effectsBridge.removeVideoEffect(clipId, effect.id);
+            return null;
+          }
+
+          syncClipEffectsBridge(updatedProject, clipId);
+          set({ project: updatedProject });
         }
         return effect || null;
       },
@@ -3825,49 +4203,33 @@ export const useProjectStore = create<ProjectState>()(
         effectId: string,
         params: Record<string, unknown>,
       ) => {
-        const effectsBridge = getEffectsBridge();
-        if (!effectsBridge.isInitialized()) {
-          console.error("EffectsBridge not initialized");
+        const { project } = get();
+        let hasUpdatedEffect = false;
+
+        const updatedProject = updateProjectClip(project, clipId, (clip) => ({
+          ...clip,
+          effects: clip.effects.map((effect) => {
+            if (effect.id !== effectId) {
+              return effect;
+            }
+
+            hasUpdatedEffect = true;
+            return {
+              ...effect,
+              params: { ...effect.params, ...params },
+            };
+          }),
+        }));
+
+        if (!updatedProject || !hasUpdatedEffect) {
+          console.error("Failed to update video effect: effect not found");
           return null;
         }
 
-        const result = effectsBridge.updateVideoEffect(
-          clipId,
-          effectId,
-          params,
-        );
-        if (!result.success) {
-          console.error("Failed to update video effect:", result.error);
-          return null;
-        }
+        syncClipEffectsBridge(updatedProject, clipId);
+        set({ project: updatedProject });
 
-        const effect = effectsBridge.getEffect(clipId, effectId);
-        if (effect) {
-          const { project } = get();
-          const updatedTracks = project.timeline.tracks.map((track) => ({
-            ...track,
-            clips: track.clips.map((clip) => {
-              if (clip.id === clipId) {
-                const updatedEffects = clip.effects.map((e) =>
-                  e.id === effectId
-                    ? { ...e, params: { ...e.params, ...params } }
-                    : e,
-                );
-                return { ...clip, effects: updatedEffects };
-              }
-              return clip;
-            }),
-          }));
-
-          set({
-            project: {
-              ...project,
-              timeline: { ...project.timeline, tracks: updatedTracks },
-              modifiedAt: Date.now(),
-            },
-          });
-        }
-        return effect || null;
+        return getEffectsBridge().getEffect(clipId, effectId) || null;
       },
 
       /**
@@ -3875,20 +4237,27 @@ export const useProjectStore = create<ProjectState>()(
        * Restore clip to previous state when effect removed
        */
       removeVideoEffect: (clipId: string, effectId: string) => {
-        const effectsBridge = getEffectsBridge();
-        if (!effectsBridge.isInitialized()) {
-          console.error("EffectsBridge not initialized");
+        const { project } = get();
+        let hasRemovedEffect = false;
+
+        const updatedProject = updateProjectClip(project, clipId, (clip) => ({
+          ...clip,
+          effects: clip.effects.filter((effect) => {
+            const shouldKeep = effect.id !== effectId;
+            if (!shouldKeep) {
+              hasRemovedEffect = true;
+            }
+            return shouldKeep;
+          }),
+        }));
+
+        if (!updatedProject || !hasRemovedEffect) {
+          console.error("Failed to remove video effect: effect not found");
           return false;
         }
 
-        const result = effectsBridge.removeVideoEffect(clipId, effectId);
-        if (!result.success) {
-          console.error("Failed to remove video effect:", result.error);
-          return false;
-        }
-
-        // Trigger re-render by updating project state
-        set({ project: { ...get().project, modifiedAt: Date.now() } });
+        syncClipEffectsBridge(updatedProject, clipId);
+        set({ project: updatedProject });
         return true;
       },
 
@@ -3897,20 +4266,36 @@ export const useProjectStore = create<ProjectState>()(
        * Update effect order in clip's effect list
        */
       reorderVideoEffects: (clipId: string, effectIds: string[]) => {
-        const effectsBridge = getEffectsBridge();
-        if (!effectsBridge.isInitialized()) {
-          console.error("EffectsBridge not initialized");
+        const { project, getClip } = get();
+        const clip = getClip(clipId);
+        if (!clip) {
+          console.error("Failed to reorder video effects: clip not found");
           return false;
         }
 
-        const result = effectsBridge.reorderEffects(clipId, effectIds);
-        if (!result.success) {
-          console.error("Failed to reorder video effects:", result.error);
+        const effectMap = new Map(clip.effects.map((effect) => [effect.id, effect]));
+        const reorderedIds = new Set(effectIds);
+        if (
+          effectIds.length !== clip.effects.length ||
+          reorderedIds.size !== clip.effects.length ||
+          effectIds.some((effectId) => !effectMap.has(effectId))
+        ) {
+          console.error("Failed to reorder video effects: invalid effect order");
           return false;
         }
 
-        // Trigger re-render by updating project state
-        set({ project: { ...get().project, modifiedAt: Date.now() } });
+        const updatedProject = updateProjectClip(project, clipId, (currentClip) => ({
+          ...currentClip,
+          effects: effectIds.map((effectId) => effectMap.get(effectId)!),
+        }));
+
+        if (!updatedProject) {
+          console.error("Failed to reorder video effects: clip not found");
+          return false;
+        }
+
+        syncClipEffectsBridge(updatedProject, clipId);
+        set({ project: updatedProject });
         return true;
       },
 
@@ -3923,46 +4308,65 @@ export const useProjectStore = create<ProjectState>()(
         effectId: string,
         enabled: boolean,
       ) => {
-        const effectsBridge = getEffectsBridge();
-        if (!effectsBridge.isInitialized()) {
-          console.error("EffectsBridge not initialized");
+        const { project } = get();
+        let hasToggledEffect = false;
+
+        const updatedProject = updateProjectClip(project, clipId, (clip) => ({
+          ...clip,
+          effects: clip.effects.map((effect) => {
+            if (effect.id !== effectId) {
+              return effect;
+            }
+
+            hasToggledEffect = true;
+            return { ...effect, enabled };
+          }),
+        }));
+
+        if (!updatedProject || !hasToggledEffect) {
+          console.error("Failed to toggle video effect: effect not found");
           return null;
         }
 
-        const result = effectsBridge.toggleEffect(clipId, effectId, enabled);
-        if (!result.success) {
-          console.error("Failed to toggle video effect:", result.error);
-          return null;
-        }
+        syncClipEffectsBridge(updatedProject, clipId);
+        set({ project: updatedProject });
 
-        const effect = effectsBridge.getEffect(clipId, effectId);
-        if (effect) {
-          // Trigger re-render by updating project state
-          set({ project: { ...get().project, modifiedAt: Date.now() } });
-        }
-        return effect || null;
+        return getEffectsBridge().getEffect(clipId, effectId) || null;
       },
 
       /**
        * Get all video effects for a clip
        */
       getVideoEffects: (clipId: string) => {
+        const { project } = get();
+        const clip = project.timeline.tracks
+          .flatMap((track) => track.clips)
+          .find((candidate) => candidate.id === clipId);
+        const timelineEffects = clip
+          ? mapClipEffectsToVideoEffects(clip.effects)
+          : [];
+
         const effectsBridge = getEffectsBridge();
         if (!effectsBridge.isInitialized()) {
-          return [];
+          return timelineEffects;
         }
-        return effectsBridge.getEffects(clipId);
+
+        const bridgeEffects = effectsBridge.getEffects(clipId);
+        if (bridgeEffects.length === 0 && timelineEffects.length > 0) {
+          syncClipEffectsBridge(project, clipId);
+          return effectsBridge.getEffects(clipId);
+        }
+
+        return bridgeEffects.length > 0 ? bridgeEffects : timelineEffects;
       },
 
       /**
        * Get a specific video effect by ID
        */
       getVideoEffect: (clipId: string, effectId: string) => {
-        const effectsBridge = getEffectsBridge();
-        if (!effectsBridge.isInitialized()) {
-          return undefined;
-        }
-        return effectsBridge.getEffect(clipId, effectId);
+        return get()
+          .getVideoEffects(clipId)
+          .find((effect) => effect.id === effectId);
       },
 
       // Color grading actions

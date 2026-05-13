@@ -1013,7 +1013,7 @@ export const InspectorPanel: React.FC = () => {
               clipType === "svg" ||
               clipType === "sticker") && (
               <Section
-                title="Entry/Exit Transitions"
+                title="Transitions"
                 sectionId="transitions"
                 defaultOpen={false}
               >

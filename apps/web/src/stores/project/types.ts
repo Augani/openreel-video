@@ -4,6 +4,7 @@ import type {
   MediaItem,
   Track,
   Clip,
+  Transition,
   Action,
   ActionResult,
   TextClip,
@@ -111,6 +112,17 @@ export interface ProjectState {
     trimStart: boolean,
   ) => Promise<ActionResult>;
   getClip: (clipId: string) => Clip | undefined;
+  addClipTransition: (transition: Transition) => Transition | null;
+  updateClipTransition: (
+    transitionId: string,
+    updates: Partial<Pick<Transition, "type" | "duration" | "params">>,
+  ) => Transition | null;
+  removeClipTransition: (transitionId: string) => boolean;
+  getClipTransition: (transitionId: string) => Transition | undefined;
+  getClipTransitionBetweenClips: (
+    clipAId: string,
+    clipBId: string,
+  ) => Transition | undefined;
   updateClipTransform: (
     clipId: string,
     transform: Partial<Transform>,

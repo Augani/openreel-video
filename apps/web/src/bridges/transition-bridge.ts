@@ -264,6 +264,16 @@ export class TransitionBridge {
     return this.trackTransitions.get(trackId) || [];
   }
 
+  setTransitionsForTrack(trackId: string, transitions: Transition[]): void {
+    this.trackTransitions.set(
+      trackId,
+      transitions.map((transition) => ({
+        ...transition,
+        params: { ...transition.params },
+      })),
+    );
+  }
+
   /**
    * Get transition between two specific clips
    *

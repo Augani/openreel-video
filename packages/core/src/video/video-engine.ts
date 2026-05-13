@@ -754,7 +754,7 @@ export class VideoEngine {
               }
             }
 
-            if (clip.effects && clip.effects.length > 0) {
+            if (clipInfo.effects && clipInfo.effects.length > 0) {
               try {
                 if (!this.effectsEngine) {
                   this.effectsEngine = new VideoEffectsEngine({
@@ -771,7 +771,7 @@ export class VideoEngine {
                 }
                 const effectsResult = await this.effectsEngine.applyEffects(
                   processedBitmap,
-                  clip.effects,
+                  clipInfo.effects,
                 );
                 if (processedBitmap !== bitmap) {
                   processedBitmap.close();

@@ -1,6 +1,108 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { useProjectStore } from "./project-store";
-import type { Project, Clip, MediaItem } from "@openreel/core";
+import type { Project, Clip, MediaItem, Transition } from "@openreel/core";
+
+const {
+  mockEffectsBridge,
+  mockEffectsBridgeState,
+  mockTransitionBridge,
+  mockTransitionBridgeState,
+} = vi.hoisted(() => {
+  const clipEffects = new Map<string, Array<{
+    id: string;
+    type: string;
+    enabled: boolean;
+    params: Record<string, unknown>;
+    order: number;
+  }>>();
+
+  const getDefaultParams = (effectType: string): Record<string, unknown> => {
+    switch (effectType) {
+      case "brightness":
+        return { value: 0 };
+      case "contrast":
+        return { value: 1 };
+      case "saturation":
+        return { value: 1 };
+      case "blur":
+        return { radius: 0, type: "gaussian" };
+      default:
+        return {};
+    }
+  };
+
+  const effectsBridge = {
+    isInitialized: vi.fn(() => true),
+    applyVideoEffect: vi.fn(
+      (clipId: string, effectType: string, params: Record<string, unknown> = {}) => {
+        const effects = clipEffects.get(clipId) || [];
+        const effect = {
+          id: `effect-${effects.length + 1}`,
+          type: effectType,
+          enabled: true,
+          params: { ...getDefaultParams(effectType), ...params },
+          order: effects.length,
+        };
+        clipEffects.set(clipId, [...effects, effect]);
+        return { success: true, effectId: effect.id };
+      },
+    ),
+    getEffects: vi.fn((clipId: string) => [...(clipEffects.get(clipId) || [])]),
+    getEffect: vi.fn((clipId: string, effectId: string) =>
+      (clipEffects.get(clipId) || []).find((effect) => effect.id === effectId),
+    ),
+    deserializeEffects: vi.fn(
+      (
+        clipId: string,
+        data: {
+          effects: Array<{
+            id: string;
+            type: string;
+            enabled: boolean;
+            params: Record<string, unknown>;
+            order: number;
+          }>;
+        },
+      ) => {
+        clipEffects.set(
+          clipId,
+          data.effects.map((effect) => ({ ...effect })),
+        );
+        return { success: true };
+      },
+    ),
+    clearEffects: vi.fn((clipId: string) => {
+      clipEffects.delete(clipId);
+    }),
+    getColorGrading: vi.fn(() => ({})),
+  };
+
+  const trackTransitions = new Map<string, Transition[]>();
+  const transitionBridge = {
+    isInitialized: vi.fn(() => true),
+    setTransitionsForTrack: vi.fn(
+      (trackId: string, transitions: Transition[]) => {
+        trackTransitions.set(
+          trackId,
+          transitions.map((transition) => ({
+            ...transition,
+            params: { ...transition.params },
+          })),
+        );
+      },
+    ),
+    clearTransitionsForTrack: vi.fn((trackId: string) => {
+      trackTransitions.delete(trackId);
+    }),
+  };
+
+  return {
+    mockEffectsBridge: effectsBridge,
+    mockEffectsBridgeState: { clipEffects },
+    mockTransitionBridge: transitionBridge,
+    mockTransitionBridgeState: { trackTransitions },
+  };
+});
 
 vi.mock("../services/auto-save", () => ({
   autoSaveManager: {
@@ -33,8 +135,18 @@ vi.mock("../bridges/media-bridge", () => ({
   initializeMediaBridge: vi.fn().mockResolvedValue(undefined),
 }));
 
+vi.mock("../bridges/effects-bridge", () => ({
+  getEffectsBridge: vi.fn(() => mockEffectsBridge),
+}));
+
+vi.mock("../bridges/transition-bridge", () => ({
+  getTransitionBridge: vi.fn(() => mockTransitionBridge),
+}));
+
 describe("ProjectStore", () => {
   beforeEach(() => {
+    mockEffectsBridgeState.clipEffects.clear();
+    mockTransitionBridgeState.trackTransitions.clear();
     useProjectStore.getState().createNewProject();
   });
 
@@ -493,6 +605,256 @@ describe("ProjectStore", () => {
 
       const duration = useProjectStore.getState().getTimelineDuration();
       expect(duration).toBe(15);
+    });
+  });
+
+  describe("video effects", () => {
+    const createProjectWithVideoClip = (): Project => ({
+      id: "effects-project",
+      name: "Effects Project",
+      createdAt: Date.now(),
+      modifiedAt: Date.now(),
+      settings: {
+        width: 1920,
+        height: 1080,
+        frameRate: 30,
+        sampleRate: 48000,
+        channels: 2,
+      },
+      mediaLibrary: { items: [] },
+      timeline: {
+        tracks: [
+          {
+            id: "video-track-1",
+            type: "video",
+            name: "Video",
+            clips: [
+              {
+                id: "video-clip-1",
+                mediaId: "video-media-1",
+                trackId: "video-track-1",
+                startTime: 0,
+                duration: 8,
+                inPoint: 0,
+                outPoint: 8,
+                effects: [],
+                audioEffects: [],
+                transform: {
+                  position: { x: 0.5, y: 0.5 },
+                  scale: { x: 1, y: 1 },
+                  rotation: 0,
+                  anchor: { x: 0.5, y: 0.5 },
+                  opacity: 1,
+                },
+                volume: 1,
+                keyframes: [],
+              },
+            ],
+            transitions: [],
+            locked: false,
+            hidden: false,
+            muted: false,
+            solo: false,
+          },
+        ],
+        subtitles: [],
+        duration: 8,
+        markers: [],
+      },
+    });
+
+    it("should persist video effects to the clip timeline state", () => {
+      useProjectStore.getState().loadProject(createProjectWithVideoClip());
+
+      const addedEffect = useProjectStore
+        .getState()
+        .addVideoEffect("video-clip-1", "brightness", { value: 15 });
+
+      expect(addedEffect).not.toBeNull();
+      expect(useProjectStore.getState().getClip("video-clip-1")?.effects).toEqual([
+        {
+          id: addedEffect!.id,
+          type: "brightness",
+          enabled: true,
+          params: { value: 15 },
+        },
+      ]);
+      expect(useProjectStore.getState().getVideoEffects("video-clip-1")).toHaveLength(1);
+    });
+
+    it("should keep clip effects synchronized across update, toggle, reorder, and remove", () => {
+      useProjectStore.getState().loadProject(createProjectWithVideoClip());
+
+      const brightness = useProjectStore
+        .getState()
+        .addVideoEffect("video-clip-1", "brightness", { value: 10 });
+      const contrast = useProjectStore
+        .getState()
+        .addVideoEffect("video-clip-1", "contrast", { value: 1.2 });
+
+      expect(brightness).not.toBeNull();
+      expect(contrast).not.toBeNull();
+
+      const updated = useProjectStore
+        .getState()
+        .updateVideoEffect("video-clip-1", brightness!.id, { value: 20 });
+      const toggled = useProjectStore
+        .getState()
+        .toggleVideoEffect("video-clip-1", brightness!.id, false);
+      const reordered = useProjectStore
+        .getState()
+        .reorderVideoEffects("video-clip-1", [contrast!.id, brightness!.id]);
+      const removed = useProjectStore
+        .getState()
+        .removeVideoEffect("video-clip-1", contrast!.id);
+
+      expect(updated?.params).toEqual({ value: 20 });
+      expect(toggled?.enabled).toBe(false);
+      expect(reordered).toBe(true);
+      expect(removed).toBe(true);
+      expect(useProjectStore.getState().getClip("video-clip-1")?.effects).toEqual([
+        {
+          id: brightness!.id,
+          type: "brightness",
+          enabled: false,
+          params: { value: 20 },
+        },
+      ]);
+    });
+  });
+
+  describe("clip transitions", () => {
+    const createProjectWithAdjacentClips = (): Project => ({
+      id: "transition-project",
+      name: "Transition Project",
+      createdAt: Date.now(),
+      modifiedAt: Date.now(),
+      settings: {
+        width: 1920,
+        height: 1080,
+        frameRate: 30,
+        sampleRate: 48000,
+        channels: 2,
+      },
+      mediaLibrary: { items: [] },
+      timeline: {
+        tracks: [
+          {
+            id: "video-track-1",
+            type: "video",
+            name: "Video",
+            clips: [
+              {
+                id: "clip-a",
+                mediaId: "video-a",
+                trackId: "video-track-1",
+                startTime: 0,
+                duration: 4,
+                inPoint: 0,
+                outPoint: 4,
+                effects: [],
+                audioEffects: [],
+                transform: {
+                  position: { x: 0.5, y: 0.5 },
+                  scale: { x: 1, y: 1 },
+                  rotation: 0,
+                  anchor: { x: 0.5, y: 0.5 },
+                  opacity: 1,
+                },
+                volume: 1,
+                keyframes: [],
+              },
+              {
+                id: "clip-b",
+                mediaId: "video-b",
+                trackId: "video-track-1",
+                startTime: 4,
+                duration: 4,
+                inPoint: 0,
+                outPoint: 4,
+                effects: [],
+                audioEffects: [],
+                transform: {
+                  position: { x: 0.5, y: 0.5 },
+                  scale: { x: 1, y: 1 },
+                  rotation: 0,
+                  anchor: { x: 0.5, y: 0.5 },
+                  opacity: 1,
+                },
+                volume: 1,
+                keyframes: [],
+              },
+            ],
+            transitions: [],
+            locked: false,
+            hidden: false,
+            muted: false,
+            solo: false,
+          },
+        ],
+        subtitles: [],
+        duration: 8,
+        markers: [],
+      },
+    });
+
+    it("should persist adjacent clip transitions and mirror them into the transition bridge", () => {
+      useProjectStore.getState().loadProject(createProjectWithAdjacentClips());
+
+      const transition: Transition = {
+        id: "transition-1",
+        clipAId: "clip-a",
+        clipBId: "clip-b",
+        type: "crossfade",
+        duration: 0.5,
+        params: { curve: "ease" },
+      };
+
+      const addedTransition = useProjectStore
+        .getState()
+        .addClipTransition(transition);
+      const updatedTransition = useProjectStore
+        .getState()
+        .updateClipTransition("transition-1", {
+          duration: 0.75,
+          params: { curve: "linear" },
+        });
+
+      expect(addedTransition).toEqual(transition);
+      expect(useProjectStore.getState().getClipTransitionBetweenClips("clip-a", "clip-b")).toEqual({
+        id: "transition-1",
+        clipAId: "clip-a",
+        clipBId: "clip-b",
+        type: "crossfade",
+        duration: 0.75,
+        params: { curve: "linear" },
+      });
+      expect(updatedTransition).toEqual({
+        id: "transition-1",
+        clipAId: "clip-a",
+        clipBId: "clip-b",
+        type: "crossfade",
+        duration: 0.75,
+        params: { curve: "linear" },
+      });
+      expect(mockTransitionBridgeState.trackTransitions.get("video-track-1")).toEqual([
+        {
+          id: "transition-1",
+          clipAId: "clip-a",
+          clipBId: "clip-b",
+          type: "crossfade",
+          duration: 0.75,
+          params: { curve: "linear" },
+        },
+      ]);
+
+      const removedTransition = useProjectStore
+        .getState()
+        .removeClipTransition("transition-1");
+
+      expect(removedTransition).toBe(true);
+      expect(useProjectStore.getState().getClipTransition("transition-1")).toBeUndefined();
+      expect(mockTransitionBridgeState.trackTransitions.get("video-track-1")).toEqual([]);
     });
   });
 
