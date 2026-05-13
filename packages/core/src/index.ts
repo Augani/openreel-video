@@ -10,6 +10,7 @@ export * from "./playback";
 export * from "./text";
 export * from "./graphics";
 export * from "./photo";
+export * from "./editing-templates";
 export * from "./template";
 export * from "./ai";
 export * from "./animation";
