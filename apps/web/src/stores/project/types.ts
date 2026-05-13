@@ -24,6 +24,10 @@ import type {
   Keyframe,
   Transform,
   Subtitle,
+  AppliedEditingTemplate,
+  EditingTemplate,
+  EditingTemplatePrimitive,
+  ResolvedEditingTemplateOverlay,
 } from "@openreel/core";
 import { ActionExecutor, ActionHistory } from "@openreel/core";
 import type {
@@ -37,11 +41,43 @@ export type ClipHistoryEntryType = "shape" | "text" | "svg" | "sticker";
 
 export interface ClipHistoryEntry {
   type: ClipHistoryEntryType;
+  timestamp: number;
   clipId: string;
   trackId: string;
   clipData: ShapeClip | TextClip | SVGClip | StickerClip;
   hadEmptyTrackUndo?: boolean;
   trackType?: "video" | "audio" | "image" | "text" | "graphics";
+}
+
+export interface EditingTemplateTrackSnapshot {
+  track: Track;
+  position: number;
+}
+
+export interface EditingTemplateOverlayPlacement {
+  trackId: string;
+  overlay: ResolvedEditingTemplateOverlay;
+}
+
+export interface EditingTemplateApplicationState {
+  ownerClipId: string;
+  templateId: string;
+  applicationId: string;
+  appliedTemplate: AppliedEditingTemplate;
+  addedEffects: Effect[];
+  addedAudioEffects: Effect[];
+  addedKeyframes: Keyframe[];
+  overlays: EditingTemplateOverlayPlacement[];
+  trackSnapshots: EditingTemplateTrackSnapshot[];
+}
+
+export interface EditingTemplateHistoryEntry
+  extends EditingTemplateApplicationState {
+  type: "editing-template";
+  mode: "apply" | "update";
+  timestamp: number;
+  description: string;
+  previousState?: EditingTemplateApplicationState;
 }
 
 export interface ProjectState {
@@ -51,6 +87,8 @@ export interface ProjectState {
   actionHistory: ActionHistory;
   clipUndoStack: ClipHistoryEntry[];
   clipRedoStack: ClipHistoryEntry[];
+  templateUndoStack: EditingTemplateHistoryEntry[];
+  templateRedoStack: EditingTemplateHistoryEntry[];
   isLoading: boolean;
   error: string | null;
   clipboard: Clip[];
@@ -133,6 +171,23 @@ export interface ProjectState {
   duplicateClip: (clipId: string) => Promise<ActionResult>;
   copyEffects: (clipId: string) => void;
   pasteEffects: (clipId: string) => Promise<ActionResult>;
+
+  getEditingTemplates: () => EditingTemplate[];
+  getEditingTemplate: (templateId: string) => EditingTemplate | undefined;
+  applyEditingTemplate: (
+    templateId: string,
+    clipId: string,
+    overrides?: Record<string, EditingTemplatePrimitive>,
+  ) => string | null;
+  updateEditingTemplateApplication: (
+    clipId: string,
+    applicationId: string,
+    overrides?: Record<string, EditingTemplatePrimitive>,
+  ) => boolean;
+  removeEditingTemplateApplication: (
+    clipId: string,
+    applicationId: string,
+  ) => boolean;
 
   createTextClip: (
     trackId: string,

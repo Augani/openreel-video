@@ -1,4 +1,4 @@
-import type { Transform, Keyframe } from "../types/timeline";
+import type { Transform, Keyframe, ClipMetadata } from "../types/timeline";
 import type { Point2D } from "../video/transform-animator";
 
 // Re-export Point2D for convenience
@@ -15,6 +15,7 @@ export interface GraphicClip {
   readonly blendMode?: import("../video/types").BlendMode;
   readonly blendOpacity?: number;
   readonly emphasisAnimation?: EmphasisAnimation;
+  readonly metadata?: ClipMetadata;
 }
 
 export type GraphicType = "shape" | "svg" | "sticker" | "emoji";
@@ -261,12 +262,14 @@ export interface GraphicRenderResult {
 }
 
 export interface CreateShapeParams {
+  readonly id?: string;
   readonly shapeType: ShapeType;
   readonly width: number;
   readonly height: number;
   readonly style?: Partial<ShapeStyle>;
   readonly arrowProps?: ArrowProperties;
   readonly points?: Point2D[];
+  readonly metadata?: ClipMetadata;
 }
 
 export interface SVGImportResult {

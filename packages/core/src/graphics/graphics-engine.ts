@@ -19,7 +19,7 @@ import type {
   EmphasisAnimation,
 } from "./types";
 import { DEFAULT_SHAPE_STYLE, DEFAULT_GRAPHIC_TRANSFORM } from "./types";
-import type { Transform, Keyframe } from "../types/timeline";
+import type { Transform, Keyframe, ClipMetadata } from "../types/timeline";
 import { AnimationEngine } from "../video/animation-engine";
 
 interface AnimatedGraphicState {
@@ -78,7 +78,7 @@ export class GraphicsEngine {
     startTime: number,
     duration: number,
   ): ShapeClip {
-    const id = this.generateId();
+    const id = params.id || this.generateId();
     const style: ShapeStyle = {
       ...DEFAULT_SHAPE_STYLE,
       ...params.style,
@@ -97,6 +97,7 @@ export class GraphicsEngine {
       transform: { ...DEFAULT_GRAPHIC_TRANSFORM },
       keyframes: [],
       points: params.points,
+      metadata: params.metadata,
     };
 
     this.shapeClips.set(id, shapeClip);
@@ -265,6 +266,7 @@ export class GraphicsEngine {
       startTime?: number;
       duration?: number;
       transform?: Partial<Transform>;
+      keyframes?: Keyframe[];
       blendMode?: import("../video/types").BlendMode;
       blendOpacity?: number;
       emphasisAnimation?: EmphasisAnimation;
@@ -280,6 +282,7 @@ export class GraphicsEngine {
       transform: updates.transform
         ? { ...existing.transform, ...updates.transform }
         : existing.transform,
+      keyframes: updates.keyframes ?? existing.keyframes,
       blendMode: updates.blendMode ?? existing.blendMode,
       blendOpacity: updates.blendOpacity ?? existing.blendOpacity,
       emphasisAnimation:
@@ -322,9 +325,10 @@ export class GraphicsEngine {
     trackId: string,
     startTime: number,
     duration: number,
+    options?: { id?: string; metadata?: ClipMetadata },
   ): SVGClip {
     const parsed = this.parseSVG(svgContent);
-    const id = this.generateId();
+    const id = options?.id || this.generateId();
 
     const svgClip: SVGClip = {
       id,
@@ -352,6 +356,7 @@ export class GraphicsEngine {
         duration: 0.5,
         easing: "ease-in",
       },
+      metadata: options?.metadata,
     };
 
     this.svgClips.set(id, svgClip);
@@ -1793,6 +1798,7 @@ export class GraphicsEngine {
       startTime?: number;
       duration?: number;
       transform?: Partial<Transform>;
+      keyframes?: Keyframe[];
       entryAnimation?: GraphicAnimation;
       exitAnimation?: GraphicAnimation;
       colorStyle?: SVGColorStyle;
@@ -1814,6 +1820,7 @@ export class GraphicsEngine {
       transform: updates.transform
         ? { ...existing.transform, ...updates.transform }
         : existing.transform,
+      keyframes: updates.keyframes ?? existing.keyframes,
       entryAnimation: updates.entryAnimation ?? existing.entryAnimation,
       exitAnimation: updates.exitAnimation ?? existing.exitAnimation,
       colorStyle: updates.colorStyle ?? existing.colorStyle,
@@ -1929,6 +1936,7 @@ export class GraphicsEngine {
       startTime?: number;
       duration?: number;
       transform?: Partial<Transform>;
+      keyframes?: Keyframe[];
       blendMode?: import("../video/types").BlendMode;
       blendOpacity?: number;
       emphasisAnimation?: EmphasisAnimation;
@@ -1947,6 +1955,7 @@ export class GraphicsEngine {
       transform: updates.transform
         ? { ...existing.transform, ...updates.transform }
         : existing.transform,
+      keyframes: updates.keyframes ?? existing.keyframes,
       blendMode: updates.blendMode ?? existing.blendMode,
       blendOpacity: updates.blendOpacity ?? existing.blendOpacity,
       emphasisAnimation:

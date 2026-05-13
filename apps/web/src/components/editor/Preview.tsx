@@ -362,6 +362,7 @@ interface ClipWithPlaceholder {
 export const Preview: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const videoAreaRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
   const animationRef = useRef<number | null>(null);
   const renderBridgeInitialized = useRef<boolean>(false);
@@ -428,6 +429,7 @@ export const Preview: React.FC = () => {
   const [isMuted, setIsMuted] = useState(false);
   const [isRenderBridgeReady, setIsRenderBridgeReady] = useState(false);
   const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
+  const [videoAreaSize, setVideoAreaSize] = useState({ width: 0, height: 0 });
   const [rendererType, setRendererType] = useState<string>("none");
   const [isMaximized, setIsMaximized] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -586,6 +588,21 @@ export const Preview: React.FC = () => {
     return () => resizeObserver.disconnect();
   }, []);
 
+  useEffect(() => {
+    const videoArea = videoAreaRef.current;
+    if (!videoArea) return;
+
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const { width, height } = entry.contentRect;
+        setVideoAreaSize({ width, height });
+      }
+    });
+
+    resizeObserver.observe(videoArea);
+    return () => resizeObserver.disconnect();
+  }, []);
+
   // Project store - subscribe to the entire project to ensure re-renders
   // when any part of the project changes (including clips)
   const project = useProjectStore((state) => state.project);
@@ -623,6 +640,29 @@ export const Preview: React.FC = () => {
   );
   const timelineTracks = project.timeline.tracks;
   const settings = project.settings;
+
+  const previewFrameSize = useMemo(() => {
+    if (videoAreaSize.width <= 0 || videoAreaSize.height <= 0) {
+      return { width: 0, height: 0 };
+    }
+
+    const aspectRatio = settings.width / settings.height;
+    const availableWidth = Math.min(videoAreaSize.width, 800);
+    const availableHeight = Math.min(videoAreaSize.height, 450);
+
+    let width = availableWidth;
+    let height = width / aspectRatio;
+
+    if (height > availableHeight) {
+      height = availableHeight;
+      width = height * aspectRatio;
+    }
+
+    return {
+      width: width * zoomLevel,
+      height: height * zoomLevel,
+    };
+  }, [settings.height, settings.width, videoAreaSize, zoomLevel]);
 
   // Keep a ref to timelineTracks for use in playback effect without causing re-runs
   const timelineTracksRef = useRef(timelineTracks);
@@ -5407,7 +5447,7 @@ export const Preview: React.FC = () => {
     <div
       ref={containerRef}
       data-tour="preview"
-      className="flex-1 bg-background flex flex-col relative group overflow-hidden"
+      className="flex-1 min-h-0 min-w-0 bg-background flex flex-col relative group overflow-hidden"
     >
       {/* Crop Mode View - Full Screen Overlay */}
       {shouldShowCropMode && (
@@ -5426,7 +5466,8 @@ export const Preview: React.FC = () => {
 
       {/* Video Area */}
       <div
-        className={`flex-1 relative flex items-center justify-center bg-background-secondary/30 transition-all duration-300 ${
+        ref={videoAreaRef}
+        className={`flex-1 min-h-0 min-w-0 relative flex items-center justify-center bg-background-secondary/30 transition-all duration-300 ${
           isMaximized || isFullscreen ? "p-0" : "p-4"
         } ${zoomLevel > 1 ? "overflow-auto" : ""}`}
         onMouseMove={interactionMode !== "none" ? handleMouseMove : undefined}
@@ -5447,9 +5488,10 @@ export const Preview: React.FC = () => {
                   maxWidth: "none",
                 }
               : {
-                  height: `${450 * zoomLevel}px`,
-                  width: `calc(${450 * zoomLevel}px * ${settings.width} / ${settings.height})`,
-                  maxWidth: `${800 * zoomLevel}px`,
+                  width: `${previewFrameSize.width}px`,
+                  height: `${previewFrameSize.height}px`,
+                  maxWidth: "100%",
+                  maxHeight: "100%",
                 }
           }
           onMouseMove={!isPlaying ? handleGraphicsMouseMove : undefined}

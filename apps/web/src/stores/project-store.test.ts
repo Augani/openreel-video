@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { useProjectStore } from "./project-store";
+import { useEngineStore } from "./engine-store";
 import type { Project, Clip, MediaItem, Transition } from "@openreel/core";
 
 const {
@@ -720,6 +721,326 @@ describe("ProjectStore", () => {
           params: { value: 20 },
         },
       ]);
+    });
+  });
+
+  describe("editing templates", () => {
+    const createProjectWithEditableClip = (): Project => {
+      const mediaItem: MediaItem = {
+        id: "video-media-1",
+        name: "hero-shot.mp4",
+        type: "video",
+        fileHandle: null,
+        blob: null,
+        metadata: {
+          duration: 10,
+          width: 1920,
+          height: 1080,
+          frameRate: 30,
+          codec: "h264",
+          sampleRate: 48000,
+          channels: 2,
+          fileSize: 1000000,
+        },
+        thumbnailUrl: null,
+        waveformData: null,
+      };
+
+      const clip: Clip = {
+        id: "video-clip-1",
+        mediaId: mediaItem.id,
+        trackId: "video-track-1",
+        startTime: 0,
+        duration: 10,
+        inPoint: 0,
+        outPoint: 10,
+        effects: [],
+        audioEffects: [],
+        transform: {
+          position: { x: 0.5, y: 0.5 },
+          scale: { x: 1, y: 1 },
+          rotation: 0,
+          anchor: { x: 0.5, y: 0.5 },
+          opacity: 1,
+        },
+        volume: 1,
+        keyframes: [],
+      };
+
+      return {
+        id: "editing-template-project",
+        name: "Editing Template Project",
+        createdAt: Date.now(),
+        modifiedAt: Date.now(),
+        settings: {
+          width: 1920,
+          height: 1080,
+          frameRate: 30,
+          sampleRate: 48000,
+          channels: 2,
+        },
+        mediaLibrary: { items: [mediaItem] },
+        timeline: {
+          tracks: [
+            {
+              id: "video-track-1",
+              type: "video",
+              name: "Video",
+              clips: [clip],
+              transitions: [],
+              locked: false,
+              hidden: false,
+              muted: false,
+              solo: false,
+            },
+          ],
+          subtitles: [],
+          duration: 10,
+          markers: [],
+        },
+      };
+    };
+
+    beforeEach(() => {
+      const titleEngine = useEngineStore.getState().getTitleEngine();
+      const graphicsEngine = useEngineStore.getState().getGraphicsEngine();
+
+      titleEngine?.loadTextClips([]);
+      graphicsEngine?.loadShapeClips([]);
+      graphicsEngine?.loadSVGClips([]);
+      graphicsEngine?.loadStickerClips([]);
+    });
+
+    const getRecipeTextValues = (applicationId: string): string[] =>
+      (useEngineStore.getState().getTitleEngine()?.getAllTextClips() || [])
+        .filter(
+          (clip) => clip.metadata?.templateSource?.applicationId === applicationId,
+        )
+        .map((clip) => clip.text)
+        .sort();
+
+    it("applies a clip-scoped recipe and records metadata plus overlays", () => {
+      useProjectStore.getState().loadProject(createProjectWithEditableClip());
+
+      const applicationId = useProjectStore.getState().applyEditingTemplate(
+        "branding-lower-third",
+        "video-clip-1",
+        {
+          name: "Ada Lovelace",
+          role: "Director",
+        },
+      );
+
+      expect(applicationId).toBeTruthy();
+
+      const clip = useProjectStore.getState().getClip("video-clip-1");
+      expect(clip?.metadata?.appliedTemplates).toEqual([
+        expect.objectContaining({
+          templateId: "branding-lower-third",
+          applicationId,
+          controlValues: expect.objectContaining({
+            name: "Ada Lovelace",
+            role: "Director",
+          }),
+        }),
+      ]);
+      expect(
+        useProjectStore
+          .getState()
+          .project.timeline.tracks.map((track) => track.type),
+      ).toEqual(["video", "graphics", "text"]);
+      expect(
+        useEngineStore.getState().getGraphicsEngine()?.getAllShapeClips(),
+      ).toHaveLength(1);
+      expect(
+        useEngineStore.getState().getTitleEngine()?.getAllTextClips(),
+      ).toHaveLength(2);
+    });
+
+    it("removes a clip-scoped recipe and cleans up its generated tracks", () => {
+      useProjectStore.getState().loadProject(createProjectWithEditableClip());
+
+      const applicationId = useProjectStore.getState().applyEditingTemplate(
+        "branding-lower-third",
+        "video-clip-1",
+      );
+
+      expect(applicationId).toBeTruthy();
+      expect(
+        useProjectStore.getState().removeEditingTemplateApplication(
+          "video-clip-1",
+          applicationId!,
+        ),
+      ).toBe(true);
+
+      const clip = useProjectStore.getState().getClip("video-clip-1");
+      expect(clip?.metadata?.appliedTemplates || []).toHaveLength(0);
+      expect(
+        useProjectStore
+          .getState()
+          .project.timeline.tracks.map((track) => track.type),
+      ).toEqual(["video"]);
+      expect(
+        useEngineStore.getState().getGraphicsEngine()?.getAllShapeClips(),
+      ).toHaveLength(0);
+      expect(
+        useEngineStore.getState().getTitleEngine()?.getAllTextClips(),
+      ).toHaveLength(0);
+    });
+
+    it("updates an applied recipe in place and keeps its application id", () => {
+      useProjectStore.getState().loadProject(createProjectWithEditableClip());
+
+      const applicationId = useProjectStore.getState().applyEditingTemplate(
+        "branding-lower-third",
+        "video-clip-1",
+        {
+          name: "Ada Lovelace",
+          role: "Director",
+        },
+      );
+
+      expect(applicationId).toBeTruthy();
+      expect(
+        useProjectStore.getState().updateEditingTemplateApplication(
+          "video-clip-1",
+          applicationId!,
+          {
+            name: "Grace Hopper",
+            role: "Engineer",
+          },
+        ),
+      ).toBe(true);
+
+      const clip = useProjectStore.getState().getClip("video-clip-1");
+      expect(clip?.metadata?.appliedTemplates).toEqual([
+        expect.objectContaining({
+          applicationId,
+          controlValues: expect.objectContaining({
+            name: "Grace Hopper",
+            role: "Engineer",
+          }),
+        }),
+      ]);
+      expect(getRecipeTextValues(applicationId!)).toEqual([
+        "Engineer",
+        "Grace Hopper",
+      ]);
+      expect(
+        useEngineStore
+          .getState()
+          .getGraphicsEngine()
+          ?.getAllShapeClips()
+          .filter(
+            (clip) => clip.metadata?.templateSource?.applicationId === applicationId,
+          ),
+      ).toHaveLength(1);
+    });
+
+    it("undos and redoes a recipe update between previous and current controls", async () => {
+      useProjectStore.getState().loadProject(createProjectWithEditableClip());
+
+      const applicationId = useProjectStore.getState().applyEditingTemplate(
+        "branding-lower-third",
+        "video-clip-1",
+        {
+          name: "Ada Lovelace",
+          role: "Director",
+        },
+      );
+
+      expect(applicationId).toBeTruthy();
+      expect(
+        useProjectStore.getState().updateEditingTemplateApplication(
+          "video-clip-1",
+          applicationId!,
+          {
+            name: "Grace Hopper",
+            role: "Engineer",
+          },
+        ),
+      ).toBe(true);
+      expect(getRecipeTextValues(applicationId!)).toEqual([
+        "Engineer",
+        "Grace Hopper",
+      ]);
+
+      await useProjectStore.getState().undo();
+      expect(getRecipeTextValues(applicationId!)).toEqual([
+        "Ada Lovelace",
+        "Director",
+      ]);
+      expect(
+        useProjectStore.getState().getClip("video-clip-1")?.metadata?.appliedTemplates,
+      ).toEqual([
+        expect.objectContaining({
+          applicationId,
+          controlValues: expect.objectContaining({
+            name: "Ada Lovelace",
+            role: "Director",
+          }),
+        }),
+      ]);
+
+      await useProjectStore.getState().redo();
+      expect(getRecipeTextValues(applicationId!)).toEqual([
+        "Engineer",
+        "Grace Hopper",
+      ]);
+      expect(
+        useProjectStore.getState().getClip("video-clip-1")?.metadata?.appliedTemplates,
+      ).toEqual([
+        expect.objectContaining({
+          applicationId,
+          controlValues: expect.objectContaining({
+            name: "Grace Hopper",
+            role: "Engineer",
+          }),
+        }),
+      ]);
+    });
+
+    it("undos newer timeline actions before undoing a recipe and can redo the recipe", async () => {
+      useProjectStore.getState().loadProject(createProjectWithEditableClip());
+
+      const applicationId = useProjectStore.getState().applyEditingTemplate(
+        "branding-lower-third",
+        "video-clip-1",
+      );
+
+      expect(applicationId).toBeTruthy();
+      expect(useProjectStore.getState().project.timeline.tracks).toHaveLength(3);
+
+      await useProjectStore.getState().addTrack("audio");
+      expect(useProjectStore.getState().project.timeline.tracks).toHaveLength(4);
+
+      await useProjectStore.getState().undo();
+      expect(useProjectStore.getState().project.timeline.tracks).toHaveLength(3);
+      expect(
+        useProjectStore.getState().getClip("video-clip-1")?.metadata?.appliedTemplates,
+      ).toHaveLength(1);
+
+      await useProjectStore.getState().undo();
+      expect(
+        useProjectStore.getState().getClip("video-clip-1")?.metadata?.appliedTemplates || [],
+      ).toHaveLength(0);
+      expect(
+        useEngineStore.getState().getGraphicsEngine()?.getAllShapeClips(),
+      ).toHaveLength(0);
+      expect(
+        useEngineStore.getState().getTitleEngine()?.getAllTextClips(),
+      ).toHaveLength(0);
+
+      await useProjectStore.getState().redo();
+      expect(
+        useProjectStore.getState().getClip("video-clip-1")?.metadata?.appliedTemplates,
+      ).toHaveLength(1);
+      expect(
+        useEngineStore.getState().getGraphicsEngine()?.getAllShapeClips(),
+      ).toHaveLength(1);
+      expect(
+        useEngineStore.getState().getTitleEngine()?.getAllTextClips(),
+      ).toHaveLength(2);
     });
   });
 

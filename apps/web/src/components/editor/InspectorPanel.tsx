@@ -1,9 +1,9 @@
-import React, { useCallback, useMemo, useState } from "react";
-import { ChevronDown, Zap, Captions, Loader2 } from "lucide-react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { ChevronDown, Zap, Captions, Loader2, Sparkles, Trash2 } from "lucide-react";
 import { useProjectStore } from "../../stores/project-store";
 import { useUIStore } from "../../stores/ui-store";
 import { useEngineStore } from "../../stores/engine-store";
-import type { Transform, FitMode, Clip } from "@openreel/core";
+import type { Transform, FitMode, Clip, EditingTemplatePrimitive } from "@openreel/core";
 import {
   ChromaKeyEngine,
   initializeTranscriptionService,
@@ -53,11 +53,16 @@ import { OPENREEL_TRANSCRIBE_URL } from "../../config/api-endpoints";
 import { AutoEditPanel } from "./panels/AutoEditPanel";
 import { HighlightExtractorPanel } from "./panels/HighlightExtractorPanel";
 import {
+  EditingTemplateControls,
+  mergeEditingTemplateControlValues,
+} from "./panels/EditingTemplateControls";
+import {
   getAudioBridgeEffects,
   initializeAudioBridgeEffects,
   DEFAULT_EQ_BANDS,
   DEFAULT_NOISE_REDUCTION,
 } from "../../bridges/audio-bridge-effects";
+import { toast } from "../../stores/notification-store";
 import {
   Input,
   LabeledSlider,
@@ -184,8 +189,16 @@ const ParticleEffectsSectionWrapper: React.FC<{
 
 export const InspectorPanel: React.FC = () => {
   // Stores
-  const { getClip, getMediaItem, addSubtitle, updateSubtitle, getSubtitle } =
-    useProjectStore();
+  const {
+    getClip,
+    getMediaItem,
+    addSubtitle,
+    updateSubtitle,
+    getSubtitle,
+    getEditingTemplate,
+    updateEditingTemplateApplication,
+    removeEditingTemplateApplication,
+  } = useProjectStore();
   const project = useProjectStore((state) => state.project);
   const { getSelectedClipIds } = useUIStore();
   const selectedItems = useUIStore((state) => state.selectedItems);
@@ -200,6 +213,15 @@ export const InspectorPanel: React.FC = () => {
   const [targetLanguage, setTargetLanguage] = useState("none");
   const [defaultAnimationStyle, setDefaultAnimationStyle] =
     useState<CaptionAnimationStyle>("word-highlight");
+  const [expandedRecipeApplicationId, setExpandedRecipeApplicationId] =
+    useState<string | null>(null);
+  const [recipeControlValues, setRecipeControlValues] = useState<
+    Record<string, Record<string, EditingTemplatePrimitive>>
+  >({});
+
+  useEffect(() => {
+    setExpandedRecipeApplicationId(null);
+  }, [selectedClipIds.join("|")]);
 
   // Check if a subtitle is selected
   const selectedSubtitleId = useMemo(() => {
@@ -213,6 +235,11 @@ export const InspectorPanel: React.FC = () => {
     if (!selectedSubtitleId) return null;
     return getSubtitle(selectedSubtitleId) || null;
   }, [selectedSubtitleId, getSubtitle, project.timeline.subtitles]);
+
+  const selectedTimelineClip = useMemo(() => {
+    if (selectedClipIds.length !== 1) return null;
+    return getClip(selectedClipIds[0]) || null;
+  }, [getClip, project.modifiedAt, selectedClipIds]);
 
   // Get selected clip (check regular clips, text clips, and shape clips)
   const selectedClip = useMemo(() => {
@@ -601,6 +628,97 @@ export const InspectorPanel: React.FC = () => {
   const showTextSection = clipType === "text";
   const showShapeSection = clipType === "shape";
   const showSVGSection = clipType === "svg";
+  const appliedEditingTemplates =
+    selectedTimelineClip?.metadata?.appliedTemplates || [];
+  const handleRecipeControlChange = useCallback(
+    (
+      applicationId: string,
+      controlId: string,
+      value: EditingTemplatePrimitive,
+    ) => {
+      setRecipeControlValues((current) => ({
+        ...current,
+        [applicationId]: {
+          ...(current[applicationId] || {}),
+          [controlId]: value,
+        },
+      }));
+    },
+    [],
+  );
+  const handleToggleRecipeControls = useCallback(
+    (applicationId: string, templateId: string, controlValues?: Record<string, unknown>) => {
+      const template = getEditingTemplate(templateId);
+      if (!template || !template.controls || template.controls.length === 0) {
+        return;
+      }
+
+      setExpandedRecipeApplicationId((current) =>
+        current === applicationId ? null : applicationId,
+      );
+      setRecipeControlValues((current) =>
+        current[applicationId]
+          ? current
+          : {
+              ...current,
+              [applicationId]: mergeEditingTemplateControlValues(
+                template,
+                controlValues,
+              ),
+            },
+      );
+    },
+    [getEditingTemplate],
+  );
+  const handleResetRecipeControls = useCallback(
+    (applicationId: string, templateId: string, controlValues?: Record<string, unknown>) => {
+      const template = getEditingTemplate(templateId);
+      if (!template) {
+        return;
+      }
+
+      setRecipeControlValues((current) => ({
+        ...current,
+        [applicationId]: mergeEditingTemplateControlValues(template, controlValues),
+      }));
+    },
+    [getEditingTemplate],
+  );
+  const handleUpdateRecipeControls = useCallback(
+    (applicationId: string, templateId: string, controlValues?: Record<string, unknown>) => {
+      if (!selectedTimelineClip) {
+        return;
+      }
+
+      const template = getEditingTemplate(templateId);
+      if (!template) {
+        toast.error("Recipe unavailable", "This recipe definition is no longer available.");
+        return;
+      }
+
+      const nextControlValues =
+        recipeControlValues[applicationId] ||
+        mergeEditingTemplateControlValues(template, controlValues);
+      const updated = updateEditingTemplateApplication(
+        selectedTimelineClip.id,
+        applicationId,
+        nextControlValues,
+      );
+
+      if (!updated) {
+        toast.error("Could not update recipe", "The recipe controls could not be saved for this clip.");
+        return;
+      }
+
+      toast.success("Recipe updated", `${template.name} was updated on this clip.`);
+    },
+    [
+      getEditingTemplate,
+      recipeControlValues,
+      selectedTimelineClip,
+      updateEditingTemplateApplication,
+    ],
+  );
   const showVideoControls = clipType === "video" || clipType === "image";
   const showTransformControls =
     clipType === "video" ||
@@ -613,7 +731,7 @@ export const InspectorPanel: React.FC = () => {
   return (
     <div
       data-tour="inspector"
-      className="w-80 bg-background-secondary border-l border-border flex flex-col overflow-y-auto h-full custom-scrollbar"
+      className="w-full min-w-0 bg-background-secondary border-l border-border flex flex-col overflow-y-auto h-full custom-scrollbar"
     >
       <div className="p-5">
         <h3 className="text-sm font-bold text-text-primary mb-5 tracking-tight">
@@ -1131,6 +1249,156 @@ export const InspectorPanel: React.FC = () => {
             {showVideoControls && (
               <Section title="Motion Tracking" sectionId="motion-tracking">
                 <MotionTrackingSection clipId={clipId} />
+              </Section>
+            )}
+
+            {showVideoControls && selectedTimelineClip && (
+              <Section
+                title="Applied Recipes"
+                sectionId="applied-recipes"
+                defaultOpen={appliedEditingTemplates.length > 0}
+              >
+                {appliedEditingTemplates.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-border bg-background-tertiary/60 px-4 py-5 text-center">
+                    <div className="mx-auto mb-2 flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                      <Sparkles size={15} />
+                    </div>
+                    <p className="text-[11px] font-medium text-text-primary">
+                      No recipes applied
+                    </p>
+                    <p className="mt-1 text-[10px] leading-5 text-text-muted">
+                      Open the Recipes tab in Assets to stack looks, overlays,
+                      and text treatments onto this clip.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {appliedEditingTemplates.map((application) => {
+                      const template = getEditingTemplate(application.templateId);
+                      const canEdit = Boolean(template?.controls?.length);
+                      const isExpanded =
+                        expandedRecipeApplicationId === application.applicationId;
+                      const currentControlValues = template
+                        ? recipeControlValues[application.applicationId] ||
+                          mergeEditingTemplateControlValues(
+                            template,
+                            application.controlValues,
+                          )
+                        : undefined;
+
+                      return (
+                        <div
+                          key={application.applicationId}
+                          className="rounded-xl border border-border bg-background-tertiary/70 px-3 py-3"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2">
+                                <Sparkles size={12} className="text-primary" />
+                                <p className="truncate text-[11px] font-semibold text-text-primary">
+                                  {application.name}
+                                </p>
+                              </div>
+                              <p className="mt-1 text-[10px] capitalize text-text-muted">
+                                {application.category
+                                  ? application.category.replace(/-/g, " ")
+                                  : "Recipe"}
+                              </p>
+                            </div>
+                            <div className="flex shrink-0 gap-2">
+                              {canEdit && (
+                                <button
+                                  onClick={() =>
+                                    handleToggleRecipeControls(
+                                      application.applicationId,
+                                      application.templateId,
+                                      application.controlValues,
+                                    )
+                                  }
+                                  className={`inline-flex h-8 items-center rounded-lg border px-2 text-[10px] font-medium transition-colors ${
+                                    isExpanded
+                                      ? "border-primary bg-primary/10 text-primary"
+                                      : "border-border bg-background-secondary text-text-secondary hover:border-primary/40 hover:text-text-primary"
+                                  }`}
+                                >
+                                  Controls
+                                </button>
+                              )}
+                              <button
+                                onClick={() => {
+                                  const removed = removeEditingTemplateApplication(
+                                    selectedTimelineClip.id,
+                                    application.applicationId,
+                                  );
+                                  if (!removed) {
+                                    toast.error("Could not remove recipe", "The recipe could not be removed from this clip.");
+                                    return;
+                                  }
+                                  setRecipeControlValues((current) => {
+                                    const next = { ...current };
+                                    delete next[application.applicationId];
+                                    return next;
+                                  });
+                                  if (
+                                    expandedRecipeApplicationId === application.applicationId
+                                  ) {
+                                    setExpandedRecipeApplicationId(null);
+                                  }
+                                }}
+                                className="inline-flex h-8 items-center gap-1 rounded-lg border border-border bg-background-secondary px-2 text-[10px] font-medium text-text-secondary transition-colors hover:border-red-500/40 hover:text-red-400"
+                              >
+                                <Trash2 size={11} />
+                                Remove
+                              </button>
+                            </div>
+                          </div>
+
+                          {isExpanded && template && currentControlValues && (
+                            <div className="mt-3 space-y-3 rounded-xl border border-border/80 bg-background-secondary/80 p-3">
+                              <EditingTemplateControls
+                                template={template}
+                                values={currentControlValues}
+                                onChange={(controlId, value) =>
+                                  handleRecipeControlChange(
+                                    application.applicationId,
+                                    controlId,
+                                    value,
+                                  )
+                                }
+                              />
+                              <div className="flex justify-end gap-2">
+                                <button
+                                  onClick={() =>
+                                    handleResetRecipeControls(
+                                      application.applicationId,
+                                      application.templateId,
+                                      application.controlValues,
+                                    )
+                                  }
+                                  className="inline-flex h-8 items-center rounded-lg border border-border bg-background-tertiary px-3 text-[10px] font-medium text-text-secondary transition-colors hover:border-primary/30 hover:text-text-primary"
+                                >
+                                  Reset
+                                </button>
+                                <button
+                                  onClick={() =>
+                                    handleUpdateRecipeControls(
+                                      application.applicationId,
+                                      application.templateId,
+                                      application.controlValues,
+                                    )
+                                  }
+                                  className="inline-flex h-8 items-center rounded-lg bg-primary px-3 text-[10px] font-semibold text-black transition-colors hover:bg-primary/85"
+                                >
+                                  Update
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </Section>
             )}
 

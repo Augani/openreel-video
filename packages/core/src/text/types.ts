@@ -1,4 +1,9 @@
-import type { Transform, Keyframe, EasingType } from "../types/timeline";
+import type {
+  Transform,
+  Keyframe,
+  EasingType,
+  ClipMetadata,
+} from "../types/timeline";
 import type { EmphasisAnimation } from "../graphics/types";
 
 export interface TextClip {
@@ -15,6 +20,7 @@ export interface TextClip {
   readonly blendOpacity?: number;
   readonly emphasisAnimation?: EmphasisAnimation;
   readonly behindSubject?: boolean;
+  readonly metadata?: ClipMetadata;
 }
 
 export interface TextStyle {
