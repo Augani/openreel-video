@@ -4197,26 +4197,33 @@ export const Preview: React.FC = () => {
   ]);
 
   const lastModifiedAtRef = useRef<number>(project.modifiedAt);
+  const lastPlayheadForRenderRef = useRef<number>(playheadPosition);
+  const modifiedRenderTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const renderInFlightRef = useRef<boolean>(false);
 
   useEffect(() => {
     if (isPlaying) return;
     if (isScrubbing) {
       releaseScrubVideoElements();
       lastModifiedAtRef.current = project.modifiedAt;
+      lastPlayheadForRenderRef.current = playheadPosition;
       lastPreviewRenderTimeRef.current = playheadPosition;
       return;
     }
 
-    // COMPLETELY skip rendering during resize/move interactions
-    // The last rendered frame stays visible, preventing black flashing
     if (isInteractingRef.current) {
       lastModifiedAtRef.current = project.modifiedAt;
       return;
     }
-    lastModifiedAtRef.current = project.modifiedAt;
 
     const canvas = canvasRef.current;
     if (!canvas) return;
+
+    const playheadChanged = playheadPosition !== lastPlayheadForRenderRef.current;
+    const modifiedChanged = project.modifiedAt !== lastModifiedAtRef.current;
+
+    lastModifiedAtRef.current = project.modifiedAt;
+    lastPlayheadForRenderRef.current = playheadPosition;
 
     const previousRenderTime = lastPreviewRenderTimeRef.current;
     const isLargeJump =
@@ -4227,14 +4234,37 @@ export const Preview: React.FC = () => {
     }
     lastPreviewRenderTimeRef.current = playheadPosition;
 
-    const renderFrame = async () => {
-      const rendered = await renderFrameDirectly(playheadPosition);
-      if (!rendered) {
-        renderFallbackFrame(playheadPosition);
+    const doRender = async () => {
+      if (renderInFlightRef.current) return;
+      renderInFlightRef.current = true;
+      try {
+        const rendered = await renderFrameDirectly(playheadPosition);
+        if (!rendered) {
+          renderFallbackFrame(playheadPosition);
+        }
+      } finally {
+        renderInFlightRef.current = false;
       }
     };
 
-    renderFrame();
+    if (playheadChanged) {
+      doRender();
+    } else if (modifiedChanged) {
+      if (modifiedRenderTimerRef.current) {
+        clearTimeout(modifiedRenderTimerRef.current);
+      }
+      modifiedRenderTimerRef.current = setTimeout(() => {
+        modifiedRenderTimerRef.current = null;
+        doRender();
+      }, 150);
+    }
+
+    return () => {
+      if (modifiedRenderTimerRef.current) {
+        clearTimeout(modifiedRenderTimerRef.current);
+        modifiedRenderTimerRef.current = null;
+      }
+    };
   }, [
     playheadPosition,
     isPlaying,
