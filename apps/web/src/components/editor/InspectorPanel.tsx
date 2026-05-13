@@ -750,6 +750,153 @@ export const InspectorPanel: React.FC = () => {
               </p>
             </div>
 
+            {showVideoControls && selectedTimelineClip && (appliedEditingTemplates.length > 0 || (selectedTimelineClip.effects && selectedTimelineClip.effects.length > 0)) && (
+              <Section
+                title={`Applied (${appliedEditingTemplates.length + (selectedTimelineClip.effects?.filter((e: { metadata?: { templateSource?: unknown } }) => !e.metadata?.templateSource).length || 0)})`}
+                sectionId="applied-effects"
+                defaultOpen={true}
+              >
+                <div className="space-y-2">
+                  {appliedEditingTemplates.map((application) => {
+                    const template = getEditingTemplate(application.templateId);
+                    const canEdit = Boolean(template?.controls?.length);
+                    const isExpanded =
+                      expandedRecipeApplicationId === application.applicationId;
+                    const currentControlValues = template
+                      ? recipeControlValues[application.applicationId] ||
+                        mergeEditingTemplateControlValues(
+                          template,
+                          application.controlValues,
+                        )
+                      : undefined;
+
+                    return (
+                      <div
+                        key={application.applicationId}
+                        className="rounded-lg border border-border bg-background-tertiary/70 px-2.5 py-2"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="min-w-0 flex-1 flex items-center gap-2">
+                            <Sparkles size={11} className="text-primary shrink-0" />
+                            <p className="truncate text-[11px] font-medium text-text-primary">
+                              {application.name}
+                            </p>
+                            <span className="text-[9px] text-text-muted capitalize shrink-0">
+                              {application.category?.replace(/-/g, " ") || "recipe"}
+                            </span>
+                          </div>
+                          <div className="flex shrink-0 gap-1">
+                            {canEdit && (
+                              <button
+                                onClick={() =>
+                                  handleToggleRecipeControls(
+                                    application.applicationId,
+                                    application.templateId,
+                                    application.controlValues,
+                                  )
+                                }
+                                className={`h-6 px-1.5 rounded text-[9px] font-medium transition-colors ${
+                                  isExpanded
+                                    ? "bg-primary/15 text-primary"
+                                    : "text-text-muted hover:text-text-primary"
+                                }`}
+                              >
+                                Edit
+                              </button>
+                            )}
+                            <button
+                              onClick={() => {
+                                const removed = removeEditingTemplateApplication(
+                                  selectedTimelineClip.id,
+                                  application.applicationId,
+                                );
+                                if (!removed) {
+                                  toast.error("Could not remove recipe", "The recipe could not be removed from this clip.");
+                                  return;
+                                }
+                                setRecipeControlValues((current) => {
+                                  const next = { ...current };
+                                  delete next[application.applicationId];
+                                  return next;
+                                });
+                                if (expandedRecipeApplicationId === application.applicationId) {
+                                  setExpandedRecipeApplicationId(null);
+                                }
+                              }}
+                              className="h-6 px-1.5 rounded text-text-muted hover:text-red-400 transition-colors"
+                            >
+                              <Trash2 size={11} />
+                            </button>
+                          </div>
+                        </div>
+
+                        {isExpanded && template && currentControlValues && (
+                          <div className="mt-2 space-y-3 rounded-lg border border-border/80 bg-background-secondary/80 p-2.5">
+                            <EditingTemplateControls
+                              template={template}
+                              values={currentControlValues}
+                              onChange={(controlId, value) =>
+                                handleRecipeControlChange(
+                                  application.applicationId,
+                                  controlId,
+                                  value,
+                                )
+                              }
+                            />
+                            <div className="flex justify-end gap-1.5">
+                              <button
+                                onClick={() =>
+                                  handleResetRecipeControls(
+                                    application.applicationId,
+                                    application.templateId,
+                                    application.controlValues,
+                                  )
+                                }
+                                className="h-6 px-2.5 rounded border border-border text-[9px] font-medium text-text-secondary hover:text-text-primary transition-colors"
+                              >
+                                Reset
+                              </button>
+                              <button
+                                onClick={() =>
+                                  handleUpdateRecipeControls(
+                                    application.applicationId,
+                                    application.templateId,
+                                    application.controlValues,
+                                  )
+                                }
+                                className="h-6 px-2.5 rounded bg-primary text-[9px] font-semibold text-black hover:bg-primary/85 transition-colors"
+                              >
+                                Update
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+
+                  {selectedTimelineClip.effects
+                    ?.filter((e: { metadata?: { templateSource?: unknown } }) => !e.metadata?.templateSource)
+                    .map((effect: { id: string; type: string; enabled?: boolean }) => (
+                      <div
+                        key={effect.id}
+                        className="flex items-center justify-between gap-2 rounded-lg border border-border bg-background-tertiary/70 px-2.5 py-2"
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Zap size={11} className="text-amber-400 shrink-0" />
+                          <p className="truncate text-[11px] font-medium text-text-primary capitalize">
+                            {effect.type.replace(/-/g, " ")}
+                          </p>
+                        </div>
+                        <span className={`text-[9px] font-medium ${effect.enabled !== false ? "text-green-400" : "text-text-muted"}`}>
+                          {effect.enabled !== false ? "On" : "Off"}
+                        </span>
+                      </div>
+                    ))}
+                </div>
+              </Section>
+            )}
+
             {clipType === "video" && (
               <Section title="AI Auto-Captions" sectionId="auto-captions" defaultOpen={false}>
                 <div className="space-y-3">
@@ -1249,156 +1396,6 @@ export const InspectorPanel: React.FC = () => {
             {showVideoControls && (
               <Section title="Motion Tracking" sectionId="motion-tracking">
                 <MotionTrackingSection clipId={clipId} />
-              </Section>
-            )}
-
-            {showVideoControls && selectedTimelineClip && (
-              <Section
-                title="Applied Recipes"
-                sectionId="applied-recipes"
-                defaultOpen={appliedEditingTemplates.length > 0}
-              >
-                {appliedEditingTemplates.length === 0 ? (
-                  <div className="rounded-xl border border-dashed border-border bg-background-tertiary/60 px-4 py-5 text-center">
-                    <div className="mx-auto mb-2 flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                      <Sparkles size={15} />
-                    </div>
-                    <p className="text-[11px] font-medium text-text-primary">
-                      No recipes applied
-                    </p>
-                    <p className="mt-1 text-[10px] leading-5 text-text-muted">
-                      Open the Recipes tab in Assets to stack looks, overlays,
-                      and text treatments onto this clip.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {appliedEditingTemplates.map((application) => {
-                      const template = getEditingTemplate(application.templateId);
-                      const canEdit = Boolean(template?.controls?.length);
-                      const isExpanded =
-                        expandedRecipeApplicationId === application.applicationId;
-                      const currentControlValues = template
-                        ? recipeControlValues[application.applicationId] ||
-                          mergeEditingTemplateControlValues(
-                            template,
-                            application.controlValues,
-                          )
-                        : undefined;
-
-                      return (
-                        <div
-                          key={application.applicationId}
-                          className="rounded-xl border border-border bg-background-tertiary/70 px-3 py-3"
-                        >
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-center gap-2">
-                                <Sparkles size={12} className="text-primary" />
-                                <p className="truncate text-[11px] font-semibold text-text-primary">
-                                  {application.name}
-                                </p>
-                              </div>
-                              <p className="mt-1 text-[10px] capitalize text-text-muted">
-                                {application.category
-                                  ? application.category.replace(/-/g, " ")
-                                  : "Recipe"}
-                              </p>
-                            </div>
-                            <div className="flex shrink-0 gap-2">
-                              {canEdit && (
-                                <button
-                                  onClick={() =>
-                                    handleToggleRecipeControls(
-                                      application.applicationId,
-                                      application.templateId,
-                                      application.controlValues,
-                                    )
-                                  }
-                                  className={`inline-flex h-8 items-center rounded-lg border px-2 text-[10px] font-medium transition-colors ${
-                                    isExpanded
-                                      ? "border-primary bg-primary/10 text-primary"
-                                      : "border-border bg-background-secondary text-text-secondary hover:border-primary/40 hover:text-text-primary"
-                                  }`}
-                                >
-                                  Controls
-                                </button>
-                              )}
-                              <button
-                                onClick={() => {
-                                  const removed = removeEditingTemplateApplication(
-                                    selectedTimelineClip.id,
-                                    application.applicationId,
-                                  );
-                                  if (!removed) {
-                                    toast.error("Could not remove recipe", "The recipe could not be removed from this clip.");
-                                    return;
-                                  }
-                                  setRecipeControlValues((current) => {
-                                    const next = { ...current };
-                                    delete next[application.applicationId];
-                                    return next;
-                                  });
-                                  if (
-                                    expandedRecipeApplicationId === application.applicationId
-                                  ) {
-                                    setExpandedRecipeApplicationId(null);
-                                  }
-                                }}
-                                className="inline-flex h-8 items-center gap-1 rounded-lg border border-border bg-background-secondary px-2 text-[10px] font-medium text-text-secondary transition-colors hover:border-red-500/40 hover:text-red-400"
-                              >
-                                <Trash2 size={11} />
-                                Remove
-                              </button>
-                            </div>
-                          </div>
-
-                          {isExpanded && template && currentControlValues && (
-                            <div className="mt-3 space-y-3 rounded-xl border border-border/80 bg-background-secondary/80 p-3">
-                              <EditingTemplateControls
-                                template={template}
-                                values={currentControlValues}
-                                onChange={(controlId, value) =>
-                                  handleRecipeControlChange(
-                                    application.applicationId,
-                                    controlId,
-                                    value,
-                                  )
-                                }
-                              />
-                              <div className="flex justify-end gap-2">
-                                <button
-                                  onClick={() =>
-                                    handleResetRecipeControls(
-                                      application.applicationId,
-                                      application.templateId,
-                                      application.controlValues,
-                                    )
-                                  }
-                                  className="inline-flex h-8 items-center rounded-lg border border-border bg-background-tertiary px-3 text-[10px] font-medium text-text-secondary transition-colors hover:border-primary/30 hover:text-text-primary"
-                                >
-                                  Reset
-                                </button>
-                                <button
-                                  onClick={() =>
-                                    handleUpdateRecipeControls(
-                                      application.applicationId,
-                                      application.templateId,
-                                      application.controlValues,
-                                    )
-                                  }
-                                  className="inline-flex h-8 items-center rounded-lg bg-primary px-3 text-[10px] font-semibold text-black transition-colors hover:bg-primary/85"
-                                >
-                                  Update
-                                </button>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
               </Section>
             )}
 
