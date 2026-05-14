@@ -10,7 +10,13 @@ import {
   RefreshCw,
   AlertCircle,
 } from "lucide-react";
-import { AudioDucker, type Clip, type Project, type Track } from "@openreel/core";
+import {
+  AudioDucker,
+  resolveAudibleAudioTarget,
+  type Clip,
+  type Project,
+  type Track,
+} from "@openreel/core";
 import { Slider } from "@openreel/ui";
 import { useProjectStore } from "../../../stores/project-store";
 import type { AudioDuckingSettings } from "../../../stores/project";
@@ -203,34 +209,45 @@ export const AudioDuckingSection: React.FC<AudioDuckingSectionProps> = ({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const selectedClip = useMemo(() => findClipById(project, clipId), [project, clipId]);
+  const audioTargetClip = useMemo(
+    () =>
+      selectedClip
+        ? resolveAudibleAudioTarget(selectedClip, project.timeline)
+        : null,
+    [project.timeline, selectedClip],
+  );
 
   const availableSourceTracks = useMemo(() => {
+    const excludedClipIds = new Set(
+      [clipId, audioTargetClip?.id].filter(Boolean) as string[],
+    );
+
     return project.timeline.tracks.filter(
       (track): track is Track =>
         (track.type === "audio" || track.type === "video") &&
-        !track.clips.every((clip) => clip.id === clipId),
+        !track.clips.every((clip) => excludedClipIds.has(clip.id)),
     );
-  }, [clipId, project.timeline.tracks]);
+  }, [audioTargetClip?.id, clipId, project.timeline.tracks]);
 
   const currentTrack = useMemo(() => {
     for (const track of project.timeline.tracks) {
       for (const clip of track.clips) {
-        if (clip.id === clipId) {
+        if (clip.id === (audioTargetClip?.id ?? clipId)) {
           return track;
         }
       }
     }
     return null;
-  }, [project.timeline.tracks, clipId]);
+  }, [audioTargetClip?.id, project.timeline.tracks, clipId]);
 
   const persistedSettings = useMemo(() => {
-    const candidate = selectedClip?.metadata?.audioDucking;
+    const candidate = audioTargetClip?.metadata?.audioDucking;
     return isAudioDuckingSettings(candidate) ? candidate : null;
-  }, [selectedClip]);
+  }, [audioTargetClip]);
 
   const hasAppliedDucking = Boolean(
     persistedSettings?.enabled &&
-      (selectedClip?.automation?.volume?.length ?? 0) > 0,
+      (audioTargetClip?.automation?.volume?.length ?? 0) > 0,
   );
   const showControls = settings.enabled || hasAppliedDucking;
 
@@ -264,7 +281,7 @@ export const AudioDuckingSection: React.FC<AudioDuckingSectionProps> = ({
   }, []);
 
   const handleApplyDucking = useCallback(async () => {
-    if (!selectedClip || !settings.sourceTrackId) {
+    if (!audioTargetClip || !settings.sourceTrackId) {
       return;
     }
 
@@ -283,14 +300,14 @@ export const AudioDuckingSection: React.FC<AudioDuckingSectionProps> = ({
     try {
       const triggerBuffer = await buildTriggerTrackBuffer(
         project,
-        selectedClip,
+        audioTargetClip,
         sourceTrack,
       );
       const ducker = new AudioDucker();
       const keyframes = ducker.generateDuckingKeyframes(
         triggerBuffer,
         settings,
-        selectedClip.volume,
+        audioTargetClip.volume > 0 ? audioTargetClip.volume : 1,
       );
 
       if (keyframes.length === 0) {
@@ -300,11 +317,13 @@ export const AudioDuckingSection: React.FC<AudioDuckingSectionProps> = ({
       }
 
       const persisted = { ...settings, enabled: true };
-      const applied = setClipAudioDucking(selectedClip.id, persisted, keyframes);
+      const applied = setClipAudioDucking(audioTargetClip.id, persisted, keyframes);
 
       if (!applied) {
         throw new Error("Failed to persist ducking on this clip.");
       }
+
+      window.dispatchEvent(new CustomEvent("openreel:preview-invalidate"));
     } catch (error) {
       setErrorMessage(
         error instanceof Error ? error.message : "Failed to apply ducking.",
@@ -312,10 +331,10 @@ export const AudioDuckingSection: React.FC<AudioDuckingSectionProps> = ({
     } finally {
       setIsApplying(false);
     }
-  }, [project, selectedClip, setClipAudioDucking, settings]);
+  }, [audioTargetClip, project, setClipAudioDucking, settings]);
 
   const handleRemoveDucking = useCallback(() => {
-    const cleared = clearClipAudioDucking(clipId);
+    const cleared = clearClipAudioDucking(audioTargetClip?.id ?? clipId);
 
     if (!cleared) {
       setErrorMessage("Failed to remove ducking from this clip.");
@@ -324,7 +343,8 @@ export const AudioDuckingSection: React.FC<AudioDuckingSectionProps> = ({
 
     setSettings(DEFAULT_SETTINGS);
     setErrorMessage(null);
-  }, [clearClipAudioDucking, clipId]);
+    window.dispatchEvent(new CustomEvent("openreel:preview-invalidate"));
+  }, [audioTargetClip?.id, clearClipAudioDucking, clipId]);
 
   return (
     <div className="space-y-3">

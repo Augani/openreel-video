@@ -4,13 +4,22 @@ import type { Effect } from "../types/timeline";
 export interface SerializedNoiseProfile {
   readonly frequencyBins: number[];
   readonly magnitudes: number[];
+  readonly standardDeviations?: number[];
   readonly sampleRate: number;
+  readonly fftSize?: number;
 }
 
 const isFiniteNumberArray = (value: unknown): value is number[] =>
   Array.isArray(value) &&
   value.length > 0 &&
   value.every((entry) => typeof entry === "number" && Number.isFinite(entry));
+
+const isValidFftSize = (value: unknown, binCount: number): value is number =>
+  typeof value === "number" &&
+  Number.isInteger(value) &&
+  value > 0 &&
+  (value & (value - 1)) === 0 &&
+  value / 2 === binCount;
 
 export const isSerializedNoiseProfile = (
   value: unknown,
@@ -25,8 +34,13 @@ export const isSerializedNoiseProfile = (
     isFiniteNumberArray(profile.frequencyBins) &&
     isFiniteNumberArray(profile.magnitudes) &&
     profile.frequencyBins.length === profile.magnitudes.length &&
+    (profile.standardDeviations === undefined ||
+      (isFiniteNumberArray(profile.standardDeviations) &&
+        profile.standardDeviations.length === profile.magnitudes.length)) &&
     typeof profile.sampleRate === "number" &&
-    Number.isFinite(profile.sampleRate)
+    Number.isFinite(profile.sampleRate) &&
+    (profile.fftSize === undefined ||
+      isValidFftSize(profile.fftSize, profile.magnitudes.length))
   );
 };
 

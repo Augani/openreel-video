@@ -506,6 +506,9 @@ export class RealtimeAudioGraph {
   updateTrackEffects(trackId: string, effects: Effect[]): void {
     const config = this.trackConfigs.get(trackId);
     if (config) {
+      if (JSON.stringify(config.effects) === JSON.stringify(effects)) {
+        return;
+      }
       config.effects = effects;
       this.createTrack(config);
     }
