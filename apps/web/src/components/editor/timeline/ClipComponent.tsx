@@ -49,6 +49,12 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
 }) => {
   const { getMediaItem } = useProjectStore();
   const { snapSettings } = useUIStore();
+  const effectApplicationClipId = useUIStore(
+    (state) => state.effectApplicationClipId,
+  );
+  const effectApplicationLabel = useUIStore(
+    (state) => state.effectApplicationLabel,
+  );
   const { playheadPosition } = useTimelineStore();
   const mediaItem = getMediaItem(clip.mediaId);
   const [isDragging, setIsDragging] = useState(false);
@@ -339,6 +345,7 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
   const clipName = mediaItem?.name || clip.mediaId.slice(0, 8);
 
   const isInteracting = isDragging || isTrimming;
+  const isApplyingEffect = effectApplicationClipId === clip.id;
 
   return (
     <ContextMenu>
@@ -353,7 +360,9 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
               : "cursor-grab"
           } ${
             isSelected && !isDragging
-              ? "ring-2 ring-primary border-primary z-10"
+              ? isApplyingEffect
+                ? "ring-2 ring-amber-400 border-amber-300 z-10"
+                : "ring-2 ring-primary border-primary z-10"
               : !isDragging ? "border-opacity-30 hover:border-opacity-60 hover:brightness-110" : ""
           } ${clipStyle.bg} border ${clipStyle.border} ${
             track.locked ? "cursor-not-allowed opacity-60" : ""
@@ -368,6 +377,16 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
             pointerEvents: isDragging ? 'none' : 'auto',
           }}
         >
+      {isApplyingEffect && (
+        <>
+          <div className="absolute -inset-px rounded-lg border border-amber-300/80 shadow-[0_0_18px_rgba(251,191,36,0.55)] pointer-events-none animate-pulse" />
+          <div className="absolute inset-0 bg-[linear-gradient(110deg,transparent_0%,rgba(255,255,255,0.08)_28%,rgba(251,191,36,0.28)_50%,rgba(255,255,255,0.08)_72%,transparent_100%)] pointer-events-none animate-pulse" />
+          <div className="absolute top-1 right-1 rounded-full bg-black/70 px-2 py-0.5 text-[9px] font-medium uppercase tracking-[0.12em] text-amber-200 pointer-events-none">
+            {effectApplicationLabel ?? "Applying effect"}
+          </div>
+        </>
+      )}
+
       {isVideo &&
         (mediaItem?.filmstripThumbnails?.length || mediaItem?.thumbnailUrl) && (
           <div className="absolute inset-0 flex pointer-events-none">

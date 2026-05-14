@@ -702,6 +702,7 @@ export const Preview: React.FC = () => {
   const {
     playheadPosition,
     playbackState,
+    playbackLockedReason,
     playbackRate,
     isScrubbing,
     pause,
@@ -2286,7 +2287,7 @@ export const Preview: React.FC = () => {
             if (mediaItem?.blob && mediaItem.type === "video") {
               const clipSpeed = speedEngine.getClipSpeed(clip.id);
               const isReverse = speedEngine.isReverse(clip.id);
-              if (clipSpeed !== 1 || isReverse) {
+              if (clipSpeed !== 1 || isReverse || clipNeedsFrameProcessing(clip.id)) {
                 return { canUse: false, clips: [] };
               }
               allVideoClips.push({ clip, mediaItem });
@@ -5949,10 +5950,18 @@ export const Preview: React.FC = () => {
             onClick={() => {
               togglePlayback();
             }}
-            className="w-10 h-10 rounded-full bg-primary hover:bg-primary-hover active:bg-primary-active flex items-center justify-center text-white transition-all shadow-[0_0_15px_rgba(34,197,94,0.4)] hover:shadow-[0_0_25px_rgba(34,197,94,0.6)] transform hover:scale-105"
+            disabled={Boolean(playbackLockedReason)}
+            title={playbackLockedReason ?? (isPlaying ? "Pause" : "Play")}
+            className={`w-10 h-10 rounded-full flex items-center justify-center text-white transition-all ${
+              playbackLockedReason
+                ? "bg-background-tertiary text-text-muted cursor-not-allowed shadow-none"
+                : "bg-primary hover:bg-primary-hover active:bg-primary-active shadow-[0_0_15px_rgba(34,197,94,0.4)] hover:shadow-[0_0_25px_rgba(34,197,94,0.6)] transform hover:scale-105"
+            }`}
           >
             {isPlaying ? (
               <Pause size={18} fill="currentColor" />
+            ) : playbackLockedReason ? (
+              <Loader2 size={18} className="animate-spin" />
             ) : (
               <Play size={18} fill="currentColor" className="ml-0.5" />
             )}

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { ChevronDown, Zap, Captions, Loader2, Sparkles, Trash2 } from "lucide-react";
 import { useProjectStore } from "../../stores/project-store";
+import { useTimelineStore } from "../../stores/timeline-store";
 import { useUIStore } from "../../stores/ui-store";
 import { useEngineStore } from "../../stores/engine-store";
 import type { Transform, FitMode, Clip, EditingTemplatePrimitive } from "@openreel/core";
@@ -203,7 +204,19 @@ export const InspectorPanel: React.FC = () => {
   const project = useProjectStore((state) => state.project);
   const { getSelectedClipIds } = useUIStore();
   const selectedItems = useUIStore((state) => state.selectedItems);
+  const effectApplicationClipId = useUIStore(
+    (state) => state.effectApplicationClipId,
+  );
+  const startEffectApplication = useUIStore(
+    (state) => state.startEffectApplication,
+  );
+  const finishEffectApplication = useUIStore(
+    (state) => state.finishEffectApplication,
+  );
   const selectedClipIds = getSelectedClipIds();
+  const pausePlayback = useTimelineStore((state) => state.pause);
+  const lockPlayback = useTimelineStore((state) => state.lockPlayback);
+  const unlockPlayback = useTimelineStore((state) => state.unlockPlayback);
   const getTitleEngine = useEngineStore((state) => state.getTitleEngine);
   const getGraphicsEngine = useEngineStore((state) => state.getGraphicsEngine);
 
@@ -412,58 +425,112 @@ export const InspectorPanel: React.FC = () => {
     toggleAudioEffect,
   } = useProjectStore();
 
-  const handleRemoveBackground = useCallback(() => {
-    if (!selectedClip) return;
-    chromaKeyEngine.enableChromaKey(selectedClip.id);
-    chromaKeyEngine.setKeyColor(selectedClip.id, { r: 0, g: 1, b: 0 });
-    chromaKeyEngine.setTolerance(selectedClip.id, 0.35);
-    forceUpdate();
-  }, [selectedClip]);
-
   const [isEnhancingAudio, setIsEnhancingAudio] = useState(false);
   const [audioEnhanced, setAudioEnhanced] = useState(false);
+  const isApplyingSelectedClipEffect =
+    effectApplicationClipId !== null && effectApplicationClipId === selectedClip?.id;
+
+  const waitForEffectApplicationPaint = useCallback(
+    () =>
+      new Promise<void>((resolve) => {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => resolve());
+        });
+      }),
+    [],
+  );
+
+  const applyClipEffectWithPlaybackLock = useCallback(
+    async (
+      clipId: string,
+      label: string,
+      apply: () => void | Promise<void>,
+    ) => {
+      pausePlayback();
+      lockPlayback(label);
+      startEffectApplication(clipId, label);
+
+      try {
+        await waitForEffectApplicationPaint();
+        await apply();
+        window.dispatchEvent(new CustomEvent("openreel:preview-invalidate"));
+        await waitForEffectApplicationPaint();
+      } finally {
+        finishEffectApplication();
+        unlockPlayback();
+      }
+    },
+    [
+      finishEffectApplication,
+      lockPlayback,
+      pausePlayback,
+      startEffectApplication,
+      unlockPlayback,
+      waitForEffectApplicationPaint,
+    ],
+  );
+
+  const handleRemoveBackground = useCallback(() => {
+    if (!selectedClip) return;
+    void applyClipEffectWithPlaybackLock(
+      selectedClip.id,
+      "Applying background removal",
+      () => {
+        chromaKeyEngine.enableChromaKey(selectedClip.id);
+        chromaKeyEngine.setKeyColor(selectedClip.id, { r: 0, g: 1, b: 0 });
+        chromaKeyEngine.setTolerance(selectedClip.id, 0.35);
+        forceUpdate();
+      },
+    );
+  }, [applyClipEffectWithPlaybackLock, forceUpdate, selectedClip]);
 
   const handleEnhanceAudio = useCallback(async () => {
     if (!selectedClip) return;
     setIsEnhancingAudio(true);
     try {
-      await initializeAudioBridgeEffects();
-      const bridge = getAudioBridgeEffects();
-      const noiseCleanupConfig = {
-        ...DEFAULT_NOISE_REDUCTION,
-        ...getNoiseReductionPreset("speech").config,
-      };
+      await applyClipEffectWithPlaybackLock(
+        selectedClip.id,
+        "Applying audio cleanup",
+        async () => {
+          await initializeAudioBridgeEffects();
+          const bridge = getAudioBridgeEffects();
+          const noiseCleanupConfig = {
+            ...DEFAULT_NOISE_REDUCTION,
+            ...getNoiseReductionPreset("speech").config,
+          };
 
-      const existingNoiseReduction = getAudioEffects(selectedClip.id).find(
-        (effect) => effect.type === "noiseReduction",
+          const existingNoiseReduction = getAudioEffects(selectedClip.id).find(
+            (effect) => effect.type === "noiseReduction",
+          );
+
+          if (existingNoiseReduction) {
+            updateAudioEffect(
+              selectedClip.id,
+              existingNoiseReduction.id,
+              noiseCleanupConfig as unknown as Record<string, unknown>,
+            );
+            toggleAudioEffect(selectedClip.id, existingNoiseReduction.id, true);
+          } else {
+            const result = bridge.applyNoiseReduction(
+              selectedClip.id,
+              noiseCleanupConfig,
+            );
+
+            if (!result.success) {
+              throw new Error(result.error ?? "Failed to apply noise cleanup");
+            }
+          }
+
+          setAudioEnhanced(true);
+          setTimeout(() => setAudioEnhanced(false), 2000);
+          toast.success(
+            "Noise cleanup applied",
+            "Fine-tune or switch presets in Background Noise Removal.",
+          );
+
+          forceUpdate();
+        },
       );
-
-      if (existingNoiseReduction) {
-        updateAudioEffect(
-          selectedClip.id,
-          existingNoiseReduction.id,
-          noiseCleanupConfig as unknown as Record<string, unknown>,
-        );
-        toggleAudioEffect(selectedClip.id, existingNoiseReduction.id, true);
-      } else {
-        const result = bridge.applyNoiseReduction(
-          selectedClip.id,
-          noiseCleanupConfig,
-        );
-
-        if (!result.success) {
-          throw new Error(result.error ?? "Failed to apply noise cleanup");
-        }
-      }
-
-      setAudioEnhanced(true);
-      setTimeout(() => setAudioEnhanced(false), 2000);
-      toast.success(
-        "Noise cleanup applied",
-        "Fine-tune or switch presets in Background Noise Removal.",
-      );
-
-      forceUpdate();
     } catch (error) {
       console.error("Failed to enhance audio:", error);
       toast.error(
@@ -476,6 +543,7 @@ export const InspectorPanel: React.FC = () => {
       setIsEnhancingAudio(false);
     }
   }, [
+    applyClipEffectWithPlaybackLock,
     selectedClip,
     forceUpdate,
     getAudioEffects,
@@ -483,22 +551,36 @@ export const InspectorPanel: React.FC = () => {
     updateAudioEffect,
   ]);
 
-  const handleAutoColor = useCallback(() => {
+  const handleAutoColor = useCallback(async () => {
     if (!selectedClip) return;
-    addVideoEffect(selectedClip.id, "saturation");
-    addVideoEffect(selectedClip.id, "contrast");
-    addVideoEffect(selectedClip.id, "brightness");
-    const effects = useProjectStore.getState().getVideoEffects(selectedClip.id);
-    const satEffect = effects.find((e) => e.type === "saturation");
-    const contEffect = effects.find((e) => e.type === "contrast");
-    const brightEffect = effects.find((e) => e.type === "brightness");
-    if (satEffect)
-      updateVideoEffect(selectedClip.id, satEffect.id, { value: 1.15 });
-    if (contEffect)
-      updateVideoEffect(selectedClip.id, contEffect.id, { value: 1.1 });
-    if (brightEffect)
-      updateVideoEffect(selectedClip.id, brightEffect.id, { value: 5 });
-  }, [selectedClip, addVideoEffect, updateVideoEffect]);
+    await applyClipEffectWithPlaybackLock(
+      selectedClip.id,
+      "Applying auto color",
+      () => {
+        addVideoEffect(selectedClip.id, "saturation");
+        addVideoEffect(selectedClip.id, "contrast");
+        addVideoEffect(selectedClip.id, "brightness");
+        const effects = useProjectStore.getState().getVideoEffects(selectedClip.id);
+        const satEffect = effects.find((e) => e.type === "saturation");
+        const contEffect = effects.find((e) => e.type === "contrast");
+        const brightEffect = effects.find((e) => e.type === "brightness");
+        if (satEffect) {
+          updateVideoEffect(selectedClip.id, satEffect.id, { value: 1.15 });
+        }
+        if (contEffect) {
+          updateVideoEffect(selectedClip.id, contEffect.id, { value: 1.1 });
+        }
+        if (brightEffect) {
+          updateVideoEffect(selectedClip.id, brightEffect.id, { value: 5 });
+        }
+      },
+    );
+  }, [
+    addVideoEffect,
+    applyClipEffectWithPlaybackLock,
+    selectedClip,
+    updateVideoEffect,
+  ]);
 
   const handleGenerateSubtitles = useCallback(async () => {
     if (!selectedClip || isTranscribing) return;
@@ -1570,7 +1652,12 @@ export const InspectorPanel: React.FC = () => {
                   {showVideoControls && (
                     <button
                       onClick={handleRemoveBackground}
-                      className="w-full py-2 bg-background-tertiary hover:bg-primary hover:text-white border border-border hover:border-primary rounded-lg text-[10px] transition-all"
+                      disabled={isApplyingSelectedClipEffect}
+                      className={`w-full py-2 border rounded-lg text-[10px] transition-all ${
+                        isApplyingSelectedClipEffect
+                          ? "bg-background-tertiary border-border text-text-muted cursor-not-allowed"
+                          : "bg-background-tertiary hover:bg-primary hover:text-white border-border hover:border-primary"
+                      }`}
                     >
                       Remove Background
                     </button>
@@ -1578,11 +1665,11 @@ export const InspectorPanel: React.FC = () => {
                   {showAudioEffects && (
                     <button
                       onClick={handleEnhanceAudio}
-                      disabled={isEnhancingAudio}
+                      disabled={isEnhancingAudio || isApplyingSelectedClipEffect}
                       className={`w-full py-2 border rounded-lg text-[10px] transition-all flex items-center justify-center gap-1.5 ${
                         audioEnhanced
                           ? "bg-green-500/20 border-green-500 text-green-400"
-                          : isEnhancingAudio
+                          : isEnhancingAudio || isApplyingSelectedClipEffect
                             ? "bg-background-tertiary border-border text-text-muted cursor-not-allowed"
                             : "bg-background-tertiary hover:bg-primary hover:text-white border-border hover:border-primary"
                       }`}
@@ -1602,9 +1689,14 @@ export const InspectorPanel: React.FC = () => {
                   {showVideoEffects && (
                     <button
                       onClick={handleAutoColor}
-                      className="w-full py-2 bg-background-tertiary hover:bg-primary hover:text-white border border-border hover:border-primary rounded-lg text-[10px] transition-all"
+                      disabled={isApplyingSelectedClipEffect}
+                      className={`w-full py-2 border rounded-lg text-[10px] transition-all ${
+                        isApplyingSelectedClipEffect
+                          ? "bg-background-tertiary border-border text-text-muted cursor-not-allowed"
+                          : "bg-background-tertiary hover:bg-primary hover:text-white border-border hover:border-primary"
+                      }`}
                     >
-                      Auto-Color
+                      {isApplyingSelectedClipEffect ? "Applying..." : "Auto-Color"}
                     </button>
                   )}
                 </div>
