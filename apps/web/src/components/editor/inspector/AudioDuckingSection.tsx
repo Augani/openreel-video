@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Volume2,
   VolumeX,
@@ -8,26 +8,18 @@ import {
   ChevronRight,
   Check,
   RefreshCw,
+  AlertCircle,
 } from "lucide-react";
+import { AudioDucker, type Clip, type Project, type Track } from "@openreel/core";
 import { Slider } from "@openreel/ui";
 import { useProjectStore } from "../../../stores/project-store";
-import type { Track } from "@openreel/core";
+import type { AudioDuckingSettings } from "../../../stores/project";
 
 interface AudioDuckingSectionProps {
   clipId: string;
 }
 
-interface DuckingSettings {
-  enabled: boolean;
-  sourceTrackId: string | null;
-  threshold: number;
-  reduction: number;
-  attack: number;
-  release: number;
-  holdTime: number;
-}
-
-const DEFAULT_SETTINGS: DuckingSettings = {
+const DEFAULT_SETTINGS: AudioDuckingSettings = {
   enabled: false,
   sourceTrackId: null,
   threshold: -30,
@@ -40,7 +32,7 @@ const DEFAULT_SETTINGS: DuckingSettings = {
 const PRESET_CONFIGS: {
   id: string;
   name: string;
-  settings: Partial<DuckingSettings>;
+  settings: Partial<AudioDuckingSettings>;
 }[] = [
   {
     id: "subtle",
@@ -70,19 +62,155 @@ const PRESET_CONFIGS: {
   },
 ];
 
+const isAudioDuckingSettings = (
+  value: unknown,
+): value is AudioDuckingSettings => {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const candidate = value as Partial<AudioDuckingSettings>;
+
+  return (
+    typeof candidate.enabled === "boolean" &&
+    (typeof candidate.sourceTrackId === "string" ||
+      candidate.sourceTrackId === null) &&
+    typeof candidate.threshold === "number" &&
+    typeof candidate.reduction === "number" &&
+    typeof candidate.attack === "number" &&
+    typeof candidate.release === "number" &&
+    typeof candidate.holdTime === "number"
+  );
+};
+
+const findClipById = (project: Project, clipId: string): Clip | null => {
+  for (const track of project.timeline.tracks) {
+    const clip = track.clips.find((candidate) => candidate.id === clipId);
+    if (clip) {
+      return clip;
+    }
+  }
+
+  return null;
+};
+
+const getTrackLabel = (track: Track): string => {
+  const prefix = track.type === "video" ? "Video" : "Audio";
+  return track.name || `${prefix} ${track.id.slice(-4)}`;
+};
+
+const buildTriggerTrackBuffer = async (
+  project: Project,
+  backgroundClip: Clip,
+  sourceTrack: Track,
+): Promise<AudioBuffer> => {
+  const overlappingClips = sourceTrack.clips.filter((sourceClip) => {
+    const sourceEnd = sourceClip.startTime + sourceClip.duration;
+    const backgroundEnd = backgroundClip.startTime + backgroundClip.duration;
+    return (
+      sourceClip.id !== backgroundClip.id &&
+      sourceClip.startTime < backgroundEnd &&
+      sourceEnd > backgroundClip.startTime
+    );
+  });
+
+  if (overlappingClips.length === 0) {
+    throw new Error("No overlapping trigger clips were found for this clip.");
+  }
+
+  const decodeContext = new AudioContext();
+
+  try {
+    const offlineContext = new OfflineAudioContext(
+      Math.max(1, project.settings.channels),
+      Math.max(1, Math.ceil(backgroundClip.duration * project.settings.sampleRate)),
+      project.settings.sampleRate,
+    );
+
+    let scheduledSources = 0;
+
+    for (const sourceClip of overlappingClips) {
+      if (sourceClip.reversed) {
+        continue;
+      }
+
+      const mediaItem = project.mediaLibrary.items.find(
+        (item) => item.id === sourceClip.mediaId,
+      );
+
+      if (!mediaItem?.blob) {
+        continue;
+      }
+
+      const overlapStart = Math.max(backgroundClip.startTime, sourceClip.startTime);
+      const overlapEnd = Math.min(
+        backgroundClip.startTime + backgroundClip.duration,
+        sourceClip.startTime + sourceClip.duration,
+      );
+
+      if (overlapEnd <= overlapStart) {
+        continue;
+      }
+
+      try {
+        const arrayBuffer = await mediaItem.blob.arrayBuffer();
+        const decodedBuffer = await decodeContext.decodeAudioData(arrayBuffer.slice(0));
+        const source = offlineContext.createBufferSource();
+        const gainNode = offlineContext.createGain();
+        const playbackRate = Math.max(0.1, sourceClip.speed ?? 1);
+        const timelineOffset = overlapStart - backgroundClip.startTime;
+        const mediaOffset =
+          sourceClip.inPoint +
+          Math.max(0, overlapStart - sourceClip.startTime) * playbackRate;
+        const renderDuration = overlapEnd - overlapStart;
+
+        source.buffer = decodedBuffer;
+        source.playbackRate.value = playbackRate;
+        gainNode.gain.value = sourceClip.volume;
+
+        source.connect(gainNode);
+        gainNode.connect(offlineContext.destination);
+        source.start(timelineOffset, mediaOffset, renderDuration * playbackRate);
+        scheduledSources += 1;
+      } catch {
+        continue;
+      }
+    }
+
+    if (scheduledSources === 0) {
+      throw new Error("No decodable trigger audio was found on the selected source track.");
+    }
+
+    return offlineContext.startRendering();
+  } finally {
+    await decodeContext.close();
+  }
+};
+
 export const AudioDuckingSection: React.FC<AudioDuckingSectionProps> = ({
   clipId,
 }) => {
   const project = useProjectStore((state) => state.project);
-  const [settings, setSettings] = useState<DuckingSettings>(DEFAULT_SETTINGS);
+  const setClipAudioDucking = useProjectStore(
+    (state) => state.setClipAudioDucking,
+  );
+  const clearClipAudioDucking = useProjectStore(
+    (state) => state.clearClipAudioDucking,
+  );
+  const [settings, setSettings] = useState<AudioDuckingSettings>(DEFAULT_SETTINGS);
   const [showAdvanced, setShowAdvanced] = useState(false);
-  const [isApplied, setIsApplied] = useState(false);
+  const [isApplying, setIsApplying] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const audioTracks = useMemo(() => {
+  const selectedClip = useMemo(() => findClipById(project, clipId), [project, clipId]);
+
+  const availableSourceTracks = useMemo(() => {
     return project.timeline.tracks.filter(
-      (track): track is Track => track.type === "audio",
+      (track): track is Track =>
+        (track.type === "audio" || track.type === "video") &&
+        !track.clips.every((clip) => clip.id === clipId),
     );
-  }, [project.timeline.tracks]);
+  }, [clipId, project.timeline.tracks]);
 
   const currentTrack = useMemo(() => {
     for (const track of project.timeline.tracks) {
@@ -95,43 +223,108 @@ export const AudioDuckingSection: React.FC<AudioDuckingSectionProps> = ({
     return null;
   }, [project.timeline.tracks, clipId]);
 
-  const availableSourceTracks = useMemo(() => {
-    return audioTracks.filter((track) => track.id !== currentTrack?.id);
-  }, [audioTracks, currentTrack]);
+  const persistedSettings = useMemo(() => {
+    const candidate = selectedClip?.metadata?.audioDucking;
+    return isAudioDuckingSettings(candidate) ? candidate : null;
+  }, [selectedClip]);
+
+  const hasAppliedDucking = Boolean(
+    persistedSettings?.enabled &&
+      (selectedClip?.automation?.volume?.length ?? 0) > 0,
+  );
+  const showControls = settings.enabled || hasAppliedDucking;
+
+  useEffect(() => {
+    if (persistedSettings) {
+      setSettings({ ...DEFAULT_SETTINGS, ...persistedSettings });
+    } else {
+      setSettings(DEFAULT_SETTINGS);
+    }
+
+    setErrorMessage(null);
+  }, [clipId, persistedSettings]);
 
   const updateSetting = useCallback(
-    <K extends keyof DuckingSettings>(key: K, value: DuckingSettings[K]) => {
+    <K extends keyof AudioDuckingSettings>(
+      key: K,
+      value: AudioDuckingSettings[K],
+    ) => {
       setSettings((prev) => ({ ...prev, [key]: value }));
-      if (isApplied) {
-        setIsApplied(false);
-      }
+      setErrorMessage(null);
     },
-    [isApplied],
+    [],
   );
 
   const applyPreset = useCallback((presetId: string) => {
     const preset = PRESET_CONFIGS.find((p) => p.id === presetId);
     if (preset) {
       setSettings((prev) => ({ ...prev, ...preset.settings }));
+      setErrorMessage(null);
     }
   }, []);
 
-  const handleApplyDucking = useCallback(() => {
-    if (!settings.sourceTrackId) return;
+  const handleApplyDucking = useCallback(async () => {
+    if (!selectedClip || !settings.sourceTrackId) {
+      return;
+    }
 
-    setIsApplied(true);
-    useProjectStore.setState((state) => ({
-      project: { ...state.project, modifiedAt: Date.now() },
-    }));
-  }, [settings]);
+    const sourceTrack = project.timeline.tracks.find(
+      (track) => track.id === settings.sourceTrackId,
+    );
+
+    if (!sourceTrack) {
+      setErrorMessage("Select a valid trigger source track.");
+      return;
+    }
+
+    setIsApplying(true);
+    setErrorMessage(null);
+
+    try {
+      const triggerBuffer = await buildTriggerTrackBuffer(
+        project,
+        selectedClip,
+        sourceTrack,
+      );
+      const ducker = new AudioDucker();
+      const keyframes = ducker.generateDuckingKeyframes(
+        triggerBuffer,
+        settings,
+        selectedClip.volume,
+      );
+
+      if (keyframes.length === 0) {
+        throw new Error(
+          "No speech crossed the trigger threshold. Lower the threshold or choose a louder source track.",
+        );
+      }
+
+      const persisted = { ...settings, enabled: true };
+      const applied = setClipAudioDucking(selectedClip.id, persisted, keyframes);
+
+      if (!applied) {
+        throw new Error("Failed to persist ducking on this clip.");
+      }
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error ? error.message : "Failed to apply ducking.",
+      );
+    } finally {
+      setIsApplying(false);
+    }
+  }, [project, selectedClip, setClipAudioDucking, settings]);
 
   const handleRemoveDucking = useCallback(() => {
+    const cleared = clearClipAudioDucking(clipId);
+
+    if (!cleared) {
+      setErrorMessage("Failed to remove ducking from this clip.");
+      return;
+    }
+
     setSettings(DEFAULT_SETTINGS);
-    setIsApplied(false);
-    useProjectStore.setState((state) => ({
-      project: { ...state.project, modifiedAt: Date.now() },
-    }));
-  }, []);
+    setErrorMessage(null);
+  }, [clearClipAudioDucking, clipId]);
 
   return (
     <div className="space-y-3">
@@ -151,28 +344,28 @@ export const AudioDuckingSection: React.FC<AudioDuckingSectionProps> = ({
         <div className="flex items-center gap-2">
           <div
             className={`w-2 h-2 rounded-full ${
-              settings.enabled ? "bg-green-400" : "bg-gray-500"
+              showControls ? "bg-green-400" : "bg-gray-500"
             }`}
           />
           <span className="text-[10px] font-medium text-text-primary">
-            {settings.enabled ? "Ducking Enabled" : "Ducking Disabled"}
+            {showControls ? "Ducking Enabled" : "Ducking Disabled"}
           </span>
         </div>
         <button
           onClick={() => updateSetting("enabled", !settings.enabled)}
           className={`relative w-10 h-5 rounded-full transition-colors ${
-            settings.enabled ? "bg-primary" : "bg-background-secondary"
+            showControls ? "bg-primary" : "bg-background-secondary"
           }`}
         >
           <div
             className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-transform ${
-              settings.enabled ? "translate-x-5" : "translate-x-0.5"
+              showControls ? "translate-x-5" : "translate-x-0.5"
             }`}
           />
         </button>
       </div>
 
-      {settings.enabled && (
+      {showControls && (
         <>
           <div className="space-y-2">
             <label className="text-[10px] font-medium text-text-secondary flex items-center gap-2">
@@ -181,7 +374,9 @@ export const AudioDuckingSection: React.FC<AudioDuckingSectionProps> = ({
             </label>
             {availableSourceTracks.length > 0 ? (
               <div className="space-y-1">
-                {availableSourceTracks.map((track) => (
+                {availableSourceTracks
+                  .filter((track) => track.id !== currentTrack?.id)
+                  .map((track) => (
                   <button
                     key={track.id}
                     onClick={() => updateSetting("sourceTrackId", track.id)}
@@ -193,7 +388,7 @@ export const AudioDuckingSection: React.FC<AudioDuckingSectionProps> = ({
                   >
                     <Volume2 size={12} className="text-text-muted" />
                     <span className="flex-1 text-[10px] text-text-primary">
-                      {track.name || `Audio ${track.id.slice(-4)}`}
+                      {getTrackLabel(track)}
                     </span>
                     {settings.sourceTrackId === track.id && (
                       <Check size={12} className="text-primary" />
@@ -208,7 +403,7 @@ export const AudioDuckingSection: React.FC<AudioDuckingSectionProps> = ({
                   className="mx-auto mb-1 text-text-muted opacity-50"
                 />
                 <p className="text-[10px] text-text-muted">
-                  Add another audio track to use as trigger
+                  Add another audio or video track with speech to use as trigger
                 </p>
               </div>
             )}
@@ -367,13 +562,23 @@ export const AudioDuckingSection: React.FC<AudioDuckingSectionProps> = ({
                 </div>
               )}
 
-              {!isApplied ? (
+              {!hasAppliedDucking ? (
                 <button
                   onClick={handleApplyDucking}
-                  className="w-full py-2.5 bg-primary hover:bg-primary-hover rounded-lg text-[11px] font-medium text-white flex items-center justify-center gap-2 transition-colors"
+                  disabled={isApplying}
+                  className="w-full py-2.5 bg-primary hover:bg-primary-hover rounded-lg text-[11px] font-medium text-white flex items-center justify-center gap-2 transition-colors disabled:cursor-wait disabled:opacity-60"
                 >
-                  <VolumeX size={14} />
-                  Apply Ducking
+                  {isApplying ? (
+                    <>
+                      <RefreshCw size={14} className="animate-spin" />
+                      Analyzing...
+                    </>
+                  ) : (
+                    <>
+                      <VolumeX size={14} />
+                      Apply Ducking
+                    </>
+                  )}
                 </button>
               ) : (
                 <div className="space-y-2">
@@ -386,13 +591,18 @@ export const AudioDuckingSection: React.FC<AudioDuckingSectionProps> = ({
                   <div className="grid grid-cols-2 gap-2">
                     <button
                       onClick={handleApplyDucking}
-                      className="flex items-center justify-center gap-1 py-2 bg-background-tertiary rounded-lg text-[10px] text-text-secondary hover:text-text-primary transition-colors"
+                      disabled={isApplying}
+                      className="flex items-center justify-center gap-1 py-2 bg-background-tertiary rounded-lg text-[10px] text-text-secondary hover:text-text-primary transition-colors disabled:cursor-wait disabled:opacity-60"
                     >
-                      <RefreshCw size={10} />
-                      Update
+                      <RefreshCw
+                        size={10}
+                        className={isApplying ? "animate-spin" : undefined}
+                      />
+                      {isApplying ? "Updating..." : "Update"}
                     </button>
                     <button
                       onClick={handleRemoveDucking}
+                      disabled={isApplying}
                       className="py-2 bg-red-500/10 border border-red-500/20 rounded-lg text-[10px] text-red-400 hover:bg-red-500/20 transition-colors"
                     >
                       Remove
@@ -403,6 +613,13 @@ export const AudioDuckingSection: React.FC<AudioDuckingSectionProps> = ({
             </>
           )}
         </>
+      )}
+
+      {errorMessage && (
+        <div className="flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/10 px-2 py-2 text-[9px] text-red-400">
+          <AlertCircle size={12} />
+          <span>{errorMessage}</span>
+        </div>
       )}
 
       <div className="pt-2 border-t border-border">

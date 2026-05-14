@@ -22,6 +22,10 @@ import {
   initializeRealtimeAudioGraph,
   type AudioClipSchedule,
 } from "../audio/realtime-audio-graph";
+import {
+  getPanFromAudioEffects,
+  getPreviewAudioEffects,
+} from "../audio/audio-effect-routing";
 
 export class PlaybackController {
   private videoEngine: VideoEngine | null = null;
@@ -574,8 +578,9 @@ export class PlaybackController {
           endTime: clipEnd,
           mediaOffset: clip.inPoint,
           volume: clip.volume,
-          pan: 0,
-          effects: clip.audioEffects || [],
+          volumeAutomation: clip.automation?.volume ?? [],
+          pan: getPanFromAudioEffects(clip.audioEffects || []),
+          effects: getPreviewAudioEffects(clip.audioEffects || []),
           speed: clip.speed ?? 1,
         });
       }

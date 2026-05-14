@@ -737,6 +737,12 @@ export interface AudioEffectParams {
     reduction: number; // 0 to 1
     attack: number; // 0 to 100 ms
     release: number; // 0 to 500 ms
+    focus?: "balanced" | "speech" | "heavy" | "wind" | "hum";
+    profile?: {
+      frequencyBins: number[];
+      magnitudes: number[];
+      sampleRate: number;
+    };
   };
   fadeIn: {
     duration: number; // In seconds
