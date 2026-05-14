@@ -72,7 +72,19 @@ interface AnalysisProgressState {
   message: string;
 }
 
-const MAX_RECOMMENDATION_SAMPLE_SECONDS = 20;
+interface RecommendationProfileProgress {
+  progress: number;
+  message: string;
+}
+
+export interface RecommendationSampleRange {
+  start: number;
+  end: number;
+}
+
+const MAX_RECOMMENDATION_SAMPLE_SECONDS = 24;
+const MAX_RECOMMENDATION_SAMPLE_WINDOWS = 3;
+const MIN_RECOMMENDATION_WINDOW_SECONDS = 4;
 
 const findClipById = (project: Project, clipId: string): Clip | null => {
   for (const track of project.timeline.tracks) {
@@ -85,28 +97,147 @@ const findClipById = (project: Project, clipId: string): Clip | null => {
   return null;
 };
 
-const buildRecommendationProfile = (
+export const getRecommendationSampleRanges = (
+  duration: number,
+): RecommendationSampleRange[] => {
+  if (!Number.isFinite(duration) || duration <= 0) {
+    return [];
+  }
+
+  if (duration <= MAX_RECOMMENDATION_SAMPLE_SECONDS) {
+    return [{ start: 0, end: duration }];
+  }
+
+  const maxWindowsByDuration = Math.max(
+    1,
+    Math.min(
+      MAX_RECOMMENDATION_SAMPLE_WINDOWS,
+      Math.floor(duration / MIN_RECOMMENDATION_WINDOW_SECONDS),
+    ),
+  );
+  const windowCount = Math.max(
+    1,
+    Math.min(
+      maxWindowsByDuration,
+      Math.ceil(duration / MAX_RECOMMENDATION_SAMPLE_SECONDS),
+    ),
+  );
+  const windowDuration = Math.min(
+    duration,
+    MAX_RECOMMENDATION_SAMPLE_SECONDS / windowCount,
+  );
+  const firstCenter = windowCount === 1 ? 0.5 : 0.18;
+  const lastCenter = windowCount === 1 ? 0.5 : 0.82;
+
+  return Array.from({ length: windowCount }, (_, index) => {
+    const center =
+      windowCount === 1
+        ? 0.5
+        : firstCenter +
+          ((lastCenter - firstCenter) * index) / (windowCount - 1);
+    const maxStart = Math.max(0, duration - windowDuration);
+    const start = Math.min(
+      maxStart,
+      Math.max(0, duration * center - windowDuration / 2),
+    );
+
+    return {
+      start,
+      end: Math.min(duration, start + windowDuration),
+    };
+  });
+};
+
+const buildRecommendationSampleBuffer = (
+  audioBuffer: AudioBuffer,
+  context: BaseAudioContext,
+  onProgress?: (progress: RecommendationProfileProgress) => void,
+): { sampleBuffer: AudioBuffer; sampleCount: number } => {
+  const sampleRanges = getRecommendationSampleRanges(audioBuffer.duration);
+
+  if (sampleRanges.length === 0) {
+    throw new Error("Clip audio range is empty");
+  }
+
+  if (
+    sampleRanges.length === 1 &&
+    sampleRanges[0].start <= 0 &&
+    sampleRanges[0].end >= audioBuffer.duration
+  ) {
+    onProgress?.({ progress: 0.4, message: "Analyzing clip audio" });
+    return {
+      sampleBuffer: audioBuffer,
+      sampleCount: 1,
+    };
+  }
+
+  const segments = sampleRanges.map((sampleRange, index) => {
+    onProgress?.({
+      progress: (index + 1) / (sampleRanges.length + 1),
+      message: `Sampling clip audio (${index + 1}/${sampleRanges.length})`,
+    });
+
+    return extractAudioSegment(
+      audioBuffer,
+      sampleRange.start,
+      sampleRange.end,
+      context,
+    );
+  });
+  const sampleLength = segments.reduce(
+    (total, segment) => total + segment.length,
+    0,
+  );
+  const sampleBuffer = context.createBuffer(
+    audioBuffer.numberOfChannels,
+    sampleLength,
+    audioBuffer.sampleRate,
+  );
+
+  let offset = 0;
+  for (const segment of segments) {
+    for (let channel = 0; channel < audioBuffer.numberOfChannels; channel += 1) {
+      sampleBuffer.getChannelData(channel).set(
+        segment.getChannelData(channel),
+        offset,
+      );
+    }
+
+    offset += segment.length;
+  }
+
+  onProgress?.({
+    progress: 0.85,
+    message: `Analyzing ${segments.length} clip samples`,
+  });
+
+  return {
+    sampleBuffer,
+    sampleCount: segments.length,
+  };
+};
+
+export const buildRecommendationProfile = (
   clipId: string,
   audioBuffer: AudioBuffer,
   context: BaseAudioContext,
+  onProgress?: (progress: RecommendationProfileProgress) => void,
 ): NoiseProfileData => {
-  const sampleDuration = Math.min(
-    audioBuffer.duration,
-    MAX_RECOMMENDATION_SAMPLE_SECONDS,
+  const { sampleBuffer, sampleCount } = buildRecommendationSampleBuffer(
+    audioBuffer,
+    context,
+    onProgress,
   );
-  const sampleStart = Math.max(0, (audioBuffer.duration - sampleDuration) / 2);
-  const sampleBuffer =
-    sampleDuration < audioBuffer.duration
-      ? extractAudioSegment(
-          audioBuffer,
-          sampleStart,
-          sampleStart + sampleDuration,
-          context,
-        )
-      : audioBuffer;
-
   const reducer = new SpectralNoiseReducer();
   const profile = reducer.learnNoiseProfile(sampleBuffer);
+
+  onProgress?.({
+    progress: 1,
+    message:
+      sampleCount > 1
+        ? `Analyzed ${sampleCount} clip samples`
+        : "Analyzed clip audio",
+  });
 
   return {
     id: `analysis-${clipId}`,
@@ -358,6 +489,12 @@ export const NoiseReductionSection: React.FC<NoiseReductionSectionProps> = ({
           audioTargetClipId,
           clipBuffer,
           analysisContext,
+          (progress) => {
+            updateAnalysisProgress({
+              progress: 0.84 + progress.progress * 0.08,
+              message: progress.message,
+            });
+          },
         );
 
         updateAnalysisProgress({ progress: 0.93, message: "Learning custom cleanup profile" });
@@ -387,7 +524,7 @@ export const NoiseReductionSection: React.FC<NoiseReductionSectionProps> = ({
         };
 
         return {
-          recommendationProfile: learnedProfile,
+          recommendationProfile,
           learnedProfile: {
             profile: learnedProfile,
             serializedProfile: {
