@@ -44,6 +44,23 @@ export interface DelayConfig {
   wetLevel: number;
 }
 
+export interface SerializedNoiseProfile {
+  frequencyBins: number[];
+  magnitudes: number[];
+  sampleRate: number;
+}
+
+export const NOISE_REDUCTION_FOCUS_OPTIONS = [
+  "balanced",
+  "speech",
+  "heavy",
+  "wind",
+  "hum",
+] as const;
+
+export type NoiseReductionFocus =
+  (typeof NOISE_REDUCTION_FOCUS_OPTIONS)[number];
+
 /**
  * Noise reduction parameters
  */
@@ -52,6 +69,8 @@ export interface NoiseReductionConfig {
   reduction: number;
   attack?: number;
   release?: number;
+  focus?: NoiseReductionFocus;
+  profile?: SerializedNoiseProfile;
 }
 
 /**
@@ -124,6 +143,31 @@ export const DEFAULT_NOISE_REDUCTION: NoiseReductionConfig = {
   reduction: 0.5,
   attack: 10,
   release: 100,
+  focus: "balanced",
+};
+
+const isSerializedNoiseProfile = (
+  profile: unknown,
+): profile is SerializedNoiseProfile => {
+  if (!profile || typeof profile !== "object") {
+    return false;
+  }
+
+  const candidate = profile as Record<string, unknown>;
+
+  return (
+    Array.isArray(candidate.frequencyBins) &&
+    candidate.frequencyBins.every(
+      (value) => typeof value === "number" && Number.isFinite(value),
+    ) &&
+    Array.isArray(candidate.magnitudes) &&
+    candidate.magnitudes.every(
+      (value) => typeof value === "number" && Number.isFinite(value),
+    ) &&
+    candidate.frequencyBins.length === candidate.magnitudes.length &&
+    typeof candidate.sampleRate === "number" &&
+    Number.isFinite(candidate.sampleRate)
+  );
 };
 
 /**
@@ -220,11 +264,26 @@ export function validateDelay(config: Partial<DelayConfig>): DelayConfig {
 export function validateNoiseReduction(
   config: Partial<NoiseReductionConfig>,
 ): NoiseReductionConfig {
+  const focus = NOISE_REDUCTION_FOCUS_OPTIONS.includes(
+    (config.focus ?? DEFAULT_NOISE_REDUCTION.focus) as NoiseReductionFocus,
+  )
+    ? (config.focus ?? DEFAULT_NOISE_REDUCTION.focus)
+    : DEFAULT_NOISE_REDUCTION.focus;
+  const profile = isSerializedNoiseProfile(config.profile)
+    ? {
+        frequencyBins: [...config.profile.frequencyBins],
+        magnitudes: [...config.profile.magnitudes],
+        sampleRate: config.profile.sampleRate,
+      }
+    : undefined;
+
   return {
     threshold: Math.max(-80, Math.min(0, config.threshold ?? -40)),
     reduction: Math.max(0, Math.min(1, config.reduction ?? 0.5)),
     attack: Math.max(0, Math.min(100, config.attack ?? 10)),
     release: Math.max(0, Math.min(500, config.release ?? 100)),
+    focus,
+    profile,
   };
 }
 

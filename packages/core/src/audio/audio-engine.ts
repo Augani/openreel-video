@@ -1,4 +1,5 @@
 import type { Timeline, Track, Clip, Effect } from "../types/timeline";
+import type { AudioEffectParams } from "../types/effects";
 import type { MediaItem, Project } from "../types/project";
 import type {
   AudioEngineConfig,
@@ -10,6 +11,12 @@ import type {
   TimeRange,
 } from "./types";
 import { DEFAULT_AUDIO_CONFIG } from "./types";
+import { AudioEffectsEngine } from "./audio-effects-engine";
+import {
+  getPanFromAudioEffects,
+  splitProfileAwareNoiseReductionEffects,
+} from "./audio-effect-routing";
+import { scheduleVolumeAutomationOnGain } from "./clip-volume-automation";
 
 const SEGMENTED_AUDIO_DECODE_THRESHOLD_SECONDS = 120;
 
@@ -110,6 +117,7 @@ export class AudioEngine {
   private trackNodes: Map<string, AudioTrackNodes> = new Map();
   private mediaBuffers: Map<string, AudioBuffer> = new Map();
   private segmentedAudioDecoders: Map<string, SegmentedAudioDecoder> = new Map();
+  private effectsEngine: AudioEffectsEngine | null = null;
 
   /**
    * Creates a new AudioEngine instance.
@@ -135,6 +143,8 @@ export class AudioEngine {
 
       this.masterGain = this.audioContext.createGain();
       this.masterGain.connect(this.audioContext.destination);
+      this.effectsEngine = new AudioEffectsEngine();
+      await this.effectsEngine.initialize();
 
       this.initialized = true;
     } catch (error) {
@@ -319,21 +329,22 @@ export class AudioEngine {
     const clipEnd = Math.min(clip.startTime + clip.duration, rangeEnd);
     const offsetInClip = clipStart - clip.startTime;
     const sourceTime = clip.inPoint + offsetInClip;
-    const panEffect = clip.effects.find((e) => e.type === "pan");
-    const pan =
-      panEffect && typeof panEffect.params.value === "number"
-        ? panEffect.params.value
-        : 0;
+    const clipAudioEffects = clip.audioEffects || [];
+    const pan = getPanFromAudioEffects(
+      clipAudioEffects.length > 0 ? clipAudioEffects : clip.effects,
+    );
 
     return {
       clipId: clip.id,
       mediaId: clip.mediaId,
       sourceTime,
+      clipOffset: offsetInClip,
       timelineStartTime: clipStart,
       duration: clipEnd - clipStart,
       volume: clip.volume,
+      volumeAutomation: clip.automation?.volume ?? [],
       pan,
-      effects: clip.effects,
+      effects: clipAudioEffects,
       fadeIn: clip.fade?.fadeIn,
       fadeOut: clip.fade?.fadeOut,
       speed: (clip as any).speed || 1,
@@ -425,27 +436,38 @@ export class AudioEngine {
       return;
     }
 
-    const { gainNode } = this.createClipOutputNodes(context, clipInfo);
+    const { volumeGainNode, fadeGainNode } = this.createClipOutputNodes(
+      context,
+      clipInfo,
+    );
     const source = context.createBufferSource();
-    source.buffer = audioBuffer;
 
     const speed = clipInfo.speed || 1;
     const reversed = clipInfo.reversed || false;
 
+    const processedClip = await this.processClipBuffer(audioBuffer, clipInfo);
+
+    source.buffer = processedClip.buffer;
+
     source.playbackRate.value = reversed ? -speed : speed;
 
-    source.connect(gainNode);
+    source.connect(volumeGainNode);
     const contextStartTime = Math.max(
       0,
       clipInfo.timelineStartTime - renderStartTime,
     );
-    this.applyFades(gainNode, clipInfo, contextStartTime);
+    this.applyVolumeAutomation(volumeGainNode, clipInfo, contextStartTime);
+    this.applyFades(fadeGainNode, clipInfo, contextStartTime);
 
     const startOffset = reversed
-      ? audioBuffer.duration - clipInfo.sourceTime
-      : clipInfo.sourceTime;
+      ? processedClip.buffer.duration - processedClip.startOffset
+      : processedClip.startOffset;
 
-    source.start(contextStartTime, startOffset, clipInfo.duration);
+    source.start(
+      contextStartTime,
+      Math.max(0, startOffset),
+      Math.min(clipInfo.duration, processedClip.renderDuration),
+    );
   }
 
   private shouldUseSegmentedAudioDecoding(
@@ -455,8 +477,99 @@ export class AudioEngine {
     return (
       mediaItem.metadata.duration >= SEGMENTED_AUDIO_DECODE_THRESHOLD_SECONDS &&
       (clipInfo.speed || 1) === 1 &&
-      !clipInfo.reversed
+      !clipInfo.reversed &&
+      !clipInfo.effects.some((effect) => effect.enabled)
     );
+  }
+
+  private async processClipBuffer(
+    audioBuffer: AudioBuffer,
+    clipInfo: AudioClipRenderInfo,
+  ): Promise<{
+    buffer: AudioBuffer;
+    startOffset: number;
+    renderDuration: number;
+  }> {
+    const enabledEffects = clipInfo.effects.filter(
+      (effect) =>
+        effect.enabled && effect.type !== "pan" && effect.type !== "fadeIn" && effect.type !== "fadeOut",
+    );
+
+    if (
+      enabledEffects.length === 0 ||
+      (clipInfo.speed ?? 1) !== 1 ||
+      clipInfo.reversed ||
+      !this.effectsEngine
+    ) {
+      return {
+        buffer: audioBuffer,
+        startOffset: clipInfo.sourceTime,
+        renderDuration: clipInfo.duration,
+      };
+    }
+
+    const segmentBuffer = this.extractAudioSegment(
+      audioBuffer,
+      clipInfo.sourceTime,
+      clipInfo.duration,
+    );
+    const { profileAwareNoiseEffects, realtimeEffects } =
+      splitProfileAwareNoiseReductionEffects(enabledEffects);
+
+    let processedBuffer = segmentBuffer;
+
+    for (const effect of profileAwareNoiseEffects) {
+      const params = effect.params as AudioEffectParams["noiseReduction"];
+      if (!params.profile) {
+        continue;
+      }
+
+      processedBuffer = await this.effectsEngine.applyNoiseReductionWithProfileData(
+        processedBuffer,
+        params.profile,
+        params.reduction ?? 0.5,
+        params.focus ?? "balanced",
+      );
+    }
+
+    if (realtimeEffects.length > 0) {
+      const result = await this.effectsEngine.applyEffectChain(
+        processedBuffer,
+        realtimeEffects,
+      );
+      processedBuffer = result.buffer;
+    }
+
+    return {
+      buffer: processedBuffer,
+      startOffset: 0,
+      renderDuration: processedBuffer.duration,
+    };
+  }
+
+  private extractAudioSegment(
+    sourceBuffer: AudioBuffer,
+    startTime: number,
+    duration: number,
+  ): AudioBuffer {
+    const startSample = Math.max(0, Math.floor(startTime * sourceBuffer.sampleRate));
+    const length = Math.max(1, Math.ceil(duration * sourceBuffer.sampleRate));
+    const segmentBuffer = this.audioContext!.createBuffer(
+      sourceBuffer.numberOfChannels,
+      length,
+      sourceBuffer.sampleRate,
+    );
+
+    for (let channel = 0; channel < sourceBuffer.numberOfChannels; channel++) {
+      const sourceData = sourceBuffer.getChannelData(channel);
+      const targetData = segmentBuffer.getChannelData(channel);
+
+      for (let index = 0; index < length; index++) {
+        targetData[index] = sourceData[startSample + index] || 0;
+      }
+    }
+
+    return segmentBuffer;
   }
 
   private async renderClipToContextFromSegments(
@@ -476,12 +589,16 @@ export class AudioEngine {
       return false;
     }
 
-    const { gainNode } = this.createClipOutputNodes(context, clipInfo);
+    const { volumeGainNode, fadeGainNode } = this.createClipOutputNodes(
+      context,
+      clipInfo,
+    );
     const contextStartTime = Math.max(
       0,
       clipInfo.timelineStartTime - renderStartTime,
     );
-    this.applyFades(gainNode, clipInfo, contextStartTime);
+    this.applyVolumeAutomation(volumeGainNode, clipInfo, contextStartTime);
+    this.applyFades(fadeGainNode, clipInfo, contextStartTime);
 
     let rendered = false;
 
@@ -497,7 +614,7 @@ export class AudioEngine {
 
       const source = context.createBufferSource();
       source.buffer = wrapped.buffer;
-      source.connect(gainNode);
+      source.connect(volumeGainNode);
       source.start(
         contextStartTime + (overlapStart - rangeStart),
         overlapStart - bufferStart,
@@ -513,19 +630,39 @@ export class AudioEngine {
     context: OfflineAudioContext,
     clipInfo: AudioClipRenderInfo,
   ): {
-    gainNode: GainNode;
+    volumeGainNode: GainNode;
+    fadeGainNode: GainNode;
     pannerNode: StereoPannerNode;
   } {
-    const gainNode = context.createGain();
-    gainNode.gain.value = clipInfo.volume;
+    const volumeGainNode = context.createGain();
+    volumeGainNode.gain.value = clipInfo.volume;
+
+    const fadeGainNode = context.createGain();
+    fadeGainNode.gain.value = 1;
 
     const pannerNode = context.createStereoPanner();
     pannerNode.pan.value = Math.max(-1, Math.min(1, clipInfo.pan));
 
-    gainNode.connect(pannerNode);
+    volumeGainNode.connect(fadeGainNode);
+    fadeGainNode.connect(pannerNode);
     pannerNode.connect(context.destination);
 
-    return { gainNode, pannerNode };
+    return { volumeGainNode, fadeGainNode, pannerNode };
+  }
+
+  private applyVolumeAutomation(
+    gainNode: GainNode,
+    clipInfo: AudioClipRenderInfo,
+    startTime: number,
+  ): void {
+    scheduleVolumeAutomationOnGain(
+      gainNode,
+      clipInfo.volumeAutomation,
+      clipInfo.volume,
+      clipInfo.clipOffset,
+      clipInfo.duration,
+      startTime,
+    );
   }
 
   private async getSegmentedAudioDecoder(
@@ -557,16 +694,18 @@ export class AudioEngine {
     clipInfo: AudioClipRenderInfo,
     startTime: number,
   ): void {
-    const { fadeIn, fadeOut, duration, volume } = clipInfo;
+    const { fadeIn, fadeOut, duration } = clipInfo;
+
+    gainNode.gain.setValueAtTime(1, startTime);
 
     if (fadeIn && fadeIn > 0) {
       gainNode.gain.setValueAtTime(0, startTime);
-      gainNode.gain.linearRampToValueAtTime(volume, startTime + fadeIn);
+      gainNode.gain.linearRampToValueAtTime(1, startTime + fadeIn);
     }
 
     if (fadeOut && fadeOut > 0) {
       const fadeOutStart = startTime + duration - fadeOut;
-      gainNode.gain.setValueAtTime(volume, fadeOutStart);
+      gainNode.gain.setValueAtTime(1, fadeOutStart);
       gainNode.gain.linearRampToValueAtTime(0, startTime + duration);
     }
   }
@@ -817,6 +956,8 @@ export class AudioEngine {
   async dispose(): Promise<void> {
     this.clearCache();
     this.trackNodes.clear();
+    await this.effectsEngine?.dispose();
+    this.effectsEngine = null;
 
     if (this.audioContext) {
       await this.audioContext.close();

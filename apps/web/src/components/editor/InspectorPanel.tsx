@@ -22,6 +22,7 @@ import {
   MaskSection,
   ColorGradingSection,
   AudioEffectsSection,
+  NoiseReductionSection,
   TextSection,
   TextAnimationSection,
   ShapeSection,
@@ -59,10 +60,10 @@ import {
 import {
   getAudioBridgeEffects,
   initializeAudioBridgeEffects,
-  DEFAULT_EQ_BANDS,
   DEFAULT_NOISE_REDUCTION,
 } from "../../bridges/audio-bridge-effects";
 import { toast } from "../../stores/notification-store";
+import { getNoiseReductionPreset } from "./inspector/noise-reduction-presets";
 import {
   Input,
   LabeledSlider,
@@ -403,7 +404,13 @@ export const InspectorPanel: React.FC = () => {
     [selectedClip],
   );
 
-  const { addVideoEffect, updateVideoEffect } = useProjectStore();
+  const {
+    addVideoEffect,
+    updateVideoEffect,
+    getAudioEffects,
+    updateAudioEffect,
+    toggleAudioEffect,
+  } = useProjectStore();
 
   const handleRemoveBackground = useCallback(() => {
     if (!selectedClip) return;
@@ -422,38 +429,59 @@ export const InspectorPanel: React.FC = () => {
     try {
       await initializeAudioBridgeEffects();
       const bridge = getAudioBridgeEffects();
-      const nrResult = bridge.applyNoiseReduction(selectedClip.id, {
+      const noiseCleanupConfig = {
         ...DEFAULT_NOISE_REDUCTION,
-        threshold: -35,
-        reduction: 0.6,
-      });
-      const speechEQBands = DEFAULT_EQ_BANDS.map((band, i) => {
-        let gain = 0;
-        if (i === 0) gain = -3;
-        if (i === 1) gain = 2;
-        if (i === 2) gain = 4;
-        if (i === 3) gain = 3;
-        if (i === 4) gain = -2;
-        return { ...band, gain };
-      });
-      const eqResult = bridge.applyEQ(selectedClip.id, speechEQBands);
-      const compResult = bridge.applyCompressor(selectedClip.id, {
-        threshold: -18,
-        ratio: 3,
-        attack: 0.005,
-        release: 0.15,
-      });
-      if (nrResult.success && eqResult.success && compResult.success) {
-        setAudioEnhanced(true);
-        setTimeout(() => setAudioEnhanced(false), 2000);
+        ...getNoiseReductionPreset("speech").config,
+      };
+
+      const existingNoiseReduction = getAudioEffects(selectedClip.id).find(
+        (effect) => effect.type === "noiseReduction",
+      );
+
+      if (existingNoiseReduction) {
+        updateAudioEffect(
+          selectedClip.id,
+          existingNoiseReduction.id,
+          noiseCleanupConfig as unknown as Record<string, unknown>,
+        );
+        toggleAudioEffect(selectedClip.id, existingNoiseReduction.id, true);
+      } else {
+        const result = bridge.applyNoiseReduction(
+          selectedClip.id,
+          noiseCleanupConfig,
+        );
+
+        if (!result.success) {
+          throw new Error(result.error ?? "Failed to apply noise cleanup");
+        }
       }
+
+      setAudioEnhanced(true);
+      setTimeout(() => setAudioEnhanced(false), 2000);
+      toast.success(
+        "Noise cleanup applied",
+        "Fine-tune or switch presets in Background Noise Removal.",
+      );
+
       forceUpdate();
     } catch (error) {
       console.error("Failed to enhance audio:", error);
+      toast.error(
+        "Could not clean up audio",
+        error instanceof Error
+          ? error.message
+          : "Noise cleanup could not be applied to this clip.",
+      );
     } finally {
       setIsEnhancingAudio(false);
     }
-  }, [selectedClip, forceUpdate]);
+  }, [
+    selectedClip,
+    forceUpdate,
+    getAudioEffects,
+    toggleAudioEffect,
+    updateAudioEffect,
+  ]);
 
   const handleAutoColor = useCallback(() => {
     if (!selectedClip) return;
@@ -628,6 +656,14 @@ export const InspectorPanel: React.FC = () => {
   const showTextSection = clipType === "text";
   const showShapeSection = clipType === "shape";
   const showSVGSection = clipType === "svg";
+  const selectedNoiseReductionEffect = selectedTimelineClip?.audioEffects?.find(
+    (effect) => effect.type === "noiseReduction",
+  );
+  const noiseReductionSectionTitle = selectedNoiseReductionEffect
+    ? selectedNoiseReductionEffect.enabled
+      ? "Background Noise Removal (Active)"
+      : "Background Noise Removal (Configured)"
+    : "Background Noise Removal";
   const appliedEditingTemplates =
     selectedTimelineClip?.metadata?.appliedTemplates || [];
   const handleRecipeControlChange = useCallback(
@@ -1456,6 +1492,16 @@ export const InspectorPanel: React.FC = () => {
 
             {showAudioEffects && (
               <Section
+                title={noiseReductionSectionTitle}
+                sectionId="background-noise-removal"
+                defaultOpen={Boolean(selectedNoiseReductionEffect)}
+              >
+                <NoiseReductionSection clipId={clipId} />
+              </Section>
+            )}
+
+            {showAudioEffects && (
+              <Section
                 title="Audio Effects"
                 sectionId="audio-effects"
                 defaultOpen={false}
@@ -1544,12 +1590,12 @@ export const InspectorPanel: React.FC = () => {
                       {isEnhancingAudio ? (
                         <>
                           <Loader2 size={12} className="animate-spin" />
-                          Enhancing...
+                          Cleaning up...
                         </>
                       ) : audioEnhanced ? (
-                        "✓ Enhanced"
+                        "✓ Noise Reduced"
                       ) : (
-                        "Enhance Audio"
+                        "Quick Dialogue Cleanup"
                       )}
                     </button>
                   )}

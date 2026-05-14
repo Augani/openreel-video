@@ -1,6 +1,10 @@
 import type { Effect } from "../types/timeline";
 import type { AudioEffectParams, EQBand } from "../types/effects";
 import { FFT } from "./fft";
+import {
+  isSerializedNoiseProfile,
+  type SerializedNoiseProfile,
+} from "./audio-effect-routing";
 
 export interface AudioEffectChainConfig {
   readonly effects: Effect[];
@@ -30,6 +34,324 @@ interface EffectNodePair {
   input: AudioNode;
   output: AudioNode;
 }
+
+type NoiseReductionFocus = NonNullable<
+  AudioEffectParams["noiseReduction"]["focus"]
+>;
+
+interface NoiseReductionBandSpec {
+  type: BiquadFilterType;
+  frequency: number;
+  q: number;
+}
+
+interface NoiseReductionFocusProfile {
+  minimumGain: number;
+  bandWeights: number[];
+  postFilters: Array<NoiseReductionBandSpec>;
+}
+
+const NOISE_REDUCTION_BAND_SPECS: NoiseReductionBandSpec[] = [
+  { type: "lowpass", frequency: 90, q: 0.707 },
+  { type: "bandpass", frequency: 160, q: 0.85 },
+  { type: "bandpass", frequency: 315, q: 0.9 },
+  { type: "bandpass", frequency: 630, q: 0.95 },
+  { type: "bandpass", frequency: 1250, q: 1 },
+  { type: "bandpass", frequency: 2500, q: 1 },
+  { type: "bandpass", frequency: 5000, q: 0.95 },
+  { type: "bandpass", frequency: 9000, q: 0.9 },
+  { type: "highpass", frequency: 12000, q: 0.707 },
+];
+
+const NOISE_REDUCTION_FOCUS_PROFILES: Record<
+  NoiseReductionFocus,
+  NoiseReductionFocusProfile
+> = {
+  balanced: {
+    minimumGain: 0.42,
+    bandWeights: [1.05, 1, 0.95, 0.85, 0.72, 0.68, 0.8, 0.92, 1],
+    postFilters: [{ type: "highpass", frequency: 55, q: 0.6 }],
+  },
+  speech: {
+    minimumGain: 0.48,
+    bandWeights: [1.15, 1.05, 0.92, 0.74, 0.58, 0.54, 0.72, 0.88, 1.02],
+    postFilters: [{ type: "highpass", frequency: 65, q: 0.7 }],
+  },
+  heavy: {
+    minimumGain: 0.2,
+    bandWeights: [1.28, 1.22, 1.12, 1, 0.86, 0.82, 0.96, 1.08, 1.14],
+    postFilters: [
+      { type: "highpass", frequency: 70, q: 0.7 },
+      { type: "lowpass", frequency: 14500, q: 0.7 },
+    ],
+  },
+  wind: {
+    minimumGain: 0.18,
+    bandWeights: [1.4, 1.34, 1.14, 0.86, 0.67, 0.62, 0.76, 0.9, 1],
+    postFilters: [{ type: "highpass", frequency: 95, q: 0.8 }],
+  },
+  hum: {
+    minimumGain: 0.24,
+    bandWeights: [1.32, 1.22, 1.06, 0.9, 0.72, 0.66, 0.8, 0.94, 1],
+    postFilters: [
+      { type: "highpass", frequency: 70, q: 0.7 },
+      { type: "notch", frequency: 60, q: 18 },
+      { type: "notch", frequency: 120, q: 14 },
+    ],
+  },
+};
+
+export interface NoiseReductionNodeChain {
+  input: AudioNode;
+  output: AudioNode;
+  nodes: AudioNode[];
+}
+
+const createNoiseReductionBandsForContext = (
+  context: BaseAudioContext,
+  params?: AudioEffectParams["noiseReduction"],
+  focus: NoiseReductionFocus = "balanced",
+): Array<{ filter: BiquadFilterNode; gate: GainNode }> => {
+  const threshold = params?.threshold ?? -40;
+  const reduction = params?.reduction ?? 0.5;
+  const focusProfile = NOISE_REDUCTION_FOCUS_PROFILES[focus];
+  const thresholdAggression = Math.min(
+    1,
+    Math.max(0.15, (Math.abs(threshold) - 18) / 42),
+  );
+  const bands: Array<{ filter: BiquadFilterNode; gate: GainNode }> = [];
+
+  for (let i = 0; i < NOISE_REDUCTION_BAND_SPECS.length; i++) {
+    const bandSpec = NOISE_REDUCTION_BAND_SPECS[i];
+    const filter = context.createBiquadFilter();
+    filter.type = bandSpec.type;
+    filter.frequency.value = bandSpec.frequency;
+    filter.Q.value = bandSpec.q;
+
+    const gate = context.createGain();
+    const attenuation =
+      reduction * thresholdAggression * focusProfile.bandWeights[i];
+    gate.gain.value = Math.min(
+      1,
+      Math.max(focusProfile.minimumGain, 1 - attenuation),
+    );
+
+    bands.push({ filter, gate });
+  }
+
+  return bands;
+};
+
+const createNoiseReductionPostFiltersForContext = (
+  context: BaseAudioContext,
+  focus: NoiseReductionFocus,
+): BiquadFilterNode[] => {
+  const focusProfile = NOISE_REDUCTION_FOCUS_PROFILES[focus];
+
+  return focusProfile.postFilters.map((spec) => {
+    const filter = context.createBiquadFilter();
+    filter.type = spec.type;
+    filter.frequency.value = spec.frequency;
+    filter.Q.value = spec.q;
+    return filter;
+  });
+};
+
+const calculateNoiseStatistics = (magnitudes: Float32Array): {
+  mean: number;
+  stdDev: number;
+} => {
+  let sum = 0;
+  for (let index = 0; index < magnitudes.length; index += 1) {
+    sum += magnitudes[index];
+  }
+
+  const mean = sum / magnitudes.length;
+  let varianceSum = 0;
+
+  for (let index = 0; index < magnitudes.length; index += 1) {
+    const diff = magnitudes[index] - mean;
+    varianceSum += diff * diff;
+  }
+
+  return {
+    mean,
+    stdDev: Math.sqrt(varianceSum / magnitudes.length),
+  };
+};
+
+const calculateLowFrequencyEnergy = (
+  magnitudes: Float32Array,
+  binWidth: number,
+): number => {
+  const maxBin = Math.min(magnitudes.length, Math.ceil(200 / binWidth));
+  let energy = 0;
+
+  for (let index = 0; index < maxBin; index += 1) {
+    energy += magnitudes[index];
+  }
+
+  return energy / maxBin;
+};
+
+export const createProfileBasedNoiseReductionFilters = (
+  context: BaseAudioContext,
+  profile: SimpleNoiseProfile,
+  reduction: number,
+  focus: NoiseReductionFocus,
+  includePostFilters: boolean = true,
+): BiquadFilterNode[] => {
+  const filters: BiquadFilterNode[] = [];
+  const magnitudes = profile.magnitudes;
+  const frequencyBins = profile.frequencyBins;
+  const { mean, stdDev } = calculateNoiseStatistics(magnitudes);
+  const peakThreshold = mean + stdDev * 2;
+  const addressedBins = new Set<number>();
+
+  for (let index = 2; index < magnitudes.length - 2; index += 1) {
+    const magnitude = magnitudes[index];
+    const frequency = frequencyBins[index];
+
+    if (frequency < 60 || addressedBins.has(index)) {
+      continue;
+    }
+
+    const isPeak =
+      magnitude > magnitudes[index - 2] &&
+      magnitude > magnitudes[index - 1] &&
+      magnitude > magnitudes[index + 1] &&
+      magnitude > magnitudes[index + 2] &&
+      magnitude > peakThreshold;
+
+    if (!isPeak) {
+      continue;
+    }
+
+    const filter = context.createBiquadFilter();
+    filter.type = "notch";
+    filter.frequency.value = Math.max(20, Math.min(20000, frequency));
+    const peakSharpness =
+      magnitude / ((magnitudes[index - 1] + magnitudes[index + 1]) / 2);
+    filter.Q.value = Math.min(30, Math.max(5, peakSharpness * 10));
+    filters.push(filter);
+
+    for (let bin = index - 2; bin <= index + 2; bin += 1) {
+      addressedBins.add(bin);
+    }
+  }
+
+  const bandCenters = [125, 250, 500, 1000, 2000, 4000, 8000];
+  const binWidth = profile.sampleRate / (magnitudes.length * 2);
+  const safeMean = Math.max(mean, 1e-6);
+
+  for (const centerFrequency of bandCenters) {
+    const binIndex = Math.round(centerFrequency / binWidth);
+    if (binIndex >= magnitudes.length || addressedBins.has(binIndex)) {
+      continue;
+    }
+
+    const bandStart = Math.max(0, binIndex - 5);
+    const bandEnd = Math.min(magnitudes.length - 1, binIndex + 5);
+    let bandAverage = 0;
+
+    for (let index = bandStart; index <= bandEnd; index += 1) {
+      bandAverage += magnitudes[index];
+    }
+
+    bandAverage /= bandEnd - bandStart + 1;
+
+    if (bandAverage <= safeMean * 1.2) {
+      continue;
+    }
+
+    const filter = context.createBiquadFilter();
+    filter.type = "peaking";
+    filter.frequency.value = centerFrequency;
+    filter.Q.value = 1.4;
+    const noiseRatio = (bandAverage - safeMean) / safeMean;
+    filter.gain.value = -reduction * Math.min(12, noiseRatio * 6);
+    filters.push(filter);
+  }
+
+  const lowFrequencyEnergy = calculateLowFrequencyEnergy(magnitudes, binWidth);
+  if (lowFrequencyEnergy > safeMean * 1.5) {
+    const highpass = context.createBiquadFilter();
+    highpass.type = "highpass";
+    highpass.frequency.value = 80;
+    highpass.Q.value = 0.707;
+    filters.push(highpass);
+  }
+
+  if (includePostFilters) {
+    filters.push(...createNoiseReductionPostFiltersForContext(context, focus));
+  }
+
+  if (filters.length === 0) {
+    const highpass = context.createBiquadFilter();
+    highpass.type = "highpass";
+    highpass.frequency.value = 60;
+    highpass.Q.value = 0.5;
+    filters.push(highpass);
+  }
+
+  return filters;
+};
+
+export const createNoiseReductionNodeChain = (
+  context: BaseAudioContext,
+  effect: Effect,
+): NoiseReductionNodeChain => {
+  const params = effect.params as AudioEffectParams["noiseReduction"];
+  const focus = params?.focus ?? "balanced";
+
+  const inputGain = context.createGain();
+  const outputGain = context.createGain();
+
+  const bands = createNoiseReductionBandsForContext(context, params, focus);
+  const nodes: AudioNode[] = [inputGain, outputGain];
+  let bandInput: AudioNode = inputGain;
+
+  if (params?.profile && isSerializedNoiseProfile(params.profile)) {
+    const profileFilters = createProfileBasedNoiseReductionFilters(
+      context,
+      toSimpleNoiseProfile(params.profile),
+      params.reduction ?? 0.5,
+      focus,
+      false,
+    );
+
+    for (const filter of profileFilters) {
+      nodes.push(filter);
+      bandInput.connect(filter);
+      bandInput = filter;
+    }
+  }
+
+  for (const band of bands) {
+    nodes.push(band.filter, band.gate);
+    bandInput.connect(band.filter);
+    band.filter.connect(band.gate);
+    band.gate.connect(outputGain);
+  }
+
+  let lastNode: AudioNode = outputGain;
+
+  for (const filter of createNoiseReductionPostFiltersForContext(context, focus)) {
+    nodes.push(filter);
+    lastNode.connect(filter);
+    lastNode = filter;
+  }
+
+  return { input: inputGain, output: lastNode, nodes };
+};
+
+const toSimpleNoiseProfile = (
+  profile: SerializedNoiseProfile,
+): SimpleNoiseProfile => ({
+  frequencyBins: new Float32Array(profile.frequencyBins),
+  magnitudes: new Float32Array(profile.magnitudes),
+  sampleRate: profile.sampleRate,
+});
 
 export class AudioEffectsEngine {
   private audioContext: AudioContext | OfflineAudioContext | null = null;
@@ -402,20 +724,8 @@ export class AudioEffectsEngine {
     context: BaseAudioContext,
     effect: Effect,
   ): EffectNodePair {
-    const params = effect.params as AudioEffectParams["noiseReduction"];
-
-    const inputGain = context.createGain();
-    const outputGain = context.createGain();
-
-    const bands = this.createNoiseReductionBands(context, params);
-
-    for (const band of bands) {
-      inputGain.connect(band.filter);
-      band.filter.connect(band.gate);
-      band.gate.connect(outputGain);
-    }
-
-    return { input: inputGain, output: outputGain };
+    const chain = createNoiseReductionNodeChain(context, effect);
+    return { input: chain.input, output: chain.output };
   }
 
   createNoiseReductionNode(
@@ -424,37 +734,6 @@ export class AudioEffectsEngine {
   ): AudioNode {
     const pair = this.createNoiseReductionNodePair(context, effect);
     return pair.input;
-  }
-
-  private createNoiseReductionBands(
-    context: BaseAudioContext,
-    params?: AudioEffectParams["noiseReduction"],
-  ): Array<{ filter: BiquadFilterNode; gate: GainNode }> {
-    const threshold = params?.threshold ?? -40;
-    const reduction = params?.reduction ?? 0.5;
-    const thresholdLinear = Math.pow(10, threshold / 20);
-
-    // Define frequency bands (octave-based)
-    const frequencies = [63, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
-    const bands: Array<{ filter: BiquadFilterNode; gate: GainNode }> = [];
-
-    for (let i = 0; i < frequencies.length; i++) {
-      const filter = context.createBiquadFilter();
-      filter.type = "peaking";
-      filter.frequency.value = frequencies[i];
-      filter.Q.value = 1.4; // ~1 octave bandwidth
-
-      const gate = context.createGain();
-      // Lower frequencies typically have more noise, apply more reduction
-      const frequencyFactor = 1 - (i / frequencies.length) * 0.3;
-      // Scale reduction by threshold sensitivity
-      const thresholdScale = Math.min(1, thresholdLinear * 10);
-      gate.gain.value = 1 - reduction * frequencyFactor * thresholdScale;
-
-      bands.push({ filter, gate });
-    }
-
-    return bands;
   }
 
   async learnNoiseProfile(
@@ -522,6 +801,7 @@ export class AudioEffectsEngine {
     buffer: AudioBuffer,
     profileId: string,
     reduction: number = 0.5,
+    focus: NoiseReductionFocus = "balanced",
   ): Promise<AudioBuffer> {
     this.ensureInitialized();
 
@@ -529,6 +809,32 @@ export class AudioEffectsEngine {
     if (!profile) {
       throw new Error(`Noise profile '${profileId}' not found`);
     }
+
+    return this.applyNoiseReductionWithProfileData(
+      buffer,
+      {
+        frequencyBins: Array.from(profile.frequencyBins),
+        magnitudes: Array.from(profile.magnitudes),
+        sampleRate: profile.sampleRate,
+      },
+      reduction,
+      focus,
+    );
+  }
+
+  async applyNoiseReductionWithProfileData(
+    buffer: AudioBuffer,
+    profileData: SerializedNoiseProfile,
+    reduction: number = 0.5,
+    focus: NoiseReductionFocus = "balanced",
+  ): Promise<AudioBuffer> {
+    this.ensureInitialized();
+
+    if (!isSerializedNoiseProfile(profileData)) {
+      throw new Error("Noise profile data is invalid");
+    }
+
+    const profile = toSimpleNoiseProfile(profileData);
     const offlineContext = new OfflineAudioContext(
       buffer.numberOfChannels,
       buffer.length,
@@ -539,10 +845,11 @@ export class AudioEffectsEngine {
     source.buffer = buffer;
     const inputGain = offlineContext.createGain();
     const outputGain = offlineContext.createGain();
-    const filters = this.createProfileBasedFilters(
+    const filters = createProfileBasedNoiseReductionFilters(
       offlineContext,
       profile,
       reduction,
+      focus,
     );
 
     source.connect(inputGain);
@@ -563,147 +870,6 @@ export class AudioEffectsEngine {
     source.start(0);
 
     return offlineContext.startRendering();
-  }
-
-  private createProfileBasedFilters(
-    context: BaseAudioContext,
-    profile: SimpleNoiseProfile,
-    reduction: number,
-  ): BiquadFilterNode[] {
-    const filters: BiquadFilterNode[] = [];
-    const magnitudes = profile.magnitudes;
-    const frequencyBins = profile.frequencyBins;
-    const { mean, stdDev } = this.calculateNoiseStatistics(magnitudes);
-    const peakThreshold = mean + stdDev * 2; // Peaks are 2 std devs above mean
-
-    // Track which frequency regions have been addressed
-    const addressedBins = new Set<number>();
-
-    // Pass 1: Identify and filter tonal noise peaks (narrow-band noise like hum or buzz)
-    // Tonal noise has narrow frequency bandwidth, so we use notch filters for surgical removal
-    for (let i = 2; i < magnitudes.length - 2; i++) {
-      const mag = magnitudes[i];
-      const freq = frequencyBins[i];
-
-      // Skip very low frequencies (handled separately) and already addressed bins
-      if (freq < 60 || addressedBins.has(i)) continue;
-
-      // Detect local peaks using 5-point comparison for robustness against noise
-      const isPeak =
-        mag > magnitudes[i - 2] &&
-        mag > magnitudes[i - 1] &&
-        mag > magnitudes[i + 1] &&
-        mag > magnitudes[i + 2] &&
-        mag > peakThreshold;
-
-      if (isPeak) {
-        const filter = context.createBiquadFilter();
-        filter.type = "notch"; // Narrow-band attenuation
-        filter.frequency.value = Math.max(20, Math.min(20000, freq));
-        // Peak sharpness determines Q (quality factor): sharper peaks need narrower filters
-        const peakSharpness =
-          mag / ((magnitudes[i - 1] + magnitudes[i + 1]) / 2);
-        filter.Q.value = Math.min(30, Math.max(5, peakSharpness * 10));
-
-        filters.push(filter);
-
-        // Mark surrounding bins as addressed to avoid overlapping filters
-        for (let j = i - 2; j <= i + 2; j++) {
-          addressedBins.add(j);
-        }
-      }
-    }
-
-    // Pass 2: Add broadband noise reduction using parametric EQ
-    // Broadband noise (like air conditioning) is spread across frequencies; use gentle EQ reduction
-    // Divide spectrum into musical octave-based bands for natural-sounding processing
-    const bandCenters = [125, 250, 500, 1000, 2000, 4000, 8000];
-    const binWidth = profile.sampleRate / (magnitudes.length * 2);
-
-    for (const centerFreq of bandCenters) {
-      const binIndex = Math.round(centerFreq / binWidth);
-      if (binIndex >= magnitudes.length || addressedBins.has(binIndex))
-        continue;
-
-      // Calculate local average energy for this frequency band
-      const bandStart = Math.max(0, binIndex - 5);
-      const bandEnd = Math.min(magnitudes.length - 1, binIndex + 5);
-      let bandAvg = 0;
-      for (let i = bandStart; i <= bandEnd; i++) {
-        bandAvg += magnitudes[i];
-      }
-      bandAvg /= bandEnd - bandStart + 1;
-
-      // Only reduce bands with elevated noise (>20% above mean)
-      if (bandAvg > mean * 1.2) {
-        const filter = context.createBiquadFilter();
-        filter.type = "peaking"; // Gentle reduction vs surgical notch
-        filter.frequency.value = centerFreq;
-        filter.Q.value = 1.4; // ~1 octave bandwidth for natural sound
-        // Gain reduction proportional to noise excess above baseline
-        const noiseRatio = (bandAvg - mean) / mean;
-        const gainReduction = -reduction * Math.min(12, noiseRatio * 6);
-        filter.gain.value = gainReduction;
-
-        filters.push(filter);
-      }
-    }
-
-    // Pass 3: Add high-pass filter for low frequency rumble (wind noise, vibration, etc.)
-    // Low frequency energy concentrated <200Hz is typically noise, not signal
-    const lowFreqEnergy = this.calculateLowFrequencyEnergy(
-      magnitudes,
-      binWidth,
-    );
-    if (lowFreqEnergy > mean * 1.5) {
-      const highpass = context.createBiquadFilter();
-      highpass.type = "highpass";
-      highpass.frequency.value = 80;
-      highpass.Q.value = 0.707; // Butterworth: maximally flat response
-      filters.push(highpass);
-    }
-    // Fallback: always add minimal high-pass to remove DC/sub-bass artifacts
-    if (filters.length === 0) {
-      const highpass = context.createBiquadFilter();
-      highpass.type = "highpass";
-      highpass.frequency.value = 60;
-      highpass.Q.value = 0.5;
-      filters.push(highpass);
-    }
-
-    return filters;
-  }
-
-  private calculateNoiseStatistics(magnitudes: Float32Array): {
-    mean: number;
-    stdDev: number;
-  } {
-    let sum = 0;
-    for (let i = 0; i < magnitudes.length; i++) {
-      sum += magnitudes[i];
-    }
-    const mean = sum / magnitudes.length;
-
-    let varianceSum = 0;
-    for (let i = 0; i < magnitudes.length; i++) {
-      const diff = magnitudes[i] - mean;
-      varianceSum += diff * diff;
-    }
-    const stdDev = Math.sqrt(varianceSum / magnitudes.length);
-
-    return { mean, stdDev };
-  }
-
-  private calculateLowFrequencyEnergy(
-    magnitudes: Float32Array,
-    binWidth: number,
-  ): number {
-    const maxBin = Math.min(magnitudes.length, Math.ceil(200 / binWidth));
-    let energy = 0;
-    for (let i = 0; i < maxBin; i++) {
-      energy += magnitudes[i];
-    }
-    return energy / maxBin;
   }
 
   clearImpulseResponseCache(): void {

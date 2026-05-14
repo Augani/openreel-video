@@ -6,6 +6,7 @@ import type {
   MediaItem,
   Track,
   Clip,
+  AutomationPoint,
   Transition,
   Action,
   ActionResult,
@@ -57,6 +58,7 @@ import { getMediaBridge, initializeMediaBridge } from "../bridges/media-bridge";
 import {
   createEmptyProject,
   calculateTimelineDuration,
+  type AudioDuckingSettings,
   type EditingTemplateApplicationState,
   type ClipHistoryEntry,
   type EditingTemplateHistoryEntry,
@@ -431,7 +433,18 @@ export interface ProjectState {
     effectId: string,
     enabled: boolean,
   ) => boolean;
+  setAudioEffectPreviewBypass: (
+    clipId: string,
+    effectId: string,
+    bypassed: boolean,
+  ) => boolean;
   getAudioEffects: (clipId: string) => Effect[];
+  setClipAudioDucking: (
+    clipId: string,
+    settings: AudioDuckingSettings,
+    points: AutomationPoint[],
+  ) => boolean;
+  clearClipAudioDucking: (clipId: string) => boolean;
 
   // Keyframe actions
   updateClipKeyframes: (clipId: string, keyframes: Keyframe[]) => boolean;
@@ -5722,6 +5735,70 @@ export const useProjectStore = create<ProjectState>()(
         return false;
       },
 
+      setAudioEffectPreviewBypass: (
+        clipId: string,
+        effectId: string,
+        bypassed: boolean,
+      ) => {
+        const { project } = get();
+
+        for (const track of project.timeline.tracks) {
+          const clipIndex = track.clips.findIndex((c) => c.id === clipId);
+          if (clipIndex !== -1) {
+            const clip = track.clips[clipIndex];
+            const audioEffects = clip.audioEffects || [];
+            const effectIndex = audioEffects.findIndex(
+              (effect) => effect.id === effectId,
+            );
+
+            if (effectIndex === -1) {
+              return false;
+            }
+
+            const effect = audioEffects[effectIndex];
+            const nextMetadata = { ...(effect.metadata ?? {}) } as Record<
+              string,
+              unknown
+            >;
+
+            if (bypassed) {
+              nextMetadata.previewBypass = true;
+            } else {
+              delete nextMetadata.previewBypass;
+            }
+
+            const updatedEffect = {
+              ...effect,
+              metadata:
+                Object.keys(nextMetadata).length > 0 ? nextMetadata : undefined,
+            };
+
+            const updatedAudioEffects = [...audioEffects];
+            updatedAudioEffects[effectIndex] = updatedEffect;
+
+            const updatedClip = {
+              ...clip,
+              audioEffects: updatedAudioEffects,
+            };
+            const updatedClips = [...track.clips];
+            updatedClips[clipIndex] = updatedClip;
+            const updatedTrack = { ...track, clips: updatedClips };
+            const updatedTracks = project.timeline.tracks.map((candidate) =>
+              candidate.id === track.id ? updatedTrack : candidate,
+            );
+            const updatedProject = {
+              ...project,
+              timeline: { ...project.timeline, tracks: updatedTracks },
+              modifiedAt: Date.now(),
+            };
+            set({ project: updatedProject });
+            return true;
+          }
+        }
+
+        return false;
+      },
+
       /**
        * Get all audio effects for a clip
        */
@@ -5735,6 +5812,61 @@ export const useProjectStore = create<ProjectState>()(
           }
         }
         return [];
+      },
+
+      setClipAudioDucking: (
+        clipId: string,
+        settings: AudioDuckingSettings,
+        points: AutomationPoint[],
+      ) => {
+        const { project } = get();
+        const updatedProject = updateProjectClip(project, clipId, (clip) => ({
+          ...clip,
+          automation: {
+            ...(clip.automation ?? {}),
+            volume: points.map((point) => ({ ...point })),
+          },
+          metadata: {
+            ...(clip.metadata ?? {}),
+            audioDucking: { ...settings },
+          },
+        }));
+
+        if (!updatedProject) {
+          return false;
+        }
+
+        set({ project: updatedProject });
+        return true;
+      },
+
+      clearClipAudioDucking: (clipId: string) => {
+        const { project } = get();
+        const updatedProject = updateProjectClip(project, clipId, (clip) => {
+          const nextMetadata = { ...(clip.metadata ?? {}) } as Record<
+            string,
+            unknown
+          >;
+          delete nextMetadata.audioDucking;
+
+          const nextAutomation = { ...(clip.automation ?? {}) };
+          delete nextAutomation.volume;
+
+          return {
+            ...clip,
+            automation:
+              Object.keys(nextAutomation).length > 0 ? nextAutomation : undefined,
+            metadata:
+              Object.keys(nextMetadata).length > 0 ? nextMetadata : undefined,
+          };
+        });
+
+        if (!updatedProject) {
+          return false;
+        }
+
+        set({ project: updatedProject });
+        return true;
       },
 
       /**

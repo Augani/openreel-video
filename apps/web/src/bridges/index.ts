@@ -87,6 +87,8 @@ export {
   type CompressorConfig,
   type ReverbConfig,
   type DelayConfig,
+  type SerializedNoiseProfile,
+  type NoiseReductionFocus,
   type NoiseReductionConfig,
   type NoiseProfileData,
   type AudioEffectResult,

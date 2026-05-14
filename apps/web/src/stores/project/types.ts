@@ -4,6 +4,7 @@ import type {
   MediaItem,
   Track,
   Clip,
+  AutomationPoint,
   Transition,
   Action,
   ActionResult,
@@ -78,6 +79,16 @@ export interface EditingTemplateHistoryEntry
   timestamp: number;
   description: string;
   previousState?: EditingTemplateApplicationState;
+}
+
+export interface AudioDuckingSettings {
+  enabled: boolean;
+  sourceTrackId: string | null;
+  threshold: number;
+  reduction: number;
+  attack: number;
+  release: number;
+  holdTime: number;
 }
 
 export interface ProjectState {
@@ -343,7 +354,18 @@ export interface ProjectState {
     effectId: string,
     enabled: boolean,
   ) => boolean;
+  setAudioEffectPreviewBypass: (
+    clipId: string,
+    effectId: string,
+    bypassed: boolean,
+  ) => boolean;
   getAudioEffects: (clipId: string) => Effect[];
+  setClipAudioDucking: (
+    clipId: string,
+    settings: AudioDuckingSettings,
+    points: AutomationPoint[],
+  ) => boolean;
+  clearClipAudioDucking: (clipId: string) => boolean;
 
   updateClipKeyframes: (clipId: string, keyframes: Keyframe[]) => boolean;
 
