@@ -1,9 +1,14 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { SpectralNoiseReducer } from "@openreel/core";
 import { DEFAULT_NOISE_REDUCTION } from "../../../bridges/audio-bridge-effects";
 import {
   suggestNoiseReductionConfig,
   suggestNoiseReductionPreset,
 } from "./noise-reduction-presets";
+import {
+  buildRecommendationProfile,
+  getRecommendationSampleRanges,
+} from "./NoiseReductionSection";
 
 const createProfile = (
   frequencyBins: number[],
@@ -14,6 +19,43 @@ const createProfile = (
   magnitudes: new Float32Array(magnitudes),
   sampleRate: 48000,
   createdAt: Date.now(),
+});
+
+const createFakeAudioBuffer = (
+  duration: number,
+  sampleRate = 10,
+  numberOfChannels = 1,
+): AudioBuffer => {
+  const length = Math.max(1, Math.round(duration * sampleRate));
+  const channels = Array.from(
+    { length: numberOfChannels },
+    () => new Float32Array(length),
+  );
+
+  return {
+    duration: length / sampleRate,
+    length,
+    numberOfChannels,
+    sampleRate,
+    getChannelData(channel: number) {
+      return channels[channel];
+    },
+  } as AudioBuffer;
+};
+
+const createFakeAudioContext = (): BaseAudioContext =>
+  ({
+    createBuffer(numberOfChannels: number, length: number, sampleRate: number) {
+      return createFakeAudioBuffer(
+        length / sampleRate,
+        sampleRate,
+        numberOfChannels,
+      );
+    },
+  }) as BaseAudioContext;
+
+afterEach(() => {
+  vi.restoreAllMocks();
 });
 
 describe("noise reduction presets", () => {
@@ -85,5 +127,39 @@ describe("noise reduction presets", () => {
     );
 
     expect(suggested).toEqual(DEFAULT_NOISE_REDUCTION);
+  });
+
+  it("samples long clips across multiple windows before recommending cleanup", () => {
+    const sampleRanges = getRecommendationSampleRanges(90);
+    let capturedSampleDuration = 0;
+
+    vi.spyOn(SpectralNoiseReducer.prototype, "learnNoiseProfile").mockImplementation(
+      (noiseBuffer) => {
+        capturedSampleDuration = noiseBuffer.duration;
+
+        return {
+          frequencyBins: new Float32Array([80, 250, 1000]),
+          magnitudes: new Float32Array([0.4, 0.36, 0.31]),
+          standardDeviations: new Float32Array([0.03, 0.02, 0.02]),
+          sampleRate: noiseBuffer.sampleRate,
+          fftSize: 2048,
+        };
+      },
+    );
+
+    const profile = buildRecommendationProfile(
+      "clip-long",
+      createFakeAudioBuffer(90),
+      createFakeAudioContext(),
+    );
+
+    expect(sampleRanges).toHaveLength(3);
+    expect(sampleRanges[0].start).toBeGreaterThan(10);
+    expect(sampleRanges[0].end).toBeLessThan(sampleRanges[1].start);
+    expect(sampleRanges[1].start).toBeGreaterThan(35);
+    expect(sampleRanges[1].end).toBeLessThan(sampleRanges[2].start);
+    expect(sampleRanges[2].end).toBeLessThanOrEqual(90);
+    expect(capturedSampleDuration).toBeCloseTo(24, 5);
+    expect(profile.id).toBe("analysis-clip-long");
   });
 });
