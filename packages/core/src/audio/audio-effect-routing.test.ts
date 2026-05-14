@@ -57,6 +57,13 @@ describe("audio effect routing helpers", () => {
   });
 
   it("reads pan from audio effects and validates serialized noise profiles", () => {
+    const frequencyBins = Array.from({ length: 1024 }, (_, index) => index * 23.4);
+    const magnitudes = Array.from({ length: 1024 }, (_, index) => 1 - index / 2048);
+    const standardDeviations = Array.from(
+      { length: 1024 },
+      (_, index) => 0.1 - index / 20480,
+    );
+
     expect(
       getPanFromAudioEffects([
         {
@@ -70,10 +77,23 @@ describe("audio effect routing helpers", () => {
 
     expect(
       isSerializedNoiseProfile({
-        frequencyBins: [80, 160, 320],
-        magnitudes: [1, 0.8, 0.6],
+        frequencyBins,
+        magnitudes,
+        standardDeviations,
         sampleRate: 48000,
+        fftSize: 2048,
       }),
     ).toBe(true);
+  });
+
+  it("rejects malformed spectral profile variance data", () => {
+    expect(
+      isSerializedNoiseProfile({
+        frequencyBins: [80, 160, 320],
+        magnitudes: [1, 0.8, 0.6],
+        standardDeviations: [0.1, 0.08],
+        sampleRate: 48000,
+      }),
+    ).toBe(false);
   });
 });

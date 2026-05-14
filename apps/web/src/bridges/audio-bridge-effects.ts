@@ -47,12 +47,16 @@ export interface DelayConfig {
 export interface SerializedNoiseProfile {
   frequencyBins: number[];
   magnitudes: number[];
+  standardDeviations?: number[];
   sampleRate: number;
+  fftSize?: number;
 }
 
 export const NOISE_REDUCTION_FOCUS_OPTIONS = [
   "balanced",
   "speech",
+  "whiteNoise",
+  "music",
   "heavy",
   "wind",
   "hum",
@@ -80,7 +84,9 @@ export interface NoiseProfileData {
   id: string;
   frequencyBins: Float32Array;
   magnitudes: Float32Array;
+  standardDeviations?: Float32Array;
   sampleRate: number;
+  fftSize?: number;
   createdAt: number;
 }
 
@@ -154,9 +160,16 @@ const isSerializedNoiseProfile = (
   }
 
   const candidate = profile as Record<string, unknown>;
+  const isValidFftSize = (value: unknown, binCount: number): value is number =>
+    typeof value === "number" &&
+    Number.isInteger(value) &&
+    value > 0 &&
+    (value & (value - 1)) === 0 &&
+    value / 2 === binCount;
 
   return (
     Array.isArray(candidate.frequencyBins) &&
+    candidate.frequencyBins.length > 0 &&
     candidate.frequencyBins.every(
       (value) => typeof value === "number" && Number.isFinite(value),
     ) &&
@@ -165,8 +178,16 @@ const isSerializedNoiseProfile = (
       (value) => typeof value === "number" && Number.isFinite(value),
     ) &&
     candidate.frequencyBins.length === candidate.magnitudes.length &&
+    (candidate.standardDeviations === undefined ||
+      (Array.isArray(candidate.standardDeviations) &&
+        candidate.standardDeviations.length === candidate.magnitudes.length &&
+        candidate.standardDeviations.every(
+          (value) => typeof value === "number" && Number.isFinite(value),
+        ))) &&
     typeof candidate.sampleRate === "number" &&
-    Number.isFinite(candidate.sampleRate)
+    Number.isFinite(candidate.sampleRate) &&
+    (candidate.fftSize === undefined ||
+      isValidFftSize(candidate.fftSize, candidate.magnitudes.length))
   );
 };
 
@@ -273,7 +294,11 @@ export function validateNoiseReduction(
     ? {
         frequencyBins: [...config.profile.frequencyBins],
         magnitudes: [...config.profile.magnitudes],
+        standardDeviations: config.profile.standardDeviations
+          ? [...config.profile.standardDeviations]
+          : undefined,
         sampleRate: config.profile.sampleRate,
+        fftSize: config.profile.fftSize,
       }
     : undefined;
 
@@ -761,7 +786,9 @@ export class AudioBridgeEffects {
       id,
       frequencyBins: profile.frequencyBins,
       magnitudes: profile.magnitudes,
+      standardDeviations: profile.standardDeviations,
       sampleRate: profile.sampleRate,
+      fftSize: profile.fftSize,
       createdAt: Date.now(),
     };
 

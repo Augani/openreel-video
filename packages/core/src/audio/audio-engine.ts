@@ -16,6 +16,10 @@ import {
   getPanFromAudioEffects,
   splitProfileAwareNoiseReductionEffects,
 } from "./audio-effect-routing";
+import {
+  resolveClipAudioEffects,
+  resolveClipVolumeAutomation,
+} from "./clip-audio-resolution";
 import { scheduleVolumeAutomationOnGain } from "./clip-volume-automation";
 
 const SEGMENTED_AUDIO_DECODE_THRESHOLD_SECONDS = 120;
@@ -301,7 +305,7 @@ export class AudioEngine {
         muted: track.muted,
         solo: track.solo,
         clips: clips.map((clip) =>
-          this.createClipRenderInfo(clip, startTime, endTime),
+          this.createClipRenderInfo(clip, startTime, endTime, timeline),
         ),
       });
     });
@@ -324,12 +328,13 @@ export class AudioEngine {
     clip: Clip,
     rangeStart: number,
     rangeEnd: number,
+    timeline: Timeline,
   ): AudioClipRenderInfo {
     const clipStart = Math.max(clip.startTime, rangeStart);
     const clipEnd = Math.min(clip.startTime + clip.duration, rangeEnd);
     const offsetInClip = clipStart - clip.startTime;
     const sourceTime = clip.inPoint + offsetInClip;
-    const clipAudioEffects = clip.audioEffects || [];
+    const clipAudioEffects = resolveClipAudioEffects(clip, timeline);
     const pan = getPanFromAudioEffects(
       clipAudioEffects.length > 0 ? clipAudioEffects : clip.effects,
     );
@@ -342,7 +347,7 @@ export class AudioEngine {
       timelineStartTime: clipStart,
       duration: clipEnd - clipStart,
       volume: clip.volume,
-      volumeAutomation: clip.automation?.volume ?? [],
+      volumeAutomation: resolveClipVolumeAutomation(clip, timeline),
       pan,
       effects: clipAudioEffects,
       fadeIn: clip.fade?.fadeIn,
@@ -529,6 +534,7 @@ export class AudioEngine {
         params.profile,
         params.reduction ?? 0.5,
         params.focus ?? "balanced",
+        params.threshold ?? -40,
       );
     }
 

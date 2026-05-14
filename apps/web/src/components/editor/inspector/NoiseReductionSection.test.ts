@@ -17,7 +17,7 @@ const createProfile = (
 });
 
 describe("noise reduction presets", () => {
-  it("recommends heavy cleanup for broadband high-energy noise", () => {
+  it("recommends white-noise cleanup for broadband hiss", () => {
     const preset = suggestNoiseReductionPreset(
       createProfile(
         [80, 250, 1000, 4000, 8000, 12000],
@@ -25,7 +25,32 @@ describe("noise reduction presets", () => {
       ),
     );
 
-    expect(preset).toBe("heavy");
+    expect(preset).toBe("whiteNoise");
+  });
+
+  it("recommends music-bed cleanup for tonal midrange background music", () => {
+    const config = suggestNoiseReductionConfig(
+      createProfile(
+        [80, 220, 440, 880, 1760, 3520, 8000],
+        [0.08, 1.8, 1.1, 0.85, 0.68, 0.42, 0.12],
+      ),
+    );
+
+    expect(config.focus).toBe("music");
+    expect(config.reduction).toBeGreaterThan(0.8);
+  });
+
+  it("pushes broadband white-noise recommendations into aggressive settings", () => {
+    const config = suggestNoiseReductionConfig(
+      createProfile(
+        [80, 250, 1000, 4000, 8000, 12000],
+        [0.78, 0.82, 0.8, 0.79, 0.81, 0.8],
+      ),
+    );
+
+    expect(config.focus).toBe("whiteNoise");
+    expect(config.reduction).toBeGreaterThanOrEqual(0.9);
+    expect(config.threshold).toBeLessThanOrEqual(-50);
   });
 
   it("detects low-end tonal noise as hum or HVAC", () => {

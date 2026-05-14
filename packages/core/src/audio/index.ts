@@ -4,6 +4,8 @@ export * from "./fft";
 export * from "./audio-engine";
 export * from "./realtime-processor";
 export * from "./audio-effects-engine";
+export * from "./audio-effect-routing";
+export * from "./clip-audio-resolution";
 export * from "./noise-reduction";
 export * from "./volume-automation";
 export * from "./realtime-audio-graph";
