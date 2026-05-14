@@ -4,6 +4,7 @@ import {
   autoLearnNoiseProfile,
   extractAudioSegment,
   resolveAudibleAudioTarget,
+  SpectralNoiseReducer,
   type Clip,
   type Project,
 } from "@openreel/core";
@@ -24,7 +25,10 @@ import {
   suggestNoiseReductionConfig,
   suggestNoiseReductionPreset,
 } from "./noise-reduction-presets";
-import { loadAudioBuffer } from "../../../utils/load-audio-buffer";
+import {
+  loadAudioBuffer,
+  type AudioLoadProgress,
+} from "../../../utils/load-audio-buffer";
 
 /**
  * NoiseReductionSection Props
@@ -49,13 +53,26 @@ type LearningState = "idle" | "learning" | "ready" | "applying" | "success" | "e
 interface NoiseRecommendation {
   presetId: NoiseReductionFocus;
   config: NoiseReductionConfig;
-  profile: SerializedNoiseProfile;
+  profile?: SerializedNoiseProfile;
+  hasLearnedProfile: boolean;
 }
 
 interface LearnedNoiseProfileResult {
   profile: NoiseProfileData;
   serializedProfile: SerializedNoiseProfile;
 }
+
+interface NoiseAnalysisResult {
+  recommendationProfile: NoiseProfileData;
+  learnedProfile: LearnedNoiseProfileResult | null;
+}
+
+interface AnalysisProgressState {
+  progress: number;
+  message: string;
+}
+
+const MAX_RECOMMENDATION_SAMPLE_SECONDS = 20;
 
 const findClipById = (project: Project, clipId: string): Clip | null => {
   for (const track of project.timeline.tracks) {
@@ -66,6 +83,40 @@ const findClipById = (project: Project, clipId: string): Clip | null => {
   }
 
   return null;
+};
+
+const buildRecommendationProfile = (
+  clipId: string,
+  audioBuffer: AudioBuffer,
+  context: BaseAudioContext,
+): NoiseProfileData => {
+  const sampleDuration = Math.min(
+    audioBuffer.duration,
+    MAX_RECOMMENDATION_SAMPLE_SECONDS,
+  );
+  const sampleStart = Math.max(0, (audioBuffer.duration - sampleDuration) / 2);
+  const sampleBuffer =
+    sampleDuration < audioBuffer.duration
+      ? extractAudioSegment(
+          audioBuffer,
+          sampleStart,
+          sampleStart + sampleDuration,
+          context,
+        )
+      : audioBuffer;
+
+  const reducer = new SpectralNoiseReducer();
+  const profile = reducer.learnNoiseProfile(sampleBuffer);
+
+  return {
+    id: `analysis-${clipId}`,
+    frequencyBins: profile.frequencyBins,
+    magnitudes: profile.magnitudes,
+    standardDeviations: profile.standardDeviations,
+    sampleRate: profile.sampleRate,
+    fftSize: profile.fftSize,
+    createdAt: Date.now(),
+  };
 };
 
 /**
@@ -106,6 +157,7 @@ export const NoiseReductionSection: React.FC<NoiseReductionSectionProps> = ({
   const [recommendation, setRecommendation] =
     useState<NoiseRecommendation | null>(null);
   const [appliedMessage, setAppliedMessage] = useState<string | null>(null);
+  const [analysisProgress, setAnalysisProgress] = useState<AnalysisProgressState | null>(null);
 
   const [isOpen, setIsOpen] = useState(true);
 
@@ -124,6 +176,7 @@ export const NoiseReductionSection: React.FC<NoiseReductionSectionProps> = ({
     setLearningState("idle");
     setErrorMessage(null);
     setAppliedMessage(null);
+    setAnalysisProgress(null);
   }, [audioTargetClipId, clipId]);
 
   useEffect(() => {
@@ -233,8 +286,15 @@ export const NoiseReductionSection: React.FC<NoiseReductionSectionProps> = ({
     [audioTargetClipId, effectId, enabled],
   );
 
-  const learnNoiseProfileForClip = useCallback(
-    async (): Promise<LearnedNoiseProfileResult> => {
+  const updateAnalysisProgress = useCallback((progress: AudioLoadProgress | AnalysisProgressState) => {
+    setAnalysisProgress({
+      progress: Math.max(0, Math.min(1, progress.progress)),
+      message: progress.message,
+    });
+  }, []);
+
+  const analyzeNoiseForClip = useCallback(
+    async (): Promise<NoiseAnalysisResult> => {
       const project = useProjectStore.getState().project;
       const clip = project.timeline.tracks
         .flatMap((track) => track.clips)
@@ -255,11 +315,15 @@ export const NoiseReductionSection: React.FC<NoiseReductionSectionProps> = ({
       let audioContext: AudioContext | null = null;
 
       try {
+        updateAnalysisProgress({ progress: 0.03, message: "Preparing clip analysis" });
         audioContext = new AudioContext();
         const audioBuffer = await loadAudioBuffer(
           audioContext,
           mediaItem.blob,
-          clip.audioTrackIndex ?? 0,
+          {
+            audioTrackIndex: clip.audioTrackIndex ?? 0,
+            onProgress: updateAnalysisProgress,
+          },
         );
 
         if (!audioBuffer) {
@@ -289,18 +353,30 @@ export const NoiseReductionSection: React.FC<NoiseReductionSectionProps> = ({
           analysisContext,
         );
 
+        updateAnalysisProgress({ progress: 0.84, message: "Analyzing noise signature" });
+        const recommendationProfile = buildRecommendationProfile(
+          audioTargetClipId,
+          clipBuffer,
+          analysisContext,
+        );
+
+        updateAnalysisProgress({ progress: 0.93, message: "Learning custom cleanup profile" });
+
         const analyzedProfile = await autoLearnNoiseProfile(
           clipBuffer,
           analysisContext,
         );
 
+        updateAnalysisProgress({ progress: 1, message: "Recommendation ready" });
+
         if (!analyzedProfile) {
-          throw new Error(
-            "No quiet section detected to learn noise from. Try a preset, or move the playhead to a noise-only segment and try again.",
-          );
+          return {
+            recommendationProfile,
+            learnedProfile: null,
+          };
         }
 
-        const profile: NoiseProfileData = {
+        const learnedProfile: NoiseProfileData = {
           id: `profile-${audioTargetClipId}`,
           frequencyBins: analyzedProfile.frequencyBins,
           magnitudes: analyzedProfile.magnitudes,
@@ -311,22 +387,25 @@ export const NoiseReductionSection: React.FC<NoiseReductionSectionProps> = ({
         };
 
         return {
-          profile,
-          serializedProfile: {
-            frequencyBins: Array.from(profile.frequencyBins),
-            magnitudes: Array.from(profile.magnitudes),
-            standardDeviations: profile.standardDeviations
-              ? Array.from(profile.standardDeviations)
-              : undefined,
-            sampleRate: profile.sampleRate,
-            fftSize: profile.fftSize,
+          recommendationProfile: learnedProfile,
+          learnedProfile: {
+            profile: learnedProfile,
+            serializedProfile: {
+              frequencyBins: Array.from(learnedProfile.frequencyBins),
+              magnitudes: Array.from(learnedProfile.magnitudes),
+              standardDeviations: learnedProfile.standardDeviations
+                ? Array.from(learnedProfile.standardDeviations)
+                : undefined,
+              sampleRate: learnedProfile.sampleRate,
+              fftSize: learnedProfile.fftSize,
+            },
           },
         };
       } finally {
         await audioContext?.close();
       }
     },
-    [audioTargetClipId],
+    [audioTargetClipId, updateAnalysisProgress],
   );
 
   const handleApplyPreset = useCallback(
@@ -348,10 +427,19 @@ export const NoiseReductionSection: React.FC<NoiseReductionSectionProps> = ({
         let message = `${getNoiseReductionPreset(presetId).label} applied to this clip.`;
 
         try {
-          const { serializedProfile } = await learnNoiseProfileForClip();
+          const { learnedProfile } = await analyzeNoiseForClip();
+          if (!learnedProfile) {
+            setAnalysisProgress(null);
+            setAppliedMessage(message);
+            setLearningState("success");
+            setTimeout(() => {
+              setLearningState("idle");
+            }, 2000);
+            return;
+          }
           const profiledConfig: NoiseReductionConfig = {
             ...presetConfig,
-            profile: serializedProfile,
+            profile: learnedProfile.serializedProfile,
           };
           setConfig(profiledConfig);
           applyNoiseReductionConfig(profiledConfig, nextEffectId);
@@ -360,6 +448,7 @@ export const NoiseReductionSection: React.FC<NoiseReductionSectionProps> = ({
           message = `${getNoiseReductionPreset(presetId).label} applied to this clip.`;
         }
 
+        setAnalysisProgress(null);
         setAppliedMessage(message);
         setLearningState("success");
         setTimeout(() => {
@@ -374,7 +463,7 @@ export const NoiseReductionSection: React.FC<NoiseReductionSectionProps> = ({
         );
       }
     },
-    [applyNoiseReductionConfig, config.profile, learnNoiseProfileForClip],
+    [applyNoiseReductionConfig, analyzeNoiseForClip, config.profile],
   );
 
   const handleSetPreviewMode = useCallback(
@@ -394,36 +483,42 @@ export const NoiseReductionSection: React.FC<NoiseReductionSectionProps> = ({
     setErrorMessage(null);
     setRecommendation(null);
     setAppliedMessage(null);
+    setAnalysisProgress({ progress: 0.02, message: "Preparing clip analysis" });
 
     try {
-      const { profile, serializedProfile } = await learnNoiseProfileForClip();
+      const { recommendationProfile, learnedProfile } = await analyzeNoiseForClip();
 
-      const suggestedPresetId = suggestNoiseReductionPreset(profile);
-      const suggestedConfig = {
-        ...suggestNoiseReductionConfig(profile),
-        profile: serializedProfile,
-      };
+      const suggestedPresetId = suggestNoiseReductionPreset(recommendationProfile);
+      const suggestedConfig: NoiseReductionConfig = learnedProfile
+        ? {
+            ...suggestNoiseReductionConfig(recommendationProfile),
+            profile: learnedProfile.serializedProfile,
+          }
+        : suggestNoiseReductionConfig(recommendationProfile);
 
       setRecommendation({
         presetId: suggestedPresetId,
         config: suggestedConfig,
-        profile: serializedProfile,
+        profile: learnedProfile?.serializedProfile,
+        hasLearnedProfile: learnedProfile !== null,
       });
+      setAnalysisProgress(null);
       setLearningState("ready");
     } catch (error) {
       setLearningState("error");
       setErrorMessage(
         error instanceof Error
           ? error.message
-          : "Failed to learn noise profile",
+          : "Failed to analyze this clip",
       );
+      setAnalysisProgress(null);
 
       setTimeout(() => {
         setLearningState("idle");
         setErrorMessage(null);
       }, 3000);
     }
-  }, [learnNoiseProfileForClip]);
+  }, [analyzeNoiseForClip]);
 
   const handleApplyRecommendation = useCallback(() => {
     if (!recommendation) {
@@ -559,7 +654,9 @@ export const NoiseReductionSection: React.FC<NoiseReductionSectionProps> = ({
               </div>
               <p className="text-[9px] leading-relaxed text-text-secondary">
                 Detected noise best matches {recommendationPreset.label.toLowerCase()}.
-                Apply {Math.round(recommendation.config.reduction * 100)}% cleanup at {recommendation.config.threshold.toFixed(0)} dB to save this profile on the clip.
+                {recommendation.hasLearnedProfile
+                  ? ` Apply ${Math.round(recommendation.config.reduction * 100)}% cleanup at ${recommendation.config.threshold.toFixed(0)} dB to save this profile on the clip.`
+                  : ` Apply ${Math.round(recommendation.config.reduction * 100)}% cleanup at ${recommendation.config.threshold.toFixed(0)} dB. A custom profile could not be isolated, so this recommendation uses the best preset match for the clip.`}
               </p>
               <button
                 onClick={handleApplyRecommendation}
@@ -687,6 +784,21 @@ export const NoiseReductionSection: React.FC<NoiseReductionSectionProps> = ({
               </>
             )}
           </button>
+
+          {analysisProgress && (learningState === "learning" || learningState === "applying") && (
+            <div className="space-y-1 rounded-lg border border-primary/20 bg-primary/5 px-2 py-2">
+              <div className="flex items-center justify-between text-[9px] text-text-secondary">
+                <span>{analysisProgress.message}</span>
+                <span>{Math.round(analysisProgress.progress * 100)}%</span>
+              </div>
+              <div className="h-1.5 overflow-hidden rounded-full bg-background-tertiary">
+                <div
+                  className="h-full rounded-full bg-primary transition-all"
+                  style={{ width: `${Math.max(6, Math.round(analysisProgress.progress * 100))}%` }}
+                />
+              </div>
+            </div>
+          )}
 
           {errorMessage && (
             <div className="text-[9px] text-red-500 text-center">

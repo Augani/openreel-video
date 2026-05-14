@@ -34,6 +34,10 @@ export interface AudioProbeResult {
   streams: AudioStreamInfo[];
 }
 
+export interface AudioExtractionOptions {
+  onProgress?: (progress: ExportProgress) => void;
+}
+
 export interface ProxySettings {
   scale: number;
   preset: "ultrafast" | "fast" | "medium";
@@ -292,7 +296,11 @@ export class FFmpegFallback {
     });
   }
 
-  async extractAudioAsWav(file: File | Blob, streamIndex?: number): Promise<Blob> {
+  async extractAudioAsWav(
+    file: File | Blob,
+    streamIndex?: number,
+    options: AudioExtractionOptions = {},
+  ): Promise<Blob> {
     await this.load();
     this.ensureLoaded();
 
@@ -302,6 +310,7 @@ export class FFmpegFallback {
     try {
       const inputData = await this.fileToUint8Array(file);
       await this.ffmpeg!.writeFile(inputFilename, inputData);
+      this.setupProgressTracking(options.onProgress);
 
       const args = ["-i", inputFilename];
       if (streamIndex !== undefined) {
@@ -321,6 +330,7 @@ export class FFmpegFallback {
       const data = await this.ffmpeg!.readFile(outputFilename);
       return new Blob([data.buffer as ArrayBuffer], { type: "audio/wav" });
     } finally {
+      this.removeProgressTracking();
       await this.cleanupFiles([inputFilename, outputFilename]);
     }
   }

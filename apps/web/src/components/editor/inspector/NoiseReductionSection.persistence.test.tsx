@@ -273,4 +273,28 @@ describe("NoiseReductionSection persistence", () => {
       expect(screen.getByText(/White Noise learned and applied to this clip/)).toBeInTheDocument();
     });
   });
+
+  it("still recommends a preset when no pure noise-only profile can be learned", async () => {
+    vi.mocked(autoLearnNoiseProfile).mockResolvedValue(null);
+    useProjectStore.setState({ project: createProjectForAnalysis() });
+
+    render(<NoiseReductionSection clipId={clipId} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /Analyze & Recommend/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Recommendation ready")).toBeInTheDocument();
+      expect(
+        screen.getByText(/custom profile could not be isolated/i),
+      ).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Apply Recommended Cleanup" }));
+
+    await waitFor(() => {
+      const effect = useProjectStore.getState().getAudioEffects(clipId)[0];
+      expect(effect?.type).toBe("noiseReduction");
+      expect((effect?.params as { profile?: unknown }).profile).toBeUndefined();
+    });
+  });
 });
