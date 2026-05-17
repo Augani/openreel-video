@@ -297,6 +297,12 @@ See [LICENSE](LICENSE) for details.
 
 ---
 
+## $OPENREEL Token
+
+CA: `B7wDnfrdtvdG7SCkRjSMJ6LkVwGWvdWrQ75iV8G9pump`
+
+---
+
 **Built with care by [@python_xi](https://x.com/python_xi) and AI working together.**
 
 *Making professional video editing accessible to everyone. Forever free. Forever open source.*
