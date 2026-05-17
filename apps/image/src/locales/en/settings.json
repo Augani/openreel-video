@@ -1,0 +1,38 @@
+{
+  "dialog": {
+    "title": "Settings"
+  },
+  "tabs": {
+    "canvas": "Canvas",
+    "snapping": "Snapping",
+    "appearance": "Appearance"
+  },
+  "canvas": {
+    "title": "Canvas Options",
+    "showGrid": "Show Grid",
+    "showGridDescription": "Display grid overlay on canvas",
+    "showGuides": "Show Guides",
+    "showGuidesDescription": "Display alignment guides",
+    "showRulers": "Show Rulers",
+    "showRulersDescription": "Display rulers on edges",
+    "gridSize": "Grid Size"
+  },
+  "snapping": {
+    "title": "Snap Options",
+    "snapToGrid": "Snap to Grid",
+    "snapToGridDescription": "Snap objects to grid intersections",
+    "snapToGuides": "Snap to Guides",
+    "snapToGuidesDescription": "Snap objects to guide lines",
+    "snapToObjects": "Snap to Objects",
+    "snapToObjectsDescription": "Snap objects to other objects"
+  },
+  "appearance": {
+    "title": "Appearance",
+    "theme": "Theme",
+    "themeDescription": "Interface appearance",
+    "themeValue": "Dark (System)",
+    "autoSave": "Auto Save",
+    "autoSaveDescription": "Automatically save projects",
+    "autoSaveSummary": "Projects are automatically saved to browser storage every 30 seconds."
+  }
+}

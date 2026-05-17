@@ -1,15 +1,16 @@
-import React, { useState, useCallback } from "react";
-import { Lock, Eye, EyeOff, ShieldCheck, AlertTriangle } from "lucide-react";
+import React, { useCallback, useState } from "react";
+import { AlertTriangle, Eye, EyeOff, Lock, ShieldCheck } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import {
+  Button,
   Dialog,
   DialogContent,
-  DialogHeader,
-  DialogTitle,
   DialogDescription,
   DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  Input,
 } from "@openreel/ui";
-import { Input } from "@openreel/ui";
-import { Button } from "@openreel/ui";
 
 interface MasterPasswordDialogProps {
   isOpen: boolean;
@@ -24,6 +25,7 @@ export const MasterPasswordDialog: React.FC<MasterPasswordDialogProps> = ({
   mode,
   onSubmit,
 }) => {
+  const { t } = useTranslation();
   const [password, setPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -47,64 +49,67 @@ export const MasterPasswordDialog: React.FC<MasterPasswordDialogProps> = ({
     onClose();
   }, [onClose, resetForm]);
 
-  const handleSubmit = useCallback(async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
+  const handleSubmit = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault();
+      setError(null);
 
-    if (mode === "setup") {
-      if (password.length < 8) {
-        setError("Password must be at least 8 characters");
-        return;
+      if (mode === "setup") {
+        if (password.length < 8) {
+          setError(t("settings:security.validation.passwordTooShort"));
+          return;
+        }
+        if (password !== confirmPassword) {
+          setError(t("settings:security.validation.passwordsDoNotMatch"));
+          return;
+        }
       }
-      if (password !== confirmPassword) {
-        setError("Passwords do not match");
-        return;
-      }
-    }
 
-    if (mode === "change") {
-      if (newPassword.length < 8) {
-        setError("New password must be at least 8 characters");
-        return;
+      if (mode === "change") {
+        if (newPassword.length < 8) {
+          setError(t("settings:security.validation.newPasswordTooShort"));
+          return;
+        }
+        if (newPassword !== confirmPassword) {
+          setError(t("settings:security.validation.newPasswordsDoNotMatch"));
+          return;
+        }
       }
-      if (newPassword !== confirmPassword) {
-        setError("New passwords do not match");
-        return;
-      }
-    }
 
-    setLoading(true);
-    try {
-      const success = await onSubmit(
-        password,
-        mode === "change" ? newPassword : undefined,
-      );
-      if (success) {
-        resetForm();
-      } else {
-        setError(
-          mode === "unlock"
-            ? "Incorrect password"
-            : "Operation failed. Check your current password.",
+      setLoading(true);
+      try {
+        const success = await onSubmit(
+          password,
+          mode === "change" ? newPassword : undefined,
         );
+        if (success) {
+          resetForm();
+        } else {
+          setError(
+            mode === "unlock"
+              ? t("settings:security.validation.incorrectPassword")
+              : t("settings:security.validation.operationFailed"),
+          );
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : t("settings:security.validation.unknownError"));
+      } finally {
+        setLoading(false);
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "An error occurred");
-    } finally {
-      setLoading(false);
-    }
-  }, [mode, password, newPassword, confirmPassword, onSubmit, resetForm]);
+    },
+    [confirmPassword, mode, newPassword, onSubmit, password, resetForm, t],
+  );
 
   const titles = {
-    setup: "Set Master Password",
-    unlock: "Unlock Settings",
-    change: "Change Master Password",
+    setup: t("settings:security.setMasterPasswordTitle"),
+    unlock: t("settings:security.unlockSettingsTitle"),
+    change: t("settings:security.changeMasterPasswordTitle"),
   };
 
   const descriptions = {
-    setup: "Create a master password to encrypt your API keys. This password is never stored — only a verification hash is kept.",
-    unlock: "Enter your master password to access encrypted API keys.",
-    change: "Change your master password. All stored keys will be re-encrypted.",
+    setup: t("settings:security.setMasterPasswordBody"),
+    unlock: t("settings:security.unlockSettingsBody"),
+    change: t("settings:security.changeMasterPasswordBody"),
   };
 
   return (
@@ -122,14 +127,14 @@ export const MasterPasswordDialog: React.FC<MasterPasswordDialogProps> = ({
           {mode === "change" && (
             <div className="space-y-2">
               <label className="text-sm font-medium text-text-secondary">
-                Current Password
+                {t("settings:security.currentPassword")}
               </label>
               <div className="relative">
                 <Input
                   type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter current password"
+                  placeholder={t("settings:security.enterCurrentPassword")}
                   autoFocus
                   className="pr-10"
                 />
@@ -147,7 +152,7 @@ export const MasterPasswordDialog: React.FC<MasterPasswordDialogProps> = ({
           {(mode === "setup" || mode === "unlock") && (
             <div className="space-y-2">
               <label className="text-sm font-medium text-text-secondary">
-                {mode === "setup" ? "Password" : "Master Password"}
+                {mode === "setup" ? t("settings:security.password") : t("settings:security.masterPassword")}
               </label>
               <div className="relative">
                 <Input
@@ -156,8 +161,8 @@ export const MasterPasswordDialog: React.FC<MasterPasswordDialogProps> = ({
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder={
                     mode === "setup"
-                      ? "Min. 8 characters"
-                      : "Enter master password"
+                      ? t("settings:security.minimumCharacters")
+                      : t("settings:security.enterCurrentPassword")
                   }
                   autoFocus
                   className="pr-10"
@@ -177,7 +182,9 @@ export const MasterPasswordDialog: React.FC<MasterPasswordDialogProps> = ({
             <>
               <div className="space-y-2">
                 <label className="text-sm font-medium text-text-secondary">
-                  {mode === "change" ? "New Password" : "Confirm Password"}
+                  {mode === "change"
+                    ? t("settings:security.newPassword")
+                    : t("settings:security.confirmPassword")}
                 </label>
                 <div className="relative">
                   <Input
@@ -190,8 +197,8 @@ export const MasterPasswordDialog: React.FC<MasterPasswordDialogProps> = ({
                     }
                     placeholder={
                       mode === "change"
-                        ? "Min. 8 characters"
-                        : "Repeat password"
+                        ? t("settings:security.minimumCharacters")
+                        : t("settings:security.repeatPassword")
                     }
                     className="pr-10"
                   />
@@ -208,13 +215,13 @@ export const MasterPasswordDialog: React.FC<MasterPasswordDialogProps> = ({
               {mode === "change" && (
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-text-secondary">
-                    Confirm New Password
+                    {t("settings:security.confirmNewPassword")}
                   </label>
                   <Input
                     type={showNewPassword ? "text" : "password"}
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
-                    placeholder="Repeat new password"
+                    placeholder={t("settings:security.repeatNewPassword")}
                   />
                 </div>
               )}
@@ -231,11 +238,7 @@ export const MasterPasswordDialog: React.FC<MasterPasswordDialogProps> = ({
           {mode === "setup" && (
             <div className="flex items-start gap-2 text-xs text-text-muted bg-background-secondary px-3 py-2 rounded-lg">
               <ShieldCheck size={14} className="mt-0.5 shrink-0 text-primary" />
-              <span>
-                Your password is used to derive an encryption key via PBKDF2
-                (100k iterations). API keys are encrypted with AES-256-GCM.
-                If you forget this password, stored keys cannot be recovered.
-              </span>
+              <span>{t("settings:security.passwordGuidance")}</span>
             </div>
           )}
 
@@ -246,16 +249,16 @@ export const MasterPasswordDialog: React.FC<MasterPasswordDialogProps> = ({
               onClick={handleClose}
               disabled={loading}
             >
-              Cancel
+              {t("common:buttons.cancel")}
             </Button>
             <Button type="submit" disabled={loading}>
               {loading
-                ? "Processing..."
+                ? t("settings:security.processing")
                 : mode === "setup"
-                  ? "Set Password"
+                  ? t("settings:security.setPassword")
                   : mode === "unlock"
-                    ? "Unlock"
-                    : "Change Password"}
+                    ? t("settings:security.unlock")
+                    : t("settings:security.changePassword")}
             </Button>
           </DialogFooter>
         </form>

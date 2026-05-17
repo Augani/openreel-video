@@ -1,5 +1,6 @@
 import React from "react";
 import { Crop, RotateCcw } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { useProjectStore } from "../../../stores/project-store";
 import { useUIStore } from "../../../stores/ui-store";
 import type { Clip } from "@openreel/core";
@@ -9,6 +10,7 @@ interface CropSectionProps {
 }
 
 export const CropSection: React.FC<CropSectionProps> = ({ clip }) => {
+  const { t } = useTranslation();
   const updateClipTransform = useProjectStore(
     (state) => state.updateClipTransform,
   );
@@ -33,20 +35,22 @@ export const CropSection: React.FC<CropSectionProps> = ({ clip }) => {
         className="w-full py-2.5 bg-primary hover:bg-primary/90 text-white rounded-lg text-xs font-medium transition-colors flex items-center justify-center gap-2"
       >
         <Crop size={14} />
-        {isCropped ? "Adjust Crop" : "Crop Video"}
+        {isCropped
+          ? t("editor:inspector.crop.adjust")
+          : t("editor:inspector.crop.action")}
       </button>
 
       {isCropped && (
         <>
           <div className="text-[9px] text-text-muted space-y-0.5 p-2 bg-background-tertiary rounded border border-border">
             <div className="flex justify-between">
-              <span>Crop Region:</span>
+              <span>{t("editor:inspector.crop.region")}</span>
               <span>
                 {Math.round(crop.width * 100)}% × {Math.round(crop.height * 100)}%
               </span>
             </div>
             <div className="flex justify-between">
-              <span>Position:</span>
+              <span>{t("editor:inspector.crop.position")}</span>
               <span>
                 ({Math.round(crop.x * 100)}%, {Math.round(crop.y * 100)}%)
               </span>
@@ -57,7 +61,7 @@ export const CropSection: React.FC<CropSectionProps> = ({ clip }) => {
             className="w-full py-2 text-xs text-text-secondary hover:text-text-primary bg-background-tertiary hover:bg-background-elevated border border-border rounded-lg transition-colors flex items-center justify-center gap-2"
           >
             <RotateCcw size={12} />
-            Reset Crop
+            {t("editor:inspector.crop.reset")}
           </button>
         </>
       )}
