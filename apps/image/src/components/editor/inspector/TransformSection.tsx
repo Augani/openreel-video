@@ -1,4 +1,5 @@
 import { FlipHorizontal2, FlipVertical2, RotateCw, RotateCcw } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useProjectStore } from '../../../stores/project-store';
 import type { Layer } from '../../../types/project';
 
@@ -7,6 +8,7 @@ interface Props {
 }
 
 export function TransformSection({ layer }: Props) {
+  const { t } = useTranslation();
   const { updateLayer, updateLayerTransform } = useProjectStore();
 
   const { x, y, width, height, rotation, skewX, skewY, opacity } = layer.transform;
@@ -34,12 +36,12 @@ export function TransformSection({ layer }: Props) {
   return (
     <div className="space-y-3">
       <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-        Transform
+        {t('inspector:transform.title')}
       </h4>
 
       <div className="grid grid-cols-2 gap-2">
         <div>
-          <label className="block text-[10px] text-muted-foreground mb-1">X</label>
+          <label className="block text-[10px] text-muted-foreground mb-1">{t('inspector:transform.x')}</label>
           <input
             type="number"
             value={Math.round(x)}
@@ -48,7 +50,7 @@ export function TransformSection({ layer }: Props) {
           />
         </div>
         <div>
-          <label className="block text-[10px] text-muted-foreground mb-1">Y</label>
+          <label className="block text-[10px] text-muted-foreground mb-1">{t('inspector:transform.y')}</label>
           <input
             type="number"
             value={Math.round(y)}
@@ -60,7 +62,7 @@ export function TransformSection({ layer }: Props) {
 
       <div className="grid grid-cols-2 gap-2">
         <div>
-          <label className="block text-[10px] text-muted-foreground mb-1">Width</label>
+          <label className="block text-[10px] text-muted-foreground mb-1">{t('inspector:transform.width')}</label>
           <input
             type="number"
             value={Math.round(width)}
@@ -70,7 +72,7 @@ export function TransformSection({ layer }: Props) {
           />
         </div>
         <div>
-          <label className="block text-[10px] text-muted-foreground mb-1">Height</label>
+          <label className="block text-[10px] text-muted-foreground mb-1">{t('inspector:transform.height')}</label>
           <input
             type="number"
             value={Math.round(height)}
@@ -83,7 +85,7 @@ export function TransformSection({ layer }: Props) {
 
       <div className="grid grid-cols-2 gap-2">
         <div>
-          <label className="block text-[10px] text-muted-foreground mb-1">Rotation</label>
+          <label className="block text-[10px] text-muted-foreground mb-1">{t('inspector:transform.rotation')}</label>
           <div className="flex items-center gap-1">
             <input
               type="number"
@@ -91,11 +93,11 @@ export function TransformSection({ layer }: Props) {
               onChange={(e) => handleChange('rotation', Number(e.target.value))}
               className="flex-1 px-2 py-1.5 text-xs bg-background border border-input rounded-md focus:outline-none focus:ring-1 focus:ring-primary"
             />
-            <span className="text-xs text-muted-foreground">°</span>
+            <span className="text-xs text-muted-foreground">deg</span>
           </div>
         </div>
         <div>
-          <label className="block text-[10px] text-muted-foreground mb-1">Opacity</label>
+          <label className="block text-[10px] text-muted-foreground mb-1">{t('inspector:transform.opacity')}</label>
           <div className="flex items-center gap-1">
             <input
               type="number"
@@ -112,7 +114,7 @@ export function TransformSection({ layer }: Props) {
 
       <div className="grid grid-cols-2 gap-2">
         <div>
-          <label className="block text-[10px] text-muted-foreground mb-1">Skew X</label>
+          <label className="block text-[10px] text-muted-foreground mb-1">{t('inspector:transform.skewX')}</label>
           <div className="flex items-center gap-1">
             <input
               type="number"
@@ -126,7 +128,7 @@ export function TransformSection({ layer }: Props) {
           </div>
         </div>
         <div>
-          <label className="block text-[10px] text-muted-foreground mb-1">Skew Y</label>
+          <label className="block text-[10px] text-muted-foreground mb-1">{t('inspector:transform.skewY')}</label>
           <div className="flex items-center gap-1">
             <input
               type="number"
@@ -149,7 +151,7 @@ export function TransformSection({ layer }: Props) {
               ? 'bg-primary/20 border-primary text-primary'
               : 'bg-secondary/50 border-border text-muted-foreground hover:text-foreground hover:bg-secondary'
           }`}
-          title="Flip Horizontal"
+          title={t('inspector:transform.flipHorizontal')}
         >
           <FlipHorizontal2 size={14} />
         </button>
@@ -161,7 +163,7 @@ export function TransformSection({ layer }: Props) {
               ? 'bg-primary/20 border-primary text-primary'
               : 'bg-secondary/50 border-border text-muted-foreground hover:text-foreground hover:bg-secondary'
           }`}
-          title="Flip Vertical"
+          title={t('inspector:transform.flipVertical')}
         >
           <FlipVertical2 size={14} />
         </button>
@@ -169,7 +171,7 @@ export function TransformSection({ layer }: Props) {
         <button
           onClick={() => handleRotate(-90)}
           className="flex items-center justify-center gap-1 p-2 rounded-md bg-secondary/50 border border-border text-muted-foreground hover:text-foreground hover:bg-secondary transition-all"
-          title="Rotate 90° Counter-clockwise"
+          title={t('inspector:transform.rotateCounterClockwise')}
         >
           <RotateCcw size={14} />
         </button>
@@ -177,7 +179,7 @@ export function TransformSection({ layer }: Props) {
         <button
           onClick={() => handleRotate(90)}
           className="flex items-center justify-center gap-1 p-2 rounded-md bg-secondary/50 border border-border text-muted-foreground hover:text-foreground hover:bg-secondary transition-all"
-          title="Rotate 90° Clockwise"
+          title={t('inspector:transform.rotateClockwise')}
         >
           <RotateCw size={14} />
         </button>

@@ -1,25 +1,30 @@
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { Switch } from "@openreel/ui";
 import { Label } from "@openreel/ui";
+import { LANGUAGE_LABELS, SUPPORTED_LANGUAGES, type SupportedLanguage } from "../../../i18n";
 import { useSettingsStore, SERVICE_REGISTRY, type TtsProvider, type LlmProvider, type AggregatorProvider } from "../../../stores/settings-store";
 
 export const GeneralPanel: React.FC = () => {
+  const { t } = useTranslation();
   const {
     autoSave,
     autoSaveInterval,
+    language,
     defaultTtsProvider,
     defaultLlmProvider,
     defaultAggregator,
     configuredServices,
     setAutoSave,
     setAutoSaveInterval,
+    setLanguage,
     setDefaultTtsProvider,
     setDefaultLlmProvider,
     setDefaultAggregator,
   } = useSettingsStore();
 
   const ttsProviders = [
-    { id: "piper", label: "Piper (Free / Built-in)" },
+    { id: "piper", label: t("settings:general.piperBuiltIn") },
     ...SERVICE_REGISTRY.filter(
       (s) => s.id === "elevenlabs" || configuredServices.includes(s.id),
     ),
@@ -43,13 +48,13 @@ export const GeneralPanel: React.FC = () => {
     <div className="space-y-6 pb-4">
       {/* Auto-save */}
       <div className="space-y-4">
-        <h3 className="text-sm font-medium text-text-primary">Auto-Save</h3>
+        <h3 className="text-sm font-medium text-text-primary">{t("settings:general.autoSaveTitle")}</h3>
 
         <div className="flex items-center justify-between">
           <div>
-            <Label className="text-sm text-text-secondary">Enable auto-save</Label>
+            <Label className="text-sm text-text-secondary">{t("settings:general.enableAutoSave")}</Label>
             <p className="text-xs text-text-muted mt-0.5">
-              Automatically save your project at regular intervals
+              {t("settings:general.autoSaveDescription")}
             </p>
           </div>
           <Switch checked={autoSave} onCheckedChange={setAutoSave} />
@@ -58,19 +63,19 @@ export const GeneralPanel: React.FC = () => {
         {autoSave && (
           <div className="flex items-center gap-3">
             <Label className="text-sm text-text-secondary whitespace-nowrap">
-              Save every
+              {t("settings:general.saveEvery")}
             </Label>
             <select
               value={autoSaveInterval}
               onChange={(e) => setAutoSaveInterval(Number(e.target.value))}
               className="h-9 rounded-md border border-input bg-background px-3 text-sm"
             >
-              <option value={1}>1 minute</option>
-              <option value={2}>2 minutes</option>
-              <option value={5}>5 minutes</option>
-              <option value={10}>10 minutes</option>
-              <option value={15}>15 minutes</option>
-              <option value={30}>30 minutes</option>
+              <option value={1}>{t("settings:general.intervals.oneMinute")}</option>
+              <option value={2}>{t("settings:general.intervals.twoMinutes")}</option>
+              <option value={5}>{t("settings:general.intervals.fiveMinutes")}</option>
+              <option value={10}>{t("settings:general.intervals.tenMinutes")}</option>
+              <option value={15}>{t("settings:general.intervals.fifteenMinutes")}</option>
+              <option value={30}>{t("settings:general.intervals.thirtyMinutes")}</option>
             </select>
           </div>
         )}
@@ -78,20 +83,49 @@ export const GeneralPanel: React.FC = () => {
 
       <div className="h-px bg-border" />
 
+      {/* Language */}
+      <div className="space-y-4">
+        <h3 className="text-sm font-medium text-text-primary">
+          {t("settings:general.languageTitle")}
+        </h3>
+        <div className="flex items-center justify-between">
+          <div>
+            <Label className="text-sm text-text-secondary">
+              {t("settings:general.language")}
+            </Label>
+            <p className="text-xs text-text-muted mt-0.5">
+              {t("settings:general.languageDescription")}
+            </p>
+          </div>
+          <select
+            value={language}
+            onChange={(e) => setLanguage(e.target.value as SupportedLanguage)}
+            className="h-9 rounded-md border border-input bg-background px-3 text-sm min-w-[140px]"
+          >
+            {SUPPORTED_LANGUAGES.map((lang) => (
+              <option key={lang} value={lang}>
+                {LANGUAGE_LABELS[lang]}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <div className="h-px bg-border" />
+
       {/* Default providers */}
       <div className="space-y-4">
         <h3 className="text-sm font-medium text-text-primary">
-          Default AI Providers
+          {t("settings:general.defaultProvidersTitle")}
         </h3>
         <p className="text-xs text-text-muted">
-          Choose which service to use by default for AI features.
-          Configure API keys in the &quot;API Keys&quot; tab first.
+          {t("settings:general.defaultProvidersDescription")}
         </p>
 
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <Label className="text-sm text-text-secondary">
-              Text to Speech/Voice To Speech/Sound Effects
+              {t("settings:general.ttsProvider")}
             </Label>
             <select
               value={defaultTtsProvider}
@@ -108,7 +142,7 @@ export const GeneralPanel: React.FC = () => {
 
           <div className="flex items-center justify-between">
             <Label className="text-sm text-text-secondary">
-              AI Assistant (LLM)
+              {t("settings:general.llmProvider")}
             </Label>
             <select
               value={defaultLlmProvider}
@@ -126,10 +160,10 @@ export const GeneralPanel: React.FC = () => {
           <div className="flex items-center justify-between">
             <div>
               <Label className="text-sm text-text-secondary">
-                AI Aggregator
+                {t("settings:general.aggregator")}
               </Label>
               <p className="text-xs text-text-muted mt-0.5">
-                Video/image generation, upscaling, and creative AI tools
+                {t("settings:general.aggregatorDescription")}
               </p>
             </div>
             <select

@@ -1,0 +1,10 @@
+{
+  "buttons": {
+    "close": "关闭"
+  },
+  "languagePrompt": {
+    "message": "此应用支持 {{language}}。",
+    "switch": "切换",
+    "dismiss": "保持当前语言"
+  }
+}

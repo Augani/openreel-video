@@ -6,14 +6,25 @@
     "noEmit": true,
     "declaration": false,
     "declarationMap": false,
-    "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"],
-      "@openreel/core": ["../../packages/core/src/index.ts"],
-      "@openreel/core/*": ["../../packages/core/src/*"],
-      "@openreel/ui": ["../../packages/ui/src/index.ts"],
-      "@openreel/ui/*": ["../../packages/ui/src/*"]
+      "@/*": [
+        "./src/*"
+      ],
+      "@openreel/core": [
+        "../../packages/core/src/index.ts"
+      ],
+      "@openreel/core/*": [
+        "../../packages/core/src/*"
+      ],
+      "@openreel/ui": [
+        "../../packages/ui/src/index.ts"
+      ],
+      "@openreel/ui/*": [
+        "../../packages/ui/src/*"
+      ]
     }
   },
-  "include": ["src"]
+  "include": [
+    "src"
+  ]
 }

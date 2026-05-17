@@ -22,16 +22,15 @@ import {
   Eye,
   Sliders,
 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { Dialog, DialogContent, Input } from "@openreel/ui";
 import { useUIStore } from "../../stores/ui-store";
 
 interface SearchItem {
   id: string;
-  name: string;
-  category: string;
+  categoryKey: string;
   keywords: string[];
   icon: React.ElementType;
-  description: string;
   sectionId: string;
   clipTypes: Array<"video" | "audio" | "text" | "shape" | "image">;
 }
@@ -39,38 +38,31 @@ interface SearchItem {
 const SEARCHABLE_EFFECTS: SearchItem[] = [
   {
     id: "transform",
-    name: "Transform",
-    category: "Position & Size",
+    categoryKey: "positionSize",
     keywords: ["position", "scale", "rotate", "move", "resize", "transform"],
     icon: Move,
-    description: "Position, scale, and rotate the clip",
     sectionId: "transform",
     clipTypes: ["video", "image", "text", "shape"],
   },
   {
     id: "crop",
-    name: "Crop",
-    category: "Position & Size",
+    categoryKey: "positionSize",
     keywords: ["crop", "cut", "trim", "frame", "aspect"],
     icon: Focus,
-    description: "Crop and frame the clip",
     sectionId: "crop",
     clipTypes: ["video", "image"],
   },
   {
     id: "speed",
-    name: "Speed Control",
-    category: "Time",
+    categoryKey: "time",
     keywords: ["speed", "slow", "fast", "time", "duration", "playback"],
     icon: Clock,
-    description: "Control playback speed and time remapping",
     sectionId: "speed",
     clipTypes: ["video", "audio"],
   },
   {
     id: "video-effects",
-    name: "Video Effects",
-    category: "Video",
+    categoryKey: "video",
     keywords: [
       "brightness",
       "contrast",
@@ -81,14 +73,12 @@ const SEARCHABLE_EFFECTS: SearchItem[] = [
       "effects",
     ],
     icon: Sliders,
-    description: "Brightness, contrast, saturation, blur, sharpen",
     sectionId: "video-effects",
     clipTypes: ["video", "image"],
   },
   {
     id: "color-grading",
-    name: "Color Grading",
-    category: "Video",
+    categoryKey: "video",
     keywords: [
       "color",
       "grade",
@@ -100,114 +90,92 @@ const SEARCHABLE_EFFECTS: SearchItem[] = [
       "temperature",
     ],
     icon: Palette,
-    description: "Color wheels, curves, LUTs, and HSL adjustments",
     sectionId: "color-grading",
     clipTypes: ["video", "image"],
   },
   {
     id: "green-screen",
-    name: "Green Screen",
-    category: "Video",
+    categoryKey: "video",
     keywords: ["green", "screen", "chroma", "key", "background", "remove"],
     icon: Eye,
-    description: "Chroma key for green/blue screen removal",
     sectionId: "green-screen",
     clipTypes: ["video", "image"],
   },
   {
     id: "background-removal",
-    name: "Background Removal",
-    category: "Video",
+    categoryKey: "video",
     keywords: ["background", "remove", "ai", "mask", "cutout", "person"],
     icon: Wand2,
-    description: "AI-powered background removal",
     sectionId: "background-removal",
     clipTypes: ["video", "image"],
   },
   {
     id: "masking",
-    name: "Masking",
-    category: "Video",
+    categoryKey: "video",
     keywords: ["mask", "shape", "feather", "reveal", "hide", "vignette"],
     icon: Layers,
-    description: "Shape masks to reveal or hide areas",
     sectionId: "masking",
     clipTypes: ["video", "image"],
   },
   {
     id: "motion-tracking",
-    name: "Motion Tracking",
-    category: "Video",
+    categoryKey: "video",
     keywords: ["motion", "track", "follow", "pin", "stabilize"],
     icon: Move,
-    description: "Track motion and attach elements",
     sectionId: "motion-tracking",
     clipTypes: ["video"],
   },
   {
     id: "pip",
-    name: "Picture-in-Picture",
-    category: "Video",
+    categoryKey: "video",
     keywords: ["pip", "picture", "overlay", "corner", "position"],
     icon: Square,
-    description: "Position clips as picture-in-picture overlays",
     sectionId: "pip",
     clipTypes: ["video", "image"],
   },
   {
     id: "blending",
-    name: "Blend Mode",
-    category: "Video",
+    categoryKey: "video",
     keywords: ["blend", "mode", "multiply", "screen", "overlay", "opacity"],
     icon: Layers,
-    description: "Blend modes and opacity controls",
     sectionId: "blending",
     clipTypes: ["video", "image"],
   },
   {
     id: "transform-3d",
-    name: "3D Transform",
-    category: "Video",
+    categoryKey: "video",
     keywords: ["3d", "perspective", "rotate", "flip", "tilt"],
     icon: Move,
-    description: "3D rotation and perspective effects",
     sectionId: "transform-3d",
     clipTypes: ["video", "image"],
   },
   {
     id: "keyframes",
-    name: "Keyframes",
-    category: "Animation",
+    categoryKey: "animation",
     keywords: ["keyframe", "animate", "animation", "ease", "interpolate"],
     icon: Zap,
-    description: "Animate properties over time",
     sectionId: "keyframes",
     clipTypes: ["video", "image", "text", "shape"],
   },
   {
     id: "transitions",
-    name: "Transitions",
-    category: "Animation",
+    categoryKey: "animation",
     keywords: ["transition", "fade", "dissolve", "wipe", "slide"],
     icon: Zap,
-    description: "Clip-to-clip transitions",
     sectionId: "transitions",
     clipTypes: ["video", "image"],
   },
   {
     id: "motion-presets",
-    name: "Motion Presets",
-    category: "Animation",
+    categoryKey: "animation",
     keywords: ["motion", "preset", "zoom", "pan", "shake", "bounce"],
     icon: Zap,
-    description: "Pre-built motion animations",
     sectionId: "motion-presets",
     clipTypes: ["video", "image"],
   },
   {
     id: "audio-effects",
-    name: "Audio Effects",
-    category: "Audio",
+    categoryKey: "audio",
     keywords: [
       "audio",
       "eq",
@@ -218,58 +186,49 @@ const SEARCHABLE_EFFECTS: SearchItem[] = [
       "sound",
     ],
     icon: Music2,
-    description: "EQ, compressor, reverb, and more",
     sectionId: "audio-effects",
     clipTypes: ["audio", "video"],
   },
   {
     id: "audio-ducking",
-    name: "Audio Ducking",
-    category: "Audio",
+    categoryKey: "audio",
     keywords: ["duck", "ducking", "voice", "music", "fade", "auto"],
     icon: Music2,
-    description: "Auto-duck music under voice",
     sectionId: "audio-ducking",
     clipTypes: ["audio", "video"],
   },
   {
     id: "text-properties",
-    name: "Text Properties",
-    category: "Text",
+    categoryKey: "text",
     keywords: ["text", "font", "size", "color", "style", "typography"],
     icon: Type,
-    description: "Font, size, color, and text styling",
     sectionId: "text-properties",
     clipTypes: ["text"],
   },
   {
     id: "text-animation",
-    name: "Text Animation",
-    category: "Text",
+    categoryKey: "text",
     keywords: ["text", "animate", "typewriter", "fade", "slide", "bounce"],
     icon: Type,
-    description: "Animate text with presets",
     sectionId: "text-animation",
     clipTypes: ["text"],
   },
   {
     id: "shape-properties",
-    name: "Shape Properties",
-    category: "Shapes",
+    categoryKey: "shapes",
     keywords: ["shape", "fill", "stroke", "corner", "radius", "shadow"],
     icon: Square,
-    description: "Shape fill, stroke, and effects",
     sectionId: "shape-properties",
     clipTypes: ["shape"],
   },
 ];
 
 const CATEGORIES = [
-  { id: "all", name: "All" },
-  { id: "video", name: "Video", icon: Video },
-  { id: "audio", name: "Audio", icon: Music2 },
-  { id: "text", name: "Text", icon: Type },
-  { id: "animation", name: "Animation", icon: Zap },
+  { id: "all", labelKey: "all" },
+  { id: "video", labelKey: "video", icon: Video },
+  { id: "audio", labelKey: "audio", icon: Music2 },
+  { id: "text", labelKey: "text", icon: Type },
+  { id: "animation", labelKey: "animation", icon: Zap },
 ];
 
 interface SearchModalProps {
@@ -281,6 +240,7 @@ export const SearchModal: React.FC<SearchModalProps> = ({
   isOpen,
   onClose,
 }) => {
+  const { t } = useTranslation();
   const [query, setQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -314,15 +274,18 @@ export const SearchModal: React.FC<SearchModalProps> = ({
     }
 
     if (selectedCategory !== "all") {
-      effects = effects.filter((e) =>
-        e.category.toLowerCase().includes(selectedCategory.toLowerCase()),
-      );
+      effects = effects.filter((e) => e.categoryKey === selectedCategory);
     }
 
     if (query.trim()) {
       const searchTerms = query.toLowerCase().split(" ");
       effects = effects.filter((e) => {
-        const searchText = [e.name, e.description, ...e.keywords, e.category]
+        const searchText = [
+          t(`editor:searchModal.items.${e.id}.name`),
+          t(`editor:searchModal.items.${e.id}.description`),
+          t(`editor:searchModal.categories.${e.categoryKey}`),
+          ...e.keywords,
+        ]
           .join(" ")
           .toLowerCase();
         return searchTerms.every((term) => searchText.includes(term));
@@ -330,7 +293,7 @@ export const SearchModal: React.FC<SearchModalProps> = ({
     }
 
     return effects;
-  }, [query, selectedCategory, selectedClipType]);
+  }, [query, selectedCategory, selectedClipType, t]);
 
   const handleSelect = useCallback(
     (effect: SearchItem) => {
@@ -425,8 +388,10 @@ export const SearchModal: React.FC<SearchModalProps> = ({
             onChange={(e) => setQuery(e.target.value)}
             placeholder={
               selectedClipType
-                ? `Search effects for ${selectedClipType} clip...`
-                : "Search all effects and tools..."
+                ? t("editor:searchModal.placeholderForClip", {
+                    type: selectedClipType,
+                  })
+                : t("editor:searchModal.placeholderAll")
             }
             className="flex-1 bg-transparent border-0 text-text-primary focus-visible:ring-0"
           />
@@ -454,7 +419,7 @@ export const SearchModal: React.FC<SearchModalProps> = ({
                   : "text-text-secondary hover:text-text-primary hover:bg-background-elevated"
               }`}
             >
-              {cat.name}
+              {t(`editor:searchModal.categories.${cat.labelKey}`)}
             </button>
           ))}
         </div>
@@ -466,15 +431,20 @@ export const SearchModal: React.FC<SearchModalProps> = ({
                 size={32}
                 className="mx-auto mb-3 text-text-muted opacity-50"
               />
-              <p className="text-sm text-text-muted">No effects found</p>
+              <p className="text-sm text-text-muted">
+                {t("editor:searchModal.noEffectsFound")}
+              </p>
               <p className="text-xs text-text-muted mt-1">
-                Try a different search term or category
+                {t("editor:searchModal.tryDifferentSearchTermOrCategory")}
               </p>
             </div>
           ) : (
             <div className="py-2">
               {filteredEffects.map((effect, index) => {
                 const Icon = effect.icon;
+                const name = t(`editor:searchModal.items.${effect.id}.name`);
+                const category = t(`editor:searchModal.categories.${effect.categoryKey}`);
+                const description = t(`editor:searchModal.items.${effect.id}.description`);
                 return (
                   <button
                     key={effect.id}
@@ -503,18 +473,18 @@ export const SearchModal: React.FC<SearchModalProps> = ({
                               : "text-text-primary"
                           }`}
                         >
-                          {effect.name}
+                          {name}
                         </span>
                         <span className="text-[10px] text-text-muted px-1.5 py-0.5 rounded bg-background-tertiary">
-                          {effect.category}
+                          {category}
                         </span>
                       </div>
                       <p className="text-xs text-text-muted mt-0.5 truncate">
-                        {effect.description}
+                        {description}
                       </p>
                     </div>
                     <div className="text-[10px] text-text-muted">
-                      ↵ to select
+                      ↵ {t("editor:searchModal.toSelect")}
                     </div>
                   </button>
                 );
@@ -525,13 +495,12 @@ export const SearchModal: React.FC<SearchModalProps> = ({
 
         <div className="px-4 py-2 border-t border-border bg-background-tertiary/50 flex items-center justify-between">
           <div className="text-[10px] text-text-muted">
-            {filteredEffects.length} effect
-            {filteredEffects.length !== 1 ? "s" : ""} available
+            {t("editor:searchModal.effectsAvailable", { count: filteredEffects.length })}
           </div>
           <div className="flex items-center gap-3 text-[10px] text-text-muted">
-            <span>↑↓ Navigate</span>
-            <span>↵ Select</span>
-            <span>ESC Close</span>
+            <span>{`↑↓ ${t("editor:searchModal.navigate")}`}</span>
+            <span>{`↵ ${t("editor:searchModal.select")}`}</span>
+            <span>{`ESC ${t("common:buttons.close")}`}</span>
           </div>
         </div>
       </DialogContent>

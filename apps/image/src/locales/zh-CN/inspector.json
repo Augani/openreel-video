@@ -1,0 +1,17 @@
+{
+  "transform": {
+    "title": "变换",
+    "x": "X",
+    "y": "Y",
+    "width": "宽度",
+    "height": "高度",
+    "rotation": "旋转",
+    "opacity": "不透明度",
+    "skewX": "水平倾斜",
+    "skewY": "垂直倾斜",
+    "flipHorizontal": "水平翻转",
+    "flipVertical": "垂直翻转",
+    "rotateCounterClockwise": "逆时针旋转 90 度",
+    "rotateClockwise": "顺时针旋转 90 度"
+  }
+}

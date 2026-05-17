@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useMemo, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { Search, Loader2, Layers } from "lucide-react";
 import { Input } from "@openreel/ui";
 import { useEngineStore } from "../../stores/engine-store";
@@ -25,6 +26,7 @@ interface TemplateGalleryProps {
 export const TemplateGallery: React.FC<TemplateGalleryProps> = ({
   onTemplateApplied,
 }) => {
+  const { t } = useTranslation("welcome");
   const getTemplateEngine = useEngineStore((state) => state.getTemplateEngine);
 
   const [templates, setTemplates] = useState<ScriptableTemplate[]>([]);
@@ -160,7 +162,7 @@ export const TemplateGallery: React.FC<TemplateGalleryProps> = ({
           <div className="absolute inset-0 bg-primary/20 rounded-full blur-xl" />
           <Loader2 className="relative w-10 h-10 text-primary animate-spin" />
         </div>
-        <p className="text-sm text-text-muted mt-6">Loading templates...</p>
+        <p className="text-sm text-text-muted mt-6">{t("templateGallery.loading")}</p>
       </div>
     );
   }
@@ -177,7 +179,7 @@ export const TemplateGallery: React.FC<TemplateGalleryProps> = ({
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search templates..."
+            placeholder={t("templateGallery.searchPlaceholder")}
             className="pl-11 bg-background-tertiary border-border rounded-xl text-text-primary"
           />
         </div>
@@ -195,10 +197,10 @@ export const TemplateGallery: React.FC<TemplateGalleryProps> = ({
             <Layers size={24} className="text-text-muted" />
           </div>
           <p className="text-base font-medium text-text-primary mb-1">
-            No templates found
+            {t("templateGallery.noTemplatesFound")}
           </p>
           <p className="text-sm text-text-muted">
-            Try adjusting your search or filter
+            {t("templateGallery.tryAdjustingSearch")}
           </p>
         </div>
       ) : (

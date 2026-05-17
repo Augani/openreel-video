@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { ChevronDown, Zap, Captions, Loader2, Sparkles, Trash2 } from "lucide-react";
 import { useProjectStore } from "../../stores/project-store";
 import { useTimelineStore } from "../../stores/timeline-store";
@@ -112,14 +113,18 @@ const Section: React.FC<{
   );
 };
 
-const EmptyState: React.FC = () => (
-  <div className="flex-1 flex flex-col items-center justify-center p-8 text-center opacity-50">
-    <p className="text-sm text-text-secondary mb-2">No selection</p>
-    <p className="text-xs text-text-muted">
-      Select a clip to view its properties
-    </p>
-  </div>
-);
+const EmptyState: React.FC = () => {
+  const { t } = useTranslation("editor");
+
+  return (
+    <div className="flex-1 flex flex-col items-center justify-center p-8 text-center opacity-50">
+      <p className="text-sm text-text-secondary mb-2">{t("inspector.empty.noSelection")}</p>
+      <p className="text-xs text-text-muted">
+        {t("inspector.empty.selectClip")}
+      </p>
+    </div>
+  );
+};
 
 const ParticleEffectsSectionWrapper: React.FC<{
   clipId: string;
@@ -190,6 +195,7 @@ const ParticleEffectsSectionWrapper: React.FC<{
 };
 
 export const InspectorPanel: React.FC = () => {
+  const { t } = useTranslation("editor");
   // Stores
   const {
     getClip,
@@ -853,7 +859,7 @@ export const InspectorPanel: React.FC = () => {
     >
       <div className="p-5">
         <h3 className="text-sm font-bold text-text-primary mb-5 tracking-tight">
-          Inspector
+          {t("inspector.title")}
         </h3>
 
         {selectedClip ? (
@@ -864,7 +870,7 @@ export const InspectorPanel: React.FC = () => {
                 {selectedClip.id.substring(0, 20)}...
               </p>
               <p className="text-[10px] text-text-muted">
-                Duration: {selectedClip.duration.toFixed(2)}s
+                {t("inspector.clipInfo.duration", { duration: selectedClip.duration.toFixed(2) })}
               </p>
             </div>
 

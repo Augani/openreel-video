@@ -1,0 +1,31 @@
+{
+  "buttons": {
+    "all": "全部",
+    "back": "返回",
+    "cancel": "取消",
+    "clear": "清除",
+    "close": "关闭",
+    "copy": "复制",
+    "tryAgain": "重试"
+  },
+  "labels": {
+    "enabled": "已启用",
+    "none": "无"
+  },
+  "messages": {
+    "errors": "错误",
+    "warnings": "警告"
+  },
+  "projectNames": {
+    "newProject": "新项目",
+    "newPresetProject": "新建 {{preset}} 项目",
+    "newVerticalVideo": "新建竖屏视频",
+    "newHorizontalVideo": "新建横屏视频",
+    "newSquareVideo": "新建方形视频"
+  },
+  "languagePrompt": {
+    "message": "此应用支持 {{language}}。",
+    "switch": "切换",
+    "dismiss": "保持当前语言"
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "dialog": {
+    "title": "设置"
+  },
+  "tabs": {
+    "canvas": "画布",
+    "snapping": "吸附",
+    "appearance": "外观"
+  },
+  "canvas": {
+    "title": "画布选项",
+    "showGrid": "显示网格",
+    "showGridDescription": "在画布上显示网格叠加层",
+    "showGuides": "显示参考线",
+    "showGuidesDescription": "显示对齐参考线",
+    "showRulers": "显示标尺",
+    "showRulersDescription": "在边缘显示标尺",
+    "gridSize": "网格大小"
+  },
+  "snapping": {
+    "title": "吸附选项",
+    "snapToGrid": "吸附到网格",
+    "snapToGridDescription": "将对象吸附到网格交点",
+    "snapToGuides": "吸附到参考线",
+    "snapToGuidesDescription": "将对象吸附到参考线",
+    "snapToObjects": "吸附到对象",
+    "snapToObjectsDescription": "将对象吸附到其他对象"
+  },
+  "appearance": {
+    "title": "外观",
+    "language": "语言",
+    "languageDescription": "选择界面语言",
+    "theme": "主题",
+    "themeDescription": "界面外观",
+    "themeValue": "深色 (系统)",
+    "autoSave": "自动保存",
+    "autoSaveDescription": "自动保存项目",
+    "autoSaveSummary": "项目会每 30 秒自动保存到浏览器存储。"
+  }
+}

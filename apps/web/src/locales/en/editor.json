@@ -1,0 +1,734 @@
+{
+  "app": {
+    "loadingEditor": "Loading editor...",
+    "initializingEditor": "Initializing editor...",
+    "initialization": {
+      "starting": "Starting...",
+      "videoEngine": "Initializing video engine...",
+      "mediaBridge": "Initializing media bridge...",
+      "playbackBridge": "Initializing playback bridge...",
+      "renderBridge": "Initializing render bridge...",
+      "effectsBridge": "Initializing effects bridge...",
+      "transitionBridge": "Initializing transition bridge...",
+      "engineFailed": "Engine initialization failed",
+      "unknownError": "Unknown error",
+      "error": "Error: {{message}}"
+    }
+  },
+  "dialogs": {
+    "aspectRatioMatch": {
+      "title": "Match Video Dimensions?",
+      "description": "The video you're adding has different dimensions than your current project settings.",
+      "videoDimensions": "Video Dimensions",
+      "currentProject": "Current Project",
+      "aspectRatio": "Aspect Ratio: {{value}}",
+      "summary": "Updating the project dimensions will provide the best editing experience and prevent cropping during export.",
+      "keepCurrent": "Keep Current",
+      "matchVideo": "Match Video"
+    }
+  },
+  "inspector": {
+    "crop": {
+      "adjust": "Adjust Crop",
+      "action": "Crop Video",
+      "region": "Crop Region:",
+      "position": "Position:",
+      "reset": "Reset Crop"
+    }
+  },
+  "exportDialog": {
+    "title": "Export Video",
+    "tabs": {
+      "presets": "Presets",
+      "custom": "Custom"
+    },
+    "recommendedForYourVideo": "For Your Video",
+    "aspectRatioLabels": {
+      "vertical": "Vertical (TikTok, Reels, Shorts)",
+      "square": "Square (Instagram Feed)",
+      "horizontal": "Horizontal (YouTube, Twitter)"
+    },
+    "fields": {
+      "format": "Format",
+      "codec": "Codec",
+      "resolution": "Resolution",
+      "frameRate": "Frame Rate",
+      "bitrate": "Bitrate (kbps)",
+      "quality": "Quality",
+      "audioSettings": "Audio Settings",
+      "qualityEnhancement": "Enhance Quality (Upscaling)",
+      "qualityMode": "Quality Mode",
+      "sharpening": "Sharpening"
+    },
+    "options": {
+      "vertical1080p": "Vertical 1080p",
+      "square1080": "Square 1080",
+      "fast": "Fast",
+      "balanced": "Balanced"
+    },
+    "qualityScale": {
+      "smaller": "Smaller",
+      "better": "Better",
+      "max": "Max"
+    },
+    "descriptions": {
+      "upscaling": "Enhance quality when exporting to higher resolutions than source. Uses edge-directed interpolation for sharper details."
+    },
+    "status": {
+      "estimateTime": "Est. time:",
+      "getAccurateEstimate": "Get accurate estimate",
+      "testing": "Testing...",
+      "hardwareAccelerated": "Hardware accelerated",
+      "cpu": "CPU",
+      "gpu": "GPU",
+      "codecs": "Codecs",
+      "unknown": "Unknown",
+      "hardwareEncode": "HW Encode",
+      "softwareOnly": "Software only",
+      "cores": "{{count}} cores",
+      "maxDuration": "Max {{seconds}}s"
+    },
+    "actions": {
+      "start": "Start Export"
+    }
+  },
+  "searchModal": {
+    "categories": {
+      "all": "All",
+      "video": "Video",
+      "audio": "Audio",
+      "text": "Text",
+      "animation": "Animation",
+      "positionSize": "Position & Size",
+      "time": "Time",
+      "shapes": "Shapes"
+    },
+    "items": {
+      "transform": {
+        "name": "Transform",
+        "description": "Position, scale, and rotate the clip"
+      },
+      "crop": {
+        "name": "Crop",
+        "description": "Crop and frame the clip"
+      },
+      "speed": {
+        "name": "Speed Control",
+        "description": "Control playback speed and time remapping"
+      },
+      "video-effects": {
+        "name": "Video Effects",
+        "description": "Brightness, contrast, saturation, blur, sharpen"
+      },
+      "color-grading": {
+        "name": "Color Grading",
+        "description": "Color wheels, curves, LUTs, and HSL adjustments"
+      },
+      "green-screen": {
+        "name": "Green Screen",
+        "description": "Chroma key for green/blue screen removal"
+      },
+      "background-removal": {
+        "name": "Background Removal",
+        "description": "AI-powered background removal"
+      },
+      "masking": {
+        "name": "Masking",
+        "description": "Shape masks to reveal or hide areas"
+      },
+      "motion-tracking": {
+        "name": "Motion Tracking",
+        "description": "Track motion and attach elements"
+      },
+      "pip": {
+        "name": "Picture-in-Picture",
+        "description": "Position clips as picture-in-picture overlays"
+      },
+      "blending": {
+        "name": "Blend Mode",
+        "description": "Blend modes and opacity controls"
+      },
+      "transform-3d": {
+        "name": "3D Transform",
+        "description": "3D rotation and perspective effects"
+      },
+      "keyframes": {
+        "name": "Keyframes",
+        "description": "Animate properties over time"
+      },
+      "transitions": {
+        "name": "Transitions",
+        "description": "Clip-to-clip transitions"
+      },
+      "motion-presets": {
+        "name": "Motion Presets",
+        "description": "Pre-built motion animations"
+      },
+      "audio-effects": {
+        "name": "Audio Effects",
+        "description": "EQ, compressor, reverb, and more"
+      },
+      "audio-ducking": {
+        "name": "Audio Ducking",
+        "description": "Auto-duck music under voice"
+      },
+      "text-properties": {
+        "name": "Text Properties",
+        "description": "Font, size, color, and text styling"
+      },
+      "text-animation": {
+        "name": "Text Animation",
+        "description": "Animate text with presets"
+      },
+      "shape-properties": {
+        "name": "Shape Properties",
+        "description": "Shape fill, stroke, and effects"
+      }
+    },
+    "placeholderForClip": "Search effects for {{type}} clip...",
+    "placeholderAll": "Search all effects and tools...",
+    "noEffectsFound": "No effects found",
+    "tryDifferentSearchTermOrCategory": "Try a different search term or category",
+    "effectsAvailable_one": "{{count}} effect available",
+    "effectsAvailable_other": "{{count}} effects available",
+    "navigate": "Navigate",
+    "select": "Select",
+    "toSelect": "to select"
+  },
+  "saveTemplateDialog": {
+    "title": "Save as Template",
+    "success": "Template saved successfully!",
+    "validation": {
+      "nameRequired": "Template name is required",
+      "descriptionRequired": "Description is required",
+      "uploadFailed": "Failed to upload to cloud",
+      "saveFailed": "Failed to save template"
+    },
+    "fields": {
+      "templateName": "Template Name",
+      "description": "Description",
+      "category": "Category",
+      "tags": "Tags (comma-separated)",
+      "authorName": "Author Name",
+      "saveLocation": "Save Location"
+    },
+    "placeholders": {
+      "templateName": "My Awesome Template",
+      "description": "Describe what this template is for and how to use it...",
+      "tags": "intro, animated, youtube",
+      "authorName": "Your name or username"
+    },
+    "locations": {
+      "cloud": "Cloud",
+      "local": "Local",
+      "cloudDescription": "Saved to cloud and accessible from any device",
+      "localDescription": "Saved locally in your browser storage"
+    },
+    "actions": {
+      "saving": "Saving...",
+      "save": "Save Template"
+    },
+    "states": {
+      "anonymous": "Anonymous",
+      "characters": "{{count}}/{{max}} characters"
+    }
+  },
+  "scriptView": {
+    "title": "Project JSON",
+    "description": "Export or import project as JSON",
+    "tabs": {
+      "export": "Export JSON",
+      "import": "Import"
+    },
+    "actions": {
+      "download": "Download JSON",
+      "revalidate": "Re-validate",
+      "importProject": "Import Project"
+    },
+    "states": {
+      "noProjectData": "No project data to export.",
+      "dropHere": "Drop JSON file here",
+      "dropHereOrClick": "Drop a JSON file here or click to browse",
+      "acceptsProjectFiles": "Accepts .json project files",
+      "charactersLoaded": "{{count}} characters loaded",
+      "copied": "Copied!",
+      "validating": "Validating...",
+      "validProject": "Valid project JSON - ready to import",
+      "missingAssets": "Missing Assets",
+      "missingAssetsHelp": "These assets will be imported as placeholders and can be replaced later.",
+      "invalidFileType": "Please upload a .json file",
+      "validationError": "Validation error: {{message}}",
+      "unknownError": "Unknown error",
+      "importError": "Import error: {{message}}",
+      "assetsNeedRelinking_one": "{{count}} asset needs relinking",
+      "assetsNeedRelinking_other": "{{count}} assets need relinking",
+      "relinkAssetsHelp": "Go to Assets panel -> click \"Relink from Folder\" to restore missing media."
+    }
+  },
+  "toolbar": {
+    "search": {
+      "selectedClip": "Search effects for selected clip...",
+      "allTools": "Search tools, effects, or ask AI..."
+    },
+    "help": {
+      "editorTour": "Editor Tour",
+      "animationEffectsTour": "Animation & Effects Tour",
+      "shortcutsHint": "Press ? for shortcuts"
+    },
+    "tooltips": {
+      "backToHome": "Back to Home",
+      "theme": "Theme: {{mode}}",
+      "settingsApiKeys": "Settings & API Keys",
+      "projectJson": "Project JSON - Export/Import",
+      "keyframeEditor": "Keyframe Editor",
+      "audioMixer": "Audio Mixer - track volume and master level",
+      "history": "History - Undo/Redo",
+      "screenRecording": "Screen Recording"
+    },
+    "actions": {
+      "record": "Record"
+    },
+    "recording": {
+      "failed": "Recording failed",
+      "noData": "No video data was captured. Please try again.",
+      "importScreenFailed": "Failed to import screen recording",
+      "importWebcamFailed": "Failed to import webcam recording",
+      "imported_one": "{{count}} recording imported!",
+      "imported_other": "{{count}} recordings imported!",
+      "screenAndWebcamAdded": "Screen and webcam added to assets. Use the timeline to composite them.",
+      "screenAdded": "Screen recording added to assets.",
+      "importFailed": "Import failed"
+    },
+    "export": {
+      "actions": {
+        "export": "EXPORT"
+      },
+      "mediaFile": "Media file",
+      "bestMatch": "Best Match",
+      "estimate": "Est. {{time}}",
+      "customExport": "Custom Export...",
+      "customExportDescription": "Full settings with AI upscaling",
+      "status": {
+        "initializing": "Initializing...",
+        "complete": "Complete!",
+        "saved": "Saved!",
+        "failed": "Export failed",
+        "downloaded": "Downloaded!"
+      },
+      "options": {
+        "mp4Standard": "MP4 Standard",
+        "fourKStandard": "4K Standard",
+        "highQuality1080p": "1080p High Quality",
+        "smooth1080p60": "1080p 60fps",
+        "audioOnlyWav": "Audio Only (WAV)"
+      },
+      "descriptions": {
+        "webSocial": "{{resolution}} H.264 - Web & social",
+        "youtube4k": "3840×2160 - YouTube 4K",
+        "highBitrate1080p": "1920×1080 30fps - High bitrate",
+        "smoothPlayback": "1920×1080 - Smooth playback",
+        "uncompressedAudio": "Uncompressed audio"
+      }
+    },
+    "historyPanel": {
+      "title": "Action History"
+    }
+  },
+  "timeline": {
+    "actions": {
+      "split": "SPLIT",
+      "addTrack": "Add Track"
+    },
+    "trackTypes": {
+      "video": "Video Track",
+      "audio": "Audio Track",
+      "image": "Image Track",
+      "text": "Text Track",
+      "graphics": "Graphics Track"
+    },
+    "layers": {
+      "shortLabel": "LAYERS",
+      "title": "Track Layers",
+      "empty": "No tracks yet"
+    },
+    "snap": {
+      "shortLabel": "SNAP"
+    },
+    "tooltips": {
+      "undo": "Undo (Cmd+Z)",
+      "redo": "Redo (Cmd+Shift+Z)",
+      "splitClip": "Split clip at playhead (S)",
+      "deleteClip": "Delete clip (Del)",
+      "addNewTrack": "Add new track",
+      "manageTrackLayers": "Manage track layers",
+      "moveTrackUp": "Move up",
+      "moveTrackDown": "Move down",
+      "disableSnapping": "Disable snapping",
+      "enableSnapping": "Enable snapping",
+      "largeTracks": "Large tracks",
+      "smallTracks": "Small tracks",
+      "zoomOut": "Zoom out",
+      "zoomIn": "Zoom in",
+      "maximizeTimeline": "Maximize timeline"
+    },
+    "toasts": {
+      "addedToTrack": "Added to {{track}}"
+    }
+  },
+  "assetsPanel": {
+    "title": "Assets",
+    "tabs": {
+      "media": "Media",
+      "text": "Text",
+      "graphics": "Graphics",
+      "aiGen": "AI Gen"
+    },
+    "actions": {
+      "importMedia": "Import Media",
+      "addMedia": "Add media",
+      "maximizePanel": "Maximize panel",
+      "closePanel": "Close panel",
+      "replaceAsset": "Replace asset",
+      "delete": "Delete",
+      "createWithKieAI": "Create with KieAI",
+      "addToTimeline": "Add to Timeline",
+      "relinkFromFolder": "Relink from Folder..."
+    },
+    "thumbnail": {
+      "generationFailedRetry": "Generation failed - click to retry",
+      "generationInProgress": "KieAI generation in progress...",
+      "retryGeneration": "Retry generation",
+      "generating": "Generating..."
+    },
+    "badges": {
+      "failed": "Failed",
+      "missing": "Missing"
+    },
+    "empty": {
+      "noMedia": "No media imported",
+      "dragOrClick": "Drag files here or click to import"
+    },
+    "progress": {
+      "importingMedia": "Importing media...",
+      "importingFile": "Importing {{file}} ({{current}}/{{total}})...",
+      "extractingAudio": "Extracting audio from {{file}}...",
+      "replacingAsset": "Replacing asset...",
+      "relinking": "Relinking {{name}}..."
+    },
+    "search": {
+      "placeholder": "Search media"
+    },
+    "viewModes": {
+      "large": "Large icons",
+      "small": "Small icons",
+      "list": "List view"
+    },
+    "filters": {
+      "showOnlyMissing": "Show Only Missing Assets"
+    },
+    "dropZone": {
+      "dropFiles": "Drop files to import"
+    },
+    "graphics": {
+      "backgrounds": "Backgrounds",
+      "shapes": "Shapes",
+      "svgImport": "SVG Import",
+      "importSvgFile": "Import SVG File",
+      "stickersEmojis": "Stickers & Emojis",
+      "categories": {
+        "all": "All",
+        "solid": "Solid",
+        "gradient": "Gradient",
+        "mesh": "Mesh",
+        "pattern": "Pattern"
+      },
+      "shapeLabels": {
+        "rectangle": "Rectangle",
+        "circle": "Circle",
+        "triangle": "Triangle",
+        "star": "Star",
+        "arrow": "Arrow",
+        "polygon": "Polygon"
+      }
+    },
+    "text": {
+      "defaultTitle": "New Title",
+      "addTitle": "Add Title",
+      "addTitleDescription": "Click to add text to timeline",
+      "presets": {
+        "heading": { "name": "Heading", "text": "Heading" },
+        "subtitle": { "name": "Subtitle", "text": "Subtitle text" },
+        "lowerThird": { "name": "Lower Third", "text": "Name Here" },
+        "caption": { "name": "Caption", "text": "Caption text here" }
+      }
+    },
+    "toasts": {
+      "unsavedAudioDiscarded": "Unsaved audio discarded",
+      "saveAudioHint": "Save to media or download next time to keep it.",
+      "folderPickerNotSupported": "Folder picker not supported",
+      "relinkIndividually": "Please relink assets individually using the refresh button on each missing asset.",
+      "relinkedAssets": "Relinked {{linked}} of {{total}} assets",
+      "noMatchesFound": "No matches found",
+      "noMatchingFiles": "None of the files in the selected folder matched the missing assets by filename.",
+      "assetNotFound": "Asset not found",
+      "cannotLoadImageData": "Cannot load the image data for this asset.",
+      "failedToOpenKieAI": "Failed to open KieAI"
+    }
+  },
+  "inspector": {
+    "title": "Inspector",
+    "empty": {
+      "noSelection": "No selection",
+      "selectClip": "Select a clip to view its properties"
+    },
+    "clipInfo": {
+      "duration": "Duration: {{duration}}s"
+    }
+  },
+  "tour": {
+    "actions": {
+      "back": "Back",
+      "skip": "Skip Tour",
+      "next": "Next",
+      "getStarted": "Get Started"
+    },
+    "spotlight": {
+      "steps": {
+        "welcome": {
+          "title": "Welcome to OpenReel",
+          "description": "Let's take a quick tour of the editor"
+        },
+        "assets": {
+          "title": "Assets Panel",
+          "description": "Your creative toolkit. Import media, generate AI content, add shapes, stickers, and custom SVGs.",
+          "tips": [
+            "Drag & drop videos, audio, images",
+            "AI Gen tab: generate images & backgrounds with AI",
+            "Shapes & custom SVG imports",
+            "Stickers, backgrounds & overlays"
+          ]
+        },
+        "timeline": {
+          "title": "Timeline",
+          "description": "Arrange and edit your clips. Drag to move, drag edges to trim.",
+          "tips": ["Press S to split clips", "Space to play/pause", "Scroll to zoom"]
+        },
+        "preview": {
+          "title": "Preview",
+          "description": "Watch your video in real-time as you edit.",
+          "tips": [
+            "Arrow keys for frame navigation",
+            "Click to scrub",
+            "Fullscreen available"
+          ]
+        },
+        "inspector": {
+          "title": "Inspector",
+          "description": "Select a clip to see its properties. Add effects, adjust colors, animate.",
+          "tips": [
+            "Transform, effects, color grading",
+            "Keyframe any property",
+            "AI-powered tools"
+          ]
+        },
+        "complete": {
+          "title": "You're Ready!",
+          "description": "Start creating! Press ? anytime for keyboard shortcuts."
+        }
+      }
+    },
+    "mograph": {
+      "stepCounter": "Motion Graphics Tour • Step {{current}} of {{total}}",
+      "proTips": "Pro Tips",
+      "steps": {
+        "intro": {
+          "title": "Motion Graphics & Animation",
+          "description": "Learn how to create professional animations with keyframes, motion paths, and particle effects."
+        },
+        "keyframes-inspector": {
+          "title": "Keyframe Animation",
+          "description": "Select any clip and expand the Keyframes section in the Inspector. Add keyframes to animate position, scale, rotation, and opacity over time.",
+          "tips": [
+            "Click the diamond icon to add a keyframe at current time",
+            "Each property can have its own animation curve",
+            "Choose from 30+ easing presets for smooth motion"
+          ]
+        },
+        "keyframes-timeline": {
+          "title": "Timeline Keyframe View",
+          "description": "Click the expand arrow on any track header to reveal keyframe sub-tracks. Drag keyframe diamonds to adjust timing visually.",
+          "tips": [
+            "Diamond markers show keyframe positions",
+            "Drag horizontally to change timing",
+            "Click the curve between keyframes to edit easing"
+          ]
+        },
+        "keyframe-editor": {
+          "title": "Graph Editor",
+          "description": "Open the Keyframe Editor panel from the toolbar for precise control. Edit value curves, copy/paste keyframes, and fine-tune animations.",
+          "tips": [
+            "Drag keyframe points to adjust time and value",
+            "Select multiple keyframes with Shift+click",
+            "Apply easing presets to selected keyframes"
+          ]
+        },
+        "motion-path": {
+          "title": "Motion Paths",
+          "description": "Create smooth movement along custom paths. Enable Motion Path mode to draw bezier curves directly on the preview canvas.",
+          "tips": [
+            "Click on the canvas to add path points",
+            "Drag control handles to curve the path",
+            "Elements follow the path as they animate",
+            "Great for flying logos and dynamic text"
+          ]
+        },
+        "particle-effects": {
+          "title": "Particle Effects",
+          "description": "Add cinematic particle effects like confetti, sparkles, dust, and explosions. Find them in the Inspector's Particle Effects section.",
+          "tips": [
+            "Choose from preset effects or customize",
+            "Adjust particle count, speed, and colors",
+            "Set timing for when effects appear",
+            "Combine with keyframes for dramatic reveals"
+          ]
+        },
+        "emphasis-animations": {
+          "title": "Emphasis Animations",
+          "description": "Make elements pop with attention-grabbing animations. Pulse, bounce, shake, wiggle, and more - perfect for highlighting important content.",
+          "tips": [
+            "24 built-in emphasis presets",
+            "Set duration and loop count",
+            "Combine with entrance/exit animations"
+          ]
+        },
+        "text-animations": {
+          "title": "Text Animation Presets",
+          "description": "Animate text with professional presets. Characters can fade in, slide, bounce, or appear with typewriter effects.",
+          "tips": [
+            "19 text animation styles available",
+            "Per-character or per-word animation",
+            "Customize timing and easing"
+          ]
+        },
+        "complete": {
+          "title": "Start Animating!",
+          "description": "You're ready to create professional motion graphics. Select a clip and start experimenting with keyframes and effects.",
+          "tips": [
+            "Press K to add a keyframe at playhead",
+            "Use ? to see all keyboard shortcuts",
+            "Combine effects for unique animations"
+          ]
+        }
+      }
+    }
+  },
+  "projectSwitcher": {
+    "currentProject": "Current Project",
+    "renameProject": "Rename project",
+    "newProject": "New Project",
+    "newProjectDescription": "Start fresh with a new canvas",
+    "recentProjects": "Recent Projects",
+    "timeAgo": {
+      "justNow": "just now",
+      "minutesShort": "{{count}}m ago",
+      "hoursShort": "{{count}}h ago",
+      "daysShort": "{{count}}d ago"
+    }
+  },
+  "keyboardShortcuts": {
+    "title": "Keyboard Shortcuts",
+    "searchPlaceholder": "Search shortcuts...",
+    "presetFallback": "Preset",
+    "resetAll": "Reset All",
+    "all": "All",
+    "pressKeys": "Press keys...",
+    "resetToDefault": "Reset to default",
+    "noShortcutsFound": "No shortcuts found",
+    "conflictMessage": "This shortcut conflicts with \"{{name}}\". Choose a different key.",
+    "confirmResetAll": "Reset all shortcuts to defaults?",
+    "categories": {
+      "playback": "Playback",
+      "editing": "Editing",
+      "selection": "Selection",
+      "timeline": "Timeline",
+      "view": "View",
+      "file": "File",
+      "tools": "Tools"
+    },
+    "presets": {
+      "openreel": {
+        "name": "OpenReel Default",
+        "description": "Default OpenReel shortcuts"
+      },
+      "capcut": {
+        "name": "CapCut",
+        "description": "CapCut-style shortcuts"
+      },
+      "premiere": {
+        "name": "Adobe Premiere",
+        "description": "Premiere Pro-style shortcuts"
+      },
+      "finalcut": {
+        "name": "Final Cut Pro",
+        "description": "Final Cut Pro-style shortcuts"
+      },
+      "davinci": {
+        "name": "DaVinci Resolve",
+        "description": "DaVinci Resolve-style shortcuts"
+      }
+    },
+    "shortcuts": {
+      "playback.playPause": { "name": "Play/Pause", "description": "Toggle playback" },
+      "playback.frameBack": { "name": "Frame Back", "description": "Move back one frame" },
+      "playback.frameForward": { "name": "Frame Forward", "description": "Move forward one frame" },
+      "playback.secondBack": { "name": "Second Back", "description": "Move back one second" },
+      "playback.secondForward": { "name": "Second Forward", "description": "Move forward one second" },
+      "playback.jump5Back": { "name": "Jump 5s Back", "description": "Move back 5 seconds" },
+      "playback.jump5Forward": { "name": "Jump 5s Forward", "description": "Move forward 5 seconds" },
+      "playback.goToStart": { "name": "Go to Start", "description": "Jump to timeline start" },
+      "playback.goToEnd": { "name": "Go to End", "description": "Jump to timeline end" },
+      "playback.prevClip": { "name": "Previous Clip", "description": "Jump to previous clip edge" },
+      "playback.nextClip": { "name": "Next Clip", "description": "Jump to next clip edge" },
+      "editing.undo": { "name": "Undo", "description": "Undo last action" },
+      "editing.redo": { "name": "Redo", "description": "Redo last undone action" },
+      "editing.cut": { "name": "Cut", "description": "Cut selected clips" },
+      "editing.copy": { "name": "Copy", "description": "Copy selected clips" },
+      "editing.paste": { "name": "Paste", "description": "Paste clips at playhead" },
+      "editing.duplicate": { "name": "Duplicate", "description": "Duplicate selected clip" },
+      "editing.delete": { "name": "Delete", "description": "Delete selected clips" },
+      "editing.rippleDelete": { "name": "Ripple Delete", "description": "Delete and close gap" },
+      "editing.split": { "name": "Split", "description": "Split clip at playhead" },
+      "editing.trimStart": { "name": "Trim Start", "description": "Trim clip start to playhead" },
+      "editing.trimEnd": { "name": "Trim End", "description": "Trim clip end to playhead" },
+      "selection.selectAll": { "name": "Select All", "description": "Select all clips" },
+      "selection.deselect": { "name": "Deselect", "description": "Clear selection" },
+      "timeline.toggleSnap": { "name": "Toggle Snap", "description": "Toggle snapping" },
+      "timeline.zoomIn": { "name": "Zoom In", "description": "Zoom in timeline" },
+      "timeline.zoomOut": { "name": "Zoom Out", "description": "Zoom out timeline" },
+      "timeline.fitTimeline": { "name": "Fit Timeline", "description": "Fit timeline to view" },
+      "view.showShortcuts": { "name": "Show Shortcuts", "description": "Show keyboard shortcuts" },
+      "file.save": { "name": "Save", "description": "Save project" },
+      "file.export": { "name": "Export", "description": "Export video" },
+      "tools.addText": { "name": "Add Text", "description": "Add text clip" },
+      "tools.addMarker": { "name": "Add Marker", "description": "Add marker at playhead" }
+    },
+    "footer": {
+      "clickToCustomize": "Click a shortcut key to customize • Press",
+      "toToggleOverlay": "to toggle this overlay"
+    }
+  },
+  "kieaiDialog": {
+    "title": "Create with KieAI",
+    "sourceImage": "Source image",
+    "submitting": "Submitting...",
+    "submissionFailed": "Submission Failed",
+    "uploading": "Uploading & submitting task...",
+    "errors": {
+      "uploadMissingUrl": "Upload succeeded but returned no file URL. Check console for response.",
+      "unknownModel": "Unknown model"
+    },
+    "actions": {
+      "backToModelSelection": "Back to model selection"
+    }
+  }
+}
