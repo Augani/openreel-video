@@ -848,7 +848,7 @@ describe("ProjectStore", () => {
         useProjectStore
           .getState()
           .project.timeline.tracks.map((track) => track.type),
-      ).toEqual(["video", "graphics", "text"]);
+      ).toEqual(["text", "graphics", "video"]);
       expect(
         useEngineStore.getState().getGraphicsEngine()?.getAllShapeClips(),
       ).toHaveLength(1);
