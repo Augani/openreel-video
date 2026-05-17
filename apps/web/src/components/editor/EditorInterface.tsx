@@ -36,6 +36,25 @@ import {
   disposeTransitionBridge,
 } from "../../bridges/transition-bridge";
 
+const DEFAULT_TIMELINE_HEIGHT = 320;
+const MIN_TIMELINE_HEIGHT = 220;
+const MIN_TOP_WORKSPACE_HEIGHT = 280;
+const DEFAULT_ASSETS_WIDTH = 320;
+const MIN_ASSETS_WIDTH = 240;
+const MAX_ASSETS_WIDTH = 520;
+const DEFAULT_INSPECTOR_WIDTH = 320;
+const MIN_INSPECTOR_WIDTH = 260;
+const MAX_INSPECTOR_WIDTH = 520;
+const MIN_PREVIEW_WIDTH = 420;
+const SIDE_RESIZE_HANDLE_WIDTH = 6;
+const HORIZONTAL_RESIZE_HANDLE_HEIGHT = 4;
+
+type ResizeTarget = "timeline" | "assets" | "inspector";
+
+const clamp = (value: number, min: number, max: number): number => {
+  return Math.min(Math.max(value, min), max);
+};
+
 /**
  * Auto-save initialization hook
  */
@@ -254,27 +273,182 @@ export const EditorInterface: React.FC = () => {
     []
   );
 
-  const [timelineHeight, setTimelineHeight] = useState(320);
-  const isDraggingRef = useRef(false);
+  const editorBodyRef = useRef<HTMLDivElement>(null);
+  const workspaceRef = useRef<HTMLDivElement>(null);
+  const audioMixerRef = useRef<HTMLDivElement>(null);
+  const keyframePanelRef = useRef<HTMLDivElement>(null);
+  const resizeStateRef = useRef<ResizeTarget | null>(null);
 
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    isDraggingRef.current = true;
-    document.body.style.cursor = "row-resize";
-    document.body.style.userSelect = "none";
+  const [timelineHeight, setTimelineHeight] = useState(DEFAULT_TIMELINE_HEIGHT);
+  const [assetsWidth, setAssetsWidth] = useState(DEFAULT_ASSETS_WIDTH);
+  const [inspectorWidth, setInspectorWidth] = useState(DEFAULT_INSPECTOR_WIDTH);
+
+  const timelineHeightRef = useRef(DEFAULT_TIMELINE_HEIGHT);
+  const assetsWidthRef = useRef(DEFAULT_ASSETS_WIDTH);
+  const inspectorWidthRef = useRef(DEFAULT_INSPECTOR_WIDTH);
+
+  useEffect(() => {
+    timelineHeightRef.current = timelineHeight;
+  }, [timelineHeight]);
+
+  useEffect(() => {
+    assetsWidthRef.current = assetsWidth;
+  }, [assetsWidth]);
+
+  useEffect(() => {
+    inspectorWidthRef.current = inspectorWidth;
+  }, [inspectorWidth]);
+
+  const beginResize = useCallback(
+    (target: ResizeTarget) => (e: React.MouseEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      resizeStateRef.current = target;
+      document.body.style.cursor =
+        target === "timeline" ? "row-resize" : "col-resize";
+      document.body.style.userSelect = "none";
+    },
+    [],
+  );
+
+  const clampLayout = useCallback(() => {
+    const workspaceRect = workspaceRef.current?.getBoundingClientRect();
+    if (workspaceRect) {
+      const keyframeWidth =
+        keyframePanelRef.current?.getBoundingClientRect().width ?? 0;
+      const maxResizableWidth =
+        workspaceRect.width -
+        keyframeWidth -
+        MIN_PREVIEW_WIDTH -
+        SIDE_RESIZE_HANDLE_WIDTH * 2;
+
+      const nextAssetsWidth = clamp(
+        assetsWidthRef.current,
+        MIN_ASSETS_WIDTH,
+        Math.max(
+          MIN_ASSETS_WIDTH,
+          Math.min(
+            MAX_ASSETS_WIDTH,
+            maxResizableWidth - inspectorWidthRef.current,
+          ),
+        ),
+      );
+
+      const nextInspectorWidth = clamp(
+        inspectorWidthRef.current,
+        MIN_INSPECTOR_WIDTH,
+        Math.max(
+          MIN_INSPECTOR_WIDTH,
+          Math.min(
+            MAX_INSPECTOR_WIDTH,
+            maxResizableWidth - nextAssetsWidth,
+          ),
+        ),
+      );
+
+      if (nextAssetsWidth !== assetsWidthRef.current) {
+        setAssetsWidth(nextAssetsWidth);
+      }
+
+      if (nextInspectorWidth !== inspectorWidthRef.current) {
+        setInspectorWidth(nextInspectorWidth);
+      }
+    }
+
+    const bodyRect = editorBodyRef.current?.getBoundingClientRect();
+    if (bodyRect) {
+      const audioMixerHeight =
+        audioMixerRef.current?.getBoundingClientRect().height ?? 0;
+      const maxTimelineHeight = Math.max(
+        MIN_TIMELINE_HEIGHT,
+        bodyRect.height -
+          audioMixerHeight -
+          MIN_TOP_WORKSPACE_HEIGHT -
+          HORIZONTAL_RESIZE_HANDLE_HEIGHT,
+      );
+      const nextTimelineHeight = clamp(
+        timelineHeightRef.current,
+        MIN_TIMELINE_HEIGHT,
+        maxTimelineHeight,
+      );
+
+      if (nextTimelineHeight !== timelineHeightRef.current) {
+        setTimelineHeight(nextTimelineHeight);
+      }
+    }
   }, []);
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
-      if (!isDraggingRef.current) return;
+      const resizeTarget = resizeStateRef.current;
+      if (!resizeTarget) return;
 
-      const newHeight = window.innerHeight - e.clientY;
-      const maxHeight = window.innerHeight * 0.6;
-      setTimelineHeight(Math.max(200, Math.min(newHeight, maxHeight)));
+      if (resizeTarget === "timeline") {
+        const bodyRect = editorBodyRef.current?.getBoundingClientRect();
+        if (!bodyRect) return;
+
+        const audioMixerHeight =
+          audioMixerRef.current?.getBoundingClientRect().height ?? 0;
+        const maxTimelineHeight = Math.max(
+          MIN_TIMELINE_HEIGHT,
+          bodyRect.height -
+            audioMixerHeight -
+            MIN_TOP_WORKSPACE_HEIGHT -
+            HORIZONTAL_RESIZE_HANDLE_HEIGHT,
+        );
+        const desiredTimelineHeight =
+          bodyRect.bottom - e.clientY - audioMixerHeight;
+
+        setTimelineHeight(
+          clamp(
+            desiredTimelineHeight,
+            MIN_TIMELINE_HEIGHT,
+            maxTimelineHeight,
+          ),
+        );
+        return;
+      }
+
+      const workspaceRect = workspaceRef.current?.getBoundingClientRect();
+      if (!workspaceRect) return;
+
+      const keyframeWidth =
+        keyframePanelRef.current?.getBoundingClientRect().width ?? 0;
+      const maxResizableWidth =
+        workspaceRect.width -
+        keyframeWidth -
+        MIN_PREVIEW_WIDTH -
+        SIDE_RESIZE_HANDLE_WIDTH * 2;
+
+      if (resizeTarget === "assets") {
+        const maxAssetsWidth = Math.max(
+          MIN_ASSETS_WIDTH,
+          Math.min(
+            MAX_ASSETS_WIDTH,
+            maxResizableWidth - inspectorWidthRef.current,
+          ),
+        );
+        const desiredAssetsWidth = e.clientX - workspaceRect.left;
+        setAssetsWidth(
+          clamp(desiredAssetsWidth, MIN_ASSETS_WIDTH, maxAssetsWidth),
+        );
+        return;
+      }
+
+      const maxInspectorWidth = Math.max(
+        MIN_INSPECTOR_WIDTH,
+        Math.min(
+          MAX_INSPECTOR_WIDTH,
+          maxResizableWidth - assetsWidthRef.current,
+        ),
+      );
+      const desiredInspectorWidth = workspaceRect.right - e.clientX;
+      setInspectorWidth(
+        clamp(desiredInspectorWidth, MIN_INSPECTOR_WIDTH, maxInspectorWidth),
+      );
     };
 
     const handleMouseUp = () => {
-      isDraggingRef.current = false;
+      resizeStateRef.current = null;
       document.body.style.cursor = "";
       document.body.style.userSelect = "";
     };
@@ -287,6 +461,20 @@ export const EditorInterface: React.FC = () => {
       window.removeEventListener("mouseup", handleMouseUp);
     };
   }, []);
+
+  useEffect(() => {
+    clampLayout();
+
+    const handleResize = () => {
+      clampLayout();
+    };
+
+    window.addEventListener("resize", handleResize);
+
+    return () => {
+      window.removeEventListener("resize", handleResize);
+    };
+  }, [clampLayout, keyframeEditorOpen, panels.audioMixer?.visible]);
 
   if (initializing || !initialized) {
     return (
@@ -308,63 +496,97 @@ export const EditorInterface: React.FC = () => {
       {/* Main App Toolbar */}
       <Toolbar />
 
-      {/* Workspace Area */}
-      <div className="flex-1 flex overflow-hidden">
-        <PanelErrorBoundary name="Assets Panel">
-          <AssetsPanel />
-        </PanelErrorBoundary>
+      <div ref={editorBodyRef} className="min-h-0 flex-1 flex flex-col overflow-hidden">
+        <div ref={workspaceRef} className="min-h-0 flex-1 flex overflow-hidden">
+          <div
+            className="h-full shrink-0 min-w-0 overflow-hidden"
+            style={{ width: assetsWidth }}
+          >
+            <PanelErrorBoundary name="Assets Panel">
+              <AssetsPanel />
+            </PanelErrorBoundary>
+          </div>
 
-        <PanelErrorBoundary name="Preview">
-          <Preview />
-        </PanelErrorBoundary>
+          <div
+            className="relative h-full shrink-0 cursor-col-resize bg-border/80 transition-colors hover:bg-primary/50"
+            style={{ width: SIDE_RESIZE_HANDLE_WIDTH }}
+            onMouseDown={beginResize("assets")}
+          >
+            <div className="absolute inset-y-0 -left-1 -right-1" />
+          </div>
 
-        <PanelErrorBoundary name="Inspector">
-          <InspectorPanel />
-        </PanelErrorBoundary>
+          <div className="min-h-0 min-w-0 flex-1 flex overflow-hidden">
+            <PanelErrorBoundary name="Preview">
+              <Preview />
+            </PanelErrorBoundary>
+          </div>
 
-        {keyframeEditorOpen && (
-          <PanelErrorBoundary name="Keyframe Editor">
-            <KeyframeEditorPanel
-              clip={selectedClip}
-              onClose={() => setKeyframeEditorOpen(false)}
-              onUpdateKeyframe={handleUpdateKeyframe}
-              onDeleteKeyframe={handleDeleteKeyframe}
-              onCopyKeyframes={handleCopyKeyframes}
-              onPasteKeyframes={handlePasteKeyframes}
-              selectedKeyframeIds={selectedKeyframeIds}
-              onSelectKeyframe={handleSelectKeyframe}
-              copiedKeyframes={copiedKeyframes}
-            />
-          </PanelErrorBoundary>
+          <div
+            className="relative h-full shrink-0 cursor-col-resize bg-border/80 transition-colors hover:bg-primary/50"
+            style={{ width: SIDE_RESIZE_HANDLE_WIDTH }}
+            onMouseDown={beginResize("inspector")}
+          >
+            <div className="absolute inset-y-0 -left-1 -right-1" />
+          </div>
+
+          <div
+            className="h-full shrink-0 min-w-0 overflow-hidden"
+            style={{ width: inspectorWidth }}
+          >
+            <PanelErrorBoundary name="Inspector">
+              <InspectorPanel />
+            </PanelErrorBoundary>
+          </div>
+
+          {keyframeEditorOpen && (
+            <div
+              ref={keyframePanelRef}
+              className="h-full shrink-0 min-w-0 overflow-hidden"
+            >
+              <PanelErrorBoundary name="Keyframe Editor">
+                <KeyframeEditorPanel
+                  clip={selectedClip}
+                  onClose={() => setKeyframeEditorOpen(false)}
+                  onUpdateKeyframe={handleUpdateKeyframe}
+                  onDeleteKeyframe={handleDeleteKeyframe}
+                  onCopyKeyframes={handleCopyKeyframes}
+                  onPasteKeyframes={handlePasteKeyframes}
+                  selectedKeyframeIds={selectedKeyframeIds}
+                  onSelectKeyframe={handleSelectKeyframe}
+                  copiedKeyframes={copiedKeyframes}
+                />
+              </PanelErrorBoundary>
+            </div>
+          )}
+        </div>
+
+        <div
+          className="shrink-0 bg-border transition-colors hover:bg-primary/50 cursor-row-resize z-10 relative"
+          style={{ height: HORIZONTAL_RESIZE_HANDLE_HEIGHT }}
+          onMouseDown={beginResize("timeline")}
+        >
+          <div className="absolute inset-x-0 -top-1 -bottom-1 bg-transparent" />
+        </div>
+
+        {panels.audioMixer?.visible && (
+          <div ref={audioMixerRef} className="shrink-0">
+            <PanelErrorBoundary name="Audio Mixer">
+              <AudioMixer
+                visible
+                onClose={() => setPanelVisible("audioMixer", false)}
+              />
+            </PanelErrorBoundary>
+          </div>
         )}
-      </div>
 
-      {/* Resizable Handle */}
-      <div
-        className="h-1 bg-border hover:bg-primary/50 cursor-row-resize transition-colors z-10 relative group"
-        onMouseDown={handleMouseDown}
-      >
-        <div className="absolute inset-x-0 -top-1 -bottom-1 bg-transparent" />
-      </div>
-
-      {/* Audio Mixer (when open) */}
-      {panels.audioMixer?.visible && (
-        <PanelErrorBoundary name="Audio Mixer">
-          <AudioMixer
-            visible
-            onClose={() => setPanelVisible("audioMixer", false)}
-          />
-        </PanelErrorBoundary>
-      )}
-
-      {/* BOTTOM PANEL: Timeline */}
-      <div
-        style={{ height: timelineHeight }}
-        className="shrink-0 flex flex-col"
-      >
-        <PanelErrorBoundary name="Timeline">
-          <Timeline />
-        </PanelErrorBoundary>
+        <div
+          style={{ height: timelineHeight }}
+          className="min-h-0 shrink-0 flex flex-col overflow-hidden"
+        >
+          <PanelErrorBoundary name="Timeline">
+            <Timeline />
+          </PanelErrorBoundary>
+        </div>
       </div>
 
       <KeyboardShortcutsOverlay

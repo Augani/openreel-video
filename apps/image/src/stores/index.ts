@@ -4,6 +4,7 @@ export type { AppView, Tool, Panel, EraserSettings, SelectionToolSettings, Magic
 export { useProjectStore } from './project-store';
 
 export { useHistoryStore } from './history-store';
+export type { HistoryEntry } from './history-store';
 
 export { useCanvasStore } from './canvas-store';
 export type { Guide, SelectionRect, DragMode, ResizeHandle } from './canvas-store';

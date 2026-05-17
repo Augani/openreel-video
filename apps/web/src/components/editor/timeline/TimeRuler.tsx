@@ -19,6 +19,7 @@ interface TimeRulerProps {
   onSeek: (time: number) => void;
   onScrubStart?: () => void;
   onScrubEnd?: () => void;
+  snapPoints?: number[];
 }
 
 export const TimeRuler: React.FC<TimeRulerProps> = ({
@@ -28,6 +29,7 @@ export const TimeRuler: React.FC<TimeRulerProps> = ({
   onSeek,
   onScrubStart,
   onScrubEnd,
+  snapPoints,
 }) => {
   const rulerRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -120,17 +122,70 @@ export const TimeRuler: React.FC<TimeRulerProps> = ({
     [getTimeFromEvent, onSeek, onScrubStart],
   );
 
+  const snapPointsRef = useRef(snapPoints);
+  snapPointsRef.current = snapPoints;
+
   useEffect(() => {
     if (!isDragging) return;
+    let rafId: number | null = null;
+    let latestTime: number | null = null;
+    let prevTime: number | null = null;
+    let prevTimestamp = 0;
+    let velocity = 0;
+
+    const SNAP_THRESHOLD_PX = 8;
+    const SLOW_VELOCITY_THRESHOLD = 150;
+
+    const applySnap = (rawTime: number): number => {
+      const points = snapPointsRef.current;
+      if (!points || points.length === 0) return rawTime;
+
+      if (velocity > SLOW_VELOCITY_THRESHOLD) return rawTime;
+
+      const thresholdSec = SNAP_THRESHOLD_PX / safePixelsPerSecond;
+      let bestDist = Infinity;
+      let snapped = rawTime;
+
+      for (const point of points) {
+        const dist = Math.abs(rawTime - point);
+        if (dist < thresholdSec && dist < bestDist) {
+          bestDist = dist;
+          snapped = point;
+        }
+      }
+
+      return snapped;
+    };
 
     const handleMouseMove = (e: MouseEvent) => {
       e.preventDefault();
-      const time = getTimeFromEvent(e);
-      onSeek(time);
+      const rawTime = getTimeFromEvent(e);
+      const now = performance.now();
+
+      if (prevTime !== null && now - prevTimestamp > 0) {
+        const dt = (now - prevTimestamp) / 1000;
+        const pixelDelta = Math.abs(rawTime - prevTime) * safePixelsPerSecond;
+        velocity = pixelDelta / dt;
+      }
+      prevTime = rawTime;
+      prevTimestamp = now;
+
+      latestTime = applySnap(rawTime);
+
+      if (rafId === null) {
+        rafId = requestAnimationFrame(() => {
+          rafId = null;
+          if (latestTime !== null) {
+            onSeek(latestTime);
+          }
+        });
+      }
     };
 
     const handleMouseUp = (e: MouseEvent) => {
       e.preventDefault();
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      if (latestTime !== null) onSeek(latestTime);
       setIsDragging(false);
       onScrubEnd?.();
     };
@@ -139,10 +194,11 @@ export const TimeRuler: React.FC<TimeRulerProps> = ({
     window.addEventListener("mouseup", handleMouseUp);
 
     return () => {
+      if (rafId !== null) cancelAnimationFrame(rafId);
       window.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("mouseup", handleMouseUp);
     };
-  }, [isDragging, getTimeFromEvent, onSeek, onScrubEnd]);
+  }, [isDragging, getTimeFromEvent, onSeek, onScrubEnd, safePixelsPerSecond]);
 
   return (
     <div

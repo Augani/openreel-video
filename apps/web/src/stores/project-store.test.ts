@@ -1,6 +1,109 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { useProjectStore } from "./project-store";
-import type { Project, Clip, MediaItem } from "@openreel/core";
+import { useEngineStore } from "./engine-store";
+import type { Project, Clip, MediaItem, Transition } from "@openreel/core";
+
+const {
+  mockEffectsBridge,
+  mockEffectsBridgeState,
+  mockTransitionBridge,
+  mockTransitionBridgeState,
+} = vi.hoisted(() => {
+  const clipEffects = new Map<string, Array<{
+    id: string;
+    type: string;
+    enabled: boolean;
+    params: Record<string, unknown>;
+    order: number;
+  }>>();
+
+  const getDefaultParams = (effectType: string): Record<string, unknown> => {
+    switch (effectType) {
+      case "brightness":
+        return { value: 0 };
+      case "contrast":
+        return { value: 1 };
+      case "saturation":
+        return { value: 1 };
+      case "blur":
+        return { radius: 0, type: "gaussian" };
+      default:
+        return {};
+    }
+  };
+
+  const effectsBridge = {
+    isInitialized: vi.fn(() => true),
+    applyVideoEffect: vi.fn(
+      (clipId: string, effectType: string, params: Record<string, unknown> = {}) => {
+        const effects = clipEffects.get(clipId) || [];
+        const effect = {
+          id: `effect-${effects.length + 1}`,
+          type: effectType,
+          enabled: true,
+          params: { ...getDefaultParams(effectType), ...params },
+          order: effects.length,
+        };
+        clipEffects.set(clipId, [...effects, effect]);
+        return { success: true, effectId: effect.id };
+      },
+    ),
+    getEffects: vi.fn((clipId: string) => [...(clipEffects.get(clipId) || [])]),
+    getEffect: vi.fn((clipId: string, effectId: string) =>
+      (clipEffects.get(clipId) || []).find((effect) => effect.id === effectId),
+    ),
+    deserializeEffects: vi.fn(
+      (
+        clipId: string,
+        data: {
+          effects: Array<{
+            id: string;
+            type: string;
+            enabled: boolean;
+            params: Record<string, unknown>;
+            order: number;
+          }>;
+        },
+      ) => {
+        clipEffects.set(
+          clipId,
+          data.effects.map((effect) => ({ ...effect })),
+        );
+        return { success: true };
+      },
+    ),
+    clearEffects: vi.fn((clipId: string) => {
+      clipEffects.delete(clipId);
+    }),
+    getColorGrading: vi.fn(() => ({})),
+  };
+
+  const trackTransitions = new Map<string, Transition[]>();
+  const transitionBridge = {
+    isInitialized: vi.fn(() => true),
+    setTransitionsForTrack: vi.fn(
+      (trackId: string, transitions: Transition[]) => {
+        trackTransitions.set(
+          trackId,
+          transitions.map((transition) => ({
+            ...transition,
+            params: { ...transition.params },
+          })),
+        );
+      },
+    ),
+    clearTransitionsForTrack: vi.fn((trackId: string) => {
+      trackTransitions.delete(trackId);
+    }),
+  };
+
+  return {
+    mockEffectsBridge: effectsBridge,
+    mockEffectsBridgeState: { clipEffects },
+    mockTransitionBridge: transitionBridge,
+    mockTransitionBridgeState: { trackTransitions },
+  };
+});
 
 vi.mock("../services/auto-save", () => ({
   autoSaveManager: {
@@ -33,8 +136,18 @@ vi.mock("../bridges/media-bridge", () => ({
   initializeMediaBridge: vi.fn().mockResolvedValue(undefined),
 }));
 
+vi.mock("../bridges/effects-bridge", () => ({
+  getEffectsBridge: vi.fn(() => mockEffectsBridge),
+}));
+
+vi.mock("../bridges/transition-bridge", () => ({
+  getTransitionBridge: vi.fn(() => mockTransitionBridge),
+}));
+
 describe("ProjectStore", () => {
   beforeEach(() => {
+    mockEffectsBridgeState.clipEffects.clear();
+    mockTransitionBridgeState.trackTransitions.clear();
     useProjectStore.getState().createNewProject();
   });
 
@@ -496,6 +609,576 @@ describe("ProjectStore", () => {
     });
   });
 
+  describe("video effects", () => {
+    const createProjectWithVideoClip = (): Project => ({
+      id: "effects-project",
+      name: "Effects Project",
+      createdAt: Date.now(),
+      modifiedAt: Date.now(),
+      settings: {
+        width: 1920,
+        height: 1080,
+        frameRate: 30,
+        sampleRate: 48000,
+        channels: 2,
+      },
+      mediaLibrary: { items: [] },
+      timeline: {
+        tracks: [
+          {
+            id: "video-track-1",
+            type: "video",
+            name: "Video",
+            clips: [
+              {
+                id: "video-clip-1",
+                mediaId: "video-media-1",
+                trackId: "video-track-1",
+                startTime: 0,
+                duration: 8,
+                inPoint: 0,
+                outPoint: 8,
+                effects: [],
+                audioEffects: [],
+                transform: {
+                  position: { x: 0.5, y: 0.5 },
+                  scale: { x: 1, y: 1 },
+                  rotation: 0,
+                  anchor: { x: 0.5, y: 0.5 },
+                  opacity: 1,
+                },
+                volume: 1,
+                keyframes: [],
+              },
+            ],
+            transitions: [],
+            locked: false,
+            hidden: false,
+            muted: false,
+            solo: false,
+          },
+        ],
+        subtitles: [],
+        duration: 8,
+        markers: [],
+      },
+    });
+
+    it("should persist video effects to the clip timeline state", () => {
+      useProjectStore.getState().loadProject(createProjectWithVideoClip());
+
+      const addedEffect = useProjectStore
+        .getState()
+        .addVideoEffect("video-clip-1", "brightness", { value: 15 });
+
+      expect(addedEffect).not.toBeNull();
+      expect(useProjectStore.getState().getClip("video-clip-1")?.effects).toEqual([
+        {
+          id: addedEffect!.id,
+          type: "brightness",
+          enabled: true,
+          params: { value: 15 },
+        },
+      ]);
+      expect(useProjectStore.getState().getVideoEffects("video-clip-1")).toHaveLength(1);
+    });
+
+    it("should keep clip effects synchronized across update, toggle, reorder, and remove", () => {
+      useProjectStore.getState().loadProject(createProjectWithVideoClip());
+
+      const brightness = useProjectStore
+        .getState()
+        .addVideoEffect("video-clip-1", "brightness", { value: 10 });
+      const contrast = useProjectStore
+        .getState()
+        .addVideoEffect("video-clip-1", "contrast", { value: 1.2 });
+
+      expect(brightness).not.toBeNull();
+      expect(contrast).not.toBeNull();
+
+      const updated = useProjectStore
+        .getState()
+        .updateVideoEffect("video-clip-1", brightness!.id, { value: 20 });
+      const toggled = useProjectStore
+        .getState()
+        .toggleVideoEffect("video-clip-1", brightness!.id, false);
+      const reordered = useProjectStore
+        .getState()
+        .reorderVideoEffects("video-clip-1", [contrast!.id, brightness!.id]);
+      const removed = useProjectStore
+        .getState()
+        .removeVideoEffect("video-clip-1", contrast!.id);
+
+      expect(updated?.params).toEqual({ value: 20 });
+      expect(toggled?.enabled).toBe(false);
+      expect(reordered).toBe(true);
+      expect(removed).toBe(true);
+      expect(useProjectStore.getState().getClip("video-clip-1")?.effects).toEqual([
+        {
+          id: brightness!.id,
+          type: "brightness",
+          enabled: false,
+          params: { value: 20 },
+        },
+      ]);
+    });
+  });
+
+  describe("editing templates", () => {
+    const createProjectWithEditableClip = (): Project => {
+      const mediaItem: MediaItem = {
+        id: "video-media-1",
+        name: "hero-shot.mp4",
+        type: "video",
+        fileHandle: null,
+        blob: null,
+        metadata: {
+          duration: 10,
+          width: 1920,
+          height: 1080,
+          frameRate: 30,
+          codec: "h264",
+          sampleRate: 48000,
+          channels: 2,
+          fileSize: 1000000,
+        },
+        thumbnailUrl: null,
+        waveformData: null,
+      };
+
+      const clip: Clip = {
+        id: "video-clip-1",
+        mediaId: mediaItem.id,
+        trackId: "video-track-1",
+        startTime: 0,
+        duration: 10,
+        inPoint: 0,
+        outPoint: 10,
+        effects: [],
+        audioEffects: [],
+        transform: {
+          position: { x: 0.5, y: 0.5 },
+          scale: { x: 1, y: 1 },
+          rotation: 0,
+          anchor: { x: 0.5, y: 0.5 },
+          opacity: 1,
+        },
+        volume: 1,
+        keyframes: [],
+      };
+
+      return {
+        id: "editing-template-project",
+        name: "Editing Template Project",
+        createdAt: Date.now(),
+        modifiedAt: Date.now(),
+        settings: {
+          width: 1920,
+          height: 1080,
+          frameRate: 30,
+          sampleRate: 48000,
+          channels: 2,
+        },
+        mediaLibrary: { items: [mediaItem] },
+        timeline: {
+          tracks: [
+            {
+              id: "video-track-1",
+              type: "video",
+              name: "Video",
+              clips: [clip],
+              transitions: [],
+              locked: false,
+              hidden: false,
+              muted: false,
+              solo: false,
+            },
+          ],
+          subtitles: [],
+          duration: 10,
+          markers: [],
+        },
+      };
+    };
+
+    beforeEach(() => {
+      const titleEngine = useEngineStore.getState().getTitleEngine();
+      const graphicsEngine = useEngineStore.getState().getGraphicsEngine();
+
+      titleEngine?.loadTextClips([]);
+      graphicsEngine?.loadShapeClips([]);
+      graphicsEngine?.loadSVGClips([]);
+      graphicsEngine?.loadStickerClips([]);
+    });
+
+    const getRecipeTextValues = (applicationId: string): string[] =>
+      (useEngineStore.getState().getTitleEngine()?.getAllTextClips() || [])
+        .filter(
+          (clip) => clip.metadata?.templateSource?.applicationId === applicationId,
+        )
+        .map((clip) => clip.text)
+        .sort();
+
+    it("applies a clip-scoped recipe and records metadata plus overlays", () => {
+      useProjectStore.getState().loadProject(createProjectWithEditableClip());
+
+      const applicationId = useProjectStore.getState().applyEditingTemplate(
+        "branding-lower-third",
+        "video-clip-1",
+        {
+          name: "Ada Lovelace",
+          role: "Director",
+        },
+      );
+
+      expect(applicationId).toBeTruthy();
+
+      const clip = useProjectStore.getState().getClip("video-clip-1");
+      expect(clip?.metadata?.appliedTemplates).toEqual([
+        expect.objectContaining({
+          templateId: "branding-lower-third",
+          applicationId,
+          controlValues: expect.objectContaining({
+            name: "Ada Lovelace",
+            role: "Director",
+          }),
+        }),
+      ]);
+      expect(
+        useProjectStore
+          .getState()
+          .project.timeline.tracks.map((track) => track.type),
+      ).toEqual(["video", "graphics", "text"]);
+      expect(
+        useEngineStore.getState().getGraphicsEngine()?.getAllShapeClips(),
+      ).toHaveLength(1);
+      expect(
+        useEngineStore.getState().getTitleEngine()?.getAllTextClips(),
+      ).toHaveLength(2);
+    });
+
+    it("removes a clip-scoped recipe and cleans up its generated tracks", () => {
+      useProjectStore.getState().loadProject(createProjectWithEditableClip());
+
+      const applicationId = useProjectStore.getState().applyEditingTemplate(
+        "branding-lower-third",
+        "video-clip-1",
+      );
+
+      expect(applicationId).toBeTruthy();
+      expect(
+        useProjectStore.getState().removeEditingTemplateApplication(
+          "video-clip-1",
+          applicationId!,
+        ),
+      ).toBe(true);
+
+      const clip = useProjectStore.getState().getClip("video-clip-1");
+      expect(clip?.metadata?.appliedTemplates || []).toHaveLength(0);
+      expect(
+        useProjectStore
+          .getState()
+          .project.timeline.tracks.map((track) => track.type),
+      ).toEqual(["video"]);
+      expect(
+        useEngineStore.getState().getGraphicsEngine()?.getAllShapeClips(),
+      ).toHaveLength(0);
+      expect(
+        useEngineStore.getState().getTitleEngine()?.getAllTextClips(),
+      ).toHaveLength(0);
+    });
+
+    it("updates an applied recipe in place and keeps its application id", () => {
+      useProjectStore.getState().loadProject(createProjectWithEditableClip());
+
+      const applicationId = useProjectStore.getState().applyEditingTemplate(
+        "branding-lower-third",
+        "video-clip-1",
+        {
+          name: "Ada Lovelace",
+          role: "Director",
+        },
+      );
+
+      expect(applicationId).toBeTruthy();
+      expect(
+        useProjectStore.getState().updateEditingTemplateApplication(
+          "video-clip-1",
+          applicationId!,
+          {
+            name: "Grace Hopper",
+            role: "Engineer",
+          },
+        ),
+      ).toBe(true);
+
+      const clip = useProjectStore.getState().getClip("video-clip-1");
+      expect(clip?.metadata?.appliedTemplates).toEqual([
+        expect.objectContaining({
+          applicationId,
+          controlValues: expect.objectContaining({
+            name: "Grace Hopper",
+            role: "Engineer",
+          }),
+        }),
+      ]);
+      expect(getRecipeTextValues(applicationId!)).toEqual([
+        "Engineer",
+        "Grace Hopper",
+      ]);
+      expect(
+        useEngineStore
+          .getState()
+          .getGraphicsEngine()
+          ?.getAllShapeClips()
+          .filter(
+            (clip) => clip.metadata?.templateSource?.applicationId === applicationId,
+          ),
+      ).toHaveLength(1);
+    });
+
+    it("undos and redoes a recipe update between previous and current controls", async () => {
+      useProjectStore.getState().loadProject(createProjectWithEditableClip());
+
+      const applicationId = useProjectStore.getState().applyEditingTemplate(
+        "branding-lower-third",
+        "video-clip-1",
+        {
+          name: "Ada Lovelace",
+          role: "Director",
+        },
+      );
+
+      expect(applicationId).toBeTruthy();
+      expect(
+        useProjectStore.getState().updateEditingTemplateApplication(
+          "video-clip-1",
+          applicationId!,
+          {
+            name: "Grace Hopper",
+            role: "Engineer",
+          },
+        ),
+      ).toBe(true);
+      expect(getRecipeTextValues(applicationId!)).toEqual([
+        "Engineer",
+        "Grace Hopper",
+      ]);
+
+      await useProjectStore.getState().undo();
+      expect(getRecipeTextValues(applicationId!)).toEqual([
+        "Ada Lovelace",
+        "Director",
+      ]);
+      expect(
+        useProjectStore.getState().getClip("video-clip-1")?.metadata?.appliedTemplates,
+      ).toEqual([
+        expect.objectContaining({
+          applicationId,
+          controlValues: expect.objectContaining({
+            name: "Ada Lovelace",
+            role: "Director",
+          }),
+        }),
+      ]);
+
+      await useProjectStore.getState().redo();
+      expect(getRecipeTextValues(applicationId!)).toEqual([
+        "Engineer",
+        "Grace Hopper",
+      ]);
+      expect(
+        useProjectStore.getState().getClip("video-clip-1")?.metadata?.appliedTemplates,
+      ).toEqual([
+        expect.objectContaining({
+          applicationId,
+          controlValues: expect.objectContaining({
+            name: "Grace Hopper",
+            role: "Engineer",
+          }),
+        }),
+      ]);
+    });
+
+    it("undos newer timeline actions before undoing a recipe and can redo the recipe", async () => {
+      useProjectStore.getState().loadProject(createProjectWithEditableClip());
+
+      const applicationId = useProjectStore.getState().applyEditingTemplate(
+        "branding-lower-third",
+        "video-clip-1",
+      );
+
+      expect(applicationId).toBeTruthy();
+      expect(useProjectStore.getState().project.timeline.tracks).toHaveLength(3);
+
+      await useProjectStore.getState().addTrack("audio");
+      expect(useProjectStore.getState().project.timeline.tracks).toHaveLength(4);
+
+      await useProjectStore.getState().undo();
+      expect(useProjectStore.getState().project.timeline.tracks).toHaveLength(3);
+      expect(
+        useProjectStore.getState().getClip("video-clip-1")?.metadata?.appliedTemplates,
+      ).toHaveLength(1);
+
+      await useProjectStore.getState().undo();
+      expect(
+        useProjectStore.getState().getClip("video-clip-1")?.metadata?.appliedTemplates || [],
+      ).toHaveLength(0);
+      expect(
+        useEngineStore.getState().getGraphicsEngine()?.getAllShapeClips(),
+      ).toHaveLength(0);
+      expect(
+        useEngineStore.getState().getTitleEngine()?.getAllTextClips(),
+      ).toHaveLength(0);
+
+      await useProjectStore.getState().redo();
+      expect(
+        useProjectStore.getState().getClip("video-clip-1")?.metadata?.appliedTemplates,
+      ).toHaveLength(1);
+      expect(
+        useEngineStore.getState().getGraphicsEngine()?.getAllShapeClips(),
+      ).toHaveLength(1);
+      expect(
+        useEngineStore.getState().getTitleEngine()?.getAllTextClips(),
+      ).toHaveLength(2);
+    });
+  });
+
+  describe("clip transitions", () => {
+    const createProjectWithAdjacentClips = (): Project => ({
+      id: "transition-project",
+      name: "Transition Project",
+      createdAt: Date.now(),
+      modifiedAt: Date.now(),
+      settings: {
+        width: 1920,
+        height: 1080,
+        frameRate: 30,
+        sampleRate: 48000,
+        channels: 2,
+      },
+      mediaLibrary: { items: [] },
+      timeline: {
+        tracks: [
+          {
+            id: "video-track-1",
+            type: "video",
+            name: "Video",
+            clips: [
+              {
+                id: "clip-a",
+                mediaId: "video-a",
+                trackId: "video-track-1",
+                startTime: 0,
+                duration: 4,
+                inPoint: 0,
+                outPoint: 4,
+                effects: [],
+                audioEffects: [],
+                transform: {
+                  position: { x: 0.5, y: 0.5 },
+                  scale: { x: 1, y: 1 },
+                  rotation: 0,
+                  anchor: { x: 0.5, y: 0.5 },
+                  opacity: 1,
+                },
+                volume: 1,
+                keyframes: [],
+              },
+              {
+                id: "clip-b",
+                mediaId: "video-b",
+                trackId: "video-track-1",
+                startTime: 4,
+                duration: 4,
+                inPoint: 0,
+                outPoint: 4,
+                effects: [],
+                audioEffects: [],
+                transform: {
+                  position: { x: 0.5, y: 0.5 },
+                  scale: { x: 1, y: 1 },
+                  rotation: 0,
+                  anchor: { x: 0.5, y: 0.5 },
+                  opacity: 1,
+                },
+                volume: 1,
+                keyframes: [],
+              },
+            ],
+            transitions: [],
+            locked: false,
+            hidden: false,
+            muted: false,
+            solo: false,
+          },
+        ],
+        subtitles: [],
+        duration: 8,
+        markers: [],
+      },
+    });
+
+    it("should persist adjacent clip transitions and mirror them into the transition bridge", () => {
+      useProjectStore.getState().loadProject(createProjectWithAdjacentClips());
+
+      const transition: Transition = {
+        id: "transition-1",
+        clipAId: "clip-a",
+        clipBId: "clip-b",
+        type: "crossfade",
+        duration: 0.5,
+        params: { curve: "ease" },
+      };
+
+      const addedTransition = useProjectStore
+        .getState()
+        .addClipTransition(transition);
+      const updatedTransition = useProjectStore
+        .getState()
+        .updateClipTransition("transition-1", {
+          duration: 0.75,
+          params: { curve: "linear" },
+        });
+
+      expect(addedTransition).toEqual(transition);
+      expect(useProjectStore.getState().getClipTransitionBetweenClips("clip-a", "clip-b")).toEqual({
+        id: "transition-1",
+        clipAId: "clip-a",
+        clipBId: "clip-b",
+        type: "crossfade",
+        duration: 0.75,
+        params: { curve: "linear" },
+      });
+      expect(updatedTransition).toEqual({
+        id: "transition-1",
+        clipAId: "clip-a",
+        clipBId: "clip-b",
+        type: "crossfade",
+        duration: 0.75,
+        params: { curve: "linear" },
+      });
+      expect(mockTransitionBridgeState.trackTransitions.get("video-track-1")).toEqual([
+        {
+          id: "transition-1",
+          clipAId: "clip-a",
+          clipBId: "clip-b",
+          type: "crossfade",
+          duration: 0.75,
+          params: { curve: "linear" },
+        },
+      ]);
+
+      const removedTransition = useProjectStore
+        .getState()
+        .removeClipTransition("transition-1");
+
+      expect(removedTransition).toBe(true);
+      expect(useProjectStore.getState().getClipTransition("transition-1")).toBeUndefined();
+      expect(mockTransitionBridgeState.trackTransitions.get("video-track-1")).toEqual([]);
+    });
+  });
+
   describe("marker operations", () => {
     it("should add a marker", () => {
       useProjectStore.getState().addMarker(5, "Scene 1", "#ff0000");
@@ -607,6 +1290,132 @@ describe("ProjectStore", () => {
       useProjectStore.getState().copyClips(["clip-to-copy"]);
 
       expect(useProjectStore.getState().clipboard.length).toBe(1);
+    });
+  });
+
+  describe("separateAudio", () => {
+    const createProjectWithVideoClip = (audioTrackCount?: number): Project => {
+      const mediaItem: MediaItem = {
+        id: "video-media-1",
+        name: "multi-audio.mp4",
+        type: "video",
+        fileHandle: null,
+        blob: null,
+        metadata: {
+          duration: 10,
+          width: 1920,
+          height: 1080,
+          frameRate: 30,
+          codec: "h264",
+          sampleRate: 48000,
+          channels: 2,
+          fileSize: 1000000,
+          audioTrackCount,
+        },
+        thumbnailUrl: null,
+        waveformData: null,
+      };
+
+      const videoClip: Clip = {
+        id: "video-clip-1",
+        mediaId: "video-media-1",
+        trackId: "video-track-1",
+        startTime: 0,
+        duration: 10,
+        inPoint: 0,
+        outPoint: 10,
+        effects: [],
+        audioEffects: [],
+        transform: {
+          position: { x: 0.5, y: 0.5 },
+          scale: { x: 1, y: 1 },
+          rotation: 0,
+          anchor: { x: 0.5, y: 0.5 },
+          opacity: 1,
+        },
+        volume: 1,
+        keyframes: [],
+      };
+
+      return {
+        id: "test-project",
+        name: "Test",
+        createdAt: Date.now(),
+        modifiedAt: Date.now(),
+        settings: {
+          width: 1920,
+          height: 1080,
+          frameRate: 30,
+          sampleRate: 48000,
+          channels: 2,
+        },
+        mediaLibrary: { items: [mediaItem] },
+        timeline: {
+          tracks: [
+            {
+              id: "video-track-1",
+              type: "video",
+              name: "Video",
+              clips: [videoClip],
+              transitions: [],
+              locked: false,
+              hidden: false,
+              muted: false,
+              solo: false,
+            },
+          ],
+          subtitles: [],
+          duration: 10,
+          markers: [],
+        },
+      };
+    };
+
+    it("should create one audio clip when media has a single audio track", async () => {
+      useProjectStore.getState().loadProject(createProjectWithVideoClip(1));
+      const result = await useProjectStore.getState().separateAudio("video-clip-1");
+
+      expect(result.success).toBe(true);
+      const { project } = useProjectStore.getState();
+      const audioTracks = project.timeline.tracks.filter((t) => t.type === "audio");
+      expect(audioTracks.length).toBe(1);
+      expect(audioTracks[0].clips.length).toBe(1);
+      expect(audioTracks[0].clips[0].mediaId).toBe("video-media-1");
+    });
+
+    it("should create multiple audio clips when media has multiple audio tracks", async () => {
+      useProjectStore.getState().loadProject(createProjectWithVideoClip(3));
+      const result = await useProjectStore.getState().separateAudio("video-clip-1");
+
+      expect(result.success).toBe(true);
+      const { project } = useProjectStore.getState();
+      const audioTracks = project.timeline.tracks.filter((t) => t.type === "audio");
+      expect(audioTracks.length).toBe(3);
+
+      // Each audio track should have one clip with the correct audioTrackIndex
+      for (let i = 0; i < 3; i++) {
+        expect(audioTracks[i].clips.length).toBe(1);
+        expect(audioTracks[i].clips[0].mediaId).toBe("video-media-1");
+        expect(audioTracks[i].clips[0].audioTrackIndex).toBe(i);
+      }
+    });
+
+    it("should default to one audio track when audioTrackCount is undefined", async () => {
+      useProjectStore.getState().loadProject(createProjectWithVideoClip(undefined));
+      const result = await useProjectStore.getState().separateAudio("video-clip-1");
+
+      expect(result.success).toBe(true);
+      const { project } = useProjectStore.getState();
+      const audioTracks = project.timeline.tracks.filter((t) => t.type === "audio");
+      expect(audioTracks.length).toBe(1);
+    });
+
+    it("should return an error when clip is not found", async () => {
+      useProjectStore.getState().createNewProject();
+      const result = await useProjectStore.getState().separateAudio("non-existent-clip");
+
+      expect(result.success).toBe(false);
+      expect(result.error?.code).toBe("CLIP_NOT_FOUND");
     });
   });
 });

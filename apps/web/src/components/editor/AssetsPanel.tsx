@@ -1,29 +1,10 @@
 import React, { useCallback, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
-  Search,
-  Maximize2,
-  X,
-  Image as ImageIcon,
-  Film,
-  Music,
-  Plus,
-  Upload,
-  Trash2,
-  Square,
-  Circle,
-  Triangle,
-  Star,
-  ArrowRight,
-  Hexagon,
-  FileCode,
-  AlertTriangle,
-  RefreshCw,
-  Palette,
-  LayoutGrid,
-  Grid2x2,
-  List,
-  Sparkles,
+  Search, Image as ImageIcon, Film, Music, Plus, Upload, Trash2, 
+  Square, Circle, Triangle, Star, ArrowRight, Hexagon, FileCode, AlertTriangle, 
+  RefreshCw, Palette, LayoutGrid, Grid2x2, List, Sparkles, Video, 
+  Type, Shapes, Wand2, LayoutTemplate
 } from "lucide-react";
 import {
   BACKGROUND_PRESETS,
@@ -36,6 +17,8 @@ import { useUIStore } from "../../stores/ui-store";
 import type { MediaItem } from "@openreel/core";
 import { AspectRatioMatchDialog } from "./dialogs/AspectRatioMatchDialog";
 import { AIGenTab } from "./AIGenTab";
+import { RecipesTab } from "./panels/RecipesTab";
+import { TemplatesTab } from "./panels/TemplatesTab";
 import { useTtsAudioStore } from "../../stores/tts-store";
 import { toast } from "../../stores/notification-store";
 import { saveFileHandle, saveDirectoryHandle } from "../../services/media-storage";
@@ -47,6 +30,9 @@ import {
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuTrigger,
+  
+  
+  
 } from "@openreel/ui";
 import { KieAIImageDialog } from "./kieai/KieAIImageDialog";
 import { loadMediaBlob } from "../../services/media-storage";
@@ -65,6 +51,58 @@ const formatDuration = (seconds: number): string => {
  * Shows thumbnail with metadata below (not overlaid)
  */
 type MediaViewMode = "large" | "small" | "list";
+type AssetsTab = "media" | "text" | "graphics" | "ai" | "recipes" | "templates";
+
+const ASSETS_TABS: ReadonlyArray<{
+  value: AssetsTab;
+  label: string;
+  description: string;
+}> = [
+  {
+    value: "media",
+    label: "assetsPanel.tabs.media",
+    description: "Import footage, audio, and stills.",
+  },
+  {
+    value: "text",
+    label: "assetsPanel.tabs.text",
+    description: "Add title presets and caption elements.",
+  },
+  {
+    value: "graphics",
+    label: "assetsPanel.tabs.graphics",
+    description: "Create shapes, arrows, and SVG overlays.",
+  },
+  {
+    value: "ai",
+    label: "assetsPanel.tabs.aiGen",
+    description: "Generate clips, captions, and assisted edits.",
+  },
+  {
+    value: "recipes",
+    label: "assetsPanel.tabs.recipes",
+    description: "Apply clip-scoped looks, overlays, and text stacks.",
+  },
+  {
+    value: "templates",
+    label: "assetsPanel.tabs.templates",
+    description: "Load full-project starter layouts and presets.",
+  },
+] as const;
+
+const TAB_ICONS: Record<AssetsTab, React.ElementType> = {
+  media: Video,
+  text: Type,
+  graphics: Shapes,
+  ai: Sparkles,
+  recipes: Wand2,
+  templates: LayoutTemplate,
+};
+
+
+
+
+
 
 const MediaThumbnail: React.FC<{
   item: MediaItem;
@@ -267,7 +305,7 @@ const MediaThumbnail: React.FC<{
                 <RefreshCw size={12} className="text-red-400" />
               </button>
             ) : item.isPending ? (
-              <div className="p-1" title={t("assetsPanel.thumbnail.generating")}>
+              <div className="p-1" title="Generating…">
                 <div className="h-3 w-3 animate-spin rounded-full border-2 border-purple-400 border-t-transparent" />
               </div>
             ) : item.isPlaceholder ? (
@@ -281,7 +319,7 @@ const MediaThumbnail: React.FC<{
                 </button>
                 <button
                   onClick={(e) => { e.stopPropagation(); onDelete(); }}
-                  title={t("assetsPanel.actions.delete")}
+                  title="Delete"
                   className="p-1 bg-red-500/20 rounded hover:bg-red-500/40 transition-colors"
                 >
                   <Trash2 size={12} className="text-red-400" />
@@ -307,7 +345,7 @@ const MediaThumbnail: React.FC<{
                 </button>
                 <button
                   onClick={(e) => { e.stopPropagation(); onDelete(); }}
-                  title={t("assetsPanel.actions.delete")}
+                  title="Delete"
                   className="p-1 bg-red-500/20 rounded hover:bg-red-500/40 transition-colors"
                 >
                   <Trash2 size={12} className="text-red-400" />
@@ -495,25 +533,24 @@ const MediaThumbnail: React.FC<{
 
 const EmptyState: React.FC<{ onImport: () => void }> = ({ onImport }) => {
   const { t } = useTranslation("editor");
-
   return (
-    <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
-      <div className="w-16 h-16 rounded-2xl bg-background-tertiary border border-border flex items-center justify-center mb-4 shadow-inner">
-        <Upload size={24} className="text-text-muted" />
-      </div>
-      <p className="text-sm text-text-secondary mb-2 font-medium">
-        {t("assetsPanel.empty.noMedia")}
-      </p>
-      <p className="text-xs text-text-muted mb-6">
-        {t("assetsPanel.empty.dragOrClick")}
-      </p>
-      <button
-        onClick={onImport}
-        className="px-4 py-2 bg-background-elevated hover:bg-background-tertiary border border-border text-text-primary text-xs font-medium rounded-lg transition-all hover:border-primary/50"
-      >
-        {t("assetsPanel.actions.importMedia")}
-      </button>
+  <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
+    <div className="w-16 h-16 rounded-2xl bg-background-tertiary border border-border flex items-center justify-center mb-4 shadow-inner">
+      <Upload size={24} className="text-text-muted" />
     </div>
+    <p className="text-sm text-text-secondary mb-2 font-medium">
+      {t("assetsPanel.empty.noMedia")}
+    </p>
+    <p className="text-xs text-text-muted mb-6">
+      {t("assetsPanel.empty.dragOrClick")}
+    </p>
+    <button
+      onClick={onImport}
+      className="px-4 py-2 bg-background-elevated hover:bg-background-tertiary border border-border text-text-primary text-xs font-medium rounded-lg transition-all hover:border-primary/50"
+    >
+      {t("assetsPanel.actions.importMedia")}
+    </button>
+  </div>
   );
 };
 
@@ -528,17 +565,15 @@ export const AssetsPanel: React.FC = () => {
   const { t } = useTranslation("editor");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [activeTab, setActiveTabRaw] = useState<
-    "media" | "text" | "graphics" | "ai"
-  >("media");
+  const [activeTab, setActiveTabRaw] = useState<AssetsTab>("media");
   const ttsHasUnsaved = useTtsAudioStore((s) => s.generatedAudio !== null && !s.isAudioSaved);
 
-  const setActiveTab = useCallback((tab: "media" | "text" | "graphics" | "ai") => {
+  const setActiveTab = useCallback((tab: AssetsTab) => {
     if (activeTab === "ai" && tab !== "ai" && ttsHasUnsaved) {
       toast.warning(t("assetsPanel.toasts.unsavedAudioDiscarded"), t("assetsPanel.toasts.saveAudioHint"));
     }
     setActiveTabRaw(tab);
-  }, [activeTab, t, ttsHasUnsaved]);
+  }, [activeTab, ttsHasUnsaved]);
 
   const [isDragOver, setIsDragOver] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
@@ -604,11 +639,7 @@ export const AssetsPanel: React.FC = () => {
         for (let i = 0; i < fileArray.length; i++) {
           const file = fileArray[i];
           setImportProgress(
-            t("assetsPanel.progress.importingFile", {
-              file: file.name,
-              current: i + 1,
-              total: fileArray.length,
-            }),
+            t("assetsPanel.progress.importingFile", { file: file.name, current: i + 1, total: fileArray.length }),
           );
 
           const result = await importMedia(file);
@@ -627,7 +658,7 @@ export const AssetsPanel: React.FC = () => {
         setImportProgress("");
       }
     },
-    [importMedia, t],
+    [importMedia],
   );
 
   // Handle drag and drop import — capture FileSystemFileHandle for each dropped file
@@ -636,26 +667,28 @@ export const AssetsPanel: React.FC = () => {
       e.preventDefault();
       setIsDragOver(false);
 
-      // Try to capture handles before files are consumed
-      if ("getAsFileSystemHandle" in DataTransferItem.prototype) {
-        const handlePromises = Array.from(e.dataTransfer.items)
-          .filter((item) => item.kind === "file")
-          .map(async (item) => {
-            try {
-              const handle = await (item as DataTransferItem & { getAsFileSystemHandle(): Promise<FileSystemHandle> }).getAsFileSystemHandle();
-              if (handle.kind === "file") {
-                const fileHandle = handle as FileSystemFileHandle;
-                const file = await fileHandle.getFile();
-                await saveFileHandle(file.name, file.size, fileHandle);
-              }
-            } catch {
-              // Ignore — handle capture is best-effort
-            }
-          });
-        await Promise.all(handlePromises);
-      }
+      // Snapshot dataTransfer synchronously — it becomes inert after the first await.
+      const droppedFiles = e.dataTransfer.files;
+      const handlePromises =
+        "getAsFileSystemHandle" in DataTransferItem.prototype
+          ? Array.from(e.dataTransfer.items)
+              .filter((item) => item.kind === "file")
+              .map(async (item) => {
+                try {
+                  const handle = await (item as DataTransferItem & { getAsFileSystemHandle(): Promise<FileSystemHandle> }).getAsFileSystemHandle();
+                  if (handle.kind === "file") {
+                    const fileHandle = handle as FileSystemFileHandle;
+                    const file = await fileHandle.getFile();
+                    await saveFileHandle(file.name, file.size, fileHandle);
+                  }
+                } catch {
+                  // Ignore — handle capture is best-effort
+                }
+              })
+          : [];
 
-      handleFileImport(e.dataTransfer.files);
+      await Promise.all(handlePromises);
+      handleFileImport(droppedFiles);
     },
     [handleFileImport],
   );
@@ -708,7 +741,7 @@ export const AssetsPanel: React.FC = () => {
       };
       input.click();
     },
-    [replaceMediaAsset, t],
+    [replaceMediaAsset],
   );
 
   const handleRelinkFromFolder = useCallback(async () => {
@@ -750,7 +783,7 @@ export const AssetsPanel: React.FC = () => {
         : null;
       const entry = key ? fileMap.get(key) : null;
       if (entry) {
-        setImportProgress(t("assetsPanel.progress.relinking", { name: item.name }));
+        setImportProgress(`Relinking ${item.name}…`);
         try {
           // Save individual file handle for future auto-restore
           try { await saveFileHandle(entry.file.name, entry.file.size, entry.handle); } catch { /* best-effort */ }
@@ -765,11 +798,11 @@ export const AssetsPanel: React.FC = () => {
     setImportProgress("");
 
     if (linked > 0) {
-      toast.success(t("assetsPanel.toasts.relinkedAssets", { linked, total: placeholders.length }));
+      toast.success(`Relinked ${linked} of ${placeholders.length} asset${placeholders.length !== 1 ? "s" : ""}`);
     } else {
-      toast.error(t("assetsPanel.toasts.noMatchesFound"), t("assetsPanel.toasts.noMatchingFiles"));
+      toast.error("No matches found", "None of the files in the selected folder matched the missing assets by filename.");
     }
-  }, [replaceMediaAsset, t]);
+  }, [replaceMediaAsset]);
 
   // Handle drag start for timeline placement
   const handleItemDragStart = useCallback(
@@ -870,7 +903,7 @@ export const AssetsPanel: React.FC = () => {
     [importMedia, project.settings],
   );
 
-  const filteredBackgrounds = BACKGROUND_PRESETS.filter(
+  const filtered{t("assetsPanel.graphics.backgrounds")} = BACKGROUND_PRESETS.filter(
     (preset) =>
       backgroundCategory === "all" || preset.category === backgroundCategory,
   );
@@ -880,7 +913,7 @@ export const AssetsPanel: React.FC = () => {
     try {
       const blob = await loadMediaBlob(item.id);
       if (!blob) {
-        toast.error(t("assetsPanel.toasts.assetNotFound"), t("assetsPanel.toasts.cannotLoadImageData"));
+        toast.error("Asset not found", "Cannot load the image data for this asset.");
         return;
       }
       const mimeType = blob.type || (item.name.match(/\.png$/i) ? "image/png" : "image/jpeg");
@@ -888,9 +921,9 @@ export const AssetsPanel: React.FC = () => {
       setKieaiDialog({ file, previewUrl: item.thumbnailUrl });
     } catch (err) {
       console.error("[KieAI] Failed to load media blob:", err);
-      toast.error(t("assetsPanel.toasts.failedToOpenKieAI"), err instanceof Error ? err.message : t("app.initialization.unknownError"));
+      toast.error(t("assetsPanel.toasts.failedToOpenKieAI"), err instanceof Error ? err.message : "Unknown error");
     }
-  }, [t]);
+  }, []);
 
   const handleRetryKieAI = useCallback((item: MediaItem) => {
     if (!item.kieaiTaskId) return;
@@ -899,530 +932,359 @@ export const AssetsPanel: React.FC = () => {
     retryTask(item.kieaiTaskId);
   }, [retryTask, setKieAIItemState]);
 
-  return (
-    <div
-      data-tour="assets"
-      className="w-80 bg-background-secondary border-r border-border flex flex-col h-full relative"
-    >
-      {/* Loading overlay */}
-      {isImporting && (
-        <LoadingIndicator message={importProgress || t("assetsPanel.progress.importingMedia")} />
-      )}
-      {/* Panel Header */}
-      <div className="px-5 py-4 flex items-center justify-between">
-        <span className="font-bold text-lg text-text-primary tracking-tight">
-          {t("assetsPanel.title")}
-        </span>
-        <div className="flex gap-1">
-          <IconButton
-            icon={Plus}
-            onClick={triggerFileInput}
-            title={t("assetsPanel.actions.importMedia")}
-          />
-          <IconButton icon={Maximize2} title={t("assetsPanel.actions.maximizePanel")} />
-          <IconButton icon={X} title={t("assetsPanel.actions.closePanel")} />
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <div className="flex px-5 gap-6 border-b border-border text-xs font-medium text-text-muted mb-5">
-        <button
-          onClick={() => setActiveTab("media")}
-          className={`pb-3 transition-all relative ${
-            activeTab === "media"
-              ? "text-text-primary"
-              : "hover:text-text-secondary"
-          }`}
-        >
-          {t("assetsPanel.tabs.media")}
-          {activeTab === "media" && (
-            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-t-full shadow-[0_-2px_8px_rgba(34,197,94,0.5)]" />
-          )}
-        </button>
-        <button
-          onClick={() => setActiveTab("text")}
-          className={`pb-3 transition-all relative ${
-            activeTab === "text"
-              ? "text-text-primary"
-              : "hover:text-text-secondary"
-          }`}
-        >
-          {t("assetsPanel.tabs.text")}
-          {activeTab === "text" && (
-            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-t-full shadow-[0_-2px_8px_rgba(34,197,94,0.5)]" />
-          )}
-        </button>
-        <button
-          onClick={() => setActiveTab("graphics")}
-          className={`pb-3 transition-all relative ${
-            activeTab === "graphics"
-              ? "text-text-primary"
-              : "hover:text-text-secondary"
-          }`}
-        >
-          {t("assetsPanel.tabs.graphics")}
-          {activeTab === "graphics" && (
-            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-t-full shadow-[0_-2px_8px_rgba(34,197,94,0.5)]" />
-          )}
-        </button>
-        <button
-          onClick={() => setActiveTab("ai")}
-          className={`pb-3 transition-all relative ${
-            activeTab === "ai"
-              ? "text-primary"
-              : "text-primary/70 hover:text-primary"
-          }`}
-        >
-          {t("assetsPanel.tabs.aiGen")}
-          {activeTab === "ai" && (
-            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-t-full shadow-[0_-2px_8px_rgba(34,197,94,0.5)]" />
-          )}
-        </button>
-      </div>
-
-      {/* Search & view toggle - only show for media tab */}
-      {activeTab === "media" && (
-        <div className="px-5 mb-3 flex items-center gap-2">
-          <div className="relative flex-1">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted z-10" />
-            <Input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder={t("assetsPanel.search.placeholder")}
-              className="pl-9 text-xs bg-background-tertiary border-border text-text-primary h-9"
-            />
-          </div>
-          <div className="flex items-center bg-background-tertiary border border-border rounded-lg p-0.5">
-            {([
-              { mode: "large" as const, icon: LayoutGrid, title: t("assetsPanel.viewModes.large") },
-              { mode: "small" as const, icon: Grid2x2, title: t("assetsPanel.viewModes.small") },
-              { mode: "list" as const, icon: List, title: t("assetsPanel.viewModes.list") },
-            ]).map(({ mode, icon: ViewIcon, title }) => (
-              <button
-                key={mode}
-                onClick={() => setMediaViewMode(mode)}
-                title={title}
-                className={`p-1.5 rounded transition-colors ${
-                  mediaViewMode === mode
-                    ? "bg-background-elevated text-text-primary"
-                    : "text-text-muted hover:text-text-secondary"
-                }`}
-              >
-                <ViewIcon size={13} />
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Missing Assets Filter and Badge */}
-      {activeTab === "media" && missingAssetsCount > 0 && (
-        <div className="px-5 mb-5 space-y-2">
-          <button
-            onClick={() => setShowOnlyMissing(!showOnlyMissing)}
-            className={`w-full px-3 py-2 rounded-lg border text-xs font-medium transition-all flex items-center justify-between ${
-              showOnlyMissing
-                ? "bg-yellow-500/10 border-yellow-500 text-yellow-500"
-                : "bg-background-tertiary border-border text-text-secondary hover:border-yellow-500/50"
-            }`}
-          >
-            <div className="flex items-center gap-2">
-              <AlertTriangle size={14} />
-              <span>{t("assetsPanel.filters.showOnlyMissing")}</span>
-            </div>
-            <div className="px-2 py-0.5 rounded-full bg-yellow-500 text-black text-[10px] font-bold">
-              {missingAssetsCount}
-            </div>
-          </button>
-          <button
-            onClick={handleRelinkFromFolder}
-            className="w-full px-3 py-2 rounded-lg border border-yellow-500/40 bg-yellow-500/5 text-yellow-500 text-xs font-medium transition-all hover:bg-yellow-500/15 flex items-center gap-2"
-          >
-            <RefreshCw size={14} />
-            <span>{t("assetsPanel.actions.relinkFromFolder")}</span>
-          </button>
-        </div>
-      )}
-
-      {/* Hidden file input */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        multiple
-        accept="video/*,audio/*,image/*"
-        onChange={(e) => handleFileImport(e.target.files)}
-        className="hidden"
-      />
-
-      {/* Content based on active tab */}
-      {activeTab === "media" && (
-        <ScrollArea
-          className={`flex-1 ${isDragOver ? "bg-primary/5" : ""}`}
-          onDrop={handleDrop}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-        >
-          <div className="px-5 pb-5">
-            {filteredItems.length === 0 ? (
-              <EmptyState onImport={triggerFileInput} />
-            ) : (
-              <div className={
-                mediaViewMode === "list"
-                  ? "flex flex-col gap-1.5"
-                  : mediaViewMode === "small"
-                    ? "grid grid-cols-3 gap-2"
-                    : "grid grid-cols-2 gap-3"
-              }>
-                {filteredItems.map((item) => (
-                  <MediaThumbnail
-                    key={item.id}
-                    item={item}
-                    isSelected={isSelected(item.id)}
-                    viewMode={mediaViewMode}
-                    onSelect={() => handleSelectItem(item.id)}
-                    onDelete={() => handleDeleteItem(item.id)}
-                    onReplace={() => handleReplaceAsset(item.id)}
-                    onDragStart={(e) => handleItemDragStart(e, item)}
-                    onAddToTimeline={() => handleAddToTimeline(item)}
-                    onKieAI={item.type === "image" && !item.isPending && !item.kieaiError ? () => handleOpenKieAI(item) : undefined}
-                    onRetryKieAI={item.kieaiError && item.kieaiTaskId ? () => handleRetryKieAI(item) : undefined}
-                  />
-                ))}
-                {/* Add more media tile */}
-                {mediaViewMode === "list" ? (
+  const renderSectionContent = (tab: AssetsTab): React.ReactNode => {
+    switch (tab) {
+      case "media":
+        return (
+          <div className="flex min-h-0 flex-1 flex-col border-t border-border/70">
+            <div className="px-4 pt-3 pb-3 flex items-center gap-2">
+              <div className="relative flex-1">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted z-10" />
+                <Input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder={t("assetsPanel.search.placeholder")}
+                  className="pl-9 text-xs bg-background-tertiary border-border text-text-primary h-9"
+                />
+              </div>
+              <div className="flex items-center bg-background-tertiary border border-border rounded-lg p-0.5">
+                {([
+                  { mode: "large" as const, icon: LayoutGrid, title: t("assetsPanel.viewModes.large") },
+                  { mode: "small" as const, icon: Grid2x2, title: t("assetsPanel.viewModes.small") },
+                  { mode: "list" as const, icon: List, title: t("assetsPanel.viewModes.list") },
+                ]).map(({ mode, icon: ViewIcon, title }) => (
                   <button
-                    onClick={triggerFileInput}
-                    className="flex items-center gap-3 px-2 py-1.5 rounded-lg border-2 border-dashed border-border hover:border-text-secondary cursor-pointer transition-all group"
+                    key={mode}
+                    onClick={() => setMediaViewMode(mode)}
+                    title={title}
+                    className={`p-1.5 rounded transition-colors ${
+                      mediaViewMode === mode
+                        ? "bg-background-elevated text-text-primary"
+                        : "text-text-muted hover:text-text-secondary"
+                    }`}
                   >
-                    <div className="w-12 h-8 rounded bg-background-tertiary flex items-center justify-center flex-shrink-0">
-                      <Upload size={14} className="text-text-muted group-hover:text-text-secondary transition-colors" />
-                    </div>
-                    <span className="text-[11px] text-text-muted group-hover:text-text-secondary transition-colors font-medium">{t("assetsPanel.actions.addMedia")}</span>
+                    <ViewIcon size={13} />
                   </button>
+                ))}
+              </div>
+            </div>
+
+            {missingAssetsCount > 0 && (
+              <div className="px-4 pb-3 space-y-2">
+                <button
+                  onClick={() => setShowOnlyMissing(!showOnlyMissing)}
+                  className={`w-full px-3 py-2 rounded-lg border text-xs font-medium transition-all flex items-center justify-between ${
+                    showOnlyMissing
+                      ? "bg-yellow-500/10 border-yellow-500 text-yellow-500"
+                      : "bg-background-tertiary border-border text-text-secondary hover:border-yellow-500/50"
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle size={14} />
+                    <span>{t("assetsPanel.actions.showOnlyMissing")}</span>
+                  </div>
+                  <div className="px-2 py-0.5 rounded-full bg-yellow-500 text-black text-[10px] font-bold">
+                    {missingAssetsCount}
+                  </div>
+                </button>
+                <button
+                  onClick={handleRelinkFromFolder}
+                  className="w-full px-3 py-2 rounded-lg border border-yellow-500/40 bg-yellow-500/5 text-yellow-500 text-xs font-medium transition-all hover:bg-yellow-500/15 flex items-center gap-2"
+                >
+                  <RefreshCw size={14} />
+                  <span>{t("assetsPanel.actions.relinkFromFolder")}</span>
+                </button>
+              </div>
+            )}
+
+            <ScrollArea
+              className={`min-h-0 flex-1 ${isDragOver ? "bg-primary/5" : ""}`}
+              onDrop={handleDrop}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+            >
+              <div className="px-4 pb-4 relative">
+                {filteredItems.length === 0 ? (
+                  <EmptyState onImport={triggerFileInput} />
                 ) : (
-                  <div className="flex flex-col">
-                    <button
-                      onClick={triggerFileInput}
-                      className="aspect-video bg-background-tertiary rounded-lg border-2 border-dashed border-border hover:border-text-secondary relative flex items-center justify-center cursor-pointer transition-all overflow-hidden shadow-sm group"
-                    >
-                      <div className="flex flex-col items-center gap-1.5">
-                        <Upload size={mediaViewMode === "small" ? 16 : 20} className="text-text-muted group-hover:text-text-secondary transition-colors" />
-                        <span className="text-[10px] text-text-muted group-hover:text-text-secondary transition-colors">{t("assetsPanel.actions.addMedia")}</span>
+                  <div className={
+                    mediaViewMode === "list"
+                      ? "flex flex-col gap-1.5"
+                      : mediaViewMode === "small"
+                        ? "grid grid-cols-3 gap-2"
+                        : "grid grid-cols-2 gap-3"
+                  }>
+                    {filteredItems.map((item) => (
+                      <MediaThumbnail
+                        key={item.id}
+                        item={item}
+                        isSelected={isSelected(item.id)}
+                        viewMode={mediaViewMode}
+                        onSelect={() => handleSelectItem(item.id)}
+                        onDelete={() => handleDeleteItem(item.id)}
+                        onReplace={() => handleReplaceAsset(item.id)}
+                        onDragStart={(e) => handleItemDragStart(e, item)}
+                        onAddToTimeline={() => handleAddToTimeline(item)}
+                        onKieAI={item.type === "image" && !item.isPending && !item.kieaiError ? () => handleOpenKieAI(item) : undefined}
+                        onRetryKieAI={item.kieaiError && item.kieaiTaskId ? () => handleRetryKieAI(item) : undefined}
+                      />
+                    ))}
+                    {mediaViewMode === "list" ? (
+                      <button
+                        onClick={triggerFileInput}
+                        className="flex items-center gap-3 px-2 py-1.5 rounded-lg border-2 border-dashed border-border hover:border-text-secondary cursor-pointer transition-all group"
+                      >
+                        <div className="w-12 h-8 rounded bg-background-tertiary flex items-center justify-center flex-shrink-0">
+                          <Upload size={14} className="text-text-muted group-hover:text-text-secondary transition-colors" />
+                        </div>
+                        <span className="text-[11px] text-text-muted group-hover:text-text-secondary transition-colors font-medium">{t("assetsPanel.actions.addMedia")}</span>
+                      </button>
+                    ) : (
+                      <div className="flex flex-col">
+                        <button
+                          onClick={triggerFileInput}
+                          className="aspect-video bg-background-tertiary rounded-lg border-2 border-dashed border-border hover:border-text-secondary relative flex items-center justify-center cursor-pointer transition-all overflow-hidden shadow-sm group"
+                        >
+                          <div className="flex flex-col items-center gap-1.5">
+                            <Upload size={mediaViewMode === "small" ? 16 : 20} className="text-text-muted group-hover:text-text-secondary transition-colors" />
+                            <span className="text-[10px] text-text-muted group-hover:text-text-secondary transition-colors">{t("assetsPanel.actions.addMedia")}</span>
+                          </div>
+                        </button>
                       </div>
-                    </button>
+                    )}
+                  </div>
+                )}
+
+                {isDragOver && (
+                  <div className="absolute inset-4 border-2 border-dashed border-primary rounded-xl flex items-center justify-center bg-primary/5 pointer-events-none z-50 backdrop-blur-sm">
+                    <div className="text-primary text-sm font-bold bg-background-secondary px-4 py-2 rounded-full shadow-lg">
+                      {t("assetsPanel.dropZone.dropFiles")}
+                    </div>
                   </div>
                 )}
               </div>
-            )}
+            </ScrollArea>
+          </div>
+        );
+      case "graphics":
+        return (
+          <div className="min-h-0 flex-1 border-t border-border/70">
+            <ScrollArea className="min-h-0 flex-1">
+              <div className="px-4 py-4">
+                <div className="mb-6">
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="text-xs font-medium text-text-secondary flex items-center gap-1.5">
+                      <Palette size={12} />
+                      {t("assetsPanel.graphics.backgrounds")}
+                    </h4>
+                  </div>
+                  <div className="flex gap-1.5 mb-3 flex-wrap">
+                    {(["all", "solid", "gradient", "mesh", "pattern"] as const).map(
+                      (cat) => (
+                        <button
+                          key={cat}
+                          onClick={() => setBackgroundCategory(cat)}
+                          className={`px-2.5 py-1 text-[10px] rounded-md transition-all ${
+                            backgroundCategory === cat
+                              ? "bg-primary text-white"
+                              : "bg-background-tertiary text-text-muted hover:text-text-secondary"
+                          }`}
+                        >
+                          {t(`assetsPanel.graphics.categories.${cat}`)}
+                        </button>
+                      ),
+                    )}
+                  </div>
+                  <div className="grid grid-cols-4 gap-2">
+                    {filtered{t("assetsPanel.graphics.backgrounds")}.map((preset) => (
+                      <button
+                        key={preset.id}
+                        onClick={() => handleImportBackground(preset)}
+                        disabled={generatingBackground !== null}
+                        className="aspect-square rounded-lg border border-border hover:border-primary/50 transition-all overflow-hidden relative group disabled:opacity-50"
+                        title={preset.name}
+                        style={{ background: preset.thumbnail }}
+                      >
+                        {generatingBackground === preset.id && (
+                          <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          </div>
+                        )}
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100">
+                          <Plus size={16} className="text-white" />
+                        </div>
+                        <span className="absolute bottom-0 left-0 right-0 text-[8px] text-white bg-black/60 py-0.5 px-1 truncate opacity-0 group-hover:opacity-100 transition-opacity">
+                          {preset.name}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
 
-            {/* Drop zone indicator */}
-            {isDragOver && (
-              <div className="absolute inset-4 border-2 border-dashed border-primary rounded-xl flex items-center justify-center bg-primary/5 pointer-events-none z-50 backdrop-blur-sm">
-                <div className="text-primary text-sm font-bold bg-background-secondary px-4 py-2 rounded-full shadow-lg">
-                  {t("assetsPanel.dropZone.dropFiles")}
+                <div className="mb-6">
+                  <h4 className="text-xs font-medium text-text-secondary mb-3">
+                    {t("assetsPanel.graphics.shapes")}
+                  </h4>
+                  <div className="grid grid-cols-4 gap-2">
+                    {[
+                      {
+                        type: "rectangle" as ShapeType,
+                        icon: Square,
+                        label: t("assetsPanel.graphics.shapeLabels.rectangle"),
+                      },
+                      { type: "circle" as ShapeType, icon: Circle, label: t("assetsPanel.graphics.shapeLabels.circle") },
+                      {
+                        type: "triangle" as ShapeType,
+                        icon: Triangle,
+                        label: t("assetsPanel.graphics.shapeLabels.triangle"),
+                      },
+                      { type: "star" as ShapeType, icon: Star, label: t("assetsPanel.graphics.shapeLabels.star") },
+                      {
+                        type: "arrow" as ShapeType,
+                        icon: ArrowRight,
+                        label: t("assetsPanel.graphics.shapeLabels.arrow"),
+                      },
+                      {
+                        type: "polygon" as ShapeType,
+                        icon: Hexagon,
+                        label: t("assetsPanel.graphics.shapeLabels.polygon"),
+                      },
+                    ].map((shape) => (
+                      <button
+                        key={shape.type}
+                        onClick={async () => {
+                          const state = useProjectStore.getState();
+                          const { createShapeClip, addTrack } = state;
+                          const tracksBefore = state.project.timeline.tracks;
+                          await addTrack("graphics", 0);
+                          const tracksAfter =
+                            useProjectStore.getState().project.timeline.tracks;
+                          const newGraphicsTrack = tracksAfter.find(
+                            (t) =>
+                              t.type === "graphics" &&
+                              !tracksBefore.some((bt) => bt.id === t.id),
+                          );
+                          if (newGraphicsTrack) {
+                            createShapeClip(newGraphicsTrack.id, 0, shape.type);
+                          }
+                        }}
+                        className="aspect-square bg-background-tertiary rounded-lg border border-border hover:border-primary/50 hover:bg-primary/5 transition-all flex flex-col items-center justify-center gap-1 group"
+                        title={shape.label}
+                      >
+                        <shape.icon
+                          size={20}
+                          className="text-text-secondary group-hover:text-primary transition-colors"
+                        />
+                        <span className="text-[9px] text-text-muted group-hover:text-text-secondary">
+                          {shape.label}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="mb-6">
+                  <h4 className="text-xs font-medium text-text-secondary mb-3">
+                    {t("assetsPanel.graphics.svgImport")}
+                  </h4>
+                  <button
+                    onClick={() => {
+                      const input = document.createElement("input");
+                      input.type = "file";
+                      input.accept = ".svg";
+                      input.onchange = async (e) => {
+                        const file = (e.target as HTMLInputElement).files?.[0];
+                        if (file) {
+                          const content = await file.text();
+                          const state = useProjectStore.getState();
+                          const { importSVG, addTrack } = state;
+                          const tracksBefore = state.project.timeline.tracks;
+                          await addTrack("graphics", 0);
+                          const tracksAfter =
+                            useProjectStore.getState().project.timeline.tracks;
+                          const newGraphicsTrack = tracksAfter.find(
+                            (t) =>
+                              t.type === "graphics" &&
+                              !tracksBefore.some((bt) => bt.id === t.id),
+                          );
+                          if (newGraphicsTrack) {
+                            importSVG(content, newGraphicsTrack.id, 0);
+                          }
+                        }
+                      };
+                      input.click();
+                    }}
+                    className="w-full py-3 bg-background-tertiary rounded-lg border border-border hover:border-primary/50 hover:bg-primary/5 transition-all flex items-center justify-center gap-2 group"
+                  >
+                    <FileCode
+                      size={16}
+                      className="text-text-secondary group-hover:text-primary transition-colors"
+                    />
+                    <span className="text-xs text-text-secondary group-hover:text-text-primary">
+                      {t("assetsPanel.graphics.importSvgFile")}
+                    </span>
+                  </button>
+                </div>
+
+                <div className="mb-6">
+                  <h4 className="text-xs font-medium text-text-secondary mb-3">
+                    {t("assetsPanel.graphics.stickersEmojis")}
+                  </h4>
+                  <div className="grid grid-cols-4 gap-2">
+                    {["😀", "🎉", "❤️", "⭐", "🔥", "👍", "🎬", "🎵"].map(
+                      (emoji, i) => (
+                        <button
+                          key={i}
+                          onClick={async () => {
+                            const state = useProjectStore.getState();
+                            const { createStickerClip, addTrack } = state;
+                            const { stickerLibrary } = await import("@openreel/core");
+
+                            const tracksBefore = state.project.timeline.tracks;
+                            await addTrack("graphics", 0);
+                            const tracksAfter =
+                              useProjectStore.getState().project.timeline.tracks;
+                            const newGraphicsTrack = tracksAfter.find(
+                              (t) =>
+                                t.type === "graphics" &&
+                                !tracksBefore.some((bt) => bt.id === t.id),
+                            );
+
+                            if (newGraphicsTrack) {
+                              const emojiItem = {
+                                id: `emoji-${i}`,
+                                emoji,
+                                name: emoji,
+                                category: "emojis",
+                              };
+                              const clip = stickerLibrary.createEmojiClip(
+                                emojiItem,
+                                newGraphicsTrack.id,
+                                0,
+                                5,
+                              );
+                              createStickerClip(clip);
+                            }
+                          }}
+                          className="aspect-square bg-background-tertiary rounded-lg border border-border hover:border-primary/50 hover:bg-primary/5 transition-all flex items-center justify-center text-xl cursor-pointer"
+                        >
+                          {emoji}
+                        </button>
+                      ),
+                    )}
+                  </div>
                 </div>
               </div>
-            )}
+            </ScrollArea>
           </div>
-        </ScrollArea>
-      )}
-
-      {/* Graphics Tab Content (Task 16) */}
-      {activeTab === "graphics" && (
-        <ScrollArea className="flex-1">
-          <div className="px-5 pb-5">
-          {/* Backgrounds Section */}
-          <div className="mb-6">
-            <div className="flex items-center justify-between mb-3">
-              <h4 className="text-xs font-medium text-text-secondary flex items-center gap-1.5">
-                <Palette size={12} />
-                {t("assetsPanel.graphics.backgrounds")}
-              </h4>
-            </div>
-            <div className="flex gap-1.5 mb-3 flex-wrap">
-              {(["all", "solid", "gradient", "mesh", "pattern"] as const).map(
-                (cat) => (
-                  <button
-                    key={cat}
-                    onClick={() => setBackgroundCategory(cat)}
-                    className={`px-2.5 py-1 text-[10px] rounded-md transition-all ${
-                      backgroundCategory === cat
-                        ? "bg-primary text-white"
-                        : "bg-background-tertiary text-text-muted hover:text-text-secondary"
-                    }`}
-                  >
-                    {t(`assetsPanel.graphics.categories.${cat}`)}
-                  </button>
-                ),
-              )}
-            </div>
-            <div className="grid grid-cols-4 gap-2">
-              {filteredBackgrounds.map((preset) => (
+        );
+      case "text":
+        return (
+          <div className="min-h-0 flex-1 border-t border-border/70">
+            <ScrollArea className="min-h-0 flex-1">
+              <div className="px-4 py-4 space-y-3">
                 <button
-                  key={preset.id}
-                  onClick={() => handleImportBackground(preset)}
-                  disabled={generatingBackground !== null}
-                  className="aspect-square rounded-lg border border-border hover:border-primary/50 transition-all overflow-hidden relative group disabled:opacity-50"
-                  title={preset.name}
-                  style={{ background: preset.thumbnail }}
-                >
-                  {generatingBackground === preset.id && (
-                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    </div>
-                  )}
-                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100">
-                    <Plus size={16} className="text-white" />
-                  </div>
-                  <span className="absolute bottom-0 left-0 right-0 text-[8px] text-white bg-black/60 py-0.5 px-1 truncate opacity-0 group-hover:opacity-100 transition-opacity">
-                    {preset.name}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Shapes Section */}
-          <div className="mb-6">
-            <h4 className="text-xs font-medium text-text-secondary mb-3">
-              {t("assetsPanel.graphics.shapes")}
-            </h4>
-            <div className="grid grid-cols-4 gap-2">
-              {[
-                {
-                  type: "rectangle" as ShapeType,
-                  icon: Square,
-                  label: t("assetsPanel.graphics.shapeLabels.rectangle"),
-                },
-                { type: "circle" as ShapeType, icon: Circle, label: t("assetsPanel.graphics.shapeLabels.circle") },
-                {
-                  type: "triangle" as ShapeType,
-                  icon: Triangle,
-                  label: t("assetsPanel.graphics.shapeLabels.triangle"),
-                },
-                { type: "star" as ShapeType, icon: Star, label: t("assetsPanel.graphics.shapeLabels.star") },
-                {
-                  type: "arrow" as ShapeType,
-                  icon: ArrowRight,
-                  label: t("assetsPanel.graphics.shapeLabels.arrow"),
-                },
-                {
-                  type: "polygon" as ShapeType,
-                  icon: Hexagon,
-                  label: t("assetsPanel.graphics.shapeLabels.polygon"),
-                },
-              ].map((shape) => (
-                <button
-                  key={shape.type}
-                  onClick={async () => {
-                    const state = useProjectStore.getState();
-                    const { createShapeClip, addTrack } = state;
-                    const tracksBefore = state.project.timeline.tracks;
-                    await addTrack("graphics", 0);
-                    const tracksAfter =
-                      useProjectStore.getState().project.timeline.tracks;
-                    const newGraphicsTrack = tracksAfter.find(
-                      (t) =>
-                        t.type === "graphics" &&
-                        !tracksBefore.some((bt) => bt.id === t.id),
-                    );
-                    if (newGraphicsTrack) {
-                      createShapeClip(newGraphicsTrack.id, 0, shape.type);
-                    }
-                  }}
-                  className="aspect-square bg-background-tertiary rounded-lg border border-border hover:border-primary/50 hover:bg-primary/5 transition-all flex flex-col items-center justify-center gap-1 group"
-                  title={shape.label}
-                >
-                  <shape.icon
-                    size={20}
-                    className="text-text-secondary group-hover:text-primary transition-colors"
-                  />
-                  <span className="text-[9px] text-text-muted group-hover:text-text-secondary">
-                    {shape.label}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* SVG Import Section */}
-          <div className="mb-6">
-            <h4 className="text-xs font-medium text-text-secondary mb-3">
-              {t("assetsPanel.graphics.svgImport")}
-            </h4>
-            <button
-              onClick={() => {
-                const input = document.createElement("input");
-                input.type = "file";
-                input.accept = ".svg";
-                input.onchange = async (e) => {
-                  const file = (e.target as HTMLInputElement).files?.[0];
-                  if (file) {
-                    const content = await file.text();
-                    const state = useProjectStore.getState();
-                    const { importSVG, addTrack } = state;
-                    const tracksBefore = state.project.timeline.tracks;
-                    await addTrack("graphics", 0);
-                    const tracksAfter =
-                      useProjectStore.getState().project.timeline.tracks;
-                    const newGraphicsTrack = tracksAfter.find(
-                      (t) =>
-                        t.type === "graphics" &&
-                        !tracksBefore.some((bt) => bt.id === t.id),
-                    );
-                    if (newGraphicsTrack) {
-                      importSVG(content, newGraphicsTrack.id, 0);
-                    }
-                  }
-                };
-                input.click();
-              }}
-              className="w-full py-3 bg-background-tertiary rounded-lg border border-border hover:border-primary/50 hover:bg-primary/5 transition-all flex items-center justify-center gap-2 group"
-            >
-              <FileCode
-                size={16}
-                className="text-text-secondary group-hover:text-primary transition-colors"
-              />
-              <span className="text-xs text-text-secondary group-hover:text-text-primary">
-                {t("assetsPanel.graphics.importSvgFile")}
-              </span>
-            </button>
-          </div>
-
-          {/* Stickers Section (placeholder) */}
-          <div className="mb-6">
-            <h4 className="text-xs font-medium text-text-secondary mb-3">
-              {t("assetsPanel.graphics.stickersEmojis")}
-            </h4>
-            <div className="grid grid-cols-4 gap-2">
-              {["😀", "🎉", "❤️", "⭐", "🔥", "👍", "🎬", "🎵"].map(
-                (emoji, i) => (
-                  <button
-                    key={i}
-                    onClick={async () => {
-                      const state = useProjectStore.getState();
-                      const { createStickerClip, addTrack } = state;
-                      const { stickerLibrary } = await import("@openreel/core");
-
-                      const tracksBefore = state.project.timeline.tracks;
-                      await addTrack("graphics", 0);
-                      const tracksAfter =
-                        useProjectStore.getState().project.timeline.tracks;
-                      const newGraphicsTrack = tracksAfter.find(
-                        (t) =>
-                          t.type === "graphics" &&
-                          !tracksBefore.some((bt) => bt.id === t.id),
-                      );
-
-                      if (newGraphicsTrack) {
-                        const emojiItem = {
-                          id: `emoji-${i}`,
-                          emoji,
-                          name: emoji,
-                          category: "emojis",
-                        };
-                        const clip = stickerLibrary.createEmojiClip(
-                          emojiItem,
-                          newGraphicsTrack.id,
-                          0,
-                          5,
-                        );
-                        createStickerClip(clip);
-                      }
-                    }}
-                    className="aspect-square bg-background-tertiary rounded-lg border border-border hover:border-primary/50 hover:bg-primary/5 transition-all flex items-center justify-center text-xl cursor-pointer"
-                  >
-                    {emoji}
-                  </button>
-                ),
-              )}
-            </div>
-          </div>
-          </div>
-        </ScrollArea>
-      )}
-
-      {/* Text Tab Content */}
-      {activeTab === "text" && (
-        <ScrollArea className="flex-1">
-          <div className="px-5 pb-5 space-y-3">
-            <button
-              onClick={async () => {
-                const state = useProjectStore.getState();
-                const { createTextClip, addTrack } = state;
-                const tracksBefore = state.project.timeline.tracks;
-                await addTrack("text", 0);
-                const tracksAfter =
-                  useProjectStore.getState().project.timeline.tracks;
-                const newTextTrack = tracksAfter.find(
-                  (t) =>
-                    t.type === "text" &&
-                    !tracksBefore.some((bt) => bt.id === t.id),
-                );
-                if (newTextTrack) {
-                  createTextClip(newTextTrack.id, 0, t("assetsPanel.text.defaultTitle"));
-                }
-              }}
-              className="w-full py-4 bg-background-tertiary rounded-lg border border-border hover:border-primary/50 hover:bg-primary/5 transition-all text-center"
-            >
-              <span className="text-lg font-bold text-text-primary">
-                {t("assetsPanel.text.addTitle")}
-              </span>
-              <p className="text-xs text-text-muted mt-1">
-                {t("assetsPanel.text.addTitleDescription")}
-              </p>
-            </button>
-            <div className="grid grid-cols-2 gap-2">
-              {[
-                {
-                  name: t("assetsPanel.text.presets.heading.name"),
-                  text: t("assetsPanel.text.presets.heading.text"),
-                  style: {
-                    fontSize: 72,
-                    fontWeight: 700 as const,
-                    textAlign: "center" as const,
-                    verticalAlign: "middle" as const,
-                  },
-                },
-                {
-                  name: t("assetsPanel.text.presets.subtitle.name"),
-                  text: t("assetsPanel.text.presets.subtitle.text"),
-                  style: {
-                    fontSize: 36,
-                    fontWeight: 400 as const,
-                    textAlign: "center" as const,
-                    verticalAlign: "middle" as const,
-                  },
-                },
-                {
-                  name: t("assetsPanel.text.presets.lowerThird.name"),
-                  text: t("assetsPanel.text.presets.lowerThird.text"),
-                  style: {
-                    fontSize: 32,
-                    fontWeight: 600 as const,
-                    textAlign: "left" as const,
-                    verticalAlign: "bottom" as const,
-                    backgroundColor: "rgba(0, 0, 0, 0.7)",
-                  },
-                },
-                {
-                  name: t("assetsPanel.text.presets.caption.name"),
-                  text: t("assetsPanel.text.presets.caption.text"),
-                  style: {
-                    fontSize: 24,
-                    fontWeight: 400 as const,
-                    textAlign: "center" as const,
-                    verticalAlign: "bottom" as const,
-                    shadowColor: "rgba(0, 0, 0, 0.8)",
-                    shadowBlur: 4,
-                    shadowOffsetX: 1,
-                    shadowOffsetY: 1,
-                  },
-                },
-              ].map((preset) => (
-                <button
-                  key={preset.name}
                   onClick={async () => {
                     const state = useProjectStore.getState();
                     const { createTextClip, addTrack } = state;
@@ -1436,27 +1298,195 @@ export const AssetsPanel: React.FC = () => {
                         !tracksBefore.some((bt) => bt.id === t.id),
                     );
                     if (newTextTrack) {
-                      createTextClip(
-                        newTextTrack.id,
-                        0,
-                        preset.text,
-                        5,
-                        preset.style,
-                      );
+                      createTextClip(newTextTrack.id, 0, t("assetsPanel.text.defaultTitle"));
                     }
                   }}
-                  className="py-3 bg-background-tertiary rounded-lg border border-border hover:border-primary/50 hover:bg-primary/5 transition-all text-xs text-text-secondary hover:text-text-primary"
+                  className="w-full py-4 bg-background-tertiary rounded-lg border border-border hover:border-primary/50 hover:bg-primary/5 transition-all text-center"
                 >
-                  {preset.name}
+                  <span className="text-lg font-bold text-text-primary">
+                    {t("assetsPanel.text.addTitle")}
+                  </span>
+                  <p className="text-xs text-text-muted mt-1">
+                    {t("assetsPanel.text.addTitleDescription")}
+                  </p>
                 </button>
-              ))}
-            </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    {
+                      name: t("assetsPanel.text.presets.heading.name"),
+                      text: t("assetsPanel.text.presets.heading.text"),
+                      style: {
+                        fontSize: 72,
+                        fontWeight: 700 as const,
+                        textAlign: "center" as const,
+                        verticalAlign: "middle" as const,
+                      },
+                    },
+                    {
+                      name: t("assetsPanel.text.presets.subtitle.name"),
+                      text: t("assetsPanel.text.presets.subtitle.text"),
+                      style: {
+                        fontSize: 36,
+                        fontWeight: 400 as const,
+                        textAlign: "center" as const,
+                        verticalAlign: "middle" as const,
+                      },
+                    },
+                    {
+                      name: t("assetsPanel.text.presets.lowerThird.name"),
+                      text: t("assetsPanel.text.presets.lowerThird.text"),
+                      style: {
+                        fontSize: 32,
+                        fontWeight: 600 as const,
+                        textAlign: "left" as const,
+                        verticalAlign: "bottom" as const,
+                        backgroundColor: "rgba(0, 0, 0, 0.7)",
+                      },
+                    },
+                    {
+                      name: t("assetsPanel.text.presets.caption.name"),
+                      text: t("assetsPanel.text.presets.caption.text"),
+                      style: {
+                        fontSize: 24,
+                        fontWeight: 400 as const,
+                        textAlign: "center" as const,
+                        verticalAlign: "bottom" as const,
+                        shadowColor: "rgba(0, 0, 0, 0.8)",
+                        shadowBlur: 4,
+                        shadowOffsetX: 1,
+                        shadowOffsetY: 1,
+                      },
+                    },
+                  ].map((preset) => (
+                    <button
+                      key={preset.name}
+                      onClick={async () => {
+                        const state = useProjectStore.getState();
+                        const { createTextClip, addTrack } = state;
+                        const tracksBefore = state.project.timeline.tracks;
+                        await addTrack("text", 0);
+                        const tracksAfter =
+                          useProjectStore.getState().project.timeline.tracks;
+                        const newTextTrack = tracksAfter.find(
+                          (t) =>
+                            t.type === "text" &&
+                            !tracksBefore.some((bt) => bt.id === t.id),
+                        );
+                        if (newTextTrack) {
+                          createTextClip(
+                            newTextTrack.id,
+                            0,
+                            preset.text,
+                            5,
+                            preset.style,
+                          );
+                        }
+                      }}
+                      className="py-3 bg-background-tertiary rounded-lg border border-border hover:border-primary/50 hover:bg-primary/5 transition-all text-xs text-text-secondary hover:text-text-primary"
+                    >
+                      {preset.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </ScrollArea>
           </div>
-        </ScrollArea>
-      )}
+        );
+      case "ai":
+        return (
+          <div className="flex min-h-0 flex-1 flex-col border-t border-border/70 bg-background-secondary content-area-fix">
+            <AIGenTab />
+          </div>
+        );
+      case "recipes":
+        return (
+          <div className="flex min-h-0 flex-1 flex-col border-t border-border/70 bg-background-secondary content-area-fix">
+            <RecipesTab />
+          </div>
+        );
+      case "templates":
+        return (
+          <div className="flex min-h-0 flex-1 flex-col border-t border-border/70 bg-background-secondary content-area-fix">
+            <TemplatesTab />
+          </div>
+        );
+      default:
+        return null;
+    }
+  };
 
-      {/* AI Tab Content */}
-      {activeTab === "ai" && <AIGenTab />}
+  return (
+    <div
+      data-tour="assets"
+      className="w-full min-w-0 bg-background-secondary border-r border-border flex h-full relative"
+    >
+      {/* Left Sidebar / Activity Bar */}
+      <div className="w-[64px] shrink-0 flex flex-col items-center py-4 gap-4 border-r border-border bg-background-tertiary z-10 overflow-y-auto">
+        {ASSETS_TABS.map((tab) => {
+          const Icon = TAB_ICONS[tab.value];
+          const isActive = activeTab === tab.value;
+          return (
+            <button
+              key={tab.value}
+              onClick={() => setActiveTab(tab.value)}
+              title={t(tab.description)}
+              className={`relative flex flex-col items-center justify-center w-11 h-11 rounded-xl transition-all group ${
+                isActive
+                  ? "bg-background-elevated text-primary shadow-sm ring-1 ring-primary/20"
+                  : "text-text-muted hover:bg-background-elevated/50 hover:text-text-secondary"
+              }`}
+            >
+              <Icon size={20} strokeWidth={isActive ? 2.5 : 2} />
+              {isActive && (
+                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 bg-primary rounded-r-full" />
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col min-w-0 h-full bg-background-secondary relative">
+        {/* Loading overlay */}
+        {isImporting && (
+          <LoadingIndicator message={importProgress || t("assetsPanel.progress.importingMedia")} />
+        )}
+        
+        {/* Panel Header */}
+        <div className="px-5 py-4 flex items-center justify-between border-b border-border/40 shrink-0">
+          <div>
+            <h2 className="font-bold text-sm text-text-primary tracking-tight">
+              {t(ASSETS_TABS.find((tab) => tab.value === activeTab)?.label || "")}
+            </h2>
+            <p className="text-[11px] text-text-muted mt-0.5 line-clamp-1">
+              {ASSETS_TABS.find((tab) => tab.value === activeTab)?.description}
+            </p>
+          </div>
+          <div className="flex gap-1 shrink-0">
+            {activeTab === "media" && (
+              <IconButton
+                icon={Plus}
+                onClick={triggerFileInput}
+                title={t("assetsPanel.actions.importMedia")}
+              />
+            )}
+          </div>
+        </div>
+
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          accept="video/*,audio/*,image/*"
+          onChange={(e) => handleFileImport(e.target.files)}
+          className="hidden"
+        />
+
+        {/* Dynamic Section Content */}
+        <div className="flex-1 min-h-0 relative flex flex-col overflow-hidden">
+          {renderSectionContent(activeTab)}
+        </div>
+      </div>
 
       {aspectRatioDialogData && (
         <AspectRatioMatchDialog

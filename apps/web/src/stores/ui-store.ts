@@ -60,6 +60,8 @@ export interface KeyboardShortcuts {
 export interface UIState {
   selectedItems: SelectionItem[];
   lastSelectedItem: SelectionItem | null;
+  effectApplicationClipId: string | null;
+  effectApplicationLabel: string | null;
   snapSettings: SnapSettings;
   panels: Record<PanelId, PanelState>;
   shortcuts: KeyboardShortcuts;
@@ -137,6 +139,8 @@ export interface UIState {
     progress: number;
     phase: string;
   }) => void;
+  startEffectApplication: (clipId: string, label?: string) => void;
+  finishEffectApplication: () => void;
 }
 
 export interface ContextMenuItem {
@@ -190,6 +194,8 @@ export const useUIStore = create<UIState>()(
       (set, get) => ({
         selectedItems: [],
         lastSelectedItem: null,
+        effectApplicationClipId: null,
+        effectApplicationLabel: null,
 
         snapSettings: DEFAULT_SNAP_SETTINGS,
 
@@ -230,6 +236,20 @@ export const useUIStore = create<UIState>()(
         },
 
         setExportState: (state) => set({ exportState: state }),
+
+        startEffectApplication: (clipId: string, label?: string) => {
+          set({
+            effectApplicationClipId: clipId,
+            effectApplicationLabel: label ?? null,
+          });
+        },
+
+        finishEffectApplication: () => {
+          set({
+            effectApplicationClipId: null,
+            effectApplicationLabel: null,
+          });
+        },
 
         select: (item: SelectionItem, addToSelection = false) => {
           const { selectedItems } = get();

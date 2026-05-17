@@ -1,13 +1,13 @@
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ChevronDown, Zap, Captions, Loader2 } from "lucide-react";
+import { ChevronDown, Zap, Captions, Loader2, Sparkles, Trash2 } from "lucide-react";
 import { useProjectStore } from "../../stores/project-store";
+import { useTimelineStore } from "../../stores/timeline-store";
 import { useUIStore } from "../../stores/ui-store";
 import { useEngineStore } from "../../stores/engine-store";
-import type { Transform, FitMode, Clip } from "@openreel/core";
+import type { Transform, FitMode, Clip, EditingTemplatePrimitive } from "@openreel/core";
 import {
   ChromaKeyEngine,
-  getTranscriptionService,
   initializeTranscriptionService,
   type WhisperTranscriptionProgress,
   type CaptionAnimationStyle,
@@ -24,6 +24,7 @@ import {
   MaskSection,
   ColorGradingSection,
   AudioEffectsSection,
+  NoiseReductionSection,
   TextSection,
   TextAnimationSection,
   ShapeSection,
@@ -41,19 +42,30 @@ import {
   AutoCutSilenceSection,
   CropSection,
   SpeedSection,
+  StabilizationSection,
+  SpeedRampSection,
   MotionPresetsPanel,
   EmphasisAnimationSection,
   MotionPathSection,
   ParticleEffectsSection,
   AudioTextSyncPanel,
   AlignmentSection,
+  BehindSubjectSection,
 } from "./inspector";
-import { OPENREEL_TTS_URL } from "../../config/api-endpoints";
+import { OPENREEL_TRANSCRIBE_URL } from "../../config/api-endpoints";
+import { AutoEditPanel } from "./panels/AutoEditPanel";
+import { HighlightExtractorPanel } from "./panels/HighlightExtractorPanel";
+import {
+  EditingTemplateControls,
+  mergeEditingTemplateControlValues,
+} from "./panels/EditingTemplateControls";
 import {
   getAudioBridgeEffects,
   initializeAudioBridgeEffects,
-  DEFAULT_EQ_BANDS,
+  DEFAULT_NOISE_REDUCTION,
 } from "../../bridges/audio-bridge-effects";
+import { toast } from "../../stores/notification-store";
+import { getNoiseReductionPreset } from "./inspector/noise-reduction-presets";
 import {
   Input,
   LabeledSlider,
@@ -185,12 +197,32 @@ const ParticleEffectsSectionWrapper: React.FC<{
 export const InspectorPanel: React.FC = () => {
   const { t } = useTranslation("editor");
   // Stores
-  const { getClip, getMediaItem, addSubtitle, updateSubtitle, getSubtitle } =
-    useProjectStore();
+  const {
+    getClip,
+    getMediaItem,
+    addSubtitle,
+    updateSubtitle,
+    getSubtitle,
+    getEditingTemplate,
+    updateEditingTemplateApplication,
+    removeEditingTemplateApplication,
+  } = useProjectStore();
   const project = useProjectStore((state) => state.project);
   const { getSelectedClipIds } = useUIStore();
   const selectedItems = useUIStore((state) => state.selectedItems);
+  const effectApplicationClipId = useUIStore(
+    (state) => state.effectApplicationClipId,
+  );
+  const startEffectApplication = useUIStore(
+    (state) => state.startEffectApplication,
+  );
+  const finishEffectApplication = useUIStore(
+    (state) => state.finishEffectApplication,
+  );
   const selectedClipIds = getSelectedClipIds();
+  const pausePlayback = useTimelineStore((state) => state.pause);
+  const lockPlayback = useTimelineStore((state) => state.lockPlayback);
+  const unlockPlayback = useTimelineStore((state) => state.unlockPlayback);
   const getTitleEngine = useEngineStore((state) => state.getTitleEngine);
   const getGraphicsEngine = useEngineStore((state) => state.getGraphicsEngine);
 
@@ -198,8 +230,18 @@ export const InspectorPanel: React.FC = () => {
   const [transcriptionProgress, setTranscriptionProgress] =
     useState<WhisperTranscriptionProgress | null>(null);
   const [isTranscribing, setIsTranscribing] = useState(false);
+  const [targetLanguage, setTargetLanguage] = useState("none");
   const [defaultAnimationStyle, setDefaultAnimationStyle] =
     useState<CaptionAnimationStyle>("word-highlight");
+  const [expandedRecipeApplicationId, setExpandedRecipeApplicationId] =
+    useState<string | null>(null);
+  const [recipeControlValues, setRecipeControlValues] = useState<
+    Record<string, Record<string, EditingTemplatePrimitive>>
+  >({});
+
+  useEffect(() => {
+    setExpandedRecipeApplicationId(null);
+  }, [selectedClipIds.join("|")]);
 
   // Check if a subtitle is selected
   const selectedSubtitleId = useMemo(() => {
@@ -213,6 +255,11 @@ export const InspectorPanel: React.FC = () => {
     if (!selectedSubtitleId) return null;
     return getSubtitle(selectedSubtitleId) || null;
   }, [selectedSubtitleId, getSubtitle, project.timeline.subtitles]);
+
+  const selectedTimelineClip = useMemo(() => {
+    if (selectedClipIds.length !== 1) return null;
+    return getClip(selectedClipIds[0]) || null;
+  }, [getClip, project.modifiedAt, selectedClipIds]);
 
   // Get selected clip (check regular clips, text clips, and shape clips)
   const selectedClip = useMemo(() => {
@@ -376,69 +423,170 @@ export const InspectorPanel: React.FC = () => {
     [selectedClip],
   );
 
-  const { addVideoEffect, updateVideoEffect } = useProjectStore();
-
-  const handleRemoveBackground = useCallback(() => {
-    if (!selectedClip) return;
-    chromaKeyEngine.enableChromaKey(selectedClip.id);
-    chromaKeyEngine.setKeyColor(selectedClip.id, { r: 0, g: 1, b: 0 });
-    chromaKeyEngine.setTolerance(selectedClip.id, 0.35);
-    forceUpdate();
-  }, [selectedClip]);
+  const {
+    addVideoEffect,
+    updateVideoEffect,
+    getAudioEffects,
+    updateAudioEffect,
+    toggleAudioEffect,
+  } = useProjectStore();
 
   const [isEnhancingAudio, setIsEnhancingAudio] = useState(false);
   const [audioEnhanced, setAudioEnhanced] = useState(false);
+  const isApplyingSelectedClipEffect =
+    effectApplicationClipId !== null && effectApplicationClipId === selectedClip?.id;
+
+  const waitForEffectApplicationPaint = useCallback(
+    () =>
+      new Promise<void>((resolve) => {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => resolve());
+        });
+      }),
+    [],
+  );
+
+  const applyClipEffectWithPlaybackLock = useCallback(
+    async (
+      clipId: string,
+      label: string,
+      apply: () => void | Promise<void>,
+    ) => {
+      pausePlayback();
+      lockPlayback(label);
+      startEffectApplication(clipId, label);
+
+      try {
+        await waitForEffectApplicationPaint();
+        await apply();
+        window.dispatchEvent(new CustomEvent("openreel:preview-invalidate"));
+        await waitForEffectApplicationPaint();
+      } finally {
+        finishEffectApplication();
+        unlockPlayback();
+      }
+    },
+    [
+      finishEffectApplication,
+      lockPlayback,
+      pausePlayback,
+      startEffectApplication,
+      unlockPlayback,
+      waitForEffectApplicationPaint,
+    ],
+  );
+
+  const handleRemoveBackground = useCallback(() => {
+    if (!selectedClip) return;
+    void applyClipEffectWithPlaybackLock(
+      selectedClip.id,
+      "Applying background removal",
+      () => {
+        chromaKeyEngine.enableChromaKey(selectedClip.id);
+        chromaKeyEngine.setKeyColor(selectedClip.id, { r: 0, g: 1, b: 0 });
+        chromaKeyEngine.setTolerance(selectedClip.id, 0.35);
+        forceUpdate();
+      },
+    );
+  }, [applyClipEffectWithPlaybackLock, forceUpdate, selectedClip]);
 
   const handleEnhanceAudio = useCallback(async () => {
     if (!selectedClip) return;
     setIsEnhancingAudio(true);
     try {
-      await initializeAudioBridgeEffects();
-      const bridge = getAudioBridgeEffects();
-      const speechEQBands = DEFAULT_EQ_BANDS.map((band, i) => {
-        let gain = 0;
-        if (i === 0) gain = -3;
-        if (i === 1) gain = 2;
-        if (i === 2) gain = 4;
-        if (i === 3) gain = 3;
-        if (i === 4) gain = -2;
-        return { ...band, gain };
-      });
-      const eqResult = bridge.applyEQ(selectedClip.id, speechEQBands);
-      const compResult = bridge.applyCompressor(selectedClip.id, {
-        threshold: -18,
-        ratio: 3,
-        attack: 0.005,
-        release: 0.15,
-      });
-      if (eqResult.success && compResult.success) {
-        setAudioEnhanced(true);
-        setTimeout(() => setAudioEnhanced(false), 2000);
-      }
-      forceUpdate();
+      await applyClipEffectWithPlaybackLock(
+        selectedClip.id,
+        "Applying audio cleanup",
+        async () => {
+          await initializeAudioBridgeEffects();
+          const bridge = getAudioBridgeEffects();
+          const noiseCleanupConfig = {
+            ...DEFAULT_NOISE_REDUCTION,
+            ...getNoiseReductionPreset("speech").config,
+          };
+
+          const existingNoiseReduction = getAudioEffects(selectedClip.id).find(
+            (effect) => effect.type === "noiseReduction",
+          );
+
+          if (existingNoiseReduction) {
+            updateAudioEffect(
+              selectedClip.id,
+              existingNoiseReduction.id,
+              noiseCleanupConfig as unknown as Record<string, unknown>,
+            );
+            toggleAudioEffect(selectedClip.id, existingNoiseReduction.id, true);
+          } else {
+            const result = bridge.applyNoiseReduction(
+              selectedClip.id,
+              noiseCleanupConfig,
+            );
+
+            if (!result.success) {
+              throw new Error(result.error ?? "Failed to apply noise cleanup");
+            }
+          }
+
+          setAudioEnhanced(true);
+          setTimeout(() => setAudioEnhanced(false), 2000);
+          toast.success(
+            "Noise cleanup applied",
+            "Fine-tune or switch presets in Background Noise Removal.",
+          );
+
+          forceUpdate();
+        },
+      );
     } catch (error) {
       console.error("Failed to enhance audio:", error);
+      toast.error(
+        "Could not clean up audio",
+        error instanceof Error
+          ? error.message
+          : "Noise cleanup could not be applied to this clip.",
+      );
     } finally {
       setIsEnhancingAudio(false);
     }
-  }, [selectedClip, forceUpdate]);
+  }, [
+    applyClipEffectWithPlaybackLock,
+    selectedClip,
+    forceUpdate,
+    getAudioEffects,
+    toggleAudioEffect,
+    updateAudioEffect,
+  ]);
 
-  const handleAutoColor = useCallback(() => {
+  const handleAutoColor = useCallback(async () => {
     if (!selectedClip) return;
-    addVideoEffect(selectedClip.id, "saturation");
-    addVideoEffect(selectedClip.id, "contrast");
-    addVideoEffect(selectedClip.id, "brightness");
-    const effects = useProjectStore.getState().getVideoEffects(selectedClip.id);
-    const satEffect = effects.find((e) => e.type === "saturation");
-    const contEffect = effects.find((e) => e.type === "contrast");
-    const brightEffect = effects.find((e) => e.type === "brightness");
-    if (satEffect)
-      updateVideoEffect(selectedClip.id, satEffect.id, { value: 1.15 });
-    if (contEffect)
-      updateVideoEffect(selectedClip.id, contEffect.id, { value: 1.1 });
-    if (brightEffect)
-      updateVideoEffect(selectedClip.id, brightEffect.id, { value: 5 });
-  }, [selectedClip, addVideoEffect, updateVideoEffect]);
+    await applyClipEffectWithPlaybackLock(
+      selectedClip.id,
+      "Applying auto color",
+      () => {
+        addVideoEffect(selectedClip.id, "saturation");
+        addVideoEffect(selectedClip.id, "contrast");
+        addVideoEffect(selectedClip.id, "brightness");
+        const effects = useProjectStore.getState().getVideoEffects(selectedClip.id);
+        const satEffect = effects.find((e) => e.type === "saturation");
+        const contEffect = effects.find((e) => e.type === "contrast");
+        const brightEffect = effects.find((e) => e.type === "brightness");
+        if (satEffect) {
+          updateVideoEffect(selectedClip.id, satEffect.id, { value: 1.15 });
+        }
+        if (contEffect) {
+          updateVideoEffect(selectedClip.id, contEffect.id, { value: 1.1 });
+        }
+        if (brightEffect) {
+          updateVideoEffect(selectedClip.id, brightEffect.id, { value: 5 });
+        }
+      },
+    );
+  }, [
+    addVideoEffect,
+    applyClipEffectWithPlaybackLock,
+    selectedClip,
+    updateVideoEffect,
+  ]);
 
   const handleGenerateSubtitles = useCallback(async () => {
     if (!selectedClip || isTranscribing) return;
@@ -457,12 +605,10 @@ export const InspectorPanel: React.FC = () => {
     });
 
     try {
-      let transcriptionService = getTranscriptionService();
-      if (!transcriptionService) {
-        transcriptionService = initializeTranscriptionService({
-          apiEndpoint: OPENREEL_TTS_URL,
-        });
-      }
+      const transcriptionService = initializeTranscriptionService({
+        apiEndpoint: `${OPENREEL_TRANSCRIBE_URL}/transcribe`,
+        targetLanguage: targetLanguage !== "none" ? targetLanguage : undefined,
+      });
 
       const regularClip = getClip(selectedClip.id);
       if (!regularClip) {
@@ -512,6 +658,7 @@ export const InspectorPanel: React.FC = () => {
     getClip,
     addSubtitle,
     defaultAnimationStyle,
+    targetLanguage,
   ]);
 
   // Default transform
@@ -597,6 +744,105 @@ export const InspectorPanel: React.FC = () => {
   const showTextSection = clipType === "text";
   const showShapeSection = clipType === "shape";
   const showSVGSection = clipType === "svg";
+  const selectedNoiseReductionEffect = selectedTimelineClip?.audioEffects?.find(
+    (effect) => effect.type === "noiseReduction",
+  );
+  const noiseReductionSectionTitle = selectedNoiseReductionEffect
+    ? selectedNoiseReductionEffect.enabled
+      ? "Background Noise Removal (Active)"
+      : "Background Noise Removal (Configured)"
+    : "Background Noise Removal";
+  const appliedEditingTemplates =
+    selectedTimelineClip?.metadata?.appliedTemplates || [];
+  const handleRecipeControlChange = useCallback(
+    (
+      applicationId: string,
+      controlId: string,
+      value: EditingTemplatePrimitive,
+    ) => {
+      setRecipeControlValues((current) => ({
+        ...current,
+        [applicationId]: {
+          ...(current[applicationId] || {}),
+          [controlId]: value,
+        },
+      }));
+    },
+    [],
+  );
+  const handleToggleRecipeControls = useCallback(
+    (applicationId: string, templateId: string, controlValues?: Record<string, unknown>) => {
+      const template = getEditingTemplate(templateId);
+      if (!template || !template.controls || template.controls.length === 0) {
+        return;
+      }
+
+      setExpandedRecipeApplicationId((current) =>
+        current === applicationId ? null : applicationId,
+      );
+      setRecipeControlValues((current) =>
+        current[applicationId]
+          ? current
+          : {
+              ...current,
+              [applicationId]: mergeEditingTemplateControlValues(
+                template,
+                controlValues,
+              ),
+            },
+      );
+    },
+    [getEditingTemplate],
+  );
+  const handleResetRecipeControls = useCallback(
+    (applicationId: string, templateId: string, controlValues?: Record<string, unknown>) => {
+      const template = getEditingTemplate(templateId);
+      if (!template) {
+        return;
+      }
+
+      setRecipeControlValues((current) => ({
+        ...current,
+        [applicationId]: mergeEditingTemplateControlValues(template, controlValues),
+      }));
+    },
+    [getEditingTemplate],
+  );
+  const handleUpdateRecipeControls = useCallback(
+    (applicationId: string, templateId: string, controlValues?: Record<string, unknown>) => {
+      if (!selectedTimelineClip) {
+        return;
+      }
+
+      const template = getEditingTemplate(templateId);
+      if (!template) {
+        toast.error("Recipe unavailable", "This recipe definition is no longer available.");
+        return;
+      }
+
+      const nextControlValues =
+        recipeControlValues[applicationId] ||
+        mergeEditingTemplateControlValues(template, controlValues);
+      const updated = updateEditingTemplateApplication(
+        selectedTimelineClip.id,
+        applicationId,
+        nextControlValues,
+      );
+
+      if (!updated) {
+        toast.error("Could not update recipe", "The recipe controls could not be saved for this clip.");
+        return;
+      }
+
+      toast.success("Recipe updated", `${template.name} was updated on this clip.`);
+    },
+    [
+      getEditingTemplate,
+      recipeControlValues,
+      selectedTimelineClip,
+      updateEditingTemplateApplication,
+    ],
+  );
   const showVideoControls = clipType === "video" || clipType === "image";
   const showTransformControls =
     clipType === "video" ||
@@ -609,7 +855,7 @@ export const InspectorPanel: React.FC = () => {
   return (
     <div
       data-tour="inspector"
-      className="w-80 bg-background-secondary border-l border-border flex flex-col overflow-y-auto h-full custom-scrollbar"
+      className="w-full min-w-0 bg-background-secondary border-l border-border flex flex-col overflow-y-auto h-full custom-scrollbar"
     >
       <div className="p-5">
         <h3 className="text-sm font-bold text-text-primary mb-5 tracking-tight">
@@ -627,6 +873,153 @@ export const InspectorPanel: React.FC = () => {
                 {t("inspector.clipInfo.duration", { duration: selectedClip.duration.toFixed(2) })}
               </p>
             </div>
+
+            {showVideoControls && selectedTimelineClip && (appliedEditingTemplates.length > 0 || (selectedTimelineClip.effects && selectedTimelineClip.effects.length > 0)) && (
+              <Section
+                title={`Applied (${appliedEditingTemplates.length + (selectedTimelineClip.effects?.filter((e: { metadata?: { templateSource?: unknown } }) => !e.metadata?.templateSource).length || 0)})`}
+                sectionId="applied-effects"
+                defaultOpen={true}
+              >
+                <div className="space-y-2">
+                  {appliedEditingTemplates.map((application) => {
+                    const template = getEditingTemplate(application.templateId);
+                    const canEdit = Boolean(template?.controls?.length);
+                    const isExpanded =
+                      expandedRecipeApplicationId === application.applicationId;
+                    const currentControlValues = template
+                      ? recipeControlValues[application.applicationId] ||
+                        mergeEditingTemplateControlValues(
+                          template,
+                          application.controlValues,
+                        )
+                      : undefined;
+
+                    return (
+                      <div
+                        key={application.applicationId}
+                        className="rounded-lg border border-border bg-background-tertiary/70 px-2.5 py-2"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="min-w-0 flex-1 flex items-center gap-2">
+                            <Sparkles size={11} className="text-primary shrink-0" />
+                            <p className="truncate text-[11px] font-medium text-text-primary">
+                              {application.name}
+                            </p>
+                            <span className="text-[9px] text-text-muted capitalize shrink-0">
+                              {application.category?.replace(/-/g, " ") || "recipe"}
+                            </span>
+                          </div>
+                          <div className="flex shrink-0 gap-1">
+                            {canEdit && (
+                              <button
+                                onClick={() =>
+                                  handleToggleRecipeControls(
+                                    application.applicationId,
+                                    application.templateId,
+                                    application.controlValues,
+                                  )
+                                }
+                                className={`h-6 px-1.5 rounded text-[9px] font-medium transition-colors ${
+                                  isExpanded
+                                    ? "bg-primary/15 text-primary"
+                                    : "text-text-muted hover:text-text-primary"
+                                }`}
+                              >
+                                Edit
+                              </button>
+                            )}
+                            <button
+                              onClick={() => {
+                                const removed = removeEditingTemplateApplication(
+                                  selectedTimelineClip.id,
+                                  application.applicationId,
+                                );
+                                if (!removed) {
+                                  toast.error("Could not remove recipe", "The recipe could not be removed from this clip.");
+                                  return;
+                                }
+                                setRecipeControlValues((current) => {
+                                  const next = { ...current };
+                                  delete next[application.applicationId];
+                                  return next;
+                                });
+                                if (expandedRecipeApplicationId === application.applicationId) {
+                                  setExpandedRecipeApplicationId(null);
+                                }
+                              }}
+                              className="h-6 px-1.5 rounded text-text-muted hover:text-red-400 transition-colors"
+                            >
+                              <Trash2 size={11} />
+                            </button>
+                          </div>
+                        </div>
+
+                        {isExpanded && template && currentControlValues && (
+                          <div className="mt-2 space-y-3 rounded-lg border border-border/80 bg-background-secondary/80 p-2.5">
+                            <EditingTemplateControls
+                              template={template}
+                              values={currentControlValues}
+                              onChange={(controlId, value) =>
+                                handleRecipeControlChange(
+                                  application.applicationId,
+                                  controlId,
+                                  value,
+                                )
+                              }
+                            />
+                            <div className="flex justify-end gap-1.5">
+                              <button
+                                onClick={() =>
+                                  handleResetRecipeControls(
+                                    application.applicationId,
+                                    application.templateId,
+                                    application.controlValues,
+                                  )
+                                }
+                                className="h-6 px-2.5 rounded border border-border text-[9px] font-medium text-text-secondary hover:text-text-primary transition-colors"
+                              >
+                                Reset
+                              </button>
+                              <button
+                                onClick={() =>
+                                  handleUpdateRecipeControls(
+                                    application.applicationId,
+                                    application.templateId,
+                                    application.controlValues,
+                                  )
+                                }
+                                className="h-6 px-2.5 rounded bg-primary text-[9px] font-semibold text-black hover:bg-primary/85 transition-colors"
+                              >
+                                Update
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+
+                  {selectedTimelineClip.effects
+                    ?.filter((e: { metadata?: { templateSource?: unknown } }) => !e.metadata?.templateSource)
+                    .map((effect: { id: string; type: string; enabled?: boolean }) => (
+                      <div
+                        key={effect.id}
+                        className="flex items-center justify-between gap-2 rounded-lg border border-border bg-background-tertiary/70 px-2.5 py-2"
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Zap size={11} className="text-amber-400 shrink-0" />
+                          <p className="truncate text-[11px] font-medium text-text-primary capitalize">
+                            {effect.type.replace(/-/g, " ")}
+                          </p>
+                        </div>
+                        <span className={`text-[9px] font-medium ${effect.enabled !== false ? "text-green-400" : "text-text-muted"}`}>
+                          {effect.enabled !== false ? "On" : "Off"}
+                        </span>
+                      </div>
+                    ))}
+                </div>
+              </Section>
+            )}
 
             {clipType === "video" && (
               <Section title="AI Auto-Captions" sectionId="auto-captions" defaultOpen={false}>
@@ -649,6 +1042,43 @@ export const InspectorPanel: React.FC = () => {
                             {getAnimationStyleDisplayName(style)}
                           </SelectItem>
                         ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] text-text-secondary block mb-1">
+                      Target Language
+                    </label>
+                    <Select
+                      value={targetLanguage}
+                      onValueChange={setTargetLanguage}
+                      disabled={isTranscribing}
+                    >
+                      <SelectTrigger className="w-full bg-background-secondary border-border text-text-primary text-[11px]">
+                        <SelectValue placeholder="Original (no translation)" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-background-secondary border-border">
+                        <SelectItem value="none">Original (no translation)</SelectItem>
+                        <SelectGroup>
+                          <SelectLabel className="text-[10px]">Translate to</SelectLabel>
+                          <SelectItem value="en">English</SelectItem>
+                          <SelectItem value="es">Spanish</SelectItem>
+                          <SelectItem value="fr">French</SelectItem>
+                          <SelectItem value="de">German</SelectItem>
+                          <SelectItem value="pt">Portuguese</SelectItem>
+                          <SelectItem value="it">Italian</SelectItem>
+                          <SelectItem value="nl">Dutch</SelectItem>
+                          <SelectItem value="ru">Russian</SelectItem>
+                          <SelectItem value="zh">Chinese</SelectItem>
+                          <SelectItem value="ja">Japanese</SelectItem>
+                          <SelectItem value="ko">Korean</SelectItem>
+                          <SelectItem value="ar">Arabic</SelectItem>
+                          <SelectItem value="hi">Hindi</SelectItem>
+                          <SelectItem value="tr">Turkish</SelectItem>
+                          <SelectItem value="pl">Polish</SelectItem>
+                          <SelectItem value="sv">Swedish</SelectItem>
+                        </SelectGroup>
                       </SelectContent>
                     </Select>
                   </div>
@@ -713,6 +1143,20 @@ export const InspectorPanel: React.FC = () => {
             {clipType === "audio" && (
               <Section title="Beat Sync" sectionId="beat-sync" defaultOpen={false}>
                 <AudioTextSyncPanel clipId={clipId} />
+              </Section>
+            )}
+
+            {/* Auto-Edit - Cut video clips to audio beats */}
+            {showAudioEffects && (
+              <Section title="Beat-Synced Auto-Edit" sectionId="auto-edit" defaultOpen={false}>
+                <AutoEditPanel onClose={() => {}} />
+              </Section>
+            )}
+
+            {/* AI Highlight Extractor */}
+            {showAudioEffects && (
+              <Section title="AI Highlights" sectionId="ai-highlights" defaultOpen={false}>
+                <HighlightExtractorPanel clipId={clipId} />
               </Section>
             )}
 
@@ -865,6 +1309,38 @@ export const InspectorPanel: React.FC = () => {
                 </Section>
               )}
 
+            {/* Stabilization */}
+            {showVideoControls &&
+              selectedClip &&
+              !selectedClip.mediaId.startsWith("text-") &&
+              !selectedClip.mediaId.startsWith("shape-") &&
+              !selectedClip.mediaId.startsWith("svg-") &&
+              !selectedClip.mediaId.startsWith("sticker-") && (
+                <Section
+                  title="Stabilization"
+                  sectionId="stabilization"
+                  defaultOpen={false}
+                >
+                  <StabilizationSection clip={selectedClip as Clip} />
+                </Section>
+              )}
+
+            {/* Speed Curves */}
+            {showVideoControls &&
+              selectedClip &&
+              !selectedClip.mediaId.startsWith("text-") &&
+              !selectedClip.mediaId.startsWith("shape-") &&
+              !selectedClip.mediaId.startsWith("svg-") &&
+              !selectedClip.mediaId.startsWith("sticker-") && (
+                <Section
+                  title="Speed Curves"
+                  sectionId="speed-curves"
+                  defaultOpen={false}
+                >
+                  <SpeedRampSection clip={selectedClip as Clip} />
+                </Section>
+              )}
+
             {/* Alignment - Position element on canvas */}
             {(clipType === "video" ||
               clipType === "image" ||
@@ -926,7 +1402,7 @@ export const InspectorPanel: React.FC = () => {
               clipType === "svg" ||
               clipType === "sticker") && (
               <Section
-                title="Entry/Exit Transitions"
+                title="Transitions"
                 sectionId="transitions"
                 defaultOpen={false}
               >
@@ -1104,6 +1580,16 @@ export const InspectorPanel: React.FC = () => {
 
             {showAudioEffects && (
               <Section
+                title={noiseReductionSectionTitle}
+                sectionId="background-noise-removal"
+                defaultOpen={Boolean(selectedNoiseReductionEffect)}
+              >
+                <NoiseReductionSection clipId={clipId} />
+              </Section>
+            )}
+
+            {showAudioEffects && (
+              <Section
                 title="Audio Effects"
                 sectionId="audio-effects"
                 defaultOpen={false}
@@ -1138,6 +1624,16 @@ export const InspectorPanel: React.FC = () => {
               </Section>
             )}
 
+            {showTextSection && (
+              <Section
+                title="Text Behind Subject"
+                sectionId="text-behind-subject"
+                defaultOpen={false}
+              >
+                <BehindSubjectSection clipId={clipId} />
+              </Section>
+            )}
+
             {showShapeSection && (
               <Section title="Shape Properties" sectionId="shape-properties">
                 <ShapeSection clipId={clipId} />
@@ -1162,7 +1658,12 @@ export const InspectorPanel: React.FC = () => {
                   {showVideoControls && (
                     <button
                       onClick={handleRemoveBackground}
-                      className="w-full py-2 bg-background-tertiary hover:bg-primary hover:text-white border border-border hover:border-primary rounded-lg text-[10px] transition-all"
+                      disabled={isApplyingSelectedClipEffect}
+                      className={`w-full py-2 border rounded-lg text-[10px] transition-all ${
+                        isApplyingSelectedClipEffect
+                          ? "bg-background-tertiary border-border text-text-muted cursor-not-allowed"
+                          : "bg-background-tertiary hover:bg-primary hover:text-white border-border hover:border-primary"
+                      }`}
                     >
                       Remove Background
                     </button>
@@ -1170,11 +1671,11 @@ export const InspectorPanel: React.FC = () => {
                   {showAudioEffects && (
                     <button
                       onClick={handleEnhanceAudio}
-                      disabled={isEnhancingAudio}
+                      disabled={isEnhancingAudio || isApplyingSelectedClipEffect}
                       className={`w-full py-2 border rounded-lg text-[10px] transition-all flex items-center justify-center gap-1.5 ${
                         audioEnhanced
                           ? "bg-green-500/20 border-green-500 text-green-400"
-                          : isEnhancingAudio
+                          : isEnhancingAudio || isApplyingSelectedClipEffect
                             ? "bg-background-tertiary border-border text-text-muted cursor-not-allowed"
                             : "bg-background-tertiary hover:bg-primary hover:text-white border-border hover:border-primary"
                       }`}
@@ -1182,21 +1683,26 @@ export const InspectorPanel: React.FC = () => {
                       {isEnhancingAudio ? (
                         <>
                           <Loader2 size={12} className="animate-spin" />
-                          Enhancing...
+                          Cleaning up...
                         </>
                       ) : audioEnhanced ? (
-                        "✓ Enhanced"
+                        "✓ Noise Reduced"
                       ) : (
-                        "Enhance Audio"
+                        "Quick Dialogue Cleanup"
                       )}
                     </button>
                   )}
                   {showVideoEffects && (
                     <button
                       onClick={handleAutoColor}
-                      className="w-full py-2 bg-background-tertiary hover:bg-primary hover:text-white border border-border hover:border-primary rounded-lg text-[10px] transition-all"
+                      disabled={isApplyingSelectedClipEffect}
+                      className={`w-full py-2 border rounded-lg text-[10px] transition-all ${
+                        isApplyingSelectedClipEffect
+                          ? "bg-background-tertiary border-border text-text-muted cursor-not-allowed"
+                          : "bg-background-tertiary hover:bg-primary hover:text-white border-border hover:border-primary"
+                      }`}
                     >
-                      Auto-Color
+                      {isApplyingSelectedClipEffect ? "Applying..." : "Auto-Color"}
                     </button>
                   )}
                 </div>

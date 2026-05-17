@@ -1,4 +1,4 @@
-import type { Effect } from "../types/timeline";
+import type { AutomationPoint, Effect } from "../types/timeline";
 
 export interface AudioWaveformData {
   readonly peaks: Float32Array;
@@ -33,15 +33,19 @@ export interface AudioClipRenderInfo {
   readonly clipId: string;
   readonly mediaId: string;
   readonly sourceTime: number;
+  readonly clipOffset: number;
   readonly timelineStartTime: number;
   readonly duration: number;
   readonly volume: number;
+  readonly volumeAutomation: AutomationPoint[];
   readonly pan: number;
   readonly effects: Effect[];
   readonly fadeIn?: number;
   readonly fadeOut?: number;
   readonly speed?: number;
   readonly reversed?: boolean;
+  /** Zero-based index of the audio track within the source media file to use. */
+  readonly audioTrackIndex?: number;
 }
 
 export interface AudioChannelState {

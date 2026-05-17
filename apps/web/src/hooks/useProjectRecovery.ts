@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { autoSaveManager, type AutoSaveMetadata } from "../services/auto-save";
+import { clearAllStorage } from "../services/media-storage";
 import { useProjectStore } from "../stores/project-store";
 
 interface RecoveryState {
@@ -66,6 +67,7 @@ export function useProjectRecovery() {
 
   const clearAll = useCallback(async () => {
     await autoSaveManager.clearAllSaves();
+    await clearAllStorage();
     setState((prev) => ({ ...prev, availableSaves: [], showDialog: false }));
   }, []);
 

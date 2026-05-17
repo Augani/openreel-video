@@ -26,6 +26,11 @@ import type {
   PreloadRequest,
 } from "./types";
 import { getSpeedEngine } from "./speed-engine";
+import { getFrameInterpolationEngine } from "./frame-interpolation";
+import {
+  getStabilizedTransform,
+  getVidstabEngine,
+} from "./stabilization";
 import {
   ParallelFrameDecoder,
   getParallelFrameDecoder,
@@ -37,6 +42,7 @@ import {
 import { GPUCompositor, initializeGPUCompositor } from "./gpu-compositor";
 import { getRendererFactory, type Renderer } from "./renderer-factory";
 import { keyframeEngine } from "./keyframe-engine";
+import { getBackgroundRemovalEngine } from "../ai/background-removal-engine";
 import {
   type GifFrameCache,
   createGifFrameCache,
@@ -44,6 +50,7 @@ import {
   isAnimatedGif,
 } from "../media/gif-decoder";
 import { getParticleEngine } from "../effects/particle-engine";
+import { getPersonSegmentationEngine } from "../ai/person-segmentation-engine";
 
 const DEFAULT_CACHE_CONFIG: FrameCacheConfig = {
   maxFrames: 100,
@@ -96,6 +103,7 @@ export class VideoEngine {
   private effectsEngine: VideoEffectsEngine | null = null;
   private lastExportTime: number = -1;
   private exportFrameRate: number = 30;
+  exportMode: boolean = false;
 
   /**
    * Creates a new VideoEngine instance.
@@ -274,6 +282,123 @@ export class VideoEngine {
     }
   }
 
+  private interpFrameCache: Map<string, { bitmap: ImageBitmap; time: number }> =
+    new Map();
+  private static readonly INTERP_FRAME_CACHE_MAX = 2;
+
+  private getCachedInterpFrame(key: string): ImageBitmap | null {
+    const entry = this.interpFrameCache.get(key);
+    if (!entry) return null;
+    entry.time = performance.now();
+    return entry.bitmap;
+  }
+
+  private setCachedInterpFrame(key: string, bitmap: ImageBitmap): void {
+    if (this.interpFrameCache.size >= VideoEngine.INTERP_FRAME_CACHE_MAX) {
+      let oldestKey = "";
+      let oldestTime = Infinity;
+      for (const [k, v] of this.interpFrameCache) {
+        if (v.time < oldestTime) {
+          oldestTime = v.time;
+          oldestKey = k;
+        }
+      }
+      if (oldestKey) {
+        this.interpFrameCache.get(oldestKey)?.bitmap.close();
+        this.interpFrameCache.delete(oldestKey);
+      }
+    }
+    this.interpFrameCache.set(key, { bitmap, time: performance.now() });
+  }
+
+  private async decodeInterpolatedFrame(
+    clip: Clip,
+    mediaItem: MediaItem,
+    _sourceTime: number,
+    _timelineTime: number,
+    width: number,
+    height: number,
+  ): Promise<ImageBitmap | null> {
+    try {
+      const frameRate = mediaItem.metadata?.frameRate ?? 30;
+      const speedEngine = getSpeedEngine();
+      const clipLocalTime = _timelineTime - clip.startTime;
+      const interpInfo = speedEngine.getInterpolationInfo(
+        clip.id,
+        clipLocalTime,
+        frameRate,
+      );
+
+      if (!interpInfo.needsInterpolation) return null;
+
+      const timeBefore = clip.inPoint + interpInfo.frameBefore;
+      const timeAfter = clip.inPoint + interpInfo.frameAfter;
+
+      const cacheKey1 = `${mediaItem.id}:${timeBefore.toFixed(4)}`;
+      const cacheKey2 = `${mediaItem.id}:${timeAfter.toFixed(4)}`;
+
+      let frame1 = this.getCachedInterpFrame(cacheKey1);
+      if (!frame1) {
+        frame1 = await this.decodeFrameWithMediaBunny(
+          mediaItem.blob!,
+          timeBefore,
+          width,
+          height,
+          mediaItem.id,
+        );
+        if (frame1) {
+          const clone = await createImageBitmap(frame1);
+          this.setCachedInterpFrame(cacheKey1, clone);
+        }
+      }
+
+      let frame2 = this.getCachedInterpFrame(cacheKey2);
+      if (!frame2) {
+        frame2 = await this.decodeFrameWithMediaBunny(
+          mediaItem.blob!,
+          timeAfter,
+          width,
+          height,
+          mediaItem.id,
+        );
+        if (frame2) {
+          const clone = await createImageBitmap(frame2);
+          this.setCachedInterpFrame(cacheKey2, clone);
+        }
+      }
+
+      if (!frame1 || !frame2) return null;
+
+      if (!this.exportMode) {
+        const canvas = new OffscreenCanvas(frame1.width, frame1.height);
+        const ctx = canvas.getContext("2d")!;
+        ctx.globalAlpha = 1 - interpInfo.t;
+        ctx.drawImage(frame1, 0, 0);
+        ctx.globalAlpha = interpInfo.t;
+        ctx.drawImage(frame2, 0, 0);
+        ctx.globalAlpha = 1;
+        return canvas.transferToImageBitmap();
+      }
+
+      const engine = getFrameInterpolationEngine();
+      const quality = clip.interpolationQuality ?? "medium";
+      engine.setQuality(quality);
+
+      const result = await engine.interpolate(
+        frame1,
+        frame2,
+        interpInfo.t,
+        mediaItem.id,
+        timeBefore,
+        timeAfter,
+      );
+
+      return result.frame;
+    } catch {
+      return null;
+    }
+  }
+
   /**
    * Decode a frame using native video element (fallback method).
    */
@@ -446,6 +571,11 @@ export class VideoEngine {
     ctx.fillStyle = "#000000";
     ctx.fillRect(0, 0, width, height);
 
+    let subjectFrame: ImageBitmap | null = null;
+    const activeTextNeedsSubject = activeTextClips.some(
+      (clip) => clip.behindSubject,
+    );
+
     for (const { track } of allRenderableTracks) {
       if (track.type === "video" || track.type === "image") {
         const clips = this.getClipsAtTime(track, time);
@@ -499,18 +629,53 @@ export class VideoEngine {
               );
             }
           } else {
-            bitmap = await this.decodeFrameWithMediaBunny(
-              mediaItem.blob,
-              clipInfo.sourceTime,
-              settings.width,
-              settings.height,
-              clipInfo.mediaId,
-            );
-            if (!bitmap) {
-              bitmap = await this.decodeFrameWithVideoElement(
-                mediaItem.id,
-                mediaItem.blob,
+            const effectiveSpeed = clip.speed ?? 1;
+            const shouldInterpolate =
+              clip.smoothSlowMo === true && effectiveSpeed < 1;
+
+            if (shouldInterpolate && mediaItem.metadata?.frameRate) {
+              bitmap = await this.decodeInterpolatedFrame(
+                clip,
+                mediaItem,
                 clipInfo.sourceTime,
+                time,
+                settings.width,
+                settings.height,
+              );
+            }
+
+            if (!bitmap) {
+              const vidstabForDecode = getVidstabEngine();
+              const useStabilizedBlob = vidstabForDecode.hasStabilized(clip.id);
+              const decodeBlob = useStabilizedBlob
+                ? vidstabForDecode.getStabilizedBlob(clip.id)!
+                : mediaItem.blob;
+              const decodeTime = useStabilizedBlob
+                ? clipInfo.sourceTime - clip.inPoint
+                : clipInfo.sourceTime;
+
+              bitmap = await this.decodeFrameWithMediaBunny(
+                decodeBlob,
+                decodeTime,
+                settings.width,
+                settings.height,
+                useStabilizedBlob ? `stabilized:${clip.id}` : clipInfo.mediaId,
+              );
+            }
+            if (!bitmap) {
+              const vidstabForDecode = getVidstabEngine();
+              const useStabilizedBlob = vidstabForDecode.hasStabilized(clip.id);
+              const decodeBlob = useStabilizedBlob
+                ? vidstabForDecode.getStabilizedBlob(clip.id)!
+                : mediaItem.blob;
+              const decodeTime = useStabilizedBlob
+                ? clipInfo.sourceTime - clip.inPoint
+                : clipInfo.sourceTime;
+
+              bitmap = await this.decodeFrameWithVideoElement(
+                useStabilizedBlob ? `stabilized:${clip.id}` : mediaItem.id,
+                decodeBlob,
+                decodeTime,
                 settings.width,
                 settings.height,
               );
@@ -567,7 +732,29 @@ export class VideoEngine {
             };
 
             let processedBitmap = bitmap;
-            if (clip.effects && clip.effects.length > 0) {
+
+            const bgEngine = getBackgroundRemovalEngine();
+            if (bgEngine && bgEngine.isInitialized()) {
+              const bgSettings = bgEngine.getSettings(clip.id);
+              if (bgSettings.enabled) {
+                try {
+                  const bgResult = await bgEngine.processFrame(
+                    clip.id,
+                    processedBitmap,
+                    processedBitmap.width,
+                    processedBitmap.height,
+                  );
+                  if (bgResult && bgResult !== processedBitmap) {
+                    if (processedBitmap !== bitmap) {
+                      processedBitmap.close();
+                    }
+                    processedBitmap = bgResult;
+                  }
+                } catch {}
+              }
+            }
+
+            if (clipInfo.effects && clipInfo.effects.length > 0) {
               try {
                 if (!this.effectsEngine) {
                   this.effectsEngine = new VideoEffectsEngine({
@@ -583,9 +770,12 @@ export class VideoEngine {
                   await Promise.race([initPromise, timeoutPromise]);
                 }
                 const effectsResult = await this.effectsEngine.applyEffects(
-                  bitmap,
-                  clip.effects,
+                  processedBitmap,
+                  clipInfo.effects,
                 );
+                if (processedBitmap !== bitmap) {
+                  processedBitmap.close();
+                }
                 processedBitmap = effectsResult.image;
               } catch (error) {
                 console.warn(
@@ -596,14 +786,34 @@ export class VideoEngine {
               }
             }
 
+            const vidstabEng = getVidstabEngine();
+            const drawTransform = vidstabEng.hasStabilized(clip.id)
+              ? scaledTransform
+              : getStabilizedTransform(
+                  clip,
+                  scaledTransform,
+                  clipInfo.sourceTime,
+                  {
+                    canvasWidth: width,
+                    canvasHeight: height,
+                    sourceWidth: processedBitmap.width,
+                    sourceHeight: processedBitmap.height,
+                  },
+                );
+
             this.drawFrameToContext(
               ctx,
               processedBitmap,
-              scaledTransform,
+              drawTransform,
               finalTransform.opacity,
               width,
               height,
             );
+
+            if (activeTextNeedsSubject) {
+              subjectFrame?.close();
+              subjectFrame = await this.captureSubjectFrame(ctx, width, height);
+            }
 
             if (processedBitmap !== bitmap) {
               processedBitmap.close();
@@ -657,10 +867,18 @@ export class VideoEngine {
           (tc) => tc.trackId === track.id,
         );
         for (const textClip of trackTextClips) {
-          this.renderTextClipToCanvasCtx(ctx, textClip, time, width, height);
+          await this.renderTextClipWithSubjectMask(
+            ctx,
+            textClip,
+            time,
+            width,
+            height,
+            subjectFrame,
+          );
         }
       }
     }
+    subjectFrame?.close();
 
     this.renderParticlesToContext(ctx, time, width, height);
 
@@ -740,6 +958,73 @@ export class VideoEngine {
     }
 
     ctx.restore();
+  }
+
+  private async captureSubjectFrame(
+    ctx: OffscreenCanvasRenderingContext2D,
+    width: number,
+    height: number,
+  ): Promise<ImageBitmap | null> {
+    try {
+      return await createImageBitmap(ctx.canvas, 0, 0, width, height);
+    } catch {
+      return null;
+    }
+  }
+
+  private async drawMaskedSubjectFromFrame(
+    ctx: OffscreenCanvasRenderingContext2D,
+    subjectFrame: ImageBitmap | null,
+    width: number,
+    height: number,
+  ): Promise<void> {
+    if (!subjectFrame) return;
+
+    try {
+      const segEngine = getPersonSegmentationEngine();
+      if (!segEngine.isInitialized()) {
+        await segEngine.initialize();
+      }
+
+      const maskResult = await segEngine.getPersonMask(subjectFrame);
+      if (!maskResult) return;
+
+      const personCanvas = new OffscreenCanvas(width, height);
+      const personCtx = personCanvas.getContext("2d");
+      if (!personCtx) return;
+
+      personCtx.drawImage(subjectFrame, 0, 0, width, height);
+
+      const maskCanvas = new OffscreenCanvas(
+        maskResult.width,
+        maskResult.height,
+      );
+      const maskCtx = maskCanvas.getContext("2d");
+      if (!maskCtx) return;
+
+      maskCtx.putImageData(maskResult.mask, 0, 0);
+      personCtx.globalCompositeOperation = "destination-in";
+      personCtx.drawImage(maskCanvas, 0, 0, width, height);
+
+      ctx.drawImage(personCanvas, 0, 0);
+    } catch {
+      // Keep the normal text render if segmentation is unavailable.
+    }
+  }
+
+  private async renderTextClipWithSubjectMask(
+    ctx: OffscreenCanvasRenderingContext2D,
+    textClip: TextClip,
+    time: number,
+    width: number,
+    height: number,
+    subjectFrame: ImageBitmap | null,
+  ): Promise<void> {
+    this.renderTextClipToCanvasCtx(ctx, textClip, time, width, height);
+
+    if (textClip.behindSubject) {
+      await this.drawMaskedSubjectFromFrame(ctx, subjectFrame, width, height);
+    }
   }
 
   private getActiveTextClips(timeline: Timeline, time: number): TextClip[] {

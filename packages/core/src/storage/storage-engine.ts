@@ -443,6 +443,33 @@ export class StorageEngine implements IStorageEngine {
     });
   }
 
+  async clearAllData(): Promise<void> {
+    const db = await this.getDb();
+    const storeNames = [
+      STORES.PROJECTS,
+      STORES.MEDIA,
+      STORES.CACHE,
+      STORES.WAVEFORMS,
+      STORES.FILE_HANDLES,
+      STORES.DIR_HANDLES,
+    ];
+
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(storeNames, "readwrite");
+      for (const storeName of storeNames) {
+        tx.objectStore(storeName).clear();
+      }
+      tx.oncomplete = () => resolve();
+      tx.onerror = () =>
+        reject(
+          createStorageError(
+            "DATABASE_ERROR",
+            `Failed to clear all data: ${tx.error?.message}`,
+          ),
+        );
+    });
+  }
+
   close(): void {
     if (this.db) {
       this.db.close();

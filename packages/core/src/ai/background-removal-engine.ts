@@ -1,3 +1,5 @@
+import { getPersonSegmentationEngine } from "./person-segmentation-engine";
+
 export type BackgroundMode =
   | "blur"
   | "color"
@@ -37,6 +39,7 @@ export class BackgroundRemovalEngine {
   private backgroundImage: ImageBitmap | null = null;
   private settings: Map<string, BackgroundRemovalSettings> = new Map();
   private initialized = false;
+  private useAI = false;
 
   async initialize(onProgress?: ProgressCallback): Promise<void> {
     if (this.initialized) return;
@@ -51,6 +54,15 @@ export class BackgroundRemovalEngine {
 
     this.outputCanvas = new OffscreenCanvas(1920, 1080);
     this.outputCtx = this.outputCanvas.getContext("2d");
+
+    onProgress?.(50, "Loading AI segmentation model...");
+    const segEngine = getPersonSegmentationEngine();
+    try {
+      await segEngine.initialize();
+      this.useAI = true;
+    } catch {
+      this.useAI = false;
+    }
 
     onProgress?.(100, "Background removal ready");
     this.initialized = true;
@@ -101,9 +113,12 @@ export class BackgroundRemovalEngine {
       this.outputCanvas!.height = height;
     }
 
+    if (this.useAI) {
+      return this.processFrameFast(clipId, frame, width, height, settings);
+    }
+
     this.ctx.drawImage(frame, 0, 0, width, height);
     const imageData = this.ctx.getImageData(0, 0, width, height);
-
     const mask = this.generateSimpleMask(imageData, settings.threshold);
 
     if (settings.edgeBlur > 0) {
@@ -111,7 +126,6 @@ export class BackgroundRemovalEngine {
     }
 
     this.maskCtx.putImageData(mask, 0, 0);
-
     this.outputCtx.clearRect(0, 0, width, height);
 
     switch (settings.mode) {
@@ -142,6 +156,77 @@ export class BackgroundRemovalEngine {
       default:
         this.outputCtx.drawImage(frame, 0, 0, width, height);
     }
+
+    return createImageBitmap(this.outputCanvas!);
+  }
+
+  private async processFrameFast(
+    _clipId: string,
+    frame: ImageBitmap,
+    width: number,
+    height: number,
+    settings: BackgroundRemovalSettings,
+  ): Promise<ImageBitmap> {
+    const segEngine = getPersonSegmentationEngine();
+    const segResult = await segEngine.getPersonMask(frame);
+    if (!segResult) return frame;
+
+    if (settings.edgeBlur > 0 || settings.threshold !== 0.7) {
+      const maskData = new ImageData(
+        new Uint8ClampedArray(segResult.mask.data),
+        segResult.mask.width,
+        segResult.mask.height,
+      );
+      const thresholdByte = Math.round(settings.threshold * 255);
+      const alphaData = maskData.data;
+      for (let i = 3; i < alphaData.length; i += 4) {
+        const raw = alphaData[i];
+        alphaData[i] = raw >= thresholdByte ? 255 : Math.round(raw * (raw / thresholdByte));
+      }
+      this.maskCtx!.putImageData(maskData, 0, 0);
+      if (settings.edgeBlur > 0) {
+        this.maskCtx!.filter = `blur(${settings.edgeBlur}px)`;
+        this.maskCtx!.drawImage(this.maskCanvas!, 0, 0);
+        this.maskCtx!.filter = "none";
+      }
+    } else {
+      this.maskCtx!.putImageData(segResult.mask, 0, 0);
+    }
+
+    this.outputCtx!.clearRect(0, 0, width, height);
+
+    switch (settings.mode) {
+      case "blur":
+        this.outputCtx!.filter = `blur(${settings.blurAmount}px)`;
+        this.outputCtx!.drawImage(frame, 0, 0, width, height);
+        this.outputCtx!.filter = "none";
+        break;
+      case "color":
+        this.outputCtx!.fillStyle = settings.backgroundColor;
+        this.outputCtx!.fillRect(0, 0, width, height);
+        break;
+      case "image":
+        if (this.backgroundImage) {
+          this.outputCtx!.drawImage(this.backgroundImage, 0, 0, width, height);
+        } else {
+          this.outputCtx!.fillStyle = "#000000";
+          this.outputCtx!.fillRect(0, 0, width, height);
+        }
+        break;
+      case "transparent":
+        break;
+      default:
+        this.outputCtx!.drawImage(frame, 0, 0, width, height);
+        return createImageBitmap(this.outputCanvas!);
+    }
+
+    this.ctx!.clearRect(0, 0, width, height);
+    this.ctx!.drawImage(frame, 0, 0, width, height);
+    this.ctx!.globalCompositeOperation = "destination-in";
+    this.ctx!.drawImage(this.maskCanvas!, 0, 0, width, height);
+    this.ctx!.globalCompositeOperation = "source-over";
+
+    this.outputCtx!.drawImage(this.canvas!, 0, 0);
 
     return createImageBitmap(this.outputCanvas!);
   }

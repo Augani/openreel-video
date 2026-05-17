@@ -1,13 +1,11 @@
 import { useEffect, useRef } from 'react';
 import { useProjectStore } from '../stores/project-store';
-import { useHistoryStore } from '../stores/history-store';
 
 const AUTO_SAVE_DELAY = 2000;
 const STORAGE_KEY_PREFIX = 'openreel-image-project-';
 
 export function useAutoSave() {
   const { project, isDirty, markClean } = useProjectStore();
-  const { pushState } = useHistoryStore();
   const lastSavedRef = useRef<string>('');
   const timeoutRef = useRef<number>();
 
@@ -26,8 +24,6 @@ export function useAutoSave() {
         localStorage.setItem(`${STORAGE_KEY_PREFIX}${project.id}`, projectJson);
         lastSavedRef.current = projectJson;
         markClean();
-
-        pushState(project, 'Auto-save');
       } catch (error) {
         console.error('Failed to auto-save:', error);
       }
@@ -38,7 +34,7 @@ export function useAutoSave() {
         clearTimeout(timeoutRef.current);
       }
     };
-  }, [project, isDirty, markClean, pushState]);
+  }, [project, isDirty, markClean]);
 }
 
 export function loadSavedProject(projectId: string) {

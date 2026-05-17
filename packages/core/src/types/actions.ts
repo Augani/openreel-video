@@ -84,6 +84,8 @@ export type TrackAction =
       params: {
         trackType: "video" | "audio" | "image" | "text" | "graphics";
         position?: number;
+        /** Pre-assigned track ID. When omitted, the executor generates one. */
+        trackId?: string;
       };
     }
   | { type: "track/remove"; params: { trackId: string } }

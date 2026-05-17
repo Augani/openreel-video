@@ -20,6 +20,7 @@ const LAYER_TYPE_ICONS: Record<LayerType, React.ReactNode> = {
   text: <Type size={12} />,
   shape: <Hexagon size={12} />,
   group: <Folder size={12} />,
+  'smart-object': <FolderOpen size={12} />,
 };
 
 export function LayerPanel() {
@@ -171,11 +172,12 @@ export function LayerPanel() {
           >
             All
           </button>
-          {(['image', 'text', 'shape', 'group'] as LayerType[]).map((type) => (
+          {(['image', 'text', 'shape', 'group', 'smart-object'] as LayerType[]).map((type) => (
             <button
               key={type}
               onClick={() => setFilterType(filterType === type ? 'all' : type)}
               onDoubleClick={() => handleSelectAllByType(type)}
+              aria-label={`Filter ${type} layers`}
               className={`p-1.5 rounded transition-colors ${
                 filterType === type ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground hover:bg-accent'
               }`}

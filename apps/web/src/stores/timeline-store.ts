@@ -12,6 +12,7 @@ export type PlaybackState = "stopped" | "playing" | "paused";
 export interface TimelineState {
   playheadPosition: number;
   playbackState: PlaybackState;
+  playbackLockedReason: string | null;
   playbackRate: number;
   pixelsPerSecond: number;
   scrollX: number;
@@ -32,6 +33,8 @@ export interface TimelineState {
   pause: () => void;
   stop: () => void;
   togglePlayback: () => void;
+  lockPlayback: (reason?: string) => void;
+  unlockPlayback: () => void;
   setPlaybackRate: (rate: number) => void;
   setPlayheadPosition: (position: number) => void;
   seekTo: (position: number) => void;
@@ -72,6 +75,7 @@ export const useTimelineStore = create<TimelineState>()(
   subscribeWithSelector((set, get) => ({
     playheadPosition: 0,
     playbackState: "stopped",
+    playbackLockedReason: null,
     playbackRate: 1.0,
 
     pixelsPerSecond: ZOOM_PRESETS.DEFAULT,
@@ -95,6 +99,9 @@ export const useTimelineStore = create<TimelineState>()(
     keyframeEditMode: false,
 
     play: () => {
+      if (get().playbackLockedReason) {
+        return;
+      }
       set({ playbackState: "playing" });
     },
 
@@ -107,12 +114,23 @@ export const useTimelineStore = create<TimelineState>()(
     },
 
     togglePlayback: () => {
-      const { playbackState } = get();
+      const { playbackLockedReason, playbackState } = get();
+      if (playbackLockedReason) {
+        return;
+      }
       if (playbackState === "playing") {
         set({ playbackState: "paused" });
       } else {
         set({ playbackState: "playing" });
       }
+    },
+
+    lockPlayback: (reason?: string) => {
+      set({ playbackLockedReason: reason ?? "Applying effect" });
+    },
+
+    unlockPlayback: () => {
+      set({ playbackLockedReason: null });
     },
 
     setPlaybackRate: (rate: number) => {

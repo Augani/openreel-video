@@ -132,7 +132,7 @@ export const AIGenTab: React.FC = () => {
 
   if (activeFeature) {
     return (
-      <div className="flex-1 flex flex-col overflow-hidden w-full min-w-0">
+      <div className="flex-1 flex flex-col overflow-y-auto w-full min-w-0">
         <button
           onClick={() => navigateAway(null)}
           className="flex items-center gap-2 px-4 py-3 text-text-secondary hover:text-text-primary transition-colors border-b border-border bg-background-secondary shrink-0"

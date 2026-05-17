@@ -375,6 +375,33 @@ export class SpeedEngine {
     const data = this.clipSpeedData.get(clipId);
     return data?.pitchCorrection ?? true;
   }
+
+  getInterpolationInfo(
+    clipId: string,
+    playbackTime: number,
+    sourceFrameRate: number,
+  ): {
+    needsInterpolation: boolean;
+    frameBefore: number;
+    frameAfter: number;
+    t: number;
+  } {
+    const sourceTime = this.getSourceTimeAtPlaybackTime(clipId, playbackTime);
+    const frameDuration = 1 / sourceFrameRate;
+    const exactFrame = sourceTime / frameDuration;
+    const frameBeforeIndex = Math.floor(exactFrame);
+    const frameAfterIndex = frameBeforeIndex + 1;
+    const t = exactFrame - frameBeforeIndex;
+
+    const needsInterpolation = t > 0.01 && t < 0.99;
+
+    return {
+      needsInterpolation,
+      frameBefore: frameBeforeIndex * frameDuration,
+      frameAfter: frameAfterIndex * frameDuration,
+      t,
+    };
+  }
   private getOrCreateSpeedData(
     clipId: string,
     originalDuration: number,

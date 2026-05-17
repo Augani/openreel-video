@@ -54,7 +54,7 @@ Fixes #(issue number)
 ## Checklist
 
 <!-- Ensure all items are complete before submitting -->
-- [ ] My code follows the project's coding style (see [CONTRIBUTING.md](../../CONTRIBUTING.md))
+- [ ] My code follows the project's coding style (see [CONTRIBUTING.md](../CONTRIBUTING.md))
 - [ ] I have performed a self-review of my own code
 - [ ] I have commented complex/non-obvious code
 - [ ] I have updated relevant documentation
@@ -76,4 +76,4 @@ Fixes #(issue number)
 
 Final approval and merge requires human review from Augustus.
 
-Learn more about our [AI-managed workflow](.github/CLAUDE_WORKFLOW.md).
+Learn more about our [AI-managed workflow](CLAUDE_WORKFLOW.md).

@@ -339,6 +339,7 @@ export class ActionExecutor {
         const params = action.params as {
           trackType: string;
           position?: number;
+          trackId?: string;
         };
         const trackNames: Record<string, string> = {
           video: "Video",
@@ -352,7 +353,7 @@ export class ActionExecutor {
             (t: MutableTrack) => t.type === params.trackType,
           ).length + 1;
         const newTrack: MutableTrack = {
-          id: `track-${Date.now()}`,
+          id: params.trackId ?? `track-${Date.now()}`,
           type: params.trackType as Track["type"],
           name: `${trackNames[params.trackType] || params.trackType} ${trackCount}`,
           clips: [],
@@ -457,6 +458,7 @@ export class ActionExecutor {
           mediaId: string;
           startTime: number;
           duration?: number;
+          audioTrackIndex?: number;
         };
         const track = timeline.tracks.find(
           (t: MutableTrack) => t.id === params.trackId,
@@ -473,7 +475,7 @@ export class ActionExecutor {
               ? mediaItem.metadata.duration
               : 5);
           const newClip = {
-            id: `clip-${Date.now()}`,
+            id: crypto.randomUUID(),
             mediaId: params.mediaId,
             trackId: params.trackId,
             startTime: params.startTime,
@@ -491,6 +493,9 @@ export class ActionExecutor {
             },
             volume: 1,
             keyframes: [],
+            ...(params.audioTrackIndex !== undefined
+              ? { audioTrackIndex: params.audioTrackIndex }
+              : {}),
           };
           track.clips = [...track.clips, newClip];
           this.lastAddedIds.set("clip", newClip.id);
@@ -593,7 +598,7 @@ export class ActionExecutor {
 
           const clip2 = {
             ...clip,
-            id: `clip-${Date.now()}`,
+            id: crypto.randomUUID(),
             startTime: splitTime,
             duration: clip.duration - splitOffset,
             inPoint: clip.inPoint + splitOffset,

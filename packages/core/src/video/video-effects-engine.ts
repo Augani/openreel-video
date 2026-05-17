@@ -349,7 +349,12 @@ export type FilterType =
   | "chromaKey"
   | "temperature"
   | "tint"
-  | "tonal";
+  | "tonal"
+  | "shadow"
+  | "glow"
+  | "motion-blur"
+  | "radial-blur"
+  | "chromatic-aberration";
 
 export class VideoEffectsEngine {
   private canvas: OffscreenCanvas | null = null;
@@ -1066,6 +1071,24 @@ export class VideoEffectsEngine {
         this.applyTonal(data, shadows, midtones, highlights);
         break;
       }
+      case "motion-blur": {
+        const distance = (params.distance as number) || 0;
+        const angle = (params.angle as number) || 0;
+        this.applyMotionBlur(data, width, height, distance, angle);
+        break;
+      }
+      case "radial-blur": {
+        const amount = (params.amount as number) || 0;
+        const centerX = (params.centerX as number) || 50;
+        const centerY = (params.centerY as number) || 50;
+        this.applyRadialBlur(data, width, height, amount, centerX, centerY);
+        break;
+      }
+      case "chromatic-aberration": {
+        const amount = (params.amount as number) || 0;
+        this.applyChromaticAberration(data, width, height, amount);
+        break;
+      }
     }
 
     ctx.putImageData(imageData, 0, 0);
@@ -1254,12 +1277,204 @@ export class VideoEffectsEngine {
     }
   }
 
+  private applyMotionBlur(
+    data: Uint8ClampedArray,
+    width: number,
+    height: number,
+    distance: number,
+    angle: number,
+  ): void {
+    const blurDistance = Math.max(0, distance);
+    if (blurDistance <= 0) {
+      return;
+    }
+
+    const copy = new Uint8ClampedArray(data);
+    const sampleCount = Math.max(2, Math.min(16, Math.ceil(blurDistance / 4) + 1));
+    const radians = (angle * Math.PI) / 180;
+    const dirX = Math.cos(radians);
+    const dirY = Math.sin(radians);
+    const maxOffset = blurDistance / 2;
+
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        let red = 0;
+        let green = 0;
+        let blue = 0;
+        let alpha = 0;
+        let samples = 0;
+
+        for (let sampleIndex = 0; sampleIndex < sampleCount; sampleIndex++) {
+          const t = sampleCount === 1 ? 0 : sampleIndex / (sampleCount - 1);
+          const offset = (t - 0.5) * 2 * maxOffset;
+          const sampleX = Math.round(x + dirX * offset);
+          const sampleY = Math.round(y + dirY * offset);
+
+          if (
+            sampleX < 0 ||
+            sampleX >= width ||
+            sampleY < 0 ||
+            sampleY >= height
+          ) {
+            continue;
+          }
+
+          const sampleOffset = (sampleY * width + sampleX) * 4;
+          red += copy[sampleOffset];
+          green += copy[sampleOffset + 1];
+          blue += copy[sampleOffset + 2];
+          alpha += copy[sampleOffset + 3];
+          samples += 1;
+        }
+
+        if (samples === 0) {
+          continue;
+        }
+
+        const pixelOffset = (y * width + x) * 4;
+        data[pixelOffset] = Math.round(red / samples);
+        data[pixelOffset + 1] = Math.round(green / samples);
+        data[pixelOffset + 2] = Math.round(blue / samples);
+        data[pixelOffset + 3] = Math.round(alpha / samples);
+      }
+    }
+  }
+
+  private applyRadialBlur(
+    data: Uint8ClampedArray,
+    width: number,
+    height: number,
+    amount: number,
+    centerX: number,
+    centerY: number,
+  ): void {
+    const blurAmount = Math.max(0, amount);
+    if (blurAmount <= 0) {
+      return;
+    }
+
+    const copy = new Uint8ClampedArray(data);
+    const sampleCount = Math.max(2, Math.min(12, Math.ceil(blurAmount / 8) + 2));
+    const strength = Math.max(0, Math.min(1, blurAmount / 100));
+    const centerPixelX = (centerX / 100) * Math.max(0, width - 1);
+    const centerPixelY = (centerY / 100) * Math.max(0, height - 1);
+
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const deltaX = x - centerPixelX;
+        const deltaY = y - centerPixelY;
+        let red = 0;
+        let green = 0;
+        let blue = 0;
+        let alpha = 0;
+        let samples = 0;
+
+        for (let sampleIndex = 0; sampleIndex < sampleCount; sampleIndex++) {
+          const t = sampleCount === 1 ? 0 : sampleIndex / (sampleCount - 1);
+          const scale = 1 + (t - 0.5) * strength * 1.5;
+          const sampleX = Math.round(centerPixelX + deltaX * scale);
+          const sampleY = Math.round(centerPixelY + deltaY * scale);
+
+          if (
+            sampleX < 0 ||
+            sampleX >= width ||
+            sampleY < 0 ||
+            sampleY >= height
+          ) {
+            continue;
+          }
+
+          const sampleOffset = (sampleY * width + sampleX) * 4;
+          red += copy[sampleOffset];
+          green += copy[sampleOffset + 1];
+          blue += copy[sampleOffset + 2];
+          alpha += copy[sampleOffset + 3];
+          samples += 1;
+        }
+
+        if (samples === 0) {
+          continue;
+        }
+
+        const pixelOffset = (y * width + x) * 4;
+        data[pixelOffset] = Math.round(red / samples);
+        data[pixelOffset + 1] = Math.round(green / samples);
+        data[pixelOffset + 2] = Math.round(blue / samples);
+        data[pixelOffset + 3] = Math.round(alpha / samples);
+      }
+    }
+  }
+
+  private applyChromaticAberration(
+    data: Uint8ClampedArray,
+    width: number,
+    height: number,
+    amount: number,
+  ): void {
+    const offset = Math.max(0, Math.round(amount / 2));
+    if (offset <= 0) {
+      return;
+    }
+
+    const copy = new Uint8ClampedArray(data);
+
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const pixelOffset = (y * width + x) * 4;
+        const redX = Math.min(width - 1, x + offset);
+        const blueX = Math.max(0, x - offset);
+        const redOffset = (y * width + redX) * 4;
+        const blueOffset = (y * width + blueX) * 4;
+
+        data[pixelOffset] = copy[redOffset];
+        data[pixelOffset + 1] = copy[pixelOffset + 1];
+        data[pixelOffset + 2] = copy[blueOffset + 2];
+        data[pixelOffset + 3] = copy[pixelOffset + 3];
+      }
+    }
+  }
+
+  private toFilterColor(color: string | undefined, opacity: number): string {
+    const alpha = Math.max(0, Math.min(1, opacity));
+    if (!color) {
+      return `rgba(0, 0, 0, ${alpha})`;
+    }
+
+    if (color.startsWith("rgb(" ) || color.startsWith("rgba(")) {
+      return color;
+    }
+
+    const normalized = color.replace(/^#/, "");
+    const hex =
+      normalized.length === 3
+        ? normalized
+            .split("")
+            .map((char) => `${char}${char}`)
+            .join("")
+        : normalized;
+
+    if (hex.length !== 6) {
+      return `rgba(0, 0, 0, ${alpha})`;
+    }
+
+    const red = Number.parseInt(hex.slice(0, 2), 16);
+    const green = Number.parseInt(hex.slice(2, 4), 16);
+    const blue = Number.parseInt(hex.slice(4, 6), 16);
+
+    if (Number.isNaN(red) || Number.isNaN(green) || Number.isNaN(blue)) {
+      return `rgba(0, 0, 0, ${alpha})`;
+    }
+
+    return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
+  }
+
   private buildCSSFilter(effect: Effect): string {
-    const params = effect.params as Record<string, number>;
+    const params = effect.params as Record<string, number | string>;
+    const value = typeof params.value === "number" ? params.value : 0;
 
     switch (effect.type) {
       case "brightness":
-        return `brightness(${1 + (params.value || 0) / 100})`;
+        return `brightness(${1 + value / 100})`;
       case "contrast":
         return `contrast(${params.value || 1})`;
       case "saturation":
@@ -1268,6 +1483,29 @@ export class VideoEffectsEngine {
         return `hue-rotate(${params.rotation || 0}deg)`;
       case "blur":
         return `blur(${params.radius || 0}px)`;
+      case "shadow": {
+        const color = this.toFilterColor(
+          typeof params.color === "string" ? params.color : undefined,
+          typeof params.opacity === "number" ? params.opacity : 0.8,
+        );
+        return `drop-shadow(${params.offsetX || 0}px ${params.offsetY || 0}px ${params.blur || 0}px ${color})`;
+      }
+      case "glow": {
+        const radius = Number(params.radius || 0);
+        const intensity =
+          typeof params.intensity === "number"
+            ? Math.max(0, Math.min(3, params.intensity))
+            : 1;
+        const primaryColor = this.toFilterColor(
+          typeof params.color === "string" ? params.color : undefined,
+          Math.min(1, 0.35 * intensity),
+        );
+        const secondaryColor = this.toFilterColor(
+          typeof params.color === "string" ? params.color : undefined,
+          Math.min(1, 0.2 * intensity),
+        );
+        return `drop-shadow(0 0 ${radius}px ${primaryColor}) drop-shadow(0 0 ${Math.max(1, radius / 2)}px ${secondaryColor})`;
+      }
       default:
         return "";
     }
@@ -1348,6 +1586,11 @@ export class VideoEffectsEngine {
       "temperature",
       "tint",
       "tonal",
+      "shadow",
+      "glow",
+      "motion-blur",
+      "radial-blur",
+      "chromatic-aberration",
     ];
   }
 

@@ -49,6 +49,12 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
 }) => {
   const { getMediaItem } = useProjectStore();
   const { snapSettings } = useUIStore();
+  const effectApplicationClipId = useUIStore(
+    (state) => state.effectApplicationClipId,
+  );
+  const effectApplicationLabel = useUIStore(
+    (state) => state.effectApplicationLabel,
+  );
   const { playheadPosition } = useTimelineStore();
   const mediaItem = getMediaItem(clip.mediaId);
   const [isDragging, setIsDragging] = useState(false);
@@ -339,6 +345,7 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
   const clipName = mediaItem?.name || clip.mediaId.slice(0, 8);
 
   const isInteracting = isDragging || isTrimming;
+  const isApplyingEffect = effectApplicationClipId === clip.id;
 
   return (
     <ContextMenu>
@@ -353,7 +360,9 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
               : "cursor-grab"
           } ${
             isSelected && !isDragging
-              ? "ring-2 ring-primary border-primary z-10"
+              ? isApplyingEffect
+                ? "ring-2 ring-amber-400 border-amber-300 z-10"
+                : "ring-2 ring-primary border-primary z-10"
               : !isDragging ? "border-opacity-30 hover:border-opacity-60 hover:brightness-110" : ""
           } ${clipStyle.bg} border ${clipStyle.border} ${
             track.locked ? "cursor-not-allowed opacity-60" : ""
@@ -368,6 +377,16 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
             pointerEvents: isDragging ? 'none' : 'auto',
           }}
         >
+      {isApplyingEffect && (
+        <>
+          <div className="absolute -inset-px rounded-lg border border-amber-300/80 shadow-[0_0_18px_rgba(251,191,36,0.55)] pointer-events-none animate-pulse" />
+          <div className="absolute inset-0 bg-[linear-gradient(110deg,transparent_0%,rgba(255,255,255,0.08)_28%,rgba(251,191,36,0.28)_50%,rgba(255,255,255,0.08)_72%,transparent_100%)] pointer-events-none animate-pulse" />
+          <div className="absolute top-1 right-1 rounded-full bg-black/70 px-2 py-0.5 text-[9px] font-medium uppercase tracking-[0.12em] text-amber-200 pointer-events-none">
+            {effectApplicationLabel ?? "Applying effect"}
+          </div>
+        </>
+      )}
+
       {isVideo &&
         (mediaItem?.filmstripThumbnails?.length || mediaItem?.thumbnailUrl) && (
           <div className="absolute inset-0 flex pointer-events-none">
@@ -440,9 +459,9 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
         </span>
       </div>
 
-      {isAudio && (
+      {(isAudio || isVideo) && (
         <>
-          <div className="absolute inset-0 flex items-center opacity-50 px-1 pointer-events-none">
+          <div className={`absolute inset-x-0 px-1 pointer-events-none ${isAudio ? "inset-y-0 flex items-center opacity-50" : "bottom-0 h-1/3 flex items-end opacity-30"}`}>
             {mediaItem?.waveformData ? (
               <svg
                 className="w-full h-full"
@@ -452,13 +471,13 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
                 <path
                   d={generateWaveformPath(mediaItem.waveformData, 100)}
                   stroke="currentColor"
-                  className="text-blue-400"
+                  className={isAudio ? "text-blue-400" : "text-green-300"}
                   fill="none"
                   strokeWidth="1"
                   vectorEffect="non-scaling-stroke"
                 />
               </svg>
-            ) : (
+            ) : isAudio ? (
               <svg className="w-full h-full" preserveAspectRatio="none">
                 <path
                   d="M0,20 Q10,5 20,20 T40,20 T60,20 T80,20 T100,20"
@@ -468,15 +487,17 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
                   vectorEffect="non-scaling-stroke"
                 />
               </svg>
-            )}
+            ) : null}
           </div>
-          <div className="absolute inset-x-0 top-1 flex justify-center opacity-0 group-hover:opacity-60 transition-opacity pointer-events-none">
-            <div className="flex gap-0.5">
-              <div className="w-1 h-1 rounded-full bg-blue-300" />
-              <div className="w-1 h-1 rounded-full bg-blue-300" />
-              <div className="w-1 h-1 rounded-full bg-blue-300" />
+          {isAudio && (
+            <div className="absolute inset-x-0 top-1 flex justify-center opacity-0 group-hover:opacity-60 transition-opacity pointer-events-none">
+              <div className="flex gap-0.5">
+                <div className="w-1 h-1 rounded-full bg-blue-300" />
+                <div className="w-1 h-1 rounded-full bg-blue-300" />
+                <div className="w-1 h-1 rounded-full bg-blue-300" />
+              </div>
             </div>
-          </div>
+          )}
         </>
       )}
 
@@ -499,27 +520,35 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
       )}
 
       {isSelected && (
-        <div className="absolute inset-0 border-2 border-primary rounded-lg pointer-events-none shadow-[inset_0_0_10px_rgba(34,197,94,0.2)]" />
+        <div className="absolute inset-0 border-2 border-primary rounded-lg pointer-events-none" />
       )}
 
       {(isVideo || isImage || isAudio) && onTrimClip && (
         <>
           <div
             onMouseDown={handleTrimMouseDown("left")}
-            className={`absolute left-0 top-0 bottom-0 w-3 cursor-ew-resize z-20 opacity-0 group-hover:opacity-100 transition-opacity ${
-              isAudio ? "hover:bg-blue-400/50" : isVideo ? "hover:bg-green-400/50" : "hover:bg-purple-400/50"
-            }`}
+            className={`absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize z-20 flex items-center justify-center transition-opacity ${
+              isSelected ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+            } ${isSelected ? "bg-primary" : isAudio ? "hover:bg-blue-400/50" : isVideo ? "hover:bg-green-400/50" : "hover:bg-purple-400/50"}`}
+            style={{ borderRadius: "6px 0 0 6px" }}
             onClick={(e) => e.stopPropagation()}
-            title="Drag to adjust start"
-          />
+          >
+            {isSelected && (
+              <div className="w-0.5 h-3 bg-primary-foreground/80 rounded-full" />
+            )}
+          </div>
           <div
             onMouseDown={handleTrimMouseDown("right")}
-            className={`absolute right-0 top-0 bottom-0 w-3 cursor-ew-resize z-20 opacity-0 group-hover:opacity-100 transition-opacity ${
-              isAudio ? "hover:bg-blue-400/50" : isVideo ? "hover:bg-green-400/50" : "hover:bg-purple-400/50"
-            }`}
+            className={`absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize z-20 flex items-center justify-center transition-opacity ${
+              isSelected ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+            } ${isSelected ? "bg-primary" : isAudio ? "hover:bg-blue-400/50" : isVideo ? "hover:bg-green-400/50" : "hover:bg-purple-400/50"}`}
+            style={{ borderRadius: "0 6px 6px 0" }}
             onClick={(e) => e.stopPropagation()}
-            title="Drag to adjust end"
-          />
+          >
+            {isSelected && (
+              <div className="w-0.5 h-3 bg-primary-foreground/80 rounded-full" />
+            )}
+          </div>
         </>
       )}
 

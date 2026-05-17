@@ -4,6 +4,8 @@ import type {
   MediaItem,
   Track,
   Clip,
+  AutomationPoint,
+  Transition,
   Action,
   ActionResult,
   TextClip,
@@ -23,6 +25,10 @@ import type {
   Keyframe,
   Transform,
   Subtitle,
+  AppliedEditingTemplate,
+  EditingTemplate,
+  EditingTemplatePrimitive,
+  ResolvedEditingTemplateOverlay,
 } from "@openreel/core";
 import { ActionExecutor, ActionHistory } from "@openreel/core";
 import type {
@@ -36,11 +42,53 @@ export type ClipHistoryEntryType = "shape" | "text" | "svg" | "sticker";
 
 export interface ClipHistoryEntry {
   type: ClipHistoryEntryType;
+  timestamp: number;
   clipId: string;
   trackId: string;
   clipData: ShapeClip | TextClip | SVGClip | StickerClip;
   hadEmptyTrackUndo?: boolean;
   trackType?: "video" | "audio" | "image" | "text" | "graphics";
+}
+
+export interface EditingTemplateTrackSnapshot {
+  track: Track;
+  position: number;
+}
+
+export interface EditingTemplateOverlayPlacement {
+  trackId: string;
+  overlay: ResolvedEditingTemplateOverlay;
+}
+
+export interface EditingTemplateApplicationState {
+  ownerClipId: string;
+  templateId: string;
+  applicationId: string;
+  appliedTemplate: AppliedEditingTemplate;
+  addedEffects: Effect[];
+  addedAudioEffects: Effect[];
+  addedKeyframes: Keyframe[];
+  overlays: EditingTemplateOverlayPlacement[];
+  trackSnapshots: EditingTemplateTrackSnapshot[];
+}
+
+export interface EditingTemplateHistoryEntry
+  extends EditingTemplateApplicationState {
+  type: "editing-template";
+  mode: "apply" | "update";
+  timestamp: number;
+  description: string;
+  previousState?: EditingTemplateApplicationState;
+}
+
+export interface AudioDuckingSettings {
+  enabled: boolean;
+  sourceTrackId: string | null;
+  threshold: number;
+  reduction: number;
+  attack: number;
+  release: number;
+  holdTime: number;
 }
 
 export interface ProjectState {
@@ -50,6 +98,8 @@ export interface ProjectState {
   actionHistory: ActionHistory;
   clipUndoStack: ClipHistoryEntry[];
   clipRedoStack: ClipHistoryEntry[];
+  templateUndoStack: EditingTemplateHistoryEntry[];
+  templateRedoStack: EditingTemplateHistoryEntry[];
   isLoading: boolean;
   error: string | null;
   clipboard: Clip[];
@@ -111,6 +161,17 @@ export interface ProjectState {
     trimStart: boolean,
   ) => Promise<ActionResult>;
   getClip: (clipId: string) => Clip | undefined;
+  addClipTransition: (transition: Transition) => Transition | null;
+  updateClipTransition: (
+    transitionId: string,
+    updates: Partial<Pick<Transition, "type" | "duration" | "params">>,
+  ) => Transition | null;
+  removeClipTransition: (transitionId: string) => boolean;
+  getClipTransition: (transitionId: string) => Transition | undefined;
+  getClipTransitionBetweenClips: (
+    clipAId: string,
+    clipBId: string,
+  ) => Transition | undefined;
   updateClipTransform: (
     clipId: string,
     transform: Partial<Transform>,
@@ -121,6 +182,23 @@ export interface ProjectState {
   duplicateClip: (clipId: string) => Promise<ActionResult>;
   copyEffects: (clipId: string) => void;
   pasteEffects: (clipId: string) => Promise<ActionResult>;
+
+  getEditingTemplates: () => EditingTemplate[];
+  getEditingTemplate: (templateId: string) => EditingTemplate | undefined;
+  applyEditingTemplate: (
+    templateId: string,
+    clipId: string,
+    overrides?: Record<string, EditingTemplatePrimitive>,
+  ) => string | null;
+  updateEditingTemplateApplication: (
+    clipId: string,
+    applicationId: string,
+    overrides?: Record<string, EditingTemplatePrimitive>,
+  ) => boolean;
+  removeEditingTemplateApplication: (
+    clipId: string,
+    applicationId: string,
+  ) => boolean;
 
   createTextClip: (
     trackId: string,
@@ -141,6 +219,10 @@ export interface ProjectState {
   updateTextTransform: (
     clipId: string,
     transform: Partial<Transform>,
+  ) => TextClip | null;
+  updateTextBehindSubject: (
+    clipId: string,
+    behindSubject: boolean,
   ) => TextClip | null;
   getTextClip: (clipId: string) => TextClip | undefined;
   getAllTextClips: () => TextClip[];
@@ -182,7 +264,7 @@ export interface ProjectState {
   updateShapeTransform: (
     clipId: string,
     transform: Partial<Transform>,
-  ) => ShapeClip | null;
+  ) => ShapeClip | SVGClip | StickerClip | null;
   importSVG: (
     svgContent: string,
     trackId: string,
@@ -272,7 +354,18 @@ export interface ProjectState {
     effectId: string,
     enabled: boolean,
   ) => boolean;
+  setAudioEffectPreviewBypass: (
+    clipId: string,
+    effectId: string,
+    bypassed: boolean,
+  ) => boolean;
   getAudioEffects: (clipId: string) => Effect[];
+  setClipAudioDucking: (
+    clipId: string,
+    settings: AudioDuckingSettings,
+    points: AutomationPoint[],
+  ) => boolean;
+  clearClipAudioDucking: (clipId: string) => boolean;
 
   updateClipKeyframes: (clipId: string, keyframes: Keyframe[]) => boolean;
 

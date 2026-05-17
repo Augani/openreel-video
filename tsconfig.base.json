@@ -21,6 +21,8 @@
     "paths": {
       "@openreel/core": ["./packages/core/src/index.ts"],
       "@openreel/core/*": ["./packages/core/src/*"],
+      "@openreel/image-core": ["./packages/image-core/src/index.ts"],
+      "@openreel/image-core/*": ["./packages/image-core/src/*"],
       "@openreel/ui": ["./packages/ui/src/index.ts"],
       "@openreel/ui/*": ["./packages/ui/src/*"]
     }

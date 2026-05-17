@@ -39,7 +39,6 @@ import {
 } from 'lucide-react';
 import { useUIStore, Tool } from '../../../stores/ui-store';
 import { useProjectStore } from '../../../stores/project-store';
-import { useHistoryStore } from '../../../stores/history-store';
 import { ZoomControl } from './ZoomControl';
 
 interface ToolItem {
@@ -247,21 +246,14 @@ export function Toolbar() {
     openExportDialog,
   } = useUIStore();
 
-  const { project, setProjectName } = useProjectStore();
-  const { canUndo, canRedo, undo, redo } = useHistoryStore();
+  const { project, setProjectName, undo, redo, canUndo, canRedo } = useProjectStore();
 
   const handleUndo = () => {
-    const state = undo();
-    if (state) {
-      useProjectStore.getState().loadProject(state);
-    }
+    undo();
   };
 
   const handleRedo = () => {
-    const state = redo();
-    if (state) {
-      useProjectStore.getState().loadProject(state);
-    }
+    redo();
   };
 
   const handleSaveProject = () => {

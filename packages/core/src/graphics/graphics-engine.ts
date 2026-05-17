@@ -19,7 +19,7 @@ import type {
   EmphasisAnimation,
 } from "./types";
 import { DEFAULT_SHAPE_STYLE, DEFAULT_GRAPHIC_TRANSFORM } from "./types";
-import type { Transform, Keyframe } from "../types/timeline";
+import type { Transform, Keyframe, ClipMetadata } from "../types/timeline";
 import { AnimationEngine } from "../video/animation-engine";
 
 interface AnimatedGraphicState {
@@ -78,7 +78,7 @@ export class GraphicsEngine {
     startTime: number,
     duration: number,
   ): ShapeClip {
-    const id = this.generateId();
+    const id = params.id || this.generateId();
     const style: ShapeStyle = {
       ...DEFAULT_SHAPE_STYLE,
       ...params.style,
@@ -97,6 +97,7 @@ export class GraphicsEngine {
       transform: { ...DEFAULT_GRAPHIC_TRANSFORM },
       keyframes: [],
       points: params.points,
+      metadata: params.metadata,
     };
 
     this.shapeClips.set(id, shapeClip);
@@ -265,6 +266,7 @@ export class GraphicsEngine {
       startTime?: number;
       duration?: number;
       transform?: Partial<Transform>;
+      keyframes?: Keyframe[];
       blendMode?: import("../video/types").BlendMode;
       blendOpacity?: number;
       emphasisAnimation?: EmphasisAnimation;
@@ -280,6 +282,7 @@ export class GraphicsEngine {
       transform: updates.transform
         ? { ...existing.transform, ...updates.transform }
         : existing.transform,
+      keyframes: updates.keyframes ?? existing.keyframes,
       blendMode: updates.blendMode ?? existing.blendMode,
       blendOpacity: updates.blendOpacity ?? existing.blendOpacity,
       emphasisAnimation:
@@ -322,9 +325,10 @@ export class GraphicsEngine {
     trackId: string,
     startTime: number,
     duration: number,
+    options?: { id?: string; metadata?: ClipMetadata },
   ): SVGClip {
     const parsed = this.parseSVG(svgContent);
-    const id = this.generateId();
+    const id = options?.id || this.generateId();
 
     const svgClip: SVGClip = {
       id,
@@ -352,6 +356,7 @@ export class GraphicsEngine {
         duration: 0.5,
         easing: "ease-in",
       },
+      metadata: options?.metadata,
     };
 
     this.svgClips.set(id, svgClip);
@@ -561,27 +566,89 @@ export class GraphicsEngine {
    * Note: SVG must be converted to image blob first due to canvas limitations with direct SVG rendering.
    * URL.createObjectURL is revoked in finally to prevent memory leaks.
    */
+  private getAnimatedSVGSourceInset(
+    animatedState: AnimatedGraphicState,
+    width: number,
+    height: number,
+  ): number {
+    const transformIsAnimating =
+      Math.abs(animatedState.scale - 1) > 0.001 ||
+      Math.abs((animatedState.scaleX ?? 1) - 1) > 0.001 ||
+      Math.abs((animatedState.scaleY ?? 1) - 1) > 0.001 ||
+      Math.abs(animatedState.offsetX) > 0.001 ||
+      Math.abs(animatedState.offsetY) > 0.001 ||
+      Math.abs(animatedState.rotation) > 0.001;
+
+    if (!transformIsAnimating || width <= 2 || height <= 2) {
+      return 0;
+    }
+
+    const desiredInset = Math.max(
+      2,
+      Math.ceil(Math.min(width, height) * 0.0125),
+    );
+    const maxInset = Math.floor((Math.min(width, height) - 1) / 2);
+    return Math.min(16, desiredInset, maxInset);
+  }
+
   private async renderSVG(
     ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
     svg: SVGClip,
-    _width: number,
-    _height: number,
+    width: number,
+    height: number,
     animatedState: AnimatedGraphicState,
   ): Promise<void> {
-    const svgContent = svg.svgContent;
+    const svgAspect = svg.viewBox.width / svg.viewBox.height;
+    const scaleX = animatedState.transform.scale.x;
+    const scaleY = animatedState.transform.scale.y;
+    const maxScale = Math.max(Math.abs(scaleX), Math.abs(scaleY), 1);
+    const rasterScale = Math.ceil(maxScale * 2) / 2;
 
-    const blob = new Blob([svgContent], { type: "image/svg+xml" });
+    let renderWidth: number;
+    let renderHeight: number;
+    if (svgAspect > 1) {
+      renderWidth = Math.ceil(width * rasterScale);
+      renderHeight = Math.ceil(renderWidth / svgAspect);
+    } else {
+      renderHeight = Math.ceil(height * rasterScale);
+      renderWidth = Math.ceil(renderHeight * svgAspect);
+    }
+
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(svg.svgContent, "image/svg+xml");
+    const svgElement = doc.querySelector("svg");
+    if (svgElement) {
+      svgElement.setAttribute("width", String(renderWidth));
+      svgElement.setAttribute("height", String(renderHeight));
+    }
+    const serializer = new XMLSerializer();
+    const scaledSvgContent = svgElement
+      ? serializer.serializeToString(svgElement)
+      : svg.svgContent;
+
+    const blob = new Blob([scaledSvgContent], { type: "image/svg+xml" });
     const url = URL.createObjectURL(blob);
 
     try {
       const img = await this.loadImage(url);
 
-      const svgWidth = svg.viewBox.width;
-      const svgHeight = svg.viewBox.height;
-
       if (animatedState.blur > 0) {
         ctx.filter = `blur(${animatedState.blur}px)`;
       }
+
+      const drawWidth = renderWidth / rasterScale;
+      const drawHeight = renderHeight / rasterScale;
+      const sourceInset = this.getAnimatedSVGSourceInset(
+        animatedState,
+        renderWidth,
+        renderHeight,
+      );
+      const sourceWidth = Math.max(1, renderWidth - sourceInset * 2);
+      const sourceHeight = Math.max(1, renderHeight - sourceInset * 2);
+      const drawX = -drawWidth / 2 + sourceInset / rasterScale;
+      const drawY = -drawHeight / 2 + sourceInset / rasterScale;
+      const sourceDrawWidth = sourceWidth / rasterScale;
+      const sourceDrawHeight = sourceHeight / rasterScale;
 
       if (
         svg.colorStyle &&
@@ -589,20 +656,50 @@ export class GraphicsEngine {
         (svg.colorStyle.colorMode === "tint" ||
           svg.colorStyle.colorMode === "replace")
       ) {
-        const tempCanvas = new OffscreenCanvas(svgWidth, svgHeight);
+        const tempCanvas = new OffscreenCanvas(renderWidth, renderHeight);
         const tempCtx = tempCanvas.getContext("2d");
         if (tempCtx) {
-          tempCtx.drawImage(img, 0, 0, svgWidth, svgHeight);
+          tempCtx.drawImage(img, 0, 0, renderWidth, renderHeight);
           tempCtx.globalCompositeOperation = "source-in";
           tempCtx.fillStyle = svg.colorStyle.tintColor || "#ffffff";
           tempCtx.globalAlpha = svg.colorStyle.tintOpacity ?? 1;
-          tempCtx.fillRect(0, 0, svgWidth, svgHeight);
-          ctx.drawImage(tempCanvas, -svgWidth / 2, -svgHeight / 2);
+          tempCtx.fillRect(0, 0, renderWidth, renderHeight);
+          ctx.drawImage(
+            tempCanvas,
+            sourceInset,
+            sourceInset,
+            sourceWidth,
+            sourceHeight,
+            drawX,
+            drawY,
+            sourceDrawWidth,
+            sourceDrawHeight,
+          );
         } else {
-          ctx.drawImage(img, -svgWidth / 2, -svgHeight / 2, svgWidth, svgHeight);
+          ctx.drawImage(
+            img,
+            sourceInset,
+            sourceInset,
+            sourceWidth,
+            sourceHeight,
+            drawX,
+            drawY,
+            sourceDrawWidth,
+            sourceDrawHeight,
+          );
         }
       } else {
-        ctx.drawImage(img, -svgWidth / 2, -svgHeight / 2, svgWidth, svgHeight);
+        ctx.drawImage(
+          img,
+          sourceInset,
+          sourceInset,
+          sourceWidth,
+          sourceHeight,
+          drawX,
+          drawY,
+          sourceDrawWidth,
+          sourceDrawHeight,
+        );
       }
 
       ctx.filter = "none";
@@ -1701,6 +1798,7 @@ export class GraphicsEngine {
       startTime?: number;
       duration?: number;
       transform?: Partial<Transform>;
+      keyframes?: Keyframe[];
       entryAnimation?: GraphicAnimation;
       exitAnimation?: GraphicAnimation;
       colorStyle?: SVGColorStyle;
@@ -1722,6 +1820,7 @@ export class GraphicsEngine {
       transform: updates.transform
         ? { ...existing.transform, ...updates.transform }
         : existing.transform,
+      keyframes: updates.keyframes ?? existing.keyframes,
       entryAnimation: updates.entryAnimation ?? existing.entryAnimation,
       exitAnimation: updates.exitAnimation ?? existing.exitAnimation,
       colorStyle: updates.colorStyle ?? existing.colorStyle,
@@ -1837,6 +1936,7 @@ export class GraphicsEngine {
       startTime?: number;
       duration?: number;
       transform?: Partial<Transform>;
+      keyframes?: Keyframe[];
       blendMode?: import("../video/types").BlendMode;
       blendOpacity?: number;
       emphasisAnimation?: EmphasisAnimation;
@@ -1855,6 +1955,7 @@ export class GraphicsEngine {
       transform: updates.transform
         ? { ...existing.transform, ...updates.transform }
         : existing.transform,
+      keyframes: updates.keyframes ?? existing.keyframes,
       blendMode: updates.blendMode ?? existing.blendMode,
       blendOpacity: updates.blendOpacity ?? existing.blendOpacity,
       emphasisAnimation:

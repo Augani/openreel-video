@@ -99,7 +99,7 @@ Visit **[openreel.video](https://openreel.video)** to start editing immediately.
 ```bash
 # Clone the repository
 git clone https://github.com/Augani/openreel-video.git
-cd openreel
+cd openreel-video
 
 # Install dependencies (requires Node.js 18+)
 pnpm install
@@ -294,6 +294,12 @@ See [LICENSE](LICENSE) for details.
 - **GitHub Issues** - Bug reports and feature requests
 - **GitHub Discussions** - Questions and community chat
 - **Twitter/X** - [@python_xi](https://x.com/python_xi)
+
+---
+
+## $OPENREEL Token
+
+CA: `B7wDnfrdtvdG7SCkRjSMJ6LkVwGWvdWrQ75iV8G9pump`
 
 ---
 

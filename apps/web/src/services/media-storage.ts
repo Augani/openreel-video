@@ -75,3 +75,20 @@ export async function getStorageStats(): Promise<{
     mediaCount: usage.mediaItems,
   };
 }
+
+export async function clearAllStorage(): Promise<void> {
+  await storage.clearAllData();
+
+  const databasesToDelete = ["openreel-autosave", "openreel-projects", "openreel-templates"];
+  await Promise.allSettled(
+    databasesToDelete.map(
+      (dbName) =>
+        new Promise<void>((resolve, reject) => {
+          const request = indexedDB.deleteDatabase(dbName);
+          request.onsuccess = () => resolve();
+          request.onerror = () => reject(request.error);
+          request.onblocked = () => resolve();
+        }),
+    ),
+  );
+}

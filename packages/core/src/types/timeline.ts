@@ -1,5 +1,6 @@
 import type { TransitionType } from "./effects";
 import type { EmphasisAnimation } from "../graphics/types";
+import type { StabilizationProfile } from "../video/stabilization/types";
 
 export interface Timeline {
   readonly tracks: Track[];
@@ -36,6 +37,36 @@ export interface Track {
   readonly solo: boolean;
 }
 
+export interface EditingTemplateApplicationSource {
+  readonly templateId: string;
+  readonly applicationId: string;
+  readonly ownerClipId: string;
+  readonly ownerTrackId?: string;
+  readonly controlValues?: Record<string, unknown>;
+}
+
+export interface AppliedEditingTemplate {
+  readonly templateId: string;
+  readonly applicationId: string;
+  readonly name: string;
+  readonly category?: string;
+  readonly appliedAt: number;
+  readonly controlValues?: Record<string, unknown>;
+}
+
+export interface ClipMetadata {
+  readonly templateSource?: EditingTemplateApplicationSource;
+  readonly appliedTemplates?: AppliedEditingTemplate[];
+  readonly templateManaged?: boolean;
+  readonly templateTrackType?: "text" | "graphics";
+  readonly [key: string]: unknown;
+}
+
+export interface EffectMetadata {
+  readonly templateSource?: EditingTemplateApplicationSource;
+  readonly [key: string]: unknown;
+}
+
 export interface Clip {
   readonly id: string;
   readonly mediaId: string;
@@ -58,7 +89,21 @@ export interface Clip {
   readonly keyframes: Keyframe[];
   readonly speed?: number;
   readonly reversed?: boolean;
+  readonly smoothSlowMo?: boolean;
+  readonly interpolationQuality?: "low" | "medium" | "high";
+  readonly stabilization?: {
+    enabled: boolean;
+    strength: number;
+    cropMode: "auto" | "none";
+    analyzed?: boolean;
+    analysisVersion?: number;
+    profile?: StabilizationProfile;
+  };
   readonly emphasisAnimation?: EmphasisAnimation;
+  /** Zero-based index of the audio track within the source media file to use for this clip.
+   * Undefined or 0 means the primary/first audio track. */
+  readonly audioTrackIndex?: number;
+  readonly metadata?: ClipMetadata;
 }
 
 export interface Effect {
@@ -66,6 +111,7 @@ export interface Effect {
   readonly type: string;
   readonly params: Record<string, unknown>;
   readonly enabled: boolean;
+  readonly metadata?: EffectMetadata;
 }
 
 export type FitMode = "contain" | "cover" | "stretch" | "none";

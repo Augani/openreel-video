@@ -152,6 +152,17 @@ export const Timeline: React.FC = () => {
     return Math.max(maxEnd, 60); // Minimum 60 seconds
   }, [tracks]);
 
+  const playheadSnapPoints = useMemo(() => {
+    const points = new Set<number>();
+    for (const track of tracks) {
+      for (const clip of track.clips) {
+        points.add(clip.startTime);
+        points.add(clip.startTime + clip.duration);
+      }
+    }
+    return Array.from(points).sort((a, b) => a - b);
+  }, [tracks]);
+
   const totalTracksHeight = useMemo(() => {
     let height = 0;
     for (const track of tracks) {
@@ -936,6 +947,7 @@ export const Timeline: React.FC = () => {
                 pixelsPerSecond={pixelsPerSecond}
                 scrollX={scrollX}
                 viewportWidth={viewportWidth}
+                snapPoints={playheadSnapPoints}
                 onSeek={(time) => {
                   const bridge = getPlaybackBridge();
                   bridge.scrubTo(time);

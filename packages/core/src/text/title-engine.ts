@@ -1,4 +1,4 @@
-import type { Transform, Keyframe } from "../types/timeline";
+import type { Transform, Keyframe, ClipMetadata } from "../types/timeline";
 import type {
   TextClip,
   TextStyle,
@@ -19,6 +19,7 @@ export interface CreateTextClipOptions {
   style?: Partial<TextStyle>;
   transform?: Partial<Transform>;
   animation?: TextAnimation;
+  metadata?: ClipMetadata;
 }
 
 export interface UpdateTextClipOptions {
@@ -32,6 +33,8 @@ export interface UpdateTextClipOptions {
   blendMode?: import("../video/types").BlendMode;
   blendOpacity?: number;
   emphasisAnimation?: import("../graphics/types").EmphasisAnimation;
+  behindSubject?: boolean;
+  metadata?: ClipMetadata;
 }
 
 export class TitleEngine {
@@ -78,6 +81,7 @@ export class TitleEngine {
       transform,
       animation: options.animation,
       keyframes: [],
+      metadata: options.metadata,
     };
 
     this.textClips.set(id, textClip);
@@ -124,6 +128,9 @@ export class TitleEngine {
       blendOpacity: updates.blendOpacity ?? existing.blendOpacity,
       emphasisAnimation:
         updates.emphasisAnimation ?? existing.emphasisAnimation,
+      behindSubject:
+        updates.behindSubject ?? existing.behindSubject,
+      metadata: updates.metadata ?? existing.metadata,
     };
 
     this.textClips.set(id, updatedClip);

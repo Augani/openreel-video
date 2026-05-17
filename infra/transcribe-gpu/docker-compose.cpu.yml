@@ -1,0 +1,12 @@
+services:
+  transcribe:
+    build:
+      context: .
+      dockerfile: Dockerfile.cpu
+    ports:
+      - "8000:8000"
+    restart: always
+    environment:
+      - WHISPER_MODEL=large-v3-turbo
+      - WHISPER_DEVICE=cpu
+      - WHISPER_COMPUTE_TYPE=int8

@@ -15,14 +15,17 @@ import {
   Droplets,
 } from "lucide-react";
 import type {
+  Clip as TimelineClip,
   Keyframe,
   EasingType,
   Transform,
   GraphicClip,
+  Transition,
 } from "@openreel/core";
 import { useProjectStore } from "../../../stores/project-store";
 import { useEngineStore } from "../../../stores/engine-store";
 import { toast } from "../../../stores/notification-store";
+import { TransitionInspector } from "./TransitionInspector";
 import {
   Select,
   SelectTrigger,
@@ -101,6 +104,15 @@ type ClipType = "regular" | "text";
 interface CanvasDimensions {
   width: number;
   height: number;
+}
+
+interface AdjacentTransitionConfig {
+  key: "incoming" | "outgoing";
+  title: string;
+  description: string;
+  clipA: TimelineClip;
+  clipB: TimelineClip;
+  transition?: Transition;
 }
 
 function calculateSlideOffsets(
@@ -901,15 +913,60 @@ export const ClipTransitionSection: React.FC<ClipTransitionSectionProps> = ({
     getShapeClip,
     getSVGClip,
     getStickerClip,
+    addClipTransition,
+    updateClipTransition,
+    removeClipTransition,
   } = useProjectStore();
   const getTitleEngine = useEngineStore((state) => state.getTitleEngine);
   const getGraphicsEngine = useEngineStore((state) => state.getGraphicsEngine);
   const { settings } = project;
 
+  const timelineClipContext = useMemo(() => {
+    for (const track of project.timeline.tracks) {
+      const sortedClips = [...track.clips].sort((clipA, clipB) => {
+        if (clipA.startTime !== clipB.startTime) {
+          return clipA.startTime - clipB.startTime;
+        }
+
+        return clipA.id.localeCompare(clipB.id);
+      });
+      const clipIndex = sortedClips.findIndex((candidate) => candidate.id === clipId);
+
+      if (clipIndex === -1) {
+        continue;
+      }
+
+      const currentClip = sortedClips[clipIndex];
+      const previousClip = clipIndex > 0 ? sortedClips[clipIndex - 1] : undefined;
+      const nextClip =
+        clipIndex < sortedClips.length - 1 ? sortedClips[clipIndex + 1] : undefined;
+
+      return {
+        currentClip,
+        previousClip,
+        nextClip,
+        incomingTransition: previousClip
+          ? track.transitions.find(
+              (transition) =>
+                transition.clipAId === previousClip.id &&
+                transition.clipBId === currentClip.id,
+            )
+          : undefined,
+        outgoingTransition: nextClip
+          ? track.transitions.find(
+              (transition) =>
+                transition.clipAId === currentClip.id &&
+                transition.clipBId === nextClip.id,
+            )
+          : undefined,
+      };
+    }
+
+    return null;
+  }, [project.timeline.tracks, clipId]);
+
   const clip = useMemo(() => {
-    const regularClip = project.timeline.tracks
-      .flatMap((t) => t.clips)
-      .find((c) => c.id === clipId);
+    const regularClip = timelineClipContext?.currentClip;
     if (regularClip)
       return { type: "regular" as const, data: regularClip as ClipLike };
 
@@ -929,7 +986,7 @@ export const ClipTransitionSection: React.FC<ClipTransitionSectionProps> = ({
 
     return null;
   }, [
-    project.timeline.tracks,
+    timelineClipContext,
     clipId,
     getTextClip,
     getShapeClip,
@@ -938,6 +995,59 @@ export const ClipTransitionSection: React.FC<ClipTransitionSectionProps> = ({
     getTitleEngine,
     project.modifiedAt,
   ]);
+
+  const adjacentTransitions = useMemo<AdjacentTransitionConfig[]>(() => {
+    if (!timelineClipContext) {
+      return [];
+    }
+
+    const transitions: AdjacentTransitionConfig[] = [];
+
+    if (timelineClipContext.previousClip) {
+      transitions.push({
+        key: "incoming",
+        title: "Incoming Transition",
+        description: "From the previous clip into this clip",
+        clipA: timelineClipContext.previousClip,
+        clipB: timelineClipContext.currentClip,
+        transition: timelineClipContext.incomingTransition,
+      });
+    }
+
+    if (timelineClipContext.nextClip) {
+      transitions.push({
+        key: "outgoing",
+        title: "Outgoing Transition",
+        description: "From this clip into the next clip",
+        clipA: timelineClipContext.currentClip,
+        clipB: timelineClipContext.nextClip,
+        transition: timelineClipContext.outgoingTransition,
+      });
+    }
+
+    return transitions;
+  }, [timelineClipContext]);
+
+  const handleTransitionCreate = useCallback(
+    (transition: Transition) => {
+      addClipTransition(transition);
+    },
+    [addClipTransition],
+  );
+
+  const handleTransitionUpdate = useCallback(
+    (transitionId: string, updates: Partial<Transition>) => {
+      updateClipTransition(transitionId, updates);
+    },
+    [updateClipTransition],
+  );
+
+  const handleTransitionRemove = useCallback(
+    (transitionId: string) => {
+      removeClipTransition(transitionId);
+    },
+    [removeClipTransition],
+  );
 
   const detected = clip
     ? detectCurrentTransitions(clip.data)
@@ -1166,8 +1276,51 @@ export const ClipTransitionSection: React.FC<ClipTransitionSectionProps> = ({
         onClick={applyTransitions}
         className="w-full py-2 bg-primary hover:bg-primary-hover text-white font-medium rounded-lg text-[11px] transition-all"
       >
-        Apply Transitions
+        Apply Entry/Exit Animations
       </button>
+
+      <div className="space-y-3 border-t border-border pt-3">
+        <span className="text-[10px] font-medium text-text-secondary uppercase tracking-wider">
+          Clip-to-Clip Transitions
+        </span>
+
+        {timelineClipContext ? (
+          adjacentTransitions.length > 0 ? (
+            adjacentTransitions.map((adjacentTransition) => (
+              <div
+                key={adjacentTransition.key}
+                className="space-y-2 rounded-lg border border-border bg-background-secondary p-3"
+              >
+                <div className="space-y-1">
+                  <p className="text-[10px] font-medium text-text-primary">
+                    {adjacentTransition.title}
+                  </p>
+                  <p className="text-[9px] text-text-muted">
+                    {adjacentTransition.description}
+                  </p>
+                </div>
+
+                <TransitionInspector
+                  clipA={adjacentTransition.clipA}
+                  clipB={adjacentTransition.clipB}
+                  transition={adjacentTransition.transition}
+                  onTransitionCreate={handleTransitionCreate}
+                  onTransitionUpdate={handleTransitionUpdate}
+                  onTransitionRemove={handleTransitionRemove}
+                />
+              </div>
+            ))
+          ) : (
+            <p className="text-[10px] text-text-muted">
+              No adjacent clips are available on this track.
+            </p>
+          )
+        ) : (
+          <p className="text-[10px] text-text-muted">
+            Clip-to-clip transitions are available for timeline media clips.
+          </p>
+        )}
+      </div>
     </div>
   );
 };
