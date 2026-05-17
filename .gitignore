@@ -63,3 +63,6 @@ CLAUDE.md
 
 
 mobile-mockup/
+# Xcode user data
+xcuserdata/
+*.xcuserstate
