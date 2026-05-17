@@ -99,7 +99,7 @@ export const SaveTemplateDialog: React.FC<SaveTemplateDialogProps> = ({
 
       const templateWithMeta = {
         ...template,
-        author: author.trim() || "Anonymous",
+        author: author.trim() || t("editor:saveTemplateDialog.states.anonymous"),
       };
 
       if (graphicsEngine) {
@@ -120,7 +120,7 @@ export const SaveTemplateDialog: React.FC<SaveTemplateDialogProps> = ({
         const result =
           await templateCloudService.uploadTemplate(templateWithMeta);
         if (!result.success) {
-          throw new Error(result.error || "Failed to upload to cloud");
+          throw new Error(result.error || t("editor:saveTemplateDialog.validation.uploadFailed"));
         }
       } else {
         await templateEngine.saveTemplate(templateWithMeta);
@@ -137,7 +137,7 @@ export const SaveTemplateDialog: React.FC<SaveTemplateDialogProps> = ({
         setCategory("custom");
       }, 1500);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save template");
+      setError(err instanceof Error ? err.message : t("editor:saveTemplateDialog.validation.saveFailed"));
     } finally {
       setIsSaving(false);
     }
@@ -196,7 +196,10 @@ export const SaveTemplateDialog: React.FC<SaveTemplateDialogProps> = ({
               maxLength={50}
             />
             <p className="text-[10px] text-text-muted">
-              {name.length}/50 characters
+              {t("editor:saveTemplateDialog.states.characters", {
+                count: name.length,
+                max: 50,
+              })}
             </p>
           </div>
 
@@ -213,7 +216,10 @@ export const SaveTemplateDialog: React.FC<SaveTemplateDialogProps> = ({
               maxLength={500}
             />
             <p className="text-[10px] text-text-muted">
-              {description.length}/500 characters
+              {t("editor:saveTemplateDialog.states.characters", {
+                count: description.length,
+                max: 500,
+              })}
             </p>
           </div>
 

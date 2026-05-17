@@ -57,5 +57,11 @@
     "errors": {
       "failedToApplyTemplate": "Failed to apply template"
     }
+  },
+  "templateGallery": {
+    "loading": "Loading templates...",
+    "searchPlaceholder": "Search templates...",
+    "noTemplatesFound": "No templates found",
+    "tryAdjustingSearch": "Try adjusting your search or filter"
   }
 }

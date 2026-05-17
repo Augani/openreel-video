@@ -1,4 +1,5 @@
 import React, { useCallback, useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Search,
   Command,
@@ -78,6 +79,7 @@ interface ExportState {
 }
 
 export const Toolbar: React.FC = () => {
+  const { t } = useTranslation("editor");
   const { project } = useProjectStore();
   const {
     openModal,
@@ -191,12 +193,12 @@ export const Toolbar: React.FC = () => {
         setExportState((prev) => ({
           ...prev,
           progress: value.progress * 100,
-          phase: value.phase === "complete" ? "Complete!" : `${value.phase}...`,
+          phase: value.phase === "complete" ? t("toolbar.export.status.complete") : `${value.phase}...`,
         }));
       }
 
       if (finalResult?.success) {
-        setExportState((prev) => ({ ...prev, complete: true, phase: "Saved!" }));
+        setExportState((prev) => ({ ...prev, complete: true, phase: t("toolbar.export.status.saved") }));
         track(AnalyticsEvents.PROJECT_EXPORTED, {
           format: videoSettings.format ?? "mp4",
           codec: videoSettings.codec ?? "h264",
@@ -206,7 +208,7 @@ export const Toolbar: React.FC = () => {
           duration: project.timeline?.duration ?? 0,
         });
       } else {
-        throw new Error(finalResult?.error?.message || "Export failed");
+        throw new Error(finalResult?.error?.message || t("toolbar.export.status.failed"));
       }
     },
     [project, track],
@@ -227,7 +229,7 @@ export const Toolbar: React.FC = () => {
       }).showSaveFilePicker({
         suggestedName: filename,
         types: [{
-          description: "Media file",
+          description: t("toolbar.export.mediaFile"),
           accept: { [mime]: [`.${ext}`] },
         }],
       });
@@ -304,7 +306,7 @@ export const Toolbar: React.FC = () => {
           setExportState({
             isExporting: true,
             progress: 0,
-            phase: "Initializing...",
+            phase: t("toolbar.export.status.initializing"),
             error: null,
             complete: false,
           });
@@ -331,7 +333,7 @@ export const Toolbar: React.FC = () => {
             setExportState((prev) => ({
               ...prev,
               progress: value.progress * 100,
-              phase: value.phase === "complete" ? "Complete!" : `${value.phase}...`,
+              phase: value.phase === "complete" ? t("toolbar.export.status.complete") : `${value.phase}...`,
             }));
           }
 
@@ -348,14 +350,14 @@ export const Toolbar: React.FC = () => {
               document.body.removeChild(a);
               URL.revokeObjectURL(url);
             }
-            setExportState((prev) => ({ ...prev, complete: true, phase: "Saved!" }));
+            setExportState((prev) => ({ ...prev, complete: true, phase: t("toolbar.export.status.saved") }));
             track(AnalyticsEvents.PROJECT_EXPORTED, {
               format: "wav",
               duration: project.timeline?.duration ?? 0,
             });
           } else {
             try { await writable.abort(); } catch {}
-            throw new Error(finalResult?.error?.message || "Export failed");
+            throw new Error(finalResult?.error?.message || t("toolbar.export.status.failed"));
           }
         } else {
           const base = {
@@ -383,7 +385,7 @@ export const Toolbar: React.FC = () => {
           setExportState({
             isExporting: true,
             progress: 0,
-            phase: "Initializing...",
+            phase: t("toolbar.export.status.initializing"),
             error: null,
             complete: false,
           });
@@ -401,7 +403,7 @@ export const Toolbar: React.FC = () => {
         setExportState((prev) => ({
           ...prev,
           isExporting: false,
-          error: error instanceof Error ? error.message : "Export failed",
+          error: error instanceof Error ? error.message : t("toolbar.export.status.failed"),
         }));
       }
     },
@@ -431,7 +433,7 @@ export const Toolbar: React.FC = () => {
         setExportState({
           isExporting: true,
           progress: 0,
-          phase: "Initializing...",
+          phase: t("toolbar.export.status.initializing"),
           error: null,
           complete: false,
         });
@@ -471,7 +473,7 @@ export const Toolbar: React.FC = () => {
         setExportState((prev) => ({
           ...prev,
           isExporting: false,
-          error: error instanceof Error ? error.message : "Export failed",
+          error: error instanceof Error ? error.message : t("toolbar.export.status.failed"),
         }));
       }
     },
@@ -483,8 +485,8 @@ export const Toolbar: React.FC = () => {
     async (screenBlob: Blob, webcamBlob?: Blob) => {
       if (!screenBlob || screenBlob.size === 0) {
         toast.error(
-          "Recording failed",
-          "No video data was captured. Please try again.",
+          t("toolbar.recording.failed"),
+          t("toolbar.recording.noData"),
         );
         return;
       }
@@ -504,7 +506,7 @@ export const Toolbar: React.FC = () => {
         importCount++;
       } else {
         errors.push(
-          screenResult.error?.message || "Failed to import screen recording",
+            screenResult.error?.message || t("toolbar.recording.importScreenFailed"),
         );
       }
 
@@ -517,23 +519,23 @@ export const Toolbar: React.FC = () => {
           importCount++;
         } else {
           errors.push(
-            webcamResult.error?.message || "Failed to import webcam recording",
+            webcamResult.error?.message || t("toolbar.recording.importWebcamFailed"),
           );
         }
       }
 
       if (importCount > 0) {
         toast.success(
-          `${importCount} recording${importCount > 1 ? "s" : ""} imported!`,
+          t("toolbar.recording.imported", { count: importCount }),
           webcamBlob && webcamBlob.size > 0
-            ? "Screen and webcam added to assets. Use the timeline to composite them."
-            : "Screen recording added to assets.",
+            ? t("toolbar.recording.screenAndWebcamAdded")
+            : t("toolbar.recording.screenAdded"),
         );
       } else if (errors.length > 0) {
-        toast.error("Import failed", errors.join(". "));
+        toast.error(t("toolbar.recording.importFailed"), errors.join(". "));
       }
     },
-    [importMedia],
+    [importMedia, t],
   );
 
   const projectRes = `${project.settings.width}×${project.settings.height}`;
@@ -549,9 +551,9 @@ export const Toolbar: React.FC = () => {
     separator?: boolean;
   }> = [
     {
-      label: "MP4 Standard",
+      label: t("toolbar.export.options.mp4Standard"),
       icon: Zap,
-      desc: `${projectRes} H.264 - Web & social`,
+      desc: t("toolbar.export.descriptions.webSocial", { resolution: projectRes }),
       type: "mp4",
       recommended: true,
     },
@@ -566,28 +568,28 @@ export const Toolbar: React.FC = () => {
       ? []
       : [
           {
-            label: "4K Standard",
+            label: t("toolbar.export.options.fourKStandard"),
             icon: FileVideo,
-            desc: "3840×2160 - YouTube 4K",
+            desc: t("toolbar.export.descriptions.youtube4k"),
             type: "4k" as ExportType,
           },
         ]),
     {
-      label: "1080p High Quality",
+      label: t("toolbar.export.options.highQuality1080p"),
       icon: FileVideo,
-      desc: "1920×1080 30fps - High bitrate",
+      desc: t("toolbar.export.descriptions.highBitrate1080p"),
       type: "1080p-high",
     },
     {
-      label: "1080p 60fps",
+      label: t("toolbar.export.options.smooth1080p60"),
       icon: FileVideo,
-      desc: "1920×1080 - Smooth playback",
+      desc: t("toolbar.export.descriptions.smoothPlayback"),
       type: "1080p-60",
     },
     {
-      label: "Audio Only (WAV)",
+      label: t("toolbar.export.options.audioOnlyWav"),
       icon: Music,
-      desc: "Uncompressed audio",
+      desc: t("toolbar.export.descriptions.uncompressedAudio"),
       type: "wav",
     },
   ];
@@ -600,7 +602,7 @@ export const Toolbar: React.FC = () => {
             <button
               onClick={() => navigate("welcome")}
               className="flex items-center gap-3 hover:opacity-80 transition-opacity"
-              title="Back to Home"
+              title={t("toolbar.tooltips.backToHome")}
             >
               <div className="w-8 h-8 group">
                 <svg
@@ -677,7 +679,7 @@ export const Toolbar: React.FC = () => {
               </span>
             </button>
           </TooltipTrigger>
-          <TooltipContent>Back to Home</TooltipContent>
+          <TooltipContent>{t("toolbar.tooltips.backToHome")}</TooltipContent>
         </Tooltip>
         <div className="h-6 w-px bg-border hidden md:block" />
         <ProjectSwitcher />
@@ -715,8 +717,8 @@ export const Toolbar: React.FC = () => {
             }`}
           >
             {hasSelectedClip
-              ? "Search effects for selected clip..."
-              : "Search tools, effects, or ask AI..."}
+              ? t("toolbar.search.selectedClip")
+              : t("toolbar.search.allTools")}
           </span>
           <div className="flex items-center gap-1.5 px-2 py-0.5 rounded border border-border bg-background-tertiary">
             <Command size={10} className="text-text-muted" />
@@ -737,16 +739,16 @@ export const Toolbar: React.FC = () => {
           <DropdownMenuContent align="end" className="w-56">
             <DropdownMenuItem onClick={handleStartTour} className="gap-2">
               <Play size={14} />
-              <span>Editor Tour</span>
+              <span>{t("toolbar.help.editorTour")}</span>
             </DropdownMenuItem>
             <DropdownMenuItem onClick={handleStartMoGraphTour} className="gap-2">
               <Sparkles size={14} className="text-purple-400" />
-              <span>Animation & Effects Tour</span>
+              <span>{t("toolbar.help.animationEffectsTour")}</span>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem className="gap-2 text-text-muted">
               <Command size={14} />
-              <span>Press ? for shortcuts</span>
+              <span>{t("toolbar.help.shortcutsHint")}</span>
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -767,7 +769,7 @@ export const Toolbar: React.FC = () => {
             </button>
           </TooltipTrigger>
           <TooltipContent>
-            <p>Theme: {themeMode}</p>
+            <p>{t("toolbar.tooltips.theme", { mode: themeMode })}</p>
           </TooltipContent>
         </Tooltip>
 
@@ -781,7 +783,7 @@ export const Toolbar: React.FC = () => {
             </button>
           </TooltipTrigger>
           <TooltipContent>
-            <p>Settings & API Keys</p>
+            <p>{t("toolbar.tooltips.settingsApiKeys")}</p>
           </TooltipContent>
         </Tooltip>
 
@@ -795,7 +797,7 @@ export const Toolbar: React.FC = () => {
             </button>
           </TooltipTrigger>
           <TooltipContent>
-            <p>Project JSON - Export/Import</p>
+            <p>{t("toolbar.tooltips.projectJson")}</p>
           </TooltipContent>
         </Tooltip>
 
@@ -813,7 +815,7 @@ export const Toolbar: React.FC = () => {
             </button>
           </TooltipTrigger>
           <TooltipContent>
-            <p>Keyframe Editor</p>
+            <p>{t("toolbar.tooltips.keyframeEditor")}</p>
           </TooltipContent>
         </Tooltip>
 
@@ -831,7 +833,7 @@ export const Toolbar: React.FC = () => {
             </button>
           </TooltipTrigger>
           <TooltipContent>
-            <p>Audio Mixer – track volume and master level</p>
+            <p>{t("toolbar.tooltips.audioMixer")}</p>
           </TooltipContent>
         </Tooltip>
 
@@ -849,7 +851,7 @@ export const Toolbar: React.FC = () => {
             </button>
           </TooltipTrigger>
           <TooltipContent>
-            <p>History - Undo/Redo</p>
+            <p>{t("toolbar.tooltips.history")}</p>
           </TooltipContent>
         </Tooltip>
 
@@ -860,11 +862,11 @@ export const Toolbar: React.FC = () => {
               className="flex items-center gap-2 px-3 py-2 bg-error/10 hover:bg-error/20 text-error rounded-lg transition-colors"
             >
               <Circle size={14} className="fill-current" />
-              <span className="text-sm font-medium">Record</span>
+              <span className="text-sm font-medium">{t("toolbar.actions.record")}</span>
             </button>
           </TooltipTrigger>
           <TooltipContent>
-            <p>Screen Recording</p>
+            <p>{t("toolbar.tooltips.screenRecording")}</p>
           </TooltipContent>
         </Tooltip>
 
@@ -905,7 +907,7 @@ export const Toolbar: React.FC = () => {
           ) : exportState.complete ? (
             <div className="h-10 px-4 bg-primary/10 border border-primary/30 rounded-lg flex items-center gap-2">
               <Check size={14} className="text-primary" />
-              <span className="text-xs text-primary">Downloaded!</span>
+              <span className="text-xs text-primary">{t("toolbar.export.status.downloaded")}</span>
             </div>
           ) : (
             <DropdownMenu open={isExportOpen} onOpenChange={setIsExportOpen}>
@@ -915,7 +917,7 @@ export const Toolbar: React.FC = () => {
                     isExportOpen ? "translate-y-0 shadow-none" : ""
                   }`}
                 >
-                  <span className="text-sm tracking-wider">EXPORT</span>
+                  <span className="text-sm tracking-wider">{t("toolbar.export.actions.export")}</span>
                   <ChevronDown
                     size={14}
                     className={`transition-transform duration-200 ${
@@ -959,7 +961,7 @@ export const Toolbar: React.FC = () => {
                             {option.label}
                             {option.recommended && (
                               <span className="ml-2 text-[10px] bg-primary/20 text-primary px-1.5 py-0.5 rounded">
-                                Best Match
+                                {t("toolbar.export.bestMatch")}
                               </span>
                             )}
                           </div>
@@ -968,7 +970,7 @@ export const Toolbar: React.FC = () => {
                           </div>
                           {exportEstimates.get(option.type) && (
                             <div className="text-[10px] text-text-secondary mt-1">
-                              Est. {exportEstimates.get(option.type)?.formatted}
+                              {t("toolbar.export.estimate", { time: exportEstimates.get(option.type)?.formatted })}
                             </div>
                           )}
                         </div>
@@ -986,10 +988,10 @@ export const Toolbar: React.FC = () => {
                     </div>
                     <div className="flex-1">
                       <div className="text-sm font-medium text-primary transition-colors">
-                        Custom Export...
+                        {t("toolbar.export.customExport")}
                       </div>
                       <div className="text-xs text-text-muted mt-0.5">
-                        Full settings with AI upscaling
+                        {t("toolbar.export.customExportDescription")}
                       </div>
                     </div>
                     <Settings
@@ -1033,7 +1035,7 @@ export const Toolbar: React.FC = () => {
           />
           <div className="fixed top-16 right-0 bottom-0 w-80 bg-background-secondary border-l border-border z-50 shadow-2xl animate-in slide-in-from-right duration-200">
             <div className="flex items-center justify-between p-3 border-b border-border">
-              <span className="text-sm font-medium text-text-primary">Action History</span>
+              <span className="text-sm font-medium text-text-primary">{t("toolbar.historyPanel.title")}</span>
               <button
                 onClick={() => setIsHistoryOpen(false)}
                 className="p-1.5 rounded hover:bg-background-tertiary text-text-muted hover:text-text-primary transition-colors"

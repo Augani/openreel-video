@@ -1,5 +1,6 @@
 import React from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useTranslation } from "react-i18next";
 import { useMoGraphTour } from "./useMoGraphTour";
 import {
   Sparkles,
@@ -10,6 +11,7 @@ import {
 } from "lucide-react";
 
 export const MoGraphTour: React.FC = () => {
+  const { t } = useTranslation("editor");
   const {
     isActive,
     currentStep,
@@ -27,6 +29,16 @@ export const MoGraphTour: React.FC = () => {
   if (!isActive || !step) {
     return null;
   }
+
+  const stepTitle = t(`tour.mograph.steps.${step.id}.title`, {
+    defaultValue: step.title,
+  });
+  const stepDescription = t(`tour.mograph.steps.${step.id}.description`, {
+    defaultValue: step.description,
+  });
+  const stepTips = step.tips?.map((tip, index) =>
+    t(`tour.mograph.steps.${step.id}.tips.${index}`, { defaultValue: tip }),
+  );
 
   const padding = 12;
   const hasTarget = !!targetRect;
@@ -191,9 +203,12 @@ export const MoGraphTour: React.FC = () => {
               <Sparkles size={16} className="text-white" />
             </div>
             <div className="flex-1">
-              <h3 className="text-white font-semibold text-sm">{step.title}</h3>
+              <h3 className="text-white font-semibold text-sm">{stepTitle}</h3>
               <p className="text-white/60 text-[10px]">
-                Motion Graphics Tour • Step {currentStep + 1} of {totalSteps}
+                {t("tour.mograph.stepCounter", {
+                  current: currentStep + 1,
+                  total: totalSteps,
+                })}
               </p>
             </div>
             <button
@@ -206,17 +221,19 @@ export const MoGraphTour: React.FC = () => {
 
           <div className="p-4">
             <p className="text-text-secondary text-sm leading-relaxed mb-4">
-              {step.description}
+              {stepDescription}
             </p>
 
-            {step.tips && step.tips.length > 0 && (
+            {stepTips && stepTips.length > 0 && (
               <div className="bg-purple-500/10 rounded-lg p-3 mb-4">
                 <div className="flex items-center gap-2 mb-2">
                   <Lightbulb size={14} className="text-purple-400" />
-                  <span className="text-purple-400 text-xs font-medium">Pro Tips</span>
+                  <span className="text-purple-400 text-xs font-medium">
+                    {t("tour.mograph.proTips")}
+                  </span>
                 </div>
                 <ul className="space-y-1.5">
-                  {step.tips.map((tip, i) => (
+                  {stepTips.map((tip, i) => (
                     <li
                       key={i}
                       className="text-text-muted text-xs flex items-start gap-2"
@@ -250,20 +267,20 @@ export const MoGraphTour: React.FC = () => {
                 className="flex items-center gap-1 px-3 py-2 text-xs rounded-lg bg-background-tertiary text-text-secondary hover:text-text-primary disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 <ChevronLeft size={14} />
-                Back
+                {t("tour.actions.back")}
               </button>
               <div className="flex-1" />
               <button
                 onClick={skip}
                 className="px-3 py-2 text-xs text-text-muted hover:text-text-secondary transition-colors"
               >
-                Skip Tour
+                {t("tour.actions.skip")}
               </button>
               <button
                 onClick={next}
                 className="flex items-center gap-1 px-4 py-2 text-xs rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 text-white font-medium hover:from-purple-500 hover:to-pink-500 transition-all"
               >
-                {isLastStep ? "Get Started" : "Next"}
+                {isLastStep ? t("tour.actions.getStarted") : t("tour.actions.next")}
                 {!isLastStep && <ChevronRight size={14} />}
               </button>
             </div>

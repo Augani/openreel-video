@@ -1,0 +1,59 @@
+{
+  "editorInterface": {
+    "noProjectLoaded": "未加载项目",
+    "tabs": {
+      "layers": "图层",
+      "guides": "参考线",
+      "history": "历史"
+    }
+  },
+  "welcome": {
+    "tagline": "专业图形设计编辑器",
+    "startNewProject": "开始新项目",
+    "customSize": "自定义尺寸",
+    "setDimensions": "设置尺寸",
+    "customDimensions": "自定义尺寸",
+    "widthPx": "宽度 (px)",
+    "heightPx": "高度 (px)",
+    "untitledDesign": "未命名设计",
+    "recentProjects": "最近项目",
+    "categories": {
+      "all": "全部",
+      "socialMedia": "社交媒体",
+      "presentation": "演示文稿",
+      "print": "印刷",
+      "desktop": "桌面",
+      "mobile": "移动端",
+      "logo": "Logo"
+    },
+    "actions": {
+      "openProject": "打开项目",
+      "createDesign": "创建设计",
+      "open": "打开",
+      "delete": "删除",
+      "cancel": "取消"
+    },
+    "emptyRecent": {
+      "title": "没有最近项目",
+      "description": "创建一个新项目开始使用"
+    },
+    "deleteConfirm": {
+      "title": "删除项目？",
+      "description": "此操作无法撤销。该项目将从浏览器存储中永久删除。"
+    },
+    "timeAgo": {
+      "justNow": "刚刚",
+      "minutesAgo_one": "{{count}} 分钟前",
+      "minutesAgo_other": "{{count}} 分钟前",
+      "hoursAgo_one": "{{count}} 小时前",
+      "hoursAgo_other": "{{count}} 小时前",
+      "yesterday": "昨天",
+      "daysAgo_one": "{{count}} 天前",
+      "daysAgo_other": "{{count}} 天前"
+    },
+    "footer": {
+      "editor": "OpenReel Image - 浏览器中的专业图形设计",
+      "offline": "100% 离线 - 无需账号"
+    }
+  }
+}

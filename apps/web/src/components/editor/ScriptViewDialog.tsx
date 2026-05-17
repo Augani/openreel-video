@@ -94,13 +94,17 @@ export const ScriptViewDialog: React.FC<ScriptViewDialogProps> = ({
         setValidation({
           valid: false,
           errors: [
-            `Validation error: ${error instanceof Error ? error.message : "Unknown error"}`,
+            t("editor:scriptView.states.validationError", {
+              message: error instanceof Error
+                ? error.message
+                : t("editor:scriptView.states.unknownError"),
+            }),
           ],
           warnings: [],
         });
       }
     },
-    [serializer],
+    [serializer, t],
   );
 
   const handleFileUpload = useCallback(
@@ -164,14 +168,18 @@ export const ScriptViewDialog: React.FC<ScriptViewDialogProps> = ({
       setValidation({
         valid: false,
         errors: [
-          `Validation error: ${error instanceof Error ? error.message : "Unknown error"}`,
+          t("editor:scriptView.states.validationError", {
+            message: error instanceof Error
+              ? error.message
+              : t("editor:scriptView.states.unknownError"),
+          }),
         ],
         warnings: [],
       });
     } finally {
       setIsValidating(false);
     }
-  }, [importJson, serializer]);
+  }, [importJson, serializer, t]);
 
   const handleImport = useCallback(() => {
     if (!validation?.valid) return;
@@ -187,8 +195,8 @@ export const ScriptViewDialog: React.FC<ScriptViewDialogProps> = ({
         ).length;
         if (missingCount > 0) {
           toast.warning(
-            `${missingCount} asset${missingCount !== 1 ? "s" : ""} need relinking`,
-            "Go to Assets panel → click \"Relink from Folder\" to restore missing media.",
+            t("editor:scriptView.states.assetsNeedRelinking", { count: missingCount }),
+            t("editor:scriptView.states.relinkAssetsHelp"),
           );
         }
       }
@@ -196,12 +204,16 @@ export const ScriptViewDialog: React.FC<ScriptViewDialogProps> = ({
       setValidation({
         valid: false,
         errors: [
-          `Import error: ${error instanceof Error ? error.message : "Unknown error"}`,
+          t("editor:scriptView.states.importError", {
+            message: error instanceof Error
+              ? error.message
+              : t("editor:scriptView.states.unknownError"),
+          }),
         ],
         warnings: [],
       });
     }
-  }, [importJson, validation, serializer, onClose]);
+  }, [importJson, validation, serializer, onClose, t]);
 
   if (!isOpen) return null;
 
@@ -257,7 +269,7 @@ export const ScriptViewDialog: React.FC<ScriptViewDialogProps> = ({
                       {copySuccess ? (
                         <>
                           <CheckCircle2 size={16} className="text-primary" />
-                          Copied!
+                          {t("editor:scriptView.states.copied")}
                         </>
                       ) : (
                         <>

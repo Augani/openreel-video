@@ -1,4 +1,5 @@
 import { useState, lazy, Suspense } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Toolbar } from './toolbar/Toolbar';
 import { LeftPanel } from './panels/LeftPanel';
 import { Canvas } from './canvas/Canvas';
@@ -16,6 +17,7 @@ const ExportDialog = lazy(() => import('./ExportDialog').then(m => ({ default: m
 type BottomTab = 'layers' | 'history' | 'guides';
 
 export function EditorInterface() {
+  const { t } = useTranslation('editor');
   const { isPanelCollapsed, isInspectorCollapsed, isExportDialogOpen, closeExportDialog } = useUIStore();
   const { project } = useProjectStore();
   const [bottomTab, setBottomTab] = useState<BottomTab>('layers');
@@ -23,7 +25,7 @@ export function EditorInterface() {
   if (!project) {
     return (
       <div className="h-full w-full flex items-center justify-center bg-background">
-        <p className="text-muted-foreground">No project loaded</p>
+        <p className="text-muted-foreground">{t('editorInterface.noProjectLoaded')}</p>
       </div>
     );
   }
@@ -62,7 +64,7 @@ export function EditorInterface() {
                   }`}
                 >
                   <Layers size={14} />
-                  Layers
+                  {t('editorInterface.tabs.layers')}
                 </button>
                 <button
                   onClick={() => setBottomTab('guides')}
@@ -73,7 +75,7 @@ export function EditorInterface() {
                   }`}
                 >
                   <Ruler size={14} />
-                  Guides
+                  {t('editorInterface.tabs.guides')}
                 </button>
                 <button
                   onClick={() => setBottomTab('history')}
@@ -84,7 +86,7 @@ export function EditorInterface() {
                   }`}
                 >
                   <History size={14} />
-                  History
+                  {t('editorInterface.tabs.history')}
                 </button>
               </div>
               <div className="flex-1 overflow-hidden">

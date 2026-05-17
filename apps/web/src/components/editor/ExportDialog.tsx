@@ -721,7 +721,7 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
                             )}
                             %
                           </span>
-                          <span>Max</span>
+                          <span>{t("editor:exportDialog.qualityScale.max")}</span>
                         </div>
                       </div>
 

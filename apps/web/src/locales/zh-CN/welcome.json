@@ -1,0 +1,67 @@
+{
+  "screen": {
+    "templates": "模板",
+    "recentProjects": "最近项目",
+    "brandName": "Open Reel Video",
+    "headline": "从想法到导出。",
+    "subheadline": "全部在浏览器中完成。",
+    "description": "选择一种格式并开始创作。之后随时可以更改。",
+    "startCreating": "开始创作",
+    "browseTemplates": "浏览模板",
+    "openEditor": "打开编辑器",
+    "skipOnStartup": "启动时跳过",
+    "press": "按",
+    "toSkip": "跳过",
+    "formats": {
+      "vertical": {
+        "label": "竖屏",
+        "description": "TikTok、Reels、Shorts"
+      },
+      "horizontal": {
+        "label": "横屏",
+        "description": "YouTube、Vimeo、Web"
+      },
+      "square": {
+        "label": "方形",
+        "description": "Instagram、Facebook"
+      }
+    }
+  },
+  "recovery": {
+    "title": "恢复你的工作",
+    "description": "发现一个未保存的项目",
+    "lastSaved": "上次保存",
+    "startFresh": "重新开始",
+    "recoverProject": "恢复项目",
+    "recovering": "正在恢复...",
+    "olderSavesAvailable_one": "还有 {{count}} 个较早保存",
+    "olderSavesAvailable_other": "还有 {{count}} 个较早保存",
+    "clearAllSavedProjects": "清除所有已保存项目",
+    "timeAgo": {
+      "justNow": "刚刚",
+      "minute_one": "{{count}} 分钟前",
+      "minute_other": "{{count}} 分钟前",
+      "hour_one": "{{count}} 小时前",
+      "hour_other": "{{count}} 小时前",
+      "day_one": "{{count}} 天前",
+      "day_other": "{{count}} 天前"
+    }
+  },
+  "templatePreview": {
+    "editableFields": "个可编辑字段",
+    "scenes": "场景",
+    "customizeTemplate": "自定义模板",
+    "advancedOptions": "高级选项",
+    "applying": "正在应用...",
+    "useTemplate": "使用模板",
+    "errors": {
+      "failedToApplyTemplate": "应用模板失败"
+    }
+  },
+  "templateGallery": {
+    "loading": "正在加载模板...",
+    "searchPlaceholder": "搜索模板...",
+    "noTemplatesFound": "未找到模板",
+    "tryAdjustingSearch": "尝试调整搜索词或筛选条件"
+  }
+}

@@ -2,6 +2,7 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 import { Switch } from "@openreel/ui";
 import { Label } from "@openreel/ui";
+import { LANGUAGE_LABELS, SUPPORTED_LANGUAGES, type SupportedLanguage } from "../../../i18n";
 import { useSettingsStore, SERVICE_REGISTRY, type TtsProvider, type LlmProvider, type AggregatorProvider } from "../../../stores/settings-store";
 
 export const GeneralPanel: React.FC = () => {
@@ -9,12 +10,14 @@ export const GeneralPanel: React.FC = () => {
   const {
     autoSave,
     autoSaveInterval,
+    language,
     defaultTtsProvider,
     defaultLlmProvider,
     defaultAggregator,
     configuredServices,
     setAutoSave,
     setAutoSaveInterval,
+    setLanguage,
     setDefaultTtsProvider,
     setDefaultLlmProvider,
     setDefaultAggregator,
@@ -76,6 +79,36 @@ export const GeneralPanel: React.FC = () => {
             </select>
           </div>
         )}
+      </div>
+
+      <div className="h-px bg-border" />
+
+      {/* Language */}
+      <div className="space-y-4">
+        <h3 className="text-sm font-medium text-text-primary">
+          {t("settings:general.languageTitle")}
+        </h3>
+        <div className="flex items-center justify-between">
+          <div>
+            <Label className="text-sm text-text-secondary">
+              {t("settings:general.language")}
+            </Label>
+            <p className="text-xs text-text-muted mt-0.5">
+              {t("settings:general.languageDescription")}
+            </p>
+          </div>
+          <select
+            value={language}
+            onChange={(e) => setLanguage(e.target.value as SupportedLanguage)}
+            className="h-9 rounded-md border border-input bg-background px-3 text-sm min-w-[140px]"
+          >
+            {SUPPORTED_LANGUAGES.map((lang) => (
+              <option key={lang} value={lang}>
+                {LANGUAGE_LABELS[lang]}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       <div className="h-px bg-border" />

@@ -1,1 +1,59 @@
-{}
+{
+  "editorInterface": {
+    "noProjectLoaded": "No project loaded",
+    "tabs": {
+      "layers": "Layers",
+      "guides": "Guides",
+      "history": "History"
+    }
+  },
+  "welcome": {
+    "tagline": "Professional Graphic Design Editor",
+    "startNewProject": "Start a new project",
+    "customSize": "Custom Size",
+    "setDimensions": "Set dimensions",
+    "customDimensions": "Custom Dimensions",
+    "widthPx": "Width (px)",
+    "heightPx": "Height (px)",
+    "untitledDesign": "Untitled Design",
+    "recentProjects": "Recent Projects",
+    "categories": {
+      "all": "All",
+      "socialMedia": "Social Media",
+      "presentation": "Presentation",
+      "print": "Print",
+      "desktop": "Desktop",
+      "mobile": "Mobile",
+      "logo": "Logo"
+    },
+    "actions": {
+      "openProject": "Open Project",
+      "createDesign": "Create Design",
+      "open": "Open",
+      "delete": "Delete",
+      "cancel": "Cancel"
+    },
+    "emptyRecent": {
+      "title": "No recent projects",
+      "description": "Create a new project to get started"
+    },
+    "deleteConfirm": {
+      "title": "Delete Project?",
+      "description": "This action cannot be undone. The project will be permanently deleted from your browser storage."
+    },
+    "timeAgo": {
+      "justNow": "Just now",
+      "minutesAgo_one": "{{count}} minute ago",
+      "minutesAgo_other": "{{count}} minutes ago",
+      "hoursAgo_one": "{{count}} hour ago",
+      "hoursAgo_other": "{{count}} hours ago",
+      "yesterday": "Yesterday",
+      "daysAgo_one": "{{count}} day ago",
+      "daysAgo_other": "{{count}} days ago"
+    },
+    "footer": {
+      "editor": "OpenReel Image - Professional graphic design in your browser",
+      "offline": "100% offline - No account required"
+    }
+  }
+}

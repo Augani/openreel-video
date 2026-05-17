@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { subscribeWithSelector, persist } from "zustand/middleware";
+import i18n, { markLanguageChoiceMade, type SupportedLanguage } from "../i18n";
 import { onSessionLock } from "../services/secure-storage";
 
 export interface ServiceConfig {
@@ -55,7 +56,7 @@ export interface SettingsState {
   // General preferences
   autoSave: boolean;
   autoSaveInterval: number;
-  language: string;
+  language: SupportedLanguage;
 
   // AI/Service preferences
   defaultTtsProvider: TtsProvider;
@@ -77,7 +78,7 @@ export interface SettingsState {
   // Actions
   setAutoSave: (enabled: boolean) => void;
   setAutoSaveInterval: (minutes: number) => void;
-  setLanguage: (lang: string) => void;
+  setLanguage: (lang: SupportedLanguage) => void;
   setDefaultTtsProvider: (provider: TtsProvider) => void;
   setDefaultLlmProvider: (provider: LlmProvider) => void;
   setDefaultAggregator: (provider: AggregatorProvider) => void;
@@ -101,7 +102,7 @@ export const useSettingsStore = create<SettingsState>()(
       (set, get) => ({
         autoSave: true,
         autoSaveInterval: 5,
-        language: "en",
+        language: i18n.language === "zh-CN" ? "zh-CN" : "en",
 
         defaultTtsProvider: "elevenlabs" as TtsProvider,
         defaultLlmProvider: "openai" as LlmProvider,
@@ -122,7 +123,11 @@ export const useSettingsStore = create<SettingsState>()(
         setAutoSaveInterval: (minutes: number) =>
           set({ autoSaveInterval: Math.max(1, Math.min(30, minutes)) }),
 
-        setLanguage: (lang: string) => set({ language: lang }),
+        setLanguage: (lang: SupportedLanguage) => {
+          set({ language: lang });
+          markLanguageChoiceMade();
+          void i18n.changeLanguage(lang);
+        },
 
         setDefaultTtsProvider: (provider: TtsProvider) =>
           set({ defaultTtsProvider: provider }),

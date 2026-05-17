@@ -12,6 +12,9 @@
     "enableAutoSave": "Enable Auto Save",
     "autoSaveDescription": "Automatically save your project at regular intervals",
     "saveEvery": "Save every",
+    "languageTitle": "Language",
+    "language": "Interface language",
+    "languageDescription": "Choose the language used throughout the editor",
     "intervals": {
       "oneMinute": "1 minute",
       "twoMinutes": "2 minutes",
@@ -26,7 +29,14 @@
     "llmProvider": "AI Assistant (LLM)",
     "aggregator": "AI Aggregator",
     "aggregatorDescription": "Video/image generation, upscaling, and creative tools",
-    "piperBuiltIn": "Piper (Free, built-in)"
+    "piperBuiltIn": "Piper (Free, built-in)",
+    "serviceDescriptions": {
+      "elevenlabs": "AI voice generation and text-to-speech",
+      "openai": "GPT models for script generation and AI features",
+      "anthropic": "Claude models for AI-assisted editing",
+      "kie-ai": "AI aggregator for video/image generation, upscaling, and editing",
+      "freepik": "AI aggregator for image generation, vectors, and creative assets"
+    }
   },
   "security": {
     "secureApiKeyStorage": "Secure API Key Storage",

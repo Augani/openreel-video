@@ -1,5 +1,10 @@
 {
   "buttons": {
     "close": "Close"
+  },
+  "languagePrompt": {
+    "message": "{{language}} is available for this app.",
+    "switch": "Switch",
+    "dismiss": "Keep current language"
   }
 }

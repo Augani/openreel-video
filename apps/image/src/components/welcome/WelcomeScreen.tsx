@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Plus, FolderOpen, Image, Layout, FileText, Presentation, Smartphone, Monitor, Star, Trash2, Clock, MoreVertical } from 'lucide-react';
 import { useProjectStore } from '../../stores/project-store';
 import { useUIStore } from '../../stores/ui-store';
@@ -14,17 +15,18 @@ interface SavedProjectInfo {
   size: { width: number; height: number };
 }
 
-const categories: { id: Category; label: string; icon: React.ElementType }[] = [
-  { id: 'all', label: 'All', icon: Layout },
-  { id: 'Social Media', label: 'Social Media', icon: Star },
-  { id: 'Presentation', label: 'Presentation', icon: Presentation },
-  { id: 'Print', label: 'Print', icon: FileText },
-  { id: 'Desktop', label: 'Desktop', icon: Monitor },
-  { id: 'Mobile', label: 'Mobile', icon: Smartphone },
-  { id: 'Logo', label: 'Logo', icon: Image },
+const categories: { id: Category; labelKey: string; icon: React.ElementType }[] = [
+  { id: 'all', labelKey: 'welcome.categories.all', icon: Layout },
+  { id: 'Social Media', labelKey: 'welcome.categories.socialMedia', icon: Star },
+  { id: 'Presentation', labelKey: 'welcome.categories.presentation', icon: Presentation },
+  { id: 'Print', labelKey: 'welcome.categories.print', icon: FileText },
+  { id: 'Desktop', labelKey: 'welcome.categories.desktop', icon: Monitor },
+  { id: 'Mobile', labelKey: 'welcome.categories.mobile', icon: Smartphone },
+  { id: 'Logo', labelKey: 'welcome.categories.logo', icon: Image },
 ];
 
 export function WelcomeScreen() {
+  const { t } = useTranslation('editor');
   const [selectedCategory, setSelectedCategory] = useState<Category>('all');
   const [customWidth, setCustomWidth] = useState(1920);
   const [customHeight, setCustomHeight] = useState(1080);
@@ -93,12 +95,14 @@ export function WelcomeScreen() {
       const hours = Math.floor(diff / (1000 * 60 * 60));
       if (hours === 0) {
         const minutes = Math.floor(diff / (1000 * 60));
-        return minutes <= 1 ? 'Just now' : `${minutes} minutes ago`;
+        return minutes <= 1
+          ? t('welcome.timeAgo.justNow')
+          : t('welcome.timeAgo.minutesAgo', { count: minutes });
       }
-      return hours === 1 ? '1 hour ago' : `${hours} hours ago`;
+      return t('welcome.timeAgo.hoursAgo', { count: hours });
     }
-    if (days === 1) return 'Yesterday';
-    if (days < 7) return `${days} days ago`;
+    if (days === 1) return t('welcome.timeAgo.yesterday');
+    if (days < 7) return t('welcome.timeAgo.daysAgo', { count: days });
     return date.toLocaleDateString();
   };
 
@@ -112,7 +116,7 @@ export function WelcomeScreen() {
   };
 
   const handleCreateCustom = () => {
-    createProject('Untitled Design', { width: customWidth, height: customHeight });
+    createProject(t('welcome.untitledDesign'), { width: customWidth, height: customHeight });
     setCurrentView('editor');
   };
 
@@ -125,7 +129,7 @@ export function WelcomeScreen() {
           </div>
           <div>
             <h1 className="text-xl font-semibold text-foreground">OpenReel Image</h1>
-            <p className="text-sm text-muted-foreground">Professional Graphic Design Editor</p>
+            <p className="text-sm text-muted-foreground">{t('welcome.tagline')}</p>
           </div>
         </div>
         <button
@@ -153,14 +157,14 @@ export function WelcomeScreen() {
           className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
         >
           <FolderOpen size={18} />
-          Open Project
+          {t('welcome.actions.openProject')}
         </button>
       </header>
 
       <div className="flex-1 overflow-auto">
         <div className="max-w-6xl mx-auto px-8 py-8">
           <section className="mb-10">
-            <h2 className="text-lg font-semibold text-foreground mb-4">Start a new project</h2>
+            <h2 className="text-lg font-semibold text-foreground mb-4">{t('welcome.startNewProject')}</h2>
 
             <div className="flex gap-2 mb-6 flex-wrap">
               {categories.map((cat) => {
@@ -176,7 +180,7 @@ export function WelcomeScreen() {
                     }`}
                   >
                     <Icon size={16} />
-                    {cat.label}
+                    {t(cat.labelKey)}
                   </button>
                 );
               })}
@@ -190,8 +194,8 @@ export function WelcomeScreen() {
                 <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-3 group-hover:bg-primary/20 transition-colors">
                   <Plus size={24} className="text-primary" />
                 </div>
-                <span className="text-sm font-medium text-foreground">Custom Size</span>
-                <span className="text-xs text-muted-foreground mt-1">Set dimensions</span>
+                <span className="text-sm font-medium text-foreground">{t('welcome.customSize')}</span>
+                <span className="text-xs text-muted-foreground mt-1">{t('welcome.setDimensions')}</span>
               </button>
 
               {filteredPresets.map((preset) => (
@@ -220,10 +224,10 @@ export function WelcomeScreen() {
 
           {showCustomSize && (
             <section className="mb-10 p-6 rounded-xl bg-card border border-border">
-              <h3 className="text-base font-medium text-foreground mb-4">Custom Dimensions</h3>
+              <h3 className="text-base font-medium text-foreground mb-4">{t('welcome.customDimensions')}</h3>
               <div className="flex items-end gap-4">
                 <div>
-                  <label className="block text-sm text-muted-foreground mb-2">Width (px)</label>
+                  <label className="block text-sm text-muted-foreground mb-2">{t('welcome.widthPx')}</label>
                   <input
                     type="number"
                     value={customWidth}
@@ -235,7 +239,7 @@ export function WelcomeScreen() {
                 </div>
                 <span className="text-muted-foreground pb-2.5">×</span>
                 <div>
-                  <label className="block text-sm text-muted-foreground mb-2">Height (px)</label>
+                  <label className="block text-sm text-muted-foreground mb-2">{t('welcome.heightPx')}</label>
                   <input
                     type="number"
                     value={customHeight}
@@ -249,22 +253,22 @@ export function WelcomeScreen() {
                   onClick={handleCreateCustom}
                   className="px-6 py-2.5 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 active:scale-[0.98] transition-all"
                 >
-                  Create Design
+                  {t('welcome.actions.createDesign')}
                 </button>
               </div>
             </section>
           )}
 
           <section>
-            <h2 className="text-lg font-semibold text-foreground mb-4">Recent Projects</h2>
+            <h2 className="text-lg font-semibold text-foreground mb-4">{t('welcome.recentProjects')}</h2>
             {recentProjects.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 text-center">
                 <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
                   <FolderOpen size={28} className="text-muted-foreground" />
                 </div>
-                <p className="text-muted-foreground mb-2">No recent projects</p>
+                <p className="text-muted-foreground mb-2">{t('welcome.emptyRecent.title')}</p>
                 <p className="text-sm text-muted-foreground/70">
-                  Create a new project to get started
+                  {t('welcome.emptyRecent.description')}
                 </p>
               </div>
             ) : (
@@ -305,7 +309,7 @@ export function WelcomeScreen() {
                               className="w-full px-3 py-2 text-left text-sm hover:bg-accent transition-colors flex items-center gap-2"
                             >
                               <FolderOpen size={14} />
-                              Open
+                              {t('welcome.actions.open')}
                             </button>
                             <button
                               onClick={(e) => {
@@ -315,7 +319,7 @@ export function WelcomeScreen() {
                               className="w-full px-3 py-2 text-left text-sm text-destructive hover:bg-destructive/10 transition-colors flex items-center gap-2"
                             >
                               <Trash2 size={14} />
-                              Delete
+                              {t('welcome.actions.delete')}
                             </button>
                           </div>
                         )}
@@ -344,22 +348,22 @@ export function WelcomeScreen() {
                 className="bg-card border border-border rounded-xl p-6 max-w-sm mx-4 shadow-xl"
                 onClick={(e) => e.stopPropagation()}
               >
-                <h3 className="text-base font-semibold text-foreground mb-2">Delete Project?</h3>
+                <h3 className="text-base font-semibold text-foreground mb-2">{t('welcome.deleteConfirm.title')}</h3>
                 <p className="text-sm text-muted-foreground mb-6">
-                  This action cannot be undone. The project will be permanently deleted from your browser storage.
+                  {t('welcome.deleteConfirm.description')}
                 </p>
                 <div className="flex justify-end gap-3">
                   <button
                     onClick={() => setDeleteConfirmId(null)}
                     className="px-4 py-2 rounded-lg text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
                   >
-                    Cancel
+                    {t('welcome.actions.cancel')}
                   </button>
                   <button
                     onClick={() => handleDeleteProject(deleteConfirmId)}
                     className="px-4 py-2 bg-destructive text-destructive-foreground rounded-lg text-sm font-medium hover:bg-destructive/90 transition-colors"
                   >
-                    Delete
+                    {t('welcome.actions.delete')}
                   </button>
                 </div>
               </div>
@@ -370,10 +374,10 @@ export function WelcomeScreen() {
 
       <footer className="px-8 py-4 border-t border-border flex items-center justify-between">
         <p className="text-xs text-muted-foreground">
-          OpenReel Image — Professional graphic design in your browser
+          {t('welcome.footer.editor')}
         </p>
         <p className="text-xs text-muted-foreground">
-          100% offline • No account required
+          {t('welcome.footer.offline')}
         </p>
       </footer>
     </div>

@@ -1,6 +1,13 @@
 import { useState, type ReactNode } from 'react';
-import { X, Settings, Grid3X3, MousePointer, Save, Palette, Monitor } from 'lucide-react';
+import { X, Settings, Grid3X3, MousePointer, Save, Palette, Monitor, Languages } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import {
+  IMAGE_LANGUAGE_STORAGE_KEY,
+  LANGUAGE_LABELS,
+  SUPPORTED_LANGUAGES,
+  markLanguageChoiceMade,
+  type SupportedLanguage,
+} from '../../i18n';
 import { useUIStore } from '../../stores/ui-store';
 import { Slider } from '@openreel/ui';
 
@@ -13,7 +20,10 @@ type SettingsTab = 'canvas' | 'snapping' | 'appearance';
 
 export function SettingsDialog({ isOpen, onClose }: Props) {
   const [activeTab, setActiveTab] = useState<SettingsTab>('canvas');
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const [language, setLanguage] = useState<SupportedLanguage>(
+    i18n.language === 'zh-CN' ? 'zh-CN' : 'en',
+  );
 
   const {
     showGrid,
@@ -39,6 +49,13 @@ export function SettingsDialog({ isOpen, onClose }: Props) {
     { id: 'snapping', label: t('settings:tabs.snapping'), icon: <MousePointer size={16} /> },
     { id: 'appearance', label: t('settings:tabs.appearance'), icon: <Palette size={16} /> },
   ];
+
+  const handleLanguageChange = (nextLanguage: SupportedLanguage) => {
+    setLanguage(nextLanguage);
+    window.localStorage.setItem(IMAGE_LANGUAGE_STORAGE_KEY, nextLanguage);
+    markLanguageChoiceMade();
+    void i18n.changeLanguage(nextLanguage);
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -153,6 +170,27 @@ export function SettingsDialog({ isOpen, onClose }: Props) {
                 <h3 className="text-sm font-medium text-foreground mb-4">{t('settings:appearance.title')}</h3>
 
                 <div className="space-y-4">
+                  <div className="flex items-center justify-between p-3 bg-secondary/50 rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <Languages size={18} className="text-muted-foreground" />
+                      <div>
+                        <p className="text-sm font-medium">{t('settings:appearance.language')}</p>
+                        <p className="text-xs text-muted-foreground">{t('settings:appearance.languageDescription')}</p>
+                      </div>
+                    </div>
+                    <select
+                      value={language}
+                      onChange={(e) => handleLanguageChange(e.target.value as SupportedLanguage)}
+                      className="px-3 py-1.5 text-xs bg-background border border-input rounded-md text-foreground"
+                    >
+                      {SUPPORTED_LANGUAGES.map((lang) => (
+                        <option key={lang} value={lang}>
+                          {LANGUAGE_LABELS[lang]}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
                   <div className="flex items-center justify-between p-3 bg-secondary/50 rounded-lg">
                     <div className="flex items-center gap-3">
                       <Monitor size={18} className="text-muted-foreground" />

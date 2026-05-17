@@ -1,6 +1,7 @@
 import React, { useMemo } from "react";
 import { motion } from "framer-motion";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import type { TourStep } from "./tour-steps";
 
 interface TourPopoverProps {
@@ -32,6 +33,17 @@ export const TourPopover: React.FC<TourPopoverProps> = ({
   onSkip,
   onGoToStep,
 }) => {
+  const { t } = useTranslation("editor");
+  const stepTitle = t(`tour.spotlight.steps.${step.id}.title`, {
+    defaultValue: step.title,
+  });
+  const stepDescription = t(`tour.spotlight.steps.${step.id}.description`, {
+    defaultValue: step.description,
+  });
+  const stepTips = step.tips?.map((tip, index) =>
+    t(`tour.spotlight.steps.${step.id}.tips.${index}`, { defaultValue: tip }),
+  );
+
   const { position: computedPosition, arrowPosition } = useMemo(() => {
     if (!targetRect || step.position === "center") {
       return { position: { x: 0, y: 0 }, arrowPosition: null };
@@ -163,7 +175,7 @@ export const TourPopover: React.FC<TourPopoverProps> = ({
             transition={{ delay: 0.1 }}
             className="text-lg font-bold text-text-primary mb-2"
           >
-            {step.title}
+            {stepTitle}
           </motion.h2>
 
           <motion.p
@@ -173,10 +185,10 @@ export const TourPopover: React.FC<TourPopoverProps> = ({
             transition={{ delay: 0.15 }}
             className="text-sm text-text-secondary mb-4"
           >
-            {step.description}
+            {stepDescription}
           </motion.p>
 
-          {step.tips && step.tips.length > 0 && (
+          {stepTips && stepTips.length > 0 && (
             <motion.div
               key={`tips-${currentStep}`}
               initial={{ opacity: 0, y: 10 }}
@@ -185,7 +197,7 @@ export const TourPopover: React.FC<TourPopoverProps> = ({
               className="bg-background-tertiary rounded-lg p-3 mb-4"
             >
               <ul className="space-y-1.5">
-                {step.tips.map((tip, index) => (
+                {stepTips.map((tip, index) => (
                   <li
                     key={index}
                     className="flex items-start gap-2 text-xs text-text-secondary"
@@ -220,21 +232,21 @@ export const TourPopover: React.FC<TourPopoverProps> = ({
             className="flex items-center gap-1 px-3 py-1.5 text-xs text-text-secondary hover:text-text-primary disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
           >
             <ChevronLeft size={14} />
-            Back
+            {t("tour.actions.back")}
           </button>
 
           <button
             onClick={onSkip}
             className="px-3 py-1.5 text-xs text-text-muted hover:text-text-secondary transition-colors"
           >
-            Skip Tour
+            {t("tour.actions.skip")}
           </button>
 
           <button
             onClick={onNext}
             className="flex items-center gap-1 px-4 py-1.5 bg-primary text-white rounded-lg text-xs font-medium hover:bg-primary/80 transition-colors"
           >
-            {isLastStep ? "Get Started" : "Next"}
+            {isLastStep ? t("tour.actions.getStarted") : t("tour.actions.next")}
             {!isLastStep && <ChevronRight size={14} />}
           </button>
         </div>

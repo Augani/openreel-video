@@ -15,5 +15,17 @@
   "messages": {
     "errors": "Errors",
     "warnings": "Warnings"
+  },
+  "projectNames": {
+    "newProject": "New Project",
+    "newPresetProject": "New {{preset}} Project",
+    "newVerticalVideo": "New Vertical Video",
+    "newHorizontalVideo": "New Horizontal Video",
+    "newSquareVideo": "New Square Video"
+  },
+  "languagePrompt": {
+    "message": "{{language}} is available for this app.",
+    "switch": "Switch",
+    "dismiss": "Keep current language"
   }
 }

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { Keyboard, Search, RotateCcw, ChevronDown } from "lucide-react";
 import {
   Dialog,
@@ -22,6 +23,7 @@ interface KeyboardShortcutsOverlayProps {
 export const KeyboardShortcutsOverlay: React.FC<
   KeyboardShortcutsOverlayProps
 > = ({ isOpen, onClose }) => {
+  const { t } = useTranslation("editor");
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState<
     ShortcutCategory | "all"
@@ -98,7 +100,11 @@ export const KeyboardShortcutsOverlay: React.FC<
 
       if (conflict) {
         alert(
-          `This shortcut conflicts with "${conflict.name}". Choose a different key.`,
+          t("keyboardShortcuts.conflictMessage", {
+            name: t(`keyboardShortcuts.shortcuts.${conflict.id}.name`, {
+              defaultValue: conflict.name,
+            }),
+          }),
         );
         return;
       }
@@ -116,7 +122,7 @@ export const KeyboardShortcutsOverlay: React.FC<
   };
 
   const handleResetAll = () => {
-    if (confirm("Reset all shortcuts to defaults?")) {
+    if (confirm(t("keyboardShortcuts.confirmResetAll"))) {
       keyboardShortcuts.resetAllShortcuts();
       setShortcuts(keyboardShortcuts.getAllShortcuts());
     }
@@ -131,6 +137,24 @@ export const KeyboardShortcutsOverlay: React.FC<
 
   const categories = keyboardShortcuts.getCategories();
   const presets = keyboardShortcuts.getPresets();
+  const getShortcutName = (shortcut: ShortcutDefinition) =>
+    t(`keyboardShortcuts.shortcuts.${shortcut.id}.name`, {
+      defaultValue: shortcut.name,
+    });
+  const getShortcutDescription = (shortcut: ShortcutDefinition) =>
+    t(`keyboardShortcuts.shortcuts.${shortcut.id}.description`, {
+      defaultValue: shortcut.description,
+    });
+  const getCategoryName = (category: ShortcutCategory) =>
+    t(`keyboardShortcuts.categories.${category}`, {
+      defaultValue: keyboardShortcuts.getCategoryName(category),
+    });
+  const getPresetName = (presetId: string, fallback: string) =>
+    t(`keyboardShortcuts.presets.${presetId}.name`, { defaultValue: fallback });
+  const getPresetDescription = (presetId: string, fallback: string) =>
+    t(`keyboardShortcuts.presets.${presetId}.description`, {
+      defaultValue: fallback,
+    });
 
   if (!isOpen) return null;
 
@@ -141,7 +165,7 @@ export const KeyboardShortcutsOverlay: React.FC<
           <div className="flex items-center gap-3">
             <Keyboard size={20} className="text-primary" />
             <DialogTitle className="text-lg font-bold text-text-primary">
-              Keyboard Shortcuts
+              {t("keyboardShortcuts.title")}
             </DialogTitle>
           </div>
         </DialogHeader>
@@ -156,7 +180,7 @@ export const KeyboardShortcutsOverlay: React.FC<
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search shortcuts..."
+              placeholder={t("keyboardShortcuts.searchPlaceholder")}
               className="pl-9 bg-background-tertiary border-border text-text-primary"
             />
           </div>
@@ -167,7 +191,12 @@ export const KeyboardShortcutsOverlay: React.FC<
               className="flex items-center gap-2 px-3 py-2 bg-background-tertiary border border-border rounded-lg text-sm text-text-secondary hover:text-text-primary transition-colors"
             >
               <span>
-                {presets.find((p) => p.id === activePreset)?.name || "Preset"}
+                {(() => {
+                  const preset = presets.find((p) => p.id === activePreset);
+                  return preset
+                    ? getPresetName(preset.id, preset.name)
+                    : t("keyboardShortcuts.presetFallback");
+                })()}
               </span>
               <ChevronDown size={14} />
             </button>
@@ -183,9 +212,9 @@ export const KeyboardShortcutsOverlay: React.FC<
                         : "text-text-secondary hover:bg-background-tertiary hover:text-text-primary"
                     }`}
                   >
-                    <div className="font-medium">{preset.name}</div>
+                    <div className="font-medium">{getPresetName(preset.id, preset.name)}</div>
                     <div className="text-[10px] text-text-muted">
-                      {preset.description}
+                      {getPresetDescription(preset.id, preset.description)}
                     </div>
                   </button>
                 ))}
@@ -198,7 +227,7 @@ export const KeyboardShortcutsOverlay: React.FC<
             className="flex items-center gap-1 px-3 py-2 text-sm text-text-muted hover:text-text-primary transition-colors"
           >
             <RotateCcw size={14} />
-            Reset All
+            {t("keyboardShortcuts.resetAll")}
           </button>
         </div>
 
@@ -211,7 +240,7 @@ export const KeyboardShortcutsOverlay: React.FC<
                 : "text-text-secondary hover:text-text-primary hover:bg-background-tertiary"
             }`}
           >
-            All
+            {t("keyboardShortcuts.all")}
           </button>
           {categories.map((category) => (
             <button
@@ -223,7 +252,7 @@ export const KeyboardShortcutsOverlay: React.FC<
                   : "text-text-secondary hover:text-text-primary hover:bg-background-tertiary"
               }`}
             >
-              {keyboardShortcuts.getCategoryName(category)}
+              {getCategoryName(category)}
             </button>
           ))}
         </div>
@@ -233,9 +262,7 @@ export const KeyboardShortcutsOverlay: React.FC<
             ([category, categoryShortcuts]) => (
               <div key={category}>
                 <h3 className="text-xs font-bold text-text-muted uppercase tracking-wider mb-3">
-                  {keyboardShortcuts.getCategoryName(
-                    category as ShortcutCategory,
-                  )}
+                  {getCategoryName(category as ShortcutCategory)}
                 </h3>
                 <div className="space-y-1">
                   {categoryShortcuts.map((shortcut) => (
@@ -245,10 +272,10 @@ export const KeyboardShortcutsOverlay: React.FC<
                     >
                       <div className="flex-1">
                         <div className="text-sm text-text-primary">
-                          {shortcut.name}
+                          {getShortcutName(shortcut)}
                         </div>
                         <div className="text-[10px] text-text-muted">
-                          {shortcut.description}
+                          {getShortcutDescription(shortcut)}
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
@@ -258,7 +285,7 @@ export const KeyboardShortcutsOverlay: React.FC<
                             onKeyDown={(e) =>
                               handleShortcutCapture(e, shortcut.id)
                             }
-                            placeholder="Press keys..."
+                            placeholder={t("keyboardShortcuts.pressKeys")}
                             className="w-32 px-2 py-1 bg-primary/20 border border-primary rounded text-sm text-center text-text-primary focus:outline-none"
                           />
                         ) : (
@@ -273,7 +300,7 @@ export const KeyboardShortcutsOverlay: React.FC<
                           <button
                             onClick={() => handleResetShortcut(shortcut.id)}
                             className="p-1 text-text-muted hover:text-text-primary opacity-0 group-hover:opacity-100 transition-opacity"
-                            title="Reset to default"
+                            title={t("keyboardShortcuts.resetToDefault")}
                           >
                             <RotateCcw size={12} />
                           </button>
@@ -289,18 +316,18 @@ export const KeyboardShortcutsOverlay: React.FC<
           {filteredShortcuts.length === 0 && (
             <div className="text-center py-8 text-text-muted">
               <Keyboard size={32} className="mx-auto mb-2 opacity-30" />
-              <p className="text-sm">No shortcuts found</p>
+              <p className="text-sm">{t("keyboardShortcuts.noShortcutsFound")}</p>
             </div>
           )}
         </div>
 
         <div className="p-3 border-t border-border bg-background-tertiary text-center">
           <p className="text-[10px] text-text-muted">
-            Click a shortcut key to customize • Press{" "}
+            {t("keyboardShortcuts.footer.clickToCustomize")}{" "}
             <kbd className="px-1.5 py-0.5 bg-background-secondary border border-border rounded text-[10px]">
               ?
             </kbd>{" "}
-            to toggle this overlay
+            {t("keyboardShortcuts.footer.toToggleOverlay")}
           </p>
         </div>
       </DialogContent>

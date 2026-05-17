@@ -28,6 +28,8 @@
   },
   "appearance": {
     "title": "Appearance",
+    "language": "Language",
+    "languageDescription": "Choose the interface language",
     "theme": "Theme",
     "themeDescription": "Interface appearance",
     "themeValue": "Dark (System)",

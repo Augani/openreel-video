@@ -327,7 +327,9 @@ export const ApiKeysPanel: React.FC = () => {
 
               {service && (
                 <p className="text-xs text-text-muted mb-2">
-                  {service.description}
+                  {t(`settings:general.serviceDescriptions.${service.id}`, {
+                    defaultValue: service.description,
+                  })}
                 </p>
               )}
 
@@ -408,7 +410,9 @@ export const ApiKeysPanel: React.FC = () => {
                     {service.label}
                   </div>
                   <div className="text-xs text-text-muted">
-                    {service.description}
+                    {t(`settings:general.serviceDescriptions.${service.id}`, {
+                      defaultValue: service.description,
+                    })}
                   </div>
                 </div>
               </button>

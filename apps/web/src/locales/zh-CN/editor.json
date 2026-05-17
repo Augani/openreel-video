@@ -1,0 +1,674 @@
+{
+  "app": {
+    "loadingEditor": "正在加载编辑器...",
+    "initializingEditor": "正在初始化编辑器...",
+    "initialization": {
+      "starting": "正在启动...",
+      "videoEngine": "正在初始化视频引擎...",
+      "mediaBridge": "正在初始化媒体桥接...",
+      "playbackBridge": "正在初始化播放桥接...",
+      "renderBridge": "正在初始化渲染桥接...",
+      "effectsBridge": "正在初始化效果桥接...",
+      "transitionBridge": "正在初始化转场桥接...",
+      "engineFailed": "引擎初始化失败",
+      "unknownError": "未知错误",
+      "error": "错误：{{message}}"
+    }
+  },
+  "dialogs": {
+    "aspectRatioMatch": {
+      "title": "匹配视频尺寸？",
+      "description": "要添加的视频尺寸与当前项目设置不同。",
+      "videoDimensions": "视频尺寸",
+      "currentProject": "当前项目",
+      "aspectRatio": "宽高比：{{value}}",
+      "summary": "更新项目尺寸可获得更好的编辑体验，并避免导出时裁剪。",
+      "keepCurrent": "保持当前",
+      "matchVideo": "匹配视频"
+    }
+  },
+  "inspector": {
+    "crop": {
+      "adjust": "调整裁剪",
+      "action": "裁剪视频",
+      "region": "裁剪区域：",
+      "position": "位置：",
+      "reset": "重置裁剪"
+    }
+  },
+  "exportDialog": {
+    "title": "导出视频",
+    "tabs": {
+      "presets": "预设",
+      "custom": "自定义"
+    },
+    "recommendedForYourVideo": "适合你的视频",
+    "aspectRatioLabels": {
+      "vertical": "竖屏 (TikTok、Reels、Shorts)",
+      "square": "方形 (Instagram Feed)",
+      "horizontal": "横屏 (YouTube、Twitter)"
+    },
+    "fields": {
+      "format": "格式",
+      "codec": "编码器",
+      "resolution": "分辨率",
+      "frameRate": "帧率",
+      "bitrate": "码率 (kbps)",
+      "quality": "质量",
+      "audioSettings": "音频设置",
+      "qualityEnhancement": "增强质量 (放大)",
+      "qualityMode": "质量模式",
+      "sharpening": "锐化"
+    },
+    "options": {
+      "vertical1080p": "竖屏 1080p",
+      "square1080": "方形 1080",
+      "fast": "快速",
+      "balanced": "平衡"
+    },
+    "qualityScale": {
+      "smaller": "更小",
+      "better": "更好",
+      "max": "最大"
+    },
+    "descriptions": {
+      "upscaling": "导出到高于源素材的分辨率时增强画质。使用边缘导向插值获得更清晰细节。"
+    },
+    "status": {
+      "estimateTime": "预计时间：",
+      "getAccurateEstimate": "获取准确估计",
+      "testing": "测试中...",
+      "hardwareAccelerated": "硬件加速",
+      "cpu": "CPU",
+      "gpu": "GPU",
+      "codecs": "编码器",
+      "unknown": "未知",
+      "hardwareEncode": "硬件编码",
+      "softwareOnly": "仅软件",
+      "cores": "{{count}} 核",
+      "maxDuration": "最长 {{seconds}} 秒"
+    },
+    "actions": {
+      "start": "开始导出"
+    }
+  },
+  "searchModal": {
+    "categories": {
+      "all": "全部",
+      "video": "视频",
+      "audio": "音频",
+      "text": "文本",
+      "animation": "动画",
+      "positionSize": "位置与尺寸",
+      "time": "时间",
+      "shapes": "形状"
+    },
+    "items": {
+      "transform": { "name": "变换", "description": "调整片段的位置、缩放和旋转" },
+      "crop": { "name": "裁剪", "description": "裁剪并重新构图片段" },
+      "speed": { "name": "速度控制", "description": "控制播放速度和时间重映射" },
+      "video-effects": { "name": "视频效果", "description": "亮度、对比度、饱和度、模糊、锐化" },
+      "color-grading": { "name": "色彩分级", "description": "色轮、曲线、LUT 和 HSL 调整" },
+      "green-screen": { "name": "绿幕", "description": "用于移除绿幕/蓝幕的色度键" },
+      "background-removal": { "name": "背景移除", "description": "AI 驱动的背景移除" },
+      "masking": { "name": "蒙版", "description": "使用形状蒙版显示或隐藏区域" },
+      "motion-tracking": { "name": "运动跟踪", "description": "跟踪运动并附着元素" },
+      "pip": { "name": "画中画", "description": "将片段定位为画中画叠加层" },
+      "blending": { "name": "混合模式", "description": "混合模式和不透明度控制" },
+      "transform-3d": { "name": "3D 变换", "description": "3D 旋转和透视效果" },
+      "keyframes": { "name": "关键帧", "description": "随时间为属性添加动画" },
+      "transitions": { "name": "转场", "description": "片段之间的转场效果" },
+      "motion-presets": { "name": "运动预设", "description": "预置运动动画" },
+      "audio-effects": { "name": "音频效果", "description": "均衡器、压缩器、混响等" },
+      "audio-ducking": { "name": "自动闪避", "description": "在语音下自动降低音乐音量" },
+      "text-properties": { "name": "文本属性", "description": "字体、大小、颜色和文本样式" },
+      "text-animation": { "name": "文本动画", "description": "使用预设为文本添加动画" },
+      "shape-properties": { "name": "形状属性", "description": "形状填充、描边和效果" }
+    },
+    "placeholderForClip": "搜索 {{type}} 片段的效果...",
+    "placeholderAll": "搜索所有效果和工具...",
+    "noEffectsFound": "未找到效果",
+    "tryDifferentSearchTermOrCategory": "尝试其他搜索词或分类",
+    "effectsAvailable_one": "{{count}} 个可用效果",
+    "effectsAvailable_other": "{{count}} 个可用效果",
+    "navigate": "导航",
+    "select": "选择",
+    "toSelect": "选择"
+  },
+  "saveTemplateDialog": {
+    "title": "保存为模板",
+    "success": "模板保存成功！",
+    "validation": {
+      "nameRequired": "模板名称为必填项",
+      "descriptionRequired": "描述为必填项",
+      "uploadFailed": "上传到云端失败",
+      "saveFailed": "保存模板失败"
+    },
+    "fields": {
+      "templateName": "模板名称",
+      "description": "描述",
+      "category": "分类",
+      "tags": "标签 (逗号分隔)",
+      "authorName": "作者名称",
+      "saveLocation": "保存位置"
+    },
+    "placeholders": {
+      "templateName": "我的精彩模板",
+      "description": "描述这个模板的用途和使用方式...",
+      "tags": "intro, animated, youtube",
+      "authorName": "你的姓名或用户名"
+    },
+    "locations": {
+      "cloud": "云端",
+      "local": "本地",
+      "cloudDescription": "保存到云端，可在任何设备访问",
+      "localDescription": "保存在浏览器本地存储中"
+    },
+    "actions": {
+      "saving": "正在保存...",
+      "save": "保存模板"
+    },
+    "states": {
+      "anonymous": "匿名",
+      "characters": "{{count}}/{{max}} 个字符"
+    }
+  },
+  "scriptView": {
+    "title": "项目 JSON",
+    "description": "将项目导出或导入为 JSON",
+    "tabs": {
+      "export": "导出 JSON",
+      "import": "导入"
+    },
+    "actions": {
+      "download": "下载 JSON",
+      "revalidate": "重新验证",
+      "importProject": "导入项目"
+    },
+    "states": {
+      "noProjectData": "没有可导出的项目数据。",
+      "dropHere": "将 JSON 文件拖到这里",
+      "dropHereOrClick": "将 JSON 文件拖到这里或点击浏览",
+      "acceptsProjectFiles": "支持 .json 项目文件",
+      "charactersLoaded": "已加载 {{count}} 个字符",
+      "copied": "已复制！",
+      "validating": "正在验证...",
+      "validProject": "有效的项目 JSON，可以导入",
+      "missingAssets": "缺失素材",
+      "missingAssetsHelp": "这些素材会作为占位符导入，之后可以替换。",
+      "invalidFileType": "请上传 .json 文件",
+      "validationError": "验证错误：{{message}}",
+      "unknownError": "未知错误",
+      "importError": "导入错误：{{message}}",
+      "assetsNeedRelinking_one": "{{count}} 个素材需要重新链接",
+      "assetsNeedRelinking_other": "{{count}} 个素材需要重新链接",
+      "relinkAssetsHelp": "前往素材面板 -> 点击“从文件夹重新链接”来恢复缺失媒体。"
+    }
+  },
+  "toolbar": {
+    "search": {
+      "selectedClip": "搜索所选片段的效果...",
+      "allTools": "搜索工具、效果，或询问 AI..."
+    },
+    "help": {
+      "editorTour": "编辑器导览",
+      "animationEffectsTour": "动画与效果导览",
+      "shortcutsHint": "按 ? 查看快捷键"
+    },
+    "tooltips": {
+      "backToHome": "返回首页",
+      "theme": "主题：{{mode}}",
+      "settingsApiKeys": "设置与 API Key",
+      "projectJson": "项目 JSON - 导出/导入",
+      "keyframeEditor": "关键帧编辑器",
+      "audioMixer": "音频混音器 - 轨道音量与主音量",
+      "history": "历史 - 撤销/重做",
+      "screenRecording": "屏幕录制"
+    },
+    "actions": {
+      "record": "录制"
+    },
+    "recording": {
+      "failed": "录制失败",
+      "noData": "没有捕获到视频数据，请重试。",
+      "importScreenFailed": "导入屏幕录制失败",
+      "importWebcamFailed": "导入摄像头录制失败",
+      "imported_one": "已导入 {{count}} 个录制！",
+      "imported_other": "已导入 {{count}} 个录制！",
+      "screenAndWebcamAdded": "屏幕与摄像头录制已添加到素材。可在时间线中合成它们。",
+      "screenAdded": "屏幕录制已添加到素材。",
+      "importFailed": "导入失败"
+    },
+    "export": {
+      "actions": {
+        "export": "导出"
+      },
+      "mediaFile": "媒体文件",
+      "bestMatch": "最佳匹配",
+      "estimate": "预计 {{time}}",
+      "customExport": "自定义导出...",
+      "customExportDescription": "完整设置，支持 AI 放大",
+      "status": {
+        "initializing": "正在初始化...",
+        "complete": "完成！",
+        "saved": "已保存！",
+        "failed": "导出失败",
+        "downloaded": "已下载！"
+      },
+      "options": {
+        "mp4Standard": "MP4 标准",
+        "fourKStandard": "4K 标准",
+        "highQuality1080p": "1080p 高质量",
+        "smooth1080p60": "1080p 60fps",
+        "audioOnlyWav": "仅音频 (WAV)"
+      },
+      "descriptions": {
+        "webSocial": "{{resolution}} H.264 - Web 与社交媒体",
+        "youtube4k": "3840×2160 - YouTube 4K",
+        "highBitrate1080p": "1920×1080 30fps - 高码率",
+        "smoothPlayback": "1920×1080 - 流畅播放",
+        "uncompressedAudio": "未压缩音频"
+      }
+    },
+    "historyPanel": {
+      "title": "操作历史"
+    }
+  },
+  "timeline": {
+    "actions": {
+      "split": "分割",
+      "addTrack": "添加轨道"
+    },
+    "trackTypes": {
+      "video": "视频轨道",
+      "audio": "音频轨道",
+      "image": "图像轨道",
+      "text": "文本轨道",
+      "graphics": "图形轨道"
+    },
+    "layers": {
+      "shortLabel": "图层",
+      "title": "轨道图层",
+      "empty": "暂无轨道"
+    },
+    "snap": {
+      "shortLabel": "吸附"
+    },
+    "tooltips": {
+      "undo": "撤销 (Cmd+Z)",
+      "redo": "重做 (Cmd+Shift+Z)",
+      "splitClip": "在播放头处分割片段 (S)",
+      "deleteClip": "删除片段 (Del)",
+      "addNewTrack": "添加新轨道",
+      "manageTrackLayers": "管理轨道图层",
+      "moveTrackUp": "上移",
+      "moveTrackDown": "下移",
+      "disableSnapping": "关闭吸附",
+      "enableSnapping": "启用吸附",
+      "largeTracks": "大轨道",
+      "smallTracks": "小轨道",
+      "zoomOut": "缩小",
+      "zoomIn": "放大",
+      "maximizeTimeline": "最大化时间线"
+    },
+    "toasts": {
+      "addedToTrack": "已添加到 {{track}}"
+    }
+  },
+  "assetsPanel": {
+    "title": "资产",
+    "tabs": {
+      "media": "媒体",
+      "text": "文本",
+      "graphics": "图形",
+      "aiGen": "AI 生成"
+    },
+    "actions": {
+      "importMedia": "导入媒体",
+      "addMedia": "添加媒体",
+      "maximizePanel": "最大化面板",
+      "closePanel": "关闭面板",
+      "replaceAsset": "替换资产",
+      "delete": "删除",
+      "createWithKieAI": "使用 KieAI 创建",
+      "addToTimeline": "添加到时间线",
+      "relinkFromFolder": "从文件夹重新链接..."
+    },
+    "thumbnail": {
+      "generationFailedRetry": "生成失败 - 点击重试",
+      "generationInProgress": "KieAI 正在生成...",
+      "retryGeneration": "重试生成",
+      "generating": "生成中..."
+    },
+    "badges": {
+      "failed": "失败",
+      "missing": "缺失"
+    },
+    "empty": {
+      "noMedia": "尚未导入媒体",
+      "dragOrClick": "将文件拖到这里，或点击导入"
+    },
+    "progress": {
+      "importingMedia": "正在导入媒体...",
+      "importingFile": "正在导入 {{file}} ({{current}}/{{total}})...",
+      "extractingAudio": "正在从 {{file}} 提取音频...",
+      "replacingAsset": "正在替换资产...",
+      "relinking": "正在重新链接 {{name}}..."
+    },
+    "search": {
+      "placeholder": "搜索媒体"
+    },
+    "viewModes": {
+      "large": "大图标",
+      "small": "小图标",
+      "list": "列表视图"
+    },
+    "filters": {
+      "showOnlyMissing": "仅显示缺失资产"
+    },
+    "dropZone": {
+      "dropFiles": "拖放文件以导入"
+    },
+    "graphics": {
+      "backgrounds": "背景",
+      "shapes": "形状",
+      "svgImport": "SVG 导入",
+      "importSvgFile": "导入 SVG 文件",
+      "stickersEmojis": "贴纸与 Emoji",
+      "categories": {
+        "all": "全部",
+        "solid": "纯色",
+        "gradient": "渐变",
+        "mesh": "网格",
+        "pattern": "图案"
+      },
+      "shapeLabels": {
+        "rectangle": "矩形",
+        "circle": "圆形",
+        "triangle": "三角形",
+        "star": "星形",
+        "arrow": "箭头",
+        "polygon": "多边形"
+      }
+    },
+    "text": {
+      "defaultTitle": "新标题",
+      "addTitle": "添加标题",
+      "addTitleDescription": "点击将文本添加到时间线",
+      "presets": {
+        "heading": { "name": "标题", "text": "标题" },
+        "subtitle": { "name": "副标题", "text": "副标题文本" },
+        "lowerThird": { "name": "下三分之一字幕", "text": "姓名" },
+        "caption": { "name": "字幕", "text": "字幕文本" }
+      }
+    },
+    "toasts": {
+      "unsavedAudioDiscarded": "未保存的音频已丢弃",
+      "saveAudioHint": "下次请保存到媒体或下载以保留音频。",
+      "folderPickerNotSupported": "不支持文件夹选择器",
+      "relinkIndividually": "请使用每个缺失资产上的刷新按钮逐个重新链接。",
+      "relinkedAssets": "已重新链接 {{linked}} / {{total}} 个资产",
+      "noMatchesFound": "未找到匹配项",
+      "noMatchingFiles": "所选文件夹中的文件都未按文件名匹配到缺失资产。",
+      "assetNotFound": "未找到资产",
+      "cannotLoadImageData": "无法加载此资产的图像数据。",
+      "failedToOpenKieAI": "无法打开 KieAI"
+    }
+  },
+  "inspector": {
+    "title": "检查器",
+    "empty": {
+      "noSelection": "未选择内容",
+      "selectClip": "选择一个片段以查看属性"
+    },
+    "clipInfo": {
+      "duration": "时长：{{duration}} 秒"
+    }
+  },
+  "tour": {
+    "actions": {
+      "back": "返回",
+      "skip": "跳过引导",
+      "next": "下一步",
+      "getStarted": "开始使用"
+    },
+    "spotlight": {
+      "steps": {
+        "welcome": {
+          "title": "欢迎使用 OpenReel",
+          "description": "快速了解编辑器的主要区域"
+        },
+        "assets": {
+          "title": "资产面板",
+          "description": "你的创作工具箱。导入媒体、生成 AI 内容、添加形状、贴纸和自定义 SVG。",
+          "tips": [
+            "拖放视频、音频和图片",
+            "AI 生成标签页可生成图片和背景",
+            "支持形状和自定义 SVG 导入",
+            "贴纸、背景和叠加元素"
+          ]
+        },
+        "timeline": {
+          "title": "时间线",
+          "description": "排列并编辑片段。拖动可移动，拖动边缘可裁剪。",
+          "tips": ["按 S 分割片段", "空格播放/暂停", "滚动缩放"]
+        },
+        "preview": {
+          "title": "预览",
+          "description": "编辑时实时查看视频效果。",
+          "tips": [
+            "方向键逐帧导航",
+            "点击进行拖动预览",
+            "支持全屏"
+          ]
+        },
+        "inspector": {
+          "title": "检查器",
+          "description": "选择片段后查看属性。可添加效果、调整颜色并制作动画。",
+          "tips": [
+            "变换、效果、调色",
+            "任意属性都可加关键帧",
+            "AI 驱动工具"
+          ]
+        },
+        "complete": {
+          "title": "准备好了！",
+          "description": "开始创作吧！随时按 ? 查看键盘快捷键。"
+        }
+      }
+    },
+    "mograph": {
+      "stepCounter": "动效引导 - 第 {{current}} / {{total}} 步",
+      "proTips": "专业提示",
+      "steps": {
+        "intro": {
+          "title": "动态图形与动画",
+          "description": "了解如何用关键帧、运动路径和粒子效果创建专业动画。"
+        },
+        "keyframes-inspector": {
+          "title": "关键帧动画",
+          "description": "选择任意片段并展开检查器中的关键帧区域。添加关键帧即可随时间动画化位置、缩放、旋转和不透明度。",
+          "tips": [
+            "点击菱形图标在当前时间添加关键帧",
+            "每个属性都可以拥有独立动画曲线",
+            "从 30 多种缓动预设中选择平滑运动"
+          ]
+        },
+        "keyframes-timeline": {
+          "title": "时间线关键帧视图",
+          "description": "点击任意轨道头部的展开箭头可显示关键帧子轨道。拖动菱形关键帧即可直观调整时机。",
+          "tips": [
+            "菱形标记显示关键帧位置",
+            "水平拖动可改变时机",
+            "点击关键帧之间的曲线可编辑缓动"
+          ]
+        },
+        "keyframe-editor": {
+          "title": "曲线编辑器",
+          "description": "从工具栏打开关键帧编辑器以进行精确控制。编辑数值曲线、复制/粘贴关键帧并细调动画。",
+          "tips": [
+            "拖动关键帧点调整时间和值",
+            "按住 Shift 点击可多选关键帧",
+            "将缓动预设应用到选中关键帧"
+          ]
+        },
+        "motion-path": {
+          "title": "运动路径",
+          "description": "沿自定义路径创建平滑移动。启用运动路径模式后，可直接在预览画布上绘制贝塞尔曲线。",
+          "tips": [
+            "点击画布添加路径点",
+            "拖动控制柄调整路径曲线",
+            "元素会随着动画沿路径移动",
+            "适合飞入 Logo 和动态文字"
+          ]
+        },
+        "particle-effects": {
+          "title": "粒子效果",
+          "description": "添加彩纸、闪光、尘埃和爆炸等电影感粒子效果。可在检查器的粒子效果区域找到它们。",
+          "tips": [
+            "选择预设效果或自定义",
+            "调整粒子数量、速度和颜色",
+            "设置效果出现时机",
+            "与关键帧组合实现戏剧化呈现"
+          ]
+        },
+        "emphasis-animations": {
+          "title": "强调动画",
+          "description": "用吸睛动画让元素更突出。脉冲、弹跳、抖动、摆动等效果非常适合突出重点内容。",
+          "tips": [
+            "内置 24 种强调预设",
+            "设置持续时间和循环次数",
+            "可与入场/退场动画组合"
+          ]
+        },
+        "text-animations": {
+          "title": "文字动画预设",
+          "description": "使用专业预设制作文字动画。字符可淡入、滑入、弹跳或呈现打字机效果。",
+          "tips": [
+            "提供 19 种文字动画样式",
+            "支持按字符或按单词动画",
+            "可自定义时机和缓动"
+          ]
+        },
+        "complete": {
+          "title": "开始制作动画！",
+          "description": "你已经可以创建专业动态图形了。选择一个片段，开始尝试关键帧和效果。",
+          "tips": [
+            "按 K 在播放头处添加关键帧",
+            "按 ? 查看所有键盘快捷键",
+            "组合效果，做出独特动画"
+          ]
+        }
+      }
+    }
+  },
+  "projectSwitcher": {
+    "currentProject": "当前项目",
+    "renameProject": "重命名项目",
+    "newProject": "新项目",
+    "newProjectDescription": "用新画布重新开始",
+    "recentProjects": "最近项目",
+    "timeAgo": {
+      "justNow": "刚刚",
+      "minutesShort": "{{count}} 分钟前",
+      "hoursShort": "{{count}} 小时前",
+      "daysShort": "{{count}} 天前"
+    }
+  },
+  "keyboardShortcuts": {
+    "title": "键盘快捷键",
+    "searchPlaceholder": "搜索快捷键...",
+    "presetFallback": "预设",
+    "resetAll": "全部重置",
+    "all": "全部",
+    "pressKeys": "按下按键...",
+    "resetToDefault": "重置为默认",
+    "noShortcutsFound": "未找到快捷键",
+    "conflictMessage": "此快捷键与“{{name}}”冲突。请选择其他按键。",
+    "confirmResetAll": "将所有快捷键重置为默认值？",
+    "categories": {
+      "playback": "播放",
+      "editing": "编辑",
+      "selection": "选择",
+      "timeline": "时间线",
+      "view": "视图",
+      "file": "文件",
+      "tools": "工具"
+    },
+    "presets": {
+      "openreel": {
+        "name": "OpenReel 默认",
+        "description": "OpenReel 默认快捷键"
+      },
+      "capcut": {
+        "name": "CapCut",
+        "description": "CapCut 风格快捷键"
+      },
+      "premiere": {
+        "name": "Adobe Premiere",
+        "description": "Premiere Pro 风格快捷键"
+      },
+      "finalcut": {
+        "name": "Final Cut Pro",
+        "description": "Final Cut Pro 风格快捷键"
+      },
+      "davinci": {
+        "name": "DaVinci Resolve",
+        "description": "DaVinci Resolve 风格快捷键"
+      }
+    },
+    "shortcuts": {
+      "playback.playPause": { "name": "播放/暂停", "description": "切换播放状态" },
+      "playback.frameBack": { "name": "后退一帧", "description": "向后移动一帧" },
+      "playback.frameForward": { "name": "前进一帧", "description": "向前移动一帧" },
+      "playback.secondBack": { "name": "后退一秒", "description": "向后移动一秒" },
+      "playback.secondForward": { "name": "前进一秒", "description": "向前移动一秒" },
+      "playback.jump5Back": { "name": "后退 5 秒", "description": "向后移动 5 秒" },
+      "playback.jump5Forward": { "name": "前进 5 秒", "description": "向前移动 5 秒" },
+      "playback.goToStart": { "name": "跳到开头", "description": "跳到时间线开头" },
+      "playback.goToEnd": { "name": "跳到结尾", "description": "跳到时间线结尾" },
+      "playback.prevClip": { "name": "上一个片段", "description": "跳到上一个片段边缘" },
+      "playback.nextClip": { "name": "下一个片段", "description": "跳到下一个片段边缘" },
+      "editing.undo": { "name": "撤销", "description": "撤销上一步操作" },
+      "editing.redo": { "name": "重做", "description": "重做刚撤销的操作" },
+      "editing.cut": { "name": "剪切", "description": "剪切所选片段" },
+      "editing.copy": { "name": "复制", "description": "复制所选片段" },
+      "editing.paste": { "name": "粘贴", "description": "在播放头处粘贴片段" },
+      "editing.duplicate": { "name": "复制副本", "description": "复制所选片段为副本" },
+      "editing.delete": { "name": "删除", "description": "删除所选片段" },
+      "editing.rippleDelete": { "name": "波纹删除", "description": "删除并闭合间隙" },
+      "editing.split": { "name": "分割", "description": "在播放头处分割片段" },
+      "editing.trimStart": { "name": "裁剪开头", "description": "将片段开头裁剪到播放头" },
+      "editing.trimEnd": { "name": "裁剪结尾", "description": "将片段结尾裁剪到播放头" },
+      "selection.selectAll": { "name": "全选", "description": "选择所有片段" },
+      "selection.deselect": { "name": "取消选择", "description": "清除选择" },
+      "timeline.toggleSnap": { "name": "切换吸附", "description": "开启或关闭吸附" },
+      "timeline.zoomIn": { "name": "放大", "description": "放大时间线" },
+      "timeline.zoomOut": { "name": "缩小", "description": "缩小时间线" },
+      "timeline.fitTimeline": { "name": "适配时间线", "description": "将时间线适配到视图" },
+      "view.showShortcuts": { "name": "显示快捷键", "description": "显示键盘快捷键" },
+      "file.save": { "name": "保存", "description": "保存项目" },
+      "file.export": { "name": "导出", "description": "导出视频" },
+      "tools.addText": { "name": "添加文本", "description": "添加文本片段" },
+      "tools.addMarker": { "name": "添加标记", "description": "在播放头处添加标记" }
+    },
+    "footer": {
+      "clickToCustomize": "点击快捷键可自定义 • 按",
+      "toToggleOverlay": "切换此浮层"
+    }
+  },
+  "kieaiDialog": {
+    "title": "使用 KieAI 创建",
+    "sourceImage": "源图像",
+    "submitting": "提交中...",
+    "submissionFailed": "提交失败",
+    "uploading": "正在上传并提交任务...",
+    "errors": {
+      "uploadMissingUrl": "上传成功，但没有返回文件 URL。请检查控制台响应。",
+      "unknownModel": "未知模型"
+    },
+    "actions": {
+      "backToModelSelection": "返回模型选择"
+    }
+  }
+}
