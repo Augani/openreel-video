@@ -903,7 +903,7 @@ export const AssetsPanel: React.FC = () => {
     [importMedia, project.settings],
   );
 
-  const filtered{t("assetsPanel.graphics.backgrounds")} = BACKGROUND_PRESETS.filter(
+  const filteredBackgrounds = BACKGROUND_PRESETS.filter(
     (preset) =>
       backgroundCategory === "all" || preset.category === backgroundCategory,
   );
@@ -1097,7 +1097,7 @@ export const AssetsPanel: React.FC = () => {
                     )}
                   </div>
                   <div className="grid grid-cols-4 gap-2">
-                    {filtered{t("assetsPanel.graphics.backgrounds")}.map((preset) => (
+                    {filteredBackgrounds.map((preset) => (
                       <button
                         key={preset.id}
                         onClick={() => handleImportBackground(preset)}
