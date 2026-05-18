@@ -1,0 +1,61 @@
+{
+  "screen": {
+    "templates": "Templates",
+    "recentProjects": "Recent Projects",
+    "brandName": "Open Reel Video",
+    "headline": "From idea to export.",
+    "subheadline": "In your browser.",
+    "description": "Pick a format and start creating. You can change this anytime.",
+    "startCreating": "Start creating",
+    "browseTemplates": "Browse templates",
+    "openEditor": "Open editor",
+    "skipOnStartup": "Skip on startup",
+    "press": "Press",
+    "toSkip": "to skip",
+    "formats": {
+      "vertical": {
+        "label": "Vertical",
+        "description": "TikTok, Reels, Shorts"
+      },
+      "horizontal": {
+        "label": "Horizontal",
+        "description": "YouTube, Vimeo, Web"
+      },
+      "square": {
+        "label": "Square",
+        "description": "Instagram, Facebook"
+      }
+    }
+  },
+  "recovery": {
+    "title": "Recover Your Work",
+    "description": "We found an unsaved project",
+    "lastSaved": "Last saved",
+    "startFresh": "Start Fresh",
+    "recoverProject": "Recover Project",
+    "recovering": "Recovering...",
+    "olderSavesAvailable_one": "{{count}} older save available",
+    "olderSavesAvailable_other": "{{count}} older saves available",
+    "clearAllSavedProjects": "Clear all saved projects",
+    "timeAgo": {
+      "justNow": "just now",
+      "minute_one": "{{count}} minute ago",
+      "minute_other": "{{count}} minutes ago",
+      "hour_one": "{{count}} hour ago",
+      "hour_other": "{{count}} hours ago",
+      "day_one": "{{count}} day ago",
+      "day_other": "{{count}} days ago"
+    }
+  },
+  "templatePreview": {
+    "editableFields": "editable fields",
+    "scenes": "Scenes",
+    "customizeTemplate": "Customize Template",
+    "advancedOptions": "Advanced Options",
+    "applying": "Applying...",
+    "useTemplate": "Use Template",
+    "errors": {
+      "failedToApplyTemplate": "Failed to apply template"
+    }
+  }
+}

@@ -4,6 +4,7 @@ import posthog from "posthog-js";
 import { PostHogProvider } from "posthog-js/react";
 import App from "./App";
 import "./index.css";
+import "./i18n";
 import { registerServiceWorker } from "./services/service-worker";
 
 const POSTHOG_KEY = import.meta.env.VITE_PUBLIC_POSTHOG_KEY;

@@ -22,6 +22,7 @@ import {
   Eye,
   Sliders,
 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { Dialog, DialogContent, Input } from "@openreel/ui";
 import { useUIStore } from "../../stores/ui-store";
 
@@ -281,6 +282,7 @@ export const SearchModal: React.FC<SearchModalProps> = ({
   isOpen,
   onClose,
 }) => {
+  const { t } = useTranslation();
   const [query, setQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -425,8 +427,10 @@ export const SearchModal: React.FC<SearchModalProps> = ({
             onChange={(e) => setQuery(e.target.value)}
             placeholder={
               selectedClipType
-                ? `Search effects for ${selectedClipType} clip...`
-                : "Search all effects and tools..."
+                ? t("editor:searchModal.placeholderForClip", {
+                    type: selectedClipType,
+                  })
+                : t("editor:searchModal.placeholderAll")
             }
             className="flex-1 bg-transparent border-0 text-text-primary focus-visible:ring-0"
           />
@@ -454,7 +458,7 @@ export const SearchModal: React.FC<SearchModalProps> = ({
                   : "text-text-secondary hover:text-text-primary hover:bg-background-elevated"
               }`}
             >
-              {cat.name}
+              {cat.id === "all" ? t("common:buttons.all") : cat.name}
             </button>
           ))}
         </div>
@@ -466,9 +470,11 @@ export const SearchModal: React.FC<SearchModalProps> = ({
                 size={32}
                 className="mx-auto mb-3 text-text-muted opacity-50"
               />
-              <p className="text-sm text-text-muted">No effects found</p>
+              <p className="text-sm text-text-muted">
+                {t("editor:searchModal.noEffectsFound")}
+              </p>
               <p className="text-xs text-text-muted mt-1">
-                Try a different search term or category
+                {t("editor:searchModal.tryDifferentSearchTermOrCategory")}
               </p>
             </div>
           ) : (
@@ -525,13 +531,12 @@ export const SearchModal: React.FC<SearchModalProps> = ({
 
         <div className="px-4 py-2 border-t border-border bg-background-tertiary/50 flex items-center justify-between">
           <div className="text-[10px] text-text-muted">
-            {filteredEffects.length} effect
-            {filteredEffects.length !== 1 ? "s" : ""} available
+            {t("editor:searchModal.effectsAvailable", { count: filteredEffects.length })}
           </div>
           <div className="flex items-center gap-3 text-[10px] text-text-muted">
-            <span>↑↓ Navigate</span>
-            <span>↵ Select</span>
-            <span>ESC Close</span>
+            <span>{`↑↓ ${t("editor:searchModal.navigate")}`}</span>
+            <span>{`↵ ${t("editor:searchModal.select")}`}</span>
+            <span>{`ESC ${t("common:buttons.close")}`}</span>
           </div>
         </div>
       </DialogContent>

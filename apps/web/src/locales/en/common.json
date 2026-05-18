@@ -1,0 +1,19 @@
+{
+  "buttons": {
+    "all": "All",
+    "back": "Back",
+    "cancel": "Cancel",
+    "clear": "Clear",
+    "close": "Close",
+    "copy": "Copy",
+    "tryAgain": "Try Again"
+  },
+  "labels": {
+    "enabled": "Enabled",
+    "none": "None"
+  },
+  "messages": {
+    "errors": "Errors",
+    "warnings": "Warnings"
+  }
+}

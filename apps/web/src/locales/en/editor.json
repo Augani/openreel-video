@@ -1,0 +1,159 @@
+{
+  "dialogs": {
+    "aspectRatioMatch": {
+      "title": "Match Video Dimensions?",
+      "description": "The video you're adding has different dimensions than your current project settings.",
+      "videoDimensions": "Video Dimensions",
+      "currentProject": "Current Project",
+      "aspectRatio": "Aspect Ratio: {{value}}",
+      "summary": "Updating the project dimensions will provide the best editing experience and prevent cropping during export.",
+      "keepCurrent": "Keep Current",
+      "matchVideo": "Match Video"
+    }
+  },
+  "inspector": {
+    "crop": {
+      "adjust": "Adjust Crop",
+      "action": "Crop Video",
+      "region": "Crop Region:",
+      "position": "Position:",
+      "reset": "Reset Crop"
+    }
+  },
+  "exportDialog": {
+    "title": "Export Video",
+    "tabs": {
+      "presets": "Presets",
+      "custom": "Custom"
+    },
+    "recommendedForYourVideo": "For Your Video",
+    "aspectRatioLabels": {
+      "vertical": "Vertical (TikTok, Reels, Shorts)",
+      "square": "Square (Instagram Feed)",
+      "horizontal": "Horizontal (YouTube, Twitter)"
+    },
+    "fields": {
+      "format": "Format",
+      "codec": "Codec",
+      "resolution": "Resolution",
+      "frameRate": "Frame Rate",
+      "bitrate": "Bitrate (kbps)",
+      "quality": "Quality",
+      "audioSettings": "Audio Settings",
+      "qualityEnhancement": "Enhance Quality (Upscaling)",
+      "qualityMode": "Quality Mode",
+      "sharpening": "Sharpening"
+    },
+    "options": {
+      "vertical1080p": "Vertical 1080p",
+      "square1080": "Square 1080",
+      "fast": "Fast",
+      "balanced": "Balanced"
+    },
+    "qualityScale": {
+      "smaller": "Smaller",
+      "better": "Better"
+    },
+    "descriptions": {
+      "upscaling": "Enhance quality when exporting to higher resolutions than source. Uses edge-directed interpolation for sharper details."
+    },
+    "status": {
+      "estimateTime": "Est. time:",
+      "getAccurateEstimate": "Get accurate estimate",
+      "testing": "Testing...",
+      "hardwareAccelerated": "Hardware accelerated",
+      "cpu": "CPU",
+      "gpu": "GPU",
+      "codecs": "Codecs",
+      "unknown": "Unknown",
+      "hardwareEncode": "HW Encode",
+      "softwareOnly": "Software only",
+      "cores": "{{count}} cores",
+      "maxDuration": "Max {{seconds}}s"
+    },
+    "actions": {
+      "start": "Start Export"
+    }
+  },
+  "searchModal": {
+    "placeholderForClip": "Search effects for {{type}} clip...",
+    "placeholderAll": "Search all effects and tools...",
+    "noEffectsFound": "No effects found",
+    "tryDifferentSearchTermOrCategory": "Try a different search term or category",
+    "effectsAvailable_one": "{{count}} effect available",
+    "effectsAvailable_other": "{{count}} effects available",
+    "navigate": "Navigate",
+    "select": "Select"
+  },
+  "saveTemplateDialog": {
+    "title": "Save as Template",
+    "success": "Template saved successfully!",
+    "validation": {
+      "nameRequired": "Template name is required",
+      "descriptionRequired": "Description is required"
+    },
+    "fields": {
+      "templateName": "Template Name",
+      "description": "Description",
+      "category": "Category",
+      "tags": "Tags (comma-separated)",
+      "authorName": "Author Name",
+      "saveLocation": "Save Location"
+    },
+    "placeholders": {
+      "templateName": "My Awesome Template",
+      "description": "Describe what this template is for and how to use it...",
+      "tags": "intro, animated, youtube",
+      "authorName": "Your name or username"
+    },
+    "locations": {
+      "cloud": "Cloud",
+      "local": "Local",
+      "cloudDescription": "Saved to cloud and accessible from any device",
+      "localDescription": "Saved locally in your browser storage"
+    },
+    "actions": {
+      "saving": "Saving...",
+      "save": "Save Template"
+    }
+  },
+  "scriptView": {
+    "title": "Project JSON",
+    "description": "Export or import project as JSON",
+    "tabs": {
+      "export": "Export JSON",
+      "import": "Import"
+    },
+    "actions": {
+      "download": "Download JSON",
+      "revalidate": "Re-validate",
+      "importProject": "Import Project"
+    },
+    "states": {
+      "noProjectData": "No project data to export.",
+      "dropHere": "Drop JSON file here",
+      "dropHereOrClick": "Drop a JSON file here or click to browse",
+      "acceptsProjectFiles": "Accepts .json project files",
+      "charactersLoaded": "{{count}} characters loaded",
+      "validating": "Validating...",
+      "validProject": "Valid project JSON - ready to import",
+      "missingAssets": "Missing Assets",
+      "missingAssetsHelp": "These assets will be imported as placeholders and can be replaced later.",
+      "invalidFileType": "Please upload a .json file"
+    }
+  },
+  "kieaiDialog": {
+    "title": "Create with KieAI",
+    "sourceImage": "Source image",
+    "submitting": "Submitting...",
+    "submissionFailed": "Submission Failed",
+    "uploading": "Uploading & submitting task...",
+    "errors": {
+      "uploadMissingUrl": "Upload succeeded but returned no file URL. Check console for response.",
+      "unknownModel": "Unknown model"
+    },
+    "actions": {
+      "backToModelSelection": "Back to model selection"
+    }
+  }
+}
