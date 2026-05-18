@@ -1485,4 +1485,64 @@ describe("ProjectStore - Subtitles (consolidated into text clips)", () => {
     const presets = await useProjectStore.getState().getSubtitleStylePresets();
     expect(Array.isArray(presets)).toBe(true);
   });
+
+  it("imports SRT subtitles into a Captions text track", async () => {
+    const srt = `1
+00:00:00,000 --> 00:00:02,000
+Hello world
+
+2
+00:00:02,500 --> 00:00:04,000
+Second caption`;
+
+    const result = await useProjectStore.getState().importSRT(srt);
+
+    expect(result.success).toBe(true);
+    expect(result.errors).toEqual([]);
+
+    const state = useProjectStore.getState();
+    const captionsTrack = state.project.timeline.tracks.find(
+      (track) => track.type === "text" && track.name === "Captions",
+    );
+    expect(captionsTrack).toBeDefined();
+
+    const captionClips = state
+      .getAllTextClips()
+      .filter((clip) => clip.trackId === captionsTrack?.id)
+      .sort((a, b) => a.startTime - b.startTime);
+
+    expect(captionClips).toHaveLength(2);
+    expect(captionClips[0]?.text).toBe("Hello world");
+    expect(captionClips[0]?.startTime).toBe(0);
+    expect(captionClips[0]?.duration).toBe(2);
+    expect(captionClips[1]?.text).toBe("Second caption");
+    expect(captionClips[1]?.startTime).toBe(2.5);
+    expect(captionClips[1]?.duration).toBe(1.5);
+  });
+
+  it("returns warnings when an SRT has invalid segments but still imports valid captions", async () => {
+    const srt = `1
+00:00:00,000 --> 00:00:02,000
+Hello world
+
+bad-index
+00:00:03,000 --> 00:00:04,000
+Ignored block`;
+
+    const result = await useProjectStore.getState().importSRT(srt);
+
+    expect(result.success).toBe(true);
+    expect(result.errors.length).toBeGreaterThan(0);
+
+    const state = useProjectStore.getState();
+    const captionsTrack = state.project.timeline.tracks.find(
+      (track) => track.type === "text" && track.name === "Captions",
+    );
+    const captionClips = state
+      .getAllTextClips()
+      .filter((clip) => clip.trackId === captionsTrack?.id);
+
+    expect(captionClips).toHaveLength(1);
+    expect(captionClips[0]?.text).toBe("Hello world");
+  });
 });

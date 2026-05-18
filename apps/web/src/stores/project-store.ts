@@ -4499,29 +4499,31 @@ export const useProjectStore = create<ProjectState>()(
         const subtitleEngine = await useEngineStore
           .getState()
           .getSubtitleEngine();
-
-        const { project } = get();
-        const { timeline, result } = subtitleEngine.importSRT(
-          project.timeline,
-          srtContent,
+        const { project, addSubtitle } = get();
+        const { result } = subtitleEngine.importSRT(project.timeline, srtContent);
+        const errorMessages = result.errors.map(
+          (err: { line: number; message: string }) =>
+            `Line ${err.line}: ${err.message}`,
         );
 
-        if (result.success) {
-          set({
-            project: {
-              ...project,
-              timeline,
-              modifiedAt: Date.now(),
-            },
-          });
-          return { success: true, errors: [] };
-        } else {
-          const errorMessages = result.errors.map(
-            (err: { line: number; message: string }) =>
-              `Line ${err.line}: ${err.message}`,
-          );
-          return { success: false, errors: errorMessages };
+        if (result.subtitles.length === 0) {
+          return {
+            success: false,
+            errors:
+              errorMessages.length > 0
+                ? errorMessages
+                : ["No valid subtitles were found in this SRT file."],
+          };
         }
+
+        for (const subtitle of result.subtitles) {
+          await addSubtitle(subtitle);
+        }
+
+        return {
+          success: true,
+          errors: errorMessages,
+        };
       },
 
       exportSRT: async () => {
