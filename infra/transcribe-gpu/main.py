@@ -147,9 +147,67 @@ async def process_transcription(
                     target=target_language,
                 )
                 text = translator.translate(text)
+                
+                # Group original words into segments (based on 8 words, punctuation or gaps of >1.0s)
+                segments_to_translate = []
+                current_group = []
+                last_end = 0.0
+                
                 for w in words:
-                    if len(w["word"]) > 1:
-                        w["word"] = translator.translate(w["word"])
+                    word_str = w["word"]
+                    gap = w["start"] - last_end if current_group else 0.0
+                    
+                    would_exceed_words = len(current_group) >= 8
+                    would_exceed_gap = gap > 1.0
+                    is_punctuation = word_str.endswith((".", "!", "?"))
+                    
+                    if (would_exceed_words or would_exceed_gap) and current_group:
+                        segments_to_translate.append(current_group)
+                        current_group = [w]
+                    else:
+                        current_group.append(w)
+                        if is_punctuation:
+                            segments_to_translate.append(current_group)
+                            current_group = []
+                            
+                    last_end = w["end"]
+                    
+                if current_group:
+                    segments_to_translate.append(current_group)
+                
+                # Translate each segment and distribute times
+                translated_words = []
+                for segment in segments_to_translate:
+                    if not segment:
+                        continue
+                    
+                    seg_start = segment[0]["start"]
+                    seg_end = segment[-1]["end"]
+                    seg_duration = max(0.1, seg_end - seg_start)
+                    
+                    original_seg_text = " ".join([w["word"] for w in segment])
+                    
+                    try:
+                        translated_seg_text = translator.translate(original_seg_text)
+                    except Exception as translate_err:
+                        print(f"Segment translation failed: {translate_err}")
+                        translated_seg_text = original_seg_text
+                    
+                    words_in_translation = translated_seg_text.split()
+                    num_words = len(words_in_translation)
+                    
+                    if num_words > 0:
+                        word_duration = seg_duration / num_words
+                        for idx, tw in enumerate(words_in_translation):
+                            w_start = round(seg_start + idx * word_duration, 2)
+                            w_end = round(seg_start + (idx + 1) * word_duration, 2)
+                            translated_words.append({
+                                "word": tw,
+                                "start": w_start,
+                                "end": w_end
+                            })
+                            
+                words = translated_words
             except Exception as e:
                 print(f"Translation failed: {e}")
 

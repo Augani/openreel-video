@@ -545,8 +545,11 @@ class KeyboardShortcutsManager {
       if (!shortcut.enabled) continue;
 
       const combo = parseKeyCombo(shortcut.currentKey);
+      const isDeleteOrBackspace = combo.key === "delete" || combo.key === "backspace";
       const keyMatches =
-        e.key.toLowerCase() === combo.key || e.code.toLowerCase() === combo.key;
+        e.key.toLowerCase() === combo.key ||
+        e.code.toLowerCase() === combo.key ||
+        (isDeleteOrBackspace && (e.key.toLowerCase() === "delete" || e.key.toLowerCase() === "backspace"));
       const metaMatches = (combo.meta || combo.ctrl) === isMeta;
       const shiftMatches = combo.shift === e.shiftKey;
       const altMatches = combo.alt === e.altKey;

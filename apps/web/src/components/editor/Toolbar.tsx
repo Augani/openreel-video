@@ -78,7 +78,7 @@ interface ExportState {
 }
 
 export const Toolbar: React.FC = () => {
-  const { project } = useProjectStore();
+  const { project, getFullProject } = useProjectStore();
   const {
     openModal,
     selectedItems,
@@ -179,7 +179,8 @@ export const Toolbar: React.FC = () => {
       const engine = getExportEngine();
       await engine.initialize();
 
-      const generator = engine.exportVideo(project, videoSettings, writableStream);
+      const fullProject = getFullProject();
+      const generator = engine.exportVideo(fullProject, videoSettings, writableStream);
       let finalResult: ExportResult | undefined;
 
       while (true) {
@@ -200,16 +201,16 @@ export const Toolbar: React.FC = () => {
         track(AnalyticsEvents.PROJECT_EXPORTED, {
           format: videoSettings.format ?? "mp4",
           codec: videoSettings.codec ?? "h264",
-          width: videoSettings.width ?? project.settings.width,
-          height: videoSettings.height ?? project.settings.height,
-          frameRate: videoSettings.frameRate ?? project.settings.frameRate,
-          duration: project.timeline?.duration ?? 0,
+          width: videoSettings.width ?? fullProject.settings.width,
+          height: videoSettings.height ?? fullProject.settings.height,
+          frameRate: videoSettings.frameRate ?? fullProject.settings.frameRate,
+          duration: fullProject.timeline?.duration ?? 0,
         });
       } else {
         throw new Error(finalResult?.error?.message || "Export failed");
       }
     },
-    [project, track],
+    [getFullProject, track],
   );
 
   const showSavePicker = useCallback(async (filename: string, ext: string): Promise<FileSystemWritableFileStream> => {

@@ -6,6 +6,7 @@ import {
 import { useProjectStore } from "../stores/project-store";
 import { useUIStore } from "../stores/ui-store";
 import { useTimelineStore } from "../stores/timeline-store";
+import { useEngineStore } from "../stores/engine-store";
 
 export function useKeyboardShortcuts() {
   const [showShortcutsOverlay, setShowShortcutsOverlay] = useState(false);
@@ -22,6 +23,9 @@ export function useKeyboardShortcuts() {
     getClip,
     project,
     addMarker,
+    deleteTextClip,
+    deleteShapeClip,
+    deleteSVGClip,
   } = useProjectStore();
 
   const { getSelectedClipIds, clearSelection, toggleSnap, select } =
@@ -159,9 +163,48 @@ export function useKeyboardShortcuts() {
 
   const handleDelete = useCallback(() => {
     const selectedIds = getSelectedClipIds();
-    selectedIds.forEach((id) => removeClip(id));
+    if (selectedIds.length === 0) return;
+
+    const titleEngine = useEngineStore.getState().getTitleEngine();
+    const graphicsEngine = useEngineStore.getState().getGraphicsEngine();
+
+    const allTextClips = titleEngine?.getAllTextClips() ?? [];
+    const allShapeClips = graphicsEngine
+      ? [
+          ...(graphicsEngine.getAllShapeClips() ?? []),
+          ...(graphicsEngine.getAllSVGClips() ?? []),
+          ...(graphicsEngine.getAllStickerClips() ?? []),
+        ]
+      : [];
+
+    selectedIds.forEach((id) => {
+      const textClip = allTextClips.find((tc) => tc.id === id);
+      if (textClip) {
+        deleteTextClip(id);
+        return;
+      }
+
+      const graphicClip = allShapeClips.find((gc) => gc.id === id);
+      if (graphicClip) {
+        if (graphicClip.type === "svg") {
+          deleteSVGClip(id);
+        } else {
+          deleteShapeClip(id);
+        }
+        return;
+      }
+
+      removeClip(id);
+    });
     clearSelection();
-  }, [getSelectedClipIds, removeClip, clearSelection]);
+  }, [
+    getSelectedClipIds,
+    removeClip,
+    clearSelection,
+    deleteTextClip,
+    deleteShapeClip,
+    deleteSVGClip,
+  ]);
 
   const handleRippleDelete = useCallback(() => {
     const selectedIds = getSelectedClipIds();

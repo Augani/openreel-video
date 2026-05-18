@@ -8,9 +8,10 @@
 
 // Blur parameters
 struct BlurUniforms {
-    radius: f32,        // Blur radius in pixels (0-20)
+    radius: f32,        // Blur radius
     sigma: f32,         // Gaussian sigma (typically radius / 3)
-    direction: vec2<f32>, // Blur direction (1,0) for horizontal, (0,1) for vertical
+    direction: vec2<f32>,// Blur direction (x, y) for separable passes
+    maskY: f32,         // Mask Y coordinate (e.g. 0.8 means blur only below 80%)
 };
 
 // Image dimensions
@@ -50,15 +51,16 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>,
     }
     
     let coords = vec2<i32>(i32(x), i32(y));
+    let normalizedY = f32(y) / f32(dimensions.height);
     
-    // Early exit for zero radius
-    if (blur.radius < 0.5) {
+    // Skip if no blur needed, or if masked
+    if (blur.radius < 0.5 || (blur.maskY > 0.0 && normalizedY < blur.maskY)) {
         let color = textureLoad(inputTexture, coords, 0);
         textureStore(outputTexture, coords, color);
         return;
     }
     
-    // Calculate kernel size (clamped to reasonable maximum)
+    // Clamp radius to prevent excessive texture sampling
     let kernelRadius = i32(min(blur.radius, 20.0));
     let sigma = max(blur.sigma, blur.radius / 3.0);
     

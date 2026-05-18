@@ -50,6 +50,7 @@ export const ShapeClipComponent: React.FC<ShapeClipComponentProps> = ({
     if (e.button !== 0) return;
     if (isTrimming) return;
     e.stopPropagation();
+    onSelect(shapeClip.id, e.shiftKey || e.metaKey);
 
     const rect = clipRef.current?.getBoundingClientRect();
     if (!rect) return;

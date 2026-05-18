@@ -37,9 +37,9 @@ export interface TranscriptionConfig {
 
 const DEFAULT_SUBTITLE_STYLE: SubtitleStyle = {
   fontFamily: "Arial",
-  fontSize: 24,
+  fontSize: 45,
   color: "#ffffff",
-  backgroundColor: "rgba(0, 0, 0, 0.7)",
+  backgroundColor: "transparent",
   position: "bottom",
 };
 
@@ -83,7 +83,16 @@ export class TranscriptionService {
         message: "Processing transcription...",
       });
 
-      const subtitles = this.convertToSubtitles(whisperResponse, clip);
+      let subtitles = this.convertToSubtitles(whisperResponse, clip);
+
+      if (this.config.targetLanguage) {
+        onProgress?.({
+          phase: "processing",
+          progress: 92,
+          message: `Translating subtitles to ${this.config.targetLanguage}...`,
+        });
+        subtitles = await this.translateSubtitles(subtitles, this.config.targetLanguage);
+      }
 
       onProgress?.({
         phase: "complete",
@@ -101,6 +110,68 @@ export class TranscriptionService {
       });
       throw error;
     }
+  }
+
+  private async translateSubtitles(
+    subtitles: Subtitle[],
+    targetLanguage: string,
+  ): Promise<Subtitle[]> {
+    const resultList: Subtitle[] = [];
+
+    for (const subtitle of subtitles) {
+      // 1. Keep original subtitle
+      resultList.push(subtitle);
+
+      if (!subtitle.text) {
+        continue;
+      }
+
+      try {
+        const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${targetLanguage}&dt=t&q=${encodeURIComponent(subtitle.text)}`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error("Translation API request failed");
+
+        const json = await res.json();
+        let translatedText = "";
+        if (json && json[0]) {
+          for (const part of json[0]) {
+            if (part && part[0]) {
+              translatedText += part[0];
+            }
+          }
+        }
+
+        translatedText = translatedText.trim();
+
+        if (translatedText) {
+          const duration = subtitle.endTime - subtitle.startTime;
+          const translatedWordsText = translatedText.split(/\s+/);
+          const numWords = translatedWordsText.length;
+
+          let words = undefined;
+          if (numWords > 0) {
+            const wordDuration = duration / numWords;
+            words = translatedWordsText.map((w, idx) => ({
+              text: w,
+              startTime: subtitle.startTime + idx * wordDuration,
+              endTime: subtitle.startTime + (idx + 1) * wordDuration,
+            }));
+          }
+
+          // 2. Add translated subtitle as a separate distinct element
+          resultList.push({
+            ...subtitle,
+            id: `${subtitle.id}-translated`,
+            text: translatedText,
+            words,
+          });
+        }
+      } catch (err) {
+        console.error("Failed to translate subtitle segment:", err);
+      }
+    }
+
+    return resultList;
   }
 
   private async extractAudioFromClip(
@@ -124,31 +195,42 @@ export class TranscriptionService {
 
     const audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
 
+    const speed = clip.speed || 1.0;
+    
     const inPoint = clip.inPoint || 0;
-    const outPoint = clip.outPoint || audioBuffer.duration;
-    const duration = Math.min(outPoint - inPoint, clip.duration);
+    const originalDurationConsumed = clip.duration * speed;
+    const endPoint = Math.min(inPoint + originalDurationConsumed, audioBuffer.duration);
+    
+    const actualOriginalDuration = endPoint - inPoint;
+    const renderedDuration = actualOriginalDuration / speed;
 
     const sampleRate = audioBuffer.sampleRate;
     const startSample = Math.floor(inPoint * sampleRate);
-    const endSample = Math.floor((inPoint + duration) * sampleRate);
-    const numSamples = endSample - startSample;
+    const numOriginalSamples = Math.floor(actualOriginalDuration * sampleRate);
+    const numRenderedSamples = Math.floor(renderedDuration * sampleRate);
 
-    const offlineContext = new OfflineAudioContext(1, numSamples, sampleRate);
+    // If for some reason numRenderedSamples is <= 0, we can't create an OfflineAudioContext
+    if (numRenderedSamples <= 0 || numOriginalSamples <= 0) {
+      throw new Error("Invalid clip duration for audio extraction");
+    }
+
+    const offlineContext = new OfflineAudioContext(1, numRenderedSamples, sampleRate);
     const source = offlineContext.createBufferSource();
 
     const trimmedBuffer = offlineContext.createBuffer(
       1,
-      numSamples,
+      numOriginalSamples,
       sampleRate,
     );
     const channelData = trimmedBuffer.getChannelData(0);
     const sourceData = audioBuffer.getChannelData(0);
 
-    for (let i = 0; i < numSamples; i++) {
+    for (let i = 0; i < numOriginalSamples; i++) {
       channelData[i] = sourceData[startSample + i] || 0;
     }
 
     source.buffer = trimmedBuffer;
+    source.playbackRate.value = speed;
     source.connect(offlineContext.destination);
     source.start(0);
 

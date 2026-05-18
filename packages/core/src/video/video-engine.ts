@@ -882,8 +882,14 @@ export class VideoEngine {
 
     this.renderParticlesToContext(ctx, time, width, height);
 
-    for (const subtitle of activeSubtitles) {
-      this.renderSubtitleToCanvasCtx(ctx, subtitle, width, height);
+    const hasTimelineCaptions = timeline.tracks.some(
+      (track) => track.type === "text" && (track.name === "Captions" || track.name === "Translated Captions")
+    );
+
+    if (!hasTimelineCaptions) {
+      for (const subtitle of activeSubtitles) {
+        this.renderSubtitleToCanvasCtx(ctx, subtitle, width, height);
+      }
     }
 
     const imageBitmap = await createImageBitmap(canvas);

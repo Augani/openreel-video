@@ -411,6 +411,107 @@ export interface ProjectState {
   checkForRecovery: () => Promise<AutoSaveMetadata[]>;
   recoverFromAutoSave: (saveId: string) => Promise<boolean>;
   forceSave: () => Promise<void>;
+  getFullProject: () => Project;
+}
+
+/**
+ * Helper to sync subtitles in project.timeline.subtitles to titleEngine as text clips.
+ * This guarantees any "ghost" subtitles are automatically resolved and brought onto the timeline.
+ */
+function syncSubtitlesToTextClips(project: Project, titleEngine: any) {
+  if (!titleEngine || !project.timeline?.subtitles) return;
+  const textClips = titleEngine.getAllTextClips();
+  const textClipIds = new Set(textClips.map((c: any) => c.id));
+
+  // Find or create Captions track (original)
+  let captionsTrack = project.timeline.tracks.find(
+    (track) => track.type === "text" && track.name === "Captions",
+  );
+  if (!captionsTrack && project.timeline.subtitles.some(s => !s.id.endsWith("-translated"))) {
+    const newTrackId = `track-captions-${Date.now()}`;
+    const newTrack: Track = {
+      id: newTrackId,
+      type: "text",
+      name: "Captions",
+      clips: [],
+      hidden: false,
+      locked: false,
+      muted: false,
+      solo: false,
+      transitions: [],
+    };
+    project.timeline.tracks.push(newTrack);
+    captionsTrack = newTrack;
+  }
+
+  // Find or create Translated Captions track
+  let translatedTrack = project.timeline.tracks.find(
+    (track) => track.type === "text" && track.name === "Translated Captions",
+  );
+  if (!translatedTrack && project.timeline.subtitles.some(s => s.id.endsWith("-translated"))) {
+    const newTrackId = `track-translated-${Date.now()}`;
+    const newTrack: Track = {
+      id: newTrackId,
+      type: "text",
+      name: "Translated Captions",
+      clips: [],
+      hidden: false,
+      locked: false,
+      muted: false,
+      solo: false,
+      transitions: [],
+    };
+    project.timeline.tracks.push(newTrack);
+    translatedTrack = newTrack;
+  }
+
+  for (const subtitle of project.timeline.subtitles) {
+    if (!textClipIds.has(subtitle.id)) {
+      const duration = Math.max(0.1, subtitle.endTime - subtitle.startTime);
+      const isTranslated = subtitle.id.endsWith("-translated");
+      const targetTrack = isTranslated ? translatedTrack : captionsTrack;
+      if (!targetTrack) continue;
+
+      const style = subtitle.style;
+
+      // Original slightly higher (0.76), Translated slightly lower (0.86) to prevent overlapping at the bottom
+      let posY = 0.86;
+      if (style?.position === "top") {
+        posY = isTranslated ? 0.20 : 0.12;
+      } else if (style?.position === "center") {
+        posY = isTranslated ? 0.54 : 0.46;
+      } else {
+        posY = isTranslated ? 0.86 : 0.76;
+      }
+
+      titleEngine.createTextClip({
+        id: subtitle.id,
+        trackId: targetTrack.id,
+        startTime: subtitle.startTime,
+        duration,
+        text: subtitle.text,
+        style: {
+          fontFamily: style?.fontFamily || "Inter",
+          fontSize: style?.fontSize || 48,
+          fontWeight: "bold",
+          color: style?.color || "#ffffff",
+          backgroundColor: style?.backgroundColor || "rgba(0, 0, 0, 0.7)",
+          textAlign: "center",
+        },
+        transform: {
+          position: {
+            x: 0.5,
+            y: posY,
+          },
+          scale: { x: 1, y: 1 },
+          rotation: 0,
+          anchor: { x: 0.5, y: 0.5 },
+          opacity: 1,
+        },
+        keyframes: [],
+      });
+    }
+  }
 }
 
 /**
@@ -467,6 +568,11 @@ export const useProjectStore = create<ProjectState>()(
           if (project.stickerClips) {
             graphicsEngine.loadStickerClips(project.stickerClips);
           }
+        }
+
+        // Sync any subtitles that might be in project.timeline.subtitles but not in titleEngine (healing desync)
+        if (titleEngine && project.timeline?.subtitles) {
+          syncSubtitlesToTextClips(project, titleEngine);
         }
 
         const newHistory = new ActionHistory();
@@ -2650,6 +2756,11 @@ export const useProjectStore = create<ProjectState>()(
             }
           }
 
+          // Sync any subtitles that might be in project.timeline.subtitles but not in titleEngine (healing desync)
+          if (titleEngine && recoveredProject.timeline?.subtitles) {
+            syncSubtitlesToTextClips(recoveredProject, titleEngine);
+          }
+
           const newHistory = new ActionHistory();
           const newExecutor = new ActionExecutor(newHistory);
           set({
@@ -2930,8 +3041,7 @@ export const useProjectStore = create<ProjectState>()(
       /**
        * Add a subtitle as a normal text clip on a Captions track so it appears
        * on the timeline and can be edited like other text.
-       */
-      addSubtitle: async (subtitle) => {
+       */      addSubtitle: async (subtitle) => {
         const titleEngine = useEngineStore.getState().getTitleEngine();
         if (!titleEngine) {
           console.error("TitleEngine not available yet");
@@ -2940,11 +3050,15 @@ export const useProjectStore = create<ProjectState>()(
 
         const { addTrack } = get();
         let { project } = get();
-        let captionsTrack = project.timeline.tracks.find(
-          (track) => track.type === "text" && track.name === "Captions",
+
+        const isTranslated = subtitle.id.endsWith("-translated");
+        const targetTrackName = isTranslated ? "Translated Captions" : "Captions";
+
+        let targetTrack = project.timeline.tracks.find(
+          (track) => track.type === "text" && track.name === targetTrackName,
         );
 
-        if (!captionsTrack) {
+        if (!targetTrack) {
           const existingTrackIds = new Set(
             project.timeline.tracks.map((track) => track.id),
           );
@@ -2952,21 +3066,21 @@ export const useProjectStore = create<ProjectState>()(
           if (!result?.success) return;
 
           project = get().project;
-          captionsTrack = project.timeline.tracks.find(
+          targetTrack = project.timeline.tracks.find(
             (track) => track.type === "text" && !existingTrackIds.has(track.id),
           );
 
-          if (!captionsTrack) return;
+          if (!targetTrack) return;
 
-          const captionsTrackId = captionsTrack.id;
+          const targetTrackId = targetTrack.id;
           set((state) => ({
             project: {
               ...state.project,
               timeline: {
                 ...state.project.timeline,
                 tracks: state.project.timeline.tracks.map((track) =>
-                  track.id === captionsTrackId
-                    ? { ...track, name: "Captions" }
+                  track.id === targetTrackId
+                    ? { ...track, name: targetTrackName }
                     : track,
                 ),
               },
@@ -2974,38 +3088,44 @@ export const useProjectStore = create<ProjectState>()(
             },
           }));
           project = get().project;
-          captionsTrack = project.timeline.tracks.find(
-            (track) => track.id === captionsTrackId,
+          targetTrack = project.timeline.tracks.find(
+            (track) => track.id === targetTrackId,
           );
         }
 
-        if (!captionsTrack) return;
+        if (!targetTrack) return;
 
         const duration = Math.max(0.1, subtitle.endTime - subtitle.startTime);
         const style = subtitle.style;
+
+        // Position: original slightly higher (0.76), translated slightly lower (0.86)
+        let posY = 0.86;
+        if (style?.position === "top") {
+          posY = isTranslated ? 0.20 : 0.12;
+        } else if (style?.position === "center") {
+          posY = isTranslated ? 0.54 : 0.46;
+        } else {
+          posY = isTranslated ? 0.86 : 0.76;
+        }
+
         const textClip = titleEngine.createTextClip({
           id: subtitle.id,
-          trackId: captionsTrack.id,
+          trackId: targetTrack.id,
           startTime: subtitle.startTime,
           duration,
           text: subtitle.text,
           style: {
             fontFamily: style?.fontFamily || "Inter",
-            fontSize: style?.fontSize || 48,
+            fontSize: style?.fontSize || 45,
             fontWeight: "bold",
             color: style?.color || "#ffffff",
-            backgroundColor: style?.backgroundColor || "rgba(0, 0, 0, 0.7)",
+            backgroundColor: style?.backgroundColor || "transparent",
             textAlign: "center",
           },
           transform: {
             position: {
               x: 0.5,
-              y:
-                style?.position === "top"
-                  ? 0.16
-                  : style?.position === "center"
-                    ? 0.5
-                    : 0.84,
+              y: posY,
             },
           },
         });
@@ -3014,7 +3134,7 @@ export const useProjectStore = create<ProjectState>()(
         const historyEntry: ClipHistoryEntry = {
           type: "text",
           clipId: textClip.id,
-          trackId: captionsTrack.id,
+          trackId: targetTrack.id,
           clipData: { ...textClip },
         };
 
@@ -3040,6 +3160,10 @@ export const useProjectStore = create<ProjectState>()(
        * Remove a subtitle from the timeline
        */
       removeSubtitle: (subtitleId) => {
+        const titleEngine = useEngineStore.getState().getTitleEngine();
+        if (titleEngine) {
+          titleEngine.deleteTextClip(subtitleId);
+        }
         set((state) => ({
           project: {
             ...state.project,
@@ -3049,6 +3173,7 @@ export const useProjectStore = create<ProjectState>()(
                 (s) => s.id !== subtitleId,
               ),
             },
+            modifiedAt: Date.now(),
           },
         }));
       },
@@ -3057,15 +3182,54 @@ export const useProjectStore = create<ProjectState>()(
        * Update a subtitle
        */
       updateSubtitle: (subtitleId, updates) => {
+        const titleEngine = useEngineStore.getState().getTitleEngine();
+        if (titleEngine) {
+          if (updates.text !== undefined) {
+            titleEngine.updateText(subtitleId, updates.text);
+          }
+          if (updates.style !== undefined) {
+            titleEngine.updateStyle(subtitleId, {
+              fontFamily: updates.style.fontFamily,
+              fontSize: updates.style.fontSize,
+              color: updates.style.color,
+              backgroundColor: updates.style.backgroundColor,
+            });
+            const isTranslated = subtitleId.endsWith("-translated");
+            let posY = 0.86;
+            if (updates.style.position === "top") {
+              posY = isTranslated ? 0.20 : 0.12;
+            } else if (updates.style.position === "center") {
+              posY = isTranslated ? 0.54 : 0.46;
+            } else {
+              posY = isTranslated ? 0.86 : 0.76;
+            }
+            titleEngine.updateTextClip(subtitleId, {
+              transform: {
+                position: {
+                  x: 0.5,
+                  y: posY,
+                },
+              },
+            });
+          }
+        }
+
         set((state) => ({
           project: {
             ...state.project,
             timeline: {
               ...state.project.timeline,
-              subtitles: state.project.timeline.subtitles.map((s) =>
-                s.id === subtitleId ? { ...s, ...updates } : s,
-              ),
+              subtitles: state.project.timeline.subtitles.map((s) => {
+                if (s.id === subtitleId) {
+                  const mergedStyle = s.style && updates.style
+                    ? { ...s.style, ...updates.style }
+                    : updates.style ?? s.style;
+                  return { ...s, ...updates, style: mergedStyle };
+                }
+                return s;
+              }),
             },
+            modifiedAt: Date.now(),
           },
         }));
       },
@@ -3083,21 +3247,108 @@ export const useProjectStore = create<ProjectState>()(
         const subtitleEngine = await useEngineStore
           .getState()
           .getSubtitleEngine();
+        const titleEngine = useEngineStore.getState().getTitleEngine();
+        if (!titleEngine) {
+          return { success: false, errors: ["Title engine not initialized"] };
+        }
 
-        const { project } = get();
+        const { project, addTrack } = get();
         const { timeline, result } = subtitleEngine.importSRT(
           project.timeline,
           srtContent,
         );
 
         if (result.success) {
-          set({
+          // 1. Ensure captions track exists
+          let captionsTrack = project.timeline.tracks.find(
+            (track) => track.type === "text" && track.name === "Captions",
+          );
+
+          if (!captionsTrack) {
+            const existingTrackIds = new Set(
+              project.timeline.tracks.map((track) => track.id),
+            );
+            const addTrackResult = await addTrack("text");
+            if (!addTrackResult?.success) {
+              return { success: false, errors: ["Failed to create captions track"] };
+            }
+
+            const updatedProject = get().project;
+            captionsTrack = updatedProject.timeline.tracks.find(
+              (track) => track.type === "text" && !existingTrackIds.has(track.id),
+            );
+
+            if (captionsTrack) {
+              const captionsTrackId = captionsTrack.id;
+              set((state) => ({
+                project: {
+                  ...state.project,
+                  timeline: {
+                    ...state.project.timeline,
+                    tracks: state.project.timeline.tracks.map((track) =>
+                      track.id === captionsTrackId
+                        ? { ...track, name: "Captions" }
+                        : track,
+                    ),
+                  },
+                  modifiedAt: Date.now(),
+                },
+              }));
+              captionsTrack = get().project.timeline.tracks.find(
+                (track) => track.id === captionsTrackId,
+              );
+            }
+          }
+
+          if (!captionsTrack) {
+            return { success: false, errors: ["Failed to setup captions track"] };
+          }
+
+          // 2. Create text clips for all new subtitles
+          const trackId = captionsTrack.id;
+          for (const subtitle of result.subtitles) {
+            const duration = Math.max(0.1, subtitle.endTime - subtitle.startTime);
+            const style = subtitle.style;
+            titleEngine.createTextClip({
+              id: subtitle.id,
+              trackId,
+              startTime: subtitle.startTime,
+              duration,
+              text: subtitle.text,
+              style: {
+                fontFamily: style?.fontFamily || "Inter",
+                fontSize: style?.fontSize || 48,
+                fontWeight: "bold",
+                color: style?.color || "#ffffff",
+                backgroundColor: style?.backgroundColor || "rgba(0, 0, 0, 0.7)",
+                textAlign: "center",
+              },
+              transform: {
+                position: {
+                  x: 0.5,
+                  y:
+                    style?.position === "top"
+                      ? 0.16
+                      : style?.position === "center"
+                        ? 0.5
+                        : 0.84,
+                },
+              },
+            });
+          }
+
+          // 3. Update the state with new subtitles and timeline
+          set((state) => ({
             project: {
-              ...project,
-              timeline,
+              ...state.project,
+              timeline: {
+                ...timeline,
+                tracks: state.project.timeline.tracks,
+              },
               modifiedAt: Date.now(),
             },
-          });
+          }));
+
           return { success: true, errors: [] };
         } else {
           const errorMessages = result.errors.map(
@@ -3130,6 +3381,37 @@ export const useProjectStore = create<ProjectState>()(
         if ("error" in result) {
           console.error(result.error);
           return false;
+        }
+
+        const titleEngine = useEngineStore.getState().getTitleEngine();
+        if (titleEngine) {
+          for (const s of result.timeline.subtitles) {
+            if (s.style) {
+              titleEngine.updateStyle(s.id, {
+                fontFamily: s.style.fontFamily,
+                fontSize: s.style.fontSize,
+                color: s.style.color,
+                backgroundColor: s.style.backgroundColor,
+              });
+              const isTranslated = s.id.endsWith("-translated");
+              let posY = 0.86;
+              if (s.style.position === "top") {
+                posY = isTranslated ? 0.20 : 0.12;
+              } else if (s.style.position === "center") {
+                posY = isTranslated ? 0.54 : 0.46;
+              } else {
+                posY = isTranslated ? 0.86 : 0.76;
+              }
+              titleEngine.updateTextClip(s.id, {
+                transform: {
+                  position: {
+                    x: 0.5,
+                    y: posY,
+                  },
+                },
+              });
+            }
+          }
         }
 
         set({
@@ -3567,14 +3849,25 @@ export const useProjectStore = create<ProjectState>()(
           return false;
         }
         const deleted = titleEngine.deleteTextClip(clipId);
-        if (deleted) {
-          const { project } = get();
+        const { project } = get();
+        const hasSubtitle = project.timeline.subtitles.some(
+          (s) => s.id === clipId,
+        );
+
+        if (deleted || hasSubtitle) {
           set({
             project: {
               ...project,
+              timeline: {
+                ...project.timeline,
+                subtitles: project.timeline.subtitles.filter(
+                  (s) => s.id !== clipId,
+                ),
+              },
               modifiedAt: Date.now(),
             },
           });
+          return true;
         }
         return deleted;
       },

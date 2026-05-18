@@ -466,6 +466,7 @@ struct BlurUniforms {
  radius: f32,
  sigma: f32,
  direction: vec2<f32>,
+ maskY: f32,
 };
 
 struct Dimensions {
@@ -494,8 +495,9 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
  }
  
  let coords = vec2<i32>(i32(x), i32(y));
+ let normalizedY = f32(y) / f32(dimensions.height);
  
- if (blur.radius < 0.5) {
+ if (blur.radius < 0.5 || (blur.maskY > 0.0 && normalizedY < blur.maskY)) {
  let color = textureLoad(inputTexture, coords, 0);
  textureStore(outputTexture, coords, color);
  return;
@@ -540,6 +542,11 @@ export interface BlurUniforms {
   sigma: number; // 4 bytes
   directionX: number; // 4 bytes
   directionY: number; // 4 bytes
+  maskY: number; // 4 bytes
+  // Needs to be 16-byte aligned, but Uniforms in WebGPU actually need 16-byte padding per struct
+  padding1: number; // 4 bytes
+  padding2: number; // 4 bytes
+  padding3: number; // 4 bytes
 }
 
 export function createEffectUniformsBuffer(
@@ -569,12 +576,15 @@ export function createBlurUniformsBuffer(
   sigma: number = 0,
   directionX: number = 1,
   directionY: number = 0,
+  maskY: number = 0,
 ): Float32Array {
-  const buffer = new Float32Array(4);
+  const buffer = new Float32Array(8); // 32 bytes
   buffer[0] = radius;
   buffer[1] = sigma > 0 ? sigma : radius / 3;
   buffer[2] = directionX;
   buffer[3] = directionY;
+  buffer[4] = maskY;
+  // buffer[5], buffer[6], buffer[7] are padding
   return buffer;
 }
 

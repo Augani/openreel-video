@@ -252,7 +252,8 @@ export class TitleEngine {
       };
     }
 
-    const metrics = this.measureText(visibleText, style, width);
+    const maxWidth = width * 0.9;
+    const metrics = this.measureText(visibleText, style, maxWidth);
 
     ctx.save();
 
@@ -266,7 +267,7 @@ export class TitleEngine {
 
     this.applyTextStyle(ctx, style);
 
-    const lines = visibleText.split("\n");
+    const lines = this.wrapText(visibleText, style, maxWidth);
     const lineHeight = style.fontSize * style.lineHeight;
     const totalHeight = lines.length * lineHeight;
     let startY = -totalHeight / 2 + lineHeight / 2;

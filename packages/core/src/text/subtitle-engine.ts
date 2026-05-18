@@ -2,9 +2,9 @@ import type { Subtitle, SubtitleStyle, Timeline } from "../types/timeline";
 
 export const DEFAULT_SUBTITLE_STYLE: SubtitleStyle = {
   fontFamily: "Arial",
-  fontSize: 24,
+  fontSize: 45,
   color: "#ffffff",
-  backgroundColor: "rgba(0, 0, 0, 0.75)",
+  backgroundColor: "transparent",
   position: "bottom",
 };
 

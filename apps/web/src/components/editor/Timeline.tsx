@@ -24,7 +24,12 @@ import {
   Magnet,
   Rows3,
   Rows2,
+  FlipHorizontal,
+  FlipVertical,
+  Gauge,
+  Droplet,
 } from "lucide-react";
+import { getSpeedEngine } from "@openreel/core";
 import { useProjectStore } from "../../stores/project-store";
 import { useTimelineStore } from "../../stores/timeline-store";
 import { useUIStore } from "../../stores/ui-store";
@@ -74,6 +79,10 @@ export const Timeline: React.FC = () => {
     removeMarker,
     updateMarker,
     updateClipKeyframes,
+    updateClipTransform,
+    addVideoEffect,
+    updateVideoEffect,
+    removeVideoEffect,
   } = useProjectStore();
   const tracks = project.timeline.tracks;
 
@@ -368,6 +377,137 @@ export const Timeline: React.FC = () => {
     deleteShapeClip,
     deleteSVGClip,
   ]);
+
+  const selectedClip = useMemo<any>(() => {
+    if (selectedClipIds.length !== 1) return null;
+    const clipId = selectedClipIds[0];
+    for (const track of tracks) {
+      const clip = track.clips.find((c) => c.id === clipId);
+      if (clip) return { ...clip, type: track.type };
+    }
+    return null;
+  }, [selectedClipIds, tracks]);
+
+  const handleFlipHorizontal = useCallback((clipId: string, currentScaleX: number) => {
+    const newScaleX = (currentScaleX < 0 ? 1 : -1) * (Math.abs(currentScaleX) || 1);
+    updateClipTransform(clipId, {
+      scale: {
+        x: newScaleX,
+      } as any
+    });
+    toast.success("Đã lật ngang clip");
+  }, [updateClipTransform]);
+
+  const handleFlipVertical = useCallback((clipId: string, currentScaleY: number) => {
+    const newScaleY = (currentScaleY < 0 ? 1 : -1) * (Math.abs(currentScaleY) || 1);
+    updateClipTransform(clipId, {
+      scale: {
+        y: newScaleY,
+      } as any
+    });
+    toast.success("Đã lật dọc clip");
+  }, [updateClipTransform]);
+
+  const handleUpdateBlur = useCallback((clipId: string, radius: number) => {
+    // Find the clip
+    let targetClip: any = null;
+    for (const track of project.timeline.tracks) {
+      const found = track.clips.find((c) => c.id === clipId);
+      if (found) {
+        targetClip = found;
+        break;
+      }
+    }
+    if (!targetClip) return;
+
+    const blurEffect = targetClip.effects?.find((e: any) => e.type === "blur");
+
+    if (radius === 0) {
+      if (blurEffect) {
+        removeVideoEffect(clipId, blurEffect.id);
+        toast.success("Đã xóa hiệu ứng Blur");
+      }
+    } else {
+      if (blurEffect) {
+        updateVideoEffect(clipId, blurEffect.id, { radius });
+      } else {
+        addVideoEffect(clipId, "blur", { radius });
+      }
+    }
+  }, [project, addVideoEffect, updateVideoEffect, removeVideoEffect]);
+
+  const currentBlurRadius = useMemo(() => {
+    if (!selectedClip || !selectedClip.effects) return 0;
+    const blurEffect = selectedClip.effects.find((e: any) => e.type === "blur");
+    return blurEffect && blurEffect.enabled ? (blurEffect.params.radius as number) ?? 0 : 0;
+  }, [selectedClip]);
+
+  const handleUpdateSpeed = useCallback((clipId: string, speed: number) => {
+    const speedEngine = getSpeedEngine();
+    
+    // Find the clip to get its duration
+    let targetClip: any = null;
+    for (const track of project.timeline.tracks) {
+      const found = track.clips.find((c) => c.id === clipId);
+      if (found) {
+        targetClip = found;
+        break;
+      }
+    }
+    if (!targetClip) return;
+
+    // Set speed in engine
+    speedEngine.setClipSpeed(clipId, speed, targetClip.duration);
+
+    // Calculate new duration
+    const originalDuration = targetClip.outPoint - targetClip.inPoint;
+    const newDuration = originalDuration / speed;
+
+    const tracks = project.timeline.tracks.map((track) => {
+      const clipIndex = track.clips.findIndex((c) => c.id === clipId);
+      if (clipIndex === -1) {
+        // Also check if we affect corresponding audio clip
+        if (track.type === "audio") {
+          const audioClipIndex = track.clips.findIndex(
+            (c) => c.mediaId === targetClip.mediaId,
+          );
+          if (audioClipIndex !== -1) {
+            const audioClip = track.clips[audioClipIndex];
+            const updatedAudioClip = {
+              ...audioClip,
+              duration: newDuration,
+              speed,
+            };
+            const newClips = [...track.clips];
+            newClips[audioClipIndex] = updatedAudioClip;
+            speedEngine.setClipSpeed(audioClip.id, speed, audioClip.duration);
+            return { ...track, clips: newClips };
+          }
+        }
+        return track;
+      }
+
+      const updatedClip = {
+        ...track.clips[clipIndex],
+        duration: newDuration,
+        speed,
+      };
+      const newClips = [...track.clips];
+      newClips[clipIndex] = updatedClip;
+
+      return { ...track, clips: newClips };
+    });
+
+    useProjectStore.setState({
+      project: {
+        ...project,
+        timeline: { ...project.timeline, tracks },
+        modifiedAt: Date.now(),
+      },
+    });
+    
+    toast.success(`Đã thay đổi tốc độ thành ${speed}x`);
+  }, [project]);
 
   const handleBackgroundClick = useCallback(() => {
     clearSelection();
@@ -776,6 +916,132 @@ export const Timeline: React.FC = () => {
             />
           </div>
 
+          <div className="w-px h-6 bg-border mx-1" />
+
+          {/* Clip actions group (always visible) */}
+          <div className="flex bg-background-tertiary rounded-lg p-1 border border-border gap-1 items-center">
+            <span className="text-[9px] font-bold text-text-tertiary px-1 uppercase tracking-wider select-none">Clip</span>
+            
+            {/* Lật Ngang Video/Hình ảnh */}
+            <button
+              onClick={() => selectedClip && handleFlipHorizontal(selectedClip.id, selectedClip.transform?.scale?.x ?? 1)}
+              disabled={!selectedClip || (selectedClip.type !== "video" && selectedClip.type !== "image")}
+              title="Lật Ngang Video"
+              className={`p-1 rounded transition-colors ${
+                selectedClip && (selectedClip.type === "video" || selectedClip.type === "image")
+                  ? "text-text-secondary hover:text-text-primary hover:bg-background-elevated"
+                  : "text-text-muted opacity-40 cursor-not-allowed"
+              }`}
+            >
+              <FlipHorizontal size={14} />
+            </button>
+
+            {/* Lật Dọc Video/Hình ảnh */}
+            <button
+              onClick={() => selectedClip && handleFlipVertical(selectedClip.id, selectedClip.transform?.scale?.y ?? 1)}
+              disabled={!selectedClip || (selectedClip.type !== "video" && selectedClip.type !== "image")}
+              title="Lật Dọc Video"
+              className={`p-1 rounded transition-colors ${
+                selectedClip && (selectedClip.type === "video" || selectedClip.type === "image")
+                  ? "text-text-secondary hover:text-text-primary hover:bg-background-elevated"
+                  : "text-text-muted opacity-40 cursor-not-allowed"
+              }`}
+            >
+              <FlipVertical size={14} />
+            </button>
+
+            {/* Làm Chậm / Tốc Độ Video/Audio */}
+            <Popover>
+              <PopoverTrigger asChild>
+                <button
+                  disabled={!selectedClip || (selectedClip.type !== "video" && selectedClip.type !== "audio")}
+                  title="Tốc độ clip (Slow down / Speed up)"
+                  className={`flex items-center gap-1 px-2 py-1 rounded transition-colors ${
+                    selectedClip && (selectedClip.type === "video" || selectedClip.type === "audio")
+                      ? "bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20"
+                      : "text-text-muted opacity-40 cursor-not-allowed border border-transparent"
+                  }`}
+                >
+                  <Gauge size={12} />
+                  <span className="text-[10px] font-semibold">
+                    {selectedClip && (selectedClip.type === "video" || selectedClip.type === "audio")
+                      ? `${getSpeedEngine().getClipSpeed(selectedClip.id) || 1}x`
+                      : "1x"}
+                  </span>
+                </button>
+              </PopoverTrigger>
+              {selectedClip && (selectedClip.type === "video" || selectedClip.type === "audio") && (
+                <PopoverContent side="top" align="center" className="p-3 w-48 bg-background-secondary border border-border rounded-lg shadow-xl z-[200]">
+                  <div className="text-[10px] font-bold text-text-secondary mb-2 uppercase tracking-wide select-none">Tốc Độ Clip</div>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {[0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3, 5].map((speed) => {
+                      const currentSpeed = getSpeedEngine().getClipSpeed(selectedClip.id) || 1;
+                      return (
+                        <button
+                          key={speed}
+                          onClick={() => handleUpdateSpeed(selectedClip.id, speed)}
+                          className={`px-1.5 py-1 text-[10px] font-semibold rounded transition-colors ${
+                            currentSpeed === speed
+                              ? "bg-primary text-white"
+                              : "bg-background-tertiary text-text-secondary hover:bg-background-elevated hover:text-text-primary border border-border"
+                          }`}
+                        >
+                          {speed}x
+                        </button>
+                      );
+                    })}
+                  </div>
+                </PopoverContent>
+              )}
+            </Popover>
+
+            {/* Độ Mờ (Blur) Video/Hình ảnh */}
+            <Popover>
+              <PopoverTrigger asChild>
+                <button
+                  disabled={!selectedClip || (selectedClip.type !== "video" && selectedClip.type !== "image")}
+                  title="Độ mờ (Blur)"
+                  className={`flex items-center gap-1 px-2 py-1 rounded transition-colors ${
+                    selectedClip && (selectedClip.type === "video" || selectedClip.type === "image")
+                      ? currentBlurRadius > 0
+                        ? "bg-purple-500/20 hover:bg-purple-500/30 text-purple-400 border border-purple-500/30"
+                        : "text-text-secondary hover:text-text-primary hover:bg-background-elevated"
+                      : "text-text-muted opacity-40 cursor-not-allowed border border-transparent"
+                  }`}
+                >
+                  <Droplet size={14} className={currentBlurRadius > 0 ? "fill-purple-400" : ""} />
+                  {currentBlurRadius > 0 && (
+                    <span className="text-[10px] font-semibold">
+                      {currentBlurRadius}px
+                    </span>
+                  )}
+                </button>
+              </PopoverTrigger>
+              {selectedClip && (selectedClip.type === "video" || selectedClip.type === "image") && (
+                <PopoverContent side="top" align="center" className="p-3 w-48 bg-background-secondary border border-border rounded-lg shadow-xl z-[200]">
+                  <div className="flex justify-between items-center mb-2 select-none">
+                    <span className="text-[10px] font-bold text-text-secondary uppercase tracking-wide">Độ Mờ (Blur)</span>
+                    <span className="text-[10px] font-semibold text-purple-400">{currentBlurRadius}px</span>
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <input
+                      type="range"
+                      min="0"
+                      max="20"
+                      step="1"
+                      value={currentBlurRadius}
+                      onChange={(e) => handleUpdateBlur(selectedClip.id, parseInt(e.target.value))}
+                      className="w-full h-1 bg-background-tertiary rounded-lg appearance-none cursor-pointer accent-purple-500"
+                    />
+                    <div className="flex justify-between text-[8px] text-text-muted select-none">
+                      <span>0px (Tắt)</span>
+                      <span>20px</span>
+                    </div>
+                  </div>
+                </PopoverContent>
+              )}
+            </Popover>
+          </div>
           <div className="w-px h-6 bg-border mx-1" />
 
           <DropdownMenu>

@@ -100,6 +100,7 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
     if (e.button !== 0) return;
     if (track.locked || isTrimming) return;
     e.stopPropagation();
+    onSelect(clip.id, e.shiftKey || e.metaKey);
 
     const rect = clipRef.current?.parentElement?.getBoundingClientRect();
     const clipRect = clipRef.current?.getBoundingClientRect();

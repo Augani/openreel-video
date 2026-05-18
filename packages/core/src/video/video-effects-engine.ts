@@ -711,6 +711,33 @@ export class VideoEffectsEngine {
           this.renderTextures[i],
           0,
         );
+        const maskY = effect.params.maskY as number || 0;
+        
+        // Horizontal blur pass
+        device.queue.writeBuffer(
+          this.uniformBuffers[0],
+          0,
+          createBlurUniformsBuffer(
+            effect.params.radius as number,
+            0,
+            1,
+            0,
+            maskY
+          ),
+        );
+
+        // Vertical blur pass
+        device.queue.writeBuffer(
+          this.uniformBuffers[1],
+          0,
+          createBlurUniformsBuffer(
+            effect.params.radius as number,
+            0,
+            0,
+            1,
+            maskY
+          ),
+        );
         gl.clearColor(0, 0, 0, 0);
         gl.clear(gl.COLOR_BUFFER_BIT);
       }

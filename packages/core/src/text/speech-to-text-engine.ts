@@ -134,9 +134,9 @@ const DEFAULT_OPTIONS: SpeechToTextOptions = {
 
 const DEFAULT_SUBTITLE_STYLE: SubtitleStyle = {
   fontFamily: "Arial",
-  fontSize: 24,
+  fontSize: 45,
   color: "#ffffff",
-  backgroundColor: "rgba(0, 0, 0, 0.7)",
+  backgroundColor: "transparent",
   position: "bottom",
 };
 
