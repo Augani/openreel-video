@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ArrowRight,
   ArrowLeft,
@@ -258,6 +258,13 @@ export const TransitionInspector: React.FC<TransitionInspectorProps> = ({
   const [params, setParams] = useState<Record<string, unknown>>(
     transition?.params || bridge.getDefaultParams(selectedType),
   );
+
+  useEffect(() => {
+    const nextType = transition?.type || "crossfade";
+    setSelectedType(nextType);
+    setDuration(transition?.duration || 1.0);
+    setParams(transition?.params || bridge.getDefaultParams(nextType));
+  }, [bridge, clipA.id, clipB.id, transition]);
 
   // Validate transition
   const validation = useMemo(() => {

@@ -33,8 +33,14 @@ import {
   getSpeedEngine,
   getMasterClock,
   getRealtimeAudioGraph,
+  initializeAudioEffectsEngine,
+  getPreviewAudioEffects,
+  splitProfileAwareNoiseReductionEffects,
+  resolveClipAudioEffects as resolveTimelineClipAudioEffects,
+  resolveClipVolumeAutomation,
   getParticleEngine,
   type Effect,
+  type AudioEffectParams,
   type AudioClipSchedule,
   type TextClip,
   type ShapeClip,
@@ -85,6 +91,8 @@ interface PreparedPreviewFrame {
   frame: ImageBitmap | HTMLCanvasElement | OffscreenCanvas;
   cleanup: () => void;
 }
+
+type PreviewClip = Track["clips"][number];
 
 const clipNeedsFrameProcessing = (clipId: string): boolean => {
   const bgEngine = getBackgroundRemovalEngine();
@@ -362,6 +370,7 @@ interface ClipWithPlaceholder {
 export const Preview: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const videoAreaRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
   const animationRef = useRef<number | null>(null);
   const renderBridgeInitialized = useRef<boolean>(false);
@@ -393,6 +402,7 @@ export const Preview: React.FC = () => {
     null,
   );
   const audioBufferCacheRef = useRef<Map<string, AudioBuffer>>(new Map());
+  const processedAudioBufferCacheRef = useRef<Map<string, AudioBuffer>>(new Map());
 
   const getAudioBufferCacheKey = (mediaId: string, audioTrackIndex?: number): string =>
     `${mediaId}:${audioTrackIndex ?? 0}`;
@@ -423,12 +433,81 @@ export const Preview: React.FC = () => {
     return null;
   };
 
+  const getAudioEffectSignature = useCallback((effects: Effect[]): string =>
+    JSON.stringify(
+      effects.map((effect) => ({
+        id: effect.id,
+        type: effect.type,
+        enabled: effect.enabled,
+        params: effect.params,
+        metadata: effect.metadata,
+      })),
+    ), []);
+
+  const getPreviewAudioBufferForEffects = useCallback(
+    async (
+      audioBuffer: AudioBuffer,
+      baseCacheKey: string,
+      effects: Effect[],
+    ): Promise<{ audioBuffer: AudioBuffer; effects: Effect[] }> => {
+      const previewEffects = getPreviewAudioEffects(
+        effects.filter((effect) => effect.enabled),
+      );
+      const { profileAwareNoiseEffects, realtimeEffects } =
+        splitProfileAwareNoiseReductionEffects(previewEffects);
+
+      if (profileAwareNoiseEffects.length === 0) {
+        return { audioBuffer, effects: realtimeEffects };
+      }
+
+      const processedCacheKey = `${baseCacheKey}:profile-denoise:${getAudioEffectSignature(profileAwareNoiseEffects)}`;
+      const cached = processedAudioBufferCacheRef.current.get(processedCacheKey);
+      if (cached) {
+        return { audioBuffer: cached, effects: realtimeEffects };
+      }
+
+      const effectsEngine = await initializeAudioEffectsEngine();
+      let processedBuffer = audioBuffer;
+
+      for (const effect of profileAwareNoiseEffects) {
+        const params = effect.params as AudioEffectParams["noiseReduction"];
+        if (!params.profile) {
+          continue;
+        }
+
+        processedBuffer = await effectsEngine.applyNoiseReductionWithProfileData(
+          processedBuffer,
+          params.profile,
+          params.reduction ?? 0.5,
+          params.focus ?? "balanced",
+          params.threshold ?? -40,
+        );
+      }
+
+      processedAudioBufferCacheRef.current.set(processedCacheKey, processedBuffer);
+      return { audioBuffer: processedBuffer, effects: realtimeEffects };
+    },
+    [getAudioEffectSignature],
+  );
+
+  const getResolvedClipAudioEffects = useCallback((clip: PreviewClip): Effect[] => {
+    return resolveTimelineClipAudioEffects(clip, {
+      tracks: timelineTracksRef.current,
+    });
+  }, []);
+
+  const getResolvedClipVolumeAutomation = useCallback((clip: PreviewClip) =>
+    resolveClipVolumeAutomation(clip, {
+      tracks: timelineTracksRef.current,
+    }), []);
+
   const rendererRef = useRef<Renderer | null>(null);
   const rendererInitializedRef = useRef<boolean>(false);
 
   const [isMuted, setIsMuted] = useState(false);
   const [isRenderBridgeReady, setIsRenderBridgeReady] = useState(false);
   const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
+  const [videoAreaSize, setVideoAreaSize] = useState({ width: 0, height: 0 });
   const [rendererType, setRendererType] = useState<string>("none");
   const [isMaximized, setIsMaximized] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -596,6 +675,21 @@ export const Preview: React.FC = () => {
     return () => resizeObserver.disconnect();
   }, []);
 
+  useEffect(() => {
+    const videoArea = videoAreaRef.current;
+    if (!videoArea) return;
+
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const { width, height } = entry.contentRect;
+        setVideoAreaSize({ width, height });
+      }
+    });
+
+    resizeObserver.observe(videoArea);
+    return () => resizeObserver.disconnect();
+  }, []);
+
   // Project store - subscribe to the entire project to ensure re-renders
   // when any part of the project changes (including clips)
   const project = useProjectStore((state) => state.project);
@@ -637,6 +731,29 @@ export const Preview: React.FC = () => {
   const timelineTracks = project.timeline.tracks;
   const settings = project.settings;
 
+  const previewFrameSize = useMemo(() => {
+    if (videoAreaSize.width <= 0 || videoAreaSize.height <= 0) {
+      return { width: 0, height: 0 };
+    }
+
+    const aspectRatio = settings.width / settings.height;
+    const availableWidth = Math.min(videoAreaSize.width, 800);
+    const availableHeight = Math.min(videoAreaSize.height, 450);
+
+    let width = availableWidth;
+    let height = width / aspectRatio;
+
+    if (height > availableHeight) {
+      height = availableHeight;
+      width = height * aspectRatio;
+    }
+
+    return {
+      width: width * zoomLevel,
+      height: height * zoomLevel,
+    };
+  }, [settings.height, settings.width, videoAreaSize, zoomLevel]);
+
   // Keep a ref to timelineTracks for use in playback effect without causing re-runs
   const timelineTracksRef = useRef(timelineTracks);
   useEffect(() => {
@@ -675,6 +792,7 @@ export const Preview: React.FC = () => {
   const {
     playheadPosition,
     playbackState,
+    playbackLockedReason,
     playbackRate,
     isScrubbing,
     pause,
@@ -1103,9 +1221,6 @@ export const Preview: React.FC = () => {
     async (timelinePosition: number): Promise<void> => {
       const tracks = timelineTracksRef.current;
       const audioTracks = tracks.filter((t) => t.type === "audio" && !t.hidden);
-      const videoTracks = tracks.filter(
-        (t) => (t.type === "video" || t.type === "image") && !t.hidden,
-      );
 
       if (!audioGraphRef.current) {
         audioGraphRef.current = getRealtimeAudioGraph();
@@ -1113,7 +1228,6 @@ export const Preview: React.FC = () => {
       const audioGraph = audioGraphRef.current;
       audioGraph.setPreviewMuted(isMuted);
 
-      const projectStore = useProjectStore.getState();
       const speedEngine = getSpeedEngine();
       const scheduledClips: AudioClipSchedule[] = [];
 
@@ -1143,9 +1257,11 @@ export const Preview: React.FC = () => {
               continue;
             }
 
-            let audioBuffer = audioBufferCacheRef.current.get(
-              getAudioBufferCacheKey(audioClip.mediaId, audioClip.audioTrackIndex),
+            const audioCacheKey = getAudioBufferCacheKey(
+              audioClip.mediaId,
+              audioClip.audioTrackIndex,
             );
+            let audioBuffer = audioBufferCacheRef.current.get(audioCacheKey);
             if (!audioBuffer) {
               try {
                 const audioContext = audioGraph.getAudioContext();
@@ -1158,10 +1274,7 @@ export const Preview: React.FC = () => {
                   continue;
                 }
                 audioBuffer = loaded;
-                audioBufferCacheRef.current.set(
-                  getAudioBufferCacheKey(audioClip.mediaId, audioClip.audioTrackIndex),
-                  audioBuffer,
-                );
+                audioBufferCacheRef.current.set(audioCacheKey, audioBuffer);
               } catch (error) {
                 console.warn(
                   `[Preview] Failed to decode audio for clip ${audioClip.id}:`,
@@ -1171,33 +1284,18 @@ export const Preview: React.FC = () => {
               }
             }
 
-            const audioClipData = projectStore.getClip(audioClip.id);
-            let audioEffects = audioClipData?.audioEffects || [];
-
-            if (audioEffects.length === 0) {
-              for (const videoTrack of videoTracks) {
-                for (const videoClip of videoTrack.clips) {
-                  if (
-                    videoClip.mediaId === audioClip.mediaId &&
-                    Math.abs(videoClip.startTime - audioClip.startTime) < 0.01
-                  ) {
-                    const videoClipData = projectStore.getClip(videoClip.id);
-                    const linkedEffects = videoClipData?.audioEffects || [];
-                    if (linkedEffects.length > 0) {
-                      audioEffects = linkedEffects;
-                      break;
-                    }
-                  }
-                }
-                if (audioEffects.length > 0) break;
-              }
-            }
+            const audioEffects = getResolvedClipAudioEffects(audioClip);
 
             const enabledEffects = audioEffects.filter(
               (e: Effect) => e.enabled,
             );
+            const previewAudio = await getPreviewAudioBufferForEffects(
+              audioBuffer,
+              audioCacheKey,
+              enabledEffects,
+            );
 
-            audioGraph.updateTrackEffects(audioTrack.id, enabledEffects);
+            audioGraph.updateTrackEffects(audioTrack.id, previewAudio.effects);
 
             const clipLocalTime = timelinePosition - audioClip.startTime;
             const isReverse = speedEngine.isReverse(audioClip.id);
@@ -1211,13 +1309,14 @@ export const Preview: React.FC = () => {
             scheduledClips.push({
               clipId: audioClip.id,
               trackId: audioTrack.id,
-              audioBuffer,
+              audioBuffer: previewAudio.audioBuffer,
               startTime: audioClip.startTime,
               endTime: clipEnd,
               mediaOffset,
               volume: audioClip.volume ?? 1,
+              volumeAutomation: getResolvedClipVolumeAutomation(audioClip),
               pan: 0,
-              effects: enabledEffects,
+              effects: previewAudio.effects,
               speed: audioClip.speed ?? 1,
             });
           }
@@ -1229,7 +1328,13 @@ export const Preview: React.FC = () => {
         audioGraph.scheduleClips(scheduledClips);
       }
     },
-    [getMediaItem, isMuted],
+    [
+      getMediaItem,
+      getPreviewAudioBufferForEffects,
+      getResolvedClipAudioEffects,
+      getResolvedClipVolumeAutomation,
+      isMuted,
+    ],
   );
 
   const preDecodeAllAudioBuffers = useCallback(async (): Promise<void> => {
@@ -1250,29 +1355,47 @@ export const Preview: React.FC = () => {
     for (const track of allTracks) {
       for (const clip of track.clips) {
         const cacheKey = getAudioBufferCacheKey(clip.mediaId, clip.audioTrackIndex);
-        if (audioBufferCacheRef.current.has(cacheKey)) {
-          continue;
-        }
+        let audioBuffer: AudioBuffer | null | undefined =
+          audioBufferCacheRef.current.get(cacheKey);
 
-        const mediaItem = getMediaItem(clip.mediaId);
-        if (!mediaItem?.blob) {
-          continue;
-        }
-
-        try {
-          const audioBuffer = await loadAudioBuffer(
-            audioContext,
-            mediaItem.blob,
-            clip.audioTrackIndex ?? 0,
-          );
-          if (audioBuffer) {
-            audioBufferCacheRef.current.set(cacheKey, audioBuffer);
+        if (!audioBuffer) {
+          const mediaItem = getMediaItem(clip.mediaId);
+          if (!mediaItem?.blob) {
+            continue;
           }
-        } catch {
+
+          try {
+            audioBuffer = await loadAudioBuffer(
+              audioContext,
+              mediaItem.blob,
+              clip.audioTrackIndex ?? 0,
+            );
+            if (audioBuffer) {
+              audioBufferCacheRef.current.set(cacheKey, audioBuffer);
+            }
+          } catch {
+            audioBuffer = null;
+          }
+        }
+
+        if (audioBuffer) {
+          const audioEffects = getResolvedClipAudioEffects(clip).filter(
+            (effect: Effect) => effect.enabled,
+          );
+          if (audioEffects.length > 0) {
+            try {
+              await getPreviewAudioBufferForEffects(audioBuffer, cacheKey, audioEffects);
+            } catch (error) {
+              console.warn(
+                `[Preview] Failed to pre-process audio effects for clip ${clip.id}:`,
+                error,
+              );
+            }
+          }
         }
       }
     }
-  }, [getMediaItem]);
+  }, [getMediaItem, getPreviewAudioBufferForEffects, getResolvedClipAudioEffects]);
 
   const getAudioClipsForScheduler = useCallback(
     (time: number): AudioClipSchedule[] => {
@@ -1281,7 +1404,6 @@ export const Preview: React.FC = () => {
         (t) => (t.type === "audio" || t.type === "video") && !t.hidden && !t.muted,
       );
       const schedules: AudioClipSchedule[] = [];
-      const projectStore = useProjectStore.getState();
 
       for (const track of tracksWithAudio) {
         for (const clip of track.clips) {
@@ -1297,21 +1419,40 @@ export const Preview: React.FC = () => {
             continue;
           }
 
-          const clipData = projectStore.getClip(clip.id);
-          const audioEffects = (clipData?.audioEffects || []).filter(
+          const audioEffects = getResolvedClipAudioEffects(clip).filter(
             (e: Effect) => e.enabled,
           );
+          const previewEffects = getPreviewAudioEffects(audioEffects);
+          const { profileAwareNoiseEffects, realtimeEffects } =
+            splitProfileAwareNoiseReductionEffects(previewEffects);
+          let scheduleAudioBuffer = audioBuffer;
+          let scheduleEffects = previewEffects;
+
+          if (profileAwareNoiseEffects.length > 0) {
+            const processedCacheKey = `${getAudioBufferCacheKey(
+              clip.mediaId,
+              clip.audioTrackIndex,
+            )}:profile-denoise:${getAudioEffectSignature(profileAwareNoiseEffects)}`;
+            const processedAudioBuffer =
+              processedAudioBufferCacheRef.current.get(processedCacheKey);
+
+            if (processedAudioBuffer) {
+              scheduleAudioBuffer = processedAudioBuffer;
+              scheduleEffects = realtimeEffects;
+            }
+          }
 
           schedules.push({
             clipId: clip.id,
             trackId: track.id,
-            audioBuffer,
+            audioBuffer: scheduleAudioBuffer,
             startTime: clip.startTime,
             endTime: clipEnd,
             mediaOffset: clip.inPoint || 0,
             volume: clip.volume ?? 1,
+            volumeAutomation: getResolvedClipVolumeAutomation(clip),
             pan: 0,
-            effects: audioEffects,
+            effects: scheduleEffects,
             speed: clip.speed ?? 1,
           });
         }
@@ -1319,7 +1460,11 @@ export const Preview: React.FC = () => {
 
       return schedules;
     },
-    [],
+    [
+      getAudioEffectSignature,
+      getResolvedClipAudioEffects,
+      getResolvedClipVolumeAutomation,
+    ],
   );
 
   /**
@@ -2280,13 +2425,34 @@ export const Preview: React.FC = () => {
             if (mediaItem?.blob && mediaItem.type === "video") {
               const clipSpeed = speedEngine.getClipSpeed(clip.id);
               const isReverse = speedEngine.isReverse(clip.id);
-              if (clipSpeed !== 1 || isReverse) {
+              if (clipSpeed !== 1 || isReverse || clipNeedsFrameProcessing(clip.id)) {
                 return { canUse: false, clips: [] };
               }
               allVideoClips.push({ clip, mediaItem });
             }
           }
         }
+      }
+
+      const hasActiveAudioEffects = tracks.some(
+        (track) =>
+          (track.type === "audio" || track.type === "video") &&
+          !track.hidden &&
+          track.clips.some((clip) => {
+            if (clip.startTime + clip.duration <= startPosition) {
+              return false;
+            }
+
+            return getPreviewAudioEffects(
+              getResolvedClipAudioEffects(clip),
+            ).some(
+              (effect) => effect.enabled,
+            );
+          }),
+      );
+
+      if (hasActiveAudioEffects) {
+        return { canUse: false, clips: [] };
       }
 
       if (allVideoClips.length === 0) return { canUse: false, clips: [] };
@@ -2321,7 +2487,7 @@ export const Preview: React.FC = () => {
 
       return { canUse: true, clips: allVideoClips, imageClips };
     },
-    [timelineTracks, getMediaItem, allTextClips, allShapeClips],
+    [timelineTracks, getMediaItem, allTextClips, allShapeClips, getResolvedClipAudioEffects],
   );
 
   const isSimpleNativeClip = useCallback(
@@ -2413,9 +2579,11 @@ export const Preview: React.FC = () => {
         }
       }
 
-      preDecodeAllAudioBuffers().catch((error) => {
+      try {
+        await preDecodeAllAudioBuffers();
+      } catch (error) {
         console.warn("[Preview] Audio warmup failed:", error);
-      });
+      }
 
       const videoCache = new Map<
         string,
@@ -2520,42 +2688,7 @@ export const Preview: React.FC = () => {
       await audioGraph.resume();
       audioGraph.seekTo(startPosition);
       await masterClock.play();
-      audioGraph.startScheduler(() => {
-        const tracksWithAudio = timelineTracks.filter(
-          (t) => (t.type === "audio" || t.type === "video") && !t.hidden,
-        );
-        const schedules: AudioClipSchedule[] = [];
-        for (const track of tracksWithAudio) {
-          for (const audioClip of track.clips) {
-            const mediaItem = getMediaItem(audioClip.mediaId);
-            const hasAudio =
-              mediaItem?.type === "audio" ||
-              (mediaItem?.type === "video" &&
-                mediaItem?.metadata?.channels &&
-                mediaItem.metadata.channels > 0);
-            if (!hasAudio) continue;
-
-            const audioBuffer = audioBufferCacheRef.current.get(
-              getAudioBufferCacheKey(audioClip.mediaId, audioClip.audioTrackIndex),
-            );
-            if (audioBuffer) {
-              schedules.push({
-                clipId: audioClip.id,
-                trackId: track.id,
-                audioBuffer,
-                startTime: audioClip.startTime,
-                endTime: audioClip.startTime + audioClip.duration,
-                mediaOffset: audioClip.inPoint || 0,
-                volume: audioClip.volume ?? 1,
-                pan: 0,
-                effects: [],
-                speed: audioClip.speed ?? 1,
-              });
-            }
-          }
-        }
-        return schedules;
-      });
+      audioGraph.startScheduler(getAudioClipsForScheduler);
 
       let isActive = true;
       let rafId: number | null = null;
@@ -2978,6 +3111,7 @@ export const Preview: React.FC = () => {
       canUseNativeDomVideoLayer,
       allSubtitles,
       getMediaItem,
+      getAudioClipsForScheduler,
       isMuted,
       preDecodeAllAudioBuffers,
       releaseVideoElement,
@@ -3532,9 +3666,11 @@ export const Preview: React.FC = () => {
         return;
       }
 
-      preDecodeAllAudioBuffers().catch((error) => {
+      try {
+        await preDecodeAllAudioBuffers();
+      } catch (error) {
         console.warn("[Preview] Audio warmup failed:", error);
-      });
+      }
 
       if (!audioGraphRef.current) {
         audioGraphRef.current = getRealtimeAudioGraph();
@@ -4312,26 +4448,33 @@ export const Preview: React.FC = () => {
   ]);
 
   const lastModifiedAtRef = useRef<number>(project.modifiedAt);
+  const lastPlayheadForRenderRef = useRef<number>(playheadPosition);
+  const modifiedRenderTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const renderInFlightRef = useRef<boolean>(false);
 
   useEffect(() => {
     if (isPlaying) return;
     if (isScrubbing) {
       releaseScrubVideoElements();
       lastModifiedAtRef.current = project.modifiedAt;
+      lastPlayheadForRenderRef.current = playheadPosition;
       lastPreviewRenderTimeRef.current = playheadPosition;
       return;
     }
 
-    // COMPLETELY skip rendering during resize/move interactions
-    // The last rendered frame stays visible, preventing black flashing
     if (isInteractingRef.current) {
       lastModifiedAtRef.current = project.modifiedAt;
       return;
     }
-    lastModifiedAtRef.current = project.modifiedAt;
 
     const canvas = canvasRef.current;
     if (!canvas) return;
+
+    const playheadChanged = playheadPosition !== lastPlayheadForRenderRef.current;
+    const modifiedChanged = project.modifiedAt !== lastModifiedAtRef.current;
+
+    lastModifiedAtRef.current = project.modifiedAt;
+    lastPlayheadForRenderRef.current = playheadPosition;
 
     const previousRenderTime = lastPreviewRenderTimeRef.current;
     const isLargeJump =
@@ -4342,14 +4485,37 @@ export const Preview: React.FC = () => {
     }
     lastPreviewRenderTimeRef.current = playheadPosition;
 
-    const renderFrame = async () => {
-      const rendered = await renderFrameDirectly(playheadPosition);
-      if (!rendered) {
-        renderFallbackFrame(playheadPosition);
+    const doRender = async () => {
+      if (renderInFlightRef.current) return;
+      renderInFlightRef.current = true;
+      try {
+        const rendered = await renderFrameDirectly(playheadPosition);
+        if (!rendered) {
+          renderFallbackFrame(playheadPosition);
+        }
+      } finally {
+        renderInFlightRef.current = false;
       }
     };
 
-    renderFrame();
+    if (playheadChanged) {
+      doRender();
+    } else if (modifiedChanged) {
+      if (modifiedRenderTimerRef.current) {
+        clearTimeout(modifiedRenderTimerRef.current);
+      }
+      modifiedRenderTimerRef.current = setTimeout(() => {
+        modifiedRenderTimerRef.current = null;
+        doRender();
+      }, 150);
+    }
+
+    return () => {
+      if (modifiedRenderTimerRef.current) {
+        clearTimeout(modifiedRenderTimerRef.current);
+        modifiedRenderTimerRef.current = null;
+      }
+    };
   }, [
     playheadPosition,
     isPlaying,
@@ -4363,7 +4529,13 @@ export const Preview: React.FC = () => {
 
   const [previewInvalidateCounter, setPreviewInvalidateCounter] = useState(0);
   useEffect(() => {
-    const handler = () => setPreviewInvalidateCounter((c) => c + 1);
+    const handler = () => {
+      processedAudioBufferCacheRef.current.clear();
+      if (audioGraphRef.current) {
+        audioGraphRef.current.seekTo(getMasterClock().currentTime);
+      }
+      setPreviewInvalidateCounter((c) => c + 1);
+    };
     window.addEventListener("openreel:preview-invalidate", handler);
     return () => window.removeEventListener("openreel:preview-invalidate", handler);
   }, []);
@@ -5662,7 +5834,7 @@ export const Preview: React.FC = () => {
     <div
       ref={containerRef}
       data-tour="preview"
-      className="flex-1 bg-background flex flex-col relative group overflow-hidden"
+      className="flex-1 min-h-0 min-w-0 bg-background flex flex-col relative group overflow-hidden"
     >
       {/* Crop Mode View - Full Screen Overlay */}
       {shouldShowCropMode && (
@@ -5681,7 +5853,8 @@ export const Preview: React.FC = () => {
 
       {/* Video Area */}
       <div
-        className={`flex-1 relative flex items-center justify-center bg-background-secondary/30 transition-all duration-300 ${
+        ref={videoAreaRef}
+        className={`flex-1 min-h-0 min-w-0 relative flex items-center justify-center bg-background-secondary/30 transition-all duration-300 ${
           isMaximized || isFullscreen ? "p-0" : "p-4"
         } ${zoomLevel > 1 ? "overflow-auto" : ""}`}
         onMouseMove={interactionMode !== "none" ? handleMouseMove : undefined}
@@ -5702,9 +5875,10 @@ export const Preview: React.FC = () => {
                   maxWidth: "none",
                 }
               : {
-                  height: `${450 * zoomLevel}px`,
-                  width: `calc(${450 * zoomLevel}px * ${settings.width} / ${settings.height})`,
-                  maxWidth: `${800 * zoomLevel}px`,
+                  width: `${previewFrameSize.width}px`,
+                  height: `${previewFrameSize.height}px`,
+                  maxWidth: "100%",
+                  maxHeight: "100%",
                 }
           }
           onMouseMove={!isPlaying ? handleGraphicsMouseMove : undefined}
@@ -6182,10 +6356,18 @@ export const Preview: React.FC = () => {
             onClick={() => {
               togglePlayback();
             }}
-            className="w-10 h-10 rounded-full bg-primary hover:bg-primary-hover active:bg-primary-active flex items-center justify-center text-white transition-all shadow-[0_0_15px_rgba(34,197,94,0.4)] hover:shadow-[0_0_25px_rgba(34,197,94,0.6)] transform hover:scale-105"
+            disabled={Boolean(playbackLockedReason)}
+            title={playbackLockedReason ?? (isPlaying ? "Pause" : "Play")}
+            className={`w-10 h-10 rounded-full flex items-center justify-center text-white transition-all ${
+              playbackLockedReason
+                ? "bg-background-tertiary text-text-muted cursor-not-allowed shadow-none"
+                : "bg-primary hover:bg-primary-hover active:bg-primary-active shadow-[0_0_15px_rgba(34,197,94,0.4)] hover:shadow-[0_0_25px_rgba(34,197,94,0.6)] transform hover:scale-105"
+            }`}
           >
             {isPlaying ? (
               <Pause size={18} fill="currentColor" />
+            ) : playbackLockedReason ? (
+              <Loader2 size={18} className="animate-spin" />
             ) : (
               <Play size={18} fill="currentColor" className="ml-0.5" />
             )}

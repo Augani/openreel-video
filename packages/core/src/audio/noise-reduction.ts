@@ -144,12 +144,15 @@ export class SpectralNoiseReducer {
   }
 
   private processChannel(input: Float32Array, output: Float32Array): void {
-    const numFrames =
-      Math.floor((input.length - this.fftSize) / this.hopSize) + 1;
+    const numFrames = Math.max(
+      1,
+      Math.ceil(Math.max(0, input.length - this.fftSize) / this.hopSize) + 1,
+    );
     output.fill(0);
 
     // Overlap-add buffer for reconstruction
     const overlapBuffer = new Float32Array(input.length);
+    const normalizationBuffer = new Float32Array(input.length);
     for (let frame = 0; frame < numFrames; frame++) {
       const start = frame * this.hopSize;
       const frameData = this.extractFrame(input, start);
@@ -163,16 +166,19 @@ export class SpectralNoiseReducer {
 
       // Overlap-add
       for (let i = 0; i < this.fftSize; i++) {
-        if (start + i < overlapBuffer.length) {
-          overlapBuffer[start + i] += reconstructed[i];
+        const outputIndex = start + i;
+        if (outputIndex < overlapBuffer.length) {
+          const window = this.getWindowValue(i);
+          overlapBuffer[outputIndex] += reconstructed[i];
+          normalizationBuffer[outputIndex] += window * window;
         }
       }
     }
 
-    // Normalize by overlap factor and copy to output
-    const overlapFactor = this.fftSize / this.hopSize;
     for (let i = 0; i < output.length; i++) {
-      output[i] = overlapBuffer[i] / overlapFactor;
+      const normalization = normalizationBuffer[i];
+      output[i] =
+        normalization > 1e-6 ? overlapBuffer[i] / normalization : input[i];
     }
   }
 
@@ -182,12 +188,15 @@ export class SpectralNoiseReducer {
     for (let i = 0; i < this.fftSize; i++) {
       const idx = start + i;
       const sample = idx < input.length ? input[idx] : 0;
-      const window =
-        0.5 * (1 - Math.cos((2 * Math.PI * i) / (this.fftSize - 1)));
+      const window = this.getWindowValue(i);
       frame[i] = sample * window;
     }
 
     return frame;
+  }
+
+  private getWindowValue(index: number): number {
+    return 0.5 * (1 - Math.cos((2 * Math.PI * index) / (this.fftSize - 1)));
   }
 
   private computeMagnitudeSpectrum(frame: Float32Array): Float32Array {
@@ -328,24 +337,111 @@ export async function autoLearnNoiseProfile(
 ): Promise<NoiseProfile | null> {
   const segments = detectNoiseSegments(buffer, -50, 0.5);
 
-  if (segments.length === 0) {
+  let noiseSegmentBuffer: AudioBuffer | null = null;
+
+  if (segments.length > 0) {
+    const longestSegment = segments.reduce((longest, current) => {
+      const currentDuration = current.end - current.start;
+      const longestDuration = longest.end - longest.start;
+      return currentDuration > longestDuration ? current : longest;
+    });
+    noiseSegmentBuffer = extractAudioSegment(
+      buffer,
+      longestSegment.start,
+      longestSegment.end,
+      context,
+    );
+  } else {
+    const quietest = findQuietestContiguousWindow(buffer, 0.5);
+    if (!quietest) {
+      return null;
+    }
+    if (!isLikelyNoiseOnly(buffer, quietest)) {
+      return null;
+    }
+    noiseSegmentBuffer = extractAudioSegment(
+      buffer,
+      quietest.start,
+      quietest.end,
+      context,
+    );
+  }
+
+  const reducer = new SpectralNoiseReducer();
+  return reducer.learnNoiseProfile(noiseSegmentBuffer);
+}
+
+function findQuietestContiguousWindow(
+  buffer: AudioBuffer,
+  minDuration: number,
+): { start: number; end: number } | null {
+  const channelData = buffer.getChannelData(0);
+  const sampleRate = buffer.sampleRate;
+  const windowSize = Math.floor(sampleRate * 0.05);
+  const minWindows = Math.max(1, Math.ceil(minDuration / 0.05));
+  const totalWindows = Math.floor(channelData.length / windowSize);
+
+  if (totalWindows < minWindows) {
     return null;
   }
 
-  // Use the longest quiet segment
-  const longestSegment = segments.reduce((longest, current) => {
-    const currentDuration = current.end - current.start;
-    const longestDuration = longest.end - longest.start;
-    return currentDuration > longestDuration ? current : longest;
-  });
-  const noiseSegment = extractAudioSegment(
-    buffer,
-    longestSegment.start,
-    longestSegment.end,
-    context,
-  );
+  const rmsValues: number[] = new Array(totalWindows);
+  for (let w = 0; w < totalWindows; w++) {
+    const start = w * windowSize;
+    const end = start + windowSize;
+    let sumSquares = 0;
+    for (let i = start; i < end; i++) {
+      sumSquares += channelData[i] * channelData[i];
+    }
+    rmsValues[w] = Math.sqrt(sumSquares / windowSize);
+  }
 
-  // Learn profile
-  const reducer = new SpectralNoiseReducer();
-  return reducer.learnNoiseProfile(noiseSegment);
+  let bestStart = 0;
+  let bestSum = Infinity;
+  let runningSum = 0;
+  for (let i = 0; i < minWindows; i++) {
+    runningSum += rmsValues[i];
+  }
+  bestSum = runningSum;
+  for (let i = minWindows; i < totalWindows; i++) {
+    runningSum += rmsValues[i] - rmsValues[i - minWindows];
+    if (runningSum < bestSum) {
+      bestSum = runningSum;
+      bestStart = i - minWindows + 1;
+    }
+  }
+
+  return {
+    start: (bestStart * windowSize) / sampleRate,
+    end: ((bestStart + minWindows) * windowSize) / sampleRate,
+  };
+}
+
+function isLikelyNoiseOnly(
+  buffer: AudioBuffer,
+  range: { start: number; end: number },
+): boolean {
+  const channelData = buffer.getChannelData(0);
+  const sampleRate = buffer.sampleRate;
+  const startSample = Math.floor(range.start * sampleRate);
+  const endSample = Math.floor(range.end * sampleRate);
+  const totalSamples = channelData.length;
+
+  let segmentSumSquares = 0;
+  for (let i = startSample; i < endSample; i++) {
+    segmentSumSquares += channelData[i] * channelData[i];
+  }
+  const segmentRms = Math.sqrt(segmentSumSquares / (endSample - startSample));
+
+  let totalSumSquares = 0;
+  for (let i = 0; i < totalSamples; i++) {
+    totalSumSquares += channelData[i] * channelData[i];
+  }
+  const totalRms = Math.sqrt(totalSumSquares / totalSamples);
+
+  if (totalRms <= 0) {
+    return false;
+  }
+
+  return segmentRms <= totalRms * 0.4;
 }
