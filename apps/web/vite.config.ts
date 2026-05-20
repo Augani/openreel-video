@@ -2,8 +2,8 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "path";
 
-const env = process.env.ALLOWED_HOSTS;
-const allowedHosts =
+const env = process.env.VITE_ALLOWED_HOSTS;
+const ALLOWED_HOSTS =
 	!env
 		? undefined
 		: env === "*"
@@ -54,7 +54,7 @@ export default defineConfig({
 		},
 	},
 	preview: {
-		allowedHosts,
+		allowedHosts: ALLOWED_HOSTS,
 		headers: {
 			"Cross-Origin-Opener-Policy": "same-origin",
 			"Cross-Origin-Embedder-Policy": "require-corp",
