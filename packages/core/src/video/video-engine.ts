@@ -1324,41 +1324,63 @@ export class VideoEngine {
       return baseEffects;
     }
 
-    const effectPropertyMap: Record<string, string> = {
-      "effect.brightness": "brightness",
-      "effect.contrast": "contrast",
-      "effect.saturation": "saturation",
-      "effect.blur": "blur",
-    };
+    // Each entry maps a keyframe property → effect type and the actual
+    // param key the renderer reads (see EFFECT_DEFINITIONS in types/effects.ts).
+    const effectPropertyMap: Array<{
+      keyframeProp: string;
+      effectType: string;
+      paramKey: string;
+    }> = [
+      { keyframeProp: "effect.brightness", effectType: "brightness", paramKey: "value" },
+      { keyframeProp: "effect.contrast", effectType: "contrast", paramKey: "value" },
+      { keyframeProp: "effect.saturation", effectType: "saturation", paramKey: "value" },
+      { keyframeProp: "effect.blur", effectType: "blur", paramKey: "radius" },
+    ];
 
-    const animatedParams: Record<string, number> = {};
+    const animatedByType = new Map<string, { paramKey: string; value: number }>();
 
-    for (const [keyframeProp, paramName] of Object.entries(effectPropertyMap)) {
+    for (const { keyframeProp, effectType, paramKey } of effectPropertyMap) {
       const effectKfs = keyframeEngine.getKeyframesForProperty(
         keyframes,
         keyframeProp,
       );
-      if (effectKfs.length > 0) {
-        const result = keyframeEngine.getValueAtTime(effectKfs, localTime);
-        if (typeof result.value === "number") {
-          animatedParams[paramName] = result.value;
-        }
+      if (effectKfs.length === 0) continue;
+      const result = keyframeEngine.getValueAtTime(effectKfs, localTime);
+      if (typeof result.value === "number") {
+        animatedByType.set(effectType, { paramKey, value: result.value });
       }
     }
 
-    if (Object.keys(animatedParams).length === 0) {
+    if (animatedByType.size === 0) {
       return baseEffects;
     }
 
-    return baseEffects.map((effect) => {
-      const updatedParams = { ...effect.params };
-      for (const [paramName, value] of Object.entries(animatedParams)) {
-        if (effect.type === paramName || paramName in updatedParams) {
-          updatedParams[paramName] = value;
-        }
-      }
-      return { ...effect, params: updatedParams };
+    // Patch existing effects with interpolated values.
+    const seen = new Set<string>();
+    const patched = baseEffects.map((effect) => {
+      const animated = animatedByType.get(effect.type);
+      if (!animated) return effect;
+      seen.add(effect.type);
+      return {
+        ...effect,
+        params: { ...effect.params, [animated.paramKey]: animated.value },
+      };
     });
+
+    // Synthesize effects that have keyframes but aren't on the clip yet,
+    // so users can animate brightness/contrast/etc. without first adding the
+    // effect manually.
+    for (const [effectType, { paramKey, value }] of animatedByType) {
+      if (seen.has(effectType)) continue;
+      patched.push({
+        id: `kf-synth-${clip.id}-${effectType}`,
+        type: effectType as Effect["type"],
+        enabled: true,
+        params: { [paramKey]: value },
+      } as Effect);
+    }
+
+    return patched;
   }
 
   private getAnimatedTransform(clip: Clip, localTime: number): Transform {

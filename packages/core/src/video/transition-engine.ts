@@ -430,18 +430,24 @@ export class TransitionEngine {
       };
     }
 
-    const clipAHandleFrames = clipA.outPoint - clipA.duration; // Media after visible end
-    const clipBHandleFrames = clipB.inPoint; // Media before visible start
+    // Handle frames available beyond the visible cut point. For a
+    // center-on-cut transition we need handles on clipA's TAIL (frames after
+    // outPoint) and clipB's HEAD (frames before inPoint) — half the duration
+    // on each side. Without source-media metadata we can only verify the
+    // leading handle of clipB; for clipA we conservatively assume zero tail
+    // handles, falling back to the visible range.
+    const clipAVisibleHandle = clipA.duration; // can borrow from within visible range as a fallback
+    const clipBLeadingHandle = clipB.inPoint;
+    const clipBVisibleHandle = clipB.duration;
 
-    const maxFromClipA = clipA.duration + clipAHandleFrames;
-    const maxFromClipB = clipB.duration + clipBHandleFrames;
-
-    // Maximum transition duration is limited by available handles
     const maxDuration = Math.min(
       clipA.duration,
       clipB.duration,
-      maxFromClipA,
-      maxFromClipB,
+      // tail of clipA (visible only) + leading source-handle of clipB allows
+      // half the duration on each side
+      (clipAVisibleHandle + clipBLeadingHandle) * 2,
+      clipAVisibleHandle * 2,
+      (clipBLeadingHandle + clipBVisibleHandle) * 2,
     );
 
     if (duration > maxDuration) {

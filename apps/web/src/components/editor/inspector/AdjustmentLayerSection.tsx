@@ -12,6 +12,11 @@ import {
   Copy,
 } from "lucide-react";
 import { Slider } from "@openreel/ui";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@openreel/ui/components/popover";
 import { useEngineStore } from "../../../stores/engine-store";
 import { useProjectStore } from "../../../stores/project-store";
 import type { AdjustmentLayer, BlendMode, Effect } from "@openreel/core";
@@ -323,35 +328,40 @@ export const AdjustmentLayerSection: React.FC<AdjustmentLayerSectionProps> = ({
                 <Palette size={10} />
                 Blend Mode
               </label>
-              <div className="relative">
-                <button
-                  onClick={() => setShowBlendModes(!showBlendModes)}
-                  className="w-full flex items-center justify-between p-2 bg-background-secondary rounded text-[10px] text-text-primary hover:bg-background-tertiary transition-colors"
+              <Popover open={showBlendModes} onOpenChange={setShowBlendModes}>
+                <PopoverTrigger asChild>
+                  <button
+                    type="button"
+                    className="w-full flex items-center justify-between p-2 bg-background-secondary rounded text-[10px] text-text-primary hover:bg-background-tertiary transition-colors"
+                  >
+                    <span>
+                      {BLEND_MODES.find((m) => m.id === layer.blendMode)?.name ||
+                        "Normal"}
+                    </span>
+                    <ChevronDown size={10} />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent
+                  align="start"
+                  sideOffset={4}
+                  className="w-[var(--radix-popover-trigger-width)] min-w-[180px] p-0 bg-background-secondary border-border max-h-48 overflow-y-auto"
                 >
-                  <span>
-                    {BLEND_MODES.find((m) => m.id === layer.blendMode)?.name ||
-                      "Normal"}
-                  </span>
-                  <ChevronDown size={10} />
-                </button>
-                {showBlendModes && (
-                  <div className="absolute top-full left-0 right-0 mt-1 bg-background-secondary border border-border rounded-lg shadow-lg z-10 max-h-48 overflow-y-auto">
-                    {BLEND_MODES.map((mode) => (
-                      <button
-                        key={mode.id}
-                        onClick={() => handleBlendModeChange(layer.id, mode.id)}
-                        className={`w-full text-left px-3 py-1.5 text-[10px] hover:bg-background-tertiary transition-colors ${
-                          layer.blendMode === mode.id
-                            ? "text-indigo-400 bg-indigo-500/10"
-                            : "text-text-secondary"
-                        }`}
-                      >
-                        {mode.name}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
+                  {BLEND_MODES.map((mode) => (
+                    <button
+                      key={mode.id}
+                      type="button"
+                      onClick={() => handleBlendModeChange(layer.id, mode.id)}
+                      className={`w-full text-left px-3 py-1.5 text-[10px] hover:bg-background-tertiary transition-colors ${
+                        layer.blendMode === mode.id
+                          ? "text-indigo-400 bg-indigo-500/10"
+                          : "text-text-secondary"
+                      }`}
+                    >
+                      {mode.name}
+                    </button>
+                  ))}
+                </PopoverContent>
+              </Popover>
             </div>
 
             <div className="space-y-1.5">

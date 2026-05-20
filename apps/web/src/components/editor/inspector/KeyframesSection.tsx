@@ -7,6 +7,11 @@ import {
   Diamond,
   DiamondIcon,
 } from "lucide-react";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@openreel/ui/components/popover";
 import { useProjectStore } from "../../../stores/project-store";
 import { useTimelineStore } from "../../../stores/timeline-store";
 import { useEngineStore } from "../../../stores/engine-store";
@@ -160,62 +165,61 @@ const PropertySelector: React.FC<{
     : "Select Property";
 
   return (
-    <div className="relative">
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center justify-between px-3 py-2 bg-background-tertiary border border-border rounded-lg text-[10px] text-text-primary hover:border-text-secondary transition-colors"
-      >
-        <span>{selectedLabel}</span>
-        <ChevronDown
-          size={12}
-          className={`transition-transform ${isOpen ? "rotate-180" : ""}`}
-        />
-      </button>
-      {isOpen && (
-        <>
-          <div
-            className="fixed inset-0 z-10"
-            onClick={() => setIsOpen(false)}
+    <Popover open={isOpen} onOpenChange={setIsOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="w-full flex items-center justify-between px-3 py-2 bg-background-tertiary border border-border rounded-lg text-[10px] text-text-primary hover:border-text-secondary transition-colors"
+        >
+          <span>{selectedLabel}</span>
+          <ChevronDown
+            size={12}
+            className={`transition-transform ${isOpen ? "rotate-180" : ""}`}
           />
-          <div className="absolute top-full left-0 right-0 mt-1 bg-background-secondary border border-border rounded-lg shadow-lg z-20 max-h-64 overflow-y-auto">
-            {categories.map((category) => (
-              <div key={category}>
-                <div className="px-3 py-1.5 text-[9px] font-medium text-text-muted uppercase tracking-wider bg-background-tertiary">
-                  {category}
-                </div>
-                {ANIMATABLE_PROPERTIES.filter(
-                  (p) => p.category === category,
-                ).map((prop) => {
-                  const hasKeyframes = existingProperties.includes(prop.id);
-                  return (
-                    <button
-                      key={prop.id}
-                      onClick={() => {
-                        onSelect(prop.id);
-                        setIsOpen(false);
-                      }}
-                      className={`w-full px-3 py-2 text-left text-[10px] flex items-center justify-between hover:bg-background-tertiary transition-colors ${
-                        selectedProperty === prop.id
-                          ? "bg-primary/10 text-primary"
-                          : "text-text-primary"
-                      }`}
-                    >
-                      <span>{prop.label}</span>
-                      {hasKeyframes && (
-                        <Diamond
-                          size={10}
-                          className="text-primary fill-primary"
-                        />
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            ))}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        align="start"
+        sideOffset={4}
+        className="w-[var(--radix-popover-trigger-width)] min-w-[200px] p-0 bg-background-secondary border-border max-h-64 overflow-y-auto"
+      >
+        {categories.map((category) => (
+          <div key={category}>
+            <div className="px-3 py-1.5 text-[9px] font-medium text-text-muted uppercase tracking-wider bg-background-tertiary">
+              {category}
+            </div>
+            {ANIMATABLE_PROPERTIES.filter(
+              (p) => p.category === category,
+            ).map((prop) => {
+              const hasKeyframes = existingProperties.includes(prop.id);
+              return (
+                <button
+                  key={prop.id}
+                  type="button"
+                  onClick={() => {
+                    onSelect(prop.id);
+                    setIsOpen(false);
+                  }}
+                  className={`w-full px-3 py-2 text-left text-[10px] flex items-center justify-between hover:bg-background-tertiary transition-colors ${
+                    selectedProperty === prop.id
+                      ? "bg-primary/10 text-primary"
+                      : "text-text-primary"
+                  }`}
+                >
+                  <span>{prop.label}</span>
+                  {hasKeyframes && (
+                    <Diamond
+                      size={10}
+                      className="text-primary fill-primary"
+                    />
+                  )}
+                </button>
+              );
+            })}
           </div>
-        </>
-      )}
-    </div>
+        ))}
+      </PopoverContent>
+    </Popover>
   );
 };
 
@@ -270,49 +274,48 @@ const EasingSelector: React.FC<{
   const currentLabel = formatEasingLabel(value);
 
   return (
-    <div className="relative">
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-1.5 px-2 py-1 bg-background-tertiary border border-border rounded text-[9px] text-text-secondary hover:text-text-primary hover:border-primary/50 transition-colors"
-        title={`Easing: ${currentLabel}`}
+    <Popover open={isOpen} onOpenChange={setIsOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="flex items-center gap-1.5 px-2 py-1 bg-background-tertiary border border-border rounded text-[9px] text-text-secondary hover:text-text-primary hover:border-primary/50 transition-colors"
+          title={`Easing: ${currentLabel}`}
+        >
+          <EasingCurvePreview easing={value} size={14} />
+          <span>{currentLabel}</span>
+          <ChevronDown size={10} />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        align="end"
+        sideOffset={4}
+        className="min-w-[180px] w-auto p-0 bg-background-secondary border-border max-h-64 overflow-y-auto"
       >
-        <EasingCurvePreview easing={value} size={14} />
-        <span>{currentLabel}</span>
-        <ChevronDown size={10} />
-      </button>
-      {isOpen && (
-        <>
-          <div
-            className="fixed inset-0 z-10"
-            onClick={() => setIsOpen(false)}
-          />
-          <div className="absolute top-full right-0 mt-1 bg-background-secondary border border-border rounded-lg shadow-lg z-20 min-w-[160px] max-h-64 overflow-y-auto">
-            {EASING_CATEGORIES.map((category) => (
-              <div key={category.name}>
-                <div className="px-3 py-1 text-[8px] font-medium text-text-muted uppercase tracking-wider bg-background-tertiary sticky top-0">
-                  {category.name}
-                </div>
-                {category.easings.map((easing) => (
-                  <button
-                    key={easing}
-                    onClick={() => {
-                      onChange(easing);
-                      setIsOpen(false);
-                    }}
-                    className={`w-full px-3 py-1.5 text-left text-[10px] hover:bg-background-tertiary transition-colors flex items-center gap-2 ${
-                      value === easing ? "text-primary" : "text-text-primary"
-                    }`}
-                  >
-                    <EasingCurvePreview easing={easing} size={14} />
-                    {formatEasingLabel(easing)}
-                  </button>
-                ))}
-              </div>
+        {EASING_CATEGORIES.map((category) => (
+          <div key={category.name}>
+            <div className="px-3 py-1 text-[8px] font-medium text-text-muted uppercase tracking-wider bg-background-tertiary sticky top-0">
+              {category.name}
+            </div>
+            {category.easings.map((easing) => (
+              <button
+                key={easing}
+                type="button"
+                onClick={() => {
+                  onChange(easing);
+                  setIsOpen(false);
+                }}
+                className={`w-full px-3 py-1.5 text-left text-[10px] hover:bg-background-tertiary transition-colors flex items-center gap-2 ${
+                  value === easing ? "text-primary" : "text-text-primary"
+                }`}
+              >
+                <EasingCurvePreview easing={easing} size={14} />
+                {formatEasingLabel(easing)}
+              </button>
             ))}
           </div>
-        </>
-      )}
-    </div>
+        ))}
+      </PopoverContent>
+    </Popover>
   );
 };
 
