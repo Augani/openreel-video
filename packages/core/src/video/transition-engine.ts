@@ -430,19 +430,12 @@ export class TransitionEngine {
       };
     }
 
-    const clipAHandleFrames = clipA.outPoint - clipA.duration; // Media after visible end
-    const clipBHandleFrames = clipB.inPoint; // Media before visible start
-
-    const maxFromClipA = clipA.duration + clipAHandleFrames;
-    const maxFromClipB = clipB.duration + clipBHandleFrames;
-
-    // Maximum transition duration is limited by available handles
-    const maxDuration = Math.min(
-      clipA.duration,
-      clipB.duration,
-      maxFromClipA,
-      maxFromClipB,
-    );
+    // For a center-on-cut transition the window extends ±duration/2 around
+    // the cut, so duration cannot exceed twice either clip's visible length.
+    // We can't validate source-media handles without media metadata, so we
+    // bound by the visible ranges and let the decoder clamp to edge frames
+    // when the transition extends past a clip's range.
+    const maxDuration = Math.min(clipA.duration, clipB.duration) * 2;
 
     if (duration > maxDuration) {
       return {
@@ -600,6 +593,10 @@ export class TransitionEngine {
     const transitionEnd = transitionStart + transition.duration;
 
     return currentTime >= transitionStart && currentTime <= transitionEnd;
+  }
+
+  getEngineDimensions(): { width: number; height: number } {
+    return { width: this.width, height: this.height };
   }
 
   resize(width: number, height: number): void {
