@@ -2,6 +2,14 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "path";
 
+const env = process.env.ALLOWED_HOSTS;
+const allowedHosts =
+	!env
+		? undefined
+		: env === "*"
+			? true
+			: env.split(",").map((h) => h.trim());
+
 export default defineConfig({
   plugins: [react()],
   assetsInclude: ["**/*.wasm"],
@@ -49,6 +57,7 @@ export default defineConfig({
     },
   },
   preview: {
+	allowedHosts,
     headers: {
       "Cross-Origin-Opener-Policy": "same-origin",
       "Cross-Origin-Embedder-Policy": "require-corp",
