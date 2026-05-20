@@ -232,8 +232,8 @@ export const TextSection: React.FC<TextSectionProps> = ({ clipId }) => {
       if (!file) return;
 
       const result = await registerCustomFont(file);
-      if (!result.success || !result.fontFamily) {
-        toast.error("Font upload failed", result.error);
+      if (!result.success) {
+        toast.error("Font upload failed", result.error ?? "Unknown error.");
       } else {
         await handleStyleChange({ fontFamily: result.fontFamily });
         toast.success("Custom font uploaded", `${result.fontFamily} is ready to use.`);

@@ -701,8 +701,8 @@ export const InspectorPanel: React.FC = () => {
       if (!file || !selectedSubtitle) return;
 
       const result = await registerCustomFont(file);
-      if (!result.success || !result.fontFamily) {
-        toast.error("Font upload failed", result.error);
+      if (!result.success) {
+        toast.error("Font upload failed", result.error ?? "Unknown error.");
       } else {
         updateSubtitle(selectedSubtitle.id, {
           style: {
