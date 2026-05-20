@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo } from "react";
+import React, { useCallback, useMemo, useRef } from "react";
 import {
   AlignLeft,
   AlignCenter,
@@ -10,6 +10,7 @@ import {
   Italic,
   Underline,
   Type,
+  Upload,
 } from "lucide-react";
 import { useProjectStore } from "../../../stores/project-store";
 import type { TextStyle, FontWeight } from "@openreel/core";
@@ -23,6 +24,13 @@ import {
   SelectGroup,
   SelectLabel,
 } from "@openreel/ui";
+import {
+  FONT_CATEGORIES,
+  FONT_FILE_ACCEPT,
+  registerCustomFont,
+  useCustomFonts,
+} from "./font-options";
+import { toast } from "../../../stores/notification-store";
 
 const ColorField: React.FC<{
   label: string;
@@ -92,74 +100,11 @@ const ToggleButtonGroup: React.FC<{
   </div>
 );
 
-const FONT_CATEGORIES = {
-  Popular: [
-    "Inter",
-    "Poppins",
-    "Montserrat",
-    "Roboto",
-    "Open Sans",
-    "Lato",
-    "Outfit",
-    "DM Sans",
-  ],
-  "Display & Headlines": [
-    "Bebas Neue",
-    "Anton",
-    "Oswald",
-    "Teko",
-    "Staatliches",
-    "Alfa Slab One",
-    "Archivo Black",
-    "Black Ops One",
-    "Titan One",
-    "Righteous",
-    "Concert One",
-    "Fredoka One",
-    "Bungee",
-  ],
-  "Elegant & Serif": [
-    "Playfair Display",
-    "Cinzel",
-    "Lora",
-    "Merriweather",
-    "DM Serif Display",
-    "Abril Fatface",
-    "Roboto Slab",
-    "Zilla Slab",
-  ],
-  "Modern & Clean": [
-    "Lexend",
-    "Quicksand",
-    "Nunito",
-    "Rubik",
-    "Work Sans",
-    "Raleway",
-    "Ubuntu",
-    "Space Grotesk",
-    "Comfortaa",
-  ],
-  "Handwritten & Script": [
-    "Pacifico",
-    "Lobster",
-    "Dancing Script",
-    "Great Vibes",
-    "Caveat",
-    "Sacramento",
-    "Satisfy",
-    "Yellowtail",
-    "Rock Salt",
-    "Permanent Marker",
-  ],
-  "Fun & Creative": ["Bangers", "Creepster", "Press Start 2P"],
-  Monospace: ["Roboto Mono", "Space Mono"],
-  System: ["Arial", "Helvetica", "Times New Roman", "Georgia", "Verdana"],
-};
-
 const FontSelector: React.FC<{
   value: string;
   onChange: (font: string) => void;
 }> = ({ value, onChange }) => {
+  const customFonts = useCustomFonts();
   return (
     <div className="flex items-center justify-between">
       <span className="text-[10px] text-text-secondary">Font</span>
@@ -180,6 +125,18 @@ const FontSelector: React.FC<{
               ))}
             </SelectGroup>
           ))}
+          {customFonts.length > 0 && (
+            <SelectGroup>
+              <SelectLabel className="text-text-muted text-[10px] font-medium">
+                Custom Uploads
+              </SelectLabel>
+              {customFonts.map((font) => (
+                <SelectItem key={font} value={font} style={{ fontFamily: font }}>
+                  {font}
+                </SelectItem>
+              ))}
+            </SelectGroup>
+          )}
         </SelectContent>
       </Select>
     </div>
@@ -203,6 +160,7 @@ export const TextSection: React.FC<TextSectionProps> = ({ clipId }) => {
     updateTextTransform,
     project,
   } = useProjectStore();
+  const fontInputRef = useRef<HTMLInputElement>(null);
 
   const textClip = useMemo(
     () => getTextClip(clipId),
@@ -268,6 +226,24 @@ export const TextSection: React.FC<TextSectionProps> = ({ clipId }) => {
     updateTextTransform(clipId, { position: { x: 0.5, y: 0.5 } });
   }, [clipId, updateTextTransform]);
 
+  const handleCustomFontSelect = useCallback(
+    async (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      if (!file) return;
+
+      const result = await registerCustomFont(file);
+      if (!result.success) {
+        toast.error("Font upload failed", result.error ?? "Unknown error.");
+      } else {
+        await handleStyleChange({ fontFamily: result.fontFamily });
+        toast.success("Custom font uploaded", `${result.fontFamily} is ready to use.`);
+      }
+
+      event.target.value = "";
+    },
+    [handleStyleChange],
+  );
+
   if (!textClip) {
     return (
       <div className="p-4 text-center">
@@ -291,10 +267,24 @@ export const TextSection: React.FC<TextSectionProps> = ({ clipId }) => {
       </div>
 
       <div className="space-y-2 p-3 bg-background-tertiary rounded-lg">
+        <input
+          ref={fontInputRef}
+          type="file"
+          accept={FONT_FILE_ACCEPT}
+          onChange={handleCustomFontSelect}
+          className="hidden"
+        />
         <FontSelector
           value={style.fontFamily}
           onChange={(fontFamily) => handleStyleChange({ fontFamily })}
         />
+        <button
+          onClick={() => fontInputRef.current?.click()}
+          className="w-full py-1.5 px-2 bg-background-secondary border border-border rounded text-[10px] text-text-secondary hover:text-text-primary transition-colors flex items-center justify-center gap-1.5"
+        >
+          <Upload size={11} />
+          Upload Custom Font
+        </button>
         <NumberInput
           label="Size"
           value={style.fontSize}

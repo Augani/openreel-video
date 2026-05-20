@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { ChevronDown, Zap, Captions, Loader2, Sparkles, Trash2 } from "lucide-react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ChevronDown, Zap, Captions, Loader2, Sparkles, Trash2, Upload } from "lucide-react";
 import { useProjectStore } from "../../stores/project-store";
 import { useTimelineStore } from "../../stores/timeline-store";
 import { useUIStore } from "../../stores/ui-store";
@@ -64,6 +64,12 @@ import {
   DEFAULT_NOISE_REDUCTION,
 } from "../../bridges/audio-bridge-effects";
 import { toast } from "../../stores/notification-store";
+import {
+  FONT_CATEGORIES,
+  FONT_FILE_ACCEPT,
+  registerCustomFont,
+  useCustomFonts,
+} from "./inspector/font-options";
 import { getNoiseReductionPreset } from "./inspector/noise-reduction-presets";
 import {
   Input,
@@ -195,6 +201,7 @@ export const InspectorPanel: React.FC = () => {
     getClip,
     getMediaItem,
     addSubtitle,
+    importSRT,
     updateSubtitle,
     getSubtitle,
     getEditingTemplate,
@@ -232,6 +239,9 @@ export const InspectorPanel: React.FC = () => {
   const [recipeControlValues, setRecipeControlValues] = useState<
     Record<string, Record<string, EditingTemplatePrimitive>>
   >({});
+  const srtInputRef = useRef<HTMLInputElement>(null);
+  const subtitleFontInputRef = useRef<HTMLInputElement>(null);
+  const customFonts = useCustomFonts();
 
   useEffect(() => {
     setExpandedRecipeApplicationId(null);
@@ -655,6 +665,59 @@ export const InspectorPanel: React.FC = () => {
     targetLanguage,
   ]);
 
+  const handleSRTImport = useCallback(
+    async (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      if (!file) return;
+
+      try {
+        const srtContent = await file.text();
+        const result = await importSRT(srtContent);
+
+        if (result.success) {
+          if (result.errors.length > 0) {
+            toast.warning(
+              "SRT imported with warnings",
+              `${result.errors.length} subtitle segment(s) were skipped.`,
+            );
+          } else {
+            toast.success("SRT imported", "Subtitles were added to the Captions track.");
+          }
+        } else {
+          toast.error("SRT import failed", result.errors[0] || "No valid subtitles found.");
+        }
+      } catch {
+        toast.error("SRT import failed", "Could not read the selected subtitle file.");
+      } finally {
+        event.target.value = "";
+      }
+    },
+    [importSRT],
+  );
+
+  const handleSubtitleFontUpload = useCallback(
+    async (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      if (!file || !selectedSubtitle) return;
+
+      const result = await registerCustomFont(file);
+      if (!result.success) {
+        toast.error("Font upload failed", result.error ?? "Unknown error.");
+      } else {
+        updateSubtitle(selectedSubtitle.id, {
+          style: {
+            ...(selectedSubtitle.style || {}),
+            fontFamily: result.fontFamily,
+          } as typeof selectedSubtitle.style,
+        });
+        toast.success("Custom font uploaded", `${result.fontFamily} is ready to use.`);
+      }
+
+      event.target.value = "";
+    },
+    [selectedSubtitle, updateSubtitle],
+  );
+
   // Default transform
   const defaultTransform: Transform = {
     position: { x: 0, y: 0 },
@@ -1018,6 +1081,13 @@ export const InspectorPanel: React.FC = () => {
             {clipType === "video" && (
               <Section title="AI Auto-Captions" sectionId="auto-captions" defaultOpen={false}>
                 <div className="space-y-3">
+                  <input
+                    ref={srtInputRef}
+                    type="file"
+                    accept=".srt,text/srt,text/plain"
+                    onChange={handleSRTImport}
+                    className="hidden"
+                  />
                   <div>
                     <label className="text-[10px] text-text-secondary block mb-1">
                       Animation Style
@@ -1111,6 +1181,14 @@ export const InspectorPanel: React.FC = () => {
                       Generate Captions
                     </button>
                   )}
+                  <button
+                    onClick={() => srtInputRef.current?.click()}
+                    disabled={isTranscribing}
+                    className="w-full py-2 bg-background-tertiary hover:bg-background-tertiary/80 border border-border text-text-primary rounded-lg text-[11px] font-medium transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                  >
+                    <Upload size={13} />
+                    Import SRT File
+                  </button>
                 </div>
               </Section>
             )}
@@ -1914,6 +1992,13 @@ export const InspectorPanel: React.FC = () => {
             {/* Subtitle Font Settings */}
             <Section title="Font">
               <div className="space-y-3">
+                <input
+                  ref={subtitleFontInputRef}
+                  type="file"
+                  accept={FONT_FILE_ACCEPT}
+                  onChange={handleSubtitleFontUpload}
+                  className="hidden"
+                />
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] text-text-secondary">
                     Font Family
@@ -1933,41 +2018,40 @@ export const InspectorPanel: React.FC = () => {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="bg-background-secondary border-border max-h-60">
-                      <SelectGroup>
-                        <SelectLabel className="text-text-muted text-[10px] font-medium">Popular</SelectLabel>
-                        {["Inter", "Poppins", "Montserrat", "Roboto", "Open Sans", "Lato", "DM Sans"].map((font) => (
-                          <SelectItem key={font} value={font} style={{ fontFamily: font }}>
-                            {font}
-                          </SelectItem>
-                        ))}
-                      </SelectGroup>
-                      <SelectGroup>
-                        <SelectLabel className="text-text-muted text-[10px] font-medium">Display</SelectLabel>
-                        {["Bebas Neue", "Anton", "Oswald", "Teko", "Staatliches", "Alfa Slab One"].map((font) => (
-                          <SelectItem key={font} value={font} style={{ fontFamily: font }}>
-                            {font}
-                          </SelectItem>
-                        ))}
-                      </SelectGroup>
-                      <SelectGroup>
-                        <SelectLabel className="text-text-muted text-[10px] font-medium">Elegant</SelectLabel>
-                        {["Playfair Display", "Cinzel", "Lora", "Merriweather", "DM Serif Display"].map((font) => (
-                          <SelectItem key={font} value={font} style={{ fontFamily: font }}>
-                            {font}
-                          </SelectItem>
-                        ))}
-                      </SelectGroup>
-                      <SelectGroup>
-                        <SelectLabel className="text-text-muted text-[10px] font-medium">Handwritten</SelectLabel>
-                        {["Pacifico", "Lobster", "Dancing Script", "Caveat", "Permanent Marker"].map((font) => (
-                          <SelectItem key={font} value={font} style={{ fontFamily: font }}>
-                            {font}
-                          </SelectItem>
-                        ))}
-                      </SelectGroup>
+                      {Object.entries(FONT_CATEGORIES).map(([category, fonts]) => (
+                        <SelectGroup key={category}>
+                          <SelectLabel className="text-text-muted text-[10px] font-medium">
+                            {category}
+                          </SelectLabel>
+                          {fonts.map((font) => (
+                            <SelectItem key={font} value={font} style={{ fontFamily: font }}>
+                              {font}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      ))}
+                      {customFonts.length > 0 && (
+                        <SelectGroup>
+                          <SelectLabel className="text-text-muted text-[10px] font-medium">
+                            Custom Uploads
+                          </SelectLabel>
+                          {customFonts.map((font) => (
+                            <SelectItem key={font} value={font} style={{ fontFamily: font }}>
+                              {font}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      )}
                     </SelectContent>
                   </Select>
                 </div>
+                <button
+                  onClick={() => subtitleFontInputRef.current?.click()}
+                  className="w-full py-1.5 px-2 bg-background-secondary border border-border rounded text-[10px] text-text-secondary hover:text-text-primary transition-colors flex items-center justify-center gap-1.5"
+                >
+                  <Upload size={11} />
+                  Upload Custom Font
+                </button>
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] text-text-secondary">
                     Font Size
