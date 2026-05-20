@@ -430,25 +430,12 @@ export class TransitionEngine {
       };
     }
 
-    // Handle frames available beyond the visible cut point. For a
-    // center-on-cut transition we need handles on clipA's TAIL (frames after
-    // outPoint) and clipB's HEAD (frames before inPoint) — half the duration
-    // on each side. Without source-media metadata we can only verify the
-    // leading handle of clipB; for clipA we conservatively assume zero tail
-    // handles, falling back to the visible range.
-    const clipAVisibleHandle = clipA.duration; // can borrow from within visible range as a fallback
-    const clipBLeadingHandle = clipB.inPoint;
-    const clipBVisibleHandle = clipB.duration;
-
-    const maxDuration = Math.min(
-      clipA.duration,
-      clipB.duration,
-      // tail of clipA (visible only) + leading source-handle of clipB allows
-      // half the duration on each side
-      (clipAVisibleHandle + clipBLeadingHandle) * 2,
-      clipAVisibleHandle * 2,
-      (clipBLeadingHandle + clipBVisibleHandle) * 2,
-    );
+    // For a center-on-cut transition the window extends ±duration/2 around
+    // the cut, so duration cannot exceed twice either clip's visible length.
+    // We can't validate source-media handles without media metadata, so we
+    // bound by the visible ranges and let the decoder clamp to edge frames
+    // when the transition extends past a clip's range.
+    const maxDuration = Math.min(clipA.duration, clipB.duration) * 2;
 
     if (duration > maxDuration) {
       return {

@@ -2419,6 +2419,22 @@ export const Preview: React.FC = () => {
         return { canUse: false, clips: [] };
       }
 
+      // Native playback uses a single <video> element per active clip and a
+      // straight drawImage — it can't blend two clips, so any clip-to-clip
+      // transition in the playback range forces the multi-track path.
+      const hasUpcomingTransition = videoTracks.some((track) =>
+        track.transitions.some((t) => {
+          const clipA = track.clips.find((c) => c.id === t.clipAId);
+          if (!clipA) return false;
+          const transitionEnd =
+            clipA.startTime + clipA.duration + t.duration / 2;
+          return transitionEnd > startPosition;
+        }),
+      );
+      if (hasUpcomingTransition) {
+        return { canUse: false, clips: [] };
+      }
+
       if (allVideoClips.length === 0) return { canUse: false, clips: [] };
 
       allVideoClips.sort((a, b) => a.clip.startTime - b.clip.startTime);
@@ -3695,6 +3711,190 @@ export const Preview: React.FC = () => {
             }
           }
 
+          // Active transition takes over the whole frame: decode both clips
+          // (one will be outside its visible window — its sink will clamp to
+          // the nearest edge frame) and blend them. Overlays still render on
+          // top below.
+          const transitionInfoMulti = getTransitionAtTime(
+            currentPlayhead,
+            timelineTracksRef.current,
+          );
+
+          // Compute these here so they're visible in both the transition path
+          // and the normal compositing path below.
+          const activeShapeClips = getActiveShapeClips(
+            allShapeClipsRef.current,
+            currentPlayhead,
+          );
+          const activeTextClips = getActiveTextClips(
+            allTextClipsRef.current,
+            currentPlayhead,
+          );
+
+          if (transitionInfoMulti) {
+            const tracks = timelineTracksRef.current;
+            const findClipById = (id: string) => {
+              for (let idx = 0; idx < tracks.length; idx++) {
+                const found = tracks[idx].clips.find((c) => c.id === id);
+                if (found) return { clip: found, trackIndex: idx };
+              }
+              return null;
+            };
+
+            const aLookup = findClipById(transitionInfoMulti.clipA.id);
+            const bLookup = findClipById(transitionInfoMulti.clipB.id);
+
+            if (aLookup && bLookup) {
+              for (const lookup of [aLookup, bLookup]) {
+                if (!playbackResourcesRef.current.has(lookup.clip.id)) {
+                  const resources = await initClipResources(
+                    lookup.clip,
+                    lookup.trackIndex,
+                  );
+                  if (resources) {
+                    playbackResourcesRef.current.set(
+                      lookup.clip.id,
+                      resources,
+                    );
+                  }
+                }
+              }
+
+              const decodeClipFrameForTransition = async (
+                clip: (typeof tracks)[0]["clips"][0],
+              ): Promise<ImageBitmap | null> => {
+                const resources = playbackResourcesRef.current.get(clip.id);
+                if (!resources) return null;
+                const speedEngine = getSpeedEngine();
+                const localTime = currentPlayhead - clip.startTime;
+                const adjustedLocalTime =
+                  speedEngine.getSourceTimeAtPlaybackTime(clip.id, localTime);
+                const sourceTime = Math.max(
+                  clip.inPoint,
+                  Math.min(
+                    clip.outPoint,
+                    (clip.inPoint || 0) + adjustedLocalTime,
+                  ),
+                );
+                try {
+                  const result = await (
+                    resources.sink as {
+                      getCanvas: (time: number) => Promise<{
+                        canvas: HTMLCanvasElement | OffscreenCanvas;
+                      } | null>;
+                    }
+                  ).getCanvas(sourceTime);
+                  if (!result?.canvas) return null;
+                  return await createImageBitmap(result.canvas);
+                } catch (error) {
+                  console.warn(
+                    `[Preview] Transition decode failed for clip ${clip.id}:`,
+                    error,
+                  );
+                  return null;
+                }
+              };
+
+              const [outgoing, incoming] = await Promise.all([
+                decodeClipFrameForTransition(aLookup.clip),
+                decodeClipFrameForTransition(bLookup.clip),
+              ]);
+
+              if (outgoing && incoming) {
+                try {
+                  const blended = await renderTransitionFrame(
+                    transitionInfoMulti,
+                    outgoing,
+                    incoming,
+                  );
+
+                  ctx.fillStyle = "#000000";
+                  ctx.fillRect(0, 0, canvas.width, canvas.height);
+                  ctx.drawImage(blended, 0, 0, canvas.width, canvas.height);
+
+                  for (const shapeClip of activeShapeClips) {
+                    renderShapeClipToCanvas(
+                      ctx,
+                      shapeClip,
+                      canvas.width,
+                      canvas.height,
+                      currentPlayhead,
+                    );
+                  }
+                  for (const textClip of activeTextClips) {
+                    renderTextClipToCanvas(
+                      ctx,
+                      textClip,
+                      canvas.width,
+                      canvas.height,
+                      currentPlayhead,
+                    );
+                  }
+                  const activeSubtitlesTr = getActiveSubtitles(
+                    allSubtitlesRef.current,
+                    currentPlayhead,
+                  );
+                  for (const subtitle of activeSubtitlesTr) {
+                    renderSubtitleToCanvas(
+                      ctx,
+                      subtitle,
+                      canvas.width,
+                      canvas.height,
+                      currentPlayhead,
+                    );
+                  }
+
+                  mainCtx.drawImage(offscreenCanvasRef.current!, 0, 0);
+                  blended.close();
+                  outgoing.close();
+                  incoming.close();
+
+                  frameCount++;
+                  masterClock.reportVideoTime(currentPlayhead);
+                  const nowTr = performance.now();
+                  if (
+                    nowTr - lastPlayheadUpdateRef.current >=
+                    PLAYHEAD_UPDATE_THROTTLE_MS
+                  ) {
+                    lastPlayheadUpdateRef.current = nowTr;
+                    setPlayheadPosition(currentPlayhead);
+                  }
+                  const elapsedTr = nowTr - lastFrameTimestamp;
+                  const targetTimeTr = frameDuration / rateRef.current;
+                  const delayTr = Math.max(0, targetTimeTr - elapsedTr);
+                  lastFrameTimestamp = nowTr;
+                  isProcessingFrame = false;
+                  if (isActive) {
+                    if (delayTr > 0) {
+                      setTimeout(() => {
+                        if (isActive) {
+                          animationRef.current = requestAnimationFrame(
+                            processMultiTrackFrame,
+                          );
+                        }
+                      }, delayTr);
+                    } else {
+                      animationRef.current = requestAnimationFrame(
+                        processMultiTrackFrame,
+                      );
+                    }
+                  }
+                  return;
+                } catch (error) {
+                  console.warn(
+                    "[Preview] Transition render failed, falling back to normal compositing:",
+                    error,
+                  );
+                  outgoing.close();
+                  incoming.close();
+                }
+              } else {
+                outgoing?.close();
+                incoming?.close();
+              }
+            }
+          }
+
           const activeClipIds = new Set(activeClips.map((c) => c.clip.id));
           for (const [clipId, resources] of playbackResourcesRef.current) {
             if (!activeClipIds.has(clipId)) {
@@ -3705,14 +3905,6 @@ export const Preview: React.FC = () => {
 
           const sortedClips = [...activeClips].sort(
             (a, b) => b.trackIndex - a.trackIndex,
-          );
-          const activeShapeClips = getActiveShapeClips(
-            allShapeClipsRef.current,
-            currentPlayhead,
-          );
-          const activeTextClips = getActiveTextClips(
-            allTextClipsRef.current,
-            currentPlayhead,
           );
           const activeTextNeedsSubject = hasBehindSubjectText(activeTextClips);
           const useGPUFrames =
