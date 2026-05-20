@@ -12,6 +12,8 @@ import type { ShapeClip, EmphasisAnimation } from "../graphics/types";
 import { titleEngine } from "../text/title-engine";
 import { graphicsEngine } from "../graphics/graphics-engine";
 import { VideoEffectsEngine } from "./video-effects-engine";
+import { TransitionEngine } from "./transition-engine";
+import type { Transition } from "../types/timeline";
 import { getMediaEngine } from "../media/mediabunny-engine";
 import type {
   RenderedFrame,
@@ -101,6 +103,7 @@ export class VideoEngine {
   private gpuCompositor: GPUCompositor | null = null;
   private gpuRenderer: Renderer | null = null;
   private effectsEngine: VideoEffectsEngine | null = null;
+  private transitionEngine: TransitionEngine | null = null;
   private lastExportTime: number = -1;
   private exportFrameRate: number = 30;
   exportMode: boolean = false;
@@ -578,8 +581,23 @@ export class VideoEngine {
 
     for (const { track } of allRenderableTracks) {
       if (track.type === "video" || track.type === "image") {
+        // If a clip-to-clip transition is active in this track at `time`,
+        // decode both participating clips, blend them, and draw the result.
+        // The clip IDs that were rendered as part of the transition are
+        // returned so the normal per-clip loop can skip them.
+        const renderedTransitionClips = await this.renderActiveTransition(
+          track,
+          time,
+          mediaLibrary,
+          settings,
+          width,
+          height,
+          ctx,
+        );
+
         const clips = this.getClipsAtTime(track, time);
         for (const clip of clips) {
+          if (renderedTransitionClips.has(clip.id)) continue;
           const clipInfo = this.createClipRenderInfo(clip, time);
           const mediaItem = mediaLibrary.items.find(
             (m) => m.id === clipInfo.mediaId,
@@ -1292,6 +1310,168 @@ export class VideoEngine {
       const clipEnd = clip.startTime + clip.duration;
       return time >= clip.startTime && time < clipEnd;
     });
+  }
+
+  // Find a transition on `track` whose centered-on-cut window contains `time`.
+  private findActiveTransition(
+    track: Track,
+    time: number,
+  ): { transition: Transition; clipA: Clip; clipB: Clip; progress: number } | null {
+    const transitions = track.transitions || [];
+    for (const transition of transitions) {
+      const clipA = track.clips.find((c) => c.id === transition.clipAId);
+      const clipB = track.clips.find((c) => c.id === transition.clipBId);
+      if (!clipA || !clipB) continue;
+
+      const cut = clipA.startTime + clipA.duration;
+      const start = cut - transition.duration / 2;
+      const end = cut + transition.duration / 2;
+      if (time < start || time > end) continue;
+
+      const progress = transition.duration > 0
+        ? Math.max(0, Math.min(1, (time - start) / transition.duration))
+        : 0;
+      return { transition, clipA, clipB, progress };
+    }
+    return null;
+  }
+
+  // Decode a single video/image clip frame at the given absolute project
+  // `time` and return it as an ImageBitmap sized to (width, height). Returns
+  // null when decoding fails or the media is missing.
+  private async decodeClipBitmap(
+    clip: Clip,
+    mediaItem: MediaItem,
+    time: number,
+    width: number,
+    height: number,
+  ): Promise<ImageBitmap | null> {
+    if (!mediaItem.blob) return null;
+
+    if (mediaItem.type === "image") {
+      try {
+        if (isAnimatedGif(mediaItem.blob)) {
+          let gifCache = this.gifFrameCache.get(mediaItem.id);
+          if (!gifCache) {
+            const created = await createGifFrameCache(mediaItem.blob);
+            if (created) {
+              this.gifFrameCache.set(mediaItem.id, created);
+              gifCache = created;
+            }
+          }
+          if (gifCache && gifCache.frames.length > 0) {
+            const clipLocalTime = time - clip.startTime;
+            const idx = getGifFrameAtTime(gifCache, clipLocalTime * 1000);
+            return gifCache.frames[idx];
+          }
+        }
+        const cached = this.staticImageCache.get(mediaItem.id);
+        if (cached) return cached;
+        const bitmap = await createImageBitmap(mediaItem.blob);
+        this.staticImageCache.set(mediaItem.id, bitmap);
+        return bitmap;
+      } catch (error) {
+        console.warn(
+          `[VideoEngine] decodeClipBitmap (image) failed for ${mediaItem.id}:`,
+          error,
+        );
+        return null;
+      }
+    }
+
+    const speedEngine = getSpeedEngine();
+    const localTime = time - clip.startTime;
+    const sourceTime = Math.max(
+      clip.inPoint,
+      Math.min(
+        clip.outPoint,
+        clip.inPoint + speedEngine.getSourceTimeAtPlaybackTime(clip.id, localTime),
+      ),
+    );
+
+    let bitmap = await this.decodeFrameWithMediaBunny(
+      mediaItem.blob,
+      sourceTime,
+      width,
+      height,
+      mediaItem.id,
+    );
+    if (!bitmap) {
+      bitmap = await this.decodeFrameWithVideoElement(
+        mediaItem.id,
+        mediaItem.blob,
+        sourceTime,
+        width,
+        height,
+      );
+    }
+    return bitmap;
+  }
+
+  private async renderActiveTransition(
+    track: Track,
+    time: number,
+    mediaLibrary: Project["mediaLibrary"],
+    _settings: Project["settings"],
+    width: number,
+    height: number,
+    ctx: OffscreenCanvasRenderingContext2D,
+  ): Promise<Set<string>> {
+    const rendered = new Set<string>();
+
+    const active = this.findActiveTransition(track, time);
+    if (!active) return rendered;
+
+    const { transition, clipA, clipB, progress } = active;
+
+    const mediaA = mediaLibrary.items.find((m) => m.id === clipA.mediaId);
+    const mediaB = mediaLibrary.items.find((m) => m.id === clipB.mediaId);
+    if (!mediaA?.blob || !mediaB?.blob) return rendered;
+
+    try {
+      const [bitmapA, bitmapB] = await Promise.all([
+        this.decodeClipBitmap(clipA, mediaA, time, width, height),
+        this.decodeClipBitmap(clipB, mediaB, time, width, height),
+      ]);
+      if (!bitmapA || !bitmapB) {
+        if (bitmapA && !this.staticImageCache.has(mediaA.id)) bitmapA.close();
+        if (bitmapB && !this.staticImageCache.has(mediaB.id)) bitmapB.close();
+        return rendered;
+      }
+
+      if (
+        !this.transitionEngine ||
+        this.transitionEngine.getEngineDimensions().width !== width ||
+        this.transitionEngine.getEngineDimensions().height !== height
+      ) {
+        this.transitionEngine = new TransitionEngine({ width, height });
+      }
+
+      const result = await this.transitionEngine.renderTransition(
+        bitmapA,
+        bitmapB,
+        transition,
+        progress,
+      );
+
+      if (result.frame) {
+        ctx.drawImage(result.frame, 0, 0, width, height);
+        result.frame.close();
+      }
+
+      if (mediaA.type !== "image") bitmapA.close();
+      if (mediaB.type !== "image") bitmapB.close();
+
+      rendered.add(clipA.id);
+      rendered.add(clipB.id);
+    } catch (error) {
+      console.warn(
+        `[VideoEngine] transition render failed (clipA=${clipA.id} clipB=${clipB.id}):`,
+        error,
+      );
+    }
+
+    return rendered;
   }
 
   private createClipRenderInfo(clip: Clip, time: number): VideoClipRenderInfo {

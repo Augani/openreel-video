@@ -595,6 +595,10 @@ export class TransitionEngine {
     return currentTime >= transitionStart && currentTime <= transitionEnd;
   }
 
+  getEngineDimensions(): { width: number; height: number } {
+    return { width: this.width, height: this.height };
+  }
+
   resize(width: number, height: number): void {
     this.width = width;
     this.height = height;
