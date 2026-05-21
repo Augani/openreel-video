@@ -912,21 +912,33 @@ export const InspectorPanel: React.FC = () => {
   return (
     <div
       data-tour="inspector"
-      className="w-full min-w-0 bg-background-secondary border-l border-border flex flex-col overflow-y-auto h-full custom-scrollbar"
+      className="w-full min-w-0 bg-bg-1 flex flex-col h-full"
     >
-      <div className="p-5">
-        <h3 className="text-sm font-bold text-text-primary mb-5 tracking-tight">
+      {/* ── Inspector tab strip (mockup style) ────────────────── */}
+      <div className="flex items-center px-3.5 py-2 border-b border-border gap-3.5 min-h-[38px] overflow-x-auto scrollbar-none shrink-0">
+        <button className="text-[12.5px] font-medium text-accent">
           Inspector
-        </h3>
+        </button>
+        {selectedClip && (
+          <>
+            <span className="w-px h-3.5 bg-border" />
+            <span className="text-[11px] text-fg-3 font-mono">
+              {selectedClip.duration.toFixed(2)}s
+            </span>
+          </>
+        )}
+      </div>
 
+      <div className="overflow-y-auto flex-1 min-h-0 pb-3.5 custom-scrollbar">
+      <div className="px-4 pt-3">
         {selectedClip ? (
           <>
             {/* Clip Info */}
-            <div className="mb-4 p-3 bg-background-tertiary rounded-lg border border-border">
-              <p className="text-xs text-text-primary font-medium truncate">
-                {selectedClip.id.substring(0, 20)}...
+            <div className="mb-3 p-2.5 bg-bg-2 rounded-md border border-border">
+              <p className="text-[11.5px] text-fg font-medium truncate">
+                {selectedClip.id.substring(0, 20)}…
               </p>
-              <p className="text-[10px] text-text-muted">
+              <p className="text-[10px] text-fg-muted mt-0.5">
                 Duration: {selectedClip.duration.toFixed(2)}s
               </p>
             </div>
@@ -2185,6 +2197,7 @@ export const InspectorPanel: React.FC = () => {
         ) : (
           <EmptyState />
         )}
+      </div>
       </div>
     </div>
   );

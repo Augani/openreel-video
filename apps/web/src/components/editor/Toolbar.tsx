@@ -1,7 +1,5 @@
-import React, { useCallback, useState, useEffect } from "react";
+import React, { useCallback, useState, useEffect, useMemo } from "react";
 import {
-  Search,
-  Command,
   ChevronDown,
   FileVideo,
   Film,
@@ -21,6 +19,14 @@ import {
   Diamond,
   Sparkles,
   Play,
+  Undo2,
+  Redo2,
+  MessageSquare,
+  Star,
+  Upload,
+  MoreHorizontal,
+  Command,
+  Search,
 } from "lucide-react";
 import { useProjectStore } from "../../stores/project-store";
 import { useUIStore } from "../../stores/ui-store";
@@ -78,7 +84,7 @@ interface ExportState {
 }
 
 export const Toolbar: React.FC = () => {
-  const { project } = useProjectStore();
+  const { project, undo, redo, renameProject } = useProjectStore();
   const {
     openModal,
     selectedItems,
@@ -98,6 +104,40 @@ export const Toolbar: React.FC = () => {
   const { importMedia } = useProjectStore();
   const { track } = useAnalytics();
 
+  // Local editable project name (committed onBlur / Enter)
+  const [projectNameDraft, setProjectNameDraft] = useState(project.name);
+  useEffect(() => {
+    setProjectNameDraft(project.name);
+  }, [project.name]);
+
+  // Autosave timestamp from the project's modifiedAt date.
+  const autosaveLabel = useMemo(() => {
+    const ts = project.modifiedAt ?? Date.now();
+    const d = new Date(ts);
+    return d.toLocaleTimeString(undefined, {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: false,
+    });
+  }, [project.modifiedAt]);
+
+  const commitProjectName = useCallback(() => {
+    const next = projectNameDraft.trim();
+    if (next && next !== project.name) {
+      void renameProject(next);
+    } else {
+      setProjectNameDraft(project.name);
+    }
+  }, [projectNameDraft, project.name, renameProject]);
+
+  const handleUndo = useCallback(() => {
+    void undo();
+  }, [undo]);
+  const handleRedo = useCallback(() => {
+    void redo();
+  }, [redo]);
+
   const handleStartTour = useCallback(() => {
     localStorage.removeItem(ONBOARDING_KEY);
     startTour();
@@ -108,12 +148,10 @@ export const Toolbar: React.FC = () => {
     startMoGraphTour();
   }, []);
 
-  const hasSelectedClip = selectedItems.some(
-    (item) =>
-      item.type === "clip" ||
-      item.type === "text-clip" ||
-      item.type === "shape-clip",
-  );
+  // selectedItems drives related UX in the editor (e.g. inspector context).
+  // Kept on the destructure list so future tweaks don't have to rewire it.
+  void selectedItems;
+
   const [exportState, setExportState] = useState<ExportState>({
     isExporting: false,
     progress: 0,
@@ -169,10 +207,6 @@ export const Toolbar: React.FC = () => {
 
     setExportEstimates(estimates);
   }, [deviceProfile, project.timeline?.duration, project.settings.width, project.settings.height]);
-
-  const handleSearch = useCallback(() => {
-    openModal("search");
-  }, [openModal]);
 
   const runExport = useCallback(
     async (videoSettings: Partial<VideoExportSettings>, _ext: string, writableStream: FileSystemWritableFileStream) => {
@@ -593,421 +627,323 @@ export const Toolbar: React.FC = () => {
   ];
 
   return (
-    <div className="h-16 border-b border-border flex items-center px-6 justify-between bg-background shrink-0 z-30 relative">
-      <div className="flex items-center gap-4">
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button
-              onClick={() => navigate("welcome")}
-              className="flex items-center gap-3 hover:opacity-80 transition-opacity"
-              title="Back to Home"
-            >
-              <div className="w-8 h-8 group">
-                <svg
-                  viewBox="0 0 490 490"
-                  fill="none"
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="w-full h-full text-primary group-hover:scale-110 transition-transform duration-300"
-                >
-                  <path
-                    d="M245 24.5C123.223 24.5 24.5 123.223 24.5 245s98.723 220.5 220.5 220.5 220.5-98.723 220.5-220.5S366.777 24.5 245 24.5Z"
-                    stroke="currentColor"
-                    strokeWidth="30.625"
-                    className="opacity-100"
-                  />
-                  <g className="origin-center group-hover:rotate-90 transition-transform duration-500 ease-out">
-                    <path
-                      d="M245 98v73.5"
-                      stroke="currentColor"
-                      strokeWidth="24.5"
-                      strokeLinecap="round"
-                    />
-                    <path
-                      d="M392 245h-73.5"
-                      stroke="currentColor"
-                      strokeWidth="24.5"
-                      strokeLinecap="round"
-                    />
-                    <path
-                      d="M245 392v-73.5"
-                      stroke="currentColor"
-                      strokeWidth="24.5"
-                      strokeLinecap="round"
-                    />
-                    <path
-                      d="M98 245h73.5"
-                      stroke="currentColor"
-                      strokeWidth="24.5"
-                      strokeLinecap="round"
-                    />
-                    <path
-                      d="m348.941 141.059-51.965 51.965"
-                      stroke="currentColor"
-                      strokeWidth="24.5"
-                      strokeLinecap="round"
-                    />
-                    <path
-                      d="m348.941 348.941-51.965-51.965"
-                      stroke="currentColor"
-                      strokeWidth="24.5"
-                      strokeLinecap="round"
-                    />
-                    <path
-                      d="m141.059 348.941 51.965-51.965"
-                      stroke="currentColor"
-                      strokeWidth="24.5"
-                      strokeLinecap="round"
-                    />
-                    <path
-                      d="m141.059 141.059 51.965 51.965"
-                      stroke="currentColor"
-                      strokeWidth="24.5"
-                      strokeLinecap="round"
-                    />
-                  </g>
-                  <path
-                    d="M294 245a49 49 0 0 1-49 49 49 49 0 0 1-49-49 49 49 0 0 1 98 0"
-                    fill="currentColor"
-                    className="group-hover:fill-white transition-colors duration-300"
-                  />
-                </svg>
-              </div>
-              <span className="text-lg font-medium text-text-primary tracking-wide hidden lg:block">
-                Open Reel
-              </span>
-            </button>
-          </TooltipTrigger>
-          <TooltipContent>Back to Home</TooltipContent>
-        </Tooltip>
-        <div className="h-6 w-px bg-border hidden md:block" />
+    <header className="h-topbar grid grid-cols-[1fr_auto_1fr] items-center gap-2.5 px-3 bg-bg border-b border-border shrink-0 z-30 relative">
+      {/* ─── Left: window dots + autosave ─────────────────────── */}
+      <div className="flex items-center gap-2">
+        <button
+          onClick={() => navigate("welcome")}
+          className="flex items-center gap-1.5 pr-1.5"
+          title="Back to home"
+        >
+          <span className="w-[11px] h-[11px] rounded-full bg-[oklch(0.7_0.18_25)]" />
+          <span className="w-[11px] h-[11px] rounded-full bg-[oklch(0.78_0.14_80)]" />
+          <span className="w-[11px] h-[11px] rounded-full bg-[oklch(0.7_0.15_145)]" />
+        </button>
+
+        <span className="text-[11px] text-fg-3 flex items-center gap-1.5">
+          <span className="w-[5px] h-[5px] rounded-full bg-accent" />
+          {exportState.isExporting
+            ? `Exporting… ${Math.round(exportState.progress)}%`
+            : `Auto saved: ${autosaveLabel}`}
+        </span>
+      </div>
+
+      {/* ─── Center: project name ────────────────────────────── */}
+      <div className="flex items-center gap-1.5 text-[12.5px] font-medium tracking-tight">
+        <input
+          value={projectNameDraft}
+          onChange={(e) => setProjectNameDraft(e.target.value)}
+          onBlur={commitProjectName}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              (e.currentTarget as HTMLInputElement).blur();
+            } else if (e.key === "Escape") {
+              setProjectNameDraft(project.name);
+              (e.currentTarget as HTMLInputElement).blur();
+            }
+          }}
+          size={Math.max(projectNameDraft.length, 6)}
+          spellCheck={false}
+          className="bg-transparent border-0 text-center font-medium text-[12.5px] tracking-tight text-fg px-2 py-0.5 rounded min-w-[60px] focus:bg-bg-2 focus:outline-none"
+        />
         <ProjectSwitcher />
       </div>
 
-      <div className="flex-1 max-w-2xl mx-12 relative group">
-        <div
-          className={`absolute inset-0 bg-primary/20 rounded-xl blur-md transition-opacity duration-300 ${
-            hasSelectedClip
-              ? "opacity-100 animate-pulse"
-              : "opacity-0 group-hover:opacity-100"
-          }`}
-        />
-        <button
-          onClick={handleSearch}
-          className={`relative w-full bg-background-secondary border rounded-xl h-10 flex items-center px-4 gap-3 transition-all text-left shadow-inner ${
-            hasSelectedClip
-              ? "border-primary/50 ring-1 ring-primary/30"
-              : "border-border group-hover:border-primary/50"
-          }`}
-        >
-          <Search
-            size={16}
-            className={`transition-colors ${
-              hasSelectedClip
-                ? "text-primary"
-                : "text-text-muted group-hover:text-primary"
-            }`}
-          />
-          <span
-            className={`flex-1 text-sm transition-colors ${
-              hasSelectedClip
-                ? "text-text-secondary"
-                : "text-text-muted group-hover:text-text-secondary"
-            }`}
-          >
-            {hasSelectedClip
-              ? "Search effects for selected clip..."
-              : "Search tools, effects, or ask AI..."}
-          </span>
-          <div className="flex items-center gap-1.5 px-2 py-0.5 rounded border border-border bg-background-tertiary">
-            <Command size={10} className="text-text-muted" />
-            <span className="text-[10px] text-text-muted font-mono">K</span>
-          </div>
-        </button>
-      </div>
-
-      <div className="flex items-center gap-4">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              className="p-2 rounded-lg hover:bg-background-elevated text-text-secondary hover:text-text-primary transition-colors"
-            >
-              <HelpCircle size={16} />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56">
-            <DropdownMenuItem onClick={handleStartTour} className="gap-2">
-              <Play size={14} />
-              <span>Editor Tour</span>
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={handleStartMoGraphTour} className="gap-2">
-              <Sparkles size={14} className="text-purple-400" />
-              <span>Animation & Effects Tour</span>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem className="gap-2 text-text-muted">
-              <Command size={14} />
-              <span>Press ? for shortcuts</span>
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-
+      {/* ─── Right: undo/redo, history, comments, pro, export ── */}
+      <div className="flex items-center justify-end gap-1.5">
+        {/* Quick search (preserved from existing flow) */}
         <Tooltip>
           <TooltipTrigger asChild>
             <button
-              onClick={toggleTheme}
-              className="p-2 rounded-lg hover:bg-background-elevated text-text-secondary hover:text-text-primary transition-colors"
+              onClick={() => openModal("search")}
+              className="w-[26px] h-[26px] grid place-items-center rounded-md text-fg-2 hover:bg-hover hover:text-fg transition-colors"
+              data-tip="Search (⌘K)"
             >
-              {themeMode === "light" ? (
-                <Sun size={16} />
-              ) : themeMode === "dark" ? (
-                <Moon size={16} />
-              ) : (
-                <SunMoon size={16} />
-              )}
+              <Search size={14} />
             </button>
           </TooltipTrigger>
-          <TooltipContent>
-            <p>Theme: {themeMode}</p>
-          </TooltipContent>
+          <TooltipContent>Search tools, effects, or ask AI… (⌘K)</TooltipContent>
+        </Tooltip>
+
+        {/* Undo / Redo */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              onClick={handleUndo}
+              className="w-[26px] h-[26px] grid place-items-center rounded-md text-fg-2 hover:bg-hover hover:text-fg transition-colors"
+            >
+              <Undo2 size={14} />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>Undo (⌘Z)</TooltipContent>
         </Tooltip>
 
         <Tooltip>
           <TooltipTrigger asChild>
             <button
-              onClick={() => openSettings()}
-              className="p-2 rounded-lg hover:bg-background-elevated text-text-secondary hover:text-text-primary transition-colors"
+              onClick={handleRedo}
+              className="w-[26px] h-[26px] grid place-items-center rounded-md text-fg-2 hover:bg-hover hover:text-fg transition-colors"
             >
-              <Settings size={16} />
+              <Redo2 size={14} />
             </button>
           </TooltipTrigger>
-          <TooltipContent>
-            <p>Settings & API Keys</p>
-          </TooltipContent>
+          <TooltipContent>Redo (⇧⌘Z)</TooltipContent>
         </Tooltip>
 
+        <div className="w-px h-4 bg-border mx-1" />
+
+        {/* History */}
         <Tooltip>
           <TooltipTrigger asChild>
             <button
-              onClick={() => useUIStore.getState().openModal("scriptView")}
-              className="p-2 rounded-lg hover:bg-background-elevated text-text-secondary hover:text-text-primary transition-colors"
+              onClick={() => setIsHistoryOpen((v) => !v)}
+              className={`w-[26px] h-[26px] grid place-items-center rounded-md transition-colors ${
+                isHistoryOpen
+                  ? "bg-accent-soft text-accent"
+                  : "text-fg-2 hover:bg-hover hover:text-fg"
+              }`}
             >
-              <FileCode size={16} />
+              <History size={14} />
             </button>
           </TooltipTrigger>
-          <TooltipContent>
-            <p>Project JSON - Export/Import</p>
-          </TooltipContent>
+          <TooltipContent>Action history</TooltipContent>
         </Tooltip>
 
+        {/* Keyframe editor (moved here from old toolbar) */}
         <Tooltip>
           <TooltipTrigger asChild>
             <button
               onClick={toggleKeyframeEditor}
-              className={`p-2 rounded-lg transition-colors ${
+              className={`w-[26px] h-[26px] grid place-items-center rounded-md transition-colors ${
                 keyframeEditorOpen
-                  ? "bg-primary/20 text-primary"
-                  : "hover:bg-background-elevated text-text-secondary hover:text-text-primary"
+                  ? "bg-accent-soft text-accent"
+                  : "text-fg-2 hover:bg-hover hover:text-fg"
               }`}
             >
-              <Diamond size={16} />
+              <Diamond size={14} />
             </button>
           </TooltipTrigger>
-          <TooltipContent>
-            <p>Keyframe Editor</p>
-          </TooltipContent>
+          <TooltipContent>Keyframe editor</TooltipContent>
         </Tooltip>
 
+        {/* Audio mixer (moved) */}
         <Tooltip>
           <TooltipTrigger asChild>
             <button
               onClick={() => togglePanel("audioMixer")}
-              className={`p-2 rounded-lg transition-colors ${
+              className={`w-[26px] h-[26px] grid place-items-center rounded-md transition-colors ${
                 panels.audioMixer?.visible
-                  ? "bg-primary/20 text-primary"
-                  : "hover:bg-background-elevated text-text-secondary hover:text-text-primary"
+                  ? "bg-accent-soft text-accent"
+                  : "text-fg-2 hover:bg-hover hover:text-fg"
               }`}
             >
-              <Music size={16} />
+              <Music size={14} />
             </button>
           </TooltipTrigger>
-          <TooltipContent>
-            <p>Audio Mixer – track volume and master level</p>
-          </TooltipContent>
+          <TooltipContent>Audio mixer</TooltipContent>
         </Tooltip>
 
+        {/* Comments placeholder (matches mockup) */}
         <Tooltip>
           <TooltipTrigger asChild>
             <button
-              onClick={() => setIsHistoryOpen(!isHistoryOpen)}
-              className={`p-2 rounded-lg transition-colors ${
-                isHistoryOpen
-                  ? "bg-primary/20 text-primary"
-                  : "hover:bg-background-elevated text-text-secondary hover:text-text-primary"
-              }`}
+              onClick={() => useUIStore.getState().openModal("scriptView")}
+              className="w-[26px] h-[26px] grid place-items-center rounded-md text-fg-2 hover:bg-hover hover:text-fg transition-colors"
             >
-              <History size={16} />
+              <MessageSquare size={14} />
             </button>
           </TooltipTrigger>
-          <TooltipContent>
-            <p>History - Undo/Redo</p>
-          </TooltipContent>
+          <TooltipContent>Project JSON / Comments</TooltipContent>
         </Tooltip>
 
-        <Tooltip>
-          <TooltipTrigger asChild>
+        <div className="w-px h-4 bg-border mx-1" />
+
+        {/* Pro pill — opens more menu (theme, settings, tours, recorder) */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
             <button
-              onClick={() => setIsRecorderOpen(true)}
-              className="flex items-center gap-2 px-3 py-2 bg-error/10 hover:bg-error/20 text-error rounded-lg transition-colors"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[12px] font-medium text-fg-2 hover:bg-hover hover:text-fg transition-colors"
             >
-              <Circle size={14} className="fill-current" />
-              <span className="text-sm font-medium">Record</span>
+              <Star size={14} />
+              <span>Pro</span>
             </button>
-          </TooltipTrigger>
-          <TooltipContent>
-            <p>Screen Recording</p>
-          </TooltipContent>
-        </Tooltip>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuItem onClick={toggleTheme} className="gap-2">
+              {themeMode === "light" ? <Sun size={14} /> : themeMode === "dark" ? <Moon size={14} /> : <SunMoon size={14} />}
+              <span className="flex-1">Theme: {themeMode}</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => openSettings()} className="gap-2">
+              <Settings size={14} />
+              <span>Settings & API keys</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setIsRecorderOpen(true)} className="gap-2">
+              <Circle size={14} className="fill-current text-status-error" />
+              <span>Screen recorder</span>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={handleStartTour} className="gap-2">
+              <Play size={14} />
+              <span>Editor tour</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={handleStartMoGraphTour} className="gap-2">
+              <Sparkles size={14} className="text-purple-400" />
+              <span>Animation & effects tour</span>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem className="gap-2 text-fg-muted">
+              <HelpCircle size={14} />
+              <span>Help & shortcuts (press ?)</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem className="gap-2 text-fg-muted">
+              <FileCode size={14} />
+              <span>Project JSON</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem className="gap-2 text-fg-muted">
+              <Command size={14} />
+              <span>⌘K to search</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
 
-        <div className="relative">
-          {exportState.isExporting ? (
-            <div className="h-10 px-4 bg-background-secondary border border-border rounded-lg flex items-center gap-3 min-w-[200px]">
-              <Loader2 size={14} className="text-primary animate-spin" />
-              <div className="flex-1">
-                <div className="text-[10px] text-text-secondary">
-                  {exportState.phase}
-                </div>
-                <div className="h-1 bg-background-tertiary rounded-full mt-1 overflow-hidden">
-                  <div
-                    className="h-full bg-primary transition-all duration-200"
-                    style={{ width: `${exportState.progress}%` }}
-                  />
-                </div>
-              </div>
+        {/* Export */}
+        {exportState.isExporting ? (
+          <div className="relative">
+            <button
+              onClick={handleCancelExport}
+              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md bg-accent-soft text-accent text-[12.5px] font-semibold"
+            >
+              <Loader2 size={13} className="animate-spin" />
+              <span>{Math.round(exportState.progress)}%</span>
+              <X size={11} className="ml-1 opacity-70" />
+            </button>
+          </div>
+        ) : exportState.error ? (
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md border border-status-error/40 bg-status-error/10 text-status-error text-[11px]">
+            <span className="max-w-[180px] truncate">{exportState.error}</span>
+            <button
+              onClick={() => setExportState((p) => ({ ...p, error: null }))}
+              className="opacity-70 hover:opacity-100"
+            >
+              <X size={11} />
+            </button>
+          </div>
+        ) : exportState.complete ? (
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md bg-accent-soft text-accent text-[12.5px]">
+            <Check size={13} />
+            <span className="font-medium">Saved!</span>
+          </div>
+        ) : (
+          <DropdownMenu open={isExportOpen} onOpenChange={setIsExportOpen}>
+            <DropdownMenuTrigger asChild>
               <button
-                onClick={handleCancelExport}
-                className="p-1 hover:bg-background-tertiary rounded text-text-muted hover:text-error transition-colors"
+                className="relative inline-flex items-center gap-1.5 px-3.5 py-[5px] rounded-md bg-accent text-accent-fg font-semibold text-[12.5px] shadow-glow hover:bg-accent-strong transition-colors"
               >
-                <X size={12} />
+                <Upload size={13} />
+                <span>Export</span>
+                <ChevronDown size={12} className={`transition-transform ${isExportOpen ? "rotate-180" : ""}`} />
+                <span className="absolute -top-1.5 -right-1.5 bg-[oklch(0.78_0.14_80)] text-[oklch(0.2_0.05_80)] text-[8.5px] px-[5px] py-px rounded-full font-bold tracking-wider">
+                  Pro
+                </span>
               </button>
-            </div>
-          ) : exportState.error ? (
-            <div className="h-10 px-4 bg-error/10 border border-error/30 rounded-lg flex items-center gap-2">
-              <span className="text-xs text-error">{exportState.error}</span>
-              <button
-                onClick={() =>
-                  setExportState((prev) => ({ ...prev, error: null }))
-                }
-                className="p-1 hover:bg-error/20 rounded text-error transition-colors"
-              >
-                <X size={12} />
-              </button>
-            </div>
-          ) : exportState.complete ? (
-            <div className="h-10 px-4 bg-primary/10 border border-primary/30 rounded-lg flex items-center gap-2">
-              <Check size={14} className="text-primary" />
-              <span className="text-xs text-primary">Downloaded!</span>
-            </div>
-          ) : (
-            <DropdownMenu open={isExportOpen} onOpenChange={setIsExportOpen}>
-              <DropdownMenuTrigger asChild>
-                <button
-                  className={`h-10 px-4 bg-primary hover:bg-primary-hover active:bg-primary-active text-white font-bold rounded-lg flex items-center gap-2 transition-all shadow-[0_0_20px_rgba(34,197,94,0.3)] hover:shadow-[0_0_30px_rgba(34,197,94,0.5)] transform hover:-translate-y-0.5 ${
-                    isExportOpen ? "translate-y-0 shadow-none" : ""
-                  }`}
-                >
-                  <span className="text-sm tracking-wider">EXPORT</span>
-                  <ChevronDown
-                    size={14}
-                    className={`transition-transform duration-200 ${
-                      isExportOpen ? "rotate-180" : ""
-                    }`}
-                  />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-72 p-0 rounded-xl bg-background-secondary border-border">
-                <div className="p-3 space-y-1 max-h-[400px] overflow-y-auto">
-                  {exportOptions.map((option, index) =>
-                    option.separator ? (
-                      <DropdownMenuSeparator key={`sep-${index}`} />
-                    ) : (
-                      <DropdownMenuItem
-                        key={option.type + index}
-                        className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer ${
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-72 p-0 rounded-xl bg-bg-1 border-border">
+              <div className="p-3 space-y-1 max-h-[400px] overflow-y-auto">
+                {exportOptions.map((option, index) =>
+                  option.separator ? (
+                    <DropdownMenuSeparator key={`sep-${index}`} />
+                  ) : (
+                    <DropdownMenuItem
+                      key={option.type + index}
+                      className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer ${
+                        option.recommended ? "bg-accent-soft" : ""
+                      }`}
+                      onClick={() => handleExport(option.type)}
+                    >
+                      <div
+                        className={`p-2 rounded-lg transition-colors ${
                           option.recommended
-                            ? "bg-primary/10 hover:bg-primary/20 border border-primary/30"
-                            : ""
+                            ? "bg-accent-soft text-accent"
+                            : "bg-bg-2 text-fg-2"
                         }`}
-                        onClick={() => handleExport(option.type)}
                       >
+                        <option.icon size={18} />
+                      </div>
+                      <div className="flex-1 min-w-0">
                         <div
-                          className={`p-2 rounded-lg transition-colors ${
-                            option.recommended
-                              ? "bg-primary/20 text-primary"
-                              : "bg-background-tertiary group-hover:bg-background-elevated text-text-secondary group-hover:text-primary"
+                          className={`text-sm font-medium ${
+                            option.recommended ? "text-accent" : "text-fg"
                           }`}
                         >
-                          <option.icon size={18} />
-                        </div>
-                        <div className="flex-1">
-                          <div
-                            className={`text-sm font-medium transition-colors ${
-                              option.recommended
-                                ? "text-primary"
-                                : "text-text-primary"
-                            }`}
-                          >
-                            {option.label}
-                            {option.recommended && (
-                              <span className="ml-2 text-[10px] bg-primary/20 text-primary px-1.5 py-0.5 rounded">
-                                Best Match
-                              </span>
-                            )}
-                          </div>
-                          <div className="text-xs text-text-muted mt-0.5">
-                            {option.desc}
-                          </div>
-                          {exportEstimates.get(option.type) && (
-                            <div className="text-[10px] text-text-secondary mt-1">
-                              Est. {exportEstimates.get(option.type)?.formatted}
-                            </div>
+                          {option.label}
+                          {option.recommended && (
+                            <span className="ml-2 text-[10px] bg-accent-soft text-accent px-1.5 py-0.5 rounded">
+                              Best match
+                            </span>
                           )}
                         </div>
-                      </DropdownMenuItem>
-                    ),
-                  )}
+                        <div className="text-xs text-fg-muted mt-0.5">
+                          {option.desc}
+                        </div>
+                        {exportEstimates.get(option.type) && (
+                          <div className="text-[10px] text-fg-3 mt-1">
+                            Est. {exportEstimates.get(option.type)?.formatted}
+                          </div>
+                        )}
+                      </div>
+                    </DropdownMenuItem>
+                  ),
+                )}
 
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    className="flex items-center gap-3 p-3 rounded-lg cursor-pointer"
-                    onClick={() => setIsExportDialogOpen(true)}
-                  >
-                    <div className="p-2 bg-primary/10 rounded-lg text-primary transition-colors">
-                      <Settings size={18} />
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  className="flex items-center gap-3 p-3 rounded-lg cursor-pointer"
+                  onClick={() => setIsExportDialogOpen(true)}
+                >
+                  <div className="p-2 bg-accent-soft rounded-lg text-accent">
+                    <Settings size={18} />
+                  </div>
+                  <div className="flex-1">
+                    <div className="text-sm font-medium text-accent">
+                      Custom export…
                     </div>
-                    <div className="flex-1">
-                      <div className="text-sm font-medium text-primary transition-colors">
-                        Custom Export...
-                      </div>
-                      <div className="text-xs text-text-muted mt-0.5">
-                        Full settings with AI upscaling
-                      </div>
+                    <div className="text-xs text-fg-muted mt-0.5">
+                      Full settings with AI upscaling
                     </div>
-                    <Settings
-                      size={14}
-                      className="text-text-muted"
-                    />
-                  </DropdownMenuItem>
-                </div>
-                <div className="bg-background-tertiary px-3 py-2.5 text-xs text-center text-text-muted border-t border-border">
-                  {project.settings.width}×{project.settings.height} •{" "}
-                  {project.settings.frameRate}fps
-                </div>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
-        </div>
+                  </div>
+                  <MoreHorizontal size={14} className="text-fg-muted" />
+                </DropdownMenuItem>
+              </div>
+              <div className="bg-bg-2 px-3 py-2.5 text-xs text-center text-fg-muted border-t border-border">
+                {project.settings.width}×{project.settings.height} •{" "}
+                {project.settings.frameRate}fps
+              </div>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
       </div>
 
+      {/* ─── Auxiliary popups & dialogs ───────────────────────── */}
       <ExportDialog
         isOpen={isExportDialogOpen}
         onClose={() => setIsExportDialogOpen(false)}
@@ -1031,12 +967,12 @@ export const Toolbar: React.FC = () => {
             className="fixed inset-0 bg-black/20 z-40"
             onClick={() => setIsHistoryOpen(false)}
           />
-          <div className="fixed top-16 right-0 bottom-0 w-80 bg-background-secondary border-l border-border z-50 shadow-2xl animate-in slide-in-from-right duration-200">
+          <div className="fixed top-topbar right-0 bottom-0 w-80 bg-bg-1 border-l border-border z-50 shadow-lg animate-in slide-in-from-right duration-200">
             <div className="flex items-center justify-between p-3 border-b border-border">
-              <span className="text-sm font-medium text-text-primary">Action History</span>
+              <span className="text-sm font-medium text-fg">Action history</span>
               <button
                 onClick={() => setIsHistoryOpen(false)}
-                className="p-1.5 rounded hover:bg-background-tertiary text-text-muted hover:text-text-primary transition-colors"
+                className="p-1.5 rounded hover:bg-hover text-fg-3 hover:text-fg transition-colors"
               >
                 <X size={14} />
               </button>
@@ -1047,7 +983,7 @@ export const Toolbar: React.FC = () => {
           </div>
         </>
       )}
-    </div>
+    </header>
   );
 };
 

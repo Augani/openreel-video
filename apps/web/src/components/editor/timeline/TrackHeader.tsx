@@ -96,10 +96,10 @@ export const TrackHeader: React.FC<TrackHeaderProps> = ({
           onDragOver={onDragOver}
           onDrop={(e) => onDrop(e, track.id)}
           style={{ height: getTrackHeight(track.id) }}
-          className={`border-b border-border flex flex-col justify-between py-2 px-3 relative group transition-colors cursor-grab active:cursor-grabbing ${
-            track.hidden ? "opacity-50" : ""
+          className={`border-b border-border flex flex-col justify-between py-1.5 px-2.5 relative group transition-colors cursor-grab active:cursor-grabbing ${
+            track.hidden ? "opacity-60" : ""
           } ${
-            track.locked ? "bg-background-secondary/50" : "bg-background-tertiary"
+            track.locked ? "bg-bg-2/50" : "bg-bg-1"
           }`}
         >
           <div className="flex items-center gap-2">
@@ -144,14 +144,14 @@ export const TrackHeader: React.FC<TrackHeaderProps> = ({
             )}
           </div>
 
-          <div className="flex items-center gap-1 text-text-secondary">
+          <div className="flex items-center gap-px text-fg-3">
             {isVisual && (
               <button
                 onClick={(e) => { e.stopPropagation(); hideTrack(track.id, !track.hidden); }}
-                className={`p-1 rounded transition-colors ${
+                className={`w-[22px] h-[22px] grid place-items-center rounded transition-colors ${
                   track.hidden
-                    ? "text-yellow-500 bg-yellow-500/10"
-                    : "text-text-muted hover:bg-background-elevated hover:text-text-primary"
+                    ? "text-status-error"
+                    : "text-fg-3 hover:bg-hover hover:text-fg"
                 }`}
                 title={track.hidden ? "Show track" : "Hide track"}
               >
@@ -161,10 +161,10 @@ export const TrackHeader: React.FC<TrackHeaderProps> = ({
             {track.type !== "image" && track.type !== "text" && track.type !== "graphics" && (
               <button
                 onClick={(e) => { e.stopPropagation(); muteTrack(track.id, !track.muted); }}
-                className={`p-1 rounded transition-colors ${
+                className={`w-[22px] h-[22px] grid place-items-center rounded transition-colors ${
                   track.muted
-                    ? "text-red-500 bg-red-500/10"
-                    : "text-text-muted hover:bg-background-elevated hover:text-text-primary"
+                    ? "text-status-error"
+                    : "text-fg-3 hover:bg-hover hover:text-fg"
                 }`}
                 title={track.muted ? "Unmute" : "Mute"}
               >
@@ -173,10 +173,10 @@ export const TrackHeader: React.FC<TrackHeaderProps> = ({
             )}
             <button
               onClick={(e) => { e.stopPropagation(); lockTrack(track.id, !track.locked); }}
-              className={`p-1 rounded transition-colors ${
+              className={`w-[22px] h-[22px] grid place-items-center rounded transition-colors ${
                 track.locked
-                  ? "text-yellow-500 bg-yellow-500/10"
-                  : "text-text-muted hover:bg-background-elevated hover:text-text-primary"
+                  ? "text-accent"
+                  : "text-fg-3 hover:bg-hover hover:text-fg"
               }`}
               title={track.locked ? "Unlock" : "Lock"}
             >
@@ -184,7 +184,7 @@ export const TrackHeader: React.FC<TrackHeaderProps> = ({
             </button>
             <button
               onClick={(e) => { e.stopPropagation(); handleRemoveTrack(); }}
-              className="p-1 rounded transition-colors hover:bg-red-500/20 text-red-400/50 hover:text-red-400"
+              className="w-[22px] h-[22px] grid place-items-center rounded transition-colors text-fg-muted hover:bg-hover hover:text-status-error"
               title="Delete track"
             >
               <Trash2 size={12} />

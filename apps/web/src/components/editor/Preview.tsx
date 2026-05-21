@@ -19,7 +19,6 @@ import {
   Loader2,
   ZoomIn,
 } from "lucide-react";
-import { IconButton } from "@openreel/ui";
 import { useProjectStore } from "../../stores/project-store";
 import { useTimelineStore } from "../../stores/timeline-store";
 import { useUIStore } from "../../stores/ui-store";
@@ -5822,8 +5821,16 @@ export const Preview: React.FC = () => {
     <div
       ref={containerRef}
       data-tour="preview"
-      className="flex-1 min-h-0 min-w-0 bg-background flex flex-col relative group overflow-hidden"
+      className="flex-1 min-h-0 min-w-0 bg-stage-bg flex flex-col relative group overflow-hidden"
     >
+      {/* ── Panel bar header (mockup: 'Player') ───────────────── */}
+      <div className="flex items-center px-3.5 py-2 border-b border-border bg-bg-1 gap-2.5 min-h-[38px] shrink-0">
+        <h2 className="text-[13px] font-semibold tracking-tight text-fg m-0">Player</h2>
+        <div className="ml-auto flex items-center gap-1">
+          <span className="w-1.5 h-1.5 rounded-full bg-accent" title="Live preview" />
+        </div>
+      </div>
+
       {/* Crop Mode View - Full Screen Overlay */}
       {shouldShowCropMode && (
         <CropModeView
@@ -6243,17 +6250,17 @@ export const Preview: React.FC = () => {
       <div
         className={`border-t border-border transition-all duration-300 ${
           isMaximized || isFullscreen
-            ? "absolute bottom-0 left-0 right-0 z-50 bg-background-secondary backdrop-blur-sm"
-            : "z-20 bg-background-secondary"
+            ? "absolute bottom-0 left-0 right-0 z-50 bg-bg-1 backdrop-blur-sm"
+            : "z-20 bg-bg-1"
         }`}
       >
         {/* Scrub Bar - integrated at top of controls */}
         <div
-          className="h-1.5 bg-background-tertiary cursor-pointer group hover:h-2.5 transition-all relative"
+          className="h-1.5 bg-bg-2 cursor-pointer group hover:h-2.5 transition-all relative"
           onClick={handleScrubClick}
         >
           <div
-            className="h-full bg-primary relative pointer-events-none shadow-[0_0_10px_rgba(34,197,94,0.5)]"
+            className="h-full bg-accent relative pointer-events-none shadow-glow"
             style={{ width: `${progressPercentage}%` }}
           >
             <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full shadow-md opacity-0 group-hover:opacity-100 transition-opacity transform scale-0 group-hover:scale-100 duration-100 border border-black/20" />
@@ -6261,11 +6268,13 @@ export const Preview: React.FC = () => {
         </div>
 
         {/* Controls row */}
-        <div className="h-12 px-6 flex items-center justify-between">
+        <div className="h-12 px-4 flex items-center gap-3">
         <div className="flex items-center gap-2">
-          <div className="font-mono text-text-primary tabular-nums text-sm w-24 tracking-wider">
-            {formatTime(playheadPosition)}
-          </div>
+          <span className="font-mono text-[11px] tabular-nums tracking-tight">
+            <span className="text-accent font-semibold">{formatTime(playheadPosition)}</span>
+            <span className="text-fg-3 mx-1">/</span>
+            <span className="text-fg-3">{formatTime(project.timeline.duration || 0)}</span>
+          </span>
 
           {rendererType !== "none" && (
             <span
@@ -6281,22 +6290,24 @@ export const Preview: React.FC = () => {
           )}
         </div>
 
-        <div className="flex items-center gap-6">
-          <IconButton
-            icon={SkipBack}
+        <div className="flex items-center gap-1 mx-auto">
+          <button
             onClick={handleSkipBack}
             title="Skip back 5s"
-          />
+            className="w-7 h-7 grid place-items-center rounded-md text-fg-2 hover:bg-hover hover:text-fg transition-colors"
+          >
+            <SkipBack size={13} />
+          </button>
           <button
             onClick={() => {
               togglePlayback();
             }}
             disabled={Boolean(playbackLockedReason)}
             title={playbackLockedReason ?? (isPlaying ? "Pause" : "Play")}
-            className={`w-10 h-10 rounded-full flex items-center justify-center text-white transition-all ${
+            className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${
               playbackLockedReason
-                ? "bg-background-tertiary text-text-muted cursor-not-allowed shadow-none"
-                : "bg-primary hover:bg-primary-hover active:bg-primary-active shadow-[0_0_15px_rgba(34,197,94,0.4)] hover:shadow-[0_0_25px_rgba(34,197,94,0.6)] transform hover:scale-105"
+                ? "bg-bg-2 text-fg-muted cursor-not-allowed"
+                : "text-fg hover:bg-hover"
             }`}
           >
             {isPlaying ? (
@@ -6307,34 +6318,37 @@ export const Preview: React.FC = () => {
               <Play size={18} fill="currentColor" className="ml-0.5" />
             )}
           </button>
-          <IconButton
-            icon={SkipForward}
+          <button
             onClick={handleSkipForward}
             title="Skip forward 5s"
-          />
+            className="w-7 h-7 grid place-items-center rounded-md text-fg-2 hover:bg-hover hover:text-fg transition-colors"
+          >
+            <SkipForward size={13} />
+          </button>
         </div>
 
-        <div className="flex gap-2 items-center">
+        <div className="flex gap-1 items-center">
           <button
             onClick={() => setIsMuted(!isMuted)}
-            className={`p-2 rounded-lg hover:bg-background-elevated transition-colors ${
+            className={`w-7 h-7 grid place-items-center rounded-md transition-colors ${
               isMuted
-                ? "text-red-500"
-                : "text-text-secondary hover:text-text-primary"
+                ? "text-status-error"
+                : "text-fg-2 hover:text-fg hover:bg-hover"
             }`}
+            title={isMuted ? "Unmute" : "Mute"}
           >
-            {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+            {isMuted ? <VolumeX size={14} /> : <Volume2 size={14} />}
           </button>
 
           {/* Zoom Control */}
           <div className="relative">
             <button
               onClick={() => setShowZoomMenu(!showZoomMenu)}
-              className="px-2 py-1 rounded-lg text-xs font-mono text-text-secondary hover:text-text-primary hover:bg-background-elevated transition-colors"
+              className="px-2 py-0.5 rounded border border-border text-[10.5px] font-medium text-fg-2 hover:bg-hover hover:text-fg transition-colors"
               title="Preview Zoom"
             >
               <div className="flex items-center gap-1">
-                <ZoomIn size={14} />
+                <ZoomIn size={11} />
                 <span>{Math.round(zoomLevel * 100)}%</span>
               </div>
             </button>
@@ -6344,7 +6358,7 @@ export const Preview: React.FC = () => {
                   className="fixed inset-0 z-40"
                   onClick={() => setShowZoomMenu(false)}
                 />
-                <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 bg-background-elevated border border-border rounded-lg shadow-xl py-1 z-50 min-w-[80px]">
+                <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 bg-bg-elev border border-border rounded-md shadow-md py-1 z-50 min-w-[80px]">
                   {ZOOM_OPTIONS.map((opt) => (
                     <button
                       key={opt.value}
@@ -6352,10 +6366,10 @@ export const Preview: React.FC = () => {
                         setZoomLevel(opt.value);
                         setShowZoomMenu(false);
                       }}
-                      className={`w-full px-3 py-1.5 text-xs font-mono text-left hover:bg-background-secondary transition-colors ${
+                      className={`w-full px-3 py-1.5 text-[11px] font-mono text-left hover:bg-hover transition-colors ${
                         zoomLevel === opt.value
-                          ? "text-primary"
-                          : "text-text-secondary"
+                          ? "text-accent"
+                          : "text-fg-2"
                       }`}
                     >
                       {opt.label}
@@ -6366,28 +6380,27 @@ export const Preview: React.FC = () => {
             )}
           </div>
 
-          <div className="w-px h-4 bg-border mx-2" />
           <button
             onClick={handleFullscreen}
             title={isFullscreen ? "Exit Full Screen" : "Full Screen"}
-            className={`p-2 rounded-lg transition-colors ${
+            className={`w-7 h-7 grid place-items-center rounded-md transition-colors ${
               isFullscreen
-                ? "text-primary bg-primary/20"
-                : "text-text-secondary hover:text-text-primary hover:bg-background-elevated"
+                ? "bg-accent-soft text-accent"
+                : "text-fg-2 hover:text-fg hover:bg-hover"
             }`}
           >
-            <Monitor size={16} />
+            <Monitor size={14} />
           </button>
           <button
             onClick={handleMaximize}
             title={isMaximized ? "Restore Size" : "Maximize Preview"}
-            className={`p-2 rounded-lg transition-colors ${
+            className={`w-7 h-7 grid place-items-center rounded-md transition-colors ${
               isMaximized
-                ? "text-primary bg-primary/20"
-                : "text-text-secondary hover:text-text-primary hover:bg-background-elevated"
+                ? "bg-accent-soft text-accent"
+                : "text-fg-2 hover:text-fg hover:bg-hover"
             }`}
           >
-            {isMaximized ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+            {isMaximized ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
           </button>
         </div>
         </div>

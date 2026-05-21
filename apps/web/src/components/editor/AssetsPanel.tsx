@@ -22,7 +22,6 @@ import { useTtsAudioStore } from "../../stores/tts-store";
 import { toast } from "../../stores/notification-store";
 import { saveFileHandle, saveDirectoryHandle } from "../../services/media-storage";
 import {
-  IconButton,
   Input,
   ScrollArea,
   ContextMenu,
@@ -1412,10 +1411,10 @@ export const AssetsPanel: React.FC = () => {
   return (
     <div
       data-tour="assets"
-      className="w-full min-w-0 bg-background-secondary border-r border-border flex h-full relative"
+      className="w-full min-w-0 bg-bg-1 flex flex-col h-full relative"
     >
-      {/* Left Sidebar / Activity Bar */}
-      <div className="w-[64px] shrink-0 flex flex-col items-center py-4 gap-4 border-r border-border bg-background-tertiary z-10 overflow-y-auto">
+      {/* ── Horizontal tool nav (icon + label, top) ──────────── */}
+      <div className="flex items-stretch gap-0.5 px-2 pt-2 pb-1 border-b border-border bg-bg-1 overflow-x-auto scrollbar-none shrink-0">
         {ASSETS_TABS.map((tab) => {
           const Icon = TAB_ICONS[tab.value];
           const isActive = activeTab === tab.value;
@@ -1424,47 +1423,48 @@ export const AssetsPanel: React.FC = () => {
               key={tab.value}
               onClick={() => setActiveTab(tab.value)}
               title={tab.description}
-              className={`relative flex flex-col items-center justify-center w-11 h-11 rounded-xl transition-all group ${
+              className={`group flex flex-col items-center justify-center gap-1 px-2 py-1.5 rounded-md min-w-[50px] shrink-0 text-[10.5px] font-medium tracking-tight transition-colors ${
                 isActive
-                  ? "bg-background-elevated text-primary shadow-sm ring-1 ring-primary/20"
-                  : "text-text-muted hover:bg-background-elevated/50 hover:text-text-secondary"
+                  ? "text-accent"
+                  : "text-fg-3 hover:text-fg hover:bg-hover"
               }`}
             >
-              <Icon size={20} strokeWidth={isActive ? 2.5 : 2} />
-              {isActive && (
-                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 bg-primary rounded-r-full" />
-              )}
+              <span
+                className={`w-7 h-7 grid place-items-center rounded-md transition-colors ${
+                  isActive
+                    ? "bg-accent-soft text-accent"
+                    : "text-fg-2 group-hover:text-fg"
+                }`}
+              >
+                <Icon size={17} strokeWidth={1.6} />
+              </span>
+              <span className={isActive ? "text-accent" : ""}>{tab.label}</span>
             </button>
           );
         })}
       </div>
 
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0 h-full bg-background-secondary relative">
-        {/* Loading overlay */}
+      {/* ── Body: section content fills the remaining space ──── */}
+      <div className="flex-1 flex flex-col min-w-0 h-full bg-bg-1 relative">
         {isImporting && (
           <LoadingIndicator message={importProgress || "Importing media..."} />
         )}
-        
-        {/* Panel Header */}
-        <div className="px-5 py-4 flex items-center justify-between border-b border-border/40 shrink-0">
-          <div>
-            <h2 className="font-bold text-sm text-text-primary tracking-tight">
-              {ASSETS_TABS.find((t) => t.value === activeTab)?.label}
-            </h2>
-            <p className="text-[11px] text-text-muted mt-0.5 line-clamp-1">
-              {ASSETS_TABS.find((t) => t.value === activeTab)?.description}
-            </p>
-          </div>
-          <div className="flex gap-1 shrink-0">
-            {activeTab === "media" && (
-              <IconButton
-                icon={Plus}
-                onClick={triggerFileInput}
-                title="Import media"
-              />
-            )}
-          </div>
+
+        {/* Lightweight panel sub-header (active tab description) */}
+        <div className="px-3 py-2 flex items-center justify-between border-b border-border shrink-0">
+          <p className="text-[11px] text-fg-muted line-clamp-1">
+            {ASSETS_TABS.find((t) => t.value === activeTab)?.description}
+          </p>
+          {activeTab === "media" && (
+            <button
+              onClick={triggerFileInput}
+              title="Import media"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-accent text-accent-fg font-semibold text-[11.5px] hover:bg-accent-strong transition-colors"
+            >
+              <Plus size={12} />
+              <span>Import</span>
+            </button>
+          )}
         </div>
 
         <input
