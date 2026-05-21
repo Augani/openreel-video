@@ -970,9 +970,38 @@ export class VideoEngine {
         cropDrawHeight,
       );
     } else {
-      const drawX = -frame.width * transform.anchor.x;
-      const drawY = -frame.height * transform.anchor.y;
-      ctx.drawImage(frame, drawX, drawY);
+      const fitMode = transform.fitMode ?? "none";
+      let drawWidth = frame.width;
+      let drawHeight = frame.height;
+
+      if (fitMode !== "none") {
+        const sourceAspect = frame.width / frame.height;
+        const canvasAspect = canvasWidth / canvasHeight;
+        if (fitMode === "stretch") {
+          drawWidth = canvasWidth;
+          drawHeight = canvasHeight;
+        } else if (fitMode === "cover") {
+          if (sourceAspect > canvasAspect) {
+            drawHeight = canvasHeight;
+            drawWidth = canvasHeight * sourceAspect;
+          } else {
+            drawWidth = canvasWidth;
+            drawHeight = canvasWidth / sourceAspect;
+          }
+        } else {
+          if (sourceAspect > canvasAspect) {
+            drawWidth = canvasWidth;
+            drawHeight = canvasWidth / sourceAspect;
+          } else {
+            drawHeight = canvasHeight;
+            drawWidth = canvasHeight * sourceAspect;
+          }
+        }
+      }
+
+      const drawX = -drawWidth * transform.anchor.x;
+      const drawY = -drawHeight * transform.anchor.y;
+      ctx.drawImage(frame, drawX, drawY, drawWidth, drawHeight);
     }
 
     ctx.restore();
@@ -2290,9 +2319,38 @@ export class VideoEngine {
         cropDrawHeight,
       );
     } else {
-      const drawX = -frame.width * transform.anchor.x;
-      const drawY = -frame.height * transform.anchor.y;
-      ctx.drawImage(frame, drawX, drawY);
+      const fitMode = transform.fitMode ?? "none";
+      let drawWidth = frame.width;
+      let drawHeight = frame.height;
+
+      if (fitMode !== "none") {
+        const sourceAspect = frame.width / frame.height;
+        const canvasAspect = canvasWidth / canvasHeight;
+        if (fitMode === "stretch") {
+          drawWidth = canvasWidth;
+          drawHeight = canvasHeight;
+        } else if (fitMode === "cover") {
+          if (sourceAspect > canvasAspect) {
+            drawHeight = canvasHeight;
+            drawWidth = canvasHeight * sourceAspect;
+          } else {
+            drawWidth = canvasWidth;
+            drawHeight = canvasWidth / sourceAspect;
+          }
+        } else {
+          if (sourceAspect > canvasAspect) {
+            drawWidth = canvasWidth;
+            drawHeight = canvasWidth / sourceAspect;
+          } else {
+            drawHeight = canvasHeight;
+            drawWidth = canvasHeight * sourceAspect;
+          }
+        }
+      }
+
+      const drawX = -drawWidth * transform.anchor.x;
+      const drawY = -drawHeight * transform.anchor.y;
+      ctx.drawImage(frame, drawX, drawY, drawWidth, drawHeight);
     }
 
     ctx.restore();

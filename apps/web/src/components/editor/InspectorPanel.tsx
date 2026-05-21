@@ -1319,14 +1319,14 @@ export const InspectorPanel: React.FC = () => {
                     step={1}
                     unit="px"
                   />
-                  {clipType === "image" && (
+                  {(clipType === "image" || clipType === "video") && (
                     <div className="space-y-1 pt-2 border-t border-border">
                       <span className="text-[10px] text-text-secondary">
                         Fit Mode
                       </span>
                       <div className="grid grid-cols-4 gap-1">
                         {(
-                          ["contain", "cover", "stretch", "none"] as FitMode[]
+                          ["none", "contain", "cover", "stretch"] as FitMode[]
                         ).map((mode) => (
                           <button
                             key={mode}
@@ -1343,7 +1343,9 @@ export const InspectorPanel: React.FC = () => {
                               ? "Fit"
                               : mode === "cover"
                                 ? "Fill"
-                                : mode}
+                                : mode === "none"
+                                  ? "Original"
+                                  : mode}
                           </button>
                         ))}
                       </div>

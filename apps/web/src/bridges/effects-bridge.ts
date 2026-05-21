@@ -57,6 +57,10 @@ export interface ColorGradingSettings {
   curves?: CurvesValues;
   lut?: LUTData;
   hsl?: HSLValues;
+  /** Temperature shift in range [-100, 100]. Negative = cool/blue, positive = warm/orange */
+  temperature?: number;
+  /** Tint shift in range [-100, 100]. Negative = green, positive = magenta */
+  tint?: number;
 }
 
 /**
@@ -92,6 +96,8 @@ export interface SerializedColorGrading {
     intensity: number;
   };
   hsl?: HSLValues;
+  temperature?: number;
+  tint?: number;
 }
 
 /**
@@ -614,6 +620,33 @@ export class EffectsBridge {
   }
 
   /**
+   * Apply white balance (temperature + tint) for a clip.
+   *
+   * @param clipId - The clip to apply white balance to
+   * @param values - Temperature ([-100, 100]) and tint ([-100, 100])
+   * @returns Application result
+   */
+  applyWhiteBalance(
+    clipId: string,
+    values: { temperature?: number; tint?: number },
+  ): EffectResult {
+    if (!this.initialized) {
+      return { success: false, error: "EffectsBridge not initialized" };
+    }
+
+    const colorGrading = this.clipColorGrading.get(clipId) || {};
+    if (values.temperature !== undefined) {
+      colorGrading.temperature = values.temperature;
+    }
+    if (values.tint !== undefined) {
+      colorGrading.tint = values.tint;
+    }
+    this.clipColorGrading.set(clipId, colorGrading);
+
+    return { success: true };
+  }
+
+  /**
    * Get color grading settings for a clip
    *
    * @param clipId - The clip to get settings for
@@ -638,6 +671,8 @@ export class EffectsBridge {
       colorWheels: { ...DEFAULT_COLOR_WHEELS },
       curves: { ...DEFAULT_CURVES },
       hsl: { ...DEFAULT_HSL },
+      temperature: 0,
+      tint: 0,
     });
 
     return { success: true };
@@ -700,6 +735,51 @@ export class EffectsBridge {
       );
       currentImage = result.image;
       totalTime += result.processingTime;
+    }
+
+    // Apply white balance (temperature + tint) via VideoEffectsEngine
+    const whiteBalanceEffects: Effect[] = [];
+    if (
+      this.videoEffectsEngine &&
+      settings.temperature !== undefined &&
+      settings.temperature !== 0
+    ) {
+      whiteBalanceEffects.push({
+        id: "wb-temperature",
+        type: "temperature",
+        enabled: true,
+        params: { value: settings.temperature },
+      });
+    }
+    if (
+      this.videoEffectsEngine &&
+      settings.tint !== undefined &&
+      settings.tint !== 0
+    ) {
+      whiteBalanceEffects.push({
+        id: "wb-tint",
+        type: "tint",
+        enabled: true,
+        params: { value: settings.tint },
+      });
+    }
+    if (whiteBalanceEffects.length > 0 && this.videoEffectsEngine) {
+      try {
+        const result = await this.videoEffectsEngine.applyEffects(
+          currentImage,
+          whiteBalanceEffects,
+        );
+        if (
+          result.image &&
+          result.image.width > 0 &&
+          result.image.height > 0
+        ) {
+          currentImage = result.image;
+          totalTime += result.processingTime;
+        }
+      } catch (error) {
+        console.warn("[EffectsBridge] White balance processing failed:", error);
+      }
     }
 
     return { image: currentImage, processingTime: totalTime };
@@ -812,6 +892,14 @@ export class EffectsBridge {
       serializedColorGrading.hsl = colorGrading.hsl;
     }
 
+    if (colorGrading.temperature !== undefined) {
+      serializedColorGrading.temperature = colorGrading.temperature;
+    }
+
+    if (colorGrading.tint !== undefined) {
+      serializedColorGrading.tint = colorGrading.tint;
+    }
+
     return { effects: serializedEffects, colorGrading: serializedColorGrading };
   }
 
@@ -866,6 +954,14 @@ export class EffectsBridge {
 
     if (data.colorGrading.hsl) {
       colorGrading.hsl = data.colorGrading.hsl;
+    }
+
+    if (data.colorGrading.temperature !== undefined) {
+      colorGrading.temperature = data.colorGrading.temperature;
+    }
+
+    if (data.colorGrading.tint !== undefined) {
+      colorGrading.tint = data.colorGrading.tint;
     }
 
     this.clipColorGrading.set(clipId, colorGrading);

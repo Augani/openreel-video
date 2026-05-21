@@ -490,6 +490,7 @@ export class ActionExecutor {
               rotation: 0,
               anchor: { x: 0.5, y: 0.5 },
               opacity: 1,
+              fitMode: "none" as const,
             },
             volume: 1,
             keyframes: [],

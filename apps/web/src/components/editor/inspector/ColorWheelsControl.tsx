@@ -98,8 +98,8 @@ const ColorWheel: React.FC<ColorWheelProps> = ({
     const angle = Math.atan2(y, x);
 
     return {
-      x: Math.cos(angle) * saturation * 28,
-      y: Math.sin(angle) * saturation * 28,
+      x: Math.cos(angle) * saturation * 44,
+      y: Math.sin(angle) * saturation * 44,
       saturation: Math.min(saturation, 1),
     };
   }, [color.r, color.b]);
@@ -158,13 +158,13 @@ const ColorWheel: React.FC<ColorWheelProps> = ({
   }, [onReset]);
 
   return (
-    <div className="flex flex-col items-center gap-1.5">
-      <span className="text-[9px] text-text-muted uppercase tracking-wider font-medium">
+    <div className="flex flex-col items-center gap-2">
+      <span className="text-[10px] text-text-muted uppercase tracking-wider font-medium">
         {label}
       </span>
       <div
         ref={wheelRef}
-        className="w-16 h-16 rounded-full relative cursor-crosshair shadow-inner"
+        className="w-24 h-24 rounded-full relative cursor-crosshair shadow-inner"
         style={{
           background: `conic-gradient(
  from 90deg,
@@ -191,10 +191,10 @@ const ColorWheel: React.FC<ColorWheelProps> = ({
         />
         {/* Indicator dot */}
         <div
-          className="absolute w-3 h-3 border-2 border-white rounded-full shadow-md pointer-events-none z-10"
+          className="absolute w-4 h-4 border-2 border-white rounded-full shadow-md pointer-events-none z-10"
           style={{
-            left: `calc(50% + ${getPositionFromColor.x}px - 6px)`,
-            top: `calc(50% + ${getPositionFromColor.y}px - 6px)`,
+            left: `calc(50% + ${getPositionFromColor.x}px - 8px)`,
+            top: `calc(50% + ${getPositionFromColor.y}px - 8px)`,
             backgroundColor:
               getPositionFromColor.saturation > 0.1
                 ? `rgb(${128 + color.r * 127}, ${128 + color.g * 127}, ${

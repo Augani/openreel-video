@@ -1,7 +1,18 @@
-import React from "react";
+import React, { useCallback } from "react";
 import { Switch } from "@openreel/ui";
 import { Label } from "@openreel/ui";
 import { useSettingsStore, SERVICE_REGISTRY, type TtsProvider, type LlmProvider, type AggregatorProvider } from "../../../stores/settings-store";
+import { useProjectStore } from "../../../stores/project-store";
+
+const ASPECT_PRESETS: Array<{ label: string; width: number; height: number }> = [
+  { label: "16:9 Landscape (1080p)", width: 1920, height: 1080 },
+  { label: "9:16 Vertical (TikTok/Reels)", width: 1080, height: 1920 },
+  { label: "1:1 Square", width: 1080, height: 1080 },
+  { label: "4:5 Portrait", width: 1080, height: 1350 },
+  { label: "4:3 Standard", width: 1440, height: 1080 },
+  { label: "21:9 Cinematic", width: 2560, height: 1080 },
+  { label: "4K Landscape", width: 3840, height: 2160 },
+];
 
 export const GeneralPanel: React.FC = () => {
   const {
@@ -17,6 +28,35 @@ export const GeneralPanel: React.FC = () => {
     setDefaultLlmProvider,
     setDefaultAggregator,
   } = useSettingsStore();
+
+  const projectWidth = useProjectStore((s) => s.project.settings.width);
+  const projectHeight = useProjectStore((s) => s.project.settings.height);
+  const updateProjectSettings = useProjectStore((s) => s.updateSettings);
+
+  const [draftWidth, setDraftWidth] = React.useState(String(projectWidth));
+  const [draftHeight, setDraftHeight] = React.useState(String(projectHeight));
+
+  React.useEffect(() => {
+    setDraftWidth(String(projectWidth));
+    setDraftHeight(String(projectHeight));
+  }, [projectWidth, projectHeight]);
+
+  const applyDimensions = useCallback(
+    async (width: number, height: number) => {
+      const w = Math.max(16, Math.min(7680, Math.round(width)));
+      const h = Math.max(16, Math.min(7680, Math.round(height)));
+      await updateProjectSettings({ width: w, height: h });
+    },
+    [updateProjectSettings],
+  );
+
+  const handleApplyCustom = useCallback(() => {
+    const w = Number(draftWidth);
+    const h = Number(draftHeight);
+    if (Number.isFinite(w) && Number.isFinite(h) && w > 0 && h > 0) {
+      applyDimensions(w, h);
+    }
+  }, [draftWidth, draftHeight, applyDimensions]);
 
   const ttsProviders = [
     { id: "piper", label: "Piper (Free / Built-in)" },
@@ -41,6 +81,75 @@ export const GeneralPanel: React.FC = () => {
 
   return (
     <div className="space-y-6 pb-4">
+      {/* Project Composition */}
+      <div className="space-y-4">
+        <div>
+          <h3 className="text-sm font-medium text-text-primary">
+            Project Composition
+          </h3>
+          <p className="text-xs text-text-muted mt-0.5">
+            Set the canvas dimensions for your project. Pick a preset for TikTok,
+            Reels, YouTube, or enter custom values.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2">
+          {ASPECT_PRESETS.map((preset) => {
+            const isActive =
+              preset.width === projectWidth && preset.height === projectHeight;
+            return (
+              <button
+                key={preset.label}
+                onClick={() => applyDimensions(preset.width, preset.height)}
+                className={`text-left px-3 py-2 rounded-md text-xs transition-colors border ${
+                  isActive
+                    ? "border-primary bg-primary/10 text-text-primary"
+                    : "border-border bg-background-tertiary text-text-secondary hover:text-text-primary hover:border-primary/40"
+                }`}
+              >
+                <div className="font-medium">{preset.label}</div>
+                <div className="text-text-muted text-[10px] mt-0.5">
+                  {preset.width} × {preset.height}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="flex items-end gap-2">
+          <div className="flex-1">
+            <Label className="text-xs text-text-secondary">Width</Label>
+            <input
+              type="number"
+              min={16}
+              max={7680}
+              value={draftWidth}
+              onChange={(e) => setDraftWidth(e.target.value)}
+              className="mt-1 h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+            />
+          </div>
+          <div className="flex-1">
+            <Label className="text-xs text-text-secondary">Height</Label>
+            <input
+              type="number"
+              min={16}
+              max={7680}
+              value={draftHeight}
+              onChange={(e) => setDraftHeight(e.target.value)}
+              className="mt-1 h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+            />
+          </div>
+          <button
+            onClick={handleApplyCustom}
+            className="h-9 px-3 rounded-md bg-primary text-white text-xs font-medium hover:bg-primary/90 transition-colors"
+          >
+            Apply
+          </button>
+        </div>
+      </div>
+
+      <div className="h-px bg-border" />
+
       {/* Auto-save */}
       <div className="space-y-4">
         <h3 className="text-sm font-medium text-text-primary">Auto-Save</h3>

@@ -5537,6 +5537,20 @@ export const useProjectStore = create<ProjectState>()(
           }
         }
 
+        if (
+          settings.temperature !== undefined ||
+          settings.tint !== undefined
+        ) {
+          const result = effectsBridge.applyWhiteBalance(clipId, {
+            temperature: settings.temperature,
+            tint: settings.tint,
+          });
+          if (!result.success) {
+            console.error("Failed to apply white balance:", result.error);
+            return false;
+          }
+        }
+
         // Trigger re-render by updating project state
         set({ project: { ...get().project, modifiedAt: Date.now() } });
         return true;

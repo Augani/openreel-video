@@ -2,6 +2,8 @@ export type HandlePosition = "nw" | "n" | "ne" | "e" | "se" | "s" | "sw" | "w";
 
 export type InteractionMode = "none" | "move" | "resize";
 
+export type FitMode = "contain" | "cover" | "stretch" | "none";
+
 export interface ClipTransform {
   position: { x: number; y: number };
   scale: { x: number; y: number };
@@ -9,6 +11,7 @@ export interface ClipTransform {
   opacity: number;
   anchor: { x: number; y: number };
   borderRadius?: number;
+  fitMode?: FitMode;
   crop?: {
     x: number;
     y: number;
@@ -24,4 +27,5 @@ export const DEFAULT_TRANSFORM: ClipTransform = {
   opacity: 1,
   anchor: { x: 0.5, y: 0.5 },
   borderRadius: 0,
+  fitMode: "none",
 };

@@ -80,8 +80,9 @@ export const AspectRatioMatchDialog: React.FC<AspectRatioMatchDialogProps> = ({
           </div>
 
           <p className="text-xs text-text-tertiary">
-            Updating the project dimensions will provide the best editing
-            experience and prevent cropping during export.
+            Match the project dimensions to this video for a clean fit, or keep
+            the current canvas — your video will be placed at its original size
+            so you can resize it freely.
           </p>
         </div>
 

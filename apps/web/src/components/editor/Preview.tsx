@@ -4676,8 +4676,42 @@ export const Preview: React.FC = () => {
 
     const displayScale = actualWidth / canvasWidth;
 
-    const clipWidth = canvasWidth * transform.scale.x * displayScale;
-    const clipHeight = canvasHeight * transform.scale.y * displayScale;
+    const fitMode = clipTransform.fitMode ?? "contain";
+    const mediaItem = getMediaItem(clip.mediaId);
+    const mediaWidth = mediaItem?.metadata?.width ?? canvasWidth;
+    const mediaHeight = mediaItem?.metadata?.height ?? canvasHeight;
+
+    let baseWidth: number;
+    let baseHeight: number;
+
+    if (fitMode === "none") {
+      baseWidth = mediaWidth;
+      baseHeight = mediaHeight;
+    } else if (fitMode === "stretch") {
+      baseWidth = canvasWidth;
+      baseHeight = canvasHeight;
+    } else if (fitMode === "cover") {
+      const mediaAspect = mediaWidth / mediaHeight;
+      if (mediaAspect > canvasAspect) {
+        baseHeight = canvasHeight;
+        baseWidth = canvasHeight * mediaAspect;
+      } else {
+        baseWidth = canvasWidth;
+        baseHeight = canvasWidth / mediaAspect;
+      }
+    } else {
+      const mediaAspect = mediaWidth / mediaHeight;
+      if (mediaAspect > canvasAspect) {
+        baseWidth = canvasWidth;
+        baseHeight = canvasWidth / mediaAspect;
+      } else {
+        baseHeight = canvasHeight;
+        baseWidth = canvasHeight * mediaAspect;
+      }
+    }
+
+    const clipWidth = baseWidth * transform.scale.x * displayScale;
+    const clipHeight = baseHeight * transform.scale.y * displayScale;
 
     const offsetX = transform.position.x * displayScale;
     const offsetY = transform.position.y * displayScale;
@@ -4704,6 +4738,7 @@ export const Preview: React.FC = () => {
     settings.height,
     canvasSize,
     liveTransform,
+    getMediaItem,
   ]);
 
   const textClipBounds = useMemo(() => {
@@ -5452,8 +5487,17 @@ export const Preview: React.FC = () => {
         let newX = startTransform.x;
         let newY = startTransform.y;
 
-        const scaleDeltaX = deltaX / displayScale / (settings.width / 2);
-        const scaleDeltaY = deltaY / displayScale / (settings.height / 2);
+        // Base dimensions match how the clip is actually rendered so resize
+        // handles track the cursor regardless of fit mode.
+        const baseScaleW =
+          (clipBounds.width / displayScale) /
+          Math.max(0.001, startTransform.scaleX);
+        const baseScaleH =
+          (clipBounds.height / displayScale) /
+          Math.max(0.001, startTransform.scaleY);
+
+        const scaleDeltaX = deltaX / displayScale / (baseScaleW / 2);
+        const scaleDeltaY = deltaY / displayScale / (baseScaleH / 2);
 
         switch (activeHandle) {
           case "e":

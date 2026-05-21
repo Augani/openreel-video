@@ -1829,19 +1829,35 @@ export const drawFrameWithTransform = (
     sourceHeight = "height" in frame ? frame.height : canvasHeight;
   }
 
-  // Calculate draw size to fit frame within canvas while preserving aspect ratio (contain)
   const sourceAspect = sourceWidth / sourceHeight;
   const canvasAspect = canvasWidth / canvasHeight;
+  const fitMode = t.fitMode ?? "contain";
 
   let drawWidth: number;
   let drawHeight: number;
 
-  if (sourceAspect > canvasAspect) {
+  if (fitMode === "none") {
+    drawWidth = sourceWidth;
+    drawHeight = sourceHeight;
+  } else if (fitMode === "stretch") {
     drawWidth = canvasWidth;
-    drawHeight = canvasWidth / sourceAspect;
-  } else {
     drawHeight = canvasHeight;
-    drawWidth = canvasHeight * sourceAspect;
+  } else if (fitMode === "cover") {
+    if (sourceAspect > canvasAspect) {
+      drawHeight = canvasHeight;
+      drawWidth = canvasHeight * sourceAspect;
+    } else {
+      drawWidth = canvasWidth;
+      drawHeight = canvasWidth / sourceAspect;
+    }
+  } else {
+    if (sourceAspect > canvasAspect) {
+      drawWidth = canvasWidth;
+      drawHeight = canvasWidth / sourceAspect;
+    } else {
+      drawHeight = canvasHeight;
+      drawWidth = canvasHeight * sourceAspect;
+    }
   }
 
   const drawX = -drawWidth * t.anchor.x;
