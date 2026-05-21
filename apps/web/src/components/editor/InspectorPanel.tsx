@@ -909,68 +909,117 @@ export const InspectorPanel: React.FC = () => {
     clipType === "svg" ||
     clipType === "sticker";
 
-  // Inspector tab anchors. Each tab scrolls the body to a section with
-  // the matching data-inspector-tab="<id>" attribute. AI Stylize is
-  // permanently visible — it has its own dedicated panel via the
-  // inspector AIGenTab.
-  const inspectorTabs: Array<{ id: string; label: string; ai?: boolean }> = [
-    { id: "video", label: "Video" },
-    { id: "audio", label: "Audio" },
-    { id: "speed", label: "Speed" },
-    { id: "animation", label: "Animation", ai: true },
-    { id: "adjust", label: "Adjust" },
-    { id: "ai-stylize", label: "AI stylize" },
-  ];
-  const [activeInspectorTab, setActiveInspectorTab] = useState<string>("video");
+  // Inspector tabs are scoped to the selected clip type. Each tab filters
+  // which sections render so the user only sees controls relevant to that
+  // clip and the chosen tab — no more cramming every effect under "Video".
+  type InspectorTabId =
+    | "video"
+    | "audio"
+    | "speed"
+    | "animation"
+    | "adjust"
+    | "ai-stylize";
+
+  const visibleInspectorTabs = useMemo<
+    Array<{ id: InspectorTabId; label: string; ai?: boolean }>
+  >(() => {
+    switch (clipType) {
+      case "video":
+        return [
+          { id: "video", label: "Video" },
+          { id: "audio", label: "Audio" },
+          { id: "speed", label: "Speed" },
+          { id: "animation", label: "Animation", ai: true },
+          { id: "adjust", label: "Adjust" },
+          { id: "ai-stylize", label: "AI stylize" },
+        ];
+      case "image":
+        return [
+          { id: "video", label: "Photo" },
+          { id: "speed", label: "Speed" },
+          { id: "animation", label: "Animation", ai: true },
+          { id: "adjust", label: "Adjust" },
+          { id: "ai-stylize", label: "AI stylize" },
+        ];
+      case "audio":
+        return [
+          { id: "audio", label: "Audio" },
+          { id: "ai-stylize", label: "AI", ai: true },
+        ];
+      case "text":
+        return [
+          { id: "video", label: "Text" },
+          { id: "animation", label: "Animation", ai: true },
+        ];
+      case "shape":
+        return [
+          { id: "video", label: "Shape" },
+          { id: "animation", label: "Animation", ai: true },
+        ];
+      case "svg":
+        return [
+          { id: "video", label: "Graphic" },
+          { id: "animation", label: "Animation", ai: true },
+        ];
+      case "sticker":
+        return [
+          { id: "video", label: "Sticker" },
+          { id: "animation", label: "Animation", ai: true },
+        ];
+      default:
+        return [];
+    }
+  }, [clipType]);
+
+  const [activeInspectorTab, setActiveInspectorTab] =
+    useState<InspectorTabId>("video");
   const inspectorBodyRef = useRef<HTMLDivElement>(null);
 
-  const scrollToInspectorTab = useCallback(
-    (id: string) => {
-      setActiveInspectorTab(id);
-      const root = inspectorBodyRef.current;
-      if (!root) return;
-      const target = root.querySelector<HTMLElement>(
-        `[data-inspector-tab="${id}"]`,
-      );
-      if (target) {
-        target.scrollIntoView({ behavior: "smooth", block: "start" });
-      }
-    },
-    [],
-  );
+  // Reset to the first visible tab whenever the clip type changes the
+  // available tabs (e.g. switching from a video clip to a text clip).
+  useEffect(() => {
+    if (
+      visibleInspectorTabs.length > 0 &&
+      !visibleInspectorTabs.some((t) => t.id === activeInspectorTab)
+    ) {
+      setActiveInspectorTab(visibleInspectorTabs[0].id);
+    }
+  }, [visibleInspectorTabs, activeInspectorTab]);
+
+  const isTab = (id: InspectorTabId) => activeInspectorTab === id;
 
   return (
     <div
       data-tour="inspector"
       className="w-full min-w-0 bg-bg-1 flex flex-col h-full"
     >
-      {/* ── Inspector tab strip (mockup style) ────────────────── */}
-      <div className="flex items-center px-3.5 py-2 border-b border-border gap-3.5 min-h-[38px] overflow-x-auto scrollbar-none shrink-0">
-        {inspectorTabs.map((t) => (
-          <button
-            key={t.id}
-            onClick={() => scrollToInspectorTab(t.id)}
-            className={`text-[12.5px] font-medium whitespace-nowrap flex items-center gap-1 transition-colors ${
-              activeInspectorTab === t.id
-                ? "text-accent"
-                : "text-fg-3 hover:text-fg"
-            }`}
-          >
-            <span>{t.label}</span>
-            {t.ai && (
-              <span className="w-3 h-3 rounded-sm inline-block bg-gradient-to-br from-purple-400 to-blue-400" />
-            )}
-          </button>
-        ))}
-        {selectedClip && (
-          <>
-            <span className="ml-auto w-px h-3.5 bg-border" />
-            <span className="text-[11px] text-fg-3 font-mono">
-              {selectedClip.duration.toFixed(2)}s
-            </span>
-          </>
-        )}
-      </div>
+      {/* ── Inspector tab strip ────────────────────────────────
+          Tabs filter the body so only sections under the active tab
+          render. The visible tabs themselves are scoped to clip type. */}
+      {selectedClip && visibleInspectorTabs.length > 0 && (
+        <div className="flex items-center px-3.5 py-2 border-b border-border gap-3.5 min-h-[38px] overflow-x-auto scrollbar-none shrink-0">
+          {visibleInspectorTabs.map((t) => (
+            <button
+              key={t.id}
+              onClick={() => setActiveInspectorTab(t.id)}
+              className={`text-[12.5px] font-medium whitespace-nowrap flex items-center gap-1 transition-colors ${
+                activeInspectorTab === t.id
+                  ? "text-accent"
+                  : "text-fg-3 hover:text-fg"
+              }`}
+            >
+              <span>{t.label}</span>
+              {t.ai && (
+                <span className="w-3 h-3 rounded-sm inline-block bg-gradient-to-br from-purple-400 to-blue-400" />
+              )}
+            </button>
+          ))}
+          <span className="ml-auto w-px h-3.5 bg-border" />
+          <span className="text-[11px] text-fg-3 font-mono">
+            {selectedClip.duration.toFixed(2)}s
+          </span>
+        </div>
+      )}
 
       <div
         ref={inspectorBodyRef}
@@ -1136,9 +1185,7 @@ export const InspectorPanel: React.FC = () => {
               </Section>
             )}
 
-            {clipType === "video" && (
-              <>
-              <div data-inspector-tab="ai-stylize" />
+            {clipType === "video" && isTab("ai-stylize") && (
               <Section title="AI Auto-Captions" sectionId="auto-captions" defaultOpen={false}>
                 <div className="space-y-3">
                   <input
@@ -1251,53 +1298,50 @@ export const InspectorPanel: React.FC = () => {
                   </button>
                 </div>
               </Section>
-              </>
             )}
 
-            {clipType === "video" && (
+            {clipType === "video" && isTab("ai-stylize") && (
               <Section title="Background Removal" sectionId="background-removal" defaultOpen={false}>
                 <BackgroundRemovalSection clipId={clipId} />
               </Section>
             )}
 
-            {clipType === "video" && (
+            {clipType === "video" && isTab("ai-stylize") && (
               <Section title="Auto Reframe" sectionId="auto-reframe" defaultOpen={false}>
                 <AutoReframeSection clipId={clipId} />
               </Section>
             )}
 
-            {showAudioEffects && (
+            {showAudioEffects && isTab("ai-stylize") && (
               <Section title="Auto Cut Silence" sectionId="auto-cut-silence" defaultOpen={false}>
                 <AutoCutSilenceSection clipId={clipId} />
               </Section>
             )}
 
             {/* Beat Sync - Sync other clips to this audio's beats */}
-            {clipType === "audio" && (
+            {clipType === "audio" && isTab("ai-stylize") && (
               <Section title="Beat Sync" sectionId="beat-sync" defaultOpen={false}>
                 <AudioTextSyncPanel clipId={clipId} />
               </Section>
             )}
 
             {/* Auto-Edit - Cut video clips to audio beats */}
-            {showAudioEffects && (
+            {showAudioEffects && isTab("ai-stylize") && (
               <Section title="Beat-Synced Auto-Edit" sectionId="auto-edit" defaultOpen={false}>
                 <AutoEditPanel onClose={() => {}} />
               </Section>
             )}
 
             {/* AI Highlight Extractor */}
-            {showAudioEffects && (
+            {showAudioEffects && isTab("ai-stylize") && (
               <Section title="AI Highlights" sectionId="ai-highlights" defaultOpen={false}>
                 <HighlightExtractorPanel clipId={clipId} />
               </Section>
             )}
 
             {/* Transform */}
-            {showTransformControls && (
-              <>
-              <div data-inspector-tab="video" />
-              <Section title="Transform" sectionId="transform">
+            {showTransformControls && isTab("video") && (
+              <Section title="Transform" sectionId="transform" defaultOpen={true}>
                 <div className="space-y-3">
                   <LabeledSlider
                     label="Position X"
@@ -1416,30 +1460,29 @@ export const InspectorPanel: React.FC = () => {
                   )}
                 </div>
               </Section>
-              </>
             )}
 
-            {/* Crop */}
+            {/* Crop & flip — under Video tab */}
             {showVideoControls &&
+              isTab("video") &&
               selectedClip &&
               !selectedClip.mediaId.startsWith("text-") &&
               !selectedClip.mediaId.startsWith("shape-") &&
               !selectedClip.mediaId.startsWith("svg-") &&
               !selectedClip.mediaId.startsWith("sticker-") && (
-                <Section title="Crop" sectionId="crop" defaultOpen={false}>
+                <Section title="Crop & flip" sectionId="crop" defaultOpen={false}>
                   <CropSection clip={selectedClip as Clip} />
                 </Section>
               )}
 
-            {/* Speed & Direction */}
+            {/* Speed & Direction — under Speed tab */}
             {showVideoControls &&
+              isTab("speed") &&
               selectedClip &&
               !selectedClip.mediaId.startsWith("text-") &&
               !selectedClip.mediaId.startsWith("shape-") &&
               !selectedClip.mediaId.startsWith("svg-") &&
               !selectedClip.mediaId.startsWith("sticker-") && (
-                <>
-                <div data-inspector-tab="speed" />
                 <Section
                   title="Speed & Direction"
                   sectionId="speed"
@@ -1447,11 +1490,11 @@ export const InspectorPanel: React.FC = () => {
                 >
                   <SpeedSection clip={selectedClip as Clip} />
                 </Section>
-                </>
               )}
 
-            {/* Stabilization */}
+            {/* Stabilization — under Speed tab */}
             {showVideoControls &&
+              isTab("speed") &&
               selectedClip &&
               !selectedClip.mediaId.startsWith("text-") &&
               !selectedClip.mediaId.startsWith("shape-") &&
@@ -1466,8 +1509,9 @@ export const InspectorPanel: React.FC = () => {
                 </Section>
               )}
 
-            {/* Speed Curves */}
+            {/* Speed Curves — under Speed tab */}
             {showVideoControls &&
+              isTab("speed") &&
               selectedClip &&
               !selectedClip.mediaId.startsWith("text-") &&
               !selectedClip.mediaId.startsWith("shape-") &&
@@ -1482,13 +1526,8 @@ export const InspectorPanel: React.FC = () => {
                 </Section>
               )}
 
-            {/* Alignment - Position element on canvas */}
-            {(clipType === "video" ||
-              clipType === "image" ||
-              clipType === "text" ||
-              clipType === "shape" ||
-              clipType === "svg" ||
-              clipType === "sticker") && (
+            {/* Alignment — under Video tab (placement on canvas) */}
+            {showTransformControls && isTab("video") && (
               <Section
                 title="Alignment"
                 sectionId="alignment"
@@ -1498,13 +1537,8 @@ export const InspectorPanel: React.FC = () => {
               </Section>
             )}
 
-            {/* Blending - Layer compositing blend modes */}
-            {(clipType === "video" ||
-              clipType === "image" ||
-              clipType === "text" ||
-              clipType === "shape" ||
-              clipType === "svg" ||
-              clipType === "sticker") && (
+            {/* Blending — under Video tab (compositing) */}
+            {showTransformControls && isTab("video") && (
               <Section
                 title="Blending"
                 sectionId="blending"
@@ -1514,13 +1548,8 @@ export const InspectorPanel: React.FC = () => {
               </Section>
             )}
 
-            {/* 3D Transforms - After Effects-style 3D rotation */}
-            {(clipType === "video" ||
-              clipType === "image" ||
-              clipType === "text" ||
-              clipType === "shape" ||
-              clipType === "svg" ||
-              clipType === "sticker") && (
+            {/* 3D Transforms — under Animation tab */}
+            {showTransformControls && isTab("animation") && (
               <Section
                 title="3D Transforms"
                 sectionId="transform-3d"
@@ -1530,19 +1559,15 @@ export const InspectorPanel: React.FC = () => {
               </Section>
             )}
 
-            {/* Keyframes - Using KeyframeEngine */}
-            <div data-inspector-tab="animation" />
-            <Section title="Keyframes" sectionId="keyframes">
-              <KeyframesSection clipId={clipId} />
-            </Section>
+            {/* Keyframes — under Animation tab */}
+            {showTransformControls && isTab("animation") && (
+              <Section title="Keyframes" sectionId="keyframes" defaultOpen={true}>
+                <KeyframesSection clipId={clipId} />
+              </Section>
+            )}
 
-            {/* Entry/Exit Transitions - For all visual clips */}
-            {(clipType === "video" ||
-              clipType === "image" ||
-              clipType === "text" ||
-              clipType === "shape" ||
-              clipType === "svg" ||
-              clipType === "sticker") && (
+            {/* Entry/Exit Transitions — under Animation tab */}
+            {showTransformControls && isTab("animation") && (
               <Section
                 title="Transitions"
                 sectionId="transitions"
@@ -1552,28 +1577,24 @@ export const InspectorPanel: React.FC = () => {
               </Section>
             )}
 
-            {/* Motion Presets - Advanced animation presets */}
-            {(clipType === "video" ||
-              clipType === "image" ||
-              clipType === "shape" ||
-              clipType === "svg" ||
-              clipType === "sticker") && (
-              <Section
-                title="Motion Presets"
-                sectionId="motion-presets"
-                defaultOpen={false}
-              >
-                <MotionPresetsPanel clipId={clipId} />
-              </Section>
-            )}
+            {/* Motion Presets — under Animation tab */}
+            {isTab("animation") &&
+              (clipType === "video" ||
+                clipType === "image" ||
+                clipType === "shape" ||
+                clipType === "svg" ||
+                clipType === "sticker") && (
+                <Section
+                  title="Motion Presets"
+                  sectionId="motion-presets"
+                  defaultOpen={false}
+                >
+                  <MotionPresetsPanel clipId={clipId} />
+                </Section>
+              )}
 
-            {/* Motion Path - Animate position along a path */}
-            {(clipType === "video" ||
-              clipType === "image" ||
-              clipType === "text" ||
-              clipType === "shape" ||
-              clipType === "svg" ||
-              clipType === "sticker") && (
+            {/* Motion Path — under Animation tab */}
+            {showTransformControls && isTab("animation") && (
               <Section
                 title="Motion Path"
                 sectionId="motion-path"
@@ -1583,34 +1604,23 @@ export const InspectorPanel: React.FC = () => {
               </Section>
             )}
 
-            {/* Particle Effects - Visual particle systems */}
-            {(clipType === "video" ||
-              clipType === "image" ||
-              clipType === "text" ||
-              clipType === "shape" ||
-              clipType === "svg" ||
-              clipType === "sticker") &&
-              selectedClip && (
-                <Section
-                  title="Particle Effects"
-                  sectionId="particle-effects"
-                  defaultOpen={false}
-                >
-                  <ParticleEffectsSectionWrapper
-                    clipId={clipId}
-                    clipDuration={selectedClip.duration}
-                    clipStartTime={selectedClip.startTime}
-                  />
-                </Section>
-              )}
+            {/* Particle Effects — under Animation tab */}
+            {showTransformControls && isTab("animation") && selectedClip && (
+              <Section
+                title="Particle Effects"
+                sectionId="particle-effects"
+                defaultOpen={false}
+              >
+                <ParticleEffectsSectionWrapper
+                  clipId={clipId}
+                  clipDuration={selectedClip.duration}
+                  clipStartTime={selectedClip.startTime}
+                />
+              </Section>
+            )}
 
-            {/* Emphasis Animation - Looping animations while clip is visible */}
-            {(clipType === "video" ||
-              clipType === "image" ||
-              clipType === "text" ||
-              clipType === "shape" ||
-              clipType === "svg" ||
-              clipType === "sticker") && (
+            {/* Emphasis Animation — under Animation tab */}
+            {showTransformControls && isTab("animation") && (
               <Section
                 title="Emphasis Animation"
                 sectionId="emphasis-animation"
@@ -1620,8 +1630,8 @@ export const InspectorPanel: React.FC = () => {
               </Section>
             )}
 
-            {/* Chroma Key - Using ChromaKeyEngine - Only for video/image */}
-            {showVideoControls && (
+            {/* Chroma Key — under Video tab */}
+            {showVideoControls && isTab("video") && (
               <Section title="Chroma Key (Green Screen)">
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
@@ -1658,20 +1668,22 @@ export const InspectorPanel: React.FC = () => {
               </Section>
             )}
 
-            {/* Motion Tracking - Using MotionTrackingEngine - Only for video/image */}
-            {showVideoControls && (
+            {/* Motion Tracking — under Video tab */}
+            {showVideoControls && isTab("video") && (
               <Section title="Motion Tracking" sectionId="motion-tracking">
                 <MotionTrackingSection clipId={clipId} />
               </Section>
             )}
 
-            {showVideoEffects && (
+            {/* Video Effects — under Video tab */}
+            {showVideoEffects && isTab("video") && (
               <Section title="Video Effects" sectionId="video-effects">
                 <VideoEffectsSection clipId={clipId} />
               </Section>
             )}
 
-            {showVideoEffects && (
+            {/* Green Screen — under Video tab */}
+            {showVideoEffects && isTab("video") && (
               <Section
                 title="Green Screen"
                 sectionId="green-screen"
@@ -1681,8 +1693,8 @@ export const InspectorPanel: React.FC = () => {
               </Section>
             )}
 
-            {/* Picture-in-Picture Section */}
-            {showVideoControls && (
+            {/* Picture-in-Picture — under Video tab */}
+            {showVideoControls && isTab("video") && (
               <Section
                 title="Picture-in-Picture"
                 sectionId="pip"
@@ -1692,38 +1704,40 @@ export const InspectorPanel: React.FC = () => {
               </Section>
             )}
 
-            {showVideoControls && (
+            {/* Masking — under Video tab */}
+            {showVideoControls && isTab("video") && (
               <Section title="Masking" sectionId="masking" defaultOpen={false}>
                 <MaskSection clipId={clipId} />
               </Section>
             )}
 
-            {showVideoControls && (
+            {/* Nested Sequences — under Video tab */}
+            {showVideoControls && isTab("video") && (
               <Section title="Nested Sequences" defaultOpen={false}>
                 <NestedSequenceSection clipId={clipId} />
               </Section>
             )}
 
-            {showVideoControls && (
+            {/* Adjustment Layers — under Video tab */}
+            {showVideoControls && isTab("video") && (
               <Section title="Adjustment Layers" defaultOpen={false}>
                 <AdjustmentLayerSection clipId={clipId} />
               </Section>
             )}
 
-            {showColorGrading && (
-              <>
-              <div data-inspector-tab="adjust" />
+            {/* Color Grading — under Adjust tab */}
+            {showColorGrading && isTab("adjust") && (
               <Section
                 title="Color Grading"
                 sectionId="color-grading"
-                defaultOpen={false}
+                defaultOpen={true}
               >
                 <ColorGradingSection clipId={clipId} />
               </Section>
-              </>
             )}
 
-            {showAudioEffects && (
+            {/* Background Noise Removal — under Audio tab */}
+            {showAudioEffects && isTab("audio") && (
               <Section
                 title={noiseReductionSectionTitle}
                 sectionId="background-noise-removal"
@@ -1733,20 +1747,19 @@ export const InspectorPanel: React.FC = () => {
               </Section>
             )}
 
-            {showAudioEffects && (
-              <>
-              <div data-inspector-tab="audio" />
+            {/* Audio Effects — under Audio tab */}
+            {showAudioEffects && isTab("audio") && (
               <Section
                 title="Audio Effects"
                 sectionId="audio-effects"
-                defaultOpen={false}
+                defaultOpen={true}
               >
                 <AudioEffectsSection clipId={clipId} />
               </Section>
-              </>
             )}
 
-            {showAudioEffects && (
+            {/* Audio Ducking — under Audio tab */}
+            {showAudioEffects && isTab("audio") && (
               <Section
                 title="Audio Ducking"
                 sectionId="audio-ducking"
@@ -1756,13 +1769,19 @@ export const InspectorPanel: React.FC = () => {
               </Section>
             )}
 
-            {showTextSection && (
-              <Section title="Text Properties" sectionId="text-properties">
+            {/* Text Properties — under the Text (main) tab */}
+            {showTextSection && isTab("video") && (
+              <Section
+                title="Text Properties"
+                sectionId="text-properties"
+                defaultOpen={true}
+              >
                 <TextSection clipId={clipId} />
               </Section>
             )}
 
-            {showTextSection && (
+            {/* Text Animation — under Animation tab */}
+            {showTextSection && isTab("animation") && (
               <Section
                 title="Text Animation"
                 sectionId="text-animation"
@@ -1772,7 +1791,8 @@ export const InspectorPanel: React.FC = () => {
               </Section>
             )}
 
-            {showTextSection && (
+            {/* Text Behind Subject — under the Text (main) tab */}
+            {showTextSection && isTab("video") && (
               <Section
                 title="Text Behind Subject"
                 sectionId="text-behind-subject"
@@ -1782,21 +1802,27 @@ export const InspectorPanel: React.FC = () => {
               </Section>
             )}
 
-            {showShapeSection && (
-              <Section title="Shape Properties" sectionId="shape-properties">
+            {/* Shape Properties — under the Shape (main) tab */}
+            {showShapeSection && isTab("video") && (
+              <Section
+                title="Shape Properties"
+                sectionId="shape-properties"
+                defaultOpen={true}
+              >
                 <ShapeSection clipId={clipId} />
               </Section>
             )}
 
-            {/* SVG Section */}
-            {showSVGSection && (
-              <Section title="SVG Properties">
+            {/* SVG Properties — under the Graphic (main) tab */}
+            {showSVGSection && isTab("video") && (
+              <Section title="SVG Properties" defaultOpen={true}>
                 <SVGSection clipId={clipId} />
               </Section>
             )}
 
-            {/* Quick Actions - Only show when there are actions available */}
-            {(showVideoControls || showAudioEffects || showVideoEffects) && (
+            {/* Quick Actions — AI-driven actions, shown on AI stylize tab */}
+            {isTab("ai-stylize") &&
+              (showVideoControls || showAudioEffects || showVideoEffects) && (
               <div className="border border-primary/30 bg-primary/5 rounded-xl p-4 relative overflow-hidden">
                 <div className="flex items-center gap-2 text-primary mb-3">
                   <Zap size={14} />
