@@ -5824,12 +5824,14 @@ export const Preview: React.FC = () => {
       className="flex-1 min-h-0 min-w-0 bg-stage-bg flex flex-col relative group overflow-hidden"
     >
       {/* ── Panel bar header (mockup: 'Player') ───────────────── */}
-      <div className="flex items-center px-3.5 py-2 border-b border-border bg-bg-1 gap-2.5 min-h-[38px] shrink-0">
-        <h2 className="text-[13px] font-semibold tracking-tight text-fg m-0">Player</h2>
-        <div className="ml-auto flex items-center gap-1">
-          <span className="w-1.5 h-1.5 rounded-full bg-accent" title="Live preview" />
+      {!isMaximized && !isFullscreen && (
+        <div className="flex items-center px-3.5 py-2 border-b border-border bg-bg-1 gap-2.5 min-h-[38px] shrink-0">
+          <h2 className="text-[13px] font-semibold tracking-tight text-fg m-0">Player</h2>
+          <div className="ml-auto flex items-center gap-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-accent" title="Live preview" />
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Crop Mode View - Full Screen Overlay */}
       {shouldShowCropMode && (
