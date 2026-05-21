@@ -1,9 +1,9 @@
-import React, { useCallback, useRef, useState } from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import {
-  Search, Image as ImageIcon, Film, Music, Plus, Upload, Trash2, 
-  Square, Circle, Triangle, Star, ArrowRight, Hexagon, FileCode, AlertTriangle, 
-  RefreshCw, Palette, LayoutGrid, Grid2x2, List, Sparkles, Video, 
-  Type, Shapes, Wand2, LayoutTemplate
+  Search, Image as ImageIcon, Film, Music, Plus, Upload, Trash2,
+  Square, Circle, Triangle, Star, ArrowRight, Hexagon, FileCode, AlertTriangle,
+  RefreshCw, Palette, LayoutGrid, Grid2x2, List, Sparkles, Video,
+  Type, Shapes, Wand2, LayoutTemplate, Filter, Check, Smile, Moon, Camera
 } from "lucide-react";
 import {
   BACKGROUND_PRESETS,
@@ -11,6 +11,12 @@ import {
   type BackgroundPreset,
 } from "../../services/background-generator";
 import type { ShapeType } from "@openreel/core";
+import {
+  FILTER_PRESETS,
+  FILTER_CATEGORIES,
+  type FilterCategory,
+  type FilterPreset,
+} from "@openreel/core";
 import { useProjectStore } from "../../stores/project-store";
 import { useUIStore } from "../../stores/ui-store";
 import type { MediaItem } from "@openreel/core";
@@ -49,7 +55,16 @@ const formatDuration = (seconds: number): string => {
  * Shows thumbnail with metadata below (not overlaid)
  */
 type MediaViewMode = "large" | "small" | "list";
-type AssetsTab = "media" | "text" | "graphics" | "ai" | "recipes" | "templates";
+type AssetsTab =
+  | "media"
+  | "audio"
+  | "text"
+  | "stickers"
+  | "graphics"
+  | "filters"
+  | "ai"
+  | "recipes"
+  | "templates";
 
 const ASSETS_TABS: ReadonlyArray<{
   value: AssetsTab;
@@ -59,17 +74,32 @@ const ASSETS_TABS: ReadonlyArray<{
   {
     value: "media",
     label: "Media",
-    description: "Import footage, audio, and stills.",
+    description: "Import footage and stills.",
+  },
+  {
+    value: "audio",
+    label: "Audio",
+    description: "Music, sound effects, and voiceover.",
   },
   {
     value: "text",
     label: "Text",
-    description: "Add title presets and caption elements.",
+    description: "Title presets and caption elements.",
+  },
+  {
+    value: "stickers",
+    label: "Stickers",
+    description: "Emojis, stickers, and shape primitives.",
   },
   {
     value: "graphics",
     label: "Graphics",
-    description: "Create shapes, arrows, and SVG overlays.",
+    description: "Backgrounds and SVG overlays.",
+  },
+  {
+    value: "filters",
+    label: "Filters",
+    description: "Color filter presets — apply to the selected clip.",
   },
   {
     value: "ai",
@@ -79,23 +109,78 @@ const ASSETS_TABS: ReadonlyArray<{
   {
     value: "recipes",
     label: "Recipes",
-    description: "Apply clip-scoped looks, overlays, and text stacks.",
+    description: "Clip-scoped looks, overlays, and text stacks.",
   },
   {
     value: "templates",
-    label: "Project Templates",
-    description: "Load full-project starter layouts and presets.",
+    label: "Templates",
+    description: "Full-project starter layouts.",
   },
 ] as const;
 
 const TAB_ICONS: Record<AssetsTab, React.ElementType> = {
   media: Video,
+  audio: Music,
   text: Type,
+  stickers: Star,
   graphics: Shapes,
+  filters: Palette,
   ai: Sparkles,
   recipes: Wand2,
   templates: LayoutTemplate,
 };
+
+// Reusable left-side category sidebar (the Trending / Classic / NEW … list
+// in Filmora-style asset panels). Renders categories as a vertical list
+// optionally grouped under a section header.
+type AssetsSubNavItem = {
+  id: string;
+  label: string;
+  count?: number;
+  icon?: React.ElementType;
+};
+
+const AssetsSubNav: React.FC<{
+  header?: string;
+  items: ReadonlyArray<AssetsSubNavItem>;
+  active: string;
+  onSelect: (id: string) => void;
+}> = ({ header, items, active, onSelect }) => (
+  <div className="w-[120px] shrink-0 border-r border-border bg-bg-1 overflow-y-auto">
+    {header && (
+      <div className="px-3 pt-3 pb-1.5 text-[10px] uppercase tracking-wider text-fg-muted font-semibold">
+        {header}
+      </div>
+    )}
+    <div className="flex flex-col px-1.5 pt-1 pb-3 gap-0.5">
+      {items.map((item) => {
+        const isActive = active === item.id;
+        const Icon = item.icon;
+        return (
+          <button
+            key={item.id}
+            onClick={() => onSelect(item.id)}
+            className={`flex items-center justify-between gap-2 px-2.5 py-1.5 rounded text-[12px] transition-colors text-left ${
+              isActive
+                ? "bg-accent-soft text-accent font-medium"
+                : "text-fg-2 hover:text-fg hover:bg-hover"
+            }`}
+          >
+            <span className="flex items-center gap-1.5 min-w-0">
+              {Icon && <Icon size={11} className="shrink-0" />}
+              <span className="truncate">{item.label}</span>
+            </span>
+            {typeof item.count === "number" && (
+              <span className="text-[10px] text-fg-muted font-mono shrink-0">
+                {item.count}
+              </span>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  </div>
+);
 
 
 
@@ -586,6 +671,25 @@ export const AssetsPanel: React.FC = () => {
     "all" | "solid" | "gradient" | "pattern" | "mesh"
   >("all");
 
+  // Per-tab sub-category state (drives the left sidebar selection).
+  type MediaSubCategory = "all" | "video" | "image";
+  type AudioSubCategory = "all" | "music" | "sfx" | "voice";
+  type StickerSubCategory = "emojis" | "stickers" | "shapes";
+  type TextSubCategory = "all" | "heading" | "subtitle" | "lower-third" | "caption";
+  type GraphicsSubCategory = "backgrounds" | "svg";
+  type FilterSubCategory = "all" | FilterCategory;
+
+  const [mediaCategory, setMediaCategory] = useState<MediaSubCategory>("all");
+  const [audioCategory, setAudioCategory] = useState<AudioSubCategory>("all");
+  const [stickerCategory, setStickerCategory] =
+    useState<StickerSubCategory>("emojis");
+  const [textCategory, setTextCategory] = useState<TextSubCategory>("all");
+  const [graphicsCategory, setGraphicsCategory] =
+    useState<GraphicsSubCategory>("backgrounds");
+  const [filterCategory, setFilterCategory] =
+    useState<FilterSubCategory>("all");
+  const [appliedFilterId, setAppliedFilterId] = useState<string | null>(null);
+
   // KieAI image generation dialog
   const [kieaiDialog, setKieaiDialog] = useState<{ file: File; previewUrl: string | null } | null>(null);
 
@@ -598,6 +702,9 @@ export const AssetsPanel: React.FC = () => {
     updateSettings,
     setKieAIItemState,
   } = useProjectStore();
+  const addVideoEffect = useProjectStore((state) => state.addVideoEffect);
+  const getVideoEffects = useProjectStore((state) => state.getVideoEffects);
+  const removeVideoEffect = useProjectStore((state) => state.removeVideoEffect);
   const mediaItems = project.mediaLibrary.items;
 
   // KieAI store
@@ -605,20 +712,84 @@ export const AssetsPanel: React.FC = () => {
 
   // UI store
   const { select, isSelected, startDrag } = useUIStore();
+  const selectedClipIds = useUIStore((state) => state.getSelectedClipIds());
 
   // Count missing assets
   const missingAssetsCount = mediaItems.filter(
     (item) => item.isPlaceholder,
   ).length;
 
-  // Filter media items by search query and missing assets toggle
+  // Media tab shows only visual items (video + image). Audio has its own tab.
   const filteredItems = mediaItems.filter((item) => {
     const matchesSearch = item.name
       .toLowerCase()
       .includes(searchQuery.toLowerCase());
     const matchesFilter = showOnlyMissing ? item.isPlaceholder : true;
-    return matchesSearch && matchesFilter;
+    if (!matchesSearch || !matchesFilter) return false;
+    if (item.type === "audio") return false;
+    if (mediaCategory === "video") return item.type === "video";
+    if (mediaCategory === "image") return item.type === "image";
+    return true;
   });
+
+  // Audio tab items — derived from the same library but filtered to audio.
+  // The category sub-nav further narrows by inferred purpose from the name.
+  const audioItems = useMemo(() => {
+    const matchesAudioCategory = (item: MediaItem) => {
+      if (audioCategory === "all") return true;
+      const name = item.name.toLowerCase();
+      if (audioCategory === "voice")
+        return /voice|vo|narration|tts|speech/.test(name);
+      if (audioCategory === "sfx")
+        return /sfx|sound|effect|fx|whoosh|click|impact/.test(name);
+      if (audioCategory === "music")
+        return !/voice|vo|narration|tts|speech|sfx|effect|fx/.test(name);
+      return true;
+    };
+    return mediaItems.filter((item) => {
+      if (item.type !== "audio") return false;
+      const matchesSearch = item.name
+        .toLowerCase()
+        .includes(searchQuery.toLowerCase());
+      return matchesSearch && matchesAudioCategory(item);
+    });
+  }, [mediaItems, searchQuery, audioCategory]);
+
+  // Apply a filter preset to the currently-selected clip. Replaces any
+  // existing video effects so categories don't stack accidentally.
+  const handleApplyFilter = useCallback(
+    (preset: FilterPreset) => {
+      const targetClipId = selectedClipIds[0];
+      if (!targetClipId) {
+        toast.warning(
+          "No clip selected",
+          "Select a video or image clip in the timeline first.",
+        );
+        return;
+      }
+      const existing = getVideoEffects(targetClipId);
+      existing.forEach((effect) => {
+        removeVideoEffect(targetClipId, effect.id);
+      });
+      preset.effects.forEach((filterEffect) => {
+        addVideoEffect(targetClipId, filterEffect.type, filterEffect.params);
+      });
+      setAppliedFilterId(preset.id);
+      toast.success("Filter applied", `${preset.name} applied to clip.`);
+    },
+    [selectedClipIds, addVideoEffect, getVideoEffects, removeVideoEffect],
+  );
+
+  const handleClearFilter = useCallback(() => {
+    const targetClipId = selectedClipIds[0];
+    if (!targetClipId) return;
+    const existing = getVideoEffects(targetClipId);
+    existing.forEach((effect) => {
+      removeVideoEffect(targetClipId, effect.id);
+    });
+    setAppliedFilterId(null);
+    toast.info("Effects cleared");
+  }, [selectedClipIds, getVideoEffects, removeVideoEffect]);
 
   // Handle file import with loading state
   const handleFileImport = useCallback(
@@ -927,9 +1098,23 @@ export const AssetsPanel: React.FC = () => {
 
   const renderSectionContent = (tab: AssetsTab): React.ReactNode => {
     switch (tab) {
-      case "media":
+      case "media": {
+        const videoCount = mediaItems.filter((m) => m.type === "video").length;
+        const imageCount = mediaItems.filter((m) => m.type === "image").length;
+        const allCount = videoCount + imageCount;
         return (
-          <div className="flex min-h-0 flex-1 flex-col border-t border-border/70">
+          <div className="flex min-h-0 flex-1 flex-row border-t border-border/70">
+            <AssetsSubNav
+              header="Library"
+              active={mediaCategory}
+              onSelect={(id) => setMediaCategory(id as MediaSubCategory)}
+              items={[
+                { id: "all", label: "All", count: allCount, icon: LayoutGrid },
+                { id: "video", label: "Video", count: videoCount, icon: Film },
+                { id: "image", label: "Image", count: imageCount, icon: ImageIcon },
+              ]}
+            />
+            <div className="flex min-h-0 flex-1 flex-col">
             <div className="px-4 pt-3 pb-3 flex items-center gap-2">
               <div className="relative flex-1">
                 <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted z-10" />
@@ -1058,182 +1243,238 @@ export const AssetsPanel: React.FC = () => {
                 )}
               </div>
             </ScrollArea>
+            </div>
           </div>
         );
-      case "graphics":
+      }
+      case "audio": {
+        const audioAll = mediaItems.filter((m) => m.type === "audio");
+        const isVoice = (n: string) =>
+          /voice|vo|narration|tts|speech/.test(n.toLowerCase());
+        const isSfx = (n: string) =>
+          /sfx|sound|effect|fx|whoosh|click|impact/.test(n.toLowerCase());
+        const voiceCount = audioAll.filter((m) => isVoice(m.name)).length;
+        const sfxCount = audioAll.filter((m) => isSfx(m.name)).length;
+        const musicCount = audioAll.length - voiceCount - sfxCount;
         return (
-          <div className="min-h-0 flex-1 border-t border-border/70">
-            <ScrollArea className="min-h-0 flex-1">
-              <div className="px-4 py-4">
-                <div className="mb-6">
-                  <div className="flex items-center justify-between mb-3">
-                    <h4 className="text-xs font-medium text-text-secondary flex items-center gap-1.5">
-                      <Palette size={12} />
-                      Backgrounds
-                    </h4>
-                  </div>
-                  <div className="flex gap-1.5 mb-3 flex-wrap">
-                    {(["all", "solid", "gradient", "mesh", "pattern"] as const).map(
-                      (cat) => (
-                        <button
-                          key={cat}
-                          onClick={() => setBackgroundCategory(cat)}
-                          className={`px-2.5 py-1 text-[10px] rounded-md transition-all ${
-                            backgroundCategory === cat
-                              ? "bg-primary text-white"
-                              : "bg-background-tertiary text-text-muted hover:text-text-secondary"
-                          }`}
-                        >
-                          {cat.charAt(0).toUpperCase() + cat.slice(1)}
-                        </button>
-                      ),
-                    )}
-                  </div>
-                  <div className="grid grid-cols-4 gap-2">
-                    {filteredBackgrounds.map((preset) => (
-                      <button
-                        key={preset.id}
-                        onClick={() => handleImportBackground(preset)}
-                        disabled={generatingBackground !== null}
-                        className="aspect-square rounded-lg border border-border hover:border-primary/50 transition-all overflow-hidden relative group disabled:opacity-50"
-                        title={preset.name}
-                        style={{ background: preset.thumbnail }}
-                      >
-                        {generatingBackground === preset.id && (
-                          <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                          </div>
-                        )}
-                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100">
-                          <Plus size={16} className="text-white" />
-                        </div>
-                        <span className="absolute bottom-0 left-0 right-0 text-[8px] text-white bg-black/60 py-0.5 px-1 truncate opacity-0 group-hover:opacity-100 transition-opacity">
-                          {preset.name}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
+          <div className="flex min-h-0 flex-1 flex-row border-t border-border/70">
+            <AssetsSubNav
+              header="Audio"
+              active={audioCategory}
+              onSelect={(id) => setAudioCategory(id as AudioSubCategory)}
+              items={[
+                { id: "all", label: "All", count: audioAll.length, icon: Music },
+                { id: "music", label: "Music", count: musicCount },
+                { id: "sfx", label: "SFX", count: sfxCount },
+                { id: "voice", label: "Voice", count: voiceCount },
+              ]}
+            />
+            <div className="flex min-h-0 flex-1 flex-col">
+              <div className="px-4 pt-3 pb-3 flex items-center gap-2">
+                <div className="relative flex-1">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted z-10" />
+                  <Input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search audio"
+                    className="pl-9 text-xs bg-background-tertiary border-border text-text-primary h-9"
+                  />
                 </div>
-
-                <div className="mb-6">
-                  <h4 className="text-xs font-medium text-text-secondary mb-3">
-                    Shapes
-                  </h4>
-                  <div className="grid grid-cols-4 gap-2">
-                    {[
-                      {
-                        type: "rectangle" as ShapeType,
-                        icon: Square,
-                        label: "Rectangle",
-                      },
-                      { type: "circle" as ShapeType, icon: Circle, label: "Circle" },
-                      {
-                        type: "triangle" as ShapeType,
-                        icon: Triangle,
-                        label: "Triangle",
-                      },
-                      { type: "star" as ShapeType, icon: Star, label: "Star" },
-                      {
-                        type: "arrow" as ShapeType,
-                        icon: ArrowRight,
-                        label: "Arrow",
-                      },
-                      {
-                        type: "polygon" as ShapeType,
-                        icon: Hexagon,
-                        label: "Polygon",
-                      },
-                    ].map((shape) => (
+              </div>
+              <ScrollArea className="min-h-0 flex-1">
+                <div className="px-4 pb-4">
+                  {audioItems.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-12 text-center">
+                      <Music size={28} className="text-text-muted mb-2" />
+                      <p className="text-[11px] text-text-secondary mb-1">
+                        No audio yet
+                      </p>
+                      <p className="text-[10px] text-text-muted mb-3">
+                        Import music, sound effects, or voiceover.
+                      </p>
                       <button
-                        key={shape.type}
-                        onClick={async () => {
-                          const state = useProjectStore.getState();
-                          const { createShapeClip, addTrack } = state;
-                          const tracksBefore = state.project.timeline.tracks;
-                          await addTrack("graphics", 0);
-                          const tracksAfter =
-                            useProjectStore.getState().project.timeline.tracks;
-                          const newGraphicsTrack = tracksAfter.find(
-                            (t) =>
-                              t.type === "graphics" &&
-                              !tracksBefore.some((bt) => bt.id === t.id),
-                          );
-                          if (newGraphicsTrack) {
-                            createShapeClip(newGraphicsTrack.id, 0, shape.type);
-                          }
-                        }}
-                        className="aspect-square bg-background-tertiary rounded-lg border border-border hover:border-primary/50 hover:bg-primary/5 transition-all flex flex-col items-center justify-center gap-1 group"
-                        title={shape.label}
+                        onClick={triggerFileInput}
+                        className="px-3 py-1.5 bg-background-elevated border border-border text-text-primary text-[11px] font-medium rounded-lg hover:border-primary/50"
                       >
-                        <shape.icon
-                          size={20}
+                        Import Audio
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-1.5">
+                      {audioItems.map((item) => (
+                        <MediaThumbnail
+                          key={item.id}
+                          item={item}
+                          isSelected={isSelected(item.id)}
+                          viewMode="list"
+                          onSelect={() => handleSelectItem(item.id)}
+                          onDelete={() => handleDeleteItem(item.id)}
+                          onReplace={() => handleReplaceAsset(item.id)}
+                          onDragStart={(e) => handleItemDragStart(e, item)}
+                          onAddToTimeline={() => handleAddToTimeline(item)}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </ScrollArea>
+            </div>
+          </div>
+        );
+      }
+      case "graphics": {
+        const bgCategories = [
+          { id: "backgrounds-all", label: "All" },
+          { id: "backgrounds-solid", label: "Solid" },
+          { id: "backgrounds-gradient", label: "Gradient" },
+          { id: "backgrounds-mesh", label: "Mesh" },
+          { id: "backgrounds-pattern", label: "Pattern" },
+        ] as const;
+        const activeBgItem =
+          graphicsCategory === "backgrounds"
+            ? `backgrounds-${backgroundCategory}`
+            : "svg";
+        const sidebarItems: AssetsSubNavItem[] = [
+          ...bgCategories.map((c) => ({ id: c.id, label: c.label })),
+          { id: "svg", label: "SVG Import", icon: FileCode },
+        ];
+        return (
+          <div className="flex min-h-0 flex-1 flex-row border-t border-border/70">
+            <AssetsSubNav
+              header="Graphics"
+              active={activeBgItem}
+              onSelect={(id) => {
+                if (id === "svg") {
+                  setGraphicsCategory("svg");
+                  return;
+                }
+                setGraphicsCategory("backgrounds");
+                const cat = id.replace("backgrounds-", "");
+                setBackgroundCategory(
+                  cat as typeof backgroundCategory,
+                );
+              }}
+              items={sidebarItems}
+            />
+            <div className="flex min-h-0 flex-1 flex-col">
+              <ScrollArea className="min-h-0 flex-1">
+                <div className="px-4 py-4">
+                  {graphicsCategory === "backgrounds" ? (
+                    <div>
+                      <h4 className="text-xs font-medium text-text-secondary flex items-center gap-1.5 mb-3">
+                        <Palette size={12} />
+                        Backgrounds
+                      </h4>
+                      <div className="grid grid-cols-4 gap-2">
+                        {filteredBackgrounds.map((preset) => (
+                          <button
+                            key={preset.id}
+                            onClick={() => handleImportBackground(preset)}
+                            disabled={generatingBackground !== null}
+                            className="aspect-square rounded-lg border border-border hover:border-primary/50 transition-all overflow-hidden relative group disabled:opacity-50"
+                            title={preset.name}
+                            style={{ background: preset.thumbnail }}
+                          >
+                            {generatingBackground === preset.id && (
+                              <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                              </div>
+                            )}
+                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100">
+                              <Plus size={16} className="text-white" />
+                            </div>
+                            <span className="absolute bottom-0 left-0 right-0 text-[8px] text-white bg-black/60 py-0.5 px-1 truncate opacity-0 group-hover:opacity-100 transition-opacity">
+                              {preset.name}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <h4 className="text-xs font-medium text-text-secondary mb-3">
+                        SVG Import
+                      </h4>
+                      <button
+                        onClick={() => {
+                          const input = document.createElement("input");
+                          input.type = "file";
+                          input.accept = ".svg";
+                          input.onchange = async (e) => {
+                            const file = (e.target as HTMLInputElement).files?.[0];
+                            if (file) {
+                              const content = await file.text();
+                              const state = useProjectStore.getState();
+                              const { importSVG, addTrack } = state;
+                              const tracksBefore = state.project.timeline.tracks;
+                              await addTrack("graphics", 0);
+                              const tracksAfter =
+                                useProjectStore.getState().project.timeline.tracks;
+                              const newGraphicsTrack = tracksAfter.find(
+                                (t) =>
+                                  t.type === "graphics" &&
+                                  !tracksBefore.some((bt) => bt.id === t.id),
+                              );
+                              if (newGraphicsTrack) {
+                                importSVG(content, newGraphicsTrack.id, 0);
+                              }
+                            }
+                          };
+                          input.click();
+                        }}
+                        className="w-full py-3 bg-background-tertiary rounded-lg border border-border hover:border-primary/50 hover:bg-primary/5 transition-all flex items-center justify-center gap-2 group"
+                      >
+                        <FileCode
+                          size={16}
                           className="text-text-secondary group-hover:text-primary transition-colors"
                         />
-                        <span className="text-[9px] text-text-muted group-hover:text-text-secondary">
-                          {shape.label}
+                        <span className="text-xs text-text-secondary group-hover:text-text-primary">
+                          Import SVG File
                         </span>
                       </button>
-                    ))}
-                  </div>
+                    </div>
+                  )}
                 </div>
-
-                <div className="mb-6">
-                  <h4 className="text-xs font-medium text-text-secondary mb-3">
-                    SVG Import
-                  </h4>
-                  <button
-                    onClick={() => {
-                      const input = document.createElement("input");
-                      input.type = "file";
-                      input.accept = ".svg";
-                      input.onchange = async (e) => {
-                        const file = (e.target as HTMLInputElement).files?.[0];
-                        if (file) {
-                          const content = await file.text();
-                          const state = useProjectStore.getState();
-                          const { importSVG, addTrack } = state;
-                          const tracksBefore = state.project.timeline.tracks;
-                          await addTrack("graphics", 0);
-                          const tracksAfter =
-                            useProjectStore.getState().project.timeline.tracks;
-                          const newGraphicsTrack = tracksAfter.find(
-                            (t) =>
-                              t.type === "graphics" &&
-                              !tracksBefore.some((bt) => bt.id === t.id),
-                          );
-                          if (newGraphicsTrack) {
-                            importSVG(content, newGraphicsTrack.id, 0);
-                          }
-                        }
-                      };
-                      input.click();
-                    }}
-                    className="w-full py-3 bg-background-tertiary rounded-lg border border-border hover:border-primary/50 hover:bg-primary/5 transition-all flex items-center justify-center gap-2 group"
-                  >
-                    <FileCode
-                      size={16}
-                      className="text-text-secondary group-hover:text-primary transition-colors"
-                    />
-                    <span className="text-xs text-text-secondary group-hover:text-text-primary">
-                      Import SVG File
-                    </span>
-                  </button>
-                </div>
-
-                <div className="mb-6">
-                  <h4 className="text-xs font-medium text-text-secondary mb-3">
-                    Stickers & Emojis
-                  </h4>
-                  <div className="grid grid-cols-4 gap-2">
-                    {["😀", "🎉", "❤️", "⭐", "🔥", "👍", "🎬", "🎵"].map(
-                      (emoji, i) => (
+              </ScrollArea>
+            </div>
+          </div>
+        );
+      }
+      case "stickers": {
+        const shapes = [
+          { type: "rectangle" as ShapeType, icon: Square, label: "Rectangle" },
+          { type: "circle" as ShapeType, icon: Circle, label: "Circle" },
+          { type: "triangle" as ShapeType, icon: Triangle, label: "Triangle" },
+          { type: "star" as ShapeType, icon: Star, label: "Star" },
+          { type: "arrow" as ShapeType, icon: ArrowRight, label: "Arrow" },
+          { type: "polygon" as ShapeType, icon: Hexagon, label: "Polygon" },
+        ];
+        const emojis = ["😀", "🎉", "❤️", "⭐", "🔥", "👍", "🎬", "🎵", "💯", "✨", "🚀", "🎯", "📌", "🎨", "🎤", "🎶"];
+        const stickers = ["🌟", "💫", "💥", "💢", "💦", "💨", "🌈", "☀️", "🌙", "☁️", "⚡", "🔔", "🎈", "🎁", "🏆", "👑"];
+        return (
+          <div className="flex min-h-0 flex-1 flex-row border-t border-border/70">
+            <AssetsSubNav
+              header="Stickers"
+              active={stickerCategory}
+              onSelect={(id) => setStickerCategory(id as StickerSubCategory)}
+              items={[
+                { id: "emojis", label: "Emojis", count: emojis.length, icon: Smile },
+                { id: "stickers", label: "Stickers", count: stickers.length, icon: Star },
+                { id: "shapes", label: "Shapes", count: shapes.length, icon: Shapes },
+              ]}
+            />
+            <div className="flex min-h-0 flex-1 flex-col">
+              <ScrollArea className="min-h-0 flex-1">
+                <div className="px-4 py-4">
+                  {stickerCategory === "shapes" ? (
+                    <div className="grid grid-cols-4 gap-2">
+                      {shapes.map((shape) => (
                         <button
-                          key={i}
+                          key={shape.type}
                           onClick={async () => {
                             const state = useProjectStore.getState();
-                            const { createStickerClip, addTrack } = state;
-                            const { stickerLibrary } = await import("@openreel/core");
-
+                            const { createShapeClip, addTrack } = state;
                             const tracksBefore = state.project.timeline.tracks;
                             await addTrack("graphics", 0);
                             const tracksAfter =
@@ -1243,148 +1484,306 @@ export const AssetsPanel: React.FC = () => {
                                 t.type === "graphics" &&
                                 !tracksBefore.some((bt) => bt.id === t.id),
                             );
-
                             if (newGraphicsTrack) {
-                              const emojiItem = {
-                                id: `emoji-${i}`,
-                                emoji,
-                                name: emoji,
-                                category: "emojis",
-                              };
-                              const clip = stickerLibrary.createEmojiClip(
-                                emojiItem,
-                                newGraphicsTrack.id,
-                                0,
-                                5,
-                              );
-                              createStickerClip(clip);
+                              createShapeClip(newGraphicsTrack.id, 0, shape.type);
                             }
                           }}
-                          className="aspect-square bg-background-tertiary rounded-lg border border-border hover:border-primary/50 hover:bg-primary/5 transition-all flex items-center justify-center text-xl cursor-pointer"
+                          className="aspect-square bg-background-tertiary rounded-lg border border-border hover:border-primary/50 hover:bg-primary/5 transition-all flex flex-col items-center justify-center gap-1 group"
+                          title={shape.label}
                         >
-                          {emoji}
+                          <shape.icon
+                            size={20}
+                            className="text-text-secondary group-hover:text-primary transition-colors"
+                          />
+                          <span className="text-[9px] text-text-muted group-hover:text-text-secondary">
+                            {shape.label}
+                          </span>
                         </button>
-                      ),
-                    )}
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-4 gap-2">
+                      {(stickerCategory === "emojis" ? emojis : stickers).map(
+                        (glyph, i) => (
+                          <button
+                            key={`${stickerCategory}-${i}`}
+                            onClick={async () => {
+                              const state = useProjectStore.getState();
+                              const { createStickerClip, addTrack } = state;
+                              const { stickerLibrary } = await import("@openreel/core");
+                              const tracksBefore = state.project.timeline.tracks;
+                              await addTrack("graphics", 0);
+                              const tracksAfter =
+                                useProjectStore.getState().project.timeline.tracks;
+                              const newGraphicsTrack = tracksAfter.find(
+                                (t) =>
+                                  t.type === "graphics" &&
+                                  !tracksBefore.some((bt) => bt.id === t.id),
+                              );
+                              if (newGraphicsTrack) {
+                                const emojiItem = {
+                                  id: `${stickerCategory}-${i}`,
+                                  emoji: glyph,
+                                  name: glyph,
+                                  category: stickerCategory,
+                                };
+                                const clip = stickerLibrary.createEmojiClip(
+                                  emojiItem,
+                                  newGraphicsTrack.id,
+                                  0,
+                                  5,
+                                );
+                                createStickerClip(clip);
+                              }
+                            }}
+                            className="aspect-square bg-background-tertiary rounded-lg border border-border hover:border-primary/50 hover:bg-primary/5 transition-all flex items-center justify-center text-2xl cursor-pointer"
+                          >
+                            {glyph}
+                          </button>
+                        ),
+                      )}
+                    </div>
+                  )}
+                </div>
+              </ScrollArea>
+            </div>
+          </div>
+        );
+      }
+      case "filters": {
+        const filterItems: AssetsSubNavItem[] = [
+          { id: "all", label: "All", count: FILTER_PRESETS.length, icon: Filter },
+          ...FILTER_CATEGORIES.map((cat) => ({
+            id: cat.id,
+            label: cat.name,
+            count: FILTER_PRESETS.filter((p) => p.category === cat.id).length,
+            icon:
+              cat.id === "cinematic"
+                ? Film
+                : cat.id === "vintage"
+                  ? Camera
+                  : cat.id === "mood"
+                    ? Moon
+                    : cat.id === "color"
+                      ? Palette
+                      : Wand2,
+          })),
+        ];
+        const visiblePresets =
+          filterCategory === "all"
+            ? FILTER_PRESETS
+            : FILTER_PRESETS.filter((p) => p.category === filterCategory);
+        const hasSelectedClip = selectedClipIds.length > 0;
+        return (
+          <div className="flex min-h-0 flex-1 flex-row border-t border-border/70">
+            <AssetsSubNav
+              header="Filters"
+              active={filterCategory}
+              onSelect={(id) => setFilterCategory(id as FilterSubCategory)}
+              items={filterItems}
+            />
+            <div className="flex min-h-0 flex-1 flex-col">
+              {!hasSelectedClip && (
+                <div className="px-4 pt-3 pb-2 mx-3 mt-3 rounded-md bg-yellow-500/10 border border-yellow-500/30 text-[10.5px] text-yellow-200 flex items-center gap-2">
+                  <AlertTriangle size={12} className="shrink-0" />
+                  <span>Select a clip in the timeline to apply a filter.</span>
+                </div>
+              )}
+              {appliedFilterId && (
+                <div className="px-3 pt-2">
+                  <button
+                    onClick={handleClearFilter}
+                    className="w-full py-1.5 text-[10.5px] text-red-300 hover:text-red-200 bg-red-500/10 hover:bg-red-500/15 rounded-md transition-colors"
+                  >
+                    Remove applied filter
+                  </button>
+                </div>
+              )}
+              <ScrollArea className="min-h-0 flex-1">
+                <div className="px-3 py-3 grid grid-cols-2 gap-2">
+                  {visiblePresets.map((preset) => {
+                    const isApplied = appliedFilterId === preset.id;
+                    return (
+                      <button
+                        key={preset.id}
+                        onClick={() => handleApplyFilter(preset)}
+                        disabled={!hasSelectedClip}
+                        className={`relative p-2.5 rounded-lg border text-left transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+                          isApplied
+                            ? "border-primary bg-primary/10"
+                            : "border-border bg-background-tertiary hover:border-primary/50"
+                        }`}
+                        title={preset.description}
+                      >
+                        <div className="flex items-start justify-between gap-1.5">
+                          <span className="text-[11px] font-medium text-text-primary line-clamp-1">
+                            {preset.name}
+                          </span>
+                          {isApplied && (
+                            <Check size={12} className="text-primary shrink-0" />
+                          )}
+                        </div>
+                        <p className="text-[9px] text-text-muted mt-0.5 line-clamp-2">
+                          {preset.description}
+                        </p>
+                        <div className="mt-1.5 flex gap-1 flex-wrap">
+                          {preset.effects.slice(0, 2).map((effect, i) => (
+                            <span
+                              key={i}
+                              className="px-1.5 py-0.5 text-[8px] bg-background-secondary rounded text-text-muted"
+                            >
+                              {effect.type}
+                            </span>
+                          ))}
+                          {preset.effects.length > 2 && (
+                            <span className="px-1.5 py-0.5 text-[8px] bg-background-secondary rounded text-text-muted">
+                              +{preset.effects.length - 2}
+                            </span>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </ScrollArea>
+            </div>
+          </div>
+        );
+      }
+      case "text": {
+        const textPresets = [
+          {
+            id: "heading",
+            name: "Heading",
+            text: "Heading",
+            style: {
+              fontSize: 72,
+              fontWeight: 700 as const,
+              textAlign: "center" as const,
+              verticalAlign: "middle" as const,
+            },
+          },
+          {
+            id: "subtitle",
+            name: "Subtitle",
+            text: "Subtitle text",
+            style: {
+              fontSize: 36,
+              fontWeight: 400 as const,
+              textAlign: "center" as const,
+              verticalAlign: "middle" as const,
+            },
+          },
+          {
+            id: "lower-third",
+            name: "Lower Third",
+            text: "Name Here",
+            style: {
+              fontSize: 32,
+              fontWeight: 600 as const,
+              textAlign: "left" as const,
+              verticalAlign: "bottom" as const,
+              backgroundColor: "rgba(0, 0, 0, 0.7)",
+            },
+          },
+          {
+            id: "caption",
+            name: "Caption",
+            text: "Caption text here",
+            style: {
+              fontSize: 24,
+              fontWeight: 400 as const,
+              textAlign: "center" as const,
+              verticalAlign: "bottom" as const,
+              shadowColor: "rgba(0, 0, 0, 0.8)",
+              shadowBlur: 4,
+              shadowOffsetX: 1,
+              shadowOffsetY: 1,
+            },
+          },
+        ];
+        const visiblePresets =
+          textCategory === "all"
+            ? textPresets
+            : textPresets.filter((p) => p.id === textCategory);
+        return (
+          <div className="flex min-h-0 flex-1 flex-row border-t border-border/70">
+            <AssetsSubNav
+              header="Text"
+              active={textCategory}
+              onSelect={(id) => setTextCategory(id as TextSubCategory)}
+              items={[
+                { id: "all", label: "All", count: textPresets.length, icon: Type },
+                ...textPresets.map((p) => ({ id: p.id, label: p.name })),
+              ]}
+            />
+            <div className="flex min-h-0 flex-1 flex-col">
+              <ScrollArea className="min-h-0 flex-1">
+                <div className="px-4 py-4 space-y-3">
+                  <button
+                    onClick={async () => {
+                      const state = useProjectStore.getState();
+                      const { createTextClip, addTrack } = state;
+                      const tracksBefore = state.project.timeline.tracks;
+                      await addTrack("text", 0);
+                      const tracksAfter =
+                        useProjectStore.getState().project.timeline.tracks;
+                      const newTextTrack = tracksAfter.find(
+                        (t) =>
+                          t.type === "text" &&
+                          !tracksBefore.some((bt) => bt.id === t.id),
+                      );
+                      if (newTextTrack) {
+                        createTextClip(newTextTrack.id, 0, "New Title");
+                      }
+                    }}
+                    className="w-full py-4 bg-background-tertiary rounded-lg border border-border hover:border-primary/50 hover:bg-primary/5 transition-all text-center"
+                  >
+                    <span className="text-lg font-bold text-text-primary">
+                      Add Title
+                    </span>
+                    <p className="text-xs text-text-muted mt-1">
+                      Click to add text to timeline
+                    </p>
+                  </button>
+                  <div className="grid grid-cols-2 gap-2">
+                    {visiblePresets.map((preset) => (
+                      <button
+                        key={preset.name}
+                        onClick={async () => {
+                          const state = useProjectStore.getState();
+                          const { createTextClip, addTrack } = state;
+                          const tracksBefore = state.project.timeline.tracks;
+                          await addTrack("text", 0);
+                          const tracksAfter =
+                            useProjectStore.getState().project.timeline.tracks;
+                          const newTextTrack = tracksAfter.find(
+                            (t) =>
+                              t.type === "text" &&
+                              !tracksBefore.some((bt) => bt.id === t.id),
+                          );
+                          if (newTextTrack) {
+                            createTextClip(
+                              newTextTrack.id,
+                              0,
+                              preset.text,
+                              5,
+                              preset.style,
+                            );
+                          }
+                        }}
+                        className="py-3 bg-background-tertiary rounded-lg border border-border hover:border-primary/50 hover:bg-primary/5 transition-all text-xs text-text-secondary hover:text-text-primary"
+                      >
+                        {preset.name}
+                      </button>
+                    ))}
                   </div>
                 </div>
-              </div>
-            </ScrollArea>
+              </ScrollArea>
+            </div>
           </div>
         );
-      case "text":
-        return (
-          <div className="min-h-0 flex-1 border-t border-border/70">
-            <ScrollArea className="min-h-0 flex-1">
-              <div className="px-4 py-4 space-y-3">
-                <button
-                  onClick={async () => {
-                    const state = useProjectStore.getState();
-                    const { createTextClip, addTrack } = state;
-                    const tracksBefore = state.project.timeline.tracks;
-                    await addTrack("text", 0);
-                    const tracksAfter =
-                      useProjectStore.getState().project.timeline.tracks;
-                    const newTextTrack = tracksAfter.find(
-                      (t) =>
-                        t.type === "text" &&
-                        !tracksBefore.some((bt) => bt.id === t.id),
-                    );
-                    if (newTextTrack) {
-                      createTextClip(newTextTrack.id, 0, "New Title");
-                    }
-                  }}
-                  className="w-full py-4 bg-background-tertiary rounded-lg border border-border hover:border-primary/50 hover:bg-primary/5 transition-all text-center"
-                >
-                  <span className="text-lg font-bold text-text-primary">
-                    Add Title
-                  </span>
-                  <p className="text-xs text-text-muted mt-1">
-                    Click to add text to timeline
-                  </p>
-                </button>
-                <div className="grid grid-cols-2 gap-2">
-                  {[
-                    {
-                      name: "Heading",
-                      text: "Heading",
-                      style: {
-                        fontSize: 72,
-                        fontWeight: 700 as const,
-                        textAlign: "center" as const,
-                        verticalAlign: "middle" as const,
-                      },
-                    },
-                    {
-                      name: "Subtitle",
-                      text: "Subtitle text",
-                      style: {
-                        fontSize: 36,
-                        fontWeight: 400 as const,
-                        textAlign: "center" as const,
-                        verticalAlign: "middle" as const,
-                      },
-                    },
-                    {
-                      name: "Lower Third",
-                      text: "Name Here",
-                      style: {
-                        fontSize: 32,
-                        fontWeight: 600 as const,
-                        textAlign: "left" as const,
-                        verticalAlign: "bottom" as const,
-                        backgroundColor: "rgba(0, 0, 0, 0.7)",
-                      },
-                    },
-                    {
-                      name: "Caption",
-                      text: "Caption text here",
-                      style: {
-                        fontSize: 24,
-                        fontWeight: 400 as const,
-                        textAlign: "center" as const,
-                        verticalAlign: "bottom" as const,
-                        shadowColor: "rgba(0, 0, 0, 0.8)",
-                        shadowBlur: 4,
-                        shadowOffsetX: 1,
-                        shadowOffsetY: 1,
-                      },
-                    },
-                  ].map((preset) => (
-                    <button
-                      key={preset.name}
-                      onClick={async () => {
-                        const state = useProjectStore.getState();
-                        const { createTextClip, addTrack } = state;
-                        const tracksBefore = state.project.timeline.tracks;
-                        await addTrack("text", 0);
-                        const tracksAfter =
-                          useProjectStore.getState().project.timeline.tracks;
-                        const newTextTrack = tracksAfter.find(
-                          (t) =>
-                            t.type === "text" &&
-                            !tracksBefore.some((bt) => bt.id === t.id),
-                        );
-                        if (newTextTrack) {
-                          createTextClip(
-                            newTextTrack.id,
-                            0,
-                            preset.text,
-                            5,
-                            preset.style,
-                          );
-                        }
-                      }}
-                      className="py-3 bg-background-tertiary rounded-lg border border-border hover:border-primary/50 hover:bg-primary/5 transition-all text-xs text-text-secondary hover:text-text-primary"
-                    >
-                      {preset.name}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </ScrollArea>
-          </div>
-        );
+      }
       case "ai":
         return (
           <div className="flex min-h-0 flex-1 flex-col border-t border-border/70 bg-background-secondary content-area-fix">
@@ -1450,15 +1849,18 @@ export const AssetsPanel: React.FC = () => {
           <LoadingIndicator message={importProgress || "Importing media..."} />
         )}
 
-        {/* Lightweight panel sub-header (active tab description) */}
+        {/* Lightweight panel sub-header — shows tab description and a contextual
+            action (e.g. Import for Media/Audio). Hidden for tabs whose left
+            sidebar already provides enough context (AI, Recipes, Templates
+            also keep it because they have no sidebar). */}
         <div className="px-3 py-2 flex items-center justify-between border-b border-border shrink-0">
           <p className="text-[11px] text-fg-muted line-clamp-1">
             {ASSETS_TABS.find((t) => t.value === activeTab)?.description}
           </p>
-          {activeTab === "media" && (
+          {(activeTab === "media" || activeTab === "audio") && (
             <button
               onClick={triggerFileInput}
-              title="Import media"
+              title={activeTab === "audio" ? "Import audio" : "Import media"}
               className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-accent text-accent-fg font-semibold text-[11.5px] hover:bg-accent-strong transition-colors"
             >
               <Plus size={12} />
