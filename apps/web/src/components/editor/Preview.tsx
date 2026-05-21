@@ -4488,16 +4488,10 @@ export const Preview: React.FC = () => {
   const lastPlayheadForRenderRef = useRef<number>(playheadPosition);
   const modifiedRenderTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const renderInFlightRef = useRef<boolean>(false);
+  const pendingRenderTimeRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (isPlaying) return;
-    if (isScrubbing) {
-      releaseScrubVideoElements();
-      lastModifiedAtRef.current = project.modifiedAt;
-      lastPlayheadForRenderRef.current = playheadPosition;
-      lastPreviewRenderTimeRef.current = playheadPosition;
-      return;
-    }
 
     if (isInteractingRef.current) {
       lastModifiedAtRef.current = project.modifiedAt;
@@ -4522,28 +4516,41 @@ export const Preview: React.FC = () => {
     }
     lastPreviewRenderTimeRef.current = playheadPosition;
 
-    const doRender = async () => {
-      if (renderInFlightRef.current) return;
+    const doRender = async (time: number) => {
+      if (renderInFlightRef.current) {
+        // Coalesce: remember the latest requested position and render it
+        // once the current render completes. This is what makes scrubbing
+        // feel responsive even when each render is slower than mouse moves.
+        pendingRenderTimeRef.current = time;
+        return;
+      }
       renderInFlightRef.current = true;
       try {
-        const rendered = await renderFrameDirectly(playheadPosition);
+        const rendered = await renderFrameDirectly(time);
         if (!rendered) {
-          renderFallbackFrame(playheadPosition);
+          renderFallbackFrame(time);
         }
       } finally {
         renderInFlightRef.current = false;
+        const next = pendingRenderTimeRef.current;
+        if (next !== null && next !== time) {
+          pendingRenderTimeRef.current = null;
+          doRender(next);
+        } else {
+          pendingRenderTimeRef.current = null;
+        }
       }
     };
 
     if (playheadChanged) {
-      doRender();
+      doRender(playheadPosition);
     } else if (modifiedChanged) {
       if (modifiedRenderTimerRef.current) {
         clearTimeout(modifiedRenderTimerRef.current);
       }
       modifiedRenderTimerRef.current = setTimeout(() => {
         modifiedRenderTimerRef.current = null;
-        doRender();
+        doRender(playheadPosition);
       }, 150);
     }
 

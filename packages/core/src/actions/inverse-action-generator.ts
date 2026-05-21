@@ -231,7 +231,22 @@ export class InverseActionGenerator {
           solo: track.solo,
         });
       }
+
+      case "track/consolidate" as TrackAction["type"]: {
+        const trackId = (action.params as { trackId: string }).trackId;
+        const track = timeline.tracks.find((t) => t.id === trackId);
+        if (!track) return null;
+        const positions = track.clips.map((c) => ({
+          clipId: c.id,
+          startTime: c.startTime,
+        }));
+        return this.createInverseAction(action, "track/restorePositions", {
+          trackId,
+          positions,
+        });
+      }
     }
+    return null;
   }
 
   private generateClipInverse(
@@ -302,7 +317,23 @@ export class InverseActionGenerator {
           affectedClips,
         });
       }
+
+      case "clip/closeGapBefore" as ClipAction["type"]: {
+        const params = action.params as { clipId: string };
+        const clip = this.findClip(timeline, params.clipId);
+        if (!clip) return null;
+        const track = timeline.tracks.find((t) => t.id === clip.trackId);
+        if (!track) return null;
+        const positions = track.clips
+          .filter((c) => c.startTime >= clip.startTime)
+          .map((c) => ({ clipId: c.id, startTime: c.startTime }));
+        return this.createInverseAction(action, "track/restorePositions", {
+          trackId: track.id,
+          positions,
+        });
+      }
     }
+    return null;
   }
 
   private generateEffectInverse(

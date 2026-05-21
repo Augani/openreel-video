@@ -9,6 +9,7 @@ import {
   Volume2,
   Film,
   Image,
+  ArrowLeftToLine,
 } from "lucide-react";
 import type { Clip, Track } from "@openreel/core";
 import { useProjectStore } from "../../../stores/project-store";
@@ -46,12 +47,22 @@ export const ClipContextMenu: React.FC<ClipContextMenuProps> = ({
     copyEffects,
     pasteEffects,
     copiedEffects,
+    closeGapBeforeClip,
   } = useProjectStore();
   const { playheadPosition } = useTimelineStore();
 
   const isPlayheadOnClip =
     playheadPosition >= clip.startTime &&
     playheadPosition <= clip.startTime + clip.duration;
+
+  const hasGapBeforeClip = React.useMemo(() => {
+    const sorted = [...track.clips].sort((a, b) => a.startTime - b.startTime);
+    const idx = sorted.findIndex((c) => c.id === clip.id);
+    if (idx < 0) return false;
+    const prev = idx > 0 ? sorted[idx - 1] : null;
+    const target = prev ? prev.startTime + prev.duration : 0;
+    return clip.startTime - target > 0.0001;
+  }, [track.clips, clip.id, clip.startTime]);
 
   const mediaItem = getMediaItem(clip.mediaId);
   const isVideo = track.type === "video";
@@ -90,6 +101,11 @@ export const ClipContextMenu: React.FC<ClipContextMenuProps> = ({
     if (isPlayheadOnClip) {
       await splitClip(clip.id, playheadPosition);
     }
+    onClose?.();
+  };
+
+  const handleCloseGap = async () => {
+    await closeGapBeforeClip(clip.id);
     onClose?.();
   };
 
@@ -137,7 +153,7 @@ export const ClipContextMenu: React.FC<ClipContextMenuProps> = ({
       </ContextMenuItem>
       <ContextMenuItem onClick={handleDuplicate}>
         <Layers className="mr-2 h-4 w-4" />
-        Duplicate to New Track
+        Duplicate
         <ContextMenuShortcut>⌘D</ContextMenuShortcut>
       </ContextMenuItem>
 
@@ -147,6 +163,10 @@ export const ClipContextMenu: React.FC<ClipContextMenuProps> = ({
         <Scissors className="mr-2 h-4 w-4" />
         Split at Playhead
         <ContextMenuShortcut>S</ContextMenuShortcut>
+      </ContextMenuItem>
+      <ContextMenuItem onClick={handleCloseGap} disabled={!hasGapBeforeClip}>
+        <ArrowLeftToLine className="mr-2 h-4 w-4" />
+        Close Gap to Previous
       </ContextMenuItem>
 
       {(isVideo || isImage) && (

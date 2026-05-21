@@ -458,6 +458,16 @@ export class ActionExecutor {
           mediaId: string;
           startTime: number;
           duration?: number;
+          inPoint?: number;
+          outPoint?: number;
+          volume?: number;
+          effects?: unknown[];
+          audioEffects?: unknown[];
+          keyframes?: unknown[];
+          transform?: Record<string, unknown>;
+          fade?: { fadeIn: number; fadeOut: number };
+          speed?: number;
+          reversed?: boolean;
           audioTrackIndex?: number;
         };
         const track = timeline.tracks.find(
@@ -474,26 +484,34 @@ export class ActionExecutor {
             (mediaItem?.metadata.duration && mediaItem.metadata.duration > 0
               ? mediaItem.metadata.duration
               : 5);
+          const defaultTransform = {
+            position: { x: 0, y: 0 },
+            scale: { x: 1, y: 1 },
+            rotation: 0,
+            anchor: { x: 0.5, y: 0.5 },
+            opacity: 1,
+            fitMode: "none" as const,
+          };
           const newClip = {
             id: crypto.randomUUID(),
             mediaId: params.mediaId,
             trackId: params.trackId,
             startTime: params.startTime,
             duration: clipDuration,
-            inPoint: 0,
-            outPoint: clipDuration,
-            effects: [],
-            audioEffects: [],
-            transform: {
-              position: { x: 0, y: 0 },
-              scale: { x: 1, y: 1 },
-              rotation: 0,
-              anchor: { x: 0.5, y: 0.5 },
-              opacity: 1,
-              fitMode: "none" as const,
-            },
-            volume: 1,
-            keyframes: [],
+            inPoint: params.inPoint ?? 0,
+            outPoint: params.outPoint ?? clipDuration,
+            effects: (params.effects as never[]) ?? [],
+            audioEffects: (params.audioEffects as never[]) ?? [],
+            transform: params.transform
+              ? { ...defaultTransform, ...params.transform }
+              : defaultTransform,
+            volume: params.volume ?? 1,
+            keyframes: (params.keyframes as never[]) ?? [],
+            ...(params.fade ? { fade: params.fade } : {}),
+            ...(params.speed !== undefined ? { speed: params.speed } : {}),
+            ...(params.reversed !== undefined
+              ? { reversed: params.reversed }
+              : {}),
             ...(params.audioTrackIndex !== undefined
               ? { audioTrackIndex: params.audioTrackIndex }
               : {}),
@@ -803,6 +821,100 @@ export class ActionExecutor {
             }),
           }));
         }
+        break;
+      }
+
+      case "clip/closeGapBefore": {
+        // Close the gap before the target clip by sliding it (and every
+        // later clip on the same track) left until it butts up against
+        // the preceding clip (or the start of the timeline).
+        const params = action.params as { clipId: string };
+        const clip = this.findClip(timeline, params.clipId);
+        if (clip) {
+          const track = timeline.tracks.find((t) => t.id === clip.trackId);
+          if (track) {
+            const sorted = [...track.clips].sort(
+              (a, b) => a.startTime - b.startTime,
+            );
+            const idx = sorted.findIndex((c) => c.id === clip.id);
+            if (idx >= 0) {
+              const prev = idx > 0 ? sorted[idx - 1] : null;
+              const target = prev ? prev.startTime + prev.duration : 0;
+              const gap = clip.startTime - target;
+              if (gap > 0) {
+                const shiftIds = new Set(
+                  sorted.slice(idx).map((c) => c.id),
+                );
+                timeline.tracks = timeline.tracks.map((t: MutableTrack) => {
+                  if (t.id !== track.id) return t;
+                  return {
+                    ...t,
+                    clips: t.clips.map((c: MutableClip) =>
+                      shiftIds.has(c.id)
+                        ? { ...c, startTime: c.startTime - gap }
+                        : c,
+                    ),
+                  };
+                });
+              }
+            }
+          }
+        }
+        break;
+      }
+
+      case "track/consolidate": {
+        // Walk the track left-to-right and shift each clip backward so
+        // there is no empty space between consecutive clips. Already
+        // packed tracks are left alone.
+        const params = action.params as { trackId: string };
+        timeline.tracks = timeline.tracks.map((t: MutableTrack) => {
+          if (t.id !== params.trackId) return t;
+          const sorted = [...t.clips].sort(
+            (a, b) => a.startTime - b.startTime,
+          );
+          let cursor = 0;
+          const newPositions = new Map<string, number>();
+          for (const c of sorted) {
+            const newStart = Math.max(0, cursor);
+            newPositions.set(c.id, newStart);
+            cursor = newStart + c.duration;
+          }
+          return {
+            ...t,
+            clips: t.clips.map((c: MutableClip) => {
+              const ns = newPositions.get(c.id);
+              return ns !== undefined && ns !== c.startTime
+                ? { ...c, startTime: ns }
+                : c;
+            }),
+          };
+        });
+        break;
+      }
+
+      case "track/restorePositions": {
+        // Inverse of track/consolidate — restore the captured per-clip
+        // start times.
+        const params = action.params as {
+          trackId: string;
+          positions: Array<{ clipId: string; startTime: number }>;
+        };
+        const lookup = new Map(
+          params.positions.map((p) => [p.clipId, p.startTime] as const),
+        );
+        timeline.tracks = timeline.tracks.map((t: MutableTrack) => {
+          if (t.id !== params.trackId) return t;
+          return {
+            ...t,
+            clips: t.clips.map((c: MutableClip) => {
+              const ns = lookup.get(c.id);
+              return ns !== undefined && ns !== c.startTime
+                ? { ...c, startTime: ns }
+                : c;
+            }),
+          };
+        });
         break;
       }
     }
