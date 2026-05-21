@@ -203,7 +203,7 @@ export const TimeRuler: React.FC<TimeRulerProps> = ({
   return (
     <div
       ref={rulerRef}
-      className={`h-8 border-b border-border flex items-end relative bg-background-secondary select-none ${
+      className={`h-[26px] border-b border-border flex items-end relative bg-bg-1 select-none ${
         isDragging ? "cursor-grabbing" : "cursor-pointer"
       }`}
       onMouseDown={handleMouseDown}
@@ -212,15 +212,13 @@ export const TimeRuler: React.FC<TimeRulerProps> = ({
       {ticks.map((tick) => (
         <div
           key={`tick-${tick.time}`}
-          className={`absolute border-l pointer-events-none ${
-            tick.isMajor
-              ? "border-border h-4"
-              : "border-border/50 h-2"
+          className={`absolute top-0 bottom-0 border-l pointer-events-none ${
+            tick.isMajor ? "border-border-strong" : "border-border"
           }`}
           style={{ left: `${tick.time * safePixelsPerSecond}px` }}
         >
           {tick.showLabel && tick.time >= 0 && (
-            <span className="text-[9px] font-mono text-text-muted pl-1 whitespace-nowrap">
+            <span className="text-[10px] font-mono text-fg-3 pl-1 whitespace-nowrap absolute top-[7px]">
               {formatTimecode(Math.max(0, tick.time)).slice(3)}
             </span>
           )}
