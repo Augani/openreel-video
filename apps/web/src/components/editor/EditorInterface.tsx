@@ -212,6 +212,7 @@ export const EditorInterface: React.FC = () => {
     panels,
     setPanelVisible,
   } = useUIStore();
+  const layoutMode = useUIStore((state) => state.layoutMode);
   const { project, updateClipKeyframes } = useProjectStore();
   const tracks = project.timeline.tracks;
 
@@ -402,11 +403,19 @@ export const EditorInterface: React.FC = () => {
   // Grid template uses inline CSS for the resizable columns. The CSS
   // variables `--media-w`, `--inspector-w`, `--tl-height` are kept in
   // sync via the effect above so other components can use them too.
+  //
+  // Two layout modes:
+  // - "default":         timeline spans full width; inspector matches preview
+  //                      height only (current behavior).
+  // - "tall-inspector":  inspector spans the full window height; timeline is
+  //                      bounded to the media+preview width.
+  const isTallInspector = layoutMode === "tall-inspector";
   const gridStyle: React.CSSProperties = {
     gridTemplateColumns: `${mediaWidth}px ${RESIZE_HANDLE}px 1fr ${RESIZE_HANDLE}px ${inspectorWidth}px`,
     gridTemplateRows: `1fr ${RESIZE_HANDLE}px ${timelineVh}vh`,
-    gridTemplateAreas:
-      "'media mh stage ih inspector' 'th th th th th' 'timeline timeline timeline timeline timeline'",
+    gridTemplateAreas: isTallInspector
+      ? "'media mh stage ih inspector' 'th th th ih inspector' 'timeline timeline timeline ih inspector'"
+      : "'media mh stage ih inspector' 'th th th th th' 'timeline timeline timeline timeline timeline'",
   };
 
   return (

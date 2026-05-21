@@ -88,6 +88,11 @@ export interface UIState {
   motionPathMode: boolean;
   motionPathClipId: string | null;
   keyframeEditorOpen: boolean;
+  // Editor layout mode. "default" keeps the inspector the same height as the
+  // preview with the timeline spanning the full width below. "tall-inspector"
+  // extends the inspector to the full window height so the timeline only
+  // spans the media + preview width.
+  layoutMode: "default" | "tall-inspector";
   select: (item: SelectionItem, addToSelection?: boolean) => void;
   selectMultiple: (items: SelectionItem[]) => void;
   deselect: (itemId: string) => void;
@@ -129,6 +134,8 @@ export interface UIState {
   setMotionPathMode: (enabled: boolean, clipId?: string) => void;
   setKeyframeEditorOpen: (open: boolean) => void;
   toggleKeyframeEditor: () => void;
+  setLayoutMode: (mode: "default" | "tall-inspector") => void;
+  toggleLayoutMode: () => void;
   exportState: {
     isExporting: boolean;
     progress: number;
@@ -225,6 +232,8 @@ export const useUIStore = create<UIState>()(
         motionPathClipId: null,
 
         keyframeEditorOpen: false,
+
+        layoutMode: "default",
 
         showWelcomeScreen: true,
         skipWelcomeScreen: false,
@@ -539,6 +548,17 @@ export const useUIStore = create<UIState>()(
           set((state) => ({ keyframeEditorOpen: !state.keyframeEditorOpen }));
         },
 
+        setLayoutMode: (mode) => {
+          set({ layoutMode: mode });
+        },
+
+        toggleLayoutMode: () => {
+          set((state) => ({
+            layoutMode:
+              state.layoutMode === "default" ? "tall-inspector" : "default",
+          }));
+        },
+
         setShowWelcomeScreen: (show: boolean) => {
           set({ showWelcomeScreen: show });
         },
@@ -570,6 +590,7 @@ export const useUIStore = create<UIState>()(
           showKeyframes: state.showKeyframes,
           autoScroll: state.autoScroll,
           skipWelcomeScreen: state.skipWelcomeScreen,
+          layoutMode: state.layoutMode,
         }),
       },
     ),

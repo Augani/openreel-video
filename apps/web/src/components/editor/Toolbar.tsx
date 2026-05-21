@@ -27,6 +27,8 @@ import {
   MoreHorizontal,
   Command,
   Search,
+  PanelRight,
+  Rows,
 } from "lucide-react";
 import { useProjectStore } from "../../stores/project-store";
 import { useUIStore } from "../../stores/ui-store";
@@ -94,6 +96,8 @@ export const Toolbar: React.FC = () => {
     panels,
     togglePanel,
   } = useUIStore();
+  const layoutMode = useUIStore((state) => state.layoutMode);
+  const toggleLayoutMode = useUIStore((state) => state.toggleLayoutMode);
   const { mode: themeMode, toggleTheme } = useThemeStore();
   const { navigate } = useRouter();
   const { openSettings } = useSettingsStore();
@@ -744,6 +748,32 @@ export const Toolbar: React.FC = () => {
             </button>
           </TooltipTrigger>
           <TooltipContent>Keyframe editor</TooltipContent>
+        </Tooltip>
+
+        {/* Layout mode toggle — switches the inspector between
+            "same height as preview" and "full window height". */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              onClick={toggleLayoutMode}
+              className={`w-[26px] h-[26px] grid place-items-center rounded-md transition-colors ${
+                layoutMode === "tall-inspector"
+                  ? "bg-accent-soft text-accent"
+                  : "text-fg-2 hover:bg-hover hover:text-fg"
+              }`}
+            >
+              {layoutMode === "tall-inspector" ? (
+                <PanelRight size={14} />
+              ) : (
+                <Rows size={14} />
+              )}
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>
+            {layoutMode === "tall-inspector"
+              ? "Switch to default layout (timeline full width)"
+              : "Switch to tall inspector (inspector full height)"}
+          </TooltipContent>
         </Tooltip>
 
         {/* Audio mixer (moved) */}

@@ -712,7 +712,7 @@ export const Timeline: React.FC = () => {
       disabled={disabled}
       data-tip={title}
       title={title}
-      className={`w-[30px] h-[30px] grid place-items-center rounded-md transition-colors relative ${
+      className={`w-[26px] h-[26px] grid place-items-center rounded transition-colors relative ${
         active
           ? "bg-accent-soft text-accent"
           : disabled
@@ -730,43 +730,43 @@ export const Timeline: React.FC = () => {
       data-tour="timeline"
       className="h-full bg-tl-bg flex flex-col min-h-0 relative overflow-hidden"
     >
-      {/* ── Timeline toolbar (mockup pattern: compact 30px icons) ── */}
-      <div className="flex items-center px-3 py-1.5 gap-0.5 bg-bg-1 border-b border-border shrink-0 relative z-[100]">
+      {/* ── Timeline toolbar (compact 26px icons, tight padding) ─── */}
+      <div className="flex items-center px-2 py-1 gap-px bg-bg-1 border-b border-border shrink-0 relative z-[100]">
         <TLTool onClick={undo} disabled={!canUndo()} title="Undo (⌘Z)">
-          <Undo2 size={14} />
+          <Undo2 size={12} />
         </TLTool>
         <TLTool onClick={redo} disabled={!canRedo()} title="Redo (⇧⌘Z)">
-          <Redo2 size={14} />
+          <Redo2 size={12} />
         </TLTool>
 
-        <div className="w-px h-4 bg-border mx-1.5" />
+        <div className="w-px h-3 bg-border mx-1" />
 
         <TLTool
           onClick={handleSplit}
           disabled={selectedClipIds.length !== 1}
           title="Split (S)"
         >
-          <Scissors size={14} />
+          <Scissors size={12} />
         </TLTool>
         <TLTool
           onClick={handleDelete}
           disabled={selectedClipIds.length === 0}
           title="Delete (Del)"
         >
-          <Trash2 size={14} />
+          <Trash2 size={12} />
         </TLTool>
 
-        <div className="w-px h-4 bg-border mx-1.5" />
+        <div className="w-px h-3 bg-border mx-1" />
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
               data-tip="Add track"
               title="Add track"
-              className="w-[30px] h-[30px] grid place-items-center rounded-md text-fg-2 hover:bg-hover hover:text-fg transition-colors relative"
+              className="w-[26px] h-[26px] grid place-items-center rounded text-fg-2 hover:bg-hover hover:text-fg transition-colors relative"
             >
-              <Plus size={14} />
-              <ChevronDownIcon size={8} className="absolute bottom-0.5 right-0.5 text-fg-3" />
+              <Plus size={12} />
+              <ChevronDownIcon size={7} className="absolute bottom-0.5 right-0.5 text-fg-3" />
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent side="top" align="start" sideOffset={8} className="w-48">
@@ -799,13 +799,13 @@ export const Timeline: React.FC = () => {
             <button
               data-tip="Track layers"
               title="Manage track layers"
-              className={`w-[30px] h-[30px] grid place-items-center rounded-md transition-colors ${
+              className={`w-[26px] h-[26px] grid place-items-center rounded transition-colors ${
                 showLayersPanel
                   ? "bg-accent-soft text-accent"
                   : "text-fg-2 hover:bg-hover hover:text-fg"
               }`}
             >
-              <Layers size={14} />
+              <Layers size={12} />
             </button>
           </PopoverTrigger>
           <PopoverContent
@@ -871,25 +871,23 @@ export const Timeline: React.FC = () => {
           </PopoverContent>
         </Popover>
 
-        {/* Centered timecode (mockup uses left-aligned tc-cur / tc-total in
-            the preview controls — timeline shows a compact monospace tc
-            in the toolbar centre). */}
-        <div className="mx-auto font-mono text-[11px] tabular-nums">
+        {/* Centered timecode (compact monospace). */}
+        <div className="mx-auto font-mono text-[10px] tabular-nums">
           <span className="text-accent font-semibold">
             {formatTimecode(playheadPosition)}
           </span>
         </div>
 
-        <div className="ml-auto flex items-center gap-0.5">
+        <div className="ml-auto flex items-center gap-px">
           <TLTool
             onClick={toggleSnap}
             active={snapSettings.enabled}
             title={snapSettings.enabled ? "Snap on (N)" : "Snap off (N)"}
           >
-            <Magnet size={14} />
+            <Magnet size={12} />
           </TLTool>
 
-          <div className="w-px h-4 bg-border mx-1.5" />
+          <div className="w-px h-3 bg-border mx-1" />
 
           <TLTool
             onClick={() => {
@@ -899,7 +897,7 @@ export const Timeline: React.FC = () => {
             active={trackHeight >= 60}
             title="Large tracks"
           >
-            <Rows3 size={14} />
+            <Rows3 size={12} />
           </TLTool>
           <TLTool
             onClick={() => {
@@ -909,25 +907,25 @@ export const Timeline: React.FC = () => {
             active={trackHeight < 60}
             title="Compact tracks"
           >
-            <Rows2 size={14} />
+            <Rows2 size={12} />
           </TLTool>
 
-          <div className="w-px h-4 bg-border mx-1.5" />
+          <div className="w-px h-3 bg-border mx-1" />
 
-          <div className="flex items-center gap-1.5 ml-1">
+          <div className="flex items-center gap-1 ml-0.5">
             <TLTool onClick={zoomOut} title="Zoom out">
-              <span className="text-[15px] font-medium leading-none">−</span>
+              <span className="text-[13px] font-medium leading-none">−</span>
             </TLTool>
-            <span className="text-[10px] w-12 text-center font-mono text-fg-3 tabular-nums">
+            <span className="text-[9.5px] w-11 text-center font-mono text-fg-3 tabular-nums">
               {Math.round(pixelsPerSecond)}px/s
             </span>
             <TLTool onClick={zoomIn} title="Zoom in">
-              <span className="text-[15px] font-medium leading-none">+</span>
+              <span className="text-[13px] font-medium leading-none">+</span>
             </TLTool>
           </div>
 
           <TLTool title="Maximize timeline">
-            <Maximize2 size={14} />
+            <Maximize2 size={12} />
           </TLTool>
         </div>
       </div>
@@ -938,7 +936,7 @@ export const Timeline: React.FC = () => {
         onClick={handleBackgroundClick}
       >
         <div className="flex shrink-0">
-          <div className="w-32 h-[26px] bg-bg-1 border-b border-r border-border shrink-0" />
+          <div className="w-28 h-[24px] bg-bg-1 border-b border-r border-border shrink-0" />
           <div className="flex-1 overflow-hidden relative">
             <div
               style={{
@@ -970,7 +968,7 @@ export const Timeline: React.FC = () => {
         </div>
 
         <div className="flex-1 flex overflow-hidden">
-          <div className="w-32 bg-bg-1 border-r border-border shrink-0 z-20 overflow-hidden">
+          <div className="w-28 bg-bg-1 border-r border-border shrink-0 z-20 overflow-hidden">
             <div
               className="flex flex-col"
               style={{ transform: `translateY(-${scrollY}px)` }}
