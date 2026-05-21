@@ -51,6 +51,9 @@ const ACTION_DESCRIPTIONS: Record<
   "project/updateSettings": () => "Update settings",
   "media/import": () => "Import media",
   "media/delete": () => "Delete media",
+  "clip/closeGapBefore": () => "Close gap",
+  "track/consolidate": () => "Remove gaps",
+  "track/restorePositions": () => "Restore positions",
 };
 
 function getActionDescription(action: Action): string {
@@ -60,6 +63,47 @@ function getActionDescription(action: Action): string {
   }
   const parts = action.type.split("/");
   return `${parts[0]}: ${parts[1] || "action"}`;
+}
+
+// Action types whose rapid repetition (slider drags, etc.) should be
+// coalesced into a single undo step. Anything not in this set — clip/add,
+// clip/remove, track/add, etc. — is always treated as a discrete user
+// action even when fired in quick succession.
+const AUTO_GROUPABLE_TYPES = new Set<string>([
+  "transform/update",
+  "effect/update",
+  "audio/setVolume",
+  "audio/setFade",
+  "clip/move",
+  "clip/trim",
+  "clip/slip",
+  "clip/slide",
+  "clip/roll",
+  "keyframe/move",
+  "keyframe/update",
+  "project/updateSettings",
+]);
+
+// Param keys that identify the target entity. Two actions of the same
+// type are only grouped if they refer to the same target.
+const TARGET_PARAM_KEYS = [
+  "clipId",
+  "effectId",
+  "trackId",
+  "keyframeId",
+  "transitionId",
+  "subtitleId",
+];
+
+function getActionTargetId(action: Action): string | null {
+  const params = action.params as Record<string, unknown>;
+  for (const key of TARGET_PARAM_KEYS) {
+    const value = params[key];
+    if (typeof value === "string" && value.length > 0) {
+      return value;
+    }
+  }
+  return null;
 }
 
 export class ActionHistory {
@@ -90,17 +134,32 @@ export class ActionHistory {
     const timeSinceLastAction = now - this.lastActionTime;
     this.lastActionTime = now;
 
-    const shouldAutoGroup =
-      timeSinceLastAction < this.autoGroupWindow &&
-      this.undoStack.length > 0 &&
-      this.undoStack[this.undoStack.length - 1].action.type === action.type;
+    const lastEntry =
+      this.undoStack.length > 0
+        ? this.undoStack[this.undoStack.length - 1]
+        : null;
 
+    // Only auto-group when:
+    // - The action type is one of the "rapid update" types (slider drag,
+    //   trim handle, etc.) — not creation/deletion actions.
+    // - The previous entry has the same type AND targets the same entity
+    //   (same clipId, effectId, etc.), so two distinct operations don't
+    //   collapse just because they happened back-to-back.
     let groupId = this.currentGroupId;
-    if (shouldAutoGroup && !groupId) {
-      groupId = `auto-${now}`;
-      const lastEntry = this.undoStack[this.undoStack.length - 1];
-      if (!lastEntry.groupId) {
-        this.undoStack[this.undoStack.length - 1] = { ...lastEntry, groupId };
+    if (
+      !groupId &&
+      lastEntry &&
+      timeSinceLastAction < this.autoGroupWindow &&
+      lastEntry.action.type === action.type &&
+      AUTO_GROUPABLE_TYPES.has(action.type)
+    ) {
+      const lastTarget = getActionTargetId(lastEntry.action);
+      const currentTarget = getActionTargetId(action);
+      if (lastTarget !== null && lastTarget === currentTarget) {
+        groupId = lastEntry.groupId ?? `auto-${now}`;
+        if (!lastEntry.groupId) {
+          this.undoStack[this.undoStack.length - 1] = { ...lastEntry, groupId };
+        }
       }
     }
 

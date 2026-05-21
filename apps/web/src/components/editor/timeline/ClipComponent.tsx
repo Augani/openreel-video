@@ -64,6 +64,12 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
   const [isInvalidDrop, setIsInvalidDrop] = useState(false);
   const [isTrimming, setIsTrimming] = useState(false);
   const [trimEdge, setTrimEdge] = useState<"left" | "right" | null>(null);
+  // Snapshot of every additional selected clip at drag start. Multi-clip
+  // drag applies the same time delta to each entry so they stay locked
+  // together as the dragged clip moves.
+  const multiDragSnapshotRef = useRef<
+    Array<{ clipId: string; startTime: number; trackId: string }>
+  >([]);
   const trimStartRef = useRef<{
     mouseX: number;
     startTime: number;
@@ -125,6 +131,24 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
     setDragYOffset(0);
     setIsInvalidDrop(false);
     setIsPendingDrag(true);
+
+    // If this clip is part of a multi-selection, snapshot the other
+    // selected clips' start positions so we can drag them as a group.
+    const selectedIds = useUIStore.getState().getSelectedClipIds();
+    if (selectedIds.length > 1 && selectedIds.includes(clip.id)) {
+      const snapshot: Array<{ clipId: string; startTime: number; trackId: string }> = [];
+      for (const t of allTracks) {
+        for (const c of t.clips) {
+          if (c.id === clip.id) continue;
+          if (!selectedIds.includes(c.id)) continue;
+          if (t.locked) continue;
+          snapshot.push({ clipId: c.id, startTime: c.startTime, trackId: t.id });
+        }
+      }
+      multiDragSnapshotRef.current = snapshot;
+    } else {
+      multiDragSnapshotRef.current = [];
+    }
   };
 
   const handleTrimMouseDown =
@@ -174,6 +198,13 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
 
   useEffect(() => {
     if (!isDragging) return;
+
+    // Wrap the entire drag in a single history group so undo collapses
+    // all the per-frame moves (and any companion clips) into one step.
+    const projectStore = useProjectStore.getState();
+    projectStore.beginHistoryGroup(
+      multiDragSnapshotRef.current.length > 0 ? "Move clips" : "Move clip",
+    );
 
     let animationFrameId: number | null = null;
 
@@ -254,7 +285,27 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
 
       pendingDropRef.current = { time: snapResult.time, targetTrackId };
       onMoveClip(clip.id, snapResult.time, undefined);
+
+      // Move every companion clip in the multi-selection by the same
+      // delta. Cross-track moves of the primary don't take any
+      // companions along — that gets too lossy when they live on tracks
+      // of a different type — but same-track drags stay locked.
+      if (multiDragSnapshotRef.current.length > 0) {
+        const deltaTime = snapResult.time - clip.startTime;
+        for (const snap of multiDragSnapshotRef.current) {
+          const newStart = Math.max(0, snap.startTime + deltaTime);
+          onMoveClip(snap.clipId, newStart, undefined);
+        }
+      }
+
       onSnapIndicator(snapResult.snapped && snapResult.snapPoint ? snapResult.snapPoint.time : null);
+    };
+
+    let groupClosed = false;
+    const closeGroup = () => {
+      if (groupClosed) return;
+      groupClosed = true;
+      projectStore.endHistoryGroup();
     };
 
     const handleMouseUp = () => {
@@ -271,6 +322,8 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
       setDragYOffset(0);
       setIsInvalidDrop(false);
       onSnapIndicator(null);
+      multiDragSnapshotRef.current = [];
+      closeGroup();
     };
 
     window.addEventListener("mousemove", handleMouseMove);
@@ -282,6 +335,7 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
       }
       window.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("mouseup", handleMouseUp);
+      closeGroup();
     };
   }, [
     isDragging,

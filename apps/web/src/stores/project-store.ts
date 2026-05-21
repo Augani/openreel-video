@@ -161,6 +161,13 @@ export interface ProjectState {
     startTime: number,
     trackId?: string,
   ) => Promise<ActionResult>;
+  moveClips: (
+    moves: Array<{ clipId: string; startTime: number; trackId?: string }>,
+  ) => Promise<ActionResult>;
+  beginHistoryGroup: (description?: string) => void;
+  endHistoryGroup: () => void;
+  closeGapBeforeClip: (clipId: string) => Promise<ActionResult>;
+  consolidateTrack: (trackId: string) => Promise<ActionResult>;
   trimClip: (
     clipId: string,
     inPoint?: number,
@@ -2499,6 +2506,86 @@ export const useProjectStore = create<ProjectState>()(
         return result;
       },
 
+      beginHistoryGroup: (description?: string) => {
+        const { actionExecutor } = get();
+        actionExecutor.getHistory().beginGroup(description);
+      },
+
+      endHistoryGroup: () => {
+        const { actionExecutor } = get();
+        actionExecutor.getHistory().endGroup();
+      },
+
+      closeGapBeforeClip: async (clipId: string) => {
+        const { project, actionExecutor } = get();
+        const action: Action = {
+          type: "clip/closeGapBefore",
+          id: uuidv4(),
+          timestamp: Date.now(),
+          params: { clipId },
+        };
+        const result = await actionExecutor.execute(action, project);
+        if (result.success) {
+          set({ project: { ...project } });
+        }
+        return result;
+      },
+
+      consolidateTrack: async (trackId: string) => {
+        const { project, actionExecutor } = get();
+        const action: Action = {
+          type: "track/consolidate",
+          id: uuidv4(),
+          timestamp: Date.now(),
+          params: { trackId },
+        };
+        const result = await actionExecutor.execute(action, project);
+        if (result.success) {
+          set({ project: { ...project } });
+        }
+        return result;
+      },
+
+      moveClips: async (
+        moves: Array<{ clipId: string; startTime: number; trackId?: string }>,
+      ) => {
+        if (moves.length === 0) {
+          return { success: true };
+        }
+        if (moves.length === 1) {
+          return get().moveClip(
+            moves[0].clipId,
+            moves[0].startTime,
+            moves[0].trackId,
+          );
+        }
+        const { actionExecutor } = get();
+        const history = actionExecutor.getHistory();
+        history.beginGroup("Move clips");
+        try {
+          let lastResult: ActionResult = { success: true };
+          for (const move of moves) {
+            const { project } = get();
+            const action: Action = {
+              type: "clip/move",
+              id: uuidv4(),
+              timestamp: Date.now(),
+              params: {
+                clipId: move.clipId,
+                startTime: move.startTime,
+                trackId: move.trackId,
+              },
+            };
+            lastResult = await actionExecutor.execute(action, project);
+            if (!lastResult.success) break;
+            set({ project: { ...project } });
+          }
+          return lastResult;
+        } finally {
+          history.endGroup();
+        }
+      },
+
       trimClip: async (clipId: string, inPoint?: number, outPoint?: number) => {
         const { project, actionExecutor } = get();
         const action: Action = {
@@ -2881,7 +2968,7 @@ export const useProjectStore = create<ProjectState>()(
       },
 
       duplicateClip: async (clipId: string) => {
-        const { getClip, project, addTrack } = get();
+        const { getClip, project, actionExecutor } = get();
         const clip = getClip(clipId);
         if (!clip) {
           return {
@@ -2906,42 +2993,47 @@ export const useProjectStore = create<ProjectState>()(
           };
         }
 
-        const trackResult = await addTrack(track.type);
-        if (!trackResult.success) {
-          return trackResult;
-        }
-
-        const { project: updatedProject, actionExecutor } = get();
-        const newTrack = updatedProject.timeline.tracks.find(
-          (t) => t.clips.length === 0 && t.type === track.type,
+        // Place the duplicate immediately after the original on the same
+        // track. If there's a clip already starting at that time, scan
+        // forward until we find the next gap large enough for the
+        // duplicate's full duration.
+        const sortedClips = [...track.clips].sort(
+          (a, b) => a.startTime - b.startTime,
         );
-
-        if (!newTrack) {
-          return {
-            success: false,
-            error: {
-              code: "TRACK_NOT_FOUND" as const,
-              message: "Could not find newly created track",
-            },
-          };
+        let candidate = clip.startTime + clip.duration;
+        const epsilon = 0.0001;
+        for (const other of sortedClips) {
+          if (other.id === clip.id) continue;
+          if (other.startTime + other.duration <= candidate + epsilon) continue;
+          if (other.startTime >= candidate + clip.duration - epsilon) break;
+          candidate = other.startTime + other.duration;
         }
 
-        const projectCopy = structuredClone(updatedProject);
+        const projectCopy = structuredClone(project);
         const action: Action = {
           type: "clip/add",
           id: uuidv4(),
           timestamp: Date.now(),
           params: {
-            trackId: newTrack.id,
+            trackId: track.id,
             mediaId: clip.mediaId,
-            startTime: clip.startTime,
+            startTime: candidate,
             duration: clip.duration,
             inPoint: clip.inPoint,
             outPoint: clip.outPoint,
             volume: clip.volume,
             effects: structuredClone(clip.effects),
+            audioEffects: clip.audioEffects
+              ? structuredClone(clip.audioEffects)
+              : undefined,
             keyframes: clip.keyframes ? structuredClone(clip.keyframes) : undefined,
             transform: clip.transform ? structuredClone(clip.transform) : undefined,
+            ...(clip.fade ? { fade: clip.fade } : {}),
+            ...(clip.speed !== undefined ? { speed: clip.speed } : {}),
+            ...(clip.reversed !== undefined ? { reversed: clip.reversed } : {}),
+            ...(clip.audioTrackIndex !== undefined
+              ? { audioTrackIndex: clip.audioTrackIndex }
+              : {}),
           },
         };
 

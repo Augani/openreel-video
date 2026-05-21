@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Eye, EyeOff, Volume2, Lock, Trash2, ChevronDown, ChevronRight, Pencil } from "lucide-react";
+import { Eye, EyeOff, Volume2, Lock, Trash2, ChevronDown, ChevronRight, Pencil, AlignLeft } from "lucide-react";
 import type { Track } from "@openreel/core";
 import { useProjectStore } from "../../../stores/project-store";
 import { useTimelineStore } from "../../../stores/timeline-store";
@@ -29,7 +29,7 @@ export const TrackHeader: React.FC<TrackHeaderProps> = ({
   onDrop,
   keyframeCount = 0,
 }) => {
-  const { lockTrack, hideTrack, muteTrack, removeTrack, renameTrack } = useProjectStore();
+  const { lockTrack, hideTrack, muteTrack, removeTrack, renameTrack, consolidateTrack } = useProjectStore();
   const { isTrackExpanded, toggleTrackExpanded, getTrackHeight } = useTimelineStore();
   const isExpanded = isTrackExpanded(track.id);
 
@@ -48,6 +48,22 @@ export const TrackHeader: React.FC<TrackHeaderProps> = ({
   const handleRemoveTrack = async () => {
     await removeTrack(track.id);
   };
+
+  const handleRemoveGaps = async () => {
+    await consolidateTrack(track.id);
+  };
+
+  // Only enable "Remove Gaps" if there's actually a gap on this track.
+  const hasGaps = React.useMemo(() => {
+    if (track.clips.length === 0) return false;
+    const sorted = [...track.clips].sort((a, b) => a.startTime - b.startTime);
+    if (sorted[0].startTime > 0.0001) return true;
+    for (let i = 1; i < sorted.length; i++) {
+      const prevEnd = sorted[i - 1].startTime + sorted[i - 1].duration;
+      if (sorted[i].startTime - prevEnd > 0.0001) return true;
+    }
+    return false;
+  }, [track.clips]);
 
   const startRename = () => {
     setRenameValue(track.name);
@@ -184,6 +200,10 @@ export const TrackHeader: React.FC<TrackHeaderProps> = ({
         <ContextMenuItem onClick={startRename}>
           <Pencil className="mr-2 h-4 w-4" />
           Rename Track
+        </ContextMenuItem>
+        <ContextMenuItem onClick={handleRemoveGaps} disabled={!hasGaps}>
+          <AlignLeft className="mr-2 h-4 w-4" />
+          Remove Gaps
         </ContextMenuItem>
         <ContextMenuSeparator />
         <ContextMenuItem
