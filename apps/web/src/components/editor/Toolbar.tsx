@@ -778,7 +778,27 @@ export const Toolbar: React.FC = () => {
 
         <div className="w-px h-4 bg-border mx-1" />
 
-        {/* Pro pill — opens more menu (theme, settings, tours, recorder) */}
+        {/* Theme toggle (dedicated button so it's discoverable) */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              onClick={toggleTheme}
+              className="w-[26px] h-[26px] grid place-items-center rounded-md text-fg-2 hover:bg-hover hover:text-fg transition-colors"
+              aria-label={`Theme: ${themeMode}`}
+            >
+              {themeMode === "light" ? (
+                <Sun size={14} />
+              ) : themeMode === "dark" ? (
+                <Moon size={14} />
+              ) : (
+                <SunMoon size={14} />
+              )}
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>Theme: {themeMode} (click to cycle)</TooltipContent>
+        </Tooltip>
+
+        {/* Pro pill — opens more menu (settings, tours, recorder) */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
