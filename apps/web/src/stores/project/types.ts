@@ -224,6 +224,10 @@ export interface ProjectState {
     clipId: string,
     behindSubject: boolean,
   ) => TextClip | null;
+  updateText3D: (
+    clipId: string,
+    text3d: import("@openreel/core").Text3DSettings | undefined,
+  ) => TextClip | null;
   getTextClip: (clipId: string) => TextClip | undefined;
   getAllTextClips: () => TextClip[];
   updateTextClipKeyframes: (

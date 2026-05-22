@@ -603,14 +603,17 @@ export const renderTextClipToCanvas = (
     };
   }
 
-  // 3D transforms or blend modes require THREE.js rendering since Canvas 2D can't support them
-  // This ensures proper perspective and blending that Canvas 2D doesn't natively support
+  // 3D transforms, 3D extrusion, or blend modes require THREE.js
+  // rendering since Canvas 2D can't support them. This ensures proper
+  // perspective, depth, and blending that Canvas 2D doesn't natively
+  // support.
   const has3DTransforms =
     transform.rotate3d &&
     (transform.rotate3d.x !== 0 || transform.rotate3d.y !== 0);
   const hasBlendMode = textClip.blendMode && textClip.blendMode !== "normal";
+  const has3DText = textClip.text3d?.enabled === true;
 
-  if (has3DTransforms || hasBlendMode) {
+  if (has3DTransforms || hasBlendMode || has3DText) {
     // Lazy-initialize THREE.js renderer (reused for all 3D text rendering)
     if (!threeJSRenderer) {
       threeJSRenderer = new ThreeJSLayerRenderer(canvasWidth, canvasHeight);
