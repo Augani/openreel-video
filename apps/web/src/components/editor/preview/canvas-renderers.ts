@@ -1518,8 +1518,13 @@ export const renderShapeClipToCanvas = (
       transformedClip.transform.rotate3d.y !== 0);
   const hasBlendMode =
     transformedClip.blendMode && transformedClip.blendMode !== "normal";
+  // Mesh-primitive shapes are inherently 3D, so always route them
+  // through the THREE pipeline, even without an explicit rotation.
+  const isShape3D =
+    transformedClip.type === "shape" &&
+    (transformedClip as ShapeClip).shapeType.startsWith("mesh-");
 
-  if (has3DTransforms || hasBlendMode) {
+  if (has3DTransforms || hasBlendMode || isShape3D) {
     if (!threeJSRenderer) {
       threeJSRenderer = new ThreeJSLayerRenderer(canvasWidth, canvasHeight);
     }
@@ -1533,7 +1538,7 @@ export const renderShapeClipToCanvas = (
 
     threeJSRenderer.clear();
 
-    let mesh: THREE.Mesh | null = null;
+    let mesh: THREE.Mesh | THREE.Group | null = null;
     if (transformedClip.type === "svg") {
       mesh = threeJSRenderer.renderSVGClip(
         transformedClip as SVGClip,

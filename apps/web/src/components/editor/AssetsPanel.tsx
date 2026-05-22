@@ -1203,6 +1203,65 @@ export const AssetsPanel: React.FC = () => {
 
                 <div className="mb-6">
                   <h4 className="text-xs font-medium text-text-secondary mb-3">
+                    3D Objects
+                  </h4>
+                  <div className="grid grid-cols-3 gap-2">
+                    {([
+                      { type: "mesh-cube" as ShapeType, label: "Cube", icon: "□" },
+                      { type: "mesh-sphere" as ShapeType, label: "Sphere", icon: "○" },
+                      { type: "mesh-torus" as ShapeType, label: "Torus", icon: "◯" },
+                      { type: "mesh-cone" as ShapeType, label: "Cone", icon: "△" },
+                      { type: "mesh-cylinder" as ShapeType, label: "Cylinder", icon: "▯" },
+                      { type: "mesh-icosahedron" as ShapeType, label: "Icosahedron", icon: "◆" },
+                    ]).map((mesh) => (
+                      <button
+                        key={mesh.type}
+                        onClick={async () => {
+                          const state = useProjectStore.getState();
+                          const { createShapeClip, addTrack, updateClipRotate3D } = state;
+                          const tracksBefore = state.project.timeline.tracks;
+                          await addTrack("graphics", 0);
+                          const tracksAfter =
+                            useProjectStore.getState().project.timeline.tracks;
+                          const newGraphicsTrack = tracksAfter.find(
+                            (t) =>
+                              t.type === "graphics" &&
+                              !tracksBefore.some((bt) => bt.id === t.id),
+                          );
+                          if (newGraphicsTrack) {
+                            const created = createShapeClip(
+                              newGraphicsTrack.id,
+                              0,
+                              mesh.type,
+                            );
+                            // Nudge the rotation so the 3D depth is
+                            // visible from the get-go (otherwise a
+                            // head-on cube looks like a flat square).
+                            if (created) {
+                              updateClipRotate3D(created.id, {
+                                x: -18,
+                                y: 28,
+                                z: 0,
+                              });
+                            }
+                          }
+                        }}
+                        className="aspect-square bg-background-tertiary rounded-lg border border-border hover:border-primary/50 hover:bg-primary/5 transition-all flex flex-col items-center justify-center gap-1 group"
+                        title={mesh.label}
+                      >
+                        <span className="text-2xl text-text-secondary group-hover:text-primary transition-colors leading-none">
+                          {mesh.icon}
+                        </span>
+                        <span className="text-[9px] text-text-muted group-hover:text-text-secondary">
+                          {mesh.label}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="mb-6">
+                  <h4 className="text-xs font-medium text-text-secondary mb-3">
                     SVG Import
                   </h4>
                   <button

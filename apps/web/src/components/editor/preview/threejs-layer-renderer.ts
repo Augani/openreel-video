@@ -443,12 +443,89 @@ export class ThreeJSLayerRenderer {
     return texture;
   }
 
-  renderShapeClip(
+  /**
+   * Build a 3D-primitive mesh (cube / sphere / torus / cone / etc.)
+   * sized relative to the host canvas. Honors transform (including
+   * rotate3d) and fill color; uses MeshStandardMaterial when the user
+   * has selected a "physical" material kind so scene lights show.
+   */
+  private buildShape3DMesh(
     shapeClip: ShapeClip,
     canvasWidth: number,
     canvasHeight: number,
   ): THREE.Mesh | null {
     const { shapeType, style, transform } = shapeClip;
+    // Base size: same "15% of min(W,H)" used by the 2D shape renderer
+    // so 2D ↔ 3D toggles don't surprise the user with size jumps.
+    const baseSize = Math.min(canvasWidth, canvasHeight) * 0.15;
+
+    let geometry: THREE.BufferGeometry;
+    switch (shapeType) {
+      case "mesh-cube":
+        geometry = new THREE.BoxGeometry(baseSize, baseSize, baseSize);
+        break;
+      case "mesh-sphere":
+        geometry = new THREE.SphereGeometry(baseSize / 2, 32, 32);
+        break;
+      case "mesh-torus":
+        geometry = new THREE.TorusGeometry(
+          baseSize / 2,
+          baseSize / 6,
+          16,
+          48,
+        );
+        break;
+      case "mesh-cone":
+        geometry = new THREE.ConeGeometry(baseSize / 2, baseSize, 32);
+        break;
+      case "mesh-cylinder":
+        geometry = new THREE.CylinderGeometry(
+          baseSize / 2,
+          baseSize / 2,
+          baseSize,
+          32,
+        );
+        break;
+      case "mesh-icosahedron":
+        geometry = new THREE.IcosahedronGeometry(baseSize / 2, 0);
+        break;
+      default:
+        return null;
+    }
+
+    const color = style.fill?.color ?? "#3b82f6";
+    const mat3d = style.material3d;
+    const kind = mat3d?.kind ?? "physical";
+    const material =
+      kind === "physical"
+        ? new THREE.MeshStandardMaterial({
+            color: new THREE.Color(color),
+            metalness: mat3d?.metalness ?? 0.3,
+            roughness: mat3d?.roughness ?? 0.5,
+            transparent: true,
+            opacity: transform.opacity,
+          })
+        : new THREE.MeshBasicMaterial({
+            color: new THREE.Color(color),
+            transparent: true,
+            opacity: transform.opacity,
+          });
+
+    const mesh = new THREE.Mesh(geometry, material);
+    this.applyTransform(mesh, transform, canvasWidth, canvasHeight);
+    return mesh;
+  }
+
+  renderShapeClip(
+    shapeClip: ShapeClip,
+    canvasWidth: number,
+    canvasHeight: number,
+  ): THREE.Mesh | THREE.Group | null {
+    const { shapeType, style, transform } = shapeClip;
+
+    if (shapeType.startsWith("mesh-")) {
+      return this.buildShape3DMesh(shapeClip, canvasWidth, canvasHeight);
+    }
 
     const texture = this.createCanvasTexture(
       (ctx) => {
