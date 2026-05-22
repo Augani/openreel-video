@@ -1,9 +1,9 @@
 import React, { useCallback, useRef, useState } from "react";
 import {
-  Search, Image as ImageIcon, Film, Music, Plus, Upload, Trash2, 
-  Square, Circle, Triangle, Star, ArrowRight, Hexagon, FileCode, AlertTriangle, 
-  RefreshCw, Palette, LayoutGrid, Grid2x2, List, Sparkles, Video, 
-  Type, Shapes, Wand2, LayoutTemplate
+  Search, Image as ImageIcon, Film, Music, Plus, Upload, Trash2,
+  Square, Circle, Triangle, Star, ArrowRight, Hexagon, FileCode, AlertTriangle,
+  RefreshCw, Palette, LayoutGrid, Grid2x2, List, Sparkles, Video,
+  Type, Shapes, Wand2, LayoutTemplate, Zap, Shuffle,
 } from "lucide-react";
 import {
   BACKGROUND_PRESETS,
@@ -18,6 +18,10 @@ import { AspectRatioMatchDialog } from "./dialogs/AspectRatioMatchDialog";
 import { AIGenTab } from "./AIGenTab";
 import { RecipesTab } from "./panels/RecipesTab";
 import { TemplatesTab } from "./panels/TemplatesTab";
+import {
+  EffectsPanel,
+  TransitionsPanel,
+} from "./panels/EffectsTransitionsPanel";
 import { useTtsAudioStore } from "../../stores/tts-store";
 import { toast } from "../../stores/notification-store";
 import { saveFileHandle, saveDirectoryHandle } from "../../services/media-storage";
@@ -49,7 +53,15 @@ const formatDuration = (seconds: number): string => {
  * Shows thumbnail with metadata below (not overlaid)
  */
 type MediaViewMode = "large" | "small" | "list";
-type AssetsTab = "media" | "text" | "graphics" | "ai" | "recipes" | "templates";
+type AssetsTab =
+  | "media"
+  | "text"
+  | "graphics"
+  | "effects"
+  | "transitions"
+  | "ai"
+  | "recipes"
+  | "templates";
 
 const ASSETS_TABS: ReadonlyArray<{
   value: AssetsTab;
@@ -72,6 +84,16 @@ const ASSETS_TABS: ReadonlyArray<{
     description: "Create shapes, arrows, and SVG overlays.",
   },
   {
+    value: "effects",
+    label: "Effects",
+    description: "Drag effects onto a clip to apply them.",
+  },
+  {
+    value: "transitions",
+    label: "Transitions",
+    description: "Drag transitions onto a clip's edge.",
+  },
+  {
     value: "ai",
     label: "AI Generate",
     description: "Generate clips, captions, and assisted edits.",
@@ -92,6 +114,8 @@ const TAB_ICONS: Record<AssetsTab, React.ElementType> = {
   media: Video,
   text: Type,
   graphics: Shapes,
+  effects: Zap,
+  transitions: Shuffle,
   ai: Sparkles,
   recipes: Wand2,
   templates: LayoutTemplate,
@@ -1383,6 +1407,18 @@ export const AssetsPanel: React.FC = () => {
                 </div>
               </div>
             </ScrollArea>
+          </div>
+        );
+      case "effects":
+        return (
+          <div className="flex min-h-0 flex-1 flex-col border-t border-border/70 bg-bg-1">
+            <EffectsPanel />
+          </div>
+        );
+      case "transitions":
+        return (
+          <div className="flex min-h-0 flex-1 flex-col border-t border-border/70 bg-bg-1">
+            <TransitionsPanel />
           </div>
         );
       case "ai":
