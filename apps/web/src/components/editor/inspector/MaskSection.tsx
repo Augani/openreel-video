@@ -4,6 +4,7 @@ import {
   Circle,
   Pentagon,
   Pen,
+  Layers,
   Trash2,
   Eye,
   EyeOff,
@@ -13,10 +14,18 @@ import {
   RefreshCw,
   type LucideIcon,
 } from "lucide-react";
-import { Slider } from "@openreel/ui";
+import {
+  Slider,
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@openreel/ui";
 import { useEngineStore } from "../../../stores/engine-store";
 import { useProjectStore } from "../../../stores/project-store";
 import type { Mask, MaskShape } from "@openreel/core";
+import { boundsPathFromTransform } from "@openreel/core";
 
 interface MaskSectionProps {
   clipId: string;
@@ -30,10 +39,17 @@ const MASK_SHAPES: { id: MaskShapeType; name: string; icon: LucideIcon }[] = [
   { id: "polygon", name: "Polygon", icon: Pentagon },
 ];
 
+interface MatteSourceOption {
+  id: string;
+  label: string;
+}
+
 const MaskItem: React.FC<{
   mask: Mask;
   isSelected: boolean;
   isExpanded: boolean;
+  matteSourceOptions: MatteSourceOption[];
+  ownClipId: string;
   onSelect: () => void;
   onToggleExpand: () => void;
   onDelete: () => void;
@@ -42,10 +58,16 @@ const MaskItem: React.FC<{
   onUpdateExpansion: (value: number) => void;
   onUpdateOpacity: (value: number) => void;
   onToggleInvert: () => void;
+  onSetMatteSource: (
+    sourceClipId: string,
+    matteSource: "alpha" | "luminance" | "bounds",
+  ) => void;
 }> = ({
   mask,
   isSelected,
   isExpanded,
+  matteSourceOptions,
+  ownClipId,
   onSelect,
   onToggleExpand,
   onDelete,
@@ -54,9 +76,25 @@ const MaskItem: React.FC<{
   onUpdateExpansion,
   onUpdateOpacity,
   onToggleInvert,
+  onSetMatteSource,
 }) => {
-  const maskTypeIcon = mask.type === "shape" ? Square : Pen;
+  const maskTypeIcon =
+    mask.type === "shape"
+      ? Square
+      : mask.type === "track-matte"
+        ? Layers
+        : Pen;
   const MaskIcon = maskTypeIcon;
+  const maskLabel =
+    mask.type === "shape"
+      ? "Shape Mask"
+      : mask.type === "track-matte"
+        ? "Track Matte"
+        : "Drawn Mask";
+  // Avoid self-referential mattes
+  const availableSources = matteSourceOptions.filter(
+    (opt) => opt.id !== ownClipId,
+  );
 
   return (
     <div
@@ -83,7 +121,7 @@ const MaskItem: React.FC<{
         </button>
         <MaskIcon size={12} className="text-primary" />
         <span className="flex-1 text-left text-[10px] font-medium text-text-primary">
-          {mask.type === "shape" ? "Shape Mask" : "Drawn Mask"}
+          {maskLabel}
         </span>
         <button
           onClick={(e) => {
@@ -123,6 +161,66 @@ const MaskItem: React.FC<{
 
       {isExpanded && (
         <div className="p-2 space-y-3 border-t border-border bg-background-tertiary/50">
+          {mask.type === "track-matte" && (
+            <div className="space-y-2 p-2 bg-primary/5 border border-primary/20 rounded">
+              <div className="flex items-center gap-1.5">
+                <Layers size={11} className="text-primary" />
+                <span className="text-[9.5px] font-medium text-text-primary">
+                  Matte source
+                </span>
+              </div>
+              <Select
+                value={mask.sourceClipId ?? ""}
+                onValueChange={(v) =>
+                  onSetMatteSource(v, mask.matteSource ?? "bounds")
+                }
+              >
+                <SelectTrigger className="h-7 text-[10px]">
+                  <SelectValue placeholder="Pick a clip…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableSources.length === 0 ? (
+                    <div className="px-2 py-1 text-[10px] text-text-muted">
+                      No other clips available
+                    </div>
+                  ) : (
+                    availableSources.map((opt) => (
+                      <SelectItem key={opt.id} value={opt.id}>
+                        {opt.label}
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+              <div className="flex items-center justify-between">
+                <span className="text-[9px] text-text-muted">Channel</span>
+                <div className="flex gap-1">
+                  {(["bounds", "alpha", "luminance"] as const).map((m) => (
+                    <button
+                      key={m}
+                      onClick={() =>
+                        onSetMatteSource(mask.sourceClipId ?? "", m)
+                      }
+                      disabled={!mask.sourceClipId}
+                      className={`px-1.5 py-0.5 text-[9px] rounded border transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                        (mask.matteSource ?? "bounds") === m
+                          ? "bg-primary/20 border-primary text-primary"
+                          : "bg-background-secondary border-border text-text-secondary hover:border-primary/50"
+                      }`}
+                    >
+                      {m}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <p className="text-[8.5px] text-text-muted leading-tight">
+                The chosen clip&apos;s {mask.matteSource ?? "bounds"}{" "}
+                drive the visible region of this clip. Animate the source
+                clip&apos;s transform to animate the mask.
+              </p>
+            </div>
+          )}
+
           <div className="space-y-1">
             <div className="flex items-center justify-between">
               <label className="text-[9px] text-text-muted">Feathering</label>
@@ -197,11 +295,44 @@ const MaskItem: React.FC<{
 
 export const MaskSection: React.FC<MaskSectionProps> = ({ clipId }) => {
   const getMaskEngine = useEngineStore((state) => state.getMaskEngine);
+  const project = useProjectStore((s) => s.project);
+  const getAllTextClips = useProjectStore((s) => s.getAllTextClips);
   const [selectedMaskId, setSelectedMaskId] = useState<string | null>(null);
   const [expandedMasks, setExpandedMasks] = useState<Set<string>>(new Set());
   const [refreshKey, setRefreshKey] = useState(0);
   const [maskEngine, setMaskEngine] =
     useState<import("@openreel/core").MaskEngine | null>(null);
+
+  // Gather all clips on the timeline as potential matte sources.
+  // We collect from regular tracks (video/audio/image/graphics) and
+  // also the text clip pool. The audio tracks aren't visually useful
+  // as a matte source but we leave them in the list so the user isn't
+  // surprised by silent filtering — they can pick whatever they want.
+  const matteSourceOptions = useMemo(() => {
+    const opts: MatteSourceOption[] = [];
+    for (const track of project.timeline.tracks) {
+      for (const c of track.clips) {
+        const mediaName =
+          project.mediaLibrary.items.find((m) => m.id === c.mediaId)?.name ??
+          c.mediaId.slice(0, 8);
+        opts.push({
+          id: c.id,
+          label: `${track.name} • ${mediaName}`,
+        });
+      }
+    }
+    try {
+      for (const t of getAllTextClips()) {
+        opts.push({
+          id: t.id,
+          label: `Text • "${t.text.slice(0, 20)}${t.text.length > 20 ? "…" : ""}"`,
+        });
+      }
+    } catch {
+      /* getAllTextClips may not be available for some clip contexts */
+    }
+    return opts;
+  }, [project, getAllTextClips]);
 
   useEffect(() => {
     let cancelled = false;
@@ -221,6 +352,62 @@ export const MaskSection: React.FC<MaskSectionProps> = ({ clipId }) => {
     if (!maskEngine) return [];
     return maskEngine.getMasksForClip(clipId);
   }, [maskEngine, clipId, refreshKey]);
+
+  // Keep track-matte mask paths in sync with their source clip's
+  // transform. We re-derive the path whenever the project changes —
+  // simple "bounds" mode only for now; alpha/luminance modes require
+  // a deeper render-pipeline integration that's tracked separately.
+  useEffect(() => {
+    if (!maskEngine) return;
+    const trackMattes = masks.filter((m) => m.type === "track-matte");
+    if (trackMattes.length === 0) return;
+    let didChange = false;
+    for (const mask of trackMattes) {
+      if (!mask.sourceClipId) continue;
+      // Find source clip's transform across regular and text clips.
+      let transform:
+        | { position: { x: number; y: number }; scale: { x: number; y: number } }
+        | null = null;
+      for (const track of project.timeline.tracks) {
+        const c = track.clips.find((cc) => cc.id === mask.sourceClipId);
+        if (c) {
+          transform = {
+            position: c.transform.position,
+            scale: c.transform.scale,
+          };
+          break;
+        }
+      }
+      if (!transform) {
+        try {
+          const texts = getAllTextClips();
+          const tc = texts.find((t) => t.id === mask.sourceClipId);
+          if (tc) {
+            transform = {
+              position: tc.transform.position,
+              scale: tc.transform.scale,
+            };
+          }
+        } catch {
+          /* ignore */
+        }
+      }
+      if (!transform) continue;
+      const nextPath = boundsPathFromTransform(transform);
+      const prev = mask.path;
+      // Cheap stringify-equality check — paths are tiny.
+      if (JSON.stringify(prev) !== JSON.stringify(nextPath)) {
+        maskEngine.updateMaskPath(mask.id, nextPath);
+        didChange = true;
+      }
+    }
+    if (didChange) {
+      // Don't tick the project modifiedAt here — this is a derived
+      // refresh, not a user edit. We only bump refreshKey locally so
+      // the inspector re-renders.
+      setRefreshKey((k) => k + 1);
+    }
+  }, [maskEngine, masks, project, getAllTextClips]);
 
   const triggerRefresh = useCallback(() => {
     setRefreshKey((k) => k + 1);
@@ -333,6 +520,33 @@ export const MaskSection: React.FC<MaskSectionProps> = ({ clipId }) => {
     [maskEngine, triggerRefresh],
   );
 
+  const handleAddTrackMatte = useCallback(() => {
+    if (!maskEngine) return;
+    // Default to the first available source clip that isn't ourselves.
+    const firstAvailable = matteSourceOptions.find((o) => o.id !== clipId);
+    const mask = maskEngine.createTrackMatteMask(
+      clipId,
+      firstAvailable?.id ?? "",
+      "bounds",
+    );
+    setSelectedMaskId(mask.id);
+    setExpandedMasks((prev) => new Set([...prev, mask.id]));
+    triggerRefresh();
+  }, [maskEngine, clipId, matteSourceOptions, triggerRefresh]);
+
+  const handleSetMatteSource = useCallback(
+    (
+      maskId: string,
+      sourceClipId: string,
+      matteSource: "alpha" | "luminance" | "bounds",
+    ) => {
+      if (!maskEngine) return;
+      maskEngine.setMatteSource(maskId, sourceClipId, matteSource);
+      triggerRefresh();
+    },
+    [maskEngine, triggerRefresh],
+  );
+
   const toggleMaskExpanded = (maskId: string) => {
     setExpandedMasks((prev) => {
       const next = new Set(prev);
@@ -375,7 +589,7 @@ export const MaskSection: React.FC<MaskSectionProps> = ({ clipId }) => {
             Add Mask Shape
           </span>
         </div>
-        <div className="grid grid-cols-4 gap-1">
+        <div className="grid grid-cols-5 gap-1">
           {MASK_SHAPES.map((shape) => {
             const Icon = shape.icon;
             return (
@@ -397,6 +611,14 @@ export const MaskSection: React.FC<MaskSectionProps> = ({ clipId }) => {
           >
             <Pen size={14} className="text-text-secondary" />
             <span className="text-[8px] text-text-muted">Freehand</span>
+          </button>
+          <button
+            onClick={handleAddTrackMatte}
+            className="flex flex-col items-center gap-1 p-2 rounded-lg bg-background-tertiary hover:bg-primary/20 border border-transparent hover:border-primary/30 transition-colors"
+            title="Use another clip as a track matte (Premiere-style object masking)"
+          >
+            <Layers size={14} className="text-text-secondary" />
+            <span className="text-[8px] text-text-muted">Track Matte</span>
           </button>
         </div>
       </div>
@@ -423,6 +645,8 @@ export const MaskSection: React.FC<MaskSectionProps> = ({ clipId }) => {
                 mask={mask}
                 isSelected={selectedMaskId === mask.id}
                 isExpanded={expandedMasks.has(mask.id)}
+                matteSourceOptions={matteSourceOptions}
+                ownClipId={clipId}
                 onSelect={() => setSelectedMaskId(mask.id)}
                 onToggleExpand={() => toggleMaskExpanded(mask.id)}
                 onDelete={() => handleDeleteMask(mask.id)}
@@ -431,6 +655,9 @@ export const MaskSection: React.FC<MaskSectionProps> = ({ clipId }) => {
                 onUpdateExpansion={(v) => handleUpdateExpansion(mask.id, v)}
                 onUpdateOpacity={(v) => handleUpdateOpacity(mask.id, v)}
                 onToggleInvert={() => handleToggleInvert(mask.id)}
+                onSetMatteSource={(srcId, channel) =>
+                  handleSetMatteSource(mask.id, srcId, channel)
+                }
               />
             ))}
           </div>

@@ -206,34 +206,36 @@ export const getTrackInfo = (track: Track, index: number): TrackInfo => {
 };
 
 export const getClipStyle = (trackType: string): ClipStyle => {
+  // Clip palette matches the v2 mockup: video=cyan, audio=emerald,
+  // image=purple/music, text=amber.
   switch (trackType) {
     case "video":
       return {
-        bg: "bg-primary/10",
-        border: "border-primary/30",
+        bg: "bg-cyan-600/25",
+        border: "border-cyan-500/60",
         text: "text-white/90",
         selectedText: "text-white",
       };
     case "audio":
       return {
-        bg: "bg-blue-500/10",
-        border: "border-blue-500/30",
-        text: "text-text-secondary",
-        selectedText: "text-blue-400",
+        bg: "bg-emerald-600/25",
+        border: "border-emerald-500/60",
+        text: "text-white/85",
+        selectedText: "text-white",
       };
     case "image":
       return {
-        bg: "bg-purple-500/10",
-        border: "border-purple-500/30",
-        text: "text-purple-300",
-        selectedText: "text-purple-400",
+        bg: "bg-violet-600/25",
+        border: "border-violet-500/60",
+        text: "text-white/85",
+        selectedText: "text-white",
       };
     default:
       return {
-        bg: "bg-gray-500/10",
-        border: "border-gray-500/30",
-        text: "text-text-secondary",
-        selectedText: "text-text-primary",
+        bg: "bg-bg-2",
+        border: "border-border-strong",
+        text: "text-fg-2",
+        selectedText: "text-fg",
       };
   }
 };

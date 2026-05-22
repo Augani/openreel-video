@@ -603,14 +603,17 @@ export const renderTextClipToCanvas = (
     };
   }
 
-  // 3D transforms or blend modes require THREE.js rendering since Canvas 2D can't support them
-  // This ensures proper perspective and blending that Canvas 2D doesn't natively support
+  // 3D transforms, 3D extrusion, or blend modes require THREE.js
+  // rendering since Canvas 2D can't support them. This ensures proper
+  // perspective, depth, and blending that Canvas 2D doesn't natively
+  // support.
   const has3DTransforms =
     transform.rotate3d &&
     (transform.rotate3d.x !== 0 || transform.rotate3d.y !== 0);
   const hasBlendMode = textClip.blendMode && textClip.blendMode !== "normal";
+  const has3DText = textClip.text3d?.enabled === true;
 
-  if (has3DTransforms || hasBlendMode) {
+  if (has3DTransforms || hasBlendMode || has3DText) {
     // Lazy-initialize THREE.js renderer (reused for all 3D text rendering)
     if (!threeJSRenderer) {
       threeJSRenderer = new ThreeJSLayerRenderer(canvasWidth, canvasHeight);
@@ -1515,8 +1518,13 @@ export const renderShapeClipToCanvas = (
       transformedClip.transform.rotate3d.y !== 0);
   const hasBlendMode =
     transformedClip.blendMode && transformedClip.blendMode !== "normal";
+  // Mesh-primitive shapes are inherently 3D, so always route them
+  // through the THREE pipeline, even without an explicit rotation.
+  const isShape3D =
+    transformedClip.type === "shape" &&
+    (transformedClip as ShapeClip).shapeType.startsWith("mesh-");
 
-  if (has3DTransforms || hasBlendMode) {
+  if (has3DTransforms || hasBlendMode || isShape3D) {
     if (!threeJSRenderer) {
       threeJSRenderer = new ThreeJSLayerRenderer(canvasWidth, canvasHeight);
     }
@@ -1530,7 +1538,7 @@ export const renderShapeClipToCanvas = (
 
     threeJSRenderer.clear();
 
-    let mesh: THREE.Mesh | null = null;
+    let mesh: THREE.Mesh | THREE.Group | null = null;
     if (transformedClip.type === "svg") {
       mesh = threeJSRenderer.renderSVGClip(
         transformedClip as SVGClip,

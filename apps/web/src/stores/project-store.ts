@@ -274,6 +274,10 @@ export interface ProjectState {
     clipId: string,
     behindSubject: boolean,
   ) => TextClip | null;
+  updateText3D: (
+    clipId: string,
+    text3d: import("@openreel/core").Text3DSettings | undefined,
+  ) => TextClip | null;
   getTextClip: (clipId: string) => TextClip | undefined;
   getAllTextClips: () => TextClip[];
   updateTextClipKeyframes: (
@@ -4400,6 +4404,22 @@ export const useProjectStore = create<ProjectState>()(
         const updatedClip = titleEngine.updateTextClip(clipId, {
           behindSubject,
         });
+        if (updatedClip) {
+          set({ project: { ...get().project, modifiedAt: Date.now() } });
+        }
+        return updatedClip || null;
+      },
+
+      updateText3D: (
+        clipId: string,
+        text3d: import("@openreel/core").Text3DSettings | undefined,
+      ) => {
+        const titleEngine = useEngineStore.getState().getTitleEngine();
+        if (!titleEngine) {
+          console.error("TitleEngine not initialized");
+          return null;
+        }
+        const updatedClip = titleEngine.updateTextClip(clipId, { text3d });
         if (updatedClip) {
           set({ project: { ...get().project, modifiedAt: Date.now() } });
         }

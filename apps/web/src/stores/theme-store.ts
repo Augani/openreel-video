@@ -36,8 +36,10 @@ export const useThemeStore = create<ThemeState>()(
 
         if (isDark) {
           document.documentElement.classList.add("dark");
+          document.documentElement.dataset.theme = "dark";
         } else {
           document.documentElement.classList.remove("dark");
+          document.documentElement.dataset.theme = "light";
         }
       },
 
@@ -60,8 +62,10 @@ export const useThemeStore = create<ThemeState>()(
           state.isDark = isDark;
           if (isDark) {
             document.documentElement.classList.add("dark");
+            document.documentElement.dataset.theme = "dark";
           } else {
             document.documentElement.classList.remove("dark");
+            document.documentElement.dataset.theme = "light";
           }
         }
       },
@@ -80,8 +84,10 @@ if (typeof window !== "undefined") {
 
       if (isDark) {
         document.documentElement.classList.add("dark");
+        document.documentElement.dataset.theme = "dark";
       } else {
         document.documentElement.classList.remove("dark");
+        document.documentElement.dataset.theme = "light";
       }
     }
   });

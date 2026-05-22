@@ -7,6 +7,8 @@ interface PlayheadProps {
   headerOffset: number;
 }
 
+// Mockup playhead: thin accent vertical line with a downward triangle at the
+// top. Color comes from --accent so it tracks the active theme.
 export const Playhead: React.FC<PlayheadProps> = ({
   position,
   pixelsPerSecond,
@@ -23,24 +25,31 @@ export const Playhead: React.FC<PlayheadProps> = ({
       style={{
         left: headerOffset,
         transform: `translateX(${pixelPosition}px)`,
-        willChange: 'transform',
+        willChange: "transform",
       }}
     >
-      <div className="absolute -translate-x-1/2" style={{ top: '-1px' }}>
-        <svg
-          width="13"
-          height="14"
-          viewBox="0 0 13 14"
-          fill="none"
-          xmlns="http://www.w3.org/2000/svg"
-          className="drop-shadow-[0_0_8px_rgba(34,197,94,0.8)]"
-        >
-          <path d="M0.5 0H12.5V8L6.5 14L0.5 8V0Z" fill="#22c55e" />
-        </svg>
-      </div>
+      {/* triangle marker at the top — accent-colored */}
       <div
-        className="absolute w-px bg-primary shadow-[0_0_10px_#22c55e]"
-        style={{ top: '13px', bottom: 0, left: 0 }}
+        className="absolute -translate-x-1/2"
+        style={{
+          top: -1,
+          width: 0,
+          height: 0,
+          borderLeft: "6px solid transparent",
+          borderRight: "6px solid transparent",
+          borderTop: "9px solid var(--accent)",
+        }}
+      />
+      {/* vertical line below the triangle */}
+      <div
+        className="absolute"
+        style={{
+          top: 8,
+          bottom: 0,
+          left: 0,
+          width: "1.5px",
+          background: "var(--accent)",
+        }}
       />
     </div>
   );

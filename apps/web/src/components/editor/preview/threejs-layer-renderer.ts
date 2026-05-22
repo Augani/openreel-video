@@ -1,4 +1,6 @@
 import * as THREE from "three";
+import { TextGeometry } from "three/examples/jsm/geometries/TextGeometry.js";
+import { FontLoader, type Font } from "three/examples/jsm/loaders/FontLoader.js";
 import type {
   TextClip,
   Transform,
@@ -7,6 +9,82 @@ import type {
   StickerClip,
 } from "@openreel/core";
 import type { BlendMode } from "@openreel/core";
+
+// ─── 3D text font cache ──────────────────────────────────────────
+// FontLoader is async but the render pipeline is sync. We resolve the
+// font once per URL, cache the result, and let callers fall back to
+// the 2D canvas pipeline until the font becomes available.
+const FONT_CACHE = new Map<string, Font>();
+const FONT_LOADING = new Map<string, Promise<Font>>();
+
+const DEFAULT_3D_FONT_URL = "/fonts/helvetiker_regular.typeface.json";
+const DEFAULT_3D_BOLD_FONT_URL = "/fonts/helvetiker_bold.typeface.json";
+
+/** Darken a #rrggbb / #rgb color toward black by `amount` (0..1).
+ *  Used as a sensible default for the extruded "side" face when the
+ *  user hasn't picked an explicit side color. */
+function darkenHex(hex: string, amount: number): string {
+  let h = hex.replace("#", "");
+  if (h.length === 3) {
+    h = h
+      .split("")
+      .map((c) => c + c)
+      .join("");
+  }
+  if (h.length !== 6) return hex;
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  const factor = Math.max(0, 1 - amount);
+  const dr = Math.round(r * factor);
+  const dg = Math.round(g * factor);
+  const db = Math.round(b * factor);
+  return `#${dr.toString(16).padStart(2, "0")}${dg.toString(16).padStart(2, "0")}${db.toString(16).padStart(2, "0")}`;
+}
+
+function pick3DFontUrl(textClip: TextClip): string {
+  const fw = textClip.style.fontWeight;
+  const isBold = fw === "bold" || (typeof fw === "number" && fw >= 600);
+  return isBold ? DEFAULT_3D_BOLD_FONT_URL : DEFAULT_3D_FONT_URL;
+}
+
+/**
+ * Returns a parsed Font synchronously if it has already been loaded,
+ * otherwise undefined. Triggers a background load on miss; the next
+ * frame after it resolves will pick it up. The optional onReady
+ * callback lets the caller request a re-render.
+ */
+export function get3DFont(
+  url: string,
+  onReady?: () => void,
+): Font | undefined {
+  const cached = FONT_CACHE.get(url);
+  if (cached) return cached;
+  if (!FONT_LOADING.has(url)) {
+    const loader = new FontLoader();
+    const promise = new Promise<Font>((resolve, reject) => {
+      loader.load(
+        url,
+        (font) => {
+          FONT_CACHE.set(url, font);
+          FONT_LOADING.delete(url);
+          if (onReady) onReady();
+          resolve(font);
+        },
+        undefined,
+        (err) => {
+          FONT_LOADING.delete(url);
+          reject(err);
+        },
+      );
+    });
+    FONT_LOADING.set(url, promise);
+    promise.catch(() => {
+      /* font load failure is non-fatal — we fall back to 2D */
+    });
+  }
+  return undefined;
+}
 
 // Map CSS blend modes to THREE.js blending constants
 // Note: THREE.js only supports a subset of blend modes, so some CSS modes are approximated
@@ -65,6 +143,22 @@ export class ThreeJSLayerRenderer {
       2000,
     );
     this.camera.position.z = 1000;
+
+    // Add ambient + directional lights so MeshPhysicalMaterial-based
+    // 3D text gets sensible shading. These have no effect on the
+    // BasicMaterial-backed 2D layers.
+    const ambient = new THREE.AmbientLight(0xffffff, 0.7);
+    this.scene.add(ambient);
+    const directional = new THREE.DirectionalLight(0xffffff, 0.6);
+    directional.position.set(0.5, 1, 1).normalize().multiplyScalar(500);
+    this.scene.add(directional);
+  }
+
+  /** Callback the host can register so we can request a re-render
+   *  when a 3D font has finished loading. */
+  private _onFontReady: (() => void) | null = null;
+  setFontReadyCallback(cb: (() => void) | null) {
+    this._onFontReady = cb;
   }
 
   resize(width: number, height: number) {
@@ -137,7 +231,7 @@ export class ThreeJSLayerRenderer {
   }
 
   applyTransform(
-    mesh: THREE.Mesh,
+    mesh: THREE.Object3D,
     transform: Transform,
     _canvasWidth: number,
     _canvasHeight: number,
@@ -183,7 +277,27 @@ export class ThreeJSLayerRenderer {
     textClip: TextClip,
     _canvasWidth: number,
     _canvasHeight: number,
-  ): THREE.Mesh | null {
+  ): THREE.Mesh | THREE.Group | null {
+    // 3D extrusion path — only when explicitly enabled AND the font
+    // for the clip's weight is already cached. Otherwise fall through
+    // to the 2D canvas-textured plane so the user still sees
+    // something while the font loads in the background.
+    if (textClip.text3d?.enabled) {
+      const fontUrl = pick3DFontUrl(textClip);
+      const font = get3DFont(fontUrl, () => {
+        if (this._onFontReady) this._onFontReady();
+      });
+      if (font) {
+        const mesh = this.buildText3DMesh(
+          textClip,
+          font,
+          _canvasWidth,
+          _canvasHeight,
+        );
+        if (mesh) return mesh;
+      }
+    }
+
     const texture = this.createTextTexture(
       textClip,
       _canvasWidth,
@@ -211,6 +325,107 @@ export class ThreeJSLayerRenderer {
     return mesh;
   }
 
+  /**
+   * Build a 3D-extruded text Group sized to match the host canvas.
+   * Returns null on geometry/font errors (caller falls back to 2D).
+   */
+  private buildText3DMesh(
+    textClip: TextClip,
+    font: Font,
+    canvasWidth: number,
+    canvasHeight: number,
+  ): THREE.Group | null {
+    try {
+      const settings = textClip.text3d!;
+      const fontSize = textClip.style.fontSize;
+      const depth = Math.max(1, settings.depth);
+      const bevelEnabled = settings.bevelThickness > 0 || settings.bevelSize > 0;
+
+      const lines = textClip.text.split("\n");
+      const lineHeight = fontSize * textClip.style.lineHeight;
+      const group = new THREE.Group();
+
+      // Build a geometry per line so multi-line text is laid out by
+      // line-height; bake center alignment by shifting along X using
+      // the computed bounding box.
+      lines.forEach((line, index) => {
+        if (!line) return;
+        const geometry = new TextGeometry(line, {
+          font,
+          size: fontSize,
+          depth,
+          curveSegments: 4,
+          bevelEnabled,
+          bevelThickness: settings.bevelThickness,
+          bevelSize: settings.bevelSize,
+          bevelSegments: Math.max(1, settings.bevelSegments),
+          bevelOffset: 0,
+        });
+        geometry.computeBoundingBox();
+        const bbox = geometry.boundingBox;
+        const textWidth = bbox ? bbox.max.x - bbox.min.x : 0;
+        // Center horizontally based on alignment
+        let xOffset = 0;
+        if (textClip.style.textAlign === "center") {
+          xOffset = -textWidth / 2;
+        } else if (textClip.style.textAlign === "right") {
+          xOffset = -textWidth;
+        }
+        geometry.translate(
+          xOffset,
+          -index * lineHeight + ((lines.length - 1) * lineHeight) / 2,
+          -depth / 2,
+        );
+
+        const front = settings.frontColor ?? textClip.style.color;
+        const side = settings.sideColor ?? darkenHex(front, 0.6);
+
+        let frontMat: THREE.Material;
+        let sideMat: THREE.Material;
+        if (settings.material === "physical") {
+          frontMat = new THREE.MeshStandardMaterial({
+            color: new THREE.Color(front),
+            metalness: settings.metalness ?? 0.4,
+            roughness: settings.roughness ?? 0.45,
+          });
+          sideMat = new THREE.MeshStandardMaterial({
+            color: new THREE.Color(side),
+            metalness: settings.metalness ?? 0.4,
+            roughness: settings.roughness ?? 0.45,
+          });
+        } else {
+          frontMat = new THREE.MeshBasicMaterial({
+            color: new THREE.Color(front),
+          });
+          sideMat = new THREE.MeshBasicMaterial({
+            color: new THREE.Color(side),
+          });
+        }
+        const mesh = new THREE.Mesh(geometry, [frontMat, sideMat]);
+        group.add(mesh);
+      });
+
+      this.applyTransform(group, textClip.transform, canvasWidth, canvasHeight);
+      // Make the 3D text honor the clip-level opacity by setting it on
+      // each child material.
+      group.traverse((obj) => {
+        if (obj instanceof THREE.Mesh) {
+          const materials = Array.isArray(obj.material)
+            ? obj.material
+            : [obj.material];
+          for (const m of materials) {
+            (m as THREE.Material).transparent = true;
+            (m as THREE.Material).opacity = textClip.transform.opacity;
+          }
+        }
+      });
+      return group;
+    } catch (err) {
+      console.error("[ThreeJSLayerRenderer] 3D text build failed:", err);
+      return null;
+    }
+  }
+
   createCanvasTexture(
     renderFn: (ctx: CanvasRenderingContext2D) => void,
     width: number,
@@ -228,12 +443,89 @@ export class ThreeJSLayerRenderer {
     return texture;
   }
 
-  renderShapeClip(
+  /**
+   * Build a 3D-primitive mesh (cube / sphere / torus / cone / etc.)
+   * sized relative to the host canvas. Honors transform (including
+   * rotate3d) and fill color; uses MeshStandardMaterial when the user
+   * has selected a "physical" material kind so scene lights show.
+   */
+  private buildShape3DMesh(
     shapeClip: ShapeClip,
     canvasWidth: number,
     canvasHeight: number,
   ): THREE.Mesh | null {
     const { shapeType, style, transform } = shapeClip;
+    // Base size: same "15% of min(W,H)" used by the 2D shape renderer
+    // so 2D ↔ 3D toggles don't surprise the user with size jumps.
+    const baseSize = Math.min(canvasWidth, canvasHeight) * 0.15;
+
+    let geometry: THREE.BufferGeometry;
+    switch (shapeType) {
+      case "mesh-cube":
+        geometry = new THREE.BoxGeometry(baseSize, baseSize, baseSize);
+        break;
+      case "mesh-sphere":
+        geometry = new THREE.SphereGeometry(baseSize / 2, 32, 32);
+        break;
+      case "mesh-torus":
+        geometry = new THREE.TorusGeometry(
+          baseSize / 2,
+          baseSize / 6,
+          16,
+          48,
+        );
+        break;
+      case "mesh-cone":
+        geometry = new THREE.ConeGeometry(baseSize / 2, baseSize, 32);
+        break;
+      case "mesh-cylinder":
+        geometry = new THREE.CylinderGeometry(
+          baseSize / 2,
+          baseSize / 2,
+          baseSize,
+          32,
+        );
+        break;
+      case "mesh-icosahedron":
+        geometry = new THREE.IcosahedronGeometry(baseSize / 2, 0);
+        break;
+      default:
+        return null;
+    }
+
+    const color = style.fill?.color ?? "#3b82f6";
+    const mat3d = style.material3d;
+    const kind = mat3d?.kind ?? "physical";
+    const material =
+      kind === "physical"
+        ? new THREE.MeshStandardMaterial({
+            color: new THREE.Color(color),
+            metalness: mat3d?.metalness ?? 0.3,
+            roughness: mat3d?.roughness ?? 0.5,
+            transparent: true,
+            opacity: transform.opacity,
+          })
+        : new THREE.MeshBasicMaterial({
+            color: new THREE.Color(color),
+            transparent: true,
+            opacity: transform.opacity,
+          });
+
+    const mesh = new THREE.Mesh(geometry, material);
+    this.applyTransform(mesh, transform, canvasWidth, canvasHeight);
+    return mesh;
+  }
+
+  renderShapeClip(
+    shapeClip: ShapeClip,
+    canvasWidth: number,
+    canvasHeight: number,
+  ): THREE.Mesh | THREE.Group | null {
+    const { shapeType, style, transform } = shapeClip;
+
+    if (shapeType.startsWith("mesh-")) {
+      return this.buildShape3DMesh(shapeClip, canvasWidth, canvasHeight);
+    }
 
     const texture = this.createCanvasTexture(
       (ctx) => {

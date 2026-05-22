@@ -146,7 +146,17 @@ export type ShapeType =
   | "arrow"
   | "line"
   | "polygon"
-  | "star";
+  | "star"
+  // 3D primitives — these render via THREE.js geometry instead of
+  // Canvas 2D. They honor the ShapeClip transform (position, scale,
+  // rotation, rotate3d) and fill color, and support metalness/roughness
+  // via style.material3d.
+  | "mesh-cube"
+  | "mesh-sphere"
+  | "mesh-torus"
+  | "mesh-cone"
+  | "mesh-cylinder"
+  | "mesh-icosahedron";
 
 export interface ShapeStyle {
   readonly fill: FillStyle;
@@ -155,6 +165,15 @@ export interface ShapeStyle {
   readonly cornerRadius?: number; // For rectangles
   readonly points?: number; // For stars (number of points)
   readonly innerRadius?: number; // For stars (inner radius ratio 0-1)
+  /** Material parameters used when ShapeType is one of the mesh-*
+   *  3D primitives. Ignored for 2D shapes. */
+  readonly material3d?: Material3DStyle;
+}
+
+export interface Material3DStyle {
+  readonly kind: "basic" | "physical";
+  readonly metalness?: number;
+  readonly roughness?: number;
 }
 
 export interface FillStyle {

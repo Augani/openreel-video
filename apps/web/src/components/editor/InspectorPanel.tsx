@@ -909,24 +909,82 @@ export const InspectorPanel: React.FC = () => {
     clipType === "svg" ||
     clipType === "sticker";
 
+  // Inspector tab anchors. Each tab scrolls the body to a section with
+  // the matching data-inspector-tab="<id>" attribute. AI Stylize is
+  // permanently visible — it has its own dedicated panel via the
+  // inspector AIGenTab.
+  const inspectorTabs: Array<{ id: string; label: string; ai?: boolean }> = [
+    { id: "video", label: "Video" },
+    { id: "audio", label: "Audio" },
+    { id: "speed", label: "Speed" },
+    { id: "animation", label: "Animation", ai: true },
+    { id: "adjust", label: "Adjust" },
+    { id: "ai-stylize", label: "AI stylize" },
+  ];
+  const [activeInspectorTab, setActiveInspectorTab] = useState<string>("video");
+  const inspectorBodyRef = useRef<HTMLDivElement>(null);
+
+  const scrollToInspectorTab = useCallback(
+    (id: string) => {
+      setActiveInspectorTab(id);
+      const root = inspectorBodyRef.current;
+      if (!root) return;
+      const target = root.querySelector<HTMLElement>(
+        `[data-inspector-tab="${id}"]`,
+      );
+      if (target) {
+        target.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    },
+    [],
+  );
+
   return (
     <div
       data-tour="inspector"
-      className="w-full min-w-0 bg-background-secondary border-l border-border flex flex-col overflow-y-auto h-full custom-scrollbar"
+      className="w-full min-w-0 bg-bg-1 flex flex-col h-full"
     >
-      <div className="p-5">
-        <h3 className="text-sm font-bold text-text-primary mb-5 tracking-tight">
-          Inspector
-        </h3>
+      {/* ── Inspector tab strip (mockup style) ────────────────── */}
+      <div className="flex items-center px-3.5 py-2 border-b border-border gap-3.5 min-h-[38px] overflow-x-auto scrollbar-none shrink-0">
+        {inspectorTabs.map((t) => (
+          <button
+            key={t.id}
+            onClick={() => scrollToInspectorTab(t.id)}
+            className={`text-[12.5px] font-medium whitespace-nowrap flex items-center gap-1 transition-colors ${
+              activeInspectorTab === t.id
+                ? "text-accent"
+                : "text-fg-3 hover:text-fg"
+            }`}
+          >
+            <span>{t.label}</span>
+            {t.ai && (
+              <span className="w-3 h-3 rounded-sm inline-block bg-gradient-to-br from-purple-400 to-blue-400" />
+            )}
+          </button>
+        ))}
+        {selectedClip && (
+          <>
+            <span className="ml-auto w-px h-3.5 bg-border" />
+            <span className="text-[11px] text-fg-3 font-mono">
+              {selectedClip.duration.toFixed(2)}s
+            </span>
+          </>
+        )}
+      </div>
 
+      <div
+        ref={inspectorBodyRef}
+        className="overflow-y-auto flex-1 min-h-0 pb-3.5 custom-scrollbar"
+      >
+      <div className="px-4 pt-3">
         {selectedClip ? (
           <>
             {/* Clip Info */}
-            <div className="mb-4 p-3 bg-background-tertiary rounded-lg border border-border">
-              <p className="text-xs text-text-primary font-medium truncate">
-                {selectedClip.id.substring(0, 20)}...
+            <div className="mb-3 p-2.5 bg-bg-2 rounded-md border border-border">
+              <p className="text-[11.5px] text-fg font-medium truncate">
+                {selectedClip.id.substring(0, 20)}…
               </p>
-              <p className="text-[10px] text-text-muted">
+              <p className="text-[10px] text-fg-muted mt-0.5">
                 Duration: {selectedClip.duration.toFixed(2)}s
               </p>
             </div>
@@ -1079,6 +1137,8 @@ export const InspectorPanel: React.FC = () => {
             )}
 
             {clipType === "video" && (
+              <>
+              <div data-inspector-tab="ai-stylize" />
               <Section title="AI Auto-Captions" sectionId="auto-captions" defaultOpen={false}>
                 <div className="space-y-3">
                   <input
@@ -1191,6 +1251,7 @@ export const InspectorPanel: React.FC = () => {
                   </button>
                 </div>
               </Section>
+              </>
             )}
 
             {clipType === "video" && (
@@ -1234,6 +1295,8 @@ export const InspectorPanel: React.FC = () => {
 
             {/* Transform */}
             {showTransformControls && (
+              <>
+              <div data-inspector-tab="video" />
               <Section title="Transform" sectionId="transform">
                 <div className="space-y-3">
                   <LabeledSlider
@@ -1353,6 +1416,7 @@ export const InspectorPanel: React.FC = () => {
                   )}
                 </div>
               </Section>
+              </>
             )}
 
             {/* Crop */}
@@ -1374,6 +1438,8 @@ export const InspectorPanel: React.FC = () => {
               !selectedClip.mediaId.startsWith("shape-") &&
               !selectedClip.mediaId.startsWith("svg-") &&
               !selectedClip.mediaId.startsWith("sticker-") && (
+                <>
+                <div data-inspector-tab="speed" />
                 <Section
                   title="Speed & Direction"
                   sectionId="speed"
@@ -1381,6 +1447,7 @@ export const InspectorPanel: React.FC = () => {
                 >
                   <SpeedSection clip={selectedClip as Clip} />
                 </Section>
+                </>
               )}
 
             {/* Stabilization */}
@@ -1464,6 +1531,7 @@ export const InspectorPanel: React.FC = () => {
             )}
 
             {/* Keyframes - Using KeyframeEngine */}
+            <div data-inspector-tab="animation" />
             <Section title="Keyframes" sectionId="keyframes">
               <KeyframesSection clipId={clipId} />
             </Section>
@@ -1643,6 +1711,8 @@ export const InspectorPanel: React.FC = () => {
             )}
 
             {showColorGrading && (
+              <>
+              <div data-inspector-tab="adjust" />
               <Section
                 title="Color Grading"
                 sectionId="color-grading"
@@ -1650,6 +1720,7 @@ export const InspectorPanel: React.FC = () => {
               >
                 <ColorGradingSection clipId={clipId} />
               </Section>
+              </>
             )}
 
             {showAudioEffects && (
@@ -1663,6 +1734,8 @@ export const InspectorPanel: React.FC = () => {
             )}
 
             {showAudioEffects && (
+              <>
+              <div data-inspector-tab="audio" />
               <Section
                 title="Audio Effects"
                 sectionId="audio-effects"
@@ -1670,6 +1743,7 @@ export const InspectorPanel: React.FC = () => {
               >
                 <AudioEffectsSection clipId={clipId} />
               </Section>
+              </>
             )}
 
             {showAudioEffects && (
@@ -2185,6 +2259,7 @@ export const InspectorPanel: React.FC = () => {
         ) : (
           <EmptyState />
         )}
+      </div>
       </div>
     </div>
   );

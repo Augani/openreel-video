@@ -35,6 +35,8 @@ export interface UpdateTextClipOptions {
   emphasisAnimation?: import("../graphics/types").EmphasisAnimation;
   behindSubject?: boolean;
   metadata?: ClipMetadata;
+  /** Set or unset 3D extrusion settings for the text. */
+  text3d?: import("./types").Text3DSettings | undefined;
 }
 
 export class TitleEngine {
@@ -131,6 +133,7 @@ export class TitleEngine {
       behindSubject:
         updates.behindSubject ?? existing.behindSubject,
       metadata: updates.metadata ?? existing.metadata,
+      text3d: "text3d" in updates ? updates.text3d : existing.text3d,
     };
 
     this.textClips.set(id, updatedClip);

@@ -1,12 +1,19 @@
-import React, { useRef, useState, useEffect } from "react";
+import React, { useRef, useState, useEffect, useCallback } from "react";
 import { Image } from "lucide-react";
-import type { Clip, Track } from "@openreel/core";
+import type { Clip, Track, TransitionType } from "@openreel/core";
 import { useProjectStore } from "../../../stores/project-store";
 import { useUIStore } from "../../../stores/ui-store";
 import { useTimelineStore } from "../../../stores/timeline-store";
 import { calculateSnap, generateWaveformPath, getClipStyle } from "./utils";
 import { ClipContextMenu } from "./ClipContextMenu";
 import { ContextMenu, ContextMenuTrigger } from "@openreel/ui";
+import { toast } from "../../../stores/notification-store";
+import { getTransitionBridge } from "../../../bridges/transition-bridge";
+import type { VideoEffectType } from "../../../bridges/effects-bridge";
+import {
+  EFFECT_DRAG_MIME,
+  TRANSITION_DRAG_MIME,
+} from "../panels/EffectsTransitionsPanel";
 
 interface ClipComponentProps {
   clip: Clip;
@@ -93,6 +100,13 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
   });
   const clipRef = useRef<HTMLDivElement>(null);
 
+  // Drag-drop highlight state: "effect" when an effect is hovered over
+  // the clip body, "transition-left" / "transition-right" when a
+  // transition is hovered over one of the clip's edges.
+  const [dragHover, setDragHover] = useState<
+    "effect" | "transition-left" | "transition-right" | null
+  >(null);
+
   const left = clip.startTime * pixelsPerSecond;
   const width = clip.duration * pixelsPerSecond;
 
@@ -150,6 +164,184 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
       multiDragSnapshotRef.current = [];
     }
   };
+
+  // ── Drag-drop: effects & transitions from the assets panel ────
+  // The asset cards set custom MIME types so we know which mode to use.
+  // For effects the drop hits anywhere on the clip body. For transitions
+  // we treat the outer ~25% of the clip's width as an "edge zone" — the
+  // closer edge wins, and we map left edge → incoming, right edge →
+  // outgoing transition.
+  const readDragKind = (e: React.DragEvent): "effect" | "transition" | null => {
+    const types = e.dataTransfer.types;
+    if (types.includes(EFFECT_DRAG_MIME)) return "effect";
+    if (types.includes(TRANSITION_DRAG_MIME)) return "transition";
+    // text/plain fallback (some browsers don't preserve custom types)
+    if (types.includes("text/plain")) {
+      // Can't read data during dragover; trust the parsed kind by
+      // payload sniffing on drop. We optimistically allow both here.
+      return null;
+    }
+    return null;
+  };
+
+  const computeTransitionEdge = useCallback(
+    (e: React.DragEvent): "transition-left" | "transition-right" => {
+      const rect = clipRef.current?.getBoundingClientRect();
+      if (!rect) return "transition-right";
+      const ratio = (e.clientX - rect.left) / rect.width;
+      return ratio < 0.5 ? "transition-left" : "transition-right";
+    },
+    [],
+  );
+
+  const handleDragOver = useCallback(
+    (e: React.DragEvent<HTMLDivElement>) => {
+      const kind = readDragKind(e);
+      if (kind === null) {
+        // Don't preventDefault — let other handlers (e.g. timeline file
+        // drop) take over.
+        return;
+      }
+      e.preventDefault();
+      e.stopPropagation();
+      e.dataTransfer.dropEffect = "copy";
+      if (kind === "effect") {
+        setDragHover("effect");
+      } else {
+        setDragHover(computeTransitionEdge(e));
+      }
+    },
+    [computeTransitionEdge],
+  );
+
+  const handleDragLeave = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    // Only clear when the pointer actually exits the clip — dragleave
+    // fires on every child too.
+    const related = e.relatedTarget as Node | null;
+    if (!related || !clipRef.current?.contains(related)) {
+      setDragHover(null);
+    }
+  }, []);
+
+  const applyTransitionAt = useCallback(
+    (transitionType: TransitionType, edge: "left" | "right") => {
+      const projectState = useProjectStore.getState();
+      const tracks = projectState.project.timeline.tracks;
+      const owningTrack = tracks.find((t) =>
+        t.clips.some((c) => c.id === clip.id),
+      );
+      if (!owningTrack) return;
+      const sortedClips = [...owningTrack.clips].sort((a, b) => {
+        if (a.startTime !== b.startTime) return a.startTime - b.startTime;
+        return a.id.localeCompare(b.id);
+      });
+      const idx = sortedClips.findIndex((c) => c.id === clip.id);
+      const previousClip = idx > 0 ? sortedClips[idx - 1] : undefined;
+      const nextClip =
+        idx < sortedClips.length - 1 ? sortedClips[idx + 1] : undefined;
+      const clipA = edge === "left" ? previousClip : sortedClips[idx];
+      const clipB = edge === "left" ? sortedClips[idx] : nextClip;
+
+      if (!clipA || !clipB) {
+        toast.warning(
+          "No adjacent clip",
+          edge === "left"
+            ? "Drop on the right edge or add a clip before this one."
+            : "Drop on the left edge or add a clip after this one.",
+        );
+        return;
+      }
+
+      const bridge = getTransitionBridge();
+      if (!bridge.isInitialized()) {
+        toast.error("Transition engine not ready", "Try again in a moment.");
+        return;
+      }
+      const defaultParams = bridge.getDefaultParams(transitionType);
+      const result = bridge.createTransition(
+        clipA,
+        clipB,
+        transitionType,
+        1.0,
+        defaultParams,
+      );
+      if (result.success && result.transitionId) {
+        const transition = bridge.getTransition(result.transitionId);
+        if (transition) {
+          projectState.addClipTransition(transition);
+          toast.success(
+            "Transition applied",
+            `${transitionType} • 1.0s`,
+          );
+          return;
+        }
+      }
+      toast.error(
+        "Transition failed",
+        result.error || "Could not create transition",
+      );
+    },
+    [clip.id],
+  );
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent<HTMLDivElement>) => {
+      setDragHover(null);
+
+      const tryParse = <T,>(s: string | null): T | null => {
+        if (!s) return null;
+        try {
+          return JSON.parse(s) as T;
+        } catch {
+          return null;
+        }
+      };
+
+      const effectPayload = tryParse<{ effectType: VideoEffectType }>(
+        e.dataTransfer.getData(EFFECT_DRAG_MIME) || null,
+      );
+      const transitionPayload = tryParse<{ transitionType: TransitionType }>(
+        e.dataTransfer.getData(TRANSITION_DRAG_MIME) || null,
+      );
+      const text = e.dataTransfer.getData("text/plain");
+      const isEffectByText = text.startsWith("effect:");
+      const isTransitionByText = text.startsWith("transition:");
+
+      const effectType =
+        effectPayload?.effectType ??
+        (isEffectByText ? (text.slice(7) as VideoEffectType) : null);
+      const transitionType =
+        transitionPayload?.transitionType ??
+        (isTransitionByText ? (text.slice(11) as TransitionType) : null);
+
+      if (!effectType && !transitionType) {
+        // Not for us — let the timeline's outer drop handler take it.
+        return;
+      }
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      if (effectType) {
+        const result = useProjectStore.getState().addVideoEffect(clip.id, effectType);
+        if (result) {
+          toast.success("Effect applied", `${effectType} added`);
+          // Auto-select the clip so the user sees the new effect in
+          // the inspector.
+          useUIStore.getState().select({ id: clip.id, type: "clip" });
+        } else {
+          toast.error("Effect failed", "Could not apply effect");
+        }
+        return;
+      }
+
+      if (transitionType) {
+        const edge = computeTransitionEdge(e).endsWith("left") ? "left" : "right";
+        applyTransitionAt(transitionType, edge);
+      }
+    },
+    [clip.id, applyTransitionAt, computeTransitionEdge],
+  );
 
   const handleTrimMouseDown =
     (edge: "left" | "right") => (e: React.MouseEvent) => {
@@ -408,6 +600,9 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
           ref={clipRef}
           onClick={handleClick}
           onMouseDown={handleMouseDown}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
           className={`group absolute top-1 bottom-1 rounded-lg overflow-hidden shadow-sm ${
             isDragging
               ? `cursor-grabbing z-50 ${isInvalidDrop ? "opacity-50 ring-2 ring-red-500 border-red-500" : "opacity-90 shadow-xl"}`
@@ -439,6 +634,21 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
             {effectApplicationLabel ?? "Applying effect"}
           </div>
         </>
+      )}
+
+      {/* Drag-drop hover indicators for effects/transitions */}
+      {dragHover === "effect" && (
+        <div className="absolute inset-0 ring-2 ring-accent ring-inset rounded-lg bg-accent/15 pointer-events-none z-20" />
+      )}
+      {dragHover === "transition-left" && (
+        <div className="absolute inset-y-0 left-0 w-1/3 pointer-events-none z-20 bg-gradient-to-r from-accent/60 to-transparent">
+          <div className="absolute left-0 top-0 bottom-0 w-1 bg-accent" />
+        </div>
+      )}
+      {dragHover === "transition-right" && (
+        <div className="absolute inset-y-0 right-0 w-1/3 pointer-events-none z-20 bg-gradient-to-l from-accent/60 to-transparent">
+          <div className="absolute right-0 top-0 bottom-0 w-1 bg-accent" />
+        </div>
       )}
 
       {isVideo &&
