@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Smartphone,
   Monitor,
@@ -43,6 +44,7 @@ export const AutoReframeSection: React.FC<AutoReframeSectionProps> = ({
   clipId,
   onReframeComplete,
 }) => {
+  const { t } = useTranslation();
   const updateProjectDimensions = useProjectStore(
     (state) => state.updateSettings,
   );
@@ -115,11 +117,11 @@ export const AutoReframeSection: React.FC<AutoReframeSectionProps> = ({
   const handleAnalyze = useCallback(async () => {
     setIsProcessing(true);
     setProgress(0);
-    setProgressMessage("Initializing...");
+    setProgressMessage(t("inspector.initializing"));
 
     try {
       if (!isInitialized) {
-        setProgressMessage("Loading AI engine...");
+        setProgressMessage(t("inspector.loadingEngine"));
         setProgress(10);
         await handleInitialize();
       }
@@ -129,12 +131,12 @@ export const AutoReframeSection: React.FC<AutoReframeSectionProps> = ({
         throw new Error("Engine not available");
       }
 
-      setProgressMessage("Configuring reframe settings...");
+      setProgressMessage(t("inspector.configuringReframeSettings"));
       setProgress(30);
 
       await new Promise((resolve) => setTimeout(resolve, 300));
 
-      setProgressMessage("Applying smart crop configuration...");
+      setProgressMessage(t("inspector.applyingSmartCrop"));
       setProgress(60);
 
       const targetConfig =
@@ -142,7 +144,7 @@ export const AutoReframeSection: React.FC<AutoReframeSectionProps> = ({
 
       await new Promise((resolve) => setTimeout(resolve, 300));
 
-      setProgressMessage("Updating project settings...");
+      setProgressMessage(t("inspector.updatingProjectSettings"));
       setProgress(80);
 
       await updateProjectDimensions({
@@ -150,13 +152,13 @@ export const AutoReframeSection: React.FC<AutoReframeSectionProps> = ({
         height: targetConfig.height,
       });
 
-      setProgressMessage("Finalizing...");
+      setProgressMessage(t("inspector.finalizingSetup"));
       setProgress(90);
 
       await new Promise((resolve) => setTimeout(resolve, 200));
 
       setProgress(100);
-      setProgressMessage("Complete!");
+      setProgressMessage(t("inspector.complete"));
       setIsApplied(true);
 
       const result: ReframeResult = {
@@ -169,18 +171,15 @@ export const AutoReframeSection: React.FC<AutoReframeSectionProps> = ({
 
       onReframeComplete?.(result);
 
-      const platformName = selectedPlatform
-        ? PLATFORM_PRESETS[selectedPlatform].name
-        : reframeSettings.targetAspectRatio;
       toast.success(
-        "Auto Reframe Applied",
-        `Project resized to ${platformName} (${targetConfig.width}x${targetConfig.height})`,
+        t("inspector.autoReframeApplied"),
+        `${selectedPlatform ? PLATFORM_PRESETS[selectedPlatform].name : reframeSettings.targetAspectRatio} (${targetConfig.width}x${targetConfig.height})`,
       );
     } catch (error) {
       console.error("Auto-reframe failed:", error);
       toast.error(
-        "Auto Reframe Failed",
-        error instanceof Error ? error.message : "Unknown error",
+        t("inspector.autoReframeFailed"),
+        error instanceof Error ? error.message : t("inspector.autoReframeEngineUnavailable"),
       );
       setIsApplied(false);
     } finally {
@@ -200,7 +199,7 @@ export const AutoReframeSection: React.FC<AutoReframeSectionProps> = ({
       <div className="space-y-3">
         <div>
           <label className="text-[10px] text-text-secondary block mb-2">
-            Platform Presets
+            {t("inspector.platformPresets")}
           </label>
           <div className="grid grid-cols-3 gap-1">
             {(Object.keys(PLATFORM_PRESETS) as PlatformPreset[]).map(
@@ -216,7 +215,7 @@ export const AutoReframeSection: React.FC<AutoReframeSectionProps> = ({
                 >
                   {PLATFORM_ICONS[platform]}
                   <span className="truncate">
-                    {PLATFORM_PRESETS[platform].name}
+                    {t(`inspector.${platform}`)}
                   </span>
                 </button>
               ),
@@ -226,7 +225,7 @@ export const AutoReframeSection: React.FC<AutoReframeSectionProps> = ({
 
         <div>
           <label className="text-[10px] text-text-secondary block mb-2">
-            Aspect Ratio
+            {t("inspector.aspectRatio")}
           </label>
           <div className="grid grid-cols-3 gap-1">
             {(Object.keys(ASPECT_RATIO_PRESETS) as AspectRatioPreset[])
@@ -242,7 +241,7 @@ export const AutoReframeSection: React.FC<AutoReframeSectionProps> = ({
                       : "bg-background-secondary hover:bg-background-primary border border-transparent text-text-secondary"
                   }`}
                 >
-                  {ratio}
+                  {t(`inspector.${ratio}`)}
                 </button>
               ))}
           </div>
@@ -251,7 +250,7 @@ export const AutoReframeSection: React.FC<AutoReframeSectionProps> = ({
         <div>
           <div className="flex items-center justify-between mb-1">
             <label className="text-[10px] text-text-secondary">
-              Tracking Speed
+              {t("inspector.trackingSpeed")}
             </label>
             <span className="text-[10px] text-text-muted font-mono">
               {Math.round(reframeSettings.trackingSpeed * 100)}%
@@ -272,7 +271,7 @@ export const AutoReframeSection: React.FC<AutoReframeSectionProps> = ({
 
         <div>
           <div className="flex items-center justify-between mb-1">
-            <label className="text-[10px] text-text-secondary">Smoothing</label>
+            <label className="text-[10px] text-text-secondary">{t("inspector.smoothing")}</label>
             <span className="text-[10px] text-text-muted font-mono">
               {Math.round(reframeSettings.smoothing * 100)}%
             </span>
@@ -291,7 +290,7 @@ export const AutoReframeSection: React.FC<AutoReframeSectionProps> = ({
         <div>
           <div className="flex items-center justify-between mb-1">
             <label className="text-[10px] text-text-secondary">
-              Center Bias
+              {t("inspector.centerBias")}
             </label>
             <span className="text-[10px] text-text-muted font-mono">
               {Math.round(reframeSettings.centerBias * 100)}%
@@ -312,7 +311,7 @@ export const AutoReframeSection: React.FC<AutoReframeSectionProps> = ({
 
         <div className="flex items-center justify-between">
           <label className="text-[10px] text-text-secondary">
-            Follow Subject
+            {t("inspector.followSubject")}
           </label>
           <button
             onClick={() =>
@@ -361,23 +360,23 @@ export const AutoReframeSection: React.FC<AutoReframeSectionProps> = ({
           {isInitializing || isProcessing ? (
             <>
               <Loader2 size={14} className="animate-spin" />
-              {isInitializing ? "Initializing..." : "Analyzing..."}
+              {isInitializing ? t("inspector.initializing") : t("inspector.analyzing")}
             </>
           ) : isApplied ? (
             <>
               <CheckCircle size={14} />
-              Applied - Click to Reanalyze
+              {t("inspector.autoReframeAppliedReanalyze")}
             </>
           ) : (
             <>
               <Play size={14} />
-              Analyze & Reframe
+              {t("inspector.analyzeAndReframe")}
             </>
           )}
         </button>
 
         <div className="text-[9px] text-text-muted text-center">
-          Output:{" "}
+          {t("inspector.output")}:{" "}
           {ASPECT_RATIO_PRESETS[reframeSettings.targetAspectRatio].width} x{" "}
           {ASPECT_RATIO_PRESETS[reframeSettings.targetAspectRatio].height}
         </div>

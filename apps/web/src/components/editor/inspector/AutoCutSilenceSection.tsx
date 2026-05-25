@@ -1,4 +1,5 @@
 import React, { useState, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { Scissors, Search, Loader2, Volume2 } from "lucide-react";
 import { Slider } from "@openreel/ui";
 import { useProjectStore } from "../../../stores/project-store";
@@ -17,6 +18,7 @@ interface AutoCutSilenceSectionProps {
 export const AutoCutSilenceSection: React.FC<AutoCutSilenceSectionProps> = ({
   clipId,
 }) => {
+  const { t } = useTranslation();
   const { getClip, getMediaItem } = useProjectStore();
   const [settings, setSettings] = useState<SilenceSettings>(
     DEFAULT_SILENCE_SETTINGS,
@@ -42,7 +44,7 @@ export const AutoCutSilenceSection: React.FC<AutoCutSilenceSectionProps> = ({
 
     setIsAnalyzing(true);
     setProgress(0);
-    setProgressMessage("Initializing...");
+      setProgressMessage(t("inspector.initializing"));
 
     try {
       const bridge = getSilenceCutBridge();
@@ -55,15 +57,15 @@ export const AutoCutSilenceSection: React.FC<AutoCutSilenceSectionProps> = ({
 
       if (result.silentRegions.length === 0) {
         toast.info(
-          "No Silence Detected",
-          "No silent sections found with current settings. Try lowering the threshold.",
+          t("inspector.autoCutNoSilence"),
+          t("inspector.autoCutNoSilenceHint"),
         );
       }
     } catch (error) {
       console.error("Silence analysis failed:", error);
       toast.error(
-        "Analysis Failed",
-        error instanceof Error ? error.message : "Unknown error",
+        t("inspector.autoCutAnalysisFailed"),
+        error instanceof Error ? error.message : t("inspector.autoCutUnknownError"),
       );
     } finally {
       setIsAnalyzing(false);
@@ -75,7 +77,7 @@ export const AutoCutSilenceSection: React.FC<AutoCutSilenceSectionProps> = ({
 
     setIsCutting(true);
     setProgress(0);
-    setProgressMessage("Preparing...");
+    setProgressMessage(t("inspector.preparing"));
 
     try {
       const bridge = getSilenceCutBridge();
@@ -90,18 +92,18 @@ export const AutoCutSilenceSection: React.FC<AutoCutSilenceSectionProps> = ({
 
       if (result.success) {
         toast.success(
-          "Silence Removed",
-          `Removed ${analysisResult.silentRegions.length} silent section${analysisResult.silentRegions.length > 1 ? "s" : ""}`,
+          t("inspector.autoCutSilenceRemoved"),
+          t("inspector.autoCutSilenceRemovedCount", { count: analysisResult.silentRegions.length }),
         );
         setAnalysisResult(null);
       } else {
-        toast.error("Cut Failed", result.error ?? "Unknown error");
+        toast.error(t("inspector.autoCutFailed"), result.error ?? t("inspector.autoCutUnknownError"));
       }
     } catch (error) {
       console.error("Cut silence failed:", error);
       toast.error(
-        "Cut Failed",
-        error instanceof Error ? error.message : "Unknown error",
+        t("inspector.autoCutFailed"),
+        error instanceof Error ? error.message : t("inspector.autoCutUnknownError"),
       );
     } finally {
       setIsCutting(false);
@@ -117,10 +119,10 @@ export const AutoCutSilenceSection: React.FC<AutoCutSilenceSectionProps> = ({
       <div className="space-y-3">
         <div>
           <div className="flex items-center justify-between mb-1">
-            <label className="text-[10px] text-text-secondary flex items-center gap-1">
-              <Volume2 size={10} />
-              Silence Threshold
-            </label>
+              <label className="text-[10px] text-text-secondary flex items-center gap-1">
+                <Volume2 size={10} />
+                {t("inspector.silenceThreshold")}
+              </label>
             <span className="text-[10px] text-text-muted font-mono">
               {settings.threshold} dB
             </span>
@@ -133,14 +135,14 @@ export const AutoCutSilenceSection: React.FC<AutoCutSilenceSectionProps> = ({
             onValueChange={(value) => updateSettings({ threshold: value[0] })}
           />
           <p className="text-[8px] text-text-muted mt-1">
-            Lower values detect more silence
+            {t("inspector.autoCutLowerValues")}
           </p>
         </div>
 
         <div>
           <div className="flex items-center justify-between mb-1">
             <label className="text-[10px] text-text-secondary">
-              Min Duration
+              {t("inspector.minDuration")}
             </label>
             <span className="text-[10px] text-text-muted font-mono">
               {settings.minSilenceDuration.toFixed(1)}s
@@ -156,7 +158,7 @@ export const AutoCutSilenceSection: React.FC<AutoCutSilenceSectionProps> = ({
             }
           />
           <p className="text-[8px] text-text-muted mt-1">
-            Minimum silence length to detect
+            {t("inspector.autoCutMinDurationHint")}
           </p>
         </div>
 
@@ -164,7 +166,7 @@ export const AutoCutSilenceSection: React.FC<AutoCutSilenceSectionProps> = ({
           <div>
             <div className="flex items-center justify-between mb-1">
               <label className="text-[10px] text-text-secondary">
-                Pad Before
+                {t("inspector.padBefore")}
               </label>
               <span className="text-[10px] text-text-muted font-mono">
                 {settings.paddingBefore.toFixed(1)}s
@@ -183,7 +185,7 @@ export const AutoCutSilenceSection: React.FC<AutoCutSilenceSectionProps> = ({
           <div>
             <div className="flex items-center justify-between mb-1">
               <label className="text-[10px] text-text-secondary">
-                Pad After
+                {t("inspector.padAfter")}
               </label>
               <span className="text-[10px] text-text-muted font-mono">
                 {settings.paddingAfter.toFixed(1)}s
@@ -205,7 +207,7 @@ export const AutoCutSilenceSection: React.FC<AutoCutSilenceSectionProps> = ({
           <div className="p-2 bg-background-secondary rounded border border-primary/20">
             <div className="flex items-center justify-between mb-1">
               <span className="text-[10px] text-text-secondary">
-                Silent Sections Found
+                {t("inspector.silentSectionsFound")}
               </span>
               <span className="text-sm font-bold text-primary">
                 {analysisResult.silentRegions.length}
@@ -213,7 +215,7 @@ export const AutoCutSilenceSection: React.FC<AutoCutSilenceSectionProps> = ({
             </div>
             <div className="flex items-center justify-between">
               <span className="text-[10px] text-text-secondary">
-                Total Silence
+                {t("inspector.totalSilence")}
               </span>
               <span className="text-[10px] text-text-primary">
                 {analysisResult.totalSilenceDuration.toFixed(1)}s of{" "}
@@ -259,12 +261,12 @@ export const AutoCutSilenceSection: React.FC<AutoCutSilenceSectionProps> = ({
             {isAnalyzing ? (
               <>
                 <Loader2 size={14} className="animate-spin" />
-                Analyzing...
+                {t("inspector.analyzing")}
               </>
             ) : (
               <>
                 <Search size={14} />
-                {analysisResult ? "Re-analyze" : "Analyze"}
+                {analysisResult ? t("inspector.reanalyze") : t("inspector.analyze")}
               </>
             )}
           </button>
@@ -278,12 +280,12 @@ export const AutoCutSilenceSection: React.FC<AutoCutSilenceSectionProps> = ({
               {isCutting ? (
                 <>
                   <Loader2 size={14} className="animate-spin" />
-                  Cutting...
+                  {t("inspector.cutting")}
                 </>
               ) : (
                 <>
                   <Scissors size={14} />
-                  Cut {analysisResult.silentRegions.length}
+                  {t("inspector.cut")} {analysisResult.silentRegions.length}
                 </>
               )}
             </button>
@@ -291,7 +293,7 @@ export const AutoCutSilenceSection: React.FC<AutoCutSilenceSectionProps> = ({
         </div>
 
         <p className="text-[9px] text-text-muted text-center">
-          Tip: Use Ctrl+Z to undo all cuts at once
+          {t("inspector.autoCutTip")}
         </p>
       </div>
     </div>

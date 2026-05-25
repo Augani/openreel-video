@@ -1,4 +1,6 @@
 import React, { useCallback, useState, useRef } from "react";
+import { useTranslation } from "react-i18next";
+import i18n from "../../../i18n";
 import { Upload, FileImage, AlertCircle, Check, X } from "lucide-react";
 import { getGraphicsBridge } from "../../../bridges";
 
@@ -27,6 +29,7 @@ export const SVGImporter: React.FC<SVGImporterProps> = ({
   onImport,
   onError,
 }) => {
+  const { t } = useTranslation();
   const [status, setStatus] = useState<ImportStatus>("idle");
   const [errorMessage, setErrorMessage] = useState<string>("");
   const [fileName, setFileName] = useState<string>("");
@@ -43,8 +46,8 @@ export const SVGImporter: React.FC<SVGImporterProps> = ({
       // Validate file type
       if (!file.name.toLowerCase().endsWith(".svg")) {
         setStatus("error");
-        setErrorMessage("Please select an SVG file (.svg)");
-        onError?.("Please select an SVG file (.svg)");
+        setErrorMessage(t("inspector.pleaseSelectSvgFile"));
+        onError?.(t("inspector.pleaseSelectSvgFile"));
         return;
       }
 
@@ -66,8 +69,8 @@ export const SVGImporter: React.FC<SVGImporterProps> = ({
         const validation = bridge.validateSVG(svgContent);
         if (!validation.valid) {
           setStatus("error");
-          setErrorMessage(validation.error || "Invalid SVG content");
-          onError?.(validation.error || "Invalid SVG content");
+          setErrorMessage(validation.error || t("inspector.svgInvalidContent"));
+          onError?.(validation.error || t("inspector.svgInvalidContent"));
           return;
         }
 
@@ -81,8 +84,8 @@ export const SVGImporter: React.FC<SVGImporterProps> = ({
 
         if (!svgClip) {
           setStatus("error");
-          setErrorMessage("Failed to import SVG");
-          onError?.("Failed to import SVG");
+          setErrorMessage(t("inspector.svgFailedImport"));
+          onError?.(t("inspector.svgFailedImport"));
           return;
         }
 
@@ -96,7 +99,7 @@ export const SVGImporter: React.FC<SVGImporterProps> = ({
         }, 2000);
       } catch (error) {
         const message =
-          error instanceof Error ? error.message : "Failed to read SVG file";
+          error instanceof Error ? error.message : t("inspector.svgFailedRead");
         setStatus("error");
         setErrorMessage(message);
         onError?.(message);
@@ -201,20 +204,20 @@ export const SVGImporter: React.FC<SVGImporterProps> = ({
           {/* Status text */}
           <div className="text-center">
             {status === "loading" ? (
-              <p className="text-[10px] text-text-secondary">Importing...</p>
+              <p className="text-[10px] text-text-secondary">{t("inspector.importing")}</p>
             ) : status === "success" ? (
               <p className="text-[10px] text-green-500">
-                SVG imported successfully
+                {t("inspector.svgImportedSuccessfully")}
               </p>
             ) : status === "error" ? (
               <p className="text-[10px] text-red-500">{errorMessage}</p>
             ) : (
               <>
                 <p className="text-[10px] text-text-primary font-medium">
-                  Import SVG
+                  {t("inspector.svgImport")}
                 </p>
                 <p className="text-[9px] text-text-muted">
-                  Click or drag & drop
+                  {t("inspector.clickOrDragDrop")}
                 </p>
               </>
             )}
@@ -248,7 +251,7 @@ export const SVGImporter: React.FC<SVGImporterProps> = ({
       {/* Supported formats info */}
       <div className="flex items-center gap-2 text-[9px] text-text-muted">
         <FileImage size={12} />
-        <span>Supported format: SVG (.svg)</span>
+        <span>{t("inspector.supportedFormatSvg")}</span>
       </div>
     </div>
   );
@@ -261,7 +264,7 @@ function readFileAsText(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(reader.result as string);
-    reader.onerror = () => reject(new Error("Failed to read file"));
+    reader.onerror = () => reject(new Error(i18n.t("inspector.svgFailedRead")));
     reader.readAsText(file);
   });
 }

@@ -5,6 +5,7 @@ import React, {
   useEffect,
   useRef,
 } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Play,
   ArrowRight,
@@ -226,6 +227,7 @@ const PresetCard: React.FC<PresetCardProps> = ({
   isApplied,
   onApply,
 }) => {
+  const { t } = useTranslation();
   const [isHovered, setIsHovered] = useState(false);
   const previewRef = useRef<HTMLDivElement>(null);
   const animationRef = useRef<Animation | null>(null);
@@ -278,9 +280,9 @@ const PresetCard: React.FC<PresetCardProps> = ({
         )}
         {isHovered && !isApplied && (
           <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-            <span className="text-[10px] text-white font-medium px-2 py-1 bg-primary rounded">
-              Apply
-            </span>
+              <span className="text-[10px] text-white font-medium px-2 py-1 bg-primary rounded">
+                {t("inspector.apply")}
+              </span>
           </div>
         )}
       </div>
@@ -308,6 +310,7 @@ interface MotionPresetsPanelProps {
 export const MotionPresetsPanel: React.FC<MotionPresetsPanelProps> = ({
   clipId,
 }) => {
+  const { t } = useTranslation();
   const selectedClipIds = useUIStore((state) => state.getSelectedClipIds());
   const project = useProjectStore((state) => state.project);
   const updateClipKeyframes = useProjectStore(
@@ -446,7 +449,7 @@ export const MotionPresetsPanel: React.FC<MotionPresetsPanelProps> = ({
         updateClipKeyframes(targetClipId, allKeyframes);
       }
 
-      toast.success("Motion Preset Applied", `${preset.name} added to clip`);
+      toast.success(t("inspector.motionPresetApplied"), `${preset.name} ${t("inspector.addedToClip")}`);
     },
     [
       clip,
@@ -501,7 +504,7 @@ export const MotionPresetsPanel: React.FC<MotionPresetsPanelProps> = ({
         updateClipKeyframes(targetClipId, filteredKeyframes);
       }
 
-      toast.info("Preset Removed");
+      toast.info(t("inspector.motionPresetRemoved"));
     },
     [
       clip,
@@ -516,8 +519,8 @@ export const MotionPresetsPanel: React.FC<MotionPresetsPanelProps> = ({
     return (
       <div className="p-4 text-center">
         <Zap size={24} className="mx-auto mb-2 text-text-muted" />
-        <p className="text-[10px] text-text-muted">
-          Select a clip to apply motion presets
+         <p className="text-[10px] text-text-muted">
+          {t("inspector.motionPresetSelectClip")}
         </p>
       </div>
     );
@@ -527,7 +530,7 @@ export const MotionPresetsPanel: React.FC<MotionPresetsPanelProps> = ({
     return (
       <div className="p-4 text-center">
         <Zap size={24} className="mx-auto mb-2 text-text-muted" />
-        <p className="text-[10px] text-text-muted">Clip not found</p>
+        <p className="text-[10px] text-text-muted">{t("inspector.clipNotFound")}</p>
       </div>
     );
   }
@@ -539,7 +542,7 @@ export const MotionPresetsPanel: React.FC<MotionPresetsPanelProps> = ({
         appliedState.emphasis) && (
         <div className="space-y-1 p-2 bg-background-tertiary rounded-lg border border-border">
           <span className="text-[10px] text-text-secondary font-medium">
-            Applied Animations
+            {t("inspector.appliedAnimations")}
           </span>
           <div className="flex flex-wrap gap-1 mt-1">
             {appliedState.entrance && (
@@ -593,7 +596,7 @@ export const MotionPresetsPanel: React.FC<MotionPresetsPanelProps> = ({
               }`}
             >
               <Icon size={12} />
-              {category.name}
+              {t(`inspector.motion${category.name}`)}
               {isApplied && (
                 <span className="absolute -top-1 -right-1 w-2 h-2 bg-green-500 rounded-full" />
               )}
@@ -623,7 +626,7 @@ export const MotionPresetsPanel: React.FC<MotionPresetsPanelProps> = ({
       </div>
 
       <p className="text-[9px] text-text-muted text-center">
-        {presets.length} presets in {selectedCategory}
+        {presets.length} {t("inspector.presetsIn")} {t(`inspector.motion${selectedCategory}`)}
       </p>
     </div>
   );

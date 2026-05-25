@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { RotateCcw, Sparkles } from "lucide-react";
 import type { Clip } from "@openreel/core";
 import { getSpeedEngine } from "@openreel/core";
@@ -22,6 +23,7 @@ const SPEED_PRESETS = [
 ];
 
 export const SpeedSection: React.FC<SpeedSectionProps> = ({ clip }) => {
+  const { t } = useTranslation();
   const speedEngine = getSpeedEngine();
   const { project } = useProjectStore();
 
@@ -175,7 +177,7 @@ export const SpeedSection: React.FC<SpeedSectionProps> = ({ clip }) => {
       </div>
 
       <div className="space-y-2">
-        <Label className="text-xs text-text-tertiary">Custom Speed</Label>
+        <Label className="text-xs text-text-tertiary">{t("inspector.speedCustom")}</Label>
         <div className="flex gap-2">
           <Input
             type="number"
@@ -198,14 +200,14 @@ export const SpeedSection: React.FC<SpeedSectionProps> = ({ clip }) => {
           </span>
         </div>
         <p className="text-xs text-text-tertiary">
-          Range: 0.1× (slowest) to 100× (fastest)
+          {t("inspector.speedRange")}
         </p>
       </div>
 
       {hasAudio() && (
         <div className="flex items-center justify-between p-3 rounded-lg bg-background-tertiary border border-border">
           <Label htmlFor="affect-audio" className="text-xs text-text-secondary">
-            Apply speed to audio
+            {t("inspector.speedAffectAudio")}
           </Label>
           <Switch
             id="affect-audio"
@@ -224,7 +226,7 @@ export const SpeedSection: React.FC<SpeedSectionProps> = ({ clip }) => {
         }`}
       >
         <RotateCcw size={14} />
-        {isReversed ? "Reversed" : "Reverse Clip"}
+        {isReversed ? t("inspector.reversed") : t("inspector.reverseClip")}
       </button>
 
       {currentSpeed < 1 && (
@@ -233,7 +235,7 @@ export const SpeedSection: React.FC<SpeedSectionProps> = ({ clip }) => {
             <div className="flex items-center gap-2">
               <Sparkles size={14} className="text-primary" />
               <Label htmlFor="smooth-slowmo" className="text-xs text-text-secondary">
-                Smooth Slow Motion
+                {t("inspector.speedSmoothSlowMo")}
               </Label>
             </div>
             <Switch
@@ -260,7 +262,7 @@ export const SpeedSection: React.FC<SpeedSectionProps> = ({ clip }) => {
           </div>
           {clip.smoothSlowMo && (
             <div className="space-y-1">
-              <Label className="text-xs text-text-tertiary">Quality</Label>
+              <Label className="text-xs text-text-tertiary">{t("inspector.speedQuality")}</Label>
               <Select
                 value={clip.interpolationQuality ?? "medium"}
                 onValueChange={(value: "low" | "medium" | "high") => {
@@ -285,13 +287,13 @@ export const SpeedSection: React.FC<SpeedSectionProps> = ({ clip }) => {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="low">Low (faster)</SelectItem>
-                  <SelectItem value="medium">Medium</SelectItem>
-                  <SelectItem value="high">High (slower)</SelectItem>
+                  <SelectItem value="low">{t("inspector.speedLow")}</SelectItem>
+                  <SelectItem value="medium">{t("inspector.speedMedium")}</SelectItem>
+                  <SelectItem value="high">{t("inspector.speedHigh")}</SelectItem>
                 </SelectContent>
               </Select>
               <p className="text-[10px] text-text-tertiary">
-                Uses optical flow to generate smooth in-between frames
+                {t("inspector.speedOpticalFlowDesc")}
               </p>
             </div>
           )}
@@ -301,11 +303,11 @@ export const SpeedSection: React.FC<SpeedSectionProps> = ({ clip }) => {
       {(currentSpeed !== 1 || isReversed) && (
         <div className="p-3 rounded-lg bg-background-tertiary border border-border">
           <div className="text-xs text-text-tertiary mb-1">
-            Current Settings
+            {t("inspector.speedCurrentSettings")}
           </div>
           <div className="text-sm text-text-primary">
-            Speed: {currentSpeed}× {isReversed && "• Reversed"}
-            {clip.smoothSlowMo && " • Smooth"}
+            {t("inspector.speedStatusLabel", { speed: currentSpeed })} {isReversed && `• ${t("inspector.reversed")}`}
+            {clip.smoothSlowMo && ` • ${t("inspector.speedSmooth")}`}
           </div>
         </div>
       )}

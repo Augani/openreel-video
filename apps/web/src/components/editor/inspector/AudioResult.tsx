@@ -1,4 +1,5 @@
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { Play, Pause, Plus, Download, FolderPlus, Volume2 } from "lucide-react";
 
 interface AudioResultProps {
@@ -22,6 +23,7 @@ export const AudioResult: React.FC<AudioResultProps> = ({
   onAddToTimeline,
   onDownload,
 }) => {
+  const { t } = useTranslation();
   return (
     <div className="p-3 bg-background-tertiary rounded-lg border border-border space-y-3">
       <div className="flex items-center justify-between">
@@ -31,7 +33,7 @@ export const AudioResult: React.FC<AudioResultProps> = ({
           </div>
           <div>
             <p className="text-[10px] font-medium text-text-primary">
-              {voiceName} Voice
+              {voiceName} {t("inspector.previewVoice")}
             </p>
             <p className="text-[9px] text-text-muted">
               {(generatedAudio.size / 1024).toFixed(1)} KB
@@ -57,20 +59,20 @@ export const AudioResult: React.FC<AudioResultProps> = ({
           className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-primary text-white rounded-lg text-[10px] font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
         >
           <FolderPlus size={12} />
-          Save to Media
+          {t("inspector.saveToMedia")}
         </button>
         <button
           onClick={onAddToTimeline}
           disabled={isGenerating}
           className="px-3 py-2 bg-background-secondary border border-border rounded-lg text-[10px] text-text-secondary hover:text-text-primary transition-colors"
-          title="Add to Timeline"
+          title={t("inspector.addToTimeline")}
         >
           <Plus size={12} />
         </button>
         <button
           onClick={onDownload}
           className="px-3 py-2 bg-background-secondary border border-border rounded-lg text-[10px] text-text-secondary hover:text-text-primary transition-colors"
-          title="Download"
+          title={t("inspector.download")}
         >
           <Download size={12} />
         </button>

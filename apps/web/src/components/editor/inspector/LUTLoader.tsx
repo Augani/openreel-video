@@ -1,4 +1,5 @@
 import React, { useCallback, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Upload, X, AlertCircle } from "lucide-react";
 import { Slider } from "@openreel/ui";
 import type { LUTData } from "@openreel/core";
@@ -13,12 +14,13 @@ const IntensitySlider: React.FC<{
   value: number;
   onChange: (value: number) => void;
 }> = ({ value, onChange }) => {
+  const { t } = useTranslation();
   const percentage = Math.round(value * 100);
 
   return (
     <div className="space-y-1">
       <div className="flex items-center justify-between">
-        <span className="text-[10px] text-text-secondary">Intensity</span>
+        <span className="text-[10px] text-text-secondary">{t("inspector.intensity")}</span>
         <span className="text-[10px] font-mono text-text-primary">
           {percentage}%
         </span>
@@ -34,21 +36,14 @@ const IntensitySlider: React.FC<{
   );
 };
 
-/**
- * Parse a .cube LUT file
- *
- * Parse 3D LUT data from .cube files
- */
 function parseCubeLUT(content: string): LUTData {
   const lines = content.split("\n").map((line) => line.trim());
   let size = 0;
   const data: number[] = [];
 
   for (const line of lines) {
-    // Skip comments and empty lines
     if (line.startsWith("#") || line === "") continue;
 
-    // Parse LUT size
     if (line.startsWith("LUT_3D_SIZE")) {
       const parts = line.split(/\s+/);
       size = parseInt(parts[1], 10);
@@ -58,13 +53,10 @@ function parseCubeLUT(content: string): LUTData {
       continue;
     }
 
-    // Skip other metadata
     if (line.startsWith("TITLE") || line.startsWith("DOMAIN_")) continue;
 
-    // Parse RGB values
     const values = line.split(/\s+/).map(parseFloat);
     if (values.length === 3 && values.every((v) => !isNaN(v))) {
-      // Convert from 0-1 to 0-255
       data.push(
         Math.round(Math.max(0, Math.min(1, values[0])) * 255),
         Math.round(Math.max(0, Math.min(1, values[1])) * 255),
@@ -91,30 +83,20 @@ function parseCubeLUT(content: string): LUTData {
   };
 }
 
-/**
- * Parse a .3dl LUT file
- *
- * Parse 3D LUT data from .3dl files
- */
 function parse3dlLUT(content: string): LUTData {
   const lines = content.split("\n").map((line) => line.trim());
   const data: number[] = [];
   let size = 0;
 
-  // First line should contain the mesh size
   for (const line of lines) {
     if (line === "" || line.startsWith("#")) continue;
 
-    // Try to parse as mesh definition (first non-comment line)
     if (size === 0) {
       const meshValues = line.split(/\s+/).map(parseFloat);
       if (meshValues.length >= 1 && !isNaN(meshValues[0])) {
-        // 3dl files typically have mesh points, calculate size
-        // Common sizes: 17, 33, 65
         size = Math.round(Math.cbrt(meshValues.length / 3)) || 17;
         if (meshValues.length === 3) {
-          // This is actually a data line, not mesh definition
-          size = 17; // Default size
+          size = 17;
           data.push(
             Math.round((meshValues[0] / 4095) * 255),
             Math.round((meshValues[1] / 4095) * 255),
@@ -125,10 +107,8 @@ function parse3dlLUT(content: string): LUTData {
       }
     }
 
-    // Parse RGB values (3dl uses 0-4095 range typically)
     const values = line.split(/\s+/).map(parseFloat);
     if (values.length === 3 && values.every((v) => !isNaN(v))) {
-      // Detect range and normalize to 0-255
       const maxVal = Math.max(...values);
       const scale = maxVal > 255 ? 4095 : maxVal > 1 ? 255 : 1;
       data.push(
@@ -139,7 +119,6 @@ function parse3dlLUT(content: string): LUTData {
     }
   }
 
-  // Determine size from data length
   if (size === 0 || size * size * size * 3 !== data.length) {
     const calculatedSize = Math.round(Math.cbrt(data.length / 3));
     if (calculatedSize * calculatedSize * calculatedSize * 3 === data.length) {
@@ -160,29 +139,17 @@ function parse3dlLUT(content: string): LUTData {
   };
 }
 
-/**
- * LUTLoader Component
- *
- * - 6.1: Open file picker for .cube or .3dl LUT files
- * - 6.2: Parse 3D LUT data and apply to clip
- * - 6.3: Adjust LUT intensity with slider (0-100%)
- * - 6.4: Display error message for invalid files
- */
 export const LUTLoader: React.FC<LUTLoaderProps> = ({
   lutData,
   onChange,
   onError,
 }) => {
+  const { t } = useTranslation();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  /**
-   * Handle file selection
-   *
-   * Open file picker for .cube or .3dl files
-   */
   const handleFileSelect = useCallback(
     async (event: React.ChangeEvent<HTMLInputElement>) => {
       const file = event.target.files?.[0];
@@ -202,34 +169,26 @@ export const LUTLoader: React.FC<LUTLoaderProps> = ({
         } else if (extension === "3dl") {
           parsedLUT = parse3dlLUT(content);
         } else {
-          throw new Error(
-            "Unsupported file format. Please use .cube or .3dl files.",
-          );
+          throw new Error(t("inspector.lutUnsupportedFormat"));
         }
 
         setFileName(file.name);
         onChange(parsedLUT);
       } catch (err) {
         const errorMessage =
-          err instanceof Error ? err.message : "Failed to parse LUT file";
+          err instanceof Error ? err.message : t("inspector.lutFailedParse");
         setError(errorMessage);
         onError?.(errorMessage);
       } finally {
         setIsLoading(false);
-        // Reset input so same file can be selected again
         if (fileInputRef.current) {
           fileInputRef.current.value = "";
         }
       }
     },
-    [onChange, onError],
+    [onChange, onError, t],
   );
 
-  /**
-   * Handle intensity change
-   *
-   * Blend between original and LUT-graded image
-   */
   const handleIntensityChange = useCallback(
     (intensity: number) => {
       if (lutData) {
@@ -242,25 +201,18 @@ export const LUTLoader: React.FC<LUTLoaderProps> = ({
     [lutData, onChange],
   );
 
-  /**
-   * Remove loaded LUT
-   */
   const handleRemoveLUT = useCallback(() => {
     onChange(null);
     setFileName(null);
     setError(null);
   }, [onChange]);
 
-  /**
-   * Trigger file picker
-   */
   const handleLoadClick = useCallback(() => {
     fileInputRef.current?.click();
   }, []);
 
   return (
     <div className="space-y-3">
-      {/* Hidden file input */}
       <input
         ref={fileInputRef}
         type="file"
@@ -269,7 +221,6 @@ export const LUTLoader: React.FC<LUTLoaderProps> = ({
         className="hidden"
       />
 
-      {/* Load button or loaded LUT info */}
       {!lutData ? (
         <button
           onClick={handleLoadClick}
@@ -279,22 +230,21 @@ export const LUTLoader: React.FC<LUTLoaderProps> = ({
           {isLoading ? (
             <>
               <div className="w-3 h-3 border border-text-muted border-t-transparent rounded-full animate-spin" />
-              Loading...
+              {t("inspector.loading")}
             </>
           ) : (
             <>
               <Upload size={12} />
-              Load LUT (.cube, .3dl)
+              {t("inspector.lutLoad")}
             </>
           )}
         </button>
       ) : (
         <div className="space-y-2">
-          {/* Loaded LUT info */}
           <div className="flex items-center justify-between p-2 bg-background-tertiary rounded-lg">
             <div className="flex-1 min-w-0">
               <p className="text-[10px] text-text-primary truncate">
-                {fileName || "LUT Loaded"}
+                {fileName || t("inspector.lutLoaded")}
               </p>
               <p className="text-[9px] text-text-muted">
                 {lutData.size}x{lutData.size}x{lutData.size} LUT
@@ -303,30 +253,27 @@ export const LUTLoader: React.FC<LUTLoaderProps> = ({
             <button
               onClick={handleRemoveLUT}
               className="p-1 text-text-muted hover:text-text-primary transition-colors"
-              title="Remove LUT"
+              title={t("inspector.lutRemove")}
             >
               <X size={14} />
             </button>
           </div>
 
-          {/* Intensity slider */}
           <IntensitySlider
             value={lutData.intensity}
             onChange={handleIntensityChange}
           />
 
-          {/* Load different LUT button */}
           <button
             onClick={handleLoadClick}
             disabled={isLoading}
             className="w-full py-1.5 text-[10px] text-text-muted hover:text-text-secondary transition-colors"
           >
-            Load Different LUT
+            {t("inspector.lutLoadDifferent")}
           </button>
         </div>
       )}
 
-      {/* Error message */}
       {error && (
         <div className="flex items-start gap-2 p-2 bg-red-500/10 border border-red-500/20 rounded-lg">
           <AlertCircle

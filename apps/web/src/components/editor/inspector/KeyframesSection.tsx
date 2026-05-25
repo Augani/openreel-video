@@ -1,4 +1,5 @@
 import React, { useCallback, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Key,
   Plus,
@@ -155,6 +156,7 @@ const PropertySelector: React.FC<{
   onSelect: (propertyId: string) => void;
   existingProperties: string[];
 }> = ({ selectedProperty, onSelect, existingProperties }) => {
+  const { t } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
 
   const categories = [...new Set(ANIMATABLE_PROPERTIES.map((p) => p.category))];
@@ -162,7 +164,7 @@ const PropertySelector: React.FC<{
   const selectedLabel = selectedProperty
     ? ANIMATABLE_PROPERTIES.find((p) => p.id === selectedProperty)?.label ||
       selectedProperty
-    : "Select Property";
+    : t("inspector.selectProperty");
 
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
@@ -185,9 +187,9 @@ const PropertySelector: React.FC<{
       >
         {categories.map((category) => (
           <div key={category}>
-            <div className="px-3 py-1.5 text-[9px] font-medium text-text-muted uppercase tracking-wider bg-background-tertiary">
-              {category}
-            </div>
+              <div className="px-3 py-1.5 text-[9px] font-medium text-text-muted uppercase tracking-wider bg-background-tertiary">
+                {t(`inspector.keyframe${category.replace(/\s/g, "")}`)}
+              </div>
             {ANIMATABLE_PROPERTIES.filter(
               (p) => p.category === category,
             ).map((prop) => {
@@ -206,7 +208,7 @@ const PropertySelector: React.FC<{
                       : "text-text-primary"
                   }`}
                 >
-                  <span>{prop.label}</span>
+                  <span>{t(`inspector.keyframe${prop.label.replace(/\s/g, "")}`)}</span>
                   {hasKeyframes && (
                     <Diamond
                       size={10}
@@ -326,6 +328,7 @@ const KeyframeItem: React.FC<{
   onEasingChange: (easing: EasingName) => void;
   property: AnimatableProperty | undefined;
 }> = ({ keyframe, onUpdate, onDelete, onEasingChange, property }) => {
+  const { t } = useTranslation();
   const _formatValue = (value: unknown): string => {
     if (typeof value === "number") {
       return value.toFixed(property?.step && property.step < 1 ? 2 : 0);
@@ -363,7 +366,7 @@ const KeyframeItem: React.FC<{
       <button
         onClick={onDelete}
         className="p-1 hover:bg-red-500/20 rounded transition-colors text-text-muted hover:text-red-400"
-        title="Delete keyframe"
+        title={t("inspector.maskDeleteKeyframe")}
       >
         <Trash2 size={12} />
       </button>
@@ -384,6 +387,7 @@ interface KeyframesSectionProps {
 export const KeyframesSection: React.FC<KeyframesSectionProps> = ({
   clipId,
 }) => {
+  const { t } = useTranslation();
   const { getClip, updateClipKeyframes, project } = useProjectStore();
   const playheadPosition = useTimelineStore((state) => state.playheadPosition);
   const getGraphicsEngine = useEngineStore((state) => state.getGraphicsEngine);
@@ -507,7 +511,7 @@ export const KeyframesSection: React.FC<KeyframesSectionProps> = ({
   if (!clip) {
     return (
       <div className="text-[10px] text-text-muted text-center py-4">
-        No clip selected
+        {t("inspector.noClipSelected")}
       </div>
     );
   }
@@ -516,7 +520,7 @@ export const KeyframesSection: React.FC<KeyframesSectionProps> = ({
     <div className="space-y-4">
       <div className="space-y-2">
         <label className="text-[10px] text-text-secondary font-medium">
-          Animate Property
+          {t("inspector.animateProperty")}
         </label>
         <PropertySelector
           selectedProperty={selectedProperty}
@@ -528,7 +532,7 @@ export const KeyframesSection: React.FC<KeyframesSectionProps> = ({
       {selectedProperty && (
         <div className="flex items-center justify-between p-2 bg-background-tertiary rounded-lg border border-border">
           <span className="text-[10px] text-text-secondary">
-            Value at {playheadPosition.toFixed(2)}s
+            {t("inspector.valueAtTime", { time: playheadPosition.toFixed(2) })}
           </span>
           <span className="text-[10px] font-mono text-text-primary">
             {typeof currentValue === "number"
@@ -551,12 +555,12 @@ export const KeyframesSection: React.FC<KeyframesSectionProps> = ({
           {hasKeyframeAtPlayhead ? (
             <>
               <Key size={12} />
-              Keyframe exists at {playheadPosition.toFixed(2)}s
+              {t("inspector.keyframeExistsAt", { time: playheadPosition.toFixed(2) })}
             </>
           ) : (
             <>
               <Plus size={12} />
-              Add Keyframe at {playheadPosition.toFixed(2)}s
+              {t("inspector.addKeyframeAt", { time: playheadPosition.toFixed(2) })}
             </>
           )}
         </button>
@@ -566,7 +570,7 @@ export const KeyframesSection: React.FC<KeyframesSectionProps> = ({
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <span className="text-[10px] text-text-secondary font-medium">
-              Keyframes ({propertyKeyframes.length})
+              {t("inspector.keyframesCount", { count: propertyKeyframes.length })}
             </span>
           </div>
           <div className="space-y-1.5 max-h-48 overflow-y-auto">
@@ -588,14 +592,14 @@ export const KeyframesSection: React.FC<KeyframesSectionProps> = ({
         <div className="text-center py-4">
           <Key size={24} className="mx-auto text-text-muted mb-2" />
           <p className="text-[10px] text-text-muted">
-            Select a property to animate
+            {t("inspector.selectPropertyToAnimate")}
           </p>
         </div>
       )}
 
       {selectedProperty && propertyKeyframes.length === 0 && (
         <p className="text-[10px] text-text-muted text-center py-2">
-          No keyframes for this property. Add one to start animating.
+          {t("inspector.noKeyframesForProperty")}
         </p>
       )}
     </div>

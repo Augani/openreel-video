@@ -1,4 +1,5 @@
 import React, { useCallback, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { useProjectStore } from "../../../stores/project-store";
 import {
   getAvailableBlendModes,
@@ -18,7 +19,23 @@ interface BlendingSectionProps {
   clipId: string;
 }
 
+const BLEND_MODE_DESC_KEYS: Record<string, string> = {
+  normal: "inspector.blendNormalDesc",
+  multiply: "inspector.blendMultiplyDesc",
+  screen: "inspector.blendScreenDesc",
+  overlay: "inspector.blendOverlayDesc",
+  darken: "inspector.blendDarkenDesc",
+  lighten: "inspector.blendLightenDesc",
+  "color-dodge": "inspector.blendColorDodgeDesc",
+  "color-burn": "inspector.blendColorBurnDesc",
+  "hard-light": "inspector.blendHardLightDesc",
+  "soft-light": "inspector.blendSoftLightDesc",
+  difference: "inspector.blendDifferenceDesc",
+  exclusion: "inspector.blendExclusionDesc",
+};
+
 export const BlendingSection: React.FC<BlendingSectionProps> = ({ clipId }) => {
+  const { t } = useTranslation();
   const {
     getClip,
     getTextClip,
@@ -74,7 +91,7 @@ export const BlendingSection: React.FC<BlendingSectionProps> = ({ clipId }) => {
   if (!clip) {
     return (
       <div className="text-center py-8 text-text-muted text-xs">
-        No clip selected
+        {t("inspector.noClipSelected")}
       </div>
     );
   }
@@ -82,7 +99,7 @@ export const BlendingSection: React.FC<BlendingSectionProps> = ({ clipId }) => {
   return (
     <div className="space-y-3">
       <div className="space-y-1">
-          <span className="text-[10px] text-text-secondary">Blend Mode</span>
+          <span className="text-[10px] text-text-secondary">{t("inspector.blendModeTitle")}</span>
           <Select
             value={blendMode}
             onValueChange={(v) => handleBlendModeChange(v as BlendMode)}
@@ -99,23 +116,12 @@ export const BlendingSection: React.FC<BlendingSectionProps> = ({ clipId }) => {
             </SelectContent>
           </Select>
           <p className="text-[9px] text-text-muted">
-            {blendMode === "normal" && "Default blending, no special effect"}
-            {blendMode === "multiply" && "Darkens by multiplying colors"}
-            {blendMode === "screen" && "Lightens by screening colors"}
-            {blendMode === "overlay" && "Combines multiply and screen"}
-            {blendMode === "darken" && "Keeps darker pixels"}
-            {blendMode === "lighten" && "Keeps lighter pixels"}
-            {blendMode === "color-dodge" && "Brightens base color"}
-            {blendMode === "color-burn" && "Darkens base color"}
-            {blendMode === "hard-light" && "Strong contrast effect"}
-            {blendMode === "soft-light" && "Subtle contrast effect"}
-            {blendMode === "difference" && "Subtracts colors"}
-            {blendMode === "exclusion" && "Similar to difference but softer"}
+            {t(BLEND_MODE_DESC_KEYS[blendMode] || "inspector.blendNormalDesc")}
           </p>
         </div>
 
         <Slider
-          label="Opacity"
+          label={t("inspector.opacity")}
           value={blendOpacity}
           onChange={handleOpacityChange}
           min={0}
@@ -127,9 +133,8 @@ export const BlendingSection: React.FC<BlendingSectionProps> = ({ clipId }) => {
       {blendMode !== "normal" && (
         <div className="p-2 bg-primary/5 border border-primary/20 rounded-lg">
           <p className="text-[9px] text-text-muted">
-            <span className="text-primary font-medium">Tip:</span> Blend modes
-            affect how this layer combines with layers below it. Experiment with
-            different modes for creative effects.
+            <span className="text-primary font-medium">{t("inspector.tip")}:</span>{" "}
+            {t("inspector.blendModeTip")}
           </p>
         </div>
       )}

@@ -1,4 +1,5 @@
 import React, { useCallback, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { useProjectStore } from "../../../stores/project-store";
 import {
   LabeledSlider as Slider,
@@ -16,6 +17,7 @@ interface Transform3DSectionProps {
 export const Transform3DSection: React.FC<Transform3DSectionProps> = ({
   clipId,
 }) => {
+  const { t } = useTranslation();
   const {
     getClip,
     getTextClip,
@@ -92,7 +94,7 @@ export const Transform3DSection: React.FC<Transform3DSectionProps> = ({
   if (!clip) {
     return (
       <div className="text-center py-8 text-text-muted text-xs">
-        No clip selected
+        {t("inspector.noClipSelected")}
       </div>
     );
   }
@@ -100,7 +102,7 @@ export const Transform3DSection: React.FC<Transform3DSectionProps> = ({
   return (
     <div className="space-y-3">
         <Slider
-          label="Rotation X"
+          label={t("inspector.rotationX")}
           value={rotate3d.x}
           onChange={handleRotateXChange}
           min={-360}
@@ -110,7 +112,7 @@ export const Transform3DSection: React.FC<Transform3DSectionProps> = ({
         />
 
         <Slider
-          label="Rotation Y"
+          label={t("inspector.rotationY")}
           value={rotate3d.y}
           onChange={handleRotateYChange}
           min={-360}
@@ -120,7 +122,7 @@ export const Transform3DSection: React.FC<Transform3DSectionProps> = ({
         />
 
         <Slider
-          label="Rotation Z"
+          label={t("inspector.rotationZ")}
           value={rotate3d.z}
           onChange={handleRotateZChange}
           min={-360}
@@ -130,7 +132,7 @@ export const Transform3DSection: React.FC<Transform3DSectionProps> = ({
         />
 
         <Slider
-          label="Perspective"
+          label={t("inspector.perspective")}
           value={perspective}
           onChange={handlePerspectiveChange}
           min={100}
@@ -141,7 +143,7 @@ export const Transform3DSection: React.FC<Transform3DSectionProps> = ({
 
         <div className="space-y-1">
           <span className="text-[10px] text-text-secondary">
-            Transform Style
+            {t("inspector.transformStyle")}
           </span>
           <Select
             value={transformStyle}
@@ -151,24 +153,22 @@ export const Transform3DSection: React.FC<Transform3DSectionProps> = ({
               <SelectValue />
             </SelectTrigger>
             <SelectContent className="bg-background-secondary border-border">
-              <SelectItem value="flat">Flat</SelectItem>
-              <SelectItem value="preserve-3d">Preserve 3D</SelectItem>
+              <SelectItem value="flat">{t("inspector.transformFlat")}</SelectItem>
+              <SelectItem value="preserve-3d">{t("inspector.transformPreserve3D")}</SelectItem>
             </SelectContent>
           </Select>
           <p className="text-[9px] text-text-muted">
-            {transformStyle === "flat" &&
-              "Flattens children into the plane of this element"}
-            {transformStyle === "preserve-3d" &&
-              "Children positioned in 3D space"}
+            {transformStyle === "flat"
+              ? t("inspector.transformFlatDesc")
+              : t("inspector.transformPreserve3DDesc")}
           </p>
         </div>
 
       {(rotate3d.x !== 0 || rotate3d.y !== 0 || rotate3d.z !== 0) && (
         <div className="p-2 bg-primary/5 border border-primary/20 rounded-lg">
           <p className="text-[9px] text-text-muted">
-            <span className="text-primary font-medium">Tip:</span> 3D rotations
-            allow you to rotate layers along X, Y, and Z axes for depth effects.
-            Adjust perspective to control the 3D depth perception.
+            <span className="text-primary font-medium">{t("inspector.tip")}:</span>{" "}
+            {t("inspector.transform3DTip")}
           </p>
         </div>
       )}

@@ -1,4 +1,5 @@
 import React from "react";
+import { useTranslation } from "react-i18next";
 import {
   Copy,
   Layers,
@@ -36,6 +37,7 @@ export const ClipContextMenu: React.FC<ClipContextMenuProps> = ({
   track,
   onClose,
 }) => {
+  const { t } = useTranslation();
   const {
     copyClips,
     duplicateClip,
@@ -153,7 +155,7 @@ export const ClipContextMenu: React.FC<ClipContextMenuProps> = ({
       </ContextMenuItem>
       <ContextMenuItem onClick={handleDuplicate}>
         <Layers className="mr-2 h-4 w-4" />
-        Duplicate
+        {t("timeline.duplicate")}
         <ContextMenuShortcut>⌘D</ContextMenuShortcut>
       </ContextMenuItem>
 
@@ -227,7 +229,7 @@ export const ClipContextMenu: React.FC<ClipContextMenuProps> = ({
       </ContextMenuItem>
       <ContextMenuItem onClick={handleDelete} className="text-red-400">
         <Trash2 className="mr-2 h-4 w-4" />
-        Delete
+        {t("timeline.delete")}
       </ContextMenuItem>
     </ContextMenuContent>
   );

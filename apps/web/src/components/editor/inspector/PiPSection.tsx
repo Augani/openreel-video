@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import {
   PictureInPicture2,
   Square,
@@ -196,7 +197,8 @@ const PresetButton: React.FC<{
   preset: PiPPreset;
   isActive: boolean;
   onClick: () => void;
-}> = ({ preset, isActive, onClick }) => (
+  translatedName?: string;
+}> = ({ preset, isActive, onClick, translatedName }) => (
   <button
     onClick={onClick}
     className={`flex flex-col items-center gap-1 p-2 rounded-lg border transition-colors ${
@@ -204,14 +206,15 @@ const PresetButton: React.FC<{
         ? "bg-primary/20 border-primary text-primary"
         : "bg-background-tertiary border-border text-text-muted hover:text-text-primary hover:border-primary/50"
     }`}
-    title={preset.name}
+    title={translatedName || preset.name}
   >
     <PresetIcon type={preset.icon} />
-    <span className="text-[8px] truncate max-w-full">{preset.name}</span>
+    <span className="text-[8px] truncate max-w-full">{translatedName || preset.name}</span>
   </button>
 );
 
 export const PiPSection: React.FC<PiPSectionProps> = ({ clipId }) => {
+  const { t } = useTranslation();
   const project = useProjectStore((state) => state.project);
   const updateClipTransform = useProjectStore(
     (state) => state.updateClipTransform,
@@ -348,17 +351,17 @@ export const PiPSection: React.FC<PiPSectionProps> = ({ clipId }) => {
         <PictureInPicture2 size={16} className="text-primary" />
         <div className="flex-1">
           <span className="text-[11px] font-medium text-text-primary">
-            Picture-in-Picture
+            {t("inspector.pip")}
           </span>
           <p className="text-[9px] text-text-muted">
-            Position and scale video overlay
+            {t("inspector.pipDescription")}
           </p>
         </div>
       </div>
 
       <div className="space-y-2">
         <span className="text-[10px] font-medium text-text-secondary">
-          Corner Positions
+          {t("inspector.pipCornerPositions")}
         </span>
         <div className="grid grid-cols-4 gap-1">
           {cornerPresets.map((preset) => (
@@ -367,6 +370,7 @@ export const PiPSection: React.FC<PiPSectionProps> = ({ clipId }) => {
               preset={preset}
               isActive={activePresetId === preset.id}
               onClick={() => handlePresetClick(preset)}
+              translatedName={t(`inspector.pip${preset.name.replace(/\s+/g, "")}`)}
             />
           ))}
         </div>
@@ -374,7 +378,7 @@ export const PiPSection: React.FC<PiPSectionProps> = ({ clipId }) => {
 
       <div className="space-y-2">
         <span className="text-[10px] font-medium text-text-secondary">
-          Split Screen
+          {t("inspector.pipSplitScreen")}
         </span>
         <div className="grid grid-cols-4 gap-1">
           {splitPresets.map((preset) => (
@@ -383,6 +387,7 @@ export const PiPSection: React.FC<PiPSectionProps> = ({ clipId }) => {
               preset={preset}
               isActive={activePresetId === preset.id}
               onClick={() => handlePresetClick(preset)}
+              translatedName={t(`inspector.pip${preset.name.replace(/\s+/g, "")}`)}
             />
           ))}
         </div>
@@ -390,7 +395,7 @@ export const PiPSection: React.FC<PiPSectionProps> = ({ clipId }) => {
 
       <div className="space-y-2">
         <span className="text-[10px] font-medium text-text-secondary">
-          Center & Full
+          {t("inspector.pipCenterFull")}
         </span>
         <div className="grid grid-cols-3 gap-1">
           {centerPresets.map((preset) => (
@@ -399,6 +404,7 @@ export const PiPSection: React.FC<PiPSectionProps> = ({ clipId }) => {
               preset={preset}
               isActive={activePresetId === preset.id}
               onClick={() => handlePresetClick(preset)}
+              translatedName={t(`inspector.pip${preset.name.replace(/\s+/g, "")}`)}
             />
           ))}
         </div>
@@ -408,24 +414,24 @@ export const PiPSection: React.FC<PiPSectionProps> = ({ clipId }) => {
         onClick={() => setShowAdvanced(!showAdvanced)}
         className="w-full py-1.5 text-[10px] text-text-secondary hover:text-text-primary bg-background-tertiary rounded-lg transition-colors"
       >
-        {showAdvanced ? "Hide" : "Show"} Advanced Controls
+        {showAdvanced ? t("inspector.hide") : t("inspector.show")} Advanced Controls
       </button>
 
       {showAdvanced && (
         <div className="space-y-3 pt-2 border-t border-border">
           <div className="space-y-2">
             <span className="text-[10px] font-medium text-text-secondary">
-              Position
+              {t("inspector.position")}
             </span>
             <ControlSlider
-              label="X Position"
+              label={t("inspector.pipHorizontal")}
               value={currentTransform.position.x}
               onChange={(v) => handlePositionChange("x", v)}
               min={-1}
               max={1}
             />
             <ControlSlider
-              label="Y Position"
+              label={t("inspector.pipVertical")}
               value={currentTransform.position.y}
               onChange={(v) => handlePositionChange("y", v)}
               min={-1}
@@ -435,24 +441,24 @@ export const PiPSection: React.FC<PiPSectionProps> = ({ clipId }) => {
 
           <div className="space-y-2">
             <span className="text-[10px] font-medium text-text-secondary">
-              Scale
+              {t("inspector.scale")}
             </span>
             <ControlSlider
-              label="Uniform Scale"
+              label={t("inspector.pipUniformScale")}
               value={currentTransform.scale.x}
               onChange={(v) => handleScaleChange("both", v)}
               min={0.1}
               max={2}
             />
             <ControlSlider
-              label="X Scale"
+              label={t("inspector.scaleX")}
               value={currentTransform.scale.x}
               onChange={(v) => handleScaleChange("x", v)}
               min={0.1}
               max={2}
             />
             <ControlSlider
-              label="Y Scale"
+              label={t("inspector.scaleY")}
               value={currentTransform.scale.y}
               onChange={(v) => handleScaleChange("y", v)}
               min={0.1}
@@ -462,10 +468,10 @@ export const PiPSection: React.FC<PiPSectionProps> = ({ clipId }) => {
 
           <div className="space-y-2">
             <span className="text-[10px] font-medium text-text-secondary">
-              Appearance
+              {t("inspector.appearance")}
             </span>
             <ControlSlider
-              label="Border Radius"
+              label={t("inspector.pipBorderRadius")}
               value={currentTransform.borderRadius || 0}
               onChange={handleBorderRadiusChange}
               min={0}
@@ -473,7 +479,7 @@ export const PiPSection: React.FC<PiPSectionProps> = ({ clipId }) => {
               unit="px"
             />
             <ControlSlider
-              label="Opacity"
+              label={t("inspector.opacity")}
               value={currentTransform.opacity}
               onChange={handleOpacityChange}
               min={0}
@@ -488,11 +494,11 @@ export const PiPSection: React.FC<PiPSectionProps> = ({ clipId }) => {
         className="w-full flex items-center justify-center gap-1.5 py-2 text-[10px] text-text-secondary hover:text-text-primary bg-background-tertiary rounded-lg transition-colors"
       >
         <RotateCcw size={12} />
-        Reset to Default
+        {t("inspector.resetToDefault")}
       </button>
 
       <p className="text-[9px] text-text-muted text-center">
-        Drag clip in preview to fine-tune position
+        {t("inspector.pipDragToFineTune")}
       </p>
     </div>
   );

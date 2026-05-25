@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import {
   History,
   Undo2,
@@ -28,6 +29,7 @@ interface DisplayEntry {
 }
 
 export const HistoryPanel: React.FC = () => {
+  const { t } = useTranslation();
   const { actionHistory, undo, redo, canUndo, canRedo, clipUndoStack, clipRedoStack } = useProjectStore();
   const [combinedHistory, setCombinedHistory] = useState<DisplayEntry[]>([]);
   const [snapshots, setSnapshots] = useState<HistorySnapshot[]>([]);
@@ -37,11 +39,11 @@ export const HistoryPanel: React.FC = () => {
 
   const getClipDescription = (type: "shape" | "text" | "svg" | "sticker"): string => {
     switch (type) {
-      case "text": return "Create text clip";
-      case "shape": return "Create shape";
-      case "svg": return "Import SVG";
-      case "sticker": return "Add sticker";
-      default: return "Create clip";
+      case "text": return t("inspector.historyCreateTextClip");
+      case "shape": return t("history.createShape");
+      case "svg": return t("inspector.svgImport");
+      case "sticker": return t("history.addSticker");
+      default: return t("history.createClip");
     }
   };
 
@@ -129,7 +131,7 @@ export const HistoryPanel: React.FC = () => {
       <div className="flex items-center justify-between p-3 border-b border-border">
         <div className="flex items-center gap-2">
           <History size={14} className="text-primary" />
-          <span className="text-sm font-medium text-text-primary">History</span>
+          <span className="text-sm font-medium text-text-primary">{t("editor.history")}</span>
         </div>
         <div className="flex items-center gap-1">
           <button
@@ -163,7 +165,7 @@ export const HistoryPanel: React.FC = () => {
           )}
           <Bookmark size={12} className="text-yellow-500" />
           <span className="text-xs text-text-secondary">
-            Snapshots ({snapshots.length})
+              {t("inspector.snapshots")} ({snapshots.length})
           </span>
         </button>
 
@@ -171,7 +173,7 @@ export const HistoryPanel: React.FC = () => {
           <div className="px-2 pb-2">
             {snapshots.length === 0 && !isCreatingSnapshot && (
               <p className="text-[10px] text-text-muted py-2 text-center">
-                No snapshots saved
+                {t("inspector.noSnapshotsSaved")}
               </p>
             )}
 
@@ -208,7 +210,7 @@ export const HistoryPanel: React.FC = () => {
                     if (e.key === "Enter") handleCreateSnapshot();
                     if (e.key === "Escape") setIsCreatingSnapshot(false);
                   }}
-                  placeholder="Snapshot name..."
+                  placeholder={t("inspector.snapshotName")}
                   className="flex-1 h-7 text-xs bg-background-tertiary border-border text-text-primary"
                   autoFocus
                 />
@@ -225,7 +227,7 @@ export const HistoryPanel: React.FC = () => {
                 className="w-full flex items-center justify-center gap-1 p-2 rounded border border-dashed border-border hover:border-primary hover:text-primary transition-colors"
               >
                 <BookmarkPlus size={12} />
-                <span className="text-[10px]">Create Snapshot</span>
+                <span className="text-[10px]">{t("inspector.historyCreateSnapshot")}</span>
               </button>
             )}
           </div>
@@ -236,7 +238,7 @@ export const HistoryPanel: React.FC = () => {
         {combinedHistory.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-text-muted">
             <History size={24} className="mb-2 opacity-30" />
-            <p className="text-xs">No actions yet</p>
+            <p className="text-xs">{t("inspector.noActionsYet")}</p>
           </div>
         ) : (
           <div className="p-2 space-y-0.5">
@@ -293,8 +295,8 @@ export const HistoryPanel: React.FC = () => {
 
       <div className="p-2 border-t border-border bg-background-tertiary">
         <div className="flex items-center justify-between text-[10px] text-text-muted">
-          <span>{undoCount} actions</span>
-          <span>{redoCount} redoable</span>
+          <span>{t("inspector.actionsCount", { count: undoCount })}</span>
+          <span>{t("inspector.redoableCount", { count: redoCount })}</span>
         </div>
       </div>
     </div>

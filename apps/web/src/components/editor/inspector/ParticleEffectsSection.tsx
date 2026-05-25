@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import {
   PARTICLE_PRESETS,
   type ParticlePreset,
@@ -60,6 +61,7 @@ export const ParticleEffectsSection: React.FC<ParticleEffectsSectionProps> = ({
   onUpdateTiming,
   onPreviewEffect,
 }) => {
+  const { t } = useTranslation();
   const [expandedEffects, setExpandedEffects] = useState<Set<string>>(new Set());
   const [selectedPreset, setSelectedPreset] = useState<string>("");
 
@@ -125,13 +127,13 @@ export const ParticleEffectsSection: React.FC<ParticleEffectsSectionProps> = ({
       <div className="flex gap-2">
         <Select value={selectedPreset} onValueChange={setSelectedPreset}>
           <SelectTrigger className="flex-1 h-8 text-xs min-w-0 [&>span]:truncate">
-            <SelectValue placeholder="Select effect preset..." />
+            <SelectValue placeholder={t("inspector.selectEffectPreset")} />
           </SelectTrigger>
           <SelectContent>
             {Object.entries(groupedPresets).map(([type, presets]) => (
               <div key={type}>
                 <div className="px-2 py-1.5 text-xs font-semibold text-text-muted uppercase tracking-wider">
-                  {type}
+                  {t(`inspector.particle${type.charAt(0).toUpperCase() + type.slice(1)}`)}
                 </div>
                 {presets.map((preset) => (
                   <SelectItem key={preset.id} value={preset.id} textValue={preset.name}>
@@ -150,15 +152,15 @@ export const ParticleEffectsSection: React.FC<ParticleEffectsSectionProps> = ({
           className="h-8 px-3"
         >
           <Plus size={14} className="mr-1" />
-          Add
+          {t("inspector.add")}
         </Button>
       </div>
 
       {effects.length === 0 ? (
         <div className="text-center py-6 text-text-muted text-xs">
           <Sparkles size={24} className="mx-auto mb-2 opacity-50" />
-          <p>No particle effects added</p>
-          <p className="mt-1 text-[10px]">Select a preset above to add effects</p>
+          <p>{t("inspector.particleNoEffects")}</p>
+          <p className="mt-1 text-[10px]">{t("inspector.particleSelectPreset")}</p>
         </div>
       ) : (
         <ScrollArea className="max-h-[400px]">
@@ -190,7 +192,7 @@ export const ParticleEffectsSection: React.FC<ParticleEffectsSectionProps> = ({
                       <button
                         onClick={() => onPreviewEffect(effect.id)}
                         className="p-1 rounded hover:bg-background-elevated text-text-muted hover:text-primary transition-colors"
-                        title="Preview effect"
+                        title={t("inspector.previewEffect")}
                       >
                         <Play size={12} />
                       </button>
@@ -203,7 +205,7 @@ export const ParticleEffectsSection: React.FC<ParticleEffectsSectionProps> = ({
                           ? "text-primary hover:bg-primary/20"
                           : "text-text-muted hover:bg-background-elevated"
                       }`}
-                      title={effect.enabled ? "Disable" : "Enable"}
+                      title={effect.enabled ? t("inspector.disableEffect") : t("inspector.enableEffect")}
                     >
                       {effect.enabled ? <Eye size={12} /> : <EyeOff size={12} />}
                     </button>
@@ -211,7 +213,7 @@ export const ParticleEffectsSection: React.FC<ParticleEffectsSectionProps> = ({
                     <button
                       onClick={() => onRemoveEffect(effect.id)}
                       className="p-1 rounded hover:bg-red-500/20 text-text-muted hover:text-red-400 transition-colors"
-                      title="Remove effect"
+                      title={t("inspector.removeEffect")}
                     >
                       <Trash2 size={12} />
                     </button>
@@ -222,7 +224,7 @@ export const ParticleEffectsSection: React.FC<ParticleEffectsSectionProps> = ({
                       <div className="grid grid-cols-2 gap-3">
                         <div>
                           <Label className="text-[10px] text-text-muted mb-1">
-                            Start Time (s)
+                            {t("inspector.startTimeS")}
                           </Label>
                           <Input
                             type="number"
@@ -241,7 +243,7 @@ export const ParticleEffectsSection: React.FC<ParticleEffectsSectionProps> = ({
                         </div>
                         <div>
                           <Label className="text-[10px] text-text-muted mb-1">
-                            Duration (s)
+                            {t("inspector.durationS")}
                           </Label>
                           <Input
                             type="number"
@@ -262,12 +264,12 @@ export const ParticleEffectsSection: React.FC<ParticleEffectsSectionProps> = ({
                       <Collapsible>
                         <CollapsibleTrigger className="flex items-center gap-1 text-[10px] text-text-muted hover:text-text-primary">
                           <ChevronRight size={10} className="transition-transform data-[state=open]:rotate-90" />
-                          Particle Settings
+                          {t("inspector.particleSettings")}
                         </CollapsibleTrigger>
                         <CollapsibleContent className="pt-2 space-y-3">
                           <div>
                             <Label className="text-[10px] text-text-muted mb-1">
-                              Particle Count: {effect.config.particleCount}
+                              {t("inspector.particleCount")}: {effect.config.particleCount}
                             </Label>
                             <Slider
                               value={[effect.config.particleCount]}
@@ -283,7 +285,7 @@ export const ParticleEffectsSection: React.FC<ParticleEffectsSectionProps> = ({
 
                           <div>
                             <Label className="text-[10px] text-text-muted mb-1">
-                              Speed: {effect.config.speed}
+                              {t("inspector.speed")}: {effect.config.speed}
                             </Label>
                             <Slider
                               value={[effect.config.speed]}
@@ -299,7 +301,7 @@ export const ParticleEffectsSection: React.FC<ParticleEffectsSectionProps> = ({
 
                           <div>
                             <Label className="text-[10px] text-text-muted mb-1">
-                              Gravity: {effect.config.gravity}
+                              {t("inspector.gravity")}: {effect.config.gravity}
                             </Label>
                             <Slider
                               value={[effect.config.gravity]}
@@ -315,7 +317,7 @@ export const ParticleEffectsSection: React.FC<ParticleEffectsSectionProps> = ({
 
                           <div>
                             <Label className="text-[10px] text-text-muted mb-1">
-                              Emission Rate: {effect.config.emissionRate}
+                              {t("inspector.emissionRate")}: {effect.config.emissionRate}
                             </Label>
                             <Slider
                               value={[effect.config.emissionRate]}
@@ -332,7 +334,7 @@ export const ParticleEffectsSection: React.FC<ParticleEffectsSectionProps> = ({
                           <div className="grid grid-cols-2 gap-2">
                             <div>
                               <Label className="text-[10px] text-text-muted mb-1">
-                                Min Size: {effect.config.size.min}
+                                {t("inspector.minSize")}: {effect.config.size.min}
                               </Label>
                               <Slider
                                 value={[effect.config.size.min]}
@@ -350,7 +352,7 @@ export const ParticleEffectsSection: React.FC<ParticleEffectsSectionProps> = ({
                             </div>
                             <div>
                               <Label className="text-[10px] text-text-muted mb-1">
-                                Max Size: {effect.config.size.max}
+                                {t("inspector.maxSize")}: {effect.config.size.max}
                               </Label>
                               <Slider
                                 value={[effect.config.size.max]}
@@ -370,7 +372,7 @@ export const ParticleEffectsSection: React.FC<ParticleEffectsSectionProps> = ({
 
                           <div>
                             <Label className="text-[10px] text-text-muted mb-1">
-                              Turbulence: {effect.config.turbulence}
+                              {t("inspector.turbulence")}: {effect.config.turbulence}
                             </Label>
                             <Slider
                               value={[effect.config.turbulence]}
@@ -386,7 +388,7 @@ export const ParticleEffectsSection: React.FC<ParticleEffectsSectionProps> = ({
 
                           <div>
                             <Label className="text-[10px] text-text-muted mb-1">
-                              Blend Mode
+                              {t("inspector.blendMode")}
                             </Label>
                             <Select
                               value={effect.config.blendMode}
@@ -398,10 +400,10 @@ export const ParticleEffectsSection: React.FC<ParticleEffectsSectionProps> = ({
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="normal">Normal</SelectItem>
-                                <SelectItem value="add">Additive</SelectItem>
-                                <SelectItem value="multiply">Multiply</SelectItem>
-                                <SelectItem value="screen">Screen</SelectItem>
+                                <SelectItem value="normal">{t("inspector.normal")}</SelectItem>
+                                <SelectItem value="add">{t("inspector.additive")}</SelectItem>
+                                <SelectItem value="multiply">{t("inspector.multiply")}</SelectItem>
+                                <SelectItem value="screen">{t("inspector.screen")}</SelectItem>
                               </SelectContent>
                             </Select>
                           </div>
@@ -411,7 +413,7 @@ export const ParticleEffectsSection: React.FC<ParticleEffectsSectionProps> = ({
                       <Collapsible>
                         <CollapsibleTrigger className="flex items-center gap-1 text-[10px] text-text-muted hover:text-text-primary">
                           <ChevronRight size={10} className="transition-transform data-[state=open]:rotate-90" />
-                          Colors ({effect.config.colors.length})
+                          {t("inspector.colors")} ({effect.config.colors.length})
                         </CollapsibleTrigger>
                         <CollapsibleContent className="pt-2">
                           <div className="flex flex-wrap gap-1">
@@ -465,6 +467,7 @@ interface ColorSwatchProps {
 }
 
 const ColorSwatch: React.FC<ColorSwatchProps> = ({ color, onChange, onRemove }) => {
+  const { t } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -505,7 +508,7 @@ const ColorSwatch: React.FC<ColorSwatchProps> = ({ color, onChange, onRemove }) 
                   setIsOpen(false);
                 }}
                 className="p-1.5 rounded hover:bg-red-500/20 text-text-muted hover:text-red-400 transition-colors"
-                title="Remove color"
+                title={t("inspector.removeColor")}
               >
                 <Trash2 size={12} />
               </button>

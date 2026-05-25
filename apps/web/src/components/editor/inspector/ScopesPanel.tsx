@@ -5,6 +5,7 @@ import React, {
   useState,
   useMemo,
 } from "react";
+import { useTranslation } from "react-i18next";
 import { Activity, Circle, BarChart3 } from "lucide-react";
 import { getEffectsBridge } from "../../../bridges/effects-bridge";
 import type {
@@ -13,28 +14,16 @@ import type {
   HistogramData,
 } from "@openreel/core";
 
-/**
- * Scope view types
- */
 export type ScopeViewType = "waveform" | "vectorscope" | "histogram";
 
-/**
- * ScopesPanel Props
- */
 interface ScopesPanelProps {
-  /** Current frame image to analyze */
   frameImage?: ImageBitmap | null;
-  /** Default view to show */
   defaultView?: ScopeViewType;
-  /** Callback when scope data is generated */
   onScopeDataGenerated?: (
     data: WaveformScopeData | VectorscopeData | HistogramData,
   ) => void;
 }
 
-/**
- * View toggle button component
- */
 const ViewToggleButton: React.FC<{
   active: boolean;
   onClick: () => void;
@@ -55,11 +44,6 @@ const ViewToggleButton: React.FC<{
   </button>
 );
 
-/**
- * Waveform renderer component
- *
- * Display waveform showing luminance distribution
- */
 const WaveformRenderer: React.FC<{
   data: WaveformScopeData | null;
   showRGB?: boolean;
@@ -77,11 +61,9 @@ const WaveformRenderer: React.FC<{
     const displayWidth = canvas.width;
     const displayHeight = canvas.height;
 
-    // Clear canvas with dark background
     ctx.fillStyle = "#1a1a1a";
     ctx.fillRect(0, 0, displayWidth, displayHeight);
 
-    // Draw grid lines
     ctx.strokeStyle = "#333";
     ctx.lineWidth = 1;
     for (let i = 0; i <= 10; i++) {
@@ -92,11 +74,9 @@ const WaveformRenderer: React.FC<{
       ctx.stroke();
     }
 
-    // Scale factor for x-axis
     const xScale = displayWidth / width;
     const yScale = displayHeight / height;
 
-    // Find max value for normalization
     let maxVal = 1;
     for (let x = 0; x < width; x++) {
       for (let y = 0; y < height; y++) {
@@ -108,7 +88,6 @@ const WaveformRenderer: React.FC<{
       }
     }
 
-    // Draw waveform data
     const drawChannel = (
       channelData: Uint8Array,
       color: string,
@@ -133,18 +112,15 @@ const WaveformRenderer: React.FC<{
     };
 
     if (showRGB) {
-      // Draw RGB channels
       drawChannel(red, "#ff4444", 0.6);
       drawChannel(green, "#44ff44", 0.6);
       drawChannel(blue, "#4444ff", 0.6);
     } else {
-      // Draw luminance only
       drawChannel(luminance, "#ffffff", 0.8);
     }
 
     ctx.globalAlpha = 1;
 
-    // Draw reference lines (0%, 50%, 100%)
     ctx.strokeStyle = "#666";
     ctx.lineWidth = 1;
     ctx.setLineDash([4, 4]);
@@ -159,7 +135,6 @@ const WaveformRenderer: React.FC<{
 
     ctx.setLineDash([]);
 
-    // Draw labels
     ctx.fillStyle = "#888";
     ctx.font = "9px monospace";
     ctx.fillText("100%", 4, 12);
@@ -177,11 +152,6 @@ const WaveformRenderer: React.FC<{
   );
 };
 
-/**
- * Vectorscope renderer component
- *
- * Display vectorscope showing color saturation and hue
- */
 const VectorscopeRenderer: React.FC<{
   data: VectorscopeData | null;
 }> = ({ data }) => {
@@ -199,22 +169,18 @@ const VectorscopeRenderer: React.FC<{
     const scale = displaySize / size;
     const center = displaySize / 2;
 
-    // Clear canvas with dark background
     ctx.fillStyle = "#1a1a1a";
     ctx.fillRect(0, 0, displaySize, displaySize);
 
-    // Draw circular grid
     ctx.strokeStyle = "#333";
     ctx.lineWidth = 1;
 
-    // Concentric circles
     for (let r = 0.25; r <= 1; r += 0.25) {
       ctx.beginPath();
       ctx.arc(center, center, center * r, 0, Math.PI * 2);
       ctx.stroke();
     }
 
-    // Cross lines
     ctx.beginPath();
     ctx.moveTo(0, center);
     ctx.lineTo(displaySize, center);
@@ -222,14 +188,13 @@ const VectorscopeRenderer: React.FC<{
     ctx.lineTo(center, displaySize);
     ctx.stroke();
 
-    // Draw color targets (standard color positions)
     const colorTargets = [
-      { angle: 103, label: "R", color: "#ff0000" }, // Red
-      { angle: 61, label: "Yl", color: "#ffff00" }, // Yellow
-      { angle: 167, label: "G", color: "#00ff00" }, // Green
-      { angle: 241, label: "Cy", color: "#00ffff" }, // Cyan
-      { angle: 283, label: "B", color: "#0000ff" }, // Blue
-      { angle: 347, label: "Mg", color: "#ff00ff" }, // Magenta
+      { angle: 103, label: "R", color: "#ff0000" },
+      { angle: 61, label: "Yl", color: "#ffff00" },
+      { angle: 167, label: "G", color: "#00ff00" },
+      { angle: 241, label: "Cy", color: "#00ffff" },
+      { angle: 283, label: "B", color: "#0000ff" },
+      { angle: 347, label: "Mg", color: "#ff00ff" },
     ];
 
     colorTargets.forEach(({ angle, label, color }) => {
@@ -249,16 +214,13 @@ const VectorscopeRenderer: React.FC<{
       ctx.fillText(label, x + 6, y + 3);
     });
 
-    // Draw vectorscope data
     ctx.globalAlpha = 1;
 
-    // Find max value for normalization
     let maxVal = 1;
     for (let i = 0; i < scopeData.length; i++) {
       maxVal = Math.max(maxVal, scopeData[i]);
     }
 
-    // Draw each point
     for (let y = 0; y < size; y++) {
       for (let x = 0; x < size; x++) {
         const idx = y * size + x;
@@ -268,7 +230,6 @@ const VectorscopeRenderer: React.FC<{
           const displayX = x * scale;
           const displayY = y * scale;
 
-          // Color based on position (hue)
           const dx = x - size / 2;
           const dy = y - size / 2;
           const hue = ((Math.atan2(dy, dx) * 180) / Math.PI + 90 + 360) % 360;
@@ -295,11 +256,6 @@ const VectorscopeRenderer: React.FC<{
   );
 };
 
-/**
- * Histogram renderer component
- *
- * Display RGB and luminance histograms
- */
 const HistogramRenderer: React.FC<{
   data: HistogramData | null;
   showChannels?: "all" | "luminance" | "rgb";
@@ -317,11 +273,9 @@ const HistogramRenderer: React.FC<{
     const displayWidth = canvas.width;
     const displayHeight = canvas.height;
 
-    // Clear canvas with dark background
     ctx.fillStyle = "#1a1a1a";
     ctx.fillRect(0, 0, displayWidth, displayHeight);
 
-    // Draw grid lines
     ctx.strokeStyle = "#333";
     ctx.lineWidth = 1;
     for (let i = 0; i <= 4; i++) {
@@ -332,7 +286,6 @@ const HistogramRenderer: React.FC<{
       ctx.stroke();
     }
 
-    // Find max value for normalization
     let maxVal = 1;
     for (let i = 0; i < 256; i++) {
       if (showChannels === "all" || showChannels === "rgb") {
@@ -345,7 +298,6 @@ const HistogramRenderer: React.FC<{
 
     const barWidth = displayWidth / 256;
 
-    // Draw histogram bars
     const drawHistogram = (
       channelData: Uint32Array,
       color: string,
@@ -364,7 +316,6 @@ const HistogramRenderer: React.FC<{
     };
 
     if (showChannels === "all" || showChannels === "rgb") {
-      // Draw RGB channels with blending
       ctx.globalCompositeOperation = "lighter";
       drawHistogram(red, "#ff0000", 0.5);
       drawHistogram(green, "#00ff00", 0.5);
@@ -373,13 +324,11 @@ const HistogramRenderer: React.FC<{
     }
 
     if (showChannels === "all" || showChannels === "luminance") {
-      // Draw luminance on top
       drawHistogram(luminance, "#ffffff", showChannels === "all" ? 0.3 : 0.7);
     }
 
     ctx.globalAlpha = 1;
 
-    // Draw labels
     ctx.fillStyle = "#888";
     ctx.font = "9px monospace";
     ctx.fillText("0", 4, displayHeight - 4);
@@ -396,18 +345,12 @@ const HistogramRenderer: React.FC<{
   );
 };
 
-/**
- * ScopesPanel Component
- *
- * - 8.1: Generate and display waveform showing luminance distribution
- * - 8.2: Display vectorscope showing color saturation and hue distribution
- * - 8.3: Display RGB and luminance histograms
- */
 export const ScopesPanel: React.FC<ScopesPanelProps> = ({
   frameImage,
   defaultView = "waveform",
   onScopeDataGenerated,
 }) => {
+  const { t } = useTranslation();
   const [activeView, setActiveView] = useState<ScopeViewType>(defaultView);
   const [waveformData, setWaveformData] = useState<WaveformScopeData | null>(
     null,
@@ -420,7 +363,6 @@ export const ScopesPanel: React.FC<ScopesPanelProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [showRGBWaveform, setShowRGBWaveform] = useState(false);
 
-  // Generate scope data when frame image changes
   useEffect(() => {
     if (!frameImage) {
       setWaveformData(null);
@@ -434,7 +376,6 @@ export const ScopesPanel: React.FC<ScopesPanelProps> = ({
       const bridge = getEffectsBridge();
 
       try {
-        // Generate data for the active view
         switch (activeView) {
           case "waveform": {
             const data = await bridge.generateWaveform(frameImage);
@@ -471,17 +412,15 @@ export const ScopesPanel: React.FC<ScopesPanelProps> = ({
     generateScopeData();
   }, [frameImage, activeView, onScopeDataGenerated]);
 
-  // View toggle handlers
   const handleViewChange = useCallback((view: ScopeViewType) => {
     setActiveView(view);
   }, []);
 
-  // Memoized view content
   const viewContent = useMemo(() => {
     if (isLoading) {
       return (
         <div className="flex items-center justify-center h-40 text-text-muted text-xs">
-          Generating scope data...
+          {t("inspector.scopesGenerating")}
         </div>
       );
     }
@@ -489,7 +428,7 @@ export const ScopesPanel: React.FC<ScopesPanelProps> = ({
     if (!frameImage) {
       return (
         <div className="flex items-center justify-center h-40 text-text-muted text-xs">
-          No frame to analyze
+          {t("inspector.scopesNoFrame")}
         </div>
       );
     }
@@ -501,13 +440,13 @@ export const ScopesPanel: React.FC<ScopesPanelProps> = ({
             <WaveformRenderer data={waveformData} showRGB={showRGBWaveform} />
             <div className="flex items-center justify-between">
               <span className="text-[10px] text-text-muted">
-                {showRGBWaveform ? "RGB Parade" : "Luminance"}
+                {showRGBWaveform ? t("inspector.scopesRgbParade") : t("inspector.scopesLuminance")}
               </span>
               <button
                 onClick={() => setShowRGBWaveform(!showRGBWaveform)}
                 className="text-[10px] text-text-secondary hover:text-text-primary transition-colors"
               >
-                {showRGBWaveform ? "Show Luma" : "Show RGB"}
+                {showRGBWaveform ? t("inspector.scopesShowLuma") : t("inspector.scopesShowRGB")}
               </button>
             </div>
           </div>
@@ -527,43 +466,38 @@ export const ScopesPanel: React.FC<ScopesPanelProps> = ({
     vectorscopeData,
     histogramData,
     showRGBWaveform,
+    t,
   ]);
 
   return (
     <div className="space-y-3">
-      {/* View Toggle Buttons */}
       <div className="flex gap-2">
         <ViewToggleButton
           active={activeView === "waveform"}
           onClick={() => handleViewChange("waveform")}
           icon={<Activity size={12} />}
-          label="Waveform"
+          label={t("inspector.scopesWaveform")}
         />
         <ViewToggleButton
           active={activeView === "vectorscope"}
           onClick={() => handleViewChange("vectorscope")}
           icon={<Circle size={12} />}
-          label="Vectorscope"
+          label={t("inspector.scopesVectorscope")}
         />
         <ViewToggleButton
           active={activeView === "histogram"}
           onClick={() => handleViewChange("histogram")}
           icon={<BarChart3 size={12} />}
-          label="Histogram"
+          label={t("inspector.scopesHistogram")}
         />
       </div>
 
-      {/* Scope View */}
       <div className="bg-background-tertiary rounded-lg p-3">{viewContent}</div>
 
-      {/* Info Text */}
       <p className="text-[9px] text-text-muted">
-        {activeView === "waveform" &&
-          "Waveform shows luminance distribution across the frame width."}
-        {activeView === "vectorscope" &&
-          "Vectorscope shows color saturation and hue distribution."}
-        {activeView === "histogram" &&
-          "Histogram shows RGB and luminance value distribution."}
+        {activeView === "waveform" && t("inspector.scopesWaveformDesc")}
+        {activeView === "vectorscope" && t("inspector.scopesVectorscopeDesc")}
+        {activeView === "histogram" && t("inspector.scopesHistogramDesc")}
       </p>
     </div>
   );

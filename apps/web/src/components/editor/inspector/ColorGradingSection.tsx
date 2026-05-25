@@ -1,4 +1,5 @@
 import React, { useCallback, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { ChevronDown, RotateCcw, Sun, Thermometer } from "lucide-react";
 import { LabeledSlider } from "@openreel/ui";
 import { useProjectStore } from "../../../stores/project-store";
@@ -19,15 +20,15 @@ import { LUTLoader } from "./LUTLoader";
 import { HSLControls } from "./HSLControls";
 
 const WHITE_BALANCE_PRESETS: Array<{
-  label: string;
+  labelKey: string;
   temperature: number;
   tint: number;
 }> = [
-  { label: "Tungsten", temperature: -40, tint: 8 },
-  { label: "Fluorescent", temperature: -15, tint: -10 },
-  { label: "Daylight", temperature: 0, tint: 0 },
-  { label: "Cloudy", temperature: 15, tint: 0 },
-  { label: "Shade", temperature: 30, tint: 5 },
+  { labelKey: "inspector.wbTungsten", temperature: -40, tint: 8 },
+  { labelKey: "inspector.wbFluorescent", temperature: -15, tint: -10 },
+  { labelKey: "inspector.wbDaylight", temperature: 0, tint: 0 },
+  { labelKey: "inspector.wbCloudy", temperature: 15, tint: 0 },
+  { labelKey: "inspector.wbShade", temperature: 30, tint: 5 },
 ];
 
 const SubSection: React.FC<{
@@ -65,6 +66,7 @@ interface ColorGradingSectionProps {
 export const ColorGradingSection: React.FC<ColorGradingSectionProps> = ({
   clipId,
 }) => {
+  const { t } = useTranslation();
   const { getColorGrading, updateColorGrading, resetColorGrading } =
     useProjectStore();
 
@@ -72,7 +74,6 @@ export const ColorGradingSection: React.FC<ColorGradingSectionProps> = ({
 
   const colorGrading = useMemo(
     () => getColorGrading(clipId),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [clipId, getColorGrading, modifiedAt],
   );
 
@@ -171,24 +172,23 @@ export const ColorGradingSection: React.FC<ColorGradingSectionProps> = ({
           className="flex items-center gap-1 px-2 py-1 text-[10px] text-text-muted hover:text-text-primary transition-colors"
         >
           <RotateCcw size={10} />
-          Reset All
+          {t("inspector.resetAll")}
         </button>
       </div>
 
-      <SubSection title="White Balance" defaultOpen>
+      <SubSection title={t("inspector.whiteBalance")} defaultOpen>
         <div className="space-y-4">
           <div className="flex items-start justify-between gap-2">
             <p className="text-[10px] text-text-muted leading-snug">
-              Warm up cool shots or cool down warm ones. Tint corrects green or
-              magenta casts.
+              {t("inspector.whiteBalanceDesc")}
             </p>
             <button
               onClick={handleWhiteBalanceReset}
               className="flex items-center gap-1 px-2 py-0.5 text-[10px] text-text-muted hover:text-text-primary transition-colors shrink-0"
-              title="Reset white balance"
+              title={t("inspector.resetWhiteBalance")}
             >
               <RotateCcw size={10} />
-              Reset
+              {t("inspector.reset")}
             </button>
           </div>
 
@@ -196,7 +196,7 @@ export const ColorGradingSection: React.FC<ColorGradingSectionProps> = ({
             <div className="flex items-center gap-1.5">
               <Thermometer size={12} className="text-text-muted" />
               <LabeledSlider
-                label="Temperature"
+                label={t("inspector.temperature")}
                 value={temperatureValue}
                 onChange={handleTemperatureChange}
                 min={-100}
@@ -218,7 +218,7 @@ export const ColorGradingSection: React.FC<ColorGradingSectionProps> = ({
             <div className="flex items-center gap-1.5">
               <Sun size={12} className="text-text-muted" />
               <LabeledSlider
-                label="Tint"
+                label={t("inspector.tint")}
                 value={tintValue}
                 onChange={handleTintChange}
                 min={-100}
@@ -238,7 +238,7 @@ export const ColorGradingSection: React.FC<ColorGradingSectionProps> = ({
 
           <div className="pt-1">
             <span className="text-[10px] text-text-muted block mb-1.5">
-              Presets
+              {t("inspector.presets")}
             </span>
             <div className="grid grid-cols-5 gap-1">
               {WHITE_BALANCE_PRESETS.map((preset) => {
@@ -247,7 +247,7 @@ export const ColorGradingSection: React.FC<ColorGradingSectionProps> = ({
                   Math.abs(preset.tint - tintValue) < 0.5;
                 return (
                   <button
-                    key={preset.label}
+                    key={preset.labelKey}
                     onClick={() => handleWhiteBalancePreset(preset)}
                     className={`py-1 rounded text-[9px] transition-colors ${
                       isActive
@@ -256,7 +256,7 @@ export const ColorGradingSection: React.FC<ColorGradingSectionProps> = ({
                     }`}
                     title={`Temp: ${preset.temperature}, Tint: ${preset.tint}`}
                   >
-                    {preset.label}
+                    {t(preset.labelKey)}
                   </button>
                 );
               })}
@@ -265,7 +265,7 @@ export const ColorGradingSection: React.FC<ColorGradingSectionProps> = ({
         </div>
       </SubSection>
 
-      <SubSection title="Color Wheels" defaultOpen={false}>
+      <SubSection title={t("inspector.colorWheels")} defaultOpen={false}>
         <ColorWheelsControl
           values={colorWheelValues}
           onChange={handleColorWheelsChange}
@@ -273,7 +273,7 @@ export const ColorGradingSection: React.FC<ColorGradingSectionProps> = ({
         />
       </SubSection>
 
-      <SubSection title="Curves">
+      <SubSection title={t("inspector.curves")}>
         <CurvesEditor
           values={curvesValues}
           onChange={handleCurvesChange}
@@ -281,14 +281,14 @@ export const ColorGradingSection: React.FC<ColorGradingSectionProps> = ({
         />
       </SubSection>
 
-      <SubSection title="LUT">
+      <SubSection title={t("inspector.lut")}>
         <LUTLoader
           lutData={colorGrading.lut as LUTData | null}
           onChange={handleLUTChange}
         />
       </SubSection>
 
-      <SubSection title="HSL">
+      <SubSection title={t("inspector.hsl")}>
         <HSLControls
           values={hslValues}
           onChange={handleHSLValuesChange}

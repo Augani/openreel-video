@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useMemo, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Layers,
   Plus,
@@ -98,6 +99,7 @@ const BLEND_MODES: Array<{ id: BlendMode; name: string; group: string }> = [
 export const AdjustmentLayerSection: React.FC<AdjustmentLayerSectionProps> = ({
   clipId,
 }) => {
+  const { t } = useTranslation();
   const getAdjustmentLayerEngine = useEngineStore(
     (state) => state.getAdjustmentLayerEngine,
   );
@@ -152,7 +154,7 @@ export const AdjustmentLayerSection: React.FC<AdjustmentLayerSectionProps> = ({
     const layer = adjustmentLayerEngine.createAdjustmentLayer(
       currentTrack.id,
       startTime,
-      { duration, name: `Adjustment ${allLayers.length + 1}` },
+      { duration, name: `${t("inspector.adjustment")} ${allLayers.length + 1}` },
     );
 
     setExpandedLayer(layer.id);
@@ -306,7 +308,7 @@ export const AdjustmentLayerSection: React.FC<AdjustmentLayerSectionProps> = ({
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
                 <label className="text-[10px] text-text-secondary">
-                  Opacity
+                  {t("inspector.opacity")}
                 </label>
                 <span className="text-[10px] font-mono text-text-primary">
                   {Math.round(layer.opacity * 100)}%
@@ -326,7 +328,7 @@ export const AdjustmentLayerSection: React.FC<AdjustmentLayerSectionProps> = ({
             <div className="space-y-1.5">
               <label className="text-[10px] text-text-secondary flex items-center gap-1">
                 <Palette size={10} />
-                Blend Mode
+                {t("inspector.blendMode")}
               </label>
               <Popover open={showBlendModes} onOpenChange={setShowBlendModes}>
                 <PopoverTrigger asChild>
@@ -335,8 +337,8 @@ export const AdjustmentLayerSection: React.FC<AdjustmentLayerSectionProps> = ({
                     className="w-full flex items-center justify-between p-2 bg-background-secondary rounded text-[10px] text-text-primary hover:bg-background-tertiary transition-colors"
                   >
                     <span>
-                      {BLEND_MODES.find((m) => m.id === layer.blendMode)?.name ||
-                        "Normal"}
+                    {BLEND_MODES.find((m) => m.id === layer.blendMode)?.name ||
+                      t("inspector.normal")}
                     </span>
                     <ChevronDown size={10} />
                   </button>
@@ -367,7 +369,7 @@ export const AdjustmentLayerSection: React.FC<AdjustmentLayerSectionProps> = ({
             <div className="space-y-1.5">
               <label className="text-[10px] text-text-secondary flex items-center gap-1">
                 <Droplet size={10} />
-                Effects ({layer.effects.length})
+                {t("inspector.effectsCount", { count: layer.effects.length })}
               </label>
               {layer.effects.length > 0 && (
                 <div className="space-y-1">
@@ -396,7 +398,7 @@ export const AdjustmentLayerSection: React.FC<AdjustmentLayerSectionProps> = ({
                     onClick={() => handleAddEffect(layer.id, preset.id)}
                     className="p-1.5 text-[9px] text-text-secondary bg-background-secondary rounded hover:bg-indigo-500/10 hover:text-indigo-400 transition-colors"
                   >
-                    + {preset.name}
+                    + {t(`inspector.effect${preset.name}`)}
                   </button>
                 ))}
               </div>
@@ -408,14 +410,14 @@ export const AdjustmentLayerSection: React.FC<AdjustmentLayerSectionProps> = ({
                 className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-background-secondary rounded text-[10px] text-text-secondary hover:text-text-primary transition-colors"
               >
                 <Copy size={10} />
-                Duplicate
+                {t("inspector.maskDuplicate")}
               </button>
               <button
                 onClick={() => handleDeleteLayer(layer.id)}
                 className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-red-500/10 rounded text-[10px] text-red-400 hover:bg-red-500/20 transition-colors"
               >
                 <Trash2 size={10} />
-                Delete
+                {t("inspector.maskDelete")}
               </button>
             </div>
           </div>
@@ -430,10 +432,10 @@ export const AdjustmentLayerSection: React.FC<AdjustmentLayerSectionProps> = ({
         <Layers size={16} className="text-indigo-400" />
         <div className="flex-1">
           <span className="text-[11px] font-medium text-text-primary">
-            Adjustment Layers
+            {t("inspector.adjustmentLayers")}
           </span>
           <p className="text-[9px] text-text-muted">
-            Non-destructive effects on clips below
+            {t("inspector.adjustmentLayersDescription")}
           </p>
         </div>
       </div>
@@ -448,13 +450,13 @@ export const AdjustmentLayerSection: React.FC<AdjustmentLayerSectionProps> = ({
         }`}
       >
         <Plus size={14} />
-        Add Adjustment Layer
+        {t("inspector.maskAddLayer")}
       </button>
 
       {trackLayers.length > 0 && (
         <div className="space-y-2">
           <span className="text-[10px] font-medium text-text-secondary">
-            Track Layers ({trackLayers.length})
+            {t("inspector.adjustmentTrackLayers", { count: trackLayers.length })}
           </span>
           <div className="space-y-1.5">{trackLayers.map(renderLayerItem)}</div>
         </div>
@@ -463,7 +465,7 @@ export const AdjustmentLayerSection: React.FC<AdjustmentLayerSectionProps> = ({
       {allLayers.length > trackLayers.length && (
         <div className="space-y-2 pt-2 border-t border-border">
           <span className="text-[10px] font-medium text-text-secondary">
-            Other Layers
+            {t("inspector.otherLayers")}
           </span>
           <div className="space-y-1.5">
             {allLayers
@@ -475,7 +477,7 @@ export const AdjustmentLayerSection: React.FC<AdjustmentLayerSectionProps> = ({
 
       <div className="pt-2 border-t border-border">
         <p className="text-[9px] text-text-muted text-center">
-          Apply color, effects to all clips below
+          {t("inspector.adjustmentFlatten")}
         </p>
       </div>
     </div>

@@ -5,6 +5,7 @@ import React, {
   useRef,
   useEffect,
 } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Play,
   Rewind,
@@ -61,6 +62,7 @@ const SpeedCurveCanvas: React.FC<{
   onAddKeyframe: (time: number, speed: number) => void;
   onRemoveKeyframe: (id: string) => void;
 }> = ({ keyframes, duration, baseSpeed, onAddKeyframe, onRemoveKeyframe }) => {
+  const { t } = useTranslation();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [hoveredKeyframe] = useState<string | null>(null);
   const [draggingKeyframe] = useState<string | null>(null);
@@ -235,13 +237,14 @@ const SpeedCurveCanvas: React.FC<{
         className="w-full rounded-lg border border-border cursor-crosshair"
       />
       <div className="absolute bottom-1 right-1 text-[8px] text-text-muted">
-        Click to add/remove keyframes
+        {t("inspector.speedClickToAddRemove")}
       </div>
     </div>
   );
 };
 
 export const SpeedRampSection: React.FC<SpeedRampSectionProps> = ({ clip }) => {
+  const { t } = useTranslation();
   const playheadPosition = useTimelineStore((state) => state.playheadPosition);
   const speedEngine = useMemo(() => getSpeedEngine(), []);
 
@@ -373,14 +376,14 @@ export const SpeedRampSection: React.FC<SpeedRampSectionProps> = ({ clip }) => {
     <div className="space-y-3">
       <div className="p-2 bg-background-tertiary rounded-lg border border-border">
         <p className="text-[10px] text-text-muted">
-          Effective duration: {formatDuration(effectiveDuration)}
+          {t("inspector.speedEffectiveDuration")}: {formatDuration(effectiveDuration)}
         </p>
       </div>
 
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <span className="text-[10px] font-medium text-text-secondary">
-            Playback Speed
+            {t("inspector.speedPlaybackSpeed")}
           </span>
           <span className="text-[10px] font-mono text-primary">
             {currentSpeed.toFixed(2)}x
@@ -426,7 +429,7 @@ export const SpeedRampSection: React.FC<SpeedRampSectionProps> = ({ clip }) => {
           }`}
         >
           <RotateCcw size={12} />
-          Reverse
+          {t("inspector.reverse")}
         </button>
         <button
           onClick={handlePitchCorrectionToggle}
@@ -436,13 +439,13 @@ export const SpeedRampSection: React.FC<SpeedRampSectionProps> = ({ clip }) => {
               : "bg-background-tertiary border-border text-text-secondary hover:border-primary/50"
           }`}
         >
-          Pitch Correct
+          {t("inspector.speedPitchCorrect")}
         </button>
       </div>
 
       <div className="space-y-1.5">
         <span className="text-[10px] font-medium text-text-secondary">
-          Speed Curve Presets
+          {t("inspector.speedCurvePresets")}
         </span>
         <div className="grid grid-cols-2 gap-1">
           {SPEED_CURVE_PRESETS.map((preset) => (
@@ -463,10 +466,10 @@ export const SpeedRampSection: React.FC<SpeedRampSectionProps> = ({ clip }) => {
         className="w-full flex items-center gap-2 py-2 text-[10px] text-text-secondary hover:text-text-primary transition-colors"
       >
         {showCurve ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-        <span className="font-medium">Speed Ramping</span>
+        <span className="font-medium">{t("inspector.speedRamping")}</span>
         {keyframes.length > 0 && (
           <span className="ml-auto text-[9px] text-primary">
-            {keyframes.length} keyframes
+            {t("inspector.speedKeyframesCount", { count: keyframes.length })}
           </span>
         )}
       </button>
@@ -513,10 +516,10 @@ export const SpeedRampSection: React.FC<SpeedRampSectionProps> = ({ clip }) => {
         className="w-full flex items-center gap-2 py-2 text-[10px] text-text-secondary hover:text-text-primary transition-colors"
       >
         {isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-        <span className="font-medium">Freeze Frames</span>
+        <span className="font-medium">{t("inspector.speedFreezeFrames")}</span>
         {freezeFrames.length > 0 && (
           <span className="ml-auto text-[9px] text-primary">
-            {freezeFrames.length} freeze
+            {t("inspector.speedFreezeCount", { count: freezeFrames.length })}
           </span>
         )}
       </button>
@@ -528,7 +531,7 @@ export const SpeedRampSection: React.FC<SpeedRampSectionProps> = ({ clip }) => {
             className="w-full flex items-center justify-center gap-1.5 py-2 text-[10px] bg-primary/20 border border-primary/30 text-primary rounded-lg hover:bg-primary/20 transition-colors"
           >
             <Pause size={12} />
-            Add Freeze Frame at Playhead
+            {t("inspector.speedAddFreezeFrame")}
           </button>
 
           {freezeFrames.length > 0 && (
@@ -542,7 +545,7 @@ export const SpeedRampSection: React.FC<SpeedRampSectionProps> = ({ clip }) => {
                   <span className="text-text-secondary">
                     {ff.startTime.toFixed(2)}s
                   </span>
-                  <span className="text-text-muted">for</span>
+                  <span className="text-text-muted">{t("inspector.for")}</span>
                   <span className="text-primary font-mono">
                     {ff.duration.toFixed(1)}s
                   </span>
@@ -564,7 +567,7 @@ export const SpeedRampSection: React.FC<SpeedRampSectionProps> = ({ clip }) => {
         className="w-full flex items-center justify-center gap-1.5 py-2 text-[10px] bg-background-tertiary border border-border text-text-secondary rounded-lg hover:border-red-500/50 hover:text-red-400 transition-colors"
       >
         <RotateCcw size={12} />
-        Reset Speed & Effects
+        {t("inspector.speedReset")}
       </button>
     </div>
   );

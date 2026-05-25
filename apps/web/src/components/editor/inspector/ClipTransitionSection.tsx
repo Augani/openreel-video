@@ -1,4 +1,5 @@
 import React, { useCallback, useState, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import {
   ArrowRight,
   ArrowLeft,
@@ -905,6 +906,7 @@ function detectCurrentTransitions(clip: ClipLike): {
 export const ClipTransitionSection: React.FC<ClipTransitionSectionProps> = ({
   clipId,
 }) => {
+  const { t } = useTranslation();
   const {
     project,
     updateClipKeyframes,
@@ -1006,8 +1008,8 @@ export const ClipTransitionSection: React.FC<ClipTransitionSectionProps> = ({
     if (timelineClipContext.previousClip) {
       transitions.push({
         key: "incoming",
-        title: "Incoming Transition",
-        description: "From the previous clip into this clip",
+        title: t("transitionInspector.incoming"),
+        description: t("transitionInspector.fromPreviousClip"),
         clipA: timelineClipContext.previousClip,
         clipB: timelineClipContext.currentClip,
         transition: timelineClipContext.incomingTransition,
@@ -1017,8 +1019,8 @@ export const ClipTransitionSection: React.FC<ClipTransitionSectionProps> = ({
     if (timelineClipContext.nextClip) {
       transitions.push({
         key: "outgoing",
-        title: "Outgoing Transition",
-        description: "From this clip into the next clip",
+        title: t("transitionInspector.outgoing"),
+        description: t("transitionInspector.fromThisClip"),
         clipA: timelineClipContext.currentClip,
         clipB: timelineClipContext.nextClip,
         transition: timelineClipContext.outgoingTransition,
@@ -1026,7 +1028,7 @@ export const ClipTransitionSection: React.FC<ClipTransitionSectionProps> = ({
     }
 
     return transitions;
-  }, [timelineClipContext]);
+  }, [timelineClipContext, t]);
 
   const handleTransitionCreate = useCallback(
     (transition: Transition) => {
@@ -1131,15 +1133,15 @@ export const ClipTransitionSection: React.FC<ClipTransitionSectionProps> = ({
 
     const parts: string[] = [];
     if (entryPreset !== "none") {
-      parts.push(`Entry: ${entryPreset}`);
+      parts.push(`${t("transitionInspector.entry")}: ${entryPreset}`);
     }
     if (exitPreset !== "none") {
-      parts.push(`Exit: ${exitPreset}`);
+      parts.push(`${t("transitionInspector.exit")}: ${exitPreset}`);
     }
     if (parts.length > 0) {
-      toast.success("Clip Animation Applied", parts.join(", "));
+      toast.success(t("transitionInspector.clipAnimationApplied"), parts.join(", "));
     } else {
-      toast.info("Animations Cleared");
+      toast.info(t("transitionInspector.animationsCleared"));
     }
   }, [
     clip,
@@ -1153,6 +1155,7 @@ export const ClipTransitionSection: React.FC<ClipTransitionSectionProps> = ({
     updateClipKeyframes,
     updateTextClipKeyframes,
     settings,
+    t,
   ]);
 
   if (!clip) return null;
@@ -1162,7 +1165,7 @@ export const ClipTransitionSection: React.FC<ClipTransitionSectionProps> = ({
       {/* Entry Transition */}
       <div className="space-y-2">
         <span className="text-[10px] font-medium text-text-secondary uppercase tracking-wider">
-          Entry Animation
+          {t("transitionInspector.entryAnimation")}
         </span>
         <div className="grid grid-cols-3 gap-1">
           {PRESETS.map((preset) => (
@@ -1183,7 +1186,7 @@ export const ClipTransitionSection: React.FC<ClipTransitionSectionProps> = ({
         {entryPreset !== "none" && (
           <div className="flex gap-2 mt-2">
             <div className="flex-1">
-              <label className="text-[9px] text-text-muted">Duration</label>
+              <label className="text-[9px] text-text-muted">{t("transitionInspector.duration")}</label>
               <input
                 type="number"
                 step="0.1"
@@ -1197,7 +1200,7 @@ export const ClipTransitionSection: React.FC<ClipTransitionSectionProps> = ({
               />
             </div>
             <div className="flex-1">
-              <label className="text-[9px] text-text-muted">Easing</label>
+              <label className="text-[9px] text-text-muted">{t("transitionInspector.easing")}</label>
               <Select value={entryEasing} onValueChange={(v) => setEntryEasing(v as EasingType)}>
                 <SelectTrigger className="w-full bg-background-tertiary border-border text-text-primary text-[10px] h-7">
                   <SelectValue />
@@ -1218,7 +1221,7 @@ export const ClipTransitionSection: React.FC<ClipTransitionSectionProps> = ({
       {/* Exit Transition */}
       <div className="space-y-2">
         <span className="text-[10px] font-medium text-text-secondary uppercase tracking-wider">
-          Exit Animation
+          {t("transitionInspector.exitAnimation")}
         </span>
         <div className="grid grid-cols-3 gap-1">
           {PRESETS.map((preset) => (
@@ -1239,7 +1242,7 @@ export const ClipTransitionSection: React.FC<ClipTransitionSectionProps> = ({
         {exitPreset !== "none" && (
           <div className="flex gap-2 mt-2">
             <div className="flex-1">
-              <label className="text-[9px] text-text-muted">Duration</label>
+              <label className="text-[9px] text-text-muted">{t("transitionInspector.duration")}</label>
               <input
                 type="number"
                 step="0.1"
@@ -1253,7 +1256,7 @@ export const ClipTransitionSection: React.FC<ClipTransitionSectionProps> = ({
               />
             </div>
             <div className="flex-1">
-              <label className="text-[9px] text-text-muted">Easing</label>
+              <label className="text-[9px] text-text-muted">{t("transitionInspector.easing")}</label>
               <Select value={exitEasing} onValueChange={(v) => setExitEasing(v as EasingType)}>
                 <SelectTrigger className="w-full bg-background-tertiary border-border text-text-primary text-[10px] h-7">
                   <SelectValue />
@@ -1276,12 +1279,12 @@ export const ClipTransitionSection: React.FC<ClipTransitionSectionProps> = ({
         onClick={applyTransitions}
         className="w-full py-2 bg-primary hover:bg-primary-hover text-white font-medium rounded-lg text-[11px] transition-all"
       >
-        Apply Entry/Exit Animations
+        {t("transitionInspector.applyAnimations")}
       </button>
 
       <div className="space-y-3 border-t border-border pt-3">
         <span className="text-[10px] font-medium text-text-secondary uppercase tracking-wider">
-          Clip-to-Clip Transitions
+          {t("transitionInspector.clipToClipTransitions")}
         </span>
 
         {timelineClipContext ? (
@@ -1312,12 +1315,12 @@ export const ClipTransitionSection: React.FC<ClipTransitionSectionProps> = ({
             ))
           ) : (
             <p className="text-[10px] text-text-muted">
-              No adjacent clips are available on this track.
+              {t("transitionInspector.noAdjacentClips")}
             </p>
           )
         ) : (
           <p className="text-[10px] text-text-muted">
-            Clip-to-clip transitions are available for timeline media clips.
+            {t("transitionInspector.availableForMediaClips")}
           </p>
         )}
       </div>

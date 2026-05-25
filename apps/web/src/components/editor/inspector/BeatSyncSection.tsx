@@ -1,4 +1,5 @@
 import React, { useCallback, useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { Music, Zap, Play, Loader2, RefreshCw, Scissors } from "lucide-react";
 import { useProjectStore } from "../../../stores/project-store";
 import {
@@ -11,6 +12,7 @@ interface BeatSyncSectionProps {
 }
 
 export const BeatSyncSection: React.FC<BeatSyncSectionProps> = ({ clipId }) => {
+  const { t } = useTranslation();
   const { getClip, getMediaItem, splitClip } = useProjectStore();
   const [beatState, setBeatState] = useState<BeatSyncState>(() =>
     getBeatSyncBridge().getState(),
@@ -71,7 +73,7 @@ export const BeatSyncSection: React.FC<BeatSyncSectionProps> = ({ clipId }) => {
     return (
       <div className="text-center py-4">
         <Music size={24} className="mx-auto text-text-muted mb-2" />
-        <p className="text-[10px] text-text-muted">No clip selected</p>
+        <p className="text-[10px] text-text-muted">{t("beatSync.noClipSelected")}</p>
       </div>
     );
   }
@@ -82,7 +84,7 @@ export const BeatSyncSection: React.FC<BeatSyncSectionProps> = ({ clipId }) => {
     <div className="space-y-4">
       <div className="flex items-center gap-2">
         <Music size={14} className="text-primary" />
-        <span className="text-xs font-medium text-text-primary">Beat Sync</span>
+        <span className="text-xs font-medium text-text-primary">{t("beatSync.title")}</span>
       </div>
 
       {hasAudio ? (
@@ -92,7 +94,7 @@ export const BeatSyncSection: React.FC<BeatSyncSectionProps> = ({ clipId }) => {
               <div className="flex items-center gap-2 mb-2">
                 <Loader2 size={14} className="animate-spin text-primary" />
                 <span className="text-[10px] text-text-primary">
-                  Analyzing beats...
+                  {t("beatSync.analyzingBeats")}
                 </span>
               </div>
               <div className="h-1.5 bg-background-secondary rounded-full overflow-hidden">
@@ -108,7 +110,7 @@ export const BeatSyncSection: React.FC<BeatSyncSectionProps> = ({ clipId }) => {
               className="w-full py-2.5 bg-primary/10 hover:bg-primary/20 border border-primary/30 rounded-lg text-[11px] font-medium text-primary transition-all flex items-center justify-center gap-2"
             >
               <Zap size={14} />
-              Detect Beats from Audio
+              {t("beatSync.detectBeatsFromAudio")}
             </button>
           )}
 
@@ -122,7 +124,7 @@ export const BeatSyncSection: React.FC<BeatSyncSectionProps> = ({ clipId }) => {
             <div className="p-3 bg-green-500/10 border border-green-500/30 rounded-lg">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-[10px] text-text-secondary">
-                  Detected BPM
+                  {t("beatSync.detectedBpm")}
                 </span>
                 <span className="text-sm font-bold text-green-400">
                   {beatState.beatAnalysis.bpm}
@@ -130,7 +132,7 @@ export const BeatSyncSection: React.FC<BeatSyncSectionProps> = ({ clipId }) => {
               </div>
               <div className="flex items-center justify-between mb-2">
                 <span className="text-[10px] text-text-secondary">
-                  Confidence
+                  {t("beatSync.confidence")}
                 </span>
                 <span className="text-[10px] text-text-primary">
                   {Math.round(beatState.beatAnalysis.confidence * 100)}%
@@ -138,7 +140,7 @@ export const BeatSyncSection: React.FC<BeatSyncSectionProps> = ({ clipId }) => {
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-[10px] text-text-secondary">
-                  Beat Markers
+                  {t("beatSync.beatMarkers")}
                 </span>
                 <span className="text-[10px] text-text-primary">
                   {beatState.beatMarkers.length}
@@ -154,7 +156,7 @@ export const BeatSyncSection: React.FC<BeatSyncSectionProps> = ({ clipId }) => {
                 className="w-full py-2 bg-background-tertiary hover:bg-background-secondary border border-border rounded-lg text-[10px] text-text-primary transition-all flex items-center justify-center gap-2"
               >
                 <Scissors size={12} />
-                Auto-Cut on Every 4 Beats
+                {t("beatSync.autoCutOnBeats")}
               </button>
 
               <button
@@ -162,7 +164,7 @@ export const BeatSyncSection: React.FC<BeatSyncSectionProps> = ({ clipId }) => {
                 className="w-full py-2 bg-background-tertiary hover:bg-red-500/10 border border-border hover:border-red-500/30 rounded-lg text-[10px] text-text-secondary hover:text-red-400 transition-all flex items-center justify-center gap-2"
               >
                 <RefreshCw size={12} />
-                Clear Beat Markers
+                {t("beatSync.clearBeatMarkers")}
               </button>
             </div>
           )}
@@ -171,14 +173,14 @@ export const BeatSyncSection: React.FC<BeatSyncSectionProps> = ({ clipId }) => {
             onClick={() => setShowAdvanced(!showAdvanced)}
             className="w-full py-1.5 text-[10px] text-text-muted hover:text-text-secondary transition-colors"
           >
-            {showAdvanced ? "Hide" : "Show"} Manual BPM Settings
+            {showAdvanced ? t("beatSync.hide") : t("beatSync.show")} {t("beatSync.manualBpmSettings")}
           </button>
 
           {showAdvanced && (
             <div className="p-3 bg-background-tertiary rounded-lg space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-[10px] text-text-secondary">
-                  Manual BPM
+                  {t("beatSync.manualBpm")}
                 </span>
                 <div className="flex items-center gap-2">
                   <input
@@ -216,7 +218,7 @@ export const BeatSyncSection: React.FC<BeatSyncSectionProps> = ({ clipId }) => {
                 className="w-full py-2 bg-background-secondary hover:bg-background-tertiary border border-border rounded-lg text-[10px] text-text-primary transition-all flex items-center justify-center gap-2"
               >
                 <Play size={12} />
-                Generate Beat Grid at {manualBpm} BPM
+                {t("beatSync.generateBeatGrid", { bpm: manualBpm })}
               </button>
             </div>
           )}
@@ -224,15 +226,14 @@ export const BeatSyncSection: React.FC<BeatSyncSectionProps> = ({ clipId }) => {
       ) : (
         <div className="p-3 bg-background-tertiary rounded-lg">
           <p className="text-[10px] text-text-muted text-center">
-            Select a video or audio clip to analyze beats
+            {t("beatSync.notSelected")}
           </p>
         </div>
       )}
 
       <div className="pt-2 border-t border-border">
         <p className="text-[9px] text-text-muted">
-          Beat detection analyzes audio to find the tempo and beat positions.
-          Use it to sync cuts, transitions, or effects to the music.
+          {t("beatSync.beatDetectionDescription")}
         </p>
       </div>
     </div>

@@ -1,4 +1,5 @@
 import React, { useCallback, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { useProjectStore } from "../../../stores/project-store";
 import type { GraphicAnimation, GraphicAnimationType } from "@openreel/core";
 import { SVG_ANIMATION_PRESETS } from "@openreel/core";
@@ -38,6 +39,7 @@ interface SVGSectionProps {
 }
 
 export const SVGSection: React.FC<SVGSectionProps> = ({ clipId }) => {
+  const { t } = useTranslation();
   const { getSVGClipById, updateSVGClip, project } = useProjectStore();
 
   const svgClip = useMemo(
@@ -149,7 +151,7 @@ export const SVGSection: React.FC<SVGSectionProps> = ({ clipId }) => {
   if (!svgClip) {
     return (
       <div className="text-center py-8 text-text-muted text-xs">
-        No SVG clip selected
+        {t("inspector.noSvgClipSelected")}
       </div>
     );
   }
@@ -158,7 +160,7 @@ export const SVGSection: React.FC<SVGSectionProps> = ({ clipId }) => {
     <div className="space-y-4">
       <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] text-text-secondary">Mode</span>
+            <span className="text-[10px] text-text-secondary">{t("inspector.mode")}</span>
             <div className="flex gap-1">
               {(["none", "tint", "replace"] as const).map((mode) => (
                 <button
@@ -179,12 +181,12 @@ export const SVGSection: React.FC<SVGSectionProps> = ({ clipId }) => {
           {colorStyle.colorMode !== "none" && (
             <>
               <ColorField
-                label="Color"
+                label={t("inspector.color")}
                 value={colorStyle.tintColor || "#ffffff"}
                 onChange={handleTintColorChange}
               />
               <Slider
-                label="Opacity"
+                label={t("inspector.opacity")}
                 value={colorStyle.tintOpacity || 1}
                 onChange={handleTintOpacityChange}
                 min={0}
@@ -197,7 +199,7 @@ export const SVGSection: React.FC<SVGSectionProps> = ({ clipId }) => {
 
       <div className="space-y-3">
         <span className="text-[10px] font-medium text-text-secondary">
-          Entry Animation
+          {t("inspector.entryAnimation")}
         </span>
         <Select
           value={entryAnimation?.type || "none"}
@@ -217,7 +219,7 @@ export const SVGSection: React.FC<SVGSectionProps> = ({ clipId }) => {
 
         {entryAnimation && entryAnimation.type !== "none" && (
           <Slider
-            label="Duration"
+            label={t("inspector.duration")}
             value={entryAnimation.duration}
             onChange={handleEntryDurationChange}
             min={0.1}
@@ -229,7 +231,7 @@ export const SVGSection: React.FC<SVGSectionProps> = ({ clipId }) => {
 
       <div className="space-y-4">
         <span className="text-[10px] font-medium text-text-secondary">
-          Exit Animation
+          {t("inspector.exitAnimation")}
         </span>
         <Select
           value={exitAnimation?.type || "none"}
@@ -249,7 +251,7 @@ export const SVGSection: React.FC<SVGSectionProps> = ({ clipId }) => {
 
         {exitAnimation && exitAnimation.type !== "none" && (
           <Slider
-            label="Duration"
+            label={t("inspector.duration")}
             value={exitAnimation.duration}
             onChange={handleExitDurationChange}
             min={0.1}

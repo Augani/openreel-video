@@ -1,4 +1,5 @@
 import React, { useMemo, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import type { Keyframe, Clip } from "@openreel/core";
 import { KeyframeMarker } from "./KeyframeMarker";
 import { EasingCurve } from "./EasingCurve";
@@ -14,14 +15,14 @@ const PROPERTY_COLORS: Record<string, string> = {
   default: "#64748b",
 };
 
-const PROPERTY_LABELS: Record<string, string> = {
-  "position.x": "Position X",
-  "position.y": "Position Y",
-  "scale.x": "Scale X",
-  "scale.y": "Scale Y",
-  rotation: "Rotation",
-  opacity: "Opacity",
-  borderRadius: "Border Radius",
+const PROPERTY_I18N_KEYS: Record<string, string> = {
+  "position.x": "inspector.positionX",
+  "position.y": "inspector.positionY",
+  "scale.x": "inspector.scaleX",
+  "scale.y": "inspector.scaleY",
+  rotation: "inspector.rotation",
+  opacity: "inspector.opacity",
+  borderRadius: "inspector.borderRadius",
 };
 
 interface KeyframeTrackProps {
@@ -48,6 +49,7 @@ export const KeyframeTrack: React.FC<KeyframeTrackProps> = ({
   onKeyframeDelete,
   selectedKeyframeIds,
 }) => {
+  const { t } = useTranslation();
 
   const propertyGroups = useMemo((): PropertyGroup[] => {
     const groups = new Map<string, Keyframe[]>();
@@ -59,14 +61,17 @@ export const KeyframeTrack: React.FC<KeyframeTrackProps> = ({
     }
 
     return Array.from(groups.entries())
-      .map(([property, keyframes]) => ({
-        property,
-        keyframes: keyframes.sort((a, b) => a.time - b.time),
-        color: PROPERTY_COLORS[property] || PROPERTY_COLORS.default,
-        label: PROPERTY_LABELS[property] || property,
-      }))
+      .map(([property, keyframes]) => {
+        const i18nKey = PROPERTY_I18N_KEYS[property];
+        return {
+          property,
+          keyframes: keyframes.sort((a, b) => a.time - b.time),
+          color: PROPERTY_COLORS[property] || PROPERTY_COLORS.default,
+          label: i18nKey ? t(i18nKey) : property,
+        };
+      })
       .sort((a, b) => a.label.localeCompare(b.label));
-  }, [clip.keyframes]);
+  }, [clip.keyframes, t]);
 
   const handleKeyframeMove = useCallback(
     (keyframeId: string, deltaPixels: number) => {
@@ -83,7 +88,7 @@ export const KeyframeTrack: React.FC<KeyframeTrackProps> = ({
   if (propertyGroups.length === 0) {
     return (
       <div className="h-8 flex items-center justify-center text-[9px] text-text-muted">
-        No keyframes
+        {t("inspector.noKeyframes")}
       </div>
     );
   }

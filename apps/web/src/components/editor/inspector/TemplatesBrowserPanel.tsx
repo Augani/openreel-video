@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useMemo, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import {
   FolderOpen,
   Video,
@@ -56,6 +57,7 @@ const TemplateCard: React.FC<TemplateCardProps> = ({
   onSelect,
   onApply,
 }) => {
+  const { t } = useTranslation();
   const Icon = CATEGORY_ICONS[template.category] || FolderOpen;
 
   return (
@@ -112,7 +114,7 @@ const TemplateCard: React.FC<TemplateCardProps> = ({
           }}
           className="mt-3 w-full py-1.5 text-[10px] font-medium bg-primary text-white rounded-md hover:bg-primary/90 transition-colors"
         >
-          Use This Template
+                {t("inspector.useThisTemplate")}
         </button>
       )}
     </div>
@@ -126,6 +128,7 @@ interface TemplatesBrowserPanelProps {
 export const TemplatesBrowserPanel: React.FC<TemplatesBrowserPanelProps> = ({
   onTemplateApplied,
 }) => {
+  const { t } = useTranslation();
   const getTemplateEngine = useEngineStore((state) => state.getTemplateEngine);
   const getTitleEngine = useEngineStore((state) => state.getTitleEngine);
   const loadProject = useProjectStore((state) => state.loadProject);
@@ -240,7 +243,7 @@ export const TemplatesBrowserPanel: React.FC<TemplatesBrowserPanelProps> = ({
       }
 
       if (!template) {
-        setApplyError("Template not found");
+        setApplyError(t("inspector.templatesNotFound"));
         return;
       }
 
@@ -331,7 +334,7 @@ export const TemplatesBrowserPanel: React.FC<TemplatesBrowserPanelProps> = ({
           className="flex items-center gap-1.5 text-[10px] text-text-muted hover:text-text-primary transition-colors"
         >
           <ChevronLeft size={12} />
-          <span>Back to Templates</span>
+          <span>{t("inspector.templatesBack")}</span>
         </button>
 
         <div className="flex items-center gap-2 p-2 bg-primary/10 rounded-lg border border-primary/30">
@@ -341,7 +344,7 @@ export const TemplatesBrowserPanel: React.FC<TemplatesBrowserPanelProps> = ({
               {loadedTemplate.name}
             </span>
             <p className="text-[9px] text-text-muted">
-              Configure template variables
+              {t("inspector.configureTemplateVariables")}
             </p>
           </div>
         </div>
@@ -368,10 +371,10 @@ export const TemplatesBrowserPanel: React.FC<TemplatesBrowserPanelProps> = ({
         <FolderOpen size={16} className="text-primary shrink-0" />
         <div className="min-w-0 flex-1">
           <span className="text-[11px] font-medium text-text-primary">
-            Templates
+            {t("inspector.templates")}
           </span>
           <p className="text-[9px] text-text-muted">
-            Start with a pre-made project
+            {t("inspector.startWithPremadeProject")}
           </p>
         </div>
       </div>
@@ -385,7 +388,7 @@ export const TemplatesBrowserPanel: React.FC<TemplatesBrowserPanelProps> = ({
               : "bg-background-tertiary text-text-secondary hover:text-text-primary"
           }`}
         >
-          All
+          {t("inspector.all")}
         </button>
         {TEMPLATE_CATEGORIES.map((category) => {
           const Icon = CATEGORY_ICONS[category.id] || FolderOpen;
@@ -420,7 +423,7 @@ export const TemplatesBrowserPanel: React.FC<TemplatesBrowserPanelProps> = ({
               className="mx-auto mb-2 text-text-muted opacity-50"
             />
             <p className="text-[10px] text-text-muted">
-              No templates in this category
+              {t("inspector.noTemplatesInCategory")}
             </p>
           </div>
         ) : (
@@ -442,12 +445,12 @@ export const TemplatesBrowserPanel: React.FC<TemplatesBrowserPanelProps> = ({
           className="w-full flex items-center justify-center gap-2 py-2 text-[10px] text-text-secondary hover:text-text-primary bg-background-tertiary rounded-lg transition-colors"
         >
           <Plus size={12} />
-          <span>Save Current Project as Template</span>
+          <span>{t("inspector.templatesSaveAs")}</span>
         </button>
       </div>
 
       <p className="text-[9px] text-text-muted text-center">
-        {templates.length} templates available
+        {t("inspector.templatesAvailable", { count: templates.length })}
       </p>
 
       <SaveTemplateDialog
