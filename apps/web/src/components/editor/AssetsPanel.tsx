@@ -981,7 +981,7 @@ export const AssetsPanel: React.FC = () => {
                 >
                   <div className="flex items-center gap-2">
                     <AlertTriangle size={14} />
-                    <span>Show Only Missing Assets</span>
+                    <span>{t("assets.showOnlyMissing")}</span>
                   </div>
                   <div className="px-2 py-0.5 rounded-full bg-yellow-500 text-black text-[10px] font-bold">
                     {missingAssetsCount}
@@ -1037,7 +1037,7 @@ export const AssetsPanel: React.FC = () => {
                         <div className="w-12 h-8 rounded bg-background-tertiary flex items-center justify-center flex-shrink-0">
                           <Upload size={14} className="text-text-muted group-hover:text-text-secondary transition-colors" />
                         </div>
-                        <span className="text-[11px] text-text-muted group-hover:text-text-secondary transition-colors font-medium">Add media</span>
+                        <span className="text-[11px] text-text-muted group-hover:text-text-secondary transition-colors font-medium">{t("assets.addMedia")}</span>
                       </button>
                     ) : (
                       <div className="flex flex-col">
@@ -1047,7 +1047,7 @@ export const AssetsPanel: React.FC = () => {
                         >
                           <div className="flex flex-col items-center gap-1.5">
                             <Upload size={mediaViewMode === "small" ? 16 : 20} className="text-text-muted group-hover:text-text-secondary transition-colors" />
-                            <span className="text-[10px] text-text-muted group-hover:text-text-secondary transition-colors">Add media</span>
+                            <span className="text-[10px] text-text-muted group-hover:text-text-secondary transition-colors">{t("assets.addMedia")}</span>
                           </div>
                         </button>
                       </div>

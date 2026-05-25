@@ -119,14 +119,17 @@ const Section: React.FC<{
   );
 };
 
-const EmptyState: React.FC = () => (
+const EmptyState: React.FC = () => {
+  const { t } = useTranslation();
+  return (
   <div className="flex-1 flex flex-col items-center justify-center p-8 text-center opacity-50">
-    <p className="text-sm text-text-secondary mb-2">No selection</p>
+    <p className="text-sm text-text-secondary mb-2">{t("inspector.noSelection")}</p>
     <p className="text-xs text-text-muted">
-      Select a clip to view its properties
+      {t("inspector.selectToViewProperties")}
     </p>
   </div>
-);
+  );
+};
 
 const ParticleEffectsSectionWrapper: React.FC<{
   clipId: string;
@@ -1127,7 +1130,7 @@ export const InspectorPanel: React.FC = () => {
                       <SelectContent className="bg-background-secondary border-border">
                         <SelectItem value="none">{t("inspector.noTranslation")}</SelectItem>
                         <SelectGroup>
-                          <SelectLabel className="text-[10px]">Translate to</SelectLabel>
+                          <SelectLabel className="text-[10px]">{t("inspector.translateTo")}</SelectLabel>
                           <SelectItem value="en">English</SelectItem>
                           <SelectItem value="es">Spanish</SelectItem>
                           <SelectItem value="fr">French</SelectItem>
@@ -1728,7 +1731,7 @@ export const InspectorPanel: React.FC = () => {
               <div className="border border-primary/30 bg-primary/5 rounded-xl p-4 relative overflow-hidden">
                 <div className="flex items-center gap-2 text-primary mb-3">
                   <Zap size={14} />
-                  <span className="text-xs font-bold">Quick Actions</span>
+                  <span className="text-xs font-bold">{t("inspector.quickActions")}</span>
                 </div>
                 <div className="space-y-2">
                   {showVideoControls && (
@@ -1791,7 +1794,7 @@ export const InspectorPanel: React.FC = () => {
             <div className="mb-4 p-3 bg-primary/10 rounded-lg border border-primary/30">
               <div className="flex items-center gap-2 mb-1">
                 <Captions size={14} className="text-primary" />
-                <span className="text-xs font-bold text-primary">Subtitle</span>
+                <span className="text-xs font-bold text-primary">{t("inspector.subtitle")}</span>
               </div>
               <p className="text-[10px] text-text-muted">
                 {selectedSubtitle.startTime.toFixed(2)}s -{" "}
@@ -1883,7 +1886,7 @@ export const InspectorPanel: React.FC = () => {
             <Section title={t("inspector.animation")}>
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] text-text-secondary">Style</span>
+                  <span className="text-[10px] text-text-secondary">{t("inspector.style")}</span>
                   <Select
                     value={selectedSubtitle.animationStyle || "none"}
                     onValueChange={(v) =>
@@ -2160,7 +2163,7 @@ export const InspectorPanel: React.FC = () => {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent className="bg-background-secondary border-border">
-                        <SelectItem value="0">None</SelectItem>
+                        <SelectItem value="0">{t("inspector.none")}</SelectItem>
                         <SelectItem value="0.5">50%</SelectItem>
                         <SelectItem value="0.7">70%</SelectItem>
                         <SelectItem value="1">100%</SelectItem>

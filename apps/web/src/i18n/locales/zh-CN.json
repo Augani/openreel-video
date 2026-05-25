@@ -358,7 +358,9 @@
     "lowerThird": "下三分之一字幕",
     "nameHere": "姓名",
     "caption": "字幕",
-    "captionTextHere": "字幕文字"
+    "captionTextHere": "字幕文字",
+    "showOnlyMissing": "仅显示缺失素材",
+    "addMedia": "添加媒体"
   },
   "inspector": {
     "aiAutoCaptions": "AI 自动字幕",
@@ -898,7 +900,15 @@
     "filterPresets": "滤镜预设",
     "filterOneClick": "一键调色",
     "filterRemoveAll": "移除所有特效",
-    "filterCount": "{{presets}} 个预设，{{categories}} 个分类"
+    "filterCount": "{{presets}} 个预设，{{categories}} 个分类",
+    "noSelection": "未选择",
+    "selectToViewProperties": "选择一个片段以查看其属性",
+    "translateTo": "翻译为",
+    "quickActions": "快捷操作",
+    "subtitle": "字幕",
+    "style": "样式",
+    "none": "无",
+    "behindSubjectDesc": "文字显示在视频中人物的后面"
   },
   "textAnimation": {
     "fade": "淡入淡出",
@@ -979,7 +989,11 @@
     "easeInElastic": "缓入弹性",
     "easeOutElastic": "缓出弹性",
     "easeInBounce": "缓入弹跳",
-    "easeOutBounce": "缓出弹跳"
+    "easeOutBounce": "缓出弹跳",
+    "editorTitle": "关键帧编辑器",
+    "time": "时间",
+    "value": "数值",
+    "easing": "缓动"
   },
   "retouching": {
     "blemishTooltip": "在瑕疵上点击并拖动以移除。使用容差滑块控制灵敏度。",
@@ -1081,7 +1095,8 @@
     "audioConsole": "音频混音控制台",
     "closeMixer": "关闭混音器",
     "volumeFader": "音量推子",
-    "panControl": "声像控制"
+    "panControl": "声像控制",
+    "title": "音频混音器"
   },
   "toast": {
     "dismiss": "关闭通知",

@@ -358,7 +358,9 @@
     "lowerThird": "Lower Third",
     "nameHere": "Name Here",
     "caption": "Caption",
-    "captionTextHere": "Caption text here"
+    "captionTextHere": "Caption text here",
+    "showOnlyMissing": "Show Only Missing Assets",
+    "addMedia": "Add media"
   },
   "inspector": {
     "aiAutoCaptions": "AI Auto-Captions",
@@ -898,7 +900,15 @@
     "filterPresets": "Filter Presets",
     "filterOneClick": "One-click color grades",
     "filterRemoveAll": "Remove All Effects",
-    "filterCount": "{{presets}} presets across {{categories}} categories"
+    "filterCount": "{{presets}} presets across {{categories}} categories",
+    "noSelection": "No selection",
+    "selectToViewProperties": "Select a clip to view its properties",
+    "translateTo": "Translate to",
+    "quickActions": "Quick Actions",
+    "subtitle": "Subtitle",
+    "style": "Style",
+    "none": "None",
+    "behindSubjectDesc": "Text appears behind people in the video"
   },
   "textAnimation": {
     "fade": "Fade",
@@ -979,7 +989,11 @@
     "easeInElastic": "Ease In Elastic",
     "easeOutElastic": "Ease Out Elastic",
     "easeInBounce": "Ease In Bounce",
-    "easeOutBounce": "Ease Out Bounce"
+    "easeOutBounce": "Ease Out Bounce",
+    "editorTitle": "Keyframe Editor",
+    "time": "Time",
+    "value": "Value",
+    "easing": "Easing"
   },
   "retouching": {
     "blemishTooltip": "Click and drag over blemishes to remove them. Use the tolerance slider to control sensitivity.",
@@ -1081,7 +1095,8 @@
     "audioConsole": "Audio Mixing Console",
     "closeMixer": "Close mixer",
     "volumeFader": "Volume fader",
-    "panControl": "Pan control"
+    "panControl": "Pan control",
+    "title": "Audio Mixer"
   },
   "toast": {
     "dismiss": "Dismiss notification",

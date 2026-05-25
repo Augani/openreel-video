@@ -380,7 +380,7 @@ export const KeyframeEditorPanel: React.FC<KeyframeEditorPanelProps> = ({
   return (
     <div className="h-full flex flex-col bg-background-secondary border-l border-border">
       <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-        <h3 className="text-sm font-semibold text-text-primary">Keyframe Editor</h3>
+        <h3 className="text-sm font-semibold text-text-primary">{i18n.t("keyframe.editorTitle")}</h3>
         <button
           onClick={onClose}
           className="p-1 rounded hover:bg-background-elevated text-text-muted hover:text-text-primary transition-colors"
@@ -492,9 +492,9 @@ export const KeyframeEditorPanel: React.FC<KeyframeEditorPanelProps> = ({
             <table className="w-full text-xs">
               <thead>
                 <tr className="text-text-muted">
-                  <th className="text-left py-1 px-2">Time</th>
-                  <th className="text-left py-1 px-2">Value</th>
-                  <th className="text-left py-1 px-2">Easing</th>
+                  <th className="text-left py-1 px-2">{i18n.t("keyframe.time")}</th>
+                  <th className="text-left py-1 px-2">{i18n.t("keyframe.value")}</th>
+                  <th className="text-left py-1 px-2">{i18n.t("keyframe.easing")}</th>
                 </tr>
               </thead>
               <tbody>

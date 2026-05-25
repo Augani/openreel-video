@@ -1,4 +1,5 @@
 import React, { useCallback, useState, useEffect } from "react";
+import i18n from "../../../i18n";
 import { Switch } from "@openreel/ui";
 import { Loader2 } from "lucide-react";
 import { useEngineStore } from "../../../stores/engine-store";
@@ -64,9 +65,9 @@ export const BehindSubjectSection: React.FC<BehindSubjectSectionProps> = ({
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <div className="flex-1">
-          <p className="text-[11px] text-text-primary">Place Behind Subject</p>
+          <p className="text-[11px] text-text-primary">{i18n.t("inspector.placeBehindSubject")}</p>
           <p className="text-[9px] text-text-muted">
-            Text appears behind people in the video
+            {i18n.t("inspector.behindSubjectDesc")}
           </p>
         </div>
         {isLoading ? (

@@ -307,7 +307,7 @@ export const AudioMixer: React.FC<AudioMixerProps> = ({
     >
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-semibold text-white">Audio Mixer</h2>
+        <h2 className="text-lg font-semibold text-white">{t("audioMixer.title")}</h2>
         {onClose && (
           <button
             onClick={onClose}

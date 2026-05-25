@@ -123,7 +123,7 @@ export const GeneralPanel: React.FC = () => {
 
         <div className="flex items-end gap-2">
           <div className="flex-1">
-            <Label className="text-xs text-text-secondary">Width</Label>
+            <Label className="text-xs text-text-secondary">{t("settings.width")}</Label>
             <input
               type="number"
               min={16}
@@ -134,7 +134,7 @@ export const GeneralPanel: React.FC = () => {
             />
           </div>
           <div className="flex-1">
-            <Label className="text-xs text-text-secondary">Height</Label>
+            <Label className="text-xs text-text-secondary">{t("settings.height")}</Label>
             <input
               type="number"
               min={16}

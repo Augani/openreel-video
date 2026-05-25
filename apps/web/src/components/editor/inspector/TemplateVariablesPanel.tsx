@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useMemo, useEffect } from "react";
+import i18n from "../../../i18n";
 import {
   Settings2,
   Type,
@@ -170,9 +171,9 @@ const MediaPlaceholderInput: React.FC<PlaceholderInputProps> = ({
       {availableMedia.length === 0 ? (
         <div className="p-4 border border-dashed border-border rounded-lg text-center">
           <Upload size={16} className="mx-auto mb-2 text-text-muted" />
-          <p className="text-[10px] text-text-muted">No media available</p>
+          <p className="text-[10px] text-text-muted">{i18n.t("inspector.noMediaAvailable")}</p>
           <p className="text-[9px] text-text-muted mt-1">
-            Import media to use here
+            {i18n.t("inspector.importMediaToUse")}
           </p>
         </div>
       ) : (
