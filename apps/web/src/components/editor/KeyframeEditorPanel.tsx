@@ -372,7 +372,7 @@ export const KeyframeEditorPanel: React.FC<KeyframeEditorPanelProps> = ({
   if (!clip) {
     return (
       <div className="h-full flex items-center justify-center text-text-muted">
-        <p className="text-sm">Select a clip with keyframes to edit</p>
+        <p className="text-sm">{i18n.t("keyframe.selectClip")}</p>
       </div>
     );
   }

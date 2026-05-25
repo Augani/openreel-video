@@ -993,7 +993,8 @@
     "editorTitle": "Keyframe Editor",
     "time": "Time",
     "value": "Value",
-    "easing": "Easing"
+    "easing": "Easing",
+    "selectClip": "Select a clip with keyframes to edit"
   },
   "retouching": {
     "blemishTooltip": "Click and drag over blemishes to remove them. Use the tolerance slider to control sensitivity.",
@@ -1096,7 +1097,8 @@
     "closeMixer": "Close mixer",
     "volumeFader": "Volume fader",
     "panControl": "Pan control",
-    "title": "Audio Mixer"
+    "title": "Audio Mixer",
+    "noAudioTracks": "No audio tracks in timeline. Add audio or video tracks to see channel strips."
   },
   "toast": {
     "dismiss": "Dismiss notification",

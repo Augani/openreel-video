@@ -993,7 +993,8 @@
     "editorTitle": "关键帧编辑器",
     "time": "时间",
     "value": "数值",
-    "easing": "缓动"
+    "easing": "缓动",
+    "selectClip": "选择一个有关键帧的片段进行编辑"
   },
   "retouching": {
     "blemishTooltip": "在瑕疵上点击并拖动以移除。使用容差滑块控制灵敏度。",
@@ -1096,7 +1097,8 @@
     "closeMixer": "关闭混音器",
     "volumeFader": "音量推子",
     "panControl": "声像控制",
-    "title": "音频混音器"
+    "title": "音频混音器",
+    "noAudioTracks": "时间线中没有音频轨道。添加音频或视频轨道以查看通道条。"
   },
   "toast": {
     "dismiss": "关闭通知",

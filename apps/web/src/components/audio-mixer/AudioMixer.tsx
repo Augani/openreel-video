@@ -336,8 +336,7 @@ export const AudioMixer: React.FC<AudioMixerProps> = ({
           ))
         ) : (
           <div className="text-gray-500 text-sm py-8 px-4">
-            No audio tracks in timeline. Add audio or video tracks to see
-            channel strips.
+            {t("audioMixer.noAudioTracks")}
           </div>
         )}
 
