@@ -116,7 +116,7 @@ export const TemplatesTab: React.FC = () => {
               : "bg-background-tertiary border-border text-text-muted hover:border-primary/50"
           }`}
         >
-          All
+          {t("templates.allCategories")}
         </button>
         {TEMPLATE_CATEGORIES.slice(0, 6).map((cat) => (
           <button
@@ -135,7 +135,7 @@ export const TemplatesTab: React.FC = () => {
 
       {filteredTemplates.length === 0 ? (
         <div className="text-center py-8 text-text-muted text-xs">
-          No templates found
+          {t("templates.noFound")}
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-2">
@@ -171,7 +171,7 @@ export const TemplatesTab: React.FC = () => {
               </div>
               {applying === template.id && (
                 <div className="absolute inset-0 bg-background-primary/80 rounded-lg flex items-center justify-center">
-                  <span className="text-[10px] text-primary">Applying...</span>
+                  <span className="text-[10px] text-primary">{t("templates.applying")}</span>
                 </div>
               )}
             </button>

@@ -336,7 +336,29 @@
     "unsavedDiscarded": "未保存的音频已丢弃",
     "folderNotSupported": "不支持文件夹选择",
     "noMediaImported": "未导入任何媒体",
-    "dragFilesHere": "将文件拖放到此处或点击导入"
+    "dragFilesHere": "将文件拖放到此处或点击导入",
+    "backgrounds": "背景",
+    "svgImport": "SVG 导入",
+    "catAll": "全部",
+    "catSolid": "纯色",
+    "catGradient": "渐变",
+    "catMesh": "网格",
+    "catPattern": "图案",
+    "rectangle": "矩形",
+    "circle": "圆形",
+    "triangle": "三角形",
+    "star": "星形",
+    "arrowShape": "箭头",
+    "polygon": "多边形",
+    "addTitle": "添加标题",
+    "clickToAddText": "点击添加文字到时间线",
+    "heading": "标题",
+    "subtitle": "副标题",
+    "subtitleText": "副标题文字",
+    "lowerThird": "下三分之一字幕",
+    "nameHere": "姓名",
+    "caption": "字幕",
+    "captionTextHere": "字幕文字"
   },
   "inspector": {
     "aiAutoCaptions": "AI 自动字幕",
@@ -1070,14 +1092,26 @@
     "loading": "加载模板中...",
     "templateReplaceWarning": "应用模板将替换当前项目。继续吗？",
     "enabled": "已启用",
-    "applyFailed": "应用模板失败"
+    "applyFailed": "应用模板失败",
+    "allCategories": "全部",
+    "noFound": "未找到模板",
+    "applying": "应用中..."
   },
   "recipes": {
     "search": "搜索配方...",
     "selectClip": "选择一个片段",
     "selectClipDesc": "配方应用于一个选中的视频或图像片段。",
     "applyFailed": "无法将此配方应用于当前片段。",
-    "applied": "配方已应用"
+    "applied": "配方已应用",
+    "selectClipFirst": "请先选择一个片段",
+    "selectClipFirstDesc": "在时间线中选择一个视频或图像来应用片段配方、样式和字幕处理。",
+    "noMatch": "未找到匹配的配方",
+    "tryDifferent": "请尝试其他搜索词或类别。",
+    "apply": "应用",
+    "applying": "应用中...",
+    "allCategories": "全部",
+    "appliedTo": "{{name}} 已添加到 {{media}}。",
+    "theSelectedClip": "所选片段"
   },
   "modelPicker": {
     "styleTransfer": "风格和构图转换，可选文本提示引导。"

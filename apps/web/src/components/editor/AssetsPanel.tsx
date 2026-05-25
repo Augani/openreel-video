@@ -1067,6 +1067,13 @@ export const AssetsPanel: React.FC = () => {
           </div>
         );
       case "graphics":
+        const bgCatLabels: Record<string, string> = {
+          all: t("assets.catAll"),
+          solid: t("assets.catSolid"),
+          gradient: t("assets.catGradient"),
+          mesh: t("assets.catMesh"),
+          pattern: t("assets.catPattern"),
+        };
         return (
           <div className="min-h-0 flex-1 border-t border-border/70">
             <ScrollArea className="min-h-0 flex-1">
@@ -1075,7 +1082,7 @@ export const AssetsPanel: React.FC = () => {
                   <div className="flex items-center justify-between mb-3">
                     <h4 className="text-xs font-medium text-text-secondary flex items-center gap-1.5">
                       <Palette size={12} />
-                      Backgrounds
+                      {t("assets.backgrounds")}
                     </h4>
                   </div>
                   <div className="flex gap-1.5 mb-3 flex-wrap">
@@ -1090,7 +1097,7 @@ export const AssetsPanel: React.FC = () => {
                               : "bg-background-tertiary text-text-muted hover:text-text-secondary"
                           }`}
                         >
-                          {cat.charAt(0).toUpperCase() + cat.slice(1)}
+                          {bgCatLabels[cat]}
                         </button>
                       ),
                     )}
@@ -1123,32 +1130,16 @@ export const AssetsPanel: React.FC = () => {
 
                 <div className="mb-6">
                   <h4 className="text-xs font-medium text-text-secondary mb-3">
-                    Shapes
+                    {t("assets.shapes")}
                   </h4>
                   <div className="grid grid-cols-4 gap-2">
                     {[
-                      {
-                        type: "rectangle" as ShapeType,
-                        icon: Square,
-                        label: "Rectangle",
-                      },
-                      { type: "circle" as ShapeType, icon: Circle, label: "Circle" },
-                      {
-                        type: "triangle" as ShapeType,
-                        icon: Triangle,
-                        label: "Triangle",
-                      },
-                      { type: "star" as ShapeType, icon: Star, label: "Star" },
-                      {
-                        type: "arrow" as ShapeType,
-                        icon: ArrowRight,
-                        label: "Arrow",
-                      },
-                      {
-                        type: "polygon" as ShapeType,
-                        icon: Hexagon,
-                        label: "Polygon",
-                      },
+                      { type: "rectangle" as ShapeType, icon: Square, label: t("assets.rectangle") },
+                      { type: "circle" as ShapeType, icon: Circle, label: t("assets.circle") },
+                      { type: "triangle" as ShapeType, icon: Triangle, label: t("assets.triangle") },
+                      { type: "star" as ShapeType, icon: Star, label: t("assets.star") },
+                      { type: "arrow" as ShapeType, icon: ArrowRight, label: t("assets.arrowShape") },
+                      { type: "polygon" as ShapeType, icon: Hexagon, label: t("assets.polygon") },
                     ].map((shape) => (
                       <button
                         key={shape.type}
@@ -1185,7 +1176,7 @@ export const AssetsPanel: React.FC = () => {
 
                 <div className="mb-6">
                   <h4 className="text-xs font-medium text-text-secondary mb-3">
-                    SVG Import
+                    {t("assets.svgImport")}
                   </h4>
                   <button
                     onClick={() => {
@@ -1303,17 +1294,17 @@ export const AssetsPanel: React.FC = () => {
                   className="w-full py-4 bg-background-tertiary rounded-lg border border-border hover:border-primary/50 hover:bg-primary/5 transition-all text-center"
                 >
                   <span className="text-lg font-bold text-text-primary">
-                    Add Title
+                    {t("assets.addTitle")}
                   </span>
                   <p className="text-xs text-text-muted mt-1">
-                    Click to add text to timeline
+                    {t("assets.clickToAddText")}
                   </p>
                 </button>
                 <div className="grid grid-cols-2 gap-2">
                   {[
                     {
-                      name: "Heading",
-                      text: "Heading",
+                      name: t("assets.heading"),
+                      text: t("assets.heading"),
                       style: {
                         fontSize: 72,
                         fontWeight: 700 as const,
@@ -1322,8 +1313,8 @@ export const AssetsPanel: React.FC = () => {
                       },
                     },
                     {
-                      name: "Subtitle",
-                      text: "Subtitle text",
+                      name: t("assets.subtitle"),
+                      text: t("assets.subtitleText"),
                       style: {
                         fontSize: 36,
                         fontWeight: 400 as const,
@@ -1332,8 +1323,8 @@ export const AssetsPanel: React.FC = () => {
                       },
                     },
                     {
-                      name: "Lower Third",
-                      text: "Name Here",
+                      name: t("assets.lowerThird"),
+                      text: t("assets.nameHere"),
                       style: {
                         fontSize: 32,
                         fontWeight: 600 as const,
@@ -1343,8 +1334,8 @@ export const AssetsPanel: React.FC = () => {
                       },
                     },
                     {
-                      name: "Caption",
-                      text: "Caption text here",
+                      name: t("assets.caption"),
+                      text: t("assets.captionTextHere"),
                       style: {
                         fontSize: 24,
                         fontWeight: 400 as const,

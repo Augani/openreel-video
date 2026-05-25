@@ -184,7 +184,7 @@ export const RecipesTab: React.FC = () => {
 
       toast.success(
         t("recipes.applied"),
-        `${template.name} was added to ${selectedMedia?.name || "the selected clip"}.`,
+        t("recipes.appliedTo", { name: template.name, media: selectedMedia?.name || t("recipes.theSelectedClip") }),
       );
     } finally {
       setApplyingTemplateId(null);
@@ -198,9 +198,9 @@ export const RecipesTab: React.FC = () => {
           <Sparkles size={24} />
         </div>
         <div>
-          <p className="text-sm font-semibold text-text-primary">Select a clip first</p>
+          <p className="text-sm font-semibold text-text-primary">{t("recipes.selectClipFirst")}</p>
           <p className="mt-1.5 text-xs text-text-muted max-w-[240px] leading-relaxed mx-auto">
-            Choose a video or image in the timeline to apply clip-scoped recipes, looks, and caption treatments.
+            {t("recipes.selectClipFirstDesc")}
           </p>
         </div>
       </div>
@@ -248,7 +248,7 @@ export const RecipesTab: React.FC = () => {
                 : "bg-background-tertiary text-text-muted hover:text-text-primary hover:bg-background-elevated border border-border/50"
             }`}
           >
-            ALL
+            {t("recipes.allCategories")}
           </button>
           {EDITING_TEMPLATE_CATEGORIES.map((category) => (
             <button
@@ -269,8 +269,8 @@ export const RecipesTab: React.FC = () => {
       <div className="flex-1 p-4 space-y-3">
         {filteredTemplates.length === 0 ? (
           <div className="py-12 text-center">
-            <p className="text-text-secondary text-sm font-medium">No recipes match</p>
-            <p className="mt-2 text-xs text-text-muted">Try a different search or category.</p>
+            <p className="text-text-secondary text-sm font-medium">{t("recipes.noMatch")}</p>
+            <p className="mt-2 text-xs text-text-muted">{t("recipes.tryDifferent")}</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-3">
@@ -336,7 +336,7 @@ export const RecipesTab: React.FC = () => {
                               disabled={applyingTemplateId !== null}
                               className="h-6 px-3 bg-primary text-black text-[10px] font-bold rounded transition-colors hover:bg-primary/80 disabled:opacity-50"
                             >
-                              {applyingTemplateId === template.id ? "Applying" : "Apply"}
+                              {applyingTemplateId === template.id ? t("recipes.applying") : t("recipes.apply")}
                             </button>
                           </div>
                         </div>

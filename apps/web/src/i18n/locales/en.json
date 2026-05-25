@@ -336,7 +336,29 @@
     "unsavedDiscarded": "Unsaved audio discarded",
     "folderNotSupported": "Folder picker not supported",
     "noMediaImported": "No media imported",
-    "dragFilesHere": "Drag files here or click to import"
+    "dragFilesHere": "Drag files here or click to import",
+    "backgrounds": "Backgrounds",
+    "svgImport": "SVG Import",
+    "catAll": "All",
+    "catSolid": "Solid",
+    "catGradient": "Gradient",
+    "catMesh": "Mesh",
+    "catPattern": "Pattern",
+    "rectangle": "Rectangle",
+    "circle": "Circle",
+    "triangle": "Triangle",
+    "star": "Star",
+    "arrowShape": "Arrow",
+    "polygon": "Polygon",
+    "addTitle": "Add Title",
+    "clickToAddText": "Click to add text to timeline",
+    "heading": "Heading",
+    "subtitle": "Subtitle",
+    "subtitleText": "Subtitle text",
+    "lowerThird": "Lower Third",
+    "nameHere": "Name Here",
+    "caption": "Caption",
+    "captionTextHere": "Caption text here"
   },
   "inspector": {
     "aiAutoCaptions": "AI Auto-Captions",
@@ -1070,14 +1092,26 @@
     "loading": "Loading templates...",
     "templateReplaceWarning": "Applying a template will replace your current project. Continue?",
     "enabled": "Enabled",
-    "applyFailed": "Failed to apply template"
+    "applyFailed": "Failed to apply template",
+    "allCategories": "All",
+    "noFound": "No templates found",
+    "applying": "Applying..."
   },
   "recipes": {
     "search": "Search recipes...",
     "selectClip": "Select a clip",
     "selectClipDesc": "Recipes apply to one selected video or image clip.",
     "applyFailed": "This recipe could not be applied to the current clip.",
-    "applied": "Recipe applied"
+    "applied": "Recipe applied",
+    "selectClipFirst": "Select a clip first",
+    "selectClipFirstDesc": "Choose a video or image in the timeline to apply clip-scoped recipes, looks, and caption treatments.",
+    "noMatch": "No recipes match",
+    "tryDifferent": "Try a different search or category.",
+    "apply": "Apply",
+    "applying": "Applying",
+    "allCategories": "ALL",
+    "appliedTo": "{{name}} was added to {{media}}.",
+    "theSelectedClip": "the selected clip"
   },
   "modelPicker": {
     "styleTransfer": "Style and composition transfer with optional prompt guidance."
