@@ -1,4 +1,5 @@
 import React, { useCallback, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import type { ChannelStripState } from "./types";
 import { volumeToDb, formatDb, formatPan } from "./types";
 
@@ -70,6 +71,7 @@ const Fader: React.FC<{
   onChange: (value: number) => void;
   disabled?: boolean;
 }> = ({ value, onChange, disabled }) => {
+  const { t: tFader } = useTranslation();
   const handleChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       onChange(parseFloat(e.target.value));
@@ -108,7 +110,7 @@ const Fader: React.FC<{
  [&::-moz-range-thumb]:rounded
  [&::-moz-range-thumb]:cursor-pointer
  [&::-moz-range-thumb]:border-0"
-        aria-label="Volume fader"
+        aria-label={tFader("audioMixer.volumeFader")}
       />
     </div>
   );
@@ -122,6 +124,7 @@ const PanKnob: React.FC<{
   onChange: (value: number) => void;
   disabled?: boolean;
 }> = ({ value, onChange, disabled }) => {
+  const { t: tPan } = useTranslation();
   const handleChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       onChange(parseFloat(e.target.value));
@@ -156,7 +159,7 @@ const PanKnob: React.FC<{
  [&::-moz-range-thumb]:rounded-full
  [&::-moz-range-thumb]:cursor-pointer
  [&::-moz-range-thumb]:border-0"
-        aria-label="Pan control"
+        aria-label={tPan("audioMixer.panControl")}
       />
     </div>
   );

@@ -1,4 +1,5 @@
 import React, { useCallback, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Search, Image as ImageIcon, Film, Music, Plus, Upload, Trash2, 
   Square, Circle, Triangle, Star, ArrowRight, Hexagon, FileCode, AlertTriangle, 
@@ -54,38 +55,38 @@ type AssetsTab = "media" | "text" | "graphics" | "ai" | "recipes" | "templates";
 
 const ASSETS_TABS: ReadonlyArray<{
   value: AssetsTab;
-  label: string;
-  description: string;
+  labelKey: string;
+  descriptionKey: string;
 }> = [
   {
     value: "media",
-    label: "Media",
-    description: "Import footage, audio, and stills.",
+    labelKey: "assets.media",
+    descriptionKey: "assets.mediaDesc",
   },
   {
     value: "text",
-    label: "Text",
-    description: "Add title presets and caption elements.",
+    labelKey: "assets.text",
+    descriptionKey: "assets.textDesc",
   },
   {
     value: "graphics",
-    label: "Graphics",
-    description: "Create shapes, arrows, and SVG overlays.",
+    labelKey: "assets.shapes",
+    descriptionKey: "assets.shapesDesc",
   },
   {
     value: "ai",
-    label: "AI Generate",
-    description: "Generate clips, captions, and assisted edits.",
+    labelKey: "assets.aiGen",
+    descriptionKey: "assets.aiGenDesc",
   },
   {
     value: "recipes",
-    label: "Recipes",
-    description: "Apply clip-scoped looks, overlays, and text stacks.",
+    labelKey: "assets.recipes",
+    descriptionKey: "assets.recipesDesc",
   },
   {
     value: "templates",
-    label: "Project Templates",
-    description: "Load full-project starter layouts and presets.",
+    labelKey: "assets.templates",
+    descriptionKey: "assets.templatesDesc",
   },
 ] as const;
 
@@ -557,6 +558,7 @@ const LoadingIndicator: React.FC<{ message: string }> = ({ message }) => (
 );
 
 export const AssetsPanel: React.FC = () => {
+  const { t } = useTranslation();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTabRaw] = useState<AssetsTab>("media");
@@ -564,7 +566,7 @@ export const AssetsPanel: React.FC = () => {
 
   const setActiveTab = useCallback((tab: AssetsTab) => {
     if (activeTab === "ai" && tab !== "ai" && ttsHasUnsaved) {
-      toast.warning("Unsaved audio discarded", "Save to media or download next time to keep it.");
+      toast.warning(t("assets.unsavedDiscarded"), "Save to media or download next time to keep it.");
     }
     setActiveTabRaw(tab);
   }, [activeTab, ttsHasUnsaved]);
@@ -740,7 +742,7 @@ export const AssetsPanel: React.FC = () => {
 
   const handleRelinkFromFolder = useCallback(async () => {
     if (!("showDirectoryPicker" in window)) {
-      toast.error("Folder picker not supported", "Please relink assets individually using the refresh button on each missing asset.");
+      toast.error(t("assets.folderNotSupported"), "Please relink assets individually using the refresh button on each missing asset.");
       return;
     }
     let dirHandle: FileSystemDirectoryHandle;
@@ -794,7 +796,7 @@ export const AssetsPanel: React.FC = () => {
     if (linked > 0) {
       toast.success(`Relinked ${linked} of ${placeholders.length} asset${placeholders.length !== 1 ? "s" : ""}`);
     } else {
-      toast.error("No matches found", "None of the files in the selected folder matched the missing assets by filename.");
+      toast.error(t("assets.noMatches"), "None of the files in the selected folder matched the missing assets by filename.");
     }
   }, [replaceMediaAsset]);
 
@@ -907,7 +909,7 @@ export const AssetsPanel: React.FC = () => {
     try {
       const blob = await loadMediaBlob(item.id);
       if (!blob) {
-        toast.error("Asset not found", "Cannot load the image data for this asset.");
+        toast.error(t("assets.assetNotFound"), "Cannot load the image data for this asset.");
         return;
       }
       const mimeType = blob.type || (item.name.match(/\.png$/i) ? "image/png" : "image/jpeg");
@@ -938,15 +940,15 @@ export const AssetsPanel: React.FC = () => {
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search media"
+                  placeholder={t("assets.searchMedia")}
                   className="pl-9 text-xs bg-background-tertiary border-border text-text-primary h-9"
                 />
               </div>
               <div className="flex items-center bg-background-tertiary border border-border rounded-lg p-0.5">
                 {([
-                  { mode: "large" as const, icon: LayoutGrid, title: "Large icons" },
-                  { mode: "small" as const, icon: Grid2x2, title: "Small icons" },
-                  { mode: "list" as const, icon: List, title: "List view" },
+                  { mode: "large" as const, icon: LayoutGrid, title: t("assets.largeIcons") },
+                  { mode: "small" as const, icon: Grid2x2, title: t("assets.smallIcons") },
+                  { mode: "list" as const, icon: List, title: t("assets.listView") },
                 ]).map(({ mode, icon: ViewIcon, title }) => (
                   <button
                     key={mode}
@@ -1423,7 +1425,7 @@ export const AssetsPanel: React.FC = () => {
             <button
               key={tab.value}
               onClick={() => setActiveTab(tab.value)}
-              title={tab.description}
+              title={t(tab.descriptionKey)}
               className={`relative flex flex-col items-center justify-center w-11 h-11 rounded-xl transition-all group ${
                 isActive
                   ? "bg-background-elevated text-primary shadow-sm ring-1 ring-primary/20"
@@ -1450,10 +1452,10 @@ export const AssetsPanel: React.FC = () => {
         <div className="px-5 py-4 flex items-center justify-between border-b border-border/40 shrink-0">
           <div>
             <h2 className="font-bold text-sm text-text-primary tracking-tight">
-              {ASSETS_TABS.find((t) => t.value === activeTab)?.label}
+              {(() => { const tab = ASSETS_TABS.find((t) => t.value === activeTab); return tab ? t(tab.labelKey) : ""; })()}
             </h2>
             <p className="text-[11px] text-text-muted mt-0.5 line-clamp-1">
-              {ASSETS_TABS.find((t) => t.value === activeTab)?.description}
+              {(() => { const tab = ASSETS_TABS.find((t) => t.value === activeTab); return tab ? t(tab.descriptionKey) : ""; })()}
             </p>
           </div>
           <div className="flex gap-1 shrink-0">
@@ -1461,7 +1463,7 @@ export const AssetsPanel: React.FC = () => {
               <IconButton
                 icon={Plus}
                 onClick={triggerFileInput}
-                title="Import media"
+                title={t("assets.importMedia")}
               />
             )}
           </div>

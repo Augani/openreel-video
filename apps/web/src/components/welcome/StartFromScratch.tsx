@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Smartphone,
   Monitor,
@@ -60,6 +61,7 @@ const PRESET_ICONS: Record<string, React.ElementType> = {
 export const StartFromScratch: React.FC<StartFromScratchProps> = ({
   onProjectCreated,
 }) => {
+  const { t } = useTranslation();
   const createNewProject = useProjectStore((state) => state.createNewProject);
   const updateSettings = useProjectStore((state) => state.updateSettings);
   const { track } = useAnalytics();
@@ -67,6 +69,13 @@ export const StartFromScratch: React.FC<StartFromScratchProps> = ({
     useState<SocialMediaCategory>("youtube-video");
   const [projectName, setProjectName] = useState("");
   const [isCreating, setIsCreating] = useState(false);
+
+  const formatLabels: Record<string, string> = {
+    "Vertical (9:16)": t("welcome.formatVertical"),
+    "Horizontal (16:9)": t("welcome.formatHorizontal"),
+    "Square (1:1)": t("welcome.formatSquare"),
+    "Other": t("welcome.formatOther"),
+  };
 
   const preset = SOCIAL_MEDIA_PRESETS[selectedPreset];
   const info = SOCIAL_MEDIA_CATEGORY_INFO.find((c) => c.id === selectedPreset);
@@ -105,20 +114,20 @@ export const StartFromScratch: React.FC<StartFromScratchProps> = ({
     <div className="space-y-6">
       <div>
         <Label className="text-sm font-medium text-text-primary mb-2 block">
-          Project Name
+          {t("welcome.projectName")}
         </Label>
         <Input
           type="text"
           value={projectName}
           onChange={(e) => setProjectName(e.target.value)}
-          placeholder="My Awesome Video"
+          placeholder={t("welcome.projectNamePlaceholder")}
           className="max-w-md bg-background-tertiary border-border text-text-primary"
         />
       </div>
 
       <div>
         <h3 className="text-sm font-medium text-text-primary mb-4">
-          Select Format
+          {t("welcome.selectFormat")}
         </h3>
 
         <div className="grid md:grid-cols-2 gap-6">
@@ -129,7 +138,7 @@ export const StartFromScratch: React.FC<StartFromScratchProps> = ({
               <div key={group.platform} className="space-y-3">
                 <div className="flex items-center gap-2 text-xs text-text-muted font-medium">
                   <GroupIcon size={14} />
-                  <span>{group.platform}</span>
+                  <span>{formatLabels[group.platform]}</span>
                 </div>
 
                 <div className="grid grid-cols-2 gap-2">
@@ -209,11 +218,11 @@ export const StartFromScratch: React.FC<StartFromScratchProps> = ({
           {isCreating ? (
             <>
               <div className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />
-              Creating...
+              {t("welcome.creating")}
             </>
           ) : (
             <>
-              Create Project
+              {t("welcome.createProject")}
               <ChevronRight size={16} />
             </>
           )}

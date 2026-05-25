@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { Eye, EyeOff, Volume2, Lock, Trash2, ChevronDown, ChevronRight, Pencil, AlignLeft } from "lucide-react";
 import type { Track } from "@openreel/core";
 import { useProjectStore } from "../../../stores/project-store";
@@ -29,6 +30,7 @@ export const TrackHeader: React.FC<TrackHeaderProps> = ({
   onDrop,
   keyframeCount = 0,
 }) => {
+  const { t } = useTranslation();
   const { lockTrack, hideTrack, muteTrack, removeTrack, renameTrack, consolidateTrack } = useProjectStore();
   const { isTrackExpanded, toggleTrackExpanded, getTrackHeight } = useTimelineStore();
   const isExpanded = isTrackExpanded(track.id);
@@ -107,7 +109,7 @@ export const TrackHeader: React.FC<TrackHeaderProps> = ({
               <button
                 onClick={(e) => { e.stopPropagation(); toggleTrackExpanded(track.id); }}
                 className="p-0.5 rounded transition-colors hover:bg-background-elevated text-text-muted"
-                title={isExpanded ? "Collapse keyframes" : "Expand keyframes"}
+                title={isExpanded ? t("timeline.collapseKeyframes") : t("timeline.expandKeyframes")}
               >
                 {isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
               </button>
@@ -153,7 +155,7 @@ export const TrackHeader: React.FC<TrackHeaderProps> = ({
                     ? "text-yellow-500 bg-yellow-500/10"
                     : "text-text-muted hover:bg-background-elevated hover:text-text-primary"
                 }`}
-                title={track.hidden ? "Show track" : "Hide track"}
+                title={track.hidden ? t("timeline.showTrack") : t("timeline.hideTrack")}
               >
                 {track.hidden ? <EyeOff size={12} /> : <Eye size={12} />}
               </button>
@@ -185,7 +187,7 @@ export const TrackHeader: React.FC<TrackHeaderProps> = ({
             <button
               onClick={(e) => { e.stopPropagation(); handleRemoveTrack(); }}
               className="p-1 rounded transition-colors hover:bg-red-500/20 text-red-400/50 hover:text-red-400"
-              title="Delete track"
+              title={t("timeline.deleteTrack")}
             >
               <Trash2 size={12} />
             </button>

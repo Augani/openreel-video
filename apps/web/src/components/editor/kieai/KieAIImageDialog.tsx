@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef } from "react";
 import { v4 as uuidv4 } from "uuid";
+import { useTranslation } from "react-i18next";
 import {
   Dialog,
   DialogContent,
@@ -64,6 +65,7 @@ interface Props {
 }
 
 export function KieAIImageDialog({ open, onClose, sourceFile, previewUrl }: Props) {
+  const { t } = useTranslation();
   const [step, setStep] = useState<Step>("pick");
   const [selectedModel, setSelectedModel] = useState<ImageModelId | null>(null);
   const [errorMsg, setErrorMsg] = useState<string>("");
@@ -225,7 +227,7 @@ export function KieAIImageDialog({ open, onClose, sourceFile, previewUrl }: Prop
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>
-            {step === "pick" && "Create with KieAI"}
+            {step === "pick" && t("kieAi.create")}
             {step === "form" && `${modelLabel}`}
             {step === "submitting" && "Submitting…"}
             {step === "error" && "Submission Failed"}

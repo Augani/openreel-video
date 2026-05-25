@@ -5,6 +5,7 @@ import React, {
   useMemo,
   useState,
 } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Undo2,
   Redo2,
@@ -54,6 +55,7 @@ import {
 } from "./timeline/index";
 
 export const Timeline: React.FC = () => {
+  const { t } = useTranslation();
   const containerRef = useRef<HTMLDivElement>(null);
   const tracksRef = useRef<HTMLDivElement>(null);
 
@@ -704,13 +706,13 @@ export const Timeline: React.FC = () => {
               icon={Undo2}
               onClick={undo}
               disabled={!canUndo()}
-              title="Undo (Cmd+Z)"
+              title={t("timeline.undo")}
             />
             <IconButton
               icon={Redo2}
               onClick={redo}
               disabled={!canRedo()}
-              title="Redo (Cmd+Shift+Z)"
+              title={t("timeline.redo")}
             />
           </div>
 
@@ -720,7 +722,7 @@ export const Timeline: React.FC = () => {
             <button
               onClick={handleSplit}
               disabled={selectedClipIds.length !== 1}
-              title="Split clip at playhead (S)"
+              title={t("timeline.splitClip")}
               className={`flex items-center gap-1.5 px-2 py-1 rounded transition-colors ${
                 selectedClipIds.length === 1
                   ? "bg-orange-500/20 text-orange-400 hover:bg-orange-500/30 border border-orange-500/30"
@@ -734,7 +736,7 @@ export const Timeline: React.FC = () => {
               icon={Trash2}
               onClick={handleDelete}
               disabled={selectedClipIds.length === 0}
-              title="Delete clip (Del)"
+              title={t("timeline.deleteClip")}
               className="hover:text-red-500"
             />
           </div>
@@ -745,7 +747,7 @@ export const Timeline: React.FC = () => {
             <DropdownMenuTrigger asChild>
               <button
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 border border-primary/20 transition-colors"
-                title="Add new track"
+                title={t("timeline.addTrack")}
               >
                 <Plus size={14} />
                 <span className="text-[11px] font-semibold">Add Track</span>
@@ -787,7 +789,7 @@ export const Timeline: React.FC = () => {
                     ? "bg-primary/20 text-primary"
                     : "hover:bg-background-elevated text-text-secondary hover:text-text-primary"
                 }`}
-                title="Manage track layers"
+                title={t("timeline.manageTracks")}
               >
                 <Layers size={14} />
                 <span className="text-[10px] font-medium tracking-wide">LAYERS</span>
@@ -833,7 +835,7 @@ export const Timeline: React.FC = () => {
                               }
                               disabled={index === 0}
                               className="p-1.5 rounded-md hover:bg-background-elevated disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                              title="Move up"
+                              title={t("timeline.moveUp")}
                             >
                               <ChevronUp size={12} />
                             </button>
@@ -844,7 +846,7 @@ export const Timeline: React.FC = () => {
                               }
                               disabled={index === tracks.length - 1}
                               className="p-1.5 rounded-md hover:bg-background-elevated disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                              title="Move down"
+                              title={t("timeline.moveDown")}
                             >
                               <ChevronDown size={12} />
                             </button>
@@ -867,7 +869,7 @@ export const Timeline: React.FC = () => {
                 ? "bg-yellow-500/20 text-yellow-400 border border-yellow-500/30"
                 : "hover:bg-background-elevated text-text-muted hover:text-text-secondary"
             }`}
-            title={snapSettings.enabled ? "Disable snapping" : "Enable snapping"}
+            title={snapSettings.enabled ? t("timeline.disableSnapping") : t("timeline.enableSnapping")}
           >
             <Magnet size={14} />
             <span className="text-[10px] font-medium tracking-wide">SNAP</span>
@@ -887,7 +889,7 @@ export const Timeline: React.FC = () => {
                   ? "text-primary bg-primary/10"
                   : "text-text-secondary hover:text-text-primary hover:bg-background-elevated"
               }`}
-              title="Large tracks"
+              title={t("timeline.largeTracks")}
             >
               <Rows3 size={14} />
             </button>
@@ -898,7 +900,7 @@ export const Timeline: React.FC = () => {
                   ? "text-primary bg-primary/10"
                   : "text-text-secondary hover:text-text-primary hover:bg-background-elevated"
               }`}
-              title="Small tracks"
+              title={t("timeline.smallTracks")}
             >
               <Rows2 size={14} />
             </button>
@@ -907,7 +909,7 @@ export const Timeline: React.FC = () => {
             <button
               onClick={zoomOut}
               className="w-8 h-8 flex items-center justify-center text-text-secondary hover:text-text-primary hover:bg-background-elevated transition-colors border-r border-border"
-              title="Zoom out"
+              title={t("timeline.zoomOut")}
             >
               <span className="text-base font-medium">−</span>
             </button>
@@ -917,12 +919,12 @@ export const Timeline: React.FC = () => {
             <button
               onClick={zoomIn}
               className="w-8 h-8 flex items-center justify-center text-text-secondary hover:text-text-primary hover:bg-background-elevated transition-colors border-l border-border"
-              title="Zoom in"
+              title={t("timeline.zoomIn")}
             >
               <span className="text-base font-medium">+</span>
             </button>
           </div>
-          <IconButton icon={Maximize2} title="Maximize timeline" />
+          <IconButton icon={Maximize2} title={t("timeline.maximizeTimeline")} />
         </div>
       </div>
 

@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Monitor,
   Mic,
@@ -65,6 +66,7 @@ export const ScreenRecorder: React.FC<ScreenRecorderProps> = ({
   onClose,
   onRecordingComplete,
 }) => {
+  const { t } = useTranslation();
   const {
     status,
     options,
@@ -144,7 +146,7 @@ export const ScreenRecorder: React.FC<ScreenRecorderProps> = ({
           <div className="flex items-center gap-3">
             <Circle size={20} className="text-error fill-error animate-pulse" />
             <DialogTitle className="text-lg font-bold text-text-primary">
-              Screen Recording
+              {t("recording.screenRecording")}
             </DialogTitle>
           </div>
         </DialogHeader>
@@ -186,13 +188,13 @@ export const ScreenRecorder: React.FC<ScreenRecorderProps> = ({
           <div className="space-y-4">
             <div className="flex items-center gap-2 text-sm font-medium text-text-primary">
               <Monitor size={16} />
-              <span>Video Settings</span>
+              <span>{t("recording.videoSettings")}</span>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs text-text-muted mb-2">
-                  Resolution
+                  {t("recording.resolution")}
                 </label>
                 <Select
                   value={options.video.resolution}
@@ -221,7 +223,7 @@ export const ScreenRecorder: React.FC<ScreenRecorderProps> = ({
 
               <div>
                 <label className="block text-xs text-text-muted mb-2">
-                  Frame Rate
+                  {t("recording.frameRate")}
                 </label>
                 <Select
                   value={String(options.video.frameRate)}
@@ -246,7 +248,7 @@ export const ScreenRecorder: React.FC<ScreenRecorderProps> = ({
           <div className="space-y-4">
             <div className="flex items-center gap-2 text-sm font-medium text-text-primary">
               <Settings size={16} />
-              <span>Audio Settings</span>
+              <span>{t("recording.audioSettings")}</span>
             </div>
 
             <div className="flex gap-4">
@@ -266,7 +268,7 @@ export const ScreenRecorder: React.FC<ScreenRecorderProps> = ({
                 ) : (
                   <VolumeX size={18} />
                 )}
-                <span className="text-sm">System Audio</span>
+                <span className="text-sm">{t("recording.systemAudio")}</span>
               </button>
 
               <button
@@ -285,7 +287,7 @@ export const ScreenRecorder: React.FC<ScreenRecorderProps> = ({
                 ) : (
                   <MicOff size={18} />
                 )}
-                <span className="text-sm">Microphone</span>
+                <span className="text-sm">{t("recording.microphone")}</span>
               </button>
             </div>
 
@@ -301,7 +303,7 @@ export const ScreenRecorder: React.FC<ScreenRecorderProps> = ({
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-sm font-medium text-text-primary">
                 <Camera size={16} />
-                <span>Webcam Recording</span>
+                <span>{t("recording.webcamRecording")}</span>
               </div>
               <button
                 onClick={() =>
@@ -326,7 +328,7 @@ export const ScreenRecorder: React.FC<ScreenRecorderProps> = ({
               <div className="flex gap-4">
                 <div className="flex-1">
                   <label className="block text-xs text-text-muted mb-2">
-                    Webcam Resolution
+                    {t("recording.webcamResolution")}
                   </label>
                   <Select
                     value={options.webcam.resolution}
@@ -368,7 +370,7 @@ export const ScreenRecorder: React.FC<ScreenRecorderProps> = ({
 
         <div className="flex items-center justify-between p-4 border-t border-border bg-background-tertiary">
           <p className="text-xs text-text-muted">
-            Recording will start after a 3-second countdown
+            {t("recording.countdownInfo")}
           </p>
 
           <div className="flex gap-3">
@@ -376,7 +378,7 @@ export const ScreenRecorder: React.FC<ScreenRecorderProps> = ({
               onClick={handleCancel}
               className="px-4 py-2 text-sm text-text-secondary hover:text-text-primary transition-colors"
             >
-              Cancel
+              {t("recording.cancel")}
             </button>
             <button
               onClick={handleStartRecording}
@@ -386,12 +388,12 @@ export const ScreenRecorder: React.FC<ScreenRecorderProps> = ({
               {status === "requesting" ? (
                 <>
                   <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  <span>Requesting Access...</span>
+                  <span>{t("recording.requestingAccess")}</span>
                 </>
               ) : (
                 <>
                   <Circle size={14} className="fill-current" />
-                  <span>Start Recording</span>
+                  <span>{t("recording.startRecording")}</span>
                 </>
               )}
             </button>

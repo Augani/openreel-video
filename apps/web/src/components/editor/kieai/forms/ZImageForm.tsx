@@ -1,4 +1,5 @@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Button } from "@openreel/ui";
+import { useTranslation } from "react-i18next";
 import type { ZImageInput } from "../../../../services/kieai/image-generation";
 import { ASPECT_RATIO_OPTIONS_BASIC } from "./shared";
 
@@ -10,6 +11,7 @@ interface Props {
 }
 
 export function ZImageForm({ value, onChange, onSubmit, isLoading }: Props) {
+  const { t } = useTranslation();
   return (
     <div className="space-y-4">
       <div className="p-2 rounded-lg bg-yellow-500/10 border border-yellow-500/30 text-xs text-yellow-400">
@@ -21,7 +23,7 @@ export function ZImageForm({ value, onChange, onSubmit, isLoading }: Props) {
         <textarea
           value={value.prompt}
           onChange={(e) => onChange({ ...value, prompt: e.target.value })}
-          placeholder="Describe the image you want to generate…"
+          placeholder={t("kieAi.imagePlaceholder")}
           maxLength={1000}
           rows={4}
           className="w-full rounded-lg border border-border bg-background-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted resize-none outline-none focus:border-primary"
@@ -42,7 +44,7 @@ export function ZImageForm({ value, onChange, onSubmit, isLoading }: Props) {
       </div>
 
       <Button onClick={onSubmit} disabled={isLoading || !value.prompt.trim()} className="w-full">
-        {isLoading ? "Generating…" : "Generate with Z-Image"}
+        {isLoading ? t("kieAi.generating") : t("kieAi.generateZImage")}
       </Button>
     </div>
   );

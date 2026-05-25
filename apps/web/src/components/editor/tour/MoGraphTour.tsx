@@ -1,5 +1,6 @@
 import React from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useTranslation } from "react-i18next";
 import { useMoGraphTour } from "./useMoGraphTour";
 import {
   Sparkles,
@@ -10,6 +11,7 @@ import {
 } from "lucide-react";
 
 export const MoGraphTour: React.FC = () => {
+  const { t } = useTranslation();
   const {
     isActive,
     currentStep,
@@ -193,7 +195,7 @@ export const MoGraphTour: React.FC = () => {
             <div className="flex-1">
               <h3 className="text-white font-semibold text-sm">{step.title}</h3>
               <p className="text-white/60 text-[10px]">
-                Motion Graphics Tour • Step {currentStep + 1} of {totalSteps}
+                {t("tour.mographTitle")} • Step {currentStep + 1} of {totalSteps}
               </p>
             </div>
             <button
@@ -250,20 +252,20 @@ export const MoGraphTour: React.FC = () => {
                 className="flex items-center gap-1 px-3 py-2 text-xs rounded-lg bg-background-tertiary text-text-secondary hover:text-text-primary disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 <ChevronLeft size={14} />
-                Back
+                {t("tour.back")}
               </button>
               <div className="flex-1" />
               <button
                 onClick={skip}
                 className="px-3 py-2 text-xs text-text-muted hover:text-text-secondary transition-colors"
               >
-                Skip Tour
+                {t("tour.skipTour")}
               </button>
               <button
                 onClick={next}
                 className="flex items-center gap-1 px-4 py-2 text-xs rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 text-white font-medium hover:from-purple-500 hover:to-pink-500 transition-all"
               >
-                {isLastStep ? "Get Started" : "Next"}
+                {isLastStep ? t("tour.getStarted") : t("tour.next")}
                 {!isLastStep && <ChevronRight size={14} />}
               </button>
             </div>

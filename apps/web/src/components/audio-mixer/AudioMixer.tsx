@@ -5,6 +5,7 @@ import React, {
   useState,
   useRef,
 } from "react";
+import { useTranslation } from "react-i18next";
 import { useProjectStore } from "../../stores/project-store";
 import { ChannelStrip } from "./ChannelStrip";
 import type { ChannelStripState } from "./types";
@@ -27,6 +28,7 @@ const MasterChannel: React.FC<{
   rmsLevel: number;
   onVolumeChange: (volume: number) => void;
 }> = ({ volume, peakLevel, rmsLevel, onVolumeChange }) => {
+  const { t: tMaster } = useTranslation();
   const handleChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       onVolumeChange(parseFloat(e.target.value));
@@ -103,7 +105,7 @@ const MasterChannel: React.FC<{
  [&::-moz-range-thumb]:rounded
  [&::-moz-range-thumb]:cursor-pointer
  [&::-moz-range-thumb]:border-0"
-          aria-label="Master volume fader"
+          aria-label={tMaster("audioMixer.masterVolume")}
         />
       </div>
     </div>
@@ -120,6 +122,7 @@ export const AudioMixer: React.FC<AudioMixerProps> = ({
   visible = true,
   onClose,
 }) => {
+  const { t } = useTranslation();
   const project = useProjectStore((state) => state.project);
   const muteTrack = useProjectStore((state) => state.muteTrack);
   const soloTrack = useProjectStore((state) => state.soloTrack);
@@ -300,7 +303,7 @@ export const AudioMixer: React.FC<AudioMixerProps> = ({
       className="bg-gray-900 border-t border-gray-700 p-4"
       data-testid="audio-mixer"
       role="region"
-      aria-label="Audio Mixing Console"
+      aria-label={t("audioMixer.audioConsole")}
     >
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
@@ -309,7 +312,7 @@ export const AudioMixer: React.FC<AudioMixerProps> = ({
           <button
             onClick={onClose}
             className="text-gray-400 hover:text-white transition-colors"
-            aria-label="Close mixer"
+            aria-label={t("audioMixer.closeMixer")}
           >
             ✕
           </button>

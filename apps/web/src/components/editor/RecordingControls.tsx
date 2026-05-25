@@ -1,5 +1,6 @@
 import React from "react";
 import { Square, Pause, Play, X, Minimize2 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { useRecorderStore } from "../../stores/recorder-store";
 import { formatDuration } from "../../services/screen-recorder";
 
@@ -16,6 +17,7 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
   onResume,
   onCancel,
 }) => {
+  const { t } = useTranslation();
   const {
     status,
     duration,
@@ -61,7 +63,7 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
             <button
               onClick={onResume}
               className="p-3 bg-primary hover:bg-primary-hover rounded-xl transition-colors"
-              title="Resume recording"
+              title={t("recording.resume")}
             >
               <Play size={20} className="text-white" />
             </button>
@@ -69,7 +71,7 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
             <button
               onClick={onPause}
               className="p-3 bg-warning/20 hover:bg-warning/30 rounded-xl transition-colors"
-              title="Pause recording"
+              title={t("recording.pause")}
             >
               <Pause size={20} className="text-warning" />
             </button>
@@ -78,7 +80,7 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
           <button
             onClick={onStop}
             className="p-3 bg-red-600 hover:bg-red-700 rounded-xl transition-colors"
-            title="Stop recording"
+            title={t("recording.stop")}
           >
             <Square size={20} className="text-white fill-white" />
           </button>
@@ -86,7 +88,7 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
           <button
             onClick={onCancel}
             className="p-3 bg-background-tertiary hover:bg-background-elevated rounded-xl transition-colors"
-            title="Cancel recording"
+            title={t("recording.cancelRecording")}
           >
             <X size={20} className="text-text-muted" />
           </button>
@@ -97,7 +99,7 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
         <button
           onClick={minimizeControls}
           className="p-2 text-text-muted hover:text-text-primary rounded-lg hover:bg-background-tertiary transition-colors"
-          title="Minimize controls"
+          title={t("recording.minimize")}
         >
           <Minimize2 size={16} />
         </button>

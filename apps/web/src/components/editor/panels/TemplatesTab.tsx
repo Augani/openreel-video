@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { Search, Layout, Clock } from "lucide-react";
 import { useEngineStore } from "../../../stores/engine-store";
 import { useProjectStore } from "../../../stores/project-store";
@@ -9,6 +10,7 @@ import type {
 import { TEMPLATE_CATEGORIES } from "@openreel/core";
 
 export const TemplatesTab: React.FC = () => {
+  const { t } = useTranslation();
   const getTemplateEngine = useEngineStore((s) => s.getTemplateEngine);
   const [templates, setTemplates] = useState<TemplateSummary[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -53,7 +55,7 @@ export const TemplatesTab: React.FC = () => {
         useProjectStore.getState().project.timeline.tracks.length > 0;
       if (hasClips) {
         const confirmed = window.confirm(
-          "Applying a template will replace your current project. Continue?",
+          t("templates.templateReplaceWarning"),
         );
         if (!confirmed) return;
       }
@@ -84,7 +86,7 @@ export const TemplatesTab: React.FC = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12 text-text-muted text-xs">
-        Loading templates...
+        {t("templates.loading")}
       </div>
     );
   }
@@ -98,7 +100,7 @@ export const TemplatesTab: React.FC = () => {
         />
         <input
           type="text"
-          placeholder="Search templates..."
+          placeholder={t("templates.search")}
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className="w-full pl-8 pr-3 py-2 text-xs bg-background-secondary border border-border rounded-lg text-text-primary placeholder:text-text-muted focus:outline-none focus:border-primary/50"

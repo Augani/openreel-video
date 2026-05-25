@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, CheckCircle2, XCircle, AlertTriangle, Info } from "lucide-react";
 import {
@@ -86,6 +87,7 @@ interface ToastItemProps {
 
 const ToastItem = React.forwardRef<HTMLDivElement, ToastItemProps>(
   ({ notification, onRemove }, ref) => {
+  const { t } = useTranslation();
   const [progress, setProgress] = useState(100);
   const isDark =
     typeof document !== "undefined" &&
@@ -185,7 +187,7 @@ const ToastItem = React.forwardRef<HTMLDivElement, ToastItemProps>(
                   : "hover:bg-black/5 text-zinc-400 hover:text-zinc-600"
               }
             `}
-            aria-label="Dismiss notification"
+            aria-label={t("toast.dismiss")}
           >
             <X size={16} />
           </motion.button>
@@ -209,13 +211,14 @@ const ToastItem = React.forwardRef<HTMLDivElement, ToastItemProps>(
 ToastItem.displayName = "ToastItem";
 
 export const ToastContainer: React.FC = () => {
+  const { t } = useTranslation();
   const { notifications, removeNotification } = useNotificationStore();
 
   return (
     <div
       className="fixed top-4 right-4 z-[9999] flex flex-col gap-3"
       role="region"
-      aria-label="Notifications"
+      aria-label={t("toast.notifications")}
     >
       <AnimatePresence mode="popLayout">
         {notifications.map((notification) => (

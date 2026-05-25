@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useSyncExternalStore } from "react";
-import { TOUR_STEPS, ONBOARDING_KEY } from "./tour-steps";
+import { getTourSteps, ONBOARDING_KEY } from "./tour-steps";
 
 interface TourState {
   isActive: boolean;
@@ -43,9 +43,10 @@ export function useTour() {
   const state = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
   const [targetRect, setTargetRect] = useState<DOMRect | null>(null);
 
-  const step = TOUR_STEPS[state.currentStep];
+  const steps = getTourSteps();
+  const step = steps[state.currentStep];
   const isFirstStep = state.currentStep === 0;
-  const isLastStep = state.currentStep === TOUR_STEPS.length - 1;
+  const isLastStep = state.currentStep === steps.length - 1;
 
   const updateTargetRect = useCallback(() => {
     if (!step?.target) {
@@ -102,7 +103,8 @@ export function useTour() {
   }, []);
 
   const goToStep = useCallback((index: number) => {
-    if (index >= 0 && index < TOUR_STEPS.length) {
+    const steps = getTourSteps();
+    if (index >= 0 && index < steps.length) {
       setTourState({ currentStep: index });
     }
   }, []);
@@ -141,7 +143,7 @@ export function useTour() {
     targetRect,
     isFirstStep,
     isLastStep,
-    totalSteps: TOUR_STEPS.length,
+    totalSteps: getTourSteps().length,
     start,
     next,
     prev,

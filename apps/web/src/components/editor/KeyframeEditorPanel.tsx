@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import type { Keyframe, Clip } from "@openreel/core";
 import { EASING_FUNCTIONS, type EasingName } from "@openreel/core";
+import i18n from "../../i18n";
 import { X, Copy, Clipboard, Trash2 } from "lucide-react";
 import {
   Select,
@@ -24,24 +25,24 @@ const PROPERTY_COLORS: Record<string, string> = {
 };
 
 const EASING_PRESETS: { label: string; value: EasingName }[] = [
-  { label: "Linear", value: "linear" },
-  { label: "Ease In", value: "easeInQuad" },
-  { label: "Ease Out", value: "easeOutQuad" },
-  { label: "Ease In Out", value: "easeInOutQuad" },
-  { label: "Ease In Cubic", value: "easeInCubic" },
-  { label: "Ease Out Cubic", value: "easeOutCubic" },
+  { label: i18n.t("keyframe.linear"), value: "linear" },
+  { label: i18n.t("keyframe.easeIn"), value: "easeInQuad" },
+  { label: i18n.t("keyframe.easeOut"), value: "easeOutQuad" },
+  { label: i18n.t("keyframe.easeInOut"), value: "easeInOutQuad" },
+  { label: i18n.t("keyframe.easeInCubic"), value: "easeInCubic" },
+  { label: i18n.t("keyframe.easeOutCubic"), value: "easeOutCubic" },
   { label: "Ease In Out Cubic", value: "easeInOutCubic" },
   { label: "Ease In Quart", value: "easeInQuart" },
   { label: "Ease Out Quart", value: "easeOutQuart" },
   { label: "Ease In Out Quart", value: "easeInOutQuart" },
-  { label: "Ease In Back", value: "easeInBack" },
-  { label: "Ease Out Back", value: "easeOutBack" },
+  { label: i18n.t("keyframe.easeInBack"), value: "easeInBack" },
+  { label: i18n.t("keyframe.easeOutBack"), value: "easeOutBack" },
   { label: "Ease In Out Back", value: "easeInOutBack" },
-  { label: "Ease In Elastic", value: "easeInElastic" },
-  { label: "Ease Out Elastic", value: "easeOutElastic" },
+  { label: i18n.t("keyframe.easeInElastic"), value: "easeInElastic" },
+  { label: i18n.t("keyframe.easeOutElastic"), value: "easeOutElastic" },
   { label: "Ease In Out Elastic", value: "easeInOutElastic" },
-  { label: "Ease In Bounce", value: "easeInBounce" },
-  { label: "Ease Out Bounce", value: "easeOutBounce" },
+  { label: i18n.t("keyframe.easeInBounce"), value: "easeInBounce" },
+  { label: i18n.t("keyframe.easeOutBounce"), value: "easeOutBounce" },
   { label: "Ease In Out Bounce", value: "easeInOutBounce" },
 ];
 

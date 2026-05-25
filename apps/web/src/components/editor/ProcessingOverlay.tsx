@@ -1,4 +1,5 @@
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { Loader2, CheckCircle, XCircle, Clock } from "lucide-react";
 import { Progress, ScrollArea } from "@openreel/ui";
 import {
@@ -65,6 +66,7 @@ const TaskItem: React.FC<{ task: ProcessingTask }> = ({ task }) => {
 };
 
 export const ProcessingOverlay: React.FC = () => {
+  const { t } = useTranslation();
   const { tasks, isProcessing, getOverallProgress } = useProcessingStore();
   const taskList = Array.from(tasks.values());
   const activeTasks = taskList.filter(
@@ -86,11 +88,10 @@ export const ProcessingOverlay: React.FC = () => {
           </div>
           <div>
             <h3 className="text-sm font-semibold text-text-primary">
-              Processing Effects
+              {t("processing.title")}
             </h3>
             <p className="text-xs text-text-muted">
-              {activeTasks.length} task{activeTasks.length !== 1 ? "s" : ""} in
-              progress
+              {t("processing.tasksInProgress", { count: activeTasks.length })}
             </p>
           </div>
         </div>
@@ -98,7 +99,7 @@ export const ProcessingOverlay: React.FC = () => {
         <div className="mb-4">
           <div className="flex items-center justify-between mb-1">
             <span className="text-[10px] text-text-secondary">
-              Overall Progress
+              {t("processing.overallProgress")}
             </span>
             <span className="text-[10px] text-text-muted font-mono">
               {progress}%
@@ -116,7 +117,7 @@ export const ProcessingOverlay: React.FC = () => {
         </ScrollArea>
 
         <p className="text-[10px] text-text-muted text-center mt-4">
-          Please wait while effects are being applied...
+          {t("processing.pleaseWait")}
         </p>
       </div>
     </div>

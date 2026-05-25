@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { RotateCcw, Clock, FileVideo, ChevronDown, Trash2 } from "lucide-react";
 import {
   Dialog,
@@ -51,6 +52,7 @@ export const RecoveryDialog: React.FC<RecoveryDialogProps> = ({
   onDismiss,
   onClearAll,
 }) => {
+  const { t } = useTranslation();
   const [showOlderSaves, setShowOlderSaves] = useState(false);
   const [selectedSave, setSelectedSave] = useState<string | null>(null);
   const [isClearing, setIsClearing] = useState(false);
@@ -80,10 +82,10 @@ export const RecoveryDialog: React.FC<RecoveryDialogProps> = ({
             </div>
             <div>
               <DialogTitle className="text-base font-semibold text-text-primary">
-                Recover Your Work
+                {t("welcome.recoverWork")}
               </DialogTitle>
               <DialogDescription className="text-sm text-text-secondary mt-0.5">
-                We found an unsaved project
+                {t("welcome.recoverUnsaved")}
               </DialogDescription>
             </div>
           </div>
@@ -103,7 +105,7 @@ export const RecoveryDialog: React.FC<RecoveryDialogProps> = ({
             </div>
             <div className="flex items-center gap-2 text-sm text-text-muted">
               <Clock className="w-4 h-4 shrink-0" />
-              <span>Last saved {formatTimeAgo(mostRecent.timestamp)}</span>
+              <span>{t("welcome.lastSaved", { minutes: Math.max(1, Math.floor((Date.now() - mostRecent.timestamp) / 60000)) })}</span>
               <span className="text-text-muted/50">•</span>
               <span className="text-text-muted/70 truncate">
                 {formatDate(mostRecent.timestamp)}
@@ -117,14 +119,14 @@ export const RecoveryDialog: React.FC<RecoveryDialogProps> = ({
               onClick={onDismiss}
               className="flex-1"
             >
-              Start Fresh
+              {t("welcome.startFresh")}
             </Button>
             <Button
               onClick={() => handleRecover(mostRecent.id)}
               disabled={selectedSave === mostRecent.id}
               className="flex-1"
             >
-              {selectedSave === mostRecent.id ? "Recovering..." : "Recover Project"}
+              {selectedSave === mostRecent.id ? t("welcome.recovering") : t("welcome.recoverProject")}
             </Button>
           </div>
 
@@ -140,7 +142,7 @@ export const RecoveryDialog: React.FC<RecoveryDialogProps> = ({
                     className={`w-4 h-4 transition-transform duration-200 ${showOlderSaves ? "rotate-180" : ""}`}
                   />
                   <span>
-                    {olderSaves.length} older {olderSaves.length === 1 ? "save" : "saves"} available
+                    {t("welcome.olderSavesAvailable", { count: olderSaves.length })}
                   </span>
                 </CollapsibleTrigger>
                 {onClearAll && (
@@ -148,7 +150,7 @@ export const RecoveryDialog: React.FC<RecoveryDialogProps> = ({
                     onClick={handleClearAll}
                     disabled={isClearing}
                     className="p-1.5 rounded-lg text-text-muted hover:text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-50"
-                    title="Clear all saved projects"
+                    title={t("welcome.clearAllSaved")}
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>

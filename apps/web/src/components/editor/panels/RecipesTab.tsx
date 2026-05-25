@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   CheckCircle2,
   Search,
@@ -24,6 +25,7 @@ const formatCategoryLabel = (category: string): string =>
   category.replace(/-/g, " ");
 
 export const RecipesTab: React.FC = () => {
+  const { t } = useTranslation();
   const project = useProjectStore((state) => state.project);
   const getClip = useProjectStore((state) => state.getClip);
   const getMediaItem = useProjectStore((state) => state.getMediaItem);
@@ -157,8 +159,8 @@ export const RecipesTab: React.FC = () => {
   const handleApply = async (template: EditingTemplate): Promise<void> => {
     if (!selectedClip || !selectedTargetType) {
       toast.warning(
-        "Select a clip",
-        "Recipes apply to one selected video or image clip.",
+        t("recipes.selectClip"),
+        t("recipes.selectClipDesc"),
       );
       return;
     }
@@ -174,14 +176,14 @@ export const RecipesTab: React.FC = () => {
 
       if (!applicationId) {
         toast.error(
-          "Could not apply recipe",
-          "This recipe could not be applied to the current clip.",
+          t("recipes.applyFailed"),
+          t("recipes.applyFailed"),
         );
         return;
       }
 
       toast.success(
-        "Recipe applied",
+        t("recipes.applied"),
         `${template.name} was added to ${selectedMedia?.name || "the selected clip"}.`,
       );
     } finally {
@@ -230,7 +232,7 @@ export const RecipesTab: React.FC = () => {
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search recipes..."
+            placeholder={t("recipes.search")}
             className="w-full h-9 pl-9 pr-3 rounded-lg border border-border bg-background-tertiary text-xs text-text-primary placeholder:text-text-muted outline-none focus:border-primary/50 transition-colors"
           />
         </div>

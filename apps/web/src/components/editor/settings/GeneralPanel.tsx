@@ -3,6 +3,8 @@ import { Switch } from "@openreel/ui";
 import { Label } from "@openreel/ui";
 import { useSettingsStore, SERVICE_REGISTRY, type TtsProvider, type LlmProvider, type AggregatorProvider } from "../../../stores/settings-store";
 import { useProjectStore } from "../../../stores/project-store";
+import { useTranslation } from "react-i18next";
+import { SUPPORTED_LANGUAGES } from "../../../i18n";
 
 const ASPECT_PRESETS: Array<{ label: string; width: number; height: number }> = [
   { label: "16:9 Landscape (1080p)", width: 1920, height: 1080 },
@@ -15,15 +17,18 @@ const ASPECT_PRESETS: Array<{ label: string; width: number; height: number }> = 
 ];
 
 export const GeneralPanel: React.FC = () => {
+  const { t } = useTranslation();
   const {
     autoSave,
     autoSaveInterval,
+    language,
     defaultTtsProvider,
     defaultLlmProvider,
     defaultAggregator,
     configuredServices,
     setAutoSave,
     setAutoSaveInterval,
+    setLanguage,
     setDefaultTtsProvider,
     setDefaultLlmProvider,
     setDefaultAggregator,
@@ -183,6 +188,42 @@ export const GeneralPanel: React.FC = () => {
             </select>
           </div>
         )}
+      </div>
+
+      <div className="h-px bg-border" />
+
+      {/* Language */}
+      <div className="space-y-4">
+        <div>
+          <h3 className="text-sm font-medium text-text-primary">
+            {t("settings.language")}
+          </h3>
+          <p className="text-xs text-text-muted mt-0.5">
+            {t("settings.languageDesc")}
+          </p>
+        </div>
+
+        <div className="flex items-center justify-between">
+          <Label className="text-sm text-text-secondary">
+            {t("settings.displayLanguage")}
+          </Label>
+          <select
+            value={language}
+            onChange={(e) => {
+              setLanguage(e.target.value);
+              import("../../../i18n").then(({ default: i18n }) => {
+                i18n.changeLanguage(e.target.value);
+              });
+            }}
+            className="h-9 rounded-md border border-input bg-background px-3 text-sm min-w-[140px]"
+          >
+            {Object.entries(SUPPORTED_LANGUAGES).map(([code, info]) => (
+              <option key={code} value={code}>
+                {info.nativeLabel}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       <div className="h-px bg-border" />

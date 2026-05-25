@@ -1,3 +1,4 @@
+import i18n from "../../../i18n";
 import { IMAGE_MODELS, type ImageModelId } from "../../../services/kieai/image-generation";
 
 interface ModelInfo {
@@ -35,7 +36,7 @@ const MODELS: ModelInfo[] = [
   {
     id: IMAGE_MODELS.GROK,
     name: "Grok Imagine",
-    description: "Style and composition transfer with optional prompt guidance.",
+     description: i18n.t("modelPicker.styleTransfer"),
     badge: "Style",
   },
   {

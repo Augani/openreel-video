@@ -1,4 +1,5 @@
 import React, { useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { Settings, Key } from "lucide-react";
 import {
   Dialog,
@@ -11,17 +12,23 @@ import { useSettingsStore, type SettingsTab } from "../../../stores/settings-sto
 import { GeneralPanel } from "./GeneralPanel";
 import { ApiKeysPanel } from "./ApiKeysPanel";
 
-const TABS: readonly { id: SettingsTab; label: string; icon: typeof Settings }[] = [
-  { id: "general", label: "General", icon: Settings },
-  { id: "api-keys", label: "API Keys", icon: Key },
+const TABS: readonly { id: SettingsTab; icon: typeof Settings }[] = [
+  { id: "general", icon: Settings },
+  { id: "api-keys", icon: Key },
 ];
 
 export const SettingsDialog: React.FC = () => {
+  const { t } = useTranslation();
   const { settingsOpen, settingsTab, closeSettings, openSettings } = useSettingsStore();
 
   const setTab = useCallback((tab: SettingsTab) => {
     openSettings(tab);
   }, [openSettings]);
+
+  const tabLabels: Record<SettingsTab, string> = {
+    general: t("settings.general"),
+    "api-keys": t("settings.apiKeys"),
+  };
 
   return (
     <Dialog open={settingsOpen} onOpenChange={(open) => !open && closeSettings()}>
@@ -29,10 +36,10 @@ export const SettingsDialog: React.FC = () => {
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Settings size={18} className="text-primary" />
-            Settings
+            {t("settings.title")}
           </DialogTitle>
           <DialogDescription>
-            Configure preferences and manage API keys for external services.
+            {t("settings.description")}
           </DialogDescription>
         </DialogHeader>
 
@@ -52,7 +59,7 @@ export const SettingsDialog: React.FC = () => {
               }`}
             >
               <tab.icon size={14} />
-              {tab.label}
+              {tabLabels[tab.id]}
             </button>
           ))}
         </div>

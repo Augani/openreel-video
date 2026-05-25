@@ -1,4 +1,5 @@
 import React, { useState, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { Sparkles, Play, Check, Loader2 } from "lucide-react";
 import { useProjectStore } from "../../../stores/project-store";
 import { useTimelineStore } from "../../../stores/timeline-store";
@@ -21,6 +22,7 @@ interface HighlightExtractorPanelProps {
 export const HighlightExtractorPanel: React.FC<HighlightExtractorPanelProps> = ({
   clipId,
 }) => {
+  const { t } = useTranslation();
   const [highlights, setHighlights] = useState<HighlightResult[]>([]);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [phase, setPhase] = useState("");
@@ -58,7 +60,7 @@ export const HighlightExtractorPanel: React.FC<HighlightExtractorPanelProps> = (
     setHighlights([]);
 
     try {
-      setPhase("Transcribing audio...");
+      setPhase(t("inspector.transcribing"));
       setProgress(5);
 
       const transcriptionService = getTranscriptionService() || initializeTranscriptionService({
@@ -80,7 +82,7 @@ export const HighlightExtractorPanel: React.FC<HighlightExtractorPanelProps> = (
         throw new Error("No transcript words found");
       }
 
-      setPhase("Decoding audio...");
+      setPhase(t("inspector.decoding"));
       setProgress(25);
 
       const arrayBuffer = await mediaItem.blob.arrayBuffer();
