@@ -334,7 +334,9 @@
     "noMatches": "未找到匹配",
     "assetNotFound": "素材未找到",
     "unsavedDiscarded": "未保存的音频已丢弃",
-    "folderNotSupported": "不支持文件夹选择"
+    "folderNotSupported": "不支持文件夹选择",
+    "noMediaImported": "未导入任何媒体",
+    "dragFilesHere": "将文件拖放到此处或点击导入"
   },
   "inspector": {
     "aiAutoCaptions": "AI 自动字幕",

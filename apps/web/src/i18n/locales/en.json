@@ -334,7 +334,9 @@
     "noMatches": "No matches found",
     "assetNotFound": "Asset not found",
     "unsavedDiscarded": "Unsaved audio discarded",
-    "folderNotSupported": "Folder picker not supported"
+    "folderNotSupported": "Folder picker not supported",
+    "noMediaImported": "No media imported",
+    "dragFilesHere": "Drag files here or click to import"
   },
   "inspector": {
     "aiAutoCaptions": "AI Auto-Captions",

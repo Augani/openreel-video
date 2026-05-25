@@ -530,25 +530,28 @@ const MediaThumbnail: React.FC<{
   );
 };
 
-const EmptyState: React.FC<{ onImport: () => void }> = ({ onImport }) => (
+const EmptyState: React.FC<{ onImport: () => void }> = ({ onImport }) => {
+  const { t } = useTranslation();
+  return (
   <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
     <div className="w-16 h-16 rounded-2xl bg-background-tertiary border border-border flex items-center justify-center mb-4 shadow-inner">
       <Upload size={24} className="text-text-muted" />
     </div>
     <p className="text-sm text-text-secondary mb-2 font-medium">
-      No media imported
+      {t("assets.noMediaImported")}
     </p>
     <p className="text-xs text-text-muted mb-6">
-      Drag files here or click to import
+      {t("assets.dragFilesHere")}
     </p>
     <button
       onClick={onImport}
       className="px-4 py-2 bg-background-elevated hover:bg-background-tertiary border border-border text-text-primary text-xs font-medium rounded-lg transition-all hover:border-primary/50"
     >
-      Import Media
+      {t("assets.importMedia")}
     </button>
   </div>
-);
+  );
+};
 
 const LoadingIndicator: React.FC<{ message: string }> = ({ message }) => (
   <div className="absolute inset-0 bg-background-secondary/90 backdrop-blur-sm flex flex-col items-center justify-center z-50">
