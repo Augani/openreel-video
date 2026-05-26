@@ -730,7 +730,7 @@ export const Timeline: React.FC = () => {
               }`}
             >
               <Scissors size={14} />
-              <span className="text-[10px] font-medium">SPLIT</span>
+              <span className="text-[10px] font-medium">{t("timeline.split")}</span>
             </button>
             <IconButton
               icon={Trash2}
@@ -750,31 +750,31 @@ export const Timeline: React.FC = () => {
                 title={t("timeline.addTrack")}
               >
                 <Plus size={14} />
-                <span className="text-[11px] font-semibold">Add Track</span>
+                <span className="text-[11px] font-semibold">{t("timeline.addTrack")}</span>
                 <ChevronDownIcon size={12} className="ml-0.5 opacity-60" />
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent side="top" align="start" sideOffset={8} className="w-48">
               <DropdownMenuItem onClick={() => addTrack("video")}>
                 <Film size={16} className="text-green-400" />
-                <span>Video Track</span>
+                <span>{t("timeline.videoTrack")}</span>
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => addTrack("audio")}>
                 <Music size={16} className="text-blue-400" />
-                <span>Audio Track</span>
+                <span>{t("timeline.audioTrack")}</span>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => addTrack("image")}>
                 <Image size={16} className="text-purple-400" />
-                <span>Image Track</span>
+                <span>{t("timeline.imageTrack")}</span>
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => addTrack("text")}>
                 <Type size={16} className="text-yellow-400" />
-                <span>Text Track</span>
+                <span>{t("timeline.textTrack")}</span>
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => addTrack("graphics")}>
                 <Shapes size={16} className="text-pink-400" />
-                <span>Graphics Track</span>
+                <span>{t("timeline.graphicsTrack")}</span>
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -792,7 +792,7 @@ export const Timeline: React.FC = () => {
                 title={t("timeline.manageTracks")}
               >
                 <Layers size={14} />
-                <span className="text-[10px] font-medium tracking-wide">LAYERS</span>
+                <span className="text-[10px] font-medium tracking-wide">{t("timeline.layers")}</span>
               </button>
             </PopoverTrigger>
             <PopoverContent
@@ -803,13 +803,13 @@ export const Timeline: React.FC = () => {
             >
               <div className="flex items-center justify-between px-3 py-2.5 border-b border-border bg-background-tertiary">
                 <span className="text-xs font-semibold text-text-primary">
-                  Track Layers
+                  {t("timeline.trackLayers")}
                 </span>
               </div>
               <div className="p-2 max-h-60 overflow-y-auto">
                 {tracks.length === 0 ? (
                   <p className="text-xs text-text-muted text-center py-6">
-                    No tracks yet
+                    {t("timeline.noTracks")}
                   </p>
                 ) : (
                   <div className="space-y-0.5">
@@ -872,7 +872,7 @@ export const Timeline: React.FC = () => {
             title={snapSettings.enabled ? t("timeline.disableSnapping") : t("timeline.enableSnapping")}
           >
             <Magnet size={14} />
-            <span className="text-[10px] font-medium tracking-wide">SNAP</span>
+            <span className="text-[10px] font-medium tracking-wide">{t("timeline.snap")}</span>
           </button>
         </div>
 
@@ -1063,7 +1063,7 @@ export const Timeline: React.FC = () => {
                             t.clips.some(c => c.mediaId === newItem.id)
                           );
                         if (track) {
-                          toast.success(`Added to ${track.name}`, file.name);
+                          toast.success(t("timeline.addedToTrack", { name: track.name }), file.name);
                         }
                       }
                     }

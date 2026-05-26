@@ -66,7 +66,9 @@ function App() {
           width = preset.width;
           height = preset.height;
           frameRate = preset.frameRate || fps;
-          projectName = `New ${presetKey.charAt(0).toUpperCase() + presetKey.slice(1).replace(/-/g, " ")} Project`;
+          projectName = t("app.newPresetProject", {
+            presetName: presetKey.charAt(0).toUpperCase() + presetKey.slice(1).replace(/-/g, " "),
+          });
         }
       } else if (parsedDimensions) {
         width = parsedDimensions.width;

@@ -1,4 +1,5 @@
 import React from "react";
+import { useTranslation } from "react-i18next";
 import {
   Smartphone,
   Monitor,
@@ -59,6 +60,7 @@ export const CategoryTabs: React.FC<CategoryTabsProps> = ({
   onSelectCategory,
   categoryStats,
 }) => {
+  const { t } = useTranslation();
   const [expandedPlatform, setExpandedPlatform] = React.useState<string | null>(
     null,
   );
@@ -90,7 +92,7 @@ export const CategoryTabs: React.FC<CategoryTabsProps> = ({
           }`}
         >
           <LayoutGrid size={14} />
-          All
+          {t('welcome.all')}
           <span
             className={`text-xs ${selectedCategory === "all" ? "text-black/60" : "text-text-muted"}`}
           >
@@ -121,7 +123,7 @@ export const CategoryTabs: React.FC<CategoryTabsProps> = ({
               }`}
             >
               <Icon size={14} />
-              {platform}
+              {t(`welcome.platform.${platform.toLowerCase()}`)}
               {count > 0 && (
                 <span
                   className={`text-xs ${isActive || isExpanded ? "text-black/60" : "text-text-muted"}`}

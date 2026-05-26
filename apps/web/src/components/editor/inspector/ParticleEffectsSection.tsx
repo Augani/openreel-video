@@ -137,7 +137,7 @@ export const ParticleEffectsSection: React.FC<ParticleEffectsSectionProps> = ({
                 </div>
                 {presets.map((preset) => (
                   <SelectItem key={preset.id} value={preset.id} textValue={preset.name}>
-                    {preset.name}
+                    {t(`inspector.particle${preset.id}`)}
                   </SelectItem>
                 ))}
               </div>

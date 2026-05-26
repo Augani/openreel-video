@@ -147,6 +147,7 @@ const buildRecommendationSampleBuffer = (
   audioBuffer: AudioBuffer,
   context: BaseAudioContext,
   onProgress?: (progress: RecommendationProfileProgress) => void,
+  t?: (key: string, options?: Record<string, unknown>) => string,
 ): { sampleBuffer: AudioBuffer; sampleCount: number } => {
   const sampleRanges = getRecommendationSampleRanges(audioBuffer.duration);
 
@@ -159,7 +160,7 @@ const buildRecommendationSampleBuffer = (
     sampleRanges[0].start <= 0 &&
     sampleRanges[0].end >= audioBuffer.duration
   ) {
-    onProgress?.({ progress: 0.4, message: "Analyzing clip audio" });
+    onProgress?.({ progress: 0.4, message: t?.("inspector.noiseAnalyzingClipAudio") ?? "Analyzing clip audio" });
     return {
       sampleBuffer: audioBuffer,
       sampleCount: 1,
@@ -169,7 +170,9 @@ const buildRecommendationSampleBuffer = (
   const segments = sampleRanges.map((sampleRange, index) => {
     onProgress?.({
       progress: (index + 1) / (sampleRanges.length + 1),
-      message: `Sampling clip audio (${index + 1}/${sampleRanges.length})`,
+      message:
+        t?.("inspector.noiseSamplingClipAudio", { current: index + 1, total: sampleRanges.length }) ??
+        `Sampling clip audio (${index + 1}/${sampleRanges.length})`,
     });
 
     return extractAudioSegment(
@@ -203,7 +206,9 @@ const buildRecommendationSampleBuffer = (
 
   onProgress?.({
     progress: 0.85,
-    message: `Analyzing ${segments.length} clip samples`,
+    message:
+      t?.("inspector.noiseAnalyzingSamples", { count: segments.length }) ??
+      `Analyzing ${segments.length} clip samples`,
   });
 
   return {
@@ -217,11 +222,13 @@ export const buildRecommendationProfile = (
   audioBuffer: AudioBuffer,
   context: BaseAudioContext,
   onProgress?: (progress: RecommendationProfileProgress) => void,
+  t?: (key: string, options?: Record<string, unknown>) => string,
 ): NoiseProfileData => {
   const { sampleBuffer, sampleCount } = buildRecommendationSampleBuffer(
     audioBuffer,
     context,
     onProgress,
+    t,
   );
   const reducer = new SpectralNoiseReducer();
   const profile = reducer.learnNoiseProfile(sampleBuffer);
@@ -230,8 +237,9 @@ export const buildRecommendationProfile = (
     progress: 1,
     message:
       sampleCount > 1
-        ? `Analyzed ${sampleCount} clip samples`
-        : "Analyzed clip audio",
+        ? t?.("inspector.noiseAnalyzedSamples", { count: sampleCount }) ??
+          `Analyzed ${sampleCount} clip samples`
+        : t?.("inspector.noiseAnalyzedClipAudio") ?? "Analyzed clip audio",
   });
 
   return {
@@ -485,6 +493,7 @@ export const NoiseReductionSection: React.FC<NoiseReductionSectionProps> = ({
               message: progress.message,
             });
           },
+          t,
         );
 
         updateAnalysisProgress({ progress: 0.93, message: t("inspector.noiseLearningCustom") });
@@ -740,9 +749,9 @@ export const NoiseReductionSection: React.FC<NoiseReductionSectionProps> = ({
                       : "border-border bg-background-secondary text-text-secondary hover:border-primary/50 hover:bg-primary/5"
                   } disabled:cursor-wait disabled:opacity-70`}
                 >
-                  <div className="text-[10px] font-medium">{preset.label}</div>
+                  <div className="text-[10px] font-medium">{t(`inspector.${preset.label}`)}</div>
                   <div className="mt-1 text-[9px] leading-relaxed opacity-80">
-                    {preset.description}
+                    {t(`inspector.${preset.description}`)}
                   </div>
                 </button>
               );
@@ -752,7 +761,7 @@ export const NoiseReductionSection: React.FC<NoiseReductionSectionProps> = ({
           <div className="rounded-lg border border-border/70 bg-background-secondary/60 px-2 py-2 text-[9px] text-text-muted">
             <div className="flex items-center justify-between gap-2">
               <span>
-                {t("inspector.noiseCurrentMode")}: <span className="text-text-primary">{activePreset.label}</span>
+                {t("inspector.noiseCurrentMode")}: <span className="text-text-primary">{t(`inspector.${activePreset.label}`)}</span>
               </span>
               <span
                 className={`rounded-full px-2 py-0.5 text-[8px] font-medium ${

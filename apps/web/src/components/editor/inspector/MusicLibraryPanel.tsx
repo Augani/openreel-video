@@ -78,7 +78,7 @@ const SoundCard: React.FC<SoundCardProps> = ({
             </div>
             {sound.bpm && (
               <span className="text-[9px] text-text-muted">
-                {sound.bpm} BPM
+                {t("music.bpmLabel", { bpm: sound.bpm })}
               </span>
             )}
           </div>
@@ -309,7 +309,7 @@ export const MusicLibraryPanel: React.FC = () => {
                   : "bg-background-tertiary text-text-muted hover:text-text-primary"
               }`}
             >
-              {genre.name}
+              {t(genre.name)}
             </button>
           ))}
         </div>
@@ -337,7 +337,7 @@ export const MusicLibraryPanel: React.FC = () => {
                   : "bg-background-tertiary text-text-muted hover:text-text-primary"
               }`}
             >
-              {cat.name}
+              {t(cat.name)}
             </button>
           ))}
         </div>
@@ -355,7 +355,7 @@ export const MusicLibraryPanel: React.FC = () => {
                   : "bg-background-secondary text-text-muted hover:text-text-primary"
               }`}
             >
-              {mood.name}
+              {t(mood.name)}
             </button>
           ))}
         </div>

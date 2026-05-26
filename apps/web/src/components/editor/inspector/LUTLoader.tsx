@@ -247,7 +247,7 @@ export const LUTLoader: React.FC<LUTLoaderProps> = ({
                 {fileName || t("inspector.lutLoaded")}
               </p>
               <p className="text-[9px] text-text-muted">
-                {lutData.size}x{lutData.size}x{lutData.size} LUT
+                {lutData.size}x{lutData.size}x{lutData.size} {t("inspector.lut")}
               </p>
             </div>
             <button

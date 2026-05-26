@@ -1,4 +1,5 @@
 import React, { useCallback, useState, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { RotateCcw } from "lucide-react";
 import type { HSLValues } from "@openreel/core";
 
@@ -9,41 +10,41 @@ export const DEFAULT_HSL_VALUES: HSLValues = {
 };
 
 const COLOR_RANGES = [
-  { key: "reds", label: "R", fullLabel: "Reds", color: "#ef4444", index: 0 },
+  { key: "reds", label: "R", fullLabel: "hsl.reds", color: "#ef4444", index: 0 },
   {
     key: "oranges",
     label: "O",
-    fullLabel: "Oranges",
+    fullLabel: "hsl.oranges",
     color: "#f97316",
     index: 1,
   },
   {
     key: "yellows",
     label: "Y",
-    fullLabel: "Yellows",
+    fullLabel: "hsl.yellows",
     color: "#eab308",
     index: 2,
   },
   {
     key: "greens",
     label: "G",
-    fullLabel: "Greens",
+    fullLabel: "hsl.greens",
     color: "#22c55e",
     index: 3,
   },
-  { key: "cyans", label: "C", fullLabel: "Cyans", color: "#06b6d4", index: 4 },
-  { key: "blues", label: "B", fullLabel: "Blues", color: "#3b82f6", index: 5 },
+  { key: "cyans", label: "C", fullLabel: "hsl.cyans", color: "#06b6d4", index: 4 },
+  { key: "blues", label: "B", fullLabel: "hsl.blues", color: "#3b82f6", index: 5 },
   {
     key: "purples",
     label: "P",
-    fullLabel: "Purples",
+    fullLabel: "hsl.purples",
     color: "#a855f7",
     index: 6,
   },
   {
     key: "magentas",
     label: "M",
-    fullLabel: "Magentas",
+    fullLabel: "hsl.magentas",
     color: "#ec4899",
     index: 7,
   },
@@ -65,7 +66,8 @@ const ColorTab: React.FC<{
   color: (typeof COLOR_RANGES)[number];
   isActive: boolean;
   onClick: () => void;
-}> = ({ color, isActive, onClick }) => (
+  title: string;
+}> = ({ color, isActive, onClick, title }) => (
   <button
     onClick={onClick}
     className={`flex-1 py-1.5 text-[9px] font-medium rounded transition-all ${
@@ -78,7 +80,7 @@ const ColorTab: React.FC<{
         ? `2px solid ${color.color}`
         : "2px solid transparent",
     }}
-    title={color.fullLabel}
+    title={title}
   >
     {color.label}
   </button>
@@ -175,6 +177,7 @@ export const HSLControls: React.FC<HSLControlsProps> = ({
   onChange,
   onReset,
 }) => {
+  const { t } = useTranslation();
   const [activeColorIndex, setActiveColorIndex] = useState(0);
 
   // Get current color info
@@ -249,7 +252,7 @@ export const HSLControls: React.FC<HSLControlsProps> = ({
             className="flex items-center gap-1 px-2 py-1 text-[10px] text-text-muted hover:text-text-primary transition-colors"
           >
             <RotateCcw size={10} />
-            Reset All
+            {t('hsl.resetAll')}
           </button>
         </div>
       )}
@@ -262,6 +265,7 @@ export const HSLControls: React.FC<HSLControlsProps> = ({
             color={color}
             isActive={activeColorIndex === color.index}
             onClick={() => setActiveColorIndex(color.index)}
+            title={t(color.fullLabel)}
           />
         ))}
       </div>
@@ -274,7 +278,7 @@ export const HSLControls: React.FC<HSLControlsProps> = ({
             style={{ backgroundColor: activeColor.color }}
           />
           <span className="text-[11px] font-medium text-text-primary">
-            {activeColor.fullLabel}
+            {t(activeColor.fullLabel)}
           </span>
         </div>
         {hasAdjustments && (
@@ -282,7 +286,7 @@ export const HSLControls: React.FC<HSLControlsProps> = ({
             onClick={handleResetColor}
             className="text-[9px] text-text-muted hover:text-text-secondary transition-colors"
           >
-            Reset
+            {t('hsl.reset')}
           </button>
         )}
       </div>
@@ -290,7 +294,7 @@ export const HSLControls: React.FC<HSLControlsProps> = ({
       {/* HSL Sliders */}
       <div className="space-y-3">
         <HSLSlider
-          label="Hue"
+          label={t('hsl.hue')}
           value={currentHue}
           onChange={handleHueChange}
           min={-180}
@@ -299,7 +303,7 @@ export const HSLControls: React.FC<HSLControlsProps> = ({
           color={activeColor.color}
         />
         <HSLSlider
-          label="Saturation"
+          label={t('hsl.saturation')}
           value={currentSaturation}
           onChange={handleSaturationChange}
           min={-100}
@@ -308,7 +312,7 @@ export const HSLControls: React.FC<HSLControlsProps> = ({
           color={activeColor.color}
         />
         <HSLSlider
-          label="Luminance"
+          label={t('hsl.luminance')}
           value={currentLuminance}
           onChange={handleLuminanceChange}
           min={-100}
@@ -333,7 +337,7 @@ export const HSLControls: React.FC<HSLControlsProps> = ({
                   hasAdj ? "opacity-100" : "opacity-20"
                 }`}
                 style={{ backgroundColor: color.color }}
-                title={`${color.fullLabel}${hasAdj ? " (adjusted)" : ""}`}
+                title={hasAdj ? t('hsl.adjusted', { label: t(color.fullLabel) }) : t(color.fullLabel)}
               />
             );
           })}

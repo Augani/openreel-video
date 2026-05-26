@@ -516,12 +516,12 @@ export const Preview: React.FC = () => {
   const [showZoomMenu, setShowZoomMenu] = useState(false);
 
   const ZOOM_OPTIONS = [
-    { label: "50%", value: 0.5 },
-    { label: "75%", value: 0.75 },
-    { label: "100%", value: 1 },
-    { label: "125%", value: 1.25 },
-    { label: "150%", value: 1.5 },
-    { label: "200%", value: 2 },
+    { label: t("preview.zoom50"), value: 0.5 },
+    { label: t("preview.zoom75"), value: 0.75 },
+    { label: t("preview.zoom100"), value: 1 },
+    { label: t("preview.zoom125"), value: 1.25 },
+    { label: t("preview.zoom150"), value: 1.5 },
+    { label: t("preview.zoom200"), value: 2 },
   ];
 
   const isDark = useThemeStore((state) => state.isDark);
@@ -2266,7 +2266,7 @@ export const Preview: React.FC = () => {
                 ctx.font = "bold 20px Inter, sans-serif";
                 ctx.textAlign = "center";
                 ctx.fillText(
-                  "Drop media here",
+                  t("preview.dropMediaHere"),
                   canvas.width / 2,
                   canvas.height / 2,
                 );
@@ -2342,7 +2342,7 @@ export const Preview: React.FC = () => {
         ctx.font = "24px Inter, sans-serif";
         ctx.textAlign = "center";
         ctx.fillText(
-          "Import media to get started",
+          t("preview.importMediaToStart"),
           canvas.width / 2,
           canvas.height / 2,
         );

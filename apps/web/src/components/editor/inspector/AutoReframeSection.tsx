@@ -128,7 +128,7 @@ export const AutoReframeSection: React.FC<AutoReframeSectionProps> = ({
 
       const engine = getAutoReframeEngine();
       if (!engine) {
-        throw new Error("Engine not available");
+        throw new Error(t("inspector.autoReframeEngineUnavailable"));
       }
 
       setProgressMessage(t("inspector.configuringReframeSettings"));
@@ -166,14 +166,14 @@ export const AutoReframeSection: React.FC<AutoReframeSectionProps> = ({
         outputWidth: targetConfig.width,
         outputHeight: targetConfig.height,
         success: true,
-        message: `Configured for ${targetConfig.name} (${targetConfig.width}x${targetConfig.height})`,
+        message: t("inspector.configuredFor", { name: targetConfig.name, width: targetConfig.width, height: targetConfig.height }),
       };
 
       onReframeComplete?.(result);
 
       toast.success(
         t("inspector.autoReframeApplied"),
-        `${selectedPlatform ? PLATFORM_PRESETS[selectedPlatform].name : reframeSettings.targetAspectRatio} (${targetConfig.width}x${targetConfig.height})`,
+        t("inspector.reframedTo", { name: selectedPlatform ? PLATFORM_PRESETS[selectedPlatform].name : reframeSettings.targetAspectRatio, width: targetConfig.width, height: targetConfig.height }),
       );
     } catch (error) {
       console.error("Auto-reframe failed:", error);

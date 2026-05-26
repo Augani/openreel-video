@@ -337,8 +337,8 @@ export const AdjustmentLayerSection: React.FC<AdjustmentLayerSectionProps> = ({
                     className="w-full flex items-center justify-between p-2 bg-background-secondary rounded text-[10px] text-text-primary hover:bg-background-tertiary transition-colors"
                   >
                     <span>
-                    {BLEND_MODES.find((m) => m.id === layer.blendMode)?.name ||
-                      t("inspector.normal")}
+                    {t(BLEND_MODES.find((m) => m.id === layer.blendMode)?.name ||
+                      "Normal")}
                     </span>
                     <ChevronDown size={10} />
                   </button>
@@ -359,7 +359,7 @@ export const AdjustmentLayerSection: React.FC<AdjustmentLayerSectionProps> = ({
                           : "text-text-secondary"
                       }`}
                     >
-                      {mode.name}
+                      {t(mode.name)}
                     </button>
                   ))}
                 </PopoverContent>
@@ -379,7 +379,7 @@ export const AdjustmentLayerSection: React.FC<AdjustmentLayerSectionProps> = ({
                       className="flex items-center justify-between p-1.5 bg-background-secondary rounded"
                     >
                       <span className="text-[9px] text-text-primary capitalize">
-                        {effect.type}
+                        {t(effect.type)}
                       </span>
                       <button
                         onClick={() => handleRemoveEffect(layer.id, effect.id)}

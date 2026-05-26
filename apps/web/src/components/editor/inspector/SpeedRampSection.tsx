@@ -176,9 +176,9 @@ const SpeedCurveCanvas: React.FC<{
     ctx.fillStyle = "#666";
     ctx.font = "10px sans-serif";
     ctx.textAlign = "left";
-    ctx.fillText(`${SPEED_MAX}x`, 2, padding + 4);
-    ctx.fillText("1x", 2, normalY + 4);
-    ctx.fillText(`${SPEED_MIN}x`, 2, height - padding + 4);
+    ctx.fillText(t("speed.labelMax", { speed: SPEED_MAX }), 2, padding + 4);
+    ctx.fillText(t("speed.labelNormal", { speed: 1 }), 2, normalY + 4);
+    ctx.fillText(t("speed.labelMin", { speed: SPEED_MIN }), 2, height - padding + 4);
   }, [sortedKeyframes, duration, baseSpeed, hoveredKeyframe, draggingKeyframe]);
 
   const handleCanvasClick = useCallback(
@@ -397,9 +397,9 @@ export const SpeedRampSection: React.FC<SpeedRampSectionProps> = ({ clip }) => {
           onValueChange={(value) => handleSpeedChange(Math.exp(value[0]))}
         />
         <div className="flex justify-between text-[8px] text-text-muted">
-          <span>0.1x</span>
-          <span>1x</span>
-          <span>20x</span>
+          <span>{t("speed.labelMinSpeed")}</span>
+          <span>{t("speed.labelNormalSpeed")}</span>
+          <span>{t("speed.labelMaxSpeed")}</span>
         </div>
       </div>
 
@@ -414,7 +414,7 @@ export const SpeedRampSection: React.FC<SpeedRampSectionProps> = ({ clip }) => {
                 : "bg-background-tertiary border-border text-text-secondary hover:border-primary/50"
             }`}
           >
-            {preset.name}
+            {t(`inspector.${preset.name}`)}
           </button>
         ))}
       </div>
@@ -453,9 +453,9 @@ export const SpeedRampSection: React.FC<SpeedRampSectionProps> = ({ clip }) => {
               key={preset.id}
               onClick={() => handleApplyCurvePreset(preset.id)}
               className="py-1.5 px-2 text-[9px] rounded-lg border bg-background-tertiary border-border text-text-secondary hover:border-primary/50 hover:text-primary transition-colors text-left"
-              title={preset.description}
+              title={t(`inspector.${preset.description}`)}
             >
-              {preset.name}
+              {t(`inspector.${preset.name}`)}
             </button>
           ))}
         </div>

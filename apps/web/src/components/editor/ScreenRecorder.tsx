@@ -40,25 +40,25 @@ interface ScreenRecorderProps {
 
 const RESOLUTION_OPTIONS: {
   value: VideoResolution;
-  label: string;
-  desc: string;
+  labelKey: string;
+  descKey: string;
 }[] = [
-  { value: "720p", label: "720p HD", desc: "1280×720 - Smaller files" },
-  { value: "1080p", label: "1080p Full HD", desc: "1920×1080 - Recommended" },
-  { value: "1440p", label: "1440p QHD", desc: "2560×1440 - High quality" },
-  { value: "4k", label: "4K Ultra HD", desc: "3840×2160 - Maximum quality" },
+  { value: "720p", labelKey: "recording.resolutionLabels.720p", descKey: "recording.resolutionDescs.720p" },
+  { value: "1080p", labelKey: "recording.resolutionLabels.1080p", descKey: "recording.resolutionDescs.1080p" },
+  { value: "1440p", labelKey: "recording.resolutionLabels.1440p", descKey: "recording.resolutionDescs.1440p" },
+  { value: "4k", labelKey: "recording.resolutionLabels.4k", descKey: "recording.resolutionDescs.4k" },
 ];
 
-const FRAMERATE_OPTIONS: { value: FrameRate; label: string }[] = [
-  { value: 30, label: "30 fps" },
-  { value: 60, label: "60 fps" },
+const FRAMERATE_OPTIONS: { value: FrameRate; labelKey: string }[] = [
+  { value: 30, labelKey: "recording.frameRateLabels.30" },
+  { value: 60, labelKey: "recording.frameRateLabels.60" },
 ];
 
-const WEBCAM_RESOLUTION_OPTIONS: { value: WebcamResolution; label: string }[] =
+const WEBCAM_RESOLUTION_OPTIONS: { value: WebcamResolution; labelKey: string }[] =
   [
-    { value: "480p", label: "480p" },
-    { value: "720p", label: "720p" },
-    { value: "1080p", label: "1080p" },
+    { value: "480p", labelKey: "recording.webcamResolutionLabels.480p" },
+    { value: "720p", labelKey: "recording.webcamResolutionLabels.720p" },
+    { value: "1080p", labelKey: "recording.webcamResolutionLabels.1080p" },
   ];
 
 export const ScreenRecorder: React.FC<ScreenRecorderProps> = ({
@@ -160,11 +160,10 @@ export const ScreenRecorder: React.FC<ScreenRecorderProps> = ({
               />
               <div>
                 <p className="text-sm font-medium text-error">
-                  Screen recording not supported
+                  {t("recording.notSupported")}
                 </p>
                 <p className="text-xs text-text-muted mt-1">
-                  Your browser doesn't support screen recording. Please use
-                  Chrome, Edge, or Firefox.
+                  {t("recording.notSupportedDesc")}
                 </p>
               </div>
             </div>
@@ -178,7 +177,7 @@ export const ScreenRecorder: React.FC<ScreenRecorderProps> = ({
               />
               <div>
                 <p className="text-sm font-medium text-error">
-                  Recording Error
+                  {t("recording.recordingError")}
                 </p>
                 <p className="text-xs text-text-muted mt-1">{error}</p>
               </div>
@@ -207,17 +206,17 @@ export const ScreenRecorder: React.FC<ScreenRecorderProps> = ({
                   <SelectContent className="bg-background-secondary border-border">
                     {RESOLUTION_OPTIONS.map((opt) => (
                       <SelectItem key={opt.value} value={opt.value}>
-                        {opt.label}
+                        {t(opt.labelKey)}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
                 <p className="text-[10px] text-text-muted mt-1">
-                  {
+                  {t(
                     RESOLUTION_OPTIONS.find(
                       (o) => o.value === options.video.resolution,
-                    )?.desc
-                  }
+                    )?.descKey ?? "",
+                  )}
                 </p>
               </div>
 
@@ -236,7 +235,7 @@ export const ScreenRecorder: React.FC<ScreenRecorderProps> = ({
                   <SelectContent className="bg-background-secondary border-border">
                     {FRAMERATE_OPTIONS.map((opt) => (
                       <SelectItem key={opt.value} value={String(opt.value)}>
-                        {opt.label}
+                        {t(opt.labelKey)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -293,8 +292,7 @@ export const ScreenRecorder: React.FC<ScreenRecorderProps> = ({
 
             {!features.systemAudio && (
               <p className="text-[10px] text-text-muted">
-                System audio capture is only available in Chrome and Edge
-                browsers.
+                {t("recording.systemAudioBrowserNote")}
               </p>
             )}
           </div>
@@ -340,7 +338,7 @@ export const ScreenRecorder: React.FC<ScreenRecorderProps> = ({
                     <SelectContent className="bg-background-secondary border-border">
                       {WEBCAM_RESOLUTION_OPTIONS.map((opt) => (
                         <SelectItem key={opt.value} value={opt.value}>
-                          {opt.label}
+                          {t(opt.labelKey)}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -362,8 +360,7 @@ export const ScreenRecorder: React.FC<ScreenRecorderProps> = ({
             )}
 
             <p className="text-[10px] text-text-muted">
-              Webcam will be recorded as a separate file, giving you full
-              control in the editor.
+              {t("recording.webcamSeparateFileNote")}
             </p>
           </div>
         </div>

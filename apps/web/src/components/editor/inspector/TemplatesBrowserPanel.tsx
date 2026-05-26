@@ -84,24 +84,24 @@ const TemplateCard: React.FC<TemplateCardProps> = ({
             </span>
             {template.id.startsWith("builtin-") && (
               <span className="px-1.5 py-0.5 text-[8px] bg-status-info/20 text-status-info rounded shrink-0">
-                Built-in
+                {t("inspector.templatesBuiltin")}
               </span>
             )}
             {template.source === "cloud" && (
               <span className="px-1.5 py-0.5 text-[8px] bg-primary/20 text-primary rounded flex items-center gap-1 shrink-0">
                 <Cloud size={8} />
-                Cloud
+                {t("inspector.templatesCloud")}
               </span>
             )}
           </div>
           <div className="flex items-center gap-3 mt-1">
             <div className="flex items-center gap-1 text-[9px] text-text-muted">
               <Layers size={10} />
-              <span>{template.placeholderCount} placeholders</span>
+              <span>{t("inspector.templatesPlaceholderCount", { count: template.placeholderCount })}</span>
             </div>
             <div className="flex items-center gap-1 text-[9px] text-text-muted">
               <Clock size={10} />
-              <span>{template.duration}s</span>
+              <span>{t("inspector.templatesDuration", { duration: template.duration })}</span>
             </div>
           </div>
         </div>
@@ -251,7 +251,7 @@ export const TemplatesBrowserPanel: React.FC<TemplatesBrowserPanelProps> = ({
         templateEngine.applyTemplate(template, placeholderValues);
 
       if (missingPlaceholders.length > 0) {
-        setApplyError(`Missing required: ${missingPlaceholders.join(", ")}`);
+        setApplyError(t("inspector.templatesMissingRequired", { placeholders: missingPlaceholders.join(", ") }));
       }
 
       loadProject(project);
@@ -304,7 +304,7 @@ export const TemplatesBrowserPanel: React.FC<TemplatesBrowserPanelProps> = ({
       onTemplateApplied?.();
     } catch (error) {
       setApplyError(
-        error instanceof Error ? error.message : "Failed to apply template",
+        error instanceof Error ? error.message : t("inspector.templatesFailedToApply"),
       );
     }
   }, [

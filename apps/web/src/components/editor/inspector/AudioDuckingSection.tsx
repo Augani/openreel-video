@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import i18n from "../../../i18n";
 import {
   Volume2,
   VolumeX,
@@ -43,22 +44,22 @@ const PRESET_CONFIGS: {
 }[] = [
   {
     id: "subtle",
-    name: "Subtle",
+    name: i18n.t("ducking.presetSubtle"),
     settings: { threshold: -35, reduction: 0.4, attack: 0.15, release: 0.5 },
   },
   {
     id: "moderate",
-    name: "Moderate",
+    name: i18n.t("ducking.presetModerate"),
     settings: { threshold: -30, reduction: 0.6, attack: 0.1, release: 0.3 },
   },
   {
     id: "aggressive",
-    name: "Aggressive",
+    name: i18n.t("ducking.presetAggressive"),
     settings: { threshold: -25, reduction: 0.8, attack: 0.05, release: 0.2 },
   },
   {
     id: "podcast",
-    name: "Podcast",
+    name: i18n.t("ducking.presetPodcast"),
     settings: {
       threshold: -28,
       reduction: 0.75,
@@ -102,7 +103,7 @@ const findClipById = (project: Project, clipId: string): Clip | null => {
 };
 
 const getTrackLabel = (track: Track): string => {
-  const prefix = track.type === "video" ? "Video" : "Audio";
+  const prefix = track.type === "video" ? i18n.t("ducking.trackTypeVideo") : i18n.t("ducking.trackTypeAudio");
   return track.name || `${prefix} ${track.id.slice(-4)}`;
 };
 

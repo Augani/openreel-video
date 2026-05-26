@@ -202,8 +202,8 @@ export const RetouchingSection: React.FC<RetouchingSectionProps> = ({
       {
         id: "redEyeRemoval" as RetouchingTool,
         icon: <Eye size={16} />,
-        label: "Red-Eye Removal",
-        description: "Remove red-eye from photos",
+        label: t("inspector.retouchRedEyeRemoval"),
+        description: t("inspector.retouchRedEyeRemovalDesc"),
       },
     ],
     [t],

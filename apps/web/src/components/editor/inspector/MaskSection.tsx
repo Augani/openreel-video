@@ -183,11 +183,11 @@ const MaskItem: React.FC<{
               }`}
             >
               {mask.inverted ? <EyeOff size={10} /> : <Eye size={10} />}
-              {mask.inverted ? t("inspector.maskInverted") : t("inspector.maskInverted")}
+              {mask.inverted ? t("inspector.maskInverted") : t("inspector.maskNormal")}
             </button>
               <span className="text-[8px] text-text-muted">
                 {mask.keyframes.length > 0
-                  ? `${mask.keyframes.length} ${t("inspector.keyframes")}`
+                  ? t("inspector.keyframeCount", { count: mask.keyframes.length })
                   : t("inspector.maskNoKeyframes")}
               </span>
           </div>

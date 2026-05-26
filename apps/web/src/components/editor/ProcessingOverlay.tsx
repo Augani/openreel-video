@@ -4,7 +4,7 @@ import { Loader2, CheckCircle, XCircle, Clock } from "lucide-react";
 import { Progress, ScrollArea } from "@openreel/ui";
 import {
   useProcessingStore,
-  PROCESSING_TYPE_LABELS,
+  getProcessingTypeLabel,
   type ProcessingTask,
 } from "../../services/processing-manager";
 
@@ -41,7 +41,7 @@ const TaskItem: React.FC<{ task: ProcessingTask }> = ({ task }) => {
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between">
           <span className="text-xs font-medium text-text-primary truncate">
-            {PROCESSING_TYPE_LABELS[task.type]}
+            {getProcessingTypeLabel(task.type)}
           </span>
           <span className={`text-[10px] ${getStatusColor()}`}>
             {task.status === "processing" ? `${task.progress}%` : task.status}

@@ -26,14 +26,21 @@ interface BackgroundRemovalSectionProps {
 
 const BACKGROUND_MODES: {
   value: BackgroundMode;
-  label: string;
   icon: React.ReactNode;
 }[] = [
-  { value: "blur", label: "Blur", icon: <Droplets size={14} /> },
-  { value: "color", label: "Color", icon: <Palette size={14} /> },
-  { value: "image", label: "Image", icon: <ImageIcon size={14} /> },
-  { value: "transparent", label: "Transparent", icon: <User size={14} /> },
+  { value: "blur", icon: <Droplets size={14} /> },
+  { value: "color", icon: <Palette size={14} /> },
+  { value: "image", icon: <ImageIcon size={14} /> },
+  { value: "transparent", icon: <User size={14} /> },
 ];
+
+const MODE_LABEL_KEYS: Record<BackgroundMode, string> = {
+  blur: "inspector.bgBlur",
+  color: "inspector.bgColor",
+  image: "inspector.bgImage",
+  transparent: "inspector.bgTransparent",
+  video: "inspector.bgVideo",
+};
 
 const PRESET_COLORS = [
   "#00ff00",
@@ -125,7 +132,7 @@ export const BackgroundRemovalSection: React.FC<
     } catch (error) {
       failTask(
         taskId,
-        error instanceof Error ? error.message : "Unknown error",
+        error instanceof Error ? error.message : t("inspector.unknownError"),
       );
       toast.error(t("inspector.bgRemovalFailed"), t("inspector.bgRemovalCouldNotEnable"));
     } finally {
@@ -192,7 +199,7 @@ export const BackgroundRemovalSection: React.FC<
                 >
                   {mode.icon}
                   <span className="text-[9px] text-text-primary">
-                    {t(`inspector.bg${mode.label}`)}
+                    {t(MODE_LABEL_KEYS[mode.value])}
                   </span>
                 </button>
               ))}

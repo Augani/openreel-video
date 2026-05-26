@@ -50,12 +50,12 @@ const PresetCard: React.FC<PresetCardProps> = ({
         <div className="flex-1">
           <div className="flex items-center gap-2">
             <span className="text-[11px] font-medium text-text-primary">
-              {preset.name}
+              {t(preset.name)}
             </span>
             {isApplied && <Check size={12} className="text-primary" />}
           </div>
           <p className="text-[9px] text-text-muted mt-0.5">
-            {preset.description}
+            {t(preset.description)}
           </p>
         </div>
       </div>
@@ -65,7 +65,7 @@ const PresetCard: React.FC<PresetCardProps> = ({
             key={index}
             className="px-1.5 py-0.5 text-[8px] bg-background-secondary rounded text-text-muted"
           >
-            {effect.type}
+            {t(effect.type)}
           </span>
         ))}
         {preset.effects.length > 3 && (
@@ -177,7 +177,7 @@ export const FilterPresetsPanel: React.FC<FilterPresetsPanelProps> = ({
               }`}
             >
               <Icon size={12} />
-              {category.name}
+              {t(category.name)}
             </button>
           );
         })}

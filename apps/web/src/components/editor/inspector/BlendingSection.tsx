@@ -3,7 +3,6 @@ import { useTranslation } from "react-i18next";
 import { useProjectStore } from "../../../stores/project-store";
 import {
   getAvailableBlendModes,
-  getBlendModeName,
   type BlendMode,
 } from "@openreel/core";
 import {
@@ -110,7 +109,7 @@ export const BlendingSection: React.FC<BlendingSectionProps> = ({ clipId }) => {
             <SelectContent className="bg-background-secondary border-border">
               {availableBlendModes.map((mode) => (
                 <SelectItem key={mode} value={mode}>
-                  {getBlendModeName(mode)}
+                  {t(`blendModes.${mode.replace(/-./g, (x) => x[1].toUpperCase())}`)}
                 </SelectItem>
               ))}
             </SelectContent>

@@ -31,7 +31,7 @@ interface SearchItem {
   nameKey: string;
   categoryKey: string;
   keywords: string[];
-  icon: React.FC<{ size?: number; className?: string }>;
+  icon: React.ElementType;
   descriptionKey: string;
   sectionId: string;
   clipTypes: Array<"video" | "audio" | "text" | "shape" | "image">;
@@ -407,7 +407,7 @@ export const SearchModal: React.FC<SearchModalProps> = ({
             onChange={(e) => setQuery(e.target.value)}
             placeholder={
               selectedClipType
-                ? `Search effects for ${selectedClipType} clip...`
+                ? t("editor.searchModal.searchEffectsFor", { clipType: selectedClipType })
                 : t("editor.searchModal.placeholder")
             }
             className="flex-1 bg-transparent border-0 text-text-primary focus-visible:ring-0"
@@ -496,7 +496,7 @@ export const SearchModal: React.FC<SearchModalProps> = ({
                       </p>
                     </div>
                     <div className="text-[10px] text-text-muted">
-                      ↵ {t("editor.searchModal.select").replace("Select", "to select")}
+                      ↵ {t("editor.searchModal.toSelect")}
                     </div>
                   </button>
                 );

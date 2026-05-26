@@ -29,16 +29,24 @@ interface AnimatableProperty {
   id: string;
   label: string;
   category: string;
+  tKey: string;
   defaultValue: unknown;
   min?: number;
   max?: number;
   step?: number;
 }
 
+const CATEGORY_TKEYS: Record<string, string> = {
+  Transform: "inspector.transform",
+  Effects: "inspector.keyframeCategoryEffects",
+  Audio: "inspector.keyframeCategoryAudio",
+};
+
 const ANIMATABLE_PROPERTIES: AnimatableProperty[] = [
   {
     id: "position.x",
     label: "Position X",
+    tKey: "inspector.positionX",
     category: "Transform",
     defaultValue: 0,
     min: -2000,
@@ -47,6 +55,7 @@ const ANIMATABLE_PROPERTIES: AnimatableProperty[] = [
   {
     id: "position.y",
     label: "Position Y",
+    tKey: "inspector.positionY",
     category: "Transform",
     defaultValue: 0,
     min: -2000,
@@ -55,6 +64,7 @@ const ANIMATABLE_PROPERTIES: AnimatableProperty[] = [
   {
     id: "scale.x",
     label: "Scale X",
+    tKey: "inspector.scaleX",
     category: "Transform",
     defaultValue: 1,
     min: 0,
@@ -64,6 +74,7 @@ const ANIMATABLE_PROPERTIES: AnimatableProperty[] = [
   {
     id: "scale.y",
     label: "Scale Y",
+    tKey: "inspector.scaleY",
     category: "Transform",
     defaultValue: 1,
     min: 0,
@@ -73,6 +84,7 @@ const ANIMATABLE_PROPERTIES: AnimatableProperty[] = [
   {
     id: "rotation",
     label: "Rotation",
+    tKey: "inspector.rotation",
     category: "Transform",
     defaultValue: 0,
     min: -360,
@@ -81,6 +93,7 @@ const ANIMATABLE_PROPERTIES: AnimatableProperty[] = [
   {
     id: "opacity",
     label: "Opacity",
+    tKey: "inspector.opacity",
     category: "Transform",
     defaultValue: 1,
     min: 0,
@@ -91,6 +104,7 @@ const ANIMATABLE_PROPERTIES: AnimatableProperty[] = [
   {
     id: "effect.brightness",
     label: "Brightness",
+    tKey: "inspector.brightness",
     category: "Effects",
     defaultValue: 0,
     min: -100,
@@ -99,6 +113,7 @@ const ANIMATABLE_PROPERTIES: AnimatableProperty[] = [
   {
     id: "effect.contrast",
     label: "Contrast",
+    tKey: "inspector.contrast",
     category: "Effects",
     defaultValue: 1,
     min: 0,
@@ -108,6 +123,7 @@ const ANIMATABLE_PROPERTIES: AnimatableProperty[] = [
   {
     id: "effect.saturation",
     label: "Saturation",
+    tKey: "inspector.fxSaturation",
     category: "Effects",
     defaultValue: 1,
     min: 0,
@@ -117,6 +133,7 @@ const ANIMATABLE_PROPERTIES: AnimatableProperty[] = [
   {
     id: "effect.blur",
     label: "Blur",
+    tKey: "inspector.blur",
     category: "Effects",
     defaultValue: 0,
     min: 0,
@@ -125,6 +142,7 @@ const ANIMATABLE_PROPERTIES: AnimatableProperty[] = [
   {
     id: "volume",
     label: "Volume",
+    tKey: "inspector.audioVolume",
     category: "Audio",
     defaultValue: 1,
     min: 0,
@@ -134,6 +152,7 @@ const ANIMATABLE_PROPERTIES: AnimatableProperty[] = [
   {
     id: "pan",
     label: "Pan",
+    tKey: "inspector.audioPan",
     category: "Audio",
     defaultValue: 0,
     min: -1,
@@ -142,14 +161,7 @@ const ANIMATABLE_PROPERTIES: AnimatableProperty[] = [
   },
 ];
 
-const formatEasingLabel = (easing: string): string => {
-  return (
-    easing
-      .replace(/([A-Z])/g, " $1")
-      .replace(/^ease/, "")
-      .trim() || easing
-  );
-};
+const easingToKey = (easing: string): string => `keyframe.${easing}`;
 
 const PropertySelector: React.FC<{
   selectedProperty: string | null;
@@ -162,7 +174,7 @@ const PropertySelector: React.FC<{
   const categories = [...new Set(ANIMATABLE_PROPERTIES.map((p) => p.category))];
 
   const selectedLabel = selectedProperty
-    ? ANIMATABLE_PROPERTIES.find((p) => p.id === selectedProperty)?.label ||
+    ? t(ANIMATABLE_PROPERTIES.find((p) => p.id === selectedProperty)?.tKey || "") ||
       selectedProperty
     : t("inspector.selectProperty");
 
@@ -188,7 +200,7 @@ const PropertySelector: React.FC<{
         {categories.map((category) => (
           <div key={category}>
               <div className="px-3 py-1.5 text-[9px] font-medium text-text-muted uppercase tracking-wider bg-background-tertiary">
-                {t(`inspector.keyframe${category.replace(/\s/g, "")}`)}
+                {t(CATEGORY_TKEYS[category])}
               </div>
             {ANIMATABLE_PROPERTIES.filter(
               (p) => p.category === category,
@@ -208,7 +220,7 @@ const PropertySelector: React.FC<{
                       : "text-text-primary"
                   }`}
                 >
-                  <span>{t(`inspector.keyframe${prop.label.replace(/\s/g, "")}`)}</span>
+                  <span>{t(prop.tKey)}</span>
                   {hasKeyframes && (
                     <Diamond
                       size={10}
@@ -271,9 +283,10 @@ const EasingSelector: React.FC<{
   value: EasingType;
   onChange: (easing: EasingName) => void;
 }> = ({ value, onChange }) => {
+  const { t } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
 
-  const currentLabel = formatEasingLabel(value);
+  const easingLabel = t(easingToKey(value));
 
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
@@ -281,10 +294,10 @@ const EasingSelector: React.FC<{
         <button
           type="button"
           className="flex items-center gap-1.5 px-2 py-1 bg-background-tertiary border border-border rounded text-[9px] text-text-secondary hover:text-text-primary hover:border-primary/50 transition-colors"
-          title={`Easing: ${currentLabel}`}
+          title={t("inspector.easingLabel", { easing: easingLabel })}
         >
           <EasingCurvePreview easing={value} size={14} />
-          <span>{currentLabel}</span>
+          <span>{easingLabel}</span>
           <ChevronDown size={10} />
         </button>
       </PopoverTrigger>
@@ -296,7 +309,7 @@ const EasingSelector: React.FC<{
         {EASING_CATEGORIES.map((category) => (
           <div key={category.name}>
             <div className="px-3 py-1 text-[8px] font-medium text-text-muted uppercase tracking-wider bg-background-tertiary sticky top-0">
-              {category.name}
+              {t(`keyframe.${category.name.toLowerCase()}`)}
             </div>
             {category.easings.map((easing) => (
               <button
@@ -311,7 +324,7 @@ const EasingSelector: React.FC<{
                 }`}
               >
                 <EasingCurvePreview easing={easing} size={14} />
-                {formatEasingLabel(easing)}
+                {t(easingToKey(easing))}
               </button>
             ))}
           </div>

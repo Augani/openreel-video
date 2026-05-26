@@ -15,11 +15,11 @@ export function ZImageForm({ value, onChange, onSubmit, isLoading }: Props) {
   return (
     <div className="space-y-4">
       <div className="p-2 rounded-lg bg-yellow-500/10 border border-yellow-500/30 text-xs text-yellow-400">
-        Z-Image is text-to-image — the source image is used as inspiration only, not as a direct reference.
+        {t("kieAi.zimageDescription")}
       </div>
 
       <div className="space-y-1.5">
-        <label className="text-xs font-medium text-text-secondary">Prompt *</label>
+        <label className="text-xs font-medium text-text-secondary">{t("kieAi.promptRequired")}</label>
         <textarea
           value={value.prompt}
           onChange={(e) => onChange({ ...value, prompt: e.target.value })}
@@ -32,7 +32,7 @@ export function ZImageForm({ value, onChange, onSubmit, isLoading }: Props) {
       </div>
 
       <div className="space-y-1.5">
-        <label className="text-xs font-medium text-text-secondary">Aspect Ratio</label>
+        <label className="text-xs font-medium text-text-secondary">{t("kieAi.aspectRatio")}</label>
         <Select value={value.aspect_ratio} onValueChange={(v) => onChange({ ...value, aspect_ratio: v as ZImageInput["aspect_ratio"] })}>
           <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
           <SelectContent>

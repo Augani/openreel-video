@@ -15,7 +15,7 @@ export function SeedreamForm({ value, onChange, onSubmit, isLoading }: Props) {
   return (
     <div className="space-y-4">
       <div className="space-y-1.5">
-        <label className="text-xs font-medium text-text-secondary">Prompt *</label>
+        <label className="text-xs font-medium text-text-secondary">{t("kieAi.promptRequired")}</label>
         <textarea
           value={value.prompt}
           onChange={(e) => onChange({ ...value, prompt: e.target.value })}
@@ -29,7 +29,7 @@ export function SeedreamForm({ value, onChange, onSubmit, isLoading }: Props) {
 
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
-          <label className="text-xs font-medium text-text-secondary">Aspect Ratio</label>
+          <label className="text-xs font-medium text-text-secondary">{t("kieAi.aspectRatio")}</label>
           <Select value={value.aspect_ratio} onValueChange={(v) => onChange({ ...value, aspect_ratio: v as SeedreamInput["aspect_ratio"] })}>
             <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -41,12 +41,12 @@ export function SeedreamForm({ value, onChange, onSubmit, isLoading }: Props) {
         </div>
 
         <div className="space-y-1.5">
-          <label className="text-xs font-medium text-text-secondary">Quality</label>
+          <label className="text-xs font-medium text-text-secondary">{t("kieAi.quality")}</label>
           <Select value={value.quality} onValueChange={(v) => onChange({ ...value, quality: v as SeedreamInput["quality"] })}>
             <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="basic">Basic (2K)</SelectItem>
-              <SelectItem value="high">High (4K)</SelectItem>
+              <SelectItem value="basic">{t("kieAi.qualityBasic")}</SelectItem>
+              <SelectItem value="high">{t("kieAi.qualityHigh")}</SelectItem>
             </SelectContent>
           </Select>
         </div>

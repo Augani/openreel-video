@@ -84,13 +84,13 @@ const PresetSelector: React.FC<{
         <SelectContent className="bg-background-secondary border-border max-h-60">
           {ANIMATION_PRESETS.map((preset) => (
             <SelectItem key={preset.value} value={preset.value}>
-              {preset.label}
+              {t(`textAnimation.${preset.label.replace(/\s/g, "")}`)}
             </SelectItem>
           ))}
         </SelectContent>
       </Select>
       <p className="text-[9px] text-text-muted">
-        {ANIMATION_PRESETS.find((p) => p.value === value)?.description}
+        {ANIMATION_PRESETS.find((p) => p.value === value) && t(`textAnimation.${ANIMATION_PRESETS.find((p) => p.value === value)!.label.replace(/\s/g, "")}Description`)}
       </p>
     </div>
   );
@@ -118,7 +118,7 @@ const EasingSelector: React.FC<{
         <SelectContent className="bg-background-secondary border-border">
           {easingOptions.map((option) => (
             <SelectItem key={option.value} value={option.value}>
-              {option.label}
+              {t(`textAnimation.${option.label.replace(/\s/g, "")}`)}
             </SelectItem>
           ))}
         </SelectContent>

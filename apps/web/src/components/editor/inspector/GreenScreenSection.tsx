@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useMemo, useEffect } from "react";
 import { useTranslation } from "react-i18next";
+import i18n from "../../../i18n";
 import { Video, Pipette, RefreshCw, Eye, EyeOff, Layers } from "lucide-react";
 import { useProjectStore } from "../../../stores/project-store";
 import { useEngineStore } from "../../../stores/engine-store";
@@ -94,10 +95,10 @@ const ColorPresetButton: React.FC<{
 );
 
 const COLOR_PRESETS: { color: RGB; label: string }[] = [
-  { color: { r: 0, g: 1, b: 0 }, label: "Green" },
-  { color: { r: 0, g: 0, b: 1 }, label: "Blue" },
-  { color: { r: 1, g: 0, b: 1 }, label: "Magenta" },
-  { color: { r: 0, g: 1, b: 1 }, label: "Cyan" },
+  { color: { r: 0, g: 1, b: 0 }, label: i18n.t("inspector.chromaGreen") },
+  { color: { r: 0, g: 0, b: 1 }, label: i18n.t("inspector.chromaBlue") },
+  { color: { r: 1, g: 0, b: 1 }, label: i18n.t("inspector.chromaMagenta") },
+  { color: { r: 0, g: 1, b: 1 }, label: i18n.t("inspector.chromaCyan") },
 ];
 
 export const GreenScreenSection: React.FC<GreenScreenSectionProps> = ({

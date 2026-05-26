@@ -64,12 +64,12 @@ export const SaveTemplateDialog: React.FC<SaveTemplateDialogProps> = ({
 
   const handleSave = useCallback(async () => {
     if (!name.trim()) {
-      setError("Template name is required");
+      setError(t("saveTemplate.errors.nameRequired"));
       return;
     }
 
     if (!description.trim()) {
-      setError("Description is required");
+      setError(t("saveTemplate.errors.descriptionRequired"));
       return;
     }
 
@@ -99,7 +99,7 @@ export const SaveTemplateDialog: React.FC<SaveTemplateDialogProps> = ({
 
       const templateWithMeta = {
         ...template,
-        author: author.trim() || "Anonymous",
+        author: author.trim() || t("saveTemplate.anonymous"),
       };
 
       if (graphicsEngine) {
@@ -120,7 +120,7 @@ export const SaveTemplateDialog: React.FC<SaveTemplateDialogProps> = ({
         const result =
           await templateCloudService.uploadTemplate(templateWithMeta);
         if (!result.success) {
-          throw new Error(result.error || "Failed to upload to cloud");
+          throw new Error(result.error || t("saveTemplate.errors.uploadFailed"));
         }
       } else {
         await templateEngine.saveTemplate(templateWithMeta);
@@ -137,7 +137,7 @@ export const SaveTemplateDialog: React.FC<SaveTemplateDialogProps> = ({
         setCategory("custom");
       }, 1500);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save template");
+      setError(err instanceof Error ? err.message : t("saveTemplate.errors.saveFailed"));
     } finally {
       setIsSaving(false);
     }
@@ -195,7 +195,7 @@ export const SaveTemplateDialog: React.FC<SaveTemplateDialogProps> = ({
               maxLength={50}
             />
             <p className="text-[10px] text-text-muted">
-              {name.length}/50 characters
+              {t("saveTemplate.charCount", { current: name.length, max: 50 })}
             </p>
           </div>
 
@@ -206,13 +206,13 @@ export const SaveTemplateDialog: React.FC<SaveTemplateDialogProps> = ({
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Describe what this template is for and how to use it..."
+              placeholder={t("saveTemplate.descriptionPlaceholder")}
               className="w-full px-3 py-2 text-sm bg-background-secondary border border-border rounded-lg text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none"
               rows={4}
               maxLength={500}
             />
             <p className="text-[10px] text-text-muted">
-              {description.length}/500 characters
+              {t("saveTemplate.charCount", { current: description.length, max: 500 })}
             </p>
           </div>
 
@@ -227,7 +227,7 @@ export const SaveTemplateDialog: React.FC<SaveTemplateDialogProps> = ({
               <SelectContent className="bg-background-secondary border-border">
                 {TEMPLATE_CATEGORIES.map((cat) => (
                   <SelectItem key={cat.id} value={cat.id}>
-                    {cat.name}
+                    {t(`saveTemplate.categories.${cat.id}`)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -242,7 +242,7 @@ export const SaveTemplateDialog: React.FC<SaveTemplateDialogProps> = ({
               type="text"
               value={tags}
               onChange={(e) => setTags(e.target.value)}
-              placeholder="intro, animated, youtube"
+              placeholder={t("saveTemplate.tagsPlaceholder")}
               className="bg-background-secondary border-border text-text-primary"
             />
           </div>
@@ -255,7 +255,7 @@ export const SaveTemplateDialog: React.FC<SaveTemplateDialogProps> = ({
               type="text"
               value={author}
               onChange={(e) => setAuthor(e.target.value)}
-              placeholder="Your name or username"
+              placeholder={t("saveTemplate.authorPlaceholder")}
               className="bg-background-secondary border-border text-text-primary"
             />
           </div>
@@ -290,8 +290,8 @@ export const SaveTemplateDialog: React.FC<SaveTemplateDialogProps> = ({
             </div>
             <p className="text-[10px] text-text-muted">
               {saveLocation === "cloud"
-                ? "Saved to cloud and accessible from any device"
-                : "Saved locally in your browser storage"}
+                ? t("saveTemplate.cloudDesc")
+                : t("saveTemplate.localDesc")}
             </p>
           </div>
         </div>

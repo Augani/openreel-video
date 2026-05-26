@@ -13,20 +13,20 @@ import { Input } from "@openreel/ui";
 import { useProjectStore } from "../../stores/project-store";
 import { autoSaveManager, type AutoSaveMetadata } from "../../services/auto-save";
 
-function formatTimeAgo(timestamp: number): string {
+const formatTimeAgo = (timestamp: number, t: ReturnType<typeof useTranslation>["t"]): string => {
   const seconds = Math.floor((Date.now() - timestamp) / 1000);
-  if (seconds < 60) return "just now";
+  if (seconds < 60) return t("editor.time.justNow");
   if (seconds < 3600) {
     const mins = Math.floor(seconds / 60);
-    return `${mins}m ago`;
+    return t("editor.time.minutesAgo", { count: mins });
   }
   if (seconds < 86400) {
     const hours = Math.floor(seconds / 3600);
-    return `${hours}h ago`;
+    return t("editor.time.hoursAgo", { count: hours });
   }
   const days = Math.floor(seconds / 86400);
-  return `${days}d ago`;
-}
+  return t("editor.time.daysAgo", { count: days });
+};
 
 export const ProjectSwitcher: React.FC = () => {
   const { t } = useTranslation();
@@ -224,7 +224,7 @@ export const ProjectSwitcher: React.FC = () => {
                         {save.projectName}
                       </div>
                       <div className="text-xs text-text-muted">
-                        {formatTimeAgo(save.timestamp)}
+                        {formatTimeAgo(save.timestamp, t)}
                       </div>
                     </div>
                   </button>

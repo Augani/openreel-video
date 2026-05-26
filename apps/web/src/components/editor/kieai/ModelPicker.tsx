@@ -11,39 +11,39 @@ interface ModelInfo {
 const MODELS: ModelInfo[] = [
   {
     id: IMAGE_MODELS.SEEDREAM,
-    name: "Seedream 5 Lite",
-    description: "High-quality image-to-image with aspect ratio and quality control. Up to 4K output.",
-    badge: "4K",
+    name: i18n.t("modelPicker.seedreamName"),
+    description: i18n.t("modelPicker.seedreamDesc"),
+    badge: i18n.t("modelPicker.seedreamBadge"),
   },
   {
     id: IMAGE_MODELS.Z_IMAGE,
-    name: "Z-Image",
-    description: "Text-to-image generation. Source image is used as inspiration only.",
-    badge: "Text→Image",
+    name: i18n.t("modelPicker.zImageName"),
+    description: i18n.t("modelPicker.zImageDesc"),
+    badge: i18n.t("modelPicker.zImageBadge"),
   },
   {
     id: IMAGE_MODELS.NANO_BANANA2,
-    name: "Nano Banana 2",
-    description: "Versatile generation with wide aspect ratio support and flexible resolution.",
-    badge: "Versatile",
+    name: i18n.t("modelPicker.nanoBananaName"),
+    description: i18n.t("modelPicker.nanoBananaDesc"),
+    badge: i18n.t("modelPicker.nanoBananaBadge"),
   },
   {
     id: IMAGE_MODELS.FLUX2,
-    name: "Flux 2 Pro",
-    description: "Professional image-to-image with up to 8 reference images and 2K output.",
-    badge: "Pro",
+    name: i18n.t("modelPicker.flux2Name"),
+    description: i18n.t("modelPicker.flux2Desc"),
+    badge: i18n.t("modelPicker.flux2Badge"),
   },
   {
     id: IMAGE_MODELS.GROK,
-    name: "Grok Imagine",
-     description: i18n.t("modelPicker.styleTransfer"),
-    badge: "Style",
+    name: i18n.t("modelPicker.grokName"),
+    description: i18n.t("modelPicker.styleTransfer"),
+    badge: i18n.t("modelPicker.grokBadge"),
   },
   {
     id: IMAGE_MODELS.QWEN,
-    name: "Qwen",
-    description: "Fine-grained control over image transformation strength and quality.",
-    badge: "Control",
+    name: i18n.t("modelPicker.qwenName"),
+    description: i18n.t("modelPicker.qwenDesc"),
+    badge: i18n.t("modelPicker.qwenBadge"),
   },
 ];
 
@@ -54,7 +54,7 @@ interface Props {
 export function ModelPicker({ onSelect }: Props) {
   return (
     <div className="space-y-3">
-      <p className="text-xs text-text-muted">Select a model to generate a new image from your source.</p>
+      <p className="text-xs text-text-muted">{i18n.t("modelPicker.selectModelHint")}</p>
       <div className="grid grid-cols-1 gap-2">
         {MODELS.map((m) => (
           <button

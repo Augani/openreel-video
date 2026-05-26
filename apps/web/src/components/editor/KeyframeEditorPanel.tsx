@@ -31,19 +31,19 @@ const EASING_PRESETS: { label: string; value: EasingName }[] = [
   { label: i18n.t("keyframe.easeInOut"), value: "easeInOutQuad" },
   { label: i18n.t("keyframe.easeInCubic"), value: "easeInCubic" },
   { label: i18n.t("keyframe.easeOutCubic"), value: "easeOutCubic" },
-  { label: "Ease In Out Cubic", value: "easeInOutCubic" },
-  { label: "Ease In Quart", value: "easeInQuart" },
-  { label: "Ease Out Quart", value: "easeOutQuart" },
-  { label: "Ease In Out Quart", value: "easeInOutQuart" },
+  { label: i18n.t("keyframe.easeInOutCubic"), value: "easeInOutCubic" },
+  { label: i18n.t("keyframe.easeInQuart"), value: "easeInQuart" },
+  { label: i18n.t("keyframe.easeOutQuart"), value: "easeOutQuart" },
+  { label: i18n.t("keyframe.easeInOutQuart"), value: "easeInOutQuart" },
   { label: i18n.t("keyframe.easeInBack"), value: "easeInBack" },
   { label: i18n.t("keyframe.easeOutBack"), value: "easeOutBack" },
-  { label: "Ease In Out Back", value: "easeInOutBack" },
+  { label: i18n.t("keyframe.easeInOutBack"), value: "easeInOutBack" },
   { label: i18n.t("keyframe.easeInElastic"), value: "easeInElastic" },
   { label: i18n.t("keyframe.easeOutElastic"), value: "easeOutElastic" },
-  { label: "Ease In Out Elastic", value: "easeInOutElastic" },
+  { label: i18n.t("keyframe.easeInOutElastic"), value: "easeInOutElastic" },
   { label: i18n.t("keyframe.easeInBounce"), value: "easeInBounce" },
   { label: i18n.t("keyframe.easeOutBounce"), value: "easeOutBounce" },
-  { label: "Ease In Out Bounce", value: "easeInOutBounce" },
+  { label: i18n.t("keyframe.easeInOutBounce"), value: "easeInOutBounce" },
 ];
 
 interface KeyframeEditorPanelProps {
@@ -392,7 +392,7 @@ export const KeyframeEditorPanel: React.FC<KeyframeEditorPanelProps> = ({
       <div className="flex items-center gap-2 px-4 py-2 border-b border-border bg-background-tertiary">
         <Select value={activeProperty || ""} onValueChange={setActiveProperty}>
           <SelectTrigger className="w-[180px] h-8">
-            <SelectValue placeholder="Select property" />
+            <SelectValue placeholder={i18n.t("keyframe.selectProperty")} />
           </SelectTrigger>
           <SelectContent>
             {propertyGroups.map((group) => (
@@ -419,7 +419,7 @@ export const KeyframeEditorPanel: React.FC<KeyframeEditorPanelProps> = ({
           className="h-8 px-2"
         >
           <Copy size={14} className="mr-1" />
-          Copy
+          {i18n.t("keyframe.copy")}
         </Button>
         <Button
           variant="ghost"
@@ -429,7 +429,7 @@ export const KeyframeEditorPanel: React.FC<KeyframeEditorPanelProps> = ({
           className="h-8 px-2"
         >
           <Clipboard size={14} className="mr-1" />
-          Paste
+          {i18n.t("keyframe.paste")}
         </Button>
         <Button
           variant="ghost"
@@ -439,7 +439,7 @@ export const KeyframeEditorPanel: React.FC<KeyframeEditorPanelProps> = ({
           className="h-8 px-2 text-red-400 hover:text-red-300"
         >
           <Trash2 size={14} className="mr-1" />
-          Delete
+          {i18n.t("keyframe.delete")}
         </Button>
       </div>
 
@@ -459,14 +459,14 @@ export const KeyframeEditorPanel: React.FC<KeyframeEditorPanelProps> = ({
       <div className="px-4 py-3 border-t border-border bg-background-tertiary">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
-            <span className="text-xs text-text-muted">Easing:</span>
+            <span className="text-xs text-text-muted">{i18n.t("keyframe.easingLabel")}</span>
             <Select
               value={selectedKeyframeIds.length > 0 ? undefined : ""}
               onValueChange={handleEasingChange}
               disabled={selectedKeyframeIds.length === 0}
             >
               <SelectTrigger className="w-[160px] h-7 text-xs">
-                <SelectValue placeholder="Select easing" />
+                <SelectValue placeholder={i18n.t("keyframe.selectEasing")} />
               </SelectTrigger>
               <SelectContent>
                 {EASING_PRESETS.map((preset) => (
@@ -481,7 +481,7 @@ export const KeyframeEditorPanel: React.FC<KeyframeEditorPanelProps> = ({
           <div className="flex-1" />
 
           <span className="text-xs text-text-muted">
-            {selectedKeyframeIds.length} keyframe{selectedKeyframeIds.length !== 1 ? "s" : ""} selected
+            {i18n.t("keyframe.keyframesSelected", { count: selectedKeyframeIds.length })}
           </span>
         </div>
       </div>

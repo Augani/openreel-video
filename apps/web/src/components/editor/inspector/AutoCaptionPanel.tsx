@@ -190,7 +190,7 @@ export const AutoCaptionPanel: React.FC = () => {
             <SelectContent className="bg-background-secondary border-border">
               {CAPTION_STYLE_PRESETS.map((preset) => (
                 <SelectItem key={preset.id} value={preset.id}>
-                  {preset.name}
+                  {t(`caption.style${preset.name.replace(/\s/g, "")}`)}
                 </SelectItem>
               ))}
             </SelectContent>

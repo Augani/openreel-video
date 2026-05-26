@@ -53,7 +53,7 @@ export const ScriptViewDialog: React.FC<ScriptViewDialogProps> = ({
     if (!project) return "";
     return serializer.exportToJsonWithMetadata(
       project,
-      `Exported from ${project.name}`,
+      t("scriptView.exportedFrom", { name: project.name }),
     );
   }, [project, serializer]);
 
@@ -75,7 +75,7 @@ export const ScriptViewDialog: React.FC<ScriptViewDialogProps> = ({
     const ts = project?.modifiedAt ?? Date.now();
     const d = new Date(ts);
     const dateSuffix = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}_${String(d.getHours()).padStart(2, "0")}-${String(d.getMinutes()).padStart(2, "0")}`;
-    a.download = `${project?.name || "project"}_${dateSuffix}.json`;
+    a.download = `${project?.name || t("scriptView.untitledProject")}_${dateSuffix}.json`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -94,7 +94,7 @@ export const ScriptViewDialog: React.FC<ScriptViewDialogProps> = ({
         setValidation({
           valid: false,
           errors: [
-            `Validation error: ${error instanceof Error ? error.message : "Unknown error"}`,
+            t("scriptView.validationError", { message: error instanceof Error ? error.message : t("scriptView.unknownError") }),
           ],
           warnings: [],
         });
@@ -147,7 +147,7 @@ export const ScriptViewDialog: React.FC<ScriptViewDialogProps> = ({
       } else if (file) {
         setValidation({
           valid: false,
-          errors: ["Please upload a .json file"],
+          errors: [t("scriptView.pleaseUploadJson")],
           warnings: [],
         });
       }
@@ -187,8 +187,8 @@ export const ScriptViewDialog: React.FC<ScriptViewDialogProps> = ({
         ).length;
         if (missingCount > 0) {
           toast.warning(
-            `${missingCount} asset${missingCount !== 1 ? "s" : ""} need relinking`,
-            "Go to Assets panel → click \"Relink from Folder\" to restore missing media.",
+            t("scriptView.assetsNeedRelinking", { count: missingCount }),
+            t("scriptView.relinkInstructions"),
           );
         }
       }
@@ -196,7 +196,7 @@ export const ScriptViewDialog: React.FC<ScriptViewDialogProps> = ({
       setValidation({
         valid: false,
         errors: [
-          `Import error: ${error instanceof Error ? error.message : "Unknown error"}`,
+          t("scriptView.importError", { message: error instanceof Error ? error.message : t("scriptView.unknownError") }),
         ],
         warnings: [],
       });
@@ -345,7 +345,7 @@ export const ScriptViewDialog: React.FC<ScriptViewDialogProps> = ({
                 <div className="flex items-center gap-2 p-3 bg-background-tertiary border border-border rounded-lg">
                   <FileCode size={16} className="text-text-secondary" />
                   <span className="text-sm text-text-primary flex-1">
-                    {importJson.length.toLocaleString()} characters loaded
+                    {t("scriptView.charactersLoaded", { count: importJson.length.toLocaleString() })}
                   </span>
                   <Button
                     variant="outline"
@@ -415,8 +415,7 @@ export const ScriptViewDialog: React.FC<ScriptViewDialogProps> = ({
                           {t("scriptView.missingAssets")} ({validation.missingAssets.length})
                         </div>
                         <p className="text-xs text-text-muted">
-                          These assets will be imported as placeholders and can
-                          be replaced later.
+                          {t("scriptView.placeholderNotice")}
                         </p>
                       </div>
                     )}

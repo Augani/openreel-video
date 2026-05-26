@@ -129,7 +129,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                         {model.description
                           ? (model.description.length > 80 ? model.description.slice(0, 80) + "..." : model.description)
                           : ""}
-                        {langCount > 0 && ` · ${langCount} languages`}
+                        {langCount > 0 && ` · ${t('modelSelector.languageCount', { count: langCount })}`}
                       </div>
                     </div>
 

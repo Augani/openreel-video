@@ -1133,10 +1133,12 @@ export const ClipTransitionSection: React.FC<ClipTransitionSectionProps> = ({
 
     const parts: string[] = [];
     if (entryPreset !== "none") {
-      parts.push(`${t("transitionInspector.entry")}: ${entryPreset}`);
+      const entryPresetLabel = PRESETS.find((p) => p.id === entryPreset)?.label || entryPreset;
+      parts.push(`${t("transitionInspector.entry")}: ${t(`transitionInspector.${entryPresetLabel.replace(/\s/g, "")}`)}`);
     }
     if (exitPreset !== "none") {
-      parts.push(`${t("transitionInspector.exit")}: ${exitPreset}`);
+      const exitPresetLabel = PRESETS.find((p) => p.id === exitPreset)?.label || exitPreset;
+      parts.push(`${t("transitionInspector.exit")}: ${t(`transitionInspector.${exitPresetLabel.replace(/\s/g, "")}`)}`);
     }
     if (parts.length > 0) {
       toast.success(t("transitionInspector.clipAnimationApplied"), parts.join(", "));
@@ -1179,7 +1181,7 @@ export const ClipTransitionSection: React.FC<ClipTransitionSectionProps> = ({
               }`}
             >
               {preset.icon}
-              <span>{preset.label}</span>
+              <span>{t(`transitionInspector.${preset.label.replace(/\s/g, "")}`)}</span>
             </button>
           ))}
         </div>
@@ -1208,7 +1210,7 @@ export const ClipTransitionSection: React.FC<ClipTransitionSectionProps> = ({
                 <SelectContent className="bg-background-secondary border-border">
                   {EASINGS.map((e) => (
                     <SelectItem key={e.id} value={e.id}>
-                      {e.label}
+                      {t(`transitionInspector.${e.label.replace(/\s/g, "")}`)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -1235,7 +1237,7 @@ export const ClipTransitionSection: React.FC<ClipTransitionSectionProps> = ({
               }`}
             >
               {preset.icon}
-              <span>{preset.label}</span>
+              <span>{t(`transitionInspector.${preset.label.replace(/\s/g, "")}`)}</span>
             </button>
           ))}
         </div>
@@ -1264,7 +1266,7 @@ export const ClipTransitionSection: React.FC<ClipTransitionSectionProps> = ({
                 <SelectContent className="bg-background-secondary border-border">
                   {EASINGS.map((e) => (
                     <SelectItem key={e.id} value={e.id}>
-                      {e.label}
+                      {t(`transitionInspector.${e.label.replace(/\s/g, "")}`)}
                     </SelectItem>
                   ))}
                 </SelectContent>

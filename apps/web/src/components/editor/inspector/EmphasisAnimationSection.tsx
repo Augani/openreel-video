@@ -545,15 +545,15 @@ export const EmphasisAnimationSection: React.FC<
 
                 <div className="grid grid-cols-3 gap-1 mt-2">
                   {[
-                    { x: 0, y: 0, label: "TL" },
-                    { x: 0.5, y: 0, label: "TC" },
-                    { x: 1, y: 0, label: "TR" },
-                    { x: 0, y: 0.5, label: "ML" },
-                    { x: 0.5, y: 0.5, label: "C" },
-                    { x: 1, y: 0.5, label: "MR" },
-                    { x: 0, y: 1, label: "BL" },
-                    { x: 0.5, y: 1, label: "BC" },
-                    { x: 1, y: 1, label: "BR" },
+                    { x: 0, y: 0, label: "inspector.focusTopLeft" },
+                    { x: 0.5, y: 0, label: "inspector.focusTopCenter" },
+                    { x: 1, y: 0, label: "inspector.focusTopRight" },
+                    { x: 0, y: 0.5, label: "inspector.focusMidLeft" },
+                    { x: 0.5, y: 0.5, label: "inspector.focusCenter" },
+                    { x: 1, y: 0.5, label: "inspector.focusMidRight" },
+                    { x: 0, y: 1, label: "inspector.focusBotLeft" },
+                    { x: 0.5, y: 1, label: "inspector.focusBotCenter" },
+                    { x: 1, y: 1, label: "inspector.focusBotRight" },
                   ].map((preset) => (
                     <button
                       key={preset.label}
@@ -569,7 +569,7 @@ export const EmphasisAnimationSection: React.FC<
                           : "bg-background-tertiary border border-border text-text-muted hover:text-text-primary"
                       }`}
                     >
-                      {preset.label}
+                      {t(preset.label)}
                     </button>
                   ))}
                 </div>

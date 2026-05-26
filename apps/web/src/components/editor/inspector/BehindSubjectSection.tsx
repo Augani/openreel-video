@@ -47,7 +47,7 @@ export const BehindSubjectSection: React.FC<BehindSubjectSectionProps> = ({
         try {
           await segEngine.initialize();
         } catch {
-          setError("Failed to load AI model. Check your connection.");
+          setError(i18n.t("inspector.behindSubjectModelError"));
           updateTextBehindSubject(clipId, false);
           setEnabled(false);
           setIsLoading(false);
@@ -77,7 +77,7 @@ export const BehindSubjectSection: React.FC<BehindSubjectSectionProps> = ({
         )}
       </div>
       {isLoading && (
-        <p className="text-[9px] text-text-muted">Loading AI model...</p>
+        <p className="text-[9px] text-text-muted">{i18n.t("inspector.behindSubjectLoading")}</p>
       )}
       {error && (
         <p className="text-[9px] text-red-400">{error}</p>

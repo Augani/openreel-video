@@ -4,6 +4,7 @@ import {
   type NoiseReductionFocus,
   type NoiseProfileData,
 } from "../../../bridges/audio-bridge-effects";
+import i18n from "../../../i18n";
 
 export interface NoiseReductionPreset {
   id: NoiseReductionFocus;
@@ -63,8 +64,8 @@ const averageEnergyInRange = (
 export const NOISE_REDUCTION_PRESETS: ReadonlyArray<NoiseReductionPreset> = [
   {
     id: "balanced",
-    label: "Balanced",
-    description: "General cleanup for moderate room noise without pushing too hard.",
+    label: i18n.t("noisePresets.balanced.label"),
+    description: i18n.t("noisePresets.balanced.description"),
     config: {
       ...DEFAULT_NOISE_REDUCTION,
       threshold: -34,
@@ -76,8 +77,8 @@ export const NOISE_REDUCTION_PRESETS: ReadonlyArray<NoiseReductionPreset> = [
   },
   {
     id: "speech",
-    label: "Speech Focus",
-    description: "Preserve dialog presence while reducing hiss and ambient bed.",
+    label: i18n.t("noisePresets.speech.label"),
+    description: i18n.t("noisePresets.speech.description"),
     config: {
       ...DEFAULT_NOISE_REDUCTION,
       threshold: -36,
@@ -89,8 +90,8 @@ export const NOISE_REDUCTION_PRESETS: ReadonlyArray<NoiseReductionPreset> = [
   },
   {
     id: "whiteNoise",
-    label: "White Noise",
-    description: "Aggressive broadband hiss removal for fans, air, camera preamp noise, and room tone.",
+    label: i18n.t("noisePresets.whiteNoise.label"),
+    description: i18n.t("noisePresets.whiteNoise.description"),
     config: {
       ...DEFAULT_NOISE_REDUCTION,
       threshold: -56,
@@ -102,8 +103,8 @@ export const NOISE_REDUCTION_PRESETS: ReadonlyArray<NoiseReductionPreset> = [
   },
   {
     id: "music",
-    label: "Music Bed",
-    description: "Pushes background music down while keeping speech presence forward.",
+    label: i18n.t("noisePresets.music.label"),
+    description: i18n.t("noisePresets.music.description"),
     config: {
       ...DEFAULT_NOISE_REDUCTION,
       threshold: -48,
@@ -115,8 +116,8 @@ export const NOISE_REDUCTION_PRESETS: ReadonlyArray<NoiseReductionPreset> = [
   },
   {
     id: "heavy",
-    label: "Heavy Noise",
-    description: "More aggressive broadband cleanup for loud air, fan, and street wash.",
+    label: i18n.t("noisePresets.heavy.label"),
+    description: i18n.t("noisePresets.heavy.description"),
     config: {
       ...DEFAULT_NOISE_REDUCTION,
       threshold: -42,
@@ -128,8 +129,8 @@ export const NOISE_REDUCTION_PRESETS: ReadonlyArray<NoiseReductionPreset> = [
   },
   {
     id: "wind",
-    label: "Wind & Rumble",
-    description: "Targets low-end rumble, handling noise, and outdoor wind pressure.",
+    label: i18n.t("noisePresets.wind.label"),
+    description: i18n.t("noisePresets.wind.description"),
     config: {
       ...DEFAULT_NOISE_REDUCTION,
       threshold: -40,
@@ -141,8 +142,8 @@ export const NOISE_REDUCTION_PRESETS: ReadonlyArray<NoiseReductionPreset> = [
   },
   {
     id: "hum",
-    label: "Hum & HVAC",
-    description: "Focused cleanup for tonal hum, AC drone, and power-line style noise.",
+    label: i18n.t("noisePresets.hum.label"),
+    description: i18n.t("noisePresets.hum.description"),
     config: {
       ...DEFAULT_NOISE_REDUCTION,
       threshold: -38,

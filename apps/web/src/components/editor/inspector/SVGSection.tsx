@@ -172,7 +172,7 @@ export const SVGSection: React.FC<SVGSectionProps> = ({ clipId }) => {
                       : "bg-background-tertiary border border-border text-text-secondary hover:text-text-primary"
                   }`}
                 >
-                  {mode}
+                  {mode === "none" ? t("svg.colorModeNone") : mode === "tint" ? t("svg.colorModeTint") : t("svg.colorModeReplace")}
                 </button>
               ))}
             </div>

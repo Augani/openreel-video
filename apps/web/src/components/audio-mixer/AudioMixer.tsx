@@ -48,7 +48,7 @@ const MasterChannel: React.FC<{
 
   return (
     <div className="flex flex-col items-center gap-2 p-3 bg-gray-900 rounded-lg min-w-[100px] border border-gray-700">
-      <div className="text-xs text-gray-300 font-bold">MASTER</div>
+      <div className="text-xs text-gray-300 font-bold">{tMaster("audioMixer.master")}</div>
 
       {/* Stereo level meter */}
       <div className="flex gap-1 h-32 w-6">
@@ -357,14 +357,16 @@ export const AudioMixer: React.FC<AudioMixerProps> = ({
       {/* Status bar */}
       <div className="mt-3 pt-3 border-t border-gray-800 flex items-center justify-between text-xs text-gray-500">
         <span>
-          {channels.length} channel{channels.length !== 1 ? "s" : ""}
+          {t("audioMixer.channelCount", { count: channels.length })}
           {hasSoloedTracks && (
-            <span className="ml-2 text-yellow-500">• Solo active</span>
+            <span className="ml-2 text-yellow-500">{t("audioMixer.soloActive")}</span>
           )}
         </span>
         <span>
-          Sample Rate: {project.settings.sampleRate}Hz | Channels:{" "}
-          {project.settings.channels}
+          {t("audioMixer.sampleRateInfo", {
+            rate: project.settings.sampleRate,
+            channels: project.settings.channels,
+          })}
         </span>
       </div>
     </div>

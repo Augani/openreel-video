@@ -104,7 +104,7 @@ export const AIGenTab: React.FC = () => {
 
   const navigateAway = useCallback((next: FeatureId) => {
     if (activeFeature === "tts" && next !== "tts" && ttsHasUnsaved) {
-          toast.warning(t("assets.unsavedDiscarded"), "Save to media or download next time to keep it.");
+          toast.warning(t("assets.unsavedDiscarded"), t("assets.saveToMediaHint"));
     }
     setActiveFeature(next);
   }, [activeFeature, ttsHasUnsaved]);

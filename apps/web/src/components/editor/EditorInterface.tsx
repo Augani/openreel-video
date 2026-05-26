@@ -74,7 +74,7 @@ const useEngineInitialization = () => {
   const { t } = useTranslation();
   const { initialize, initialized, initializing, initError } = useEngineStore();
   const [bridgesReady, setBridgesReady] = useState(false);
-  const [initStatus, setInitStatus] = useState("Starting...");
+  const [initStatus, setInitStatus] = useState(t("editor.starting"));
   const [localError, setLocalError] = useState<string | null>(null);
 
   useEffect(() => {

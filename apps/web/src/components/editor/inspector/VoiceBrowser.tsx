@@ -132,7 +132,7 @@ export const VoiceBrowser: React.FC<VoiceBrowserProps> = ({
             >
               <User size={10} />
               <span>{voice.name}</span>
-              <span className="text-[8px] opacity-70">{voice.gender === "female" ? "F" : "M"}</span>
+              <span className="text-[8px] opacity-70">{voice.gender === "female" ? t("voice.genderFemale") : t("voice.genderMale")}</span>
             </button>
           ))}
         </div>

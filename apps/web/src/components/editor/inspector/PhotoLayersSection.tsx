@@ -52,7 +52,7 @@ const BlendModeSelector: React.FC<{
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button className="flex items-center gap-1 px-2 py-1 text-[10px] bg-background-tertiary border border-border rounded hover:border-primary transition-colors">
-            <span className="text-text-primary">{selectedMode.label}</span>
+            <span className="text-text-primary">{t(`blendModes.${selectedMode.value}`)}</span>
             <ChevronDown size={12} className="text-text-muted" />
           </button>
         </DropdownMenuTrigger>
@@ -65,7 +65,7 @@ const BlendModeSelector: React.FC<{
                 mode.value === value ? "text-primary bg-background-tertiary" : ""
               }`}
             >
-              {mode.label}
+              {t(`blendModes.${mode.value}`)}
             </DropdownMenuItem>
           ))}
         </DropdownMenuContent>

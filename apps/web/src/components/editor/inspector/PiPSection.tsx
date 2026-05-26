@@ -414,7 +414,7 @@ export const PiPSection: React.FC<PiPSectionProps> = ({ clipId }) => {
         onClick={() => setShowAdvanced(!showAdvanced)}
         className="w-full py-1.5 text-[10px] text-text-secondary hover:text-text-primary bg-background-tertiary rounded-lg transition-colors"
       >
-        {showAdvanced ? t("inspector.hide") : t("inspector.show")} Advanced Controls
+        {showAdvanced ? t("inspector.hideAdvancedControls") : t("inspector.showAdvancedControls")}
       </button>
 
       {showAdvanced && (

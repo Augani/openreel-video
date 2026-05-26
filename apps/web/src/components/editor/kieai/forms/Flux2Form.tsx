@@ -15,7 +15,7 @@ export function Flux2Form({ value, onChange, onSubmit, isLoading }: Props) {
   return (
     <div className="space-y-4">
       <div className="space-y-1.5">
-        <label className="text-xs font-medium text-text-secondary">Prompt *</label>
+        <label className="text-xs font-medium text-text-secondary">{t("kieAi.promptRequired")}</label>
         <textarea
           value={value.prompt}
           onChange={(e) => onChange({ ...value, prompt: e.target.value })}
@@ -29,7 +29,7 @@ export function Flux2Form({ value, onChange, onSubmit, isLoading }: Props) {
 
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
-          <label className="text-xs font-medium text-text-secondary">Aspect Ratio</label>
+          <label className="text-xs font-medium text-text-secondary">{t("kieAi.aspectRatio")}</label>
           <Select value={value.aspect_ratio} onValueChange={(v) => onChange({ ...value, aspect_ratio: v as Flux2Input["aspect_ratio"] })}>
             <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -41,12 +41,12 @@ export function Flux2Form({ value, onChange, onSubmit, isLoading }: Props) {
         </div>
 
         <div className="space-y-1.5">
-          <label className="text-xs font-medium text-text-secondary">Resolution</label>
+          <label className="text-xs font-medium text-text-secondary">{t("kieAi.resolution")}</label>
           <Select value={value.resolution} onValueChange={(v) => onChange({ ...value, resolution: v as Flux2Input["resolution"] })}>
             <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="1K">1K</SelectItem>
-              <SelectItem value="2K">2K</SelectItem>
+              <SelectItem value="1K">{t("kieAi.resolution1K")}</SelectItem>
+              <SelectItem value="2K">{t("kieAi.resolution2K")}</SelectItem>
             </SelectContent>
           </Select>
         </div>

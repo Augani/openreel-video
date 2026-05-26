@@ -208,10 +208,10 @@ export const Toolbar: React.FC = () => {
           duration: project.timeline?.duration ?? 0,
         });
       } else {
-        throw new Error(finalResult?.error?.message || "Export failed");
+        throw new Error(finalResult?.error?.message || t("export.failed"));
       }
     },
-    [project, track],
+    [project, track, t],
   );
 
   const showSavePicker = useCallback(async (filename: string, ext: string): Promise<FileSystemWritableFileStream> => {
@@ -357,7 +357,7 @@ export const Toolbar: React.FC = () => {
             });
           } else {
             try { await writable.abort(); } catch {}
-            throw new Error(finalResult?.error?.message || "Export failed");
+            throw new Error(finalResult?.error?.message || t("export.failed"));
           }
         } else {
           const base = {
@@ -403,11 +403,11 @@ export const Toolbar: React.FC = () => {
         setExportState((prev) => ({
           ...prev,
           isExporting: false,
-          error: error instanceof Error ? error.message : "Export failed",
+          error: error instanceof Error ? error.message : t("export.failed"),
         }));
       }
     },
-    [project, track, runExport, showSavePicker],
+    [project, track, runExport, showSavePicker, t],
   );
 
   const handleCancelExport = useCallback(() => {
@@ -477,7 +477,7 @@ export const Toolbar: React.FC = () => {
         }));
       }
     },
-    [project, track, runExport, showSavePicker],
+    [project, track, runExport, showSavePicker, t],
   );
 
 
@@ -485,8 +485,8 @@ export const Toolbar: React.FC = () => {
     async (screenBlob: Blob, webcamBlob?: Blob) => {
       if (!screenBlob || screenBlob.size === 0) {
         toast.error(
-          "Recording failed",
-          "No video data was captured. Please try again.",
+          t("recording.failed"),
+          t("recording.noVideoData"),
         );
         return;
       }
@@ -506,7 +506,7 @@ export const Toolbar: React.FC = () => {
         importCount++;
       } else {
         errors.push(
-          screenResult.error?.message || "Failed to import screen recording",
+          screenResult.error?.message || t("recording.importScreenFailed"),
         );
       }
 
@@ -519,23 +519,23 @@ export const Toolbar: React.FC = () => {
           importCount++;
         } else {
           errors.push(
-            webcamResult.error?.message || "Failed to import webcam recording",
+            webcamResult.error?.message || t("recording.importWebcamFailed"),
           );
         }
       }
 
       if (importCount > 0) {
         toast.success(
-          `${importCount} recording${importCount > 1 ? "s" : ""} imported!`,
+          t("recording.imported", { count: importCount }),
           webcamBlob && webcamBlob.size > 0
-            ? "Screen and webcam added to assets. Use the timeline to composite them."
-            : "Screen recording added to assets.",
+            ? t("recording.importedScreenAndWebcam")
+            : t("recording.importedScreen"),
         );
       } else if (errors.length > 0) {
-        toast.error("Import failed", errors.join(". "));
+        toast.error(t("recording.importFailed"), errors.join(". "));
       }
     },
-    [importMedia],
+    [importMedia, t],
   );
 
   const projectRes = `${project.settings.width}×${project.settings.height}`;
@@ -553,7 +553,7 @@ export const Toolbar: React.FC = () => {
     {
       label: t("export.mp4Standard"),
       icon: Zap,
-      desc: `${projectRes} H.264 - Web & social`,
+      desc: t("export.descMp4Standard", { resolution: projectRes }),
       type: "mp4",
       recommended: true,
     },
@@ -570,26 +570,26 @@ export const Toolbar: React.FC = () => {
           {
             label: t("export.4kStandard"),
             icon: FileVideo,
-            desc: "3840×2160 - YouTube 4K",
+            desc: t("export.desc4kStandard"),
             type: "4k" as ExportType,
           },
         ]),
     {
       label: t("export.1080pHighQuality"),
       icon: FileVideo,
-      desc: "1920×1080 30fps - High bitrate",
+      desc: t("export.desc1080pHigh"),
       type: "1080p-high",
     },
     {
       label: t("export.1080p60fps"),
       icon: FileVideo,
-      desc: "1920×1080 - Smooth playback",
+      desc: t("export.desc1080p60"),
       type: "1080p-60",
     },
     {
       label: t("export.audioOnly"),
       icon: Music,
-      desc: "Uncompressed audio",
+      desc: t("export.descWav"),
       type: "wav",
     },
   ];
@@ -769,7 +769,7 @@ export const Toolbar: React.FC = () => {
             </button>
           </TooltipTrigger>
           <TooltipContent>
-            <p>Theme: {themeMode}</p>
+            <p>{t("editor.themeMode", { mode: themeMode })}</p>
           </TooltipContent>
         </Tooltip>
 
@@ -970,7 +970,7 @@ export const Toolbar: React.FC = () => {
                           </div>
                           {exportEstimates.get(option.type) && (
                             <div className="text-[10px] text-text-secondary mt-1">
-                              Est. {exportEstimates.get(option.type)?.formatted}
+                              {t("export.estimatedTime", { time: exportEstimates.get(option.type)?.formatted })}
                             </div>
                           )}
                         </div>

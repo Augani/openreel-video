@@ -80,7 +80,7 @@ const StrokeStyleSelector: React.FC<{
                 ? "bg-primary text-white"
                 : "bg-background-tertiary border border-border text-text-secondary hover:text-text-primary"
             }`}
-            title={style.label}
+            title={t(style.label)}
           >
             {style.preview}
           </button>
@@ -111,7 +111,7 @@ const ShapeTypeDisplay: React.FC<{
       </div>
       <div>
         <span className="text-[10px] font-medium text-text-primary capitalize">
-          {shapeType}
+          {t(shapeType)}
         </span>
         <p className="text-[9px] text-text-muted">{t("inspector.shapeClip")}</p>
       </div>

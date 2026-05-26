@@ -5,6 +5,7 @@ import React, {
   useMemo,
   useEffect,
 } from "react";
+import { useTranslation } from "react-i18next";
 import { RotateCcw } from "lucide-react";
 import type { CurvesValues, CurvePoint } from "@openreel/core";
 
@@ -149,6 +150,7 @@ export const CurvesEditor: React.FC<CurvesEditorProps> = ({
   onChange,
   onReset: _onReset,
 }) => {
+  const { t } = useTranslation();
   void _onReset;
   const [activeChannel, setActiveChannel] = useState<keyof CurvesValues>("rgb");
   const [selectedPointIndex, setSelectedPointIndex] = useState<number | null>(
@@ -315,25 +317,25 @@ export const CurvesEditor: React.FC<CurvesEditorProps> = ({
       <div className="flex gap-1 justify-center">
         <ChannelTab
           channel="rgb"
-          label="RGB"
+          label={t('curvesEditor.rgb')}
           isActive={activeChannel === "rgb"}
           onClick={() => setActiveChannel("rgb")}
         />
         <ChannelTab
           channel="red"
-          label="R"
+          label={t('curvesEditor.red')}
           isActive={activeChannel === "red"}
           onClick={() => setActiveChannel("red")}
         />
         <ChannelTab
           channel="green"
-          label="G"
+          label={t('curvesEditor.green')}
           isActive={activeChannel === "green"}
           onClick={() => setActiveChannel("green")}
         />
         <ChannelTab
           channel="blue"
-          label="B"
+          label={t('curvesEditor.blue')}
           isActive={activeChannel === "blue"}
           onClick={() => setActiveChannel("blue")}
         />
@@ -426,20 +428,20 @@ export const CurvesEditor: React.FC<CurvesEditorProps> = ({
       {/* Controls */}
       <div className="flex justify-between items-center">
         <span className="text-[9px] text-text-muted">
-          Click to add point • Double-click to remove
+          {t('curvesEditor.instructions')}
         </span>
         <button
           onClick={handleResetChannel}
           className="flex items-center gap-1 px-2 py-1 text-[10px] text-text-muted hover:text-text-primary transition-colors"
         >
           <RotateCcw size={10} />
-          Reset
+          {t('curvesEditor.reset')}
         </button>
       </div>
 
       {/* Point count indicator */}
       <div className="text-[9px] text-text-muted text-center">
-        {currentPoints.length} points
+        {t('curvesEditor.pointsCount', { count: currentPoints.length })}
       </div>
     </div>
   );

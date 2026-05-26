@@ -14,11 +14,11 @@ export function GrokForm({ value, onChange, onSubmit, isLoading }: Props) {
   return (
     <div className="space-y-4">
       <div className="p-2 rounded-lg bg-blue-500/10 border border-blue-500/30 text-xs text-blue-400">
-        Grok Imagine uses the source image as a reference for style and composition. An optional prompt can guide the transformation.
+        {t("kieAi.grokDescription")}
       </div>
 
       <div className="space-y-1.5">
-        <label className="text-xs font-medium text-text-secondary">Prompt (optional)</label>
+        <label className="text-xs font-medium text-text-secondary">{t("kieAi.promptOptional")}</label>
         <textarea
           value={value.prompt ?? ""}
           onChange={(e) => onChange({ ...value, prompt: e.target.value || undefined })}

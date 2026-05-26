@@ -288,7 +288,7 @@ const PresetCard: React.FC<PresetCardProps> = ({
       </div>
       <div className="p-2 text-left">
         <span className="text-[10px] font-medium text-text-primary block truncate">
-          {preset.name}
+          {t(`inspector.motionPresetName${preset.name.replace(/\s+/g, "")}`)}
         </span>
         <span className="text-[8px] text-text-muted">{preset.duration}s</span>
       </div>
@@ -449,7 +449,7 @@ export const MotionPresetsPanel: React.FC<MotionPresetsPanelProps> = ({
         updateClipKeyframes(targetClipId, allKeyframes);
       }
 
-      toast.success(t("inspector.motionPresetApplied"), `${preset.name} ${t("inspector.addedToClip")}`);
+      toast.success(t("inspector.motionPresetApplied"), `${t(`inspector.motionPresetName${preset.name.replace(/\s+/g, "")}`)} ${t("inspector.addedToClip")}`);
     },
     [
       clip,
@@ -551,7 +551,7 @@ export const MotionPresetsPanel: React.FC<MotionPresetsPanelProps> = ({
                 className="flex items-center gap-1 px-2 py-1 bg-green-500/20 text-green-400 rounded text-[9px] hover:bg-green-500/30"
               >
                 <ArrowRight size={10} />
-                Entry ×
+                {t("transitionInspector.entry")} ×
               </button>
             )}
             {appliedState.exit && (
@@ -560,7 +560,7 @@ export const MotionPresetsPanel: React.FC<MotionPresetsPanelProps> = ({
                 className="flex items-center gap-1 px-2 py-1 bg-red-500/20 text-red-400 rounded text-[9px] hover:bg-red-500/30"
               >
                 <ArrowLeft size={10} />
-                Exit ×
+                {t("transitionInspector.exit")} ×
               </button>
             )}
             {appliedState.emphasis && (
@@ -569,7 +569,7 @@ export const MotionPresetsPanel: React.FC<MotionPresetsPanelProps> = ({
                 className="flex items-center gap-1 px-2 py-1 bg-yellow-500/20 text-yellow-400 rounded text-[9px] hover:bg-yellow-500/30"
               >
                 <Zap size={10} />
-                Emphasis ×
+                {t("inspector.motionEmphasis")} ×
               </button>
             )}
           </div>

@@ -182,6 +182,7 @@ export const ChannelStrip: React.FC<ChannelStripProps> = ({
   onSoloToggle,
   hasSoloedTracks,
 }) => {
+  const { t } = useTranslation();
   const handleVolumeChange = useCallback(
     (volume: number) => {
       onVolumeChange(channel.trackId, volume);
@@ -258,10 +259,10 @@ export const ChannelStrip: React.FC<ChannelStripProps> = ({
      ? "bg-red-600 text-white"
      : "bg-gray-700 text-gray-400 hover:bg-gray-600"
  }`}
-          aria-label={channel.muted ? "Unmute track" : "Mute track"}
+          aria-label={channel.muted ? t("audioMixer.unmuteTrack") : t("audioMixer.muteTrack")}
           aria-pressed={channel.muted}
         >
-          M
+          {t("audioMixer.muteButton")}
         </button>
 
         {/* Solo button */}
@@ -273,10 +274,10 @@ export const ChannelStrip: React.FC<ChannelStripProps> = ({
      ? "bg-yellow-500 text-black"
      : "bg-gray-700 text-gray-400 hover:bg-gray-600"
  }`}
-          aria-label={channel.solo ? "Unsolo track" : "Solo track"}
+          aria-label={channel.solo ? t("audioMixer.unsoloTrack") : t("audioMixer.soloTrack")}
           aria-pressed={channel.solo}
         >
-          S
+          {t("audioMixer.soloButton")}
         </button>
       </div>
     </div>

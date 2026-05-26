@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useMemo, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Layers,
   FolderOpen,
@@ -23,6 +24,7 @@ interface NestedSequenceSectionProps {
 export const NestedSequenceSection: React.FC<NestedSequenceSectionProps> = ({
   clipId,
 }) => {
+  const { t } = useTranslation();
   const getNestedSequenceEngine = useEngineStore(
     (state) => state.getNestedSequenceEngine,
   );
@@ -189,10 +191,10 @@ export const NestedSequenceSection: React.FC<NestedSequenceSectionProps> = ({
         <Layers size={16} className="text-primary" />
         <div className="flex-1">
           <span className="text-[11px] font-medium text-text-primary">
-            Nested Sequences
+            {t("nestedSequence.title")}
           </span>
           <p className="text-[9px] text-text-muted">
-            Create compound clips from selections
+            {t("nestedSequence.description")}
           </p>
         </div>
       </div>
@@ -206,7 +208,7 @@ export const NestedSequenceSection: React.FC<NestedSequenceSectionProps> = ({
             </span>
           </div>
           <div className="flex gap-2 text-[9px] text-text-muted">
-            <span>{currentCompound.content.clips.length} clips</span>
+            <span>{t("nestedSequence.clipCount", { count: currentCompound.content.clips.length })}</span>
             <span>•</span>
             <span>{formatDuration(currentCompound.content.duration)}</span>
           </div>
@@ -216,14 +218,14 @@ export const NestedSequenceSection: React.FC<NestedSequenceSectionProps> = ({
               className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-background-tertiary rounded text-[10px] text-text-secondary hover:text-text-primary transition-colors"
             >
               <Maximize2 size={10} />
-              Flatten
+              {t("nestedSequence.flatten")}
             </button>
             <button
               onClick={() => handleDuplicate(currentCompound.id)}
               className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-background-tertiary rounded text-[10px] text-text-secondary hover:text-text-primary transition-colors"
             >
               <Copy size={10} />
-              Duplicate
+              {t("nestedSequence.duplicate")}
             </button>
           </div>
         </div>
@@ -232,10 +234,10 @@ export const NestedSequenceSection: React.FC<NestedSequenceSectionProps> = ({
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <span className="text-[10px] font-medium text-text-secondary">
-            Create Compound Clip
+            {t("nestedSequence.createCompound")}
           </span>
           <span className="text-[9px] text-text-muted">
-            {selectedClips.length} clips selected
+            {t("nestedSequence.selectedCount", { count: selectedClips.length })}
           </span>
         </div>
         <button
@@ -248,11 +250,11 @@ export const NestedSequenceSection: React.FC<NestedSequenceSectionProps> = ({
           }`}
         >
           <Plus size={14} />
-          Create Compound Clip
+          {t("nestedSequence.createCompound")}
         </button>
         {selectedClips.length < 2 && (
           <p className="text-[9px] text-text-muted text-center">
-            Select 2+ clips to create a compound clip
+            {t("nestedSequence.selectHint")}
           </p>
         )}
       </div>
@@ -260,7 +262,7 @@ export const NestedSequenceSection: React.FC<NestedSequenceSectionProps> = ({
       {allCompoundClips.length > 0 && (
         <div className="space-y-2">
           <span className="text-[10px] font-medium text-text-secondary">
-            Compound Clips Library
+            {t("nestedSequence.library")}
           </span>
           <div className="space-y-1.5">
             {allCompoundClips.map((compound) => {
@@ -309,18 +311,18 @@ export const NestedSequenceSection: React.FC<NestedSequenceSectionProps> = ({
                       </span>
                     )}
                     <span className="text-[9px] text-text-muted">
-                      {instanceCount} instance{instanceCount !== 1 ? "s" : ""}
+                      {t("nestedSequence.instanceCount", { count: instanceCount })}
                     </span>
                   </div>
 
                   {isExpanded && (
                     <div className="px-2 pb-2 space-y-2">
                       <div className="flex gap-2 text-[9px] text-text-muted pl-5">
-                        <span>{compound.content.clips.length} clips</span>
+                        <span>{t("nestedSequence.clipCount", { count: compound.content.clips.length })}</span>
                         <span>•</span>
                         <span>{formatDuration(compound.content.duration)}</span>
                         <span>•</span>
-                        <span>{compound.content.tracks.length} tracks</span>
+                        <span>{t("nestedSequence.trackCount", { count: compound.content.tracks.length })}</span>
                       </div>
 
                       <div className="flex gap-1 pl-5">
@@ -353,7 +355,7 @@ export const NestedSequenceSection: React.FC<NestedSequenceSectionProps> = ({
                                 handleStartRename(compound);
                               }}
                               className="p-1.5 bg-background-secondary rounded text-text-muted hover:text-text-primary transition-colors"
-                              title="Rename"
+                              title={t("nestedSequence.rename")}
                             >
                               <Edit3 size={10} />
                             </button>
@@ -363,7 +365,7 @@ export const NestedSequenceSection: React.FC<NestedSequenceSectionProps> = ({
                                 handleDuplicate(compound.id);
                               }}
                               className="p-1.5 bg-background-secondary rounded text-text-muted hover:text-text-primary transition-colors"
-                              title="Duplicate"
+                              title={t("nestedSequence.duplicate")}
                             >
                               <Copy size={10} />
                             </button>
@@ -380,8 +382,8 @@ export const NestedSequenceSection: React.FC<NestedSequenceSectionProps> = ({
                               }`}
                               title={
                                 instanceCount > 0
-                                  ? "Cannot delete - has instances"
-                                  : "Delete"
+                                  ? t("nestedSequence.cannotDelete")
+                                  : t("nestedSequence.delete")
                               }
                             >
                               <Trash2 size={10} />
@@ -400,7 +402,7 @@ export const NestedSequenceSection: React.FC<NestedSequenceSectionProps> = ({
 
       <div className="pt-2 border-t border-border">
         <p className="text-[9px] text-text-muted text-center">
-          Group clips into reusable compound clips
+          {t("nestedSequence.footerHint")}
         </p>
       </div>
     </div>

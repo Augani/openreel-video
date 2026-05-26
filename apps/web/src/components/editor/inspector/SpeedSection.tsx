@@ -171,7 +171,7 @@ export const SpeedSection: React.FC<SpeedSectionProps> = ({ clip }) => {
                 : "bg-background-tertiary hover:bg-background-elevated text-text-secondary hover:text-text-primary border border-border"
             }`}
           >
-            {preset.label}
+            {t(preset.label)}
           </button>
         ))}
       </div>
