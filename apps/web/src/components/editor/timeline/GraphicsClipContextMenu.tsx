@@ -1,4 +1,5 @@
 import React from "react";
+import { useTranslation } from "react-i18next";
 import {
   Layers,
   Trash2,
@@ -32,6 +33,8 @@ export const GraphicsClipContextMenu: React.FC<GraphicsClipContextMenuProps> = (
   onDelete,
   onDuplicate,
 }) => {
+  const { t } = useTranslation();
+
   const {
     deleteShapeClip,
     deleteSVGClip,
@@ -70,17 +73,17 @@ export const GraphicsClipContextMenu: React.FC<GraphicsClipContextMenuProps> = (
   const getClipTypeLabel = () => {
     switch (clipType) {
       case "shape":
-        return "Shape";
+        return t("graphicsMenu.shape");
       case "svg":
-        return "SVG";
+        return t("graphicsMenu.svg");
       case "sticker":
-        return "Sticker";
+        return t("graphicsMenu.sticker");
       case "emoji":
-        return "Emoji";
+        return t("graphicsMenu.emoji");
       case "text":
-        return "Text";
+        return t("graphicsMenu.text");
       default:
-        return "Graphics";
+        return t("graphicsMenu.graphics");
     }
   };
 
@@ -97,7 +100,7 @@ export const GraphicsClipContextMenu: React.FC<GraphicsClipContextMenuProps> = (
     <ContextMenuContent className="min-w-[200px]">
       <ContextMenuLabel className="flex items-center text-[10px] text-text-muted">
         {getClipTypeIcon()}
-        {getClipTypeLabel()} Clip
+        {getClipTypeLabel()}{t("graphicsMenu.clip")}
       </ContextMenuLabel>
       <ContextMenuSeparator />
 
@@ -105,7 +108,7 @@ export const GraphicsClipContextMenu: React.FC<GraphicsClipContextMenuProps> = (
         <>
           <ContextMenuItem onClick={handleDuplicate}>
             <Layers className="mr-2 h-4 w-4" />
-            Duplicate
+            {t("graphicsMenu.duplicate")}
             <ContextMenuShortcut>⌘D</ContextMenuShortcut>
           </ContextMenuItem>
           <ContextMenuSeparator />
@@ -114,7 +117,7 @@ export const GraphicsClipContextMenu: React.FC<GraphicsClipContextMenuProps> = (
 
       <ContextMenuItem onClick={handleDelete} className="text-red-400">
         <Trash2 className="mr-2 h-4 w-4" />
-        Delete
+        {t("graphicsMenu.delete")}
         <ContextMenuShortcut>⌫</ContextMenuShortcut>
       </ContextMenuItem>
     </ContextMenuContent>

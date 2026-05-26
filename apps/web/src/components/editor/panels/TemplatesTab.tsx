@@ -128,7 +128,7 @@ export const TemplatesTab: React.FC = () => {
                 : "bg-background-tertiary border-border text-text-muted hover:border-primary/50"
             }`}
           >
-            {cat.name}
+            {t(`templates.category.${cat.id}`)}
           </button>
         ))}
       </div>
@@ -158,11 +158,11 @@ export const TemplatesTab: React.FC = () => {
                 )}
               </div>
               <span className="text-[10px] font-medium text-text-primary truncate w-full">
-                {template.name}
+                {t(template.name)}
               </span>
               <div className="flex items-center gap-2 mt-1">
                 <span className="text-[9px] text-text-muted capitalize">
-                  {template.category.replace("-", " ")}
+                  {t(`templates.category.${template.category}`)}
                 </span>
                 <span className="flex items-center gap-0.5 text-[9px] text-text-muted">
                   <Clock size={8} />

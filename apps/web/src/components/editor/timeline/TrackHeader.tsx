@@ -168,7 +168,7 @@ export const TrackHeader: React.FC<TrackHeaderProps> = ({
                     ? "text-red-500 bg-red-500/10"
                     : "text-text-muted hover:bg-background-elevated hover:text-text-primary"
                 }`}
-                title={track.muted ? "Unmute" : "Mute"}
+                title={track.muted ? t("timeline.unmute") : t("timeline.mute")}
               >
                 <Volume2 size={12} />
               </button>
@@ -180,7 +180,7 @@ export const TrackHeader: React.FC<TrackHeaderProps> = ({
                   ? "text-yellow-500 bg-yellow-500/10"
                   : "text-text-muted hover:bg-background-elevated hover:text-text-primary"
               }`}
-              title={track.locked ? "Unlock" : "Lock"}
+              title={track.locked ? t("timeline.unlock") : t("timeline.lock")}
             >
               <Lock size={12} />
             </button>
@@ -201,11 +201,11 @@ export const TrackHeader: React.FC<TrackHeaderProps> = ({
       <ContextMenuContent className="min-w-[160px]">
         <ContextMenuItem onClick={startRename}>
           <Pencil className="mr-2 h-4 w-4" />
-          Rename Track
+          {t("timeline.renameTrack")}
         </ContextMenuItem>
         <ContextMenuItem onClick={handleRemoveGaps} disabled={!hasGaps}>
           <AlignLeft className="mr-2 h-4 w-4" />
-          Remove Gaps
+          {t("timeline.removeGaps")}
         </ContextMenuItem>
         <ContextMenuSeparator />
         <ContextMenuItem
@@ -213,7 +213,7 @@ export const TrackHeader: React.FC<TrackHeaderProps> = ({
           className="text-red-400 focus:text-red-400 hover:text-red-400"
         >
           <Trash2 className="mr-2 h-4 w-4" />
-          Delete Track
+          {t("timeline.deleteTrack")}
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>

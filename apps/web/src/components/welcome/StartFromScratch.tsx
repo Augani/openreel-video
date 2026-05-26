@@ -84,7 +84,7 @@ export const StartFromScratch: React.FC<StartFromScratchProps> = ({
     setIsCreating(true);
 
     const settings = createProjectSettingsFromPreset(preset);
-    createNewProject(projectName.trim() || `${info?.name || "New"} Project`);
+    createNewProject(projectName.trim() || `${t("welcome.newProject")} ${t("welcome.project")}`);
     await updateSettings(settings);
 
     track(AnalyticsEvents.PROJECT_CREATED, {
@@ -143,9 +143,6 @@ export const StartFromScratch: React.FC<StartFromScratchProps> = ({
 
                 <div className="grid grid-cols-2 gap-2">
                   {group.presets.map((presetId) => {
-                    const presetInfo = SOCIAL_MEDIA_CATEGORY_INFO.find(
-                      (c) => c.id === presetId,
-                    );
                     const presetData = SOCIAL_MEDIA_PRESETS[presetId];
                     const isSelected = selectedPreset === presetId;
 
@@ -172,7 +169,7 @@ export const StartFromScratch: React.FC<StartFromScratchProps> = ({
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-xs font-medium text-text-primary truncate">
-                            {presetInfo?.name || presetId}
+                            {t(`welcome.preset.${presetId}`)}
                           </p>
                           <p className="text-[10px] text-text-muted">
                             {presetData.width}×{presetData.height}
@@ -192,18 +189,17 @@ export const StartFromScratch: React.FC<StartFromScratchProps> = ({
         <Info size={16} className="text-primary flex-shrink-0 mt-0.5" />
         <div>
           <p className="text-sm font-medium text-text-primary">
-            {info?.name || selectedPreset} Format
+            {t("welcome.formatInfo", { name: info?.name || selectedPreset })}
           </p>
           <p className="text-xs text-text-muted mt-1">
             {preset.width}×{preset.height}px • {preset.frameRate || 30}fps
-            {preset.maxDuration && ` • Max ${preset.maxDuration}s`}
+            {preset.maxDuration && ` • ${t("welcome.maxDuration", { duration: preset.maxDuration })}`}
             {preset.recommendedDuration &&
-              ` • Recommended ${preset.recommendedDuration}s`}
+              ` • ${t("welcome.recommendedDuration", { duration: preset.recommendedDuration })}`}
           </p>
           {preset.safeZone && (
             <p className="text-xs text-text-muted mt-0.5">
-              Safe zone: {preset.safeZone.top}px top, {preset.safeZone.bottom}px
-              bottom
+              {t("welcome.safeZoneInfo", { top: preset.safeZone.top, bottom: preset.safeZone.bottom })}
             </p>
           )}
         </div>

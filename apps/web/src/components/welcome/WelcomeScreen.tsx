@@ -311,10 +311,10 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ initialTab }) => {
                     </div>
 
                     <h3 className="text-lg font-semibold text-text-primary mb-1">
-                      {option.label}
+                      {t(`welcome.format.${option.id}`)}
                     </h3>
                     <p className="text-sm text-text-muted mb-3">
-                      {option.description}
+                      {t(`welcome.format.${option.id}Desc`)}
                     </p>
                     <span className="text-xs font-mono text-text-muted/70 bg-background-tertiary px-2 py-1 rounded">
                       {option.dimensions}
