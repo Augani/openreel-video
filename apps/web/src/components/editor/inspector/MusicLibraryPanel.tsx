@@ -69,7 +69,7 @@ const SoundCard: React.FC<SoundCardProps> = ({
         </button>
         <div className="flex-1 min-w-0">
           <div className="text-[10px] font-medium text-text-primary truncate">
-            {sound.name}
+            {t(`music.name.${sound.name}`, sound.name)}
           </div>
           <div className="flex items-center gap-2 mt-0.5">
             <div className="flex items-center gap-1 text-[9px] text-text-muted">
@@ -98,7 +98,7 @@ const SoundCard: React.FC<SoundCardProps> = ({
               key={tag}
               className="px-1.5 py-0.5 text-[8px] bg-background-secondary text-text-muted rounded"
             >
-              {tag}
+              {t(`music.tag.${tag}`, tag)}
             </span>
           ))}
         </div>

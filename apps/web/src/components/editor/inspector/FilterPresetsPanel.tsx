@@ -65,7 +65,7 @@ const PresetCard: React.FC<PresetCardProps> = ({
             key={index}
             className="px-1.5 py-0.5 text-[8px] bg-background-secondary rounded text-text-muted"
           >
-            {t(effect.type)}
+            {t(`inspector.${effect.type}`, effect.type)}
           </span>
         ))}
         {preset.effects.length > 3 && (
