@@ -1770,7 +1770,7 @@
     "effectsCount_other": "{{count}} effects",
     "motionTrackingLostFrames": "lost frames",
     "templatesPlaceholderCount": "{{count}} placeholders",
-    "templatesDuration": "{{duration}}",
+    "templatesDuration": "{{duration}}s",
     "templatesMissingRequired": "Missing required: {{placeholders}}"
   },
   "textAnimation": {

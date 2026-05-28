@@ -1772,7 +1772,7 @@
     "motionPresetNameWipeLeft": "左划",
     "motionPresetNameZoomTransition": "缩放过渡",
     "templatesPlaceholderCount": "{{count}} 个占位符",
-    "templatesDuration": "{{duration}}",
+    "templatesDuration": "{{duration}}秒",
     "templatesMissingRequired": "缺少必填项：{{placeholders}}"
   },
   "textAnimation": {
