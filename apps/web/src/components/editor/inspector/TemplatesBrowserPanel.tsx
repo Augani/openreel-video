@@ -403,7 +403,7 @@ export const TemplatesBrowserPanel: React.FC<TemplatesBrowserPanelProps> = ({
               }`}
             >
               <Icon size={12} />
-              {category.name}
+              {t(`inspector.templateCategory_${category.id}`, category.name)}
             </button>
           );
         })}

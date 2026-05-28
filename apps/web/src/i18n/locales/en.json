@@ -1780,7 +1780,15 @@
     "templateName_builtin-youtube-shorts": "YouTube Short",
     "templateName_builtin-quote-card": "Quote Card",
     "templateName_builtin-product-promo": "Product Promo",
-    "templateName_builtin-countdown": "Countdown Timer"
+    "templateName_builtin-countdown": "Countdown Timer",
+    "templateCategory_social-media": "Social Media",
+    "templateCategory_instagram": "Instagram",
+    "templateCategory_business": "Business",
+    "templateCategory_personal": "Personal",
+    "templateCategory_slideshow": "Slideshow",
+    "templateCategory_intro-outro": "Intro / Outro",
+    "templateCategory_lower-third": "Lower Third",
+    "templateCategory_custom": "Custom"
   },
   "textAnimation": {
     "fade": "Fade",
