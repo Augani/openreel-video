@@ -80,7 +80,7 @@ const TemplateCard: React.FC<TemplateCardProps> = ({
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-[11px] font-medium text-text-primary truncate">
-              {template.name}
+              {t(`inspector.templateName_${template.id}`, template.name)}
             </span>
             {template.id.startsWith("builtin-") && (
               <span className="px-1.5 py-0.5 text-[8px] bg-status-info/20 text-status-info rounded shrink-0">

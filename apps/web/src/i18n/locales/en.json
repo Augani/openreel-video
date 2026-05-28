@@ -1771,7 +1771,16 @@
     "motionTrackingLostFrames": "lost frames",
     "templatesPlaceholderCount": "{{count}} placeholders",
     "templatesDuration": "{{duration}}s",
-    "templatesMissingRequired": "Missing required: {{placeholders}}"
+    "templatesMissingRequired": "Missing required: {{placeholders}}",
+    "templateName_builtin-youtube-intro": "YouTube Intro",
+    "templateName_builtin-tiktok-promo": "TikTok Promo",
+    "templateName_builtin-lower-third": "Lower Third",
+    "templateName_builtin-slideshow": "Photo Slideshow",
+    "templateName_builtin-instagram-reel": "Instagram Reel",
+    "templateName_builtin-youtube-shorts": "YouTube Short",
+    "templateName_builtin-quote-card": "Quote Card",
+    "templateName_builtin-product-promo": "Product Promo",
+    "templateName_builtin-countdown": "Countdown Timer"
   },
   "textAnimation": {
     "fade": "Fade",
