@@ -309,7 +309,7 @@ export const MusicLibraryPanel: React.FC = () => {
                   : "bg-background-tertiary text-text-muted hover:text-text-primary"
               }`}
             >
-              {t(genre.name)}
+              {t(`music.genre.${genre.name}`, genre.name)}
             </button>
           ))}
         </div>
@@ -337,7 +337,7 @@ export const MusicLibraryPanel: React.FC = () => {
                   : "bg-background-tertiary text-text-muted hover:text-text-primary"
               }`}
             >
-              {t(cat.name)}
+              {t(`music.sfxCategory.${cat.name}`, cat.name)}
             </button>
           ))}
         </div>
@@ -355,7 +355,7 @@ export const MusicLibraryPanel: React.FC = () => {
                   : "bg-background-secondary text-text-muted hover:text-text-primary"
               }`}
             >
-              {t(mood.name)}
+              {t(`music.mood.${mood.name}`, mood.name)}
             </button>
           ))}
         </div>
