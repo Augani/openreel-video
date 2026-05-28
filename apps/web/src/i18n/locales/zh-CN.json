@@ -2403,7 +2403,9 @@
     "template.End Card": "结尾卡片",
     "template.End CardDesc": "包含名称和行动呼吁的完整结尾卡片。",
     "template.Viewer Count": "观众计数",
-    "template.Viewer CountDesc": "动画观众/点赞计数徽章。"
+    "template.Viewer CountDesc": "动画观众/点赞计数徽章。",
+    "template.Polaroid": "宝丽来相框",
+    "template.PolaroidDesc": "白色边框配合暖调复古色调。"
   },
   "modelPicker": {
     "styleTransfer": "风格和构图转换，可选文本提示引导。",
