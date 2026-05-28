@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Smartphone,
   Monitor,
@@ -60,6 +61,7 @@ const PRESET_ICONS: Record<string, React.ElementType> = {
 export const StartFromScratch: React.FC<StartFromScratchProps> = ({
   onProjectCreated,
 }) => {
+  const { t } = useTranslation();
   const createNewProject = useProjectStore((state) => state.createNewProject);
   const updateSettings = useProjectStore((state) => state.updateSettings);
   const { track } = useAnalytics();
@@ -68,6 +70,13 @@ export const StartFromScratch: React.FC<StartFromScratchProps> = ({
   const [projectName, setProjectName] = useState("");
   const [isCreating, setIsCreating] = useState(false);
 
+  const formatLabels: Record<string, string> = {
+    "Vertical (9:16)": t("welcome.formatVertical"),
+    "Horizontal (16:9)": t("welcome.formatHorizontal"),
+    "Square (1:1)": t("welcome.formatSquare"),
+    "Other": t("welcome.formatOther"),
+  };
+
   const preset = SOCIAL_MEDIA_PRESETS[selectedPreset];
   const info = SOCIAL_MEDIA_CATEGORY_INFO.find((c) => c.id === selectedPreset);
 
@@ -75,7 +84,7 @@ export const StartFromScratch: React.FC<StartFromScratchProps> = ({
     setIsCreating(true);
 
     const settings = createProjectSettingsFromPreset(preset);
-    createNewProject(projectName.trim() || `${info?.name || "New"} Project`);
+    createNewProject(projectName.trim() || `${t("welcome.newProject")} ${t("welcome.project")}`);
     await updateSettings(settings);
 
     track(AnalyticsEvents.PROJECT_CREATED, {
@@ -105,20 +114,20 @@ export const StartFromScratch: React.FC<StartFromScratchProps> = ({
     <div className="space-y-6">
       <div>
         <Label className="text-sm font-medium text-text-primary mb-2 block">
-          Project Name
+          {t("welcome.projectName")}
         </Label>
         <Input
           type="text"
           value={projectName}
           onChange={(e) => setProjectName(e.target.value)}
-          placeholder="My Awesome Video"
+          placeholder={t("welcome.projectNamePlaceholder")}
           className="max-w-md bg-background-tertiary border-border text-text-primary"
         />
       </div>
 
       <div>
         <h3 className="text-sm font-medium text-text-primary mb-4">
-          Select Format
+          {t("welcome.selectFormat")}
         </h3>
 
         <div className="grid md:grid-cols-2 gap-6">
@@ -129,14 +138,11 @@ export const StartFromScratch: React.FC<StartFromScratchProps> = ({
               <div key={group.platform} className="space-y-3">
                 <div className="flex items-center gap-2 text-xs text-text-muted font-medium">
                   <GroupIcon size={14} />
-                  <span>{group.platform}</span>
+                  <span>{formatLabels[group.platform]}</span>
                 </div>
 
                 <div className="grid grid-cols-2 gap-2">
                   {group.presets.map((presetId) => {
-                    const presetInfo = SOCIAL_MEDIA_CATEGORY_INFO.find(
-                      (c) => c.id === presetId,
-                    );
                     const presetData = SOCIAL_MEDIA_PRESETS[presetId];
                     const isSelected = selectedPreset === presetId;
 
@@ -163,7 +169,7 @@ export const StartFromScratch: React.FC<StartFromScratchProps> = ({
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-xs font-medium text-text-primary truncate">
-                            {presetInfo?.name || presetId}
+                            {t(`welcome.preset.${presetId}`)}
                           </p>
                           <p className="text-[10px] text-text-muted">
                             {presetData.width}×{presetData.height}
@@ -183,18 +189,17 @@ export const StartFromScratch: React.FC<StartFromScratchProps> = ({
         <Info size={16} className="text-primary flex-shrink-0 mt-0.5" />
         <div>
           <p className="text-sm font-medium text-text-primary">
-            {info?.name || selectedPreset} Format
+            {t("welcome.formatInfo", { name: info?.name || selectedPreset })}
           </p>
           <p className="text-xs text-text-muted mt-1">
             {preset.width}×{preset.height}px • {preset.frameRate || 30}fps
-            {preset.maxDuration && ` • Max ${preset.maxDuration}s`}
+            {preset.maxDuration && ` • ${t("welcome.maxDuration", { duration: preset.maxDuration })}`}
             {preset.recommendedDuration &&
-              ` • Recommended ${preset.recommendedDuration}s`}
+              ` • ${t("welcome.recommendedDuration", { duration: preset.recommendedDuration })}`}
           </p>
           {preset.safeZone && (
             <p className="text-xs text-text-muted mt-0.5">
-              Safe zone: {preset.safeZone.top}px top, {preset.safeZone.bottom}px
-              bottom
+              {t("welcome.safeZoneInfo", { top: preset.safeZone.top, bottom: preset.safeZone.bottom })}
             </p>
           )}
         </div>
@@ -209,11 +214,11 @@ export const StartFromScratch: React.FC<StartFromScratchProps> = ({
           {isCreating ? (
             <>
               <div className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />
-              Creating...
+              {t("welcome.creating")}
             </>
           ) : (
             <>
-              Create Project
+              {t("welcome.createProject")}
               <ChevronRight size={16} />
             </>
           )}

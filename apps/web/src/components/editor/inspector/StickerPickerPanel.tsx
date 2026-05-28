@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { Smile, Sticker, Search, Plus } from "lucide-react";
 import { Input } from "@openreel/ui";
 import { useProjectStore } from "../../../stores/project-store";
@@ -53,6 +54,7 @@ const StickerCard: React.FC<StickerCardProps> = ({ sticker, onAdd }) => (
 );
 
 export const StickerPickerPanel: React.FC = () => {
+  const { t } = useTranslation();
   const addTrack = useProjectStore((state) => state.addTrack);
   const project = useProjectStore((state) => state.project);
   const createStickerClip = useProjectStore((state) => state.createStickerClip);
@@ -143,10 +145,10 @@ export const StickerPickerPanel: React.FC = () => {
         <Smile size={16} className="text-primary" />
         <div>
           <span className="text-[11px] font-medium text-text-primary">
-            Stickers & Emojis
+            {t("inspector.stickersAndEmojis")}
           </span>
           <p className="text-[9px] text-text-muted">
-            Add fun elements to your video
+            {t("inspector.addFunElements")}
           </p>
         </div>
       </div>
@@ -161,7 +163,7 @@ export const StickerPickerPanel: React.FC = () => {
           }`}
         >
           <Smile size={12} />
-          Emojis
+          {t("inspector.emojis")}
         </button>
         <button
           onClick={() => setActiveTab("stickers")}
@@ -172,7 +174,7 @@ export const StickerPickerPanel: React.FC = () => {
           }`}
         >
           <Sticker size={12} />
-          Stickers
+          {t("inspector.stickers")}
         </button>
       </div>
 
@@ -184,7 +186,7 @@ export const StickerPickerPanel: React.FC = () => {
         <Input
           type="text"
           placeholder={
-            activeTab === "emojis" ? "Search emojis..." : "Search stickers..."
+            activeTab === "emojis" ? t("inspector.searchEmojis") : t("inspector.searchStickers")
           }
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
@@ -240,7 +242,7 @@ export const StickerPickerPanel: React.FC = () => {
                 size={24}
                 className="mx-auto mb-2 text-text-muted opacity-50"
               />
-              <p className="text-[10px] text-text-muted">No emojis found</p>
+              <p className="text-[10px] text-text-muted">{t("inspector.noEmojisFound")}</p>
             </div>
           ) : (
             currentEmojis.map((emoji) => (
@@ -262,9 +264,9 @@ export const StickerPickerPanel: React.FC = () => {
                 size={24}
                 className="mx-auto mb-2 text-text-muted opacity-50"
               />
-              <p className="text-[10px] text-text-muted">No stickers yet</p>
+              <p className="text-[10px] text-text-muted">{t("inspector.noStickersYet")}</p>
               <p className="text-[9px] text-text-muted mt-1">
-                Import custom stickers below
+                {t("inspector.importCustomStickersBelow")}
               </p>
             </div>
           ) : (
@@ -301,14 +303,14 @@ export const StickerPickerPanel: React.FC = () => {
           className="w-full flex items-center justify-center gap-2 py-2 text-[10px] text-text-secondary hover:text-text-primary bg-background-tertiary rounded-lg transition-colors"
         >
           <Plus size={12} />
-          <span>Import Custom Sticker</span>
+          <span>{t("inspector.stickerImportCustom")}</span>
         </button>
       </div>
 
       <p className="text-[9px] text-text-muted text-center">
         {activeTab === "emojis"
-          ? `${stickerLibrary.getAllEmojis().length} emojis available`
-          : `${allStickers.length} stickers available`}
+          ? t("inspector.emojisAvailable", { count: stickerLibrary.getAllEmojis().length })
+          : t("inspector.stickersAvailable", { count: allStickers.length })}
       </p>
     </div>
   );

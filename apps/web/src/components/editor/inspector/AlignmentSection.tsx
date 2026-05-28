@@ -1,4 +1,5 @@
 import React, { useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import {
   AlignHorizontalJustifyStart,
   AlignHorizontalJustifyCenter,
@@ -16,6 +17,7 @@ interface AlignmentSectionProps {
 export const AlignmentSection: React.FC<AlignmentSectionProps> = ({
   clipId,
 }) => {
+  const { t } = useTranslation();
   const { updateClipTransform } = useProjectStore();
 
   const findClipTransform = useCallback(() => {
@@ -52,52 +54,52 @@ export const AlignmentSection: React.FC<AlignmentSectionProps> = ({
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2">
-        <span className="text-[10px] text-text-muted w-16">Horizontal</span>
+        <span className="text-[10px] text-text-muted w-16">{t("inspector.horizontal")}</span>
         <div className="flex gap-1">
           <button
             className={buttonClass}
             onClick={() => handleAlign("x", 0)}
-            title="Align Left"
+            title={t("inspector.alignLeft")}
           >
             <AlignHorizontalJustifyStart size={14} />
           </button>
           <button
             className={buttonClass}
             onClick={() => handleAlign("x", 0.5)}
-            title="Center Horizontally"
+            title={t("inspector.centerHorizontal")}
           >
             <AlignHorizontalJustifyCenter size={14} />
           </button>
           <button
             className={buttonClass}
             onClick={() => handleAlign("x", 1)}
-            title="Align Right"
+            title={t("inspector.alignRight")}
           >
             <AlignHorizontalJustifyEnd size={14} />
           </button>
         </div>
       </div>
       <div className="flex items-center gap-2">
-        <span className="text-[10px] text-text-muted w-16">Vertical</span>
+        <span className="text-[10px] text-text-muted w-16">{t("inspector.vertical")}</span>
         <div className="flex gap-1">
           <button
             className={buttonClass}
             onClick={() => handleAlign("y", 0)}
-            title="Align Top"
+            title={t("inspector.alignTop")}
           >
             <AlignVerticalJustifyStart size={14} />
           </button>
           <button
             className={buttonClass}
             onClick={() => handleAlign("y", 0.5)}
-            title="Center Vertically"
+            title={t("inspector.centerVertical")}
           >
             <AlignVerticalJustifyCenter size={14} />
           </button>
           <button
             className={buttonClass}
             onClick={() => handleAlign("y", 1)}
-            title="Align Bottom"
+            title={t("inspector.alignBottom")}
           >
             <AlignVerticalJustifyEnd size={14} />
           </button>
@@ -106,9 +108,9 @@ export const AlignmentSection: React.FC<AlignmentSectionProps> = ({
       <button
         className="w-full py-1.5 text-[10px] rounded-md bg-background-tertiary border border-border hover:border-primary/50 hover:bg-primary/5 transition-all text-text-secondary hover:text-primary"
         onClick={handleCenterBoth}
-        title="Center on Canvas"
+        title={t("inspector.centerCanvas")}
       >
-        Center on Canvas
+        {t("inspector.centerCanvas")}
       </button>
     </div>
   );

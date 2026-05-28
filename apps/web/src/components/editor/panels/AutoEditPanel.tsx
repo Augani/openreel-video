@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { Music, Zap, Loader2 } from "lucide-react";
 import { Slider } from "@openreel/ui";
 import { useProjectStore } from "../../../stores/project-store";
@@ -17,6 +18,7 @@ interface AutoEditPanelProps {
 }
 
 export const AutoEditPanel: React.FC<AutoEditPanelProps> = ({ onClose }) => {
+  const { t } = useTranslation();
   const project = useProjectStore((s) => s.project);
   const [cutMode, setCutMode] = useState<CutMode>("beats");
   const [sensitivity, setSensitivity] = useState(0.5);
@@ -106,7 +108,7 @@ export const AutoEditPanel: React.FC<AutoEditPanelProps> = ({ onClose }) => {
       setPreview(result);
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Failed to analyze audio",
+        err instanceof Error ? err.message : t("autoEdit.failedToAnalyze"),
       );
     } finally {
       setAnalyzing(false);
@@ -169,7 +171,7 @@ export const AutoEditPanel: React.FC<AutoEditPanelProps> = ({ onClose }) => {
         <div className="flex items-center gap-2">
           <Zap size={14} className="text-primary" />
           <span className="text-[11px] font-medium text-text-primary">
-            Beat-Synced Auto-Edit
+            {t("autoEdit.title")}
           </span>
         </div>
       </div>
@@ -177,13 +179,13 @@ export const AutoEditPanel: React.FC<AutoEditPanelProps> = ({ onClose }) => {
       {audioClips.length === 0 ? (
         <div className="text-center py-6 text-text-muted text-[10px]">
           <Music size={24} className="mx-auto mb-2 opacity-50" />
-          <p>Add an audio track to use auto-edit</p>
+          <p>{t("autoEdit.addAudioTrack")}</p>
         </div>
       ) : (
         <>
           <div className="space-y-2">
             <label className="text-[10px] font-medium text-text-secondary">
-              Audio Source
+              {t("autoEdit.audioSource")}
             </label>
             <select
               value={selectedAudioClipId}
@@ -200,7 +202,7 @@ export const AutoEditPanel: React.FC<AutoEditPanelProps> = ({ onClose }) => {
 
           <div className="space-y-2">
             <label className="text-[10px] font-medium text-text-secondary">
-              Cut Mode
+              {t("autoEdit.cutMode")}
             </label>
             <div className="grid grid-cols-3 gap-1">
               {(["beats", "downbeats", "segments"] as CutMode[]).map((mode) => (
@@ -222,7 +224,7 @@ export const AutoEditPanel: React.FC<AutoEditPanelProps> = ({ onClose }) => {
           <div className="space-y-1.5">
             <div className="flex justify-between">
               <label className="text-[10px] font-medium text-text-secondary">
-                Sensitivity
+                {t("autoEdit.sensitivity")}
               </label>
               <span className="text-[9px] text-text-muted">
                 {Math.round(sensitivity * 100)}%
@@ -240,7 +242,7 @@ export const AutoEditPanel: React.FC<AutoEditPanelProps> = ({ onClose }) => {
           <div className="space-y-1.5">
             <div className="flex justify-between">
               <label className="text-[10px] font-medium text-text-secondary">
-                Min Clip Duration
+                {t("autoEdit.minClipDuration")}
               </label>
               <span className="text-[9px] text-text-muted">
                 {minClipDuration.toFixed(1)}s
@@ -263,12 +265,12 @@ export const AutoEditPanel: React.FC<AutoEditPanelProps> = ({ onClose }) => {
             {analyzing ? (
               <>
                 <Loader2 size={12} className="animate-spin" />
-                Analyzing beats...
+                {t("autoEdit.analyzingBeats")}
               </>
             ) : (
               <>
                 <Zap size={12} />
-                Generate Auto-Edit
+                {t("autoEdit.generateAutoEdit")}
               </>
             )}
           </button>
@@ -280,15 +282,15 @@ export const AutoEditPanel: React.FC<AutoEditPanelProps> = ({ onClose }) => {
           {preview && (
             <div className="space-y-2 p-2.5 bg-background-tertiary rounded-lg border border-border">
               <p className="text-[10px] font-medium text-text-primary">
-                Preview
+                {t("autoEdit.preview")}
               </p>
               <div className="grid grid-cols-2 gap-2 text-[9px]">
                 <div>
-                  <span className="text-text-muted">Cuts: </span>
+                  <span className="text-text-muted">{t("autoEdit.cuts")}: </span>
                   <span className="text-text-primary">{preview.cuts.length}</span>
                 </div>
                 <div>
-                  <span className="text-text-muted">Duration: </span>
+                  <span className="text-text-muted">{t("autoEdit.duration")}: </span>
                   <span className="text-text-primary">
                     {preview.totalDuration.toFixed(1)}s
                   </span>
@@ -298,7 +300,7 @@ export const AutoEditPanel: React.FC<AutoEditPanelProps> = ({ onClose }) => {
                 onClick={handleApply}
                 className="w-full py-2 text-[10px] font-medium bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
               >
-                Apply Auto-Edit
+                {t("autoEdit.applyAutoEdit")}
               </button>
             </div>
           )}

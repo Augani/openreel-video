@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { Keyboard, Search, RotateCcw, ChevronDown } from "lucide-react";
 import {
   Dialog,
@@ -22,6 +23,7 @@ interface KeyboardShortcutsOverlayProps {
 export const KeyboardShortcutsOverlay: React.FC<
   KeyboardShortcutsOverlayProps
 > = ({ isOpen, onClose }) => {
+  const { t } = useTranslation();
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState<
     ShortcutCategory | "all"
@@ -98,7 +100,9 @@ export const KeyboardShortcutsOverlay: React.FC<
 
       if (conflict) {
         alert(
-          `This shortcut conflicts with "${conflict.name}". Choose a different key.`,
+          t("editor.keyboardShortcuts.conflictWarning", {
+            name: conflict.name,
+          }),
         );
         return;
       }
@@ -116,7 +120,7 @@ export const KeyboardShortcutsOverlay: React.FC<
   };
 
   const handleResetAll = () => {
-    if (confirm("Reset all shortcuts to defaults?")) {
+    if (confirm(t("editor.keyboardShortcuts.resetAllConfirm"))) {
       keyboardShortcuts.resetAllShortcuts();
       setShortcuts(keyboardShortcuts.getAllShortcuts());
     }
@@ -141,7 +145,7 @@ export const KeyboardShortcutsOverlay: React.FC<
           <div className="flex items-center gap-3">
             <Keyboard size={20} className="text-primary" />
             <DialogTitle className="text-lg font-bold text-text-primary">
-              Keyboard Shortcuts
+              {t("editor.keyboardShortcuts.title")}
             </DialogTitle>
           </div>
         </DialogHeader>
@@ -156,7 +160,7 @@ export const KeyboardShortcutsOverlay: React.FC<
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search shortcuts..."
+              placeholder={t("editor.keyboardShortcuts.search")}
               className="pl-9 bg-background-tertiary border-border text-text-primary"
             />
           </div>
@@ -167,7 +171,7 @@ export const KeyboardShortcutsOverlay: React.FC<
               className="flex items-center gap-2 px-3 py-2 bg-background-tertiary border border-border rounded-lg text-sm text-text-secondary hover:text-text-primary transition-colors"
             >
               <span>
-                {presets.find((p) => p.id === activePreset)?.name || "Preset"}
+                {presets.find((p) => p.id === activePreset)?.name || t("editor.keyboardShortcuts.preset")}
               </span>
               <ChevronDown size={14} />
             </button>
@@ -198,7 +202,7 @@ export const KeyboardShortcutsOverlay: React.FC<
             className="flex items-center gap-1 px-3 py-2 text-sm text-text-muted hover:text-text-primary transition-colors"
           >
             <RotateCcw size={14} />
-            Reset All
+            {t("editor.keyboardShortcuts.resetAll")}
           </button>
         </div>
 
@@ -211,7 +215,7 @@ export const KeyboardShortcutsOverlay: React.FC<
                 : "text-text-secondary hover:text-text-primary hover:bg-background-tertiary"
             }`}
           >
-            All
+            {t("editor.keyboardShortcuts.all")}
           </button>
           {categories.map((category) => (
             <button
@@ -258,7 +262,7 @@ export const KeyboardShortcutsOverlay: React.FC<
                             onKeyDown={(e) =>
                               handleShortcutCapture(e, shortcut.id)
                             }
-                            placeholder="Press keys..."
+                            placeholder={t("editor.keyboardShortcuts.pressKeys")}
                             className="w-32 px-2 py-1 bg-primary/20 border border-primary rounded text-sm text-center text-text-primary focus:outline-none"
                           />
                         ) : (
@@ -273,7 +277,7 @@ export const KeyboardShortcutsOverlay: React.FC<
                           <button
                             onClick={() => handleResetShortcut(shortcut.id)}
                             className="p-1 text-text-muted hover:text-text-primary opacity-0 group-hover:opacity-100 transition-opacity"
-                            title="Reset to default"
+                            title={t("editor.keyboardShortcuts.resetToDefault")}
                           >
                             <RotateCcw size={12} />
                           </button>
@@ -289,18 +293,18 @@ export const KeyboardShortcutsOverlay: React.FC<
           {filteredShortcuts.length === 0 && (
             <div className="text-center py-8 text-text-muted">
               <Keyboard size={32} className="mx-auto mb-2 opacity-30" />
-              <p className="text-sm">No shortcuts found</p>
+              <p className="text-sm">{t("editor.keyboardShortcuts.noShortcuts")}</p>
             </div>
           )}
         </div>
 
         <div className="p-3 border-t border-border bg-background-tertiary text-center">
           <p className="text-[10px] text-text-muted">
-            Click a shortcut key to customize • Press{" "}
+            {t("editor.keyboardShortcuts.customizeHint")} • Press{" "}
             <kbd className="px-1.5 py-0.5 bg-background-secondary border border-border rounded text-[10px]">
               ?
             </kbd>{" "}
-            to toggle this overlay
+            {t("editor.keyboardShortcuts.toggleOverlay")}
           </p>
         </div>
       </DialogContent>

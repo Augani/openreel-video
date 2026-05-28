@@ -1,4 +1,5 @@
 import React, { useState, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { Sparkles, Play, Check, Loader2 } from "lucide-react";
 import { useProjectStore } from "../../../stores/project-store";
 import { useTimelineStore } from "../../../stores/timeline-store";
@@ -21,6 +22,7 @@ interface HighlightExtractorPanelProps {
 export const HighlightExtractorPanel: React.FC<HighlightExtractorPanelProps> = ({
   clipId,
 }) => {
+  const { t } = useTranslation();
   const [highlights, setHighlights] = useState<HighlightResult[]>([]);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [phase, setPhase] = useState("");
@@ -49,7 +51,7 @@ export const HighlightExtractorPanel: React.FC<HighlightExtractorPanelProps> = (
 
     const mediaItem = getMediaItem(clip.mediaId);
     if (!mediaItem?.blob) {
-      setError("Media not found or not loaded");
+      setError(t("inspector.highlightMediaNotFound"));
       return;
     }
 
@@ -58,7 +60,7 @@ export const HighlightExtractorPanel: React.FC<HighlightExtractorPanelProps> = (
     setHighlights([]);
 
     try {
-      setPhase("Transcribing audio...");
+      setPhase(t("inspector.transcribing"));
       setProgress(5);
 
       const transcriptionService = getTranscriptionService() || initializeTranscriptionService({
@@ -77,10 +79,10 @@ export const HighlightExtractorPanel: React.FC<HighlightExtractorPanelProps> = (
       );
 
       if (transcript.length === 0) {
-        throw new Error("No transcript words found");
+        throw new Error(t("inspector.highlightNoTranscriptWords"));
       }
 
-      setPhase("Decoding audio...");
+      setPhase(t("inspector.decoding"));
       setProgress(25);
 
       const arrayBuffer = await mediaItem.blob.arrayBuffer();
@@ -100,7 +102,7 @@ export const HighlightExtractorPanel: React.FC<HighlightExtractorPanelProps> = (
       setHighlights(results);
       setSelected(new Set(results.map((_, i) => i)));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Analysis failed");
+      setError(err instanceof Error ? err.message : t("inspector.highlightAnalysisFailed"));
     } finally {
       setIsProcessing(false);
       setPhase("");
@@ -137,7 +139,7 @@ export const HighlightExtractorPanel: React.FC<HighlightExtractorPanelProps> = (
     <div className="space-y-3">
       <div className="space-y-2">
         <div className="flex items-center gap-2">
-          <label className="text-[10px] text-text-secondary">Clips</label>
+          <label className="text-[10px] text-text-secondary">{t("inspector.highlightClips")}</label>
           <input
             type="number"
             min={1}
@@ -148,7 +150,7 @@ export const HighlightExtractorPanel: React.FC<HighlightExtractorPanelProps> = (
             }
             className="w-12 px-1 py-0.5 text-[10px] bg-background-secondary border border-border rounded text-text-primary"
           />
-          <label className="text-[10px] text-text-secondary">Max</label>
+          <label className="text-[10px] text-text-secondary">{t("inspector.highlightMax")}</label>
           <input
             type="number"
             min={1}
@@ -175,7 +177,7 @@ export const HighlightExtractorPanel: React.FC<HighlightExtractorPanelProps> = (
           ) : (
             <>
               <Sparkles size={14} />
-              Find Highlights
+              {t("inspector.highlightFindHighlights")}
             </>
           )}
         </button>
@@ -305,7 +307,7 @@ export const HighlightExtractorPanel: React.FC<HighlightExtractorPanelProps> = (
             className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded text-[11px] font-medium transition-colors disabled:opacity-50"
           >
             <Check size={14} />
-            Apply {selected.size} Highlight{selected.size !== 1 ? "s" : ""}
+            {t("inspector.highlightApplyCount", { count: selected.size })}
           </button>
         </div>
       )}

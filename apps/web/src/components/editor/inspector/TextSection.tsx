@@ -1,4 +1,5 @@
 import React, { useCallback, useMemo, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import {
   AlignLeft,
   AlignCenter,
@@ -104,10 +105,11 @@ const FontSelector: React.FC<{
   value: string;
   onChange: (font: string) => void;
 }> = ({ value, onChange }) => {
+  const { t } = useTranslation();
   const customFonts = useCustomFonts();
   return (
     <div className="flex items-center justify-between">
-      <span className="text-[10px] text-text-secondary">Font</span>
+      <span className="text-[10px] text-text-secondary">{t("inspector.fontStyle")}</span>
       <Select value={value} onValueChange={onChange}>
         <SelectTrigger className="max-w-[140px] bg-background-tertiary border-border text-text-primary text-[10px]">
           <SelectValue />
@@ -128,7 +130,7 @@ const FontSelector: React.FC<{
           {customFonts.length > 0 && (
             <SelectGroup>
               <SelectLabel className="text-text-muted text-[10px] font-medium">
-                Custom Uploads
+                {t("inspector.fontCustomUploaded")}
               </SelectLabel>
               {customFonts.map((font) => (
                 <SelectItem key={font} value={font} style={{ fontFamily: font }}>
@@ -153,6 +155,7 @@ interface TextSectionProps {
  * - 15.1: Display text content editor and styling controls
  */
 export const TextSection: React.FC<TextSectionProps> = ({ clipId }) => {
+  const { t } = useTranslation();
   const {
     getTextClip,
     updateTextContent,
@@ -233,22 +236,22 @@ export const TextSection: React.FC<TextSectionProps> = ({ clipId }) => {
 
       const result = await registerCustomFont(file);
       if (!result.success) {
-        toast.error("Font upload failed", result.error ?? "Unknown error.");
+        toast.error(t("inspector.fontUploadFailed"), result.error ?? "Unknown error.");
       } else {
         await handleStyleChange({ fontFamily: result.fontFamily });
-        toast.success("Custom font uploaded", `${result.fontFamily} is ready to use.`);
+        toast.success(t("inspector.fontCustomUploaded"), `${result.fontFamily} is ready to use.`);
       }
 
       event.target.value = "";
     },
-    [handleStyleChange],
+    [handleStyleChange, t],
   );
 
   if (!textClip) {
     return (
       <div className="p-4 text-center">
         <Type size={24} className="mx-auto mb-2 text-text-muted" />
-        <p className="text-[10px] text-text-muted">No text clip selected</p>
+        <p className="text-[10px] text-text-muted">{t("inspector.noTextClipSelected")}</p>
       </div>
     );
   }
@@ -256,11 +259,11 @@ export const TextSection: React.FC<TextSectionProps> = ({ clipId }) => {
   return (
     <div className="space-y-4">
       <div className="space-y-2">
-        <span className="text-[10px] text-text-secondary">Text Content</span>
+        <span className="text-[10px] text-text-secondary">{t("inspector.textContent")}</span>
         <textarea
           value={text}
           onChange={(e) => handleTextChange(e.target.value)}
-          placeholder="Enter text..."
+          placeholder={t("inspector.enterText")}
           className="w-full h-20 px-3 py-2 text-sm text-text-primary bg-background-tertiary border border-border rounded-lg resize-none outline-none focus:border-primary"
           style={{ fontFamily: style.fontFamily }}
         />
@@ -283,10 +286,10 @@ export const TextSection: React.FC<TextSectionProps> = ({ clipId }) => {
           className="w-full py-1.5 px-2 bg-background-secondary border border-border rounded text-[10px] text-text-secondary hover:text-text-primary transition-colors flex items-center justify-center gap-1.5"
         >
           <Upload size={11} />
-          Upload Custom Font
+          {t("inspector.uploadCustomFont")}
         </button>
         <NumberInput
-          label="Size"
+          label={t("inspector.size")}
           value={style.fontSize}
           onChange={(fontSize) => handleStyleChange({ fontSize })}
           min={8}
@@ -294,7 +297,7 @@ export const TextSection: React.FC<TextSectionProps> = ({ clipId }) => {
           unit="px"
         />
         <div className="flex items-center justify-between">
-          <span className="text-[10px] text-text-secondary">Style</span>
+          <span className="text-[10px] text-text-secondary">{t("inspector.fontStyle")}</span>
           <div className="flex gap-1">
             <button
               onClick={() =>
@@ -307,7 +310,7 @@ export const TextSection: React.FC<TextSectionProps> = ({ clipId }) => {
                   ? "bg-primary text-white"
                   : "bg-background-secondary border border-border text-text-secondary hover:text-text-primary"
               }`}
-              title="Bold"
+              title={t("inspector.bold")}
             >
               <Bold size={12} />
             </button>
@@ -322,7 +325,7 @@ export const TextSection: React.FC<TextSectionProps> = ({ clipId }) => {
                   ? "bg-primary text-white"
                   : "bg-background-secondary border border-border text-text-secondary hover:text-text-primary"
               }`}
-              title="Italic"
+              title={t("inspector.italic")}
             >
               <Italic size={12} />
             </button>
@@ -338,7 +341,7 @@ export const TextSection: React.FC<TextSectionProps> = ({ clipId }) => {
                   ? "bg-primary text-white"
                   : "bg-background-secondary border border-border text-text-secondary hover:text-text-primary"
               }`}
-              title="Underline"
+              title={t("inspector.underline")}
             >
               <Underline size={12} />
             </button>
@@ -347,16 +350,16 @@ export const TextSection: React.FC<TextSectionProps> = ({ clipId }) => {
       </div>
 
       <div className="flex items-center justify-between">
-        <span className="text-[10px] text-text-secondary">Text Align</span>
+        <span className="text-[10px] text-text-secondary">{t("inspector.textAlign")}</span>
         <ToggleButtonGroup
           options={[
-            { value: "left", icon: <AlignLeft size={12} />, label: "Left" },
+            { value: "left", icon: <AlignLeft size={12} />, label: t("inspector.textAlignLeft") },
             {
               value: "center",
               icon: <AlignCenter size={12} />,
-              label: "Center",
+              label: t("inspector.textAlignCenter"),
             },
-            { value: "right", icon: <AlignRight size={12} />, label: "Right" },
+            { value: "right", icon: <AlignRight size={12} />, label: t("inspector.textAlignRight") },
           ]}
           value={style.textAlign}
           onChange={(textAlign) =>
@@ -369,29 +372,29 @@ export const TextSection: React.FC<TextSectionProps> = ({ clipId }) => {
 
       <div className="space-y-2 p-3 bg-background-tertiary rounded-lg">
         <span className="text-[10px] text-text-secondary font-medium">
-          Position on Canvas
+          {t("inspector.positionOnCanvas")}
         </span>
         <div className="flex items-center justify-between">
-          <span className="text-[10px] text-text-muted">Align to Canvas</span>
+          <span className="text-[10px] text-text-muted">{t("inspector.alignToCanvas")}</span>
           <div className="flex gap-1">
             <button
               onClick={handleCenterHorizontal}
               className="p-1.5 rounded bg-background-secondary border border-border text-text-secondary hover:text-text-primary transition-colors"
-              title="Center Horizontally"
+              title={t("inspector.centerHorizontally")}
             >
               <AlignHorizontalJustifyCenter size={12} />
             </button>
             <button
               onClick={handleCenterVertical}
               className="p-1.5 rounded bg-background-secondary border border-border text-text-secondary hover:text-text-primary transition-colors"
-              title="Center Vertically"
+              title={t("inspector.centerVertically")}
             >
               <AlignVerticalJustifyCenter size={12} />
             </button>
             <button
               onClick={handleCenterBoth}
               className="p-1.5 rounded bg-primary text-white transition-colors"
-              title="Center Both"
+              title={t("inspector.centerBoth")}
             >
               <Crosshair size={12} />
             </button>
@@ -401,12 +404,12 @@ export const TextSection: React.FC<TextSectionProps> = ({ clipId }) => {
 
       <div className="space-y-2 p-3 bg-background-tertiary rounded-lg">
         <ColorField
-          label="Text Color"
+          label={t("inspector.textColor")}
           value={style.color}
           onChange={(color) => handleStyleChange({ color })}
         />
         <ColorField
-          label="Background"
+          label={t("inspector.background")}
           value={style.backgroundColor || "transparent"}
           onChange={(backgroundColor) => handleStyleChange({ backgroundColor })}
           showAlpha
@@ -416,15 +419,15 @@ export const TextSection: React.FC<TextSectionProps> = ({ clipId }) => {
 
       <div className="space-y-2 p-3 bg-background-tertiary rounded-lg">
         <span className="text-[10px] text-text-secondary font-medium">
-          Stroke
+          {t("inspector.stroke")}
         </span>
         <ColorField
-          label="Color"
+          label={t("inspector.color")}
           value={style.strokeColor || "#000000"}
           onChange={(strokeColor) => handleStyleChange({ strokeColor })}
         />
         <NumberInput
-          label="Width"
+          label={t("inspector.width")}
           value={style.strokeWidth || 0}
           onChange={(strokeWidth) => handleStyleChange({ strokeWidth })}
           min={0}
@@ -435,16 +438,16 @@ export const TextSection: React.FC<TextSectionProps> = ({ clipId }) => {
 
       <div className="space-y-2 p-3 bg-background-tertiary rounded-lg">
         <span className="text-[10px] text-text-secondary font-medium">
-          Shadow
+          {t("inspector.shadow")}
         </span>
         <ColorField
-          label="Color"
+          label={t("inspector.color")}
           value={style.shadowColor || "#000000"}
           onChange={(shadowColor) => handleStyleChange({ shadowColor })}
           showAlpha
         />
         <NumberInput
-          label="Offset X"
+          label={t("inspector.offsetX")}
           value={style.shadowOffsetX || 0}
           onChange={(shadowOffsetX) => handleStyleChange({ shadowOffsetX })}
           min={-50}
@@ -452,7 +455,7 @@ export const TextSection: React.FC<TextSectionProps> = ({ clipId }) => {
           unit="px"
         />
         <NumberInput
-          label="Offset Y"
+          label={t("inspector.offsetY")}
           value={style.shadowOffsetY || 0}
           onChange={(shadowOffsetY) => handleStyleChange({ shadowOffsetY })}
           min={-50}
@@ -460,7 +463,7 @@ export const TextSection: React.FC<TextSectionProps> = ({ clipId }) => {
           unit="px"
         />
         <NumberInput
-          label="Blur"
+          label={t("inspector.blur")}
           value={style.shadowBlur || 0}
           onChange={(shadowBlur) => handleStyleChange({ shadowBlur })}
           min={0}
@@ -471,7 +474,7 @@ export const TextSection: React.FC<TextSectionProps> = ({ clipId }) => {
 
       <div className="space-y-2 p-3 bg-background-tertiary rounded-lg">
         <NumberInput
-          label="Line Height"
+          label={t("inspector.lineHeight")}
           value={style.lineHeight || 1.2}
           onChange={(lineHeight) => handleStyleChange({ lineHeight })}
           min={0.5}
@@ -479,7 +482,7 @@ export const TextSection: React.FC<TextSectionProps> = ({ clipId }) => {
           step={0.1}
         />
         <NumberInput
-          label="Letter Spacing"
+          label={t("inspector.letterSpacing")}
           value={style.letterSpacing || 0}
           onChange={(letterSpacing) => handleStyleChange({ letterSpacing })}
           min={-10}

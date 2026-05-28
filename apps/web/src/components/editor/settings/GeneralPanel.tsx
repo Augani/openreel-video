@@ -3,27 +3,33 @@ import { Switch } from "@openreel/ui";
 import { Label } from "@openreel/ui";
 import { useSettingsStore, SERVICE_REGISTRY, type TtsProvider, type LlmProvider, type AggregatorProvider } from "../../../stores/settings-store";
 import { useProjectStore } from "../../../stores/project-store";
+import { useTranslation } from "react-i18next";
+import i18n from "../../../i18n";
+import { SUPPORTED_LANGUAGES } from "../../../i18n";
 
-const ASPECT_PRESETS: Array<{ label: string; width: number; height: number }> = [
-  { label: "16:9 Landscape (1080p)", width: 1920, height: 1080 },
-  { label: "9:16 Vertical (TikTok/Reels)", width: 1080, height: 1920 },
-  { label: "1:1 Square", width: 1080, height: 1080 },
-  { label: "4:5 Portrait", width: 1080, height: 1350 },
-  { label: "4:3 Standard", width: 1440, height: 1080 },
-  { label: "21:9 Cinematic", width: 2560, height: 1080 },
-  { label: "4K Landscape", width: 3840, height: 2160 },
+const ASPECT_PRESETS = [
+  { label: i18n.t("settings.asp16x9"), width: 1920, height: 1080 },
+  { label: i18n.t("settings.asp9x16"), width: 1080, height: 1920 },
+  { label: i18n.t("settings.asp1x1"), width: 1080, height: 1080 },
+  { label: i18n.t("settings.asp4x5"), width: 1080, height: 1350 },
+  { label: i18n.t("settings.asp4x3"), width: 1440, height: 1080 },
+  { label: i18n.t("settings.asp21x9"), width: 2560, height: 1080 },
+  { label: i18n.t("settings.asp4k"), width: 3840, height: 2160 },
 ];
 
 export const GeneralPanel: React.FC = () => {
+  const { t } = useTranslation();
   const {
     autoSave,
     autoSaveInterval,
+    language,
     defaultTtsProvider,
     defaultLlmProvider,
     defaultAggregator,
     configuredServices,
     setAutoSave,
     setAutoSaveInterval,
+    setLanguage,
     setDefaultTtsProvider,
     setDefaultLlmProvider,
     setDefaultAggregator,
@@ -85,11 +91,10 @@ export const GeneralPanel: React.FC = () => {
       <div className="space-y-4">
         <div>
           <h3 className="text-sm font-medium text-text-primary">
-            Project Composition
+            {t("settings.projectComposition")}
           </h3>
           <p className="text-xs text-text-muted mt-0.5">
-            Set the canvas dimensions for your project. Pick a preset for TikTok,
-            Reels, YouTube, or enter custom values.
+            {t("settings.projectCompDesc")}
           </p>
         </div>
 
@@ -118,7 +123,7 @@ export const GeneralPanel: React.FC = () => {
 
         <div className="flex items-end gap-2">
           <div className="flex-1">
-            <Label className="text-xs text-text-secondary">Width</Label>
+            <Label className="text-xs text-text-secondary">{t("settings.width")}</Label>
             <input
               type="number"
               min={16}
@@ -129,7 +134,7 @@ export const GeneralPanel: React.FC = () => {
             />
           </div>
           <div className="flex-1">
-            <Label className="text-xs text-text-secondary">Height</Label>
+            <Label className="text-xs text-text-secondary">{t("settings.height")}</Label>
             <input
               type="number"
               min={16}
@@ -143,7 +148,7 @@ export const GeneralPanel: React.FC = () => {
             onClick={handleApplyCustom}
             className="h-9 px-3 rounded-md bg-primary text-white text-xs font-medium hover:bg-primary/90 transition-colors"
           >
-            Apply
+            {t("settings.apply")}
           </button>
         </div>
       </div>
@@ -152,13 +157,13 @@ export const GeneralPanel: React.FC = () => {
 
       {/* Auto-save */}
       <div className="space-y-4">
-        <h3 className="text-sm font-medium text-text-primary">Auto-Save</h3>
+        <h3 className="text-sm font-medium text-text-primary">{t("settings.autoSave")}</h3>
 
         <div className="flex items-center justify-between">
           <div>
-            <Label className="text-sm text-text-secondary">Enable auto-save</Label>
+            <Label className="text-sm text-text-secondary">{t("settings.enableAutoSave")}</Label>
             <p className="text-xs text-text-muted mt-0.5">
-              Automatically save your project at regular intervals
+              {t("settings.autoSaveDesc")}
             </p>
           </div>
           <Switch checked={autoSave} onCheckedChange={setAutoSave} />
@@ -167,19 +172,19 @@ export const GeneralPanel: React.FC = () => {
         {autoSave && (
           <div className="flex items-center gap-3">
             <Label className="text-sm text-text-secondary whitespace-nowrap">
-              Save every
+              {t("settings.saveEvery")}
             </Label>
             <select
               value={autoSaveInterval}
               onChange={(e) => setAutoSaveInterval(Number(e.target.value))}
               className="h-9 rounded-md border border-input bg-background px-3 text-sm"
             >
-              <option value={1}>1 minute</option>
-              <option value={2}>2 minutes</option>
-              <option value={5}>5 minutes</option>
-              <option value={10}>10 minutes</option>
-              <option value={15}>15 minutes</option>
-              <option value={30}>30 minutes</option>
+              <option value={1}>{t("settings.1minute")}</option>
+              <option value={2}>{t("settings.2minutes")}</option>
+              <option value={5}>{t("settings.5minutes")}</option>
+              <option value={10}>{t("settings.10minutes")}</option>
+              <option value={15}>{t("settings.15minutes")}</option>
+              <option value={30}>{t("settings.30minutes")}</option>
             </select>
           </div>
         )}
@@ -187,20 +192,55 @@ export const GeneralPanel: React.FC = () => {
 
       <div className="h-px bg-border" />
 
+      {/* Language */}
+      <div className="space-y-4">
+        <div>
+          <h3 className="text-sm font-medium text-text-primary">
+            {t("settings.language")}
+          </h3>
+          <p className="text-xs text-text-muted mt-0.5">
+            {t("settings.languageDesc")}
+          </p>
+        </div>
+
+        <div className="flex items-center justify-between">
+          <Label className="text-sm text-text-secondary">
+            {t("settings.displayLanguage")}
+          </Label>
+          <select
+            value={language}
+            onChange={(e) => {
+              setLanguage(e.target.value);
+              import("../../../i18n").then(({ default: i18n }) => {
+                i18n.changeLanguage(e.target.value);
+              });
+            }}
+            className="h-9 rounded-md border border-input bg-background px-3 text-sm min-w-[140px]"
+          >
+            {Object.entries(SUPPORTED_LANGUAGES).map(([code, info]) => (
+              <option key={code} value={code}>
+                {info.nativeLabel}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <div className="h-px bg-border" />
+
       {/* Default providers */}
       <div className="space-y-4">
         <h3 className="text-sm font-medium text-text-primary">
-          Default AI Providers
+          {t("settings.defaultAIProviders")}
         </h3>
         <p className="text-xs text-text-muted">
-          Choose which service to use by default for AI features.
-          Configure API keys in the &quot;API Keys&quot; tab first.
+          {t("settings.aiProvidersDesc")}
         </p>
 
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <Label className="text-sm text-text-secondary">
-              Text to Speech/Voice To Speech/Sound Effects
+              {t("settings.ttsProvider")}
             </Label>
             <select
               value={defaultTtsProvider}
@@ -217,7 +257,7 @@ export const GeneralPanel: React.FC = () => {
 
           <div className="flex items-center justify-between">
             <Label className="text-sm text-text-secondary">
-              AI Assistant (LLM)
+              {t("settings.llmProvider")}
             </Label>
             <select
               value={defaultLlmProvider}
@@ -235,11 +275,11 @@ export const GeneralPanel: React.FC = () => {
           <div className="flex items-center justify-between">
             <div>
               <Label className="text-sm text-text-secondary">
-                AI Aggregator
-              </Label>
-              <p className="text-xs text-text-muted mt-0.5">
-                Video/image generation, upscaling, and creative AI tools
-              </p>
+              {t("settings.aggregatorProvider")}
+            </Label>
+            <p className="text-xs text-text-muted mt-0.5">
+              {t("settings.aggregatorDesc")}
+            </p>
             </div>
             <select
               value={defaultAggregator}

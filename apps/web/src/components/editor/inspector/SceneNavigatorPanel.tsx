@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Film,
   ChevronLeft,
@@ -25,6 +26,7 @@ interface SceneNavigatorPanelProps {
 export const SceneNavigatorPanel: React.FC<SceneNavigatorPanelProps> = ({
   variant = "vertical",
 }) => {
+  const { t } = useTranslation();
   const { project, addMarker } = useProjectStore();
   const markers = project.timeline.markers;
   const duration = project.timeline.duration;
@@ -36,7 +38,7 @@ export const SceneNavigatorPanel: React.FC<SceneNavigatorPanelProps> = ({
       return [
         {
           id: "default",
-          label: "Full Timeline",
+          label: t("inspector.sceneNavigatorFullTimeline"),
           startTime: 0,
           endTime: duration,
           color: "#6366f1",
@@ -63,7 +65,7 @@ export const SceneNavigatorPanel: React.FC<SceneNavigatorPanelProps> = ({
     if (sortedMarkers[0]?.time > 0) {
       sceneList.unshift({
         id: "intro",
-        label: "Intro",
+        label: t("inspector.intro"),
         startTime: 0,
         endTime: sortedMarkers[0].time,
         color: "#6366f1",
@@ -100,7 +102,7 @@ export const SceneNavigatorPanel: React.FC<SceneNavigatorPanelProps> = ({
   const handleAddScene = useCallback(() => {
     const bridge = getPlaybackBridge();
     const currentTime = bridge.getCurrentTime();
-    addMarker(currentTime, `Scene ${markers.length + 1}`, "#10b981");
+    addMarker(currentTime, `${t("inspector.sceneNavigatorScene")} ${markers.length + 1}`, "#10b981");
   }, [addMarker, markers.length]);
 
   const formatTime = (seconds: number): string => {
@@ -127,7 +129,7 @@ export const SceneNavigatorPanel: React.FC<SceneNavigatorPanelProps> = ({
         <div className="flex items-center gap-1.5 px-2 py-1 bg-background-tertiary rounded">
           <Film size={14} className="text-primary" />
           <span className="text-[11px] font-medium text-text-primary">
-            {currentScene?.label || "Scene"}
+            {currentScene?.label || t("inspector.scene")}
           </span>
           <span className="text-[10px] text-text-muted">
             {currentSceneIndex + 1}/{scenes.length}
@@ -152,7 +154,7 @@ export const SceneNavigatorPanel: React.FC<SceneNavigatorPanelProps> = ({
           <div className="flex items-center gap-2">
             <Film size={14} className="text-primary" />
             <span className="text-[11px] font-medium text-text-primary">
-              Scenes
+              {t("inspector.scenes")}
             </span>
             <span className="text-[10px] text-text-muted">
               ({scenes.length})
@@ -163,7 +165,7 @@ export const SceneNavigatorPanel: React.FC<SceneNavigatorPanelProps> = ({
             className="flex items-center gap-1 px-2 py-1 bg-primary hover:bg-primary/80 text-white rounded text-[10px] font-medium transition-colors"
           >
             <Plus size={10} />
-            Add
+            {t("inspector.add")}
           </button>
         </div>
 
@@ -219,21 +221,24 @@ export const SceneNavigatorPanel: React.FC<SceneNavigatorPanelProps> = ({
       <div className="flex items-center gap-2 p-2 bg-gradient-to-r from-indigo-500/20 to-violet-500/20 rounded-lg border border-indigo-500/30">
         <Layers size={16} className="text-indigo-400" />
         <div>
-          <span className="text-[11px] font-medium text-text-primary">
-            Scene Navigator
-          </span>
-          <p className="text-[9px] text-text-muted">
-            Navigate between sections
-          </p>
+            <span className="text-[11px] font-medium text-text-primary">
+              {t("inspector.sceneNavigator")}
+            </span>
+            <p className="text-[9px] text-text-muted">
+              {t("inspector.navigateBetweenSections")}
+            </p>
         </div>
       </div>
 
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Film size={14} className="text-text-secondary" />
-          <span className="text-[11px] font-medium text-text-primary">
-            Scenes
-          </span>
+            <span className="text-[11px] font-medium text-text-primary">
+              {t("inspector.scenes")}
+            </span>
+            <span className="text-[10px] text-text-muted">
+              ({scenes.length})
+            </span>
           <span className="text-[10px] text-text-muted bg-background-tertiary px-1.5 py-0.5 rounded">
             {scenes.length}
           </span>
@@ -243,7 +248,7 @@ export const SceneNavigatorPanel: React.FC<SceneNavigatorPanelProps> = ({
           className="flex items-center gap-1 px-2 py-1 bg-primary hover:bg-primary/80 text-white rounded text-[10px] font-medium transition-colors"
         >
           <Plus size={10} />
-          Add Scene
+          {t("inspector.addScene")}
         </button>
       </div>
 
@@ -314,17 +319,17 @@ export const SceneNavigatorPanel: React.FC<SceneNavigatorPanelProps> = ({
           className="flex items-center gap-1 text-[10px] text-text-muted hover:text-text-primary disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
         >
           <ChevronLeft size={12} />
-          Previous
+          {t("inspector.previous")}
         </button>
         <span className="text-[9px] text-text-muted">
-          Scene {currentSceneIndex + 1} of {scenes.length}
+          {t("inspector.sceneOfTotal", { current: currentSceneIndex + 1, total: scenes.length })}
         </span>
         <button
           onClick={handleNext}
           disabled={currentSceneIndex === scenes.length - 1}
           className="flex items-center gap-1 text-[10px] text-text-muted hover:text-text-primary disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
         >
-          Next
+          {t("inspector.next")}
           <ChevronRight size={12} />
         </button>
       </div>

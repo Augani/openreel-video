@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   ArrowRight,
   ArrowLeft,
@@ -26,6 +27,7 @@ const DirectionSelector: React.FC<{
   onChange: (direction: string) => void;
   options?: string[];
 }> = ({ value, onChange, options = ["left", "right", "up", "down"] }) => {
+  const { t } = useTranslation();
   const directionIcons: Record<string, React.ReactNode> = {
     left: <ArrowLeft size={14} />,
     right: <ArrowRight size={14} />,
@@ -35,7 +37,7 @@ const DirectionSelector: React.FC<{
 
   return (
     <div className="space-y-1">
-      <span className="text-[10px] text-text-secondary">Direction</span>
+      <span className="text-[10px] text-text-secondary">{t("transitionInspector.direction")}</span>
       <div className="grid grid-cols-4 gap-1">
         {options.map((dir) => (
           <button
@@ -244,6 +246,7 @@ export const TransitionInspector: React.FC<TransitionInspectorProps> = ({
   onTransitionUpdate,
   onTransitionRemove,
 }) => {
+  const { t } = useTranslation();
   const bridge = getTransitionBridge();
   const transitionTypes = useMemo(
     () => bridge.getAvailableTransitionTypes(),
@@ -331,26 +334,26 @@ export const TransitionInspector: React.FC<TransitionInspectorProps> = ({
       if (newTransition) {
         onTransitionCreate?.(newTransition);
         toast.success(
-          "Transition Applied",
-          `${selectedType} transition added (${duration}s)`,
+          t("transitionInspector.transitionApplied"),
+          t("transitionInspector.transitionAdded", { type: selectedType, duration }),
         );
       }
     } else {
       toast.error(
-        "Transition Failed",
-        result.error || "Could not apply transition",
+        t("transitionInspector.transitionFailed"),
+        result.error || t("transitionInspector.couldNotApply"),
       );
     }
-  }, [clipA, clipB, selectedType, duration, params, onTransitionCreate]);
+  }, [clipA, clipB, selectedType, duration, params, onTransitionCreate, t]);
 
   // Handle remove transition
   const handleRemove = useCallback(() => {
     if (transition) {
       bridge.removeTransition(transition.id);
       onTransitionRemove?.(transition.id);
-      toast.success("Transition Removed");
+      toast.success(t("transitionInspector.transitionRemoved"));
     }
-  }, [transition, onTransitionRemove]);
+  }, [transition, onTransitionRemove, t]);
 
   // Render type-specific parameters
   const renderTypeParams = () => {
@@ -364,7 +367,7 @@ export const TransitionInspector: React.FC<TransitionInspectorProps> = ({
               options={["left", "right", "up", "down"]}
             />
             <TransitionSlider
-              label="Softness"
+              label={t("transitionInspector.softness")}
               value={((params.softness as number) || 0) * 100}
               onChange={(v) => handleParamChange("softness", v / 100)}
               min={0}
@@ -382,7 +385,7 @@ export const TransitionInspector: React.FC<TransitionInspectorProps> = ({
               onChange={(dir) => handleParamChange("direction", dir)}
             />
             <Toggle
-              label="Push Out"
+              label={t("transitionInspector.pushOut")}
               value={(params.pushOut as boolean) || false}
               onChange={(v) => handleParamChange("pushOut", v)}
             />
@@ -400,7 +403,7 @@ export const TransitionInspector: React.FC<TransitionInspectorProps> = ({
       case "zoom":
         return (
           <TransitionSlider
-            label="Scale"
+            label={t("transitionInspector.scale")}
             value={(params.scale as number) || 2}
             onChange={(v) => handleParamChange("scale", v)}
             min={1.1}
@@ -414,7 +417,7 @@ export const TransitionInspector: React.FC<TransitionInspectorProps> = ({
       case "dipToWhite":
         return (
           <TransitionSlider
-            label="Hold Duration"
+            label={t("transitionInspector.holdDuration")}
             value={(params.holdDuration as number) || 0.1}
             onChange={(v) => handleParamChange("holdDuration", v)}
             min={0}
@@ -430,21 +433,21 @@ export const TransitionInspector: React.FC<TransitionInspectorProps> = ({
     }
   };
 
-  const selectedTypeInfo = transitionTypes.find((t) => t.type === selectedType);
+  const selectedTypeInfo = transitionTypes.find((ti) => ti.type === selectedType);
 
   return (
     <div className="space-y-4">
       {/* Clip Info */}
       <div className="flex items-center gap-2 p-2 bg-background-tertiary rounded-lg border border-border">
         <div className="flex-1 text-center">
-          <p className="text-[9px] text-text-muted">From</p>
+          <p className="text-[9px] text-text-muted">{t("transitionInspector.from")}</p>
           <p className="text-[10px] text-text-primary truncate">
             {clipA.id.substring(0, 12)}...
           </p>
         </div>
         <ArrowRight size={14} className="text-text-muted" />
         <div className="flex-1 text-center">
-          <p className="text-[9px] text-text-muted">To</p>
+          <p className="text-[9px] text-text-muted">{t("transitionInspector.to")}</p>
           <p className="text-[10px] text-text-primary truncate">
             {clipB.id.substring(0, 12)}...
           </p>
@@ -461,7 +464,7 @@ export const TransitionInspector: React.FC<TransitionInspectorProps> = ({
       {/* Transition Type Selector */}
       <div className="space-y-2">
         <span className="text-[10px] text-text-secondary font-medium">
-          Transition Type
+          {t("transitionInspector.transitionType")}
         </span>
         <div className="grid grid-cols-2 gap-2">
           {transitionTypes.map((typeInfo) => (
@@ -477,7 +480,7 @@ export const TransitionInspector: React.FC<TransitionInspectorProps> = ({
 
       {/* Duration Slider */}
       <TransitionSlider
-        label="Duration"
+        label={t("transitionInspector.duration")}
         value={duration}
         onChange={handleDurationChange}
         min={0.1}
@@ -490,7 +493,7 @@ export const TransitionInspector: React.FC<TransitionInspectorProps> = ({
       {selectedTypeInfo?.hasCustomParams && (
         <div className="space-y-3 pt-2 border-t border-border">
           <span className="text-[10px] text-text-secondary font-medium">
-            Parameters
+            {t("transitionInspector.parameters")}
           </span>
           {renderTypeParams()}
         </div>
@@ -504,7 +507,7 @@ export const TransitionInspector: React.FC<TransitionInspectorProps> = ({
             className="flex-1 py-2 bg-red-500/10 border border-red-500/30 rounded-lg text-[10px] text-red-400 hover:bg-red-500/20 transition-colors flex items-center justify-center gap-1"
           >
             <X size={12} />
-            Remove Transition
+            {t("transitionInspector.removeTransition")}
           </button>
         ) : (
           <button
@@ -517,7 +520,7 @@ export const TransitionInspector: React.FC<TransitionInspectorProps> = ({
             }`}
           >
             <Check size={12} />
-            Apply Transition
+            {t("transitionInspector.applyTransition")}
           </button>
         )}
       </div>

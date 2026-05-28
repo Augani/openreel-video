@@ -1,4 +1,5 @@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Button } from "@openreel/ui";
+import { useTranslation } from "react-i18next";
 import type { NanoBanana2Input } from "../../../../services/kieai/image-generation";
 import { ASPECT_RATIO_OPTIONS_AUTO } from "./shared";
 
@@ -10,14 +11,15 @@ interface Props {
 }
 
 export function NanoBanana2Form({ value, onChange, onSubmit, isLoading }: Props) {
+  const { t } = useTranslation();
   return (
     <div className="space-y-4">
       <div className="space-y-1.5">
-        <label className="text-xs font-medium text-text-secondary">Prompt *</label>
+        <label className="text-xs font-medium text-text-secondary">{t("kieAi.promptRequired")}</label>
         <textarea
           value={value.prompt}
           onChange={(e) => onChange({ ...value, prompt: e.target.value })}
-          placeholder="Describe the image you want to generate…"
+          placeholder={t("kieAi.imagePlaceholder")}
           maxLength={2000}
           rows={4}
           className="w-full rounded-lg border border-border bg-background-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted resize-none outline-none focus:border-primary"
@@ -27,7 +29,7 @@ export function NanoBanana2Form({ value, onChange, onSubmit, isLoading }: Props)
 
       <div className="grid grid-cols-3 gap-3">
         <div className="space-y-1.5">
-          <label className="text-xs font-medium text-text-secondary">Aspect Ratio</label>
+          <label className="text-xs font-medium text-text-secondary">{t("kieAi.aspectRatio")}</label>
           <Select
             value={value.aspect_ratio ?? "1:1"}
             onValueChange={(v) => onChange({ ...value, aspect_ratio: v as NanoBanana2Input["aspect_ratio"] })}
@@ -42,37 +44,37 @@ export function NanoBanana2Form({ value, onChange, onSubmit, isLoading }: Props)
         </div>
 
         <div className="space-y-1.5">
-          <label className="text-xs font-medium text-text-secondary">Resolution</label>
+          <label className="text-xs font-medium text-text-secondary">{t("kieAi.resolution")}</label>
           <Select
             value={value.resolution ?? "2K"}
             onValueChange={(v) => onChange({ ...value, resolution: v as NanoBanana2Input["resolution"] })}
           >
             <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="1K">1K</SelectItem>
-              <SelectItem value="2K">2K</SelectItem>
-              <SelectItem value="4K">4K</SelectItem>
+              <SelectItem value="1K">{t("kieAi.resolution1K")}</SelectItem>
+              <SelectItem value="2K">{t("kieAi.resolution2K")}</SelectItem>
+              <SelectItem value="4K">{t("kieAi.resolution4K")}</SelectItem>
             </SelectContent>
           </Select>
         </div>
 
         <div className="space-y-1.5">
-          <label className="text-xs font-medium text-text-secondary">Format</label>
+          <label className="text-xs font-medium text-text-secondary">{t("kieAi.format")}</label>
           <Select
             value={value.output_format ?? "png"}
             onValueChange={(v) => onChange({ ...value, output_format: v as NanoBanana2Input["output_format"] })}
           >
             <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="png">PNG</SelectItem>
-              <SelectItem value="jpg">JPG</SelectItem>
+              <SelectItem value="png">{t("kieAi.formatPNG")}</SelectItem>
+              <SelectItem value="jpg">{t("kieAi.formatJPG")}</SelectItem>
             </SelectContent>
           </Select>
         </div>
       </div>
 
       <Button onClick={onSubmit} disabled={isLoading || !value.prompt.trim()} className="w-full">
-        {isLoading ? "Generating…" : "Generate with Nano Banana 2"}
+        {isLoading ? t("kieAi.generating") : t("kieAi.generateNanoBanana")}
       </Button>
     </div>
   );

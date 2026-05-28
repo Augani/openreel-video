@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Monitor,
   Mic,
@@ -39,25 +40,25 @@ interface ScreenRecorderProps {
 
 const RESOLUTION_OPTIONS: {
   value: VideoResolution;
-  label: string;
-  desc: string;
+  labelKey: string;
+  descKey: string;
 }[] = [
-  { value: "720p", label: "720p HD", desc: "1280×720 - Smaller files" },
-  { value: "1080p", label: "1080p Full HD", desc: "1920×1080 - Recommended" },
-  { value: "1440p", label: "1440p QHD", desc: "2560×1440 - High quality" },
-  { value: "4k", label: "4K Ultra HD", desc: "3840×2160 - Maximum quality" },
+  { value: "720p", labelKey: "recording.resolutionLabels.720p", descKey: "recording.resolutionDescs.720p" },
+  { value: "1080p", labelKey: "recording.resolutionLabels.1080p", descKey: "recording.resolutionDescs.1080p" },
+  { value: "1440p", labelKey: "recording.resolutionLabels.1440p", descKey: "recording.resolutionDescs.1440p" },
+  { value: "4k", labelKey: "recording.resolutionLabels.4k", descKey: "recording.resolutionDescs.4k" },
 ];
 
-const FRAMERATE_OPTIONS: { value: FrameRate; label: string }[] = [
-  { value: 30, label: "30 fps" },
-  { value: 60, label: "60 fps" },
+const FRAMERATE_OPTIONS: { value: FrameRate; labelKey: string }[] = [
+  { value: 30, labelKey: "recording.frameRateLabels.30" },
+  { value: 60, labelKey: "recording.frameRateLabels.60" },
 ];
 
-const WEBCAM_RESOLUTION_OPTIONS: { value: WebcamResolution; label: string }[] =
+const WEBCAM_RESOLUTION_OPTIONS: { value: WebcamResolution; labelKey: string }[] =
   [
-    { value: "480p", label: "480p" },
-    { value: "720p", label: "720p" },
-    { value: "1080p", label: "1080p" },
+    { value: "480p", labelKey: "recording.webcamResolutionLabels.480p" },
+    { value: "720p", labelKey: "recording.webcamResolutionLabels.720p" },
+    { value: "1080p", labelKey: "recording.webcamResolutionLabels.1080p" },
   ];
 
 export const ScreenRecorder: React.FC<ScreenRecorderProps> = ({
@@ -65,6 +66,7 @@ export const ScreenRecorder: React.FC<ScreenRecorderProps> = ({
   onClose,
   onRecordingComplete,
 }) => {
+  const { t } = useTranslation();
   const {
     status,
     options,
@@ -144,7 +146,7 @@ export const ScreenRecorder: React.FC<ScreenRecorderProps> = ({
           <div className="flex items-center gap-3">
             <Circle size={20} className="text-error fill-error animate-pulse" />
             <DialogTitle className="text-lg font-bold text-text-primary">
-              Screen Recording
+              {t("recording.screenRecording")}
             </DialogTitle>
           </div>
         </DialogHeader>
@@ -158,11 +160,10 @@ export const ScreenRecorder: React.FC<ScreenRecorderProps> = ({
               />
               <div>
                 <p className="text-sm font-medium text-error">
-                  Screen recording not supported
+                  {t("recording.notSupported")}
                 </p>
                 <p className="text-xs text-text-muted mt-1">
-                  Your browser doesn't support screen recording. Please use
-                  Chrome, Edge, or Firefox.
+                  {t("recording.notSupportedDesc")}
                 </p>
               </div>
             </div>
@@ -176,7 +177,7 @@ export const ScreenRecorder: React.FC<ScreenRecorderProps> = ({
               />
               <div>
                 <p className="text-sm font-medium text-error">
-                  Recording Error
+                  {t("recording.recordingError")}
                 </p>
                 <p className="text-xs text-text-muted mt-1">{error}</p>
               </div>
@@ -186,13 +187,13 @@ export const ScreenRecorder: React.FC<ScreenRecorderProps> = ({
           <div className="space-y-4">
             <div className="flex items-center gap-2 text-sm font-medium text-text-primary">
               <Monitor size={16} />
-              <span>Video Settings</span>
+              <span>{t("recording.videoSettings")}</span>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs text-text-muted mb-2">
-                  Resolution
+                  {t("recording.resolution")}
                 </label>
                 <Select
                   value={options.video.resolution}
@@ -205,23 +206,23 @@ export const ScreenRecorder: React.FC<ScreenRecorderProps> = ({
                   <SelectContent className="bg-background-secondary border-border">
                     {RESOLUTION_OPTIONS.map((opt) => (
                       <SelectItem key={opt.value} value={opt.value}>
-                        {opt.label}
+                        {t(opt.labelKey)}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
                 <p className="text-[10px] text-text-muted mt-1">
-                  {
+                  {t(
                     RESOLUTION_OPTIONS.find(
                       (o) => o.value === options.video.resolution,
-                    )?.desc
-                  }
+                    )?.descKey ?? "",
+                  )}
                 </p>
               </div>
 
               <div>
                 <label className="block text-xs text-text-muted mb-2">
-                  Frame Rate
+                  {t("recording.frameRate")}
                 </label>
                 <Select
                   value={String(options.video.frameRate)}
@@ -234,7 +235,7 @@ export const ScreenRecorder: React.FC<ScreenRecorderProps> = ({
                   <SelectContent className="bg-background-secondary border-border">
                     {FRAMERATE_OPTIONS.map((opt) => (
                       <SelectItem key={opt.value} value={String(opt.value)}>
-                        {opt.label}
+                        {t(opt.labelKey)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -246,7 +247,7 @@ export const ScreenRecorder: React.FC<ScreenRecorderProps> = ({
           <div className="space-y-4">
             <div className="flex items-center gap-2 text-sm font-medium text-text-primary">
               <Settings size={16} />
-              <span>Audio Settings</span>
+              <span>{t("recording.audioSettings")}</span>
             </div>
 
             <div className="flex gap-4">
@@ -266,7 +267,7 @@ export const ScreenRecorder: React.FC<ScreenRecorderProps> = ({
                 ) : (
                   <VolumeX size={18} />
                 )}
-                <span className="text-sm">System Audio</span>
+                <span className="text-sm">{t("recording.systemAudio")}</span>
               </button>
 
               <button
@@ -285,14 +286,13 @@ export const ScreenRecorder: React.FC<ScreenRecorderProps> = ({
                 ) : (
                   <MicOff size={18} />
                 )}
-                <span className="text-sm">Microphone</span>
+                <span className="text-sm">{t("recording.microphone")}</span>
               </button>
             </div>
 
             {!features.systemAudio && (
               <p className="text-[10px] text-text-muted">
-                System audio capture is only available in Chrome and Edge
-                browsers.
+                {t("recording.systemAudioBrowserNote")}
               </p>
             )}
           </div>
@@ -301,7 +301,7 @@ export const ScreenRecorder: React.FC<ScreenRecorderProps> = ({
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-sm font-medium text-text-primary">
                 <Camera size={16} />
-                <span>Webcam Recording</span>
+                <span>{t("recording.webcamRecording")}</span>
               </div>
               <button
                 onClick={() =>
@@ -326,7 +326,7 @@ export const ScreenRecorder: React.FC<ScreenRecorderProps> = ({
               <div className="flex gap-4">
                 <div className="flex-1">
                   <label className="block text-xs text-text-muted mb-2">
-                    Webcam Resolution
+                    {t("recording.webcamResolution")}
                   </label>
                   <Select
                     value={options.webcam.resolution}
@@ -338,7 +338,7 @@ export const ScreenRecorder: React.FC<ScreenRecorderProps> = ({
                     <SelectContent className="bg-background-secondary border-border">
                       {WEBCAM_RESOLUTION_OPTIONS.map((opt) => (
                         <SelectItem key={opt.value} value={opt.value}>
-                          {opt.label}
+                          {t(opt.labelKey)}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -360,15 +360,14 @@ export const ScreenRecorder: React.FC<ScreenRecorderProps> = ({
             )}
 
             <p className="text-[10px] text-text-muted">
-              Webcam will be recorded as a separate file, giving you full
-              control in the editor.
+              {t("recording.webcamSeparateFileNote")}
             </p>
           </div>
         </div>
 
         <div className="flex items-center justify-between p-4 border-t border-border bg-background-tertiary">
           <p className="text-xs text-text-muted">
-            Recording will start after a 3-second countdown
+            {t("recording.countdownInfo")}
           </p>
 
           <div className="flex gap-3">
@@ -376,7 +375,7 @@ export const ScreenRecorder: React.FC<ScreenRecorderProps> = ({
               onClick={handleCancel}
               className="px-4 py-2 text-sm text-text-secondary hover:text-text-primary transition-colors"
             >
-              Cancel
+              {t("recording.cancel")}
             </button>
             <button
               onClick={handleStartRecording}
@@ -386,12 +385,12 @@ export const ScreenRecorder: React.FC<ScreenRecorderProps> = ({
               {status === "requesting" ? (
                 <>
                   <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  <span>Requesting Access...</span>
+                  <span>{t("recording.requestingAccess")}</span>
                 </>
               ) : (
                 <>
                   <Circle size={14} className="fill-current" />
-                  <span>Start Recording</span>
+                  <span>{t("recording.startRecording")}</span>
                 </>
               )}
             </button>

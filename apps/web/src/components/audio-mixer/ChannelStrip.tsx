@@ -1,4 +1,5 @@
 import React, { useCallback, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import type { ChannelStripState } from "./types";
 import { volumeToDb, formatDb, formatPan } from "./types";
 
@@ -70,6 +71,7 @@ const Fader: React.FC<{
   onChange: (value: number) => void;
   disabled?: boolean;
 }> = ({ value, onChange, disabled }) => {
+  const { t: tFader } = useTranslation();
   const handleChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       onChange(parseFloat(e.target.value));
@@ -108,7 +110,7 @@ const Fader: React.FC<{
  [&::-moz-range-thumb]:rounded
  [&::-moz-range-thumb]:cursor-pointer
  [&::-moz-range-thumb]:border-0"
-        aria-label="Volume fader"
+        aria-label={tFader("audioMixer.volumeFader")}
       />
     </div>
   );
@@ -122,6 +124,7 @@ const PanKnob: React.FC<{
   onChange: (value: number) => void;
   disabled?: boolean;
 }> = ({ value, onChange, disabled }) => {
+  const { t: tPan } = useTranslation();
   const handleChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       onChange(parseFloat(e.target.value));
@@ -156,7 +159,7 @@ const PanKnob: React.FC<{
  [&::-moz-range-thumb]:rounded-full
  [&::-moz-range-thumb]:cursor-pointer
  [&::-moz-range-thumb]:border-0"
-        aria-label="Pan control"
+        aria-label={tPan("audioMixer.panControl")}
       />
     </div>
   );
@@ -179,6 +182,7 @@ export const ChannelStrip: React.FC<ChannelStripProps> = ({
   onSoloToggle,
   hasSoloedTracks,
 }) => {
+  const { t } = useTranslation();
   const handleVolumeChange = useCallback(
     (volume: number) => {
       onVolumeChange(channel.trackId, volume);
@@ -255,10 +259,10 @@ export const ChannelStrip: React.FC<ChannelStripProps> = ({
      ? "bg-red-600 text-white"
      : "bg-gray-700 text-gray-400 hover:bg-gray-600"
  }`}
-          aria-label={channel.muted ? "Unmute track" : "Mute track"}
+          aria-label={channel.muted ? t("audioMixer.unmuteTrack") : t("audioMixer.muteTrack")}
           aria-pressed={channel.muted}
         >
-          M
+          {t("audioMixer.muteButton")}
         </button>
 
         {/* Solo button */}
@@ -270,10 +274,10 @@ export const ChannelStrip: React.FC<ChannelStripProps> = ({
      ? "bg-yellow-500 text-black"
      : "bg-gray-700 text-gray-400 hover:bg-gray-600"
  }`}
-          aria-label={channel.solo ? "Unsolo track" : "Solo track"}
+          aria-label={channel.solo ? t("audioMixer.unsoloTrack") : t("audioMixer.soloTrack")}
           aria-pressed={channel.solo}
         >
-          S
+          {t("audioMixer.soloButton")}
         </button>
       </div>
     </div>

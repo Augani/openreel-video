@@ -1,4 +1,5 @@
 import React, { useState, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { Video, Download } from "lucide-react";
 import type { Clip } from "@openreel/core";
 import { getVidstabEngine, type VidstabProgress } from "@openreel/core";
@@ -12,6 +13,7 @@ interface StabilizationSectionProps {
 export const StabilizationSection: React.FC<StabilizationSectionProps> = ({
   clip,
 }) => {
+  const { t } = useTranslation();
   const { project, getMediaItem } = useProjectStore();
   const [processing, setProcessing] = useState(false);
   const [stage, setStage] = useState<VidstabProgress["stage"] | null>(null);
@@ -93,7 +95,7 @@ export const StabilizationSection: React.FC<StabilizationSectionProps> = ({
     } catch (error) {
       console.error("Stabilization failed:", error);
       setStage(null);
-      setError(error instanceof Error ? error.message : "Stabilization failed");
+      setError(error instanceof Error ? error.message : t("inspector.stabilizationFailed"));
     } finally {
       setProcessing(false);
       setStage(null);
@@ -106,6 +108,7 @@ export const StabilizationSection: React.FC<StabilizationSectionProps> = ({
     stabilization.strength,
     stabilization.cropMode,
     updateStabilization,
+    t,
   ]);
 
   const handleToggle = useCallback(
@@ -139,11 +142,11 @@ export const StabilizationSection: React.FC<StabilizationSectionProps> = ({
   const stageLabel = (() => {
     switch (stage) {
       case "downloading":
-        return "Downloading stabilization engine...";
+        return t("inspector.stabilizationDownloading");
       case "detecting":
-        return "Analyzing motion...";
+        return t("inspector.analyzingMotion");
       case "stabilizing":
-        return "Stabilizing video...";
+        return t("inspector.stabilizationStabilizing");
       default:
         return "";
     }
@@ -154,7 +157,7 @@ export const StabilizationSection: React.FC<StabilizationSectionProps> = ({
       <div className="flex items-center justify-between">
         <Label className="flex items-center gap-2 text-sm">
           <Video className="h-4 w-4" />
-          Stabilize
+          {t("inspector.stabilize")}
         </Label>
         <Switch
           checked={stabilization.enabled && isStabilized}
@@ -165,7 +168,7 @@ export const StabilizationSection: React.FC<StabilizationSectionProps> = ({
 
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <Label className="text-xs text-muted-foreground">Strength</Label>
+          <Label className="text-xs text-muted-foreground">{t("inspector.strength")}</Label>
           <span className="text-xs text-muted-foreground">
             {stabilization.strength}%
           </span>
@@ -183,7 +186,7 @@ export const StabilizationSection: React.FC<StabilizationSectionProps> = ({
       {!vidstabEngine.isLoaded() && !processing && !isStabilized && (
         <div className="flex items-center gap-2 rounded-md border border-border/60 bg-muted/40 px-3 py-2 text-[11px] text-muted-foreground">
           <Download className="h-3.5 w-3.5 shrink-0" />
-          <span>First use requires a one-time download (~65 MB)</span>
+          <span>{t("inspector.stabilizationDownloadNotice")}</span>
         </div>
       )}
 
@@ -215,7 +218,7 @@ export const StabilizationSection: React.FC<StabilizationSectionProps> = ({
           className="w-full"
           onClick={handleStabilize}
         >
-          Re-stabilize
+          {t("inspector.restabilize")}
         </Button>
       )}
     </div>

@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import type { Keyframe, Clip } from "@openreel/core";
 import { EASING_FUNCTIONS, type EasingName } from "@openreel/core";
+import i18n from "../../i18n";
 import { X, Copy, Clipboard, Trash2 } from "lucide-react";
 import {
   Select,
@@ -24,25 +25,25 @@ const PROPERTY_COLORS: Record<string, string> = {
 };
 
 const EASING_PRESETS: { label: string; value: EasingName }[] = [
-  { label: "Linear", value: "linear" },
-  { label: "Ease In", value: "easeInQuad" },
-  { label: "Ease Out", value: "easeOutQuad" },
-  { label: "Ease In Out", value: "easeInOutQuad" },
-  { label: "Ease In Cubic", value: "easeInCubic" },
-  { label: "Ease Out Cubic", value: "easeOutCubic" },
-  { label: "Ease In Out Cubic", value: "easeInOutCubic" },
-  { label: "Ease In Quart", value: "easeInQuart" },
-  { label: "Ease Out Quart", value: "easeOutQuart" },
-  { label: "Ease In Out Quart", value: "easeInOutQuart" },
-  { label: "Ease In Back", value: "easeInBack" },
-  { label: "Ease Out Back", value: "easeOutBack" },
-  { label: "Ease In Out Back", value: "easeInOutBack" },
-  { label: "Ease In Elastic", value: "easeInElastic" },
-  { label: "Ease Out Elastic", value: "easeOutElastic" },
-  { label: "Ease In Out Elastic", value: "easeInOutElastic" },
-  { label: "Ease In Bounce", value: "easeInBounce" },
-  { label: "Ease Out Bounce", value: "easeOutBounce" },
-  { label: "Ease In Out Bounce", value: "easeInOutBounce" },
+  { label: i18n.t("keyframe.linear"), value: "linear" },
+  { label: i18n.t("keyframe.easeIn"), value: "easeInQuad" },
+  { label: i18n.t("keyframe.easeOut"), value: "easeOutQuad" },
+  { label: i18n.t("keyframe.easeInOut"), value: "easeInOutQuad" },
+  { label: i18n.t("keyframe.easeInCubic"), value: "easeInCubic" },
+  { label: i18n.t("keyframe.easeOutCubic"), value: "easeOutCubic" },
+  { label: i18n.t("keyframe.easeInOutCubic"), value: "easeInOutCubic" },
+  { label: i18n.t("keyframe.easeInQuart"), value: "easeInQuart" },
+  { label: i18n.t("keyframe.easeOutQuart"), value: "easeOutQuart" },
+  { label: i18n.t("keyframe.easeInOutQuart"), value: "easeInOutQuart" },
+  { label: i18n.t("keyframe.easeInBack"), value: "easeInBack" },
+  { label: i18n.t("keyframe.easeOutBack"), value: "easeOutBack" },
+  { label: i18n.t("keyframe.easeInOutBack"), value: "easeInOutBack" },
+  { label: i18n.t("keyframe.easeInElastic"), value: "easeInElastic" },
+  { label: i18n.t("keyframe.easeOutElastic"), value: "easeOutElastic" },
+  { label: i18n.t("keyframe.easeInOutElastic"), value: "easeInOutElastic" },
+  { label: i18n.t("keyframe.easeInBounce"), value: "easeInBounce" },
+  { label: i18n.t("keyframe.easeOutBounce"), value: "easeOutBounce" },
+  { label: i18n.t("keyframe.easeInOutBounce"), value: "easeInOutBounce" },
 ];
 
 interface KeyframeEditorPanelProps {
@@ -371,7 +372,7 @@ export const KeyframeEditorPanel: React.FC<KeyframeEditorPanelProps> = ({
   if (!clip) {
     return (
       <div className="h-full flex items-center justify-center text-text-muted">
-        <p className="text-sm">Select a clip with keyframes to edit</p>
+        <p className="text-sm">{i18n.t("keyframe.selectClip")}</p>
       </div>
     );
   }
@@ -379,7 +380,7 @@ export const KeyframeEditorPanel: React.FC<KeyframeEditorPanelProps> = ({
   return (
     <div className="h-full flex flex-col bg-background-secondary border-l border-border">
       <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-        <h3 className="text-sm font-semibold text-text-primary">Keyframe Editor</h3>
+        <h3 className="text-sm font-semibold text-text-primary">{i18n.t("keyframe.editorTitle")}</h3>
         <button
           onClick={onClose}
           className="p-1 rounded hover:bg-background-elevated text-text-muted hover:text-text-primary transition-colors"
@@ -391,7 +392,7 @@ export const KeyframeEditorPanel: React.FC<KeyframeEditorPanelProps> = ({
       <div className="flex items-center gap-2 px-4 py-2 border-b border-border bg-background-tertiary">
         <Select value={activeProperty || ""} onValueChange={setActiveProperty}>
           <SelectTrigger className="w-[180px] h-8">
-            <SelectValue placeholder="Select property" />
+            <SelectValue placeholder={i18n.t("keyframe.selectProperty")} />
           </SelectTrigger>
           <SelectContent>
             {propertyGroups.map((group) => (
@@ -418,7 +419,7 @@ export const KeyframeEditorPanel: React.FC<KeyframeEditorPanelProps> = ({
           className="h-8 px-2"
         >
           <Copy size={14} className="mr-1" />
-          Copy
+          {i18n.t("keyframe.copy")}
         </Button>
         <Button
           variant="ghost"
@@ -428,7 +429,7 @@ export const KeyframeEditorPanel: React.FC<KeyframeEditorPanelProps> = ({
           className="h-8 px-2"
         >
           <Clipboard size={14} className="mr-1" />
-          Paste
+          {i18n.t("keyframe.paste")}
         </Button>
         <Button
           variant="ghost"
@@ -438,7 +439,7 @@ export const KeyframeEditorPanel: React.FC<KeyframeEditorPanelProps> = ({
           className="h-8 px-2 text-red-400 hover:text-red-300"
         >
           <Trash2 size={14} className="mr-1" />
-          Delete
+          {i18n.t("keyframe.delete")}
         </Button>
       </div>
 
@@ -458,14 +459,14 @@ export const KeyframeEditorPanel: React.FC<KeyframeEditorPanelProps> = ({
       <div className="px-4 py-3 border-t border-border bg-background-tertiary">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
-            <span className="text-xs text-text-muted">Easing:</span>
+            <span className="text-xs text-text-muted">{i18n.t("keyframe.easingLabel")}</span>
             <Select
               value={selectedKeyframeIds.length > 0 ? undefined : ""}
               onValueChange={handleEasingChange}
               disabled={selectedKeyframeIds.length === 0}
             >
               <SelectTrigger className="w-[160px] h-7 text-xs">
-                <SelectValue placeholder="Select easing" />
+                <SelectValue placeholder={i18n.t("keyframe.selectEasing")} />
               </SelectTrigger>
               <SelectContent>
                 {EASING_PRESETS.map((preset) => (
@@ -480,7 +481,7 @@ export const KeyframeEditorPanel: React.FC<KeyframeEditorPanelProps> = ({
           <div className="flex-1" />
 
           <span className="text-xs text-text-muted">
-            {selectedKeyframeIds.length} keyframe{selectedKeyframeIds.length !== 1 ? "s" : ""} selected
+            {i18n.t("keyframe.keyframesSelected", { count: selectedKeyframeIds.length })}
           </span>
         </div>
       </div>
@@ -491,9 +492,9 @@ export const KeyframeEditorPanel: React.FC<KeyframeEditorPanelProps> = ({
             <table className="w-full text-xs">
               <thead>
                 <tr className="text-text-muted">
-                  <th className="text-left py-1 px-2">Time</th>
-                  <th className="text-left py-1 px-2">Value</th>
-                  <th className="text-left py-1 px-2">Easing</th>
+                  <th className="text-left py-1 px-2">{i18n.t("keyframe.time")}</th>
+                  <th className="text-left py-1 px-2">{i18n.t("keyframe.value")}</th>
+                  <th className="text-left py-1 px-2">{i18n.t("keyframe.easing")}</th>
                 </tr>
               </thead>
               <tbody>

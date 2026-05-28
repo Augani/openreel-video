@@ -1,4 +1,5 @@
 import React, { useCallback, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { RotateCcw, Target, Zap, Clock } from "lucide-react";
 import { Slider } from "@openreel/ui";
 import { useProjectStore } from "../../../stores/project-store";
@@ -142,6 +143,7 @@ export const EmphasisAnimationSection: React.FC<
   EmphasisAnimationSectionProps
 > = ({ clipId }) => {
   const { project, updateClipEmphasisAnimation } = useProjectStore();
+  const { t } = useTranslation();
   const getTitleEngine = useEngineStore((state) => state.getTitleEngine);
   const getGraphicsEngine = useEngineStore((state) => state.getGraphicsEngine);
 
@@ -260,21 +262,21 @@ export const EmphasisAnimationSection: React.FC<
               : "bg-background-tertiary border border-border text-text-secondary hover:text-text-primary"
           }`}
         >
-          None
+          {t("inspector.emphasisNone")}
         </button>
         <button
           onClick={handleReset}
           className="py-2 rounded-lg text-[10px] font-medium bg-background-tertiary border border-border text-text-secondary hover:text-text-primary transition-all flex items-center justify-center gap-1"
         >
           <RotateCcw size={10} />
-          Reset
+          {t("inspector.resetToDefault")}
         </button>
       </div>
 
       {EMPHASIS_ANIMATIONS.map((category) => (
         <div key={category.category}>
           <h4 className="text-[10px] font-medium text-text-muted mb-2">
-            {category.category}
+            {t(`inspector.emphasis${category.category.replace(/\s/g, "")}`)}
           </h4>
           <div className="grid grid-cols-2 gap-1.5">
             {category.animations.map((anim) => (
@@ -287,7 +289,7 @@ export const EmphasisAnimationSection: React.FC<
                     : "bg-background-tertiary border border-border text-text-secondary hover:text-text-primary hover:border-primary/50"
                 }`}
               >
-                {anim.label}
+                {t(`inspector.emphasis${anim.label.replace(/\s/g, "")}`)}
               </button>
             ))}
           </div>
@@ -299,13 +301,13 @@ export const EmphasisAnimationSection: React.FC<
           <div className="pt-3 border-t border-border space-y-3">
             {selectedAnimation && (
               <p className="text-[10px] text-text-muted italic">
-                {selectedAnimation.description}
+                {t(`inspector.emphasis${selectedAnimation.label.replace(/\s/g, "")}Description`)}
               </p>
             )}
 
             <div className="space-y-1">
               <div className="flex items-center justify-between">
-                <span className="text-[10px] text-text-secondary">Speed</span>
+                <span className="text-[10px] text-text-secondary">{t("inspector.speed")}</span>
                 <span className="text-[10px] font-mono text-text-primary bg-background-tertiary px-1.5 py-0.5 rounded border border-border">
                   {currentAnimation.speed.toFixed(1)}x
                 </span>
@@ -324,7 +326,7 @@ export const EmphasisAnimationSection: React.FC<
             <div className="space-y-1">
               <div className="flex items-center justify-between">
                 <span className="text-[10px] text-text-secondary">
-                  Intensity
+                  {t("inspector.intensity")}
                 </span>
                 <span className="text-[10px] font-mono text-text-primary bg-background-tertiary px-1.5 py-0.5 rounded border border-border">
                   {Math.round(currentAnimation.intensity * 100)}%
@@ -345,7 +347,7 @@ export const EmphasisAnimationSection: React.FC<
 
             <div className="flex items-center justify-between">
               <span className="text-[10px] text-text-secondary">
-                Loop Animation
+                {t("inspector.loopAnimation")}
               </span>
               <button
                 onClick={() =>
@@ -369,16 +371,16 @@ export const EmphasisAnimationSection: React.FC<
           <div className="pt-3 border-t border-border space-y-3">
             <div className="flex items-center gap-2 text-primary">
               <Clock size={12} />
-              <span className="text-[10px] font-medium">Timing</span>
+              <span className="text-[10px] font-medium">{t("inspector.timing")}</span>
               <span className="text-[9px] text-text-muted ml-auto">
-                Clip: {formatTime(clipDuration)}
+                {t("inspector.clip")}: {formatTime(clipDuration)}
               </span>
             </div>
 
             <div className="space-y-1">
               <div className="flex items-center justify-between">
                 <span className="text-[10px] text-text-secondary">
-                  Start Time
+                  {t("inspector.startTime")}
                 </span>
                 <span className="text-[10px] font-mono text-text-primary bg-background-tertiary px-1.5 py-0.5 rounded border border-border">
                   {formatTime(currentAnimation.startTime ?? 0)}
@@ -400,12 +402,12 @@ export const EmphasisAnimationSection: React.FC<
             <div className="space-y-1">
               <div className="flex items-center justify-between">
                 <span className="text-[10px] text-text-secondary">
-                  Duration
+                  {t("inspector.duration")}
                 </span>
                 <span className="text-[10px] font-mono text-text-primary bg-background-tertiary px-1.5 py-0.5 rounded border border-border">
                   {currentAnimation.animationDuration
                     ? formatTime(currentAnimation.animationDuration)
-                    : "Full clip"}
+                    : t("inspector.fullClip")}
                 </span>
               </div>
               <Slider
@@ -434,7 +436,7 @@ export const EmphasisAnimationSection: React.FC<
                   }
                   className="text-primary hover:underline"
                 >
-                  Reset to full clip
+                  {t("inspector.resetToFullClip")}
                 </button>
                 <span>
                   {formatTime(clipDuration - (currentAnimation.startTime ?? 0))}
@@ -448,14 +450,14 @@ export const EmphasisAnimationSection: React.FC<
               <div className="flex items-center gap-2 text-primary">
                 <Target size={12} />
                 <span className="text-[10px] font-medium">
-                  Focus Zoom Settings
+                  {t("inspector.emphasisFocusZoomSettings")}
                 </span>
               </div>
 
               <div className="space-y-1">
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] text-text-secondary">
-                    Zoom Scale
+                    {t("inspector.zoomScale")}
                   </span>
                   <span className="text-[10px] font-mono text-text-primary bg-background-tertiary px-1.5 py-0.5 rounded border border-border">
                     {(currentAnimation.zoomScale || 1.5).toFixed(1)}x
@@ -477,7 +479,7 @@ export const EmphasisAnimationSection: React.FC<
               <div className="space-y-1">
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] text-text-secondary">
-                    Hold Duration
+                    {t("inspector.holdDuration")}
                   </span>
                   <span className="text-[10px] font-mono text-text-primary bg-background-tertiary px-1.5 py-0.5 rounded border border-border">
                     {((currentAnimation.holdDuration || 0.3) * 100).toFixed(0)}%
@@ -498,12 +500,12 @@ export const EmphasisAnimationSection: React.FC<
 
               <div className="space-y-2">
                 <span className="text-[10px] text-text-secondary">
-                  Focus Point
+                  {t("inspector.focusPoint")}
                 </span>
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-1">
                     <span className="text-[9px] text-text-muted">
-                      X Position
+                      {t("inspector.xPosition")}
                     </span>
                     <Slider
                       min={0}
@@ -522,7 +524,7 @@ export const EmphasisAnimationSection: React.FC<
                   </div>
                   <div className="space-y-1">
                     <span className="text-[9px] text-text-muted">
-                      Y Position
+                      {t("inspector.yPosition")}
                     </span>
                     <Slider
                       min={0}
@@ -543,15 +545,15 @@ export const EmphasisAnimationSection: React.FC<
 
                 <div className="grid grid-cols-3 gap-1 mt-2">
                   {[
-                    { x: 0, y: 0, label: "TL" },
-                    { x: 0.5, y: 0, label: "TC" },
-                    { x: 1, y: 0, label: "TR" },
-                    { x: 0, y: 0.5, label: "ML" },
-                    { x: 0.5, y: 0.5, label: "C" },
-                    { x: 1, y: 0.5, label: "MR" },
-                    { x: 0, y: 1, label: "BL" },
-                    { x: 0.5, y: 1, label: "BC" },
-                    { x: 1, y: 1, label: "BR" },
+                    { x: 0, y: 0, label: "inspector.focusTopLeft" },
+                    { x: 0.5, y: 0, label: "inspector.focusTopCenter" },
+                    { x: 1, y: 0, label: "inspector.focusTopRight" },
+                    { x: 0, y: 0.5, label: "inspector.focusMidLeft" },
+                    { x: 0.5, y: 0.5, label: "inspector.focusCenter" },
+                    { x: 1, y: 0.5, label: "inspector.focusMidRight" },
+                    { x: 0, y: 1, label: "inspector.focusBotLeft" },
+                    { x: 0.5, y: 1, label: "inspector.focusBotCenter" },
+                    { x: 1, y: 1, label: "inspector.focusBotRight" },
                   ].map((preset) => (
                     <button
                       key={preset.label}
@@ -567,7 +569,7 @@ export const EmphasisAnimationSection: React.FC<
                           : "bg-background-tertiary border border-border text-text-muted hover:text-text-primary"
                       }`}
                     >
-                      {preset.label}
+                      {t(preset.label)}
                     </button>
                   ))}
                 </div>
@@ -581,8 +583,7 @@ export const EmphasisAnimationSection: React.FC<
         <div className="flex items-center gap-2 text-text-muted">
           <Zap size={10} />
           <span className="text-[9px]">
-            Emphasis animations play while the clip is visible (not during
-            entry/exit)
+            {t("inspector.emphasisAnimationFooter")}
           </span>
         </div>
       </div>

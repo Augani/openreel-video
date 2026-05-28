@@ -1,4 +1,5 @@
 import React, { useCallback, useRef, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { RotateCcw } from "lucide-react";
 import type { ColorWheelValues } from "@openreel/core";
 
@@ -33,6 +34,7 @@ const LGGSlider: React.FC<{
   defaultValue: number;
   step?: number;
 }> = ({ label, value, onChange, min, max, defaultValue, step = 0.01 }) => {
+  const { t } = useTranslation();
   const percentage = ((value - min) / (max - min)) * 100;
 
   const handleDoubleClick = useCallback(() => {
@@ -46,7 +48,7 @@ const LGGSlider: React.FC<{
         <span
           className="text-[10px] font-mono text-text-primary cursor-pointer hover:text-accent"
           onDoubleClick={handleDoubleClick}
-          title="Double-click to reset"
+          title={t("inspector.doubleClickToReset")}
         >
           {value.toFixed(2)}
         </span>
@@ -74,26 +76,19 @@ const LGGSlider: React.FC<{
   );
 };
 
-/**
- * Individual Color Wheel component
- *
- * Display color wheel for tonal range
- * Apply color shift when dragged
- */
 const ColorWheel: React.FC<ColorWheelProps> = ({
   label,
   color,
   onChange,
   onReset,
 }) => {
+  const { t } = useTranslation();
   const wheelRef = useRef<HTMLDivElement>(null);
   const isDragging = useRef(false);
 
-  // Convert RGB color shift to position on wheel
   const getPositionFromColor = useMemo(() => {
-    // Calculate angle from color (simplified - using r and b as x/y)
     const x = color.r;
-    const y = -color.b; // Invert b for visual consistency
+    const y = -color.b;
     const saturation = Math.sqrt(x * x + y * y);
     const angle = Math.atan2(y, x);
 
@@ -118,17 +113,14 @@ const ColorWheel: React.FC<ColorWheelProps> = ({
         const x = (clientX - rect.left - centerX) / centerX;
         const y = (clientY - rect.top - centerY) / centerY;
 
-        // Clamp to unit circle
         const distance = Math.sqrt(x * x + y * y);
         const clampedDistance = Math.min(distance, 1);
         const normalizedX = distance > 0 ? (x / distance) * clampedDistance : 0;
         const normalizedY = distance > 0 ? (y / distance) * clampedDistance : 0;
 
-        // Convert position to RGB color shift
-        // Using a simplified mapping: x -> r, -y -> b, derived g
         const r = normalizedX;
         const b = -normalizedY;
-        const g = -(r + b) / 2; // Balance to maintain neutral gray
+        const g = -(r + b) / 2;
 
         onChange({ r, g, b });
       };
@@ -179,9 +171,8 @@ const ColorWheel: React.FC<ColorWheelProps> = ({
         }}
         onMouseDown={handleMouseDown}
         onDoubleClick={handleDoubleClick}
-        title="Drag to adjust color. Double-click to reset."
+        title={t("inspector.colorWheelTooltip")}
       >
-        {/* Center gradient overlay for saturation falloff */}
         <div
           className="absolute inset-0 rounded-full"
           style={{
@@ -189,7 +180,6 @@ const ColorWheel: React.FC<ColorWheelProps> = ({
               "radial-gradient(circle, rgba(128,128,128,1) 0%, rgba(128,128,128,0) 70%)",
           }}
         />
-        {/* Indicator dot */}
         <div
           className="absolute w-4 h-4 border-2 border-white rounded-full shadow-md pointer-events-none z-10"
           style={{
@@ -208,19 +198,13 @@ const ColorWheel: React.FC<ColorWheelProps> = ({
   );
 };
 
-/**
- * ColorWheelsControl Component
- *
- * - 4.1: Display three color wheels for shadows, midtones, highlights
- * - 4.2: Apply color shift to corresponding tonal range when dragged
- * - 4.3: Modify shadow lift, midtone gamma, and highlight gain
- */
 export const ColorWheelsControl: React.FC<ColorWheelsControlProps> = ({
   values,
   onChange,
   onReset,
 }) => {
-  // Handle color wheel changes
+  const { t } = useTranslation();
+
   const handleShadowsChange = useCallback(
     (color: { r: number; g: number; b: number }) => {
       onChange({ ...values, shadows: color });
@@ -242,7 +226,6 @@ export const ColorWheelsControl: React.FC<ColorWheelsControlProps> = ({
     [values, onChange],
   );
 
-  // Handle lift/gamma/gain changes
   const handleLiftChange = useCallback(
     (lift: number) => {
       onChange({ ...values, shadowsLift: lift });
@@ -264,7 +247,6 @@ export const ColorWheelsControl: React.FC<ColorWheelsControlProps> = ({
     [values, onChange],
   );
 
-  // Reset handlers for individual wheels
   const resetShadows = useCallback(() => {
     onChange({ ...values, shadows: { r: 0, g: 0, b: 0 } });
   }, [values, onChange]);
@@ -279,7 +261,6 @@ export const ColorWheelsControl: React.FC<ColorWheelsControlProps> = ({
 
   return (
     <div className="space-y-4">
-      {/* Reset All Button */}
       {onReset && (
         <div className="flex justify-end">
           <button
@@ -287,37 +268,35 @@ export const ColorWheelsControl: React.FC<ColorWheelsControlProps> = ({
             className="flex items-center gap-1 px-2 py-1 text-[10px] text-text-muted hover:text-text-primary transition-colors"
           >
             <RotateCcw size={10} />
-            Reset
+            {t("inspector.reset")}
           </button>
         </div>
       )}
 
-      {/* Color Wheels Row */}
       <div className="flex justify-around items-start">
         <ColorWheel
-          label="Shadows"
+          label={t("inspector.shadows")}
           color={values.shadows}
           onChange={handleShadowsChange}
           onReset={resetShadows}
         />
         <ColorWheel
-          label="Midtones"
+          label={t("inspector.midtones")}
           color={values.midtones}
           onChange={handleMidtonesChange}
           onReset={resetMidtones}
         />
         <ColorWheel
-          label="Highlights"
+          label={t("inspector.highlights")}
           color={values.highlights}
           onChange={handleHighlightsChange}
           onReset={resetHighlights}
         />
       </div>
 
-      {/* Lift/Gamma/Gain Sliders */}
       <div className="space-y-2 pt-2 border-t border-border">
         <LGGSlider
-          label="Lift (Shadows)"
+          label={t("inspector.liftShadows")}
           value={values.shadowsLift}
           onChange={handleLiftChange}
           min={-1}
@@ -325,7 +304,7 @@ export const ColorWheelsControl: React.FC<ColorWheelsControlProps> = ({
           defaultValue={0}
         />
         <LGGSlider
-          label="Gamma (Midtones)"
+          label={t("inspector.gammaMidtones")}
           value={values.midtonesGamma}
           onChange={handleGammaChange}
           min={0.1}
@@ -333,7 +312,7 @@ export const ColorWheelsControl: React.FC<ColorWheelsControlProps> = ({
           defaultValue={1}
         />
         <LGGSlider
-          label="Gain (Highlights)"
+          label={t("inspector.gainHighlights")}
           value={values.highlightsGain}
           onChange={handleGainChange}
           min={0}

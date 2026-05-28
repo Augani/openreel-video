@@ -6,6 +6,7 @@ import { apiFetch } from "../../../../services/api-proxy";
 import { OPENREEL_TTS_URL } from "../../../../config/api-endpoints";
 import type { ElevenLabsVoice, ElevenLabsModel } from "../tts-types";
 import { FALLBACK_MODELS, ENHANCE_SYSTEM_PROMPT } from "../tts-constants";
+import i18n from "../../../../i18n";
 
 interface UseElevenLabsApiOptions {
   provider: TtsProvider;
@@ -159,12 +160,10 @@ export function useElevenLabsApi(options: UseElevenLabsApiOptions): UseElevenLab
 
     if (!response.ok) {
       if (response.status === 429) {
-        throw new Error(
-          "Rate limit reached. Please wait a minute. Free service is limited to 10 req/min.",
-        );
+        throw new Error(i18n.t("tts.rateLimitReached"));
       }
       const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.detail || errorData.error || "Failed to generate speech");
+      throw new Error(errorData.detail || errorData.error || i18n.t("tts.failedToGenerateSpeech"));
     }
 
     return response.blob();
@@ -172,12 +171,12 @@ export function useElevenLabsApi(options: UseElevenLabsApiOptions): UseElevenLab
 
   const generateWithElevenLabs = useCallback(async (inputText: string, voiceId: string, signal?: AbortSignal): Promise<Blob> => {
     if (!isSessionUnlocked()) {
-      throw new Error("Session locked. Unlock in Settings > API Keys first.");
+      throw new Error(i18n.t("tts.sessionLockedUnlockFirst"));
     }
 
     const apiKey = await getSecret("elevenlabs");
     if (!apiKey) {
-      throw new Error("ElevenLabs API key not found. Add it in Settings > API Keys.");
+      throw new Error(i18n.t("tts.elevenlabsKeyNotFound"));
     }
 
     const response = await apiFetch(
@@ -200,7 +199,7 @@ export function useElevenLabsApi(options: UseElevenLabsApiOptions): UseElevenLab
       const errorData = await response.json().catch(() => ({}));
       const msg = (errorData as Record<string, unknown>).detail
         ?? (errorData as Record<string, unknown>).message
-        ?? `ElevenLabs error (${response.status})`;
+        ?? i18n.t("tts.elevenLabsError", { status: response.status });
       throw new Error(String(msg));
     }
 
@@ -211,12 +210,12 @@ export function useElevenLabsApi(options: UseElevenLabsApiOptions): UseElevenLab
     const llmProvider = defaultLlmProvider;
 
     if (!isSessionUnlocked()) {
-      throw new Error("Session locked. Unlock in Settings > API Keys to use text enhancement.");
+      throw new Error(i18n.t("tts.sessionLockedEnhance"));
     }
 
     const apiKey = await getSecret(llmProvider);
     if (!apiKey) {
-      throw new Error(`${llmProvider === "openai" ? "OpenAI" : "Anthropic"} API key not found. Add it in Settings > API Keys.`);
+      throw new Error(i18n.t("tts.llmKeyNotFound", { provider: llmProvider === "openai" ? "OpenAI" : "Anthropic" }));
     }
 
     if (llmProvider === "anthropic") {
@@ -236,7 +235,7 @@ export function useElevenLabsApi(options: UseElevenLabsApiOptions): UseElevenLab
         const err = await response.json().catch(() => ({}));
         throw new Error((err as Record<string, unknown>).error
           ? String((err as Record<string, unknown>).error)
-          : `Anthropic error (${response.status})`);
+          : i18n.t("tts.anthropicError", { status: response.status }));
       }
 
       const data = await response.json();
@@ -261,7 +260,7 @@ export function useElevenLabsApi(options: UseElevenLabsApiOptions): UseElevenLab
     if (!response.ok) {
       const err = await response.json().catch(() => ({}));
       const msg = (err as Record<string, unknown>).error;
-      throw new Error(msg ? String((msg as Record<string, unknown>).message ?? msg) : `OpenAI error (${response.status})`);
+      throw new Error(msg ? String((msg as Record<string, unknown>).message ?? msg) : i18n.t("tts.openaiError", { status: response.status }));
     }
 
     const data = await response.json();

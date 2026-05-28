@@ -1,4 +1,5 @@
 import { useState, useCallback, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { useAnalytics, AnalyticsEvents } from "../../hooks/useAnalytics";
 import {
   Play,
@@ -65,6 +66,7 @@ export const TemplatePreviewModal: React.FC<TemplatePreviewModalProps> = ({
   onClose,
   onApply,
 }) => {
+  const { t } = useTranslation();
   const getTemplateEngine = useEngineStore((state) => state.getTemplateEngine);
   const getTitleEngine = useEngineStore((state) => state.getTitleEngine);
   const loadProject = useProjectStore((state) => state.loadProject);
@@ -181,7 +183,7 @@ export const TemplatePreviewModal: React.FC<TemplatePreviewModalProps> = ({
 
       onApply();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to apply template");
+      setError(err instanceof Error ? err.message : t("welcome.failedToApply"));
     } finally {
       setIsApplying(false);
     }
@@ -373,6 +375,7 @@ const PlaceholderInput: React.FC<PlaceholderInputProps> = ({
   value,
   onChange,
 }) => {
+  const { t } = useTranslation();
   const Icon = PLACEHOLDER_ICONS[placeholder.type] || Type;
   const displayValue = value ?? placeholder.defaultValue ?? "";
 
@@ -445,7 +448,7 @@ const PlaceholderInput: React.FC<PlaceholderInputProps> = ({
               onCheckedChange={(checked) => onChange(checked)}
             />
             <Label className="text-sm text-text-secondary cursor-pointer">
-              {placeholder.description || "Enabled"}
+              {placeholder.description || t("welcome.enabled")}
             </Label>
           </div>
         );

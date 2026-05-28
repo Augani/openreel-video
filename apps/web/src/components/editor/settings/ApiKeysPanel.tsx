@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Key,
   Plus,
@@ -30,6 +31,7 @@ import { MasterPasswordDialog } from "./MasterPasswordDialog";
 import { toast } from "../../../stores/notification-store";
 
 export const ApiKeysPanel: React.FC = () => {
+  const { t } = useTranslation();
   const { addConfiguredService, removeConfiguredService } =
     useSettingsStore();
 
@@ -76,7 +78,7 @@ export const ApiKeysPanel: React.FC = () => {
         if (success) {
           setPasswordDialogMode(null);
           await refreshState();
-          toast.success("Session unlocked", "You can now manage API keys.");
+          toast.success(t("settings.apiKeys.unlocked"), t("settings.apiKeys.unlockedDesc"));
         }
         return success;
       }
@@ -86,7 +88,7 @@ export const ApiKeysPanel: React.FC = () => {
         if (success) {
           setPasswordDialogMode(null);
           await refreshState();
-          toast.success("Password changed", "All keys have been re-encrypted.");
+          toast.success(t("settings.apiKeys.passwordChanged"), t("settings.apiKeys.reEncrypted"));
         }
         return success;
       }
@@ -245,7 +247,7 @@ export const ApiKeysPanel: React.FC = () => {
             onClick={() => setPasswordDialogMode("change")}
           >
             <Key size={14} className="mr-1" />
-            Change Password
+            {t("settings.masterPassword.changePassword")}
           </Button>
           <Button variant="outline" size="sm" onClick={handleLock}>
             <Lock size={14} className="mr-1" />
@@ -286,14 +288,14 @@ export const ApiKeysPanel: React.FC = () => {
                   <button
                     onClick={() => handleRevealKey(stored.id)}
                     className="p-1.5 rounded hover:bg-background-tertiary text-text-muted hover:text-text-primary transition-colors"
-                    title={isRevealed ? "Hide key" : "Show key"}
+                    title={isRevealed ? t("settings.apiKeys.hideKey") : t("settings.apiKeys.showKey")}
                   >
                     {isRevealed ? <EyeOff size={14} /> : <Eye size={14} />}
                   </button>
                   <button
                     onClick={() => handleDeleteKey(stored.id)}
                     className="p-1.5 rounded hover:bg-error/10 text-text-muted hover:text-error transition-colors"
-                    title="Delete key"
+                    title={t("settings.apiKeys.deleteKey")}
                   >
                     <Trash2 size={14} />
                   </button>
@@ -335,7 +337,7 @@ export const ApiKeysPanel: React.FC = () => {
             type="password"
             value={newKeyValue}
             onChange={(e) => setNewKeyValue(e.target.value)}
-            placeholder="Paste your API key here"
+              placeholder={t("settings.apiKeys.placeholder")}
             autoFocus
             className="mb-3 font-mono text-xs"
           />
@@ -348,7 +350,7 @@ export const ApiKeysPanel: React.FC = () => {
                 setNewKeyValue("");
               }}
             >
-              Cancel
+              {t("settings.masterPassword.cancel")}
             </Button>
             <Button
               size="sm"

@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 
 import { Toolbar } from "./Toolbar";
 import { AssetsPanel } from "./AssetsPanel";
@@ -70,9 +71,10 @@ const useAutoSave = () => {
  * Ensures all engines and bridges are fully initialized before rendering editor
  */
 const useEngineInitialization = () => {
+  const { t } = useTranslation();
   const { initialize, initialized, initializing, initError } = useEngineStore();
   const [bridgesReady, setBridgesReady] = useState(false);
-  const [initStatus, setInitStatus] = useState("Starting...");
+  const [initStatus, setInitStatus] = useState(t("editor.starting"));
   const [localError, setLocalError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -82,7 +84,7 @@ const useEngineInitialization = () => {
       try {
         const currentState = useEngineStore.getState();
         if (!currentState.initialized && !currentState.initializing) {
-          setInitStatus("Initializing video engine...");
+          setInitStatus(t("editor.initEngine"));
           await initialize();
         } else if (currentState.initializing) {
           await new Promise<void>((resolve) => {
@@ -104,19 +106,19 @@ const useEngineInitialization = () => {
           );
         }
 
-        setInitStatus("Initializing media bridge...");
+        setInitStatus(t("editor.initMedia"));
         await initializeMediaBridge();
         if (!isMounted) return;
 
-        setInitStatus("Initializing playback bridge...");
+        setInitStatus(t("editor.initPlayback"));
         await initializePlaybackBridge();
         if (!isMounted) return;
 
-        setInitStatus("Initializing render bridge...");
+        setInitStatus(t("editor.initRender"));
         await initializeRenderBridge();
         if (!isMounted) return;
 
-        setInitStatus("Initializing effects bridge...");
+        setInitStatus(t("editor.initEffects"));
         const projectState = useProjectStore.getState();
         const { width, height } = projectState.project.settings;
         try {
@@ -129,7 +131,7 @@ const useEngineInitialization = () => {
         }
         if (!isMounted) return;
 
-        setInitStatus("Initializing transition bridge...");
+        setInitStatus(t("editor.initTransition"));
         try {
           initializeTransitionBridge(width, height);
         } catch (transitionError) {
@@ -178,6 +180,7 @@ const useEngineInitialization = () => {
  * Main Editor Interface Component
  */
 export const EditorInterface: React.FC = () => {
+  const { t } = useTranslation();
   const { initialized, initializing, initError, initStatus } =
     useEngineInitialization();
 
@@ -476,7 +479,7 @@ export const EditorInterface: React.FC = () => {
       <div className="w-full h-full bg-background flex items-center justify-center">
         <div className="text-center">
           <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-text-secondary text-sm">Initializing editor...</p>
+          <p className="text-text-secondary text-sm">{t("editor.initEditor")}</p>
           <p className="text-text-muted text-xs mt-2">{initStatus}</p>
           {initError && (
             <p className="text-red-500 text-xs mt-2">{initError}</p>

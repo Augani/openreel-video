@@ -4,6 +4,7 @@ import { useProjectStore } from "../../../../stores/project-store";
 import { useTtsAudioStore } from "../../../../stores/tts-store";
 import { PIPER_VOICES } from "../tts-constants";
 import type { ElevenLabsVoice } from "../tts-types";
+import i18n from "../../../../i18n";
 
 interface UseTtsActionsOptions {
   provider: TtsProvider;
@@ -132,7 +133,7 @@ export function useTtsActions(options: UseTtsActionsOptions): UseTtsActionsRetur
 
   const handleEnhance = useCallback(async () => {
     if (!text.trim()) {
-      setError("Please enter some text");
+      setError(i18n.t("tts.pleaseEnterText"));
       return;
     }
 
@@ -148,7 +149,7 @@ export function useTtsActions(options: UseTtsActionsOptions): UseTtsActionsRetur
       setEnhancedPreview(result);
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") return;
-      setError(err instanceof Error ? err.message : "Failed to enhance text");
+      setError(err instanceof Error ? err.message : i18n.t("tts.failedToEnhanceText"));
     } finally {
       setIsEnhancing(false);
     }
@@ -156,7 +157,7 @@ export function useTtsActions(options: UseTtsActionsOptions): UseTtsActionsRetur
 
   const generateSpeech = useCallback(async () => {
     if (!text.trim() && !enhancedPreview) {
-      setError("Please enter some text");
+      setError(i18n.t("tts.pleaseEnterText"));
       return;
     }
 
@@ -182,7 +183,7 @@ export function useTtsActions(options: UseTtsActionsOptions): UseTtsActionsRetur
       }
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") return;
-      setError(err instanceof Error ? err.message : "Failed to generate speech");
+      setError(err instanceof Error ? err.message : i18n.t("tts.failedToGenerateSpeech"));
     } finally {
       setIsGenerating(false);
     }
@@ -218,7 +219,7 @@ export function useTtsActions(options: UseTtsActionsOptions): UseTtsActionsRetur
       const errorMsg =
         typeof importResult.error === "string"
           ? importResult.error
-          : "Failed to import audio";
+          : i18n.t("tts.failedToImportAudio");
       throw new Error(errorMsg);
     }
 
@@ -236,10 +237,10 @@ export function useTtsActions(options: UseTtsActionsOptions): UseTtsActionsRetur
       await importToMediaAssets();
       storeClearAudio();
       setText("");
-      setSuccessMsg("Saved to Media Assets");
+      setSuccessMsg(i18n.t("tts.savedToMediaAssets"));
       setTimeout(() => setSuccessMsg(null), 3000);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save to media");
+      setError(err instanceof Error ? err.message : i18n.t("tts.failedToSaveToMedia"));
     } finally {
       setIsGenerating(false);
     }
@@ -260,7 +261,7 @@ export function useTtsActions(options: UseTtsActionsOptions): UseTtsActionsRetur
       storeClearAudio();
       setText("");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to add to timeline");
+      setError(err instanceof Error ? err.message : i18n.t("tts.failedToAddToTimeline"));
     } finally {
       setIsGenerating(false);
     }

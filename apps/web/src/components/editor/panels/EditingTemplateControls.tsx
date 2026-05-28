@@ -1,4 +1,5 @@
 import React from "react";
+import { useTranslation } from "react-i18next";
 import type { EditingTemplate, EditingTemplatePrimitive } from "@openreel/core";
 
 export const getEditingTemplateDefaultControlValues = (
@@ -47,6 +48,8 @@ export const EditingTemplateControls: React.FC<EditingTemplateControlsProps> = (
   disabled = false,
   className,
 }) => {
+  const { t } = useTranslation();
+
   if (!template.controls || template.controls.length === 0) {
     return null;
   }
@@ -61,7 +64,7 @@ export const EditingTemplateControls: React.FC<EditingTemplateControlsProps> = (
             <div key={control.id} className="space-y-2">
               <div className="flex items-center justify-between gap-3">
                 <label className="text-[11px] font-medium text-text-primary">
-                  {control.label}
+                  {t(`recipes.control.${control.label}`, control.label)}
                 </label>
                 <span className="rounded-full bg-background-tertiary px-2 py-0.5 text-[10px] text-text-secondary">
                   {value}
@@ -85,7 +88,7 @@ export const EditingTemplateControls: React.FC<EditingTemplateControlsProps> = (
           return (
             <div key={control.id} className="flex items-center justify-between gap-3">
               <label className="text-[11px] font-medium text-text-primary">
-                {control.label}
+                {t(`recipes.control.${control.label}`, control.label)}
               </label>
               <button
                 type="button"
@@ -113,7 +116,7 @@ export const EditingTemplateControls: React.FC<EditingTemplateControlsProps> = (
           return (
             <div key={control.id} className="space-y-2">
               <label className="text-[11px] font-medium text-text-primary">
-                {control.label}
+                {t(`recipes.control.${control.label}`, control.label)}
               </label>
               <select
                 value={`${selectedIndex}`}
@@ -128,7 +131,7 @@ export const EditingTemplateControls: React.FC<EditingTemplateControlsProps> = (
               >
                 {options.map((option, index) => (
                   <option key={option.label} value={`${index}`}>
-                    {option.label}
+{t(`recipes.control.${option.label}`, option.label)}
                   </option>
                 ))}
               </select>
@@ -140,7 +143,7 @@ export const EditingTemplateControls: React.FC<EditingTemplateControlsProps> = (
           return (
             <div key={control.id} className="space-y-2">
               <label className="text-[11px] font-medium text-text-primary">
-                {control.label}
+                {t(`recipes.control.${control.label}`, control.label)}
               </label>
               <div className="flex items-center gap-3">
                 <input
@@ -165,7 +168,7 @@ export const EditingTemplateControls: React.FC<EditingTemplateControlsProps> = (
         return (
           <div key={control.id} className="space-y-2">
             <label className="text-[11px] font-medium text-text-primary">
-              {control.label}
+              {t(`recipes.control.${control.label}`, control.label)}
             </label>
             <input
               type="text"

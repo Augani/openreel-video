@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Play,
   Download,
@@ -22,6 +23,7 @@ interface SharePageProps {
 type PageStatus = "loading" | "ready" | "expired" | "not-found" | "error";
 
 export const SharePage: React.FC<SharePageProps> = ({ shareId }) => {
+  const { t } = useTranslation();
   const [status, setStatus] = useState<PageStatus>("loading");
   const [shareInfo, setShareInfo] = useState<ShareInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -66,7 +68,7 @@ export const SharePage: React.FC<SharePageProps> = ({ shareId }) => {
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center space-y-4">
           <Loader2 size={48} className="text-primary animate-spin mx-auto" />
-          <p className="text-text-muted">Loading video...</p>
+          <p className="text-text-muted">{t("share.loading")}</p>
         </div>
       </div>
     );
@@ -81,10 +83,10 @@ export const SharePage: React.FC<SharePageProps> = ({ shareId }) => {
           </div>
           <div>
             <h1 className="text-2xl font-bold text-text-primary">
-              Video Not Found
+              {t("error.videoNotFound")}
             </h1>
             <p className="text-text-muted mt-2">
-              This video doesn't exist or the link is invalid.
+              {t("error.videoNotFoundDesc")}
             </p>
           </div>
           <button
@@ -92,7 +94,7 @@ export const SharePage: React.FC<SharePageProps> = ({ shareId }) => {
             className="inline-flex items-center gap-2 px-6 py-3 bg-primary hover:bg-primary-hover text-white font-bold rounded-lg transition-colors"
           >
             <ExternalLink size={18} />
-            Create Your Own Video
+            {t("share.createOwn")}
           </button>
         </div>
       </div>
@@ -108,11 +110,10 @@ export const SharePage: React.FC<SharePageProps> = ({ shareId }) => {
           </div>
           <div>
             <h1 className="text-2xl font-bold text-text-primary">
-              Link Expired
+              {t("error.linkExpired")}
             </h1>
             <p className="text-text-muted mt-2">
-              This share link has expired. Share links are only valid for 24
-              hours.
+              {t("error.linkExpiredDesc")}
             </p>
           </div>
           <button
@@ -120,7 +121,7 @@ export const SharePage: React.FC<SharePageProps> = ({ shareId }) => {
             className="inline-flex items-center gap-2 px-6 py-3 bg-primary hover:bg-primary-hover text-white font-bold rounded-lg transition-colors"
           >
             <ExternalLink size={18} />
-            Create Your Own Video
+            {t("share.createOwn")}
           </button>
         </div>
       </div>
@@ -135,16 +136,16 @@ export const SharePage: React.FC<SharePageProps> = ({ shareId }) => {
             <AlertCircle size={40} className="text-error" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-text-primary">Error</h1>
+            <h1 className="text-2xl font-bold text-text-primary">{t("error.error")}</h1>
             <p className="text-text-muted mt-2">
-              {error || "Something went wrong"}
+              {error || t("error.somethingWrong")}
             </p>
           </div>
           <button
             onClick={() => window.location.reload()}
             className="inline-flex items-center gap-2 px-6 py-3 bg-primary hover:bg-primary-hover text-white font-bold rounded-lg transition-colors"
           >
-            Try Again
+            {t("error.tryAgain")}
           </button>
         </div>
       </div>
@@ -156,7 +157,7 @@ export const SharePage: React.FC<SharePageProps> = ({ shareId }) => {
       <div className="max-w-4xl mx-auto px-6 py-12 space-y-8">
         <div className="text-center space-y-2">
           <h1 className="text-2xl font-bold text-text-primary">
-            {shareInfo?.filename || "Shared Video"}
+            {shareInfo?.filename || t("share.sharedVideo")}
           </h1>
           {shareInfo && (
             <div className="flex items-center justify-center gap-4 text-sm text-text-muted">
@@ -183,23 +184,20 @@ export const SharePage: React.FC<SharePageProps> = ({ shareId }) => {
             className="inline-flex items-center gap-2 px-6 py-3 bg-primary hover:bg-primary-hover text-white font-bold rounded-lg transition-colors"
           >
             <Download size={18} />
-            Download
+            {t("share.download")}
           </a>
           <button
             onClick={handleCreateProject}
             className="inline-flex items-center gap-2 px-6 py-3 bg-background-secondary hover:bg-background-tertiary border border-border text-text-primary font-medium rounded-lg transition-colors"
           >
             <Play size={18} />
-            Create Your Own
+            {t("share.createOwnShort")}
           </button>
         </div>
 
         <div className="text-center">
           <p className="text-xs text-text-muted">
-            Made with{" "}
-            <a href="#/editor" className="text-primary hover:underline">
-              Open Reel Video
-            </a>
+            {t("share.madeWith")}
           </p>
         </div>
       </div>

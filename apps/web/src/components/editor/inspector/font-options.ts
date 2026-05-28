@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import i18n from "../../../i18n";
 
 const CUSTOM_FONT_EVENT = "openreel:custom-fonts-updated";
 
@@ -14,8 +15,8 @@ interface StoredFontRecord {
 
 const customFonts: string[] = [];
 
-export const FONT_CATEGORIES = {
-  Popular: [
+export const FONT_CATEGORIES: Record<string, readonly string[]> = {
+  [i18n.t("fontCategory.popular")]: [
     "Inter",
     "Poppins",
     "Montserrat",
@@ -25,7 +26,7 @@ export const FONT_CATEGORIES = {
     "Outfit",
     "DM Sans",
   ],
-  "Display & Headlines": [
+  [i18n.t("fontCategory.displayHeadlines")]: [
     "Bebas Neue",
     "Anton",
     "Oswald",
@@ -40,7 +41,7 @@ export const FONT_CATEGORIES = {
     "Fredoka One",
     "Bungee",
   ],
-  "Elegant & Serif": [
+  [i18n.t("fontCategory.elegantSerif")]: [
     "Playfair Display",
     "Cinzel",
     "Lora",
@@ -50,7 +51,7 @@ export const FONT_CATEGORIES = {
     "Roboto Slab",
     "Zilla Slab",
   ],
-  "Modern & Clean": [
+  [i18n.t("fontCategory.modernClean")]: [
     "Lexend",
     "Quicksand",
     "Nunito",
@@ -61,7 +62,7 @@ export const FONT_CATEGORIES = {
     "Space Grotesk",
     "Comfortaa",
   ],
-  "Handwritten & Script": [
+  [i18n.t("fontCategory.handwrittenScript")]: [
     "Pacifico",
     "Lobster",
     "Dancing Script",
@@ -73,9 +74,9 @@ export const FONT_CATEGORIES = {
     "Rock Salt",
     "Permanent Marker",
   ],
-  "Fun & Creative": ["Bangers", "Creepster", "Press Start 2P"],
-  Monospace: ["Roboto Mono", "Space Mono"],
-  System: ["Arial", "Helvetica", "Times New Roman", "Georgia", "Verdana"],
+  [i18n.t("fontCategory.funCreative")]: ["Bangers", "Creepster", "Press Start 2P"],
+  [i18n.t("fontCategory.monospace")]: ["Roboto Mono", "Space Mono"],
+  [i18n.t("fontCategory.system")]: ["Arial", "Helvetica", "Times New Roman", "Georgia", "Verdana"],
 } as const;
 
 const FONT_EXTENSIONS = /\.(ttf|otf|woff2?)$/i;
@@ -211,11 +212,11 @@ export async function registerCustomFont(
   file: File,
 ): Promise<{ success: true; fontFamily: string } | { success: false; error: string }> {
   if (!FONT_EXTENSIONS.test(file.name)) {
-    return { success: false, error: "Please upload a .ttf, .otf, .woff, or .woff2 font file." };
+    return { success: false, error: i18n.t("fontCategory.invalidFileType") };
   }
 
   if (typeof FontFace === "undefined" || typeof document === "undefined") {
-    return { success: false, error: "Custom font upload is not supported in this environment." };
+    return { success: false, error: i18n.t("fontCategory.uploadNotSupported") };
   }
 
   try {
@@ -237,6 +238,6 @@ export async function registerCustomFont(
 
     return { success: true, fontFamily };
   } catch {
-    return { success: false, error: "Could not load this font file." };
+    return { success: false, error: i18n.t("fontCategory.couldNotLoadFont") };
   }
 }

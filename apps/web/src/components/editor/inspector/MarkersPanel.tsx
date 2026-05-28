@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Flag, Plus, Trash2, Edit2, Check, X } from "lucide-react";
 import { Input, ScrollArea } from "@openreel/ui";
 import { useProjectStore } from "../../../stores/project-store";
@@ -6,6 +7,7 @@ import { getPlaybackBridge } from "../../../bridges/playback-bridge";
 import type { Marker } from "@openreel/core";
 
 export const MarkersPanel: React.FC = () => {
+  const { t } = useTranslation();
   const { project, addMarker, removeMarker, updateMarker } = useProjectStore();
   const markers = project.timeline.markers;
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -15,7 +17,7 @@ export const MarkersPanel: React.FC = () => {
   const handleAddMarker = () => {
     const bridge = getPlaybackBridge();
     const currentTime = bridge.getCurrentTime();
-    addMarker(currentTime, `Marker ${markers.length + 1}`, "#3b82f6");
+    addMarker(currentTime, `${t("inspector.markerDefaultLabel", { num: markers.length + 1 })}`, "#3b82f6");
   };
 
   const handleJumpTo = (marker: Marker) => {
@@ -65,7 +67,7 @@ export const MarkersPanel: React.FC = () => {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Flag size={14} className="text-text-secondary" />
-          <span className="text-xs font-medium text-text-primary">Markers</span>
+          <span className="text-xs font-medium text-text-primary">{t("inspector.markers")}</span>
           <span className="text-xs text-text-muted">({markers.length})</span>
         </div>
         <button
@@ -73,15 +75,15 @@ export const MarkersPanel: React.FC = () => {
           className="flex items-center gap-1 px-2 py-1 bg-primary hover:bg-primary/80 text-white rounded text-xs transition-colors"
         >
           <Plus size={12} />
-          Add
+          {t("inspector.add")}
         </button>
       </div>
 
       {markers.length === 0 ? (
         <div className="py-8 text-center text-text-muted text-xs">
           <Flag size={32} className="mx-auto mb-2 opacity-30" />
-          <p>No markers yet</p>
-          <p className="text-[10px] mt-1">Press M at playhead to add markers</p>
+          <p>{t("inspector.noMarkersYet")}</p>
+          <p className="text-[10px] mt-1">{t("inspector.pressMAtPlayhead")}</p>
         </div>
       ) : (
         <ScrollArea className="max-h-96">
@@ -108,7 +110,7 @@ export const MarkersPanel: React.FC = () => {
                       value={editLabel}
                       onChange={(e) => setEditLabel(e.target.value)}
                       className="h-7 text-xs bg-background-secondary border-border text-text-primary"
-                      placeholder="Marker label"
+                      placeholder={t("inspector.markerLabel")}
                     />
                     <div className="flex gap-1">
                       {PRESET_COLORS.map((color) => (
@@ -130,14 +132,14 @@ export const MarkersPanel: React.FC = () => {
                         className="flex-1 flex items-center justify-center gap-1 px-2 py-1 bg-green-500 hover:bg-green-600 text-white rounded text-xs transition-colors"
                       >
                         <Check size={12} />
-                        Save
+                        {t("inspector.save")}
                       </button>
                       <button
                         onClick={handleCancelEdit}
                         className="flex-1 flex items-center justify-center gap-1 px-2 py-1 bg-background-secondary hover:bg-background-primary text-text-secondary rounded text-xs transition-colors"
                       >
                         <X size={12} />
-                        Cancel
+                        {t("inspector.cancel")}
                       </button>
                     </div>
                   </div>

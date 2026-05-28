@@ -1,4 +1,5 @@
 import React, { useCallback, useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Search,
   Command,
@@ -78,6 +79,7 @@ interface ExportState {
 }
 
 export const Toolbar: React.FC = () => {
+  const { t } = useTranslation();
   const { project } = useProjectStore();
   const {
     openModal,
@@ -206,10 +208,10 @@ export const Toolbar: React.FC = () => {
           duration: project.timeline?.duration ?? 0,
         });
       } else {
-        throw new Error(finalResult?.error?.message || "Export failed");
+        throw new Error(finalResult?.error?.message || t("export.failed"));
       }
     },
-    [project, track],
+    [project, track, t],
   );
 
   const showSavePicker = useCallback(async (filename: string, ext: string): Promise<FileSystemWritableFileStream> => {
@@ -355,7 +357,7 @@ export const Toolbar: React.FC = () => {
             });
           } else {
             try { await writable.abort(); } catch {}
-            throw new Error(finalResult?.error?.message || "Export failed");
+            throw new Error(finalResult?.error?.message || t("export.failed"));
           }
         } else {
           const base = {
@@ -401,11 +403,11 @@ export const Toolbar: React.FC = () => {
         setExportState((prev) => ({
           ...prev,
           isExporting: false,
-          error: error instanceof Error ? error.message : "Export failed",
+          error: error instanceof Error ? error.message : t("export.failed"),
         }));
       }
     },
-    [project, track, runExport, showSavePicker],
+    [project, track, runExport, showSavePicker, t],
   );
 
   const handleCancelExport = useCallback(() => {
@@ -475,7 +477,7 @@ export const Toolbar: React.FC = () => {
         }));
       }
     },
-    [project, track, runExport, showSavePicker],
+    [project, track, runExport, showSavePicker, t],
   );
 
 
@@ -483,8 +485,8 @@ export const Toolbar: React.FC = () => {
     async (screenBlob: Blob, webcamBlob?: Blob) => {
       if (!screenBlob || screenBlob.size === 0) {
         toast.error(
-          "Recording failed",
-          "No video data was captured. Please try again.",
+          t("recording.failed"),
+          t("recording.noVideoData"),
         );
         return;
       }
@@ -504,7 +506,7 @@ export const Toolbar: React.FC = () => {
         importCount++;
       } else {
         errors.push(
-          screenResult.error?.message || "Failed to import screen recording",
+          screenResult.error?.message || t("recording.importScreenFailed"),
         );
       }
 
@@ -517,23 +519,23 @@ export const Toolbar: React.FC = () => {
           importCount++;
         } else {
           errors.push(
-            webcamResult.error?.message || "Failed to import webcam recording",
+            webcamResult.error?.message || t("recording.importWebcamFailed"),
           );
         }
       }
 
       if (importCount > 0) {
         toast.success(
-          `${importCount} recording${importCount > 1 ? "s" : ""} imported!`,
+          t("recording.imported", { count: importCount }),
           webcamBlob && webcamBlob.size > 0
-            ? "Screen and webcam added to assets. Use the timeline to composite them."
-            : "Screen recording added to assets.",
+            ? t("recording.importedScreenAndWebcam")
+            : t("recording.importedScreen"),
         );
       } else if (errors.length > 0) {
-        toast.error("Import failed", errors.join(". "));
+        toast.error(t("recording.importFailed"), errors.join(". "));
       }
     },
-    [importMedia],
+    [importMedia, t],
   );
 
   const projectRes = `${project.settings.width}×${project.settings.height}`;
@@ -549,9 +551,9 @@ export const Toolbar: React.FC = () => {
     separator?: boolean;
   }> = [
     {
-      label: "MP4 Standard",
+      label: t("export.mp4Standard"),
       icon: Zap,
-      desc: `${projectRes} H.264 - Web & social`,
+      desc: t("export.descMp4Standard", { resolution: projectRes }),
       type: "mp4",
       recommended: true,
     },
@@ -566,28 +568,28 @@ export const Toolbar: React.FC = () => {
       ? []
       : [
           {
-            label: "4K Standard",
+            label: t("export.4kStandard"),
             icon: FileVideo,
-            desc: "3840×2160 - YouTube 4K",
+            desc: t("export.desc4kStandard"),
             type: "4k" as ExportType,
           },
         ]),
     {
-      label: "1080p High Quality",
+      label: t("export.1080pHighQuality"),
       icon: FileVideo,
-      desc: "1920×1080 30fps - High bitrate",
+      desc: t("export.desc1080pHigh"),
       type: "1080p-high",
     },
     {
-      label: "1080p 60fps",
+      label: t("export.1080p60fps"),
       icon: FileVideo,
-      desc: "1920×1080 - Smooth playback",
+      desc: t("export.desc1080p60"),
       type: "1080p-60",
     },
     {
-      label: "Audio Only (WAV)",
+      label: t("export.audioOnly"),
       icon: Music,
-      desc: "Uncompressed audio",
+      desc: t("export.descWav"),
       type: "wav",
     },
   ];
@@ -600,7 +602,7 @@ export const Toolbar: React.FC = () => {
             <button
               onClick={() => navigate("welcome")}
               className="flex items-center gap-3 hover:opacity-80 transition-opacity"
-              title="Back to Home"
+              title={t("editor.backToHome")}
             >
               <div className="w-8 h-8 group">
                 <svg
@@ -673,11 +675,11 @@ export const Toolbar: React.FC = () => {
                 </svg>
               </div>
               <span className="text-lg font-medium text-text-primary tracking-wide hidden lg:block">
-                Open Reel
+                {t("app.fullName")}
               </span>
             </button>
           </TooltipTrigger>
-          <TooltipContent>Back to Home</TooltipContent>
+          <TooltipContent>{t("editor.backToHome")}</TooltipContent>
         </Tooltip>
         <div className="h-6 w-px bg-border hidden md:block" />
         <ProjectSwitcher />
@@ -715,8 +717,8 @@ export const Toolbar: React.FC = () => {
             }`}
           >
             {hasSelectedClip
-              ? "Search effects for selected clip..."
-              : "Search tools, effects, or ask AI..."}
+              ? t("editor.searchEffects")
+              : t("editor.searchTools")}
           </span>
           <div className="flex items-center gap-1.5 px-2 py-0.5 rounded border border-border bg-background-tertiary">
             <Command size={10} className="text-text-muted" />
@@ -737,16 +739,16 @@ export const Toolbar: React.FC = () => {
           <DropdownMenuContent align="end" className="w-56">
             <DropdownMenuItem onClick={handleStartTour} className="gap-2">
               <Play size={14} />
-              <span>Editor Tour</span>
+              <span>{t("editor.editorTour")}</span>
             </DropdownMenuItem>
             <DropdownMenuItem onClick={handleStartMoGraphTour} className="gap-2">
               <Sparkles size={14} className="text-purple-400" />
-              <span>Animation & Effects Tour</span>
+              <span>{t("editor.mographTour")}</span>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem className="gap-2 text-text-muted">
               <Command size={14} />
-              <span>Press ? for shortcuts</span>
+              <span>{t("editor.pressShortcuts")}</span>
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -767,7 +769,7 @@ export const Toolbar: React.FC = () => {
             </button>
           </TooltipTrigger>
           <TooltipContent>
-            <p>Theme: {themeMode}</p>
+            <p>{t("editor.themeMode", { mode: themeMode })}</p>
           </TooltipContent>
         </Tooltip>
 
@@ -781,7 +783,7 @@ export const Toolbar: React.FC = () => {
             </button>
           </TooltipTrigger>
           <TooltipContent>
-            <p>Settings & API Keys</p>
+            <p>{t("editor.settingsApiKeys")}</p>
           </TooltipContent>
         </Tooltip>
 
@@ -795,7 +797,7 @@ export const Toolbar: React.FC = () => {
             </button>
           </TooltipTrigger>
           <TooltipContent>
-            <p>Project JSON - Export/Import</p>
+            <p>{t("editor.projectJson")}</p>
           </TooltipContent>
         </Tooltip>
 
@@ -813,7 +815,7 @@ export const Toolbar: React.FC = () => {
             </button>
           </TooltipTrigger>
           <TooltipContent>
-            <p>Keyframe Editor</p>
+            <p>{t("editor.keyframeEditor")}</p>
           </TooltipContent>
         </Tooltip>
 
@@ -831,7 +833,7 @@ export const Toolbar: React.FC = () => {
             </button>
           </TooltipTrigger>
           <TooltipContent>
-            <p>Audio Mixer – track volume and master level</p>
+            <p>{t("editor.audioMixer")}</p>
           </TooltipContent>
         </Tooltip>
 
@@ -849,7 +851,7 @@ export const Toolbar: React.FC = () => {
             </button>
           </TooltipTrigger>
           <TooltipContent>
-            <p>History - Undo/Redo</p>
+            <p>{t("editor.history")}</p>
           </TooltipContent>
         </Tooltip>
 
@@ -860,11 +862,11 @@ export const Toolbar: React.FC = () => {
               className="flex items-center gap-2 px-3 py-2 bg-error/10 hover:bg-error/20 text-error rounded-lg transition-colors"
             >
               <Circle size={14} className="fill-current" />
-              <span className="text-sm font-medium">Record</span>
+              <span className="text-sm font-medium">{t("editor.record")}</span>
             </button>
           </TooltipTrigger>
           <TooltipContent>
-            <p>Screen Recording</p>
+            <p>{t("editor.screenRecording")}</p>
           </TooltipContent>
         </Tooltip>
 
@@ -905,7 +907,7 @@ export const Toolbar: React.FC = () => {
           ) : exportState.complete ? (
             <div className="h-10 px-4 bg-primary/10 border border-primary/30 rounded-lg flex items-center gap-2">
               <Check size={14} className="text-primary" />
-              <span className="text-xs text-primary">Downloaded!</span>
+              <span className="text-xs text-primary">{t("editor.downloaded")}</span>
             </div>
           ) : (
             <DropdownMenu open={isExportOpen} onOpenChange={setIsExportOpen}>
@@ -915,7 +917,7 @@ export const Toolbar: React.FC = () => {
                     isExportOpen ? "translate-y-0 shadow-none" : ""
                   }`}
                 >
-                  <span className="text-sm tracking-wider">EXPORT</span>
+                  <span className="text-sm tracking-wider">{t("editor.export")}</span>
                   <ChevronDown
                     size={14}
                     className={`transition-transform duration-200 ${
@@ -959,7 +961,7 @@ export const Toolbar: React.FC = () => {
                             {option.label}
                             {option.recommended && (
                               <span className="ml-2 text-[10px] bg-primary/20 text-primary px-1.5 py-0.5 rounded">
-                                Best Match
+                                {t("editor.bestMatch")}
                               </span>
                             )}
                           </div>
@@ -968,7 +970,7 @@ export const Toolbar: React.FC = () => {
                           </div>
                           {exportEstimates.get(option.type) && (
                             <div className="text-[10px] text-text-secondary mt-1">
-                              Est. {exportEstimates.get(option.type)?.formatted}
+                              {t("export.estimatedTime", { time: exportEstimates.get(option.type)?.formatted })}
                             </div>
                           )}
                         </div>
@@ -986,10 +988,10 @@ export const Toolbar: React.FC = () => {
                     </div>
                     <div className="flex-1">
                       <div className="text-sm font-medium text-primary transition-colors">
-                        Custom Export...
+                        {t("editor.customExport")}
                       </div>
                       <div className="text-xs text-text-muted mt-0.5">
-                        Full settings with AI upscaling
+                        {t("editor.customExportDesc")}
                       </div>
                     </div>
                     <Settings
@@ -1033,7 +1035,7 @@ export const Toolbar: React.FC = () => {
           />
           <div className="fixed top-16 right-0 bottom-0 w-80 bg-background-secondary border-l border-border z-50 shadow-2xl animate-in slide-in-from-right duration-200">
             <div className="flex items-center justify-between p-3 border-b border-border">
-              <span className="text-sm font-medium text-text-primary">Action History</span>
+              <span className="text-sm font-medium text-text-primary">{t("editor.actionHistory")}</span>
               <button
                 onClick={() => setIsHistoryOpen(false)}
                 className="p-1.5 rounded hover:bg-background-tertiary text-text-muted hover:text-text-primary transition-colors"

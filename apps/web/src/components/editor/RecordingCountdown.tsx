@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 
 export const RecordingCountdown: React.FC = () => {
+  const { t } = useTranslation();
   const [count, setCount] = useState(3);
 
   useEffect(() => {
@@ -29,7 +31,7 @@ export const RecordingCountdown: React.FC = () => {
             <div className="flex items-center gap-3">
               <div className="w-4 h-4 bg-error rounded-full animate-pulse" />
               <span className="text-2xl font-bold text-white">
-                Recording...
+                {t("recording.recording")}
               </span>
             </div>
           </div>

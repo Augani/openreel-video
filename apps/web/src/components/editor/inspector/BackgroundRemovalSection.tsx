@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import {
   User,
   ImageIcon,
@@ -25,14 +26,21 @@ interface BackgroundRemovalSectionProps {
 
 const BACKGROUND_MODES: {
   value: BackgroundMode;
-  label: string;
   icon: React.ReactNode;
 }[] = [
-  { value: "blur", label: "Blur", icon: <Droplets size={14} /> },
-  { value: "color", label: "Color", icon: <Palette size={14} /> },
-  { value: "image", label: "Image", icon: <ImageIcon size={14} /> },
-  { value: "transparent", label: "Transparent", icon: <User size={14} /> },
+  { value: "blur", icon: <Droplets size={14} /> },
+  { value: "color", icon: <Palette size={14} /> },
+  { value: "image", icon: <ImageIcon size={14} /> },
+  { value: "transparent", icon: <User size={14} /> },
 ];
+
+const MODE_LABEL_KEYS: Record<BackgroundMode, string> = {
+  blur: "inspector.bgBlur",
+  color: "inspector.bgColor",
+  image: "inspector.bgImage",
+  transparent: "inspector.bgTransparent",
+  video: "inspector.bgVideo",
+};
 
 const PRESET_COLORS = [
   "#00ff00",
@@ -48,6 +56,7 @@ const PRESET_COLORS = [
 export const BackgroundRemovalSection: React.FC<
   BackgroundRemovalSectionProps
 > = ({ clipId, onSettingsChange }) => {
+  const { t } = useTranslation();
   const [settings, setSettings] = useState<BackgroundRemovalSettings>(
     DEFAULT_BACKGROUND_SETTINGS,
   );
@@ -99,33 +108,33 @@ export const BackgroundRemovalSection: React.FC<
     setIsProcessing(true);
 
     try {
-      updateTaskProgress(taskId, 10, "Initializing AI model...");
+      updateTaskProgress(taskId, 10, t("inspector.initializingModel"));
 
       if (!isInitialized) {
         await handleInitialize();
       }
 
-      updateTaskProgress(taskId, 30, "Preparing background detection...");
+      updateTaskProgress(taskId, 30, t("inspector.preparingDetection"));
       await new Promise((resolve) => setTimeout(resolve, 500));
 
-      updateTaskProgress(taskId, 60, "Configuring effect pipeline...");
+      updateTaskProgress(taskId, 60, t("inspector.configuringPipeline"));
       await new Promise((resolve) => setTimeout(resolve, 400));
 
-      updateTaskProgress(taskId, 90, "Finalizing setup...");
+      updateTaskProgress(taskId, 90, t("inspector.finalizingSetup"));
       await new Promise((resolve) => setTimeout(resolve, 300));
 
       updateSettings({ enabled: true });
       completeTask(taskId);
       toast.success(
-        "Background Removal Ready",
-        "Effect will be applied during playback",
+        t("inspector.bgRemovalReady"),
+        t("inspector.bgRemovalPlayback"),
       );
     } catch (error) {
       failTask(
         taskId,
-        error instanceof Error ? error.message : "Unknown error",
+        error instanceof Error ? error.message : t("inspector.unknownError"),
       );
-      toast.error("Processing Failed", "Could not enable background removal");
+      toast.error(t("inspector.bgRemovalFailed"), t("inspector.bgRemovalCouldNotEnable"));
     } finally {
       setIsProcessing(false);
     }
@@ -143,7 +152,7 @@ export const BackgroundRemovalSection: React.FC<
   const handleToggleEnabled = useCallback(() => {
     if (settings.enabled) {
       updateSettings({ enabled: false });
-      toast.info("Background Removal Disabled");
+      toast.info(t("inspector.bgRemovalDisabled"));
     } else {
       processBackgroundRemoval();
     }
@@ -163,10 +172,10 @@ export const BackgroundRemovalSection: React.FC<
         >
           {isInitializing || isProcessing ? (
             <Loader2 size={12} className="animate-spin" />
-          ) : settings.enabled ? (
-            "On"
+            ) : settings.enabled ? (
+            t("inspector.enableEffect")
           ) : (
-            "Off"
+            t("inspector.disableEffect")
           )}
         </button>
       </div>
@@ -175,7 +184,7 @@ export const BackgroundRemovalSection: React.FC<
         <div className="space-y-3 p-3 bg-background-tertiary rounded-lg">
           <div>
             <label className="text-[10px] text-text-secondary block mb-2">
-              Background Mode
+              {t("inspector.backgroundMode")}
             </label>
             <div className="grid grid-cols-4 gap-1">
               {BACKGROUND_MODES.map((mode) => (
@@ -190,7 +199,7 @@ export const BackgroundRemovalSection: React.FC<
                 >
                   {mode.icon}
                   <span className="text-[9px] text-text-primary">
-                    {mode.label}
+                    {t(MODE_LABEL_KEYS[mode.value])}
                   </span>
                 </button>
               ))}
@@ -201,7 +210,7 @@ export const BackgroundRemovalSection: React.FC<
             <div>
               <div className="flex items-center justify-between mb-1">
                 <label className="text-[10px] text-text-secondary">
-                  Blur Amount
+                  {t("inspector.blurAmount")}
                 </label>
                 <span className="text-[10px] text-text-muted font-mono">
                   {settings.blurAmount}px
@@ -222,7 +231,7 @@ export const BackgroundRemovalSection: React.FC<
           {settings.mode === "color" && (
             <div>
               <label className="text-[10px] text-text-secondary block mb-2">
-                Background Color
+                {t("inspector.backgroundColor")}
               </label>
               <div className="grid grid-cols-8 gap-1 mb-2">
                 {PRESET_COLORS.map((color) => (
@@ -252,7 +261,7 @@ export const BackgroundRemovalSection: React.FC<
           {settings.mode === "image" && (
             <div>
               <label className="text-[10px] text-text-secondary block mb-2">
-                Background Image
+                {t("inspector.backgroundImage")}
               </label>
               <button
                 onClick={() => {
@@ -275,11 +284,11 @@ export const BackgroundRemovalSection: React.FC<
                 className="w-full py-2 bg-background-secondary hover:bg-background-primary text-text-primary rounded text-[10px] transition-colors flex items-center justify-center gap-2"
               >
                 <ImageIcon size={14} />
-                Choose Image
+                {t("inspector.chooseImage")}
               </button>
               {settings.backgroundImageUrl && (
                 <div className="mt-2 text-[9px] text-text-muted truncate">
-                  Image loaded
+                  {t("inspector.imageLoaded")}
                 </div>
               )}
             </div>
@@ -288,7 +297,7 @@ export const BackgroundRemovalSection: React.FC<
           <div>
             <div className="flex items-center justify-between mb-1">
               <label className="text-[10px] text-text-secondary">
-                Edge Smoothing
+                  {t("inspector.edgeSmoothing")}
               </label>
               <span className="text-[10px] text-text-muted font-mono">
                 {settings.edgeBlur}
@@ -308,7 +317,7 @@ export const BackgroundRemovalSection: React.FC<
           <div>
             <div className="flex items-center justify-between mb-1">
               <label className="text-[10px] text-text-secondary">
-                Detection Threshold
+                  {t("inspector.detectionThreshold")}
               </label>
               <span className="text-[10px] text-text-muted font-mono">
                 {Math.round(settings.threshold * 100)}%
@@ -328,8 +337,7 @@ export const BackgroundRemovalSection: React.FC<
           <div className="flex items-start gap-2 p-2 bg-primary/10 rounded border border-primary/20">
             <Info size={14} className="text-primary flex-shrink-0 mt-0.5" />
             <p className="text-[9px] text-text-muted">
-              Background removal is processed in real-time. For best results,
-              export your video after previewing.
+              {t("inspector.bgRemovalInfo")}
             </p>
           </div>
         </div>

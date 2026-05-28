@@ -1,4 +1,5 @@
 import React from "react";
+import { useTranslation } from "react-i18next";
 import {
   Copy,
   Layers,
@@ -36,6 +37,7 @@ export const ClipContextMenu: React.FC<ClipContextMenuProps> = ({
   track,
   onClose,
 }) => {
+  const { t } = useTranslation();
   const {
     copyClips,
     duplicateClip,
@@ -125,10 +127,10 @@ export const ClipContextMenu: React.FC<ClipContextMenuProps> = ({
   };
 
   const getClipTypeLabel = () => {
-    if (isVideo) return "Video Clip";
-    if (isAudio) return "Audio Clip";
-    if (isImage) return "Image Clip";
-    return "Clip";
+    if (isVideo) return t("timeline.videoClip");
+    if (isAudio) return t("timeline.audioClip");
+    if (isImage) return t("timeline.imageClip");
+    return t("timeline.clip");
   };
 
   const getClipTypeIcon = () => {
@@ -148,12 +150,12 @@ export const ClipContextMenu: React.FC<ClipContextMenuProps> = ({
 
       <ContextMenuItem onClick={handleCopy}>
         <Copy className="mr-2 h-4 w-4" />
-        Copy Clip
+        {t("timeline.copyClip")}
         <ContextMenuShortcut>⌘C</ContextMenuShortcut>
       </ContextMenuItem>
       <ContextMenuItem onClick={handleDuplicate}>
         <Layers className="mr-2 h-4 w-4" />
-        Duplicate
+        {t("timeline.duplicate")}
         <ContextMenuShortcut>⌘D</ContextMenuShortcut>
       </ContextMenuItem>
 
@@ -161,12 +163,12 @@ export const ClipContextMenu: React.FC<ClipContextMenuProps> = ({
 
       <ContextMenuItem onClick={handleSplit} disabled={!isPlayheadOnClip}>
         <Scissors className="mr-2 h-4 w-4" />
-        Split at Playhead
+        {t("timeline.splitAtPlayhead")}
         <ContextMenuShortcut>S</ContextMenuShortcut>
       </ContextMenuItem>
       <ContextMenuItem onClick={handleCloseGap} disabled={!hasGapBeforeClip}>
         <ArrowLeftToLine className="mr-2 h-4 w-4" />
-        Close Gap to Previous
+        {t("timeline.closeGapToPrevious")}
       </ContextMenuItem>
 
       {(isVideo || isImage) && (
@@ -175,14 +177,14 @@ export const ClipContextMenu: React.FC<ClipContextMenuProps> = ({
           <ContextMenuSub>
             <ContextMenuSubTrigger>
               <Sparkles className="mr-2 h-4 w-4" />
-              Effects
+              {t("timeline.effects")}
             </ContextMenuSubTrigger>
             <ContextMenuSubContent>
               <ContextMenuItem onClick={handleCopyEffects} disabled={!hasEffects}>
-                Copy Effects
+                {t("timeline.copyEffects")}
               </ContextMenuItem>
               <ContextMenuItem onClick={handlePasteEffects} disabled={!hasCopiedEffects}>
-                Paste Effects
+                {t("timeline.pasteEffects")}
               </ContextMenuItem>
             </ContextMenuSubContent>
           </ContextMenuSub>
@@ -194,7 +196,7 @@ export const ClipContextMenu: React.FC<ClipContextMenuProps> = ({
           <ContextMenuSeparator />
           <ContextMenuItem onClick={handleSeparateAudio}>
             <Music className="mr-2 h-4 w-4" />
-            Separate Audio
+            {t("timeline.separateAudio")}
           </ContextMenuItem>
         </>
       )}
@@ -205,14 +207,14 @@ export const ClipContextMenu: React.FC<ClipContextMenuProps> = ({
           <ContextMenuSub>
             <ContextMenuSubTrigger>
               <Volume2 className="mr-2 h-4 w-4" />
-              Audio
+              {t("timeline.audio")}
             </ContextMenuSubTrigger>
             <ContextMenuSubContent>
               <ContextMenuItem onClick={handleCopyEffects} disabled={!hasEffects}>
-                Copy Audio Effects
+                {t("timeline.copyAudioEffects")}
               </ContextMenuItem>
               <ContextMenuItem onClick={handlePasteEffects} disabled={!hasCopiedEffects}>
-                Paste Audio Effects
+                {t("timeline.pasteAudioEffects")}
               </ContextMenuItem>
             </ContextMenuSubContent>
           </ContextMenuSub>
@@ -222,12 +224,12 @@ export const ClipContextMenu: React.FC<ClipContextMenuProps> = ({
       <ContextMenuSeparator />
       <ContextMenuItem onClick={handleRippleDelete} className="text-red-400">
         <Trash2 className="mr-2 h-4 w-4" />
-        Ripple Delete
+        {t("timeline.rippleDelete")}
         <ContextMenuShortcut>⌫</ContextMenuShortcut>
       </ContextMenuItem>
       <ContextMenuItem onClick={handleDelete} className="text-red-400">
         <Trash2 className="mr-2 h-4 w-4" />
-        Delete
+        {t("timeline.delete")}
       </ContextMenuItem>
     </ContextMenuContent>
   );

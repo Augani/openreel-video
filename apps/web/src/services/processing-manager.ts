@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import i18n from "../i18n";
 
 export type ProcessingType =
   | "background-removal"
@@ -57,7 +58,7 @@ export const useProcessingStore = create<ProcessingState>((set, get) => ({
       type,
       progress: 0,
       status: "queued",
-      message: "Waiting to start...",
+      message: i18n.t("processing.waitingToStart"),
     };
 
     set((state) => {
@@ -101,7 +102,7 @@ export const useProcessingStore = create<ProcessingState>((set, get) => ({
         ...task,
         progress: 100,
         status: "completed",
-        message: "Complete",
+        message: i18n.t("processing.complete"),
         completedAt: Date.now(),
       });
 
@@ -131,7 +132,7 @@ export const useProcessingStore = create<ProcessingState>((set, get) => ({
       newTasks.set(taskId, {
         ...task,
         status: "failed",
-        message: "Failed",
+        message: i18n.t("processing.failed"),
         error,
         completedAt: Date.now(),
       });
@@ -211,9 +212,5 @@ export const useProcessingStore = create<ProcessingState>((set, get) => ({
   },
 }));
 
-export const PROCESSING_TYPE_LABELS: Record<ProcessingType, string> = {
-  "background-removal": "Background Removal",
-  "auto-reframe": "Auto Reframe",
-  "color-grading": "Color Grading",
-  effects: "Video Effects",
-};
+export const getProcessingTypeLabel = (type: ProcessingType): string =>
+  i18n.t(`processing.types.${type}`);

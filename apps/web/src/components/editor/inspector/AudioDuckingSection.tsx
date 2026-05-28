@@ -1,4 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
+import i18n from "../../../i18n";
 import {
   Volume2,
   VolumeX,
@@ -42,22 +44,22 @@ const PRESET_CONFIGS: {
 }[] = [
   {
     id: "subtle",
-    name: "Subtle",
+    name: i18n.t("ducking.presetSubtle"),
     settings: { threshold: -35, reduction: 0.4, attack: 0.15, release: 0.5 },
   },
   {
     id: "moderate",
-    name: "Moderate",
+    name: i18n.t("ducking.presetModerate"),
     settings: { threshold: -30, reduction: 0.6, attack: 0.1, release: 0.3 },
   },
   {
     id: "aggressive",
-    name: "Aggressive",
+    name: i18n.t("ducking.presetAggressive"),
     settings: { threshold: -25, reduction: 0.8, attack: 0.05, release: 0.2 },
   },
   {
     id: "podcast",
-    name: "Podcast",
+    name: i18n.t("ducking.presetPodcast"),
     settings: {
       threshold: -28,
       reduction: 0.75,
@@ -101,7 +103,7 @@ const findClipById = (project: Project, clipId: string): Clip | null => {
 };
 
 const getTrackLabel = (track: Track): string => {
-  const prefix = track.type === "video" ? "Video" : "Audio";
+  const prefix = track.type === "video" ? i18n.t("ducking.trackTypeVideo") : i18n.t("ducking.trackTypeAudio");
   return track.name || `${prefix} ${track.id.slice(-4)}`;
 };
 
@@ -196,6 +198,7 @@ const buildTriggerTrackBuffer = async (
 export const AudioDuckingSection: React.FC<AudioDuckingSectionProps> = ({
   clipId,
 }) => {
+  const { t } = useTranslation();
   const project = useProjectStore((state) => state.project);
   const setClipAudioDucking = useProjectStore(
     (state) => state.setClipAudioDucking,
@@ -290,7 +293,7 @@ export const AudioDuckingSection: React.FC<AudioDuckingSectionProps> = ({
     );
 
     if (!sourceTrack) {
-      setErrorMessage("Select a valid trigger source track.");
+      setErrorMessage(t("ducking.selectValidTriggerSource"));
       return;
     }
 
@@ -312,7 +315,7 @@ export const AudioDuckingSection: React.FC<AudioDuckingSectionProps> = ({
 
       if (keyframes.length === 0) {
         throw new Error(
-          "No speech crossed the trigger threshold. Lower the threshold or choose a louder source track.",
+          t("ducking.noSpeechCrossedThreshold"),
         );
       }
 
@@ -320,31 +323,31 @@ export const AudioDuckingSection: React.FC<AudioDuckingSectionProps> = ({
       const applied = setClipAudioDucking(audioTargetClip.id, persisted, keyframes);
 
       if (!applied) {
-        throw new Error("Failed to persist ducking on this clip.");
+        throw new Error(t("ducking.failedPersistDucking"));
       }
 
       window.dispatchEvent(new CustomEvent("openreel:preview-invalidate"));
     } catch (error) {
       setErrorMessage(
-        error instanceof Error ? error.message : "Failed to apply ducking.",
+        error instanceof Error ? error.message : t("ducking.failedApplyDucking"),
       );
     } finally {
       setIsApplying(false);
     }
-  }, [audioTargetClip, project, setClipAudioDucking, settings]);
+  }, [audioTargetClip, project, setClipAudioDucking, settings, t]);
 
   const handleRemoveDucking = useCallback(() => {
     const cleared = clearClipAudioDucking(audioTargetClip?.id ?? clipId);
 
     if (!cleared) {
-      setErrorMessage("Failed to remove ducking from this clip.");
+      setErrorMessage(t("ducking.failedRemoveDucking"));
       return;
     }
 
     setSettings(DEFAULT_SETTINGS);
     setErrorMessage(null);
     window.dispatchEvent(new CustomEvent("openreel:preview-invalidate"));
-  }, [audioTargetClip?.id, clearClipAudioDucking, clipId]);
+  }, [audioTargetClip?.id, clearClipAudioDucking, clipId, t]);
 
   return (
     <div className="space-y-3">
@@ -352,10 +355,10 @@ export const AudioDuckingSection: React.FC<AudioDuckingSectionProps> = ({
         <VolumeX size={16} className="text-primary" />
         <div className="flex-1">
           <span className="text-[11px] font-medium text-text-primary">
-            Audio Ducking
+            {t("ducking.title")}
           </span>
           <p className="text-[9px] text-text-muted">
-            Auto-lower music when speech plays
+            {t("ducking.description")}
           </p>
         </div>
       </div>
@@ -368,7 +371,7 @@ export const AudioDuckingSection: React.FC<AudioDuckingSectionProps> = ({
             }`}
           />
           <span className="text-[10px] font-medium text-text-primary">
-            {showControls ? "Ducking Enabled" : "Ducking Disabled"}
+            {showControls ? t("ducking.duckingEnabled") : t("ducking.duckingDisabled")}
           </span>
         </div>
         <button
@@ -390,7 +393,7 @@ export const AudioDuckingSection: React.FC<AudioDuckingSectionProps> = ({
           <div className="space-y-2">
             <label className="text-[10px] font-medium text-text-secondary flex items-center gap-2">
               <Mic size={12} />
-              Trigger Source (Voice Track)
+              {t("ducking.triggerSource")}
             </label>
             {availableSourceTracks.length > 0 ? (
               <div className="space-y-1">
@@ -423,7 +426,7 @@ export const AudioDuckingSection: React.FC<AudioDuckingSectionProps> = ({
                   className="mx-auto mb-1 text-text-muted opacity-50"
                 />
                 <p className="text-[10px] text-text-muted">
-                  Add another audio or video track with speech to use as trigger
+                  {t("ducking.addTrackForTrigger")}
                 </p>
               </div>
             )}
@@ -434,7 +437,7 @@ export const AudioDuckingSection: React.FC<AudioDuckingSectionProps> = ({
               <div className="space-y-2">
                 <label className="text-[10px] font-medium text-text-secondary flex items-center gap-2">
                   <Music size={12} />
-                  Ducking Presets
+                  {t("ducking.duckingPresets")}
                 </label>
                 <div className="grid grid-cols-2 gap-1">
                   {PRESET_CONFIGS.map((preset) => (
@@ -453,7 +456,7 @@ export const AudioDuckingSection: React.FC<AudioDuckingSectionProps> = ({
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
                     <label className="text-[10px] text-text-secondary">
-                      Detection Threshold
+                      {t("ducking.detectionThreshold")}
                     </label>
                     <span className="text-[10px] font-mono text-text-primary">
                       {settings.threshold} dB
@@ -469,14 +472,14 @@ export const AudioDuckingSection: React.FC<AudioDuckingSectionProps> = ({
                     }
                   />
                   <p className="text-[8px] text-text-muted">
-                    Voice level that triggers ducking
+                    {t("ducking.detectionThresholdDesc")}
                   </p>
                 </div>
 
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
                     <label className="text-[10px] text-text-secondary">
-                      Volume Reduction
+                      {t("ducking.volumeReduction")}
                     </label>
                     <span className="text-[10px] font-mono text-text-primary">
                       {Math.round(settings.reduction * 100)}%
@@ -492,7 +495,7 @@ export const AudioDuckingSection: React.FC<AudioDuckingSectionProps> = ({
                     }
                   />
                   <p className="text-[8px] text-text-muted">
-                    How much to lower background music
+                    {t("ducking.volumeReductionDesc")}
                   </p>
                 </div>
               </div>
@@ -506,7 +509,7 @@ export const AudioDuckingSection: React.FC<AudioDuckingSectionProps> = ({
                 ) : (
                   <ChevronRight size={12} />
                 )}
-                Timing Controls
+                {t("ducking.timingControls")}
               </button>
 
               {showAdvanced && (
@@ -514,7 +517,7 @@ export const AudioDuckingSection: React.FC<AudioDuckingSectionProps> = ({
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between">
                       <label className="text-[10px] text-text-secondary">
-                        Attack
+                        {t("audioEffects.attack")}
                       </label>
                       <span className="text-[10px] font-mono text-text-primary">
                         {settings.attack.toFixed(2)}s
@@ -530,14 +533,14 @@ export const AudioDuckingSection: React.FC<AudioDuckingSectionProps> = ({
                       }
                     />
                     <p className="text-[8px] text-text-muted">
-                      How fast volume drops when voice starts
+                      {t("ducking.attackDesc")}
                     </p>
                   </div>
 
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between">
                       <label className="text-[10px] text-text-secondary">
-                        Release
+                        {t("audioEffects.release")}
                       </label>
                       <span className="text-[10px] font-mono text-text-primary">
                         {settings.release.toFixed(2)}s
@@ -553,14 +556,14 @@ export const AudioDuckingSection: React.FC<AudioDuckingSectionProps> = ({
                       }
                     />
                     <p className="text-[8px] text-text-muted">
-                      How fast volume returns after voice stops
+                      {t("ducking.releaseDesc")}
                     </p>
                   </div>
 
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between">
                       <label className="text-[10px] text-text-secondary">
-                        Hold Time
+                        {t("ducking.holdTime")}
                       </label>
                       <span className="text-[10px] font-mono text-text-primary">
                         {settings.holdTime.toFixed(2)}s
@@ -576,7 +579,7 @@ export const AudioDuckingSection: React.FC<AudioDuckingSectionProps> = ({
                       }
                     />
                     <p className="text-[8px] text-text-muted">
-                      Minimum time to stay ducked between words
+                      {t("ducking.holdTimeDesc")}
                     </p>
                   </div>
                 </div>
@@ -591,12 +594,12 @@ export const AudioDuckingSection: React.FC<AudioDuckingSectionProps> = ({
                   {isApplying ? (
                     <>
                       <RefreshCw size={14} className="animate-spin" />
-                      Analyzing...
+                      {t("ducking.analyzing")}
                     </>
                   ) : (
                     <>
                       <VolumeX size={14} />
-                      Apply Ducking
+                      {t("ducking.applyDucking")}
                     </>
                   )}
                 </button>
@@ -605,7 +608,7 @@ export const AudioDuckingSection: React.FC<AudioDuckingSectionProps> = ({
                   <div className="flex items-center gap-2 p-2 bg-green-500/10 border border-green-500/20 rounded-lg">
                     <Check size={12} className="text-green-400" />
                     <span className="text-[10px] text-green-400">
-                      Ducking Applied
+                      {t("ducking.duckingApplied")}
                     </span>
                   </div>
                   <div className="grid grid-cols-2 gap-2">
@@ -618,14 +621,14 @@ export const AudioDuckingSection: React.FC<AudioDuckingSectionProps> = ({
                         size={10}
                         className={isApplying ? "animate-spin" : undefined}
                       />
-                      {isApplying ? "Updating..." : "Update"}
+                      {isApplying ? t("ducking.updating") : t("ducking.update")}
                     </button>
                     <button
                       onClick={handleRemoveDucking}
                       disabled={isApplying}
                       className="py-2 bg-red-500/10 border border-red-500/20 rounded-lg text-[10px] text-red-400 hover:bg-red-500/20 transition-colors"
                     >
-                      Remove
+                      {t("transitionInspector.transitionRemove")}
                     </button>
                   </div>
                 </div>
@@ -644,7 +647,7 @@ export const AudioDuckingSection: React.FC<AudioDuckingSectionProps> = ({
 
       <div className="pt-2 border-t border-border">
         <p className="text-[9px] text-text-muted text-center">
-          Automatically reduces music volume when voice is detected
+          {t("ducking.footerDescription")}
         </p>
       </div>
     </div>

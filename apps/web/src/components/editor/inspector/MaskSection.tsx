@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useMemo, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Square,
   Circle,
@@ -55,6 +56,7 @@ const MaskItem: React.FC<{
   onUpdateOpacity,
   onToggleInvert,
 }) => {
+  const { t } = useTranslation();
   const maskTypeIcon = mask.type === "shape" ? Square : Pen;
   const MaskIcon = maskTypeIcon;
 
@@ -83,7 +85,7 @@ const MaskItem: React.FC<{
         </button>
         <MaskIcon size={12} className="text-primary" />
         <span className="flex-1 text-left text-[10px] font-medium text-text-primary">
-          {mask.type === "shape" ? "Shape Mask" : "Drawn Mask"}
+          {mask.type === "shape" ? t("inspector.maskShape") : t("inspector.maskDrawn")}
         </span>
         <button
           onClick={(e) => {
@@ -95,7 +97,7 @@ const MaskItem: React.FC<{
               ? "bg-amber-500/20 text-amber-400"
               : "text-text-muted hover:text-text-primary"
           }`}
-          title={mask.inverted ? "Mask Inverted" : "Mask Normal"}
+          title={mask.inverted ? t("inspector.maskInverted") : t("inspector.maskNormal")}
         >
           {mask.inverted ? <EyeOff size={10} /> : <Eye size={10} />}
         </button>
@@ -105,7 +107,7 @@ const MaskItem: React.FC<{
             onDuplicate();
           }}
           className="p-1 text-text-muted hover:text-text-primary transition-colors"
-          title="Duplicate Mask"
+          title={t("inspector.maskDuplicate")}
         >
           <Copy size={10} />
         </button>
@@ -115,7 +117,7 @@ const MaskItem: React.FC<{
             onDelete();
           }}
           className="p-1 text-text-muted hover:text-red-400 transition-colors"
-          title="Delete Mask"
+          title={t("inspector.maskDelete")}
         >
           <Trash2 size={10} />
         </button>
@@ -125,7 +127,7 @@ const MaskItem: React.FC<{
         <div className="p-2 space-y-3 border-t border-border bg-background-tertiary/50">
           <div className="space-y-1">
             <div className="flex items-center justify-between">
-              <label className="text-[9px] text-text-muted">Feathering</label>
+              <label className="text-[9px] text-text-muted">{t("inspector.maskFeathering")}</label>
               <span className="text-[9px] text-text-secondary">
                 {mask.feathering}px
               </span>
@@ -141,7 +143,7 @@ const MaskItem: React.FC<{
 
           <div className="space-y-1">
             <div className="flex items-center justify-between">
-              <label className="text-[9px] text-text-muted">Expansion</label>
+              <label className="text-[9px] text-text-muted">{t("inspector.maskExpansion")}</label>
               <span className="text-[9px] text-text-secondary">
                 {mask.expansion}px
               </span>
@@ -157,7 +159,7 @@ const MaskItem: React.FC<{
 
           <div className="space-y-1">
             <div className="flex items-center justify-between">
-              <label className="text-[9px] text-text-muted">Opacity</label>
+              <label className="text-[9px] text-text-muted">{t("inspector.opacity")}</label>
               <span className="text-[9px] text-text-secondary">
                 {Math.round(mask.opacity * 100)}%
               </span>
@@ -181,13 +183,13 @@ const MaskItem: React.FC<{
               }`}
             >
               {mask.inverted ? <EyeOff size={10} /> : <Eye size={10} />}
-              {mask.inverted ? "Inverted" : "Invert"}
+              {mask.inverted ? t("inspector.maskInverted") : t("inspector.maskNormal")}
             </button>
-            <span className="text-[8px] text-text-muted">
-              {mask.keyframes.length > 0
-                ? `${mask.keyframes.length} keyframes`
-                : "No keyframes"}
-            </span>
+              <span className="text-[8px] text-text-muted">
+                {mask.keyframes.length > 0
+                  ? t("inspector.keyframeCount", { count: mask.keyframes.length })
+                  : t("inspector.maskNoKeyframes")}
+              </span>
           </div>
         </div>
       )}
@@ -196,6 +198,7 @@ const MaskItem: React.FC<{
 };
 
 export const MaskSection: React.FC<MaskSectionProps> = ({ clipId }) => {
+  const { t } = useTranslation();
   const getMaskEngine = useEngineStore((state) => state.getMaskEngine);
   const [selectedMaskId, setSelectedMaskId] = useState<string | null>(null);
   const [expandedMasks, setExpandedMasks] = useState<Set<string>>(new Set());
@@ -361,10 +364,10 @@ export const MaskSection: React.FC<MaskSectionProps> = ({ clipId }) => {
         <Square size={16} className="text-primary" />
         <div className="flex-1">
           <span className="text-[11px] font-medium text-text-primary">
-            Masking
+            {t("inspector.masking")}
           </span>
           <p className="text-[9px] text-text-muted">
-            Control visible regions of clip
+            {t("inspector.maskControlVisibleRegions")}
           </p>
         </div>
       </div>
@@ -372,7 +375,7 @@ export const MaskSection: React.FC<MaskSectionProps> = ({ clipId }) => {
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <span className="text-[10px] font-medium text-text-secondary">
-            Add Mask Shape
+            {t("inspector.maskAddMaskShape")}
           </span>
         </div>
         <div className="grid grid-cols-4 gap-1">
@@ -383,20 +386,20 @@ export const MaskSection: React.FC<MaskSectionProps> = ({ clipId }) => {
                 key={shape.id}
                 onClick={() => handleAddShapeMask(shape.id)}
                 className="flex flex-col items-center gap-1 p-2 rounded-lg bg-background-tertiary hover:bg-primary/20 border border-transparent hover:border-primary/30 transition-colors"
-                title={shape.name}
+                title={t(`inspector.mask${shape.name}`)}
               >
                 <Icon size={14} className="text-text-secondary" />
-                <span className="text-[8px] text-text-muted">{shape.name}</span>
+                <span className="text-[8px] text-text-muted">{t(`inspector.mask${shape.name}`)}</span>
               </button>
             );
           })}
           <button
             onClick={() => {}}
             className="flex flex-col items-center gap-1 p-2 rounded-lg bg-background-tertiary hover:bg-primary/20 border border-transparent hover:border-primary/30 transition-colors"
-            title="Draw Freehand"
+            title={t("inspector.maskDrawFreehand")}
           >
             <Pen size={14} className="text-text-secondary" />
-            <span className="text-[8px] text-text-muted">Freehand</span>
+            <span className="text-[8px] text-text-muted">{t("inspector.maskDrawFreehand")}</span>
           </button>
         </div>
       </div>
@@ -405,14 +408,14 @@ export const MaskSection: React.FC<MaskSectionProps> = ({ clipId }) => {
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-medium text-text-secondary">
-              Masks ({masks.length})
+              {t("inspector.masks", { count: masks.length })}
             </span>
             <button
               onClick={handleResetMasks}
               className="flex items-center gap-1 px-2 py-1 text-[9px] text-red-400 hover:bg-red-400/10 rounded transition-colors"
             >
               <RefreshCw size={10} />
-              Clear All
+              {t("inspector.maskClearPath")}
             </button>
           </div>
 
@@ -441,16 +444,16 @@ export const MaskSection: React.FC<MaskSectionProps> = ({ clipId }) => {
             size={24}
             className="mx-auto mb-2 text-text-muted opacity-50"
           />
-          <p className="text-[10px] text-text-muted">No masks on this clip</p>
+          <p className="text-[10px] text-text-muted">{t("inspector.maskNoMasks")}</p>
           <p className="text-[9px] text-text-muted mt-1">
-            Click a shape above to add a mask
+            {t("inspector.maskClickToAdd")}
           </p>
         </div>
       )}
 
       <div className="pt-2 border-t border-border">
         <p className="text-[9px] text-text-muted text-center">
-          Masks control which parts of the clip are visible
+          {t("inspector.maskFooterHint")}
         </p>
       </div>
     </div>

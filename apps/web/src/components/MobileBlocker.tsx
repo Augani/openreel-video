@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Monitor } from "lucide-react";
 
 export function MobileBlocker() {
+  const { t } = useTranslation();
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
@@ -32,12 +34,12 @@ export function MobileBlocker() {
 
         <div className="space-y-3">
           <h1 className="text-5xl font-bold text-text-primary tracking-tight">
-            OpenReel
+            {t("app.name")}
           </h1>
           <div className="flex items-center justify-center gap-2">
             <div className="h-px w-8 bg-primary/50" />
             <p className="text-lg text-text-secondary font-medium">
-              Desktop Only
+              {t("mobileBlocker.desktopOnly")}
             </p>
             <div className="h-px w-8 bg-primary/50" />
           </div>
@@ -45,12 +47,10 @@ export function MobileBlocker() {
 
         <div className="space-y-4 bg-background-secondary/50 backdrop-blur-sm rounded-xl p-6 border border-border">
           <p className="text-base text-text-primary leading-relaxed">
-            OpenReel is a professional video editor that requires a desktop or
-            laptop computer.
+            {t("mobileBlocker.message")}
           </p>
           <p className="text-sm text-text-muted">
-            Please visit this page on your desktop or laptop to start creating
-            amazing videos.
+            {t("mobileBlocker.pleaseVisit")}
           </p>
         </div>
 
@@ -59,7 +59,7 @@ export function MobileBlocker() {
             href="https://openreel.video"
             className="inline-flex items-center gap-2 px-8 py-3 bg-primary hover:bg-primary-hover active:bg-primary-active text-white font-medium rounded-lg transition-all duration-200 shadow-glow hover:shadow-glow-lg transform hover:scale-[1.02] active:scale-[0.98]"
           >
-            Learn More
+            {t("mobileBlocker.learnMore")}
           </a>
         </div>
       </div>

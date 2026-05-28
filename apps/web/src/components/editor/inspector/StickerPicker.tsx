@@ -1,4 +1,5 @@
 import React, { useCallback, useState, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { Smile, Sticker, Search, Plus, X } from "lucide-react";
 import { Input } from "@openreel/ui";
 import { getGraphicsBridge } from "../../../bridges";
@@ -86,6 +87,7 @@ export const StickerPicker: React.FC<StickerPickerProps> = ({
   duration = 5,
   onSelect,
 }) => {
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<TabType>("emojis");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("smileys");
@@ -194,7 +196,7 @@ export const StickerPicker: React.FC<StickerPickerProps> = ({
  `}
         >
           <Smile size={14} />
-          Emojis
+          {t('stickerPicker.emojis')}
         </button>
         <button
           onClick={() => handleTabChange("stickers")}
@@ -208,7 +210,7 @@ export const StickerPicker: React.FC<StickerPickerProps> = ({
  `}
         >
           <Sticker size={14} />
-          Stickers
+          {t('stickerPicker.stickers')}
         </button>
       </div>
 
@@ -222,7 +224,7 @@ export const StickerPicker: React.FC<StickerPickerProps> = ({
           type="text"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder={`Search ${activeTab}...`}
+          placeholder={t('stickerPicker.searchPlaceholder', { tab: t(`stickerPicker.${activeTab}`) })}
           className="pl-8 pr-8 text-[10px] bg-background-tertiary border-border h-7 text-text-primary"
         />
         {searchQuery && (
@@ -296,8 +298,8 @@ export const StickerPicker: React.FC<StickerPickerProps> = ({
             </div>
             <p className="text-[10px] text-text-muted">
               {searchQuery
-                ? `No ${activeTab} found for "${searchQuery}"`
-                : `No ${activeTab} in this category`}
+                ? t('stickerPicker.noResultsFound', { tab: t(`stickerPicker.${activeTab}`), query: searchQuery })
+                : t('stickerPicker.noResultsInCategory', { tab: t(`stickerPicker.${activeTab}`) })}
             </p>
           </div>
         )}
@@ -314,7 +316,7 @@ export const StickerPicker: React.FC<StickerPickerProps> = ({
             className="w-full flex items-center justify-center gap-1.5 py-2 text-[10px] text-text-secondary hover:text-text-primary bg-background-tertiary hover:bg-background-secondary rounded-lg transition-colors"
           >
             <Plus size={14} />
-            Add Custom Sticker
+            {t('stickerPicker.addCustomSticker')}
           </button>
         </div>
       )}

@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { Check, X, Maximize2 } from "lucide-react";
 import type { Clip } from "@openreel/core";
 
@@ -51,6 +52,7 @@ export const CropModeView: React.FC<CropModeViewProps> = ({
   onComplete,
   onCancel,
 }) => {
+  const { t } = useTranslation();
   const containerRef = useRef<HTMLDivElement>(null);
   const videoDisplayRef = useRef<HTMLVideoElement>(null);
   const imageDisplayRef = useRef<HTMLImageElement>(null);
@@ -380,7 +382,7 @@ export const CropModeView: React.FC<CropModeViewProps> = ({
             onClick={handleReset}
             disabled={isLoading}
             className="p-1 text-text-muted hover:bg-background-secondary rounded transition-colors"
-            title="Reset crop"
+            title={t("preview.resetCrop")}
           >
             <Maximize2 size={14} />
           </button>

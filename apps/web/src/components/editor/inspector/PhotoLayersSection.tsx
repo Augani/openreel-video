@@ -1,4 +1,5 @@
 import React, { useCallback, useState, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Layers,
   Eye,
@@ -41,16 +42,17 @@ const BlendModeSelector: React.FC<{
   value: PhotoBlendMode;
   onChange: (mode: PhotoBlendMode) => void;
 }> = ({ value, onChange }) => {
+  const { t } = useTranslation();
   const selectedMode =
     BLEND_MODES.find((m) => m.value === value) || BLEND_MODES[0];
 
   return (
     <div className="flex items-center justify-between">
-      <span className="text-[10px] text-text-secondary">Blend Mode</span>
+      <span className="text-[10px] text-text-secondary">{t("inspector.blendMode")}</span>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button className="flex items-center gap-1 px-2 py-1 text-[10px] bg-background-tertiary border border-border rounded hover:border-primary transition-colors">
-            <span className="text-text-primary">{selectedMode.label}</span>
+            <span className="text-text-primary">{t(`blendModes.${selectedMode.value}`)}</span>
             <ChevronDown size={12} className="text-text-muted" />
           </button>
         </DropdownMenuTrigger>
@@ -63,7 +65,7 @@ const BlendModeSelector: React.FC<{
                 mode.value === value ? "text-primary bg-background-tertiary" : ""
               }`}
             >
-              {mode.label}
+              {t(`blendModes.${mode.value}`)}
             </DropdownMenuItem>
           ))}
         </DropdownMenuContent>
@@ -96,6 +98,7 @@ const LayerItem: React.FC<{
   onDrop,
   draggable,
 }) => {
+  const { t } = useTranslation();
   return (
     <div
       className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-colors ${
@@ -149,7 +152,7 @@ const LayerItem: React.FC<{
               ? "text-text-secondary hover:text-text-primary"
               : "text-text-muted hover:text-text-secondary"
           }`}
-          title={layer.visible ? "Hide layer" : "Show layer"}
+          title={layer.visible ? t("inspector.maskHideLayer") : t("inspector.maskShowLayer")}
         >
           {layer.visible ? <Eye size={14} /> : <EyeOff size={14} />}
         </button>
@@ -163,7 +166,7 @@ const LayerItem: React.FC<{
               ? "text-warning hover:text-warning/80"
               : "text-text-muted hover:text-text-secondary"
           }`}
-          title={layer.locked ? "Unlock layer" : "Lock layer"}
+          title={layer.locked ? t("inspector.maskUnlockLayer") : t("inspector.maskLock")}
         >
           {layer.locked ? <Lock size={14} /> : <Unlock size={14} />}
         </button>
@@ -211,6 +214,7 @@ export const PhotoLayersSection: React.FC<PhotoLayersSectionProps> = ({
   onDeleteLayer,
   onDuplicateLayer,
 }) => {
+  const { t } = useTranslation();
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
 
   // Get selected layer
@@ -258,12 +262,12 @@ export const PhotoLayersSection: React.FC<PhotoLayersSectionProps> = ({
     return (
       <div className="p-4 text-center">
         <Layers size={24} className="mx-auto mb-2 text-text-muted" />
-        <p className="text-[10px] text-text-muted">No layers</p>
+        <p className="text-[10px] text-text-muted">{t("inspector.maskNoLayers")}</p>
         <button
           onClick={onAddLayer}
           className="mt-2 px-3 py-1.5 text-[10px] bg-primary text-white rounded hover:bg-primary/90 transition-colors"
         >
-          Add Layer
+          {t("inspector.maskAddLayer")}
         </button>
       </div>
     );
@@ -274,12 +278,12 @@ export const PhotoLayersSection: React.FC<PhotoLayersSectionProps> = ({
       {/* Layer List Header */}
       <div className="flex items-center justify-between">
         <span className="text-[10px] text-text-secondary font-medium">
-          Layers ({layers.length})
+          {t("inspector.layers", { count: layers.length })}
         </span>
         <button
           onClick={onAddLayer}
           className="p-1 text-text-muted hover:text-text-primary transition-colors"
-          title="Add new layer"
+          title={t("inspector.maskAddLayer")}
         >
           <Plus size={14} />
         </button>
@@ -310,12 +314,12 @@ export const PhotoLayersSection: React.FC<PhotoLayersSectionProps> = ({
       {selectedLayer && (
         <div className="space-y-3 pt-3 border-t border-border">
           <span className="text-[10px] text-text-secondary font-medium">
-            Layer Properties
+            {t("inspector.layerProperties")}
           </span>
 
           {/* Opacity Slider */}
           <Slider
-            label="Opacity"
+            label={t("inspector.opacity")}
             value={selectedLayer.opacity * 100}
             onChange={(value) => onSetOpacity(selectedLayer.id, value / 100)}
             min={0}
@@ -334,19 +338,19 @@ export const PhotoLayersSection: React.FC<PhotoLayersSectionProps> = ({
             <button
               onClick={() => onDuplicateLayer(selectedLayer.id)}
               className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 text-[10px] bg-background-tertiary border border-border rounded hover:border-primary transition-colors"
-              title="Duplicate layer"
+              title={t("inspector.maskDuplicateLayer")}
             >
               <Copy size={12} />
-              <span>Duplicate</span>
+              <span>{t("inspector.maskDuplicate")}</span>
             </button>
             <button
               onClick={() => onDeleteLayer(selectedLayer.id)}
               className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 text-[10px] bg-background-tertiary border border-border rounded hover:border-error text-error transition-colors"
-              title="Delete layer"
+              title={t("inspector.maskDeleteLayer")}
               disabled={layers.length <= 1}
             >
               <Trash2 size={12} />
-              <span>Delete</span>
+              <span>{t("inspector.maskDelete")}</span>
             </button>
           </div>
         </div>

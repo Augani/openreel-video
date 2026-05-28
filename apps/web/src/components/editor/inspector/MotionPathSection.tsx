@@ -1,4 +1,5 @@
 import React, { useCallback, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Route, Trash2, Plus, Eye, EyeOff } from "lucide-react";
 import { useProjectStore } from "../../../stores/project-store";
 import { useUIStore } from "../../../stores/ui-store";
@@ -17,6 +18,7 @@ interface MotionPathSectionProps {
 export const MotionPathSection: React.FC<MotionPathSectionProps> = ({
   clipId,
 }) => {
+  const { t } = useTranslation();
   const { getClip, project } = useProjectStore();
   const { motionPathMode, motionPathClipId, setMotionPathMode } = useUIStore();
   const getGraphicsEngine = useEngineStore((state) => state.getGraphicsEngine);
@@ -148,7 +150,7 @@ export const MotionPathSection: React.FC<MotionPathSectionProps> = ({
   if (!clip) {
     return (
       <div className="text-center py-8 text-text-muted text-xs">
-        No clip selected
+        {t("inspector.noClipSelected")}
       </div>
     );
   }
@@ -165,7 +167,7 @@ export const MotionPathSection: React.FC<MotionPathSectionProps> = ({
         <div className="flex items-center gap-2">
           <Route size={14} className="text-primary" />
           <span className="text-xs font-medium text-text-primary">
-            Motion Path
+            {t("inspector.motionPath")}
           </span>
         </div>
         <Switch checked={isEnabled} onCheckedChange={handleEnableToggle} />
@@ -175,7 +177,7 @@ export const MotionPathSection: React.FC<MotionPathSectionProps> = ({
         <>
           <div className="p-3 bg-background-tertiary rounded-lg space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-[10px] text-text-secondary">Show Path</span>
+              <span className="text-[10px] text-text-secondary">{t("inspector.maskShowPath")}</span>
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => handleShowPathToggle(!showPath)}
@@ -192,7 +194,7 @@ export const MotionPathSection: React.FC<MotionPathSectionProps> = ({
 
             <div className="flex items-center justify-between">
               <span className="text-[10px] text-text-secondary">
-                Auto Orient
+                {t("inspector.motionAutoOrient")}
               </span>
               <Switch
                 checked={autoOrient}
@@ -201,7 +203,7 @@ export const MotionPathSection: React.FC<MotionPathSectionProps> = ({
             </div>
 
             <div className="space-y-1">
-              <span className="text-[10px] text-text-secondary">Path Type</span>
+              <span className="text-[10px] text-text-secondary">{t("inspector.maskPathType")}</span>
               <div className="grid grid-cols-3 gap-1">
                 {(["linear", "bezier", "catmull-rom"] as const).map((type) => (
                   <button
@@ -213,7 +215,7 @@ export const MotionPathSection: React.FC<MotionPathSectionProps> = ({
                         : "bg-background-elevated border border-border text-text-secondary hover:text-text-primary"
                     }`}
                   >
-                    {type === "catmull-rom" ? "Smooth" : type}
+                    {type === "catmull-rom" ? t("inspector.motionSmooth") : type}
                   </button>
                 ))}
               </div>
@@ -223,24 +225,24 @@ export const MotionPathSection: React.FC<MotionPathSectionProps> = ({
           <div className="flex items-center justify-between p-3 bg-background-tertiary rounded-lg">
             <div>
               <span className="text-[10px] text-text-secondary">
-                Path Points
+                {t("inspector.maskPathType")}
               </span>
               <p className="text-sm font-medium text-text-primary">
-                {pointCount} points
+                {pointCount} {t("inspector.points")}
               </p>
             </div>
             <div className="flex items-center gap-1">
               <button
                 onClick={handleAddPoint}
                 className="p-1.5 rounded bg-primary/20 text-primary hover:bg-primary/30 transition-colors"
-                title="Add point"
+                title={t("inspector.maskAddPoint")}
               >
                 <Plus size={12} />
               </button>
               <button
                 onClick={handleClearPath}
                 className="p-1.5 rounded bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-colors"
-                title="Clear path"
+                title={t("inspector.maskClearPath")}
               >
                 <Trash2 size={12} />
               </button>
@@ -257,24 +259,21 @@ export const MotionPathSection: React.FC<MotionPathSectionProps> = ({
             size="sm"
           >
             <Route size={14} className="mr-2" />
-            {isEditing ? "Exit Edit Mode" : "Edit Path on Canvas"}
+            {isEditing ? t("inspector.maskExitEdit") : t("inspector.maskEditPath")}
           </Button>
 
           {isEditing && (
             <div className="p-2 bg-primary/10 border border-primary/30 rounded-lg">
               <p className="text-[9px] text-primary">
-                <span className="font-medium">Editing:</span> Click on the path
-                to add points. Drag points to move them. Right-click to remove.
-                Drag handles to adjust curves.
+                <span className="font-medium">{t("inspector.editing")}:</span> {t("inspector.motionPathEditInstructions")}
               </p>
             </div>
           )}
 
           <div className="p-2 bg-background-tertiary/50 border border-border rounded-lg">
             <p className="text-[9px] text-text-muted">
-              <span className="text-text-secondary font-medium">Tip:</span>{" "}
-              Motion paths animate the clip's position along a curved path over
-              time. Use bezier handles for smooth curves.
+              <span className="text-text-secondary font-medium">{t("inspector.tip")}:</span>{" "}
+              {t("inspector.motionPathTip")}
             </p>
           </div>
         </>

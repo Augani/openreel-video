@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef } from "react";
 import { v4 as uuidv4 } from "uuid";
+import { useTranslation } from "react-i18next";
 import {
   Dialog,
   DialogContent,
@@ -64,6 +65,7 @@ interface Props {
 }
 
 export function KieAIImageDialog({ open, onClose, sourceFile, previewUrl }: Props) {
+  const { t } = useTranslation();
   const [step, setStep] = useState<Step>("pick");
   const [selectedModel, setSelectedModel] = useState<ImageModelId | null>(null);
   const [errorMsg, setErrorMsg] = useState<string>("");
@@ -129,7 +131,7 @@ export function KieAIImageDialog({ open, onClose, sourceFile, previewUrl }: Prop
           (uploaded as unknown as Record<string, string>)["url"] ||
           "";
         if (!uploadedUrl) {
-          throw new Error("Upload succeeded but returned no file URL. Check console for response.");
+          throw new Error(t("kieAi.uploadNoUrlError"));
         }
       }
 
@@ -157,7 +159,7 @@ export function KieAIImageDialog({ open, onClose, sourceFile, previewUrl }: Prop
           input = { ...qwen, image_url: uploadedUrl };
           break;
         default:
-          throw new Error("Unknown model");
+          throw new Error(t("kieAi.unknownModelError"));
       }
 
       console.log("[KieAI] createTask payload:", { model: selectedModel, input });
@@ -212,7 +214,7 @@ export function KieAIImageDialog({ open, onClose, sourceFile, previewUrl }: Prop
       setErrorMsg(err instanceof Error ? err.message : String(err));
       setStep("error");
     }
-  }, [selectedModel, project, sourceFile, previewUrl, seedream, zimage, nanoBanana2, flux2, grok, qwen, addPlaceholderMedia, addTask, handleClose]);
+  }, [selectedModel, project, sourceFile, previewUrl, seedream, zimage, nanoBanana2, flux2, grok, qwen, addPlaceholderMedia, addTask, handleClose, t]);
 
   // ─── Derived display ──────────────────────────────────────────────────────
 
@@ -225,10 +227,10 @@ export function KieAIImageDialog({ open, onClose, sourceFile, previewUrl }: Prop
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>
-            {step === "pick" && "Create with KieAI"}
+            {step === "pick" && t("kieAi.create")}
             {step === "form" && `${modelLabel}`}
-            {step === "submitting" && "Submitting…"}
-            {step === "error" && "Submission Failed"}
+            {step === "submitting" && t("kieAi.submitting")}
+            {step === "error" && t("kieAi.submissionFailed")}
           </DialogTitle>
         </DialogHeader>
 
@@ -239,7 +241,7 @@ export function KieAIImageDialog({ open, onClose, sourceFile, previewUrl }: Prop
               {previewUrl ? (
                 <img
                   src={previewUrl}
-                  alt="Source"
+                  alt={t("kieAi.sourceImageAlt")}
                   className="h-10 w-10 rounded object-cover flex-shrink-0"
                 />
               ) : (
@@ -251,7 +253,7 @@ export function KieAIImageDialog({ open, onClose, sourceFile, previewUrl }: Prop
               )}
               <div className="min-w-0">
                 <p className="truncate text-xs font-medium text-text-primary">{sourceFile.name}</p>
-                <p className="text-[10px] text-text-muted">Source image</p>
+                <p className="text-[10px] text-text-muted">{t("kieAi.sourceImage")}</p>
               </div>
             </div>
           )}
@@ -280,9 +282,9 @@ export function KieAIImageDialog({ open, onClose, sourceFile, previewUrl }: Prop
           {step === "submitting" && (
             <div className="space-y-4 py-4 text-center">
               <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-border border-t-primary" />
-              <p className="text-sm text-text-secondary">Uploading & submitting task…</p>
+              <p className="text-sm text-text-secondary">{t("kieAi.uploadingSubmitting")}</p>
               <Button variant="outline" size="sm" onClick={() => { abortRef.current?.abort(); handleClose(); }}>
-                Cancel
+                {t("kieAi.cancel")}
               </Button>
             </div>
           )}
@@ -294,10 +296,10 @@ export function KieAIImageDialog({ open, onClose, sourceFile, previewUrl }: Prop
               </div>
               <div className="flex gap-2">
                 <Button variant="outline" className="flex-1" onClick={handleClose}>
-                  Close
+                  {t("kieAi.close")}
                 </Button>
                 <Button className="flex-1" onClick={() => setStep("form")}>
-                  Try Again
+                  {t("kieAi.tryAgain")}
                 </Button>
               </div>
             </div>
@@ -310,7 +312,7 @@ export function KieAIImageDialog({ open, onClose, sourceFile, previewUrl }: Prop
               onClick={handleBack}
               className="text-xs text-text-muted hover:text-text-primary transition-colors"
             >
-              ← Back to model selection
+{t("kieAi.backToModelSelection")}
             </button>
           </div>
         )}
