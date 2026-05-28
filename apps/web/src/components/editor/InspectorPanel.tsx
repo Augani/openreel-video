@@ -965,10 +965,10 @@ export const InspectorPanel: React.FC = () => {
                           <div className="min-w-0 flex-1 flex items-center gap-2">
                             <Sparkles size={11} className="text-primary shrink-0" />
                             <p className="truncate text-[11px] font-medium text-text-primary">
-                              {application.name}
+                              {t(`recipes.template.${application.name}`, application.name)}
                             </p>
                             <span className="text-[9px] text-text-muted capitalize shrink-0">
-                              {application.category?.replace(/-/g, " ") || t("inspector.recipe")}
+                              {application.category ? t(`recipes.category.${application.category}`, application.category.replace(/-/g, " ")) : t("inspector.recipe")}
                             </span>
                           </div>
                           <div className="flex shrink-0 gap-1">

@@ -2425,7 +2425,30 @@
     "template.Viewer Count": "观众计数",
     "template.Viewer CountDesc": "动画观众/点赞计数徽章。",
     "template.Polaroid": "宝丽来相框",
-    "template.PolaroidDesc": "白色边框配合暖调复古色调。"
+    "template.PolaroidDesc": "白色边框配合暖调复古色调。",
+    "control": {
+      "Grain": "颗粒感",
+      "Bar Opacity": "黑边不透明度",
+      "Frame Opacity": "边框不透明度",
+      "Warmth": "暖度",
+      "Glitch": "故障强度",
+      "Watermark": "水印",
+      "Opacity": "不透明度",
+      "Name": "姓名",
+      "Role": "角色",
+      "Accent": "强调色",
+      "Headline": "标题",
+      "Caption": "字幕",
+      "Label": "标签",
+      "Tag": "标记",
+      "Hashtags": "话题标签",
+      "Grid Opacity": "网格不透明度",
+      "Subtitle": "字幕",
+      "Quote": "引言",
+      "Channel Name": "频道名",
+      "Call to Action": "行动号召",
+      "Count": "数量"
+    }
   },
   "modelPicker": {
     "styleTransfer": "风格和构图转换，可选文本提示引导。",

@@ -2449,7 +2449,30 @@
     "template.Viewer Count": "Viewer Count",
     "template.Viewer CountDesc": "Animated viewer/like counter badge.",
     "template.Polaroid": "Polaroid",
-    "template.PolaroidDesc": "White border frame with warm vintage tones."
+    "template.PolaroidDesc": "White border frame with warm vintage tones.",
+    "control": {
+      "Grain": "Grain",
+      "Bar Opacity": "Bar Opacity",
+      "Frame Opacity": "Frame Opacity",
+      "Warmth": "Warmth",
+      "Glitch": "Glitch",
+      "Watermark": "Watermark",
+      "Opacity": "Opacity",
+      "Name": "Name",
+      "Role": "Role",
+      "Accent": "Accent",
+      "Headline": "Headline",
+      "Caption": "Caption",
+      "Label": "Label",
+      "Tag": "Tag",
+      "Hashtags": "Hashtags",
+      "Grid Opacity": "Grid Opacity",
+      "Subtitle": "Subtitle",
+      "Quote": "Quote",
+      "Channel Name": "Channel Name",
+      "Call to Action": "Call to Action",
+      "Count": "Count"
+    }
   },
   "modelPicker": {
     "selectModelHint": "Select a model to generate a new image from your source.",
