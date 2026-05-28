@@ -1768,7 +1768,10 @@
     "adjustmentTrackLayers": "Track Layers",
     "effectsCount_one": "{{count}} effect",
     "effectsCount_other": "{{count}} effects",
-    "motionTrackingLostFrames": "lost frames"
+    "motionTrackingLostFrames": "lost frames",
+    "templatesPlaceholderCount": "{{count}} placeholders",
+    "templatesDuration": "{{duration}}",
+    "templatesMissingRequired": "Missing required: {{placeholders}}"
   },
   "textAnimation": {
     "fade": "Fade",

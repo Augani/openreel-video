@@ -1770,7 +1770,10 @@
     "motionPresetNameGlowPulse": "发光脉冲",
     "motionPresetNameCrossDissolve": "交叉溶解",
     "motionPresetNameWipeLeft": "左划",
-    "motionPresetNameZoomTransition": "缩放过渡"
+    "motionPresetNameZoomTransition": "缩放过渡",
+    "templatesPlaceholderCount": "{{count}} 个占位符",
+    "templatesDuration": "{{duration}}",
+    "templatesMissingRequired": "缺少必填项：{{placeholders}}"
   },
   "textAnimation": {
     "fade": "淡入淡出",
