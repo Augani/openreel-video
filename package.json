@@ -53,5 +53,9 @@
     "@ffmpeg/core": "0.12.6",
     "@ffmpeg/core-mt": "0.12.6",
     "mediabunny": "^1.25.3"
-  }
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ]
 }

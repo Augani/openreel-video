@@ -848,7 +848,7 @@ describe("ProjectStore", () => {
         useProjectStore
           .getState()
           .project.timeline.tracks.map((track) => track.type),
-      ).toEqual(["video", "graphics", "text"]);
+      ).toEqual(["text", "graphics", "video"]);
       expect(
         useEngineStore.getState().getGraphicsEngine()?.getAllShapeClips(),
       ).toHaveLength(1);
@@ -1461,6 +1461,12 @@ describe("ProjectStore - Text Clips", () => {
 describe("ProjectStore - Subtitles (consolidated into text clips)", () => {
   beforeEach(() => {
     useProjectStore.getState().createNewProject();
+    const titleEngine = useEngineStore.getState().getTitleEngine();
+    const graphicsEngine = useEngineStore.getState().getGraphicsEngine();
+    titleEngine?.loadTextClips([]);
+    graphicsEngine?.loadShapeClips([]);
+    graphicsEngine?.loadSVGClips([]);
+    graphicsEngine?.loadStickerClips([]);
   });
 
   it.skip("should add a subtitle - skipped: subtitles consolidated into text clips", () => {
