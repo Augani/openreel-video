@@ -1,0 +1,118 @@
+<h2>Timeline visualization style</h2>
+<p class="subtitle">The timeline is where users spend the most editing time. The visualization style is also the strongest positioning signal — dense pro-tool vs creator-friendly. Pick the v1 default. The other can become a "Timeline density" preference later.</p>
+
+<div class="options">
+
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Pro density (DaVinci / Premiere)</h3>
+      <p style="margin-bottom: 10px;">Dense rows, small track headers, audio waveforms always on, frame thumbnails sample every ~100px. Sub-frame ruler at zoom &gt; 4×. Lots of info per pixel.</p>
+      <div class="mockup" style="margin: 8px 0;">
+        <div class="mockup-body" style="background: #16161f; padding: 6px; height: 200px; font-family: monospace; font-size: 0.7em;">
+          <div style="color: #777; padding: 2px 0; border-bottom: 1px solid #2a2a3a;">0:00 ┊ 0:05 ┊ 0:10 ┊ 0:15 ┊ 0:20 ┊ 0:25 ┊ 0:30 ┊ 0:35 ┊ 0:40 ┊ 0:45</div>
+          <div style="display: flex; align-items: center; padding: 2px 0; gap: 4px;">
+            <span style="width: 60px; color: #999; font-size: 0.85em;">V2 fx</span>
+            <div style="flex: 1; height: 18px; background: linear-gradient(90deg, transparent 5%, #6644aa 5%, #6644aa 35%, transparent 35%, transparent 50%, #6644aa 50%, #6644aa 80%, transparent 80%); border-radius: 2px;"></div>
+          </div>
+          <div style="display: flex; align-items: center; padding: 2px 0; gap: 4px;">
+            <span style="width: 60px; color: #999; font-size: 0.85em;">V1 main</span>
+            <div style="flex: 1; height: 36px; background: linear-gradient(90deg, #2a4a6a 0%, #3a5a7a 100%); border-radius: 2px; position: relative; overflow: hidden;">
+              <div style="position: absolute; inset: 0; background-image: repeating-linear-gradient(90deg, transparent, transparent 12px, rgba(255,255,255,0.1) 12px, rgba(255,255,255,0.1) 14px);"></div>
+            </div>
+          </div>
+          <div style="display: flex; align-items: center; padding: 2px 0; gap: 4px;">
+            <span style="width: 60px; color: #999; font-size: 0.85em;">A1 music</span>
+            <div style="flex: 1; height: 24px; background: #1f3a3f; border-radius: 2px; position: relative; overflow: hidden;">
+              <svg viewBox="0 0 200 24" preserveAspectRatio="none" style="width: 100%; height: 100%; opacity: 0.7;">
+                <path d="M0,12 Q5,4 10,12 T20,12 Q25,2 30,12 T40,12 Q45,6 50,12 T60,12 Q65,1 70,12 T80,12 Q85,5 90,12 T100,12 Q105,3 110,12 T120,12 Q125,7 130,12 T140,12 Q145,2 150,12 T160,12 Q165,5 170,12 T180,12 Q185,4 190,12 T200,12" stroke="#5fc8d3" stroke-width="1" fill="none"/>
+              </svg>
+            </div>
+          </div>
+          <div style="display: flex; align-items: center; padding: 2px 0; gap: 4px;">
+            <span style="width: 60px; color: #999; font-size: 0.85em;">A2 vo</span>
+            <div style="flex: 1; height: 24px; background: #1f3a3f; border-radius: 2px; position: relative; overflow: hidden;">
+              <svg viewBox="0 0 200 24" preserveAspectRatio="none" style="width: 100%; height: 100%; opacity: 0.7;">
+                <path d="M0,12 L40,12 Q45,4 50,12 Q55,8 60,12 Q65,3 70,12 Q75,5 80,12 Q85,9 90,12 L130,12 Q135,2 140,12 Q145,6 150,12 L200,12" stroke="#5fc8d3" stroke-width="1" fill="none"/>
+              </svg>
+            </div>
+          </div>
+          <div style="display: flex; align-items: center; padding: 2px 0; gap: 4px;">
+            <span style="width: 60px; color: #999; font-size: 0.85em;">T1 cap</span>
+            <div style="flex: 1; height: 16px; background: linear-gradient(90deg, transparent 10%, #aa6644 10%, #aa6644 45%, transparent 45%, transparent 60%, #aa6644 60%, #aa6644 90%, transparent 90%); border-radius: 2px;"></div>
+          </div>
+        </div>
+      </div>
+      <p style="font-size: 0.85em; opacity: 0.7;">Pros: serious editors feel at home; high info density; matches Resolve/Premiere muscle memory. Cons: intimidating for new users; small touch targets; needs precise pointer control.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Creator-friendly density (CapCut / DaVinci Cut)</h3>
+      <p style="margin-bottom: 10px;">Larger track rows, big clip thumbnails with title overlay, waveforms only when expanded, fewer tracks visible at once. Friendlier, easier to manipulate.</p>
+      <div class="mockup" style="margin: 8px 0;">
+        <div class="mockup-body" style="background: #16161f; padding: 8px; height: 200px;">
+          <div style="color: #999; padding: 4px 0; font-size: 0.8em; border-bottom: 1px solid #2a2a3a;">0:00 · · · 0:10 · · · 0:20 · · · 0:30 · · · 0:40</div>
+          <div style="display: flex; align-items: center; padding: 6px 0; gap: 6px;">
+            <span style="width: 70px; color: #ccc; font-size: 0.8em;">▶ Video</span>
+            <div style="flex: 1; height: 56px; background: linear-gradient(90deg, #2a4a6a 0%, #3a5a7a 100%); border-radius: 6px; display: flex; align-items: center; padding: 0 8px; color: #ddd; font-size: 0.75em;">
+              <span>clip-001.mp4 · 00:32</span>
+            </div>
+          </div>
+          <div style="display: flex; align-items: center; padding: 6px 0; gap: 6px;">
+            <span style="width: 70px; color: #ccc; font-size: 0.8em;">🎵 Audio</span>
+            <div style="flex: 1; height: 36px; background: #1f3a3f; border-radius: 6px; display: flex; align-items: center; padding: 0 8px; color: #ddd; font-size: 0.75em;">
+              <span>music.mp3</span>
+            </div>
+          </div>
+          <div style="display: flex; align-items: center; padding: 6px 0; gap: 6px;">
+            <span style="width: 70px; color: #ccc; font-size: 0.8em;">T Captions</span>
+            <div style="flex: 1; height: 28px; background: #3a2a4a; border-radius: 6px; display: flex; align-items: center; padding: 0 8px; color: #ddd; font-size: 0.75em;">
+              <span>3 captions · auto-generated</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p style="font-size: 0.85em; opacity: 0.7;">Pros: low intimidation; better on touchscreens/laptop trackpads; matches mobile editor mental model so existing OpenReel users transition easily. Cons: serious editors feel constrained; less info on screen; less efficient for long timelines.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Adaptive — A by default, B at low zoom, C at workspace switch</h3>
+      <p style="margin-bottom: 10px;">Single visualization that changes density based on zoom level: thumbnail-dominant when zoomed in (Option B feel), wave/density-dominant when zoomed out (Option A feel). Workspace switch can also force a profile (e.g., Color workspace = pro density).</p>
+      <div class="mockup" style="margin: 8px 0;">
+        <div style="background: #16161f; padding: 8px; height: 200px;">
+          <div style="color: #ccc; padding: 2px 0; font-size: 0.75em; border-bottom: 1px solid #2a2a3a;">Zoom: medium ┊ density auto</div>
+          <div style="display: flex; align-items: center; padding: 4px 0; gap: 4px;">
+            <span style="width: 60px; color: #ccc; font-size: 0.75em;">V2</span>
+            <div style="flex: 1; height: 24px; background: linear-gradient(90deg, transparent 5%, #6644aa 5%, #6644aa 35%, transparent 35%, transparent 50%, #6644aa 50%, #6644aa 80%, transparent 80%); border-radius: 4px;"></div>
+          </div>
+          <div style="display: flex; align-items: center; padding: 4px 0; gap: 4px;">
+            <span style="width: 60px; color: #ccc; font-size: 0.75em;">V1</span>
+            <div style="flex: 1; height: 44px; background: linear-gradient(90deg, #2a4a6a 0%, #3a5a7a 100%); border-radius: 4px; position: relative; overflow: hidden;">
+              <div style="position: absolute; inset: 0; background-image: repeating-linear-gradient(90deg, transparent, transparent 24px, rgba(255,255,255,0.08) 24px, rgba(255,255,255,0.08) 26px);"></div>
+              <div style="position: absolute; bottom: 4px; left: 8px; color: rgba(255,255,255,0.7); font-size: 0.7em;">clip-001.mp4</div>
+            </div>
+          </div>
+          <div style="display: flex; align-items: center; padding: 4px 0; gap: 4px;">
+            <span style="width: 60px; color: #ccc; font-size: 0.75em;">A1</span>
+            <div style="flex: 1; height: 28px; background: #1f3a3f; border-radius: 4px; position: relative; overflow: hidden;">
+              <svg viewBox="0 0 200 28" preserveAspectRatio="none" style="width: 100%; height: 100%; opacity: 0.7;">
+                <path d="M0,14 Q5,6 10,14 T20,14 Q25,3 30,14 T40,14 Q45,7 50,14 T60,14 Q65,2 70,14 T80,14 Q85,6 90,14 T100,14 Q105,4 110,14 T120,14 Q125,8 130,14 T140,14 Q145,3 150,14 T160,14 Q165,6 170,14 T180,14 Q185,5 190,14 T200,14" stroke="#5fc8d3" stroke-width="1" fill="none"/>
+              </svg>
+            </div>
+          </div>
+          <div style="display: flex; align-items: center; padding: 4px 0; gap: 4px;">
+            <span style="width: 60px; color: #ccc; font-size: 0.75em;">T1</span>
+            <div style="flex: 1; height: 20px; background: linear-gradient(90deg, transparent 10%, #aa6644 10%, #aa6644 45%, transparent 45%); border-radius: 4px;"></div>
+          </div>
+        </div>
+      </div>
+      <p style="font-size: 0.85em; opacity: 0.7;">Pros: defers the "pro vs creator" decision to user via zoom; one ruler/playhead/render path; v2 workspace switch can bias the density. Cons: a single mode that tries to please everyone often pleases no one if not tuned carefully; more visual rules to specify in the design system.</p>
+    </div>
+  </div>
+</div>

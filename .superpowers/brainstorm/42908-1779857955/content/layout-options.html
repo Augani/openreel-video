@@ -1,0 +1,140 @@
+<h2>Pick the primary editor layout</h2>
+<p class="subtitle">All three put your tracked subjects and behaviors in the same screen as the preview. They differ in <em>where</em> things live.</p>
+
+<div class="cards">
+  <div class="card" data-choice="lens-studio" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="display:grid;grid-template-columns:170px 1fr 200px;grid-template-rows:24px 1fr;height:240px;background:#1a1a1a;border:1px solid #333;font-size:9px;color:#aaa">
+        <div style="grid-column:1 / -1;background:#0f0f0f;border-bottom:1px solid #333;display:flex;align-items:center;padding:0 8px;font-size:9px;color:#888">My Effect · Save · Publish</div>
+        <div style="background:#161616;border-right:1px solid #2a2a2a;padding:6px;display:flex;flex-direction:column;gap:4px">
+          <div style="font-size:8px;color:#888;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:2px">Scene</div>
+          <div style="background:#2a4a8a;color:white;padding:3px 5px;border-radius:3px">▾ Face</div>
+          <div style="padding:3px 5px 3px 14px;color:#ccc">↳ Sparkles</div>
+          <div style="padding:3px 5px 3px 14px;color:#ccc">↳ Color tint</div>
+          <div style="padding:3px 5px;color:#ccc">▸ Background</div>
+          <div style="padding:3px 5px;color:#ccc">▸ Full frame</div>
+          <div style="margin-top:auto;padding:3px 5px;color:#666;border-top:1px solid #2a2a2a">+ Add subject</div>
+        </div>
+        <div style="background:#0a0a0a;display:flex;align-items:center;justify-content:center;color:#444;font-size:10px;position:relative">
+          <div style="position:absolute;inset:16px;border:1px dashed #2a2a2a;border-radius:4px;display:flex;align-items:center;justify-content:center">
+            <div style="text-align:center;color:#555">
+              <div style="font-size:18px;margin-bottom:4px">👤</div>
+              <div>Preview</div>
+              <div style="font-size:8px;margin-top:2px;color:#444">subject highlighted live</div>
+            </div>
+          </div>
+        </div>
+        <div style="background:#161616;border-left:1px solid #2a2a2a;padding:6px;display:flex;flex-direction:column;gap:4px">
+          <div style="font-size:8px;color:#888;text-transform:uppercase;letter-spacing:0.05em">Sparkles</div>
+          <div style="color:#aaa">Amount ▬▬▬░░</div>
+          <div style="color:#aaa">Size ▬▬░░░</div>
+          <div style="color:#aaa">Color ▢ </div>
+          <div style="color:#aaa">Density ▬▬▬▬░</div>
+          <div style="font-size:8px;color:#888;text-transform:uppercase;letter-spacing:0.05em;margin-top:4px">Behavior</div>
+          <div style="color:#666">Anchor: Eye</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A · Lens Studio</h3>
+      <p>Scene tree left (subjects + nested behaviors), big preview center, inspector right. Tree shows hierarchy at a glance; clicking a behavior swaps inspector contents.</p>
+      <p style="font-size:11px;color:#888;margin-top:8px"><strong>Strength:</strong> Clear hierarchy, scales to many subjects. <strong>Weakness:</strong> Tree-style nav feels technical.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="photoshop" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="display:grid;grid-template-columns:1fr 220px;grid-template-rows:24px 1fr;height:240px;background:#1a1a1a;border:1px solid #333;font-size:9px;color:#aaa">
+        <div style="grid-column:1 / -1;background:#0f0f0f;border-bottom:1px solid #333;display:flex;align-items:center;padding:0 8px;font-size:9px;color:#888">My Effect · Save · Publish</div>
+        <div style="background:#0a0a0a;display:flex;align-items:center;justify-content:center;position:relative">
+          <div style="position:absolute;inset:16px;border:1px dashed #2a2a2a;border-radius:4px;display:flex;align-items:center;justify-content:center">
+            <div style="text-align:center;color:#555">
+              <div style="font-size:18px;margin-bottom:4px">👤</div>
+              <div>Preview</div>
+            </div>
+          </div>
+        </div>
+        <div style="background:#161616;border-left:1px solid #2a2a2a;display:flex;flex-direction:column">
+          <div style="border-bottom:1px solid #2a2a2a;padding:5px 8px;display:flex;gap:8px;font-size:8px;text-transform:uppercase;color:#888">
+            <span style="color:white;border-bottom:1px solid #4a8aff;padding-bottom:2px">Layers</span>
+            <span>Effects</span>
+            <span>Sources</span>
+          </div>
+          <div style="padding:6px;display:flex;flex-direction:column;gap:3px;flex:1">
+            <div style="background:#2a4a8a;color:white;padding:4px 6px;border-radius:3px;display:flex;justify-content:space-between"><span>👤 Face · Sparkles</span><span>👁</span></div>
+            <div style="padding:4px 6px;border:1px solid #2a2a2a;border-radius:3px;display:flex;justify-content:space-between"><span>👤 Face · Tint</span><span>👁</span></div>
+            <div style="padding:4px 6px;border:1px solid #2a2a2a;border-radius:3px;display:flex;justify-content:space-between"><span>🏔 Background · Blur</span><span>👁</span></div>
+            <div style="padding:4px 6px;border:1px solid #2a2a2a;border-radius:3px;display:flex;justify-content:space-between"><span>🎞 Full frame · Vignette</span><span>👁</span></div>
+            <div style="margin-top:auto;padding:4px 6px;color:#666;border-top:1px solid #2a2a2a;font-size:8px">+ Layer</div>
+          </div>
+          <div style="border-top:1px solid #2a2a2a;padding:6px;display:flex;flex-direction:column;gap:3px;background:#0f0f0f">
+            <div style="font-size:8px;text-transform:uppercase;color:#888">Properties · Sparkles</div>
+            <div style="color:#aaa">Amount ▬▬▬░░</div>
+            <div style="color:#aaa">Size ▬▬░░░</div>
+            <div style="color:#aaa">Color ▢ </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B · Photoshop / After Effects</h3>
+      <p>Big preview left, right rail stacks Layers (flat list of subject+behavior combos) and Properties of the selected one. No tree — each row is one effect on one subject.</p>
+      <p style="font-size:11px;color:#888;margin-top:8px"><strong>Strength:</strong> Familiar to creators from AE/CapCut. Flat = no nesting confusion. <strong>Weakness:</strong> Many behaviors on one subject get visually noisy.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="dock" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="display:grid;grid-template-rows:24px 1fr 90px;height:240px;background:#1a1a1a;border:1px solid #333;font-size:9px;color:#aaa">
+        <div style="background:#0f0f0f;border-bottom:1px solid #333;display:flex;align-items:center;padding:0 8px;font-size:9px;color:#888">My Effect · Save · Publish</div>
+        <div style="background:#0a0a0a;display:grid;grid-template-columns:1fr 220px;position:relative">
+          <div style="display:flex;align-items:center;justify-content:center;position:relative">
+            <div style="position:absolute;inset:16px;border:1px dashed #2a2a2a;border-radius:4px;display:flex;align-items:center;justify-content:center">
+              <div style="text-align:center;color:#555">
+                <div style="font-size:18px;margin-bottom:4px">👤</div>
+                <div>Preview</div>
+                <div style="font-size:8px;margin-top:2px;color:#444">click subject to select</div>
+              </div>
+            </div>
+            <div style="position:absolute;bottom:8px;left:8px;background:#1a1a1a;border:1px solid #333;padding:3px 6px;font-size:8px;border-radius:3px;color:#aaa">▶ ⏸ 00:03 / 00:10</div>
+          </div>
+          <div style="background:#161616;border-left:1px solid #2a2a2a;padding:6px;display:flex;flex-direction:column;gap:4px">
+            <div style="font-size:8px;color:#888;text-transform:uppercase">Selected · Sparkles on Face</div>
+            <div style="color:#aaa">Amount ▬▬▬░░</div>
+            <div style="color:#aaa">Size ▬▬░░░</div>
+            <div style="color:#aaa">Color ▢ #ffe27a</div>
+            <div style="color:#aaa">Density ▬▬▬▬░</div>
+            <div style="color:#aaa">Anchor: Eye</div>
+            <div style="margin-top:6px;padding-top:6px;border-top:1px solid #2a2a2a;color:#666;font-size:8px">⚙ Show graph</div>
+          </div>
+        </div>
+        <div style="background:#0f0f0f;border-top:1px solid #2a2a2a;padding:6px;display:flex;gap:5px;overflow:hidden">
+          <div style="background:#161616;border:1px solid #2a2a2a;border-radius:4px;padding:5px 7px;min-width:90px;font-size:8px;color:#aaa">
+            <div style="color:#888;text-transform:uppercase;font-size:7px">Subject</div>
+            <div style="color:white;margin-top:1px">👤 Face</div>
+          </div>
+          <div style="background:#2a4a8a;border:1px solid #4a8aff;border-radius:4px;padding:5px 7px;min-width:90px;font-size:8px;color:white">
+            <div style="text-transform:uppercase;font-size:7px;opacity:0.7">Behavior</div>
+            <div style="margin-top:1px">✨ Sparkles</div>
+          </div>
+          <div style="background:#161616;border:1px solid #2a2a2a;border-radius:4px;padding:5px 7px;min-width:90px;font-size:8px;color:#aaa">
+            <div style="color:#888;text-transform:uppercase;font-size:7px">Subject</div>
+            <div style="color:white;margin-top:1px">🏔 Background</div>
+          </div>
+          <div style="background:#161616;border:1px solid #2a2a2a;border-radius:4px;padding:5px 7px;min-width:90px;font-size:8px;color:#aaa">
+            <div style="color:#888;text-transform:uppercase;font-size:7px">Behavior</div>
+            <div style="margin-top:1px">🌫 Blur</div>
+          </div>
+          <div style="background:#161616;border:1px dashed #333;border-radius:4px;padding:5px 7px;min-width:60px;font-size:8px;color:#666;display:flex;align-items:center;justify-content:center">+ Add</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C · Preview-First Dock</h3>
+      <p>Preview dominates. Bottom dock shows horizontal "subject → behavior" chips like a sentence. Right rail is purely properties of whatever's selected. Direct: click the subject in the preview to select it.</p>
+      <p style="font-size:11px;color:#888;margin-top:8px"><strong>Strength:</strong> Subjects feel tangible — you click them in the preview. Casual, modern. <strong>Weakness:</strong> Less efficient for complex stacks; bottom dock scrolls horizontally.</p>
+    </div>
+  </div>
+</div>
+
+<p class="subtitle" style="margin-top:24px">Click a card to select. You can also tell me in the terminal if you want a hybrid.</p>

@@ -1,0 +1,213 @@
+<h2>Effect editor — high-fidelity layout</h2>
+<p class="subtitle">Three columns under the top bar. Scene tree (240px) · Preview (flex) · Inspector (320px). Behavior/subject palettes are sheets that overlay from the left edge of the preview area.</p>
+
+<div class="mockup">
+  <div class="mockup-header">apps/studio/src/effect/EffectEditor.tsx — default state with one Face subject + Sparkles behavior</div>
+  <div class="mockup-body" style="padding:0">
+    <div style="display:grid;grid-template-rows:40px 1fr 22px;height:560px;background:#0c0c0c;border-radius:4px;overflow:hidden;font-family:-apple-system,sans-serif;font-size:11px;color:#ddd">
+      <!-- top bar -->
+      <div style="background:#0f0f0f;border-bottom:1px solid #222;display:flex;align-items:center;padding:0 14px;gap:14px">
+        <div style="font-weight:600">OR</div>
+        <div style="color:#888">›</div>
+        <div>Untitled Effect</div>
+        <div style="margin-left:auto;display:flex;gap:8px">
+          <button style="background:#1a1a1a;border:1px solid #2a2a2a;color:#ddd;padding:5px 12px;border-radius:4px;font-size:11px">Save draft</button>
+          <button style="background:#4a8aff;border:none;color:white;padding:5px 12px;border-radius:4px;font-size:11px">Publish</button>
+        </div>
+      </div>
+
+      <!-- main body: 3 columns -->
+      <div style="display:grid;grid-template-columns:240px 1fr 320px;height:100%;overflow:hidden">
+        <!-- LEFT: Scene tree -->
+        <div style="background:#111;border-right:1px solid #222;display:flex;flex-direction:column">
+          <div style="padding:10px 12px;border-bottom:1px solid #1f1f1f;display:flex;justify-content:space-between;align-items:center">
+            <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.06em;color:#888">Scene</div>
+            <button style="background:none;border:1px solid #2a2a2a;color:#aaa;padding:3px 8px;border-radius:3px;font-size:10px">+ Subject</button>
+          </div>
+          <div style="padding:6px 4px;display:flex;flex-direction:column;gap:1px;flex:1">
+            <!-- subject 1: Face -->
+            <div style="display:flex;align-items:center;gap:6px;padding:6px 8px;background:#1c2a4a;border-left:2px solid #4a8aff;border-radius:0 3px 3px 0">
+              <span style="font-size:13px">👤</span>
+              <span style="flex:1;color:white">Face</span>
+              <span style="color:#666;font-size:10px">👁</span>
+            </div>
+            <!-- behavior under face -->
+            <div style="display:flex;align-items:center;gap:6px;padding:5px 8px 5px 28px;color:#bbb">
+              <span style="color:#666">└</span>
+              <span style="font-size:11px">✨</span>
+              <span style="flex:1">Sparkles</span>
+              <span style="color:#666;font-size:10px">👁</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:6px;padding:5px 8px 5px 28px;color:#888;font-size:10px;cursor:pointer">
+              <span style="color:#444">+</span>
+              <span>Add behavior</span>
+            </div>
+
+            <!-- subject 2: Subject silhouette -->
+            <div style="display:flex;align-items:center;gap:6px;padding:6px 8px;color:#bbb;margin-top:6px">
+              <span style="font-size:13px">🧍</span>
+              <span style="flex:1">Subject silhouette</span>
+              <span style="color:#666;font-size:10px">👁</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:6px;padding:5px 8px 5px 28px;color:#888;font-size:10px;cursor:pointer">
+              <span style="color:#444">+</span>
+              <span>Add behavior</span>
+            </div>
+
+            <!-- subject 3: Full frame -->
+            <div style="display:flex;align-items:center;gap:6px;padding:6px 8px;color:#bbb">
+              <span style="font-size:13px">🎞</span>
+              <span style="flex:1">Full frame</span>
+              <span style="color:#666;font-size:10px">👁</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:6px;padding:5px 8px 5px 28px;color:#888;font-size:10px;cursor:pointer">
+              <span style="color:#444">+</span>
+              <span>Add behavior</span>
+            </div>
+          </div>
+          <div style="padding:8px 12px;border-top:1px solid #1f1f1f;display:flex;justify-content:space-between;align-items:center;color:#666;font-size:10px">
+            <span>3 subjects · 1 behavior</span>
+            <span>4.2ms</span>
+          </div>
+        </div>
+
+        <!-- MIDDLE: Preview -->
+        <div style="background:#080808;display:flex;flex-direction:column;position:relative">
+          <!-- sample clip selector -->
+          <div style="background:#0f0f0f;border-bottom:1px solid #1f1f1f;padding:8px 14px;display:flex;align-items:center;gap:10px">
+            <div style="font-size:10px;text-transform:uppercase;color:#888;letter-spacing:0.06em">Sample</div>
+            <select style="background:#1a1a1a;border:1px solid #2a2a2a;color:#ddd;padding:3px 8px;border-radius:3px;font-size:10px">
+              <option>Portrait close-up (9:16)</option>
+            </select>
+            <div style="margin-left:auto;display:flex;gap:6px">
+              <button style="background:#1a1a1a;border:1px solid #2a2a2a;color:#aaa;padding:3px 8px;border-radius:3px;font-size:10px">Mask</button>
+              <button style="background:#1a1a1a;border:1px solid #2a2a2a;color:#aaa;padding:3px 8px;border-radius:3px;font-size:10px">Compare</button>
+              <button style="background:#2a4a8a;border:1px solid #4a8aff;color:white;padding:3px 8px;border-radius:3px;font-size:10px">Full</button>
+            </div>
+          </div>
+
+          <!-- preview canvas -->
+          <div style="flex:1;display:flex;align-items:center;justify-content:center;background:#0a0a0a;position:relative">
+            <div style="width:240px;height:380px;background:linear-gradient(180deg,#2a2030 0%,#4a3050 100%);border-radius:6px;position:relative;display:flex;align-items:flex-start;justify-content:center;padding-top:50px">
+              <div style="width:90px;height:90px;background:#d4a890;border-radius:50%;position:relative">
+                <!-- "sparkles" -->
+                <div style="position:absolute;top:25px;left:18px;color:#ffe27a;font-size:14px">✨</div>
+                <div style="position:absolute;top:30px;right:18px;color:#ffe27a;font-size:10px">✨</div>
+                <div style="position:absolute;top:55px;left:35px;color:#ffe27a;font-size:8px">✨</div>
+                <div style="position:absolute;bottom:-6px;left:-12px;color:#ffe27a;font-size:12px">✨</div>
+                <!-- face landmarks overlay hint -->
+                <div style="position:absolute;top:30px;left:20px;width:8px;height:8px;border:1px dashed #4a8aff;border-radius:50%"></div>
+                <div style="position:absolute;top:30px;right:20px;width:8px;height:8px;border:1px dashed #4a8aff;border-radius:50%"></div>
+              </div>
+            </div>
+            <!-- click hint -->
+            <div style="position:absolute;top:50%;left:50%;transform:translate(-50%, 110px);background:#0f0f0f;border:1px solid #2a2a2a;padding:4px 10px;border-radius:14px;color:#888;font-size:9px">Click the face to select it</div>
+          </div>
+
+          <!-- playback bar -->
+          <div style="background:#0f0f0f;border-top:1px solid #1f1f1f;padding:8px 14px;display:flex;align-items:center;gap:10px">
+            <span style="color:#888;font-size:11px">▶</span>
+            <div style="flex:1;height:3px;background:#222;border-radius:2px;position:relative">
+              <div style="position:absolute;left:0;top:0;height:3px;width:30%;background:#4a8aff;border-radius:2px"></div>
+              <div style="position:absolute;left:30%;top:-3px;width:9px;height:9px;background:white;border-radius:50%;transform:translateX(-50%)"></div>
+            </div>
+            <span style="color:#888;font-size:10px">00:03 / 00:10</span>
+          </div>
+        </div>
+
+        <!-- RIGHT: Inspector -->
+        <div style="background:#111;border-left:1px solid #222;display:flex;flex-direction:column;overflow-y:auto">
+          <div style="padding:10px 14px;border-bottom:1px solid #1f1f1f">
+            <div style="font-size:10px;text-transform:uppercase;color:#888;letter-spacing:0.06em;margin-bottom:4px">Selected · Behavior</div>
+            <div style="display:flex;align-items:center;gap:8px">
+              <span style="font-size:14px">✨</span>
+              <input value="Sparkles" style="background:transparent;border:none;color:white;font-size:13px;flex:1;outline:none"/>
+            </div>
+            <div style="margin-top:4px;font-size:10px;color:#666">on Face</div>
+          </div>
+
+          <div style="padding:12px 14px;display:flex;flex-direction:column;gap:14px">
+            <!-- Style preset -->
+            <div>
+              <div style="font-size:10px;text-transform:uppercase;color:#888;letter-spacing:0.06em;margin-bottom:6px">Style</div>
+              <div style="display:flex;gap:5px">
+                <div style="flex:1;padding:6px 4px;background:#2a4a8a;border:1px solid #4a8aff;border-radius:3px;text-align:center;font-size:10px;color:white">Gold</div>
+                <div style="flex:1;padding:6px 4px;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:3px;text-align:center;font-size:10px;color:#aaa">Diamond</div>
+                <div style="flex:1;padding:6px 4px;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:3px;text-align:center;font-size:10px;color:#aaa">Holo</div>
+              </div>
+            </div>
+            <!-- Amount -->
+            <div>
+              <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+                <span style="font-size:10px;color:#aaa">Amount</span>
+                <span style="font-size:10px;color:#888">0.7</span>
+              </div>
+              <div style="height:3px;background:#222;border-radius:2px;position:relative">
+                <div style="position:absolute;left:0;top:0;height:3px;width:70%;background:#4a8aff;border-radius:2px"></div>
+                <div style="position:absolute;left:70%;top:-3px;width:9px;height:9px;background:white;border-radius:50%;transform:translateX(-50%)"></div>
+              </div>
+            </div>
+            <!-- Size -->
+            <div>
+              <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+                <span style="font-size:10px;color:#aaa">Size</span>
+                <span style="font-size:10px;color:#888">0.4</span>
+              </div>
+              <div style="height:3px;background:#222;border-radius:2px;position:relative">
+                <div style="position:absolute;left:0;top:0;height:3px;width:40%;background:#4a8aff;border-radius:2px"></div>
+                <div style="position:absolute;left:40%;top:-3px;width:9px;height:9px;background:white;border-radius:50%;transform:translateX(-50%)"></div>
+              </div>
+            </div>
+            <!-- Color -->
+            <div>
+              <div style="font-size:10px;color:#aaa;margin-bottom:6px">Color</div>
+              <div style="display:flex;align-items:center;gap:8px">
+                <div style="width:22px;height:22px;background:#ffe27a;border:1px solid #333;border-radius:3px"></div>
+                <span style="font-size:10px;color:#888">#FFE27A</span>
+              </div>
+            </div>
+            <!-- Anchor -->
+            <div>
+              <div style="font-size:10px;color:#aaa;margin-bottom:6px">Anchor</div>
+              <select style="width:100%;background:#1a1a1a;border:1px solid #2a2a2a;color:#ddd;padding:4px 8px;border-radius:3px;font-size:10px">
+                <option>Eyes (both)</option>
+              </select>
+            </div>
+
+            <div style="margin-top:6px;padding-top:12px;border-top:1px solid #1f1f1f;display:flex;justify-content:space-between">
+              <button style="background:none;border:none;color:#666;font-size:10px">Duplicate</button>
+              <button style="background:none;border:none;color:#aa5555;font-size:10px">Remove</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- status bar -->
+      <div style="background:#0f0f0f;border-top:1px solid #222;display:flex;align-items:center;padding:0 14px;gap:14px;color:#666;font-size:10px">
+        <span>● Saved</span>
+        <span style="margin-left:auto">FaceLandmarker · ImageSegmenter</span>
+        <span>·</span>
+        <span>16.2ms / frame</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<p class="subtitle" style="margin-top:16px">Click the mockup to mark approval, or tell me in the terminal what to change.</p>
+
+<div class="options">
+  <div class="option" data-choice="approve" onclick="toggleSelect(this)">
+    <div class="letter">✓</div>
+    <div class="content">
+      <h3>Looks right — move on</h3>
+      <p>Approve the layout direction and move to Section 3.</p>
+    </div>
+  </div>
+  <div class="option" data-choice="iterate" onclick="toggleSelect(this)">
+    <div class="letter">✎</div>
+    <div class="content">
+      <h3>Needs changes</h3>
+      <p>Tell me in the terminal what to adjust.</p>
+    </div>
+  </div>
+</div>

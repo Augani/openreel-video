@@ -1,0 +1,81 @@
+<h2>Workspace paradigm for v1</h2>
+<p class="subtitle">The mockup in <code>desktop/</code> shows a classic NLE layout. To "ditch DaVinci and CapCut" the bigger question is what <em>shape</em> of workspace system kael ships. Pick the v1 default — the others can come in later versions.</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Single layout (your mockup)</h3>
+      <p style="margin-bottom: 12px;">Media left, preview center, inspector right, timeline bottom. One unified workspace. Same paradigm as Premiere, Final Cut, the existing apps/web editor, and both mobile apps.</p>
+      <div class="mockup" style="margin: 8px 0;">
+        <div class="mockup-body" style="display: grid; grid-template-columns: 1fr 2fr 1fr; grid-template-rows: 2fr 1fr; gap: 4px; height: 160px;">
+          <div class="placeholder" style="background:#2a2a3a;">Media</div>
+          <div class="placeholder" style="background:#1a1a2a;">Preview</div>
+          <div class="placeholder" style="background:#2a2a3a;">Inspector</div>
+          <div class="placeholder" style="grid-column: 1 / -1; background:#1f1f2f;">Timeline (multi-track)</div>
+        </div>
+      </div>
+      <p style="font-size: 0.85em; opacity: 0.7;">Pro: lowest learning curve, matches mobile editors. Ship faster. Con: power users editing color or audio share one layout — no specialization.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Workspace tabs (DaVinci-style)</h3>
+      <p style="margin-bottom: 12px;">Top-level tabs: <strong>Edit · Cut · Color · Fairlight (Audio) · Captions · Deliver</strong>. Each tab is a completely different layout tuned for that task. Switch tabs to switch tools.</p>
+      <div class="mockup" style="margin: 8px 0;">
+        <div style="background: #15151f; padding: 6px 8px; border-bottom: 1px solid #2a2a3a; font-size: 0.75em; display: flex; gap: 8px;">
+          <span style="background: #3a3a5a; padding: 2px 8px; border-radius: 4px;">Edit</span>
+          <span style="opacity: 0.5;">Cut</span>
+          <span style="opacity: 0.5;">Color</span>
+          <span style="opacity: 0.5;">Audio</span>
+          <span style="opacity: 0.5;">Captions</span>
+          <span style="opacity: 0.5;">Deliver</span>
+        </div>
+        <div class="mockup-body" style="display: grid; grid-template-columns: 1fr 2fr 1fr; grid-template-rows: 2fr 1fr; gap: 4px; height: 130px;">
+          <div class="placeholder" style="background:#2a2a3a;">Media</div>
+          <div class="placeholder" style="background:#1a1a2a;">Preview</div>
+          <div class="placeholder" style="background:#2a2a3a;">Inspector</div>
+          <div class="placeholder" style="grid-column: 1 / -1; background:#1f1f2f;">Timeline</div>
+        </div>
+      </div>
+      <p style="font-size: 0.85em; opacity: 0.7;">Pro: each task gets a tailored UI; serious editors expect this; differentiates from CapCut. Con: more layouts to design + build; harder to learn for new users; v1 needs at least 2 workspaces to feel like the paradigm.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Single layout v1 → workspaces v2</h3>
+      <p style="margin-bottom: 12px;">Ship Option A's layout as v1 default, but design the panel system from day one to support workspace switching. Add the <strong>Edit / Color / Audio</strong> tab row in v2 once the engine for those is built.</p>
+      <div class="mockup" style="margin: 8px 0;">
+        <div class="mockup-body" style="display: grid; grid-template-columns: 1fr 2fr 1fr; grid-template-rows: 2fr 1fr; gap: 4px; height: 160px;">
+          <div class="placeholder" style="background:#2a2a3a;">Media</div>
+          <div class="placeholder" style="background:#1a1a2a;">Preview</div>
+          <div class="placeholder" style="background:#2a2a3a;">Inspector</div>
+          <div class="placeholder" style="grid-column: 1 / -1; background:#1f1f2f;">Timeline</div>
+        </div>
+        <p style="font-size: 0.7em; opacity: 0.5; text-align: center; margin-top: 4px;">v2: + Edit / Color / Audio / Captions tabs</p>
+      </div>
+      <p style="font-size: 0.85em; opacity: 0.7;">Pro: faster to ship, room to grow into DaVinci-class differentiation, no architecture rewrite later. Con: requires upfront discipline in the panel system (every panel must be relocatable/dockable).</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="d" onclick="toggleSelect(this)">
+    <div class="letter">D</div>
+    <div class="content">
+      <h3>Detachable / floating panels (After Effects-style)</h3>
+      <p style="margin-bottom: 12px;">Every panel is a draggable, dockable, tear-off-to-its-own-window unit. User builds their own layout. No fixed regions.</p>
+      <div class="mockup" style="margin: 8px 0;">
+        <div class="mockup-body" style="position: relative; height: 160px; background: #1a1a2a;">
+          <div class="placeholder" style="position: absolute; top: 8px; left: 8px; width: 35%; height: 50%; background:#2a2a3a;">Bin</div>
+          <div class="placeholder" style="position: absolute; top: 8px; right: 8px; width: 45%; height: 60%; background:#2a2a3a;">Preview</div>
+          <div class="placeholder" style="position: absolute; bottom: 30%; left: 8px; width: 35%; height: 30%; background:#2a2a3a;">Inspector</div>
+          <div class="placeholder" style="position: absolute; bottom: 8px; left: 8px; right: 8px; height: 25%; background:#1f1f2f;">Timeline</div>
+        </div>
+      </div>
+      <p style="font-size: 0.85em; opacity: 0.7;">Pro: maximum power-user flexibility, multi-monitor friendly. Con: significant kael work (window management, dock/undock, persisted layouts); steep learning curve; out of scope for v1.</p>
+    </div>
+  </div>
+</div>
