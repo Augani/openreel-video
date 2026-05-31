@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Key,
   Plus,
@@ -18,6 +18,7 @@ import { useEngineStore } from "../../../stores/engine-store";
 import {
   KeyframeEngine,
   EASING_CATEGORIES,
+  getStaticDescriptor,
   type EasingName,
 } from "@openreel/core";
 import type { Keyframe, EasingType } from "@openreel/core";
@@ -150,6 +151,15 @@ const formatEasingLabel = (easing: string): string => {
   );
 };
 
+const propertyLabel = (property: string): string => {
+  const known = ANIMATABLE_PROPERTIES.find((p) => p.id === property)?.label;
+  if (known) return known;
+  const descriptor = getStaticDescriptor(property)?.label;
+  if (descriptor) return descriptor;
+  const segments = property.split(".");
+  return segments[segments.length - 1] || property;
+};
+
 const PropertySelector: React.FC<{
   selectedProperty: string | null;
   onSelect: (propertyId: string) => void;
@@ -160,8 +170,7 @@ const PropertySelector: React.FC<{
   const categories = [...new Set(ANIMATABLE_PROPERTIES.map((p) => p.category))];
 
   const selectedLabel = selectedProperty
-    ? ANIMATABLE_PROPERTIES.find((p) => p.id === selectedProperty)?.label ||
-      selectedProperty
+    ? propertyLabel(selectedProperty)
     : "Select Property";
 
   return (
@@ -183,6 +192,31 @@ const PropertySelector: React.FC<{
         sideOffset={4}
         className="w-[var(--radix-popover-trigger-width)] min-w-[200px] p-0 bg-background-secondary border-border max-h-64 overflow-y-auto"
       >
+        {existingProperties.length > 0 && (
+          <div>
+            <div className="px-3 py-1.5 text-[9px] font-medium text-text-muted uppercase tracking-wider bg-background-tertiary">
+              On this clip
+            </div>
+            {existingProperties.map((prop) => (
+              <button
+                key={`existing-${prop}`}
+                type="button"
+                onClick={() => {
+                  onSelect(prop);
+                  setIsOpen(false);
+                }}
+                className={`w-full px-3 py-2 text-left text-[10px] flex items-center justify-between hover:bg-background-tertiary transition-colors ${
+                  selectedProperty === prop
+                    ? "bg-primary/10 text-primary"
+                    : "text-text-primary"
+                }`}
+              >
+                <span>{propertyLabel(prop)}</span>
+                <Diamond size={10} className="text-primary fill-primary" />
+              </button>
+            ))}
+          </div>
+        )}
         {categories.map((category) => (
           <div key={category}>
             <div className="px-3 py-1.5 text-[9px] font-medium text-text-muted uppercase tracking-wider bg-background-tertiary">
@@ -417,6 +451,13 @@ export const KeyframesSection: React.FC<KeyframesSectionProps> = ({
   const propertiesWithKeyframes = useMemo(() => {
     return [...new Set(keyframes.map((kf) => kf.property))];
   }, [keyframes]);
+
+  useEffect(() => {
+    const props = [
+      ...new Set((getClip(clipId)?.keyframes ?? []).map((kf) => kf.property)),
+    ];
+    setSelectedProperty(props.length > 0 ? props[0] : null);
+  }, [clipId, getClip]);
 
   const propertyKeyframes = useMemo(() => {
     if (!selectedProperty) return [];
