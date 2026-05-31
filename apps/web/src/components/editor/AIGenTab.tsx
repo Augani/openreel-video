@@ -227,7 +227,7 @@ export const AIGenTab: React.FC = () => {
           />
         </FeatureSection>
 
-        <FeatureSection title="Pro Tools" icon={Video}>
+        <FeatureSection title="Tools" icon={Video}>
           <FeatureCard
             icon={Video}
             title="Multi-Camera Editing"

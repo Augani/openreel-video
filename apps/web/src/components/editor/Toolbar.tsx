@@ -785,7 +785,6 @@ export const Toolbar: React.FC = () => {
               className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[12px] font-medium text-fg-2 hover:bg-hover hover:text-fg transition-colors"
             >
               <Star size={14} />
-              <span>Pro</span>
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
@@ -862,9 +861,6 @@ export const Toolbar: React.FC = () => {
                 <Upload size={13} />
                 <span>Export</span>
                 <ChevronDown size={12} className={`transition-transform ${isExportOpen ? "rotate-180" : ""}`} />
-                <span className="absolute -top-1.5 -right-1.5 bg-[oklch(0.78_0.14_80)] text-[oklch(0.2_0.05_80)] text-[8.5px] px-[5px] py-px rounded-full font-bold tracking-wider">
-                  Pro
-                </span>
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-72 p-0 rounded-xl bg-bg-1 border-border">

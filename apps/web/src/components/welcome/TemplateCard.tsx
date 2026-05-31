@@ -130,7 +130,6 @@ export const TemplateCard: React.FC<TemplateCardProps> = ({
         {template.premium && (
           <div className="absolute top-2 right-2 px-2 py-0.5 bg-primary text-black text-[10px] font-semibold rounded-full flex items-center gap-1">
             <Crown size={10} />
-            Pro
           </div>
         )}
       </div>
