@@ -38,6 +38,7 @@ import {
   resolveClipAudioEffects as resolveTimelineClipAudioEffects,
   resolveClipVolumeAutomation,
   getParticleEngine,
+  evaluateKeyframesAt,
   type Effect,
   type AudioEffectParams,
   type AudioClipSchedule,
@@ -93,9 +94,16 @@ interface PreparedPreviewFrame {
 
 type PreviewClip = Track["clips"][number];
 
-const clipNeedsFrameProcessing = (clipId: string): boolean => {
+const clipNeedsFrameProcessing = (
+  clipId: string,
+  keyframes: PreviewClip["keyframes"] = [],
+): boolean => {
   const bgEngine = getBackgroundRemovalEngine();
   if (bgEngine?.isInitialized() && bgEngine.getSettings(clipId).enabled) {
+    return true;
+  }
+
+  if (keyframes.some((kf) => kf.property.startsWith("colorGrade."))) {
     return true;
   }
 
@@ -115,8 +123,9 @@ const preparePreviewFrame = async (
   clipId: string,
   frameCanvas: HTMLCanvasElement | OffscreenCanvas,
   preferBitmap: boolean,
+  keyframes: PreviewClip["keyframes"] = [],
 ): Promise<PreparedPreviewFrame> => {
-  const needsProcessing = clipNeedsFrameProcessing(clipId);
+  const needsProcessing = clipNeedsFrameProcessing(clipId, keyframes);
   if (!preferBitmap && !needsProcessing) {
     return {
       frame: frameCanvas,
@@ -2037,6 +2046,34 @@ export const Preview: React.FC = () => {
                     frame.height,
                   );
 
+                  const gradeKeyframes = evaluateKeyframesAt(
+                    clip.keyframes,
+                    clipLocalTime,
+                  );
+                  const hasGradeOverride =
+                    gradeKeyframes.has("colorGrade.temperature") ||
+                    gradeKeyframes.has("colorGrade.tint");
+                  if (hasGradeOverride) {
+                    const override: Partial<{
+                      temperature: number;
+                      tint: number;
+                    }> = {};
+                    const temperature = gradeKeyframes.get(
+                      "colorGrade.temperature",
+                    );
+                    const tint = gradeKeyframes.get("colorGrade.tint");
+                    if (temperature !== undefined) {
+                      override.temperature = temperature;
+                    }
+                    if (tint !== undefined) {
+                      override.tint = tint;
+                    }
+                    getEffectsBridge().setColorGradingOverride(
+                      clip.id,
+                      override,
+                    );
+                  }
+
                   let processedFrame: ImageBitmap | null = null;
                   try {
                     processedFrame = await applyEffectsToFrame(clip.id, frame);
@@ -2069,6 +2106,9 @@ export const Preview: React.FC = () => {
                     );
                     hasRenderedFrame = true;
                   } finally {
+                    if (hasGradeOverride) {
+                      getEffectsBridge().clearColorGradingOverride(clip.id);
+                    }
                     if (processedFrame && processedFrame !== frame) {
                       processedFrame.close();
                     }
@@ -2388,7 +2428,11 @@ export const Preview: React.FC = () => {
             if (mediaItem?.blob && mediaItem.type === "video") {
               const clipSpeed = speedEngine.getClipSpeed(clip.id);
               const isReverse = speedEngine.isReverse(clip.id);
-              if (clipSpeed !== 1 || isReverse || clipNeedsFrameProcessing(clip.id)) {
+              if (
+                clipSpeed !== 1 ||
+                isReverse ||
+                clipNeedsFrameProcessing(clip.id, clip.keyframes)
+              ) {
                 return { canUse: false, clips: [] };
               }
               allVideoClips.push({ clip, mediaItem });
@@ -3294,6 +3338,7 @@ export const Preview: React.FC = () => {
                 clip.id,
                 frameCanvas,
                 Boolean(useGPU),
+                clip.keyframes,
               );
               const stabilizedTransform = applyStabilizationTransform(
                 clip,
@@ -4009,6 +4054,7 @@ export const Preview: React.FC = () => {
                       clip.id,
                       frameResult.canvas,
                       useGPUFrames,
+                      clip.keyframes,
                     );
 
                     const stabilizedTransform = applyStabilizationTransform(

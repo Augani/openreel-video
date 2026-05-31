@@ -119,6 +119,8 @@ export class EffectsBridge {
   // Store effects per clip
   private clipEffects: Map<string, VideoEffect[]> = new Map();
   private clipColorGrading: Map<string, ColorGradingSettings> = new Map();
+  private clipColorGradingOverride: Map<string, Partial<ColorGradingSettings>> =
+    new Map();
 
   // WebGPU renderer support
   // Note: Actual rendering is delegated to VideoEffectsEngine which handles
@@ -647,13 +649,44 @@ export class EffectsBridge {
   }
 
   /**
+   * Set a transient per-frame color grading override for a clip.
+   *
+   * The override is merged on top of the stored settings by getColorGrading
+   * without mutating them, so the renderer can inject keyframed grade values
+   * per frame.
+   *
+   * @param clipId - The clip to override
+   * @param override - Partial color grading values that win over the base
+   */
+  setColorGradingOverride(
+    clipId: string,
+    override: Partial<ColorGradingSettings>,
+  ): void {
+    this.clipColorGradingOverride.set(clipId, override);
+  }
+
+  /**
+   * Clear the transient per-frame color grading override for a clip.
+   *
+   * @param clipId - The clip to clear the override for
+   */
+  clearColorGradingOverride(clipId: string): void {
+    this.clipColorGradingOverride.delete(clipId);
+  }
+
+  /**
    * Get color grading settings for a clip
    *
    * @param clipId - The clip to get settings for
    * @returns Color grading settings
    */
   getColorGrading(clipId: string): ColorGradingSettings {
-    return this.clipColorGrading.get(clipId) || {};
+    const base = this.clipColorGrading.get(clipId) || {};
+    const override = this.clipColorGradingOverride.get(clipId);
+    if (override) {
+      return { ...base, ...override };
+    }
+    return base;
   }
 
   /**
@@ -977,6 +1010,7 @@ export class EffectsBridge {
   clearEffects(clipId: string): void {
     this.clipEffects.delete(clipId);
     this.clipColorGrading.delete(clipId);
+    this.clipColorGradingOverride.delete(clipId);
   }
 
   // ============================================
@@ -1096,6 +1130,7 @@ export class EffectsBridge {
 
     this.clipEffects.clear();
     this.clipColorGrading.clear();
+    this.clipColorGradingOverride.clear();
     this.videoEffectsEngine = null;
     this.colorGradingEngine = null;
     this.initialized = false;
