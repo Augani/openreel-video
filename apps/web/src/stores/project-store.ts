@@ -456,6 +456,7 @@ export interface ProjectState {
     points: AutomationPoint[],
   ) => boolean;
   clearClipAudioDucking: (clipId: string) => boolean;
+  setClipVolume: (clipId: string, volume: number) => boolean;
 
   // Keyframe actions
   updateClipKeyframes: (clipId: string, keyframes: Keyframe[]) => boolean;
@@ -6001,6 +6002,32 @@ export const useProjectStore = create<ProjectState>()(
        * Update keyframes for a clip
        * Keyframe animation support
        */
+      setClipVolume: (clipId: string, volume: number) => {
+        const { project } = get();
+
+        for (const track of project.timeline.tracks) {
+          const clipIndex = track.clips.findIndex((c) => c.id === clipId);
+          if (clipIndex !== -1) {
+            const clip = track.clips[clipIndex];
+            const updatedClip = { ...clip, volume };
+            const updatedClips = [...track.clips];
+            updatedClips[clipIndex] = updatedClip;
+            const updatedTrack = { ...track, clips: updatedClips };
+            const updatedTracks = project.timeline.tracks.map((t) =>
+              t.id === track.id ? updatedTrack : t,
+            );
+            const updatedProject = {
+              ...project,
+              timeline: { ...project.timeline, tracks: updatedTracks },
+              modifiedAt: Date.now(),
+            };
+            set({ project: updatedProject });
+            return true;
+          }
+        }
+        return false;
+      },
+
       updateClipKeyframes: (clipId: string, keyframes: Keyframe[]) => {
         const { project } = get();
 

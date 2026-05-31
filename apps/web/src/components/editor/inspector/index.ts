@@ -44,6 +44,7 @@ export { StickerPicker } from "./StickerPicker";
 export { StickerPickerPanel } from "./StickerPickerPanel";
 
 // Audio
+export { ClipVolumeSection } from "./ClipVolumeSection";
 export { AudioEffectsSection } from "./AudioEffectsSection";
 export { AudioDuckingSection } from "./AudioDuckingSection";
 export { AutoCutSilenceSection } from "./AutoCutSilenceSection";
