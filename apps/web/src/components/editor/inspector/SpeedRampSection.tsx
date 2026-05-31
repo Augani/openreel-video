@@ -60,10 +60,27 @@ const SpeedCurveCanvas: React.FC<{
   baseSpeed: number;
   onAddKeyframe: (time: number, speed: number) => void;
   onRemoveKeyframe: (id: string) => void;
-}> = ({ keyframes, duration, baseSpeed, onAddKeyframe, onRemoveKeyframe }) => {
+  onMoveKeyframe: (id: string, time: number, speed: number) => void;
+}> = ({
+  keyframes,
+  duration,
+  baseSpeed,
+  onAddKeyframe,
+  onRemoveKeyframe,
+  onMoveKeyframe,
+}) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [hoveredKeyframe] = useState<string | null>(null);
-  const [draggingKeyframe] = useState<string | null>(null);
+  const [hoveredKeyframe, setHoveredKeyframe] = useState<string | null>(null);
+  const [draggingKeyframe, setDraggingKeyframe] = useState<string | null>(null);
+  // Track whether a pointer-down resulted in an actual drag (vs a click
+  // intended to add/remove). We only treat it as a drag once the pointer
+  // moves more than a few pixels.
+  const dragStateRef = useRef<{
+    keyframeId: string | null;
+    didDrag: boolean;
+    downX: number;
+    downY: number;
+  }>({ keyframeId: null, didDrag: false, downX: 0, downY: 0 });
 
   const sortedKeyframes = useMemo(() => {
     return [...keyframes].sort((a, b) => a.time - b.time);
@@ -179,51 +196,157 @@ const SpeedCurveCanvas: React.FC<{
     ctx.fillText(`${SPEED_MIN}x`, 2, height - padding + 4);
   }, [sortedKeyframes, duration, baseSpeed, hoveredKeyframe, draggingKeyframe]);
 
-  const handleCanvasClick = useCallback(
-    (e: React.MouseEvent<HTMLCanvasElement>) => {
-      const canvas = canvasRef.current;
-      if (!canvas) return;
+  // ── Coordinate helpers (shared by mouse handlers and renderer) ──
+  const CANVAS_PADDING = 20;
+  const HIT_RADIUS = 10;
 
+  const canvasToWorld = useCallback(
+    (canvas: HTMLCanvasElement, e: { clientX: number; clientY: number }) => {
       const rect = canvas.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
-      const padding = 20;
-      const graphWidth = canvas.width - padding * 2;
-      const graphHeight = canvas.height - padding * 2;
-
-      const time = ((x - padding) / graphWidth) * duration;
-      const normalizedY = (y - padding) / graphHeight;
+      // The canvas has a fixed internal resolution but is rendered at
+      // CSS-determined size; scale mouse coords back into the
+      // canvas-space we drew in.
+      const scaleX = canvas.width / rect.width;
+      const scaleY = canvas.height / rect.height;
+      const cx = (e.clientX - rect.left) * scaleX;
+      const cy = (e.clientY - rect.top) * scaleY;
+      const graphWidth = canvas.width - CANVAS_PADDING * 2;
+      const graphHeight = canvas.height - CANVAS_PADDING * 2;
+      const time = ((cx - CANVAS_PADDING) / graphWidth) * duration;
+      const normalizedY = (cy - CANVAS_PADDING) / graphHeight;
       const speed = Math.exp(
         Math.log(SPEED_MAX) -
           normalizedY * (Math.log(SPEED_MAX) - Math.log(SPEED_MIN)),
       );
+      return {
+        canvasX: cx,
+        canvasY: cy,
+        time,
+        speed: Math.max(SPEED_MIN, Math.min(SPEED_MAX, speed)),
+      };
+    },
+    [duration],
+  );
 
-      if (
-        time >= 0 &&
-        time <= duration &&
-        speed >= SPEED_MIN &&
-        speed <= SPEED_MAX
-      ) {
-        const clickedKf = sortedKeyframes.find((kf) => {
-          const kfX = padding + (kf.time / duration) * graphWidth;
-          const kfY =
-            padding +
-            graphHeight *
-              (1 -
-                (Math.log(kf.speed) - Math.log(SPEED_MIN)) /
-                  (Math.log(SPEED_MAX) - Math.log(SPEED_MIN)));
-          return Math.abs(x - kfX) < 10 && Math.abs(y - kfY) < 10;
-        });
+  const findKeyframeAt = useCallback(
+    (canvas: HTMLCanvasElement, canvasX: number, canvasY: number) => {
+      const graphWidth = canvas.width - CANVAS_PADDING * 2;
+      const graphHeight = canvas.height - CANVAS_PADDING * 2;
+      return sortedKeyframes.find((kf) => {
+        const kfX = CANVAS_PADDING + (kf.time / duration) * graphWidth;
+        const kfY =
+          CANVAS_PADDING +
+          graphHeight *
+            (1 -
+              (Math.log(kf.speed) - Math.log(SPEED_MIN)) /
+                (Math.log(SPEED_MAX) - Math.log(SPEED_MIN)));
+        return Math.abs(canvasX - kfX) < HIT_RADIUS && Math.abs(canvasY - kfY) < HIT_RADIUS;
+      });
+    },
+    [sortedKeyframes, duration],
+  );
 
-        if (clickedKf) {
-          onRemoveKeyframe(clickedKf.id);
-        } else {
-          onAddKeyframe(time, Math.max(SPEED_MIN, Math.min(SPEED_MAX, speed)));
-        }
+  const handleMouseDown = useCallback(
+    (e: React.MouseEvent<HTMLCanvasElement>) => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const { canvasX, canvasY } = canvasToWorld(canvas, e);
+      const kf = findKeyframeAt(canvas, canvasX, canvasY);
+      dragStateRef.current = {
+        keyframeId: kf?.id ?? null,
+        didDrag: false,
+        downX: e.clientX,
+        downY: e.clientY,
+      };
+      if (kf) {
+        setDraggingKeyframe(kf.id);
       }
     },
-    [duration, sortedKeyframes, onAddKeyframe, onRemoveKeyframe],
+    [canvasToWorld, findKeyframeAt],
   );
+
+  const handleMouseMove = useCallback(
+    (e: React.MouseEvent<HTMLCanvasElement>) => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const { canvasX, canvasY, time, speed } = canvasToWorld(canvas, e);
+
+      // Update hover for cursor feedback (regardless of drag state).
+      if (!dragStateRef.current.keyframeId) {
+        const hit = findKeyframeAt(canvas, canvasX, canvasY);
+        setHoveredKeyframe(hit?.id ?? null);
+      }
+
+      // If we're actively dragging a keyframe, move it.
+      if (dragStateRef.current.keyframeId) {
+        const dx = Math.abs(e.clientX - dragStateRef.current.downX);
+        const dy = Math.abs(e.clientY - dragStateRef.current.downY);
+        if (dx > 3 || dy > 3) dragStateRef.current.didDrag = true;
+        const clampedTime = Math.max(0, Math.min(duration, time));
+        onMoveKeyframe(dragStateRef.current.keyframeId, clampedTime, speed);
+      }
+    },
+    [canvasToWorld, findKeyframeAt, duration, onMoveKeyframe],
+  );
+
+  const handleMouseUp = useCallback(
+    (e: React.MouseEvent<HTMLCanvasElement>) => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const state = dragStateRef.current;
+      const { canvasX, canvasY, time, speed } = canvasToWorld(canvas, e);
+
+      if (state.keyframeId) {
+        // Released on a keyframe. If user clicked without dragging
+        // we interpret it as "remove that keyframe". A drag commits
+        // the new position (already applied via mousemove).
+        if (!state.didDrag) {
+          onRemoveKeyframe(state.keyframeId);
+        }
+      } else {
+        // Released over empty space — add a new keyframe at the
+        // pointer position, but only on click (no drag scrub).
+        const dx = Math.abs(e.clientX - state.downX);
+        const dy = Math.abs(e.clientY - state.downY);
+        if (
+          dx < 4 &&
+          dy < 4 &&
+          time >= 0 &&
+          time <= duration &&
+          canvasX >= CANVAS_PADDING &&
+          canvasX <= canvas.width - CANVAS_PADDING &&
+          canvasY >= CANVAS_PADDING &&
+          canvasY <= canvas.height - CANVAS_PADDING
+        ) {
+          onAddKeyframe(time, speed);
+        }
+      }
+
+      dragStateRef.current = {
+        keyframeId: null,
+        didDrag: false,
+        downX: 0,
+        downY: 0,
+      };
+      setDraggingKeyframe(null);
+    },
+    [canvasToWorld, duration, onAddKeyframe, onRemoveKeyframe],
+  );
+
+  const handleMouseLeave = useCallback(() => {
+    // If the user drags off the canvas, treat as a commit at the last
+    // known position (mousemove already updated it).
+    if (dragStateRef.current.keyframeId) {
+      dragStateRef.current = {
+        keyframeId: null,
+        didDrag: false,
+        downX: 0,
+        downY: 0,
+      };
+      setDraggingKeyframe(null);
+    }
+    setHoveredKeyframe(null);
+  }, []);
 
   return (
     <div className="relative">
@@ -231,11 +354,20 @@ const SpeedCurveCanvas: React.FC<{
         ref={canvasRef}
         width={280}
         height={120}
-        onClick={handleCanvasClick}
-        className="w-full rounded-lg border border-border cursor-crosshair"
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseLeave}
+        className={`w-full rounded-lg border border-border ${
+          draggingKeyframe
+            ? "cursor-grabbing"
+            : hoveredKeyframe
+              ? "cursor-grab"
+              : "cursor-crosshair"
+        }`}
       />
-      <div className="absolute bottom-1 right-1 text-[8px] text-text-muted">
-        Click to add/remove keyframes
+      <div className="absolute bottom-1 right-1 text-[8px] text-text-muted pointer-events-none">
+        Click to add • Drag to move • Click a point to remove
       </div>
     </div>
   );
@@ -299,6 +431,16 @@ export const SpeedRampSection: React.FC<SpeedRampSectionProps> = ({ clip }) => {
   const handleRemoveKeyframe = useCallback(
     (keyframeId: string) => {
       speedEngine.removeSpeedKeyframe(clip.id, keyframeId);
+      useProjectStore.setState((state) => ({
+        project: { ...state.project, modifiedAt: Date.now() },
+      }));
+    },
+    [clip.id, speedEngine],
+  );
+
+  const handleMoveKeyframe = useCallback(
+    (keyframeId: string, time: number, speed: number) => {
+      speedEngine.updateSpeedKeyframe(clip.id, keyframeId, { time, speed });
       useProjectStore.setState((state) => ({
         project: { ...state.project, modifiedAt: Date.now() },
       }));
@@ -479,6 +621,7 @@ export const SpeedRampSection: React.FC<SpeedRampSectionProps> = ({ clip }) => {
             baseSpeed={currentSpeed}
             onAddKeyframe={handleAddKeyframe}
             onRemoveKeyframe={handleRemoveKeyframe}
+            onMoveKeyframe={handleMoveKeyframe}
           />
 
           {keyframes.length > 0 && (

@@ -1,9 +1,9 @@
 import React, { useCallback, useRef, useState } from "react";
 import {
-  Search, Image as ImageIcon, Film, Music, Plus, Upload, Trash2, 
-  Square, Circle, Triangle, Star, ArrowRight, Hexagon, FileCode, AlertTriangle, 
-  RefreshCw, Palette, LayoutGrid, Grid2x2, List, Sparkles, Video, 
-  Type, Shapes, Wand2, LayoutTemplate
+  Search, Image as ImageIcon, Film, Music, Plus, Upload, Trash2,
+  Square, Circle, Triangle, Star, ArrowRight, Hexagon, FileCode, AlertTriangle,
+  RefreshCw, Palette, LayoutGrid, Grid2x2, List, Sparkles, Video,
+  Type, Shapes, Wand2, LayoutTemplate, Zap, Shuffle,
 } from "lucide-react";
 import {
   BACKGROUND_PRESETS,
@@ -18,6 +18,10 @@ import { AspectRatioMatchDialog } from "./dialogs/AspectRatioMatchDialog";
 import { AIGenTab } from "./AIGenTab";
 import { RecipesTab } from "./panels/RecipesTab";
 import { TemplatesTab } from "./panels/TemplatesTab";
+import {
+  EffectsPanel,
+  TransitionsPanel,
+} from "./panels/EffectsTransitionsPanel";
 import { useTtsAudioStore } from "../../stores/tts-store";
 import { toast } from "../../stores/notification-store";
 import { saveFileHandle, saveDirectoryHandle } from "../../services/media-storage";
@@ -49,7 +53,15 @@ const formatDuration = (seconds: number): string => {
  * Shows thumbnail with metadata below (not overlaid)
  */
 type MediaViewMode = "large" | "small" | "list";
-type AssetsTab = "media" | "text" | "graphics" | "ai" | "recipes" | "templates";
+type AssetsTab =
+  | "media"
+  | "text"
+  | "graphics"
+  | "effects"
+  | "transitions"
+  | "ai"
+  | "recipes"
+  | "templates";
 
 const ASSETS_TABS: ReadonlyArray<{
   value: AssetsTab;
@@ -72,6 +84,16 @@ const ASSETS_TABS: ReadonlyArray<{
     description: "Create shapes, arrows, and SVG overlays.",
   },
   {
+    value: "effects",
+    label: "Effects",
+    description: "Drag effects onto a clip to apply them.",
+  },
+  {
+    value: "transitions",
+    label: "Transitions",
+    description: "Drag transitions onto a clip's edge.",
+  },
+  {
     value: "ai",
     label: "AI Generate",
     description: "Generate clips, captions, and assisted edits.",
@@ -92,6 +114,8 @@ const TAB_ICONS: Record<AssetsTab, React.ElementType> = {
   media: Video,
   text: Type,
   graphics: Shapes,
+  effects: Zap,
+  transitions: Shuffle,
   ai: Sparkles,
   recipes: Wand2,
   templates: LayoutTemplate,
@@ -1179,6 +1203,65 @@ export const AssetsPanel: React.FC = () => {
 
                 <div className="mb-6">
                   <h4 className="text-xs font-medium text-text-secondary mb-3">
+                    3D Objects
+                  </h4>
+                  <div className="grid grid-cols-3 gap-2">
+                    {([
+                      { type: "mesh-cube" as ShapeType, label: "Cube", icon: "□" },
+                      { type: "mesh-sphere" as ShapeType, label: "Sphere", icon: "○" },
+                      { type: "mesh-torus" as ShapeType, label: "Torus", icon: "◯" },
+                      { type: "mesh-cone" as ShapeType, label: "Cone", icon: "△" },
+                      { type: "mesh-cylinder" as ShapeType, label: "Cylinder", icon: "▯" },
+                      { type: "mesh-icosahedron" as ShapeType, label: "Icosahedron", icon: "◆" },
+                    ]).map((mesh) => (
+                      <button
+                        key={mesh.type}
+                        onClick={async () => {
+                          const state = useProjectStore.getState();
+                          const { createShapeClip, addTrack, updateClipRotate3D } = state;
+                          const tracksBefore = state.project.timeline.tracks;
+                          await addTrack("graphics", 0);
+                          const tracksAfter =
+                            useProjectStore.getState().project.timeline.tracks;
+                          const newGraphicsTrack = tracksAfter.find(
+                            (t) =>
+                              t.type === "graphics" &&
+                              !tracksBefore.some((bt) => bt.id === t.id),
+                          );
+                          if (newGraphicsTrack) {
+                            const created = createShapeClip(
+                              newGraphicsTrack.id,
+                              0,
+                              mesh.type,
+                            );
+                            // Nudge the rotation so the 3D depth is
+                            // visible from the get-go (otherwise a
+                            // head-on cube looks like a flat square).
+                            if (created) {
+                              updateClipRotate3D(created.id, {
+                                x: -18,
+                                y: 28,
+                                z: 0,
+                              });
+                            }
+                          }
+                        }}
+                        className="aspect-square bg-background-tertiary rounded-lg border border-border hover:border-primary/50 hover:bg-primary/5 transition-all flex flex-col items-center justify-center gap-1 group"
+                        title={mesh.label}
+                      >
+                        <span className="text-2xl text-text-secondary group-hover:text-primary transition-colors leading-none">
+                          {mesh.icon}
+                        </span>
+                        <span className="text-[9px] text-text-muted group-hover:text-text-secondary">
+                          {mesh.label}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="mb-6">
+                  <h4 className="text-xs font-medium text-text-secondary mb-3">
                     SVG Import
                   </h4>
                   <button
@@ -1383,6 +1466,18 @@ export const AssetsPanel: React.FC = () => {
                 </div>
               </div>
             </ScrollArea>
+          </div>
+        );
+      case "effects":
+        return (
+          <div className="flex min-h-0 flex-1 flex-col border-t border-border/70 bg-bg-1">
+            <EffectsPanel />
+          </div>
+        );
+      case "transitions":
+        return (
+          <div className="flex min-h-0 flex-1 flex-col border-t border-border/70 bg-bg-1">
+            <TransitionsPanel />
           </div>
         );
       case "ai":
