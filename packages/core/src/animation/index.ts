@@ -114,3 +114,14 @@ export type {
 } from "./gsap-engine";
 
 export { evaluateKeyframesAt } from "./evaluate-keyframes";
+
+export {
+  getStaticDescriptor,
+  deriveEffectDescriptor,
+  COLOR_GRADE_SCALAR_PROPS,
+} from "./keyframe-properties";
+
+export type {
+  KeyframeFamily,
+  KeyframePropertyDescriptor,
+} from "./keyframe-properties";

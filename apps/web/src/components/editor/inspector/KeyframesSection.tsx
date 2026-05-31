@@ -412,6 +412,7 @@ export const KeyframesSection: React.FC<KeyframesSectionProps> = ({
     return undefined;
   }, [clipId, getClip, getGraphicsEngine, getTitleEngine, project.modifiedAt]);
   const keyframes = clip?.keyframes || [];
+  const localTime = playheadPosition - (clip?.startTime ?? 0);
 
   const propertiesWithKeyframes = useMemo(() => {
     return [...new Set(keyframes.map((kf) => kf.property))];
@@ -432,17 +433,17 @@ export const KeyframesSection: React.FC<KeyframesSectionProps> = ({
     }
     const result = keyframeEngine.getValueAtTime(
       propertyKeyframes,
-      playheadPosition,
+      localTime,
     );
     return result.value;
-  }, [selectedProperty, propertyKeyframes, playheadPosition, propertyDef]);
+  }, [selectedProperty, propertyKeyframes, localTime, propertyDef]);
 
   const hasKeyframeAtPlayhead = useMemo(() => {
     if (!selectedProperty) return false;
     return propertyKeyframes.some(
-      (kf) => Math.abs(kf.time - playheadPosition) < 0.01,
+      (kf) => Math.abs(kf.time - localTime) < 0.01,
     );
-  }, [selectedProperty, propertyKeyframes, playheadPosition]);
+  }, [selectedProperty, propertyKeyframes, localTime]);
 
   const handleAddKeyframe = useCallback(() => {
     if (!selectedProperty || !clip) return;
@@ -450,7 +451,7 @@ export const KeyframesSection: React.FC<KeyframesSectionProps> = ({
     const newKeyframe = keyframeEngine.addKeyframe(
       clipId,
       selectedProperty,
-      playheadPosition,
+      localTime,
       currentValue,
       "linear",
     );
@@ -463,7 +464,7 @@ export const KeyframesSection: React.FC<KeyframesSectionProps> = ({
     clipId,
     clip,
     selectedProperty,
-    playheadPosition,
+    localTime,
     currentValue,
     keyframes,
     updateClipKeyframes,
