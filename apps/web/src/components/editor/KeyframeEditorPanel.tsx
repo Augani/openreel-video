@@ -1,11 +1,18 @@
 import React, { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import type { Keyframe, Clip } from "@openreel/core";
-import { EASING_FUNCTIONS, type EasingName } from "@openreel/core";
+import { EASING_FUNCTIONS, getStaticDescriptor, type EasingName } from "@openreel/core";
 import { X, Copy, Clipboard, Trash2 } from "@/icons/lucide-compat";
 import { ToolcraftButton as Button } from "@openreel/ui";
 import { ToolcraftIconButton as IconButton } from "@openreel/ui";
 import { ToolcraftSelectControl as Selector } from "@openreel/ui";
 import { ToolcraftText as Text } from "@openreel/ui";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@openreel/ui";
 
 const PROPERTY_COLORS: Record<string, string> = {
   "position.x": "#22d3ee",
@@ -16,6 +23,13 @@ const PROPERTY_COLORS: Record<string, string> = {
   opacity: "#fbbf24",
   borderRadius: "#94a3b8",
   default: "#64748b",
+};
+
+const getPropertyLabel = (property: string): string => {
+  const descriptor = getStaticDescriptor(property);
+  if (descriptor) return descriptor.label;
+  const segments = property.split(".");
+  return segments[segments.length - 1] || property;
 };
 
 const EASING_PRESETS: { label: string; value: EasingName }[] = [
@@ -398,18 +412,24 @@ export const KeyframeEditorPanel: React.FC<KeyframeEditorPanelProps> = ({
       </div>
 
       <div className="flex items-center gap-2 px-4 py-2 border-b border-border bg-background-tertiary">
-        <Selector
-          label="Property"
-          isLabelHidden
-          value={activeProperty || ""}
-          onChange={setActiveProperty}
-          options={propertyGroups.map((group) => ({
-            value: group.property,
-            label: group.property,
-          }))}
-          size="sm"
-          width={180}
-        />
+        <Select value={activeProperty || ""} onValueChange={setActiveProperty}>
+          <SelectTrigger className="w-[180px] h-8">
+            <SelectValue placeholder="Select property" />
+          </SelectTrigger>
+          <SelectContent>
+            {propertyGroups.map((group) => (
+              <SelectItem key={group.property} value={group.property}>
+                <div className="flex items-center gap-2">
+                  <div
+                    className="w-3 h-3 rounded-full"
+                    style={{ backgroundColor: group.color }}
+                  />
+                  <span>{getPropertyLabel(group.property)}</span>
+                </div>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
 
         <div className="flex-1" />
 
