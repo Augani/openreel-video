@@ -22,6 +22,7 @@ import { ColorWheelsControl } from "./ColorWheelsControl";
 import { CurvesEditor } from "./CurvesEditor";
 import { LUTLoader } from "./LUTLoader";
 import { HSLControls } from "./HSLControls";
+import { KeyframableControl } from "./KeyframableControl";
 
 const WHITE_BALANCE_PRESETS: Array<{
   label: string;
@@ -202,7 +203,10 @@ export const ColorGradingSection: React.FC<ColorGradingSectionProps> = ({
           <div className="space-y-2">
             <div className="flex items-center gap-1.5">
               <Thermometer size={12} className="text-fg-3" />
-              <PropertySlider
+              <KeyframableControl
+                clipId={clipId}
+                property="colorGrade.temperature"
+                displayScale={1}
                 label="Temperature"
                 value={temperatureValue}
                 onChange={handleTemperatureChange}
@@ -228,7 +232,10 @@ export const ColorGradingSection: React.FC<ColorGradingSectionProps> = ({
           <div className="space-y-2">
             <div className="flex items-center gap-1.5">
               <Sun size={12} className="text-fg-3" />
-              <PropertySlider
+              <KeyframableControl
+                clipId={clipId}
+                property="colorGrade.tint"
+                displayScale={1}
                 label="Tint"
                 value={tintValue}
                 onChange={handleTintChange}

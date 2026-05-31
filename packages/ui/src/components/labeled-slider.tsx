@@ -12,11 +12,12 @@ export interface LabeledSliderProps {
   unit?: string
   defaultValue?: number
   className?: string
+  formatValue?: (value: number) => string
 }
 
 const LabeledSlider = React.forwardRef<HTMLDivElement, LabeledSliderProps>(
-  ({ label, value, onChange, min = 0, max = 100, step = 1, unit = "", defaultValue, className }, ref) => {
-    const displayValue = step < 1 ? value.toFixed(1) : Math.round(value)
+  ({ label, value, onChange, min = 0, max = 100, step = 1, unit = "", defaultValue, className, formatValue }, ref) => {
+    const displayValue = formatValue ? formatValue(value) : step < 1 ? value.toFixed(1) : Math.round(value)
     const [editing, setEditing] = React.useState(false)
     const [draft, setDraft] = React.useState("")
     const clickTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
