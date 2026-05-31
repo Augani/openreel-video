@@ -579,6 +579,7 @@ export class PlaybackController {
           mediaOffset: clip.inPoint,
           volume: clip.volume,
           volumeAutomation: clip.automation?.volume ?? [],
+          keyframes: clip.keyframes,
           pan: getPanFromAudioEffects(clip.audioEffects || []),
           effects: getPreviewAudioEffects(clip.audioEffects || []),
           speed: clip.speed ?? 1,
