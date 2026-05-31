@@ -43,7 +43,7 @@ import {
 } from "./frame-ring-buffer";
 import { GPUCompositor, initializeGPUCompositor } from "./gpu-compositor";
 import { getRendererFactory, type Renderer } from "./renderer-factory";
-import { keyframeEngine } from "./keyframe-engine";
+import { animateTransform, animateEffects } from "./animate-clip";
 import { getBackgroundRemovalEngine } from "../ai/background-removal-engine";
 import {
   type GifFrameCache,
@@ -1526,163 +1526,11 @@ export class VideoEngine {
   }
 
   private getAnimatedEffects(clip: Clip, localTime: number): Effect[] {
-    const keyframes = clip.keyframes || [];
-    const baseEffects = clip.effects || [];
-
-    if (keyframes.length === 0) {
-      return baseEffects;
-    }
-
-    // Each entry maps a keyframe property → effect type and the actual
-    // param key the renderer reads (see EFFECT_DEFINITIONS in types/effects.ts).
-    const effectPropertyMap: Array<{
-      keyframeProp: string;
-      effectType: string;
-      paramKey: string;
-    }> = [
-      { keyframeProp: "effect.brightness", effectType: "brightness", paramKey: "value" },
-      { keyframeProp: "effect.contrast", effectType: "contrast", paramKey: "value" },
-      { keyframeProp: "effect.saturation", effectType: "saturation", paramKey: "value" },
-      { keyframeProp: "effect.blur", effectType: "blur", paramKey: "radius" },
-    ];
-
-    const animatedByType = new Map<string, { paramKey: string; value: number }>();
-
-    for (const { keyframeProp, effectType, paramKey } of effectPropertyMap) {
-      const effectKfs = keyframeEngine.getKeyframesForProperty(
-        keyframes,
-        keyframeProp,
-      );
-      if (effectKfs.length === 0) continue;
-      const result = keyframeEngine.getValueAtTime(effectKfs, localTime);
-      if (typeof result.value === "number") {
-        animatedByType.set(effectType, { paramKey, value: result.value });
-      }
-    }
-
-    if (animatedByType.size === 0) {
-      return baseEffects;
-    }
-
-    // Patch existing effects with interpolated values.
-    const seen = new Set<string>();
-    const patched = baseEffects.map((effect) => {
-      const animated = animatedByType.get(effect.type);
-      if (!animated) return effect;
-      seen.add(effect.type);
-      return {
-        ...effect,
-        params: { ...effect.params, [animated.paramKey]: animated.value },
-      };
-    });
-
-    // Synthesize effects that have keyframes but aren't on the clip yet,
-    // so users can animate brightness/contrast/etc. without first adding the
-    // effect manually.
-    for (const [effectType, { paramKey, value }] of animatedByType) {
-      if (seen.has(effectType)) continue;
-      patched.push({
-        id: `kf-synth-${clip.id}-${effectType}`,
-        type: effectType as Effect["type"],
-        enabled: true,
-        params: { [paramKey]: value },
-      } as Effect);
-    }
-
-    return patched;
+    return animateEffects(clip, localTime);
   }
 
   private getAnimatedTransform(clip: Clip, localTime: number): Transform {
-    const keyframes = clip.keyframes || [];
-
-    if (keyframes.length === 0) {
-      return clip.transform;
-    }
-
-    const base = clip.transform;
-    let opacity = base.opacity;
-    let positionX = base.position.x;
-    let positionY = base.position.y;
-    let scaleX = base.scale.x;
-    let scaleY = base.scale.y;
-    let rotation = base.rotation;
-
-    const opacityKfs = keyframeEngine.getKeyframesForProperty(
-      keyframes,
-      "opacity",
-    );
-    if (opacityKfs.length > 0) {
-      const result = keyframeEngine.getValueAtTime(opacityKfs, localTime);
-      if (typeof result.value === "number") {
-        opacity = result.value;
-      }
-    }
-
-    const posXKfs = keyframeEngine.getKeyframesForProperty(
-      keyframes,
-      "position.x",
-    );
-    if (posXKfs.length > 0) {
-      const result = keyframeEngine.getValueAtTime(posXKfs, localTime);
-      if (typeof result.value === "number") {
-        positionX = result.value;
-      }
-    }
-
-    const posYKfs = keyframeEngine.getKeyframesForProperty(
-      keyframes,
-      "position.y",
-    );
-    if (posYKfs.length > 0) {
-      const result = keyframeEngine.getValueAtTime(posYKfs, localTime);
-      if (typeof result.value === "number") {
-        positionY = result.value;
-      }
-    }
-
-    const scaleXKfs = keyframeEngine.getKeyframesForProperty(
-      keyframes,
-      "scale.x",
-    );
-    if (scaleXKfs.length > 0) {
-      const result = keyframeEngine.getValueAtTime(scaleXKfs, localTime);
-      if (typeof result.value === "number") {
-        scaleX = result.value;
-      }
-    }
-
-    const scaleYKfs = keyframeEngine.getKeyframesForProperty(
-      keyframes,
-      "scale.y",
-    );
-    if (scaleYKfs.length > 0) {
-      const result = keyframeEngine.getValueAtTime(scaleYKfs, localTime);
-      if (typeof result.value === "number") {
-        scaleY = result.value;
-      }
-    }
-
-    const rotationKfs = keyframeEngine.getKeyframesForProperty(
-      keyframes,
-      "rotation",
-    );
-    if (rotationKfs.length > 0) {
-      const result = keyframeEngine.getValueAtTime(rotationKfs, localTime);
-      if (typeof result.value === "number") {
-        rotation = result.value;
-      }
-    }
-
-    return {
-      position: { x: positionX, y: positionY },
-      scale: { x: scaleX, y: scaleY },
-      rotation,
-      opacity,
-      anchor: base.anchor,
-      borderRadius: base.borderRadius,
-      fitMode: base.fitMode,
-      crop: base.crop,
-    };
+    return animateTransform(clip, localTime);
   }
 
   private applyEmphasisAnimation(
