@@ -3,6 +3,7 @@ import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp } from "@/icons/lucide-compat
 import { ToolcraftClickableCard as ClickableCard } from "@openreel/ui";
 import { ToolcraftText as Text } from "@openreel/ui";
 import type { Clip, FitMode, Transform } from "@openreel/core";
+import { KeyframableControl } from "../KeyframableControl";
 import {
   CropSection,
   AlignmentSection,
@@ -11,7 +12,6 @@ import {
 } from "../";
 import { InspectorSection } from "../shell/InspectorSection";
 import {
-  MockSlider,
   NumberField,
 } from "../shell/InspectorControls";
 
@@ -36,13 +36,6 @@ const parseNumber = (raw: string, fallback: number): number => {
   const cleaned = raw.replace(/[^0-9.-]/g, "");
   const parsed = Number.parseFloat(cleaned);
   return Number.isFinite(parsed) ? parsed : fallback;
-};
-
-const stepRotation = (current: number, delta: number): number => {
-  const next = current + delta;
-  if (next > 180) return 180;
-  if (next < -180) return -180;
-  return next;
 };
 
 export const TransformTab: React.FC<TransformTabProps> = ({
@@ -149,90 +142,83 @@ export const TransformTab: React.FC<TransformTabProps> = ({
                 </div>
               </div>
 
-              <div className="flex items-center">
-                <span className="w-[90px] flex-none text-[13px] font-medium text-fg-3">
-                  Scale
-                </span>
-                <MockSlider
-                  className="flex-1"
-                  value={transform.scale.x * 100}
-                  min={0}
-                  max={300}
-                  onChange={(next) =>
-                    handleTransformChange({
-                      scale: { x: next / 100, y: next / 100 },
-                    })
-                  }
-                  showValueBox
-                  formatValue={(value) => `${Math.round(value)}%`}
-                />
-              </div>
-
-              <div className="flex items-center">
-                <span className="w-[90px] flex-none text-[13px] font-medium text-fg-3">
-                  Rotation
-                </span>
-                <div className="flex flex-1 items-center justify-between rounded-[7px] border border-border px-[10px] py-[7px] focus-within:border-accent">
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    value={`${Math.round(transform.rotation)}°`}
-                    onChange={(event) =>
-                      handleTransformChange({
-                        rotation: parseNumber(
-                          event.target.value,
-                          transform.rotation,
-                        ),
-                      })
-                    }
-                    className="w-full min-w-0 bg-transparent text-[13px] font-medium text-fg-2 outline-none"
-                  />
-                  <div className="flex flex-none flex-col">
-                    <button
-                      type="button"
-                      aria-label="Increase rotation"
-                      onClick={() =>
-                        handleTransformChange({
-                          rotation: stepRotation(transform.rotation, 1),
-                        })
-                      }
-                    >
-                      <svg
-                        width="11"
-                        height="11"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="var(--fg-muted)"
-                        strokeWidth="2.2"
-                        aria-hidden
-                      >
-                        <path d="M8 15l4-4 4 4" />
-                      </svg>
-                    </button>
-                    <button
-                      type="button"
-                      aria-label="Decrease rotation"
-                      onClick={() =>
-                        handleTransformChange({
-                          rotation: stepRotation(transform.rotation, -1),
-                        })
-                      }
-                    >
-                      <svg
-                        width="11"
-                        height="11"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="var(--fg-muted)"
-                        strokeWidth="2.2"
-                        aria-hidden
-                      >
-                        <path d="M8 9l4 4 4-4" />
-                      </svg>
-                    </button>
-                  </div>
-                </div>
-              </div>
+              <KeyframableControl
+                label="Scale X"
+                value={transform.scale.x * 100}
+                onChange={(x) =>
+                  handleTransformChange({
+                    scale: { ...transform.scale, x: x / 100 },
+                  })
+                }
+                min={0}
+                max={300}
+                step={1}
+                unit="%"
+                defaultValue={100}
+                clipId={clipId}
+                property="transform.scale.x"
+                displayScale={100}
+              />
+              <KeyframableControl
+                label="Scale Y"
+                value={transform.scale.y * 100}
+                onChange={(y) =>
+                  handleTransformChange({
+                    scale: { ...transform.scale, y: y / 100 },
+                  })
+                }
+                min={0}
+                max={300}
+                step={1}
+                unit="%"
+                defaultValue={100}
+                clipId={clipId}
+                property="transform.scale.y"
+                displayScale={100}
+              />
+              <KeyframableControl
+                label="Rotation"
+                value={transform.rotation}
+                onChange={(rotation) => handleTransformChange({ rotation })}
+                min={-180}
+                max={180}
+                step={1}
+                unit="°"
+                defaultValue={0}
+                clipId={clipId}
+                property="transform.rotation"
+                displayScale={1}
+              />
+              <KeyframableControl
+                label="Opacity"
+                value={transform.opacity * 100}
+                onChange={(opacity) =>
+                  handleTransformChange({ opacity: opacity / 100 })
+                }
+                min={0}
+                max={100}
+                step={1}
+                unit="%"
+                defaultValue={100}
+                clipId={clipId}
+                property="transform.opacity"
+                displayScale={100}
+              />
+              <KeyframableControl
+                label="Border Radius"
+                value={transform.borderRadius || 0}
+                onChange={(borderRadius) =>
+                  handleTransformChange({ borderRadius })
+                }
+                min={0}
+                max={200}
+                step={1}
+                unit="px"
+                defaultValue={0}
+                clipId={clipId}
+                property="transform.borderRadius"
+                displayScale={1}
+              />
 
               <NumberField
                 label="Anchor Point"
@@ -263,40 +249,6 @@ export const TransformTab: React.FC<TransformTabProps> = ({
               />
 
               <div className="h-px bg-border" />
-
-              <div className="flex items-center">
-                <span className="w-[90px] flex-none text-[13px] font-medium text-fg-3">
-                  Opacity
-                </span>
-                <MockSlider
-                  className="flex-1"
-                  value={transform.opacity * 100}
-                  min={0}
-                  max={100}
-                  onChange={(next) =>
-                    handleTransformChange({ opacity: next / 100 })
-                  }
-                  showValueBox
-                  formatValue={(value) => `${Math.round(value)}%`}
-                />
-              </div>
-
-              <div className="flex items-center">
-                <span className="w-[90px] flex-none text-[13px] font-medium text-fg-3">
-                  Radius
-                </span>
-                <MockSlider
-                  className="flex-1"
-                  value={transform.borderRadius || 0}
-                  min={0}
-                  max={200}
-                  onChange={(borderRadius) =>
-                    handleTransformChange({ borderRadius })
-                  }
-                  showValueBox
-                  formatValue={(value) => `${Math.round(value)}px`}
-                />
-              </div>
 
               {(clipType === "image" || clipType === "video") && (
                 <div className="space-y-2 border-t border-border pt-3">
