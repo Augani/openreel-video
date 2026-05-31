@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Key,
   Plus,
@@ -20,6 +20,7 @@ import { useEngineStore } from "../../../stores/engine-store";
 import {
   KeyframeEngine,
   EASING_CATEGORIES,
+  getStaticDescriptor,
   type EasingName,
 } from "@openreel/core";
 import type { Keyframe, EasingType } from "@openreel/core";
@@ -152,6 +153,15 @@ const formatEasingLabel = (easing: string): string => {
   );
 };
 
+const propertyLabel = (property: string): string => {
+  const known = ANIMATABLE_PROPERTIES.find((p) => p.id === property)?.label;
+  if (known) return known;
+  const descriptor = getStaticDescriptor(property)?.label;
+  if (descriptor) return descriptor;
+  const segments = property.split(".");
+  return segments[segments.length - 1] || property;
+};
+
 const PropertySelector: React.FC<{
   selectedProperty: string | null;
   onSelect: (propertyId: string) => void;
@@ -162,8 +172,7 @@ const PropertySelector: React.FC<{
   const categories = [...new Set(ANIMATABLE_PROPERTIES.map((p) => p.category))];
 
   const selectedLabel = selectedProperty
-    ? ANIMATABLE_PROPERTIES.find((p) => p.id === selectedProperty)?.label ||
-      selectedProperty
+    ? propertyLabel(selectedProperty)
     : "Select Property";
 
   return (
@@ -175,8 +184,40 @@ const PropertySelector: React.FC<{
       width="min(260px, 100vw - 32px)"
       label="Animate property"
       content={
-        <div className="max-h-64 overflow-y-auto p-1.5">
-          {categories.map((category) => (
+                  {existingProperties.length > 0 && (
+            <div className="mb-1.5 space-y-1 border-b border-border pb-1.5">
+              <div className="px-2 py-1 bg-bg-2">
+                <Text type="supporting" color="secondary" weight="bold">
+                  On this clip
+                </Text>
+              </div>
+              {existingProperties.map((propId) => (
+                <ClickableCard
+                  key={propId}
+                  label={`Select ${propertyLabel(propId)}`}
+                  onClick={() => {
+                    onSelect(propId);
+                    setIsOpen(false);
+                  }}
+                  padding={2}
+                  variant={selectedProperty === propId ? "green" : "transparent"}
+                  className="w-full"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <Text type="supporting" color="primary">
+                      {propertyLabel(propId)}
+                    </Text>
+                    <Diamond
+                      size={10}
+                      className="text-primary fill-primary"
+                      aria-hidden
+                    />
+                  </div>
+                </ClickableCard>
+              ))}
+            </div>
+          )}
+          {categories.map{categories.map((category) => (
             <div key={category} className="space-y-1">
               <div className="px-2 py-1 bg-bg-2">
                 <Text type="supporting" color="secondary" weight="bold">
@@ -443,6 +484,13 @@ export const KeyframesSection: React.FC<KeyframesSectionProps> = ({
   const propertiesWithKeyframes = useMemo(() => {
     return [...new Set(keyframes.map((kf) => kf.property))];
   }, [keyframes]);
+
+  useEffect(() => {
+    const props = [
+      ...new Set((getClip(clipId)?.keyframes ?? []).map((kf) => kf.property)),
+    ];
+    setSelectedProperty(props.length > 0 ? props[0] : null);
+  }, [clipId, getClip]);
 
   const propertyKeyframes = useMemo(() => {
     if (!selectedProperty) return [];
