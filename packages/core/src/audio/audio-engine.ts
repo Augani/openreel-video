@@ -23,6 +23,7 @@ import {
 import { scheduleVolumeAutomationOnGain } from "./clip-volume-automation";
 import { scheduleClipFadeEnvelope } from "./clip-fade-envelope";
 import { getTrackTransitionAudioFades } from "./transition-audio-fades";
+import { keyframesToAutomation } from "./keyframe-automation";
 
 const SEGMENTED_AUDIO_DECODE_THRESHOLD_SECONDS = 120;
 
@@ -343,6 +344,10 @@ export class AudioEngine {
       clipAudioEffects.length > 0 ? clipAudioEffects : clip.effects,
     );
     const transitionFades = getTrackTransitionAudioFades(track, clip.id);
+    const keyframeVolumeAutomation = keyframesToAutomation(
+      clip.keyframes,
+      "audio.volume",
+    );
 
     return {
       clipId: clip.id,
@@ -353,7 +358,10 @@ export class AudioEngine {
       duration: clipEnd - clipStart,
       clipDuration: clip.duration,
       volume: clip.volume,
-      volumeAutomation: resolveClipVolumeAutomation(clip, timeline),
+      volumeAutomation:
+        keyframeVolumeAutomation.length > 0
+          ? keyframeVolumeAutomation
+          : resolveClipVolumeAutomation(clip, timeline),
       pan,
       effects: clipAudioEffects,
       fadeIn: Math.max(clip.fade?.fadeIn ?? 0, transitionFades.fadeIn),
