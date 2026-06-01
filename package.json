@@ -4,10 +4,14 @@
   "private": true,
   "description": "Professional video, audio, and photo editing in your browser",
   "type": "module",
+  "main": "electron/main.cjs",
   "scripts": {
     "dev": "pnpm --filter @openreel/web dev",
+    "dev:electron": "OPENREEL_DEV_URL=http://localhost:5173 electron .",
     "build:wasm": "pnpm --filter @openreel/core build:wasm",
     "build": "pnpm build:wasm && pnpm --filter @openreel/web build",
+    "dist:mac": "pnpm build && electron-builder --mac dmg",
+    "dist:dir": "pnpm build && electron-builder --dir",
     "preview": "pnpm --filter @openreel/web preview",
     "deploy": "pnpm build && pnpm --filter @openreel/web deploy",
     "deploy:preview": "pnpm build && pnpm --filter @openreel/web deploy:preview",
@@ -53,6 +57,50 @@
     "@ffmpeg/core": "0.12.6",
     "@ffmpeg/core-mt": "0.12.6",
     "mediabunny": "^1.25.3"
+  },
+  "devDependencies": {
+    "electron": "^39.2.7",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "video.openreel.desktop",
+    "productName": "OpenReel Video",
+    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "electron/**/*",
+      "apps/web/dist/**/*",
+      "package.json"
+    ],
+    "asar": true,
+    "mac": {
+      "category": "public.app-category.video",
+      "identity": "-",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64"
+          ]
+        }
+      ]
+    },
+    "dmg": {
+      "contents": [
+        {
+          "x": 130,
+          "y": 220
+        },
+        {
+          "x": 410,
+          "y": 220,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ]
+    }
   },
   "workspaces": [
     "apps/*",
