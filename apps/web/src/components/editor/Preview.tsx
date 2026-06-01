@@ -2604,13 +2604,16 @@ export const Preview: React.FC = () => {
         const clipStabilized = vidstabCheck.hasStabilized(clip.id);
         const videoCacheId = clipStabilized ? `stabilized:${clip.id}` : clip.mediaId;
 
-        if (videoCache.has(videoCacheId)) {
-          return Promise.resolve();
-        }
-
         const existingLoad = loadingVideos.get(videoCacheId);
         if (existingLoad) {
           return existingLoad;
+        }
+
+        const cachedVideo = videoCache.get(videoCacheId)?.video;
+        if (cachedVideo) {
+          if (cachedVideo.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+            return Promise.resolve();
+          }
         }
 
         if (!mediaItem.blob) {
@@ -2628,7 +2631,7 @@ export const Preview: React.FC = () => {
         video.src = url;
         video.muted = true;
         video.playsInline = true;
-        video.preload = "metadata";
+        video.preload = "auto";
 
         videoCache.set(cacheId, { video, url });
 
@@ -2638,13 +2641,22 @@ export const Preview: React.FC = () => {
             if (settled) return;
             settled = true;
             video.onloadedmetadata = null;
+            video.onloadeddata = null;
+            video.oncanplay = null;
             video.onerror = null;
             loadingVideos.delete(cacheId);
             resolve();
           };
-          video.onloadedmetadata = finish;
+          video.onloadeddata = finish;
+          video.oncanplay = finish;
+          video.onloadedmetadata = () => {
+            if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+              finish();
+            }
+          };
           video.onerror = finish;
-          setTimeout(finish, 750);
+          video.load();
+          setTimeout(finish, 1200);
         });
 
         loadingVideos.set(cacheId, loadPromise);
@@ -2708,6 +2720,12 @@ export const Preview: React.FC = () => {
         return null;
       };
 
+      const findNextNativeClip = (clipId: string) => {
+        const sorted = [...clips].sort((a, b) => a.clip.startTime - b.clip.startTime);
+        const index = sorted.findIndex(({ clip }) => clip.id === clipId);
+        return index >= 0 ? sorted[index + 1] ?? null : null;
+      };
+
       const findNativeClipById = (clipId: string) =>
         clips.find(({ clip }) => clip.id === clipId) ?? null;
 
@@ -2715,38 +2733,25 @@ export const Preview: React.FC = () => {
         video: HTMLVideoElement,
         timeoutMs = 300,
       ): Promise<void> => {
-        if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
-          await new Promise<void>((resolve) => {
-            let settled = false;
-            let timeoutId: ReturnType<typeof setTimeout> | null = null;
-            const finish = () => {
-              if (settled) return;
-              settled = true;
-              if (timeoutId) clearTimeout(timeoutId);
-              video.removeEventListener("loadeddata", finish);
-              video.removeEventListener("canplay", finish);
-              resolve();
-            };
-            video.addEventListener("loadeddata", finish);
-            video.addEventListener("canplay", finish);
-            timeoutId = setTimeout(finish, timeoutMs);
-          });
+        if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+          return;
         }
 
-        if ("requestVideoFrameCallback" in video) {
-          await new Promise<void>((resolve) => {
-            let settled = false;
-            let timeoutId: ReturnType<typeof setTimeout> | null = null;
-            const finish = () => {
-              if (settled) return;
-              settled = true;
-              if (timeoutId) clearTimeout(timeoutId);
-              resolve();
-            };
-            video.requestVideoFrameCallback(finish);
-            timeoutId = setTimeout(finish, timeoutMs);
-          });
-        }
+        await new Promise<void>((resolve) => {
+          let settled = false;
+          let timeoutId: ReturnType<typeof setTimeout> | null = null;
+          const finish = () => {
+            if (settled) return;
+            settled = true;
+            if (timeoutId) clearTimeout(timeoutId);
+            video.removeEventListener("loadeddata", finish);
+            video.removeEventListener("canplay", finish);
+            resolve();
+          };
+          video.addEventListener("loadeddata", finish);
+          video.addEventListener("canplay", finish);
+          timeoutId = setTimeout(finish, timeoutMs);
+        });
       };
 
       const syncVideoToClipTime = async (
@@ -2772,7 +2777,9 @@ export const Preview: React.FC = () => {
           ? sourceTime - clip.inPoint
           : sourceTime;
 
+        let needsDrawableWait = video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA;
         if (Math.abs(video.currentTime - videoTime) > 0.1) {
+          needsDrawableWait = true;
           await new Promise<void>((resolve) => {
             let settled = false;
             let timeoutId: ReturnType<typeof setTimeout> | null = null;
@@ -2788,10 +2795,13 @@ export const Preview: React.FC = () => {
             video.currentTime = videoTime;
           });
         } else if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
+          needsDrawableWait = true;
           video.currentTime = videoTime;
         }
 
-        await waitForDrawableVideoFrame(video);
+        if (needsDrawableWait) {
+          await waitForDrawableVideoFrame(video);
+        }
       };
 
       const drawFrame = async () => {
@@ -3031,9 +3041,6 @@ export const Preview: React.FC = () => {
 
         if (currentClipId !== clip.id) {
           currentClipId = clip.id;
-          if (video.paused) {
-            video.play().catch(() => {});
-          }
         }
 
         const latestClip = (() => {
@@ -3056,6 +3063,18 @@ export const Preview: React.FC = () => {
         );
         await syncVideoToClipTime(video, latestClip, currentPlayhead);
         if (!isActive || !nativePlaybackActiveRef.current) return;
+        if (video.paused) {
+          video.play().catch(() => {});
+        }
+
+        const timeUntilClipEnd =
+          latestClip.startTime + latestClip.duration - currentPlayhead;
+        if (timeUntilClipEnd <= 1.0) {
+          const nextClip = findNextNativeClip(latestClip.id);
+          if (nextClip) {
+            loadVideoForClip(nextClip.clip, nextClip.mediaItem).catch(() => {});
+          }
+        }
 
         let transform = getAnimatedTransform(
           (latestClip.transform as ClipTransform) || DEFAULT_TRANSFORM,
