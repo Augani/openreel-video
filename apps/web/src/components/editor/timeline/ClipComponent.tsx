@@ -99,6 +99,8 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
     startY: 0,
   });
   const clipRef = useRef<HTMLDivElement>(null);
+  const moveCommitRafRef = useRef<number | null>(null);
+  const pendingCommitRef = useRef<(() => void) | null>(null);
 
   // Drag-drop highlight state: "effect" when an effect is hovered over
   // the clip body, "transition-left" / "transition-right" when a
@@ -428,6 +430,13 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
 
     animationFrameId = requestAnimationFrame(scrollLoop);
 
+    const flushPendingCommit = () => {
+      moveCommitRafRef.current = null;
+      const commit = pendingCommitRef.current;
+      pendingCommitRef.current = null;
+      commit?.();
+    };
+
     const handleMouseMove = (e: MouseEvent) => {
       mousePositionRef.current.x = e.clientX;
       mousePositionRef.current.y = e.clientY;
@@ -476,18 +485,32 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
       setIsInvalidDrop(isOverDifferentTrackType);
 
       pendingDropRef.current = { time: snapResult.time, targetTrackId };
-      onMoveClip(clip.id, snapResult.time, undefined);
 
-      // Move every companion clip in the multi-selection by the same
-      // delta. Cross-track moves of the primary don't take any
-      // companions along — that gets too lossy when they live on tracks
-      // of a different type — but same-track drags stay locked.
-      if (multiDragSnapshotRef.current.length > 0) {
-        const deltaTime = snapResult.time - clip.startTime;
-        for (const snap of multiDragSnapshotRef.current) {
-          const newStart = Math.max(0, snap.startTime + deltaTime);
-          onMoveClip(snap.clipId, newStart, undefined);
+      // Coalesce store commits to one per animation frame. A fast mouse
+      // fires many mousemove events between frames; dispatching moveClip on
+      // each one deep-clones the project and re-renders the whole editor
+      // dozens of extra times per frame, which is what made sustained
+      // dragging lag and eventually exhaust memory. We keep the latest move
+      // in a ref and flush it once per frame.
+      const moveTime = snapResult.time;
+      const baseStartTime = clip.startTime;
+      const companions = multiDragSnapshotRef.current;
+      pendingCommitRef.current = () => {
+        onMoveClip(clip.id, moveTime, undefined);
+        // Move every companion clip in the multi-selection by the same
+        // delta. Cross-track moves of the primary don't take any
+        // companions along — that gets too lossy when they live on tracks
+        // of a different type — but same-track drags stay locked.
+        if (companions.length > 0) {
+          const deltaTime = moveTime - baseStartTime;
+          for (const snap of companions) {
+            const newStart = Math.max(0, snap.startTime + deltaTime);
+            onMoveClip(snap.clipId, newStart, undefined);
+          }
         }
+      };
+      if (moveCommitRafRef.current === null) {
+        moveCommitRafRef.current = requestAnimationFrame(flushPendingCommit);
       }
 
       onSnapIndicator(snapResult.snapped && snapResult.snapPoint ? snapResult.snapPoint.time : null);
@@ -504,6 +527,16 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
       if (animationFrameId !== null) {
         cancelAnimationFrame(animationFrameId);
       }
+
+      // Flush any move queued for the next frame so the clip settles at the
+      // final dragged position instead of one frame behind.
+      if (moveCommitRafRef.current !== null) {
+        cancelAnimationFrame(moveCommitRafRef.current);
+        moveCommitRafRef.current = null;
+      }
+      const pendingCommit = pendingCommitRef.current;
+      pendingCommitRef.current = null;
+      pendingCommit?.();
 
       const { time, targetTrackId } = pendingDropRef.current;
       if (targetTrackId) {
@@ -524,6 +557,10 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
     return () => {
       if (animationFrameId !== null) {
         cancelAnimationFrame(animationFrameId);
+      }
+      if (moveCommitRafRef.current !== null) {
+        cancelAnimationFrame(moveCommitRafRef.current);
+        moveCommitRafRef.current = null;
       }
       window.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("mouseup", handleMouseUp);

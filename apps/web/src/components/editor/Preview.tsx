@@ -189,12 +189,57 @@ const applyStabilizationTransform = (
   ) as ClipTransform;
 };
 
+// The WebGPU renderer maps a layer's texture onto a full-canvas quad, so a
+// scale of {1,1} stretches the source to the canvas. Bake the aspect-fit
+// ratio into the layer scale so GPU compositing letterboxes ("contain") like
+// the Canvas2D path instead of distorting mismatched-aspect clips.
+const computeFitScale = (
+  fitMode: ClipTransform["fitMode"],
+  sourceWidth: number,
+  sourceHeight: number,
+  canvasWidth: number,
+  canvasHeight: number,
+): { x: number; y: number } => {
+  const mode = !fitMode || fitMode === "none" ? "contain" : fitMode;
+  if (
+    mode === "stretch" ||
+    sourceWidth <= 0 ||
+    sourceHeight <= 0 ||
+    canvasWidth <= 0 ||
+    canvasHeight <= 0
+  ) {
+    return { x: 1, y: 1 };
+  }
+  const sourceAspect = sourceWidth / sourceHeight;
+  const canvasAspect = canvasWidth / canvasHeight;
+  let drawWidth: number;
+  let drawHeight: number;
+  if (mode === "cover") {
+    if (sourceAspect > canvasAspect) {
+      drawHeight = canvasHeight;
+      drawWidth = canvasHeight * sourceAspect;
+    } else {
+      drawWidth = canvasWidth;
+      drawHeight = canvasWidth / sourceAspect;
+    }
+  } else {
+    if (sourceAspect > canvasAspect) {
+      drawWidth = canvasWidth;
+      drawHeight = canvasWidth / sourceAspect;
+    } else {
+      drawHeight = canvasHeight;
+      drawWidth = canvasHeight * sourceAspect;
+    }
+  }
+  return { x: drawWidth / canvasWidth, y: drawHeight / canvasHeight };
+};
+
 const renderFrameWithGPU = async (
   renderer: Renderer,
   frame: ImageBitmap,
   transform: ClipTransform,
-  _canvasWidth: number,
-  _canvasHeight: number,
+  canvasWidth: number,
+  canvasHeight: number,
 ): Promise<ImageBitmap | null> => {
   try {
     const device = renderer.getDevice();
@@ -206,9 +251,19 @@ const renderFrameWithGPU = async (
 
     const texture = renderer.createTextureFromImage(frame);
 
+    const fitScale = computeFitScale(
+      transform.fitMode,
+      frame.width,
+      frame.height,
+      canvasWidth,
+      canvasHeight,
+    );
     const gpuTransform = {
       position: transform.position,
-      scale: transform.scale,
+      scale: {
+        x: transform.scale.x * fitScale.x,
+        y: transform.scale.y * fitScale.y,
+      },
       rotation: transform.rotation,
       anchor: transform.anchor,
       opacity: transform.opacity,
@@ -235,8 +290,8 @@ const renderFrameWithGPU = async (
 const renderAllLayersWithGPU = async (
   renderer: Renderer,
   layers: GPULayer[],
-  _canvasWidth: number,
-  _canvasHeight: number,
+  canvasWidth: number,
+  canvasHeight: number,
 ): Promise<ImageBitmap | null> => {
   try {
     const device = renderer.getDevice();
@@ -255,9 +310,19 @@ const renderAllLayersWithGPU = async (
       const texture = renderer.createTextureFromImage(layer.bitmap);
       textures.push(texture);
 
+      const fitScale = computeFitScale(
+        layer.transform.fitMode,
+        layer.bitmap.width,
+        layer.bitmap.height,
+        canvasWidth,
+        canvasHeight,
+      );
       const gpuTransform = {
         position: layer.transform.position,
-        scale: layer.transform.scale,
+        scale: {
+          x: layer.transform.scale.x * fitScale.x,
+          y: layer.transform.scale.y * fitScale.y,
+        },
         rotation: layer.transform.rotation,
         anchor: layer.transform.anchor,
         opacity: layer.transform.opacity,
@@ -4682,7 +4747,10 @@ export const Preview: React.FC = () => {
 
     const displayScale = actualWidth / canvasWidth;
 
-    const fitMode = clipTransform.fitMode ?? "contain";
+    const fitMode =
+      !clipTransform.fitMode || clipTransform.fitMode === "none"
+        ? "contain"
+        : clipTransform.fitMode;
     const mediaItem = getMediaItem(clip.mediaId);
     const mediaWidth = mediaItem?.metadata?.width ?? canvasWidth;
     const mediaHeight = mediaItem?.metadata?.height ?? canvasHeight;
@@ -4690,10 +4758,7 @@ export const Preview: React.FC = () => {
     let baseWidth: number;
     let baseHeight: number;
 
-    if (fitMode === "none") {
-      baseWidth = mediaWidth;
-      baseHeight = mediaHeight;
-    } else if (fitMode === "stretch") {
+    if (fitMode === "stretch") {
       baseWidth = canvasWidth;
       baseHeight = canvasHeight;
     } else if (fitMode === "cover") {

@@ -1839,15 +1839,17 @@ export const drawFrameWithTransform = (
 
   const sourceAspect = sourceWidth / sourceHeight;
   const canvasAspect = canvasWidth / canvasHeight;
-  const fitMode = t.fitMode ?? "contain";
+  // Treat a missing or "none" fit as "contain" so clips preserve their
+  // aspect ratio (letterboxed) instead of being drawn at raw native pixels.
+  // Keeps the playing render consistent with the paused/scrub render, which
+  // always letterboxes.
+  const fitMode =
+    !t.fitMode || t.fitMode === "none" ? "contain" : t.fitMode;
 
   let drawWidth: number;
   let drawHeight: number;
 
-  if (fitMode === "none") {
-    drawWidth = sourceWidth;
-    drawHeight = sourceHeight;
-  } else if (fitMode === "stretch") {
+  if (fitMode === "stretch") {
     drawWidth = canvasWidth;
     drawHeight = canvasHeight;
   } else if (fitMode === "cover") {

@@ -490,7 +490,7 @@ export class ActionExecutor {
             rotation: 0,
             anchor: { x: 0.5, y: 0.5 },
             opacity: 1,
-            fitMode: "none" as const,
+            fitMode: "contain" as const,
           };
           const newClip = {
             id: crypto.randomUUID(),

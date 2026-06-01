@@ -154,7 +154,7 @@ export class PlaybackController {
     this.project = project;
     this.state = "stopped";
     this.masterClock.setDuration(project.timeline.duration);
-    this.clearAudioBuffer();
+    this.pruneAudioBuffers(project);
   }
 
   setDisplayCanvas(canvas: HTMLCanvasElement | OffscreenCanvas): void {
@@ -445,20 +445,30 @@ export class PlaybackController {
       };
     }
 
+    if (this.isRenderingFrame) {
+      return {
+        frame: null,
+        renderTime: 0,
+        fromCache: false,
+        timedOut: false,
+      };
+    }
+    this.isRenderingFrame = true;
+
     const startTime = performance.now();
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+    const renderPromise = this.videoEngine.renderFrame(this.project, time);
 
     try {
       const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => {
+        timeoutId = setTimeout(() => {
           reject(new Error("Frame render timeout"));
         }, this.config.frameRenderTimeout);
       });
 
       // Race between render and timeout
-      const frame = await Promise.race([
-        this.videoEngine.renderFrame(this.project, time),
-        timeoutPromise,
-      ]);
+      const frame = await Promise.race([renderPromise, timeoutPromise]);
 
       const renderTime = performance.now() - startTime;
       this.trackFrameRenderTime(renderTime);
@@ -480,6 +490,18 @@ export class PlaybackController {
       const renderTime = performance.now() - startTime;
 
       if (error instanceof Error && error.message === "Frame render timeout") {
+        // The render is still in flight and the timeout won the race. When
+        // the late frame resolves its ImageBitmap would otherwise be orphaned
+        // (never assigned to currentFrame, never closed), leaking GPU memory
+        // on every dropped scrub frame. Close it when it lands.
+        renderPromise
+          .then((late) => {
+            if (late && late !== this.currentFrame) {
+              late.image.close();
+            }
+          })
+          .catch(() => {});
+
         return {
           frame: null,
           renderTime,
@@ -495,6 +517,11 @@ export class PlaybackController {
         fromCache: false,
         timedOut: false,
       };
+    } finally {
+      if (timeoutId !== null) {
+        clearTimeout(timeoutId);
+      }
+      this.isRenderingFrame = false;
     }
   }
 
@@ -678,6 +705,30 @@ export class PlaybackController {
   private clearAudioBuffer(): void {
     this.stopAudioPlayback();
     this.audioBufferCache.clear();
+    this.audioDecodePromises.clear();
+  }
+
+  private pruneAudioBuffers(project: Project): void {
+    const referenced = new Set<string>();
+    for (const track of project.timeline.tracks) {
+      if (track.type !== "audio" && track.type !== "video") continue;
+      for (const clip of track.clips) {
+        referenced.add(clip.mediaId);
+      }
+    }
+
+    for (const mediaId of [...this.audioBufferCache.keys()]) {
+      if (!referenced.has(mediaId)) {
+        this.audioBufferCache.delete(mediaId);
+      }
+    }
+    for (const mediaId of [...this.audioDecodePromises.keys()]) {
+      if (!referenced.has(mediaId)) {
+        this.audioDecodePromises.delete(mediaId);
+      }
+    }
+
+    this.stopAudioPlayback();
   }
 
   private trackFrameRenderTime(time: number): void {

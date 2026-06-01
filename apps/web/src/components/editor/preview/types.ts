@@ -27,5 +27,5 @@ export const DEFAULT_TRANSFORM: ClipTransform = {
   opacity: 1,
   anchor: { x: 0.5, y: 0.5 },
   borderRadius: 0,
-  fitMode: "none",
+  fitMode: "contain",
 };

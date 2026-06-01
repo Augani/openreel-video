@@ -970,32 +970,35 @@ export class VideoEngine {
         cropDrawHeight,
       );
     } else {
-      const fitMode = transform.fitMode ?? "none";
+      // Treat a missing or "none" fit as "contain" so clips preserve their
+      // aspect ratio on export/compositing, matching the preview.
+      const fitMode =
+        !transform.fitMode || transform.fitMode === "none"
+          ? "contain"
+          : transform.fitMode;
       let drawWidth = frame.width;
       let drawHeight = frame.height;
 
-      if (fitMode !== "none") {
-        const sourceAspect = frame.width / frame.height;
-        const canvasAspect = canvasWidth / canvasHeight;
-        if (fitMode === "stretch") {
-          drawWidth = canvasWidth;
+      const sourceAspect = frame.width / frame.height;
+      const canvasAspect = canvasWidth / canvasHeight;
+      if (fitMode === "stretch") {
+        drawWidth = canvasWidth;
+        drawHeight = canvasHeight;
+      } else if (fitMode === "cover") {
+        if (sourceAspect > canvasAspect) {
           drawHeight = canvasHeight;
-        } else if (fitMode === "cover") {
-          if (sourceAspect > canvasAspect) {
-            drawHeight = canvasHeight;
-            drawWidth = canvasHeight * sourceAspect;
-          } else {
-            drawWidth = canvasWidth;
-            drawHeight = canvasWidth / sourceAspect;
-          }
+          drawWidth = canvasHeight * sourceAspect;
         } else {
-          if (sourceAspect > canvasAspect) {
-            drawWidth = canvasWidth;
-            drawHeight = canvasWidth / sourceAspect;
-          } else {
-            drawHeight = canvasHeight;
-            drawWidth = canvasHeight * sourceAspect;
-          }
+          drawWidth = canvasWidth;
+          drawHeight = canvasWidth / sourceAspect;
+        }
+      } else {
+        if (sourceAspect > canvasAspect) {
+          drawWidth = canvasWidth;
+          drawHeight = canvasWidth / sourceAspect;
+        } else {
+          drawHeight = canvasHeight;
+          drawWidth = canvasHeight * sourceAspect;
         }
       }
 
@@ -2319,32 +2322,35 @@ export class VideoEngine {
         cropDrawHeight,
       );
     } else {
-      const fitMode = transform.fitMode ?? "none";
+      // Treat a missing or "none" fit as "contain" so clips preserve their
+      // aspect ratio on export/compositing, matching the preview.
+      const fitMode =
+        !transform.fitMode || transform.fitMode === "none"
+          ? "contain"
+          : transform.fitMode;
       let drawWidth = frame.width;
       let drawHeight = frame.height;
 
-      if (fitMode !== "none") {
-        const sourceAspect = frame.width / frame.height;
-        const canvasAspect = canvasWidth / canvasHeight;
-        if (fitMode === "stretch") {
-          drawWidth = canvasWidth;
+      const sourceAspect = frame.width / frame.height;
+      const canvasAspect = canvasWidth / canvasHeight;
+      if (fitMode === "stretch") {
+        drawWidth = canvasWidth;
+        drawHeight = canvasHeight;
+      } else if (fitMode === "cover") {
+        if (sourceAspect > canvasAspect) {
           drawHeight = canvasHeight;
-        } else if (fitMode === "cover") {
-          if (sourceAspect > canvasAspect) {
-            drawHeight = canvasHeight;
-            drawWidth = canvasHeight * sourceAspect;
-          } else {
-            drawWidth = canvasWidth;
-            drawHeight = canvasWidth / sourceAspect;
-          }
+          drawWidth = canvasHeight * sourceAspect;
         } else {
-          if (sourceAspect > canvasAspect) {
-            drawWidth = canvasWidth;
-            drawHeight = canvasWidth / sourceAspect;
-          } else {
-            drawHeight = canvasHeight;
-            drawWidth = canvasHeight * sourceAspect;
-          }
+          drawWidth = canvasWidth;
+          drawHeight = canvasWidth / sourceAspect;
+        }
+      } else {
+        if (sourceAspect > canvasAspect) {
+          drawWidth = canvasWidth;
+          drawHeight = canvasWidth / sourceAspect;
+        } else {
+          drawHeight = canvasHeight;
+          drawWidth = canvasHeight * sourceAspect;
         }
       }
 

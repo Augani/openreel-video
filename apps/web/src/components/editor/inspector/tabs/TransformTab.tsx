@@ -134,30 +134,34 @@ export const TransformTab: React.FC<TransformTabProps> = ({
                   <span className="text-[10px] text-text-secondary">
                     Fit Mode
                   </span>
-                  <div className="grid grid-cols-4 gap-1">
-                    {(
-                      ["none", "contain", "cover", "stretch"] as FitMode[]
-                    ).map((mode) => (
-                      <button
-                        key={mode}
-                        onClick={() =>
-                          handleTransformChange({ fitMode: mode })
-                        }
-                        className={`py-1.5 rounded text-[9px] capitalize transition-colors ${
-                          (transform.fitMode || "none") === mode
-                            ? "bg-primary text-white"
-                            : "bg-background-tertiary border border-border text-text-secondary hover:text-text-primary"
-                        }`}
-                      >
-                        {mode === "contain"
-                          ? "Fit"
-                          : mode === "cover"
-                            ? "Fill"
-                            : mode === "none"
-                              ? "Original"
-                              : mode}
-                      </button>
-                    ))}
+                  <div className="grid grid-cols-3 gap-1">
+                    {(["contain", "cover", "stretch"] as FitMode[]).map(
+                      (mode) => {
+                        const activeMode =
+                          !transform.fitMode || transform.fitMode === "none"
+                            ? "contain"
+                            : transform.fitMode;
+                        return (
+                          <button
+                            key={mode}
+                            onClick={() =>
+                              handleTransformChange({ fitMode: mode })
+                            }
+                            className={`py-1.5 rounded text-[9px] capitalize transition-colors ${
+                              activeMode === mode
+                                ? "bg-primary text-white"
+                                : "bg-background-tertiary border border-border text-text-secondary hover:text-text-primary"
+                            }`}
+                          >
+                            {mode === "contain"
+                              ? "Fit"
+                              : mode === "cover"
+                                ? "Fill"
+                                : mode}
+                          </button>
+                        );
+                      },
+                    )}
                   </div>
                 </div>
               )}
