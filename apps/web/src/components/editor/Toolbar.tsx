@@ -871,7 +871,7 @@ export const Toolbar: React.FC = () => {
                   ) : (
                     <DropdownMenuItem
                       key={option.type + index}
-                      className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer ${
+                      className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-hover focus:bg-hover ${
                         option.recommended ? "bg-accent-soft" : ""
                       }`}
                       onClick={() => handleExport(option.type)}
@@ -913,7 +913,7 @@ export const Toolbar: React.FC = () => {
 
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
-                  className="flex items-center gap-3 p-3 rounded-lg cursor-pointer"
+                  className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-hover focus:bg-hover"
                   onClick={() => setIsExportDialogOpen(true)}
                 >
                   <div className="p-2 bg-accent-soft rounded-lg text-accent">

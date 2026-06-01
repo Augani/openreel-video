@@ -38,6 +38,11 @@ export default {
           strong: "var(--accent-strong)",
           soft: "var(--accent-soft)",
           fg: "var(--accent-fg)",
+          // shadcn primitives (Select/DropdownMenu/ContextMenu/Button) hover
+          // with `bg-accent text-accent-foreground`; without this mapping the
+          // text color resolved to nothing and disappeared on the emerald
+          // hover background. Maps to the on-accent text token.
+          foreground: "var(--accent-fg)",
           glow: "var(--accent-glow)",
         },
         clip: {
