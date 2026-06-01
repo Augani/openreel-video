@@ -2711,11 +2711,49 @@ export const Preview: React.FC = () => {
       const findNativeClipById = (clipId: string) =>
         clips.find(({ clip }) => clip.id === clipId) ?? null;
 
-      const syncVideoToClipTime = (
+      const waitForDrawableVideoFrame = async (
+        video: HTMLVideoElement,
+        timeoutMs = 300,
+      ): Promise<void> => {
+        if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
+          await new Promise<void>((resolve) => {
+            let settled = false;
+            let timeoutId: ReturnType<typeof setTimeout> | null = null;
+            const finish = () => {
+              if (settled) return;
+              settled = true;
+              if (timeoutId) clearTimeout(timeoutId);
+              video.removeEventListener("loadeddata", finish);
+              video.removeEventListener("canplay", finish);
+              resolve();
+            };
+            video.addEventListener("loadeddata", finish);
+            video.addEventListener("canplay", finish);
+            timeoutId = setTimeout(finish, timeoutMs);
+          });
+        }
+
+        if ("requestVideoFrameCallback" in video) {
+          await new Promise<void>((resolve) => {
+            let settled = false;
+            let timeoutId: ReturnType<typeof setTimeout> | null = null;
+            const finish = () => {
+              if (settled) return;
+              settled = true;
+              if (timeoutId) clearTimeout(timeoutId);
+              resolve();
+            };
+            video.requestVideoFrameCallback(finish);
+            timeoutId = setTimeout(finish, timeoutMs);
+          });
+        }
+      };
+
+      const syncVideoToClipTime = async (
         video: HTMLVideoElement,
         clip: (typeof clips)[0]["clip"],
         time: number,
-      ) => {
+      ): Promise<void> => {
         const speedEngine = getSpeedEngine();
         const localTime = Math.max(
           0,
@@ -2735,8 +2773,25 @@ export const Preview: React.FC = () => {
           : sourceTime;
 
         if (Math.abs(video.currentTime - videoTime) > 0.1) {
+          await new Promise<void>((resolve) => {
+            let settled = false;
+            let timeoutId: ReturnType<typeof setTimeout> | null = null;
+            const finish = () => {
+              if (settled) return;
+              settled = true;
+              if (timeoutId) clearTimeout(timeoutId);
+              video.removeEventListener("seeked", finish);
+              resolve();
+            };
+            video.addEventListener("seeked", finish);
+            timeoutId = setTimeout(finish, 250);
+            video.currentTime = videoTime;
+          });
+        } else if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
           video.currentTime = videoTime;
         }
+
+        await waitForDrawableVideoFrame(video);
       };
 
       const drawFrame = async () => {
@@ -2773,6 +2828,7 @@ export const Preview: React.FC = () => {
               loadVideoForClip(outgoingClip.clip, outgoingClip.mediaItem),
               loadVideoForClip(incomingClip.clip, incomingClip.mediaItem),
             ]);
+            if (!isActive || !nativePlaybackActiveRef.current) return;
 
             const outgoingCacheId = getVidstabEngine().hasStabilized(
               outgoingClip.clip.id,
@@ -2788,16 +2844,19 @@ export const Preview: React.FC = () => {
             const incomingVideo = videoCache.get(incomingCacheId)?.video;
 
             if (outgoingVideo && incomingVideo) {
-              syncVideoToClipTime(
-                outgoingVideo,
-                outgoingClip.clip,
-                currentPlayhead,
-              );
-              syncVideoToClipTime(
-                incomingVideo,
-                incomingClip.clip,
-                currentPlayhead,
-              );
+              await Promise.all([
+                syncVideoToClipTime(
+                  outgoingVideo,
+                  outgoingClip.clip,
+                  currentPlayhead,
+                ),
+                syncVideoToClipTime(
+                  incomingVideo,
+                  incomingClip.clip,
+                  currentPlayhead,
+                ),
+              ]);
+              if (!isActive || !nativePlaybackActiveRef.current) return;
               if (outgoingVideo.paused) outgoingVideo.play().catch(() => {});
               if (incomingVideo.paused) incomingVideo.play().catch(() => {});
 
@@ -2806,6 +2865,7 @@ export const Preview: React.FC = () => {
                 outgoingVideo,
                 incomingVideo,
               );
+              if (!isActive || !nativePlaybackActiveRef.current) return;
               ctx.fillStyle = previewBgRef.current;
               ctx.fillRect(0, 0, canvas.width, canvas.height);
               ctx.drawImage(blended, 0, 0, canvas.width, canvas.height);
@@ -2957,6 +3017,7 @@ export const Preview: React.FC = () => {
 
         if (!cached) {
           await loadVideoForClip(clip, mediaItem);
+          if (!isActive || !nativePlaybackActiveRef.current) return;
           const nowNoCached = performance.now();
           if (nowNoCached - lastPlayheadUpdateRef.current >= PLAYHEAD_UPDATE_THROTTLE_MS) {
             lastPlayheadUpdateRef.current = nowNoCached;
@@ -2993,11 +3054,8 @@ export const Preview: React.FC = () => {
           latestClip.inPoint,
           Math.min(latestClip.outPoint, latestClip.inPoint + adjustedLocalTime),
         );
-        const videoTime = clipIsStabilized ? sourceTime - latestClip.inPoint : sourceTime;
-        const drift = Math.abs(video.currentTime - videoTime);
-        if (drift > 0.1) {
-          video.currentTime = videoTime;
-        }
+        await syncVideoToClipTime(video, latestClip, currentPlayhead);
+        if (!isActive || !nativePlaybackActiveRef.current) return;
 
         let transform = getAnimatedTransform(
           (latestClip.transform as ClipTransform) || DEFAULT_TRANSFORM,
@@ -3081,6 +3139,13 @@ export const Preview: React.FC = () => {
           try {
             const rawBitmap = await createImageBitmap(video);
             const processed = await applyEffectsToFrame(clip.id, rawBitmap);
+            if (!isActive || !nativePlaybackActiveRef.current) {
+              if (processed !== rawBitmap) {
+                processed.close();
+              }
+              rawBitmap.close();
+              return;
+            }
             if (processed !== rawBitmap) {
               rawBitmap.close();
             }
