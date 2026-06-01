@@ -28,6 +28,8 @@ export class TransitionEngine {
   private width: number;
   private height: number;
   private initialized = false;
+  private scratch: OffscreenCanvas | null = null;
+  private scratchCtx: OffscreenCanvasRenderingContext2D | null = null;
 
   constructor(config: TransitionEngineConfig) {
     this.width = config.width;
@@ -60,6 +62,57 @@ export class TransitionEngine {
     return this.ctx;
   }
 
+  // Letterbox (contain) a source frame into an engine-sized frame so the
+  // per-transition geometry — which assumes inputs already fill the canvas —
+  // preserves the source aspect ratio instead of stretching it. Returns the
+  // original frame untouched when it is already engine-sized (e.g. the
+  // scrub path pre-letterboxes), so callers must only close the result when
+  // it differs from the input.
+  private async fitToCanvas(source: ImageBitmap): Promise<ImageBitmap> {
+    if (source.width === this.width && source.height === this.height) {
+      return source;
+    }
+    if (typeof OffscreenCanvas === "undefined") {
+      return source;
+    }
+    const sourceWidth = source.width;
+    const sourceHeight = source.height;
+    if (sourceWidth <= 0 || sourceHeight <= 0) {
+      return source;
+    }
+
+    if (
+      !this.scratch ||
+      this.scratch.width !== this.width ||
+      this.scratch.height !== this.height
+    ) {
+      this.scratch = new OffscreenCanvas(this.width, this.height);
+      this.scratchCtx = this.scratch.getContext("2d");
+    }
+    const scratchCtx = this.scratchCtx;
+    if (!scratchCtx) {
+      return source;
+    }
+
+    const sourceAspect = sourceWidth / sourceHeight;
+    const canvasAspect = this.width / this.height;
+    let drawWidth: number;
+    let drawHeight: number;
+    if (sourceAspect > canvasAspect) {
+      drawWidth = this.width;
+      drawHeight = this.width / sourceAspect;
+    } else {
+      drawHeight = this.height;
+      drawWidth = this.height * sourceAspect;
+    }
+    const drawX = (this.width - drawWidth) / 2;
+    const drawY = (this.height - drawHeight) / 2;
+
+    scratchCtx.clearRect(0, 0, this.width, this.height);
+    scratchCtx.drawImage(source, drawX, drawY, drawWidth, drawHeight);
+    return await createImageBitmap(this.scratch);
+  }
+
   async renderTransition(
     outgoingFrame: ImageBitmap,
     incomingFrame: ImageBitmap,
@@ -77,15 +130,24 @@ export class TransitionEngine {
       clampedProgress,
       transition.params.curve as string,
     );
+
+    // Letterbox both inputs to the engine canvas first so a clip whose aspect
+    // differs from the project (e.g. a portrait clip in a landscape project)
+    // keeps its orientation through the transition instead of being stretched
+    // to fill. The scrub path already passes engine-sized frames, so this is a
+    // no-op there; the multitrack-preview and export paths pass native frames.
+    const outgoing = await this.fitToCanvas(outgoingFrame);
+    const incoming = await this.fitToCanvas(incomingFrame);
+
     this.ctx.clearRect(0, 0, this.width, this.height);
     switch (transition.type) {
       case "crossfade":
-        await this.renderCrossfade(outgoingFrame, incomingFrame, easedProgress);
+        await this.renderCrossfade(outgoing, incoming, easedProgress);
         break;
       case "dipToBlack":
         await this.renderDipToColor(
-          outgoingFrame,
-          incomingFrame,
+          outgoing,
+          incoming,
           easedProgress,
           "black",
           (transition.params.holdDuration as number) || 0,
@@ -93,8 +155,8 @@ export class TransitionEngine {
         break;
       case "dipToWhite":
         await this.renderDipToColor(
-          outgoingFrame,
-          incomingFrame,
+          outgoing,
+          incoming,
           easedProgress,
           "white",
           (transition.params.holdDuration as number) || 0,
@@ -102,8 +164,8 @@ export class TransitionEngine {
         break;
       case "wipe":
         await this.renderWipe(
-          outgoingFrame,
-          incomingFrame,
+          outgoing,
+          incoming,
           easedProgress,
           (transition.params.direction as string) || "left",
           (transition.params.softness as number) || 0,
@@ -111,8 +173,8 @@ export class TransitionEngine {
         break;
       case "slide":
         await this.renderSlide(
-          outgoingFrame,
-          incomingFrame,
+          outgoing,
+          incoming,
           easedProgress,
           (transition.params.direction as string) || "left",
           (transition.params.pushOut as boolean) || false,
@@ -120,8 +182,8 @@ export class TransitionEngine {
         break;
       case "zoom":
         await this.renderZoom(
-          outgoingFrame,
-          incomingFrame,
+          outgoing,
+          incoming,
           easedProgress,
           (transition.params.scale as number) || 2,
           (transition.params.center as { x: number; y: number }) || {
@@ -132,17 +194,22 @@ export class TransitionEngine {
         break;
       case "push":
         await this.renderPush(
-          outgoingFrame,
-          incomingFrame,
+          outgoing,
+          incoming,
           easedProgress,
           (transition.params.direction as string) || "left",
         );
         break;
       default:
-        await this.renderCrossfade(outgoingFrame, incomingFrame, easedProgress);
+        await this.renderCrossfade(outgoing, incoming, easedProgress);
     }
 
     const frame = await createImageBitmap(this.canvas);
+
+    // fitToCanvas returns the original when it is already engine-sized, so
+    // only close the letterboxed copies we actually allocated.
+    if (outgoing !== outgoingFrame) outgoing.close();
+    if (incoming !== incomingFrame) incoming.close();
 
     return {
       frame,

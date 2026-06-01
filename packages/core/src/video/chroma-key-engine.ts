@@ -56,6 +56,19 @@ export class ChromaKeyEngine {
     this.ctx = this.canvas.getContext("2d", { willReadFrequently: true })!;
   }
 
+  // Match the working canvas to the incoming frame so the source is processed
+  // at its native resolution/aspect (the subsequent drawImage(...,this.width,
+  // this.height) calls become 1:1) instead of being stretched to the fixed
+  // engine size. Output is then aspect-correct and fit downstream.
+  private resizeTo(width: number, height: number): void {
+    if (width <= 0 || height <= 0) return;
+    if (this.width === width && this.height === height) return;
+    this.width = width;
+    this.height = height;
+    this.canvas.width = width;
+    this.canvas.height = height;
+  }
+
   enableChromaKey(clipId: string): void {
     const existing = this.clipSettings.get(clipId);
     if (existing) {
@@ -93,6 +106,7 @@ export class ChromaKeyEngine {
   }
 
   sampleKeyColor(image: ImageBitmap, x: number, y: number): RGB {
+    this.resizeTo(image.width, image.height);
     // Draw image to canvas
     this.ctx.clearRect(0, 0, this.width, this.height);
     this.ctx.drawImage(image, 0, 0, this.width, this.height);
@@ -164,6 +178,7 @@ export class ChromaKeyEngine {
     settings: ChromaKeySettings,
     startTime: number = performance.now(),
   ): Promise<ChromaKeyResult> {
+    this.resizeTo(image.width, image.height);
     // Draw source image
     this.ctx.clearRect(0, 0, this.width, this.height);
     this.ctx.drawImage(image, 0, 0, this.width, this.height);
@@ -206,6 +221,7 @@ export class ChromaKeyEngine {
   }
 
   getMatte(image: ImageBitmap, clipId: string): ChromaKeyMatte {
+    this.resizeTo(image.width, image.height);
     const settings = this.clipSettings.get(clipId);
 
     if (!settings || !settings.enabled) {
@@ -343,6 +359,7 @@ export class ChromaKeyEngine {
     foreground: ImageBitmap,
     background: ImageBitmap,
   ): Promise<ImageBitmap> {
+    this.resizeTo(foreground.width, foreground.height);
     // Draw background first
     this.ctx.clearRect(0, 0, this.width, this.height);
     this.ctx.drawImage(background, 0, 0, this.width, this.height);
@@ -375,6 +392,7 @@ export class ChromaKeyEngine {
   }
 
   countTransparentPixels(image: ImageBitmap): number {
+    this.resizeTo(image.width, image.height);
     this.ctx.clearRect(0, 0, this.width, this.height);
     this.ctx.drawImage(image, 0, 0, this.width, this.height);
 

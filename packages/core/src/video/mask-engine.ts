@@ -404,6 +404,21 @@ export class MaskEngine {
     this.maskCtx = this.maskCanvas.getContext("2d")!;
   }
 
+  // Match the working canvases to the incoming frame so the source is masked at
+  // its native resolution/aspect (the drawImage(...,this.width,this.height)
+  // calls become 1:1) instead of being stretched to the fixed engine size. The
+  // normalized 0..1 mask path then scales to the frame and stays aligned.
+  private resizeTo(width: number, height: number): void {
+    if (width <= 0 || height <= 0) return;
+    if (this.width === width && this.height === height) return;
+    this.width = width;
+    this.height = height;
+    this.canvas.width = width;
+    this.canvas.height = height;
+    this.maskCanvas.width = width;
+    this.maskCanvas.height = height;
+  }
+
   createShapeMask(clipId: string, shape: MaskShape): Mask {
     const path = shapeToPath(shape);
     const mask: Mask = {
@@ -623,6 +638,7 @@ export class MaskEngine {
     time?: number,
   ): Promise<MaskResult> {
     const startTime = performance.now();
+    this.resizeTo(image.width, image.height);
     const path =
       time !== undefined
         ? this.getMaskAtTime(mask.id, time) || mask.path
@@ -665,6 +681,7 @@ export class MaskEngine {
     mask: MaskDefinition,
   ): Promise<MaskResult> {
     const startTime = performance.now();
+    this.resizeTo(image.width, image.height);
     this.ctx.clearRect(0, 0, this.width, this.height);
     this.maskCtx.clearRect(0, 0, this.width, this.height);
     this.generateMaskShape(mask);

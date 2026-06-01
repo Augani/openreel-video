@@ -405,6 +405,20 @@ export class ColorGradingEngine {
     const gl = this.gl!;
     const shader = this.shaders.get("colorWheels")!;
 
+    // Render at the source frame's own resolution so a clip whose aspect
+    // differs from the project canvas keeps its orientation. Rendering into the
+    // fixed engine canvas stretches the frame to fill the GL viewport, and the
+    // downstream contain re-fit would then bake that distortion in.
+    if (
+      this.canvas &&
+      (this.canvas.width !== image.width || this.canvas.height !== image.height)
+    ) {
+      this.canvas.width = image.width;
+      this.canvas.height = image.height;
+      this.width = image.width;
+      this.height = image.height;
+    }
+
     // Upload source image
     const sourceTexture = this.uploadTexture(image);
 
