@@ -28,8 +28,13 @@ export class TransitionEngine {
   private width: number;
   private height: number;
   private initialized = false;
-  private scratch: OffscreenCanvas | null = null;
-  private scratchCtx: OffscreenCanvasRenderingContext2D | null = null;
+  // Two reusable letterbox scratch canvases (outgoing + incoming are both live
+  // during a blend, so they cannot share one). Kept as canvases — not
+  // ImageBitmaps — so fitting costs zero createImageBitmap per frame.
+  private scratchA: OffscreenCanvas | null = null;
+  private scratchACtx: OffscreenCanvasRenderingContext2D | null = null;
+  private scratchB: OffscreenCanvas | null = null;
+  private scratchBCtx: OffscreenCanvasRenderingContext2D | null = null;
 
   constructor(config: TransitionEngineConfig) {
     this.width = config.width;
@@ -62,34 +67,55 @@ export class TransitionEngine {
     return this.ctx;
   }
 
-  // Letterbox (contain) a source frame into an engine-sized frame so the
-  // per-transition geometry — which assumes inputs already fill the canvas —
-  // preserves the source aspect ratio instead of stretching it. Returns the
-  // original frame untouched when it is already engine-sized (e.g. the
-  // scrub path pre-letterboxes), so callers must only close the result when
-  // it differs from the input.
-  private async fitToCanvas(source: ImageBitmap): Promise<ImageBitmap> {
-    if (source.width === this.width && source.height === this.height) {
+  private sourceDimensions(source: CanvasImageSource): {
+    width: number;
+    height: number;
+  } {
+    if (
+      typeof HTMLVideoElement !== "undefined" &&
+      source instanceof HTMLVideoElement
+    ) {
+      return { width: source.videoWidth, height: source.videoHeight };
+    }
+    const dims = source as { width?: number; height?: number };
+    return { width: dims.width ?? 0, height: dims.height ?? 0 };
+  }
+
+  // Letterbox (contain) a source frame into an engine-sized scratch canvas so
+  // the per-transition geometry — which assumes inputs already fill the canvas
+  // — preserves the source aspect ratio instead of stretching it. Returns the
+  // original frame untouched when it is already engine-sized (e.g. the scrub
+  // path pre-letterboxes). Uses a reusable scratch canvas (no createImageBitmap)
+  // so it is cheap to run every frame during playback/export.
+  private fitToCanvas(
+    source: CanvasImageSource,
+    slot: "A" | "B",
+  ): CanvasImageSource {
+    const { width: sourceWidth, height: sourceHeight } =
+      this.sourceDimensions(source);
+    if (sourceWidth === this.width && sourceHeight === this.height) {
       return source;
     }
     if (typeof OffscreenCanvas === "undefined") {
       return source;
     }
-    const sourceWidth = source.width;
-    const sourceHeight = source.height;
     if (sourceWidth <= 0 || sourceHeight <= 0) {
       return source;
     }
 
-    if (
-      !this.scratch ||
-      this.scratch.width !== this.width ||
-      this.scratch.height !== this.height
-    ) {
-      this.scratch = new OffscreenCanvas(this.width, this.height);
-      this.scratchCtx = this.scratch.getContext("2d");
+    let scratch = slot === "A" ? this.scratchA : this.scratchB;
+    let scratchCtx = slot === "A" ? this.scratchACtx : this.scratchBCtx;
+    if (!scratch || scratch.width !== this.width || scratch.height !== this.height) {
+      scratch = new OffscreenCanvas(this.width, this.height);
+      scratchCtx = scratch.getContext("2d");
+      if (slot === "A") {
+        this.scratchA = scratch;
+        this.scratchACtx = scratchCtx;
+      } else {
+        this.scratchB = scratch;
+        this.scratchBCtx = scratchCtx;
+      }
     }
-    const scratchCtx = this.scratchCtx;
     if (!scratchCtx) {
       return source;
     }
@@ -110,16 +136,37 @@ export class TransitionEngine {
 
     scratchCtx.clearRect(0, 0, this.width, this.height);
     scratchCtx.drawImage(source, drawX, drawY, drawWidth, drawHeight);
-    return await createImageBitmap(this.scratch);
+    return scratch;
   }
 
   async renderTransition(
-    outgoingFrame: ImageBitmap,
-    incomingFrame: ImageBitmap,
+    outgoingFrame: CanvasImageSource,
+    incomingFrame: CanvasImageSource,
     transition: Transition,
     progress: number,
   ): Promise<TransitionRenderResult> {
     const startTime = performance.now();
+    const canvas = await this.renderTransitionToCanvas(
+      outgoingFrame,
+      incomingFrame,
+      transition,
+      progress,
+    );
+    const frame = await createImageBitmap(canvas);
+
+    return {
+      frame,
+      processingTime: performance.now() - startTime,
+      gpuAccelerated: false, // Canvas 2D is not GPU accelerated
+    };
+  }
+
+  async renderTransitionToCanvas(
+    outgoingFrame: CanvasImageSource,
+    incomingFrame: CanvasImageSource,
+    transition: Transition,
+    progress: number,
+  ): Promise<OffscreenCanvas> {
     if (!this.canvas || !this.ctx) {
       throw new Error(
         "Canvas not available. Rendering requires a browser environment.",
@@ -136,8 +183,8 @@ export class TransitionEngine {
     // keeps its orientation through the transition instead of being stretched
     // to fill. The scrub path already passes engine-sized frames, so this is a
     // no-op there; the multitrack-preview and export paths pass native frames.
-    const outgoing = await this.fitToCanvas(outgoingFrame);
-    const incoming = await this.fitToCanvas(incomingFrame);
+    const outgoing = this.fitToCanvas(outgoingFrame, "A");
+    const incoming = this.fitToCanvas(incomingFrame, "B");
 
     this.ctx.clearRect(0, 0, this.width, this.height);
     switch (transition.type) {
@@ -204,23 +251,12 @@ export class TransitionEngine {
         await this.renderCrossfade(outgoing, incoming, easedProgress);
     }
 
-    const frame = await createImageBitmap(this.canvas);
-
-    // fitToCanvas returns the original when it is already engine-sized, so
-    // only close the letterboxed copies we actually allocated.
-    if (outgoing !== outgoingFrame) outgoing.close();
-    if (incoming !== incomingFrame) incoming.close();
-
-    return {
-      frame,
-      processingTime: performance.now() - startTime,
-      gpuAccelerated: false, // Canvas 2D is not GPU accelerated
-    };
+    return this.canvas;
   }
 
   private async renderCrossfade(
-    outgoing: ImageBitmap,
-    incoming: ImageBitmap,
+    outgoing: CanvasImageSource,
+    incoming: CanvasImageSource,
     progress: number,
   ): Promise<void> {
     const ctx = this.getContext();
@@ -235,8 +271,8 @@ export class TransitionEngine {
   }
 
   private async renderDipToColor(
-    outgoing: ImageBitmap,
-    incoming: ImageBitmap,
+    outgoing: CanvasImageSource,
+    incoming: CanvasImageSource,
     progress: number,
     color: "black" | "white",
     holdDuration: number,
@@ -271,112 +307,54 @@ export class TransitionEngine {
   }
 
   private async renderWipe(
-    outgoing: ImageBitmap,
-    incoming: ImageBitmap,
+    outgoing: CanvasImageSource,
+    incoming: CanvasImageSource,
     progress: number,
     direction: string,
-    softness: number,
+    _softness: number,
   ): Promise<void> {
     const ctx = this.getContext();
-    // Draw outgoing frame as base
-    ctx.drawImage(outgoing, 0, 0, this.width, this.height);
+    const w = this.width;
+    const h = this.height;
+
+    // Outgoing is the base; the incoming frame is revealed inside a region
+    // that grows from nothing (progress 0 → outgoing fully visible) to the
+    // whole canvas (progress 1 → incoming fully visible). Each direction is the
+    // edge the incoming frame wipes in from.
+    ctx.drawImage(outgoing, 0, 0, w, h);
     ctx.save();
-
-    const softPixels = softness * Math.max(this.width, this.height) * 0.1;
-
+    ctx.beginPath();
     switch (direction) {
-      case "left":
-        this.createWipeClip(
-          ctx,
-          progress * this.width,
-          0,
-          this.width,
-          this.height,
-        );
-        break;
       case "right":
-        this.createWipeClip(
-          ctx,
-          0,
-          0,
-          this.width * (1 - progress),
-          this.height,
-          true,
-        );
+        ctx.rect(w * (1 - progress), 0, w * progress, h);
         break;
       case "up":
-        this.createWipeClip(
-          ctx,
-          0,
-          progress * this.height,
-          this.width,
-          this.height,
-        );
+        ctx.rect(0, 0, w, h * progress);
         break;
       case "down":
-        this.createWipeClip(
-          ctx,
-          0,
-          0,
-          this.width,
-          this.height * (1 - progress),
-          true,
-        );
+        ctx.rect(0, h * (1 - progress), w, h * progress);
         break;
-      case "diagonal":
-        this.createDiagonalWipeClip(ctx, progress);
+      case "diagonal": {
+        const offset = (w + h) * progress;
+        ctx.moveTo(0, 0);
+        ctx.lineTo(offset, 0);
+        ctx.lineTo(0, offset);
+        ctx.closePath();
         break;
+      }
+      case "left":
       default:
-        this.createWipeClip(
-          ctx,
-          progress * this.width,
-          0,
-          this.width,
-          this.height,
-        );
+        ctx.rect(0, 0, w * progress, h);
+        break;
     }
-    if (softness > 0 && softPixels > 0) {
-      ctx.globalAlpha = 0.8; // Slight softening effect
-    }
-
-    ctx.drawImage(incoming, 0, 0, this.width, this.height);
+    ctx.clip();
+    ctx.drawImage(incoming, 0, 0, w, h);
     ctx.restore();
   }
 
-  private createWipeClip(
-    ctx: OffscreenCanvasRenderingContext2D,
-    x: number,
-    y: number,
-    width: number,
-    height: number,
-    invert: boolean = false,
-  ): void {
-    ctx.beginPath();
-    if (invert) {
-      ctx.rect(width, y, this.width - width, height);
-    } else {
-      ctx.rect(x, y, width - x, height - y);
-    }
-    ctx.clip();
-  }
-
-  private createDiagonalWipeClip(
-    ctx: OffscreenCanvasRenderingContext2D,
-    progress: number,
-  ): void {
-    const offset = (this.width + this.height) * progress;
-    ctx.beginPath();
-    ctx.moveTo(offset, 0);
-    ctx.lineTo(offset - this.height, this.height);
-    ctx.lineTo(this.width, this.height);
-    ctx.lineTo(this.width, 0);
-    ctx.closePath();
-    ctx.clip();
-  }
-
   private async renderSlide(
-    outgoing: ImageBitmap,
-    incoming: ImageBitmap,
+    outgoing: CanvasImageSource,
+    incoming: CanvasImageSource,
     progress: number,
     direction: string,
     pushOut: boolean,
@@ -416,8 +394,8 @@ export class TransitionEngine {
   }
 
   private async renderZoom(
-    outgoing: ImageBitmap,
-    incoming: ImageBitmap,
+    outgoing: CanvasImageSource,
+    incoming: CanvasImageSource,
     progress: number,
     scale: number,
     center: { x: number; y: number },
@@ -453,8 +431,8 @@ export class TransitionEngine {
   }
 
   private async renderPush(
-    outgoing: ImageBitmap,
-    incoming: ImageBitmap,
+    outgoing: CanvasImageSource,
+    incoming: CanvasImageSource,
     progress: number,
     direction: string,
   ): Promise<void> {

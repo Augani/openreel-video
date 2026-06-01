@@ -2129,3 +2129,38 @@ export const renderTransitionFrame = async (
     return transitionInfo.progress < 0.5 ? outgoingFrame : incomingFrame;
   }
 };
+
+export const renderTransitionCanvas = async (
+  transitionInfo: TransitionRenderInfo,
+  outgoingFrame: CanvasImageSource,
+  incomingFrame: CanvasImageSource,
+): Promise<CanvasImageSource> => {
+  try {
+    const transitionBridge = getTransitionBridge();
+    if (!transitionBridge.isInitialized()) {
+      return transitionInfo.progress < 0.5 ? outgoingFrame : incomingFrame;
+    }
+
+    const transition = transitionBridge.getTransition(
+      transitionInfo.transitionId,
+    );
+    if (!transition) {
+      return transitionInfo.progress < 0.5 ? outgoingFrame : incomingFrame;
+    }
+
+    const canvas = await transitionBridge.renderTransitionToCanvas(
+      outgoingFrame,
+      incomingFrame,
+      transition,
+      transitionInfo.progress,
+    );
+
+    if (canvas && canvas.width > 0 && canvas.height > 0) {
+      return canvas;
+    }
+
+    return transitionInfo.progress < 0.5 ? outgoingFrame : incomingFrame;
+  } catch {
+    return transitionInfo.progress < 0.5 ? outgoingFrame : incomingFrame;
+  }
+};

@@ -10,6 +10,7 @@ import {
   Redo2,
   Layers,
   Maximize2,
+  Minimize2,
   Film,
   Music,
   Image,
@@ -99,8 +100,16 @@ export const Timeline: React.FC = () => {
 
   const [showLayersPanel, setShowLayersPanel] = useState(false);
 
-  const { select, selectMultiple, clearSelection, getSelectedClipIds, snapSettings, toggleSnap } =
-    useUIStore();
+  const {
+    select,
+    selectMultiple,
+    clearSelection,
+    getSelectedClipIds,
+    snapSettings,
+    toggleSnap,
+    timelineMaximized,
+    toggleTimelineMaximized,
+  } = useUIStore();
   const selectedClipIds = getSelectedClipIds();
 
   const { getTitleEngine, getGraphicsEngine } = useEngineStore();
@@ -224,13 +233,20 @@ export const Timeline: React.FC = () => {
 
   useEffect(() => {
     if (playbackState !== "playing") return;
+    const el = tracksRef.current;
+    if (!el) return;
 
     const playheadPixels = playheadPosition * pixelsPerSecond;
-    const visibleEnd = scrollX + viewportWidth - 150;
+    // Keep the playhead in the left portion of the viewport during playback so
+    // most of the upcoming timeline stays visible. When it crosses near the
+    // right edge (or jumps out of view via a seek/loop), page the view so the
+    // playhead lands back near the left with the rest as lookahead — instead of
+    // pinning it at the end on a long timeline.
+    const leftMargin = Math.min(Math.max(viewportWidth * 0.12, 60), 220);
+    const followThreshold = scrollX + viewportWidth - leftMargin;
 
-    if (playheadPixels > visibleEnd && tracksRef.current) {
-      const newScrollX = playheadPixels - viewportWidth + 200;
-      tracksRef.current.scrollLeft = Math.max(0, newScrollX);
+    if (playheadPixels > followThreshold || playheadPixels < scrollX) {
+      el.scrollLeft = Math.max(0, playheadPixels - leftMargin);
     }
   }, [playheadPosition, playbackState, pixelsPerSecond, scrollX, viewportWidth]);
 
@@ -926,8 +942,20 @@ export const Timeline: React.FC = () => {
             </TLTool>
           </div>
 
-          <TLTool title="Maximize timeline">
-            <Maximize2 size={14} />
+          <TLTool
+            onClick={toggleTimelineMaximized}
+            active={timelineMaximized}
+            title={
+              timelineMaximized
+                ? "Restore layout"
+                : "Maximize timeline (more room)"
+            }
+          >
+            {timelineMaximized ? (
+              <Minimize2 size={14} />
+            ) : (
+              <Maximize2 size={14} />
+            )}
           </TLTool>
         </div>
       </div>
@@ -939,7 +967,7 @@ export const Timeline: React.FC = () => {
       >
         <div className="flex shrink-0">
           <div className="w-32 h-[26px] bg-bg-1 border-b border-r border-border shrink-0" />
-          <div className="flex-1 overflow-hidden relative">
+          <div className="flex-1 overflow-hidden relative bg-bg-1 border-b border-border">
             <div
               style={{
                 width: `${timelineDuration * pixelsPerSecond}px`,

@@ -42,6 +42,8 @@ import {
 const DEFAULT_TIMELINE_VH = 42;
 const MIN_TIMELINE_VH = 22;
 const MAX_TIMELINE_VH = 70;
+// Compact mode: timeline takes most of the height, leaving a small preview.
+const COMPACT_TIMELINE_VH = 80;
 
 const DEFAULT_MEDIA_W = 460;
 const MIN_MEDIA_W = 320;
@@ -211,6 +213,7 @@ export const EditorInterface: React.FC = () => {
     getSelectedClipIds,
     panels,
     setPanelVisible,
+    timelineMaximized,
   } = useUIStore();
   const { project, updateClipKeyframes } = useProjectStore();
   const tracks = project.timeline.tracks;
@@ -378,10 +381,11 @@ export const EditorInterface: React.FC = () => {
   useEffect(() => {
     const r = rootRef.current;
     if (!r) return;
+    const tlVh = timelineMaximized ? COMPACT_TIMELINE_VH : timelineVh;
     r.style.setProperty("--media-w", `${mediaWidth}px`);
     r.style.setProperty("--inspector-w", `${inspectorWidth}px`);
-    r.style.setProperty("--tl-height", `${timelineVh}vh`);
-  }, [mediaWidth, inspectorWidth, timelineVh]);
+    r.style.setProperty("--tl-height", `${tlVh}vh`);
+  }, [mediaWidth, inspectorWidth, timelineVh, timelineMaximized]);
 
   if (initializing || !initialized) {
     return (
@@ -402,9 +406,12 @@ export const EditorInterface: React.FC = () => {
   // Grid template uses inline CSS for the resizable columns. The CSS
   // variables `--media-w`, `--inspector-w`, `--tl-height` are kept in
   // sync via the effect above so other components can use them too.
+  const effectiveTimelineVh = timelineMaximized
+    ? COMPACT_TIMELINE_VH
+    : timelineVh;
   const gridStyle: React.CSSProperties = {
     gridTemplateColumns: `${mediaWidth}px ${RESIZE_HANDLE}px 1fr ${RESIZE_HANDLE}px ${inspectorWidth}px`,
-    gridTemplateRows: `1fr ${RESIZE_HANDLE}px ${timelineVh}vh`,
+    gridTemplateRows: `1fr ${RESIZE_HANDLE}px ${effectiveTimelineVh}vh`,
     gridTemplateAreas:
       "'media mh stage ih inspector' 'th th th th th' 'timeline timeline timeline timeline timeline'",
   };

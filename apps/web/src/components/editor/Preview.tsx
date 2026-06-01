@@ -66,6 +66,7 @@ import {
   getTransitionAtTime,
   setImageLoadCallback,
   renderTransitionFrame,
+  renderTransitionCanvas,
   getAnimatedTransform,
   applyEmphasisAnimation,
   CropModeView,
@@ -588,6 +589,23 @@ export const Preview: React.FC = () => {
 
   const isDark = useThemeStore((state) => state.isDark);
 
+  // The preview canvas background / letterbox bars follow the theme (matching
+  // the --stage-bg token) instead of being hardcoded black, so light mode
+  // shows a light stage. Kept in a ref so every render path (scrub, playback,
+  // transitions) picks up the current value without re-creating callbacks.
+  // Export keeps a black backdrop separately (video-engine), so exported video
+  // is never letterboxed in the UI theme color.
+  const previewBgRef = useRef<string>(isDark ? "#000000" : "#ffffff");
+  useEffect(() => {
+    const screenBg =
+      typeof window !== "undefined"
+        ? getComputedStyle(document.documentElement)
+            .getPropertyValue("--screen-bg")
+            .trim()
+        : "";
+    previewBgRef.current = screenBg || (isDark ? "#000000" : "#ffffff");
+  }, [isDark]);
+
   // Canvas interaction state for resize/move
   const [interactionMode, setInteractionMode] =
     useState<InteractionMode>("none");
@@ -788,8 +806,15 @@ export const Preview: React.FC = () => {
     }
 
     const aspectRatio = settings.width / settings.height;
-    const availableWidth = Math.min(videoAreaSize.width, 800);
-    const availableHeight = Math.min(videoAreaSize.height, 450);
+    // Fill the available preview area (minus a small margin) while preserving
+    // the project aspect ratio, instead of capping at a fixed small size which
+    // left the monitor floating in unused space on larger screens.
+    const PREVIEW_PADDING = 24;
+    const availableWidth = Math.max(1, videoAreaSize.width - PREVIEW_PADDING * 2);
+    const availableHeight = Math.max(
+      1,
+      videoAreaSize.height - PREVIEW_PADDING * 2,
+    );
 
     let width = availableWidth;
     let height = width / aspectRatio;
@@ -1739,7 +1764,7 @@ export const Preview: React.FC = () => {
               offsetX = (canvasWidth - drawWidth) / 2;
             }
 
-            tempCtx.fillStyle = "#000000";
+            tempCtx.fillStyle = previewBgRef.current;
             tempCtx.fillRect(0, 0, canvasWidth, canvasHeight);
             tempCtx.drawImage(video, offsetX, offsetY, drawWidth, drawHeight);
 
@@ -1861,7 +1886,7 @@ export const Preview: React.FC = () => {
               blendedFrame.height > 0
             ) {
               if (shouldClearCanvas) {
-                ctx.fillStyle = "#000000";
+                ctx.fillStyle = previewBgRef.current;
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
                 shouldClearCanvas = false;
               }
@@ -1908,7 +1933,7 @@ export const Preview: React.FC = () => {
                 ? processed
                 : outgoingFrame;
             if (shouldClearCanvas) {
-              ctx.fillStyle = "#000000";
+              ctx.fillStyle = previewBgRef.current;
               ctx.fillRect(0, 0, canvas.width, canvas.height);
               shouldClearCanvas = false;
             }
@@ -1949,7 +1974,7 @@ export const Preview: React.FC = () => {
                 ? processed
                 : incomingFrame;
             if (shouldClearCanvas) {
-              ctx.fillStyle = "#000000";
+              ctx.fillStyle = previewBgRef.current;
               ctx.fillRect(0, 0, canvas.width, canvas.height);
               shouldClearCanvas = false;
             }
@@ -2483,22 +2508,6 @@ export const Preview: React.FC = () => {
         return { canUse: false, clips: [] };
       }
 
-      // Native playback uses a single <video> element per active clip and a
-      // straight drawImage — it can't blend two clips, so any clip-to-clip
-      // transition in the playback range forces the multi-track path.
-      const hasUpcomingTransition = videoTracks.some((track) =>
-        track.transitions.some((t) => {
-          const clipA = track.clips.find((c) => c.id === t.clipAId);
-          if (!clipA) return false;
-          const transitionEnd =
-            clipA.startTime + clipA.duration + t.duration / 2;
-          return transitionEnd > startPosition;
-        }),
-      );
-      if (hasUpcomingTransition) {
-        return { canUse: false, clips: [] };
-      }
-
       if (allVideoClips.length === 0) return { canUse: false, clips: [] };
 
       allVideoClips.sort((a, b) => a.clip.startTime - b.clip.startTime);
@@ -2699,6 +2708,37 @@ export const Preview: React.FC = () => {
         return null;
       };
 
+      const findNativeClipById = (clipId: string) =>
+        clips.find(({ clip }) => clip.id === clipId) ?? null;
+
+      const syncVideoToClipTime = (
+        video: HTMLVideoElement,
+        clip: (typeof clips)[0]["clip"],
+        time: number,
+      ) => {
+        const speedEngine = getSpeedEngine();
+        const localTime = Math.max(
+          0,
+          Math.min(clip.duration, time - clip.startTime),
+        );
+        const adjustedLocalTime = speedEngine.getSourceTimeAtPlaybackTime(
+          clip.id,
+          localTime,
+        );
+        const sourceTime = Math.max(
+          clip.inPoint,
+          Math.min(clip.outPoint, clip.inPoint + adjustedLocalTime),
+        );
+        const vidstabPlay = getVidstabEngine();
+        const videoTime = vidstabPlay.hasStabilized(clip.id)
+          ? sourceTime - clip.inPoint
+          : sourceTime;
+
+        if (Math.abs(video.currentTime - videoTime) > 0.1) {
+          video.currentTime = videoTime;
+        }
+      };
+
       const drawFrame = async () => {
         if (!isActive || !nativePlaybackActiveRef.current) return;
 
@@ -2720,10 +2760,114 @@ export const Preview: React.FC = () => {
           return;
         }
 
+        const transitionInfo = getTransitionAtTime(
+          currentPlayhead,
+          timelineTracksRef.current,
+        );
+        if (transitionInfo) {
+          const outgoingClip = findNativeClipById(transitionInfo.clipA.id);
+          const incomingClip = findNativeClipById(transitionInfo.clipB.id);
+
+          if (outgoingClip && incomingClip) {
+            await Promise.all([
+              loadVideoForClip(outgoingClip.clip, outgoingClip.mediaItem),
+              loadVideoForClip(incomingClip.clip, incomingClip.mediaItem),
+            ]);
+
+            const outgoingCacheId = getVidstabEngine().hasStabilized(
+              outgoingClip.clip.id,
+            )
+              ? `stabilized:${outgoingClip.clip.id}`
+              : outgoingClip.clip.mediaId;
+            const incomingCacheId = getVidstabEngine().hasStabilized(
+              incomingClip.clip.id,
+            )
+              ? `stabilized:${incomingClip.clip.id}`
+              : incomingClip.clip.mediaId;
+            const outgoingVideo = videoCache.get(outgoingCacheId)?.video;
+            const incomingVideo = videoCache.get(incomingCacheId)?.video;
+
+            if (outgoingVideo && incomingVideo) {
+              syncVideoToClipTime(
+                outgoingVideo,
+                outgoingClip.clip,
+                currentPlayhead,
+              );
+              syncVideoToClipTime(
+                incomingVideo,
+                incomingClip.clip,
+                currentPlayhead,
+              );
+              if (outgoingVideo.paused) outgoingVideo.play().catch(() => {});
+              if (incomingVideo.paused) incomingVideo.play().catch(() => {});
+
+              const blended = await renderTransitionCanvas(
+                transitionInfo,
+                outgoingVideo,
+                incomingVideo,
+              );
+              ctx.fillStyle = previewBgRef.current;
+              ctx.fillRect(0, 0, canvas.width, canvas.height);
+              ctx.drawImage(blended, 0, 0, canvas.width, canvas.height);
+
+              const activeShapeClipsTr = getActiveShapeClips(
+                allShapeClipsRef.current,
+                currentPlayhead,
+              );
+              const activeTextClipsTr = getActiveTextClips(
+                allTextClipsRef.current,
+                currentPlayhead,
+              );
+              if (
+                activeShapeClipsTr.length > 0 ||
+                activeTextClipsTr.length > 0
+              ) {
+                await renderOverlayClipsInTrackOrder(
+                  ctx,
+                  timelineTracksRef.current,
+                  activeShapeClipsTr,
+                  activeTextClipsTr,
+                  currentPlayhead,
+                  canvas.width,
+                  canvas.height,
+                  "all",
+                );
+              }
+
+              const activeSubtitlesTr = getActiveSubtitles(
+                allSubtitles,
+                currentPlayhead,
+              );
+              for (const subtitle of activeSubtitlesTr) {
+                renderSubtitleToCanvas(
+                  ctx,
+                  subtitle,
+                  canvas.width,
+                  canvas.height,
+                  currentPlayhead,
+                );
+              }
+
+              const nowTransition = performance.now();
+              if (
+                nowTransition - lastPlayheadUpdateRef.current >=
+                PLAYHEAD_UPDATE_THROTTLE_MS
+              ) {
+                lastPlayheadUpdateRef.current = nowTransition;
+                setPlayheadPosition(currentPlayhead);
+              }
+              rafId = requestAnimationFrame(() => {
+                drawFrame();
+              });
+              return;
+            }
+          }
+        }
+
         const activeClip = findClipAtTime(currentPlayhead);
 
         if (!activeClip) {
-          ctx.fillStyle = "#000000";
+          ctx.fillStyle = previewBgRef.current;
           ctx.fillRect(0, 0, canvas.width, canvas.height);
 
           const sortedImageClipsNoVideo = [...imageClips].sort(
@@ -2881,7 +3025,7 @@ export const Preview: React.FC = () => {
           };
         }
 
-        ctx.fillStyle = "#000000";
+        ctx.fillStyle = previewBgRef.current;
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
         // Sort by track index descending (higher index = background = render first)
@@ -3370,7 +3514,7 @@ export const Preview: React.FC = () => {
                 preparedFrame.frame.height,
               );
 
-              ctx.fillStyle = "#000000";
+              ctx.fillStyle = previewBgRef.current;
               ctx.fillRect(0, 0, canvas.width, canvas.height);
               if (useGPU && preparedFrame.frame instanceof ImageBitmap) {
                 const gpuResult = await renderFrameWithGPU(
@@ -3826,7 +3970,7 @@ export const Preview: React.FC = () => {
 
               const decodeClipFrameForTransition = async (
                 clip: (typeof tracks)[0]["clips"][0],
-              ): Promise<ImageBitmap | null> => {
+              ): Promise<HTMLCanvasElement | OffscreenCanvas | null> => {
                 const resources = playbackResourcesRef.current.get(clip.id);
                 if (!resources) return null;
                 const speedEngine = getSpeedEngine();
@@ -3849,7 +3993,7 @@ export const Preview: React.FC = () => {
                     }
                   ).getCanvas(sourceTime);
                   if (!result?.canvas) return null;
-                  return await createImageBitmap(result.canvas);
+                  return result.canvas;
                 } catch (error) {
                   console.warn(
                     `[Preview] Transition decode failed for clip ${clip.id}:`,
@@ -3866,13 +4010,13 @@ export const Preview: React.FC = () => {
 
               if (outgoing && incoming) {
                 try {
-                  const blended = await renderTransitionFrame(
+                  const blended = await renderTransitionCanvas(
                     transitionInfoMulti,
                     outgoing,
                     incoming,
                   );
 
-                  ctx.fillStyle = "#000000";
+                  ctx.fillStyle = previewBgRef.current;
                   ctx.fillRect(0, 0, canvas.width, canvas.height);
                   ctx.drawImage(blended, 0, 0, canvas.width, canvas.height);
 
@@ -3909,9 +4053,6 @@ export const Preview: React.FC = () => {
                   }
 
                   mainCtx.drawImage(offscreenCanvasRef.current!, 0, 0);
-                  blended.close();
-                  outgoing.close();
-                  incoming.close();
 
                   frameCount++;
                   masterClock.reportVideoTime(currentPlayhead);
@@ -3949,12 +4090,7 @@ export const Preview: React.FC = () => {
                     "[Preview] Transition render failed, falling back to normal compositing:",
                     error,
                   );
-                  outgoing.close();
-                  incoming.close();
                 }
-              } else {
-                outgoing?.close();
-                incoming?.close();
               }
             }
           }
@@ -4121,7 +4257,7 @@ export const Preview: React.FC = () => {
             currentTextClips.length > 0 ||
             currentShapeClips.length > 0
           ) {
-            ctx.fillStyle = "#000000";
+            ctx.fillStyle = previewBgRef.current;
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
             const tracks = timelineTracksRef.current;
@@ -5916,7 +6052,7 @@ export const Preview: React.FC = () => {
       {/* Video Area */}
       <div
         ref={videoAreaRef}
-        className={`flex-1 min-h-0 min-w-0 relative flex items-center justify-center bg-background-secondary/30 transition-all duration-300 ${
+        className={`flex-1 min-h-0 min-w-0 relative flex items-center justify-center bg-stage-bg transition-all duration-300 ${
           isMaximized || isFullscreen ? "p-0" : "p-4"
         } ${zoomLevel > 1 ? "overflow-auto" : ""}`}
         onMouseMove={interactionMode !== "none" ? handleMouseMove : undefined}
@@ -5924,10 +6060,12 @@ export const Preview: React.FC = () => {
       >
         <div
           ref={overlayRef}
-          className={`relative bg-black overflow-visible transition-all duration-300 ${
+          className={`relative bg-[var(--screen-bg)] overflow-visible transition-all duration-300 ${
             isMaximized || isFullscreen
               ? "rounded-none ring-0 shadow-none"
-              : "shadow-2xl rounded-xl ring-1 ring-border shadow-[0_0_50px_rgba(0,0,0,0.5)]"
+              : isDark
+                ? "shadow-2xl rounded-xl ring-1 ring-border shadow-[0_0_50px_rgba(0,0,0,0.5)]"
+                : "rounded-xl ring-1 ring-border shadow-[0_10px_40px_rgba(0,0,0,0.1)]"
           }`}
           style={
             isMaximized || isFullscreen
@@ -5951,7 +6089,7 @@ export const Preview: React.FC = () => {
             ref={canvasRef}
             width={settings.width}
             height={settings.height}
-            className="w-full h-full object-contain bg-black"
+            className="w-full h-full object-contain bg-[var(--screen-bg)]"
             style={{
               cursor: hoveredGraphicClipId && !isPlaying ? "pointer" : "default",
             }}

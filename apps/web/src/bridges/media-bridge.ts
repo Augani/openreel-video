@@ -49,6 +49,108 @@ export class MediaBridge {
   private waveformGenerator: WaveformGenerator | null = null;
   private initialized = false;
 
+  private async generateVideoElementThumbnails(
+    file: File | Blob,
+    count = 10,
+    width = 160,
+  ): Promise<{ timestamp: number; dataUrl: string }[]> {
+    if (typeof document === "undefined") {
+      return [];
+    }
+
+    const url = URL.createObjectURL(file);
+    const video = document.createElement("video");
+    video.src = url;
+    video.muted = true;
+    video.playsInline = true;
+    video.preload = "metadata";
+
+    const cleanup = () => {
+      video.removeAttribute("src");
+      video.load();
+      URL.revokeObjectURL(url);
+    };
+
+    const waitForEvent = (
+      eventName: "loadedmetadata" | "seeked",
+      timeoutMs = 2500,
+    ) =>
+      new Promise<void>((resolve, reject) => {
+        let timeoutId: number | undefined;
+        const finish = (error?: Error) => {
+          if (timeoutId !== undefined) {
+            window.clearTimeout(timeoutId);
+          }
+          video.removeEventListener(eventName, onEvent);
+          video.removeEventListener("error", onError);
+          if (error) reject(error);
+          else resolve();
+        };
+        const onEvent = () => finish();
+        const onError = () => finish(new Error("Video thumbnail decode failed"));
+
+        timeoutId = window.setTimeout(
+          () => finish(new Error("Video thumbnail decode timed out")),
+          timeoutMs,
+        );
+        video.addEventListener(eventName, onEvent, { once: true });
+        video.addEventListener("error", onError, { once: true });
+      });
+
+    try {
+      await waitForEvent("loadedmetadata");
+
+      const sourceWidth = video.videoWidth || width;
+      const sourceHeight = video.videoHeight || Math.round(width * 9 / 16);
+      const height = Math.max(
+        1,
+        Math.round(width * (sourceHeight / Math.max(1, sourceWidth))),
+      );
+      const duration = Number.isFinite(video.duration) && video.duration > 0
+        ? video.duration
+        : 0;
+      const maxSeekTime = Math.max(0, duration - 0.05);
+      const timestamps =
+        duration > 0
+          ? Array.from({ length: Math.max(1, count) }, (_, i) => {
+              const progress =
+                count <= 1 ? 0.1 : (i + 0.5) / Math.max(1, count);
+              return Math.min(maxSeekTime, Math.max(0, duration * progress));
+            })
+          : [0];
+
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        return [];
+      }
+
+      const thumbnails: { timestamp: number; dataUrl: string }[] = [];
+      for (const timestamp of timestamps) {
+        if (Math.abs(video.currentTime - timestamp) > 0.01) {
+          video.currentTime = timestamp;
+          await waitForEvent("seeked");
+        }
+
+        ctx.fillStyle = "#000";
+        ctx.fillRect(0, 0, width, height);
+        ctx.drawImage(video, 0, 0, width, height);
+        thumbnails.push({
+          timestamp,
+          dataUrl: canvas.toDataURL("image/jpeg", 0.72),
+        });
+      }
+
+      return thumbnails;
+    } catch {
+      return [];
+    } finally {
+      cleanup();
+    }
+  }
+
   /**
    * Initialize the media bridge
    * Connects to the MediaImportService and WaveformGenerator
@@ -165,11 +267,20 @@ export class MediaBridge {
         { count: 10, width: 160 },
       );
 
-      return thumbnails.map((thumb) => ({
+      const mapped = thumbnails.map((thumb) => ({
         timestamp: thumb.timestamp,
         dataUrl: thumb.dataUrl || "",
       })).filter((t) => t.dataUrl);
+
+      if (mapped.length > 0 || mediaType !== "video") {
+        return mapped;
+      }
+
+      return await this.generateVideoElementThumbnails(file, 10, 160);
     } catch {
+      if (mediaType === "video") {
+        return await this.generateVideoElementThumbnails(file, 10, 160);
+      }
       return [];
     }
   }

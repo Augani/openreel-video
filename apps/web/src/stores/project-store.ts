@@ -1720,6 +1720,26 @@ export const useProjectStore = create<ProjectState>()(
             mediaType = "image";
           }
 
+          if (mediaType === "video" && !thumbnailUrl) {
+            try {
+              const thumbs = await mediaBridge.generateThumbnailsForMedia(
+                processedMedia.blob ?? file,
+                mediaType,
+              );
+              if (thumbs.length > 0) {
+                thumbnailUrl = thumbs[0].dataUrl;
+                filmstripThumbnails.push(
+                  ...thumbs.map((thumb) => ({
+                    timestamp: thumb.timestamp,
+                    url: thumb.dataUrl,
+                  })),
+                );
+              }
+            } catch {
+              // Background retry below is best-effort.
+            }
+          }
+
           const newMediaItem: MediaItem = {
             id: uuidv4(),
             name: file.name,
@@ -1766,11 +1786,11 @@ export const useProjectStore = create<ProjectState>()(
             console.error("[ProjectStore] Failed to persist media blob:", err);
           }
 
-          if (isLargeFile && !thumbnailUrl) {
+          if (mediaType === "video" && !thumbnailUrl) {
             setTimeout(async () => {
               try {
                 const thumbs = await mediaBridge.generateThumbnailsForMedia(
-                  file,
+                  newMediaItem.blob ?? file,
                   mediaType,
                 );
                 if (thumbs.length > 0) {
@@ -1795,6 +1815,7 @@ export const useProjectStore = create<ProjectState>()(
                           ...currentProject.mediaLibrary,
                           items: updatedItems,
                         },
+                        modifiedAt: Date.now(),
                       },
                     });
                   }
@@ -1903,14 +1924,36 @@ export const useProjectStore = create<ProjectState>()(
             }
           }
 
+          const mediaType = processedMedia.metadata.hasVideo
+            ? "video"
+            : processedMedia.metadata.hasAudio
+              ? "audio"
+              : "image";
+
+          if (mediaType === "video" && !thumbnailUrl) {
+            try {
+              const thumbs = await mediaBridge.generateThumbnailsForMedia(
+                processedMedia.blob ?? file,
+                mediaType,
+              );
+              if (thumbs.length > 0) {
+                thumbnailUrl = thumbs[0].dataUrl;
+                filmstripThumbnails.push(
+                  ...thumbs.map((thumb) => ({
+                    timestamp: thumb.timestamp,
+                    url: thumb.dataUrl,
+                  })),
+                );
+              }
+            } catch {
+              // Background retry below is best-effort.
+            }
+          }
+
           const updatedItem: MediaItem = {
             id: mediaId,
             name: file.name,
-            type: processedMedia.metadata.hasVideo
-              ? "video"
-              : processedMedia.metadata.hasAudio
-                ? "audio"
-                : "image",
+            type: mediaType,
             fileHandle: null,
             blob: file,
             metadata: {
@@ -1944,6 +1987,42 @@ export const useProjectStore = create<ProjectState>()(
               modifiedAt: Date.now(),
             },
           });
+
+          if (updatedItem.type === "video" && !updatedItem.thumbnailUrl) {
+            setTimeout(async () => {
+              try {
+                const thumbs = await mediaBridge.generateThumbnailsForMedia(
+                  updatedItem.blob ?? file,
+                  updatedItem.type,
+                );
+                if (thumbs.length > 0) {
+                  const currentProject = get().project;
+                  const updatedItemsWithThumbs =
+                    currentProject.mediaLibrary.items.map((item) =>
+                      item.id === mediaId
+                        ? {
+                            ...item,
+                            thumbnailUrl: thumbs[0].dataUrl,
+                            filmstripThumbnails: thumbs.map((thumb) => ({
+                              timestamp: thumb.timestamp,
+                              url: thumb.dataUrl,
+                            })),
+                          }
+                        : item,
+                    );
+                  set({
+                    project: {
+                      ...currentProject,
+                      mediaLibrary: { items: updatedItemsWithThumbs },
+                      modifiedAt: Date.now(),
+                    },
+                  });
+                }
+              } catch {
+                // Background thumbnail generation is best-effort
+              }
+            }, 100);
+          }
 
           return {
             success: true,

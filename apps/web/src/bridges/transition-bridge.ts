@@ -476,8 +476,8 @@ export class TransitionBridge {
    * @returns The blended frame
    */
   async renderTransition(
-    outgoingFrame: ImageBitmap,
-    incomingFrame: ImageBitmap,
+    outgoingFrame: CanvasImageSource,
+    incomingFrame: CanvasImageSource,
     transition: Transition,
     progress: number,
   ): Promise<{ frame: ImageBitmap; processingTime: number } | null> {
@@ -496,6 +496,29 @@ export class TransitionBridge {
         frame: result.frame,
         processingTime: result.processingTime,
       };
+    } catch (error) {
+      console.error("[TransitionBridge] Render error:", error);
+      return null;
+    }
+  }
+
+  async renderTransitionToCanvas(
+    outgoingFrame: CanvasImageSource,
+    incomingFrame: CanvasImageSource,
+    transition: Transition,
+    progress: number,
+  ): Promise<OffscreenCanvas | null> {
+    if (!this.initialized || !this.transitionEngine) {
+      return null;
+    }
+
+    try {
+      return await this.transitionEngine.renderTransitionToCanvas(
+        outgoingFrame,
+        incomingFrame,
+        transition,
+        progress,
+      );
     } catch (error) {
       console.error("[TransitionBridge] Render error:", error);
       return null;

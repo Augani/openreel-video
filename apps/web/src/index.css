@@ -58,7 +58,11 @@
     --track-bg: oklch(0.95 0.005 240);
     --tl-bg: oklch(0.93 0.005 240);
     --waveform: oklch(0.72 0.16 162 / 0.55);
-    --stage-bg: oklch(0.18 0.005 240);
+    /* preview stage: white in light mode so the area around the monitor
+       matches the other white surfaces instead of a grey cinema stage */
+    --stage-bg: oklch(1 0 0);
+    /* the preview "screen" itself (canvas + letterbox): white in light */
+    --screen-bg: oklch(1 0 0);
 
     /* accent (emerald) */
     --accent: oklch(0.72 0.16 162);
@@ -97,6 +101,8 @@
     --tl-bg: oklch(0.1 0.005 240);
     --waveform: oklch(0.78 0.16 162 / 0.85);
     --stage-bg: oklch(0.08 0.004 240);
+    /* the preview "screen" itself (canvas + letterbox): black in dark */
+    --screen-bg: oklch(0 0 0);
 
     --accent: oklch(0.72 0.16 162);
     --accent-strong: oklch(0.66 0.18 162);
