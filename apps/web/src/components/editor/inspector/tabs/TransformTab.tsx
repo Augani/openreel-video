@@ -1,6 +1,6 @@
 import React from "react";
 import type { Clip, FitMode, Transform } from "@openreel/core";
-import { LabeledSlider } from "@openreel/ui";
+import { KeyframableControl } from "../KeyframableControl";
 import {
   CropSection,
   AlignmentSection,
@@ -39,7 +39,7 @@ export const TransformTab: React.FC<TransformTabProps> = ({
         <>
           <InspectorSection title="Transform" sectionId="transform">
             <div className="space-y-3">
-              <LabeledSlider
+              <KeyframableControl
                 label="Position X"
                 value={transform.position.x}
                 onChange={(x) =>
@@ -52,8 +52,11 @@ export const TransformTab: React.FC<TransformTabProps> = ({
                 step={1}
                 unit="px"
                 defaultValue={0}
+                clipId={clipId}
+                property="transform.position.x"
+                displayScale={1}
               />
-              <LabeledSlider
+              <KeyframableControl
                 label="Position Y"
                 value={transform.position.y}
                 onChange={(y) =>
@@ -66,8 +69,11 @@ export const TransformTab: React.FC<TransformTabProps> = ({
                 step={1}
                 unit="px"
                 defaultValue={0}
+                clipId={clipId}
+                property="transform.position.y"
+                displayScale={1}
               />
-              <LabeledSlider
+              <KeyframableControl
                 label="Scale X"
                 value={transform.scale.x * 100}
                 onChange={(x) =>
@@ -80,8 +86,11 @@ export const TransformTab: React.FC<TransformTabProps> = ({
                 step={1}
                 unit="%"
                 defaultValue={100}
+                clipId={clipId}
+                property="transform.scale.x"
+                displayScale={100}
               />
-              <LabeledSlider
+              <KeyframableControl
                 label="Scale Y"
                 value={transform.scale.y * 100}
                 onChange={(y) =>
@@ -94,8 +103,11 @@ export const TransformTab: React.FC<TransformTabProps> = ({
                 step={1}
                 unit="%"
                 defaultValue={100}
+                clipId={clipId}
+                property="transform.scale.y"
+                displayScale={100}
               />
-              <LabeledSlider
+              <KeyframableControl
                 label="Rotation"
                 value={transform.rotation}
                 onChange={(rotation) => handleTransformChange({ rotation })}
@@ -104,8 +116,11 @@ export const TransformTab: React.FC<TransformTabProps> = ({
                 step={1}
                 unit="°"
                 defaultValue={0}
+                clipId={clipId}
+                property="transform.rotation"
+                displayScale={1}
               />
-              <LabeledSlider
+              <KeyframableControl
                 label="Opacity"
                 value={transform.opacity * 100}
                 onChange={(opacity) =>
@@ -116,8 +131,11 @@ export const TransformTab: React.FC<TransformTabProps> = ({
                 step={1}
                 unit="%"
                 defaultValue={100}
+                clipId={clipId}
+                property="transform.opacity"
+                displayScale={100}
               />
-              <LabeledSlider
+              <KeyframableControl
                 label="Border Radius"
                 value={transform.borderRadius || 0}
                 onChange={(borderRadius) =>
@@ -128,6 +146,9 @@ export const TransformTab: React.FC<TransformTabProps> = ({
                 step={1}
                 unit="px"
                 defaultValue={0}
+                clipId={clipId}
+                property="transform.borderRadius"
+                displayScale={1}
               />
               {(clipType === "image" || clipType === "video") && (
                 <div className="space-y-1 pt-2 border-t border-border">

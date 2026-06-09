@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import type { Keyframe, Clip } from "@openreel/core";
-import { EASING_FUNCTIONS, type EasingName } from "@openreel/core";
+import { EASING_FUNCTIONS, getStaticDescriptor, type EasingName } from "@openreel/core";
 import { X, Copy, Clipboard, Trash2 } from "lucide-react";
 import {
   Select,
@@ -21,6 +21,13 @@ const PROPERTY_COLORS: Record<string, string> = {
   opacity: "#fbbf24",
   borderRadius: "#94a3b8",
   default: "#64748b",
+};
+
+const getPropertyLabel = (property: string): string => {
+  const descriptor = getStaticDescriptor(property);
+  if (descriptor) return descriptor.label;
+  const segments = property.split(".");
+  return segments[segments.length - 1] || property;
 };
 
 const EASING_PRESETS: { label: string; value: EasingName }[] = [
@@ -401,7 +408,7 @@ export const KeyframeEditorPanel: React.FC<KeyframeEditorPanelProps> = ({
                     className="w-3 h-3 rounded-full"
                     style={{ backgroundColor: group.color }}
                   />
-                  <span>{group.property}</span>
+                  <span>{getPropertyLabel(group.property)}</span>
                 </div>
               </SelectItem>
             ))}

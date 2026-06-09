@@ -2,9 +2,10 @@ import {
   getMasterClock,
   MasterTimelineClock,
 } from "../playback/master-timeline-clock";
-import type { AutomationPoint, Effect } from "../types/timeline";
+import type { AutomationPoint, Effect, Keyframe } from "../types/timeline";
 import { createNoiseReductionNodeChain } from "./audio-effects-engine";
 import { scheduleVolumeAutomationOnGain } from "./clip-volume-automation";
+import { keyframesToAutomation } from "./keyframe-automation";
 
 export interface AudioClipSchedule {
   clipId: string;
@@ -15,6 +16,7 @@ export interface AudioClipSchedule {
   mediaOffset: number;
   volume: number;
   volumeAutomation: AutomationPoint[];
+  keyframes?: Keyframe[];
   pan: number;
   effects: Effect[];
   speed: number;
@@ -557,10 +559,19 @@ export class RealtimeAudioGraph {
     let clipOffset = 0;
     let playbackDuration = duration;
 
+    const keyframeVolumeAutomation = keyframesToAutomation(
+      schedule.keyframes,
+      "audio.volume",
+    );
+    const effectiveVolumeAutomation =
+      keyframeVolumeAutomation.length > 0
+        ? keyframeVolumeAutomation
+        : schedule.volumeAutomation;
+
     if (contextStartTime > this.audioContext.currentTime) {
       scheduleVolumeAutomationOnGain(
         clipGain,
-        schedule.volumeAutomation,
+        effectiveVolumeAutomation,
         schedule.volume,
         clipOffset,
         playbackDuration,
@@ -579,7 +590,7 @@ export class RealtimeAudioGraph {
       ) {
         scheduleVolumeAutomationOnGain(
           clipGain,
-          schedule.volumeAutomation,
+          effectiveVolumeAutomation,
           schedule.volume,
           clipOffset,
           playbackDuration,

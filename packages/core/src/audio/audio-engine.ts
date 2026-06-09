@@ -21,6 +21,7 @@ import {
   resolveClipVolumeAutomation,
 } from "./clip-audio-resolution";
 import { scheduleVolumeAutomationOnGain } from "./clip-volume-automation";
+import { keyframesToAutomation } from "./keyframe-automation";
 
 const SEGMENTED_AUDIO_DECODE_THRESHOLD_SECONDS = 120;
 
@@ -338,6 +339,10 @@ export class AudioEngine {
     const pan = getPanFromAudioEffects(
       clipAudioEffects.length > 0 ? clipAudioEffects : clip.effects,
     );
+    const keyframeVolumeAutomation = keyframesToAutomation(
+      clip.keyframes,
+      "audio.volume",
+    );
 
     return {
       clipId: clip.id,
@@ -347,7 +352,10 @@ export class AudioEngine {
       timelineStartTime: clipStart,
       duration: clipEnd - clipStart,
       volume: clip.volume,
-      volumeAutomation: resolveClipVolumeAutomation(clip, timeline),
+      volumeAutomation:
+        keyframeVolumeAutomation.length > 0
+          ? keyframeVolumeAutomation
+          : resolveClipVolumeAutomation(clip, timeline),
       pan,
       effects: clipAudioEffects,
       fadeIn: clip.fade?.fadeIn,

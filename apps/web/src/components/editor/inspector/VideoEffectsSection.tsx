@@ -12,25 +12,26 @@ import type {
   VideoEffectType,
 } from "../../../bridges/effects-bridge";
 import {
-  LabeledSlider,
   DropdownMenu,
   DropdownMenuTrigger,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
 } from "@openreel/ui";
+import { KeyframableControl } from "./KeyframableControl";
 
-const EffectSlider = LabeledSlider;
+const EffectSlider = KeyframableControl;
 
 /**
  * Effect Item Component - displays a single effect with controls
  */
 const EffectItem: React.FC<{
+  clipId: string;
   effect: VideoEffect;
   onUpdate: (effectId: string, params: Record<string, unknown>) => void;
   onToggle: (effectId: string, enabled: boolean) => void;
   onRemove: (effectId: string) => void;
-}> = ({ effect, onUpdate, onToggle, onRemove }) => {
+}> = ({ clipId, effect, onUpdate, onToggle, onRemove }) => {
   const [isExpanded, setIsExpanded] = React.useState(true);
 
   const effectLabels: Record<VideoEffectType, string> = {
@@ -63,6 +64,9 @@ const EffectItem: React.FC<{
             onChange={(v) => onUpdate(effect.id, { value: v })}
             min={-100}
             max={100}
+            clipId={clipId}
+            property={`effect.${effect.id}.value`}
+            displayScale={1}
           />
         );
       case "contrast":
@@ -74,6 +78,9 @@ const EffectItem: React.FC<{
             min={0}
             max={200}
             unit="%"
+            clipId={clipId}
+            property={`effect.${effect.id}.value`}
+            displayScale={100}
           />
         );
       case "saturation":
@@ -85,6 +92,9 @@ const EffectItem: React.FC<{
             min={0}
             max={200}
             unit="%"
+            clipId={clipId}
+            property={`effect.${effect.id}.value`}
+            displayScale={100}
           />
         );
       case "blur":
@@ -96,6 +106,9 @@ const EffectItem: React.FC<{
             min={0}
             max={100}
             unit="px"
+            clipId={clipId}
+            property={`effect.${effect.id}.radius`}
+            displayScale={1}
           />
         );
       case "sharpen":
@@ -108,6 +121,9 @@ const EffectItem: React.FC<{
               min={0}
               max={200}
               unit="%"
+              clipId={clipId}
+              property={`effect.${effect.id}.amount`}
+              displayScale={1}
             />
             <EffectSlider
               label="Radius"
@@ -116,6 +132,9 @@ const EffectItem: React.FC<{
               min={0.1}
               max={10}
               step={0.1}
+              clipId={clipId}
+              property={`effect.${effect.id}.radius`}
+              displayScale={1}
             />
           </>
         );
@@ -128,6 +147,9 @@ const EffectItem: React.FC<{
               onChange={(v) => onUpdate(effect.id, { amount: v })}
               min={0}
               max={100}
+              clipId={clipId}
+              property={`effect.${effect.id}.amount`}
+              displayScale={1}
             />
             <EffectSlider
               label="Midpoint"
@@ -136,6 +158,9 @@ const EffectItem: React.FC<{
               min={0}
               max={100}
               unit="%"
+              clipId={clipId}
+              property={`effect.${effect.id}.midpoint`}
+              displayScale={100}
             />
             <EffectSlider
               label="Feather"
@@ -144,6 +169,9 @@ const EffectItem: React.FC<{
               min={0}
               max={100}
               unit="%"
+              clipId={clipId}
+              property={`effect.${effect.id}.feather`}
+              displayScale={100}
             />
           </>
         );
@@ -156,6 +184,9 @@ const EffectItem: React.FC<{
               onChange={(v) => onUpdate(effect.id, { amount: v })}
               min={0}
               max={100}
+              clipId={clipId}
+              property={`effect.${effect.id}.amount`}
+              displayScale={1}
             />
             <EffectSlider
               label="Size"
@@ -164,6 +195,9 @@ const EffectItem: React.FC<{
               min={0.5}
               max={5}
               step={0.1}
+              clipId={clipId}
+              property={`effect.${effect.id}.size`}
+              displayScale={1}
             />
           </>
         );
@@ -175,6 +209,9 @@ const EffectItem: React.FC<{
             onChange={(v) => onUpdate(effect.id, { value: v })}
             min={-100}
             max={100}
+            clipId={clipId}
+            property={`effect.${effect.id}.value`}
+            displayScale={1}
           />
         );
       case "tint":
@@ -185,6 +222,9 @@ const EffectItem: React.FC<{
             onChange={(v) => onUpdate(effect.id, { value: v })}
             min={-100}
             max={100}
+            clipId={clipId}
+            property={`effect.${effect.id}.value`}
+            displayScale={1}
           />
         );
       case "shadow":
@@ -197,6 +237,9 @@ const EffectItem: React.FC<{
               min={-100}
               max={100}
               unit="px"
+              clipId={clipId}
+              property={`effect.${effect.id}.offsetX`}
+              displayScale={1}
             />
             <EffectSlider
               label="Offset Y"
@@ -205,6 +248,9 @@ const EffectItem: React.FC<{
               min={-100}
               max={100}
               unit="px"
+              clipId={clipId}
+              property={`effect.${effect.id}.offsetY`}
+              displayScale={1}
             />
             <EffectSlider
               label="Blur"
@@ -213,6 +259,9 @@ const EffectItem: React.FC<{
               min={0}
               max={100}
               unit="px"
+              clipId={clipId}
+              property={`effect.${effect.id}.blur`}
+              displayScale={1}
             />
             <EffectSlider
               label="Opacity"
@@ -221,6 +270,9 @@ const EffectItem: React.FC<{
               min={0}
               max={100}
               unit="%"
+              clipId={clipId}
+              property={`effect.${effect.id}.opacity`}
+              displayScale={100}
             />
           </>
         );
@@ -234,6 +286,9 @@ const EffectItem: React.FC<{
               min={0}
               max={100}
               unit="px"
+              clipId={clipId}
+              property={`effect.${effect.id}.radius`}
+              displayScale={1}
             />
             <EffectSlider
               label="Intensity"
@@ -242,6 +297,9 @@ const EffectItem: React.FC<{
               min={0}
               max={300}
               unit="%"
+              clipId={clipId}
+              property={`effect.${effect.id}.intensity`}
+              displayScale={100}
             />
           </>
         );
@@ -255,6 +313,9 @@ const EffectItem: React.FC<{
               min={0}
               max={360}
               unit="°"
+              clipId={clipId}
+              property={`effect.${effect.id}.angle`}
+              displayScale={1}
             />
             <EffectSlider
               label="Distance"
@@ -263,6 +324,9 @@ const EffectItem: React.FC<{
               min={0}
               max={100}
               unit="px"
+              clipId={clipId}
+              property={`effect.${effect.id}.distance`}
+              displayScale={1}
             />
           </>
         );
@@ -275,6 +339,9 @@ const EffectItem: React.FC<{
               onChange={(v) => onUpdate(effect.id, { amount: v })}
               min={0}
               max={100}
+              clipId={clipId}
+              property={`effect.${effect.id}.amount`}
+              displayScale={1}
             />
             <EffectSlider
               label="Center X"
@@ -283,6 +350,9 @@ const EffectItem: React.FC<{
               min={0}
               max={100}
               unit="%"
+              clipId={clipId}
+              property={`effect.${effect.id}.centerX`}
+              displayScale={1}
             />
             <EffectSlider
               label="Center Y"
@@ -291,6 +361,9 @@ const EffectItem: React.FC<{
               min={0}
               max={100}
               unit="%"
+              clipId={clipId}
+              property={`effect.${effect.id}.centerY`}
+              displayScale={1}
             />
           </>
         );
@@ -305,6 +378,9 @@ const EffectItem: React.FC<{
               max={50}
               step={0.5}
               unit="px"
+              clipId={clipId}
+              property={`effect.${effect.id}.amount`}
+              displayScale={1}
             />
             <EffectSlider
               label="Angle"
@@ -313,6 +389,9 @@ const EffectItem: React.FC<{
               min={0}
               max={360}
               unit="°"
+              clipId={clipId}
+              property={`effect.${effect.id}.angle`}
+              displayScale={1}
             />
           </>
         );
@@ -500,6 +579,7 @@ export const VideoEffectsSection: React.FC<VideoEffectsSectionProps> = ({
           {effects.map((effect) => (
             <EffectItem
               key={effect.id}
+              clipId={clipId}
               effect={effect}
               onUpdate={handleUpdateEffect}
               onToggle={handleToggleEffect}

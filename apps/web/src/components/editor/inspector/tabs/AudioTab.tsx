@@ -1,5 +1,6 @@
 import React from "react";
 import {
+  ClipVolumeSection,
   AutoCutSilenceSection,
   AudioTextSyncPanel,
   NoiseReductionSection,
@@ -25,6 +26,9 @@ export const AudioTab: React.FC<AudioTabProps> = ({
 }) => {
   return (
     <>
+      <InspectorSection title="Volume" sectionId="clip-volume" defaultOpen>
+        <ClipVolumeSection clipId={clipId} />
+      </InspectorSection>
       {showAudioEffects && (
         <InspectorSection
           title="Auto Cut Silence"
