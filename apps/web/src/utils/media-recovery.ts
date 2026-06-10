@@ -78,6 +78,7 @@ export async function generateThumbnailFromBlob(
 export async function restoreMediaItem(
   item: MediaItem,
   storedBlob: Blob | undefined,
+  storedProxyBlob?: Blob,
 ): Promise<MediaItem> {
   const blob = storedBlob || item.blob;
 
@@ -94,6 +95,7 @@ export async function restoreMediaItem(
   return {
     ...item,
     blob,
+    proxyBlob: storedProxyBlob ?? item.proxyBlob,
     thumbnailUrl,
     filmstripThumbnails: undefined,
   };

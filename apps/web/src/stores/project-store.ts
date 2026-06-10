@@ -4,6 +4,7 @@ import type {
   Project,
   ProjectSettings,
   MediaItem,
+  MediaProxyInfo,
   Track,
   Clip,
   AutomationPoint,
@@ -70,6 +71,12 @@ import {
   loadFileHandle,
   loadDirectoryHandle,
 } from "../services/media-storage";
+import {
+  generateProxyBlob,
+  getProxyMediaId,
+  getProxyMetadata,
+  getRecommendedProxyInfo,
+} from "../services/proxy-workflow";
 import { restoreMediaItem } from "../utils/media-recovery";
 import { projectManager } from "../services/project-manager";
 
@@ -121,6 +128,8 @@ export interface ProjectState {
   // Media library actions
   importMedia: (file: File) => Promise<ActionResult>;
   deleteMedia: (mediaId: string) => Promise<ActionResult>;
+  generateMediaProxy: (mediaId: string) => Promise<ActionResult>;
+  deleteMediaProxy: (mediaId: string) => Promise<ActionResult>;
   replaceMediaAsset: (mediaId: string, file: File, sourceFolder?: string) => Promise<ActionResult>;
   renameMedia: (mediaId: string, name: string) => Promise<ActionResult>;
   getMediaItem: (mediaId: string) => MediaItem | undefined;
@@ -478,6 +487,31 @@ export interface ProjectState {
   recoverFromAutoSave: (saveId: string) => Promise<boolean>;
   forceSave: () => Promise<void>;
 }
+
+const getMediaProxyInfo = (item: MediaItem): MediaProxyInfo | undefined =>
+  item.proxy ??
+  (item.type === "video"
+    ? {
+        mediaId: getProxyMediaId(item.id),
+        preset: "high",
+        status: "recommended",
+      }
+    : undefined);
+
+const updateMediaItem = (
+  project: Project,
+  mediaId: string,
+  update: (item: MediaItem) => MediaItem,
+): Project => ({
+  ...project,
+  mediaLibrary: {
+    ...project.mediaLibrary,
+    items: project.mediaLibrary.items.map((item) =>
+      item.id === mediaId ? update(item) : item,
+    ),
+  },
+  modifiedAt: Date.now(),
+});
 
 /**
  * Create the project store
@@ -1740,8 +1774,9 @@ export const useProjectStore = create<ProjectState>()(
             }
           }
 
-          const newMediaItem: MediaItem = {
-            id: uuidv4(),
+          const mediaId = uuidv4();
+          const newMediaItemWithoutProxy: MediaItem = {
+            id: mediaId,
             name: file.name,
             type: mediaType,
             fileHandle: null,
@@ -1763,6 +1798,10 @@ export const useProjectStore = create<ProjectState>()(
               filmstripThumbnails.length > 0 ? filmstripThumbnails : undefined,
             sourceFile: { name: file.name, size: file.size, lastModified: file.lastModified },
           };
+          const recommendedProxy = getRecommendedProxyInfo(newMediaItemWithoutProxy);
+          const newMediaItem: MediaItem = recommendedProxy
+            ? { ...newMediaItemWithoutProxy, proxy: recommendedProxy }
+            : newMediaItemWithoutProxy;
 
           const updatedProject = {
             ...project,
@@ -1844,6 +1883,7 @@ export const useProjectStore = create<ProjectState>()(
 
       deleteMedia: async (mediaId: string) => {
         const { project, actionExecutor } = get();
+        const mediaItem = project.mediaLibrary.items.find((item) => item.id === mediaId);
         const action: Action = {
           type: "media/delete",
           id: uuidv4(),
@@ -1856,12 +1896,153 @@ export const useProjectStore = create<ProjectState>()(
           deleteMediaBlob(mediaId).catch((err) =>
             console.warn("[ProjectStore] Failed to delete media blob:", err),
           );
+          if (mediaItem?.proxy?.mediaId) {
+            deleteMediaBlob(mediaItem.proxy.mediaId).catch((err) =>
+              console.warn("[ProjectStore] Failed to delete proxy blob:", err),
+            );
+          }
         }
         return result;
       },
 
+      generateMediaProxy: async (mediaId: string) => {
+        const mediaItem = get().project.mediaLibrary.items.find((item) => item.id === mediaId);
+        if (!mediaItem || mediaItem.type !== "video") {
+          return {
+            success: false,
+            error: {
+              code: "MEDIA_NOT_FOUND" as const,
+              message: "Video media item was not found.",
+            },
+          };
+        }
+
+        const proxyInfo = getMediaProxyInfo(mediaItem);
+        if (!proxyInfo) {
+          return {
+            success: false,
+            error: {
+              code: "INCOMPATIBLE_TYPE" as const,
+              message: "Only video assets can use proxies.",
+            },
+          };
+        }
+
+        set((state) => ({
+          project: updateMediaItem(state.project, mediaId, (item) => ({
+            ...item,
+            proxy: {
+              mediaId: proxyInfo.mediaId,
+              preset: proxyInfo.preset,
+              status: "generating",
+              progress: 0,
+            },
+          })),
+        }));
+
+        try {
+          const { blob, preset } = await generateProxyBlob(
+            { ...mediaItem, proxy: proxyInfo },
+            (progress) => {
+              set((state) => ({
+                project: updateMediaItem(state.project, mediaId, (item) => ({
+                  ...item,
+                  proxy: {
+                    mediaId: proxyInfo.mediaId,
+                    preset: proxyInfo.preset,
+                    status: "generating",
+                    progress,
+                  },
+                })),
+              }));
+            },
+          );
+
+          const latestItem =
+            get().project.mediaLibrary.items.find((item) => item.id === mediaId) ??
+            mediaItem;
+          const metadata = getProxyMetadata(latestItem, blob, preset);
+          await saveMediaBlob(
+            get().project.id,
+            proxyInfo.mediaId,
+            blob,
+            metadata,
+          );
+
+          set((state) => ({
+            project: updateMediaItem(state.project, mediaId, (item) => ({
+              ...item,
+              proxyBlob: blob,
+              proxy: {
+                mediaId: proxyInfo.mediaId,
+                preset,
+                status: "ready",
+                progress: 1,
+                width: metadata.width,
+                height: metadata.height,
+                fileSize: blob.size,
+                generatedAt: Date.now(),
+              },
+            })),
+          }));
+
+          return { success: true, actionId: mediaId };
+        } catch (error) {
+          const message =
+            error instanceof Error ? error.message : "Proxy generation failed.";
+          set((state) => ({
+            project: updateMediaItem(state.project, mediaId, (item) => ({
+              ...item,
+              proxy: {
+                mediaId: proxyInfo.mediaId,
+                preset: proxyInfo.preset,
+                status: "error",
+                errorMessage: message,
+              },
+            })),
+          }));
+
+          return {
+            success: false,
+            error: {
+              code: "DECODE_ERROR" as const,
+              message,
+            },
+          };
+        }
+      },
+
+      deleteMediaProxy: async (mediaId: string) => {
+        const mediaItem = get().project.mediaLibrary.items.find((item) => item.id === mediaId);
+        if (!mediaItem?.proxy) {
+          return { success: true, actionId: mediaId };
+        }
+        const proxyInfo = mediaItem.proxy;
+
+        try {
+          await deleteMediaBlob(proxyInfo.mediaId);
+        } catch (error) {
+          console.warn("[ProjectStore] Failed to delete proxy blob:", error);
+        }
+
+        set((state) => ({
+          project: updateMediaItem(state.project, mediaId, (item) => ({
+            ...item,
+            proxyBlob: null,
+            proxy: {
+              mediaId: proxyInfo.mediaId,
+              preset: proxyInfo.preset,
+              status: "recommended",
+            },
+          })),
+        }));
+
+        return { success: true, actionId: mediaId };
+      },
+
       replaceMediaAsset: async (mediaId: string, file: File, sourceFolder?: string) => {
         const { project } = get();
+        const existingItem = project.mediaLibrary.items.find((item) => item.id === mediaId);
 
         try {
           const mediaBridge = getMediaBridge();
@@ -1950,7 +2131,7 @@ export const useProjectStore = create<ProjectState>()(
             }
           }
 
-          const updatedItem: MediaItem = {
+          const updatedItemWithoutProxy: MediaItem = {
             id: mediaId,
             name: file.name,
             type: mediaType,
@@ -1973,6 +2154,10 @@ export const useProjectStore = create<ProjectState>()(
             isPlaceholder: false,
             sourceFile: { name: file.name, size: file.size, lastModified: file.lastModified, folder: sourceFolder },
           };
+          const recommendedProxy = getRecommendedProxyInfo(updatedItemWithoutProxy);
+          const updatedItem: MediaItem = recommendedProxy
+            ? { ...updatedItemWithoutProxy, proxy: recommendedProxy }
+            : updatedItemWithoutProxy;
 
           const updatedItems = project.mediaLibrary.items.map((item) =>
             item.id === mediaId ? updatedItem : item,
@@ -1987,6 +2172,18 @@ export const useProjectStore = create<ProjectState>()(
               modifiedAt: Date.now(),
             },
           });
+
+          try {
+            await saveMediaBlob(project.id, updatedItem.id, file, updatedItem.metadata);
+          } catch (err) {
+            console.error("[ProjectStore] Failed to persist replacement media blob:", err);
+          }
+
+          if (existingItem?.proxy?.mediaId) {
+            deleteMediaBlob(existingItem.proxy.mediaId).catch((err) =>
+              console.warn("[ProjectStore] Failed to delete stale proxy blob:", err),
+            );
+          }
 
           if (updatedItem.type === "video" && !updatedItem.thumbnailUrl) {
             setTimeout(async () => {
@@ -4124,7 +4321,11 @@ export const useProjectStore = create<ProjectState>()(
 
           const restoredItems = await Promise.all(
             recoveredProject.mediaLibrary.items.map((item) =>
-              restoreMediaItem(item, blobMap.get(item.id)),
+              restoreMediaItem(
+                item,
+                blobMap.get(item.id),
+                item.proxy ? blobMap.get(item.proxy.mediaId) : undefined,
+              ),
             ),
           );
 

@@ -74,6 +74,7 @@ import {
   ParticleRenderer,
 } from "./preview/index";
 import { ProcessingOverlay } from "./ProcessingOverlay";
+import { getPreviewBlob } from "../../services/proxy-workflow";
 import {
   getPersonSegmentationEngine,
   getBackgroundRemovalEngine,
@@ -1560,15 +1561,16 @@ export const Preview: React.FC = () => {
       canvasHeight: number,
     ): Promise<ImageBitmap | null> => {
       const mediaItem = getMediaItem(clip.mediaId);
-      if (!mediaItem?.blob) return null;
+      if (!mediaItem) return null;
       const vidstab = getVidstabEngine();
-      const mediaBlob = (vidstab.hasStabilized(clip.id)
+      const mediaBlob = vidstab.hasStabilized(clip.id)
         ? vidstab.getStabilizedBlob(clip.id)
-        : mediaItem.blob)!;
+        : getPreviewBlob(mediaItem);
+      if (!mediaBlob) return null;
 
       if (mediaItem.type === "image") {
         try {
-          return await createImageBitmap(mediaItem.blob);
+          return await createImageBitmap(mediaBlob);
         } catch {
           return null;
         }
@@ -2613,16 +2615,22 @@ export const Preview: React.FC = () => {
           return existingLoad;
         }
 
-        if (!mediaItem.blob) {
+        const previewBlob = getPreviewBlob(mediaItem);
+        if (!previewBlob) {
           return Promise.resolve();
         }
 
         const vidstabEng = getVidstabEngine();
         const isStabilized = vidstabEng.hasStabilized(clip.id);
-        const playBlob = (isStabilized
+        const playBlob = isStabilized
           ? vidstabEng.getStabilizedBlob(clip.id)
-          : mediaItem.blob)!;
-        const cacheId = isStabilized ? `stabilized:${clip.id}` : clip.mediaId;
+          : previewBlob;
+        if (!playBlob) {
+          return Promise.resolve();
+        }
+        const cacheId = isStabilized
+          ? `stabilized:${clip.id}`
+          : `${clip.mediaId}:${mediaItem.proxy?.status === "ready" ? "proxy" : "source"}`;
         const url = URL.createObjectURL(playBlob);
         const video = document.createElement("video");
         video.src = url;
@@ -3284,9 +3292,13 @@ export const Preview: React.FC = () => {
         try {
           const mediabunny = await import("mediabunny");
           const { Input, ALL_FORMATS, BlobSource, CanvasSink } = mediabunny;
+          const previewBlob = getPreviewBlob(mediaItem);
+          if (!previewBlob) {
+            return;
+          }
 
           const input = new Input({
-            source: new BlobSource(mediaItem.blob),
+            source: new BlobSource(previewBlob),
             formats: ALL_FORMATS,
           });
 
@@ -3618,9 +3630,13 @@ export const Preview: React.FC = () => {
       try {
         const mediabunny = await import("mediabunny");
         const { Input, ALL_FORMATS, BlobSource, CanvasSink } = mediabunny;
+        const previewBlob = getPreviewBlob(mediaItem);
+        if (!previewBlob) {
+          return null;
+        }
 
         const input = new Input({
-          source: new BlobSource(mediaItem.blob),
+          source: new BlobSource(previewBlob),
           formats: ALL_FORMATS,
         });
 
@@ -5999,8 +6015,9 @@ export const Preview: React.FC = () => {
     if (!mediaItem) return null;
 
     let src: string | null = null;
-    if (mediaItem.blob) {
-      src = URL.createObjectURL(mediaItem.blob);
+    const previewBlob = getPreviewBlob(mediaItem);
+    if (previewBlob) {
+      src = URL.createObjectURL(previewBlob);
     } else if (mediaItem.originalUrl) {
       src = mediaItem.originalUrl;
     }

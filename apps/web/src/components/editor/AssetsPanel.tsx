@@ -3,7 +3,7 @@ import {
   Search, Image as ImageIcon, Film, Music, Plus, Upload, Trash2,
   Square, Circle, Triangle, Star, ArrowRight, Hexagon, FileCode, AlertTriangle,
   RefreshCw, Palette, LayoutGrid, Grid2x2, List, Sparkles, Video,
-  Type, Shapes, Wand2, LayoutTemplate, Zap, Shuffle,
+  Type, Shapes, Wand2, LayoutTemplate, Zap, Shuffle, Gauge,
 } from "lucide-react";
 import {
   BACKGROUND_PRESETS,
@@ -135,6 +135,8 @@ const MediaThumbnail: React.FC<{
   onReplace: () => void;
   onDragStart: (e: React.DragEvent) => void;
   onAddToTimeline: () => void;
+  onGenerateProxy: () => void;
+  onDeleteProxy: () => void;
   onKieAI?: () => void;
   onRetryKieAI?: () => void;
 }> = ({
@@ -146,6 +148,8 @@ const MediaThumbnail: React.FC<{
   onReplace,
   onDragStart,
   onAddToTimeline,
+  onGenerateProxy,
+  onDeleteProxy,
   onKieAI,
   onRetryKieAI,
 }) => {
@@ -185,6 +189,21 @@ const MediaThumbnail: React.FC<{
     : item.type === "image"
       ? "text-primary/50"
       : "text-status-info/50";
+  const proxyLabel = (() => {
+    if (item.type !== "video" || !item.proxy) return null;
+    if (item.proxy.status === "ready") {
+      const proxySize = formatFileSize(item.proxy.fileSize);
+      return proxySize ? `Proxy ${proxySize}` : "Proxy ready";
+    }
+    if (item.proxy.status === "generating") {
+      const percent = Math.round((item.proxy.progress ?? 0) * 100);
+      return `Proxy ${percent}%`;
+    }
+    if (item.proxy.status === "error") return "Proxy failed";
+    return "Proxy recommended";
+  })();
+  const showCreateProxy =
+    item.type === "video" && item.proxy?.status !== "generating" && item.proxy?.status !== "ready";
 
   const borderClass = item.kieaiError
     ? "border-red-500 ring-1 ring-red-500/50 shadow-[0_0_10px_rgba(239,68,68,0.3)]"
@@ -236,6 +255,15 @@ const MediaThumbnail: React.FC<{
               className="p-2 bg-purple-500/20 rounded-full hover:bg-purple-500/40 backdrop-blur-sm transition-colors"
             >
               <Sparkles size={14} className="text-purple-300" />
+            </button>
+          )}
+          {showCreateProxy && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onGenerateProxy(); }}
+              title="Create proxy"
+              className="p-2 bg-sky-500/20 rounded-full hover:bg-sky-500/40 backdrop-blur-sm transition-colors"
+            >
+              <Gauge size={14} className="text-sky-300" />
             </button>
           )}
           <button
@@ -312,6 +340,16 @@ const MediaThumbnail: React.FC<{
             {(item.metadata?.duration || formatResolution()) && formatFileSize(item.metadata?.fileSize) && <span>•</span>}
             {formatFileSize(item.metadata?.fileSize) && <span>{formatFileSize(item.metadata?.fileSize)}</span>}
           </div>
+          {proxyLabel && (
+            <div
+              className={`mt-0.5 inline-flex items-center gap-1 text-[9px] ${
+                item.proxy?.status === "error" ? "text-red-400" : "text-sky-300"
+              }`}
+            >
+              <Gauge size={10} />
+              <span>{proxyLabel}</span>
+            </div>
+          )}
         </div>
 
         {/* Hover actions */}
@@ -357,6 +395,15 @@ const MediaThumbnail: React.FC<{
                     <Sparkles size={12} className="text-purple-300" />
                   </button>
                 )}
+                {showCreateProxy && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onGenerateProxy(); }}
+                    title="Create proxy"
+                    className="p-1 bg-sky-500/20 rounded hover:bg-sky-500/40 transition-colors"
+                  >
+                    <Gauge size={12} className="text-sky-300" />
+                  </button>
+                )}
                 <button
                   onClick={(e) => { e.stopPropagation(); onAddToTimeline(); }}
                   title="Add to timeline"
@@ -386,6 +433,18 @@ const MediaThumbnail: React.FC<{
             <ContextMenuItem onClick={onKieAI}>
               <Sparkles size={13} className="mr-2 text-primary" />
               Create with KieAI
+            </ContextMenuItem>
+          )}
+          {showCreateProxy && (
+            <ContextMenuItem onClick={onGenerateProxy}>
+              <Gauge size={13} className="mr-2 text-sky-300" />
+              Create Proxy
+            </ContextMenuItem>
+          )}
+          {item.type === "video" && item.proxy?.status === "ready" && (
+            <ContextMenuItem onClick={onDeleteProxy}>
+              <Trash2 size={13} className="mr-2" />
+              Delete Proxy
             </ContextMenuItem>
           )}
           <ContextMenuItem onClick={(e) => { (e as React.MouseEvent).stopPropagation?.(); onAddToTimeline(); }}>
@@ -471,6 +530,19 @@ const MediaThumbnail: React.FC<{
           </div>
         )}
 
+        {proxyLabel && !item.kieaiError && !item.isPending && !item.isPlaceholder && (
+          <div
+            className={`absolute top-1 left-1 px-1.5 py-0.5 rounded text-[8px] font-bold flex items-center gap-1 ${
+              item.proxy?.status === "error"
+                ? "bg-red-500 text-white"
+                : "bg-sky-500 text-white"
+            }`}
+          >
+            <Gauge size={9} />
+            Proxy
+          </div>
+        )}
+
         {/* Duration badge on thumbnail */}
         {item.metadata?.duration && (
           <div className="absolute bottom-1 right-1 px-1.5 py-0.5 bg-black/70 rounded text-[9px] text-white font-mono">
@@ -519,15 +591,27 @@ const MediaThumbnail: React.FC<{
           {item.name}
         </div>
         {viewMode === "large" && (
-          <div className="flex items-center gap-1.5 text-[9px] text-text-muted mt-0.5">
-            {formatResolution() && <span>{formatResolution()}</span>}
-            {formatResolution() && formatFileSize(item.metadata?.fileSize) && (
-              <span>•</span>
+          <>
+            <div className="flex items-center gap-1.5 text-[9px] text-text-muted mt-0.5">
+              {formatResolution() && <span>{formatResolution()}</span>}
+              {formatResolution() && formatFileSize(item.metadata?.fileSize) && (
+                <span>•</span>
+              )}
+              {formatFileSize(item.metadata?.fileSize) && (
+                <span>{formatFileSize(item.metadata?.fileSize)}</span>
+              )}
+            </div>
+            {proxyLabel && (
+              <div
+                className={`mt-0.5 flex items-center gap-1 text-[9px] ${
+                  item.proxy?.status === "error" ? "text-red-400" : "text-sky-300"
+                }`}
+              >
+                <Gauge size={10} />
+                <span className="truncate">{proxyLabel}</span>
+              </div>
             )}
-            {formatFileSize(item.metadata?.fileSize) && (
-              <span>{formatFileSize(item.metadata?.fileSize)}</span>
-            )}
-          </div>
+          </>
         )}
       </div>
     </div>
@@ -537,6 +621,18 @@ const MediaThumbnail: React.FC<{
           <ContextMenuItem onClick={onKieAI}>
             <Sparkles size={13} className="mr-2 text-primary" />
             Create with KieAI
+          </ContextMenuItem>
+        )}
+        {showCreateProxy && (
+          <ContextMenuItem onClick={onGenerateProxy}>
+            <Gauge size={13} className="mr-2 text-sky-300" />
+            Create Proxy
+          </ContextMenuItem>
+        )}
+        {item.type === "video" && item.proxy?.status === "ready" && (
+          <ContextMenuItem onClick={onDeleteProxy}>
+            <Trash2 size={13} className="mr-2" />
+            Delete Proxy
           </ContextMenuItem>
         )}
         <ContextMenuItem onClick={() => onAddToTimeline()}>
@@ -618,6 +714,8 @@ export const AssetsPanel: React.FC = () => {
     project,
     importMedia,
     deleteMedia,
+    generateMediaProxy,
+    deleteMediaProxy,
     replaceMediaAsset,
     updateSettings,
     setKieAIItemState,
@@ -949,6 +1047,25 @@ export const AssetsPanel: React.FC = () => {
     retryTask(item.kieaiTaskId);
   }, [retryTask, setKieAIItemState]);
 
+  const handleGenerateProxy = useCallback(async (item: MediaItem) => {
+    toast.info("Creating proxy", `${item.name} will preview faster after this finishes.`);
+    const result = await generateMediaProxy(item.id);
+    if (result.success) {
+      toast.success("Proxy ready", `${item.name} is now using a lightweight preview file.`);
+      return;
+    }
+    toast.error("Proxy failed", result.error?.message ?? "Could not create proxy.");
+  }, [generateMediaProxy]);
+
+  const handleDeleteProxy = useCallback(async (item: MediaItem) => {
+    const result = await deleteMediaProxy(item.id);
+    if (result.success) {
+      toast.success("Proxy removed", `${item.name} will use the original media for preview.`);
+      return;
+    }
+    toast.error("Could not remove proxy", result.error?.message ?? "Unknown error");
+  }, [deleteMediaProxy]);
+
   const renderSectionContent = (tab: AssetsTab): React.ReactNode => {
     switch (tab) {
       case "media":
@@ -1043,6 +1160,8 @@ export const AssetsPanel: React.FC = () => {
                         onReplace={() => handleReplaceAsset(item.id)}
                         onDragStart={(e) => handleItemDragStart(e, item)}
                         onAddToTimeline={() => handleAddToTimeline(item)}
+                        onGenerateProxy={() => handleGenerateProxy(item)}
+                        onDeleteProxy={() => handleDeleteProxy(item)}
                         onKieAI={item.type === "image" && !item.isPending && !item.kieaiError ? () => handleOpenKieAI(item) : undefined}
                         onRetryKieAI={item.kieaiError && item.kieaiTaskId ? () => handleRetryKieAI(item) : undefined}
                       />

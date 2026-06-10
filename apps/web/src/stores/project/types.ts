@@ -115,6 +115,8 @@ export interface ProjectState {
 
   importMedia: (file: File) => Promise<ActionResult>;
   deleteMedia: (mediaId: string) => Promise<ActionResult>;
+  generateMediaProxy: (mediaId: string) => Promise<ActionResult>;
+  deleteMediaProxy: (mediaId: string) => Promise<ActionResult>;
   renameMedia: (mediaId: string, name: string) => Promise<ActionResult>;
   getMediaItem: (mediaId: string) => MediaItem | undefined;
 

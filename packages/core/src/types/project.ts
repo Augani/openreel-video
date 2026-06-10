@@ -28,12 +28,29 @@ export interface MediaLibrary {
   readonly items: MediaItem[];
 }
 
+export type MediaProxyPreset = "low" | "medium" | "high";
+export type MediaProxyStatus = "recommended" | "generating" | "ready" | "error";
+
+export interface MediaProxyInfo {
+  readonly mediaId: string;
+  readonly preset: MediaProxyPreset;
+  readonly status: MediaProxyStatus;
+  readonly progress?: number;
+  readonly width?: number;
+  readonly height?: number;
+  readonly fileSize?: number;
+  readonly generatedAt?: number;
+  readonly errorMessage?: string;
+}
+
 export interface MediaItem {
   readonly id: string;
   readonly name: string;
   readonly type: "video" | "audio" | "image";
   readonly fileHandle: FileSystemFileHandle | null;
   readonly blob: Blob | null;
+  readonly proxyBlob?: Blob | null;
+  readonly proxy?: MediaProxyInfo;
   readonly metadata: MediaMetadata;
   readonly thumbnailUrl: string | null;
   readonly waveformData: Float32Array | null;

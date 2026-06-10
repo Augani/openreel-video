@@ -25,6 +25,7 @@ OpenReel Video is a fully-featured browser-based video editor that runs entirely
 ### Video Editing
 - **Multi-track timeline** - Unlimited video, audio, image, text, and graphics tracks
 - **Real-time preview** - Smooth playback with GPU acceleration
+- **Proxy workflow** - Generate local lightweight preview files for smoother 4K/long-form editing
 - **Precision editing** - Frame-accurate scrubbing, cut, trim, split, ripple delete
 - **Transitions** - Crossfade, dip to black/white, wipe, slide effects
 - **Video effects** - Brightness, contrast, saturation, blur, sharpen, glow, vignette, chroma key
@@ -84,6 +85,7 @@ OpenReel Video is a fully-featured browser-based video editor that runs entirely
 - **WebGPU rendering** - GPU-accelerated compositing
 - **WebCodecs API** - Hardware video decoding/encoding
 - **Frame caching** - LRU cache for smooth playback
+- **Local proxy media** - Keep original footage untouched while previewing optimized H.264 proxies from IndexedDB
 - **Web Workers** - Background processing
 - **4K support** - Edit and export in 4K resolution
 
