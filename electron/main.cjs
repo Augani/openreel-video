@@ -4,7 +4,9 @@ const path = require("node:path");
 
 const isDev = !app.isPackaged;
 const devUrl = process.env.OPENREEL_DEV_URL || "http://localhost:5173";
-const distPath = path.join(__dirname, "..", "apps", "web", "dist");
+const devOrigin = new URL(devUrl).origin;
+const distPath = path.resolve(__dirname, "..", "apps", "web", "dist");
+const appOrigin = "app://openreel";
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -38,13 +40,39 @@ const mimeTypes = {
   ".woff2": "font/woff2",
 };
 
+function isInsideDirectory(filePath, directoryPath) {
+  const relativePath = path.relative(directoryPath, filePath);
+  return (
+    relativePath === "" ||
+    (!relativePath.startsWith("..") && !path.isAbsolute(relativePath))
+  );
+}
+
+function isTrustedAppUrl(rawUrl) {
+  try {
+    const url = new URL(rawUrl);
+    if (isDev) {
+      return url.origin === devOrigin;
+    }
+    return url.origin === appOrigin;
+  } catch {
+    return false;
+  }
+}
+
+function openExternalUrl(rawUrl) {
+  if (rawUrl.startsWith("http:") || rawUrl.startsWith("https:")) {
+    shell.openExternal(rawUrl);
+  }
+}
+
 function serveDist(request) {
   const url = new URL(request.url);
   let pathname = decodeURIComponent(url.pathname);
   if (pathname === "/" || pathname === "") pathname = "/index.html";
 
-  let filePath = path.normalize(path.join(distPath, pathname));
-  if (!filePath.startsWith(distPath)) {
+  let filePath = path.resolve(distPath, `.${pathname}`);
+  if (!isInsideDirectory(filePath, distPath)) {
     return new Response("Forbidden", { status: 403 });
   }
 
@@ -83,10 +111,14 @@ function createWindow() {
   win.once("ready-to-show", () => win.show());
 
   win.webContents.setWindowOpenHandler(({ url }) => {
-    if (url.startsWith("http:") || url.startsWith("https:")) {
-      shell.openExternal(url);
-    }
+    openExternalUrl(url);
     return { action: "deny" };
+  });
+
+  win.webContents.on("will-navigate", (event, url) => {
+    if (isTrustedAppUrl(url)) return;
+    event.preventDefault();
+    openExternalUrl(url);
   });
 
   if (isDev) {
@@ -112,8 +144,8 @@ if (!app.requestSingleInstanceLock()) {
       protocol.handle("app", serveDist);
     }
 
-    session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
-      callback(permission === "media");
+    session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
+      callback(permission === "media" && isTrustedAppUrl(webContents.getURL()));
     });
 
     createWindow();
