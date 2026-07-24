@@ -1086,7 +1086,7 @@ export const AssetsPanel: React.FC = () => {
         );
       case "graphics":
         return (
-          <div className="min-h-0 flex-1 border-t border-border/70">
+          <div className="min-h-0 flex-1 flex flex-col border-t border-border/70">
             <ScrollArea className="min-h-0 flex-1">
               <div className="px-4 py-4">
                 <div className="mb-6">
@@ -1357,7 +1357,7 @@ export const AssetsPanel: React.FC = () => {
         );
       case "text":
         return (
-          <div className="min-h-0 flex-1 border-t border-border/70">
+          <div className="min-h-0 flex-1 flex flex-col border-t border-border/70">
             <ScrollArea className="min-h-0 flex-1">
               <div className="px-4 py-4 space-y-3">
                 <button
@@ -1482,19 +1482,19 @@ export const AssetsPanel: React.FC = () => {
         );
       case "ai":
         return (
-          <div className="flex min-h-0 flex-1 flex-col border-t border-border/70 bg-background-secondary content-area-fix">
+          <div className="flex min-h-0 flex-1 flex-col border-t border-border/70 bg-background-secondary">
             <AIGenTab />
           </div>
         );
       case "recipes":
         return (
-          <div className="flex min-h-0 flex-1 flex-col border-t border-border/70 bg-background-secondary content-area-fix">
+          <div className="flex min-h-0 flex-1 flex-col border-t border-border/70 bg-background-secondary">
             <RecipesTab />
           </div>
         );
       case "templates":
         return (
-          <div className="flex min-h-0 flex-1 flex-col border-t border-border/70 bg-background-secondary content-area-fix">
+          <div className="flex min-h-0 flex-1 flex-col border-t border-border/70 bg-background-secondary">
             <TemplatesTab />
           </div>
         );
@@ -1540,7 +1540,7 @@ export const AssetsPanel: React.FC = () => {
       </div>
 
       {/* ── Body: section content fills the remaining space ──── */}
-      <div className="flex-1 flex flex-col min-w-0 h-full bg-bg-1 relative">
+      <div className="flex-1 flex flex-col min-w-0 min-h-0 bg-bg-1 relative">
         {isImporting && (
           <LoadingIndicator message={importProgress || "Importing media..."} />
         )}
