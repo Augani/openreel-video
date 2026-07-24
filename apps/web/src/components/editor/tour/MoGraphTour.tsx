@@ -7,7 +7,9 @@ import {
   ChevronRight,
   X,
   Lightbulb,
-} from "lucide-react";
+} from "@/icons/lucide-compat";
+import { ToolcraftIconButton as IconButton } from "@openreel/ui";
+import { ToolcraftText as Text } from "@openreel/ui";
 
 export const MoGraphTour: React.FC = () => {
   const {
@@ -145,7 +147,7 @@ export const MoGraphTour: React.FC = () => {
             />
             <motion.div
               key={`ring-${currentStep}`}
-              className="fixed pointer-events-none border-2 border-purple-500 rounded-lg"
+              className="fixed pointer-events-none border-2 border-accent rounded-lg"
               initial={{ opacity: 0, scale: 1.05 }}
               animate={{
                 opacity: 1,
@@ -158,7 +160,7 @@ export const MoGraphTour: React.FC = () => {
               transition={{ type: "spring", stiffness: 300, damping: 30 }}
               style={{
                 boxShadow:
-                  "0 0 0 4px rgba(168, 85, 247, 0.2), 0 0 20px rgba(168, 85, 247, 0.3)",
+                  "0 0 0 4px var(--accent-soft), 0 0 22px var(--accent-glow)",
               }}
             />
           </>
@@ -176,7 +178,7 @@ export const MoGraphTour: React.FC = () => {
 
         <motion.div
           key={`popover-${currentStep}`}
-          className="fixed pointer-events-auto bg-background-secondary border border-purple-500/30 rounded-xl shadow-2xl overflow-hidden"
+          className="fixed pointer-events-auto bg-background-secondary border border-accent rounded-xl shadow-2xl overflow-hidden"
           initial={{ opacity: 0, scale: 0.9, y: 10 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.9, y: 10 }}
@@ -186,34 +188,36 @@ export const MoGraphTour: React.FC = () => {
             width: 380,
           }}
         >
-          <div className="bg-gradient-to-r from-purple-600 to-pink-600 px-4 py-3 flex items-center gap-2">
+          <div className="bg-gradient-to-r from-accent to-accent-strong px-4 py-3 flex items-center gap-2">
             <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
               <Sparkles size={16} className="text-white" />
             </div>
             <div className="flex-1">
-              <h3 className="text-white font-semibold text-sm">{step.title}</h3>
-              <p className="text-white/60 text-[10px]">
+              <Text type="label" weight="semibold" className="text-white text-sm">{step.title}</Text>
+              <Text type="supporting" className="text-white/60 text-[10px]">
                 Motion Graphics Tour • Step {currentStep + 1} of {totalSteps}
-              </p>
+              </Text>
             </div>
-            <button
+            <IconButton
+              label="Skip tour"
+              icon={<X size={16} />}
+              variant="ghost"
+              size="sm"
               onClick={skip}
               className="p-1 rounded hover:bg-white/10 text-white/60 hover:text-white transition-colors"
-            >
-              <X size={16} />
-            </button>
+            />
           </div>
 
           <div className="p-4">
-            <p className="text-text-secondary text-sm leading-relaxed mb-4">
+            <Text type="supporting" color="secondary" className="text-text-secondary text-sm leading-relaxed mb-4">
               {step.description}
-            </p>
+            </Text>
 
             {step.tips && step.tips.length > 0 && (
-              <div className="bg-purple-500/10 rounded-lg p-3 mb-4">
+              <div className="bg-accent-soft rounded-lg p-3 mb-4">
                 <div className="flex items-center gap-2 mb-2">
-                  <Lightbulb size={14} className="text-purple-400" />
-                  <span className="text-purple-400 text-xs font-medium">Pro Tips</span>
+                  <Lightbulb size={14} className="text-accent" />
+                  <span className="text-accent text-xs font-medium">Pro Tips</span>
                 </div>
                 <ul className="space-y-1.5">
                   {step.tips.map((tip, i) => (
@@ -221,7 +225,7 @@ export const MoGraphTour: React.FC = () => {
                       key={i}
                       className="text-text-muted text-xs flex items-start gap-2"
                     >
-                      <span className="text-purple-400 mt-0.5">•</span>
+                      <span className="text-accent mt-0.5">•</span>
                       <span>{tip}</span>
                     </li>
                   ))}
@@ -233,38 +237,45 @@ export const MoGraphTour: React.FC = () => {
               {Array.from({ length: totalSteps }).map((_, i) => (
                 <button
                   key={i}
+                  type="button"
+                  aria-label={`Go to step ${i + 1}`}
                   onClick={() => goToStep(i)}
                   className={`h-1.5 rounded-full transition-all ${
                     i === currentStep
-                      ? "w-6 bg-purple-500"
-                      : "w-1.5 bg-border hover:bg-purple-500/50"
+                      ? "w-6 bg-accent"
+                      : "w-1.5 bg-border hover:bg-accent/50"
                   }`}
                 />
               ))}
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="grid grid-cols-[88px_1fr_108px] items-center gap-3">
               <button
+                type="button"
+                aria-label="Back"
                 onClick={prev}
                 disabled={isFirstStep}
-                className="flex items-center gap-1 px-3 py-2 text-xs rounded-lg bg-background-tertiary text-text-secondary hover:text-text-primary disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="inline-flex h-9 min-w-[88px] items-center justify-center gap-1.5 whitespace-nowrap rounded-lg bg-background-tertiary px-3 text-xs font-medium text-text-secondary transition-colors hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
               >
-                <ChevronLeft size={14} />
-                Back
+                <ChevronLeft size={14} className="shrink-0" aria-hidden />
+                <span>Back</span>
               </button>
-              <div className="flex-1" />
               <button
+                type="button"
+                aria-label="Skip tour"
                 onClick={skip}
-                className="px-3 py-2 text-xs text-text-muted hover:text-text-secondary transition-colors"
+                className="mx-auto inline-flex h-9 items-center justify-center whitespace-nowrap rounded-lg px-3 text-xs font-medium text-text-muted transition-colors hover:bg-background-tertiary hover:text-text-secondary"
               >
                 Skip Tour
               </button>
               <button
+                type="button"
+                aria-label={isLastStep ? "Get Started" : "Next"}
                 onClick={next}
-                className="flex items-center gap-1 px-4 py-2 text-xs rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 text-white font-medium hover:from-purple-500 hover:to-pink-500 transition-all"
+                className="inline-flex h-9 min-w-[108px] items-center justify-center gap-1.5 whitespace-nowrap rounded-lg bg-accent px-4 text-xs font-semibold text-accent-fg transition-colors hover:bg-accent-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
-                {isLastStep ? "Get Started" : "Next"}
-                {!isLastStep && <ChevronRight size={14} />}
+                <span>{isLastStep ? "Get Started" : "Next"}</span>
+                {!isLastStep && <ChevronRight size={14} className="shrink-0" aria-hidden />}
               </button>
             </div>
           </div>

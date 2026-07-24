@@ -6,8 +6,11 @@ import {
   ChevronRight,
   Check,
   Info,
-} from "lucide-react";
-import { Button, Input, Label } from "@openreel/ui";
+} from "@/icons/lucide-compat";
+import { ToolcraftButton as Button } from "@openreel/ui";
+import { ToolcraftSelectableCard as SelectableCard } from "@openreel/ui";
+import { ToolcraftText as Text } from "@openreel/ui";
+import { ToolcraftTextInputControl } from "@openreel/ui";
 import { useProjectStore } from "../../stores/project-store";
 import { useAnalytics, AnalyticsEvents } from "../../hooks/useAnalytics";
 import {
@@ -104,22 +107,23 @@ export const StartFromScratch: React.FC<StartFromScratchProps> = ({
   return (
     <div className="space-y-6">
       <div>
-        <Label className="text-sm font-medium text-text-primary mb-2 block">
+        <Text type="label" color="primary" weight="medium" className="text-sm text-text-primary mb-2 block">
           Project Name
-        </Label>
-        <Input
-          type="text"
+        </Text>
+        <ToolcraftTextInputControl
+          label="Project Name"
+          isLabelHidden
           value={projectName}
-          onChange={(e) => setProjectName(e.target.value)}
+          onChange={setProjectName}
           placeholder="My Awesome Video"
           className="max-w-md bg-background-tertiary border-border text-text-primary"
         />
       </div>
 
       <div>
-        <h3 className="text-sm font-medium text-text-primary mb-4">
+        <Text type="label" color="primary" weight="medium" className="text-sm text-text-primary mb-4">
           Select Format
-        </h3>
+        </Text>
 
         <div className="grid md:grid-cols-2 gap-6">
           {PRESET_GROUPS.map((group) => {
@@ -141,9 +145,14 @@ export const StartFromScratch: React.FC<StartFromScratchProps> = ({
                     const isSelected = selectedPreset === presetId;
 
                     return (
-                      <button
+                      <SelectableCard
                         key={presetId}
+                        label={presetInfo?.name || presetId}
+                        isSelected={isSelected}
+                        onChange={() => setSelectedPreset(presetId)}
                         onClick={() => setSelectedPreset(presetId)}
+                        variant={isSelected ? "green" : "muted"}
+                        padding={3}
                         className={`flex items-center gap-3 p-3 rounded-lg border transition-all duration-200 text-left ${
                           isSelected
                             ? "border-primary bg-primary/10"
@@ -162,14 +171,14 @@ export const StartFromScratch: React.FC<StartFromScratchProps> = ({
                           )}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-xs font-medium text-text-primary truncate">
+                          <Text type="supporting" color="primary" weight="medium" className="text-xs text-text-primary truncate">
                             {presetInfo?.name || presetId}
-                          </p>
-                          <p className="text-[10px] text-text-muted">
+                          </Text>
+                          <Text type="supporting" color="secondary" className="text-[10px] text-text-muted">
                             {presetData.width}×{presetData.height}
-                          </p>
+                          </Text>
                         </div>
-                      </button>
+                      </SelectableCard>
                     );
                   })}
                 </div>
@@ -182,42 +191,37 @@ export const StartFromScratch: React.FC<StartFromScratchProps> = ({
       <div className="flex items-start gap-3 p-4 bg-background-tertiary rounded-xl border border-border">
         <Info size={16} className="text-primary flex-shrink-0 mt-0.5" />
         <div>
-          <p className="text-sm font-medium text-text-primary">
+          <Text type="supporting" color="primary" weight="medium" className="text-sm text-text-primary">
             {info?.name || selectedPreset} Format
-          </p>
-          <p className="text-xs text-text-muted mt-1">
+          </Text>
+          <Text type="supporting" color="secondary" className="text-xs text-text-muted mt-1">
             {preset.width}×{preset.height}px • {preset.frameRate || 30}fps
             {preset.maxDuration && ` • Max ${preset.maxDuration}s`}
             {preset.recommendedDuration &&
               ` • Recommended ${preset.recommendedDuration}s`}
-          </p>
+          </Text>
           {preset.safeZone && (
-            <p className="text-xs text-text-muted mt-0.5">
+            <Text type="supporting" color="secondary" className="text-xs text-text-muted mt-0.5">
               Safe zone: {preset.safeZone.top}px top, {preset.safeZone.bottom}px
               bottom
-            </p>
+            </Text>
           )}
         </div>
       </div>
 
       <div className="flex items-center justify-end gap-3">
         <Button
-          onClick={handleCreate}
-          disabled={isCreating}
-          className="shadow-glow"
-        >
-          {isCreating ? (
-            <>
-              <div className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />
-              Creating...
-            </>
+          label={isCreating ? "Creating..." : "Create Project"}
+          icon={isCreating ? (
+            <div className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />
           ) : (
-            <>
-              Create Project
-              <ChevronRight size={16} />
-            </>
+            <ChevronRight size={16} aria-hidden />
           )}
-        </Button>
+          variant="primary"
+          onClick={handleCreate}
+          isDisabled={isCreating}
+          className="shadow-glow"
+        />
       </div>
     </div>
   );

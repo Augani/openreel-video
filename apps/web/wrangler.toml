@@ -4,7 +4,9 @@ pages_build_output_dir = "dist"
 
 # Cloudflare Pages configuration for OpenReel video editor
 # This app requires special headers for SharedArrayBuffer (used by FFmpeg.wasm)
-# Custom domain: app.openreel.video
+# Custom domains:
+# - app.openreel.video opens the standard video editor flow
+# - motion.openreel.video opens the Motion Creator surface by hostname detection
 
 [env.production]
 name = "openreel"

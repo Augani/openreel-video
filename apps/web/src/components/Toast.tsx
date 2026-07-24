@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, CheckCircle2, XCircle, AlertTriangle, Info } from "lucide-react";
+import { X, CheckCircle2, XCircle, AlertTriangle, Info } from "@/icons/lucide-compat";
 import {
   useNotificationStore,
   type NotificationType,
@@ -23,7 +23,7 @@ const THEME_CONFIG: Record<
 > = {
   success: {
     light: {
-      bg: "bg-white",
+      bg: "bg-bg-1",
       border: "border-emerald-200",
       icon: "text-emerald-600",
       progress: "bg-emerald-500",
@@ -37,7 +37,7 @@ const THEME_CONFIG: Record<
   },
   error: {
     light: {
-      bg: "bg-white",
+      bg: "bg-bg-1",
       border: "border-red-200",
       icon: "text-red-600",
       progress: "bg-red-500",
@@ -51,7 +51,7 @@ const THEME_CONFIG: Record<
   },
   warning: {
     light: {
-      bg: "bg-white",
+      bg: "bg-bg-1",
       border: "border-amber-200",
       icon: "text-amber-600",
       progress: "bg-amber-500",
@@ -65,7 +65,7 @@ const THEME_CONFIG: Record<
   },
   info: {
     light: {
-      bg: "bg-white",
+      bg: "bg-bg-1",
       border: "border-blue-200",
       icon: "text-blue-600",
       progress: "bg-blue-500",

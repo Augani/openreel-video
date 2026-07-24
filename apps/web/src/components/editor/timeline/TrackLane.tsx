@@ -10,6 +10,9 @@ import { ClipComponent } from "./ClipComponent";
 import { TextClipComponent } from "./TextClipComponent";
 import { ShapeClipComponent } from "./ShapeClipComponent";
 import { KeyframeTrack } from "./KeyframeTrack";
+import { TransitionHandle } from "./TransitionHandle";
+import { AdjustmentLayerTimelineItem } from "./AdjustmentLayerTimelineItem";
+import { resolveTransitionHandles } from "./transition-handles";
 import { calculateSnap } from "./utils";
 import { useTimelineStore } from "../../../stores/timeline-store";
 import { useUIStore } from "../../../stores/ui-store";
@@ -26,7 +29,7 @@ interface TrackLaneProps {
   textClips: TextClip[];
   shapeClips: GraphicClipUnion[];
   trackHeights: Map<string, number>;
-  timelineRef: React.RefObject<HTMLDivElement>;
+  timelineRef: React.RefObject<HTMLDivElement | null>;
   onSelectClip: (clipId: string, addToSelection: boolean) => void;
   onDropMedia: (trackId: string, mediaId: string, startTime: number) => void;
   onMoveClip: (
@@ -58,6 +61,8 @@ interface TrackLaneProps {
   onKeyframeMove?: (keyframeId: string, newTime: number) => void;
   onKeyframeDelete?: (keyframeId: string) => void;
   selectedKeyframeIds?: string[];
+  onSelectTransition: (transitionId: string, trackId: string) => void;
+  selectedTransitionId?: string | null;
 }
 
 export const TrackLane: React.FC<TrackLaneProps> = ({
@@ -84,6 +89,8 @@ export const TrackLane: React.FC<TrackLaneProps> = ({
   onKeyframeMove,
   onKeyframeDelete,
   selectedKeyframeIds = [],
+  onSelectTransition,
+  selectedTransitionId = null,
 }) => {
   const { isTrackExpanded, playheadPosition } = useTimelineStore();
   const isExpanded = isTrackExpanded(track.id);
@@ -93,10 +100,19 @@ export const TrackLane: React.FC<TrackLaneProps> = ({
   const laneRef = useRef<HTMLDivElement>(null);
   const resizeStartY = useRef<number>(0);
   const resizeStartHeight = useRef<number>(0);
+  const adjustmentLayers = useProjectStore((state) =>
+    (state.project.adjustmentLayers ?? []).filter((layer) => layer.trackId === track.id),
+  );
+  const frameRate = useProjectStore((state) => state.project.settings.frameRate);
 
   const clipsWithKeyframes = useMemo(() => {
     return track.clips.filter((clip) => clip.keyframes && clip.keyframes.length > 0);
   }, [track.clips]);
+
+  const transitionHandles = useMemo(
+    () => resolveTransitionHandles(track, pixelsPerSecond),
+    [track, pixelsPerSecond],
+  );
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -279,6 +295,40 @@ export const TrackLane: React.FC<TrackLaneProps> = ({
             onMoveClip={onMoveClip}
           />
         ))}
+        {adjustmentLayers.map((layer) => {
+          const ownerClip = track.clips.find(
+            (clip) =>
+              layer.startTime < clip.startTime + clip.duration &&
+              layer.startTime + layer.duration > clip.startTime,
+          ) ?? track.clips[0];
+          return (
+            <AdjustmentLayerTimelineItem
+              key={layer.id}
+              layer={layer}
+              pixelsPerSecond={pixelsPerSecond}
+              frameRate={frameRate}
+              onSelectOwner={() => ownerClip && onSelectClip(ownerClip.id, false)}
+            />
+          );
+        })}
+        {track.type === "video" &&
+          transitionHandles.map((handle) => (
+            <TransitionHandle
+              key={
+                handle.clipB
+                  ? `${handle.clipA.id}-${handle.clipB.id}`
+                  : `${handle.clipA.id}-${handle.edge ?? "out"}`
+              }
+              handle={handle}
+              trackId={track.id}
+              isSelected={
+                handle.transition
+                  ? selectedTransitionId === handle.transition.id
+                  : false
+              }
+              onSelect={onSelectTransition}
+            />
+          ))}
         {isDragOver && (
           <div className="absolute inset-0 border-2 border-dashed border-primary/50 rounded pointer-events-none flex items-center justify-center">
             <span className="text-xs text-primary bg-background/80 px-2 py-1 rounded">

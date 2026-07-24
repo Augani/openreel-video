@@ -1,4 +1,10 @@
 import React, { useState, useCallback, useEffect } from "react";
+import { ToolcraftButton as Button } from "@openreel/ui";
+import { ToolcraftCard as Card } from "@openreel/ui";
+import { ToolcraftClickableCard as ClickableCard } from "@openreel/ui";
+import { ToolcraftText as Text } from "@openreel/ui";
+import { PropertySlider } from "./shell/PropertySlider";
+import { MockToggle } from "./shell/InspectorControls";
 import {
   Smartphone,
   Monitor,
@@ -6,8 +12,7 @@ import {
   Loader2,
   Play,
   CheckCircle,
-} from "lucide-react";
-import { Slider } from "@openreel/ui";
+} from "@/icons/lucide-compat";
 import {
   getAutoReframeEngine,
   initializeAutoReframeEngine,
@@ -27,16 +32,16 @@ interface AutoReframeSectionProps {
   onReframeComplete?: (result: ReframeResult) => void;
 }
 
-const PLATFORM_ICONS: Record<PlatformPreset, React.ReactNode> = {
-  youtube: <Monitor size={14} />,
-  tiktok: <Smartphone size={14} />,
-  "instagram-reels": <Smartphone size={14} />,
-  "instagram-feed": <Square size={14} />,
-  "instagram-stories": <Smartphone size={14} />,
-  "youtube-shorts": <Smartphone size={14} />,
-  facebook: <Monitor size={14} />,
-  twitter: <Monitor size={14} />,
-  linkedin: <Monitor size={14} />,
+const PLATFORM_ICONS: Record<PlatformPreset, React.ElementType> = {
+  youtube: Monitor,
+  tiktok: Smartphone,
+  "instagram-reels": Smartphone,
+  "instagram-feed": Square,
+  "instagram-stories": Smartphone,
+  "youtube-shorts": Smartphone,
+  facebook: Monitor,
+  twitter: Monitor,
+  linkedin: Monitor,
 };
 
 export const AutoReframeSection: React.FC<AutoReframeSectionProps> = ({
@@ -199,188 +204,163 @@ export const AutoReframeSection: React.FC<AutoReframeSectionProps> = ({
     <div className="space-y-3">
       <div className="space-y-3">
         <div>
-          <label className="text-[10px] text-text-secondary block mb-2">
+          <Text type="supporting" color="secondary" className="mb-2 block text-[10px]">
             Platform Presets
-          </label>
-          <div className="grid grid-cols-3 gap-1">
-            {(Object.keys(PLATFORM_PRESETS) as PlatformPreset[]).map(
-              (platform) => (
-                <button
-                  key={platform}
-                  onClick={() => handleSelectPlatform(platform)}
-                  className={`flex items-center gap-1 p-2 rounded text-[9px] transition-colors ${
-                    selectedPlatform === platform
-                      ? "bg-primary/20 border border-primary text-text-primary"
-                      : "bg-background-secondary hover:bg-background-primary border border-transparent text-text-secondary"
-                  }`}
-                >
-                  {PLATFORM_ICONS[platform]}
-                  <span className="truncate">
-                    {PLATFORM_PRESETS[platform].name}
-                  </span>
-                </button>
-              ),
+          </Text>
+            <div className="grid grid-cols-3 gap-1">
+              {(Object.keys(PLATFORM_PRESETS) as PlatformPreset[]).map(
+                (platform) => {
+                  const PlatformIcon = PLATFORM_ICONS[platform];
+                  return (
+                    <ClickableCard
+                      key={platform}
+                      label={`${PLATFORM_PRESETS[platform].name} platform preset`}
+                      onClick={() => handleSelectPlatform(platform)}
+                      className={`flex items-center gap-1 p-2 rounded text-[9px] transition-colors ${
+                        selectedPlatform === platform
+                          ? "bg-primary/20 border border-primary text-fg"
+                          : "bg-bg-1 hover:bg-background-primary border border-transparent text-fg-2"
+                      }`}
+                    >
+                      <PlatformIcon size={14} />
+                      <Text type="supporting" className="truncate text-[9px]">
+                        {PLATFORM_PRESETS[platform].name}
+                      </Text>
+                    </ClickableCard>
+                  );
+                },
             )}
           </div>
         </div>
 
         <div>
-          <label className="text-[10px] text-text-secondary block mb-2">
+          <Text type="supporting" color="secondary" className="mb-2 block text-[10px]">
             Aspect Ratio
-          </label>
+          </Text>
           <div className="grid grid-cols-3 gap-1">
             {(Object.keys(ASPECT_RATIO_PRESETS) as AspectRatioPreset[])
               .filter((r) => r !== "custom")
               .map((ratio) => (
-                <button
+                <ClickableCard
                   key={ratio}
+                  label={`${ratio} aspect ratio`}
                   onClick={() => handleSelectAspectRatio(ratio)}
                   className={`p-2 rounded text-[9px] transition-colors ${
                     reframeSettings.targetAspectRatio === ratio &&
                     !selectedPlatform
-                      ? "bg-primary/20 border border-primary text-text-primary"
-                      : "bg-background-secondary hover:bg-background-primary border border-transparent text-text-secondary"
+                      ? "bg-primary/20 border border-primary text-fg"
+                      : "bg-bg-1 hover:bg-background-primary border border-transparent text-fg-2"
                   }`}
                 >
                   {ratio}
-                </button>
+                </ClickableCard>
               ))}
           </div>
         </div>
 
-        <div>
-          <div className="flex items-center justify-between mb-1">
-            <label className="text-[10px] text-text-secondary">
-              Tracking Speed
-            </label>
-            <span className="text-[10px] text-text-muted font-mono">
-              {Math.round(reframeSettings.trackingSpeed * 100)}%
-            </span>
-          </div>
-          <Slider
-            min={0}
-            max={100}
-            step={1}
-            value={[reframeSettings.trackingSpeed * 100]}
-            onValueChange={(value) =>
-              updateLocalSettings({
-                trackingSpeed: value[0] / 100,
-              })
-            }
-          />
-        </div>
+        <PropertySlider
+          label="Tracking Speed"
+          min={0}
+          max={100}
+          step={1}
+          value={reframeSettings.trackingSpeed * 100}
+          onChange={(value: number) =>
+            updateLocalSettings({
+              trackingSpeed: value / 100,
+            })
+          }
+          formatValue={(value) => `${Math.round(value)}%`}
+        />
 
-        <div>
-          <div className="flex items-center justify-between mb-1">
-            <label className="text-[10px] text-text-secondary">Smoothing</label>
-            <span className="text-[10px] text-text-muted font-mono">
-              {Math.round(reframeSettings.smoothing * 100)}%
-            </span>
-          </div>
-          <Slider
-            min={0}
-            max={100}
-            step={1}
-            value={[reframeSettings.smoothing * 100]}
-            onValueChange={(value) =>
-              updateLocalSettings({ smoothing: value[0] / 100 })
-            }
-          />
-        </div>
+        <PropertySlider
+          label="Smoothing"
+          min={0}
+          max={100}
+          step={1}
+          value={reframeSettings.smoothing * 100}
+          onChange={(value: number) => updateLocalSettings({ smoothing: value / 100 })}
+          formatValue={(value) => `${Math.round(value)}%`}
+        />
 
-        <div>
-          <div className="flex items-center justify-between mb-1">
-            <label className="text-[10px] text-text-secondary">
-              Center Bias
-            </label>
-            <span className="text-[10px] text-text-muted font-mono">
-              {Math.round(reframeSettings.centerBias * 100)}%
-            </span>
-          </div>
-          <Slider
-            min={0}
-            max={100}
-            step={1}
-            value={[reframeSettings.centerBias * 100]}
-            onValueChange={(value) =>
-              updateLocalSettings({
-                centerBias: value[0] / 100,
-              })
-            }
-          />
-        </div>
+        <PropertySlider
+          label="Center Bias"
+          min={0}
+          max={100}
+          step={1}
+          value={reframeSettings.centerBias * 100}
+          onChange={(value: number) =>
+            updateLocalSettings({
+              centerBias: value / 100,
+            })
+          }
+          formatValue={(value) => `${Math.round(value)}%`}
+        />
 
         <div className="flex items-center justify-between">
-          <label className="text-[10px] text-text-secondary">
+          <Text type="supporting" color="secondary" className="text-[10px]">
             Follow Subject
-          </label>
-          <button
-            onClick={() =>
+          </Text>
+          <MockToggle
+            ariaLabel="Follow Subject"
+            checked={reframeSettings.followSubject}
+            onChange={() =>
               updateLocalSettings({
                 followSubject: !reframeSettings.followSubject,
               })
             }
-            className={`w-8 h-4 rounded-full transition-colors ${
-              reframeSettings.followSubject
-                ? "bg-primary"
-                : "bg-background-secondary"
-            }`}
-          >
-            <div
-              className={`w-3 h-3 rounded-full bg-white transition-transform ${
-                reframeSettings.followSubject
-                  ? "translate-x-4"
-                  : "translate-x-0.5"
-              }`}
-            />
-          </button>
+          />
         </div>
 
         {isProcessing && (
-          <div className="space-y-1">
+          <Card variant="muted" padding={2} className="space-y-1">
             <div className="flex items-center justify-between">
-              <span className="text-[9px] text-text-muted">
+              <Text type="supporting" color="secondary" className="text-[9px]">
                 {progressMessage}
-              </span>
-              <span className="text-[9px] text-text-muted">{progress}%</span>
+              </Text>
+              <Text type="supporting" color="secondary" className="text-[9px]">
+                {progress}%
+              </Text>
             </div>
-            <div className="h-1 bg-background-secondary rounded-full overflow-hidden">
+            <div className="h-1 bg-bg-1 rounded-full overflow-hidden">
               <div
                 className="h-full bg-primary transition-all duration-300"
                 style={{ width: `${progress}%` }}
               />
             </div>
-          </div>
+          </Card>
         )}
 
-        <button
-          onClick={handleAnalyze}
-          disabled={isInitializing || isProcessing}
-          className="w-full py-2 rounded text-[11px] font-medium transition-colors flex items-center justify-center gap-2 bg-primary hover:bg-primary-hover disabled:bg-primary/50 text-white"
-        >
-          {isInitializing || isProcessing ? (
-            <>
+        <Button
+          label={
+            isInitializing || isProcessing
+              ? isInitializing
+                ? "Initializing..."
+                : "Analyzing..."
+              : isApplied
+                ? "Applied - Click to Reanalyze"
+                : "Analyze & Reframe"
+          }
+          icon={
+            isInitializing || isProcessing ? (
               <Loader2 size={14} className="animate-spin" />
-              {isInitializing ? "Initializing..." : "Analyzing..."}
-            </>
-          ) : isApplied ? (
-            <>
+            ) : isApplied ? (
               <CheckCircle size={14} />
-              Applied - Click to Reanalyze
-            </>
-          ) : (
-            <>
+            ) : (
               <Play size={14} />
-              Analyze & Reframe
-            </>
-          )}
-        </button>
+            )
+          }
+          variant="primary"
+          size="sm"
+          onClick={handleAnalyze}
+          isDisabled={isInitializing || isProcessing}
+          className="w-full justify-center"
+        />
 
-        <div className="text-[9px] text-text-muted text-center">
+        <Text type="supporting" color="secondary" className="text-center text-[9px]">
           Output:{" "}
           {ASPECT_RATIO_PRESETS[reframeSettings.targetAspectRatio].width} x{" "}
           {ASPECT_RATIO_PRESETS[reframeSettings.targetAspectRatio].height}
-        </div>
+        </Text>
       </div>
     </div>
   );

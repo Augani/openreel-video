@@ -314,11 +314,11 @@ describe("Export Readiness - Marker Preservation", () => {
     useProjectStore.getState().createNewProject();
   });
 
-  it("should preserve marker data for export", () => {
+  it("should preserve marker data for export", async () => {
     const store = useProjectStore.getState();
 
-    store.addMarker(5.0, "Scene 1", "#ff0000");
-    store.addMarker(10.5, "Scene 2", "#00ff00");
+    await store.addMarker(5.0, "Scene 1", "#ff0000");
+    await store.addMarker(10.5, "Scene 2", "#00ff00");
 
     const markers = store.getMarkers();
 
@@ -333,14 +333,14 @@ describe("Export Readiness - Marker Preservation", () => {
     expect(scene2?.color).toBe("#00ff00");
   });
 
-  it("should update marker and preserve changes", () => {
+  it("should update marker and preserve changes", async () => {
     const store = useProjectStore.getState();
 
-    store.addMarker(5.0, "Original Label");
+    await store.addMarker(5.0, "Original Label");
     const markers = store.getMarkers();
     const markerId = markers[0].id;
 
-    store.updateMarker(markerId, { label: "Updated Label", time: 7.5 });
+    await store.updateMarker(markerId, { label: "Updated Label", time: 7.5 });
 
     const updated = store.getMarker(markerId);
 
@@ -348,14 +348,14 @@ describe("Export Readiness - Marker Preservation", () => {
     expect(updated?.time).toBe(7.5);
   });
 
-  it("should remove marker correctly", () => {
+  it("should remove marker correctly", async () => {
     const store = useProjectStore.getState();
 
-    store.addMarker(5.0, "To Remove");
+    await store.addMarker(5.0, "To Remove");
     const markers = store.getMarkers();
     const markerId = markers[0].id;
 
-    store.removeMarker(markerId);
+    await store.removeMarker(markerId);
 
     expect(store.getMarker(markerId)).toBeUndefined();
     expect(store.getMarkers().length).toBe(0);

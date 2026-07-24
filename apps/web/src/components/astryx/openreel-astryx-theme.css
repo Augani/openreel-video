@@ -1,0 +1,12 @@
+/* OpenReel brand overrides layered after the prebuilt Astryx Neutral theme. */
+[data-astryx-theme="neutral"] {
+  --color-accent: light-dark(#10b981, #34d399);
+  --color-accent-muted: light-dark(#e6f9f1, #064e3b);
+  --color-text-accent: light-dark(#059669, #6ee7b7);
+  --color-icon-accent: light-dark(#059669, #6ee7b7);
+  --color-on-accent: #ffffff;
+  --font-family-body: "Inter", -apple-system, BlinkMacSystemFont, system-ui,
+    sans-serif;
+  --font-family-heading: "Inter", -apple-system, BlinkMacSystemFont, system-ui,
+    sans-serif;
+}

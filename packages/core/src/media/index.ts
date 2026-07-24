@@ -21,6 +21,19 @@ export {
 } from "./ffmpeg-fallback";
 export type { ProxySettings, TranscodeOptions, AudioProbeResult, AudioStreamInfo } from "./ffmpeg-fallback";
 
+// Native media bridge (desktop) + shared audio-extract helper
+export {
+  getBridge,
+  materializeToTemp,
+  nativeMediaAvailable,
+  proxyViaNative,
+  transcodeViaNative,
+  extractAudioWavViaNative,
+  probeAudioStreamCountViaNative,
+} from "./native-media-bridge";
+export type { NativeMediaBridge } from "./native-media-bridge";
+export { extractAudioWav } from "./extract-audio";
+
 // Media Import Service
 export {
   MediaImportService,

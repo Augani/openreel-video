@@ -4,6 +4,7 @@ import { RecentProjects } from "./RecentProjects";
 
 const mockCheckForRecovery = vi.fn();
 const mockRecoverFromAutoSave = vi.fn();
+const mockTrack = vi.fn();
 
 vi.mock("../../services/auto-save", () => ({
   checkForRecovery: () => mockCheckForRecovery(),
@@ -12,6 +13,11 @@ vi.mock("../../services/auto-save", () => ({
 vi.mock("../../stores/project-store", () => ({
   useProjectStore: (selector: (state: unknown) => unknown) =>
     selector({ recoverFromAutoSave: mockRecoverFromAutoSave }),
+}));
+
+vi.mock("../../hooks/useAnalytics", () => ({
+  AnalyticsEvents: { PROJECT_OPENED: "project_opened" },
+  useAnalytics: () => ({ track: mockTrack }),
 }));
 
 describe("RecentProjects", () => {

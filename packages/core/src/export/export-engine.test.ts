@@ -8,6 +8,8 @@ const {
   mockMediaEngine,
   mockVideoSourceAdd,
   mockAudioSourceAdd,
+  mockVideoSourceConfigs,
+  mockGetFirstEncodableVideoCodec,
   mockOutputStart,
   mockOutputFinalize,
 } = vi.hoisted(() => {
@@ -53,6 +55,8 @@ const {
     mockMediaEngine,
     mockVideoSourceAdd: vi.fn().mockResolvedValue(undefined),
     mockAudioSourceAdd: vi.fn().mockResolvedValue(undefined),
+    mockVideoSourceConfigs: [] as Record<string, unknown>[],
+    mockGetFirstEncodableVideoCodec: vi.fn().mockResolvedValue("avc"),
     mockOutputStart: vi.fn().mockResolvedValue(undefined),
     mockOutputFinalize: vi.fn().mockResolvedValue(undefined),
   };
@@ -89,7 +93,7 @@ vi.mock("../media/mediabunny-engine", () => ({
 vi.mock("mediabunny", () => {
   class MockMp4OutputFormat {
     getSupportedVideoCodecs() {
-      return ["avc"];
+      return ["avc", "hevc"];
     }
 
     getSupportedAudioCodecs() {
@@ -119,7 +123,9 @@ vi.mock("mediabunny", () => {
     add = mockVideoSourceAdd;
     close = vi.fn();
 
-    constructor(_config: Record<string, unknown>) {}
+    constructor(config: Record<string, unknown>) {
+      mockVideoSourceConfigs.push(config);
+    }
   }
 
   class MockAudioBufferSource {
@@ -147,7 +153,7 @@ vi.mock("mediabunny", () => {
     VideoSampleSource: MockVideoSampleSource,
     AudioBufferSource: MockAudioBufferSource,
     VideoSample: MockVideoSample,
-    getFirstEncodableVideoCodec: vi.fn().mockResolvedValue("avc"),
+    getFirstEncodableVideoCodec: mockGetFirstEncodableVideoCodec,
     getFirstEncodableAudioCodec: vi.fn().mockResolvedValue("aac"),
     QUALITY_MEDIUM: 1_000_000,
   };
@@ -239,6 +245,8 @@ describe("ExportEngine", () => {
     mockAudioEngine.isInitialized.mockReturnValue(false);
     mockMediaEngine.isAvailable.mockReturnValue(true);
     mockMediaEngine.getExportDecoder.mockReturnValue(null);
+    mockVideoSourceConfigs.length = 0;
+    mockGetFirstEncodableVideoCodec.mockResolvedValue("avc");
     mockRenderFrame.mockResolvedValue({
       image: { close: vi.fn() },
       width: 1920,
@@ -404,6 +412,36 @@ describe("ExportEngine", () => {
   });
 
   describe("video export", () => {
+    const writableStream = {
+      seek: vi.fn().mockResolvedValue(undefined),
+      write: vi.fn().mockResolvedValue(undefined),
+      close: vi.fn().mockResolvedValue(undefined),
+      abort: vi.fn().mockResolvedValue(undefined),
+    } as unknown as FileSystemWritableFileStream;
+
+    async function drainVideoExport(
+      settings = { ...DEFAULT_VIDEO_SETTINGS, frameRate: 1, width: 640, height: 360 },
+    ): Promise<void> {
+      const project = createMockProject({
+        timeline: createMockTimeline({
+          tracks: [
+            createMockTrack({
+              clips: [createMockClip({ duration: 1, outPoint: 1 })],
+            }),
+          ],
+          duration: 1,
+        }),
+      });
+
+      await exportEngine.initialize();
+      const generator = exportEngine.exportVideo(project, settings, writableStream);
+
+      while (true) {
+        const { done } = await generator.next();
+        if (done) break;
+      }
+    }
+
     it("should render long export audio in chunks and clear cached audio", async () => {
       const project = createMockProject({
         timeline: createMockTimeline({
@@ -444,6 +482,79 @@ describe("ExportEngine", () => {
       expect(mockRenderAudio).toHaveBeenNthCalledWith(3, project, 30, 10);
       expect(mockAudioSourceAdd).toHaveBeenCalledTimes(3);
       expect(mockAudioEngine.clearCache).toHaveBeenCalled();
+    });
+
+    it("prefers hardware WebCodecs for the default browser backend", async () => {
+      mockGetFirstEncodableVideoCodec.mockImplementation(async (codecs) => codecs[0]);
+
+      await drainVideoExport();
+
+      expect(mockGetFirstEncodableVideoCodec).toHaveBeenCalledWith(
+        ["avc", "hevc"],
+        expect.objectContaining({ hardwareAcceleration: "prefer-hardware" }),
+      );
+      expect(mockVideoSourceConfigs[0]).toMatchObject({
+        codec: "avc",
+        hardwareAcceleration: "prefer-hardware",
+      });
+    });
+
+    it("keeps decoder caches warm while throttling browser exports", async () => {
+      await drainVideoExport({
+        ...DEFAULT_VIDEO_SETTINGS,
+        frameRate: 5,
+        width: 640,
+        height: 360,
+      });
+
+      // Caches are released once before muxing and once by the final safety
+      // cleanup, but never in the middle of the five-frame render loop.
+      expect(mockVideoEngine.clearVideoElementCache).toHaveBeenCalledTimes(2);
+      expect(mockVideoEngine.clearCache).toHaveBeenCalledTimes(2);
+      expect(mockMediaEngine.clearFrameCache).toHaveBeenCalledTimes(2);
+    });
+
+    it("falls back to no-preference when hardware WebCodecs is unavailable", async () => {
+      mockGetFirstEncodableVideoCodec.mockImplementation(async (_codecs, options) =>
+        options.hardwareAcceleration === "prefer-hardware" ? null : "avc",
+      );
+
+      await drainVideoExport();
+
+      expect(mockGetFirstEncodableVideoCodec).toHaveBeenNthCalledWith(
+        1,
+        ["avc", "hevc"],
+        expect.objectContaining({ hardwareAcceleration: "prefer-hardware" }),
+      );
+      expect(mockGetFirstEncodableVideoCodec).toHaveBeenNthCalledWith(
+        2,
+        ["avc", "hevc"],
+        expect.objectContaining({ hardwareAcceleration: "no-preference" }),
+      );
+      expect(mockVideoSourceConfigs[0]).toMatchObject({
+        codec: "avc",
+        hardwareAcceleration: "no-preference",
+      });
+    });
+
+    it("tries the requested codec before other container codecs", async () => {
+      mockGetFirstEncodableVideoCodec.mockImplementation(async (codecs) => codecs[0]);
+
+      await drainVideoExport({
+        ...DEFAULT_VIDEO_SETTINGS,
+        codec: "h265",
+        frameRate: 1,
+        width: 640,
+        height: 360,
+      });
+
+      expect(mockGetFirstEncodableVideoCodec).toHaveBeenCalledWith(
+        ["hevc", "avc"],
+        expect.objectContaining({ hardwareAcceleration: "prefer-hardware" }),
+      );
+      expect(mockVideoSourceConfigs[0]).toMatchObject({
+        codec: "hevc",
+      });
     });
   });
 

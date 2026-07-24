@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { subscribeWithSelector, persist } from "zustand/middleware";
+import type { PreviewQuality } from "../components/editor/preview/preview-resolution";
 
 export type PanelId =
   | "mediaLibrary"
@@ -7,7 +8,9 @@ export type PanelId =
   | "effects"
   | "audioMixer"
   | "colorGrading"
-  | "subtitles";
+  | "subtitles"
+  | "ai"
+  | "agentChat";
 
 export type SelectionType =
   | "clip"
@@ -17,7 +20,11 @@ export type SelectionType =
   | "marker"
   | "text-clip"
   | "shape-clip"
-  | "subtitle";
+  | "subtitle"
+  | "transition"
+  | "motion-instance";
+
+export type DesktopPage = "edit" | "motion" | "color" | "deliver";
 
 export interface SelectionItem {
   type: SelectionType;
@@ -71,6 +78,7 @@ export interface UIState {
   showKeyframes: boolean;
   autoScroll: boolean;
   timelineMaximized: boolean;
+  playbackQuality: PreviewQuality;
   activeModal: string | null;
   modalData: Record<string, unknown> | null;
   contextMenu: {
@@ -90,6 +98,8 @@ export interface UIState {
   motionPathClipId: string | null;
   keyframeEditorOpen: boolean;
   inspectorActiveTab: string;
+  desktopPage: DesktopPage;
+  setDesktopPage(page: DesktopPage): void;
   select: (item: SelectionItem, addToSelection?: boolean) => void;
   selectMultiple: (items: SelectionItem[]) => void;
   deselect: (itemId: string) => void;
@@ -117,6 +127,7 @@ export interface UIState {
   setShowKeyframes: (show: boolean) => void;
   setAutoScroll: (enabled: boolean) => void;
   setTimelineMaximized: (maximized: boolean) => void;
+  setPlaybackQuality: (quality: PreviewQuality) => void;
   toggleTimelineMaximized: () => void;
   openModal: (modalId: string, data?: Record<string, unknown>) => void;
   closeModal: () => void;
@@ -191,6 +202,8 @@ const DEFAULT_PANELS: Record<PanelId, PanelState> = {
   audioMixer: { visible: false, width: 300 },
   colorGrading: { visible: false, width: 400 },
   subtitles: { visible: false, width: 300 },
+  ai: { visible: false, width: 300 },
+  agentChat: { visible: false, width: 380 },
 };
 
 export const useUIStore = create<UIState>()(
@@ -214,6 +227,7 @@ export const useUIStore = create<UIState>()(
         showKeyframes: true,
         autoScroll: true,
         timelineMaximized: false,
+        playbackQuality: "auto",
 
         activeModal: null,
         modalData: null,
@@ -233,6 +247,8 @@ export const useUIStore = create<UIState>()(
         keyframeEditorOpen: false,
 
         inspectorActiveTab: "transform",
+
+        desktopPage: "edit",
 
         showWelcomeScreen: true,
         skipWelcomeScreen: false,
@@ -487,6 +503,10 @@ export const useUIStore = create<UIState>()(
           set((state) => ({ timelineMaximized: !state.timelineMaximized }));
         },
 
+        setPlaybackQuality: (quality: PreviewQuality) => {
+          set({ playbackQuality: quality });
+        },
+
         openModal: (modalId: string, data?: Record<string, unknown>) => {
           set({
             activeModal: modalId,
@@ -559,6 +579,8 @@ export const useUIStore = create<UIState>()(
           set({ inspectorActiveTab: tabId });
         },
 
+        setDesktopPage: (page) => set({ desktopPage: page }),
+
         setShowWelcomeScreen: (show: boolean) => {
           set({ showWelcomeScreen: show });
         },
@@ -572,11 +594,18 @@ export const useUIStore = create<UIState>()(
       }),
       {
         name: "openreel-ui-preferences",
-        version: 1,
+        version: 2,
         migrate: (persisted: unknown, version: number) => {
           const state = persisted as Record<string, unknown>;
           if (version === 0) {
             state.snapSettings = DEFAULT_SNAP_SETTINGS;
+          }
+          if (version < 2) {
+            const panels = (state.panels ?? {}) as Record<string, PanelState>;
+            if (!panels.agentChat) {
+              panels.agentChat = DEFAULT_PANELS.agentChat;
+            }
+            state.panels = panels;
           }
           return state;
         },
@@ -590,8 +619,10 @@ export const useUIStore = create<UIState>()(
           showKeyframes: state.showKeyframes,
           autoScroll: state.autoScroll,
           timelineMaximized: state.timelineMaximized,
+          playbackQuality: state.playbackQuality,
           skipWelcomeScreen: state.skipWelcomeScreen,
           inspectorActiveTab: state.inspectorActiveTab,
+          desktopPage: state.desktopPage,
         }),
       },
     ),

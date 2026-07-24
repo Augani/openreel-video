@@ -468,6 +468,8 @@ export function getBlendModeName(mode: BlendMode): string {
     saturation: "Saturation",
     color: "Color",
     luminosity: "Luminosity",
+    add: "Add",
+    "linear-dodge": "Linear Dodge",
   };
   return names[mode] || mode;
 }

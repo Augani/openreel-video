@@ -484,6 +484,41 @@ export class MaskEngine {
     return mask;
   }
 
+  duplicateMask(maskId: string, clipId?: string): Mask | null {
+    const source = this.masks.get(maskId);
+    if (!source) return null;
+
+    const copyPoint = (point: BezierPoint): BezierPoint => ({
+      x: point.x,
+      y: point.y,
+      ...(point.handleIn
+        ? { handleIn: { x: point.handleIn.x, y: point.handleIn.y } }
+        : {}),
+      ...(point.handleOut
+        ? { handleOut: { x: point.handleOut.x, y: point.handleOut.y } }
+        : {}),
+    });
+    const duplicate: Mask = {
+      ...source,
+      id: generateId(),
+      clipId: clipId ?? source.clipId,
+      path: {
+        closed: source.path.closed,
+        points: source.path.points.map(copyPoint),
+      },
+      keyframes: source.keyframes.map((keyframe) => ({
+        ...keyframe,
+        id: generateId(),
+        path: {
+          closed: keyframe.path.closed,
+          points: keyframe.path.points.map(copyPoint),
+        },
+      })),
+    };
+    this.masks.set(duplicate.id, duplicate);
+    return duplicate;
+  }
+
   /** Update the source clip a track-matte mask is bound to. */
   setMatteSource(
     maskId: string,
@@ -506,6 +541,17 @@ export class MaskEngine {
 
   getMasksForClip(clipId: string): Mask[] {
     return Array.from(this.masks.values()).filter((m) => m.clipId === clipId);
+  }
+
+  getAllMasks(): Mask[] {
+    return Array.from(this.masks.values());
+  }
+
+  loadMasks(masks: Mask[]): void {
+    this.masks.clear();
+    for (const mask of masks) {
+      this.masks.set(mask.id, mask);
+    }
   }
 
   updateMaskPath(maskId: string, path: BezierPath): void {
@@ -538,6 +584,16 @@ export class MaskEngine {
       this.masks.set(maskId, {
         ...mask,
         expansion: Math.max(-100, Math.min(100, pixels)),
+      });
+    }
+  }
+
+  setOpacity(maskId: string, opacity: number): void {
+    const mask = this.masks.get(maskId);
+    if (mask) {
+      this.masks.set(maskId, {
+        ...mask,
+        opacity: Math.max(0, Math.min(1, opacity)),
       });
     }
   }
@@ -698,9 +754,12 @@ export class MaskEngine {
     this.ctx.drawImage(this.maskCanvas, 0, 0);
     this.ctx.globalCompositeOperation = "source-over";
     if (mask.opacity < 1) {
-      this.ctx.globalAlpha = mask.opacity;
-      this.ctx.drawImage(this.canvas, 0, 0);
-      this.ctx.globalAlpha = 1;
+      const tempCanvas = new OffscreenCanvas(this.width, this.height);
+      const tempCtx = tempCanvas.getContext("2d")!;
+      tempCtx.globalAlpha = mask.opacity;
+      tempCtx.drawImage(this.canvas, 0, 0);
+      this.ctx.clearRect(0, 0, this.width, this.height);
+      this.ctx.drawImage(tempCanvas, 0, 0);
     }
 
     const result = await createImageBitmap(this.canvas);
@@ -715,11 +774,12 @@ export class MaskEngine {
   private generateMaskFromPath(path: BezierPath, inverted: boolean): void {
     const ctx = this.maskCtx;
 
-    // Fill with white for inverted masks, black otherwise
+    ctx.globalCompositeOperation = "source-over";
     if (inverted) {
       ctx.fillStyle = "white";
       ctx.fillRect(0, 0, this.width, this.height);
-      ctx.fillStyle = "black";
+      ctx.globalCompositeOperation = "destination-out";
+      ctx.fillStyle = "white";
     } else {
       ctx.fillStyle = "white";
     }
@@ -728,6 +788,7 @@ export class MaskEngine {
     this.drawBezierPath(ctx, path);
     ctx.closePath();
     ctx.fill();
+    ctx.globalCompositeOperation = "source-over";
   }
 
   private drawBezierPath(
@@ -768,11 +829,12 @@ export class MaskEngine {
   private generateMaskShape(mask: MaskDefinition): void {
     const ctx = this.maskCtx;
 
-    // Fill with white for inverted masks, black otherwise
+    ctx.globalCompositeOperation = "source-over";
     if (mask.inverted) {
       ctx.fillStyle = "white";
       ctx.fillRect(0, 0, this.width, this.height);
-      ctx.fillStyle = "black";
+      ctx.globalCompositeOperation = "destination-out";
+      ctx.fillStyle = "white";
     } else {
       ctx.fillStyle = "white";
     }
@@ -796,6 +858,7 @@ export class MaskEngine {
 
     ctx.closePath();
     ctx.fill();
+    ctx.globalCompositeOperation = "source-over";
   }
 
   private drawRectangleMask(

@@ -1,6 +1,77 @@
 import type { Project, MediaItem } from "../types";
 import type { IStorageEngine, MediaRecord } from "./types";
 import type { ValidationResult, ProjectFileWithMetadata } from "./schema-types";
+import type {
+  MotionAudioClip,
+  MotionComposition,
+  MotionCompositionInstance,
+  MotionLayer,
+} from "../motion/types";
+import type {
+  MotionShaderCategory,
+  MotionShaderDef,
+  MotionShaderParamDef,
+} from "../motion/shaders/types";
+import { normalizeMotionCamera } from "../motion/motion-camera";
+import { normalizeMotionLights } from "../motion/motion-lights";
+import { normalizeMotionTracks } from "../motion/motion-tracking";
+import { normalizeCreationState } from "../creation";
+
+const MOTION_SHADER_CATEGORIES: ReadonlySet<MotionShaderCategory> = new Set([
+  "fill",
+  "effect",
+  "text",
+]);
+
+function isMotionShaderParamDef(value: unknown): value is MotionShaderParamDef {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+  const param = value as Record<string, unknown>;
+  return (
+    typeof param.name === "string" &&
+    typeof param.label === "string" &&
+    (param.type === "number" || param.type === "color") &&
+    typeof param.default === "number" &&
+    typeof param.min === "number" &&
+    typeof param.max === "number" &&
+    typeof param.step === "number"
+  );
+}
+
+function isMotionShaderDef(value: unknown): value is MotionShaderDef {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+  const def = value as Record<string, unknown>;
+  return (
+    typeof def.id === "string" &&
+    def.id.length > 0 &&
+    typeof def.name === "string" &&
+    typeof def.category === "string" &&
+    MOTION_SHADER_CATEGORIES.has(def.category as MotionShaderCategory) &&
+    typeof def.glsl === "string" &&
+    def.glsl.length > 0 &&
+    Array.isArray(def.params) &&
+    def.params.every(isMotionShaderParamDef)
+  );
+}
+
+export function normalizeGeneratedShaders(
+  value: unknown,
+): readonly MotionShaderDef[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.filter(isMotionShaderDef).map((def) => ({
+    id: def.id,
+    name: def.name,
+    category: def.category,
+    glsl: def.glsl,
+    params: def.params,
+    origin: "generated" as const,
+  }));
+}
 
 export interface ProjectFile {
   readonly version: string;
@@ -8,6 +79,87 @@ export interface ProjectFile {
 }
 
 export const SCHEMA_VERSION = "1.0.0";
+
+function normalizeMotionAudioClips(
+  composition: Pick<MotionComposition, "audioClips">,
+): MotionAudioClip[] {
+  if (!Array.isArray(composition.audioClips)) {
+    return [];
+  }
+  return composition.audioClips.filter(
+    (clip): clip is MotionAudioClip =>
+      !!clip && typeof clip === "object" && typeof clip.id === "string",
+  );
+}
+
+function normalizeMotionLayers(
+  composition: Pick<MotionComposition, "layers">,
+): MotionLayer[] {
+  if (!Array.isArray(composition.layers)) {
+    return [];
+  }
+  return composition.layers.filter(
+    (layer): layer is MotionLayer =>
+      !!layer && typeof layer === "object" && typeof layer.id === "string",
+  );
+}
+
+export function normalizeMotionComposition(
+  composition: MotionComposition,
+): MotionComposition {
+  return {
+    ...composition,
+    layers: normalizeMotionLayers(composition),
+    assets: Array.isArray(composition.assets) ? composition.assets : [],
+    variables: Array.isArray(composition.variables) ? composition.variables : [],
+    markers: Array.isArray(composition.markers) ? composition.markers : [],
+    audioClips: normalizeMotionAudioClips(composition),
+    guides: Array.isArray(composition.guides) ? composition.guides : [],
+    lights: normalizeMotionLights(composition),
+    camera: composition.camera
+      ? normalizeMotionCamera(composition)
+      : undefined,
+    tracks: normalizeMotionTracks(composition),
+  };
+}
+
+export function normalizeProjectMotionFields(project: Project): Project {
+  const motionInstances: MotionCompositionInstance[] = Array.isArray(
+    project.motionInstances,
+  )
+    ? project.motionInstances
+    : [];
+
+  return {
+    ...project,
+    motionCompositions: Array.isArray(project.motionCompositions)
+      ? project.motionCompositions.map(normalizeMotionComposition)
+      : [],
+    motionInstances,
+  };
+}
+
+export function normalizeProjectCreationFields(project: Project): Project {
+  return {
+    ...project,
+    creation: normalizeCreationState(project.creation),
+  };
+}
+
+export function normalizeProjectGeneratedShaderFields(
+  project: Project,
+): Project {
+  return {
+    ...project,
+    generatedShaders: normalizeGeneratedShaders(project.generatedShaders),
+  };
+}
+
+export function normalizeProjectStoredFields(project: Project): Project {
+  return normalizeProjectGeneratedShaderFields(
+    normalizeProjectCreationFields(normalizeProjectMotionFields(project)),
+  );
+}
 
 export class ProjectSerializer {
   private storage: IStorageEngine;
@@ -52,7 +204,7 @@ export class ProjectSerializer {
       return this.migrateProject(projectFile);
     }
 
-    const project = projectFile.project;
+    const project = this.normalizeStoredFields(projectFile.project);
 
     const processedItems: MediaItem[] = project.mediaLibrary.items.map(
       (item: MediaItem) => {
@@ -159,7 +311,8 @@ export class ProjectSerializer {
                 (clip.mediaId.startsWith("text-") ||
                   clip.mediaId.startsWith("shape-") ||
                   clip.mediaId.startsWith("svg-") ||
-                  clip.mediaId.startsWith("sticker-"));
+                  clip.mediaId.startsWith("sticker-") ||
+                  clip.mediaId.startsWith("motion-"));
               if (
                 clip.mediaId &&
                 !isVirtualClip &&
@@ -262,7 +415,11 @@ export class ProjectSerializer {
   }
 
   private migrateProject(projectFile: ProjectFile): Project {
-    return projectFile.project;
+    return this.normalizeStoredFields(projectFile.project);
+  }
+
+  private normalizeStoredFields(project: Project): Project {
+    return normalizeProjectStoredFields(project);
   }
 
   async deleteProject(id: string): Promise<void> {

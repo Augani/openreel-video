@@ -1,6 +1,8 @@
 import React from "react";
-import { Loader2, CheckCircle, XCircle, Clock } from "lucide-react";
-import { Progress, ScrollArea } from "@openreel/ui";
+import { Loader2, CheckCircle, XCircle, Clock } from "@/icons/lucide-compat";
+import { ToolcraftCard as Card } from "@openreel/ui";
+import { ToolcraftProgressBar as ProgressBar } from "@openreel/ui";
+import { ToolcraftText as Text } from "@openreel/ui";
 import {
   useProcessingStore,
   PROCESSING_TYPE_LABELS,
@@ -11,13 +13,13 @@ const TaskItem: React.FC<{ task: ProcessingTask }> = ({ task }) => {
   const getIcon = () => {
     switch (task.status) {
       case "queued":
-        return <Clock size={14} className="text-text-muted" />;
+        return <Clock size={14} className="text-text-muted" aria-hidden />;
       case "processing":
-        return <Loader2 size={14} className="text-blue-400 animate-spin" />;
+        return <Loader2 size={14} className="text-blue-400 animate-spin" aria-hidden />;
       case "completed":
-        return <CheckCircle size={14} className="text-green-400" />;
+        return <CheckCircle size={14} className="text-green-400" aria-hidden />;
       case "failed":
-        return <XCircle size={14} className="text-red-400" />;
+        return <XCircle size={14} className="text-red-400" aria-hidden />;
     }
   };
 
@@ -35,32 +37,44 @@ const TaskItem: React.FC<{ task: ProcessingTask }> = ({ task }) => {
   };
 
   return (
-    <div className="flex items-center gap-3 p-2 bg-black/20 rounded">
+    <Card variant="muted" padding={2} className="flex items-center gap-3 bg-black/20">
       {getIcon()}
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between">
-          <span className="text-xs font-medium text-text-primary truncate">
+          <Text type="supporting" weight="bold" maxLines={1}>
             {PROCESSING_TYPE_LABELS[task.type]}
-          </span>
-          <span className={`text-[10px] ${getStatusColor()}`}>
+          </Text>
+          <Text type="supporting" className={`text-[10px] ${getStatusColor()}`}>
             {task.status === "processing" ? `${task.progress}%` : task.status}
-          </span>
+          </Text>
         </div>
         {task.status === "processing" && (
           <div className="mt-1">
-            <Progress value={task.progress} className="h-1 bg-black/30" />
-            <p className="text-[9px] text-text-muted mt-0.5 truncate">
+            <ProgressBar
+              label={`${PROCESSING_TYPE_LABELS[task.type]} progress`}
+              isLabelHidden
+              value={task.progress}
+              max={100}
+              variant="accent"
+            />
+            <Text
+              type="supporting"
+              color="secondary"
+              display="block"
+              maxLines={1}
+              className="mt-0.5 text-[9px]"
+            >
               {task.message}
-            </p>
+            </Text>
           </div>
         )}
         {task.status === "failed" && task.error && (
-          <p className="text-[9px] text-red-400 mt-0.5 truncate">
+          <Text type="supporting" display="block" maxLines={1} className="mt-0.5 text-[9px] text-red-400">
             {task.error}
-          </p>
+          </Text>
         )}
       </div>
-    </div>
+    </Card>
   );
 };
 
@@ -79,46 +93,56 @@ export const ProcessingOverlay: React.FC = () => {
 
   return (
     <div className="absolute inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50">
-      <div className="bg-background-secondary/95 rounded-xl p-6 max-w-sm w-full mx-4 shadow-2xl border border-border">
+      <Card
+        variant="default"
+        padding={6}
+        className="max-w-sm w-full mx-4 bg-background-secondary/95 shadow-2xl border border-border"
+      >
         <div className="flex items-center gap-3 mb-4">
           <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center">
-            <Loader2 size={20} className="text-blue-400 animate-spin" />
+            <Loader2 size={20} className="text-blue-400 animate-spin" aria-hidden />
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-text-primary">
+            <Text as="h3" type="label" weight="bold" display="block">
               Processing Effects
-            </h3>
-            <p className="text-xs text-text-muted">
+            </Text>
+            <Text type="supporting" color="secondary" display="block">
               {activeTasks.length} task{activeTasks.length !== 1 ? "s" : ""} in
               progress
-            </p>
+            </Text>
           </div>
         </div>
 
         <div className="mb-4">
           <div className="flex items-center justify-between mb-1">
-            <span className="text-[10px] text-text-secondary">
+            <Text type="supporting" color="secondary" className="text-[10px]">
               Overall Progress
-            </span>
-            <span className="text-[10px] text-text-muted font-mono">
+            </Text>
+            <Text type="supporting" color="secondary" className="text-[10px] font-mono">
               {progress}%
-            </span>
+            </Text>
           </div>
-          <Progress value={progress} className="h-2 bg-black/30" />
+          <ProgressBar
+            label="Overall progress"
+            isLabelHidden
+            value={progress}
+            max={100}
+            variant="accent"
+          />
         </div>
 
-        <ScrollArea className="max-h-48">
+        <div className="max-h-48 overflow-y-auto">
           <div className="space-y-2">
             {activeTasks.map((task) => (
               <TaskItem key={task.id} task={task} />
             ))}
           </div>
-        </ScrollArea>
+        </div>
 
-        <p className="text-[10px] text-text-muted text-center mt-4">
+        <Text type="supporting" color="secondary" display="block" justify="center" className="mt-4 text-[10px]">
           Please wait while effects are being applied...
-        </p>
-      </div>
+        </Text>
+      </Card>
     </div>
   );
 };

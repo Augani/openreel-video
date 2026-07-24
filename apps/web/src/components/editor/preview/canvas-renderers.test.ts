@@ -1,7 +1,14 @@
-import { describe, it, expect } from "vitest";
-import { getAnimatedTransform } from "./canvas-renderers";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  getAnimatedTransform,
+  renderTextClipToCanvas,
+} from "./canvas-renderers";
 import { DEFAULT_TRANSFORM, type ClipTransform } from "./types";
-import type { Keyframe } from "@openreel/core";
+import { titleEngine, type Keyframe, type TextClip } from "@openreel/core";
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 describe("getAnimatedTransform", () => {
   const baseTransform: ClipTransform = {
@@ -182,5 +189,68 @@ describe("Playback Transform Consistency", () => {
     expect(correctClipLocalTime).toBe(1);
     expect(incorrectClipLocalTime).toBe(2);
     expect(correctClipLocalTime).not.toBe(incorrectClipLocalTime);
+  });
+});
+
+describe("text preview/export renderer parity", () => {
+  it("routes Paper-shader text through the shared title renderer", () => {
+    const renderedCanvas = document.createElement("canvas");
+    const renderText = vi.spyOn(titleEngine, "renderText").mockReturnValue({
+      canvas: renderedCanvas,
+      width: 1920,
+      height: 1080,
+      textMetrics: { width: 100, height: 40, lines: [] },
+    });
+    const drawImage = vi.fn();
+    const clip: TextClip = {
+      id: "paper-text",
+      trackId: "text-track",
+      startTime: 2,
+      duration: 5,
+      text: "Paper title",
+      style: {
+        fontFamily: "Inter",
+        fontSize: 72,
+        fontWeight: 700,
+        fontStyle: "normal",
+        color: "#ffffff",
+        textAlign: "center",
+        verticalAlign: "middle",
+        lineHeight: 1.2,
+        letterSpacing: 0,
+        shader: {
+          shaderId: "paper-mesh-gradient",
+          params: {
+            color1: "#e0eaff",
+            color2: "#241d9a",
+          },
+        },
+      },
+      transform: {
+        position: { x: 0.5, y: 0.5 },
+        scale: { x: 1, y: 1 },
+        rotation: 0,
+        anchor: { x: 0.5, y: 0.5 },
+        opacity: 1,
+      },
+      keyframes: [],
+    };
+
+    renderTextClipToCanvas(
+      { drawImage } as unknown as CanvasRenderingContext2D,
+      clip,
+      1920,
+      1080,
+      3.25,
+    );
+
+    expect(renderText).toHaveBeenCalledWith(clip, 1920, 1080, 1.25);
+    expect(drawImage).toHaveBeenCalledWith(
+      renderedCanvas,
+      0,
+      0,
+      1920,
+      1080,
+    );
   });
 });

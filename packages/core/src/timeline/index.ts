@@ -43,3 +43,5 @@ export {
   type CreateCompoundClipOptions,
   type FlattenResult,
 } from "./nested-sequence-engine";
+
+export { calculateProjectDuration } from "./project-duration";

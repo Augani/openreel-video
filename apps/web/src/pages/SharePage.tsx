@@ -6,7 +6,12 @@ import {
   AlertCircle,
   ExternalLink,
   Loader2,
-} from "lucide-react";
+} from "@/icons/lucide-compat";
+import {
+  ToolcraftButton as Button,
+  ToolcraftLink as Link,
+  ToolcraftText as Text,
+} from "@openreel/ui";
 import {
   getShareInfo,
   getShareDownloadUrl,
@@ -61,12 +66,21 @@ export const SharePage: React.FC<SharePageProps> = ({ shareId }) => {
     window.location.hash = "#/editor";
   };
 
+  const handleDownload = () => {
+    const link = document.createElement("a");
+    link.href = downloadUrl;
+    if (shareInfo?.filename) {
+      link.download = shareInfo.filename;
+    }
+    link.click();
+  };
+
   if (status === "loading") {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center space-y-4">
           <Loader2 size={48} className="text-primary animate-spin mx-auto" />
-          <p className="text-text-muted">Loading video...</p>
+          <Text type="supporting" color="secondary" className="text-text-muted">Loading video...</Text>
         </div>
       </div>
     );
@@ -80,20 +94,21 @@ export const SharePage: React.FC<SharePageProps> = ({ shareId }) => {
             <AlertCircle size={40} className="text-text-muted" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-text-primary">
+            <Text type="body" color="primary" weight="bold" className="text-2xl text-text-primary">
               Video Not Found
-            </h1>
-            <p className="text-text-muted mt-2">
+            </Text>
+            <Text type="supporting" color="secondary" className="text-text-muted mt-2">
               This video doesn't exist or the link is invalid.
-            </p>
+            </Text>
           </div>
-          <button
+          <Button
+            label="Create Your Own Video"
+            icon={<ExternalLink size={18} aria-hidden />}
+            variant="primary"
+            size="lg"
             onClick={handleCreateProject}
             className="inline-flex items-center gap-2 px-6 py-3 bg-primary hover:bg-primary-hover text-white font-bold rounded-lg transition-colors"
-          >
-            <ExternalLink size={18} />
-            Create Your Own Video
-          </button>
+          />
         </div>
       </div>
     );
@@ -107,21 +122,22 @@ export const SharePage: React.FC<SharePageProps> = ({ shareId }) => {
             <Clock size={40} className="text-warning" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-text-primary">
+            <Text type="body" color="primary" weight="bold" className="text-2xl text-text-primary">
               Link Expired
-            </h1>
-            <p className="text-text-muted mt-2">
+            </Text>
+            <Text type="supporting" color="secondary" className="text-text-muted mt-2">
               This share link has expired. Share links are only valid for 24
               hours.
-            </p>
+            </Text>
           </div>
-          <button
+          <Button
+            label="Create Your Own Video"
+            icon={<ExternalLink size={18} aria-hidden />}
+            variant="primary"
+            size="lg"
             onClick={handleCreateProject}
             className="inline-flex items-center gap-2 px-6 py-3 bg-primary hover:bg-primary-hover text-white font-bold rounded-lg transition-colors"
-          >
-            <ExternalLink size={18} />
-            Create Your Own Video
-          </button>
+          />
         </div>
       </div>
     );
@@ -135,17 +151,18 @@ export const SharePage: React.FC<SharePageProps> = ({ shareId }) => {
             <AlertCircle size={40} className="text-error" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-text-primary">Error</h1>
-            <p className="text-text-muted mt-2">
+            <Text type="body" color="primary" weight="bold" className="text-2xl text-text-primary">Error</Text>
+            <Text type="supporting" color="secondary" className="text-text-muted mt-2">
               {error || "Something went wrong"}
-            </p>
+            </Text>
           </div>
-          <button
+          <Button
+            label="Try Again"
+            variant="primary"
+            size="lg"
             onClick={() => window.location.reload()}
             className="inline-flex items-center gap-2 px-6 py-3 bg-primary hover:bg-primary-hover text-white font-bold rounded-lg transition-colors"
-          >
-            Try Again
-          </button>
+          />
         </div>
       </div>
     );
@@ -155,9 +172,9 @@ export const SharePage: React.FC<SharePageProps> = ({ shareId }) => {
     <div className="min-h-screen bg-background">
       <div className="max-w-4xl mx-auto px-6 py-12 space-y-8">
         <div className="text-center space-y-2">
-          <h1 className="text-2xl font-bold text-text-primary">
+          <Text type="body" color="primary" weight="bold" className="text-2xl text-text-primary">
             {shareInfo?.filename || "Shared Video"}
-          </h1>
+          </Text>
           {shareInfo && (
             <div className="flex items-center justify-center gap-4 text-sm text-text-muted">
               <span>{(shareInfo.size / (1024 * 1024)).toFixed(1)} MB</span>
@@ -177,30 +194,31 @@ export const SharePage: React.FC<SharePageProps> = ({ shareId }) => {
         </div>
 
         <div className="flex items-center justify-center gap-4">
-          <a
-            href={downloadUrl}
-            download={shareInfo?.filename}
+          <Button
+            label="Download"
+            icon={<Download size={18} aria-hidden />}
+            variant="primary"
+            size="lg"
+            onClick={handleDownload}
             className="inline-flex items-center gap-2 px-6 py-3 bg-primary hover:bg-primary-hover text-white font-bold rounded-lg transition-colors"
-          >
-            <Download size={18} />
-            Download
-          </a>
-          <button
+          />
+          <Button
+            label="Create Your Own"
+            icon={<Play size={18} aria-hidden />}
+            variant="secondary"
+            size="lg"
             onClick={handleCreateProject}
             className="inline-flex items-center gap-2 px-6 py-3 bg-background-secondary hover:bg-background-tertiary border border-border text-text-primary font-medium rounded-lg transition-colors"
-          >
-            <Play size={18} />
-            Create Your Own
-          </button>
+          />
         </div>
 
         <div className="text-center">
-          <p className="text-xs text-text-muted">
+          <Text type="supporting" color="secondary" className="text-xs text-text-muted">
             Made with{" "}
-            <a href="#/editor" className="text-primary hover:underline">
+            <Link href="#/editor" className="text-primary hover:underline">
               Open Reel Video
-            </a>
-          </p>
+            </Link>
+          </Text>
         </div>
       </div>
     </div>

@@ -3,6 +3,10 @@ import type { TextAnimation, TextStyle } from "../text/types";
 import type { LayerEffectType } from "../types/effects";
 import type { Clip, EasingType, Transform } from "../types/timeline";
 import type { BlendMode } from "../video/types";
+import type {
+  MotionTemplateCategory,
+  MotionTemplateVariable,
+} from "../motion/motion-template-types";
 
 export type EditingTemplateCategory =
   | "cinema"
@@ -13,7 +17,8 @@ export type EditingTemplateCategory =
   | "color"
   | "overlay"
   | "text-effects"
-  | "transitions";
+  | "transitions"
+  | MotionTemplateCategory;
 
 export type EditingTemplateTargetType = "video" | "image";
 
@@ -187,6 +192,10 @@ export interface EditingTemplate {
   readonly tags: readonly string[];
   readonly supportedTargets?: readonly EditingTemplateTargetType[];
   readonly controls?: readonly EditingTemplateControlDefinition[];
+  readonly motionTemplate?: {
+    readonly category: MotionTemplateCategory;
+    readonly variables: readonly MotionTemplateVariable[];
+  };
   readonly recipe: EditingTemplateRecipe;
 }
 

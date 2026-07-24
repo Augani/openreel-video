@@ -8,7 +8,13 @@ import {
   ChevronRight,
   Check,
   Link,
-} from "lucide-react";
+} from "@/icons/lucide-compat";
+import { ToolcraftButton as Button } from "@openreel/ui";
+import { ToolcraftIconButton as IconButton } from "@openreel/ui";
+import { ToolcraftNumberInputControl } from "@openreel/ui";
+import { ToolcraftSelectableCard as SelectableCard } from "@openreel/ui";
+import { ToolcraftText as Text } from "@openreel/ui";
+import { ToolcraftTextInputControl } from "@openreel/ui";
 import { useProjectStore } from "../../../stores/project-store";
 import { useEngineStore } from "../../../stores/engine-store";
 import type { MultiCamGroup, CameraAngle } from "@openreel/core";
@@ -38,7 +44,7 @@ const AngleCard: React.FC<{
       className={`p-2 rounded-lg border transition-colors cursor-pointer ${
         isActive
           ? "bg-primary/20 border-primary"
-          : "bg-background-tertiary border-border hover:border-primary/50"
+          : "bg-bg-2 border-border hover:border-primary/50"
       }`}
       onClick={onSelect}
     >
@@ -48,19 +54,20 @@ const AngleCard: React.FC<{
           style={{ backgroundColor: angle.color }}
         />
         {isEditing ? (
-          <input
-            type="text"
+          <ToolcraftTextInputControl
+            label="Camera angle name"
+            isLabelHidden
             value={editName}
-            onChange={(e) => setEditName(e.target.value)}
+            onChange={setEditName}
             onBlur={handleSave}
             onKeyDown={(e) => e.key === "Enter" && handleSave()}
             onClick={(e) => e.stopPropagation()}
-            className="flex-1 px-1 py-0.5 text-[10px] bg-background-secondary rounded border border-primary focus:outline-none"
-            autoFocus
+            className="flex-1 px-1 py-0.5 text-[10px] bg-bg-1 rounded border border-primary focus:outline-none"
+            hasAutoFocus
           />
         ) : (
           <span
-            className="flex-1 text-[10px] font-medium text-text-primary"
+            className="flex-1 text-[10px] font-medium text-fg"
             onDoubleClick={(e) => {
               e.stopPropagation();
               setIsEditing(true);
@@ -70,27 +77,31 @@ const AngleCard: React.FC<{
           </span>
         )}
         {isActive && <Check size={12} className="text-primary" />}
-        <button
+        <IconButton
+          label="Remove angle"
+          icon={<Trash2 size={10} />}
+          variant="ghost"
+          size="sm"
           onClick={(e) => {
             e.stopPropagation();
             onRemove();
           }}
-          className="p-1 text-text-muted hover:text-red-400 transition-colors"
-        >
-          <Trash2 size={10} />
-        </button>
+          className="p-1 text-fg-3 hover:text-red-400 transition-colors"
+        />
       </div>
       <div className="mt-1 flex items-center gap-1">
-        <span className="text-[8px] text-text-muted">Offset:</span>
-        <input
-          type="number"
-          value={angle.offset.toFixed(2)}
-          onChange={(e) => onOffsetChange(parseFloat(e.target.value) || 0)}
+        <span className="text-[8px] text-fg-3">Offset:</span>
+        <ToolcraftNumberInputControl
+          label="Angle offset"
+          isLabelHidden
+          size="sm"
+          value={Number(angle.offset.toFixed(2))}
+          onChange={(value) => onOffsetChange(value || 0)}
           onClick={(e) => e.stopPropagation()}
-          className="w-16 px-1 py-0.5 text-[8px] bg-background-secondary rounded border border-border focus:border-primary focus:outline-none"
-          step="0.1"
+          className="w-16 px-1 py-0.5 text-[8px] bg-bg-1 rounded border border-border focus:border-primary focus:outline-none"
+          step={0.1}
         />
-        <span className="text-[8px] text-text-muted">sec</span>
+        <span className="text-[8px] text-fg-3">sec</span>
       </div>
     </div>
   );
@@ -118,23 +129,25 @@ const GroupSection: React.FC<{
   onDelete,
 }) => (
   <div className="border border-border rounded-lg overflow-hidden">
-    <button
+    <Button
+      label={group.name}
+      variant="ghost"
       onClick={onToggle}
-      className="w-full flex items-center gap-2 p-2 bg-background-tertiary hover:bg-background-secondary transition-colors"
+      className="w-full flex items-center gap-2 p-2 bg-bg-2 hover:bg-bg-1 transition-colors"
     >
       {isExpanded ? (
-        <ChevronDown size={12} className="text-text-muted" />
+        <ChevronDown size={12} className="text-fg-3" />
       ) : (
-        <ChevronRight size={12} className="text-text-muted" />
+        <ChevronRight size={12} className="text-fg-3" />
       )}
       <Camera size={12} className="text-primary" />
-      <span className="flex-1 text-left text-[10px] font-medium text-text-primary">
+      <span className="flex-1 text-left text-[10px] font-medium text-fg">
         {group.name}
       </span>
-      <span className="text-[9px] text-text-muted">
+      <span className="text-[9px] text-fg-3">
         {group.angles.length} angles
       </span>
-    </button>
+    </Button>
     {isExpanded && (
       <div className="p-2 space-y-2">
         <div className="grid grid-cols-2 gap-2">
@@ -151,19 +164,21 @@ const GroupSection: React.FC<{
           ))}
         </div>
         <div className="flex gap-1 pt-2 border-t border-border">
-          <button
+          <Button
+            label="Sync Audio"
+            variant="ghost"
+            icon={<Link size={10} />}
             onClick={onSync}
-            className="flex-1 flex items-center justify-center gap-1 py-1.5 text-[9px] text-text-secondary hover:text-text-primary bg-background-tertiary rounded transition-colors"
-          >
-            <Link size={10} />
-            Sync Audio
-          </button>
-          <button
+            className="flex-1 flex items-center justify-center gap-1 py-1.5 text-[9px] text-fg-2 hover:text-fg bg-bg-2 rounded transition-colors"
+          />
+          <IconButton
+            label="Delete camera group"
+            icon={<Trash2 size={10} />}
+            variant="ghost"
+            size="sm"
             onClick={onDelete}
             className="flex items-center justify-center gap-1 px-2 py-1.5 text-[9px] text-red-400 hover:bg-red-400/10 rounded transition-colors"
-          >
-            <Trash2 size={10} />
-          </button>
+          />
         </div>
       </div>
     )}
@@ -236,9 +251,12 @@ export const MultiCameraPanel: React.FC<MultiCameraPanelProps> = () => {
     setExpandedGroups((prev) => new Set([...prev, group.id]));
     setSelectedClips([]);
 
-    useProjectStore.setState((state) => ({
-      project: { ...state.project, modifiedAt: Date.now() },
-    }));
+    void useProjectStore.getState().executeAction({
+      type: "multicam/setAll",
+      id: crypto.randomUUID(),
+      timestamp: Date.now(),
+      params: { groups: multiCamEngine?.getAllGroups() ?? [] },
+    });
   }, [multiCamEngine, selectedClips, groups.length]);
 
   const handleSelectAngle = useCallback(
@@ -320,19 +338,19 @@ export const MultiCameraPanel: React.FC<MultiCameraPanelProps> = () => {
     <div className="space-y-3">
       <div className="flex items-center gap-2 p-2 bg-primary/10 rounded-lg border border-primary/30">
         <Video size={16} className="text-primary" />
-        <div className="flex-1">
-          <span className="text-[11px] font-medium text-text-primary">
+        <div className="flex-1 flex flex-col gap-0.5">
+          <span className="text-[11px] font-medium text-fg">
             Multi-Camera Editing
           </span>
-          <p className="text-[9px] text-text-muted">
+          <Text type="supporting" color="secondary" className="text-[9px] text-fg-3">
             Sync and switch between camera angles
-          </p>
+          </Text>
         </div>
       </div>
 
       {groups.length > 0 && (
         <div className="space-y-2">
-          <span className="text-[10px] font-medium text-text-secondary">
+          <span className="text-[10px] font-medium text-fg-2">
             Camera Groups
           </span>
           {groups.map((group) => (
@@ -357,34 +375,39 @@ export const MultiCameraPanel: React.FC<MultiCameraPanelProps> = () => {
       )}
 
       <div className="space-y-2 pt-2 border-t border-border">
-        <span className="text-[10px] font-medium text-text-secondary">
+        <span className="block text-[10px] font-medium text-fg-2">
           Create New Group
         </span>
-        <p className="text-[9px] text-text-muted">
+        <Text type="supporting" color="secondary" className="block text-[9px] text-fg-3">
           Select 2+ video clips to create a multi-camera group
-        </p>
+        </Text>
 
         {availableClips.length === 0 ? (
           <div className="text-center py-4">
             <Video
               size={24}
-              className="mx-auto mb-2 text-text-muted opacity-50"
+              className="mx-auto mb-2 text-fg-3 opacity-50"
             />
-            <p className="text-[10px] text-text-muted">
+            <Text type="supporting" color="secondary" className="text-[10px] text-fg-3">
               Import video clips to use multi-camera editing
-            </p>
+            </Text>
           </div>
         ) : (
           <>
             <div className="max-h-32 overflow-y-auto space-y-1">
               {availableClips.map((clip) => (
-                <button
+                <SelectableCard
                   key={clip.id}
+                  label={`${clip.name} ${clip.trackName}`}
+                  isSelected={selectedClips.includes(clip.id)}
+                  onChange={() => toggleClipSelection(clip.id)}
                   onClick={() => toggleClipSelection(clip.id)}
+                  padding={2}
+                  variant={selectedClips.includes(clip.id) ? "green" : "muted"}
                   className={`w-full flex items-center gap-2 p-2 rounded-lg text-left transition-colors ${
                     selectedClips.includes(clip.id)
                       ? "bg-primary/20 border border-primary"
-                      : "bg-background-tertiary border border-transparent hover:border-primary/30"
+                      : "bg-bg-2 border border-transparent hover:border-primary/30"
                   }`}
                 >
                   <div
@@ -399,36 +422,36 @@ export const MultiCameraPanel: React.FC<MultiCameraPanelProps> = () => {
                     )}
                   </div>
                   <div className="flex-1">
-                    <span className="text-[10px] text-text-primary">
+                    <span className="text-[10px] text-fg">
                       {clip.name}
                     </span>
-                    <span className="text-[8px] text-text-muted ml-1">
+                    <span className="text-[8px] text-fg-3 ml-1">
                       ({clip.trackName})
                     </span>
                   </div>
-                </button>
+                </SelectableCard>
               ))}
             </div>
 
-            <button
+            <Button
+              label={`Create Group (${selectedClips.length} selected)`}
+              variant="primary"
+              icon={<Plus size={12} />}
               onClick={handleCreateGroup}
-              disabled={selectedClips.length < 2}
+              isDisabled={selectedClips.length < 2}
               className={`w-full flex items-center justify-center gap-2 py-2 text-[10px] rounded-lg transition-colors ${
                 selectedClips.length >= 2
                   ? "bg-primary text-white hover:bg-primary/90"
-                  : "bg-background-tertiary text-text-muted cursor-not-allowed"
+                  : "bg-bg-2 text-fg-3 cursor-not-allowed"
               }`}
-            >
-              <Plus size={12} />
-              Create Group ({selectedClips.length} selected)
-            </button>
+            />
           </>
         )}
       </div>
 
-      <p className="text-[9px] text-text-muted text-center">
+      <Text type="supporting" color="secondary" className="text-[9px] text-fg-3 text-center">
         Switch angles during playback to create cuts
-      </p>
+      </Text>
     </div>
   );
 };

@@ -107,7 +107,7 @@ export default {
         },
       },
       fontFamily: {
-        sans: ["Geist", "-apple-system", "BlinkMacSystemFont", "system-ui", "sans-serif"],
+        sans: ["Inter", "-apple-system", "BlinkMacSystemFont", "system-ui", "sans-serif"],
         mono: ["Geist Mono", "monospace"],
       },
       boxShadow: {

@@ -14,8 +14,12 @@ import {
   Trash2,
   ChevronDown,
   ChevronRight,
-} from "lucide-react";
-import { Slider } from "@openreel/ui";
+} from "@/icons/lucide-compat";
+import { ToolcraftButton as Button } from "@openreel/ui";
+import { ToolcraftCard as Card } from "@openreel/ui";
+import { ToolcraftIconButton as IconButton } from "@openreel/ui";
+import { ToolcraftText as Text } from "@openreel/ui";
+import { PropertySlider } from "./shell/PropertySlider";
 import { useProjectStore } from "../../../stores/project-store";
 import { useTimelineStore } from "../../../stores/timeline-store";
 import {
@@ -366,7 +370,7 @@ const SpeedCurveCanvas: React.FC<{
               : "cursor-crosshair"
         }`}
       />
-      <div className="absolute bottom-1 right-1 text-[8px] text-text-muted pointer-events-none">
+      <div className="absolute bottom-1 right-1 text-[8px] text-fg-3 pointer-events-none">
         Click to add • Drag to move • Click a point to remove
       </div>
     </div>
@@ -397,9 +401,20 @@ export const SpeedRampSection: React.FC<SpeedRampSectionProps> = ({ clip }) => {
   const handleSpeedChange = useCallback(
     (speed: number) => {
       speedEngine.setClipSpeed(clip.id, speed, clip.duration);
-      useProjectStore.setState((state) => ({
-        project: { ...state.project, modifiedAt: Date.now() },
-      }));
+      {
+        const rampData = speedEngine.getClipSpeedData(clip.id);
+        void useProjectStore.getState().executeAction({
+          type: "speed/setRampData",
+          id: crypto.randomUUID(),
+          timestamp: Date.now(),
+          params: {
+            clipId: clip.id,
+            keyframes: rampData?.keyframes,
+            freezeFrames: rampData?.freezeFrames,
+            pitchCorrection: rampData?.pitchCorrection,
+          },
+        });
+      }
     },
     [clip.id, clip.duration, speedEngine],
   );
@@ -421,9 +436,20 @@ export const SpeedRampSection: React.FC<SpeedRampSectionProps> = ({ clip }) => {
   const handleAddKeyframe = useCallback(
     (time: number, speed: number) => {
       speedEngine.addSpeedKeyframe(clip.id, time, speed, "ease-in-out");
-      useProjectStore.setState((state) => ({
-        project: { ...state.project, modifiedAt: Date.now() },
-      }));
+      {
+        const rampData = speedEngine.getClipSpeedData(clip.id);
+        void useProjectStore.getState().executeAction({
+          type: "speed/setRampData",
+          id: crypto.randomUUID(),
+          timestamp: Date.now(),
+          params: {
+            clipId: clip.id,
+            keyframes: rampData?.keyframes,
+            freezeFrames: rampData?.freezeFrames,
+            pitchCorrection: rampData?.pitchCorrection,
+          },
+        });
+      }
     },
     [clip.id, speedEngine],
   );
@@ -431,9 +457,20 @@ export const SpeedRampSection: React.FC<SpeedRampSectionProps> = ({ clip }) => {
   const handleRemoveKeyframe = useCallback(
     (keyframeId: string) => {
       speedEngine.removeSpeedKeyframe(clip.id, keyframeId);
-      useProjectStore.setState((state) => ({
-        project: { ...state.project, modifiedAt: Date.now() },
-      }));
+      {
+        const rampData = speedEngine.getClipSpeedData(clip.id);
+        void useProjectStore.getState().executeAction({
+          type: "speed/setRampData",
+          id: crypto.randomUUID(),
+          timestamp: Date.now(),
+          params: {
+            clipId: clip.id,
+            keyframes: rampData?.keyframes,
+            freezeFrames: rampData?.freezeFrames,
+            pitchCorrection: rampData?.pitchCorrection,
+          },
+        });
+      }
     },
     [clip.id, speedEngine],
   );
@@ -441,9 +478,20 @@ export const SpeedRampSection: React.FC<SpeedRampSectionProps> = ({ clip }) => {
   const handleMoveKeyframe = useCallback(
     (keyframeId: string, time: number, speed: number) => {
       speedEngine.updateSpeedKeyframe(clip.id, keyframeId, { time, speed });
-      useProjectStore.setState((state) => ({
-        project: { ...state.project, modifiedAt: Date.now() },
-      }));
+      {
+        const rampData = speedEngine.getClipSpeedData(clip.id);
+        void useProjectStore.getState().executeAction({
+          type: "speed/setRampData",
+          id: crypto.randomUUID(),
+          timestamp: Date.now(),
+          params: {
+            clipId: clip.id,
+            keyframes: rampData?.keyframes,
+            freezeFrames: rampData?.freezeFrames,
+            pitchCorrection: rampData?.pitchCorrection,
+          },
+        });
+      }
     },
     [clip.id, speedEngine],
   );
@@ -455,18 +503,40 @@ export const SpeedRampSection: React.FC<SpeedRampSectionProps> = ({ clip }) => {
 
     if (relativeTime >= 0 && relativeTime <= clip.duration) {
       speedEngine.createFreezeFrame(clip.id, relativeTime, relativeTime, 2);
-      useProjectStore.setState((state) => ({
-        project: { ...state.project, modifiedAt: Date.now() },
-      }));
+      {
+        const rampData = speedEngine.getClipSpeedData(clip.id);
+        void useProjectStore.getState().executeAction({
+          type: "speed/setRampData",
+          id: crypto.randomUUID(),
+          timestamp: Date.now(),
+          params: {
+            clipId: clip.id,
+            keyframes: rampData?.keyframes,
+            freezeFrames: rampData?.freezeFrames,
+            pitchCorrection: rampData?.pitchCorrection,
+          },
+        });
+      }
     }
   }, [clip.id, clip.startTime, clip.duration, speedEngine, playheadPosition]);
 
   const handleRemoveFreezeFrame = useCallback(
     (freezeId: string) => {
       speedEngine.removeFreezeFrame(clip.id, freezeId);
-      useProjectStore.setState((state) => ({
-        project: { ...state.project, modifiedAt: Date.now() },
-      }));
+      {
+        const rampData = speedEngine.getClipSpeedData(clip.id);
+        void useProjectStore.getState().executeAction({
+          type: "speed/setRampData",
+          id: crypto.randomUUID(),
+          timestamp: Date.now(),
+          params: {
+            clipId: clip.id,
+            keyframes: rampData?.keyframes,
+            freezeFrames: rampData?.freezeFrames,
+            pitchCorrection: rampData?.pitchCorrection,
+          },
+        });
+      }
     },
     [clip.id, speedEngine],
   );
@@ -484,9 +554,20 @@ export const SpeedRampSection: React.FC<SpeedRampSectionProps> = ({ clip }) => {
       }
 
       setShowCurve(true);
-      useProjectStore.setState((state) => ({
-        project: { ...state.project, modifiedAt: Date.now() },
-      }));
+      {
+        const rampData = speedEngine.getClipSpeedData(clip.id);
+        void useProjectStore.getState().executeAction({
+          type: "speed/setRampData",
+          id: crypto.randomUUID(),
+          timestamp: Date.now(),
+          params: {
+            clipId: clip.id,
+            keyframes: rampData?.keyframes,
+            freezeFrames: rampData?.freezeFrames,
+            pitchCorrection: rampData?.pitchCorrection,
+          },
+        });
+      }
     },
     [clip.id, clip.duration, keyframes, speedEngine],
   );
@@ -513,105 +594,92 @@ export const SpeedRampSection: React.FC<SpeedRampSectionProps> = ({ clip }) => {
 
   return (
     <div className="space-y-3">
-      <div className="p-2 bg-background-tertiary rounded-lg border border-border">
-        <p className="text-[10px] text-text-muted">
+      <Card variant="muted" padding={2} className="border border-border">
+        <Text type="supporting" color="secondary" className="text-[10px]">
           Effective duration: {formatDuration(effectiveDuration)}
-        </p>
-      </div>
+        </Text>
+      </Card>
 
       <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <span className="text-[10px] font-medium text-text-secondary">
-            Playback Speed
-          </span>
-          <span className="text-[10px] font-mono text-primary">
-            {currentSpeed.toFixed(2)}x
-          </span>
-        </div>
-        <Slider
+        <PropertySlider
+          label="Playback Speed"
           min={Math.log(SPEED_MIN)}
           max={Math.log(SPEED_MAX)}
           step={0.01}
-          value={[Math.log(currentSpeed)]}
-          onValueChange={(value) => handleSpeedChange(Math.exp(value[0]))}
+          value={Math.log(currentSpeed)}
+          onChange={(value: number) => handleSpeedChange(Math.exp(value))}
+          formatValue={() => `${currentSpeed.toFixed(2)}x`}
         />
-        <div className="flex justify-between text-[8px] text-text-muted">
-          <span>0.1x</span>
-          <span>1x</span>
-          <span>20x</span>
+        <div className="flex justify-between">
+          <Text type="supporting" color="secondary" className="text-[8px]">0.1x</Text>
+          <Text type="supporting" color="secondary" className="text-[8px]">1x</Text>
+          <Text type="supporting" color="secondary" className="text-[8px]">20x</Text>
         </div>
       </div>
 
       <div className="grid grid-cols-4 gap-1">
         {SPEED_PRESETS.map((preset) => (
-          <button
+          <Button
             key={preset.id}
+            label={preset.name}
+            variant={Math.abs(currentSpeed - preset.speed) < 0.01 ? "primary" : "secondary"}
+            size="sm"
             onClick={() => handleSpeedChange(preset.speed)}
-            className={`py-1.5 px-2 text-[9px] rounded-lg border transition-colors ${
-              Math.abs(currentSpeed - preset.speed) < 0.01
-                ? "bg-primary/20 border-primary text-primary"
-                : "bg-background-tertiary border-border text-text-secondary hover:border-primary/50"
-            }`}
-          >
-            {preset.name}
-          </button>
+            className="text-[9px]"
+          />
         ))}
       </div>
 
       <div className="flex gap-2">
-        <button
+        <Button
+          label="Reverse"
+          icon={<RotateCcw size={12} aria-hidden />}
+          variant={isReverse ? "primary" : "secondary"}
+          size="sm"
           onClick={handleReverseToggle}
-          className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-[10px] rounded-lg border transition-colors ${
-            isReverse
-              ? "bg-primary/20 border-primary text-primary"
-              : "bg-background-tertiary border-border text-text-secondary hover:border-primary/50"
-          }`}
-        >
-          <RotateCcw size={12} />
-          Reverse
-        </button>
-        <button
+          className="flex-1"
+        />
+        <Button
+          label="Pitch Correct"
+          variant={pitchCorrection ? "primary" : "secondary"}
+          size="sm"
           onClick={handlePitchCorrectionToggle}
-          className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-[10px] rounded-lg border transition-colors ${
-            pitchCorrection
-              ? "bg-primary/20 border-primary text-primary"
-              : "bg-background-tertiary border-border text-text-secondary hover:border-primary/50"
-          }`}
-        >
-          Pitch Correct
-        </button>
+          className="flex-1"
+        />
       </div>
 
       <div className="space-y-1.5">
-        <span className="text-[10px] font-medium text-text-secondary">
+        <Text type="supporting" color="secondary" weight="bold" className="text-[10px]">
           Speed Curve Presets
-        </span>
+        </Text>
         <div className="grid grid-cols-2 gap-1">
           {SPEED_CURVE_PRESETS.map((preset) => (
-            <button
+            <Button
               key={preset.id}
+              label={preset.name}
+              variant="secondary"
+              size="sm"
               onClick={() => handleApplyCurvePreset(preset.id)}
-              className="py-1.5 px-2 text-[9px] rounded-lg border bg-background-tertiary border-border text-text-secondary hover:border-primary/50 hover:text-primary transition-colors text-left"
-              title={preset.description}
-            >
-              {preset.name}
-            </button>
+              className="justify-start text-[9px]"
+            />
           ))}
         </div>
       </div>
 
-      <button
+      <Button
+        label={`Speed Ramping${keyframes.length > 0 ? ` (${keyframes.length} keyframes)` : ""}`}
+        icon={
+          showCurve ? (
+            <ChevronDown size={12} aria-hidden />
+          ) : (
+            <ChevronRight size={12} aria-hidden />
+          )
+        }
+        variant="ghost"
+        size="sm"
         onClick={() => setShowCurve(!showCurve)}
-        className="w-full flex items-center gap-2 py-2 text-[10px] text-text-secondary hover:text-text-primary transition-colors"
-      >
-        {showCurve ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-        <span className="font-medium">Speed Ramping</span>
-        {keyframes.length > 0 && (
-          <span className="ml-auto text-[9px] text-primary">
-            {keyframes.length} keyframes
-          </span>
-        )}
-      </button>
+        className="w-full justify-start"
+      />
 
       {showCurve && (
         <div className="space-y-2">
@@ -627,88 +695,102 @@ export const SpeedRampSection: React.FC<SpeedRampSectionProps> = ({ clip }) => {
           {keyframes.length > 0 && (
             <div className="space-y-1 max-h-24 overflow-y-auto">
               {keyframes.map((kf, index) => (
-                <div
+                <Card
                   key={kf.id}
-                  className="flex items-center gap-2 p-1.5 bg-background-tertiary rounded text-[9px]"
+                  variant="muted"
+                  padding={2}
+                  className="flex items-center gap-2"
                 >
-                  <span className="text-text-muted">#{index + 1}</span>
-                  <span className="text-text-secondary">
+                  <Text type="supporting" color="secondary" className="text-[9px]">
+                    #{index + 1}
+                  </Text>
+                  <Text type="supporting" color="secondary" className="text-[9px]">
                     {kf.time.toFixed(2)}s
-                  </span>
-                  <span className="text-primary font-mono">
+                  </Text>
+                  <Text type="supporting" color="primary" className="text-[9px] font-mono">
                     {kf.speed.toFixed(2)}x
-                  </span>
-                  <button
+                  </Text>
+                  <IconButton
+                    label="Remove speed keyframe"
+                    icon={<Trash2 size={10} aria-hidden />}
+                    variant="ghost"
+                    size="sm"
                     onClick={() => handleRemoveKeyframe(kf.id)}
-                    className="ml-auto p-0.5 text-text-muted hover:text-red-400"
-                  >
-                    <Trash2 size={10} />
-                  </button>
-                </div>
+                    className="ml-auto text-fg-3 hover:text-red-400"
+                  />
+                </Card>
               ))}
             </div>
           )}
         </div>
       )}
 
-      <button
+      <Button
+        label={`Freeze Frames${freezeFrames.length > 0 ? ` (${freezeFrames.length} freeze)` : ""}`}
+        icon={
+          isExpanded ? (
+            <ChevronDown size={12} aria-hidden />
+          ) : (
+            <ChevronRight size={12} aria-hidden />
+          )
+        }
+        variant="ghost"
+        size="sm"
         onClick={() => setIsExpanded(!isExpanded)}
-        className="w-full flex items-center gap-2 py-2 text-[10px] text-text-secondary hover:text-text-primary transition-colors"
-      >
-        {isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-        <span className="font-medium">Freeze Frames</span>
-        {freezeFrames.length > 0 && (
-          <span className="ml-auto text-[9px] text-primary">
-            {freezeFrames.length} freeze
-          </span>
-        )}
-      </button>
+        className="w-full justify-start"
+      />
 
       {isExpanded && (
         <div className="space-y-2">
-          <button
+          <Button
+            label="Add Freeze Frame at Playhead"
+            icon={<Pause size={12} aria-hidden />}
+            variant="primary"
+            size="sm"
             onClick={handleCreateFreezeFrame}
-            className="w-full flex items-center justify-center gap-1.5 py-2 text-[10px] bg-primary/20 border border-primary/30 text-primary rounded-lg hover:bg-primary/20 transition-colors"
-          >
-            <Pause size={12} />
-            Add Freeze Frame at Playhead
-          </button>
+            className="w-full"
+          />
 
           {freezeFrames.length > 0 && (
             <div className="space-y-1 max-h-24 overflow-y-auto">
               {freezeFrames.map((ff) => (
-                <div
+                <Card
                   key={ff.id}
-                  className="flex items-center gap-2 p-1.5 bg-background-tertiary rounded text-[9px]"
+                  variant="muted"
+                  padding={2}
+                  className="flex items-center gap-2"
                 >
-                  <Pause size={10} className="text-primary" />
-                  <span className="text-text-secondary">
+                  <Pause size={10} className="text-primary" aria-hidden />
+                  <Text type="supporting" color="secondary" className="text-[9px]">
                     {ff.startTime.toFixed(2)}s
-                  </span>
-                  <span className="text-text-muted">for</span>
-                  <span className="text-primary font-mono">
+                  </Text>
+                  <Text type="supporting" color="secondary" className="text-[9px]">for</Text>
+                  <Text type="supporting" color="primary" className="text-[9px] font-mono">
                     {ff.duration.toFixed(1)}s
-                  </span>
-                  <button
+                  </Text>
+                  <IconButton
+                    label="Remove freeze frame"
+                    icon={<Trash2 size={10} aria-hidden />}
+                    variant="ghost"
+                    size="sm"
                     onClick={() => handleRemoveFreezeFrame(ff.id)}
-                    className="ml-auto p-0.5 text-text-muted hover:text-red-400"
-                  >
-                    <Trash2 size={10} />
-                  </button>
-                </div>
+                    className="ml-auto text-fg-3 hover:text-red-400"
+                  />
+                </Card>
               ))}
             </div>
           )}
         </div>
       )}
 
-      <button
+      <Button
+        label="Reset Speed & Effects"
+        icon={<RotateCcw size={12} aria-hidden />}
+        variant="secondary"
+        size="sm"
         onClick={handleReset}
-        className="w-full flex items-center justify-center gap-1.5 py-2 text-[10px] bg-background-tertiary border border-border text-text-secondary rounded-lg hover:border-red-500/50 hover:text-red-400 transition-colors"
-      >
-        <RotateCcw size={12} />
-        Reset Speed & Effects
-      </button>
+        className="w-full text-red-400"
+      />
     </div>
   );
 };

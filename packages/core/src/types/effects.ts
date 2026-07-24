@@ -578,39 +578,64 @@ export function createDefaultEffect(
   };
 }
 
-export type VideoFilterType =
-  | "brightness"
-  | "contrast"
-  | "saturation"
-  | "hue"
-  | "blur"
-  | "sharpen"
-  | "vignette"
-  | "grain"
-  | "colorWheels"
-  | "curves"
-  | "lut"
-  | "hsl"
-  | "chromaKey"
-  | "mask";
-export type AudioEffectType =
-  | "gain"
-  | "pan"
-  | "eq"
-  | "compressor"
-  | "reverb"
-  | "delay"
-  | "noiseReduction"
-  | "fadeIn"
-  | "fadeOut";
-export type TransitionType =
-  | "crossfade"
-  | "dipToBlack"
-  | "dipToWhite"
-  | "wipe"
-  | "slide"
-  | "zoom"
-  | "push";
+export const VIDEO_FILTER_TYPES = [
+  "brightness",
+  "contrast",
+  "saturation",
+  "hue",
+  "blur",
+  "sharpen",
+  "vignette",
+  "grain",
+  "colorWheels",
+  "curves",
+  "lut",
+  "hsl",
+  "chromaKey",
+  "mask",
+] as const;
+export type VideoFilterType = (typeof VIDEO_FILTER_TYPES)[number];
+
+export const AUDIO_EFFECT_TYPES = [
+  "gain",
+  "pan",
+  "eq",
+  "compressor",
+  "reverb",
+  "delay",
+  "noiseReduction",
+  "fadeIn",
+  "fadeOut",
+] as const;
+export type AudioEffectType = (typeof AUDIO_EFFECT_TYPES)[number];
+
+export const TRANSITION_TYPES = [
+  "crossfade",
+  "dipToBlack",
+  "dipToWhite",
+  "wipe",
+  "slide",
+  "zoom",
+  "push",
+  "circleReveal",
+  "blur",
+  "whipPan",
+  "radialWipe",
+  "pixelate",
+  "glitch",
+  "blinds",
+  "diamondReveal",
+  "spin",
+  "flip",
+  "splitReveal",
+  "flash",
+  "filmBurn",
+  "mosaic",
+  "ripple",
+  "pageTurn",
+  "colorSplit",
+] as const;
+export type TransitionType = (typeof TRANSITION_TYPES)[number];
 
 // Curve point for color grading
 export interface CurvePoint {
@@ -788,5 +813,82 @@ export interface TransitionParams {
   push: {
     duration: number;
     direction: "left" | "right" | "up" | "down";
+  };
+  circleReveal: {
+    duration: number;
+    center: { x: number; y: number };
+  };
+  blur: {
+    duration: number;
+    intensity: number;
+  };
+  whipPan: {
+    duration: number;
+    direction: "left" | "right" | "up" | "down";
+    blurIntensity: number;
+  };
+  radialWipe: {
+    duration: number;
+    startAngle: number;
+    clockwise: boolean;
+  };
+  pixelate: {
+    duration: number;
+    maxPixelSize: number;
+  };
+  glitch: {
+    duration: number;
+    intensity: number;
+    slices: number;
+  };
+  blinds: {
+    duration: number;
+    count: number;
+    direction: "vertical" | "horizontal";
+  };
+  diamondReveal: {
+    duration: number;
+    center: { x: number; y: number };
+  };
+  spin: {
+    duration: number;
+    rotations: number;
+  };
+  flip: {
+    duration: number;
+    axis: "horizontal" | "vertical";
+  };
+  splitReveal: {
+    duration: number;
+    orientation: "horizontal" | "vertical";
+  };
+  flash: {
+    duration: number;
+    intensity: number;
+  };
+  filmBurn: {
+    duration: number;
+    intensity: number;
+    warmth: number;
+  };
+  mosaic: {
+    duration: number;
+    tiles: number;
+    randomness: number;
+  };
+  ripple: {
+    duration: number;
+    amplitude: number;
+    waves: number;
+  };
+  pageTurn: {
+    duration: number;
+    direction: "left" | "right";
+    shadow: number;
+  };
+  colorSplit: {
+    duration: number;
+    maxOffset: number;
+    angle: number;
   };
 }

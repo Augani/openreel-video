@@ -1,0 +1,11 @@
+{
+  "name": "@openreel/creation-core",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Native (C++20) creation engine core: C ABI over geometry/sdf/rig/sim/render kernels. The TypeScript CPU reference lives in @openreel/core/creation and is mirrored here for native builds.",
+  "scripts": {
+    "build:native": "cmake -S . -B build && cmake --build build",
+    "build:wasm": "emcmake cmake -S . -B build-wasm && cmake --build build-wasm",
+    "test:native": "cmake -S . -B build && cmake --build build && ctest --test-dir build --output-on-failure"
+  }
+}

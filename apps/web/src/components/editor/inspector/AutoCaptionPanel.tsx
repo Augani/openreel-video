@@ -1,5 +1,9 @@
 import React, { useState, useCallback, useMemo } from "react";
-import { Mic, MicOff, Languages, AlertCircle } from "lucide-react";
+import { ToolcraftButton as Button } from "@openreel/ui";
+import { ToolcraftCard as Card } from "@openreel/ui";
+import { ToolcraftSelectControl as Selector } from "@openreel/ui";
+import { ToolcraftText as Text } from "@openreel/ui";
+import { Mic, MicOff, Languages, AlertCircle } from "@/icons/lucide-compat";
 import { useEngineStore } from "../../../stores/engine-store";
 import { useProjectStore } from "../../../stores/project-store";
 import { SpeechToTextEngine } from "@openreel/core";
@@ -7,13 +11,6 @@ import type {
   TranscriptionProgress,
   TranscriptionSegment,
 } from "@openreel/core";
-import {
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
-} from "@openreel/ui";
 
 const CAPTION_STYLE_PRESETS = [
   {
@@ -128,128 +125,139 @@ export const AutoCaptionPanel: React.FC = () => {
       <div className="p-4 space-y-3">
         <div className="flex items-center gap-2 text-status-warning">
           <AlertCircle size={16} />
-          <span className="text-[11px] font-medium">Browser Not Supported</span>
+          <Text type="supporting" className="text-[11px] font-medium">
+            Browser Not Supported
+          </Text>
         </div>
-        <p className="text-[10px] text-text-muted">
+        <Text type="supporting" color="secondary" className="text-[10px]">
           Auto-captions require Chrome or Edge browser with Speech Recognition
           API support.
-        </p>
+        </Text>
       </div>
     );
   }
 
   return (
     <div className="space-y-4 w-full min-w-0 max-w-full">
-      <div className="flex items-center gap-2 p-2 bg-primary/10 rounded-lg border border-primary/30">
+      <Card variant="muted" padding={2} className="flex items-center gap-2 border border-primary/30 bg-primary/10">
         <Mic size={16} className="text-primary" />
-        <div>
-          <span className="text-[11px] font-medium text-text-primary">
+        <div className="flex flex-col gap-0.5">
+          <Text type="supporting" color="primary" className="block text-[11px] font-medium">
             Auto-Caption
-          </span>
-          <p className="text-[9px] text-text-muted">
+          </Text>
+          <Text type="supporting" color="secondary" className="block text-[9px]">
             Generate captions from speech
-          </p>
+          </Text>
         </div>
-      </div>
+      </Card>
 
-      <div className="space-y-3 p-3 bg-background-tertiary rounded-lg">
+      <Card variant="muted" padding={3} className="space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Languages size={14} className="text-text-secondary" />
-            <span className="text-[10px] text-text-secondary">Language</span>
+            <Languages size={14} className="text-fg-2" />
+            <Text type="supporting" color="secondary" className="text-[10px]">
+              Language
+            </Text>
           </div>
-          <Select
+          <Selector
+            label="Language"
+            isLabelHidden
+            size="sm"
+            width={140}
             value={selectedLanguage}
-            onValueChange={setSelectedLanguage}
-            disabled={isTranscribing}
-          >
-            <SelectTrigger className="w-auto min-w-[100px] bg-background-secondary border-border text-text-primary text-[10px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent className="bg-background-secondary border-border">
-              {languages.map((lang) => (
-                <SelectItem key={lang.code} value={lang.code}>
-                  {lang.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            onChange={setSelectedLanguage}
+            isDisabled={isTranscribing}
+            options={languages.map((lang) => ({
+              label: lang.name,
+              value: lang.code,
+            }))}
+          />
         </div>
 
         <div className="flex items-center justify-between">
-          <span className="text-[10px] text-text-secondary">Caption Style</span>
-          <Select
+          <Text type="supporting" color="secondary" className="text-[10px]">
+            Caption Style
+          </Text>
+          <Selector
+            label="Caption Style"
+            isLabelHidden
+            size="sm"
+            width={140}
             value={selectedStyle}
-            onValueChange={setSelectedStyle}
-            disabled={isTranscribing}
-          >
-            <SelectTrigger className="w-auto min-w-[100px] bg-background-secondary border-border text-text-primary text-[10px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent className="bg-background-secondary border-border">
-              {CAPTION_STYLE_PRESETS.map((preset) => (
-                <SelectItem key={preset.id} value={preset.id}>
-                  {preset.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            onChange={setSelectedStyle}
+            isDisabled={isTranscribing}
+            options={CAPTION_STYLE_PRESETS.map((preset) => ({
+              label: preset.name,
+              value: preset.id,
+            }))}
+          />
         </div>
-      </div>
+      </Card>
 
       {error && (
-        <div className="flex items-center gap-2 p-2 bg-red-500/10 border border-red-500/30 rounded-lg">
+        <Card variant="muted" padding={2} className="flex items-center gap-2 border border-red-500/30 bg-red-500/10">
           <AlertCircle size={14} className="text-red-400" />
-          <span className="text-[10px] text-red-400">{error}</span>
-        </div>
+          <Text type="supporting" className="text-[10px] text-red-400">
+            {error}
+          </Text>
+        </Card>
       )}
 
       {isTranscribing && progress && (
-        <div className="space-y-2 p-3 bg-background-tertiary rounded-lg">
+        <Card variant="muted" padding={3} className="space-y-2">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] text-text-secondary">Status</span>
+            <Text type="supporting" color="secondary" className="text-[10px]">
+              Status
+            </Text>
             <div className="flex items-center gap-1">
               <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
-              <span className="text-[10px] text-red-400">Recording</span>
+              <Text type="supporting" className="text-[10px] text-red-400">
+                Recording
+              </Text>
             </div>
           </div>
           <div className="flex items-center justify-between">
-            <span className="text-[10px] text-text-secondary">
+            <Text type="supporting" color="secondary" className="text-[10px]">
               Segments Found
-            </span>
-            <span className="text-[10px] text-text-primary font-mono">
+            </Text>
+            <Text type="supporting" color="primary" className="font-mono text-[10px]">
               {progress.segmentsFound}
-            </span>
+            </Text>
           </div>
-        </div>
+        </Card>
       )}
 
       {segments.length > 0 && !isTranscribing && (
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] text-text-secondary">
+            <Text type="supporting" color="secondary" className="text-[10px]">
               {segments.length} caption{segments.length !== 1 ? "s" : ""}{" "}
               detected
-            </span>
-            <button
+            </Text>
+            <Button
+              label="Add to Timeline"
+              variant="primary"
+              size="sm"
               onClick={handleApplySegments}
               className="px-2 py-1 text-[10px] bg-primary text-white rounded hover:bg-primary/80 transition-colors"
-            >
-              Add to Timeline
-            </button>
+            />
           </div>
           <div className="max-h-32 overflow-y-auto space-y-1">
             {segments.map((segment, index) => (
-              <div
+              <Card
                 key={index}
-                className="p-2 bg-background-secondary rounded text-[10px] text-text-primary"
+                variant="muted"
+                padding={2}
+                className="p-2 bg-bg-1 rounded text-[10px] text-fg"
               >
-                <span className="text-text-muted font-mono">
+                <Text as="span" type="supporting" color="secondary" className="font-mono">
                   [{segment.startTime.toFixed(1)}s -{" "}
                   {segment.endTime.toFixed(1)}s]
-                </span>
-                <span className="ml-2">{segment.text}</span>
-              </div>
+                </Text>
+                <Text as="span" type="supporting" color="primary" className="ml-2">
+                  {segment.text}
+                </Text>
+              </Card>
             ))}
           </div>
         </div>
@@ -257,28 +265,30 @@ export const AutoCaptionPanel: React.FC = () => {
 
       <div className="flex gap-2">
         {!isTranscribing ? (
-          <button
+          <Button
+            label="Start Recording"
+            icon={<Mic size={16} />}
+            variant="primary"
+            size="md"
             onClick={handleStartTranscription}
             className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-primary text-white rounded-lg hover:bg-primary/80 transition-colors"
-          >
-            <Mic size={16} />
-            <span className="text-[11px] font-medium">Start Recording</span>
-          </button>
+          />
         ) : (
-          <button
+          <Button
+            label="Stop Recording"
+            icon={<MicOff size={16} />}
+            variant="primary"
+            size="md"
             onClick={handleStopTranscription}
             className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
-          >
-            <MicOff size={16} />
-            <span className="text-[11px] font-medium">Stop Recording</span>
-          </button>
+          />
         )}
       </div>
 
-      <p className="text-[9px] text-text-muted text-center">
+      <Text type="supporting" color="secondary" className="text-center text-[9px]">
         Speak clearly into your microphone. Captions will be generated in
         real-time.
-      </p>
+      </Text>
     </div>
   );
 };

@@ -1,5 +1,10 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { ChevronDown, Volume2 } from "lucide-react";
+import { ToolcraftCard as Card } from "@openreel/ui";
+import { ToolcraftIconButton as IconButton } from "@openreel/ui";
+import { ToolcraftText as Text } from "@openreel/ui";
+import { ChevronDown, Volume2 } from "@/icons/lucide-compat";
+import { PropertySlider } from "./shell/PropertySlider";
+import { MockSlider, MockToggle } from "./shell/InspectorControls";
 import {
   getAudioBridgeEffects,
   initializeAudioBridgeEffects,
@@ -10,7 +15,6 @@ import {
   DEFAULT_EQ_BANDS,
 } from "../../../bridges/audio-bridge-effects";
 import { useProjectStore } from "../../../stores/project-store";
-import { LabeledSlider as Slider } from "@openreel/ui";
 
 const SubSection: React.FC<{
   title: string;
@@ -22,45 +26,42 @@ const SubSection: React.FC<{
   const [isOpen, setIsOpen] = useState(defaultOpen);
 
   return (
-    <div
-      className={`border rounded-lg overflow-hidden ${
+    <Card
+      variant="muted"
+      padding={0}
+      className={`border overflow-hidden ${
         enabled ? "border-border" : "border-border/50 opacity-60"
       }`}
     >
-      <div className="flex items-center gap-2 p-2 bg-background-tertiary">
-        <button
+      <div className="flex items-center gap-2 p-2 bg-bg-2">
+        <IconButton
+          label={`${isOpen ? "Collapse" : "Expand"} ${title}`}
+          icon={
+            <ChevronDown
+              size={12}
+              className={`transition-transform ${
+                isOpen ? "" : "-rotate-90"
+              } text-fg-3`}
+            />
+          }
+          variant="ghost"
+          size="sm"
           onClick={() => setIsOpen(!isOpen)}
           className="flex-1 flex items-center gap-1"
-        >
-          <ChevronDown
-            size={12}
-            className={`transition-transform ${
-              isOpen ? "" : "-rotate-90"
-            } text-text-muted`}
-          />
-          <span className="text-[10px] font-medium text-text-primary">
+        />
+        <Text type="supporting" color="primary" className="flex-1 text-[10px] font-medium">
             {title}
-          </span>
-        </button>
+        </Text>
         {onToggle && (
-          <button
-            onClick={() => onToggle(!enabled)}
-            className={`w-8 h-4 rounded-full transition-colors ${
-              enabled
-                ? "bg-primary"
-                : "bg-background-tertiary border border-border"
-            }`}
-          >
-            <div
-              className={`w-3 h-3 rounded-full bg-white shadow-sm transition-transform ${
-                enabled ? "translate-x-4" : "translate-x-0.5"
-              }`}
-            />
-          </button>
+          <MockToggle
+            ariaLabel={`${title} enabled`}
+            checked={enabled}
+            onChange={onToggle}
+          />
         )}
       </div>
       {isOpen && <div className="p-3 space-y-3">{children}</div>}
-    </div>
+    </Card>
   );
 };
 
@@ -68,38 +69,48 @@ const EQBand: React.FC<{
   frequency: string;
   gain: number;
   onChange: (gain: number) => void;
-}> = ({ frequency, gain, onChange }) => {
-  const percentage = ((gain + 12) / 24) * 100;
-
-  return (
-    <div className="flex flex-col items-center gap-1">
-      <div className="h-16 w-4 bg-background-tertiary rounded-full relative overflow-hidden">
-        <input
-          type="range"
-          min={-12}
-          max={12}
-          value={gain}
-          onChange={(e) => onChange(parseFloat(e.target.value))}
-          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-          style={{ writingMode: "vertical-lr", direction: "rtl" }}
-        />
-        <div
-          className="absolute bottom-0 left-0 right-0 bg-primary/50 rounded-full transition-all"
-          style={{ height: `${percentage}%` }}
-        />
-        <div
-          className="absolute left-1/2 -translate-x-1/2 w-3 h-3 bg-white rounded-full shadow-sm pointer-events-none transition-all"
-          style={{ bottom: `calc(${percentage}% - 6px)` }}
-        />
-      </div>
-      <span className="text-[8px] text-text-muted">{frequency}</span>
-      <span className="text-[8px] font-mono text-text-secondary">
-        {gain > 0 ? "+" : ""}
-        {gain}
-      </span>
+}> = ({ frequency, gain, onChange }) => (
+  <div className="flex flex-col items-center gap-1">
+    <div className="flex w-[56px] items-center">
+      <MockSlider
+        min={-12}
+        max={12}
+        step={1}
+        value={gain}
+        onChange={onChange}
+      />
     </div>
-  );
-};
+    <Text type="supporting" color="secondary" className="text-[8px]">
+      {frequency}
+    </Text>
+    <Text type="supporting" color="secondary" className="font-mono text-[8px]">
+      {gain > 0 ? "+" : ""}
+      {gain}
+    </Text>
+  </div>
+);
+
+const EffectSlider: React.FC<{
+  label: string;
+  value: number;
+  onChange: (value: number) => void;
+  min: number;
+  max: number;
+  step?: number;
+  unit?: string;
+}> = ({ label, value, onChange, min, max, step = 1, unit = "" }) => (
+  <PropertySlider
+    label={label}
+    value={value}
+    onChange={onChange}
+    min={min}
+    max={max}
+    step={step}
+    formatValue={(nextValue) =>
+      `${step < 1 ? Number(nextValue.toFixed(2)) : Math.round(nextValue)}${unit}`
+    }
+  />
+);
 
 interface AudioEffectsSectionProps {
   clipId: string;
@@ -394,12 +405,12 @@ export const AudioEffectsSection: React.FC<AudioEffectsSectionProps> = ({
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-2 p-2 bg-background-tertiary rounded-lg">
-        <Volume2 size={14} className="text-text-secondary" />
-        <span className="text-[10px] text-text-secondary">
+      <Card variant="muted" padding={2} className="flex items-center gap-2">
+        <Volume2 size={14} className="text-fg-2" />
+        <Text type="supporting" color="secondary" className="text-[10px]">
           Audio clip: {clipId.substring(0, 8)}...
-        </span>
-      </div>
+        </Text>
+      </Card>
 
       <SubSection
         title="Equalizer"
@@ -425,7 +436,7 @@ export const AudioEffectsSection: React.FC<AudioEffectsSectionProps> = ({
         onToggle={handleCompressorToggle}
       >
         <div className="space-y-2">
-          <Slider
+          <EffectSlider
             label="Threshold"
             value={compressor.threshold}
             onChange={(v) => handleCompressorChange("threshold", v)}
@@ -433,7 +444,7 @@ export const AudioEffectsSection: React.FC<AudioEffectsSectionProps> = ({
             max={0}
             unit="dB"
           />
-          <Slider
+          <EffectSlider
             label="Ratio"
             value={compressor.ratio}
             onChange={(v) => handleCompressorChange("ratio", v)}
@@ -442,7 +453,7 @@ export const AudioEffectsSection: React.FC<AudioEffectsSectionProps> = ({
             step={0.5}
             unit=":1"
           />
-          <Slider
+          <EffectSlider
             label="Attack"
             value={compressor.attack * 1000}
             onChange={(v) => handleCompressorChange("attack", v / 1000)}
@@ -451,7 +462,7 @@ export const AudioEffectsSection: React.FC<AudioEffectsSectionProps> = ({
             step={1}
             unit="ms"
           />
-          <Slider
+          <EffectSlider
             label="Release"
             value={compressor.release * 1000}
             onChange={(v) => handleCompressorChange("release", v / 1000)}
@@ -468,7 +479,7 @@ export const AudioEffectsSection: React.FC<AudioEffectsSectionProps> = ({
         onToggle={handleReverbToggle}
       >
         <div className="space-y-2">
-          <Slider
+          <EffectSlider
             label="Room Size"
             value={reverb.roomSize * 100}
             onChange={(v) => handleReverbChange("roomSize", v / 100)}
@@ -476,7 +487,7 @@ export const AudioEffectsSection: React.FC<AudioEffectsSectionProps> = ({
             max={100}
             unit="%"
           />
-          <Slider
+          <EffectSlider
             label="Damping"
             value={reverb.damping * 100}
             onChange={(v) => handleReverbChange("damping", v / 100)}
@@ -484,7 +495,7 @@ export const AudioEffectsSection: React.FC<AudioEffectsSectionProps> = ({
             max={100}
             unit="%"
           />
-          <Slider
+          <EffectSlider
             label="Wet/Dry"
             value={reverb.wetLevel * 100}
             onChange={(v) => handleReverbChange("wetLevel", v / 100)}
@@ -501,7 +512,7 @@ export const AudioEffectsSection: React.FC<AudioEffectsSectionProps> = ({
         onToggle={handleDelayToggle}
       >
         <div className="space-y-2">
-          <Slider
+          <EffectSlider
             label="Time"
             value={delay.time * 1000}
             onChange={(v) => handleDelayChange("time", v / 1000)}
@@ -509,7 +520,7 @@ export const AudioEffectsSection: React.FC<AudioEffectsSectionProps> = ({
             max={2000}
             unit="ms"
           />
-          <Slider
+          <EffectSlider
             label="Feedback"
             value={delay.feedback * 100}
             onChange={(v) => handleDelayChange("feedback", v / 100)}
@@ -517,7 +528,7 @@ export const AudioEffectsSection: React.FC<AudioEffectsSectionProps> = ({
             max={95}
             unit="%"
           />
-          <Slider
+          <EffectSlider
             label="Wet Level"
             value={delay.wetLevel * 100}
             onChange={(v) => handleDelayChange("wetLevel", v / 100)}

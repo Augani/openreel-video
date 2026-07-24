@@ -1,8 +1,13 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { useTimelineStore, ZOOM_PRESETS } from "./timeline-store";
+import {
+  TIMELINE_WORKSPACE_STORAGE_KEY,
+  useTimelineStore,
+  ZOOM_PRESETS,
+} from "./timeline-store";
 
 describe("TimelineStore playback locking", () => {
   beforeEach(() => {
+    localStorage.removeItem(TIMELINE_WORKSPACE_STORAGE_KEY);
     useTimelineStore.setState({
       playheadPosition: 0,
       playbackState: "stopped",
@@ -24,6 +29,22 @@ describe("TimelineStore playback locking", () => {
       expandedClipKeyframes: new Set<string>(),
       keyframeEditMode: false,
     });
+  });
+
+  it("persists global and per-track density without serializing transient timeline state", () => {
+    const store = useTimelineStore.getState();
+    store.setTrackHeight(64);
+    store.setTrackHeightById("dialogue", 112);
+
+    const persisted = JSON.parse(
+      localStorage.getItem(TIMELINE_WORKSPACE_STORAGE_KEY) ?? "{}",
+    ) as { state?: Record<string, unknown> };
+    expect(persisted.state).toEqual({
+      trackHeight: 64,
+      trackHeights: { dialogue: 112 },
+    });
+    expect(persisted.state).not.toHaveProperty("playheadPosition");
+    expect(persisted.state).not.toHaveProperty("selectedClipIds");
   });
 
   it("blocks play and toggle while locked", () => {

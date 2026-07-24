@@ -2,6 +2,7 @@ import type { Transform, Keyframe, ClipMetadata } from "../types/timeline";
 import type {
   TextClip,
   TextStyle,
+  TextShaderStyle,
   TextAnimation,
   TextRenderResult,
   TextMetrics,
@@ -9,6 +10,8 @@ import type {
 } from "./types";
 import { DEFAULT_TEXT_STYLE, DEFAULT_TEXT_TRANSFORM } from "./types";
 import { textAnimationEngine } from "./text-animation";
+import { MotionShaderRenderer } from "../motion/motion-shader-renderer";
+import { getMotionShaderDef } from "../motion/shaders";
 
 export interface CreateTextClipOptions {
   id?: string;
@@ -30,6 +33,7 @@ export interface UpdateTextClipOptions {
   duration?: number;
   animation?: TextAnimation;
   keyframes?: Keyframe[];
+  effects?: import("../types/timeline").Effect[];
   blendMode?: import("../video/types").BlendMode;
   blendOpacity?: number;
   emphasisAnimation?: import("../graphics/types").EmphasisAnimation;
@@ -46,6 +50,7 @@ export class TitleEngine {
     | CanvasRenderingContext2D
     | OffscreenCanvasRenderingContext2D
     | null = null;
+  private shaderRenderer: MotionShaderRenderer | null = null;
 
   initialize(width: number = 1920, height: number = 1080): void {
     if (typeof OffscreenCanvas !== "undefined") {
@@ -126,6 +131,7 @@ export class TitleEngine {
         : existing.transform,
       animation: updates.animation ?? existing.animation,
       keyframes: updates.keyframes ?? existing.keyframes,
+      effects: updates.effects ?? existing.effects,
       blendMode: updates.blendMode ?? existing.blendMode,
       blendOpacity: updates.blendOpacity ?? existing.blendOpacity,
       emphasisAnimation:
@@ -361,6 +367,8 @@ export class TitleEngine {
 
     ctx.restore();
 
+    this.applyTextShader(canvas, ctx, style.shader, time, width, height);
+
     return {
       canvas,
       width,
@@ -473,12 +481,97 @@ export class TitleEngine {
     }
   }
 
+  private applyTextShader(
+    canvas: HTMLCanvasElement | OffscreenCanvas,
+    ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+    shader: TextShaderStyle | undefined,
+    time: number,
+    width: number,
+    height: number,
+  ): void {
+    if (!shader) return;
+    const def = getMotionShaderDef(shader.shaderId);
+    if (!def) return;
+
+    // Fill and effect shaders (including the Paper collection) render a full
+    // rectangular material. Preserve the already-rasterized glyph alpha so
+    // those materials behave like text fills rather than replacing the whole
+    // title canvas. Native text shaders own their alpha and may intentionally
+    // create halos outside the original glyphs, so they are left unmasked.
+    const glyphMask =
+      def.category === "text"
+        ? null
+        : this.copyTextCanvas(canvas, width, height);
+
+    if (!this.shaderRenderer) {
+      this.shaderRenderer = new MotionShaderRenderer();
+    }
+
+    const result = this.shaderRenderer.render(def, {
+      width,
+      height,
+      time,
+      progress: shader.progress ?? 0.5,
+      params: shader.params,
+      inputCanvas: canvas,
+    });
+    if (!result) return;
+
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, width, height);
+    ctx.drawImage(result, 0, 0, width, height);
+    if (glyphMask) {
+      ctx.globalCompositeOperation = "destination-in";
+      ctx.drawImage(glyphMask, 0, 0, width, height);
+      ctx.globalCompositeOperation = "source-over";
+    }
+    ctx.restore();
+  }
+
+  private copyTextCanvas(
+    source: HTMLCanvasElement | OffscreenCanvas,
+    width: number,
+    height: number,
+  ): HTMLCanvasElement | OffscreenCanvas | null {
+    if (typeof OffscreenCanvas !== "undefined") {
+      try {
+        const copy = new OffscreenCanvas(width, height);
+        const copyCtx = copy.getContext("2d");
+        if (copyCtx) {
+          copyCtx.drawImage(source, 0, 0, width, height);
+          return copy;
+        }
+      } catch {
+        // Fall through to a regular canvas when OffscreenCanvas is exposed but
+        // unavailable in the current browser surface.
+      }
+    }
+    if (typeof document !== "undefined") {
+      try {
+        const copy = document.createElement("canvas");
+        copy.width = width;
+        copy.height = height;
+        const copyCtx = copy.getContext("2d");
+        if (!copyCtx) return null;
+        copyCtx.drawImage(source, 0, 0, width, height);
+        return copy;
+      } catch {
+        // If a browser cannot copy the source surface, keep the shader output
+        // instead of dropping the effect entirely.
+      }
+    }
+    return null;
+  }
+
   private generateId(): string {
     return `text-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
   }
 
   clear(): void {
     this.textClips.clear();
+    this.shaderRenderer?.dispose();
+    this.shaderRenderer = null;
   }
 
   loadTextClips(clips: TextClip[]): void {

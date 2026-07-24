@@ -28,27 +28,28 @@ export const Playhead: React.FC<PlayheadProps> = ({
         willChange: "transform",
       }}
     >
-      {/* triangle marker at the top — accent-colored */}
-      <div
-        className="absolute -translate-x-1/2"
-        style={{
-          top: -1,
-          width: 0,
-          height: 0,
-          borderLeft: "6px solid transparent",
-          borderRight: "6px solid transparent",
-          borderTop: "9px solid var(--accent)",
-        }}
-      />
-      {/* vertical line below the triangle */}
+      {/* pentagon handle at the top */}
       <div
         className="absolute"
         style={{
-          top: 8,
+          top: 0,
+          left: -7,
+          width: 15,
+          height: 13,
+          background: "#1d1d1f",
+          borderRadius: "3px 3px 0 0",
+          clipPath: "polygon(0 0,100% 0,100% 65%,50% 100%,0 65%)",
+        }}
+      />
+      {/* vertical line */}
+      <div
+        className="absolute"
+        style={{
+          top: 0,
           bottom: 0,
           left: 0,
-          width: "1.5px",
-          background: "var(--accent)",
+          width: "1px",
+          background: "#1d1d1f",
         }}
       />
     </div>

@@ -5,6 +5,7 @@ import {
 import type { AutomationPoint, Effect } from "../types/timeline";
 import { createNoiseReductionNodeChain } from "./audio-effects-engine";
 import { scheduleVolumeAutomationOnGain } from "./clip-volume-automation";
+import { scheduleClipFadeEnvelope } from "./clip-fade-envelope";
 
 export interface AudioClipSchedule {
   clipId: string;
@@ -18,6 +19,8 @@ export interface AudioClipSchedule {
   pan: number;
   effects: Effect[];
   speed: number;
+  fadeIn?: number;
+  fadeOut?: number;
 }
 
 export interface TrackConfig {
@@ -543,9 +546,11 @@ export class RealtimeAudioGraph {
     source.playbackRate.value = schedule.speed;
 
     const clipGain = this.audioContext.createGain();
+    const fadeGain = this.audioContext.createGain();
 
     source.connect(clipGain);
-    clipGain.connect(trackNodes.inputGain);
+    clipGain.connect(fadeGain);
+    fadeGain.connect(trackNodes.inputGain);
 
     const contextStartTime =
       this.audioContext.currentTime +
@@ -566,6 +571,14 @@ export class RealtimeAudioGraph {
         playbackDuration,
         playbackStartTime,
       );
+      scheduleClipFadeEnvelope(fadeGain.gain, {
+        startTime: playbackStartTime,
+        clipOffset,
+        rangeDuration: playbackDuration,
+        clipDuration: duration,
+        fadeIn: schedule.fadeIn,
+        fadeOut: schedule.fadeOut,
+      });
       source.start(contextStartTime, schedule.mediaOffset, duration);
     } else {
       clipOffset = this.masterClock.currentTime - schedule.startTime;
@@ -585,6 +598,14 @@ export class RealtimeAudioGraph {
           playbackDuration,
           playbackStartTime,
         );
+        scheduleClipFadeEnvelope(fadeGain.gain, {
+          startTime: playbackStartTime,
+          clipOffset,
+          rangeDuration: playbackDuration,
+          clipDuration: duration,
+          fadeIn: schedule.fadeIn,
+          fadeOut: schedule.fadeOut,
+        });
         source.start(0, sourceOffset, playbackDuration);
       } else {
         source.disconnect();

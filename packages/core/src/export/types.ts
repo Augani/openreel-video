@@ -21,6 +21,7 @@ export interface VideoExportSettings {
   frameRate: number;
   bitrate: number;
   bitrateMode: "cbr" | "vbr";
+  encodeMode?: "fast" | "balanced" | "smallest";
   quality: number;
   keyframeInterval: number;
   audioSettings: AudioExportSettings;
@@ -116,6 +117,7 @@ export const DEFAULT_VIDEO_SETTINGS: VideoExportSettings = {
   frameRate: 30,
   bitrate: 5000, // 5 Mbps - good quality for 1080p web video
   bitrateMode: "cbr",
+  encodeMode: "balanced",
   quality: 80,
   keyframeInterval: 60, // 2 seconds at 30fps
   audioSettings: {

@@ -6,12 +6,14 @@ import {
   ChevronDown,
   Diamond,
   DiamondIcon,
-} from "lucide-react";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@openreel/ui/components/popover";
+} from "@/icons/lucide-compat";
+import { ToolcraftButton as Button } from "@openreel/ui";
+import { ToolcraftCard as Card } from "@openreel/ui";
+import { ToolcraftClickableCard as ClickableCard } from "@openreel/ui";
+import { ToolcraftIconButton as IconButton } from "@openreel/ui";
+import { ToolcraftNumberInputControl } from "@openreel/ui";
+import { ToolcraftPopover as Popover } from "@openreel/ui";
+import { ToolcraftText as Text } from "@openreel/ui";
 import { useProjectStore } from "../../../stores/project-store";
 import { useTimelineStore } from "../../../stores/timeline-store";
 import { useEngineStore } from "../../../stores/engine-store";
@@ -165,60 +167,71 @@ const PropertySelector: React.FC<{
     : "Select Property";
 
   return (
-    <Popover open={isOpen} onOpenChange={setIsOpen}>
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          className="w-full flex items-center justify-between px-3 py-2 bg-background-tertiary border border-border rounded-lg text-[10px] text-text-primary hover:border-text-secondary transition-colors"
-        >
-          <span>{selectedLabel}</span>
+    <Popover
+      isOpen={isOpen}
+      onOpenChange={setIsOpen}
+      placement="below"
+      alignment="start"
+      width="min(260px, 100vw - 32px)"
+      label="Animate property"
+      content={
+        <div className="max-h-64 overflow-y-auto p-1.5">
+          {categories.map((category) => (
+            <div key={category} className="space-y-1">
+              <div className="px-2 py-1 bg-bg-2">
+                <Text type="supporting" color="secondary" weight="bold">
+                  {category}
+                </Text>
+              </div>
+              {ANIMATABLE_PROPERTIES.filter(
+                (p) => p.category === category,
+              ).map((prop) => {
+                const hasKeyframes = existingProperties.includes(prop.id);
+                return (
+                  <ClickableCard
+                    key={prop.id}
+                    label={`Select ${prop.label}`}
+                    onClick={() => {
+                      onSelect(prop.id);
+                      setIsOpen(false);
+                    }}
+                    padding={2}
+                    variant={selectedProperty === prop.id ? "green" : "transparent"}
+                    className="w-full"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <Text type="supporting" color="primary">
+                        {prop.label}
+                      </Text>
+                      {hasKeyframes && (
+                        <Diamond
+                          size={10}
+                          className="text-primary fill-primary"
+                          aria-hidden
+                        />
+                      )}
+                    </div>
+                  </ClickableCard>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      }
+    >
+      <Button
+        label={selectedLabel}
+        variant="secondary"
+        size="sm"
+        endContent={
           <ChevronDown
             size={12}
             className={`transition-transform ${isOpen ? "rotate-180" : ""}`}
+            aria-hidden
           />
-        </button>
-      </PopoverTrigger>
-      <PopoverContent
-        align="start"
-        sideOffset={4}
-        className="w-[var(--radix-popover-trigger-width)] min-w-[200px] p-0 bg-background-secondary border-border max-h-64 overflow-y-auto"
-      >
-        {categories.map((category) => (
-          <div key={category}>
-            <div className="px-3 py-1.5 text-[9px] font-medium text-text-muted uppercase tracking-wider bg-background-tertiary">
-              {category}
-            </div>
-            {ANIMATABLE_PROPERTIES.filter(
-              (p) => p.category === category,
-            ).map((prop) => {
-              const hasKeyframes = existingProperties.includes(prop.id);
-              return (
-                <button
-                  key={prop.id}
-                  type="button"
-                  onClick={() => {
-                    onSelect(prop.id);
-                    setIsOpen(false);
-                  }}
-                  className={`w-full px-3 py-2 text-left text-[10px] flex items-center justify-between hover:bg-background-tertiary transition-colors ${
-                    selectedProperty === prop.id
-                      ? "bg-primary/10 text-primary"
-                      : "text-text-primary"
-                  }`}
-                >
-                  <span>{prop.label}</span>
-                  {hasKeyframes && (
-                    <Diamond
-                      size={10}
-                      className="text-primary fill-primary"
-                    />
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        ))}
-      </PopoverContent>
+        }
+        className="w-full justify-between"
+      />
     </Popover>
   );
 };
@@ -274,47 +287,53 @@ const EasingSelector: React.FC<{
   const currentLabel = formatEasingLabel(value);
 
   return (
-    <Popover open={isOpen} onOpenChange={setIsOpen}>
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          className="flex items-center gap-1.5 px-2 py-1 bg-background-tertiary border border-border rounded text-[9px] text-text-secondary hover:text-text-primary hover:border-primary/50 transition-colors"
-          title={`Easing: ${currentLabel}`}
-        >
-          <EasingCurvePreview easing={value} size={14} />
-          <span>{currentLabel}</span>
-          <ChevronDown size={10} />
-        </button>
-      </PopoverTrigger>
-      <PopoverContent
-        align="end"
-        sideOffset={4}
-        className="min-w-[180px] w-auto p-0 bg-background-secondary border-border max-h-64 overflow-y-auto"
-      >
-        {EASING_CATEGORIES.map((category) => (
-          <div key={category.name}>
-            <div className="px-3 py-1 text-[8px] font-medium text-text-muted uppercase tracking-wider bg-background-tertiary sticky top-0">
-              {category.name}
+    <Popover
+      isOpen={isOpen}
+      onOpenChange={setIsOpen}
+      placement="below"
+      alignment="end"
+      width={208}
+      label={`Easing: ${currentLabel}`}
+      content={
+        <div className="max-h-64 overflow-y-auto p-1.5">
+          {EASING_CATEGORIES.map((category) => (
+            <div key={category.name} className="space-y-1">
+              <div className="sticky top-0 px-2 py-1 bg-bg-2">
+                <Text type="supporting" color="secondary" weight="bold">
+                  {category.name}
+                </Text>
+              </div>
+              {category.easings.map((easing) => (
+                <ClickableCard
+                  key={easing}
+                  label={`Use ${formatEasingLabel(easing)} easing`}
+                  onClick={() => {
+                    onChange(easing);
+                    setIsOpen(false);
+                  }}
+                  padding={2}
+                  variant={value === easing ? "green" : "transparent"}
+                >
+                  <div className="flex items-center gap-2">
+                    <EasingCurvePreview easing={easing} size={14} />
+                    <Text type="supporting" color="primary">
+                      {formatEasingLabel(easing)}
+                    </Text>
+                  </div>
+                </ClickableCard>
+              ))}
             </div>
-            {category.easings.map((easing) => (
-              <button
-                key={easing}
-                type="button"
-                onClick={() => {
-                  onChange(easing);
-                  setIsOpen(false);
-                }}
-                className={`w-full px-3 py-1.5 text-left text-[10px] hover:bg-background-tertiary transition-colors flex items-center gap-2 ${
-                  value === easing ? "text-primary" : "text-text-primary"
-                }`}
-              >
-                <EasingCurvePreview easing={easing} size={14} />
-                {formatEasingLabel(easing)}
-              </button>
-            ))}
-          </div>
-        ))}
-      </PopoverContent>
+          ))}
+        </div>
+      }
+    >
+      <Button
+        label={currentLabel}
+        variant="secondary"
+        size="sm"
+        icon={<EasingCurvePreview easing={value} size={14} />}
+        endContent={<ChevronDown size={10} aria-hidden />}
+      />
     </Popover>
   );
 };
@@ -335,39 +354,46 @@ const KeyframeItem: React.FC<{
   void _formatValue;
 
   return (
-    <div className="flex items-center gap-2 p-2 bg-background-tertiary rounded-lg border border-border">
+    <Card
+      variant="muted"
+      padding={2}
+      className="flex items-center gap-2 border border-border"
+    >
       <DiamondIcon
         size={12}
         className="text-primary fill-primary flex-shrink-0"
+        aria-hidden
       />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
-          <span className="text-[10px] text-text-secondary">
+          <Text type="supporting" color="secondary">
             {keyframe.time.toFixed(2)}s
-          </span>
-          <span className="text-[10px] text-text-muted">•</span>
-          <input
-            type="number"
+          </Text>
+          <Text type="supporting" color="secondary">
+            •
+          </Text>
+          <ToolcraftNumberInputControl
+            label="Keyframe value"
+            isLabelHidden
             value={typeof keyframe.value === "number" ? keyframe.value : 0}
-            onChange={(e) =>
-              onUpdate({ value: parseFloat(e.target.value) || 0 })
-            }
+            onChange={(value) => onUpdate({ value: value ?? 0 })}
             min={property?.min}
             max={property?.max}
             step={property?.step || 1}
-            className="w-16 text-[10px] font-mono text-text-primary bg-background-secondary px-1.5 py-0.5 rounded border border-border outline-none focus:border-primary"
+            size="sm"
+            width={72}
           />
         </div>
       </div>
       <EasingSelector value={keyframe.easing} onChange={onEasingChange} />
-      <button
+      <IconButton
+        label="Delete keyframe"
+        icon={<Trash2 size={12} aria-hidden />}
+        variant="ghost"
+        size="sm"
         onClick={onDelete}
-        className="p-1 hover:bg-red-500/20 rounded transition-colors text-text-muted hover:text-red-400"
-        title="Delete keyframe"
-      >
-        <Trash2 size={12} />
-      </button>
-    </div>
+      />
+    </Card>
   );
 };
 
@@ -506,18 +532,18 @@ export const KeyframesSection: React.FC<KeyframesSectionProps> = ({
 
   if (!clip) {
     return (
-      <div className="text-[10px] text-text-muted text-center py-4">
+      <Text type="supporting" color="secondary" className="block text-center py-4">
         No clip selected
-      </div>
+      </Text>
     );
   }
 
   return (
     <div className="space-y-4">
       <div className="space-y-2">
-        <label className="text-[10px] text-text-secondary font-medium">
+        <Text type="supporting" color="secondary" weight="bold" className="block">
           Animate Property
-        </label>
+        </Text>
         <PropertySelector
           selectedProperty={selectedProperty}
           onSelect={setSelectedProperty}
@@ -526,48 +552,50 @@ export const KeyframesSection: React.FC<KeyframesSectionProps> = ({
       </div>
 
       {selectedProperty && (
-        <div className="flex items-center justify-between p-2 bg-background-tertiary rounded-lg border border-border">
-          <span className="text-[10px] text-text-secondary">
+        <Card
+          variant="muted"
+          padding={2}
+          className="flex items-center justify-between gap-3 border border-border"
+        >
+          <Text type="supporting" color="secondary">
             Value at {playheadPosition.toFixed(2)}s
-          </span>
-          <span className="text-[10px] font-mono text-text-primary">
+          </Text>
+          <Text type="supporting" color="primary" className="font-mono">
             {typeof currentValue === "number"
               ? currentValue.toFixed(2)
               : String(currentValue)}
-          </span>
-        </div>
+          </Text>
+        </Card>
       )}
 
       {selectedProperty && (
-        <button
-          onClick={handleAddKeyframe}
-          disabled={hasKeyframeAtPlayhead}
-          className={`w-full py-2 rounded-lg text-[10px] flex items-center justify-center gap-2 transition-colors ${
+        <Button
+          label={
             hasKeyframeAtPlayhead
-              ? "bg-background-tertiary border border-border text-text-muted cursor-not-allowed"
-              : "bg-primary/10 border border-primary/30 text-primary hover:bg-primary/20"
-          }`}
-        >
-          {hasKeyframeAtPlayhead ? (
-            <>
-              <Key size={12} />
-              Keyframe exists at {playheadPosition.toFixed(2)}s
-            </>
-          ) : (
-            <>
-              <Plus size={12} />
-              Add Keyframe at {playheadPosition.toFixed(2)}s
-            </>
-          )}
-        </button>
+              ? `Keyframe exists at ${playheadPosition.toFixed(2)}s`
+              : `Add Keyframe at ${playheadPosition.toFixed(2)}s`
+          }
+          icon={
+            hasKeyframeAtPlayhead ? (
+              <Key size={12} aria-hidden />
+            ) : (
+              <Plus size={12} aria-hidden />
+            )
+          }
+          variant={hasKeyframeAtPlayhead ? "secondary" : "primary"}
+          size="sm"
+          isDisabled={hasKeyframeAtPlayhead}
+          onClick={handleAddKeyframe}
+          className="w-full"
+        />
       )}
 
       {selectedProperty && propertyKeyframes.length > 0 && (
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] text-text-secondary font-medium">
+            <Text type="supporting" color="secondary" weight="bold">
               Keyframes ({propertyKeyframes.length})
-            </span>
+            </Text>
           </div>
           <div className="space-y-1.5 max-h-48 overflow-y-auto">
             {propertyKeyframes.map((kf) => (
@@ -586,17 +614,17 @@ export const KeyframesSection: React.FC<KeyframesSectionProps> = ({
 
       {!selectedProperty && (
         <div className="text-center py-4">
-          <Key size={24} className="mx-auto text-text-muted mb-2" />
-          <p className="text-[10px] text-text-muted">
+          <Key size={24} className="mx-auto text-fg-3 mb-2" aria-hidden />
+          <Text type="supporting" color="secondary">
             Select a property to animate
-          </p>
+          </Text>
         </div>
       )}
 
       {selectedProperty && propertyKeyframes.length === 0 && (
-        <p className="text-[10px] text-text-muted text-center py-2">
+        <Text type="supporting" color="secondary" className="block text-center py-2">
           No keyframes for this property. Add one to start animating.
-        </p>
+        </Text>
       )}
     </div>
   );

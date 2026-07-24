@@ -1,5 +1,8 @@
 import React from "react";
-import { Crop, RotateCcw } from "lucide-react";
+import { ToolcraftButton as Button } from "@openreel/ui";
+import { ToolcraftCard as Card } from "@openreel/ui";
+import { ToolcraftText as Text } from "@openreel/ui";
+import { Crop, RotateCcw } from "@/icons/lucide-compat";
 import { useProjectStore } from "../../../stores/project-store";
 import { useUIStore } from "../../../stores/ui-store";
 import type { Clip } from "@openreel/core";
@@ -28,37 +31,43 @@ export const CropSection: React.FC<CropSectionProps> = ({ clip }) => {
 
   return (
     <div className="space-y-3">
-      <button
+      <Button
+        label={isCropped ? "Adjust Crop" : "Crop Video"}
+        icon={<Crop size={14} />}
+        variant="primary"
+        size="sm"
         onClick={handleEnableCropMode}
-        className="w-full py-2.5 bg-primary hover:bg-primary/90 text-white rounded-lg text-xs font-medium transition-colors flex items-center justify-center gap-2"
-      >
-        <Crop size={14} />
-        {isCropped ? "Adjust Crop" : "Crop Video"}
-      </button>
+        className="w-full justify-center"
+      />
 
       {isCropped && (
         <>
-          <div className="text-[9px] text-text-muted space-y-0.5 p-2 bg-background-tertiary rounded border border-border">
+          <Card variant="muted" padding={2} className="space-y-0.5 border border-border">
             <div className="flex justify-between">
-              <span>Crop Region:</span>
-              <span>
+              <Text type="supporting" color="secondary" className="text-[9px]">
+                Crop Region:
+              </Text>
+              <Text type="supporting" color="secondary" className="text-[9px]">
                 {Math.round(crop.width * 100)}% × {Math.round(crop.height * 100)}%
-              </span>
+              </Text>
             </div>
             <div className="flex justify-between">
-              <span>Position:</span>
-              <span>
+              <Text type="supporting" color="secondary" className="text-[9px]">
+                Position:
+              </Text>
+              <Text type="supporting" color="secondary" className="text-[9px]">
                 ({Math.round(crop.x * 100)}%, {Math.round(crop.y * 100)}%)
-              </span>
+              </Text>
             </div>
-          </div>
-          <button
+          </Card>
+          <Button
+            label="Reset Crop"
+            icon={<RotateCcw size={12} />}
+            variant="secondary"
+            size="sm"
             onClick={handleReset}
-            className="w-full py-2 text-xs text-text-secondary hover:text-text-primary bg-background-tertiary hover:bg-background-elevated border border-border rounded-lg transition-colors flex items-center justify-center gap-2"
-          >
-            <RotateCcw size={12} />
-            Reset Crop
-          </button>
+            className="w-full justify-center"
+          />
         </>
       )}
     </div>

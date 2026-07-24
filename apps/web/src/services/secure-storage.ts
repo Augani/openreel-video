@@ -33,6 +33,18 @@ interface MetaRecord {
   readonly value: ArrayBuffer | Uint8Array;
 }
 
+interface DesktopKeychain {
+  get(id: string): Promise<string | null>;
+  set(id: string, value: string): Promise<void>;
+  delete(id: string): Promise<void>;
+}
+
+function desktopKeychain(): DesktopKeychain | undefined {
+  if (typeof window === "undefined") return undefined;
+  const bridge = window.openreel;
+  return bridge?.platform === "desktop" ? bridge.keychain : undefined;
+}
+
 let dbInstance: IDBDatabase | null = null;
 let derivedKey: CryptoKey | null = null;
 let inactivityTimer: ReturnType<typeof setTimeout> | null = null;
@@ -170,6 +182,7 @@ async function decrypt(encrypted: ArrayBuffer, iv: Uint8Array, key: CryptoKey): 
  * Check if a master password has been configured.
  */
 export async function isMasterPasswordSet(): Promise<boolean> {
+  if (desktopKeychain()) return true;
   const db = await getDatabase();
   const meta = await idbTransaction<MetaRecord | undefined>(
     db,
@@ -184,6 +197,7 @@ export async function isMasterPasswordSet(): Promise<boolean> {
  * Check if the session is currently unlocked.
  */
 export function isSessionUnlocked(): boolean {
+  if (desktopKeychain()) return true;
   return derivedKey !== null;
 }
 
@@ -407,6 +421,11 @@ export async function changeMasterPassword(
  * Session must be unlocked.
  */
 export async function saveSecret(id: string, label: string, value: string): Promise<void> {
+  const kc = desktopKeychain();
+  if (kc) {
+    await kc.set(id, value);
+    return;
+  }
   if (!derivedKey) {
     throw new Error("Session is locked. Unlock with master password first.");
   }
@@ -443,6 +462,10 @@ export async function saveSecret(id: string, label: string, value: string): Prom
  * Session must be unlocked.
  */
 export async function getSecret(id: string): Promise<string | null> {
+  const kc = desktopKeychain();
+  if (kc) {
+    return (await kc.get(id)) ?? null;
+  }
   if (!derivedKey) {
     throw new Error("Session is locked. Unlock with master password first.");
   }
@@ -472,6 +495,11 @@ export async function getSecret(id: string): Promise<string | null> {
  * Delete a secret.
  */
 export async function deleteSecret(id: string): Promise<void> {
+  const kc = desktopKeychain();
+  if (kc) {
+    await kc.delete(id);
+    return;
+  }
   if (!derivedKey) {
     throw new Error("Session is locked");
   }

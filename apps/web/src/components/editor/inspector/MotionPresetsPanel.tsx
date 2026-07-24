@@ -5,6 +5,10 @@ import React, {
   useEffect,
   useRef,
 } from "react";
+import { ToolcraftButton as Button } from "@openreel/ui";
+import { ToolcraftCard as Card } from "@openreel/ui";
+import { ToolcraftClickableCard as ClickableCard } from "@openreel/ui";
+import { ToolcraftText as Text } from "@openreel/ui";
 import {
   Play,
   ArrowRight,
@@ -12,7 +16,7 @@ import {
   Zap,
   RefreshCw,
   Check,
-} from "lucide-react";
+} from "@/icons/lucide-compat";
 import { useProjectStore } from "../../../stores/project-store";
 import { useUIStore } from "../../../stores/ui-store";
 import { useEngineStore } from "../../../stores/engine-store";
@@ -254,14 +258,15 @@ const PresetCard: React.FC<PresetCardProps> = ({
   }, [isHovered, preset]);
 
   return (
-    <button
+    <ClickableCard
+      label={`Apply ${preset.name}`}
       onClick={onApply}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       className={`relative w-full rounded-lg border transition-all overflow-hidden ${
         isApplied
           ? "border-primary bg-primary/10"
-          : "border-border bg-background-tertiary hover:border-primary/50"
+          : "border-border bg-bg-2 hover:border-primary/50"
       }`}
     >
       <div className="relative h-20 bg-gradient-to-br from-background-secondary to-background-tertiary flex items-center justify-center overflow-hidden">
@@ -278,19 +283,21 @@ const PresetCard: React.FC<PresetCardProps> = ({
         )}
         {isHovered && !isApplied && (
           <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-            <span className="text-[10px] text-white font-medium px-2 py-1 bg-primary rounded">
+            <Text type="supporting" className="text-[10px] text-white font-medium px-2 py-1 bg-primary rounded">
               Apply
-            </span>
+            </Text>
           </div>
         )}
       </div>
       <div className="p-2 text-left">
-        <span className="text-[10px] font-medium text-text-primary block truncate">
+        <Text type="supporting" color="primary" className="block truncate text-[10px] font-medium">
           {preset.name}
-        </span>
-        <span className="text-[8px] text-text-muted">{preset.duration}s</span>
+        </Text>
+        <Text type="supporting" color="secondary" className="text-[8px]">
+          {preset.duration}s
+        </Text>
       </div>
-    </button>
+    </ClickableCard>
   );
 };
 
@@ -515,10 +522,10 @@ export const MotionPresetsPanel: React.FC<MotionPresetsPanelProps> = ({
   if (!targetClipId) {
     return (
       <div className="p-4 text-center">
-        <Zap size={24} className="mx-auto mb-2 text-text-muted" />
-        <p className="text-[10px] text-text-muted">
+        <Zap size={24} className="mx-auto mb-2 text-fg-3" />
+        <Text type="supporting" color="secondary" className="text-[10px]">
           Select a clip to apply motion presets
-        </p>
+        </Text>
       </div>
     );
   }
@@ -526,8 +533,10 @@ export const MotionPresetsPanel: React.FC<MotionPresetsPanelProps> = ({
   if (!clip) {
     return (
       <div className="p-4 text-center">
-        <Zap size={24} className="mx-auto mb-2 text-text-muted" />
-        <p className="text-[10px] text-text-muted">Clip not found</p>
+        <Zap size={24} className="mx-auto mb-2 text-fg-3" />
+        <Text type="supporting" color="secondary" className="text-[10px]">
+          Clip not found
+        </Text>
       </div>
     );
   }
@@ -537,40 +546,43 @@ export const MotionPresetsPanel: React.FC<MotionPresetsPanelProps> = ({
       {(appliedState.entrance ||
         appliedState.exit ||
         appliedState.emphasis) && (
-        <div className="space-y-1 p-2 bg-background-tertiary rounded-lg border border-border">
-          <span className="text-[10px] text-text-secondary font-medium">
+        <Card variant="muted" padding={2} className="space-y-1 border border-border">
+          <Text type="supporting" color="secondary" className="text-[10px] font-medium">
             Applied Animations
-          </span>
+          </Text>
           <div className="flex flex-wrap gap-1 mt-1">
             {appliedState.entrance && (
-              <button
+              <Button
+                label="Entry x"
+                icon={<ArrowRight size={10} />}
+                variant="ghost"
+                size="sm"
                 onClick={() => handleRemovePresets("entrance")}
                 className="flex items-center gap-1 px-2 py-1 bg-green-500/20 text-green-400 rounded text-[9px] hover:bg-green-500/30"
-              >
-                <ArrowRight size={10} />
-                Entry ×
-              </button>
+              />
             )}
             {appliedState.exit && (
-              <button
+              <Button
+                label="Exit x"
+                icon={<ArrowLeft size={10} />}
+                variant="ghost"
+                size="sm"
                 onClick={() => handleRemovePresets("exit")}
                 className="flex items-center gap-1 px-2 py-1 bg-red-500/20 text-red-400 rounded text-[9px] hover:bg-red-500/30"
-              >
-                <ArrowLeft size={10} />
-                Exit ×
-              </button>
+              />
             )}
             {appliedState.emphasis && (
-              <button
+              <Button
+                label="Emphasis x"
+                icon={<Zap size={10} />}
+                variant="ghost"
+                size="sm"
                 onClick={() => handleRemovePresets("emphasis")}
                 className="flex items-center gap-1 px-2 py-1 bg-yellow-500/20 text-yellow-400 rounded text-[9px] hover:bg-yellow-500/30"
-              >
-                <Zap size={10} />
-                Emphasis ×
-              </button>
+              />
             )}
           </div>
-        </div>
+        </Card>
       )}
 
       <div className="flex gap-1">
@@ -583,21 +595,23 @@ export const MotionPresetsPanel: React.FC<MotionPresetsPanelProps> = ({
             (category.id === "transition" && appliedState.emphasis);
 
           return (
-            <button
+            <Button
               key={category.id}
+              label={category.name}
+              icon={<Icon size={12} />}
+              variant={selectedCategory === category.id ? "primary" : "secondary"}
+              size="sm"
               onClick={() => setSelectedCategory(category.id)}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] whitespace-nowrap transition-colors relative ${
                 selectedCategory === category.id
                   ? "bg-primary text-white font-medium"
-                  : "bg-background-tertiary text-text-secondary hover:text-text-primary"
+                  : "bg-bg-2 text-fg-2 hover:text-fg"
               }`}
             >
-              <Icon size={12} />
-              {category.name}
               {isApplied && (
-                <span className="absolute -top-1 -right-1 w-2 h-2 bg-green-500 rounded-full" />
+                <div className="absolute -top-1 -right-1 w-2 h-2 bg-green-500 rounded-full" />
               )}
-            </button>
+            </Button>
           );
         })}
       </div>
@@ -622,9 +636,9 @@ export const MotionPresetsPanel: React.FC<MotionPresetsPanelProps> = ({
         })}
       </div>
 
-      <p className="text-[9px] text-text-muted text-center">
+      <Text type="supporting" color="secondary" className="text-center text-[9px]">
         {presets.length} presets in {selectedCategory}
-      </p>
+      </Text>
     </div>
   );
 };

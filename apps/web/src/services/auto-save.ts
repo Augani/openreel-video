@@ -39,7 +39,7 @@ const AUTO_SAVE_STORE = "autosaves";
 type AutoSaveEventType = "saved" | "restored" | "error" | "recoveryAvailable";
 type AutoSaveEventCallback = (data?: unknown) => void;
 
-class AutoSaveManager {
+export class AutoSaveManager {
   private config: AutoSaveConfig;
   private db: IDBDatabase | null = null;
   private intervalId: ReturnType<typeof setInterval> | null = null;
@@ -130,7 +130,13 @@ class AutoSaveManager {
     }
   }
 
-  markDirty(): void {
+  markDirty(project?: Project): void {
+    // Capture the state that caused this dirty notification. The debounce can
+    // fire well before the periodic refresh in start(), so relying on the
+    // previous pendingProject would save an older snapshot.
+    if (project) {
+      this.pendingProject = project;
+    }
     this.isDirty = true;
 
     // Debounce the save
@@ -369,6 +375,20 @@ class AutoSaveManager {
   }
 
   private computeHash(project: Project): string {
+    const motionCompositions = project.motionCompositions ?? [];
+    const motionLayerCount = motionCompositions.reduce(
+      (sum, composition) => sum + (composition.layers?.length ?? 0),
+      0,
+    );
+    const motionAudioClipCount = motionCompositions.reduce(
+      (sum, composition) => sum + (composition.audioClips?.length ?? 0),
+      0,
+    );
+    const motionModifiedAt = motionCompositions.reduce(
+      (max, composition) => Math.max(max, composition.modifiedAt ?? 0),
+      0,
+    );
+
     const key = JSON.stringify({
       id: project.id,
       modifiedAt: project.modifiedAt,
@@ -378,6 +398,11 @@ class AutoSaveManager {
         0,
       ),
       mediaCount: project.mediaLibrary.items.length,
+      motionCompositionCount: motionCompositions.length,
+      motionLayerCount,
+      motionAudioClipCount,
+      motionInstanceCount: project.motionInstances?.length ?? 0,
+      motionModifiedAt,
     });
 
     let hash = 0;
@@ -422,6 +447,19 @@ class AutoSaveManager {
     this.pendingProject = project;
     this.isDirty = true;
     await this.saveIfDirty();
+  }
+
+  /**
+   * Whether the given project has edits that have not been persisted to the
+   * latest auto-save slot. Returns false for a pristine session (no edits yet)
+   * and once the pending edits have been flushed. Used by the desktop
+   * unsaved-changes guard on quit/close.
+   */
+  hasUnsavedChanges(project: Project): boolean {
+    if (!this.isDirty) {
+      return false;
+    }
+    return this.computeHash(project) !== this.lastSavedHash;
   }
 
   destroy(): void {

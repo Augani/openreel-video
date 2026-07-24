@@ -405,7 +405,13 @@ export class PlaybackController {
     const startTime = performance.now();
 
     try {
-      const frame = await this.videoEngine.renderFrame(this.project, time);
+      const frame = await this.videoEngine.renderFrame(
+        this.project,
+        time,
+        undefined,
+        undefined,
+        { realtime: true },
+      );
 
       const renderTime = performance.now() - startTime;
       this.trackFrameRenderTime(renderTime);
@@ -458,7 +464,13 @@ export class PlaybackController {
     const startTime = performance.now();
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
 
-    const renderPromise = this.videoEngine.renderFrame(this.project, time);
+    const renderPromise = this.videoEngine.renderFrame(
+      this.project,
+      time,
+      undefined,
+      undefined,
+      { realtime: true },
+    );
 
     try {
       const timeoutPromise = new Promise<never>((_, reject) => {

@@ -6,7 +6,11 @@ import {
   Play,
   Plus,
   Layers,
-} from "lucide-react";
+} from "@/icons/lucide-compat";
+import { ToolcraftButton as Button } from "@openreel/ui";
+import { ToolcraftIconButton as IconButton } from "@openreel/ui";
+import { ToolcraftSelectableCard as SelectableCard } from "@openreel/ui";
+import { ToolcraftText as Text } from "@openreel/ui";
 import { useProjectStore } from "../../../stores/project-store";
 import { getPlaybackBridge } from "../../../bridges/playback-bridge";
 
@@ -39,7 +43,7 @@ export const SceneNavigatorPanel: React.FC<SceneNavigatorPanelProps> = ({
           label: "Full Timeline",
           startTime: 0,
           endTime: duration,
-          color: "#6366f1",
+          color: "#10b981",
         },
       ];
     }
@@ -66,7 +70,7 @@ export const SceneNavigatorPanel: React.FC<SceneNavigatorPanelProps> = ({
         label: "Intro",
         startTime: 0,
         endTime: sortedMarkers[0].time,
-        color: "#6366f1",
+        color: "#10b981",
       });
     }
 
@@ -116,31 +120,35 @@ export const SceneNavigatorPanel: React.FC<SceneNavigatorPanelProps> = ({
   if (variant === "compact") {
     return (
       <div className="flex items-center gap-2">
-        <button
+        <IconButton
+          label="Previous scene"
+          icon={<ChevronLeft size={16} className="text-fg-2" />}
+          variant="ghost"
+          size="sm"
           onClick={handlePrevious}
-          disabled={currentSceneIndex === 0}
-          className="p-1.5 rounded hover:bg-background-tertiary disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-        >
-          <ChevronLeft size={16} className="text-text-secondary" />
-        </button>
+          isDisabled={currentSceneIndex === 0}
+          className="p-1.5 rounded hover:bg-bg-2 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+        />
 
-        <div className="flex items-center gap-1.5 px-2 py-1 bg-background-tertiary rounded">
+        <div className="flex items-center gap-1.5 px-2 py-1 bg-bg-2 rounded">
           <Film size={14} className="text-primary" />
-          <span className="text-[11px] font-medium text-text-primary">
+          <span className="text-[11px] font-medium text-fg">
             {currentScene?.label || "Scene"}
           </span>
-          <span className="text-[10px] text-text-muted">
+          <span className="text-[10px] text-fg-3">
             {currentSceneIndex + 1}/{scenes.length}
           </span>
         </div>
 
-        <button
+        <IconButton
+          label="Next scene"
+          icon={<ChevronRight size={16} className="text-fg-2" />}
+          variant="ghost"
+          size="sm"
           onClick={handleNext}
-          disabled={currentSceneIndex === scenes.length - 1}
-          className="p-1.5 rounded hover:bg-background-tertiary disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-        >
-          <ChevronRight size={16} className="text-text-secondary" />
-        </button>
+          isDisabled={currentSceneIndex === scenes.length - 1}
+          className="p-1.5 rounded hover:bg-bg-2 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+        />
       </div>
     );
   }
@@ -151,44 +159,52 @@ export const SceneNavigatorPanel: React.FC<SceneNavigatorPanelProps> = ({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Film size={14} className="text-primary" />
-            <span className="text-[11px] font-medium text-text-primary">
+            <span className="text-[11px] font-medium text-fg">
               Scenes
             </span>
-            <span className="text-[10px] text-text-muted">
+            <span className="text-[10px] text-fg-3">
               ({scenes.length})
             </span>
           </div>
-          <button
+          <Button
+            label="Add scene"
+            variant="primary"
+            icon={<Plus size={10} />}
             onClick={handleAddScene}
             className="flex items-center gap-1 px-2 py-1 bg-primary hover:bg-primary/80 text-white rounded text-[10px] font-medium transition-colors"
           >
-            <Plus size={10} />
             Add
-          </button>
+          </Button>
         </div>
 
         <div className="flex items-center gap-1">
-          <button
+          <IconButton
+            label="Previous scene"
+            icon={<ChevronLeft size={14} />}
+            variant="ghost"
+            size="sm"
             onClick={handlePrevious}
-            disabled={currentSceneIndex === 0}
-            className="p-1.5 rounded hover:bg-background-tertiary disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-          >
-            <ChevronLeft size={14} />
-          </button>
+            isDisabled={currentSceneIndex === 0}
+            className="p-1.5 rounded hover:bg-bg-2 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+          />
 
           <div className="flex-1 flex items-center gap-1 overflow-x-auto">
             {scenes.map((scene, index) => {
               const isActive = index === currentSceneIndex;
               return (
-                <button
+                <SelectableCard
                   key={scene.id}
+                  label={scene.label}
+                  isSelected={isActive}
+                  onChange={() => handleSceneClick(index)}
                   onClick={() => handleSceneClick(index)}
+                  padding={1}
+                  variant={isActive ? "green" : "muted"}
                   className={`group relative flex items-center gap-1 px-2 py-1 rounded transition-all ${
                     isActive
                       ? "bg-primary text-white"
-                      : "bg-background-tertiary hover:bg-background-secondary text-text-secondary hover:text-text-primary"
+                      : "bg-bg-2 hover:bg-bg-1 text-fg-2 hover:text-fg"
                   }`}
-                  title={scene.label}
                 >
                   <span
                     className="w-2 h-2 rounded-full"
@@ -197,18 +213,20 @@ export const SceneNavigatorPanel: React.FC<SceneNavigatorPanelProps> = ({
                   <span className="text-[10px] font-medium whitespace-nowrap">
                     {index + 1}
                   </span>
-                </button>
+                </SelectableCard>
               );
             })}
           </div>
 
-          <button
+          <IconButton
+            label="Next scene"
+            icon={<ChevronRight size={14} />}
+            variant="ghost"
+            size="sm"
             onClick={handleNext}
-            disabled={currentSceneIndex === scenes.length - 1}
-            className="p-1.5 rounded hover:bg-background-tertiary disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-          >
-            <ChevronRight size={14} />
-          </button>
+            isDisabled={currentSceneIndex === scenes.length - 1}
+            className="p-1.5 rounded hover:bg-bg-2 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+          />
         </div>
       </div>
     );
@@ -216,35 +234,37 @@ export const SceneNavigatorPanel: React.FC<SceneNavigatorPanelProps> = ({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2 p-2 bg-gradient-to-r from-indigo-500/20 to-violet-500/20 rounded-lg border border-indigo-500/30">
-        <Layers size={16} className="text-indigo-400" />
-        <div>
-          <span className="text-[11px] font-medium text-text-primary">
+      <div className="flex items-center gap-2 p-2 bg-gradient-to-r from-emerald-500/20 to-teal-500/20 rounded-lg border border-emerald-500/30">
+        <Layers size={16} className="text-emerald-500" />
+        <div className="flex flex-col gap-0.5">
+          <span className="text-[11px] font-medium text-fg">
             Scene Navigator
           </span>
-          <p className="text-[9px] text-text-muted">
+          <Text type="supporting" color="secondary" className="text-[9px] text-fg-3">
             Navigate between sections
-          </p>
+          </Text>
         </div>
       </div>
 
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Film size={14} className="text-text-secondary" />
-          <span className="text-[11px] font-medium text-text-primary">
+          <Film size={14} className="text-fg-2" />
+          <span className="text-[11px] font-medium text-fg">
             Scenes
           </span>
-          <span className="text-[10px] text-text-muted bg-background-tertiary px-1.5 py-0.5 rounded">
+          <span className="text-[10px] text-fg-3 bg-bg-2 px-1.5 py-0.5 rounded">
             {scenes.length}
           </span>
         </div>
-        <button
+        <Button
+          label="Add Scene"
+          variant="primary"
+          icon={<Plus size={10} />}
           onClick={handleAddScene}
           className="flex items-center gap-1 px-2 py-1 bg-primary hover:bg-primary/80 text-white rounded text-[10px] font-medium transition-colors"
         >
-          <Plus size={10} />
           Add Scene
-        </button>
+        </Button>
       </div>
 
       <div className="space-y-1 max-h-64 overflow-y-auto">
@@ -253,20 +273,25 @@ export const SceneNavigatorPanel: React.FC<SceneNavigatorPanelProps> = ({
           const sceneDuration = getSceneDuration(scene);
 
           return (
-            <button
+            <SelectableCard
               key={scene.id}
+              label={scene.label}
+              isSelected={isActive}
+              onChange={() => handleSceneClick(index)}
               onClick={() => handleSceneClick(index)}
+              padding={2}
+              variant={isActive ? "green" : "muted"}
               className={`w-full flex items-start gap-2 p-2 rounded transition-colors text-left ${
                 isActive
                   ? "bg-primary/10 border border-primary/30"
-                  : "hover:bg-background-tertiary border border-transparent"
+                  : "hover:bg-bg-2 border border-transparent"
               }`}
             >
               <div
                 className={`flex-shrink-0 w-6 h-6 rounded flex items-center justify-center text-[10px] font-medium ${
                   isActive
                     ? "bg-primary text-white"
-                    : "bg-background-tertiary text-text-muted"
+                    : "bg-bg-2 text-fg-3"
                 }`}
               >
                 {index + 1}
@@ -279,17 +304,17 @@ export const SceneNavigatorPanel: React.FC<SceneNavigatorPanelProps> = ({
                     style={{ backgroundColor: scene.color }}
                   />
                   <span
-                    className={`text-[11px] truncate ${isActive ? "text-text-primary font-medium" : "text-text-secondary"}`}
+                    className={`text-[11px] truncate ${isActive ? "text-fg font-medium" : "text-fg-2"}`}
                   >
                     {scene.label}
                   </span>
                 </div>
                 <div className="flex items-center gap-2 mt-0.5">
-                  <span className="text-[9px] text-text-muted">
+                  <span className="text-[9px] text-fg-3">
                     {formatTime(scene.startTime)} - {formatTime(scene.endTime)}
                   </span>
-                  <span className="text-[9px] text-text-muted">•</span>
-                  <span className="text-[9px] text-text-muted">
+                  <span className="text-[9px] text-fg-3">•</span>
+                  <span className="text-[9px] text-fg-3">
                     {sceneDuration.toFixed(1)}s
                   </span>
                 </div>
@@ -302,31 +327,35 @@ export const SceneNavigatorPanel: React.FC<SceneNavigatorPanelProps> = ({
                   fill="currentColor"
                 />
               )}
-            </button>
+            </SelectableCard>
           );
         })}
       </div>
 
       <div className="flex items-center justify-between pt-2 border-t border-border">
-        <button
+        <Button
+          label="Previous scene"
+          variant="ghost"
+          icon={<ChevronLeft size={12} />}
           onClick={handlePrevious}
-          disabled={currentSceneIndex === 0}
-          className="flex items-center gap-1 text-[10px] text-text-muted hover:text-text-primary disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+          isDisabled={currentSceneIndex === 0}
+          className="flex items-center gap-1 text-[10px] text-fg-3 hover:text-fg disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
         >
-          <ChevronLeft size={12} />
           Previous
-        </button>
-        <span className="text-[9px] text-text-muted">
+        </Button>
+        <span className="text-[9px] text-fg-3">
           Scene {currentSceneIndex + 1} of {scenes.length}
         </span>
-        <button
+        <Button
+          label="Next scene"
+          variant="ghost"
           onClick={handleNext}
-          disabled={currentSceneIndex === scenes.length - 1}
-          className="flex items-center gap-1 text-[10px] text-text-muted hover:text-text-primary disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+          isDisabled={currentSceneIndex === scenes.length - 1}
+          className="flex items-center gap-1 text-[10px] text-fg-3 hover:text-fg disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
         >
           Next
           <ChevronRight size={12} />
-        </button>
+        </Button>
       </div>
     </div>
   );

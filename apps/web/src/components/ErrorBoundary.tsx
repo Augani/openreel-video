@@ -1,4 +1,6 @@
 import React from "react";
+import { ToolcraftButton as Button } from "@openreel/ui";
+import { ToolcraftText as Text } from "@openreel/ui";
 
 interface ErrorBoundaryProps {
   children: React.ReactNode;
@@ -41,18 +43,19 @@ export class ErrorBoundary extends React.Component<
 
       return (
         <div className="flex flex-col items-center justify-center p-8 text-center bg-background-secondary/50 rounded-lg m-2">
-          <div className="text-red-400 text-sm font-medium mb-2">
+          <Text type="supporting" weight="medium" className="text-red-400 text-sm mb-2">
             Something went wrong
-          </div>
-          <div className="text-text-muted text-xs mb-4 max-w-xs">
+          </Text>
+          <Text type="supporting" color="secondary" className="text-text-muted text-xs mb-4 max-w-xs">
             {this.state.error?.message || "An unexpected error occurred"}
-          </div>
-          <button
+          </Text>
+          <Button
+            label="Retry"
+            variant="ghost"
+            size="sm"
             onClick={this.handleRetry}
             className="px-4 py-2 bg-primary/20 hover:bg-primary/30 text-primary text-xs rounded transition-colors"
-          >
-            Retry
-          </button>
+          />
         </div>
       );
     }
@@ -73,9 +76,9 @@ export const PanelErrorBoundary: React.FC<PanelErrorBoundaryProps> = ({
   <ErrorBoundary
     fallback={
       <div className="flex-1 flex items-center justify-center p-4 text-center">
-        <div className="text-text-muted text-xs">
+        <Text type="supporting" color="secondary" className="text-text-muted text-xs">
           {name} failed to load. Please refresh the page.
-        </div>
+        </Text>
       </div>
     }
   >

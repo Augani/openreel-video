@@ -14,7 +14,7 @@ export const MOGRAPH_TOUR_STEPS: MoGraphTourStep[] = [
     target: null,
     title: "Motion Graphics & Animation",
     description:
-      "Learn how to create professional animations with keyframes, motion paths, and particle effects.",
+      "A quick map of the current animation tools: keyframes in the Inspector, timing in the timeline, and motion scenes from the left action rail.",
     position: "center",
   },
   {
@@ -22,7 +22,7 @@ export const MOGRAPH_TOUR_STEPS: MoGraphTourStep[] = [
     target: "[data-tour='inspector']",
     title: "Keyframe Animation",
     description:
-      "Select any clip and expand the Keyframes section in the Inspector. Add keyframes to animate position, scale, rotation, and opacity over time.",
+      "Select a clip and open its animation controls in the Inspector. Add keyframes to animate position, scale, rotation, opacity, and more.",
     tips: [
       "Click the diamond icon to add a keyframe at current time",
       "Each property can have its own animation curve",
@@ -35,7 +35,7 @@ export const MOGRAPH_TOUR_STEPS: MoGraphTourStep[] = [
     target: "[data-tour='timeline']",
     title: "Timeline Keyframe View",
     description:
-      "Click the expand arrow on any track header to reveal keyframe sub-tracks. Drag keyframe diamonds to adjust timing visually.",
+      "The lower timeline is where animation timing becomes visible. Expand tracks and drag keyframe diamonds to adjust timing.",
     tips: [
       "Diamond markers show keyframe positions",
       "Drag horizontally to change timing",
@@ -48,7 +48,7 @@ export const MOGRAPH_TOUR_STEPS: MoGraphTourStep[] = [
     target: "[data-tour='toolbar']",
     title: "Graph Editor",
     description:
-      "Open the Keyframe Editor panel from the toolbar for precise control. Edit value curves, copy/paste keyframes, and fine-tune animations.",
+      "Use the action rail on the far left to open animation utilities, including the Keyframe Editor for precise curve control.",
     tips: [
       "Drag keyframe points to adjust time and value",
       "Select multiple keyframes with Shift+click",
@@ -104,7 +104,7 @@ export const MOGRAPH_TOUR_STEPS: MoGraphTourStep[] = [
     description:
       "Animate text with professional presets. Characters can fade in, slide, bounce, or appear with typewriter effects.",
     tips: [
-      "19 text animation styles available",
+      "25 text animation styles available",
       "Per-character or per-word animation",
       "Customize timing and easing",
     ],

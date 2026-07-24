@@ -18,7 +18,7 @@ export class InspectorTabErrorBoundary extends React.Component<Props, State> {
   render(): React.ReactNode {
     if (this.state.hasError) {
       return (
-        <div className="p-4 text-center text-xs text-text-secondary">
+        <div className="p-4 text-center text-xs text-fg-2">
           This panel hit an error. Switch tabs and back to retry.
         </div>
       );

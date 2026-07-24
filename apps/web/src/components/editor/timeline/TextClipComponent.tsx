@@ -1,8 +1,8 @@
-import React, { useRef, useState, useEffect } from "react";
-import { Type } from "lucide-react";
+import React, { useRef, useState, useEffect, useCallback } from "react";
+import { ToolcraftContextMenu as ContextMenu } from "@openreel/ui";
+import { Type } from "@/icons/lucide-compat";
 import type { TextClip } from "@openreel/core";
-import { ContextMenu, ContextMenuTrigger } from "@openreel/ui";
-import { GraphicsClipContextMenu } from "./GraphicsClipContextMenu";
+import { useGraphicsClipContextMenuItems } from "./GraphicsClipContextMenu";
 import { calculateSnap } from "./utils";
 import { useProjectStore } from "../../../stores/project-store";
 import { useTimelineStore } from "../../../stores/timeline-store";
@@ -29,6 +29,7 @@ export const TextClipComponent: React.FC<TextClipComponentProps> = ({
   const [isTrimming, setIsTrimming] = useState<"left" | "right" | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState(0);
+  const historyGroupOpenRef = useRef(false);
   const { snapSettings } = useUIStore();
   const { playheadPosition } = useTimelineStore();
   const trimStartRef = useRef<{
@@ -44,12 +45,17 @@ export const TextClipComponent: React.FC<TextClipComponentProps> = ({
   const left = textClip.startTime * pixelsPerSecond;
   const width = textClip.duration * pixelsPerSecond;
 
-  const handleClick = (e: React.MouseEvent) => {
-    if (e.button !== 0) return;
-    if (isTrimming || isDragging) return;
-    e.stopPropagation();
-    onSelect(textClip.id, e.shiftKey || e.metaKey);
-  };
+  const beginTimingGesture = useCallback((description: string) => {
+    if (historyGroupOpenRef.current) return;
+    useProjectStore.getState().beginHistoryGroup(description);
+    historyGroupOpenRef.current = true;
+  }, []);
+
+  const endTimingGesture = useCallback(() => {
+    if (!historyGroupOpenRef.current) return;
+    useProjectStore.getState().endHistoryGroup();
+    historyGroupOpenRef.current = false;
+  }, []);
 
   const handleMouseDown = (e: React.MouseEvent) => {
     if (e.button !== 0) return;
@@ -63,8 +69,15 @@ export const TextClipComponent: React.FC<TextClipComponentProps> = ({
     const clipStartX = textClip.startTime * pixelsPerSecond;
     setDragOffset(clickX - clipStartX);
     setIsDragging(true);
+    beginTimingGesture("Move text clip");
 
-    onSelect(textClip.id, e.shiftKey || e.metaKey);
+    onSelect(textClip.id, e.shiftKey || e.metaKey || e.ctrlKey);
+  };
+
+  const handleClick = (e: React.MouseEvent) => {
+    // Selection is committed on mouse-down so drag gestures feel immediate.
+    // Keep the resulting click from reaching the lane and clearing it.
+    e.stopPropagation();
   };
 
   useEffect(() => {
@@ -92,6 +105,7 @@ export const TextClipComponent: React.FC<TextClipComponentProps> = ({
 
     const handleMouseUp = () => {
       setIsDragging(false);
+      endTimingGesture();
     };
 
     window.addEventListener("mousemove", handleMouseMove);
@@ -101,13 +115,14 @@ export const TextClipComponent: React.FC<TextClipComponentProps> = ({
       window.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("mouseup", handleMouseUp);
     };
-  }, [isDragging, textClip.id, textClip.duration, pixelsPerSecond, dragOffset, onMoveClip, snapSettings, playheadPosition]);
+  }, [isDragging, textClip.id, textClip.duration, pixelsPerSecond, dragOffset, onMoveClip, snapSettings, playheadPosition, endTimingGesture]);
 
   const handleTrimStart = (e: React.MouseEvent, edge: "left" | "right") => {
     if (e.button !== 0) return;
     e.stopPropagation();
     e.preventDefault();
     setIsTrimming(edge);
+    beginTimingGesture("Trim text clip");
     trimStartRef.current = {
       mouseX: e.clientX,
       startTime: textClip.startTime,
@@ -146,6 +161,7 @@ export const TextClipComponent: React.FC<TextClipComponentProps> = ({
 
     const handleMouseUp = () => {
       setIsTrimming(null);
+      endTimingGesture();
       document.body.style.cursor = "";
       document.body.style.userSelect = "";
     };
@@ -157,17 +173,30 @@ export const TextClipComponent: React.FC<TextClipComponentProps> = ({
       window.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("mouseup", handleMouseUp);
     };
-  }, [isTrimming, textClip.id, pixelsPerSecond, onTrim]);
+  }, [isTrimming, textClip.id, pixelsPerSecond, onTrim, endTimingGesture]);
 
   const isInteracting = isDragging || isTrimming;
+  const contextMenuItems = useGraphicsClipContextMenuItems({
+    clip: textClip,
+    clipType: "text",
+  });
 
   return (
-    <ContextMenu>
-      <ContextMenuTrigger asChild>
+    <ContextMenu items={contextMenuItems} menuWidth={200} size="sm">
         <div
           ref={clipRef}
+          role="button"
+          tabIndex={0}
+          aria-label={`Select text clip ${textClip.text || "Text"}`}
+          aria-pressed={isSelected}
           onClick={handleClick}
           onMouseDown={handleMouseDown}
+          onKeyDown={(event) => {
+            if (event.key !== "Enter" && event.key !== " ") return;
+            event.preventDefault();
+            event.stopPropagation();
+            onSelect(textClip.id, event.shiftKey || event.metaKey || event.ctrlKey);
+          }}
           className={`absolute top-1 bottom-1 rounded-lg overflow-hidden cursor-grab group ${
             isDragging ? "cursor-grabbing opacity-75" : ""
           } ${
@@ -201,8 +230,8 @@ export const TextClipComponent: React.FC<TextClipComponentProps> = ({
             {isSelected && <div className="w-0.5 h-3 bg-amber-900/60 rounded-full" />}
           </div>
           <div className="w-full h-full flex items-center gap-1 px-3">
-            <Type size={12} className="text-amber-400 flex-shrink-0" />
-            <span className="text-[10px] font-medium text-amber-200 truncate">
+            <Type size={12} className="text-fg-2 flex-shrink-0" />
+            <span className="text-[10px] font-semibold text-fg truncate">
               {textClip.text || "Text"}
             </span>
           </div>
@@ -210,8 +239,6 @@ export const TextClipComponent: React.FC<TextClipComponentProps> = ({
             <div className="absolute inset-0 border-2 border-amber-400 rounded-lg pointer-events-none" />
           )}
         </div>
-      </ContextMenuTrigger>
-      <GraphicsClipContextMenu clip={textClip} clipType="text" />
     </ContextMenu>
   );
 };

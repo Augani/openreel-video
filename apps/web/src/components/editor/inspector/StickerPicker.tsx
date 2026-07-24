@@ -1,6 +1,11 @@
 import React, { useCallback, useState, useMemo } from "react";
-import { Smile, Sticker, Search, Plus, X } from "lucide-react";
-import { Input } from "@openreel/ui";
+import { Smile, Sticker, Search, Plus, X } from "@/icons/lucide-compat";
+import { ToolcraftButton as Button } from "@openreel/ui";
+import { ToolcraftCard as Card } from "@openreel/ui";
+import { ToolcraftClickableCard as ClickableCard } from "@openreel/ui";
+import { ToolcraftIconButton as IconButton } from "@openreel/ui";
+import { ToolcraftText as Text } from "@openreel/ui";
+import { ToolcraftTextInputControl } from "@openreel/ui";
 import { getGraphicsBridge } from "../../../bridges";
 import type { StickerItem, EmojiItem } from "@openreel/core";
 
@@ -23,20 +28,13 @@ const CategoryTab: React.FC<{
   isActive: boolean;
   onClick: () => void;
 }> = ({ name, icon, isActive, onClick }) => (
-  <button
+  <Button
+    label={`${icon ? `${icon} ` : ""}${name}`}
     onClick={onClick}
-    className={`
- px-3 py-1.5 text-[10px] rounded-lg whitespace-nowrap transition-colors
- ${
-   isActive
-     ? "bg-primary text-white font-medium"
-     : "bg-background-tertiary text-text-secondary hover:text-text-primary hover:bg-background-secondary"
- }
- `}
-  >
-    {icon && <span className="mr-1">{icon}</span>}
-    {name}
-  </button>
+    variant={isActive ? "primary" : "secondary"}
+    size="sm"
+    className="whitespace-nowrap text-[10px]"
+  />
 );
 
 /**
@@ -46,13 +44,17 @@ const EmojiGridItem: React.FC<{
   emoji: EmojiItem;
   onSelect: (emoji: EmojiItem) => void;
 }> = ({ emoji, onSelect }) => (
-  <button
+  <ClickableCard
+    label={emoji.name}
     onClick={() => onSelect(emoji)}
-    className="w-10 h-10 flex items-center justify-center text-xl rounded-lg hover:bg-background-tertiary transition-colors"
-    title={emoji.name}
+    width={40}
+    height={40}
+    padding={0}
+    variant="transparent"
+    className="flex items-center justify-center text-xl"
   >
     {emoji.emoji}
-  </button>
+  </ClickableCard>
 );
 
 /**
@@ -62,17 +64,21 @@ const StickerGridItem: React.FC<{
   sticker: StickerItem;
   onSelect: (sticker: StickerItem) => void;
 }> = ({ sticker, onSelect }) => (
-  <button
+  <ClickableCard
+    label={sticker.name}
     onClick={() => onSelect(sticker)}
-    className="w-16 h-16 flex items-center justify-center rounded-lg hover:bg-background-tertiary transition-colors overflow-hidden"
-    title={sticker.name}
+    width={64}
+    height={64}
+    padding={1}
+    variant="transparent"
+    className="flex items-center justify-center overflow-hidden"
   >
     <img
       src={sticker.imageUrl}
       alt={sticker.name}
       className="max-w-full max-h-full object-contain"
     />
-  </button>
+  </ClickableCard>
 );
 
 /**
@@ -181,57 +187,46 @@ export const StickerPicker: React.FC<StickerPickerProps> = ({
   return (
     <div className="space-y-3">
       {/* Tab Switcher */}
-      <div className="flex gap-1 p-1 bg-background-tertiary rounded-lg">
-        <button
+      <div className="flex gap-1 p-1 bg-bg-2 rounded-lg">
+        <Button
+          label="Emojis"
+          icon={<Smile size={14} aria-hidden />}
+          variant={activeTab === "emojis" ? "primary" : "secondary"}
+          size="sm"
           onClick={() => handleTabChange("emojis")}
-          className={`
- flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-[10px] transition-colors
- ${
-   activeTab === "emojis"
-     ? "bg-background-secondary text-text-primary font-medium"
-     : "text-text-secondary hover:text-text-primary"
- }
- `}
-        >
-          <Smile size={14} />
-          Emojis
-        </button>
-        <button
+          className="flex-1"
+        />
+        <Button
+          label="Stickers"
+          icon={<Sticker size={14} aria-hidden />}
+          variant={activeTab === "stickers" ? "primary" : "secondary"}
+          size="sm"
           onClick={() => handleTabChange("stickers")}
-          className={`
- flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-[10px] transition-colors
- ${
-   activeTab === "stickers"
-     ? "bg-background-secondary text-text-primary font-medium"
-     : "text-text-secondary hover:text-text-primary"
- }
- `}
-        >
-          <Sticker size={14} />
-          Stickers
-        </button>
+          className="flex-1"
+        />
       </div>
 
       {/* Search Input */}
       <div className="relative">
-        <Search
-          size={14}
-          className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-muted z-10"
-        />
-        <Input
-          type="text"
+        <ToolcraftTextInputControl
+          label={`Search ${activeTab}`}
+          isLabelHidden
+          size="sm"
+          width="100%"
           value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
+          onChange={setSearchQuery}
           placeholder={`Search ${activeTab}...`}
-          className="pl-8 pr-8 text-[10px] bg-background-tertiary border-border h-7 text-text-primary"
+          startIcon={<Search size={14} aria-hidden />}
         />
         {searchQuery && (
-          <button
+          <IconButton
+            label="Clear search"
+            icon={<X size={12} className="text-fg-3" aria-hidden />}
+            variant="ghost"
+            size="sm"
             onClick={clearSearch}
-            className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-background-secondary z-10"
-          >
-            <X size={12} className="text-text-muted" />
-          </button>
+            className="absolute right-1 top-1/2 -translate-y-1/2 z-10"
+          />
         )}
       </div>
 
@@ -287,18 +282,24 @@ export const StickerPicker: React.FC<StickerPickerProps> = ({
           </div>
         ) : (
           <div className="py-8 text-center">
-            <div className="w-12 h-12 mx-auto mb-2 rounded-full bg-background-tertiary flex items-center justify-center">
+            <Card
+              variant="muted"
+              padding={0}
+              width={48}
+              height={48}
+              className="mx-auto mb-2 flex items-center justify-center rounded-full"
+            >
               {activeTab === "emojis" ? (
-                <Smile size={24} className="text-text-muted" />
+                <Smile size={24} className="text-fg-3" aria-hidden />
               ) : (
-                <Sticker size={24} className="text-text-muted" />
+                <Sticker size={24} className="text-fg-3" aria-hidden />
               )}
-            </div>
-            <p className="text-[10px] text-text-muted">
+            </Card>
+            <Text type="supporting" color="secondary" className="text-[10px]">
               {searchQuery
                 ? `No ${activeTab} found for "${searchQuery}"`
                 : `No ${activeTab} in this category`}
-            </p>
+            </Text>
           </div>
         )}
       </div>
@@ -306,16 +307,17 @@ export const StickerPicker: React.FC<StickerPickerProps> = ({
       {/* Add Custom Sticker (for stickers tab only) */}
       {activeTab === "stickers" && (
         <div className="pt-2 border-t border-border">
-          <button
+          <Button
+            label="Add Custom Sticker"
+            icon={<Plus size={14} aria-hidden />}
+            variant="secondary"
+            size="sm"
             onClick={() => {
               // This would open a file picker for custom stickers
               // For now, just show a placeholder
             }}
-            className="w-full flex items-center justify-center gap-1.5 py-2 text-[10px] text-text-secondary hover:text-text-primary bg-background-tertiary hover:bg-background-secondary rounded-lg transition-colors"
-          >
-            <Plus size={14} />
-            Add Custom Sticker
-          </button>
+            className="w-full"
+          />
         </div>
       )}
     </div>

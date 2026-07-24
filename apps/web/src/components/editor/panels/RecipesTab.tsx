@@ -5,7 +5,11 @@ import {
   SlidersHorizontal,
   Sparkles,
   Wand2,
-} from "lucide-react";
+} from "@/icons/lucide-compat";
+import { ToolcraftButton as Button } from "@openreel/ui";
+import { ToolcraftSelectableCard as SelectableCard } from "@openreel/ui";
+import { ToolcraftText as Text } from "@openreel/ui";
+import { ToolcraftTextInputControl } from "@openreel/ui";
 import {
   EDITING_TEMPLATE_CATEGORIES,
   type EditingTemplate,
@@ -196,10 +200,12 @@ export const RecipesTab: React.FC = () => {
           <Sparkles size={24} />
         </div>
         <div>
-          <p className="text-sm font-semibold text-text-primary">Select a clip first</p>
-          <p className="mt-1.5 text-xs text-text-muted max-w-[240px] leading-relaxed mx-auto">
+          <Text type="body" weight="bold" display="block" className="text-sm">
+            Select a clip first
+          </Text>
+          <Text type="supporting" color="secondary" display="block" className="mt-1.5 max-w-[240px] text-xs leading-relaxed mx-auto">
             Choose a video or image in the timeline to apply clip-scoped recipes, looks, and caption treatments.
-          </p>
+          </Text>
         </div>
       </div>
     );
@@ -214,22 +220,23 @@ export const RecipesTab: React.FC = () => {
             {selectedTargetType === 'video' ? <span className="text-primary/70 text-[10px]">VIDEO</span> : <span className="text-primary/70 text-[10px]">IMAGE</span>}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-xs font-semibold text-text-primary truncate" title={selectedMedia?.name || selectedClip.id}>
+            <Text type="body" weight="bold" display="block" className="truncate text-xs">
               {selectedMedia?.name || 'Selected Clip'}
-            </p>
-            <p className="text-[10px] text-text-muted mt-0.5">
+            </Text>
+            <Text type="supporting" color="secondary" display="block" className="mt-0.5 text-[10px]">
               {selectedClip.duration.toFixed(1)}s • {appliedTemplates.length} recipes applied
-            </p>
+            </Text>
           </div>
         </div>
 
         {/* Search */}
         <div className="relative">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
-          <input
-            type="text"
+          <ToolcraftTextInputControl
+            label="Search recipes"
+            isLabelHidden
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={setSearchQuery}
             placeholder="Search recipes..."
             className="w-full h-9 pl-9 pr-3 rounded-lg border border-border bg-background-tertiary text-xs text-text-primary placeholder:text-text-muted outline-none focus:border-primary/50 transition-colors"
           />
@@ -238,8 +245,13 @@ export const RecipesTab: React.FC = () => {
 
       <div className="px-4 py-3 border-b border-border/50 bg-background-secondary">
         <div className="flex flex-wrap gap-1.5">
-          <button
+          <SelectableCard
+            label="ALL"
+            isSelected={selectedCategory === "all"}
+            onChange={() => setSelectedCategory("all")}
             onClick={() => setSelectedCategory("all")}
+            padding={1}
+            variant={selectedCategory === "all" ? "green" : "muted"}
             className={`px-3 py-1.5 text-[10px] font-bold rounded-full transition-colors ${
               selectedCategory === "all"
                 ? "bg-text-primary text-black"
@@ -247,11 +259,16 @@ export const RecipesTab: React.FC = () => {
             }`}
           >
             ALL
-          </button>
+          </SelectableCard>
           {EDITING_TEMPLATE_CATEGORIES.map((category) => (
-            <button
+            <SelectableCard
               key={category.id}
+              label={category.name}
+              isSelected={selectedCategory === category.id}
+              onChange={() => setSelectedCategory(category.id)}
               onClick={() => setSelectedCategory(category.id)}
+              padding={1}
+              variant={selectedCategory === category.id ? "green" : "muted"}
               className={`px-3 py-1.5 text-[10px] font-bold rounded-full uppercase transition-colors ${
                 selectedCategory === category.id
                   ? "bg-text-primary text-black"
@@ -259,7 +276,7 @@ export const RecipesTab: React.FC = () => {
               }`}
             >
               {category.name}
-            </button>
+            </SelectableCard>
           ))}
         </div>
       </div>
@@ -267,8 +284,12 @@ export const RecipesTab: React.FC = () => {
       <div className="flex-1 p-4 space-y-3">
         {filteredTemplates.length === 0 ? (
           <div className="py-12 text-center">
-            <p className="text-text-secondary text-sm font-medium">No recipes match</p>
-            <p className="mt-2 text-xs text-text-muted">Try a different search or category.</p>
+            <Text type="body" color="secondary" weight="bold" display="block" className="text-sm">
+              No recipes match
+            </Text>
+            <Text type="supporting" color="secondary" display="block" className="mt-2 text-xs">
+              Try a different search or category.
+            </Text>
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-3">
@@ -296,9 +317,9 @@ export const RecipesTab: React.FC = () => {
                       <div className="flex-1 min-w-0 flex flex-col justify-between">
                         <div>
                           <div className="flex items-center justify-between gap-2">
-                            <p className="truncate text-xs font-bold text-text-primary leading-tight">
+                            <Text type="body" weight="bold" display="block" className="truncate text-xs leading-tight">
                               {template.name}
-                            </p>
+                            </Text>
                             {appliedCount > 0 && (
                               <span className="shrink-0 flex items-center gap-1 rounded bg-primary/10 px-1.5 py-0.5 text-[9px] font-bold text-primary ring-1 ring-primary/20">
                                 <CheckCircle2 size={10} />
@@ -306,9 +327,9 @@ export const RecipesTab: React.FC = () => {
                               </span>
                             )}
                           </div>
-                          <p className="mt-0.5 text-[10px] text-text-muted line-clamp-2 leading-relaxed">
+                          <Text type="supporting" color="secondary" display="block" className="mt-0.5 line-clamp-2 text-[10px] leading-relaxed">
                             {template.description}
-                          </p>
+                          </Text>
                         </div>
                         
                         <div className="flex items-center justify-between mt-2.5">
@@ -317,25 +338,25 @@ export const RecipesTab: React.FC = () => {
                           </span>
                           <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
                             {template.controls && template.controls.length > 0 && (
-                              <button
+                              <Button
+                                label="Edit recipe controls"
+                                variant="ghost"
+                                icon={<SlidersHorizontal size={10} />}
                                 onClick={() => handleExpand(template)}
                                 className={`h-6 px-2 text-[10px] font-medium rounded transition-colors flex items-center gap-1.5 ${
                                   isExpanded
                                     ? "bg-primary/20 text-primary border border-primary/30"
                                     : "bg-background-secondary border border-border hover:text-text-primary text-text-secondary"
-                                }`}
-                              >
-                                <SlidersHorizontal size={10} />
-                                Edit
-                              </button>
+                                  }`}
+                              />
                             )}
-                            <button
+                            <Button
+                              label={applyingTemplateId === template.id ? "Applying" : "Apply"}
+                              variant="primary"
                               onClick={() => void handleApply(template)}
-                              disabled={applyingTemplateId !== null}
+                              isDisabled={applyingTemplateId !== null}
                               className="h-6 px-3 bg-primary text-black text-[10px] font-bold rounded transition-colors hover:bg-primary/80 disabled:opacity-50"
-                            >
-                              {applyingTemplateId === template.id ? "Applying" : "Apply"}
-                            </button>
+                            />
                           </div>
                         </div>
                       </div>

@@ -1,0 +1,8 @@
+{
+  "clips": [
+    { "id": "portrait-closeup-01", "label": "Portrait close-up", "aspect": "9:16", "durationSec": 10, "url": "/samples/portrait-closeup-01.mp4", "tests": ["face"] },
+    { "id": "portrait-midshot-02", "label": "Portrait mid-shot", "aspect": "9:16", "durationSec": 10, "url": "/samples/portrait-midshot-02.mp4", "tests": ["face", "subject_silhouette"] },
+    { "id": "body-fullshot-03", "label": "Full body", "aspect": "9:16", "durationSec": 10, "url": "/samples/body-fullshot-03.mp4", "tests": ["subject_silhouette"] },
+    { "id": "outdoor-landscape-05", "label": "Outdoor landscape", "aspect": "16:9", "durationSec": 8, "url": "/samples/outdoor-landscape-05.mp4", "tests": ["full_frame"] }
+  ]
+}

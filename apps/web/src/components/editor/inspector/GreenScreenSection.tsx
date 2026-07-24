@@ -1,5 +1,10 @@
 import React, { useState, useCallback, useMemo, useEffect } from "react";
-import { Video, Pipette, RefreshCw, Eye, EyeOff, Layers } from "lucide-react";
+import { Video, Pipette, RefreshCw, Eye, EyeOff, Layers } from "@/icons/lucide-compat";
+import { ToolcraftButton as Button } from "@openreel/ui";
+import { ToolcraftIconButton as IconButton } from "@openreel/ui";
+import { ToolcraftSelectableCard as SelectableCard } from "@openreel/ui";
+import { ToolcraftText as Text } from "@openreel/ui";
+import { MockSlider } from "./shell/InspectorControls";
 import { useProjectStore } from "../../../stores/project-store";
 import { useEngineStore } from "../../../stores/engine-store";
 import type { RGB, ChromaKeySettings } from "@openreel/core";
@@ -12,13 +17,14 @@ const ColorPreview: React.FC<{ color: RGB; onClick?: () => void }> = ({
   color,
   onClick,
 }) => (
-  <button
+  <Button
+    label="Pick color from video"
+    variant="ghost"
     onClick={onClick}
     className="w-8 h-8 rounded-lg border-2 border-border hover:border-primary transition-colors"
     style={{
       backgroundColor: `rgb(${Math.round(color.r * 255)}, ${Math.round(color.g * 255)}, ${Math.round(color.b * 255)})`,
     }}
-    title="Click to pick color from video"
   />
 );
 
@@ -30,37 +36,21 @@ const ControlSlider: React.FC<{
   max?: number;
   step?: number;
 }> = ({ label, value, onChange, min = 0, max = 1, step = 0.01 }) => {
-  const percentage = ((value - min) / (max - min)) * 100;
-
   return (
     <div className="space-y-1">
       <div className="flex items-center justify-between">
-        <span className="text-[10px] text-text-secondary">{label}</span>
-        <span className="text-[10px] font-mono text-text-primary bg-background-tertiary px-1.5 py-0.5 rounded border border-border">
+        <span className="text-[10px] text-fg-2">{label}</span>
+        <span className="text-[10px] font-mono text-fg bg-bg-2 px-1.5 py-0.5 rounded border border-border">
           {Math.round(value * 100)}%
         </span>
       </div>
-      <div className="relative h-1.5">
-        <input
-          type="range"
-          min={min}
-          max={max}
-          step={step}
-          value={value}
-          onChange={(e) => onChange(parseFloat(e.target.value))}
-          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-        />
-        <div className="absolute inset-0 bg-background-tertiary rounded-full overflow-hidden">
-          <div
-            className="h-full bg-primary rounded-full transition-all"
-            style={{ width: `${percentage}%` }}
-          />
-        </div>
-        <div
-          className="absolute top-1/2 -translate-y-1/2 w-2.5 h-2.5 bg-white rounded-full shadow-sm pointer-events-none"
-          style={{ left: `calc(${percentage}% - 5px)` }}
-        />
-      </div>
+      <MockSlider
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={onChange}
+      />
     </div>
   );
 };
@@ -71,12 +61,17 @@ const ColorPresetButton: React.FC<{
   isActive: boolean;
   onClick: () => void;
 }> = ({ color, label, isActive, onClick }) => (
-  <button
+  <SelectableCard
+    label={label}
+    isSelected={isActive}
+    onChange={onClick}
     onClick={onClick}
+    padding={1}
+    variant={isActive ? "green" : "muted"}
     className={`flex items-center gap-1.5 px-2 py-1 rounded text-[9px] transition-colors ${
       isActive
         ? "bg-primary text-white"
-        : "bg-background-tertiary text-text-muted hover:text-text-primary"
+        : "bg-bg-2 text-fg-3 hover:text-fg"
     }`}
   >
     <div
@@ -86,7 +81,7 @@ const ColorPresetButton: React.FC<{
       }}
     />
     {label}
-  </button>
+  </SelectableCard>
 );
 
 const COLOR_PRESETS: { color: RGB; label: string }[] = [
@@ -159,9 +154,12 @@ export const GreenScreenSection: React.FC<GreenScreenSectionProps> = ({
     (color: RGB) => {
       if (!chromaKeyEngine) return;
       chromaKeyEngine.setKeyColor(clipId, color);
-      useProjectStore.setState((state) => ({
-        project: { ...state.project, modifiedAt: Date.now() },
-      }));
+      void useProjectStore.getState().executeAction({
+        type: "clip/setChromaKey",
+        id: crypto.randomUUID(),
+        timestamp: Date.now(),
+        params: { clipId, chromaKey: chromaKeyEngine.getSettings(clipId) },
+      });
     },
     [chromaKeyEngine, clipId],
   );
@@ -170,9 +168,12 @@ export const GreenScreenSection: React.FC<GreenScreenSectionProps> = ({
     (value: number) => {
       if (!chromaKeyEngine) return;
       chromaKeyEngine.setTolerance(clipId, value);
-      useProjectStore.setState((state) => ({
-        project: { ...state.project, modifiedAt: Date.now() },
-      }));
+      void useProjectStore.getState().executeAction({
+        type: "clip/setChromaKey",
+        id: crypto.randomUUID(),
+        timestamp: Date.now(),
+        params: { clipId, chromaKey: chromaKeyEngine.getSettings(clipId) },
+      });
     },
     [chromaKeyEngine, clipId],
   );
@@ -181,9 +182,12 @@ export const GreenScreenSection: React.FC<GreenScreenSectionProps> = ({
     (value: number) => {
       if (!chromaKeyEngine) return;
       chromaKeyEngine.setEdgeSoftness(clipId, value);
-      useProjectStore.setState((state) => ({
-        project: { ...state.project, modifiedAt: Date.now() },
-      }));
+      void useProjectStore.getState().executeAction({
+        type: "clip/setChromaKey",
+        id: crypto.randomUUID(),
+        timestamp: Date.now(),
+        params: { clipId, chromaKey: chromaKeyEngine.getSettings(clipId) },
+      });
     },
     [chromaKeyEngine, clipId],
   );
@@ -192,9 +196,12 @@ export const GreenScreenSection: React.FC<GreenScreenSectionProps> = ({
     (value: number) => {
       if (!chromaKeyEngine) return;
       chromaKeyEngine.setSpillSuppression(clipId, value);
-      useProjectStore.setState((state) => ({
-        project: { ...state.project, modifiedAt: Date.now() },
-      }));
+      void useProjectStore.getState().executeAction({
+        type: "clip/setChromaKey",
+        id: crypto.randomUUID(),
+        timestamp: Date.now(),
+        params: { clipId, chromaKey: chromaKeyEngine.getSettings(clipId) },
+      });
     },
     [chromaKeyEngine, clipId],
   );
@@ -222,55 +229,57 @@ export const GreenScreenSection: React.FC<GreenScreenSectionProps> = ({
     <div className="space-y-3">
       <div className="flex items-center gap-2 p-2 bg-gradient-to-r from-green-500/20 to-emerald-500/20 rounded-lg border border-green-500/30">
         <Video size={16} className="text-green-400" />
-        <div className="flex-1">
-          <span className="text-[11px] font-medium text-text-primary">
+        <div className="flex flex-col gap-0.5 flex-1">
+          <span className="block text-[11px] font-medium text-fg">
             Green Screen
           </span>
-          <p className="text-[9px] text-text-muted">
+          <Text type="supporting" color="secondary" display="block" className="text-[9px] text-fg-3">
             Remove background color from video
-          </p>
+          </Text>
         </div>
-        <button
+        <IconButton
+          label={settings.enabled ? "Disable chroma key" : "Enable chroma key"}
+          icon={settings.enabled ? <Eye size={14} /> : <EyeOff size={14} />}
+          variant="ghost"
+          size="sm"
           onClick={handleToggleEnabled}
           className={`p-1.5 rounded transition-colors ${
             settings.enabled
               ? "bg-green-500/30 text-green-400"
-              : "bg-background-tertiary text-text-muted hover:text-text-primary"
+              : "bg-bg-2 text-fg-3 hover:text-fg"
           }`}
-          title={settings.enabled ? "Disable chroma key" : "Enable chroma key"}
-        >
-          {settings.enabled ? <Eye size={14} /> : <EyeOff size={14} />}
-        </button>
+        />
       </div>
 
       {settings.enabled && (
         <>
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-[10px] font-medium text-text-primary">
+              <span className="text-[10px] font-medium text-fg">
                 Key Color
               </span>
               <div className="flex items-center gap-2">
-                <button
+                <IconButton
+                  label="Pick color from video"
+                  icon={<Pipette size={12} />}
+                  variant="ghost"
+                  size="sm"
                   onClick={() => setIsPickingColor(!isPickingColor)}
                   className={`p-1.5 rounded transition-colors ${
                     isPickingColor
                       ? "bg-primary text-white"
-                      : "bg-background-tertiary text-text-muted hover:text-text-primary"
+                      : "bg-bg-2 text-fg-3 hover:text-fg"
                   }`}
-                  title="Pick color from video"
-                >
-                  <Pipette size={12} />
-                </button>
+                />
                 <ColorPreview color={settings.keyColor} />
               </div>
             </div>
 
             {isPickingColor && (
               <div className="p-2 bg-primary/10 border border-primary/30 rounded-lg">
-                <p className="text-[9px] text-primary text-center">
+                <Text type="supporting" color="primary" className="text-[9px] text-primary text-center">
                   Click on the video preview to pick a color
-                </p>
+                </Text>
               </div>
             )}
 
@@ -308,20 +317,20 @@ export const GreenScreenSection: React.FC<GreenScreenSectionProps> = ({
           </div>
 
           <div className="flex items-center gap-2 pt-2 border-t border-border">
-            <button
+            <Button
+              label="Reset to Defaults"
+              variant="ghost"
+              icon={<RefreshCw size={12} />}
               onClick={handleResetToDefaults}
-              className="flex-1 flex items-center justify-center gap-1.5 py-2 text-[10px] text-text-secondary hover:text-text-primary bg-background-tertiary rounded-lg transition-colors"
-            >
-              <RefreshCw size={12} />
-              Reset to Defaults
-            </button>
+              className="flex-1 flex items-center justify-center gap-1.5 py-2 text-[10px] text-fg-2 hover:text-fg bg-bg-2 rounded-lg transition-colors"
+            />
           </div>
 
-          <div className="flex items-center gap-2 p-2 bg-background-tertiary rounded-lg">
-            <Layers size={12} className="text-text-muted" />
-            <p className="text-[9px] text-text-muted flex-1">
+          <div className="flex items-center gap-2 p-2 bg-bg-2 rounded-lg">
+            <Layers size={12} className="text-fg-3" />
+            <Text type="supporting" color="secondary" className="text-[9px] text-fg-3 flex-1">
               Place video clips below this one to use as background
-            </p>
+            </Text>
           </div>
         </>
       )}
@@ -330,17 +339,17 @@ export const GreenScreenSection: React.FC<GreenScreenSectionProps> = ({
         <div className="text-center py-4">
           <Video
             size={24}
-            className="mx-auto mb-2 text-text-muted opacity-50"
+            className="mx-auto mb-2 text-fg-3 opacity-50"
           />
-          <p className="text-[10px] text-text-muted">
+          <Text type="supporting" color="secondary" display="block" className="text-[10px] text-fg-3">
             Enable to remove background color
-          </p>
-          <button
+          </Text>
+          <Button
+            label="Enable Green Screen"
+            variant="primary"
             onClick={handleToggleEnabled}
             className="mt-2 px-4 py-1.5 text-[10px] bg-green-500/20 text-green-400 hover:bg-green-500/30 rounded-lg transition-colors"
-          >
-            Enable Green Screen
-          </button>
+          />
         </div>
       )}
     </div>

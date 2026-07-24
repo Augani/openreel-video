@@ -523,9 +523,11 @@ class KeyboardShortcutsManager {
   }
 
   private handleKeyDown = (e: KeyboardEvent): void => {
+    const target = e.target;
     if (
-      e.target instanceof HTMLInputElement ||
-      e.target instanceof HTMLTextAreaElement
+      target instanceof HTMLInputElement ||
+      target instanceof HTMLTextAreaElement ||
+      (target instanceof HTMLElement && target.isContentEditable)
     ) {
       return;
     }

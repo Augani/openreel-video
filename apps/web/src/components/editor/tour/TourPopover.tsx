@@ -1,6 +1,7 @@
 import React, { useMemo } from "react";
 import { motion } from "framer-motion";
-import { ChevronLeft, ChevronRight, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, X } from "@/icons/lucide-compat";
+import { ToolcraftIconButton as IconButton } from "@openreel/ui";
 import type { TourStep } from "./tour-steps";
 
 interface TourPopoverProps {
@@ -148,12 +149,14 @@ export const TourPopover: React.FC<TourPopoverProps> = ({
           />
         )}
 
-        <button
+        <IconButton
+          label="Skip tour"
+          icon={<X size={14} />}
+          variant="ghost"
+          size="sm"
           onClick={onSkip}
           className="absolute top-3 right-3 p-1 rounded hover:bg-background-tertiary text-text-muted hover:text-text-primary transition-colors"
-        >
-          <X size={14} />
-        </button>
+        />
 
         <div className="p-6">
           <motion.h2
@@ -202,40 +205,48 @@ export const TourPopover: React.FC<TourPopoverProps> = ({
             {Array.from({ length: totalSteps }).map((_, index) => (
               <button
                 key={index}
+                type="button"
+                aria-label={`Go to step ${index + 1}`}
                 onClick={() => onGoToStep(index)}
                 className={`w-2 h-2 rounded-full transition-all ${
                   index === currentStep
-                    ? "bg-primary scale-110"
-                    : "bg-border hover:bg-text-muted"
+                    ? "bg-accent scale-110"
+                    : "bg-border hover:bg-fg-muted"
                 }`}
               />
             ))}
           </div>
         </div>
 
-        <div className="flex items-center justify-between px-4 py-3 border-t border-border bg-background-tertiary rounded-b-xl">
+        <div className="grid grid-cols-[88px_1fr_108px] items-center gap-3 px-4 py-3 border-t border-border bg-background-tertiary rounded-b-xl">
           <button
+            type="button"
+            aria-label="Back"
             onClick={onPrev}
             disabled={isFirstStep}
-            className="flex items-center gap-1 px-3 py-1.5 text-xs text-text-secondary hover:text-text-primary disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            className="inline-flex h-9 min-w-[88px] items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-3 text-xs font-medium text-text-secondary transition-colors hover:bg-background-secondary hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-30"
           >
-            <ChevronLeft size={14} />
-            Back
+            <ChevronLeft size={14} className="shrink-0" aria-hidden />
+            <span>Back</span>
           </button>
 
           <button
+            type="button"
+            aria-label="Skip tour"
             onClick={onSkip}
-            className="px-3 py-1.5 text-xs text-text-muted hover:text-text-secondary transition-colors"
+            className="mx-auto inline-flex h-9 items-center justify-center whitespace-nowrap rounded-lg px-3 text-xs font-medium text-text-muted transition-colors hover:bg-background-secondary hover:text-text-secondary"
           >
             Skip Tour
           </button>
 
           <button
+            type="button"
+            aria-label={isLastStep ? "Get Started" : "Next"}
             onClick={onNext}
-            className="flex items-center gap-1 px-4 py-1.5 bg-primary text-white rounded-lg text-xs font-medium hover:bg-primary/80 transition-colors"
+            className="inline-flex h-9 min-w-[108px] items-center justify-center gap-1.5 whitespace-nowrap rounded-lg bg-primary px-4 text-xs font-semibold text-primary-foreground transition-colors hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
-            {isLastStep ? "Get Started" : "Next"}
-            {!isLastStep && <ChevronRight size={14} />}
+            <span>{isLastStep ? "Get Started" : "Next"}</span>
+            {!isLastStep && <ChevronRight size={14} className="shrink-0" aria-hidden />}
           </button>
         </div>
       </div>

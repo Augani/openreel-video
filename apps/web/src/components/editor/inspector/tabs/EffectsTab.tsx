@@ -1,12 +1,16 @@
 import React from "react";
-import { Sparkles, Trash2, Zap } from "lucide-react";
+import { Sparkles, Trash2, Zap } from "@/icons/lucide-compat";
+import { ToolcraftButton as Button } from "@openreel/ui";
+import { ToolcraftCard as Card } from "@openreel/ui";
+import { ToolcraftIconButton as IconButton } from "@openreel/ui";
+import { ToolcraftText as Text } from "@openreel/ui";
+import { ToolcraftTextInputControl } from "@openreel/ui";
 import type {
   AppliedEditingTemplate,
   Clip,
   EditingTemplate,
   EditingTemplatePrimitive,
 } from "@openreel/core";
-import { LabeledSlider, Switch } from "@openreel/ui";
 import {
   VideoEffectsSection,
   GreenScreenSection,
@@ -19,6 +23,8 @@ import {
   BehindSubjectSection,
 } from "../";
 import { InspectorSection } from "../shell/InspectorSection";
+import { MockToggle } from "../shell/InspectorControls";
+import { PropertySlider } from "../shell/PropertySlider";
 import {
   EditingTemplateControls,
   mergeEditingTemplateControlValues,
@@ -135,23 +141,34 @@ export const EffectsTab: React.FC<EffectsTabProps> = ({
                 : undefined;
 
               return (
-                <div
+                <Card
                   key={application.applicationId}
-                  className="rounded-lg border border-border bg-background-tertiary/70 px-2.5 py-2"
+                  variant="muted"
+                  padding={2}
+                  className="border border-border bg-bg-2/70"
                 >
                   <div className="flex items-center justify-between gap-2">
                     <div className="min-w-0 flex-1 flex items-center gap-2">
                       <Sparkles size={11} className="text-primary shrink-0" />
-                      <p className="truncate text-[11px] font-medium text-text-primary">
+                      <Text
+                        type="supporting"
+                        color="primary"
+                        className="truncate text-[11px] font-medium"
+                      >
                         {application.name}
-                      </p>
-                      <span className="text-[9px] text-text-muted capitalize shrink-0">
+                      </Text>
+                      <Text
+                        type="supporting"
+                        color="secondary"
+                        className="shrink-0 text-[9px] capitalize"
+                      >
                         {application.category?.replace(/-/g, " ") || "recipe"}
-                      </span>
+                      </Text>
                     </div>
                     <div className="flex shrink-0 gap-1">
                       {canEdit && (
-                        <button
+                        <Button
+                          label="Edit"
                           onClick={() =>
                             handleToggleRecipeControls(
                               application.applicationId,
@@ -159,16 +176,13 @@ export const EffectsTab: React.FC<EffectsTabProps> = ({
                               application.controlValues,
                             )
                           }
-                          className={`h-6 px-1.5 rounded text-[9px] font-medium transition-colors ${
-                            isExpanded
-                              ? "bg-primary/15 text-primary"
-                              : "text-text-muted hover:text-text-primary"
-                          }`}
-                        >
-                          Edit
-                        </button>
+                          variant={isExpanded ? "secondary" : "ghost"}
+                          size="sm"
+                          className={isExpanded ? "bg-primary/15 text-primary" : "text-fg-3"}
+                        />
                       )}
-                      <button
+                      <IconButton
+                        label="Remove recipe"
                         onClick={() => {
                           const removed = removeEditingTemplateApplication(
                             selectedTimelineClip.id,
@@ -187,15 +201,16 @@ export const EffectsTab: React.FC<EffectsTabProps> = ({
                             setExpandedRecipeApplicationId(null);
                           }
                         }}
-                        className="h-6 px-1.5 rounded text-text-muted hover:text-red-400 transition-colors"
-                      >
-                        <Trash2 size={11} />
-                      </button>
+                        variant="ghost"
+                        size="sm"
+                        icon={<Trash2 size={11} aria-hidden />}
+                        className="text-fg-3 hover:text-red-400"
+                      />
                     </div>
                   </div>
 
                   {isExpanded && template && currentControlValues && (
-                    <div className="mt-2 space-y-3 rounded-lg border border-border/80 bg-background-secondary/80 p-2.5">
+                    <div className="mt-2 space-y-3 rounded-lg border border-border/80 bg-bg-1/80 p-2.5">
                       <EditingTemplateControls
                         template={template}
                         values={currentControlValues}
@@ -208,7 +223,8 @@ export const EffectsTab: React.FC<EffectsTabProps> = ({
                         }
                       />
                       <div className="flex justify-end gap-1.5">
-                        <button
+                        <Button
+                          label="Reset"
                           onClick={() =>
                             handleResetRecipeControls(
                               application.applicationId,
@@ -216,11 +232,11 @@ export const EffectsTab: React.FC<EffectsTabProps> = ({
                               application.controlValues,
                             )
                           }
-                          className="h-6 px-2.5 rounded border border-border text-[9px] font-medium text-text-secondary hover:text-text-primary transition-colors"
-                        >
-                          Reset
-                        </button>
-                        <button
+                          variant="secondary"
+                          size="sm"
+                        />
+                        <Button
+                          label="Update"
                           onClick={() =>
                             handleUpdateRecipeControls(
                               application.applicationId,
@@ -228,34 +244,45 @@ export const EffectsTab: React.FC<EffectsTabProps> = ({
                               application.controlValues,
                             )
                           }
-                          className="h-6 px-2.5 rounded bg-primary text-[9px] font-semibold text-black hover:bg-primary/85 transition-colors"
-                        >
-                          Update
-                        </button>
+                          variant="primary"
+                          size="sm"
+                        />
                       </div>
                     </div>
                   )}
-                </div>
+                </Card>
               );
             })}
 
             {selectedTimelineClip.effects
               ?.filter((e: { metadata?: { templateSource?: unknown } }) => !e.metadata?.templateSource)
               .map((effect: { id: string; type: string; enabled?: boolean }) => (
-                <div
+                <Card
                   key={effect.id}
-                  className="flex items-center justify-between gap-2 rounded-lg border border-border bg-background-tertiary/70 px-2.5 py-2"
+                  variant="muted"
+                  padding={2}
+                  className="flex items-center justify-between gap-2 border border-border bg-bg-2/70"
                 >
                   <div className="flex items-center gap-2 min-w-0">
                     <Zap size={11} className="text-amber-400 shrink-0" />
-                    <p className="truncate text-[11px] font-medium text-text-primary capitalize">
+                    <Text
+                      type="supporting"
+                      color="primary"
+                      className="truncate text-[11px] font-medium capitalize"
+                    >
                       {effect.type.replace(/-/g, " ")}
-                    </p>
+                    </Text>
                   </div>
-                  <span className={`text-[9px] font-medium ${effect.enabled !== false ? "text-green-400" : "text-text-muted"}`}>
+                  <Text
+                    type="supporting"
+                    color={effect.enabled !== false ? "active" : "secondary"}
+                    className={`text-[9px] font-medium ${
+                      effect.enabled !== false ? "text-green-400" : ""
+                    }`}
+                  >
                     {effect.enabled !== false ? "On" : "Off"}
-                  </span>
-                </div>
+                  </Text>
+                </Card>
               ))}
           </div>
         </InspectorSection>
@@ -293,32 +320,44 @@ export const EffectsTab: React.FC<EffectsTabProps> = ({
         <InspectorSection title="Chroma Key (Green Screen)">
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-[10px] text-text-secondary">
+              <Text type="supporting" color="secondary" className="text-[10px]">
                 Enable
-              </span>
-              <Switch
+              </Text>
+              <MockToggle
+                ariaLabel="Enable chroma key"
                 checked={chromaKeyEnabled}
-                onCheckedChange={handleChromaKeyToggle}
+                onChange={handleChromaKeyToggle}
               />
             </div>
             {chromaKeyEnabled && (
               <>
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] text-text-secondary">
+                  <Text type="supporting" color="secondary" className="text-[10px]">
                     Key Color
-                  </span>
-                  <input
-                    type="color"
+                  </Text>
+                  <ToolcraftTextInputControl
+                    label="Key Color"
+                    isLabelHidden
+                    size="sm"
+                    width={96}
                     value={keyColor}
-                    onChange={(e) => handleKeyColorChange(e.target.value)}
-                    className="w-8 h-6 rounded border border-border cursor-pointer"
+                    onChange={handleKeyColorChange}
+                    startIcon={
+                      <span
+                        aria-hidden
+                        className="block h-4 w-4 rounded-sm border border-border"
+                        style={{ backgroundColor: keyColor }}
+                      />
+                    }
                   />
                 </div>
-                <LabeledSlider
+                <PropertySlider
                   label="Tolerance"
                   value={tolerance}
                   onChange={handleToleranceChange}
-                  unit="%"
+                  min={0}
+                  max={100}
+                  formatValue={(value) => `${Math.round(value)}%`}
                 />
               </>
             )}
@@ -339,7 +378,7 @@ export const EffectsTab: React.FC<EffectsTabProps> = ({
         </InspectorSection>
       )}
 
-      {showVideoEffects && (
+      {showVideoControls && (
         <InspectorSection
           title="Green Screen"
           sectionId="green-screen"

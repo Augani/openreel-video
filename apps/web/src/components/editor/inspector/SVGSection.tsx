@@ -1,16 +1,12 @@
 import React, { useCallback, useMemo } from "react";
+import { ToolcraftClickableCard as ClickableCard } from "@openreel/ui";
+import { ToolcraftSelectControl as Selector } from "@openreel/ui";
+import { ToolcraftText as Text } from "@openreel/ui";
+import { PropertySlider } from "./shell/PropertySlider";
 import { useProjectStore } from "../../../stores/project-store";
 import type { GraphicAnimation, GraphicAnimationType } from "@openreel/core";
 import { SVG_ANIMATION_PRESETS } from "@openreel/core";
-import {
-  ColorPicker,
-  LabeledSlider as Slider,
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
-} from "@openreel/ui";
+import { ColorSelector } from "../../../motion/components/primitives";
 
 const ColorField: React.FC<{
   label: string;
@@ -18,12 +14,16 @@ const ColorField: React.FC<{
   onChange: (color: string) => void;
 }> = ({ label, value, onChange }) => (
   <div className="flex items-center justify-between gap-2">
-    <span className="text-[10px] text-text-secondary">{label}</span>
-    <ColorPicker
-      value={value}
-      onChange={onChange}
-      className="max-w-[170px]"
-    />
+    <Text type="supporting" color="secondary" className="text-[10px]">
+      {label}
+    </Text>
+    <div className="max-w-[170px]">
+      <ColorSelector
+        label={`Select ${label.toLowerCase()}`}
+        value={value}
+        onChange={onChange}
+      />
+    </div>
   </div>
 );
 
@@ -148,113 +148,109 @@ export const SVGSection: React.FC<SVGSectionProps> = ({ clipId }) => {
 
   if (!svgClip) {
     return (
-      <div className="text-center py-8 text-text-muted text-xs">
+      <Text type="supporting" color="secondary" className="py-8 text-center text-xs">
         No SVG clip selected
-      </div>
+      </Text>
     );
   }
 
   return (
     <div className="space-y-4">
       <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] text-text-secondary">Mode</span>
-            <div className="flex gap-1">
-              {(["none", "tint", "replace"] as const).map((mode) => (
-                <button
-                  key={mode}
-                  onClick={() => handleColorModeChange(mode)}
-                  className={`px-2 py-1 text-[9px] rounded capitalize transition-colors ${
-                    colorStyle.colorMode === mode
-                      ? "bg-primary text-white"
-                      : "bg-background-tertiary border border-border text-text-secondary hover:text-text-primary"
-                  }`}
-                >
-                  {mode}
-                </button>
-              ))}
-            </div>
+        <div className="flex items-center justify-between">
+          <Text type="supporting" color="secondary" className="text-[10px]">
+            Mode
+          </Text>
+          <div className="flex gap-1">
+            {(["none", "tint", "replace"] as const).map((mode) => (
+              <ClickableCard
+                key={mode}
+                label={`Set SVG color mode to ${mode}`}
+                onClick={() => handleColorModeChange(mode)}
+                className={`px-2 py-1 text-[9px] rounded capitalize transition-colors ${
+                  colorStyle.colorMode === mode
+                    ? "bg-primary text-white"
+                    : "bg-bg-2 border border-border text-fg-2 hover:text-fg"
+                }`}
+              >
+                {mode}
+              </ClickableCard>
+            ))}
           </div>
-
-          {colorStyle.colorMode !== "none" && (
-            <>
-              <ColorField
-                label="Color"
-                value={colorStyle.tintColor || "#ffffff"}
-                onChange={handleTintColorChange}
-              />
-              <Slider
-                label="Opacity"
-                value={colorStyle.tintOpacity || 1}
-                onChange={handleTintOpacityChange}
-                min={0}
-                max={1}
-                step={0.1}
-              />
-            </>
-          )}
         </div>
 
+        {colorStyle.colorMode !== "none" && (
+          <>
+            <ColorField
+              label="Color"
+              value={colorStyle.tintColor || "#ffffff"}
+              onChange={handleTintColorChange}
+            />
+            <PropertySlider
+              label="Opacity"
+              value={colorStyle.tintOpacity || 1}
+              onChange={handleTintOpacityChange}
+              min={0}
+              max={1}
+              step={0.1}
+              formatValue={(value) => `${Math.round(value * 100)}%`}
+            />
+          </>
+        )}
+      </div>
+
       <div className="space-y-3">
-        <span className="text-[10px] font-medium text-text-secondary">
-          Entry Animation
-        </span>
-        <Select
+        <Selector
+          label="Entry Animation"
+          size="sm"
+          width="100%"
           value={entryAnimation?.type || "none"}
-          onValueChange={(v) => handleEntryAnimationChange(v as GraphicAnimationType)}
-        >
-          <SelectTrigger className="w-full bg-background-tertiary border-border text-text-primary">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent className="bg-background-secondary border-border">
-            {ANIMATION_PRESETS.map((preset) => (
-              <SelectItem key={preset.value} value={preset.value}>
-                {preset.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          options={ANIMATION_PRESETS.map((preset) => ({
+            label: preset.label,
+            value: preset.value,
+          }))}
+          onChange={(value) =>
+            handleEntryAnimationChange(value as GraphicAnimationType)
+          }
+        />
 
         {entryAnimation && entryAnimation.type !== "none" && (
-          <Slider
+          <PropertySlider
             label="Duration"
             value={entryAnimation.duration}
             onChange={handleEntryDurationChange}
             min={0.1}
             max={3}
             step={0.1}
+            formatValue={(value) => `${value.toFixed(1)}s`}
           />
         )}
       </div>
 
       <div className="space-y-4">
-        <span className="text-[10px] font-medium text-text-secondary">
-          Exit Animation
-        </span>
-        <Select
+        <Selector
+          label="Exit Animation"
+          size="sm"
+          width="100%"
           value={exitAnimation?.type || "none"}
-          onValueChange={(v) => handleExitAnimationChange(v as GraphicAnimationType)}
-        >
-          <SelectTrigger className="w-full bg-background-tertiary border-border text-text-primary">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent className="bg-background-secondary border-border">
-            {ANIMATION_PRESETS.map((preset) => (
-              <SelectItem key={preset.value} value={preset.value}>
-                {preset.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          options={ANIMATION_PRESETS.map((preset) => ({
+            label: preset.label,
+            value: preset.value,
+          }))}
+          onChange={(value) =>
+            handleExitAnimationChange(value as GraphicAnimationType)
+          }
+        />
 
         {exitAnimation && exitAnimation.type !== "none" && (
-          <Slider
+          <PropertySlider
             label="Duration"
             value={exitAnimation.duration}
             onChange={handleExitDurationChange}
             min={0.1}
             max={3}
             step={0.1}
+            formatValue={(value) => `${value.toFixed(1)}s`}
           />
         )}
       </div>

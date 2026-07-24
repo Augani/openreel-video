@@ -298,6 +298,9 @@ export const serviceWorkerManager = new ServiceWorkerManager();
  * Register service worker on app startup
  */
 export async function registerServiceWorker(): Promise<ServiceWorkerRegistration | null> {
+  if (typeof window !== "undefined" && window.openreel?.platform === "desktop") {
+    return null;
+  }
   // Only register in production or if explicitly enabled
   if (import.meta.env.DEV && !import.meta.env.VITE_ENABLE_SW) {
     return null;

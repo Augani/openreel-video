@@ -10,11 +10,15 @@ import {
   ChevronRight,
   Check,
   X,
-} from "lucide-react";
+} from "@/icons/lucide-compat";
+import { ToolcraftButton as Button } from "@openreel/ui";
+import { ToolcraftIconButton as IconButton } from "@openreel/ui";
+import { ToolcraftText as Text } from "@openreel/ui";
+import { ToolcraftTextInputControl } from "@openreel/ui";
 import { useEngineStore } from "../../../stores/engine-store";
 import { useProjectStore } from "../../../stores/project-store";
 import { useUIStore } from "../../../stores/ui-store";
-import type { CompoundClip } from "@openreel/core";
+import type { Clip, CompoundClip } from "@openreel/core";
 
 interface NestedSequenceSectionProps {
   clipId: string;
@@ -49,19 +53,23 @@ export const NestedSequenceSection: React.FC<NestedSequenceSectionProps> = ({
     };
   }, [getNestedSequenceEngine]);
 
-  const allCompoundClips = useMemo(() => {
-    return nestedSequenceEngine?.getAllCompoundClips() || [];
-  }, [nestedSequenceEngine]);
+  useEffect(() => {
+    nestedSequenceEngine?.loadState(
+      project.compoundClips ?? [],
+      project.nestedInstances ?? [],
+    );
+  }, [nestedSequenceEngine, project.compoundClips, project.nestedInstances]);
+
+  const allCompoundClips = project.compoundClips ?? [];
 
   const currentInstance = useMemo(() => {
-    if (!nestedSequenceEngine) return null;
-    return nestedSequenceEngine.getInstance(clipId);
-  }, [nestedSequenceEngine, clipId]);
+    return (project.nestedInstances ?? []).find((instance) => instance.id === clipId) ?? null;
+  }, [project.nestedInstances, clipId]);
 
   const currentCompound = useMemo(() => {
-    if (!nestedSequenceEngine || !currentInstance) return null;
-    return nestedSequenceEngine.getCompoundClip(currentInstance.compoundClipId);
-  }, [nestedSequenceEngine, currentInstance]);
+    if (!currentInstance) return null;
+    return allCompoundClips.find((compound) => compound.id === currentInstance.compoundClipId) ?? null;
+  }, [allCompoundClips, currentInstance]);
 
   const selectedClips = useMemo(() => {
     const clips: Array<{
@@ -85,7 +93,7 @@ export const NestedSequenceSection: React.FC<NestedSequenceSectionProps> = ({
     return clips;
   }, [project.timeline.tracks, selectedClipIds]);
 
-  const handleCreateCompound = useCallback(() => {
+  const handleCreateCompound = useCallback(async () => {
     if (!nestedSequenceEngine || selectedClips.length < 2) return;
 
     const fullClips = [];
@@ -103,12 +111,67 @@ export const NestedSequenceSection: React.FC<NestedSequenceSectionProps> = ({
       fullClips,
       project.timeline.tracks,
     );
+    const firstClip = [...fullClips].sort(
+      (left, right) => left.startTime - right.startTime,
+    )[0];
+    const instance = nestedSequenceEngine.createInstance(
+      compound.id,
+      firstClip.trackId,
+      firstClip.startTime,
+    );
+    if (!instance) return;
+    const instanceClip: Clip = {
+      id: instance.id,
+      mediaId: `compound:${compound.id}`,
+      trackId: instance.trackId,
+      startTime: instance.startTime,
+      duration: instance.duration,
+      inPoint: instance.inPoint,
+      outPoint: instance.outPoint,
+      transform: instance.transform,
+      volume: instance.volume,
+      effects: [],
+      audioEffects: [],
+      keyframes: [],
+      metadata: {
+        compoundClipId: compound.id,
+        compoundClipName: compound.name,
+        compoundClipColor: compound.color,
+      },
+    };
 
-    useProjectStore.setState((state) => ({
-      project: { ...state.project, modifiedAt: Date.now() },
-    }));
+    const store = useProjectStore.getState();
+    store.beginHistoryGroup("Create compound clip");
+    try {
+      for (const selectedId of selectedClipIds) {
+        await useProjectStore.getState().executeAction({
+          type: "clip/remove",
+          id: crypto.randomUUID(),
+          timestamp: Date.now(),
+          params: { clipId: selectedId },
+        });
+      }
+      await useProjectStore.getState().executeAction({
+        type: "nested/setAll",
+        id: crypto.randomUUID(),
+        timestamp: Date.now(),
+        params: {
+          compoundClips: nestedSequenceEngine.getAllCompoundClips(),
+          instances: nestedSequenceEngine.getAllInstances(),
+        },
+      });
+      await useProjectStore.getState().executeAction({
+        type: "clip/restore",
+        id: crypto.randomUUID(),
+        timestamp: Date.now(),
+        params: { clip: instanceClip },
+      });
+    } finally {
+      useProjectStore.getState().endHistoryGroup();
+    }
 
     setExpandedCompound(compound.id);
+    useUIStore.getState().select({ id: instance.id, type: "clip" });
   }, [
     nestedSequenceEngine,
     selectedClips,
@@ -116,14 +179,44 @@ export const NestedSequenceSection: React.FC<NestedSequenceSectionProps> = ({
     project.timeline.tracks,
   ]);
 
-  const handleFlatten = useCallback(() => {
+  const handleFlatten = useCallback(async () => {
     if (!nestedSequenceEngine || !clipId) return;
 
     const result = nestedSequenceEngine.flattenInstance(clipId);
     if (result) {
-      useProjectStore.setState((state) => ({
-        project: { ...state.project, modifiedAt: Date.now() },
-      }));
+      useProjectStore.getState().beginHistoryGroup("Flatten compound clip");
+      try {
+        await useProjectStore.getState().executeAction({
+          type: "clip/remove",
+          id: crypto.randomUUID(),
+          timestamp: Date.now(),
+          params: { clipId },
+        });
+        for (const flattened of result.clips) {
+          await useProjectStore.getState().executeAction({
+            type: "clip/add",
+            id: crypto.randomUUID(),
+            timestamp: Date.now(),
+            params: {
+              trackId: flattened.trackId,
+              mediaId: flattened.mediaId,
+              startTime: flattened.startTime,
+              sourceClip: flattened,
+            },
+          });
+        }
+        await useProjectStore.getState().executeAction({
+          type: "nested/setAll",
+          id: crypto.randomUUID(),
+          timestamp: Date.now(),
+          params: {
+            compoundClips: nestedSequenceEngine.getAllCompoundClips(),
+            instances: nestedSequenceEngine.getAllInstances(),
+          },
+        });
+      } finally {
+        useProjectStore.getState().endHistoryGroup();
+      }
     }
   }, [nestedSequenceEngine, clipId]);
 
@@ -132,9 +225,15 @@ export const NestedSequenceSection: React.FC<NestedSequenceSectionProps> = ({
       if (!nestedSequenceEngine) return;
 
       nestedSequenceEngine.duplicateCompoundClip(compoundId);
-      useProjectStore.setState((state) => ({
-        project: { ...state.project, modifiedAt: Date.now() },
-      }));
+      void useProjectStore.getState().executeAction({
+        type: "nested/setAll",
+        id: crypto.randomUUID(),
+        timestamp: Date.now(),
+        params: {
+          compoundClips: nestedSequenceEngine.getAllCompoundClips(),
+          instances: nestedSequenceEngine.getAllInstances(),
+        },
+      });
     },
     [nestedSequenceEngine],
   );
@@ -145,9 +244,15 @@ export const NestedSequenceSection: React.FC<NestedSequenceSectionProps> = ({
 
       const success = nestedSequenceEngine.deleteCompoundClip(compoundId);
       if (success) {
-        useProjectStore.setState((state) => ({
-          project: { ...state.project, modifiedAt: Date.now() },
-        }));
+        void useProjectStore.getState().executeAction({
+          type: "nested/setAll",
+          id: crypto.randomUUID(),
+          timestamp: Date.now(),
+          params: {
+            compoundClips: nestedSequenceEngine.getAllCompoundClips(),
+            instances: nestedSequenceEngine.getAllInstances(),
+          },
+        });
         if (expandedCompound === compoundId) {
           setExpandedCompound(null);
         }
@@ -165,9 +270,15 @@ export const NestedSequenceSection: React.FC<NestedSequenceSectionProps> = ({
     if (!nestedSequenceEngine || !renamingId) return;
 
     nestedSequenceEngine.renameCompoundClip(renamingId, renameValue.trim());
-    useProjectStore.setState((state) => ({
-      project: { ...state.project, modifiedAt: Date.now() },
-    }));
+    void useProjectStore.getState().executeAction({
+      type: "nested/setAll",
+      id: crypto.randomUUID(),
+      timestamp: Date.now(),
+      params: {
+        compoundClips: nestedSequenceEngine?.getAllCompoundClips() ?? [],
+        instances: nestedSequenceEngine?.getAllInstances() ?? [],
+      },
+    });
     setRenamingId(null);
     setRenameValue("");
   }, [nestedSequenceEngine, renamingId, renameValue]);
@@ -187,13 +298,13 @@ export const NestedSequenceSection: React.FC<NestedSequenceSectionProps> = ({
     <div className="space-y-3">
       <div className="flex items-center gap-2 p-2 bg-gradient-to-r bg-primary/10 rounded-lg border border-primary/30">
         <Layers size={16} className="text-primary" />
-        <div className="flex-1">
-          <span className="text-[11px] font-medium text-text-primary">
+        <div className="flex-1 flex flex-col gap-0.5">
+          <span className="text-[11px] font-medium text-fg">
             Nested Sequences
           </span>
-          <p className="text-[9px] text-text-muted">
+          <Text type="supporting" color="secondary" className="text-[9px] text-fg-3">
             Create compound clips from selections
-          </p>
+          </Text>
         </div>
       </div>
 
@@ -201,65 +312,65 @@ export const NestedSequenceSection: React.FC<NestedSequenceSectionProps> = ({
         <div className="p-3 bg-primary/10 border border-primary/20 rounded-lg space-y-2">
           <div className="flex items-center gap-2">
             <FolderOpen size={14} className="text-primary" />
-            <span className="text-[11px] font-medium text-text-primary">
+            <span className="text-[11px] font-medium text-fg">
               {currentCompound.name}
             </span>
           </div>
-          <div className="flex gap-2 text-[9px] text-text-muted">
+          <div className="flex gap-2 text-[9px] text-fg-3">
             <span>{currentCompound.content.clips.length} clips</span>
             <span>•</span>
             <span>{formatDuration(currentCompound.content.duration)}</span>
           </div>
           <div className="flex gap-2 pt-1">
-            <button
+            <Button
+              label="Flatten"
+              variant="ghost"
+              icon={<Maximize2 size={10} />}
               onClick={handleFlatten}
-              className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-background-tertiary rounded text-[10px] text-text-secondary hover:text-text-primary transition-colors"
-            >
-              <Maximize2 size={10} />
-              Flatten
-            </button>
-            <button
+              className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-bg-2 rounded text-[10px] text-fg-2 hover:text-fg transition-colors"
+            />
+            <Button
+              label="Duplicate"
+              variant="ghost"
+              icon={<Copy size={10} />}
               onClick={() => handleDuplicate(currentCompound.id)}
-              className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-background-tertiary rounded text-[10px] text-text-secondary hover:text-text-primary transition-colors"
-            >
-              <Copy size={10} />
-              Duplicate
-            </button>
+              className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-bg-2 rounded text-[10px] text-fg-2 hover:text-fg transition-colors"
+            />
           </div>
         </div>
       )}
 
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <span className="text-[10px] font-medium text-text-secondary">
+          <span className="text-[10px] font-medium text-fg-2">
             Create Compound Clip
           </span>
-          <span className="text-[9px] text-text-muted">
+          <span className="text-[9px] text-fg-3">
             {selectedClips.length} clips selected
           </span>
         </div>
-        <button
+        <Button
+          label="Create Compound Clip"
+          variant="ghost"
+          icon={<Plus size={14} />}
           onClick={handleCreateCompound}
-          disabled={selectedClips.length < 2}
+          isDisabled={selectedClips.length < 2}
           className={`w-full py-2.5 rounded-lg text-[11px] font-medium flex items-center justify-center gap-2 transition-colors ${
             selectedClips.length >= 2
               ? "bg-primary/20 border border-primary/30 text-primary hover:bg-primary/20"
-              : "bg-background-tertiary text-text-muted cursor-not-allowed"
+              : "bg-bg-2 text-fg-3 cursor-not-allowed"
           }`}
-        >
-          <Plus size={14} />
-          Create Compound Clip
-        </button>
+        />
         {selectedClips.length < 2 && (
-          <p className="text-[9px] text-text-muted text-center">
+          <Text type="supporting" color="secondary" className="text-[9px] text-fg-3 text-center">
             Select 2+ clips to create a compound clip
-          </p>
+          </Text>
         )}
       </div>
 
       {allCompoundClips.length > 0 && (
         <div className="space-y-2">
-          <span className="text-[10px] font-medium text-text-secondary">
+          <span className="text-[10px] font-medium text-fg-2">
             Compound Clips Library
           </span>
           <div className="space-y-1.5">
@@ -272,17 +383,17 @@ export const NestedSequenceSection: React.FC<NestedSequenceSectionProps> = ({
               return (
                 <div
                   key={compound.id}
-                  className="bg-background-tertiary rounded-lg overflow-hidden"
+                  className="bg-bg-2 rounded-lg overflow-hidden"
                 >
                   <div
-                    className="flex items-center gap-2 p-2 cursor-pointer hover:bg-background-secondary transition-colors"
+                    className="flex items-center gap-2 p-2 cursor-pointer hover:bg-bg-1 transition-colors"
                     onClick={() =>
                       setExpandedCompound(isExpanded ? null : compound.id)
                     }
                   >
                     <ChevronRight
                       size={12}
-                      className={`text-text-muted transition-transform ${
+                      className={`text-fg-3 transition-transform ${
                         isExpanded ? "rotate-90" : ""
                       }`}
                     />
@@ -291,31 +402,32 @@ export const NestedSequenceSection: React.FC<NestedSequenceSectionProps> = ({
                       style={{ backgroundColor: compound.color }}
                     />
                     {isRenaming ? (
-                      <input
-                        type="text"
+                      <ToolcraftTextInputControl
+                        label="Compound clip name"
+                        isLabelHidden
                         value={renameValue}
-                        onChange={(e) => setRenameValue(e.target.value)}
+                        onChange={setRenameValue}
                         onClick={(e) => e.stopPropagation()}
                         onKeyDown={(e) => {
                           if (e.key === "Enter") handleConfirmRename();
                           if (e.key === "Escape") handleCancelRename();
                         }}
-                        className="flex-1 bg-background-secondary px-1.5 py-0.5 rounded text-[10px] text-text-primary outline-none border border-primary"
-                        autoFocus
+                        className="flex-1 bg-bg-1 px-1.5 py-0.5 rounded text-[10px] text-fg outline-none border border-primary"
+                        hasAutoFocus
                       />
                     ) : (
-                      <span className="flex-1 text-[10px] text-text-primary truncate">
+                      <span className="flex-1 text-[10px] text-fg truncate">
                         {compound.name}
                       </span>
                     )}
-                    <span className="text-[9px] text-text-muted">
+                    <span className="text-[9px] text-fg-3">
                       {instanceCount} instance{instanceCount !== 1 ? "s" : ""}
                     </span>
                   </div>
 
                   {isExpanded && (
                     <div className="px-2 pb-2 space-y-2">
-                      <div className="flex gap-2 text-[9px] text-text-muted pl-5">
+                      <div className="flex gap-2 text-[9px] text-fg-3 pl-5">
                         <span>{compound.content.clips.length} clips</span>
                         <span>•</span>
                         <span>{formatDuration(compound.content.duration)}</span>
@@ -326,66 +438,73 @@ export const NestedSequenceSection: React.FC<NestedSequenceSectionProps> = ({
                       <div className="flex gap-1 pl-5">
                         {isRenaming ? (
                           <>
-                            <button
+                            <IconButton
+                              label="Confirm rename"
+                              icon={<Check size={10} />}
+                              variant="ghost"
+                              size="sm"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 handleConfirmRename();
                               }}
                               className="p-1.5 bg-green-500/20 rounded text-green-400 hover:bg-green-500/30 transition-colors"
-                            >
-                              <Check size={10} />
-                            </button>
-                            <button
+                            />
+                            <IconButton
+                              label="Cancel rename"
+                              icon={<X size={10} />}
+                              variant="ghost"
+                              size="sm"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 handleCancelRename();
                               }}
                               className="p-1.5 bg-red-500/20 rounded text-red-400 hover:bg-red-500/30 transition-colors"
-                            >
-                              <X size={10} />
-                            </button>
+                            />
                           </>
                         ) : (
                           <>
-                            <button
+                            <IconButton
+                              label="Rename"
+                              icon={<Edit3 size={10} />}
+                              variant="ghost"
+                              size="sm"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 handleStartRename(compound);
                               }}
-                              className="p-1.5 bg-background-secondary rounded text-text-muted hover:text-text-primary transition-colors"
-                              title="Rename"
-                            >
-                              <Edit3 size={10} />
-                            </button>
-                            <button
+                              className="p-1.5 bg-bg-1 rounded text-fg-3 hover:text-fg transition-colors"
+                            />
+                            <IconButton
+                              label="Duplicate"
+                              icon={<Copy size={10} />}
+                              variant="ghost"
+                              size="sm"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 handleDuplicate(compound.id);
                               }}
-                              className="p-1.5 bg-background-secondary rounded text-text-muted hover:text-text-primary transition-colors"
-                              title="Duplicate"
-                            >
-                              <Copy size={10} />
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDelete(compound.id);
-                              }}
-                              disabled={instanceCount > 0}
-                              className={`p-1.5 rounded transition-colors ${
-                                instanceCount > 0
-                                  ? "bg-background-secondary text-text-muted cursor-not-allowed opacity-50"
-                                  : "bg-red-500/20 text-red-400 hover:bg-red-500/30"
-                              }`}
-                              title={
+                              className="p-1.5 bg-bg-1 rounded text-fg-3 hover:text-fg transition-colors"
+                            />
+                            <IconButton
+                              label={
                                 instanceCount > 0
                                   ? "Cannot delete - has instances"
                                   : "Delete"
                               }
-                            >
-                              <Trash2 size={10} />
-                            </button>
+                              icon={<Trash2 size={10} />}
+                              variant="ghost"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDelete(compound.id);
+                              }}
+                              isDisabled={instanceCount > 0}
+                              className={`p-1.5 rounded transition-colors ${
+                                instanceCount > 0
+                                  ? "bg-bg-1 text-fg-3 cursor-not-allowed opacity-50"
+                                  : "bg-red-500/20 text-red-400 hover:bg-red-500/30"
+                              }`}
+                            />
                           </>
                         )}
                       </div>
@@ -399,9 +518,9 @@ export const NestedSequenceSection: React.FC<NestedSequenceSectionProps> = ({
       )}
 
       <div className="pt-2 border-t border-border">
-        <p className="text-[9px] text-text-muted text-center">
+        <Text type="supporting" color="secondary" className="text-[9px] text-fg-3 text-center">
           Group clips into reusable compound clips
-        </p>
+        </Text>
       </div>
     </div>
   );

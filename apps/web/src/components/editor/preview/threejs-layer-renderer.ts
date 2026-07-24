@@ -106,6 +106,8 @@ const BLEND_MODE_MAP: Record<BlendMode, THREE.Blending> = {
   saturation: THREE.NormalBlending, // Approximated as normal
   color: THREE.NormalBlending, // Approximated as normal
   luminosity: THREE.NormalBlending, // Approximated as normal
+  add: THREE.AdditiveBlending,
+  "linear-dodge": THREE.AdditiveBlending,
 };
 
 export class ThreeJSLayerRenderer {

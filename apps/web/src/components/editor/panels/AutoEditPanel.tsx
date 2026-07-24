@@ -1,6 +1,12 @@
 import React, { useState, useCallback, useMemo } from "react";
-import { Music, Zap, Loader2 } from "lucide-react";
-import { Slider } from "@openreel/ui";
+import { Music, Zap, Loader2 } from "@/icons/lucide-compat";
+import { ToolcraftSegmentedControl } from "@openreel/ui";
+import { ToolcraftButton as Button } from "@openreel/ui";
+import { ToolcraftCard as Card } from "@openreel/ui";
+import { ToolcraftEmptyState as EmptyState } from "@openreel/ui";
+import { ToolcraftSelectControl as Selector } from "@openreel/ui";
+import { ToolcraftSliderControl } from "@openreel/ui";
+import { ToolcraftText as Text } from "@openreel/ui";
 import { useProjectStore } from "../../../stores/project-store";
 import {
   getBeatDetectionEngine,
@@ -47,6 +53,15 @@ export const AutoEditPanel: React.FC<AutoEditPanelProps> = ({ onClose }) => {
 
   const [selectedAudioClipId, setSelectedAudioClipId] = useState<string>(
     audioClips[0]?.id ?? "",
+  );
+
+  const audioClipOptions = useMemo(
+    () =>
+      audioClips.map((clip) => ({
+        value: clip.id,
+        label: `${clip.mediaId} (${clip.duration.toFixed(1)}s)`,
+      })),
+    [audioClips],
   );
 
   const handleAnalyze = useCallback(async () => {
@@ -167,140 +182,143 @@ export const AutoEditPanel: React.FC<AutoEditPanelProps> = ({ onClose }) => {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Zap size={14} className="text-primary" />
-          <span className="text-[11px] font-medium text-text-primary">
+          <Zap size={14} className="text-primary" aria-hidden />
+          <Text type="label" weight="bold" className="text-[11px]">
             Beat-Synced Auto-Edit
-          </span>
+          </Text>
         </div>
       </div>
 
       {audioClips.length === 0 ? (
-        <div className="text-center py-6 text-text-muted text-[10px]">
-          <Music size={24} className="mx-auto mb-2 opacity-50" />
-          <p>Add an audio track to use auto-edit</p>
-        </div>
+        <EmptyState
+          title="Add an audio track to use auto-edit"
+          icon={<Music size={24} className="text-text-muted opacity-50" aria-hidden />}
+          isCompact
+        />
       ) : (
         <>
-          <div className="space-y-2">
-            <label className="text-[10px] font-medium text-text-secondary">
-              Audio Source
-            </label>
-            <select
-              value={selectedAudioClipId}
-              onChange={(e) => setSelectedAudioClipId(e.target.value)}
-              className="w-full px-2 py-1.5 text-[10px] bg-background-tertiary border border-border rounded-lg text-text-primary"
-            >
-              {audioClips.map((clip) => (
-                <option key={clip.id} value={clip.id}>
-                  {clip.mediaId} ({clip.duration.toFixed(1)}s)
-                </option>
-              ))}
-            </select>
-          </div>
+          <Selector
+            label="Audio Source"
+            value={selectedAudioClipId}
+            onChange={setSelectedAudioClipId}
+            options={audioClipOptions}
+            size="sm"
+            className="w-full"
+          />
 
           <div className="space-y-2">
-            <label className="text-[10px] font-medium text-text-secondary">
+            <Text type="supporting" color="secondary" weight="bold" display="block" className="text-[10px]">
               Cut Mode
-            </label>
-            <div className="grid grid-cols-3 gap-1">
-              {(["beats", "downbeats", "segments"] as CutMode[]).map((mode) => (
-                <button
-                  key={mode}
-                  onClick={() => setCutMode(mode)}
-                  className={`py-1.5 text-[9px] rounded-lg border transition-colors capitalize ${
-                    cutMode === mode
-                      ? "bg-primary/20 border-primary text-primary"
-                      : "bg-background-tertiary border-border text-text-secondary hover:border-primary/50"
-                  }`}
-                >
-                  {mode}
-                </button>
-              ))}
-            </div>
+            </Text>
+            <ToolcraftSegmentedControl<CutMode>
+              ariaLabel="Cut mode"
+              value={cutMode}
+              onChange={setCutMode}
+              options={(["beats", "downbeats", "segments"] as CutMode[]).map(
+                (mode) => ({
+                  value: mode,
+                  label: mode,
+                }),
+              )}
+            />
           </div>
 
           <div className="space-y-1.5">
             <div className="flex justify-between">
-              <label className="text-[10px] font-medium text-text-secondary">
+              <Text type="supporting" color="secondary" weight="bold" className="text-[10px]">
                 Sensitivity
-              </label>
-              <span className="text-[9px] text-text-muted">
+              </Text>
+              <Text type="supporting" color="secondary" className="text-[9px]">
                 {Math.round(sensitivity * 100)}%
-              </span>
+              </Text>
             </div>
-            <Slider
+            <ToolcraftSliderControl
+              label="Sensitivity"
+              isLabelHidden
               min={0}
               max={1}
               step={0.05}
-              value={[sensitivity]}
-              onValueChange={(v) => setSensitivity(v[0])}
+              value={sensitivity}
+              onChange={setSensitivity}
+              valueDisplay="none"
             />
           </div>
 
           <div className="space-y-1.5">
             <div className="flex justify-between">
-              <label className="text-[10px] font-medium text-text-secondary">
+              <Text type="supporting" color="secondary" weight="bold" className="text-[10px]">
                 Min Clip Duration
-              </label>
-              <span className="text-[9px] text-text-muted">
+              </Text>
+              <Text type="supporting" color="secondary" className="text-[9px]">
                 {minClipDuration.toFixed(1)}s
-              </span>
+              </Text>
             </div>
-            <Slider
+            <ToolcraftSliderControl
+              label="Minimum clip duration"
+              isLabelHidden
               min={0.1}
               max={3}
               step={0.1}
-              value={[minClipDuration]}
-              onValueChange={(v) => setMinClipDuration(v[0])}
+              value={minClipDuration}
+              onChange={setMinClipDuration}
+              valueDisplay="none"
             />
           </div>
 
-          <button
+          <Button
+            label={analyzing ? "Analyzing beats..." : "Generate Auto-Edit"}
             onClick={handleAnalyze}
-            disabled={analyzing || videoClips.length === 0}
-            className="w-full flex items-center justify-center gap-2 py-2.5 text-[10px] font-medium bg-primary/20 border border-primary/30 text-primary rounded-lg hover:bg-primary/30 transition-colors disabled:opacity-50"
-          >
-            {analyzing ? (
-              <>
-                <Loader2 size={12} className="animate-spin" />
-                Analyzing beats...
-              </>
-            ) : (
-              <>
-                <Zap size={12} />
-                Generate Auto-Edit
-              </>
-            )}
-          </button>
+            isDisabled={analyzing || videoClips.length === 0}
+            variant="primary"
+            icon={
+              analyzing ? (
+                <Loader2 size={12} className="animate-spin" aria-hidden />
+              ) : (
+                <Zap size={12} aria-hidden />
+              )
+            }
+            className="w-full"
+          />
 
           {error && (
-            <p className="text-[9px] text-red-400">{error}</p>
+            <Card variant="red" padding={2}>
+              <Text type="supporting" className="text-[9px]">
+                {error}
+              </Text>
+            </Card>
           )}
 
           {preview && (
-            <div className="space-y-2 p-2.5 bg-background-tertiary rounded-lg border border-border">
-              <p className="text-[10px] font-medium text-text-primary">
+            <Card variant="muted" padding={3} className="space-y-2 border border-border">
+              <Text type="label" weight="bold" display="block" className="text-[10px]">
                 Preview
-              </p>
-              <div className="grid grid-cols-2 gap-2 text-[9px]">
+              </Text>
+              <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <span className="text-text-muted">Cuts: </span>
-                  <span className="text-text-primary">{preview.cuts.length}</span>
+                  <Text type="supporting" color="secondary" className="text-[9px]">
+                    Cuts:{" "}
+                  </Text>
+                  <Text type="supporting" className="text-[9px]">
+                    {preview.cuts.length}
+                  </Text>
                 </div>
                 <div>
-                  <span className="text-text-muted">Duration: </span>
-                  <span className="text-text-primary">
+                  <Text type="supporting" color="secondary" className="text-[9px]">
+                    Duration:{" "}
+                  </Text>
+                  <Text type="supporting" className="text-[9px]">
                     {preview.totalDuration.toFixed(1)}s
-                  </span>
+                  </Text>
                 </div>
               </div>
-              <button
+              <Button
+                label="Apply Auto-Edit"
                 onClick={handleApply}
-                className="w-full py-2 text-[10px] font-medium bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
-              >
-                Apply Auto-Edit
-              </button>
-            </div>
+                variant="primary"
+                size="sm"
+                className="w-full"
+              />
+            </Card>
           )}
         </>
       )}

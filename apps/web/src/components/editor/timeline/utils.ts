@@ -1,4 +1,4 @@
-import { Film, Volume2, Image, Type, Shapes, Layers } from "lucide-react";
+import { Film, Volume2, Image, Type, Shapes, Layers } from "@/icons/lucide-compat";
 import type { Track } from "@openreel/core";
 import type {
   SnapPoint,
@@ -174,9 +174,9 @@ export const getTrackInfo = (track: Track, index: number): TrackInfo => {
       return {
         label: `I${index + 1}`,
         icon: Image,
-        color: "bg-purple-500",
-        textColor: "text-purple-400",
-        bgLight: "bg-purple-500/20",
+        color: "bg-primary",
+        textColor: "text-primary",
+        bgLight: "bg-primary/20",
       };
     case "text":
       return {
@@ -206,36 +206,34 @@ export const getTrackInfo = (track: Track, index: number): TrackInfo => {
 };
 
 export const getClipStyle = (trackType: string): ClipStyle => {
-  // Clip palette matches the v2 mockup: video=cyan, audio=emerald,
-  // image=purple/music, text=amber.
   switch (trackType) {
     case "video":
       return {
-        bg: "bg-cyan-600/25",
-        border: "border-cyan-500/60",
-        text: "text-white/90",
+        bg: "bg-[linear-gradient(160deg,#bcd3e8,#5d7a93)]",
+        border: "border-transparent",
+        text: "text-white",
         selectedText: "text-white",
       };
     case "audio":
       return {
-        bg: "bg-emerald-600/25",
-        border: "border-emerald-500/60",
-        text: "text-white/85",
-        selectedText: "text-white",
+        bg: "bg-[#e6f4ea]",
+        border: "border-[#cfe8d6]",
+        text: "text-[#4a7a55]",
+        selectedText: "text-[#4a7a55]",
       };
     case "image":
       return {
-        bg: "bg-violet-600/25",
-        border: "border-violet-500/60",
-        text: "text-white/85",
+        bg: "bg-[linear-gradient(160deg,#c3b1e8,#6a4aa0)]",
+        border: "border-transparent",
+        text: "text-white",
         selectedText: "text-white",
       };
     default:
       return {
-        bg: "bg-bg-2",
-        border: "border-border-strong",
-        text: "text-fg-2",
-        selectedText: "text-fg",
+        bg: "bg-[linear-gradient(160deg,#cdd4e0,#8a93a8)]",
+        border: "border-transparent",
+        text: "text-white",
+        selectedText: "text-white",
       };
   }
 };

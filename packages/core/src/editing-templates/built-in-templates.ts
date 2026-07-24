@@ -1701,4 +1701,36 @@ export const BUILT_IN_EDITING_TEMPLATES: readonly EditingTemplate[] = [
       audioEffects: [],
     },
   },
+  {
+    id: "motion-saas-ad-card",
+    name: "SaaS Ad Card",
+    description: "Motion Creator starter for a product ad with editable copy, brand color, media placeholder, and animation intensity.",
+    category: "ads",
+    thumbnailUrl: null,
+    previewUrl: null,
+    tags: ["motion", "ads", "saas", "product"],
+    supportedTargets: ["video", "image"],
+    controls: [
+      { id: "headline", label: "Headline", type: "text", defaultValue: "Launch faster" },
+      { id: "brandColor", label: "Brand Color", type: "color", defaultValue: "#14b8a6" },
+      { id: "duration", label: "Duration", type: "number", defaultValue: 10, min: 3, max: 30, step: 0.5 },
+      { id: "intensity", label: "Animation Intensity", type: "number", defaultValue: 0.6, min: 0, max: 1, step: 0.05 },
+    ],
+    motionTemplate: {
+      category: "ads",
+      variables: [
+        { id: "headline", label: "Headline", type: "text", defaultValue: "Launch faster" },
+        { id: "brandColor", label: "Brand Color", type: "color", defaultValue: "#14b8a6" },
+        { id: "media", label: "Product Media", type: "media", defaultValue: "" },
+        { id: "duration", label: "Duration", type: "number", defaultValue: 10 },
+        { id: "brandKit", label: "Use Brand Kit", type: "boolean", defaultValue: true },
+        { id: "intensity", label: "Animation Intensity", type: "number", defaultValue: 0.6 },
+      ],
+    },
+    recipe: {
+      effects: [],
+      overlays: [],
+      audioEffects: [],
+    },
+  },
 ] as const;

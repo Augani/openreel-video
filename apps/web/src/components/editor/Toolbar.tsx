@@ -1,36 +1,12 @@
-import React, { useCallback, useState, useEffect, useMemo } from "react";
+import React, { useCallback, useState, useEffect } from "react";
 import {
-  ChevronDown,
-  FileVideo,
-  Film,
-  Music,
-  Sun,
-  Moon,
-  SunMoon,
-  Loader2,
   X,
-  Check,
-  FileCode,
   Settings,
-  Zap,
-  Circle,
-  History,
-  HelpCircle,
-  Diamond,
-  Sparkles,
-  Play,
-  Undo2,
-  Redo2,
-  MessageSquare,
-  Star,
-  Upload,
   MoreHorizontal,
-  Command,
-  Search,
-} from "lucide-react";
+  Video,
+} from "@/icons/lucide-compat";
 import { useProjectStore } from "../../stores/project-store";
 import { useUIStore } from "../../stores/ui-store";
-import { useThemeStore } from "../../stores/theme-store";
 import { useRouter } from "../../hooks/use-router";
 import {
   getExportEngine,
@@ -43,23 +19,26 @@ import {
   type TimeEstimate,
 } from "@openreel/core";
 import { ExportDialog } from "./ExportDialog";
+import { CompressDialog } from "./CompressDialog";
+import { deriveSourceExportMatch } from "../../services/export-source-match";
+import { useExportRunner, extForFormat, exportFilename, writeBlobToWritable } from "../../services/export-runner";
 import { ScreenRecorder } from "./ScreenRecorder";
 import { HistoryPanel } from "./inspector/HistoryPanel";
 import { ProjectSwitcher } from "./ProjectSwitcher";
 import { SettingsDialog } from "./settings/SettingsDialog";
-import { toast } from "../../stores/notification-store";
-import { useSettingsStore } from "../../stores/settings-store";
-import { useAnalytics, AnalyticsEvents } from "../../hooks/useAnalytics";
-import { startTour, ONBOARDING_KEY, startMoGraphTour, MOGRAPH_TOUR_KEY } from "./tour";
 import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  Tooltip,
-  TooltipTrigger,
-  TooltipContent,
+  WorkspaceModeTabs,
+  type WorkspaceMode,
+} from "../WorkspaceModeTabs";
+import { Icon } from "@/icons/Icon";
+import { toast } from "../../stores/notification-store";
+import { useAnalytics, AnalyticsEvents } from "../../hooks/useAnalytics";
+import {
+  ToolcraftDropdownMenu as DropdownMenu,
+  ToolcraftDropdownMenuItem as DropdownMenuItem,
+  ToolcraftIconButton,
+  ToolcraftText as Text,
+  ToolcraftTextInputControl,
 } from "@openreel/ui";
 
 type ExportType =
@@ -75,32 +54,19 @@ type ExportType =
   | "1080p-60"
   | "project";
 
-interface ExportState {
-  isExporting: boolean;
-  progress: number;
-  phase: string;
-  error: string | null;
-  complete: boolean;
-}
-
 export const Toolbar: React.FC = () => {
-  const { project, undo, redo, renameProject } = useProjectStore();
+  const { project, renameProject } = useProjectStore();
   const {
-    openModal,
     selectedItems,
     setExportState: setGlobalExportState,
-    keyframeEditorOpen,
-    toggleKeyframeEditor,
-    panels,
-    togglePanel,
+    setDesktopPage,
+    activeModal,
+    closeModal,
   } = useUIStore();
-  const { mode: themeMode, toggleTheme } = useThemeStore();
   const { navigate } = useRouter();
-  const { openSettings } = useSettingsStore();
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
-  const [isRecorderOpen, setIsRecorderOpen] = useState(false);
-  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [isCompressOpen, setIsCompressOpen] = useState(false);
   const { importMedia } = useProjectStore();
   const { track } = useAnalytics();
 
@@ -109,18 +75,6 @@ export const Toolbar: React.FC = () => {
   useEffect(() => {
     setProjectNameDraft(project.name);
   }, [project.name]);
-
-  // Autosave timestamp from the project's modifiedAt date.
-  const autosaveLabel = useMemo(() => {
-    const ts = project.modifiedAt ?? Date.now();
-    const d = new Date(ts);
-    return d.toLocaleTimeString(undefined, {
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-      hour12: false,
-    });
-  }, [project.modifiedAt]);
 
   const commitProjectName = useCallback(() => {
     const next = projectNameDraft.trim();
@@ -131,34 +85,50 @@ export const Toolbar: React.FC = () => {
     }
   }, [projectNameDraft, project.name, renameProject]);
 
-  const handleUndo = useCallback(() => {
-    void undo();
-  }, [undo]);
-  const handleRedo = useCallback(() => {
-    void redo();
-  }, [redo]);
-
-  const handleStartTour = useCallback(() => {
-    localStorage.removeItem(ONBOARDING_KEY);
-    startTour();
-  }, []);
-
-  const handleStartMoGraphTour = useCallback(() => {
-    localStorage.removeItem(MOGRAPH_TOUR_KEY);
-    startMoGraphTour();
-  }, []);
+  const handleWorkspaceModeSelect = useCallback(
+    (mode: WorkspaceMode) => {
+      if (mode === "motion") {
+        setDesktopPage("motion");
+        navigate("motion");
+        return;
+      }
+      setDesktopPage("edit");
+      navigate("editor");
+    },
+    [navigate, setDesktopPage],
+  );
 
   // selectedItems drives related UX in the editor (e.g. inspector context).
   // Kept on the destructure list so future tweaks don't have to rewire it.
   void selectedItems;
 
-  const [exportState, setExportState] = useState<ExportState>({
-    isExporting: false,
-    progress: 0,
-    phase: "",
-    error: null,
-    complete: false,
-  });
+  const handleExported = useCallback(
+    (videoSettings: Partial<VideoExportSettings>) => {
+      track(AnalyticsEvents.PROJECT_EXPORTED, {
+        format: videoSettings.format ?? "mp4",
+        codec: videoSettings.codec ?? "h264",
+        width: videoSettings.width ?? project.settings.width,
+        height: videoSettings.height ?? project.settings.height,
+        frameRate: videoSettings.frameRate ?? project.settings.frameRate,
+        duration: project.timeline?.duration ?? 0,
+      });
+    },
+    [project, track],
+  );
+
+  const {
+    state: exportState,
+    runExport,
+    showSavePicker,
+    reportProgress,
+    markComplete,
+    beginExport,
+    finishExportSoon,
+    failExport,
+    cancel: handleCancelExport,
+    resetError,
+  } = useExportRunner({ project, onExported: handleExported });
+
   const [deviceProfile, setDeviceProfile] = useState<DeviceProfile | null>(null);
   const [exportEstimates, setExportEstimates] = useState<Map<string, TimeEstimate>>(new Map());
 
@@ -208,140 +178,15 @@ export const Toolbar: React.FC = () => {
     setExportEstimates(estimates);
   }, [deviceProfile, project.timeline?.duration, project.settings.width, project.settings.height]);
 
-  const runExport = useCallback(
-    async (videoSettings: Partial<VideoExportSettings>, _ext: string, writableStream: FileSystemWritableFileStream) => {
-      const engine = getExportEngine();
-      await engine.initialize();
-
-      const generator = engine.exportVideo(project, videoSettings, writableStream);
-      let finalResult: ExportResult | undefined;
-
-      while (true) {
-        const { value, done } = await generator.next();
-        if (done) {
-          finalResult = value;
-          break;
-        }
-        setExportState((prev) => ({
-          ...prev,
-          progress: value.progress * 100,
-          phase: value.phase === "complete" ? "Complete!" : `${value.phase}...`,
-        }));
-      }
-
-      if (finalResult?.success) {
-        setExportState((prev) => ({ ...prev, complete: true, phase: "Saved!" }));
-        track(AnalyticsEvents.PROJECT_EXPORTED, {
-          format: videoSettings.format ?? "mp4",
-          codec: videoSettings.codec ?? "h264",
-          width: videoSettings.width ?? project.settings.width,
-          height: videoSettings.height ?? project.settings.height,
-          frameRate: videoSettings.frameRate ?? project.settings.frameRate,
-          duration: project.timeline?.duration ?? 0,
-        });
-      } else {
-        throw new Error(finalResult?.error?.message || "Export failed");
-      }
-    },
-    [project, track],
-  );
-
-  const showSavePicker = useCallback(async (filename: string, ext: string): Promise<FileSystemWritableFileStream> => {
-    const mimeMap: Record<string, string> = {
-      mp4: "video/mp4",
-      webm: "video/webm",
-      mov: "video/quicktime",
-      wav: "audio/wav",
-    };
-    const mime = mimeMap[ext] || "application/octet-stream";
-
-    if ("showSaveFilePicker" in window) {
-      const handle = await (window as unknown as {
-        showSaveFilePicker: (opts: unknown) => Promise<FileSystemFileHandle>;
-      }).showSaveFilePicker({
-        suggestedName: filename,
-        types: [{
-          description: "Media file",
-          accept: { [mime]: [`.${ext}`] },
-        }],
-      });
-      return handle.createWritable();
-    }
-
-    let buffer = new Uint8Array(16 * 1024 * 1024);
-    let length = 0;
-    let cursor = 0;
-
-    const grow = (needed: number) => {
-      if (needed <= buffer.length) return;
-      let newSize = buffer.length;
-      while (newSize < needed) newSize *= 2;
-      const next = new Uint8Array(newSize);
-      next.set(buffer.subarray(0, length));
-      buffer = next;
-    };
-
-    const triggerDownload = () => {
-      const blob = new Blob([buffer.slice(0, length)], { type: mime });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    };
-
-    const writeBytes = (bytes: Uint8Array, position: number) => {
-      const end = position + bytes.byteLength;
-      grow(end);
-      buffer.set(bytes, position);
-      if (end > length) length = end;
-      cursor = end;
-    };
-
-    return {
-      seek(position: number) {
-        cursor = position;
-        return Promise.resolve();
-      },
-      write(data: unknown) {
-        if (data instanceof ArrayBuffer) {
-          writeBytes(new Uint8Array(data), cursor);
-        } else if (ArrayBuffer.isView(data)) {
-          writeBytes(new Uint8Array(data.buffer, data.byteOffset, data.byteLength), cursor);
-        }
-        return Promise.resolve();
-      },
-      close() {
-        triggerDownload();
-        return Promise.resolve();
-      },
-      abort() {
-        return Promise.resolve();
-      },
-      truncate() {
-        return Promise.resolve();
-      },
-    } as unknown as FileSystemWritableFileStream;
-  }, []);
-
   const handleExport = useCallback(
     async (type: ExportType) => {
       setIsExportOpen(false);
 
       try {
         if (type === "wav") {
-          const writable = await showSavePicker(`${project.name || "export"}.wav`, "wav");
+          const writable = await showSavePicker(exportFilename(project.name, "wav"), "wav");
 
-          setExportState({
-            isExporting: true,
-            progress: 0,
-            phase: "Initializing...",
-            error: null,
-            complete: false,
-          });
+          beginExport();
 
           const engine = getExportEngine();
           await engine.initialize();
@@ -362,33 +207,18 @@ export const Toolbar: React.FC = () => {
               finalResult = value;
               break;
             }
-            setExportState((prev) => ({
-              ...prev,
-              progress: value.progress * 100,
-              phase: value.phase === "complete" ? "Complete!" : `${value.phase}...`,
-            }));
+            reportProgress(value.progress, value.phase);
           }
 
           if (finalResult?.success && finalResult.blob) {
-            if ("showSaveFilePicker" in window) {
-              await finalResult.blob.stream().pipeTo(writable as unknown as WritableStream<Uint8Array>);
-            } else {
-              const url = URL.createObjectURL(finalResult.blob);
-              const a = document.createElement("a");
-              a.href = url;
-              a.download = `${project.name || "export"}.wav`;
-              document.body.appendChild(a);
-              a.click();
-              document.body.removeChild(a);
-              URL.revokeObjectURL(url);
-            }
-            setExportState((prev) => ({ ...prev, complete: true, phase: "Saved!" }));
+            await writeBlobToWritable(finalResult.blob, writable);
+            markComplete();
             track(AnalyticsEvents.PROJECT_EXPORTED, {
               format: "wav",
               duration: project.timeline?.duration ?? 0,
             });
           } else {
-            try { await writable.abort(); } catch {}
+            try { await writable.abort(); } catch { void 0; }
             throw new Error(finalResult?.error?.message || "Export failed");
           }
         } else {
@@ -412,63 +242,30 @@ export const Toolbar: React.FC = () => {
           };
 
           const preset = presets[type] ?? presets.mp4;
-          const writable = await showSavePicker(`${project.name || "export"}.${preset.ext}`, preset.ext);
+          const writable = await showSavePicker(exportFilename(project.name, preset.ext), preset.ext);
 
-          setExportState({
-            isExporting: true,
-            progress: 0,
-            phase: "Initializing...",
-            error: null,
-            complete: false,
-          });
+          beginExport();
 
           await runExport(preset.settings, preset.ext, writable);
         }
 
-        setTimeout(() => {
-          setExportState({ isExporting: false, progress: 0, phase: "", error: null, complete: false });
-        }, 2000);
+        finishExportSoon();
       } catch (error) {
-        if (error instanceof Error && error.name === "AbortError") {
-          return;
-        }
-        setExportState((prev) => ({
-          ...prev,
-          isExporting: false,
-          error: error instanceof Error ? error.message : "Export failed",
-        }));
+        failExport(error);
       }
     },
-    [project, track, runExport, showSavePicker],
+    [project, track, runExport, showSavePicker, beginExport, reportProgress, markComplete, finishExportSoon, failExport],
   );
-
-  const handleCancelExport = useCallback(() => {
-    const engine = getExportEngine();
-    engine.cancel();
-    setExportState({
-      isExporting: false,
-      progress: 0,
-      phase: "",
-      error: null,
-      complete: false,
-    });
-  }, []);
 
   const handleCustomExport = useCallback(
     async (settings: VideoExportSettings) => {
       setIsExportDialogOpen(false);
 
       try {
-        const ext = settings.format === "mov" ? "mov" : settings.format === "webm" ? "webm" : "mp4";
-        const writable = await showSavePicker(`${project.name || "export"}.${ext}`, ext);
+        const ext = extForFormat(settings.format);
+        const writable = await showSavePicker(exportFilename(project.name, ext), ext);
 
-        setExportState({
-          isExporting: true,
-          progress: 0,
-          phase: "Initializing...",
-          error: null,
-          complete: false,
-        });
+        beginExport();
 
         const needsUpscaling =
           settings.width > project.settings.width ||
@@ -495,21 +292,12 @@ export const Toolbar: React.FC = () => {
           upscaling: settings.upscaling?.enabled ?? false,
         });
 
-        setTimeout(() => {
-          setExportState({ isExporting: false, progress: 0, phase: "", error: null, complete: false });
-        }, 2000);
+        finishExportSoon();
       } catch (error) {
-        if (error instanceof Error && error.name === "AbortError") {
-          return;
-        }
-        setExportState((prev) => ({
-          ...prev,
-          isExporting: false,
-          error: error instanceof Error ? error.message : "Export failed",
-        }));
+        failExport(error);
       }
     },
-    [project, track, runExport, showSavePicker],
+    [project, track, runExport, showSavePicker, beginExport, finishExportSoon, failExport],
   );
 
 
@@ -576,7 +364,7 @@ export const Toolbar: React.FC = () => {
 
   const exportOptions: Array<{
     label: string;
-    icon: typeof FileVideo;
+    iconName: string;
     desc: string;
     type: ExportType;
     recommended?: boolean;
@@ -584,14 +372,14 @@ export const Toolbar: React.FC = () => {
   }> = [
     {
       label: "MP4 Standard",
-      icon: Zap,
+      iconName: "bolt",
       desc: `${projectRes} H.264 - Web & social`,
       type: "mp4",
       recommended: true,
     },
     {
       label: "",
-      icon: Film,
+      iconName: "film",
       desc: "",
       type: "mp4",
       separator: true,
@@ -601,345 +389,207 @@ export const Toolbar: React.FC = () => {
       : [
           {
             label: "4K Standard",
-            icon: FileVideo,
+            iconName: "film",
             desc: "3840×2160 - YouTube 4K",
             type: "4k" as ExportType,
           },
         ]),
     {
       label: "1080p High Quality",
-      icon: FileVideo,
+      iconName: "film",
       desc: "1920×1080 30fps - High bitrate",
       type: "1080p-high",
     },
     {
       label: "1080p 60fps",
-      icon: FileVideo,
+      iconName: "film",
       desc: "1920×1080 - Smooth playback",
       type: "1080p-60",
     },
     {
       label: "Audio Only (WAV)",
-      icon: Music,
+      iconName: "music.note",
       desc: "Uncompressed audio",
       type: "wav",
     },
   ];
 
   return (
-    <header className="h-topbar grid grid-cols-[1fr_auto_1fr] items-center gap-2.5 px-3 bg-bg border-b border-border shrink-0 z-30 relative">
-      {/* ─── Left: window dots + autosave ─────────────────────── */}
-      <div className="flex items-center gap-2">
-        <button
-          onClick={() => navigate("welcome")}
-          className="flex items-center gap-1.5 pr-1.5"
-          title="Back to home"
-        >
-          <span className="w-[11px] h-[11px] rounded-full bg-[oklch(0.7_0.18_25)]" />
-          <span className="w-[11px] h-[11px] rounded-full bg-[oklch(0.78_0.14_80)]" />
-          <span className="w-[11px] h-[11px] rounded-full bg-[oklch(0.7_0.15_145)]" />
-        </button>
+    <header className="h-[60px] flex items-center gap-[18px] px-[18px] bg-bg-1 border-b border-border shrink-0 z-30 relative">
+      {/* ─── Left: mode switch ────────────────────────────────── */}
+      <WorkspaceModeTabs
+        activeMode="video"
+        onSelectMode={handleWorkspaceModeSelect}
+        className="shrink-0"
+      />
 
-        <span className="text-[11px] text-fg-3 flex items-center gap-1.5">
-          <span className="w-[5px] h-[5px] rounded-full bg-accent" />
-          {exportState.isExporting
-            ? `Exporting… ${Math.round(exportState.progress)}%`
-            : `Auto saved: ${autosaveLabel}`}
-        </span>
-      </div>
-
-      {/* ─── Center: project name ────────────────────────────── */}
-      <div className="flex items-center gap-1.5 text-[12.5px] font-medium tracking-tight">
-        <input
+      {/* ─── Center: project name ─────────────────────────────── */}
+      <div className="flex flex-1 min-w-0 items-center justify-center gap-1.5">
+        <ToolcraftTextInputControl
+          label="Project name"
+          isLabelHidden
           value={projectNameDraft}
-          onChange={(e) => setProjectNameDraft(e.target.value)}
+          onChange={setProjectNameDraft}
           onBlur={commitProjectName}
           onKeyDown={(e) => {
             if (e.key === "Enter") {
-              (e.currentTarget as HTMLInputElement).blur();
+              (e.currentTarget as HTMLElement).blur();
             } else if (e.key === "Escape") {
               setProjectNameDraft(project.name);
-              (e.currentTarget as HTMLInputElement).blur();
+              (e.currentTarget as HTMLElement).blur();
             }
           }}
-          size={Math.max(projectNameDraft.length, 6)}
-          spellCheck={false}
-          className="bg-transparent border-0 text-center font-medium text-[12.5px] tracking-tight text-fg px-2 py-0.5 rounded min-w-[60px] focus:bg-bg-2 focus:outline-none"
+          width={Math.min(Math.max(projectNameDraft.length, 6) * 8 + 40, 220)}
+          className="max-w-[220px] bg-transparent border-0 text-center font-medium text-[14px] tracking-tight text-fg-2 px-2 py-0.5 rounded-md min-w-[60px] focus:bg-bg-2 focus:outline-none"
         />
         <ProjectSwitcher />
       </div>
 
-      {/* ─── Right: undo/redo, history, comments, pro, export ── */}
-      <div className="flex items-center justify-end gap-1.5">
-        {/* Quick search (preserved from existing flow) */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button
-              onClick={() => openModal("search")}
-              className="w-[26px] h-[26px] grid place-items-center rounded-md text-fg-2 hover:bg-hover hover:text-fg transition-colors"
-              data-tip="Search (⌘K)"
-            >
-              <Search size={14} />
-            </button>
-          </TooltipTrigger>
-          <TooltipContent>Search tools, effects, or ask AI… (⌘K)</TooltipContent>
-        </Tooltip>
-
-        {/* Undo / Redo */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button
-              onClick={handleUndo}
-              className="w-[26px] h-[26px] grid place-items-center rounded-md text-fg-2 hover:bg-hover hover:text-fg transition-colors"
-            >
-              <Undo2 size={14} />
-            </button>
-          </TooltipTrigger>
-          <TooltipContent>Undo (⌘Z)</TooltipContent>
-        </Tooltip>
-
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button
-              onClick={handleRedo}
-              className="w-[26px] h-[26px] grid place-items-center rounded-md text-fg-2 hover:bg-hover hover:text-fg transition-colors"
-            >
-              <Redo2 size={14} />
-            </button>
-          </TooltipTrigger>
-          <TooltipContent>Redo (⇧⌘Z)</TooltipContent>
-        </Tooltip>
-
-        <div className="w-px h-4 bg-border mx-1" />
-
-        {/* History */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button
-              onClick={() => setIsHistoryOpen((v) => !v)}
-              className={`w-[26px] h-[26px] grid place-items-center rounded-md transition-colors ${
-                isHistoryOpen
-                  ? "bg-accent-soft text-accent"
-                  : "text-fg-2 hover:bg-hover hover:text-fg"
-              }`}
-            >
-              <History size={14} />
-            </button>
-          </TooltipTrigger>
-          <TooltipContent>Action history</TooltipContent>
-        </Tooltip>
-
-        {/* Keyframe editor (moved here from old toolbar) */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button
-              onClick={toggleKeyframeEditor}
-              className={`w-[26px] h-[26px] grid place-items-center rounded-md transition-colors ${
-                keyframeEditorOpen
-                  ? "bg-accent-soft text-accent"
-                  : "text-fg-2 hover:bg-hover hover:text-fg"
-              }`}
-            >
-              <Diamond size={14} />
-            </button>
-          </TooltipTrigger>
-          <TooltipContent>Keyframe editor</TooltipContent>
-        </Tooltip>
-
-        {/* Audio mixer (moved) */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button
-              onClick={() => togglePanel("audioMixer")}
-              className={`w-[26px] h-[26px] grid place-items-center rounded-md transition-colors ${
-                panels.audioMixer?.visible
-                  ? "bg-accent-soft text-accent"
-                  : "text-fg-2 hover:bg-hover hover:text-fg"
-              }`}
-            >
-              <Music size={14} />
-            </button>
-          </TooltipTrigger>
-          <TooltipContent>Audio mixer</TooltipContent>
-        </Tooltip>
-
-        {/* Comments placeholder (matches mockup) */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button
-              onClick={() => useUIStore.getState().openModal("scriptView")}
-              className="w-[26px] h-[26px] grid place-items-center rounded-md text-fg-2 hover:bg-hover hover:text-fg transition-colors"
-            >
-              <MessageSquare size={14} />
-            </button>
-          </TooltipTrigger>
-          <TooltipContent>Project JSON / Comments</TooltipContent>
-        </Tooltip>
-
-        <div className="w-px h-4 bg-border mx-1" />
-
-        {/* Pro pill — opens more menu (theme, settings, tours, recorder) */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[12px] font-medium text-fg-2 hover:bg-hover hover:text-fg transition-colors"
-            >
-              <Star size={14} />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56">
-            <DropdownMenuItem onClick={toggleTheme} className="gap-2">
-              {themeMode === "light" ? <Sun size={14} /> : themeMode === "dark" ? <Moon size={14} /> : <SunMoon size={14} />}
-              <span className="flex-1">Theme: {themeMode}</span>
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => openSettings()} className="gap-2">
-              <Settings size={14} />
-              <span>Settings & API keys</span>
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setIsRecorderOpen(true)} className="gap-2">
-              <Circle size={14} className="fill-current text-status-error" />
-              <span>Screen recorder</span>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={handleStartTour} className="gap-2">
-              <Play size={14} />
-              <span>Editor tour</span>
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={handleStartMoGraphTour} className="gap-2">
-              <Sparkles size={14} className="text-purple-400" />
-              <span>Animation & effects tour</span>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem className="gap-2 text-fg-muted">
-              <HelpCircle size={14} />
-              <span>Help & shortcuts (press ?)</span>
-            </DropdownMenuItem>
-            <DropdownMenuItem className="gap-2 text-fg-muted">
-              <FileCode size={14} />
-              <span>Project JSON</span>
-            </DropdownMenuItem>
-            <DropdownMenuItem className="gap-2 text-fg-muted">
-              <Command size={14} />
-              <span>⌘K to search</span>
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-
+      {/* ─── Right: export only ───────────────────────────────── */}
+      <div className="flex items-center justify-end shrink-0">
         {/* Export */}
         {exportState.isExporting ? (
-          <div className="relative">
-            <button
-              onClick={handleCancelExport}
-              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md bg-accent-soft text-accent text-[12.5px] font-semibold"
-            >
-              <Loader2 size={13} className="animate-spin" />
-              <span>{Math.round(exportState.progress)}%</span>
-              <X size={11} className="ml-1 opacity-70" />
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={handleCancelExport}
+            className="flex items-center gap-1.5 rounded-[8px] bg-bg-3 px-[18px] py-[9px] text-[13px] font-semibold text-fg-2"
+          >
+            <Icon name="square.and.arrow.up" size={13} ariaHidden />
+            {`${Math.round(exportState.progress)}%`}
+            <Icon name="xmark" size={11} ariaHidden />
+          </button>
         ) : exportState.error ? (
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md border border-status-error/40 bg-status-error/10 text-status-error text-[11px]">
-            <span className="max-w-[180px] truncate">{exportState.error}</span>
-            <button
-              onClick={() => setExportState((p) => ({ ...p, error: null }))}
-              className="opacity-70 hover:opacity-100"
-            >
-              <X size={11} />
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={resetError}
+            className="flex max-w-[180px] items-center gap-1.5 truncate rounded-[8px] bg-destructive px-[18px] py-[9px] text-[13px] font-semibold text-destructive-foreground"
+          >
+            <span className="truncate">{exportState.error}</span>
+            <Icon name="xmark" size={11} ariaHidden />
+          </button>
         ) : exportState.complete ? (
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md bg-accent-soft text-accent text-[12.5px]">
-            <Check size={13} />
-            <span className="font-medium">Saved!</span>
-          </div>
+          <button
+            type="button"
+            disabled
+            className="flex items-center gap-1.5 rounded-[8px] bg-bg-3 px-[18px] py-[9px] text-[13px] font-semibold text-fg-2"
+          >
+            <Icon name="checkmark" size={13} ariaHidden />
+            Saved!
+          </button>
         ) : (
-          <DropdownMenu open={isExportOpen} onOpenChange={setIsExportOpen}>
-            <DropdownMenuTrigger asChild>
-              <button
-                className="relative inline-flex items-center gap-1.5 px-3.5 py-[5px] rounded-md bg-accent text-accent-fg font-semibold text-[12.5px] shadow-glow hover:bg-accent-strong transition-colors"
-              >
-                <Upload size={13} />
-                <span>Export</span>
-                <ChevronDown size={12} className={`transition-transform ${isExportOpen ? "rotate-180" : ""}`} />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-72 p-0 rounded-xl bg-bg-1 border-border">
-              <div className="p-3 space-y-1 max-h-[400px] overflow-y-auto">
+          <div className="flex items-stretch">
+            <button
+              type="button"
+              onClick={() => handleExport("mp4")}
+              className="rounded-l-[8px] rounded-r-none bg-accent px-[18px] py-[9px] text-[13px] font-semibold text-white"
+            >
+              Export
+            </button>
+            <DropdownMenu
+              isMenuOpen={isExportOpen}
+              onOpenChange={setIsExportOpen}
+              hasChevron={false}
+              button={{
+                label: "Export options",
+                variant: "primary",
+                size: "sm",
+                isIconOnly: true,
+                icon: (
+                  <svg
+                    width="11"
+                    height="11"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="#fff"
+                    strokeWidth="2.4"
+                    aria-hidden
+                  >
+                    <path d="M6 9l6 6 6-6" />
+                  </svg>
+                ),
+                className:
+                  "rounded-l-none rounded-r-[8px] border-l border-white/25",
+                style: {
+                  background: "var(--accent)",
+                  width: "auto",
+                  height: "auto",
+                  padding: "9px 8px",
+                  borderRadius: "0 8px 8px 0",
+                },
+              }}
+              menuWidth={288}
+            >
+              <div className="space-y-1 max-h-[400px] overflow-y-auto">
                 {exportOptions.map((option, index) =>
                   option.separator ? (
-                    <DropdownMenuSeparator key={`sep-${index}`} />
+                    <div key={`sep-${index}`} className="my-1 border-t border-border" />
                   ) : (
                     <DropdownMenuItem
                       key={option.type + index}
-                      className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-hover focus:bg-hover ${
-                        option.recommended ? "bg-accent-soft" : ""
-                      }`}
-                      onClick={() => handleExport(option.type)}
-                    >
-                      <div
-                        className={`p-2 rounded-lg transition-colors ${
-                          option.recommended
-                            ? "bg-accent-soft text-accent"
-                            : "bg-bg-2 text-fg-2"
-                        }`}
-                      >
-                        <option.icon size={18} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div
-                          className={`text-sm font-medium ${
-                            option.recommended ? "text-accent" : "text-fg"
-                          }`}
-                        >
-                          {option.label}
+                      icon={<Icon name={option.iconName} size={18} ariaHidden />}
+                      label={
+                        <div className="flex items-center gap-2">
+                          <Text
+                            type="label"
+                            weight="bold"
+                            className={option.recommended ? "text-accent" : "text-fg"}
+                          >
+                            {option.label}
+                          </Text>
                           {option.recommended && (
-                            <span className="ml-2 text-[10px] bg-accent-soft text-accent px-1.5 py-0.5 rounded">
+                            <Text type="supporting" className="rounded bg-accent-soft px-1.5 py-0.5 text-[10px] text-accent">
                               Best match
-                            </span>
+                            </Text>
                           )}
                         </div>
-                        <div className="text-xs text-fg-muted mt-0.5">
-                          {option.desc}
+                      }
+                      description={
+                        <div>
+                          <Text type="supporting" color="secondary" display="block">
+                            {option.desc}
+                          </Text>
+                          {exportEstimates.get(option.type) && (
+                            <Text type="supporting" color="secondary" display="block" className="text-[10px]">
+                              Est. {exportEstimates.get(option.type)?.formatted}
+                            </Text>
+                          )}
                         </div>
-                        {exportEstimates.get(option.type) && (
-                          <div className="text-[10px] text-fg-3 mt-1">
-                            Est. {exportEstimates.get(option.type)?.formatted}
-                          </div>
-                        )}
-                      </div>
-                    </DropdownMenuItem>
+                      }
+                      className={option.recommended ? "bg-accent-soft" : undefined}
+                      onClick={() => handleExport(option.type)}
+                    />
                   ),
                 )}
 
-                <DropdownMenuSeparator />
+                <div className="my-1 border-t border-border" />
                 <DropdownMenuItem
-                  className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-hover focus:bg-hover"
+                  icon={<Settings size={18} aria-hidden />}
+                  label="Custom export..."
+                  description="Full settings with AI upscaling"
+                  endContent={<MoreHorizontal size={14} className="text-fg-muted" aria-hidden />}
                   onClick={() => setIsExportDialogOpen(true)}
-                >
-                  <div className="p-2 bg-accent-soft rounded-lg text-accent">
-                    <Settings size={18} />
-                  </div>
-                  <div className="flex-1">
-                    <div className="text-sm font-medium text-accent">
-                      Custom export…
-                    </div>
-                    <div className="text-xs text-fg-muted mt-0.5">
-                      Full settings with AI upscaling
-                    </div>
-                  </div>
-                  <MoreHorizontal size={14} className="text-fg-muted" />
-                </DropdownMenuItem>
+                />
+                <DropdownMenuItem
+                  icon={<Video size={18} aria-hidden />}
+                  label="Compress video..."
+                  description="Shrink any video to a target size"
+                  onClick={() => setIsCompressOpen(true)}
+                />
               </div>
-              <div className="bg-bg-2 px-3 py-2.5 text-xs text-center text-fg-muted border-t border-border">
+              <Text type="supporting" color="secondary" display="block" className="border-t border-border bg-bg-2 px-3 py-2.5 text-center text-xs">
                 {project.settings.width}×{project.settings.height} •{" "}
                 {project.settings.frameRate}fps
-              </div>
-            </DropdownMenuContent>
-          </DropdownMenu>
+              </Text>
+            </DropdownMenu>
+          </div>
         )}
       </div>
 
       {/* ─── Auxiliary popups & dialogs ───────────────────────── */}
+      <CompressDialog
+        isOpen={isCompressOpen}
+        onClose={() => setIsCompressOpen(false)}
+      />
       <ExportDialog
         isOpen={isExportDialogOpen}
         onClose={() => setIsExportDialogOpen(false)}
@@ -947,31 +597,37 @@ export const Toolbar: React.FC = () => {
         duration={project.timeline?.duration ?? 0}
         projectWidth={project.settings?.width ?? 1920}
         projectHeight={project.settings?.height ?? 1080}
+        frameRate={project.settings?.frameRate ?? 30}
+        sourceMatch={deriveSourceExportMatch(project)}
       />
 
       <ScreenRecorder
-        isOpen={isRecorderOpen}
-        onClose={() => setIsRecorderOpen(false)}
+        isOpen={activeModal === "recorder"}
+        onClose={closeModal}
         onRecordingComplete={handleRecordingComplete}
       />
 
       <SettingsDialog />
 
-      {isHistoryOpen && (
+      {activeModal === "history" && (
         <>
           <div
             className="fixed inset-0 bg-black/20 z-40"
-            onClick={() => setIsHistoryOpen(false)}
+            onClick={closeModal}
           />
           <div className="fixed top-topbar right-0 bottom-0 w-80 bg-bg-1 border-l border-border z-50 shadow-lg animate-in slide-in-from-right duration-200">
             <div className="flex items-center justify-between p-3 border-b border-border">
-              <span className="text-sm font-medium text-fg">Action history</span>
-              <button
-                onClick={() => setIsHistoryOpen(false)}
+              <Text type="body" weight="bold" className="text-sm text-fg">
+                Action history
+              </Text>
+              <ToolcraftIconButton
+                label="Close action history"
+                icon={<X size={14} aria-hidden />}
+                size="sm"
+                variant="ghost"
+                onClick={closeModal}
                 className="p-1.5 rounded hover:bg-hover text-fg-3 hover:text-fg transition-colors"
-              >
-                <X size={14} />
-              </button>
+              />
             </div>
             <div className="h-[calc(100%-49px)]">
               <HistoryPanel />

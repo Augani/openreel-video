@@ -1,9 +1,13 @@
 import React, { useState, useCallback } from "react";
-import { Video, Download } from "lucide-react";
+import { ToolcraftButton as Button } from "@openreel/ui";
+import { ToolcraftCard as Card } from "@openreel/ui";
+import { ToolcraftText as Text } from "@openreel/ui";
+import { Video, Download } from "@/icons/lucide-compat";
+import { PropertySlider } from "./shell/PropertySlider";
+import { MockToggle } from "./shell/InspectorControls";
 import type { Clip } from "@openreel/core";
 import { getVidstabEngine, type VidstabProgress } from "@openreel/core";
 import { useProjectStore } from "../../../stores/project-store";
-import { Switch, Label, Slider, Button } from "@openreel/ui";
 
 interface StabilizationSectionProps {
   clip: Clip;
@@ -12,7 +16,7 @@ interface StabilizationSectionProps {
 export const StabilizationSection: React.FC<StabilizationSectionProps> = ({
   clip,
 }) => {
-  const { project, getMediaItem } = useProjectStore();
+  const { getMediaItem } = useProjectStore();
   const [processing, setProcessing] = useState(false);
   const [stage, setStage] = useState<VidstabProgress["stage"] | null>(null);
   const [progress, setProgress] = useState(0);
@@ -31,29 +35,14 @@ export const StabilizationSection: React.FC<StabilizationSectionProps> = ({
   const updateStabilization = useCallback(
     (updates: Partial<typeof stabilization>) => {
       const newStabilization = { ...stabilization, ...updates };
-
-      const tracks = project.timeline.tracks.map((track) => {
-        const clipIndex = track.clips.findIndex((c) => c.id === clip.id);
-        if (clipIndex === -1) return track;
-
-        const updatedClip = {
-          ...track.clips[clipIndex],
-          stabilization: newStabilization,
-        };
-        const newClips = [...track.clips];
-        newClips[clipIndex] = updatedClip;
-        return { ...track, clips: newClips };
-      });
-
-      useProjectStore.setState({
-        project: {
-          ...project,
-          timeline: { ...project.timeline, tracks },
-          modifiedAt: Date.now(),
-        },
+      void useProjectStore.getState().executeAction({
+        type: "clip/setStabilization",
+        id: crypto.randomUUID(),
+        timestamp: Date.now(),
+        params: { clipId: clip.id, stabilization: newStabilization },
       });
     },
-    [clip.id, project, stabilization],
+    [clip.id, stabilization],
   );
 
   const handleStabilize = useCallback(async () => {
@@ -152,46 +141,51 @@ export const StabilizationSection: React.FC<StabilizationSectionProps> = ({
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <Label className="flex items-center gap-2 text-sm">
+        <Text type="body" color="primary" className="flex items-center gap-2 text-sm">
           <Video className="h-4 w-4" />
           Stabilize
-        </Label>
-        <Switch
+        </Text>
+        <MockToggle
+          ariaLabel="Enable stabilization"
           checked={stabilization.enabled && isStabilized}
-          onCheckedChange={handleToggle}
-          disabled={processing}
+          onChange={handleToggle}
+          isDisabled={processing}
         />
       </div>
 
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <Label className="text-xs text-muted-foreground">Strength</Label>
-          <span className="text-xs text-muted-foreground">
-            {stabilization.strength}%
-          </span>
-        </div>
-        <Slider
-          value={[stabilization.strength]}
-          min={10}
-          max={100}
-          step={5}
-          onValueChange={handleStrengthChange}
-          disabled={processing}
-        />
-      </div>
+      <PropertySlider
+        label="Strength"
+        value={stabilization.strength}
+        min={10}
+        max={100}
+        step={5}
+        onChange={(value: number) => handleStrengthChange([value])}
+        isDisabled={processing}
+        formatValue={(value) => `${Math.round(value)}%`}
+      />
 
       {!vidstabEngine.isLoaded() && !processing && !isStabilized && (
-        <div className="flex items-center gap-2 rounded-md border border-border/60 bg-muted/40 px-3 py-2 text-[11px] text-muted-foreground">
+        <Card
+          variant="muted"
+          padding={2}
+          className="flex items-center gap-2 border border-border/60 bg-muted/40"
+        >
           <Download className="h-3.5 w-3.5 shrink-0" />
-          <span>First use requires a one-time download (~65 MB)</span>
-        </div>
+          <Text type="supporting" color="secondary" className="text-[11px]">
+            First use requires a one-time download (~65 MB)
+          </Text>
+        </Card>
       )}
 
       {processing && stage && (
-        <div className="space-y-1">
-          <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span>{stageLabel}</span>
-            <span>{progress}%</span>
+        <Card variant="muted" padding={2} className="space-y-1">
+          <div className="flex items-center justify-between">
+            <Text type="supporting" color="secondary" className="text-xs">
+              {stageLabel}
+            </Text>
+            <Text type="supporting" color="secondary" className="text-xs">
+              {progress}%
+            </Text>
           </div>
           <div className="h-1.5 w-full rounded-full bg-muted">
             <div
@@ -199,24 +193,25 @@ export const StabilizationSection: React.FC<StabilizationSectionProps> = ({
               style={{ width: `${progress}%` }}
             />
           </div>
-        </div>
+        </Card>
       )}
 
       {error && !processing && (
-        <div className="rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-[11px] text-destructive">
+        <Card variant="muted" padding={2} className="border border-destructive/50 bg-destructive/10">
+          <Text type="supporting" className="text-[11px] text-destructive">
           {error}
-        </div>
+          </Text>
+        </Card>
       )}
 
       {isStabilized && !processing && (
         <Button
-          variant="outline"
+          label="Re-stabilize"
+          variant="secondary"
           size="sm"
-          className="w-full"
           onClick={handleStabilize}
-        >
-          Re-stabilize
-        </Button>
+          className="w-full justify-center"
+        />
       )}
     </div>
   );

@@ -5,7 +5,7 @@ import { EasingCurve } from "./EasingCurve";
 
 const PROPERTY_COLORS: Record<string, string> = {
   "position.x": "#22d3ee",
-  "position.y": "#a78bfa",
+  "position.y": "#34d399",
   "scale.x": "#4ade80",
   "scale.y": "#86efac",
   rotation: "#f472b6",

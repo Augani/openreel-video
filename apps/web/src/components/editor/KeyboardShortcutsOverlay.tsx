@@ -1,12 +1,16 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { Keyboard, Search, RotateCcw, ChevronDown } from "lucide-react";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  Input,
-} from "@openreel/ui";
+import { Keyboard, Search, RotateCcw, ChevronDown } from "@/icons/lucide-compat";
+import { ToolcraftSegmentedControl } from "@openreel/ui";
+import { ToolcraftButton as Button } from "@openreel/ui";
+import { ToolcraftCard as Card } from "@openreel/ui";
+import { ToolcraftClickableCard as ClickableCard } from "@openreel/ui";
+import { ToolcraftDialog as Dialog, ToolcraftDialogHeader as DialogHeader } from "@openreel/ui";
+import { ToolcraftEmptyState as EmptyState } from "@openreel/ui";
+import { ToolcraftIconButton as IconButton } from "@openreel/ui";
+import { ToolcraftKbd as Kbd } from "@openreel/ui";
+import { ToolcraftLayout as Layout, ToolcraftLayoutContent as LayoutContent, ToolcraftLayoutFooter as LayoutFooter } from "@openreel/ui";
+import { ToolcraftText as Text } from "@openreel/ui";
+import { ToolcraftTextInputControl } from "@openreel/ui";
 import {
   keyboardShortcuts,
   formatKeyComboDisplay,
@@ -130,156 +134,167 @@ export const KeyboardShortcutsOverlay: React.FC<
   };
 
   const categories = keyboardShortcuts.getCategories();
+  const categoryOptions: Array<{ label: string; value: ShortcutCategory | "all" }> = [
+    { value: "all", label: "All" },
+    ...categories.map((category) => ({
+      value: category,
+      label: keyboardShortcuts.getCategoryName(category),
+    })),
+  ];
   const presets = keyboardShortcuts.getPresets();
 
   if (!isOpen) return null;
 
   return (
-    <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-3xl max-h-[80vh] p-0 gap-0 bg-background-secondary border-border overflow-hidden flex flex-col">
-        <DialogHeader className="p-4 border-b border-border bg-background-tertiary space-y-0">
-          <div className="flex items-center gap-3">
-            <Keyboard size={20} className="text-primary" />
-            <DialogTitle className="text-lg font-bold text-text-primary">
-              Keyboard Shortcuts
-            </DialogTitle>
-          </div>
-        </DialogHeader>
-
-        <div className="flex items-center gap-3 p-4 border-b border-border">
-          <div className="flex-1 relative">
-            <Search
-              size={16}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted z-10"
-            />
-            <Input
+    <Dialog
+      isOpen
+      onOpenChange={(open) => !open && onClose()}
+      width={768}
+      purpose="form"
+    >
+      <Layout
+        header={
+          <DialogHeader
+            title="Keyboard Shortcuts"
+            onOpenChange={(open) => !open && onClose()}
+            startContent={<Keyboard size={20} className="text-primary" aria-hidden />}
+          />
+        }
+        content={
+          <LayoutContent className="max-h-[65vh] overflow-y-auto">
+        <div className="space-y-4">
+        <div className="flex items-center gap-3">
+          <div className="min-w-0 flex-1">
+            <ToolcraftTextInputControl
+              label="Search shortcuts"
+              isLabelHidden
               type="text"
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={setSearchQuery}
               placeholder="Search shortcuts..."
-              className="pl-9 bg-background-tertiary border-border text-text-primary"
+              startIcon={<Search size={16} aria-hidden />}
+              width="100%"
             />
           </div>
 
           <div className="relative">
-            <button
+            <Button
+              label={presets.find((p) => p.id === activePreset)?.name || "Preset"}
               onClick={() => setShowPresets(!showPresets)}
-              className="flex items-center gap-2 px-3 py-2 bg-background-tertiary border border-border rounded-lg text-sm text-text-secondary hover:text-text-primary transition-colors"
-            >
-              <span>
-                {presets.find((p) => p.id === activePreset)?.name || "Preset"}
-              </span>
-              <ChevronDown size={14} />
-            </button>
+              variant="secondary"
+              icon={<ChevronDown size={14} aria-hidden />}
+            />
             {showPresets && (
-              <div className="absolute top-full right-0 mt-1 w-48 bg-background-secondary border border-border rounded-lg shadow-lg z-10">
+              <Card
+                variant="default"
+                padding={1}
+                className="absolute top-full right-0 z-10 mt-1 w-56 border border-border shadow-lg"
+              >
                 {presets.map((preset) => (
-                  <button
+                  <ClickableCard
                     key={preset.id}
+                    label={`Apply ${preset.name} preset`}
                     onClick={() => handleApplyPreset(preset.id)}
-                    className={`w-full text-left px-3 py-2 text-sm transition-colors ${
-                      activePreset === preset.id
-                        ? "bg-primary/10 text-primary"
-                        : "text-text-secondary hover:bg-background-tertiary hover:text-text-primary"
-                    }`}
+                    padding={2}
+                    variant={activePreset === preset.id ? "green" : "transparent"}
                   >
-                    <div className="font-medium">{preset.name}</div>
-                    <div className="text-[10px] text-text-muted">
+                    <Text type="label" weight="bold" color={activePreset === preset.id ? "active" : "primary"} display="block">
+                      {preset.name}
+                    </Text>
+                    <Text type="supporting" color="secondary" display="block" className="text-[10px]">
                       {preset.description}
-                    </div>
-                  </button>
+                    </Text>
+                  </ClickableCard>
                 ))}
-              </div>
+              </Card>
             )}
           </div>
 
-          <button
+          <Button
+            label="Reset All"
             onClick={handleResetAll}
-            className="flex items-center gap-1 px-3 py-2 text-sm text-text-muted hover:text-text-primary transition-colors"
-          >
-            <RotateCcw size={14} />
-            Reset All
-          </button>
+            variant="ghost"
+            icon={<RotateCcw size={14} aria-hidden />}
+          />
         </div>
 
-        <div className="flex gap-2 px-4 py-2 border-b border-border overflow-x-auto">
-          <button
-            onClick={() => setActiveCategory("all")}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${
-              activeCategory === "all"
-                ? "bg-primary text-white"
-                : "text-text-secondary hover:text-text-primary hover:bg-background-tertiary"
-            }`}
-          >
-            All
-          </button>
-          {categories.map((category) => (
-            <button
-              key={category}
-              onClick={() => setActiveCategory(category)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${
-                activeCategory === category
-                  ? "bg-primary text-white"
-                  : "text-text-secondary hover:text-text-primary hover:bg-background-tertiary"
-              }`}
-            >
-              {keyboardShortcuts.getCategoryName(category)}
-            </button>
-          ))}
+        <div className="overflow-x-auto">
+          <ToolcraftSegmentedControl<ShortcutCategory | "all">
+            ariaLabel="Shortcut category"
+            className="min-w-[640px]"
+            value={activeCategory}
+            onChange={setActiveCategory}
+            options={categoryOptions}
+          />
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 space-y-6">
+        <div className="space-y-6">
           {Object.entries(groupedShortcuts).map(
             ([category, categoryShortcuts]) => (
               <div key={category}>
-                <h3 className="text-xs font-bold text-text-muted uppercase tracking-wider mb-3">
+                <Text
+                  as="h3"
+                  type="supporting"
+                  weight="bold"
+                  color="secondary"
+                  display="block"
+                  className="mb-3 text-xs uppercase"
+                >
                   {keyboardShortcuts.getCategoryName(
                     category as ShortcutCategory,
                   )}
-                </h3>
+                </Text>
                 <div className="space-y-1">
                   {categoryShortcuts.map((shortcut) => (
-                    <div
+                    <Card
                       key={shortcut.id}
-                      className="flex items-center justify-between p-2 rounded-lg hover:bg-background-tertiary group"
+                      variant="transparent"
+                      padding={2}
+                      className="group flex items-center justify-between hover:bg-background-tertiary"
                     >
                       <div className="flex-1">
-                        <div className="text-sm text-text-primary">
+                        <Text type="body" display="block">
                           {shortcut.name}
-                        </div>
-                        <div className="text-[10px] text-text-muted">
+                        </Text>
+                        <Text type="supporting" color="secondary" display="block" className="text-[10px]">
                           {shortcut.description}
-                        </div>
+                        </Text>
                       </div>
                       <div className="flex items-center gap-2">
                         {editingId === shortcut.id ? (
-                          <input
-                            autoFocus
+                          <ToolcraftTextInputControl
+                            label={`Set shortcut for ${shortcut.name}`}
+                            isLabelHidden
+                            value=""
                             onKeyDown={(e) =>
                               handleShortcutCapture(e, shortcut.id)
                             }
                             placeholder="Press keys..."
-                            className="w-32 px-2 py-1 bg-primary/20 border border-primary rounded text-sm text-center text-text-primary focus:outline-none"
+                            hasAutoFocus
+                            width={128}
+                            size="sm"
                           />
                         ) : (
-                          <button
+                          <Button
+                            label={formatKeyComboDisplay(shortcut.currentKey)}
                             onClick={() => setEditingId(shortcut.id)}
-                            className="min-w-[80px] px-3 py-1.5 bg-background-tertiary border border-border rounded text-sm font-mono text-text-primary hover:border-primary transition-colors"
-                          >
-                            {formatKeyComboDisplay(shortcut.currentKey)}
-                          </button>
+                            variant="secondary"
+                            size="sm"
+                            className="min-w-[80px] font-mono"
+                          />
                         )}
                         {shortcut.currentKey !== shortcut.defaultKey && (
-                          <button
+                          <IconButton
+                            label="Reset to default"
                             onClick={() => handleResetShortcut(shortcut.id)}
-                            className="p-1 text-text-muted hover:text-text-primary opacity-0 group-hover:opacity-100 transition-opacity"
-                            title="Reset to default"
-                          >
-                            <RotateCcw size={12} />
-                          </button>
+                            variant="ghost"
+                            size="sm"
+                            icon={<RotateCcw size={12} aria-hidden />}
+                            className="opacity-0 transition-opacity group-hover:opacity-100"
+                          />
                         )}
                       </div>
-                    </div>
+                    </Card>
                   ))}
                 </div>
               </div>
@@ -287,23 +302,26 @@ export const KeyboardShortcutsOverlay: React.FC<
           )}
 
           {filteredShortcuts.length === 0 && (
-            <div className="text-center py-8 text-text-muted">
-              <Keyboard size={32} className="mx-auto mb-2 opacity-30" />
-              <p className="text-sm">No shortcuts found</p>
-            </div>
+            <EmptyState
+              title="No shortcuts found"
+              icon={<Keyboard size={32} className="text-text-muted opacity-30" aria-hidden />}
+              isCompact
+            />
           )}
         </div>
-
-        <div className="p-3 border-t border-border bg-background-tertiary text-center">
-          <p className="text-[10px] text-text-muted">
-            Click a shortcut key to customize • Press{" "}
-            <kbd className="px-1.5 py-0.5 bg-background-secondary border border-border rounded text-[10px]">
-              ?
-            </kbd>{" "}
-            to toggle this overlay
-          </p>
         </div>
-      </DialogContent>
+          </LayoutContent>
+        }
+        footer={
+          <LayoutFooter hasDivider>
+          <Text type="supporting" color="secondary" display="block" justify="center" className="text-[10px]">
+            Click a shortcut key to customize • Press{" "}
+            <Kbd keys="?" />{" "}
+            to toggle this overlay
+          </Text>
+          </LayoutFooter>
+        }
+      />
     </Dialog>
   );
 };

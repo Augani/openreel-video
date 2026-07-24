@@ -10,9 +10,14 @@ import {
   ExternalLink,
   Shield,
   KeyRound,
-} from "lucide-react";
-import { Input } from "@openreel/ui";
-import { Button } from "@openreel/ui";
+} from "@/icons/lucide-compat";
+import { ToolcraftButton as Button } from "@openreel/ui";
+import { ToolcraftCard as Card } from "@openreel/ui";
+import { ToolcraftClickableCard as ClickableCard } from "@openreel/ui";
+import { ToolcraftIconButton as IconButton } from "@openreel/ui";
+import { ToolcraftLink as Link } from "@openreel/ui";
+import { ToolcraftText as Text } from "@openreel/ui";
+import { ToolcraftTextInputControl } from "@openreel/ui";
 import { useSettingsStore, SERVICE_REGISTRY } from "../../../stores/settings-store";
 import {
   isMasterPasswordSet,
@@ -171,19 +176,21 @@ export const ApiKeysPanel: React.FC = () => {
     return (
       <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
         <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
-          <Shield size={32} className="text-primary" />
+          <Shield size={32} className="text-primary" aria-hidden />
         </div>
-        <h3 className="text-lg font-medium text-text-primary mb-2">
+        <Text as="h3" type="large" weight="bold" display="block" className="mb-2">
           Secure API Key Storage
-        </h3>
-        <p className="text-sm text-text-muted mb-6 max-w-sm">
+        </Text>
+        <Text as="p" type="supporting" color="secondary" display="block" className="mb-6 max-w-sm">
           Set up a master password to encrypt and store your API keys locally.
           Keys are encrypted with AES-256-GCM and never leave your browser.
-        </p>
-        <Button onClick={() => setPasswordDialogMode("setup")}>
-          <KeyRound size={16} className="mr-2" />
-          Set Up Master Password
-        </Button>
+        </Text>
+        <Button
+          label="Set Up Master Password"
+          onClick={() => setPasswordDialogMode("setup")}
+          variant="primary"
+          icon={<KeyRound size={16} aria-hidden />}
+        />
 
         {passwordDialogMode && (
           <MasterPasswordDialog
@@ -202,18 +209,20 @@ export const ApiKeysPanel: React.FC = () => {
     return (
       <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
         <div className="w-16 h-16 rounded-full bg-amber-500/10 flex items-center justify-center mb-4">
-          <Lock size={32} className="text-amber-500" />
+          <Lock size={32} className="text-amber-500" aria-hidden />
         </div>
-        <h3 className="text-lg font-medium text-text-primary mb-2">
+        <Text as="h3" type="large" weight="bold" display="block" className="mb-2">
           Session Locked
-        </h3>
-        <p className="text-sm text-text-muted mb-6 max-w-sm">
+        </Text>
+        <Text as="p" type="supporting" color="secondary" display="block" className="mb-6 max-w-sm">
           Enter your master password to view and manage API keys.
-        </p>
-        <Button onClick={() => setPasswordDialogMode("unlock")}>
-          <Unlock size={16} className="mr-2" />
-          Unlock
-        </Button>
+        </Text>
+        <Button
+          label="Unlock"
+          onClick={() => setPasswordDialogMode("unlock")}
+          variant="primary"
+          icon={<Unlock size={16} aria-hidden />}
+        />
 
         {passwordDialogMode && (
           <MasterPasswordDialog
@@ -232,25 +241,27 @@ export const ApiKeysPanel: React.FC = () => {
     <div className="space-y-6">
       {/* Header actions */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2 text-sm text-text-muted">
-          <Shield size={14} className="text-primary" />
-          <span>
+        <div className="flex items-center gap-2">
+          <Shield size={14} className="text-primary" aria-hidden />
+          <Text type="supporting" color="secondary">
             {storedKeys.length} key{storedKeys.length !== 1 ? "s" : ""} stored
-          </span>
+          </Text>
         </div>
         <div className="flex items-center gap-2">
           <Button
-            variant="outline"
+            label="Change Password"
+            variant="secondary"
             size="sm"
             onClick={() => setPasswordDialogMode("change")}
-          >
-            <Key size={14} className="mr-1" />
-            Change Password
-          </Button>
-          <Button variant="outline" size="sm" onClick={handleLock}>
-            <Lock size={14} className="mr-1" />
-            Lock
-          </Button>
+            icon={<Key size={14} aria-hidden />}
+          />
+          <Button
+            label="Lock"
+            variant="secondary"
+            size="sm"
+            onClick={handleLock}
+            icon={<Lock size={14} aria-hidden />}
+          />
         </div>
       </div>
 
@@ -261,131 +272,138 @@ export const ApiKeysPanel: React.FC = () => {
           const isRevealed = showKey[stored.id] && revealedKeys[stored.id];
 
           return (
-            <div
+            <Card
               key={stored.id}
-              className="border border-border rounded-lg p-4 bg-background-secondary"
+              variant="muted"
+              padding={4}
+              className="border border-border"
             >
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
-                  <Key size={14} className="text-primary" />
-                  <span className="text-sm font-medium text-text-primary">
+                  <Key size={14} className="text-primary" aria-hidden />
+                  <Text type="label" weight="bold">
                     {service?.label ?? stored.label}
-                  </span>
+                  </Text>
                   {service?.docsUrl && (
-                    <a
+                    <Link
+                      label={`${service.label} documentation`}
                       href={service.docsUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-text-muted hover:text-primary transition-colors"
+                      isExternalLink
+                      color="secondary"
+                      className="text-text-muted hover:text-primary"
                     >
-                      <ExternalLink size={12} />
-                    </a>
+                      <ExternalLink size={12} aria-hidden />
+                    </Link>
                   )}
                 </div>
                 <div className="flex items-center gap-1">
-                  <button
+                  <IconButton
+                    label={isRevealed ? "Hide key" : "Show key"}
                     onClick={() => handleRevealKey(stored.id)}
-                    className="p-1.5 rounded hover:bg-background-tertiary text-text-muted hover:text-text-primary transition-colors"
-                    title={isRevealed ? "Hide key" : "Show key"}
-                  >
-                    {isRevealed ? <EyeOff size={14} /> : <Eye size={14} />}
-                  </button>
-                  <button
+                    variant="ghost"
+                    size="sm"
+                    icon={isRevealed ? <EyeOff size={14} aria-hidden /> : <Eye size={14} aria-hidden />}
+                  />
+                  <IconButton
+                    label="Delete key"
                     onClick={() => handleDeleteKey(stored.id)}
-                    className="p-1.5 rounded hover:bg-error/10 text-text-muted hover:text-error transition-colors"
-                    title="Delete key"
-                  >
-                    <Trash2 size={14} />
-                  </button>
+                    variant="destructive"
+                    size="sm"
+                    icon={<Trash2 size={14} aria-hidden />}
+                  />
                 </div>
               </div>
 
               {service && (
-                <p className="text-xs text-text-muted mb-2">
+                <Text as="p" type="supporting" color="secondary" display="block" className="mb-2">
                   {service.description}
-                </p>
+                </Text>
               )}
 
-              <div className="font-mono text-xs bg-background rounded px-3 py-2 text-text-secondary">
+              <Card variant="default" padding={2} className="font-mono text-xs text-text-secondary">
                 {isRevealed
                   ? revealedKeys[stored.id]
                   : "••••••••••••••••••••••••••••••••"}
-              </div>
+              </Card>
 
-              <div className="text-[10px] text-text-muted mt-2">
+              <Text type="supporting" color="secondary" display="block" className="mt-2 text-[10px]">
                 Added {new Date(stored.createdAt).toLocaleDateString()} &middot;
                 Updated {new Date(stored.updatedAt).toLocaleDateString()}
-              </div>
-            </div>
+              </Text>
+            </Card>
           );
         })}
       </div>
 
       {/* Add new key */}
       {addingService ? (
-        <div className="border border-primary/30 rounded-lg p-4 bg-primary/5">
+        <Card variant="green" padding={4} className="border border-primary/30">
           <div className="flex items-center gap-2 mb-3">
-            <Plus size={14} className="text-primary" />
-            <span className="text-sm font-medium text-text-primary">
+            <Plus size={14} className="text-primary" aria-hidden />
+            <Text type="label" weight="bold">
               Add{" "}
               {SERVICE_REGISTRY.find((s) => s.id === addingService)?.label} Key
-            </span>
+            </Text>
           </div>
-          <Input
+          <ToolcraftTextInputControl
+            label="API key"
+            isLabelHidden
             type="password"
             value={newKeyValue}
-            onChange={(e) => setNewKeyValue(e.target.value)}
+            onChange={setNewKeyValue}
             placeholder="Paste your API key here"
-            autoFocus
+            hasAutoFocus
+            width="100%"
             className="mb-3 font-mono text-xs"
           />
           <div className="flex justify-end gap-2">
             <Button
-              variant="outline"
+              label="Cancel"
+              variant="secondary"
               size="sm"
               onClick={() => {
                 setAddingService(null);
                 setNewKeyValue("");
               }}
-            >
-              Cancel
-            </Button>
+            />
             <Button
+              label="Save Key"
+              variant="primary"
               size="sm"
               onClick={() => handleSaveKey(addingService)}
-              disabled={!newKeyValue.trim()}
-            >
-              Save Key
-            </Button>
+              isDisabled={!newKeyValue.trim()}
+            />
           </div>
-        </div>
+        </Card>
       ) : availableServices.length > 0 ? (
         <div>
-          <h4 className="text-sm font-medium text-text-secondary mb-3">
+          <Text as="h3" type="label" weight="bold" color="secondary" display="block" className="mb-3">
             Add API Key
-          </h4>
+          </Text>
           <div className="grid gap-2">
             {availableServices.map((service) => (
-              <button
+              <ClickableCard
                 key={service.id}
+                label={`Add ${service.label} API key`}
                 onClick={() => setAddingService(service.id)}
-                className="flex items-center gap-3 p-3 rounded-lg border border-border hover:border-primary/50 hover:bg-primary/5 transition-all text-left group"
+                padding={3}
+                variant="default"
+                className="border border-border"
               >
-                <div className="p-2 rounded-lg bg-background-tertiary group-hover:bg-primary/10 transition-colors">
-                  <Plus
-                    size={14}
-                    className="text-text-muted group-hover:text-primary transition-colors"
-                  />
-                </div>
-                <div>
-                  <div className="text-sm font-medium text-text-primary">
-                    {service.label}
+                <div className="flex items-center gap-3 text-left">
+                  <div className="p-2 rounded-lg bg-background-tertiary">
+                    <Plus size={14} className="text-primary" aria-hidden />
                   </div>
-                  <div className="text-xs text-text-muted">
-                    {service.description}
+                  <div>
+                    <Text type="label" weight="bold" display="block">
+                      {service.label}
+                    </Text>
+                    <Text type="supporting" color="secondary" display="block">
+                      {service.description}
+                    </Text>
                   </div>
                 </div>
-              </button>
+              </ClickableCard>
             ))}
           </div>
         </div>
