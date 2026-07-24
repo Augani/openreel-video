@@ -2,7 +2,6 @@ import { useState, useCallback, useMemo } from "react";
 import { useAnalytics, AnalyticsEvents } from "../../hooks/useAnalytics";
 import {
   Play,
-  Clock,
   Layers,
   ChevronRight,
   Type,
@@ -12,22 +11,16 @@ import {
   ToggleLeft,
   Hash,
   Music,
-} from "lucide-react";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  Button,
-  Collapsible,
-  CollapsibleTrigger,
-  CollapsibleContent,
-  Input,
-  Switch,
-  Label,
-  Slider,
-} from "@openreel/ui";
+} from "@/icons/lucide-compat";
+import { ToolcraftSwitchControl } from "@openreel/ui";
+import { ToolcraftButton as Button } from "@openreel/ui";
+import { ToolcraftDialog as Dialog, ToolcraftDialogHeader as DialogHeader } from "@openreel/ui";
+import { ToolcraftLayout as Layout, ToolcraftLayoutContent as LayoutContent, ToolcraftLayoutFooter as LayoutFooter } from "@openreel/ui";
+import { ToolcraftNumberInputControl } from "@openreel/ui";
+import { ToolcraftSliderControl } from "@openreel/ui";
+import { ToolcraftText as Text } from "@openreel/ui";
+import { ToolcraftTextAreaControl } from "@openreel/ui";
+import { ToolcraftTextInputControl } from "@openreel/ui";
 import { useEngineStore } from "../../stores/engine-store";
 import { useProjectStore } from "../../stores/project-store";
 import type {
@@ -203,27 +196,22 @@ export const TemplatePreviewModal: React.FC<TemplatePreviewModalProps> = ({
   };
 
   return (
-    <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-3xl max-h-[90vh] p-0 gap-0 bg-background-secondary border-border overflow-hidden flex flex-col">
-        <DialogHeader className="p-5 border-b border-border space-y-0 shrink-0">
-          <DialogTitle className="text-lg font-semibold text-text-primary">
-            {template.name}
-          </DialogTitle>
-          <DialogDescription asChild>
-            <div className="flex items-center gap-4 mt-1.5">
-              <div className="flex items-center gap-1.5 text-xs text-text-muted">
-                <Clock size={12} />
-                <span>{formatDuration(template.timeline.duration)}</span>
-              </div>
-              <div className="flex items-center gap-1.5 text-xs text-text-muted">
-                <Layers size={12} />
-                <span>{template.placeholders.length} editable fields</span>
-              </div>
-            </div>
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="flex-1 overflow-y-auto p-5">
+    <Dialog
+      isOpen
+      onOpenChange={(open) => !open && onClose()}
+      width={768}
+      purpose="form"
+    >
+      <Layout
+        header={
+          <DialogHeader
+            title={template.name}
+            onOpenChange={(open) => !open && onClose()}
+            subtitle={`${formatDuration(template.timeline.duration)} · ${template.placeholders.length} editable fields`}
+          />
+        }
+        content={
+        <LayoutContent>
           <div className="grid md:grid-cols-2 gap-6">
             <div>
               <div className="aspect-video bg-background rounded-xl overflow-hidden mb-4 border border-border">
@@ -241,16 +229,16 @@ export const TemplatePreviewModal: React.FC<TemplatePreviewModalProps> = ({
               </div>
 
               {template.description && (
-                <p className="text-sm text-text-secondary mb-4">
+                <Text type="supporting" color="secondary" className="text-sm text-text-secondary mb-4">
                   {template.description}
-                </p>
+                </Text>
               )}
 
               {template.scenes && template.scenes.length > 0 && (
                 <div className="space-y-2">
-                  <h3 className="text-xs font-medium text-text-muted uppercase tracking-wide">
+                  <Text type="label" color="secondary" weight="medium" className="text-xs text-text-muted uppercase tracking-wide">
                     Scenes
-                  </h3>
+                  </Text>
                   <div className="flex flex-wrap gap-2">
                     {template.scenes.map((scene) => (
                       <div
@@ -275,9 +263,9 @@ export const TemplatePreviewModal: React.FC<TemplatePreviewModalProps> = ({
             </div>
 
             <div className="space-y-4">
-              <h3 className="text-sm font-medium text-text-primary">
+              <Text type="label" color="primary" weight="medium" className="text-sm text-text-primary">
                 Customize Template
-              </h3>
+              </Text>
 
               {groupedPlaceholders.main.length > 0 && (
                 <div className="space-y-4">
@@ -299,15 +287,23 @@ export const TemplatePreviewModal: React.FC<TemplatePreviewModalProps> = ({
               )}
 
               {groupedPlaceholders.advanced.length > 0 && (
-                <Collapsible open={showAdvanced} onOpenChange={setShowAdvanced}>
-                  <CollapsibleTrigger className="text-xs text-text-muted cursor-pointer hover:text-text-secondary transition-colors flex items-center gap-1">
+                <div>
+                  <Button
+                    label={`Advanced Options (${groupedPlaceholders.advanced.length})`}
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowAdvanced((value) => !value)}
+                    icon={
                     <ChevronRight
                       size={12}
                       className={`transition-transform ${showAdvanced ? "rotate-90" : ""}`}
+                        aria-hidden
                     />
-                    Advanced Options ({groupedPlaceholders.advanced.length})
-                  </CollapsibleTrigger>
-                  <CollapsibleContent className="mt-4 space-y-4 pl-4 border-l border-border">
+                    }
+                    className="text-xs text-text-muted cursor-pointer hover:text-text-secondary transition-colors"
+                  />
+                  {showAdvanced && (
+                  <div className="mt-4 space-y-4 pl-4 border-l border-border">
                     {groupedPlaceholders.advanced.map((placeholder) => (
                       <PlaceholderInput
                         key={placeholder.id}
@@ -322,42 +318,38 @@ export const TemplatePreviewModal: React.FC<TemplatePreviewModalProps> = ({
                         }
                       />
                     ))}
-                  </CollapsibleContent>
-                </Collapsible>
+                  </div>
+                  )}
+                </div>
               )}
 
               {error && (
                 <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
-                  <p className="text-sm text-red-400">{error}</p>
+                  <Text type="supporting" className="text-sm text-red-400">{error}</Text>
                 </div>
               )}
             </div>
           </div>
-        </div>
-
-        <div className="p-5 border-t border-border flex items-center justify-end gap-3 shrink-0">
-          <Button variant="ghost" onClick={onClose}>
-            Cancel
-          </Button>
+        </LayoutContent>
+        }
+        footer={
+        <LayoutFooter>
+          <Button label="Cancel" variant="ghost" onClick={onClose} />
           <Button
-            onClick={handleApply}
-            disabled={isApplying}
-            className="shadow-glow"
-          >
-            {isApplying ? (
-              <>
-                <div className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />
-                Applying...
-              </>
+            label={isApplying ? "Applying..." : "Use Template"}
+            icon={isApplying ? (
+              <div className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />
             ) : (
-              <>
-                Use Template
-                <ChevronRight size={16} />
-              </>
+              <ChevronRight size={16} aria-hidden />
             )}
-          </Button>
-        </div>
-      </DialogContent>
+            variant="primary"
+            onClick={handleApply}
+            isDisabled={isApplying}
+            className="shadow-glow"
+          />
+        </LayoutFooter>
+        }
+      />
     </Dialog>
   );
 };
@@ -383,18 +375,20 @@ const PlaceholderInput: React.FC<PlaceholderInputProps> = ({
         const maxLength = placeholder.constraints?.maxLength;
         return (
           <div className="space-y-1">
-            <textarea
+            <ToolcraftTextAreaControl
+              label={placeholder.label}
+              isLabelHidden
               value={String(displayValue)}
-              onChange={(e) => onChange(e.target.value)}
+              onChange={onChange}
               maxLength={maxLength}
               rows={2}
               placeholder={String(placeholder.defaultValue || "")}
-              className="w-full px-3 py-2.5 text-sm bg-background-tertiary border border-border rounded-lg focus:border-primary focus:outline-none text-text-primary placeholder:text-text-muted resize-none transition-colors"
+              inputClassName="w-full px-3 py-2.5 text-sm bg-background-tertiary border border-border rounded-lg focus:border-primary focus:outline-none text-text-primary placeholder:text-text-muted resize-none transition-colors"
             />
             {maxLength && (
-              <p className="text-[10px] text-text-muted text-right">
+              <Text type="supporting" color="secondary" className="text-[10px] text-text-muted text-right">
                 {String(displayValue).length}/{maxLength}
-              </p>
+              </Text>
             )}
           </div>
         );
@@ -409,12 +403,15 @@ const PlaceholderInput: React.FC<PlaceholderInputProps> = ({
         if (inputType === "slider") {
           return (
             <div className="flex items-center gap-3">
-              <Slider
-                value={[Number(displayValue) || 0]}
-                onValueChange={(vals) => onChange(vals[0])}
+              <ToolcraftSliderControl
+                label={placeholder.label}
+                isLabelHidden
+                value={Number(displayValue) || 0}
+                onChange={onChange}
                 min={min}
                 max={max}
                 step={step}
+                valueDisplay="none"
                 className="flex-1"
               />
               <span className="text-xs text-text-muted w-12 text-right font-mono">
@@ -425,10 +422,11 @@ const PlaceholderInput: React.FC<PlaceholderInputProps> = ({
         }
 
         return (
-          <Input
-            type="number"
+          <ToolcraftNumberInputControl
+            label={placeholder.label}
+            isLabelHidden
             value={Number(displayValue) || 0}
-            onChange={(e) => onChange(Number(e.target.value))}
+            onChange={(next) => onChange(next ?? 0)}
             min={min}
             max={max}
             step={step}
@@ -440,29 +438,26 @@ const PlaceholderInput: React.FC<PlaceholderInputProps> = ({
       case "boolean":
         return (
           <div className="flex items-center gap-3">
-            <Switch
+            <ToolcraftSwitchControl
+              label={placeholder.description || "Enabled"}
               checked={Boolean(displayValue)}
               onCheckedChange={(checked) => onChange(checked)}
             />
-            <Label className="text-sm text-text-secondary cursor-pointer">
-              {placeholder.description || "Enabled"}
-            </Label>
           </div>
         );
 
       case "color":
         return (
           <div className="flex items-center gap-3">
-            <input
-              type="color"
-              value={String(displayValue) || "#000000"}
-              onChange={(e) => onChange(e.target.value)}
-              className="w-10 h-10 rounded-lg cursor-pointer border border-border"
+            <div
+              className="h-10 w-10 rounded-lg border border-border"
+              style={{ backgroundColor: String(displayValue) || "#000000" }}
             />
-            <Input
-              type="text"
+            <ToolcraftTextInputControl
+              label={placeholder.label}
+              isLabelHidden
               value={String(displayValue) || "#000000"}
-              onChange={(e) => onChange(e.target.value)}
+              onChange={onChange}
               placeholder="#000000"
               className="flex-1 bg-background-tertiary border-border text-text-primary font-mono"
             />
@@ -471,10 +466,11 @@ const PlaceholderInput: React.FC<PlaceholderInputProps> = ({
 
       default:
         return (
-          <Input
-            type="text"
+          <ToolcraftTextInputControl
+            label={placeholder.label}
+            isLabelHidden
             value={String(displayValue)}
-            onChange={(e) => onChange(e.target.value)}
+            onChange={onChange}
             placeholder={String(placeholder.defaultValue || "")}
             className="bg-background-tertiary border-border text-text-primary"
           />
@@ -484,17 +480,17 @@ const PlaceholderInput: React.FC<PlaceholderInputProps> = ({
 
   return (
     <div className="space-y-2">
-      <label className="flex items-center gap-2">
+      <div className="flex items-center gap-2">
         <Icon size={14} className="text-text-muted" />
-        <span className="text-sm font-medium text-text-primary">
+        <Text type="label" color="primary" weight="medium" className="text-sm text-text-primary">
           {placeholder.label}
-        </span>
+        </Text>
         {placeholder.required && (
           <span className="text-red-400 text-xs">*</span>
         )}
-      </label>
+      </div>
       {placeholder.description && placeholder.type !== "boolean" && (
-        <p className="text-xs text-text-muted">{placeholder.description}</p>
+        <Text type="supporting" color="secondary" className="text-xs text-text-muted">{placeholder.description}</Text>
       )}
       {renderInput()}
     </div>

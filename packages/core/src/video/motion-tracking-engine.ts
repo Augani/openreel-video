@@ -230,6 +230,26 @@ export class MotionTrackingEngine {
       (d) => d.clipId === clipId,
     );
   }
+
+  ingestTrackingData(
+    clipId: string,
+    keyframes: TrackingKeyframe[],
+    region: Rectangle,
+    frameRate: number,
+  ): TrackingData {
+    const trackId = generateId("track");
+    const trackingData: TrackingData = {
+      trackId,
+      clipId,
+      keyframes,
+      confidence: keyframes.map(() => 1),
+      lostFrames: [],
+      region,
+      frameRate: frameRate > 0 ? frameRate : 30,
+    };
+    this.trackingData.set(trackId, trackingData);
+    return trackingData;
+  }
   // Tracking Application (Requirement 23.3)
   applyTrackingToElement(
     trackId: string,

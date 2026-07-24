@@ -3,6 +3,10 @@ import type { Project, Action } from "../types";
 /**
  * Serializes a Project to a JSON string with formatting.
  *
+ * Baked scene3d geometry (`object.mesh`) is persisted so displacement/extrude
+ * relief survives a reload; its size is bounded at bake time by the triangle
+ * budget in the geometry kernel.
+ *
  * @param project - Project to serialize
  * @returns Formatted JSON string
  */

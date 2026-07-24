@@ -9,7 +9,7 @@ import {
   Check,
   RefreshCw,
   AlertCircle,
-} from "lucide-react";
+} from "@/icons/lucide-compat";
 import {
   AudioDucker,
   resolveAudibleAudioTarget,
@@ -17,7 +17,12 @@ import {
   type Project,
   type Track,
 } from "@openreel/core";
-import { Slider } from "@openreel/ui";
+import { ToolcraftButton as Button } from "@openreel/ui";
+import { ToolcraftCard as Card } from "@openreel/ui";
+import { ToolcraftClickableCard as ClickableCard } from "@openreel/ui";
+import { ToolcraftText as Text } from "@openreel/ui";
+import { PropertySlider } from "./shell/PropertySlider";
+import { MockToggle } from "./shell/InspectorControls";
 import { useProjectStore } from "../../../stores/project-store";
 import type { AudioDuckingSettings } from "../../../stores/project";
 
@@ -104,6 +109,43 @@ const getTrackLabel = (track: Track): string => {
   const prefix = track.type === "video" ? "Video" : "Audio";
   return track.name || `${prefix} ${track.id.slice(-4)}`;
 };
+
+interface DuckingSliderProps {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  description: string;
+  formatValue: (value: number) => string;
+  onChange: (value: number) => void;
+}
+
+const DuckingSlider: React.FC<DuckingSliderProps> = ({
+  label,
+  value,
+  min,
+  max,
+  step,
+  description,
+  formatValue,
+  onChange,
+}) => (
+  <div className="space-y-1">
+    <PropertySlider
+      label={label}
+      min={min}
+      max={max}
+      step={step}
+      value={value}
+      onChange={onChange}
+      formatValue={formatValue}
+    />
+    <Text type="supporting" color="secondary" className="text-[8px]">
+      {description}
+    </Text>
+  </div>
+);
 
 const buildTriggerTrackBuffer = async (
   project: Project,
@@ -348,285 +390,256 @@ export const AudioDuckingSection: React.FC<AudioDuckingSectionProps> = ({
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-2 p-2 bg-primary/10 rounded-lg border border-primary/30">
-        <VolumeX size={16} className="text-primary" />
-        <div className="flex-1">
-          <span className="text-[11px] font-medium text-text-primary">
+      <Card
+        variant="green"
+        padding={2}
+        className="flex items-center gap-2 border border-primary/30"
+      >
+        <VolumeX size={16} className="text-primary" aria-hidden />
+        <div className="flex flex-1 flex-col gap-0.5">
+          <Text type="body" color="primary" weight="bold" className="block text-[11px]">
             Audio Ducking
-          </span>
-          <p className="text-[9px] text-text-muted">
+          </Text>
+          <Text type="supporting" color="secondary" className="block text-[9px]">
             Auto-lower music when speech plays
-          </p>
+          </Text>
         </div>
-      </div>
+      </Card>
 
-      <div className="flex items-center justify-between p-2 bg-background-tertiary rounded-lg">
+      <Card
+        variant="muted"
+        padding={2}
+        className="flex items-center justify-between gap-3"
+      >
         <div className="flex items-center gap-2">
           <div
             className={`w-2 h-2 rounded-full ${
               showControls ? "bg-green-400" : "bg-gray-500"
             }`}
           />
-          <span className="text-[10px] font-medium text-text-primary">
+          <Text type="supporting" color="primary" weight="bold">
             {showControls ? "Ducking Enabled" : "Ducking Disabled"}
-          </span>
+          </Text>
         </div>
-        <button
-          onClick={() => updateSetting("enabled", !settings.enabled)}
-          className={`relative w-10 h-5 rounded-full transition-colors ${
-            showControls ? "bg-primary" : "bg-background-secondary"
-          }`}
-        >
-          <div
-            className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-transform ${
-              showControls ? "translate-x-5" : "translate-x-0.5"
-            }`}
-          />
-        </button>
-      </div>
+        <MockToggle
+          ariaLabel="Enable audio ducking"
+          checked={settings.enabled}
+          onChange={(checked) => updateSetting("enabled", checked)}
+        />
+      </Card>
 
       {showControls && (
         <>
           <div className="space-y-2">
-            <label className="text-[10px] font-medium text-text-secondary flex items-center gap-2">
-              <Mic size={12} />
+            <Text
+              type="supporting"
+              color="secondary"
+              weight="bold"
+              className="flex items-center gap-2"
+            >
+              <Mic size={12} aria-hidden />
               Trigger Source (Voice Track)
-            </label>
+            </Text>
             {availableSourceTracks.length > 0 ? (
               <div className="space-y-1">
                 {availableSourceTracks
                   .filter((track) => track.id !== currentTrack?.id)
                   .map((track) => (
-                  <button
+                  <ClickableCard
                     key={track.id}
+                    label={`Use ${getTrackLabel(track)} as ducking trigger`}
                     onClick={() => updateSetting("sourceTrackId", track.id)}
-                    className={`w-full flex items-center gap-2 p-2 rounded-lg text-left transition-colors ${
-                      settings.sourceTrackId === track.id
-                        ? "bg-primary/20 border border-primary"
-                        : "bg-background-tertiary border border-transparent hover:border-border"
-                    }`}
+                    padding={2}
+                    variant={
+                      settings.sourceTrackId === track.id ? "green" : "muted"
+                    }
+                    className="w-full border border-transparent"
                   >
-                    <Volume2 size={12} className="text-text-muted" />
-                    <span className="flex-1 text-[10px] text-text-primary">
-                      {getTrackLabel(track)}
-                    </span>
-                    {settings.sourceTrackId === track.id && (
-                      <Check size={12} className="text-primary" />
-                    )}
-                  </button>
+                    <div className="flex items-center gap-2">
+                      <Volume2 size={12} className="text-fg-3" aria-hidden />
+                      <Text
+                        type="supporting"
+                        color="primary"
+                        className="flex-1 text-[10px]"
+                      >
+                        {getTrackLabel(track)}
+                      </Text>
+                      {settings.sourceTrackId === track.id && (
+                        <Check size={12} className="text-primary" aria-hidden />
+                      )}
+                    </div>
+                  </ClickableCard>
                 ))}
               </div>
             ) : (
-              <div className="p-3 bg-background-tertiary rounded-lg text-center">
+              <Card variant="muted" padding={3} className="text-center">
                 <Mic
                   size={16}
-                  className="mx-auto mb-1 text-text-muted opacity-50"
+                  className="mx-auto mb-1 text-fg-3 opacity-50"
+                  aria-hidden
                 />
-                <p className="text-[10px] text-text-muted">
+                <Text type="supporting" color="secondary" className="text-[10px]">
                   Add another audio or video track with speech to use as trigger
-                </p>
-              </div>
+                </Text>
+              </Card>
             )}
           </div>
 
           {settings.sourceTrackId && (
             <>
               <div className="space-y-2">
-                <label className="text-[10px] font-medium text-text-secondary flex items-center gap-2">
-                  <Music size={12} />
+                <Text
+                  type="supporting"
+                  color="secondary"
+                  weight="bold"
+                  className="flex items-center gap-2"
+                >
+                  <Music size={12} aria-hidden />
                   Ducking Presets
-                </label>
+                </Text>
                 <div className="grid grid-cols-2 gap-1">
                   {PRESET_CONFIGS.map((preset) => (
-                    <button
+                    <Button
                       key={preset.id}
+                      label={preset.name}
+                      variant="secondary"
+                      size="sm"
                       onClick={() => applyPreset(preset.id)}
-                      className="p-2 text-[9px] text-text-secondary bg-background-tertiary rounded-lg hover:bg-primary/10 hover:text-primary transition-colors"
-                    >
-                      {preset.name}
-                    </button>
+                      className="w-full text-[9px]"
+                    />
                   ))}
                 </div>
               </div>
 
               <div className="space-y-3">
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <label className="text-[10px] text-text-secondary">
-                      Detection Threshold
-                    </label>
-                    <span className="text-[10px] font-mono text-text-primary">
-                      {settings.threshold} dB
-                    </span>
-                  </div>
-                  <Slider
-                    min={-50}
-                    max={-10}
-                    step={1}
-                    value={[settings.threshold]}
-                    onValueChange={(value) =>
-                      updateSetting("threshold", value[0])
-                    }
-                  />
-                  <p className="text-[8px] text-text-muted">
-                    Voice level that triggers ducking
-                  </p>
-                </div>
+                <DuckingSlider
+                  label="Detection Threshold"
+                  min={-50}
+                  max={-10}
+                  step={1}
+                  value={settings.threshold}
+                  onChange={(value) => updateSetting("threshold", value)}
+                  formatValue={(value) => `${Math.round(value)} dB`}
+                  description="Voice level that triggers ducking"
+                />
 
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <label className="text-[10px] text-text-secondary">
-                      Volume Reduction
-                    </label>
-                    <span className="text-[10px] font-mono text-text-primary">
-                      {Math.round(settings.reduction * 100)}%
-                    </span>
-                  </div>
-                  <Slider
-                    min={0}
-                    max={100}
-                    step={5}
-                    value={[settings.reduction * 100]}
-                    onValueChange={(value) =>
-                      updateSetting("reduction", value[0] / 100)
-                    }
-                  />
-                  <p className="text-[8px] text-text-muted">
-                    How much to lower background music
-                  </p>
-                </div>
+                <DuckingSlider
+                  label="Volume Reduction"
+                  min={0}
+                  max={100}
+                  step={5}
+                  value={settings.reduction * 100}
+                  onChange={(value) => updateSetting("reduction", value / 100)}
+                  formatValue={(value) => `${Math.round(value)}%`}
+                  description="How much to lower background music"
+                />
               </div>
 
-              <button
+              <Button
+                label="Timing Controls"
+                variant="ghost"
+                size="sm"
+                icon={
+                  showAdvanced ? (
+                    <ChevronDown size={12} aria-hidden />
+                  ) : (
+                    <ChevronRight size={12} aria-hidden />
+                  )
+                }
                 onClick={() => setShowAdvanced(!showAdvanced)}
-                className="w-full flex items-center gap-2 py-1.5 text-[10px] text-text-secondary hover:text-text-primary transition-colors"
-              >
-                {showAdvanced ? (
-                  <ChevronDown size={12} />
-                ) : (
-                  <ChevronRight size={12} />
-                )}
-                Timing Controls
-              </button>
+                className="w-full justify-start"
+              />
 
               {showAdvanced && (
-                <div className="space-y-3 p-2 bg-background-tertiary rounded-lg">
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <label className="text-[10px] text-text-secondary">
-                        Attack
-                      </label>
-                      <span className="text-[10px] font-mono text-text-primary">
-                        {settings.attack.toFixed(2)}s
-                      </span>
-                    </div>
-                    <Slider
-                      min={0.01}
-                      max={0.5}
-                      step={0.01}
-                      value={[settings.attack]}
-                      onValueChange={(value) =>
-                        updateSetting("attack", value[0])
-                      }
-                    />
-                    <p className="text-[8px] text-text-muted">
-                      How fast volume drops when voice starts
-                    </p>
-                  </div>
+                <Card variant="muted" padding={2} className="space-y-3">
+                  <DuckingSlider
+                    label="Attack"
+                    min={0.01}
+                    max={0.5}
+                    step={0.01}
+                    value={settings.attack}
+                    onChange={(value) => updateSetting("attack", value)}
+                    formatValue={(value) => `${value.toFixed(2)}s`}
+                    description="How fast volume drops when voice starts"
+                  />
 
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <label className="text-[10px] text-text-secondary">
-                        Release
-                      </label>
-                      <span className="text-[10px] font-mono text-text-primary">
-                        {settings.release.toFixed(2)}s
-                      </span>
-                    </div>
-                    <Slider
-                      min={0.1}
-                      max={1}
-                      step={0.05}
-                      value={[settings.release]}
-                      onValueChange={(value) =>
-                        updateSetting("release", value[0])
-                      }
-                    />
-                    <p className="text-[8px] text-text-muted">
-                      How fast volume returns after voice stops
-                    </p>
-                  </div>
+                  <DuckingSlider
+                    label="Release"
+                    min={0.1}
+                    max={1}
+                    step={0.05}
+                    value={settings.release}
+                    onChange={(value) => updateSetting("release", value)}
+                    formatValue={(value) => `${value.toFixed(2)}s`}
+                    description="How fast volume returns after voice stops"
+                  />
 
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <label className="text-[10px] text-text-secondary">
-                        Hold Time
-                      </label>
-                      <span className="text-[10px] font-mono text-text-primary">
-                        {settings.holdTime.toFixed(2)}s
-                      </span>
-                    </div>
-                    <Slider
-                      min={0}
-                      max={0.5}
-                      step={0.05}
-                      value={[settings.holdTime]}
-                      onValueChange={(value) =>
-                        updateSetting("holdTime", value[0])
-                      }
-                    />
-                    <p className="text-[8px] text-text-muted">
-                      Minimum time to stay ducked between words
-                    </p>
-                  </div>
-                </div>
+                  <DuckingSlider
+                    label="Hold Time"
+                    min={0}
+                    max={0.5}
+                    step={0.05}
+                    value={settings.holdTime}
+                    onChange={(value) => updateSetting("holdTime", value)}
+                    formatValue={(value) => `${value.toFixed(2)}s`}
+                    description="Minimum time to stay ducked between words"
+                  />
+                </Card>
               )}
 
               {!hasAppliedDucking ? (
-                <button
+                <Button
+                  label={isApplying ? "Analyzing..." : "Apply Ducking"}
+                  icon={
+                    isApplying ? (
+                      <RefreshCw size={14} className="animate-spin" aria-hidden />
+                    ) : (
+                      <VolumeX size={14} aria-hidden />
+                    )
+                  }
+                  variant="primary"
+                  size="md"
                   onClick={handleApplyDucking}
-                  disabled={isApplying}
-                  className="w-full py-2.5 bg-primary hover:bg-primary-hover rounded-lg text-[11px] font-medium text-white flex items-center justify-center gap-2 transition-colors disabled:cursor-wait disabled:opacity-60"
-                >
-                  {isApplying ? (
-                    <>
-                      <RefreshCw size={14} className="animate-spin" />
-                      Analyzing...
-                    </>
-                  ) : (
-                    <>
-                      <VolumeX size={14} />
-                      Apply Ducking
-                    </>
-                  )}
-                </button>
+                  isDisabled={isApplying}
+                  isLoading={isApplying}
+                  className="w-full"
+                />
               ) : (
                 <div className="space-y-2">
-                  <div className="flex items-center gap-2 p-2 bg-green-500/10 border border-green-500/20 rounded-lg">
-                    <Check size={12} className="text-green-400" />
-                    <span className="text-[10px] text-green-400">
+                  <Card
+                    variant="green"
+                    padding={2}
+                    className="flex items-center gap-2 border border-green-500/20"
+                  >
+                    <Check size={12} className="text-green-400" aria-hidden />
+                    <Text type="supporting" className="text-[10px] text-green-400">
                       Ducking Applied
-                    </span>
-                  </div>
+                    </Text>
+                  </Card>
                   <div className="grid grid-cols-2 gap-2">
-                    <button
+                    <Button
+                      label={isApplying ? "Updating..." : "Update"}
+                      icon={
+                        <RefreshCw
+                          size={10}
+                          className={isApplying ? "animate-spin" : undefined}
+                          aria-hidden
+                        />
+                      }
+                      variant="secondary"
+                      size="sm"
                       onClick={handleApplyDucking}
-                      disabled={isApplying}
-                      className="flex items-center justify-center gap-1 py-2 bg-background-tertiary rounded-lg text-[10px] text-text-secondary hover:text-text-primary transition-colors disabled:cursor-wait disabled:opacity-60"
-                    >
-                      <RefreshCw
-                        size={10}
-                        className={isApplying ? "animate-spin" : undefined}
-                      />
-                      {isApplying ? "Updating..." : "Update"}
-                    </button>
-                    <button
+                      isDisabled={isApplying}
+                      isLoading={isApplying}
+                    />
+                    <Button
+                      label="Remove"
+                      variant="secondary"
+                      size="sm"
                       onClick={handleRemoveDucking}
-                      disabled={isApplying}
-                      className="py-2 bg-red-500/10 border border-red-500/20 rounded-lg text-[10px] text-red-400 hover:bg-red-500/20 transition-colors"
-                    >
-                      Remove
-                    </button>
+                      isDisabled={isApplying}
+                      className="text-red-400"
+                    />
                   </div>
                 </div>
               )}
@@ -636,16 +649,22 @@ export const AudioDuckingSection: React.FC<AudioDuckingSectionProps> = ({
       )}
 
       {errorMessage && (
-        <div className="flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/10 px-2 py-2 text-[9px] text-red-400">
-          <AlertCircle size={12} />
-          <span>{errorMessage}</span>
-        </div>
+        <Card
+          variant="red"
+          padding={2}
+          className="flex items-center gap-2 border border-red-500/20"
+        >
+          <AlertCircle size={12} className="text-red-400" aria-hidden />
+          <Text type="supporting" className="text-[9px] text-red-400">
+            {errorMessage}
+          </Text>
+        </Card>
       )}
 
       <div className="pt-2 border-t border-border">
-        <p className="text-[9px] text-text-muted text-center">
+        <Text type="supporting" color="secondary" className="block text-[9px] text-center">
           Automatically reduces music volume when voice is detected
-        </p>
+        </Text>
       </div>
     </div>
   );

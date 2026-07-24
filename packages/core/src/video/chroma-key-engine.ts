@@ -4,13 +4,8 @@ export interface RGB {
   b: number;
 }
 
-export interface ChromaKeySettings {
-  enabled: boolean;
-  keyColor: RGB;
-  tolerance: number;
-  edgeSoftness: number;
-  spillSuppression: number;
-}
+import type { ChromaKeySettings } from "../types/timeline";
+export type { ChromaKeySettings };
 
 export interface ChromaKeyResult {
   image: ImageBitmap;

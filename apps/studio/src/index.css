@@ -1,0 +1,344 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* surfaces (RGB triples for Tailwind utilities) */
+    --bg-base: 10 10 12;
+    --bg-panel: 18 18 20;
+    --bg-elev-1: 23 23 27;
+    --bg-elev-2: 29 29 34;
+    --bg-input: 31 31 37;
+    --bg-hover: 35 35 42;
+    --bg-selected: 42 42 51;
+
+    /* borders */
+    --b-subtle: 31 31 37;
+    --b-default: 42 42 51;
+    --b-strong: 58 58 70;
+
+    /* text */
+    --t-primary: 245 245 247;
+    --t-secondary: 161 161 170;
+    --t-tertiary: 107 107 117;
+    --t-disabled: 74 74 82;
+
+    /* accents — OpenReel brand green (matches the main app) */
+    --accent: 34 197 94;
+    --accent-2: 74 222 128;
+
+    /* semantic */
+    --ok: 34 197 94;
+    --warn: 245 165 36;
+    --error: 239 68 68;
+    --info: 56 189 248;
+
+    /* direct color vars for inline / JS-driven styles */
+    --accent-soft: rgba(34, 197, 94, 0.16);
+    --accent-2-soft: rgba(74, 222, 128, 0.16);
+
+    --cat-input: #38bdf8;
+    --cat-math: #94a3b8;
+    --cat-sampling: #60a5fa;
+    --cat-color: #fb923c;
+    --cat-spatial: #facc15;
+    --cat-composite: #a78bfa;
+    --cat-particles: #f87171;
+    --cat-overlays: #c084fc;
+    --cat-temporal: #f472b6;
+    --cat-detection: #34d399;
+    --cat-behavior: #fbbf24;
+    --cat-output: #f5f5f7;
+
+    --type-texture: #60a5fa;
+    --type-mask: #c084fc;
+    --type-depth: #06b6d4;
+    --type-landmark: #34d399;
+    --type-float: #94a3b8;
+    --type-color: #fb923c;
+    --type-vec: #a3a3a3;
+
+    color-scheme: dark;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    background: rgb(var(--bg-base));
+    color: rgb(var(--t-primary));
+    font-family: "Geist", system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: 12px;
+    line-height: 1.4;
+    font-feature-settings: "ss01", "cv11";
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgb(var(--b-default));
+    border-radius: 10px;
+    border: 2px solid rgb(var(--bg-panel));
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgb(var(--b-strong));
+  }
+}
+
+@layer components {
+  /* ── range sliders ─────────────────────────────────────────── */
+  .or-slider {
+    @apply h-1 w-full appearance-none rounded-sm bg-inputbg outline-none;
+  }
+  .or-slider::-webkit-slider-thumb {
+    @apply h-3 w-3 appearance-none rounded-full;
+    background: rgb(var(--accent));
+    border: 2px solid rgb(var(--bg-panel));
+    cursor: pointer;
+  }
+  .or-slider--node {
+    @apply ml-1 max-w-[70px] flex-1;
+  }
+  .or-slider--node::-webkit-slider-thumb {
+    border-color: rgb(var(--bg-elev-1));
+    width: 10px;
+    height: 10px;
+  }
+
+  /* ── graph node ────────────────────────────────────────────── */
+  .node {
+    @apply absolute overflow-hidden rounded-md border border-border bg-elev1 text-[11px] shadow-node;
+    user-select: none;
+  }
+  .node.is-selected {
+    border-color: rgb(var(--accent));
+    box-shadow: 0 0 0 1px rgb(var(--accent)), 0 4px 14px rgba(34, 197, 94, 0.18);
+  }
+  .node__header {
+    @apply relative flex items-center gap-1.5 border-b border-border-subtle bg-elev2 px-2 py-[5px];
+  }
+  .node__header::before {
+    content: "";
+    @apply absolute bottom-0 left-0 top-0 w-0.5;
+    background: var(--cat, rgb(var(--accent)));
+  }
+  .node__row {
+    @apply relative flex h-5 min-w-0 items-center gap-1.5 overflow-hidden px-2.5 text-[11px] text-text-secondary;
+  }
+  .node__port {
+    @apply absolute h-[9px] w-[9px] flex-shrink-0 rounded-full;
+    top: 50% !important;
+    transform: translateY(-50%);
+    border: 2px solid rgb(var(--bg-panel));
+    background: var(--type, rgb(var(--t-tertiary)));
+    box-shadow: 0 0 0 1px rgb(var(--b-default));
+  }
+  .node__port.is-input {
+    left: -5px;
+  }
+  .node__port.is-output {
+    right: -5px;
+  }
+  .node__value {
+    @apply ml-auto max-w-[60%] flex-shrink-0 overflow-hidden text-ellipsis whitespace-nowrap rounded-sm border border-border-subtle bg-inputbg px-[5px] py-px font-mono text-[10px] text-text-primary;
+  }
+
+  /* ── graph canvas backdrop ─────────────────────────────────── */
+  .canvas-viewport {
+    background-color: rgb(var(--bg-base));
+    background-image: radial-gradient(circle at center, rgba(34, 197, 94, 0.05) 0%, transparent 50%),
+      linear-gradient(rgb(var(--b-subtle) / 1) 1px, transparent 1px),
+      linear-gradient(90deg, rgb(var(--b-subtle) / 1) 1px, transparent 1px);
+    background-size: 100% 100%, 24px 24px, 24px 24px;
+  }
+
+  /* ── timeline clip ─────────────────────────────────────────── */
+  .timeline-clip {
+    @apply relative flex h-full cursor-pointer items-center gap-1.5 overflow-hidden rounded-sm px-2 font-mono text-[10px] text-text-primary;
+    background: linear-gradient(180deg, var(--cat, var(--accent-soft)) 0%, var(--cat-dark, rgba(34, 197, 94, 0.4)) 100%);
+    border: 1px solid var(--cat-border, rgba(34, 197, 94, 0.5));
+    user-select: none;
+  }
+  .timeline-clip:hover {
+    filter: brightness(1.1);
+  }
+  .timeline-clip.is-fx-tagged::after {
+    content: "fx";
+    @apply absolute right-1 top-[3px] text-[8px] font-bold uppercase tracking-[0.06em];
+    color: rgb(var(--accent-2));
+  }
+}
+
+/* ── cover-art variants (marketplace card thumbnails) ────────────
+   Plain CSS (not @layer components): class names are built
+   dynamically (`cover-art--${art}`) so the content scanner would
+   otherwise purge them. */
+.cover-art {
+    @apply absolute inset-0 grid place-items-center;
+  }
+  .cover-art--fire {
+    background: radial-gradient(ellipse at 50% 70%, #ea580c 0%, #7c2d12 50%, transparent 80%),
+      linear-gradient(180deg, #0a0a0c 0%, #1a0a14 100%);
+  }
+  .cover-art--fire::after {
+    content: "";
+    @apply absolute inset-0;
+    background: radial-gradient(circle 2px at 30% 70%, #fcd34d, transparent 70%),
+      radial-gradient(circle 2px at 50% 60%, #f59e0b, transparent 70%),
+      radial-gradient(circle 1.5px at 65% 75%, #fde68a, transparent 70%),
+      radial-gradient(circle 2px at 40% 50%, #fb923c, transparent 60%);
+    mix-blend-mode: screen;
+  }
+  .cover-art--mirror {
+    background: linear-gradient(90deg, #1e1b4b 0%, #312e81 50%, #1e1b4b 100%);
+  }
+  .cover-art--mirror::before,
+  .cover-art--mirror::after {
+    content: "";
+    position: absolute;
+    width: 24%;
+    aspect-ratio: 9/16;
+    background: linear-gradient(180deg, #a78bfa 0%, #4c1d95 100%);
+    border-radius: 50% 50% 8% 8%;
+    top: 30%;
+  }
+  .cover-art--mirror::before {
+    left: 18%;
+    opacity: 0.4;
+    transform: scale(0.7);
+  }
+  .cover-art--mirror::after {
+    right: 18%;
+    opacity: 0.4;
+    transform: scaleX(-1) scale(0.7);
+  }
+  .cover-art--mirror i {
+    position: absolute;
+    width: 24%;
+    aspect-ratio: 9/16;
+    background: linear-gradient(180deg, #c4b5fd 0%, #6d28d9 100%);
+    border-radius: 50% 50% 8% 8%;
+    top: 30%;
+    left: 38%;
+  }
+  .cover-art--sparkle {
+    background: linear-gradient(180deg, #0c1336 0%, #050717 100%);
+  }
+  .cover-art--sparkle::after {
+    content: "";
+    @apply absolute inset-0;
+    background: radial-gradient(circle 2px at 30% 30%, #fef9c3, transparent),
+      radial-gradient(circle 1.5px at 45% 45%, #fde68a, transparent),
+      radial-gradient(circle 2px at 60% 30%, #fef3c7, transparent),
+      radial-gradient(circle 1.5px at 75% 50%, #fef9c3, transparent),
+      radial-gradient(circle 2px at 50% 60%, #fcd34d, transparent),
+      radial-gradient(circle 1.5px at 35% 65%, #fef9c3, transparent),
+      radial-gradient(circle 2px at 65% 75%, #fde68a, transparent),
+      radial-gradient(circle 1.5px at 20% 80%, #fef3c7, transparent),
+      radial-gradient(circle 2px at 80% 20%, #fcd34d, transparent);
+  }
+  .cover-art--trail {
+    background: linear-gradient(135deg, #052e2b 0%, #022c22 100%);
+  }
+  .cover-art--trail i {
+    position: absolute;
+    width: 18%;
+    aspect-ratio: 9/16;
+    background: linear-gradient(180deg, #14b8a6, #064e3b);
+    border-radius: 50% 50% 8% 8%;
+    top: 30%;
+  }
+  .cover-art--trail i:nth-child(1) {
+    left: 60%;
+    opacity: 1;
+  }
+  .cover-art--trail i:nth-child(2) {
+    left: 48%;
+    opacity: 0.6;
+  }
+  .cover-art--trail i:nth-child(3) {
+    left: 36%;
+    opacity: 0.3;
+  }
+  .cover-art--trail i:nth-child(4) {
+    left: 24%;
+    opacity: 0.15;
+  }
+  .cover-art--vignette {
+    background: radial-gradient(ellipse at center, #7c2d12 0%, #1c1917 65%, #000 100%);
+  }
+  .cover-art--bokeh {
+    background: linear-gradient(180deg, #0c1335 0%, #1e1b4b 100%);
+  }
+  .cover-art--bokeh::after {
+    content: "";
+    @apply absolute inset-0;
+    background: radial-gradient(circle 16px at 25% 40%, rgba(125, 211, 252, 0.5), transparent 70%),
+      radial-gradient(circle 22px at 60% 60%, rgba(216, 180, 254, 0.5), transparent 70%),
+      radial-gradient(circle 12px at 75% 30%, rgba(253, 224, 71, 0.5), transparent 70%),
+      radial-gradient(circle 18px at 40% 75%, rgba(244, 114, 182, 0.5), transparent 70%);
+    filter: blur(2px);
+  }
+  .cover-art--color-iso {
+    background: linear-gradient(135deg, #18181b, #0a0a0c);
+  }
+  .cover-art--color-iso::before {
+    content: "";
+    @apply absolute inset-0;
+    background: radial-gradient(circle at center, #ef4444, transparent 30%);
+  }
+  .cover-art--travel {
+    background: linear-gradient(135deg, #fb923c 0%, #ea580c 50%, #7c2d12 100%);
+  }
+  .cover-art--travel::after {
+    content: "";
+    @apply absolute inset-0;
+    background: linear-gradient(90deg, rgba(0, 0, 0, 0.4) 0%, transparent 30%, transparent 70%, rgba(0, 0, 0, 0.4) 100%);
+  }
+  .cover-art--travel i {
+    position: absolute;
+    bottom: 12px;
+    left: 12px;
+    @apply font-mono text-sm uppercase tracking-[0.1em] text-white;
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+  }
+  .cover-art--zoom {
+    background: radial-gradient(circle at center, #fff 0%, #fbbf24 5%, #ea580c 30%, #7c2d12 100%);
+  }
+  .cover-art--zoom::after {
+    content: "";
+    @apply absolute inset-0;
+    background: repeating-conic-gradient(from 0deg, rgba(0, 0, 0, 0.15) 0deg 10deg, transparent 10deg 20deg);
+  }
+  .cover-art--depth {
+    background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+  }
+  .cover-art--depth::before {
+    content: "";
+    @apply absolute inset-0;
+    background: radial-gradient(ellipse 30% 50% at 30% 50%, #f5f5f7, transparent 70%),
+      radial-gradient(ellipse 40% 60% at 70% 60%, #64748b, transparent 70%);
+  }
+  .cover-art--butterfly {
+    background: linear-gradient(180deg, #155e75 0%, #083344 100%);
+  }
+  .cover-art--butterfly::before {
+    content: "🦋";
+    font-size: 24px;
+    filter: hue-rotate(80deg);
+  }
+  .cover-art--aura {
+    background: radial-gradient(circle at center, #fde047 0%, #ca8a04 20%, #422006 60%, #000 100%);
+  }

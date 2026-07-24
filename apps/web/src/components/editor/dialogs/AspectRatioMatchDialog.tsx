@@ -1,13 +1,10 @@
 import React from "react";
-import { Maximize2 } from "lucide-react";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  Button,
-} from "@openreel/ui";
+import { Maximize2 } from "@/icons/lucide-compat";
+import { ToolcraftButton as Button } from "@openreel/ui";
+import { ToolcraftCard as Card } from "@openreel/ui";
+import { ToolcraftDialog as Dialog, ToolcraftDialogHeader as DialogHeader } from "@openreel/ui";
+import { ToolcraftLayout as Layout, ToolcraftLayoutContent as LayoutContent, ToolcraftLayoutFooter as LayoutFooter } from "@openreel/ui";
+import { ToolcraftText as Text } from "@openreel/ui";
 
 interface AspectRatioMatchDialogProps {
   isOpen: boolean;
@@ -32,69 +29,81 @@ export const AspectRatioMatchDialog: React.FC<AspectRatioMatchDialogProps> = ({
   const currentAspect = (currentWidth / currentHeight).toFixed(2);
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && onCancel()}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-              <Maximize2 size={20} className="text-primary" />
-            </div>
-            <div>
-              <DialogTitle>Match Video Dimensions?</DialogTitle>
-              <DialogDescription className="mt-1">
-                The video you're adding has different dimensions than your current project settings.
-              </DialogDescription>
-            </div>
-          </div>
-        </DialogHeader>
-
-        <div className="space-y-4 py-4">
+    <Dialog
+      isOpen={isOpen}
+      onOpenChange={(open) => !open && onCancel()}
+      width={448}
+      purpose="form"
+    >
+      <Layout
+        header={
+          <DialogHeader
+            title="Match Video Dimensions?"
+            subtitle="The video you're adding has different dimensions than your current project settings."
+            onOpenChange={(open) => !open && onCancel()}
+            startContent={<Maximize2 size={20} className="text-primary" aria-hidden />}
+          />
+        }
+        content={
+          <LayoutContent>
+        <div className="space-y-4">
           <div className="space-y-3">
-            <div className="flex items-center justify-between p-3 rounded-lg bg-background-tertiary">
+            <Card variant="muted" padding={3}>
               <div>
-                <div className="text-xs text-text-tertiary mb-1">
+                <Text type="supporting" color="secondary" display="block" className="mb-1">
                   Video Dimensions
-                </div>
-                <div className="text-sm font-medium text-text-primary">
-                  {videoWidth} × {videoHeight}
-                </div>
-                <div className="text-xs text-text-tertiary mt-0.5">
+                </Text>
+                <Text type="label" weight="bold" display="block">
+                  {videoWidth} x {videoHeight}
+                </Text>
+                <Text type="supporting" color="secondary" display="block" className="mt-0.5">
                   Aspect Ratio: {videoAspect}
-                </div>
+                </Text>
               </div>
-            </div>
+            </Card>
 
-            <div className="flex items-center justify-between p-3 rounded-lg bg-background-tertiary/50 border border-border/50">
+            <Card variant="default" padding={3} className="border border-border/50">
               <div>
-                <div className="text-xs text-text-tertiary mb-1">
+                <Text type="supporting" color="secondary" display="block" className="mb-1">
                   Current Project
-                </div>
-                <div className="text-sm font-medium text-text-primary">
-                  {currentWidth} × {currentHeight}
-                </div>
-                <div className="text-xs text-text-tertiary mt-0.5">
+                </Text>
+                <Text type="label" weight="bold" display="block">
+                  {currentWidth} x {currentHeight}
+                </Text>
+                <Text type="supporting" color="secondary" display="block" className="mt-0.5">
                   Aspect Ratio: {currentAspect}
-                </div>
+                </Text>
               </div>
-            </div>
+            </Card>
           </div>
 
-          <p className="text-xs text-text-tertiary">
+          <Text type="supporting" color="secondary" display="block">
             Match the project dimensions to this video for a clean fit, or keep
-            the current canvas — your video will be placed at its original size
+            the current canvas. Your video will be placed at its original size
             so you can resize it freely.
-          </p>
+          </Text>
         </div>
-
-        <div className="flex gap-3">
-          <Button variant="outline" className="flex-1" onClick={onCancel}>
-            Keep Current
-          </Button>
-          <Button className="flex-1" onClick={onConfirm}>
-            Match Video
-          </Button>
-        </div>
-      </DialogContent>
+          </LayoutContent>
+        }
+        footer={
+          <LayoutFooter hasDivider>
+            <div className="flex gap-3">
+              <Button
+                label="Keep Current"
+                variant="secondary"
+                className="flex-1"
+                onClick={onCancel}
+              />
+              <Button
+                label="Match Video"
+                variant="primary"
+                className="flex-1"
+                onClick={onConfirm}
+              />
+            </div>
+          </LayoutFooter>
+        }
+      />
     </Dialog>
   );
 };

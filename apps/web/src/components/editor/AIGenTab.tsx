@@ -10,8 +10,10 @@ import {
   Wand2,
   FileStack,
   Volume2,
-} from "lucide-react";
-import { ScrollArea } from "@openreel/ui";
+} from "@/icons/lucide-compat";
+import { ToolcraftButton as Button } from "@openreel/ui";
+import { ToolcraftClickableCard as ClickableCard } from "@openreel/ui";
+import { ToolcraftText as Text } from "@openreel/ui";
 import { AutoCaptionPanel } from "./inspector/AutoCaptionPanel";
 import { TextToSpeechPanel } from "./inspector/TextToSpeechPanel";
 import { FilterPresetsPanel } from "./inspector/FilterPresetsPanel";
@@ -48,9 +50,12 @@ const FeatureCard: React.FC<FeatureCardProps> = ({
   isActive,
   onClick,
 }) => (
-  <button
+  <ClickableCard
+    label={title}
     onClick={onClick}
-    className={`w-full min-w-0 p-3 rounded-xl border text-left transition-all group ${
+    padding={3}
+    variant={isActive ? "green" : "default"}
+    className={`w-full min-w-0 text-left group ${
       isActive
         ? `${activeBorder} ${activeBg} ring-1 ${activeRing}`
         : "border-border bg-background-tertiary hover:border-border-strong hover:bg-background-elevated"
@@ -62,22 +67,25 @@ const FeatureCard: React.FC<FeatureCardProps> = ({
           isActive ? iconBg : "bg-background-secondary group-hover:bg-background-tertiary"
         }`}
       >
-        <Icon size={20} className={isActive ? iconColor : "text-text-secondary group-hover:text-text-primary"} />
+        <Icon size={20} className={isActive ? iconColor : "text-text-secondary group-hover:text-text-primary"} aria-hidden />
       </div>
       <div className="flex-1 min-w-0 overflow-hidden">
         <div className="flex items-center justify-between gap-2">
-          <span className="text-[12px] font-semibold text-text-primary truncate">
+          <Text type="label" weight="bold" maxLines={1} className="text-[12px]">
             {title}
-          </span>
+          </Text>
           <ChevronRight
             size={14}
             className={`shrink-0 transition-transform ${isActive ? "rotate-90 text-text-primary" : "text-text-muted group-hover:text-text-secondary"}`}
+            aria-hidden
           />
         </div>
-        <p className="text-[10px] text-text-muted mt-0.5 truncate">{description}</p>
+        <Text type="supporting" color="secondary" display="block" maxLines={1} className="mt-0.5 text-[10px]">
+          {description}
+        </Text>
       </div>
     </div>
-  </button>
+  </ClickableCard>
 );
 
 interface FeatureSectionProps {
@@ -89,8 +97,10 @@ interface FeatureSectionProps {
 const FeatureSection: React.FC<FeatureSectionProps> = ({ title, icon: Icon, children }) => (
   <div className="space-y-2 min-w-0">
     <div className="flex items-center gap-2 px-1">
-      <Icon size={12} className="text-text-muted shrink-0" />
-      <span className="text-[10px] font-semibold text-text-muted uppercase tracking-wider">{title}</span>
+      <Icon size={12} className="text-text-muted shrink-0" aria-hidden />
+      <Text type="supporting" color="secondary" weight="bold" className="text-[10px] uppercase">
+        {title}
+      </Text>
     </div>
     <div className="space-y-1.5 min-w-0">{children}</div>
   </div>
@@ -133,29 +143,33 @@ export const AIGenTab: React.FC = () => {
   if (activeFeature) {
     return (
       <div className="flex-1 flex flex-col overflow-y-auto w-full min-w-0">
-        <button
+        <Button
+          label="Back to AI Tools"
           onClick={() => navigateAway(null)}
-          className="flex items-center gap-2 px-4 py-3 text-text-secondary hover:text-text-primary transition-colors border-b border-border bg-background-secondary shrink-0"
-        >
-          <ChevronRight size={14} className="rotate-180" />
-          <span className="text-[11px] font-medium">Back to AI Tools</span>
-        </button>
-        <ScrollArea className="flex-1 w-full">
+          variant="ghost"
+          icon={<ChevronRight size={14} className="rotate-180" aria-hidden />}
+          className="justify-start rounded-none border-b border-border bg-background-secondary shrink-0"
+        />
+        <div className="flex-1 w-full overflow-y-auto">
           <div className="p-4 w-full min-w-0 overflow-hidden">{renderActivePanel()}</div>
-        </ScrollArea>
+        </div>
       </div>
     );
   }
 
   return (
-    <ScrollArea className="flex-1 w-full">
+    <div className="flex-1 w-full overflow-y-auto">
       <div className="p-4 space-y-6 min-w-0">
         <div className="text-center pb-2">
           <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 mb-3">
-            <Wand2 size={24} className="text-primary" />
+            <Wand2 size={24} className="text-primary" aria-hidden />
           </div>
-          <h2 className="text-sm font-semibold text-text-primary">AI-Powered Tools</h2>
-          <p className="text-[11px] text-text-muted mt-1">Automate your editing with intelligent features</p>
+          <Text as="h2" type="label" weight="bold" display="block">
+            AI-Powered Tools
+          </Text>
+          <Text type="supporting" color="secondary" display="block" className="mt-1 text-[11px]">
+            Automate your editing with intelligent features
+          </Text>
         </div>
 
         <FeatureSection title="Content Generation" icon={Wand2}>
@@ -175,11 +189,11 @@ export const AIGenTab: React.FC = () => {
             icon={Subtitles}
             title="Auto Captions"
             description="Automatically generate subtitles from audio"
-            iconColor="text-purple-400"
-            iconBg="bg-purple-500/20"
-            activeBorder="border-purple-500/50"
-            activeBg="bg-purple-500/10"
-            activeRing="ring-purple-500/30"
+            iconColor="text-primary"
+            iconBg="bg-primary/20"
+            activeBorder="border-primary/50"
+            activeBg="bg-primary/10"
+            activeRing="ring-primary/30"
             isActive={activeFeature === "captions"}
             onClick={() => handleFeatureClick("captions")}
           />
@@ -217,11 +231,11 @@ export const AIGenTab: React.FC = () => {
             icon={Music}
             title="Music & Sound Effects"
             description="Browse royalty-free audio for your projects"
-            iconColor="text-pink-400"
-            iconBg="bg-pink-500/20"
-            activeBorder="border-pink-500/50"
-            activeBg="bg-pink-500/10"
-            activeRing="ring-pink-500/30"
+            iconColor="text-teal-400"
+            iconBg="bg-teal-500/20"
+            activeBorder="border-teal-500/50"
+            activeBg="bg-teal-500/10"
+            activeRing="ring-teal-500/30"
             isActive={activeFeature === "music"}
             onClick={() => handleFeatureClick("music")}
           />
@@ -243,12 +257,12 @@ export const AIGenTab: React.FC = () => {
         </FeatureSection>
 
         <div className="pt-2 border-t border-border">
-          <p className="text-[9px] text-text-muted text-center">
+          <Text type="supporting" color="secondary" display="block" justify="center" className="text-[9px]">
             More AI features coming soon — image generation, auto-edit, and more
-          </p>
+          </Text>
         </div>
       </div>
-    </ScrollArea>
+    </div>
   );
 };
 

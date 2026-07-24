@@ -55,4 +55,52 @@ export const EDITING_TEMPLATE_CATEGORIES: readonly EditingTemplateCategoryDefini
     description: "Reserved for clip-to-clip recipe transitions.",
     icon: "shuffle",
   },
+  {
+    id: "ads",
+    name: "Ads",
+    description: "Reusable ad cards, product promos, and launch scenes.",
+    icon: "megaphone",
+  },
+  {
+    id: "app-ui-demos",
+    name: "App UI Demos",
+    description: "Animated interface walkthroughs and product UI moments.",
+    icon: "monitor",
+  },
+  {
+    id: "lower-thirds",
+    name: "Lower Thirds",
+    description: "Name straps, titles, and branded information bands.",
+    icon: "panel-bottom",
+  },
+  {
+    id: "product-shots",
+    name: "Product Shots",
+    description: "Media placeholders, feature callouts, and polished showcases.",
+    icon: "box",
+  },
+  {
+    id: "social-hooks",
+    name: "Social Hooks",
+    description: "Fast opening beats for short-form social videos.",
+    icon: "sparkles",
+  },
+  {
+    id: "kinetic-typography",
+    name: "Kinetic Typography",
+    description: "Animated type systems for captions, quotes, and slogans.",
+    icon: "type",
+  },
+  {
+    id: "logo-reveals",
+    name: "Logo Reveals",
+    description: "Logo animation starters for brand intros and outros.",
+    icon: "badge",
+  },
+  {
+    id: "end-screens",
+    name: "End Screens",
+    description: "Animated end cards, CTAs, and subscribe prompts.",
+    icon: "flag",
+  },
 ] as const;

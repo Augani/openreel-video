@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["version", "filters", "categories"],
+  "properties": {
+    "version": {"type": "string"},
+    "minClientVersion": {"type": "string"},
+    "filters": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "category", "accent", "sort", "cubeUrl", "sha256", "bytes"],
+        "properties": {
+          "id": {"type": "string"},
+          "name": {"type": "string"},
+          "category": {"type": "string"},
+          "accent": {"type": "string", "pattern": "^#[0-9A-Fa-f]{6}$"},
+          "sort": {"type": "integer"},
+          "cubeUrl": {"type": "string", "format": "uri", "pattern": "^https?://[^\\s]+$"},
+          "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "bytes": {"type": "integer", "minimum": 1},
+          "oldIds": {"type": "array", "items": {"type": "string"}}
+        }
+      }
+    },
+    "categories": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "sort"],
+        "properties": {
+          "id": {"type": "string"},
+          "name": {"type": "string"},
+          "sort": {"type": "integer"}
+        }
+      }
+    }
+  }
+}

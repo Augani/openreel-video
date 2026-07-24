@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useRef } from "react";
+import { useState, useCallback, useMemo } from "react";
 import {
   Copy,
   Download,
@@ -7,18 +7,17 @@ import {
   CheckCircle2,
   AlertCircle,
   AlertTriangle,
-} from "lucide-react";
+} from "@/icons/lucide-compat";
 import { Light as SyntaxHighlighter } from "react-syntax-highlighter";
 import json from "react-syntax-highlighter/dist/esm/languages/hljs/json";
 import { vs2015 } from "react-syntax-highlighter/dist/esm/styles/hljs";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  Button,
-} from "@openreel/ui";
+import { ToolcraftSegmentedControl } from "@openreel/ui";
+import { ToolcraftButton as Button } from "@openreel/ui";
+import { ToolcraftCard as Card } from "@openreel/ui";
+import { ToolcraftDialog as Dialog, ToolcraftDialogHeader as DialogHeader } from "@openreel/ui";
+import { ToolcraftLayout as Layout, ToolcraftLayoutContent as LayoutContent } from "@openreel/ui";
+import { ToolcraftFileDropControl as FileInput } from "@openreel/ui";
+import { ToolcraftText as Text } from "@openreel/ui";
 import { useProjectStore } from "../../stores/project-store";
 import { toast } from "../../stores/notification-store";
 import { createProjectSerializer, createStorageEngine } from "@openreel/core";
@@ -41,19 +40,21 @@ export const ScriptViewDialog: React.FC<ScriptViewDialogProps> = ({
   const [validation, setValidation] = useState<ValidationResult | null>(null);
   const [isValidating, setIsValidating] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
-  const [isDragging, setIsDragging] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const storage = useMemo(() => createStorageEngine(), []);
   const serializer = useMemo(() => createProjectSerializer(storage), [storage]);
+  const fullProject = useMemo(
+    () => useProjectStore.getState().getFullProject(),
+    [project],
+  );
 
   const exportedJson = useMemo(() => {
-    if (!project) return "";
+    if (!fullProject) return "";
     return serializer.exportToJsonWithMetadata(
-      project,
-      `Exported from ${project.name}`,
+      fullProject,
+      `Exported from ${fullProject.name}`,
     );
-  }, [project, serializer]);
+  }, [fullProject, serializer]);
 
   const handleCopy = useCallback(async () => {
     try {
@@ -115,44 +116,6 @@ export const ScriptViewDialog: React.FC<ScriptViewDialogProps> = ({
     [processImportJson],
   );
 
-  const handleFileInputChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      if (file) handleFileUpload(file);
-      // Reset so same file can be selected again
-      e.target.value = "";
-    },
-    [handleFileUpload],
-  );
-
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
-  }, []);
-
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-  }, []);
-
-  const handleDrop = useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault();
-      setIsDragging(false);
-      const file = e.dataTransfer.files[0];
-      if (file && file.type === "application/json") {
-        handleFileUpload(file);
-      } else if (file) {
-        setValidation({
-          valid: false,
-          errors: ["Please upload a .json file"],
-          warnings: [],
-        });
-      }
-    },
-    [handleFileUpload],
-  );
-
   const handleValidate = useCallback(() => {
     setIsValidating(true);
     try {
@@ -204,70 +167,56 @@ export const ScriptViewDialog: React.FC<ScriptViewDialogProps> = ({
   if (!isOpen) return null;
 
   return (
-    <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-4xl p-0 gap-0 bg-background-secondary border-border overflow-hidden flex flex-col" style={{ height: "70vh" }}>
-        <DialogHeader className="p-4 border-b border-border space-y-0">
-          <div className="flex items-center gap-3">
-            <FileCode size={20} className="text-primary" />
-            <div>
-              <DialogTitle className="text-lg font-semibold text-text-primary">
-                Project JSON
-              </DialogTitle>
-              <DialogDescription className="text-xs text-text-muted">
-                Export or import project as JSON
-              </DialogDescription>
-            </div>
-          </div>
-        </DialogHeader>
-
-        {/* Tab buttons */}
-        <div className="flex gap-1 p-2 border-b border-border">
-          <button
-            onClick={() => setActiveTab("export")}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              activeTab === "export"
-                ? "bg-background-tertiary text-text-primary"
-                : "text-text-secondary hover:text-text-primary hover:bg-background-elevated"
-            }`}
-          >
-            Export JSON
-          </button>
-          <button
-            onClick={() => setActiveTab("import")}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              activeTab === "import"
-                ? "bg-background-tertiary text-text-primary"
-                : "text-text-secondary hover:text-text-primary hover:bg-background-elevated"
-            }`}
-          >
-            Import
-          </button>
+    <Dialog isOpen onOpenChange={(open) => !open && onClose()} width={896} purpose="form">
+      <Layout
+        header={
+          <DialogHeader
+            title="Project JSON"
+            subtitle="Export or import project as JSON"
+            onOpenChange={(open) => !open && onClose()}
+            startContent={<FileCode size={20} className="text-primary" aria-hidden />}
+          />
+        }
+        content={
+          <LayoutContent className="flex h-[70vh] flex-col overflow-hidden p-0">
+        <div className="border-b border-border p-2">
+          <ToolcraftSegmentedControl<"export" | "import">
+            ariaLabel="Project JSON mode"
+            value={activeTab}
+            onChange={setActiveTab}
+            options={[
+              { value: "export", label: "Export JSON" },
+              { value: "import", label: "Import" },
+            ]}
+          />
         </div>
 
-        {/* Tab content */}
-        <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
           {activeTab === "export" && (
             <>
               {exportedJson ? (
                 <>
                   <div className="flex gap-2 p-3 border-b border-border">
-                    <Button variant="outline" size="sm" onClick={handleCopy}>
-                      {copySuccess ? (
-                        <>
-                          <CheckCircle2 size={16} className="text-primary" />
-                          Copied!
-                        </>
-                      ) : (
-                        <>
-                          <Copy size={16} />
-                          Copy
-                        </>
-                      )}
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={handleDownload}>
-                      <Download size={16} />
-                      Download JSON
-                    </Button>
+                    <Button
+                      label={copySuccess ? "Copied!" : "Copy"}
+                      variant="secondary"
+                      size="sm"
+                      icon={
+                        copySuccess ? (
+                          <CheckCircle2 size={16} className="text-primary" aria-hidden />
+                        ) : (
+                          <Copy size={16} aria-hidden />
+                        )
+                      }
+                      onClick={handleCopy}
+                    />
+                    <Button
+                      label="Download JSON"
+                      variant="secondary"
+                      size="sm"
+                      icon={<Download size={16} aria-hidden />}
+                      onClick={handleDownload}
+                    />
                   </div>
 
                   <div className="flex-1 overflow-auto custom-scrollbar p-4">
@@ -291,9 +240,9 @@ export const ScriptViewDialog: React.FC<ScriptViewDialogProps> = ({
               ) : (
                 <div className="flex-1 flex flex-col items-center justify-center gap-3 p-8 text-center">
                   <FileCode size={40} className="text-text-muted" />
-                  <p className="text-sm text-text-secondary">
+                  <Text type="body" color="secondary">
                     No project data to export.
-                  </p>
+                  </Text>
                 </div>
               )}
             </>
@@ -301,85 +250,72 @@ export const ScriptViewDialog: React.FC<ScriptViewDialogProps> = ({
 
           {activeTab === "import" && (
             <div className="flex-1 flex flex-col gap-4 p-4 overflow-auto">
-              {/* File upload drop zone */}
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".json,application/json"
-                onChange={handleFileInputChange}
-                className="hidden"
-              />
-              <div
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onDrop={handleDrop}
-                onClick={() => fileInputRef.current?.click()}
-                className={`flex flex-col items-center justify-center gap-3 p-8 border-2 border-dashed rounded-xl cursor-pointer transition-colors ${
-                  isDragging
-                    ? "border-primary bg-primary/10"
-                    : "border-border hover:border-text-muted hover:bg-background-tertiary"
-                }`}
-              >
-                <Upload
-                  size={32}
-                  className={
-                    isDragging ? "text-primary" : "text-text-muted"
+              <FileInput
+                label="Project JSON file"
+                isLabelHidden
+                value={null}
+                onChange={(picked) => {
+                  if (picked instanceof File) {
+                    if (picked.type === "application/json" || picked.name.endsWith(".json")) {
+                      handleFileUpload(picked);
+                    } else {
+                      setValidation({
+                        valid: false,
+                        errors: ["Please upload a .json file"],
+                        warnings: [],
+                      });
+                    }
                   }
-                />
-                <div className="text-center">
-                  <p className="text-sm text-text-primary font-medium">
-                    {isDragging
-                      ? "Drop JSON file here"
-                      : "Drop a JSON file here or click to browse"}
-                  </p>
-                  <p className="text-xs text-text-muted mt-1">
-                    Accepts .json project files
-                  </p>
-                </div>
-              </div>
+                }}
+                accept=".json,application/json"
+                mode="dropzone"
+                placeholder="Drop a JSON file here or click to browse"
+                description="Accepts .json project files"
+                width="100%"
+              />
 
               {/* Show loaded file info */}
               {importJson && (
-                <div className="flex items-center gap-2 p-3 bg-background-tertiary border border-border rounded-lg">
+                <Card variant="muted" padding={3}>
+                <div className="flex items-center gap-2">
                   <FileCode size={16} className="text-text-secondary" />
-                  <span className="text-sm text-text-primary flex-1">
+                  <Text type="body" className="flex-1 text-sm">
                     {importJson.length.toLocaleString()} characters loaded
-                  </span>
+                  </Text>
                   <Button
-                    variant="outline"
+                    label="Clear"
+                    variant="secondary"
                     size="sm"
                     onClick={() => {
                       setImportJson("");
                       setValidation(null);
                     }}
-                  >
-                    Clear
-                  </Button>
+                  />
                   <Button
-                    variant="outline"
+                    label={isValidating ? "Validating..." : "Re-validate"}
+                    variant="secondary"
                     size="sm"
                     onClick={handleValidate}
-                    disabled={isValidating}
-                  >
-                    {isValidating ? "Validating..." : "Re-validate"}
-                  </Button>
+                    isDisabled={isValidating}
+                  />
                 </div>
+                </Card>
               )}
 
               {/* Validation results */}
               {validation && (
                 <div className="space-y-2">
                   {validation.valid && (
-                    <div className="flex items-center gap-2 p-3 bg-primary/10 border border-primary/30 rounded-lg">
+                    <Card variant="green" padding={3} className="flex items-center gap-2 border border-primary/30">
                       <CheckCircle2 size={16} className="text-primary" />
-                      <span className="text-sm text-primary">
+                      <Text type="body" className="text-primary">
                         Valid project JSON — ready to import
-                      </span>
-                    </div>
+                      </Text>
+                    </Card>
                   )}
 
                   {validation.errors.length > 0 && (
-                    <div className="p-3 bg-error/10 border border-error/30 rounded-lg space-y-1">
+                    <Card variant="muted" padding={3} className="space-y-1 border border-error/30 bg-error/10">
                       <div className="flex items-center gap-2 text-error font-medium text-sm">
                         <AlertCircle size={16} />
                         Errors
@@ -389,11 +325,11 @@ export const ScriptViewDialog: React.FC<ScriptViewDialogProps> = ({
                           <li key={i}>{err}</li>
                         ))}
                       </ul>
-                    </div>
+                    </Card>
                   )}
 
                   {validation.warnings.length > 0 && (
-                    <div className="p-3 bg-warning/10 border border-warning/30 rounded-lg space-y-1">
+                    <Card variant="muted" padding={3} className="space-y-1 border border-warning/30 bg-warning/10">
                       <div className="flex items-center gap-2 text-warning font-medium text-sm">
                         <AlertTriangle size={16} />
                         Warnings
@@ -403,35 +339,40 @@ export const ScriptViewDialog: React.FC<ScriptViewDialogProps> = ({
                           <li key={i}>{warning}</li>
                         ))}
                       </ul>
-                    </div>
+                    </Card>
                   )}
 
                   {validation.missingAssets &&
                     validation.missingAssets.length > 0 && (
-                      <div className="p-3 bg-background-tertiary border border-border rounded-lg space-y-1">
-                        <div className="text-sm font-medium text-text-secondary">
+                      <Card variant="muted" padding={3} className="space-y-1 border border-border">
+                        <Text type="body" color="secondary" weight="bold" display="block" className="text-sm">
                           Missing Assets ({validation.missingAssets.length})
-                        </div>
-                        <p className="text-xs text-text-muted">
+                        </Text>
+                        <Text type="supporting" color="secondary" display="block">
                           These assets will be imported as placeholders and can
                           be replaced later.
-                        </p>
-                      </div>
+                        </Text>
+                      </Card>
                     )}
                 </div>
               )}
 
               {/* Import button */}
               {importJson && (
-                <Button onClick={handleImport} disabled={!validation?.valid}>
-                  <Upload size={16} />
-                  Import Project
-                </Button>
+                <Button
+                  label="Import Project"
+                  icon={<Upload size={16} aria-hidden />}
+                  variant="primary"
+                  onClick={handleImport}
+                  isDisabled={!validation?.valid}
+                />
               )}
             </div>
           )}
         </div>
-      </DialogContent>
+          </LayoutContent>
+        }
+      />
     </Dialog>
   );
 };

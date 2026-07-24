@@ -1,9 +1,15 @@
 import React, { useState, useEffect } from "react";
-import { RotateCcw, Sparkles } from "lucide-react";
+import { ToolcraftButton as Button } from "@openreel/ui";
+import { ToolcraftCard as Card } from "@openreel/ui";
+import { ToolcraftClickableCard as ClickableCard } from "@openreel/ui";
+import { ToolcraftSelectControl as Selector } from "@openreel/ui";
+import { ToolcraftText as Text } from "@openreel/ui";
+import { ToolcraftTextInputControl } from "@openreel/ui";
+import { RotateCcw, Sparkles } from "@/icons/lucide-compat";
 import type { Clip } from "@openreel/core";
 import { getSpeedEngine } from "@openreel/core";
 import { useProjectStore } from "../../../stores/project-store";
-import { Input, Switch, Label, Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@openreel/ui";
+import { MockToggle } from "./shell/InspectorControls";
 
 interface SpeedSectionProps {
   clip: Clip;
@@ -51,87 +57,54 @@ export const SpeedSection: React.FC<SpeedSectionProps> = ({ clip }) => {
     return !!audioTrack;
   };
 
+  const linkedAudioClip = () => {
+    if (!affectAudio) return undefined;
+    for (const track of project.timeline.tracks) {
+      if (track.type !== "audio") continue;
+      const audioClip = track.clips.find((c) => c.mediaId === clip.mediaId);
+      if (audioClip) return audioClip;
+    }
+    return undefined;
+  };
+
   const updateClipDuration = (speed: number) => {
-    const originalDuration = clip.outPoint - clip.inPoint;
-    const newDuration = originalDuration / speed;
-
-    const tracks = project.timeline.tracks.map((track) => {
-      const clipIndex = track.clips.findIndex((c) => c.id === clip.id);
-      if (clipIndex === -1) {
-        if (affectAudio && track.type === "audio") {
-          const audioClipIndex = track.clips.findIndex(
-            (c) => c.mediaId === clip.mediaId,
-          );
-          if (audioClipIndex !== -1) {
-            const audioClip = track.clips[audioClipIndex];
-            const updatedAudioClip = {
-              ...audioClip,
-              duration: newDuration,
-              speed,
-            };
-            const newClips = [...track.clips];
-            newClips[audioClipIndex] = updatedAudioClip;
-            speedEngine.setClipSpeed(audioClip.id, speed, audioClip.duration);
-            return { ...track, clips: newClips };
-          }
-        }
-        return track;
-      }
-
-      const updatedClip = {
-        ...track.clips[clipIndex],
-        duration: newDuration,
-        speed,
-      };
-      const newClips = [...track.clips];
-      newClips[clipIndex] = updatedClip;
-
-      return { ...track, clips: newClips };
+    const store = useProjectStore.getState();
+    void store.executeAction({
+      type: "clip/setSpeed",
+      id: crypto.randomUUID(),
+      timestamp: Date.now(),
+      params: { clipId: clip.id, speed },
     });
-
-    useProjectStore.setState({
-      project: {
-        ...project,
-        timeline: { ...project.timeline, tracks },
-        modifiedAt: Date.now(),
-      },
-    });
+    const audioClip = linkedAudioClip();
+    if (audioClip) {
+      void store.executeAction({
+        type: "clip/setSpeed",
+        id: crypto.randomUUID(),
+        timestamp: Date.now(),
+        params: { clipId: audioClip.id, speed },
+      });
+      speedEngine.setClipSpeed(audioClip.id, speed, audioClip.duration);
+    }
   };
 
   const updateClipReverse = (reversed: boolean) => {
-    const tracks = project.timeline.tracks.map((track) => {
-      const clipIndex = track.clips.findIndex((c) => c.id === clip.id);
-      if (clipIndex === -1) {
-        if (affectAudio && track.type === "audio") {
-          const audioClipIndex = track.clips.findIndex(
-            (c) => c.mediaId === clip.mediaId,
-          );
-          if (audioClipIndex !== -1) {
-            const audioClip = track.clips[audioClipIndex];
-            const updatedAudioClip = { ...audioClip, reversed };
-            const newClips = [...track.clips];
-            newClips[audioClipIndex] = updatedAudioClip;
-            speedEngine.setReverse(audioClip.id, reversed, audioClip.duration);
-            return { ...track, clips: newClips };
-          }
-        }
-        return track;
-      }
-
-      const updatedClip = { ...track.clips[clipIndex], reversed };
-      const newClips = [...track.clips];
-      newClips[clipIndex] = updatedClip;
-
-      return { ...track, clips: newClips };
+    const store = useProjectStore.getState();
+    void store.executeAction({
+      type: "clip/setReverse",
+      id: crypto.randomUUID(),
+      timestamp: Date.now(),
+      params: { clipId: clip.id, reversed },
     });
-
-    useProjectStore.setState({
-      project: {
-        ...project,
-        timeline: { ...project.timeline, tracks },
-        modifiedAt: Date.now(),
-      },
-    });
+    const audioClip = linkedAudioClip();
+    if (audioClip) {
+      void store.executeAction({
+        type: "clip/setReverse",
+        id: crypto.randomUUID(),
+        timestamp: Date.now(),
+        params: { clipId: audioClip.id, reversed },
+      });
+      speedEngine.setReverse(audioClip.id, reversed, audioClip.duration);
+    }
   };
 
   const handleSpeedPreset = (speed: number) => {
@@ -160,86 +133,84 @@ export const SpeedSection: React.FC<SpeedSectionProps> = ({ clip }) => {
     <div className="space-y-3">
       <div className="grid grid-cols-3 gap-2">
         {SPEED_PRESETS.map((preset) => (
-          <button
+          <ClickableCard
             key={preset.value}
+            label={`Set speed to ${preset.label}`}
             onClick={() => handleSpeedPreset(preset.value)}
             className={`px-3 py-2 text-xs font-medium rounded-lg transition-all ${
               currentSpeed === preset.value
                 ? "bg-primary text-white shadow-lg shadow-primary/20"
-                : "bg-background-tertiary hover:bg-background-elevated text-text-secondary hover:text-text-primary border border-border"
+                : "bg-bg-2 hover:bg-bg-elev text-fg-2 hover:text-fg border border-border"
             }`}
           >
             {preset.label}
-          </button>
+          </ClickableCard>
         ))}
       </div>
 
       <div className="space-y-2">
-        <Label className="text-xs text-text-tertiary">Custom Speed</Label>
         <div className="flex gap-2">
-          <Input
-            type="number"
-            min={0.1}
-            max={100}
-            step={0.1}
+          <ToolcraftTextInputControl
+            label="Custom Speed"
             value={customSpeed}
-            onChange={(e) => setCustomSpeed(e.target.value)}
+            onChange={setCustomSpeed}
             onBlur={handleCustomSpeed}
             onKeyDown={(e) => {
               if (e.key === "Enter") {
                 handleCustomSpeed();
               }
             }}
-            className="flex-1 bg-background-tertiary border-border text-text-primary"
             placeholder="1.0"
+            width="100%"
           />
-          <span className="flex items-center text-xs text-text-tertiary">
+          <Text type="supporting" color="secondary" className="flex items-center text-xs">
             ×
-          </span>
+          </Text>
         </div>
-        <p className="text-xs text-text-tertiary">
+        <Text type="supporting" color="secondary" className="text-xs">
           Range: 0.1× (slowest) to 100× (fastest)
-        </p>
+        </Text>
       </div>
 
       {hasAudio() && (
-        <div className="flex items-center justify-between p-3 rounded-lg bg-background-tertiary border border-border">
-          <Label htmlFor="affect-audio" className="text-xs text-text-secondary">
+        <Card
+          variant="muted"
+          padding={3}
+          className="flex items-center justify-between border border-border"
+        >
+          <Text type="supporting" color="secondary" className="text-xs">
             Apply speed to audio
-          </Label>
-          <Switch
-            id="affect-audio"
+          </Text>
+          <MockToggle
             checked={affectAudio}
-            onCheckedChange={setAffectAudio}
+            onChange={setAffectAudio}
+            ariaLabel="Apply speed to audio"
           />
-        </div>
+        </Card>
       )}
 
-      <button
+      <Button
+        label={isReversed ? "Reversed" : "Reverse Clip"}
+        icon={<RotateCcw size={14} />}
+        variant={isReversed ? "primary" : "secondary"}
+        size="sm"
         onClick={handleToggleReverse}
-        className={`w-full px-3 py-2.5 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2 ${
-          isReversed
-            ? "bg-primary text-white shadow-lg shadow-primary/20"
-            : "bg-background-tertiary hover:bg-background-elevated text-text-secondary hover:text-text-primary border border-border"
-        }`}
-      >
-        <RotateCcw size={14} />
-        {isReversed ? "Reversed" : "Reverse Clip"}
-      </button>
+        className="w-full justify-center"
+      />
 
       {currentSpeed < 1 && (
-        <div className="space-y-2 p-3 rounded-lg bg-background-tertiary border border-border">
+        <Card variant="muted" padding={3} className="space-y-2 border border-border">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Sparkles size={14} className="text-primary" />
-              <Label htmlFor="smooth-slowmo" className="text-xs text-text-secondary">
+              <Text type="supporting" color="secondary" className="text-xs">
                 Smooth Slow Motion
-              </Label>
+              </Text>
             </div>
-            <Switch
-              id="smooth-slowmo"
+            <MockToggle
+              ariaLabel="Smooth Slow Motion"
               checked={clip.smoothSlowMo ?? false}
-              onCheckedChange={(checked) => {
+              onChange={(checked) => {
                 const tracks = project.timeline.tracks.map((track) => {
                   const clipIndex = track.clips.findIndex((c) => c.id === clip.id);
                   if (clipIndex === -1) return track;
@@ -260,14 +231,24 @@ export const SpeedSection: React.FC<SpeedSectionProps> = ({ clip }) => {
           </div>
           {clip.smoothSlowMo && (
             <div className="space-y-1">
-              <Label className="text-xs text-text-tertiary">Quality</Label>
-              <Select
+              <Selector
+                label="Quality"
+                size="sm"
+                width="100%"
                 value={clip.interpolationQuality ?? "medium"}
-                onValueChange={(value: "low" | "medium" | "high") => {
+                options={[
+                  { label: "Low (faster)", value: "low" },
+                  { label: "Medium", value: "medium" },
+                  { label: "High (slower)", value: "high" },
+                ]}
+                onChange={(value) => {
                   const tracks = project.timeline.tracks.map((track) => {
                     const clipIndex = track.clips.findIndex((c) => c.id === clip.id);
                     if (clipIndex === -1) return track;
-                    const updatedClip = { ...track.clips[clipIndex], interpolationQuality: value };
+                    const updatedClip = {
+                      ...track.clips[clipIndex],
+                      interpolationQuality: value as "low" | "medium" | "high",
+                    };
                     const newClips = [...track.clips];
                     newClips[clipIndex] = updatedClip;
                     return { ...track, clips: newClips };
@@ -280,34 +261,25 @@ export const SpeedSection: React.FC<SpeedSectionProps> = ({ clip }) => {
                     },
                   });
                 }}
-              >
-                <SelectTrigger className="h-8 text-xs bg-background-elevated border-border">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="low">Low (faster)</SelectItem>
-                  <SelectItem value="medium">Medium</SelectItem>
-                  <SelectItem value="high">High (slower)</SelectItem>
-                </SelectContent>
-              </Select>
-              <p className="text-[10px] text-text-tertiary">
+              />
+              <Text type="supporting" color="secondary" className="text-[10px]">
                 Uses optical flow to generate smooth in-between frames
-              </p>
+              </Text>
             </div>
           )}
-        </div>
+        </Card>
       )}
 
       {(currentSpeed !== 1 || isReversed) && (
-        <div className="p-3 rounded-lg bg-background-tertiary border border-border">
-          <div className="text-xs text-text-tertiary mb-1">
+        <Card variant="muted" padding={3} className="border border-border">
+          <Text type="supporting" color="secondary" className="mb-1 block text-xs">
             Current Settings
-          </div>
-          <div className="text-sm text-text-primary">
+          </Text>
+          <Text type="body" color="primary" className="block text-sm">
             Speed: {currentSpeed}× {isReversed && "• Reversed"}
             {clip.smoothSlowMo && " • Smooth"}
-          </div>
-        </div>
+          </Text>
+        </Card>
       )}
     </div>
   );

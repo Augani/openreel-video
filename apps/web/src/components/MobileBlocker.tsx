@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
-import { Monitor } from "lucide-react";
+import { Monitor } from "@/icons/lucide-compat";
+import { ToolcraftButton as Button } from "@openreel/ui";
+import { ToolcraftText as Text } from "@openreel/ui";
 
 export function MobileBlocker() {
   const [isMobile, setIsMobile] = useState(false);
@@ -31,36 +33,46 @@ export function MobileBlocker() {
         </div>
 
         <div className="space-y-3">
-          <h1 className="text-5xl font-bold text-text-primary tracking-tight">
+          <Text type="body" color="primary" weight="bold" className="text-5xl text-text-primary tracking-tight">
             OpenReel
-          </h1>
+          </Text>
           <div className="flex items-center justify-center gap-2">
             <div className="h-px w-8 bg-primary/50" />
-            <p className="text-lg text-text-secondary font-medium">
+            <Text type="supporting" color="secondary" weight="medium" className="text-lg text-text-secondary">
               Desktop Only
-            </p>
+            </Text>
             <div className="h-px w-8 bg-primary/50" />
           </div>
         </div>
 
         <div className="space-y-4 bg-background-secondary/50 backdrop-blur-sm rounded-xl p-6 border border-border">
-          <p className="text-base text-text-primary leading-relaxed">
+          <Text
+            type="supporting"
+            color="primary"
+            display="block"
+            className="text-base text-text-primary leading-relaxed"
+          >
             OpenReel is a professional video editor that requires a desktop or
             laptop computer.
-          </p>
-          <p className="text-sm text-text-muted">
+          </Text>
+          <Text
+            type="supporting"
+            color="secondary"
+            display="block"
+            className="text-sm text-text-muted"
+          >
             Please visit this page on your desktop or laptop to start creating
             amazing videos.
-          </p>
+          </Text>
         </div>
 
         <div className="pt-2">
-          <a
+          <Button
+            as="a"
+            label="Learn More"
             href="https://openreel.video"
             className="inline-flex items-center gap-2 px-8 py-3 bg-primary hover:bg-primary-hover active:bg-primary-active text-white font-medium rounded-lg transition-all duration-200 shadow-glow hover:shadow-glow-lg transform hover:scale-[1.02] active:scale-[0.98]"
-          >
-            Learn More
-          </a>
+          />
         </div>
       </div>
     </div>

@@ -1,4 +1,8 @@
 import type { Keyframe, EasingType } from "../types/timeline";
+import {
+  EASING_FUNCTIONS,
+  type EasingName,
+} from "../animation/easing-functions";
 import { AnimationEngine, type BezierControlPoints } from "./animation-engine";
 
 export type EasingPreset =
@@ -254,6 +258,9 @@ export class KeyframeEngine {
         // Default bezier if no handles specified
         return this.animationEngine.cubicBezier(clampedT, 0.25, 0.1, 0.25, 1.0);
       default:
+        if (isNamedEasing(keyframe.easing)) {
+          return EASING_FUNCTIONS[keyframe.easing](clampedT);
+        }
         return clampedT;
     }
   }
@@ -517,4 +524,9 @@ export class KeyframeEngine {
     return progress < 0.5 ? valueA : valueB;
   }
 }
+
+function isNamedEasing(easing: EasingType): easing is EasingName {
+  return easing in EASING_FUNCTIONS;
+}
+
 export const keyframeEngine = new KeyframeEngine();

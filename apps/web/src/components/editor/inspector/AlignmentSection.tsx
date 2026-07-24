@@ -1,4 +1,7 @@
 import React, { useCallback } from "react";
+import { ToolcraftButton as Button } from "@openreel/ui";
+import { ToolcraftIconButton as IconButton } from "@openreel/ui";
+import { ToolcraftText as Text } from "@openreel/ui";
 import {
   AlignHorizontalJustifyStart,
   AlignHorizontalJustifyCenter,
@@ -6,110 +9,125 @@ import {
   AlignVerticalJustifyStart,
   AlignVerticalJustifyCenter,
   AlignVerticalJustifyEnd,
-} from "lucide-react";
-import { useProjectStore } from "../../../stores/project-store";
+} from "@/icons/lucide-compat";
+import type { Transform } from "@openreel/core";
 
 interface AlignmentSectionProps {
-  clipId: string;
+  clipType: string | null;
+  transform: Transform;
+  canvasWidth: number;
+  canvasHeight: number;
+  onTransformChange: (changes: Partial<Transform>) => void;
 }
 
 export const AlignmentSection: React.FC<AlignmentSectionProps> = ({
-  clipId,
+  clipType,
+  transform,
+  canvasWidth,
+  canvasHeight,
+  onTransformChange,
 }) => {
-  const { updateClipTransform } = useProjectStore();
-
-  const findClipTransform = useCallback(() => {
-    const { project } = useProjectStore.getState();
-    for (const track of project.timeline.tracks) {
-      const clip = track.clips.find((c) => c.id === clipId);
-      if (clip) {
-        return clip.transform ?? { position: { x: 0.5, y: 0.5 } };
-      }
-    }
-    return { position: { x: 0.5, y: 0.5 } };
-  }, [clipId]);
+  const usesNormalizedPosition =
+    clipType === "text" ||
+    clipType === "shape" ||
+    clipType === "svg" ||
+    clipType === "sticker";
 
   const handleAlign = useCallback(
-    (axis: "x" | "y", value: number) => {
-      const current = findClipTransform();
-      const currentPos = current.position ?? { x: 0.5, y: 0.5 };
-      updateClipTransform(clipId, {
-        position: { ...currentPos, [axis]: value },
+    (axis: "x" | "y", normalizedValue: 0 | 0.5 | 1) => {
+      const dimension = axis === "x" ? canvasWidth : canvasHeight;
+      const value = usesNormalizedPosition
+        ? normalizedValue
+        : (normalizedValue - 0.5) * dimension;
+      onTransformChange({
+        position: { ...transform.position, [axis]: value },
       });
     },
-    [clipId, updateClipTransform, findClipTransform],
+    [
+      canvasHeight,
+      canvasWidth,
+      onTransformChange,
+      transform.position,
+      usesNormalizedPosition,
+    ],
   );
 
   const handleCenterBoth = useCallback(() => {
-    updateClipTransform(clipId, {
-      position: { x: 0.5, y: 0.5 },
+    onTransformChange({
+      position: usesNormalizedPosition ? { x: 0.5, y: 0.5 } : { x: 0, y: 0 },
     });
-  }, [clipId, updateClipTransform]);
-
-  const buttonClass =
-    "p-2 rounded-md bg-background-tertiary border border-border hover:border-primary/50 hover:bg-primary/5 transition-all text-text-secondary hover:text-primary";
+  }, [onTransformChange, usesNormalizedPosition]);
 
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2">
-        <span className="text-[10px] text-text-muted w-16">Horizontal</span>
+        <Text type="supporting" color="secondary" className="w-16">
+          Horizontal
+        </Text>
         <div className="flex gap-1">
-          <button
-            className={buttonClass}
+          <IconButton
+            label="Align Left"
+            icon={<AlignHorizontalJustifyStart size={14} aria-hidden />}
+            size="sm"
+            variant="ghost"
             onClick={() => handleAlign("x", 0)}
-            title="Align Left"
-          >
-            <AlignHorizontalJustifyStart size={14} />
-          </button>
-          <button
-            className={buttonClass}
+          />
+          <IconButton
+            label="Center Horizontally"
+            icon={<AlignHorizontalJustifyCenter size={14} aria-hidden />}
+            size="sm"
+            variant="ghost"
             onClick={() => handleAlign("x", 0.5)}
-            title="Center Horizontally"
-          >
-            <AlignHorizontalJustifyCenter size={14} />
-          </button>
-          <button
-            className={buttonClass}
+          />
+          <IconButton
+            label="Align Right"
+            icon={<AlignHorizontalJustifyEnd size={14} aria-hidden />}
+            size="sm"
+            variant="ghost"
             onClick={() => handleAlign("x", 1)}
-            title="Align Right"
-          >
-            <AlignHorizontalJustifyEnd size={14} />
-          </button>
+          />
         </div>
       </div>
       <div className="flex items-center gap-2">
-        <span className="text-[10px] text-text-muted w-16">Vertical</span>
+        <Text type="supporting" color="secondary" className="w-16">
+          Vertical
+        </Text>
         <div className="flex gap-1">
-          <button
-            className={buttonClass}
+          <IconButton
+            label="Align Top"
+            icon={<AlignVerticalJustifyStart size={14} aria-hidden />}
+            size="sm"
+            variant="ghost"
             onClick={() => handleAlign("y", 0)}
-            title="Align Top"
-          >
-            <AlignVerticalJustifyStart size={14} />
-          </button>
-          <button
-            className={buttonClass}
+          />
+          <IconButton
+            label="Center Vertically"
+            icon={<AlignVerticalJustifyCenter size={14} aria-hidden />}
+            size="sm"
+            variant="ghost"
             onClick={() => handleAlign("y", 0.5)}
-            title="Center Vertically"
-          >
-            <AlignVerticalJustifyCenter size={14} />
-          </button>
-          <button
-            className={buttonClass}
+          />
+          <IconButton
+            label="Align Bottom"
+            icon={<AlignVerticalJustifyEnd size={14} aria-hidden />}
+            size="sm"
+            variant="ghost"
             onClick={() => handleAlign("y", 1)}
-            title="Align Bottom"
-          >
-            <AlignVerticalJustifyEnd size={14} />
-          </button>
+          />
         </div>
       </div>
-      <button
-        className="w-full py-1.5 text-[10px] rounded-md bg-background-tertiary border border-border hover:border-primary/50 hover:bg-primary/5 transition-all text-text-secondary hover:text-primary"
+      <Button
+        label="Center on Canvas"
+        variant="secondary"
+        size="sm"
         onClick={handleCenterBoth}
-        title="Center on Canvas"
-      >
-        Center on Canvas
-      </button>
+        className="w-full"
+      />
+      <Text type="supporting" color="secondary" className="block text-center text-[9px] text-fg-muted">
+        {usesNormalizedPosition
+          ? "Aligns the overlay anchor in canvas space"
+          : "Aligns the media anchor using pixel offsets from center"}
+      </Text>
     </div>
   );
 };

@@ -28,6 +28,7 @@ export class WebGPURenderer implements Renderer {
   private layers: RenderLayer[] = [];
   private isDeviceLost = false;
   private deviceRecreationInProgress = false;
+  private isDestroyed = false;
   private _config: RendererConfig;
 
   // Double buffering
@@ -93,6 +94,7 @@ export class WebGPURenderer implements Renderer {
 
   async initialize(): Promise<boolean> {
     try {
+      this.isDestroyed = false;
       if (!navigator.gpu) {
         console.warn("[WebGPURenderer] WebGPU not supported");
         return false;
@@ -164,8 +166,13 @@ export class WebGPURenderer implements Renderer {
 
   private setupDeviceLossHandling(): void {
     if (!this.device) return;
+    const observedDevice = this.device;
 
-    this.device.lost.then((info: GPUDeviceLostInfo) => {
+    observedDevice.lost.then((info: GPUDeviceLostInfo) => {
+      // Calling GPUDevice.destroy() resolves `lost` with reason "destroyed".
+      // That is an intentional teardown, not a recoverable runtime failure.
+      // A superseded device can also resolve after recreation; ignore it too.
+      if (this.isDestroyed || this.device !== observedDevice) return;
       console.warn(
         `[WebGPURenderer] Device lost: ${info.reason}`,
         info.message,
@@ -185,6 +192,7 @@ export class WebGPURenderer implements Renderer {
   }
 
   private async attemptDeviceRecreation(): Promise<void> {
+    if (this.isDestroyed) return;
     this.deviceRecreationInProgress = true;
 
     const maxAttempts = 3;
@@ -192,6 +200,10 @@ export class WebGPURenderer implements Renderer {
 
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       await new Promise((resolve) => setTimeout(resolve, delayMs));
+      if (this.isDestroyed) {
+        this.deviceRecreationInProgress = false;
+        return;
+      }
 
       const success = await this.recreateDevice();
       if (success) {
@@ -504,6 +516,10 @@ export class WebGPURenderer implements Renderer {
   }
 
   destroy(): void {
+    if (this.isDestroyed) return;
+    this.isDestroyed = true;
+    this.deviceRecreationInProgress = false;
+
     // Destroy effects processor
     if (this.effectsProcessor) {
       this.effectsProcessor.dispose();

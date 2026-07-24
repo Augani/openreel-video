@@ -34,6 +34,8 @@ export class BackgroundRemovalEngine {
   private ctx: OffscreenCanvasRenderingContext2D | null = null;
   private maskCanvas: OffscreenCanvas | null = null;
   private maskCtx: OffscreenCanvasRenderingContext2D | null = null;
+  private sourceMaskCanvas: OffscreenCanvas | null = null;
+  private sourceMaskCtx: OffscreenCanvasRenderingContext2D | null = null;
   private outputCanvas: OffscreenCanvas | null = null;
   private outputCtx: OffscreenCanvasRenderingContext2D | null = null;
   private backgroundImage: ImageBitmap | null = null;
@@ -51,6 +53,8 @@ export class BackgroundRemovalEngine {
 
     this.maskCanvas = new OffscreenCanvas(1920, 1080);
     this.maskCtx = this.maskCanvas.getContext("2d");
+    this.sourceMaskCanvas = new OffscreenCanvas(1, 1);
+    this.sourceMaskCtx = this.sourceMaskCanvas.getContext("2d");
 
     this.outputCanvas = new OffscreenCanvas(1920, 1080);
     this.outputCtx = this.outputCanvas.getContext("2d");
@@ -97,6 +101,7 @@ export class BackgroundRemovalEngine {
     frame: ImageBitmap,
     width: number,
     height: number,
+    timestampMs?: number,
   ): Promise<ImageBitmap> {
     const settings = this.getSettings(clipId);
 
@@ -114,7 +119,14 @@ export class BackgroundRemovalEngine {
     }
 
     if (this.useAI) {
-      return this.processFrameFast(clipId, frame, width, height, settings);
+      return this.processFrameFast(
+        clipId,
+        frame,
+        width,
+        height,
+        settings,
+        timestampMs,
+      );
     }
 
     this.ctx.drawImage(frame, 0, 0, width, height);
@@ -161,14 +173,18 @@ export class BackgroundRemovalEngine {
   }
 
   private async processFrameFast(
-    _clipId: string,
+    clipId: string,
     frame: ImageBitmap,
     width: number,
     height: number,
     settings: BackgroundRemovalSettings,
+    timestampMs?: number,
   ): Promise<ImageBitmap> {
     const segEngine = getPersonSegmentationEngine();
-    const segResult = await segEngine.getPersonMask(frame);
+    const segResult = await segEngine.getPersonMask(frame, {
+      timestampMs,
+      streamId: `background-removal:${clipId}`,
+    });
     if (!segResult) return frame;
 
     if (settings.edgeBlur > 0 || settings.threshold !== 0.7) {
@@ -183,14 +199,14 @@ export class BackgroundRemovalEngine {
         const raw = alphaData[i];
         alphaData[i] = raw >= thresholdByte ? 255 : Math.round(raw * (raw / thresholdByte));
       }
-      this.maskCtx!.putImageData(maskData, 0, 0);
-      if (settings.edgeBlur > 0) {
-        this.maskCtx!.filter = `blur(${settings.edgeBlur}px)`;
-        this.maskCtx!.drawImage(this.maskCanvas!, 0, 0);
-        this.maskCtx!.filter = "none";
-      }
+      this.drawSegmentationMask(
+        maskData,
+        width,
+        height,
+        settings.edgeBlur,
+      );
     } else {
-      this.maskCtx!.putImageData(segResult.mask, 0, 0);
+      this.drawSegmentationMask(segResult.mask, width, height, 0);
     }
 
     this.outputCtx!.clearRect(0, 0, width, height);
@@ -229,6 +245,37 @@ export class BackgroundRemovalEngine {
     this.outputCtx!.drawImage(this.canvas!, 0, 0);
 
     return createImageBitmap(this.outputCanvas!);
+  }
+
+  private drawSegmentationMask(
+    mask: ImageData,
+    width: number,
+    height: number,
+    blur: number,
+  ): void {
+    if (
+      !this.sourceMaskCanvas ||
+      !this.sourceMaskCtx ||
+      !this.maskCanvas ||
+      !this.maskCtx
+    ) {
+      return;
+    }
+    if (
+      this.sourceMaskCanvas.width !== mask.width ||
+      this.sourceMaskCanvas.height !== mask.height
+    ) {
+      this.sourceMaskCanvas.width = mask.width;
+      this.sourceMaskCanvas.height = mask.height;
+    }
+    this.sourceMaskCtx.putImageData(mask, 0, 0);
+
+    this.maskCtx.clearRect(0, 0, width, height);
+    this.maskCtx.imageSmoothingEnabled = true;
+    this.maskCtx.imageSmoothingQuality = "high";
+    this.maskCtx.filter = blur > 0 ? `blur(${blur}px)` : "none";
+    this.maskCtx.drawImage(this.sourceMaskCanvas, 0, 0, width, height);
+    this.maskCtx.filter = "none";
   }
 
   private generateSimpleMask(
@@ -446,6 +493,8 @@ export class BackgroundRemovalEngine {
     this.ctx = null;
     this.maskCanvas = null;
     this.maskCtx = null;
+    this.sourceMaskCanvas = null;
+    this.sourceMaskCtx = null;
     this.outputCanvas = null;
     this.outputCtx = null;
     this.backgroundImage?.close();

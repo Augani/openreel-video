@@ -1,3 +1,21 @@
 packages:
   - "apps/*"
   - "packages/*"
+patchedDependencies:
+  "@ffmpeg/core-mt@0.12.6": "patches/@ffmpeg__core-mt@0.12.6.patch"
+  "@ffmpeg/core@0.12.6": "patches/@ffmpeg__core@0.12.6.patch"
+onlyBuiltDependencies:
+  - electron
+ignoredBuiltDependencies:
+  - core-js
+  - esbuild
+  - protobufjs
+  - sharp
+  - workerd
+allowBuilds:
+  core-js: false
+  electron: true
+  esbuild: false
+  protobufjs: false
+  sharp: false
+  workerd: false

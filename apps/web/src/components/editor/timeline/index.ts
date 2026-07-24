@@ -9,3 +9,9 @@ export { TextClipComponent } from "./TextClipComponent";
 export { ShapeClipComponent } from "./ShapeClipComponent";
 export { BeatMarkerOverlay } from "./BeatMarkerOverlay";
 export { MarkerIndicator } from "./MarkerIndicator";
+export { TransitionHandle } from "./TransitionHandle";
+export {
+  resolveTransitionHandles,
+  TRANSITION_ADJACENCY_TOLERANCE,
+} from "./transition-handles";
+export type { ResolvedTransitionHandle } from "./transition-handles";

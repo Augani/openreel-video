@@ -1,7 +1,19 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { useProjectStore } from "./project-store";
 import { useEngineStore } from "./engine-store";
-import type { Project, Clip, MediaItem, Transition } from "@openreel/core";
+import type {
+  Project,
+  Clip,
+  MediaItem,
+  MotionShaderDef,
+  Transition,
+} from "@openreel/core";
+import {
+  clearGeneratedMotionShaders,
+  getMotionShaderDef,
+  listGeneratedMotionShaders,
+} from "@openreel/core/motion/shaders";
+import { createEmptyProject } from "./project/project-helpers";
 
 const {
   mockEffectsBridge,
@@ -203,6 +215,218 @@ describe("ProjectStore", () => {
       const store = useProjectStore.getState();
       expect(store.canUndo()).toBe(false);
       expect(store.canRedo()).toBe(false);
+    });
+  });
+
+  describe("requireOpenProject guard", () => {
+    it("rejects executeAction when no project is open", async () => {
+      useProjectStore.setState({ hasOpenProject: false });
+      const result = await useProjectStore.getState().executeAction({
+        type: "track/add",
+        id: "guard-1",
+        timestamp: Date.now(),
+        params: { trackType: "video" },
+      });
+      expect(result.success).toBe(false);
+      expect(result.error?.message).toContain("No project is open");
+    });
+
+    it("allows executeAction when a project is open", async () => {
+      const result = await useProjectStore.getState().executeAction({
+        type: "track/add",
+        id: "guard-2",
+        timestamp: Date.now(),
+        params: { trackType: "video" },
+      });
+      expect(result.success).toBe(true);
+    });
+  });
+
+  describe("text overlay clips (project-authoritative)", () => {
+    async function addTextTrack(): Promise<string> {
+      await useProjectStore.getState().addTrack("text");
+      const track = useProjectStore
+        .getState()
+        .project.timeline.tracks.find((t) => t.type === "text");
+      if (!track) throw new Error("text track not created");
+      return track.id;
+    }
+
+    it("createTextClip writes to project.textClips and is undoable/redoable", async () => {
+      const trackId = await addTextTrack();
+      const clip = useProjectStore.getState().createTextClip(trackId, 0, "Hello", 5);
+      expect(clip).toBeTruthy();
+      const id = clip!.id;
+
+      expect(useProjectStore.getState().project.textClips?.some((c) => c.id === id)).toBe(true);
+      expect(useProjectStore.getState().getAllTextClips().some((c) => c.id === id)).toBe(true);
+      expect(useProjectStore.getState().project.timeline.duration).toBe(5);
+
+      await useProjectStore.getState().undo();
+      expect(useProjectStore.getState().project.textClips?.some((c) => c.id === id) ?? false).toBe(false);
+      expect(useProjectStore.getState().getAllTextClips().some((c) => c.id === id)).toBe(false);
+      expect(useProjectStore.getState().project.timeline.duration).toBe(0);
+
+      await useProjectStore.getState().redo();
+      expect(useProjectStore.getState().project.textClips?.some((c) => c.id === id)).toBe(true);
+      expect(useProjectStore.getState().getAllTextClips().some((c) => c.id === id)).toBe(true);
+      expect(useProjectStore.getState().project.timeline.duration).toBe(5);
+    });
+
+    it("updateTextContent is undoable and restores the prior text", async () => {
+      const trackId = await addTextTrack();
+      const clip = useProjectStore.getState().createTextClip(trackId, 0, "First", 5)!;
+
+      useProjectStore.getState().updateTextContent(clip.id, "Second");
+      expect(useProjectStore.getState().project.textClips?.find((c) => c.id === clip.id)?.text).toBe("Second");
+      expect(useProjectStore.getState().getAllTextClips().find((c) => c.id === clip.id)?.text).toBe("Second");
+
+      await useProjectStore.getState().undo();
+      expect(useProjectStore.getState().project.textClips?.find((c) => c.id === clip.id)?.text).toBe("First");
+      expect(useProjectStore.getState().getAllTextClips().find((c) => c.id === clip.id)?.text).toBe("First");
+    });
+
+    it("deleteTextClip is undoable", async () => {
+      const trackId = await addTextTrack();
+      const clip = useProjectStore.getState().createTextClip(trackId, 0, "Bye", 5)!;
+
+      useProjectStore.getState().deleteTextClip(clip.id);
+      expect(useProjectStore.getState().project.textClips?.some((c) => c.id === clip.id) ?? false).toBe(false);
+      expect(useProjectStore.getState().project.timeline.duration).toBe(0);
+
+      await useProjectStore.getState().undo();
+      expect(useProjectStore.getState().project.textClips?.some((c) => c.id === clip.id)).toBe(true);
+      expect(useProjectStore.getState().getAllTextClips().some((c) => c.id === clip.id)).toBe(true);
+      expect(useProjectStore.getState().project.timeline.duration).toBe(5);
+    });
+
+    it("places duplicated text clips in the next available timeline gap", async () => {
+      const trackId = await addTextTrack();
+      const first = useProjectStore
+        .getState()
+        .createTextClip(trackId, 0, "First", 5)!;
+      useProjectStore.getState().createTextClip(trackId, 5, "Occupied", 3);
+
+      const duplicate = useProjectStore
+        .getState()
+        .duplicateOverlayClip(first.id);
+
+      expect(duplicate).toBeTruthy();
+      expect(duplicate?.startTime).toBe(8);
+      expect(duplicate?.duration).toBe(5);
+    });
+
+    it("persists overlay timing edits and restores them with undo", async () => {
+      const trackId = await addTextTrack();
+      const clip = useProjectStore
+        .getState()
+        .createTextClip(trackId, 1, "Move me", 5)!;
+
+      useProjectStore.getState().updateOverlayClipTiming(clip.id, {
+        startTime: 3,
+        duration: 2,
+      });
+
+      expect(useProjectStore.getState().getTextClip(clip.id)?.startTime).toBe(3);
+      expect(
+        useProjectStore.getState().project.textClips?.find((item) => item.id === clip.id),
+      ).toMatchObject({ startTime: 3, duration: 2 });
+
+      await useProjectStore.getState().undo();
+      expect(useProjectStore.getState().getTextClip(clip.id)).toMatchObject({
+        startTime: 1,
+        duration: 5,
+      });
+    });
+
+    it("splits an overlay into two clips and undoes the split as one action", async () => {
+      const trackId = await addTextTrack();
+      const clip = useProjectStore
+        .getState()
+        .createTextClip(trackId, 0, "Split me", 5)!;
+
+      const split = useProjectStore.getState().splitOverlayClip(clip.id, 2);
+
+      expect(split?.left).toMatchObject({ startTime: 0, duration: 2 });
+      expect(split?.right).toMatchObject({ startTime: 2, duration: 3 });
+      expect(useProjectStore.getState().project.textClips).toHaveLength(2);
+
+      const modifiedBeforeUndo = useProjectStore.getState().project.modifiedAt;
+      await new Promise((resolve) => setTimeout(resolve, 2));
+      await useProjectStore.getState().undo();
+      expect(useProjectStore.getState().project.textClips).toHaveLength(1);
+      expect(useProjectStore.getState().getAllTextClips()).toHaveLength(1);
+      expect(useProjectStore.getState().project.modifiedAt).toBeGreaterThan(
+        modifiedBeforeUndo,
+      );
+      expect(useProjectStore.getState().getTextClip(clip.id)).toMatchObject({
+        startTime: 0,
+        duration: 5,
+      });
+
+      await useProjectStore.getState().redo();
+      expect(useProjectStore.getState().project.textClips).toHaveLength(2);
+    });
+  });
+
+  describe("shape overlay clips (project-authoritative)", () => {
+    async function addGraphicsTrack(): Promise<string> {
+      await useProjectStore.getState().addTrack("graphics");
+      const track = useProjectStore
+        .getState()
+        .project.timeline.tracks.find((t) => t.type === "graphics");
+      if (!track) throw new Error("graphics track not created");
+      return track.id;
+    }
+
+    it("createShapeClip writes to project.shapeClips and is undoable/redoable", async () => {
+      const trackId = await addGraphicsTrack();
+      const clip = useProjectStore
+        .getState()
+        .createShapeClip(trackId, 0, "rectangle", 5);
+      expect(clip).toBeTruthy();
+      const id = clip!.id;
+
+      expect(useProjectStore.getState().project.shapeClips?.some((c) => c.id === id)).toBe(true);
+
+      await useProjectStore.getState().undo();
+      expect(useProjectStore.getState().project.shapeClips?.some((c) => c.id === id) ?? false).toBe(false);
+
+      await useProjectStore.getState().redo();
+      expect(useProjectStore.getState().project.shapeClips?.some((c) => c.id === id)).toBe(true);
+    });
+
+    it("deleteShapeClip is undoable", async () => {
+      const trackId = await addGraphicsTrack();
+      const clip = useProjectStore
+        .getState()
+        .createShapeClip(trackId, 0, "rectangle", 5)!;
+
+      useProjectStore.getState().deleteShapeClip(clip.id);
+      expect(useProjectStore.getState().project.shapeClips?.some((c) => c.id === clip.id) ?? false).toBe(false);
+
+      await useProjectStore.getState().undo();
+      expect(useProjectStore.getState().project.shapeClips?.some((c) => c.id === clip.id)).toBe(true);
+    });
+
+    it("trims and splits graphic overlays through the project timing path", async () => {
+      const trackId = await addGraphicsTrack();
+      const clip = useProjectStore
+        .getState()
+        .createShapeClip(trackId, 0, "rectangle", 6)!;
+
+      const trimmed = useProjectStore
+        .getState()
+        .trimOverlayToPlayhead(clip.id, 5, false);
+      expect(trimmed).toMatchObject({ startTime: 0, duration: 5 });
+      expect(
+        useProjectStore.getState().project.shapeClips?.find((item) => item.id === clip.id),
+      ).toMatchObject({ duration: 5 });
+
+      const split = useProjectStore.getState().splitOverlayClip(clip.id, 2);
+      expect(split?.left).toMatchObject({ startTime: 0, duration: 2 });
+      expect(split?.right).toMatchObject({ startTime: 2, duration: 3 });
+      expect(useProjectStore.getState().project.shapeClips).toHaveLength(2);
     });
   });
 
@@ -664,10 +888,10 @@ describe("ProjectStore", () => {
       },
     });
 
-    it("should persist video effects to the clip timeline state", () => {
+    it("should persist video effects to the clip timeline state", async () => {
       useProjectStore.getState().loadProject(createProjectWithVideoClip());
 
-      const addedEffect = useProjectStore
+      const addedEffect = await useProjectStore
         .getState()
         .addVideoEffect("video-clip-1", "brightness", { value: 15 });
 
@@ -683,29 +907,77 @@ describe("ProjectStore", () => {
       expect(useProjectStore.getState().getVideoEffects("video-clip-1")).toHaveLength(1);
     });
 
-    it("should keep clip effects synchronized across update, toggle, reorder, and remove", () => {
+    it("duplicates a tuned clip effect beside its source with one-step undo", async () => {
+      useProjectStore.getState().loadProject(createProjectWithVideoClip());
+      const source = await useProjectStore
+        .getState()
+        .addVideoEffect("video-clip-1", "blur", { radius: 18 });
+      if (!source) throw new Error("source effect not created");
+      await useProjectStore
+        .getState()
+        .toggleVideoEffect("video-clip-1", source.id, false);
+
+      const copy = await useProjectStore
+        .getState()
+        .duplicateVideoEffect("video-clip-1", source.id);
+
+      expect(copy).toMatchObject({
+        type: "blur",
+        enabled: false,
+        params: { radius: 18 },
+      });
+      expect(copy?.id).not.toBe(source.id);
+      expect(
+        useProjectStore.getState().getVideoEffects("video-clip-1").map((effect) => effect.id),
+      ).toEqual([source.id, copy!.id]);
+
+      await useProjectStore.getState().undo();
+      expect(
+        useProjectStore.getState().getVideoEffects("video-clip-1").map((effect) => effect.id),
+      ).toEqual([source.id]);
+    });
+
+    it("replaces the full clip effect stack with one-step undo", async () => {
+      useProjectStore.getState().loadProject(createProjectWithVideoClip());
+      const first = await useProjectStore
+        .getState()
+        .addVideoEffect("video-clip-1", "brightness", { value: 12 });
+      if (!first) throw new Error("effect not created");
+
+      expect(
+        await useProjectStore.getState().replaceVideoEffects("video-clip-1", []),
+      ).toBe(true);
+      expect(useProjectStore.getState().getVideoEffects("video-clip-1")).toEqual([]);
+
+      await useProjectStore.getState().undo();
+      expect(useProjectStore.getState().getVideoEffects("video-clip-1")).toEqual([
+        first,
+      ]);
+    });
+
+    it("should keep clip effects synchronized across update, toggle, reorder, and remove", async () => {
       useProjectStore.getState().loadProject(createProjectWithVideoClip());
 
-      const brightness = useProjectStore
+      const brightness = await useProjectStore
         .getState()
         .addVideoEffect("video-clip-1", "brightness", { value: 10 });
-      const contrast = useProjectStore
+      const contrast = await useProjectStore
         .getState()
         .addVideoEffect("video-clip-1", "contrast", { value: 1.2 });
 
       expect(brightness).not.toBeNull();
       expect(contrast).not.toBeNull();
 
-      const updated = useProjectStore
+      const updated = await useProjectStore
         .getState()
         .updateVideoEffect("video-clip-1", brightness!.id, { value: 20 });
-      const toggled = useProjectStore
+      const toggled = await useProjectStore
         .getState()
         .toggleVideoEffect("video-clip-1", brightness!.id, false);
       const reordered = useProjectStore
         .getState()
         .reorderVideoEffects("video-clip-1", [contrast!.id, brightness!.id]);
-      const removed = useProjectStore
+      const removed = await useProjectStore
         .getState()
         .removeVideoEffect("video-clip-1", contrast!.id);
 
@@ -721,6 +993,67 @@ describe("ProjectStore", () => {
           params: { value: 20 },
         },
       ]);
+    });
+
+    it("treats text overlays as first-class ordered effect owners", async () => {
+      useProjectStore.getState().createNewProject("Text Effects");
+      await useProjectStore.getState().addTrack("text");
+      const track = useProjectStore
+        .getState()
+        .project.timeline.tracks.find((candidate) => candidate.type === "text");
+      if (!track) throw new Error("text track not created");
+      const textClip = useProjectStore
+        .getState()
+        .createTextClip(track.id, 0, "Shader title", 5);
+      if (!textClip) throw new Error("text clip not created");
+
+      const shader = await useProjectStore
+        .getState()
+        .addVideoEffect(textClip.id, "shader", {
+          shaderId: "paper-halftone-dots",
+          size: 0.6,
+        });
+      const brightness = await useProjectStore
+        .getState()
+        .addVideoEffect(textClip.id, "brightness", { value: 20 });
+
+      expect(shader).not.toBeNull();
+      expect(brightness).not.toBeNull();
+      expect(
+        useProjectStore.getState().reorderVideoEffects(textClip.id, [
+          brightness!.id,
+          shader!.id,
+        ]),
+      ).toBe(true);
+      expect(
+        useProjectStore
+          .getState()
+          .project.textClips?.find((clip) => clip.id === textClip.id)
+          ?.effects?.map((effect) => effect.id),
+      ).toEqual([brightness!.id, shader!.id]);
+      expect(
+        useEngineStore
+          .getState()
+          .getTitleEngine()
+          ?.getTextClip(textClip.id)
+          ?.effects?.map((effect) => effect.id),
+      ).toEqual([brightness!.id, shader!.id]);
+
+      await useProjectStore.getState().undo();
+      expect(
+        useProjectStore
+          .getState()
+          .project.textClips?.find((clip) => clip.id === textClip.id)
+          ?.effects?.map((effect) => effect.id),
+      ).toEqual([shader!.id, brightness!.id]);
+
+      await useProjectStore.getState().redo();
+      expect(
+        useProjectStore
+          .getState()
+          .project.textClips?.find((clip) => clip.id === textClip.id)
+          ?.effects?.map((effect) => effect.id),
+      ).toEqual([brightness!.id, shader!.id]);
     });
   });
 
@@ -1119,7 +1452,7 @@ describe("ProjectStore", () => {
       },
     });
 
-    it("should persist adjacent clip transitions and mirror them into the transition bridge", () => {
+    it("should persist adjacent clip transitions and mirror them into the transition bridge", async () => {
       useProjectStore.getState().loadProject(createProjectWithAdjacentClips());
 
       const transition: Transition = {
@@ -1131,10 +1464,10 @@ describe("ProjectStore", () => {
         params: { curve: "ease" },
       };
 
-      const addedTransition = useProjectStore
+      const addedTransition = await useProjectStore
         .getState()
         .addClipTransition(transition);
-      const updatedTransition = useProjectStore
+      const updatedTransition = await useProjectStore
         .getState()
         .updateClipTransition("transition-1", {
           duration: 0.75,
@@ -1169,7 +1502,7 @@ describe("ProjectStore", () => {
         },
       ]);
 
-      const removedTransition = useProjectStore
+      const removedTransition = await useProjectStore
         .getState()
         .removeClipTransition("transition-1");
 
@@ -1177,11 +1510,40 @@ describe("ProjectStore", () => {
       expect(useProjectStore.getState().getClipTransition("transition-1")).toBeUndefined();
       expect(mockTransitionBridgeState.trackTransitions.get("video-track-1")).toEqual([]);
     });
+
+    it("should replace single-clip edge transitions at the same clip edge", async () => {
+      useProjectStore.getState().loadProject(createProjectWithAdjacentClips());
+
+      const firstOutro: Transition = {
+        id: "transition-out-1",
+        clipAId: "clip-a",
+        edge: "out",
+        type: "crossfade",
+        duration: 0.5,
+        params: { curve: "ease" },
+      };
+      const secondOutro: Transition = {
+        ...firstOutro,
+        id: "transition-out-2",
+        type: "dipToBlack",
+        params: { holdDuration: 0.1 },
+      };
+
+      await useProjectStore.getState().addClipTransition(firstOutro);
+      await useProjectStore.getState().addClipTransition(secondOutro);
+
+      const transitions =
+        useProjectStore.getState().project.timeline.tracks[0].transitions;
+      expect(transitions).toEqual([secondOutro]);
+      expect(mockTransitionBridgeState.trackTransitions.get("video-track-1")).toEqual([
+        secondOutro,
+      ]);
+    });
   });
 
   describe("marker operations", () => {
-    it("should add a marker", () => {
-      useProjectStore.getState().addMarker(5, "Scene 1", "#ff0000");
+    it("should add a marker", async () => {
+      await useProjectStore.getState().addMarker(5, "Scene 1", "#ff0000");
 
       const markers = useProjectStore.getState().getMarkers();
       expect(markers.length).toBe(1);
@@ -1189,25 +1551,56 @@ describe("ProjectStore", () => {
       expect(markers[0].label).toBe("Scene 1");
     });
 
-    it("should remove a marker", () => {
-      useProjectStore.getState().addMarker(5, "Scene 1");
+    it("should remove a marker", async () => {
+      await useProjectStore.getState().addMarker(5, "Scene 1");
       const markers = useProjectStore.getState().getMarkers();
       const markerId = markers[0].id;
 
-      useProjectStore.getState().removeMarker(markerId);
+      await useProjectStore.getState().removeMarker(markerId);
 
       const updatedMarkers = useProjectStore.getState().getMarkers();
       expect(updatedMarkers.length).toBe(0);
     });
 
-    it("should get marker by id", () => {
-      useProjectStore.getState().addMarker(10, "Marker Test");
+    it("should get marker by id", async () => {
+      await useProjectStore.getState().addMarker(10, "Marker Test");
       const markers = useProjectStore.getState().getMarkers();
       const markerId = markers[0].id;
 
       const marker = useProjectStore.getState().getMarker(markerId);
       expect(marker).toBeDefined();
       expect(marker?.time).toBe(10);
+    });
+
+    it("should restore a removed marker on undo", async () => {
+      const store = useProjectStore.getState();
+      await store.addMarker(5, "Scene 1", "#ff0000");
+      const markerId = store.getMarkers()[0].id;
+
+      await store.removeMarker(markerId);
+      expect(store.getMarkers().length).toBe(0);
+
+      await store.undo();
+      const restored = useProjectStore.getState().getMarkers();
+      expect(restored.length).toBe(1);
+      expect(restored[0].label).toBe("Scene 1");
+      expect(restored[0].time).toBe(5);
+    });
+
+    it("should revert a marker update on undo", async () => {
+      const store = useProjectStore.getState();
+      await store.addMarker(5, "Original", "#ff0000");
+      const markerId = store.getMarkers()[0].id;
+
+      await store.updateMarker(markerId, { label: "Edited", time: 8 });
+      expect(useProjectStore.getState().getMarker(markerId)?.label).toBe(
+        "Edited",
+      );
+
+      await useProjectStore.getState().undo();
+      const reverted = useProjectStore.getState().getMarker(markerId);
+      expect(reverted?.label).toBe("Original");
+      expect(reverted?.time).toBe(5);
     });
   });
 
@@ -1231,7 +1624,7 @@ describe("ProjectStore", () => {
       expect(useProjectStore.getState().clipboard).toEqual([]);
     });
 
-    it("should copy clips to clipboard", () => {
+    it("copies and pastes full media clip state", async () => {
       const mockClip: Clip = {
         id: "clip-to-copy",
         mediaId: "media-1",
@@ -1241,7 +1634,14 @@ describe("ProjectStore", () => {
         inPoint: 0,
         outPoint: 5,
         effects: [],
-        audioEffects: [],
+        audioEffects: [
+          {
+            id: "audio-fx-1",
+            type: "compressor",
+            enabled: true,
+            params: { threshold: -12 },
+          },
+        ],
         transform: {
           position: { x: 0.5, y: 0.5 },
           scale: { x: 1, y: 1 },
@@ -1251,6 +1651,8 @@ describe("ProjectStore", () => {
         },
         volume: 1,
         keyframes: [],
+        fade: { fadeIn: 0.25, fadeOut: 0.5 },
+        speed: 1.5,
       };
 
       const projectWithClip: Project = {
@@ -1265,7 +1667,29 @@ describe("ProjectStore", () => {
           sampleRate: 48000,
           channels: 2,
         },
-        mediaLibrary: { items: [] },
+        mediaLibrary: {
+          items: [
+            {
+              id: "media-1",
+              name: "clipboard.mp4",
+              type: "video",
+              fileHandle: null,
+              blob: null,
+              metadata: {
+                duration: 5,
+                width: 1920,
+                height: 1080,
+                frameRate: 30,
+                codec: "h264",
+                sampleRate: 48000,
+                channels: 2,
+                fileSize: 1024,
+              },
+              thumbnailUrl: null,
+              waveformData: null,
+            },
+          ],
+        },
         timeline: {
           tracks: [
             {
@@ -1290,6 +1714,65 @@ describe("ProjectStore", () => {
       useProjectStore.getState().copyClips(["clip-to-copy"]);
 
       expect(useProjectStore.getState().clipboard.length).toBe(1);
+      expect(useProjectStore.getState().clipboard[0]?.kind).toBe("media");
+
+      const results = await useProjectStore
+        .getState()
+        .pasteClips("track-1", 6);
+      expect(results[0]?.success).toBe(true);
+      const pasted = useProjectStore
+        .getState()
+        .getClip(useProjectStore.getState().lastPastedClipIds[0]);
+      expect(pasted).toMatchObject({
+        startTime: 6,
+        speed: 1.5,
+        fade: { fadeIn: 0.25, fadeOut: 0.5 },
+        transform: mockClip.transform,
+        audioEffects: mockClip.audioEffects,
+      });
+    });
+
+    it("copies and pastes mixed overlays with relative timing and one-step undo", async () => {
+      await useProjectStore.getState().addTrack("text");
+      await useProjectStore.getState().addTrack("graphics");
+      const project = useProjectStore.getState().project;
+      const textTrack = project.timeline.tracks.find(
+        (track) => track.type === "text",
+      )!;
+      const graphicsTrack = project.timeline.tracks.find(
+        (track) => track.type === "graphics",
+      )!;
+      const text = useProjectStore
+        .getState()
+        .createTextClip(textTrack.id, 1, "Clipboard title", 4)!;
+      const shape = useProjectStore
+        .getState()
+        .createShapeClip(graphicsTrack.id, 3, "rectangle", 2)!;
+
+      useProjectStore.getState().copyClips([text.id, shape.id]);
+      expect(useProjectStore.getState().clipboard.map((item) => item.kind)).toEqual([
+        "text",
+        "shape",
+      ]);
+
+      const results = await useProjectStore
+        .getState()
+        .pasteClips(textTrack.id, 10);
+      expect(results).toEqual([{ success: true }, { success: true }]);
+      const pastedIds = useProjectStore.getState().lastPastedClipIds;
+      expect(pastedIds).toHaveLength(2);
+      expect(useProjectStore.getState().getTextClip(pastedIds[0])).toMatchObject({
+        startTime: 10,
+        trackId: textTrack.id,
+      });
+      expect(useProjectStore.getState().getShapeClip(pastedIds[1])).toMatchObject({
+        startTime: 12,
+        trackId: graphicsTrack.id,
+      });
+
+      await useProjectStore.getState().undo();
+      expect(useProjectStore.getState().project.textClips).toHaveLength(1);
+      expect(useProjectStore.getState().project.shapeClips).toHaveLength(1);
     });
   });
 
@@ -1456,6 +1939,55 @@ describe("ProjectStore - Text Clips", () => {
     const presets = useProjectStore.getState().getAvailableAnimationPresets();
     expect(Array.isArray(presets)).toBe(true);
   });
+
+  const tick = () => new Promise((resolve) => setTimeout(resolve, 5));
+
+  it("undoes a text content edit without deleting the clip, and redoes it", async () => {
+    const { project } = useProjectStore.getState();
+    const trackId = project.timeline.tracks[0].id;
+
+    const textClip = useProjectStore
+      .getState()
+      .createTextClip(trackId, 0, "Original", 5);
+    expect(textClip).toBeDefined();
+    const clipId = textClip!.id;
+
+    // Ensure the edit's history timestamp is strictly after the create's so
+    // the unified (timestamp-ordered) undo targets the edit first.
+    await tick();
+    useProjectStore.getState().updateTextContent(clipId, "Edited");
+    const titleEngine = () => useEngineStore.getState().getTitleEngine();
+    expect(titleEngine()?.getTextClip(clipId)?.text).toBe("Edited");
+
+    await useProjectStore.getState().undo();
+    const afterUndo = titleEngine()?.getTextClip(clipId);
+    expect(afterUndo).toBeDefined();
+    expect(afterUndo?.text).toBe("Original");
+
+    await useProjectStore.getState().redo();
+    expect(titleEngine()?.getTextClip(clipId)?.text).toBe("Edited");
+  });
+
+  it("undoes a text style edit in place", async () => {
+    const { project } = useProjectStore.getState();
+    const trackId = project.timeline.tracks[0].id;
+
+    const textClip = useProjectStore
+      .getState()
+      .createTextClip(trackId, 0, "Styled", 5);
+    const clipId = textClip!.id;
+    const originalSize = textClip!.style.fontSize;
+
+    await tick();
+    useProjectStore.getState().updateTextStyle(clipId, { fontSize: 99 });
+    const titleEngine = () => useEngineStore.getState().getTitleEngine();
+    expect(titleEngine()?.getTextClip(clipId)?.style.fontSize).toBe(99);
+
+    await useProjectStore.getState().undo();
+    const afterUndo = titleEngine()?.getTextClip(clipId);
+    expect(afterUndo).toBeDefined();
+    expect(afterUndo?.style.fontSize).toBe(originalSize);
+  });
 });
 
 describe("ProjectStore - Subtitles (consolidated into text clips)", () => {
@@ -1550,5 +2082,81 @@ Ignored block`;
 
     expect(captionClips).toHaveLength(1);
     expect(captionClips[0]?.text).toBe("Hello world");
+  });
+});
+
+describe("ProjectStore - generated shader registry lifecycle", () => {
+  const shaderA: MotionShaderDef = {
+    id: "ai-project-a-shader",
+    name: "Project A Shader",
+    category: "fill",
+    glsl: "#version 300 es\nin vec2 vUv;\nout vec4 fragColor;\nvoid main(){ fragColor=vec4(vUv,0.0,1.0); }",
+    params: [],
+    origin: "generated",
+  };
+
+  const shaderB: MotionShaderDef = {
+    id: "ai-project-b-shader",
+    name: "Project B Shader",
+    category: "effect",
+    glsl: "#version 300 es\nin vec2 vUv;\nout vec4 fragColor;\nvoid main(){ fragColor=vec4(1.0); }",
+    params: [],
+    origin: "generated",
+  };
+
+  const projectWith = (
+    name: string,
+    generatedShaders: readonly MotionShaderDef[],
+  ): Project => ({
+    ...createEmptyProject(name),
+    generatedShaders,
+  });
+
+  beforeEach(() => {
+    clearGeneratedMotionShaders();
+  });
+
+  it("rehydrates the registry from generatedShaders on loadProject", () => {
+    useProjectStore.getState().loadProject(projectWith("A", [shaderA]));
+
+    expect(getMotionShaderDef(shaderA.id)?.id).toBe(shaderA.id);
+    expect(listGeneratedMotionShaders().map((d) => d.id)).toContain(shaderA.id);
+  });
+
+  it("isolates the registry when loading a different project", () => {
+    useProjectStore.getState().loadProject(projectWith("A", [shaderA]));
+    expect(getMotionShaderDef(shaderA.id)?.id).toBe(shaderA.id);
+
+    useProjectStore.getState().loadProject(projectWith("B", [shaderB]));
+
+    expect(getMotionShaderDef(shaderA.id)).toBeUndefined();
+    expect(getMotionShaderDef(shaderB.id)?.id).toBe(shaderB.id);
+    expect(listGeneratedMotionShaders().map((d) => d.id)).toEqual([shaderB.id]);
+  });
+
+  it("clears the prior project's shaders on createNewProject", () => {
+    useProjectStore.getState().loadProject(projectWith("A", [shaderA]));
+    expect(getMotionShaderDef(shaderA.id)?.id).toBe(shaderA.id);
+
+    useProjectStore.getState().createNewProject();
+
+    expect(getMotionShaderDef(shaderA.id)).toBeUndefined();
+    expect(listGeneratedMotionShaders()).toEqual([]);
+  });
+
+  it("drops malformed generated shaders during loadProject normalization", () => {
+    const malformed = { id: "", name: "Broken", category: "fill", glsl: "", params: [] };
+    const project = {
+      ...createEmptyProject("Malformed"),
+      generatedShaders: [malformed, shaderA] as unknown as readonly MotionShaderDef[],
+    };
+
+    useProjectStore.getState().loadProject(project);
+
+    expect(getMotionShaderDef(shaderA.id)?.id).toBe(shaderA.id);
+    expect(listGeneratedMotionShaders().map((d) => d.id)).toEqual([shaderA.id]);
+    expect(
+      useProjectStore.getState().project.generatedShaders?.map((d) => d.id),
+    ).toEqual([shaderA.id]);
   });
 });

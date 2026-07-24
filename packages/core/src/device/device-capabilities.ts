@@ -1,3 +1,5 @@
+import type { NativeHardwareInfo } from "./native-profile";
+
 export type DeviceTier = "low" | "mid" | "high";
 
 export interface CpuInfo {
@@ -62,20 +64,30 @@ export interface CodecRecommendation {
 
 const STORAGE_KEY = "openreel_device_profile";
 
-function getCpuTier(cores: number): DeviceTier {
+export function getCpuTier(cores: number): DeviceTier {
   if (cores >= 8) return "high";
   if (cores >= 4) return "mid";
   return "low";
 }
 
-function getMemoryTier(gb: number): DeviceTier {
+export function getMemoryTier(gb: number): DeviceTier {
   if (gb >= 8) return "high";
   if (gb >= 4) return "mid";
   return "low";
 }
 
-function getGpuTier(renderer: string): DeviceTier {
+export function getGpuTier(renderer: string): DeviceTier {
   const r = renderer.toLowerCase();
+
+  // Apple Silicon (native strings like "Apple M2 Pro"; covers current + future generations):
+  // M1 base = mid, M1 Pro/Max/Ultra = high, M2 and newer = high.
+  const appleSilicon = /apple m(\d+)/.exec(r);
+  if (appleSilicon) {
+    const generation = Number(appleSilicon[1]);
+    if (generation >= 2) return "high";
+    if (r.includes("pro") || r.includes("max") || r.includes("ultra")) return "high";
+    return "mid";
+  }
 
   const highEndPatterns = [
     "nvidia rtx",
@@ -223,7 +235,7 @@ async function detectEncodingSupport(): Promise<EncodingSupport> {
   return { h264, h265, vp9, av1 };
 }
 
-function calculateOverallTier(
+export function calculateOverallTier(
   cpu: CpuInfo,
   memory: MemoryInfo,
   gpu: GpuInfo
@@ -420,6 +432,18 @@ export async function getDeviceProfile(
   forceRefresh = false
 ): Promise<DeviceProfile> {
   if (!forceRefresh && cachedProfile) {
+    return cachedProfile;
+  }
+
+  // Desktop: build the profile from real hardware specs (window.openreel.probeHardware)
+  // instead of the browser heuristics (navigator/WebGL/WebCodecs).
+  const bridge = (globalThis as unknown as {
+    openreel?: { platform?: string; probeHardware?: () => Promise<NativeHardwareInfo> };
+  }).openreel;
+  if (bridge?.platform === "desktop" && typeof bridge.probeHardware === "function") {
+    const info = await bridge.probeHardware();
+    const { buildProfileFromNativeSpecs } = await import("./native-profile");
+    cachedProfile = buildProfileFromNativeSpecs(info);
     return cachedProfile;
   }
 

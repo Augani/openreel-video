@@ -10,15 +10,15 @@ import {
   Plus,
   GripVertical,
   ChevronDown,
-} from "lucide-react";
+} from "@/icons/lucide-compat";
 import type { PhotoBlendMode, PhotoLayer } from "@openreel/core";
-import {
-  LabeledSlider as Slider,
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-} from "@openreel/ui";
+import { ToolcraftButton as Button } from "@openreel/ui";
+import { ToolcraftCard as Card } from "@openreel/ui";
+import { ToolcraftClickableCard as ClickableCard } from "@openreel/ui";
+import { ToolcraftIconButton as IconButton } from "@openreel/ui";
+import { ToolcraftPopover as Popover } from "@openreel/ui";
+import { ToolcraftText as Text } from "@openreel/ui";
+import { PropertySlider } from "./shell/PropertySlider";
 
 const BLEND_MODES: { value: PhotoBlendMode; label: string }[] = [
   { value: "normal", label: "Normal" },
@@ -46,28 +46,39 @@ const BlendModeSelector: React.FC<{
 
   return (
     <div className="flex items-center justify-between">
-      <span className="text-[10px] text-text-secondary">Blend Mode</span>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <button className="flex items-center gap-1 px-2 py-1 text-[10px] bg-background-tertiary border border-border rounded hover:border-primary transition-colors">
-            <span className="text-text-primary">{selectedMode.label}</span>
-            <ChevronDown size={12} className="text-text-muted" />
-          </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-32 max-h-48 overflow-y-auto">
+      <Text type="supporting" color="secondary" className="text-[10px]">
+        Blend Mode
+      </Text>
+      <Popover
+        placement="below"
+        alignment="end"
+        width={180}
+        label="Blend mode"
+        content={
+          <div className="max-h-48 overflow-y-auto p-1.5">
           {BLEND_MODES.map((mode) => (
-            <DropdownMenuItem
+            <ClickableCard
               key={mode.value}
+              label={`Set blend mode to ${mode.label}`}
               onClick={() => onChange(mode.value)}
-              className={`text-[10px] ${
-                mode.value === value ? "text-primary bg-background-tertiary" : ""
-              }`}
+              padding={2}
+              variant={mode.value === value ? "green" : "transparent"}
             >
-              {mode.label}
-            </DropdownMenuItem>
+              <Text type="supporting" color="primary" className="text-[10px]">
+                {mode.label}
+              </Text>
+            </ClickableCard>
           ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
+          </div>
+        }
+      >
+        <Button
+          label={selectedMode.label}
+          variant="secondary"
+          size="sm"
+          endContent={<ChevronDown size={12} className="text-fg-3" aria-hidden />}
+        />
+      </Popover>
     </div>
   );
 };
@@ -97,11 +108,13 @@ const LayerItem: React.FC<{
   draggable,
 }) => {
   return (
-    <div
+    <Card
+      variant={isSelected ? "green" : "muted"}
+      padding={2}
       className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-colors ${
         isSelected
           ? "bg-primary/20 border border-primary"
-          : "bg-background-tertiary border border-transparent hover:border-border"
+          : "bg-bg-2 border border-transparent hover:border-border"
       }`}
       onClick={onSelect}
       draggable={draggable}
@@ -110,50 +123,68 @@ const LayerItem: React.FC<{
       onDrop={onDrop}
     >
       {/* Drag Handle */}
-      <div className="cursor-grab active:cursor-grabbing text-text-muted hover:text-text-secondary">
-        <GripVertical size={14} />
+      <div className="cursor-grab active:cursor-grabbing text-fg-3 hover:text-fg-2">
+        <GripVertical size={14} aria-hidden />
       </div>
 
       {/* Layer Thumbnail */}
-      <div className="w-8 h-8 bg-background-secondary rounded border border-border flex items-center justify-center overflow-hidden">
+      <div className="w-8 h-8 bg-bg-1 rounded border border-border flex items-center justify-center overflow-hidden">
         {layer.content ? (
           <div className="w-full h-full bg-checkerboard" />
         ) : (
-          <Layers size={14} className="text-text-muted" />
+          <Layers size={14} className="text-fg-3" aria-hidden />
         )}
       </div>
 
       {/* Layer Name */}
       <div className="flex-1 min-w-0">
-        <span
+        <Text
+          type="supporting"
           className={`text-[10px] font-medium truncate block ${
-            layer.visible ? "text-text-primary" : "text-text-muted"
+            layer.visible ? "text-fg" : "text-fg-3"
           }`}
         >
           {layer.name}
-        </span>
-        <span className="text-[9px] text-text-muted capitalize">
+        </Text>
+        <Text type="supporting" color="secondary" className="text-[9px] capitalize">
           {layer.type}
-        </span>
+        </Text>
       </div>
 
       {/* Layer Actions */}
       <div className="flex items-center gap-1">
-        <button
+        <IconButton
+          label={layer.visible ? "Hide layer" : "Show layer"}
+          icon={
+            layer.visible ? (
+              <Eye size={14} aria-hidden />
+            ) : (
+              <EyeOff size={14} aria-hidden />
+            )
+          }
+          variant="ghost"
+          size="sm"
           onClick={(e) => {
             e.stopPropagation();
             onToggleVisibility();
           }}
           className={`p-1 rounded transition-colors ${
             layer.visible
-              ? "text-text-secondary hover:text-text-primary"
-              : "text-text-muted hover:text-text-secondary"
+              ? "text-fg-2 hover:text-fg"
+              : "text-fg-3 hover:text-fg-2"
           }`}
-          title={layer.visible ? "Hide layer" : "Show layer"}
-        >
-          {layer.visible ? <Eye size={14} /> : <EyeOff size={14} />}
-        </button>
-        <button
+        />
+        <IconButton
+          label={layer.locked ? "Unlock layer" : "Lock layer"}
+          icon={
+            layer.locked ? (
+              <Lock size={14} aria-hidden />
+            ) : (
+              <Unlock size={14} aria-hidden />
+            )
+          }
+          variant="ghost"
+          size="sm"
           onClick={(e) => {
             e.stopPropagation();
             onToggleLock();
@@ -161,14 +192,11 @@ const LayerItem: React.FC<{
           className={`p-1 rounded transition-colors ${
             layer.locked
               ? "text-warning hover:text-warning/80"
-              : "text-text-muted hover:text-text-secondary"
+              : "text-fg-3 hover:text-fg-2"
           }`}
-          title={layer.locked ? "Unlock layer" : "Lock layer"}
-        >
-          {layer.locked ? <Lock size={14} /> : <Unlock size={14} />}
-        </button>
+        />
       </div>
-    </div>
+    </Card>
   );
 };
 
@@ -257,14 +285,17 @@ export const PhotoLayersSection: React.FC<PhotoLayersSectionProps> = ({
   if (layers.length === 0) {
     return (
       <div className="p-4 text-center">
-        <Layers size={24} className="mx-auto mb-2 text-text-muted" />
-        <p className="text-[10px] text-text-muted">No layers</p>
-        <button
+        <Layers size={24} className="mx-auto mb-2 text-fg-3" aria-hidden />
+        <Text type="supporting" color="secondary" className="text-[10px]">
+          No layers
+        </Text>
+        <Button
+          label="Add Layer"
+          variant="primary"
+          size="sm"
           onClick={onAddLayer}
-          className="mt-2 px-3 py-1.5 text-[10px] bg-primary text-white rounded hover:bg-primary/90 transition-colors"
-        >
-          Add Layer
-        </button>
+          className="mt-2"
+        />
       </div>
     );
   }
@@ -273,16 +304,17 @@ export const PhotoLayersSection: React.FC<PhotoLayersSectionProps> = ({
     <div className="space-y-4">
       {/* Layer List Header */}
       <div className="flex items-center justify-between">
-        <span className="text-[10px] text-text-secondary font-medium">
+        <Text type="supporting" color="secondary" weight="bold" className="text-[10px]">
           Layers ({layers.length})
-        </span>
-        <button
+        </Text>
+        <IconButton
+          label="Add new layer"
+          icon={<Plus size={14} aria-hidden />}
+          variant="ghost"
+          size="sm"
           onClick={onAddLayer}
-          className="p-1 text-text-muted hover:text-text-primary transition-colors"
-          title="Add new layer"
-        >
-          <Plus size={14} />
-        </button>
+          className="text-fg-3 hover:text-fg"
+        />
       </div>
 
       {/* Layer List - Reversed to show top layers first */}
@@ -309,18 +341,18 @@ export const PhotoLayersSection: React.FC<PhotoLayersSectionProps> = ({
       {/* Selected Layer Properties */}
       {selectedLayer && (
         <div className="space-y-3 pt-3 border-t border-border">
-          <span className="text-[10px] text-text-secondary font-medium">
+          <Text type="supporting" color="secondary" weight="bold" className="text-[10px]">
             Layer Properties
-          </span>
+          </Text>
 
           {/* Opacity Slider */}
-          <Slider
+          <PropertySlider
             label="Opacity"
             value={selectedLayer.opacity * 100}
-            onChange={(value) => onSetOpacity(selectedLayer.id, value / 100)}
+            onChange={(value: number) => onSetOpacity(selectedLayer.id, value / 100)}
             min={0}
             max={100}
-            unit="%"
+            formatValue={(value) => `${Math.round(value)}%`}
           />
 
           {/* Blend Mode Selector */}
@@ -331,23 +363,23 @@ export const PhotoLayersSection: React.FC<PhotoLayersSectionProps> = ({
 
           {/* Layer Actions */}
           <div className="flex items-center gap-2 pt-2">
-            <button
+            <Button
+              label="Duplicate"
+              icon={<Copy size={12} aria-hidden />}
+              variant="secondary"
+              size="sm"
               onClick={() => onDuplicateLayer(selectedLayer.id)}
-              className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 text-[10px] bg-background-tertiary border border-border rounded hover:border-primary transition-colors"
-              title="Duplicate layer"
-            >
-              <Copy size={12} />
-              <span>Duplicate</span>
-            </button>
-            <button
+              className="flex-1"
+            />
+            <Button
+              label="Delete"
+              icon={<Trash2 size={12} aria-hidden />}
+              variant="secondary"
+              size="sm"
               onClick={() => onDeleteLayer(selectedLayer.id)}
-              className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 text-[10px] bg-background-tertiary border border-border rounded hover:border-error text-error transition-colors"
-              title="Delete layer"
-              disabled={layers.length <= 1}
-            >
-              <Trash2 size={12} />
-              <span>Delete</span>
-            </button>
+              isDisabled={layers.length <= 1}
+              className="flex-1 text-error"
+            />
           </div>
         </div>
       )}

@@ -1,20 +1,11 @@
-import type { EasingType } from "../types/timeline";
+import type {
+  EasingType,
+  SpeedKeyframe,
+  FreezeFrame,
+} from "../types/timeline";
 import { AnimationEngine } from "./animation-engine";
 
-export interface SpeedKeyframe {
-  id: string;
-  time: number;
-  speed: number;
-  easing: EasingType;
-}
-
-export interface FreezeFrame {
-  id: string;
-  clipId: string;
-  sourceTime: number;
-  startTime: number;
-  duration: number;
-}
+export type { SpeedKeyframe, FreezeFrame };
 
 export interface ClipSpeedData {
   clipId: string;

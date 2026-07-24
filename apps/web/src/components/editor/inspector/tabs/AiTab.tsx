@@ -1,24 +1,30 @@
 import React from "react";
-import { Zap, Captions, Loader2, Upload } from "lucide-react";
+import { Zap, Captions, Loader2, Upload } from "@/icons/lucide-compat";
+import { ToolcraftButton as Button } from "@openreel/ui";
+import { ToolcraftCard as Card } from "@openreel/ui";
+import { ToolcraftFileDropControl as FileInput } from "@openreel/ui";
+import { ToolcraftProgressBar as ProgressBar } from "@openreel/ui";
+import { ToolcraftSelectControl as Selector } from "@openreel/ui";
+import { ToolcraftText as Text } from "@openreel/ui";
 import {
   type WhisperTranscriptionProgress,
   type CaptionAnimationStyle,
   CAPTION_ANIMATION_STYLES,
   getAnimationStyleDisplayName,
 } from "@openreel/core";
-import {
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
-  SelectGroup,
-  SelectLabel,
-} from "@openreel/ui";
 import { AutoReframeSection } from "../";
 import { AutoEditPanel } from "../../panels/AutoEditPanel";
 import { HighlightExtractorPanel } from "../../panels/HighlightExtractorPanel";
 import { InspectorSection } from "../shell/InspectorSection";
+import { AIPanel } from "../../ai-panel/AIPanel";
+import type { ClipMediaType } from "../../ai-panel/ai-kinds.config";
+import { isDesktopGpuAvailable } from "../../../../services/gpu-jobs";
+
+const GPU_CLIP_MEDIA: readonly ClipMediaType[] = ["video", "image", "audio"];
+
+function asGpuClipMedia(clipType: string | null): ClipMediaType | null {
+  return GPU_CLIP_MEDIA.includes(clipType as ClipMediaType) ? (clipType as ClipMediaType) : null;
+}
 
 export interface AiTabProps {
   clipId: string;
@@ -38,7 +44,7 @@ export interface AiTabProps {
   handleSRTImport: (
     event: React.ChangeEvent<HTMLInputElement>,
   ) => Promise<void>;
-  srtInputRef: React.RefObject<HTMLInputElement>;
+  srtInputRef: React.RefObject<HTMLInputElement | null>;
   handleRemoveBackground: () => void;
   handleEnhanceAudio: () => Promise<void>;
   handleAutoColor: () => Promise<void>;
@@ -69,8 +75,24 @@ export const AiTab: React.FC<AiTabProps> = ({
   audioEnhanced,
   isApplyingSelectedClipEffect,
 }) => {
+  const gpuClipMedia = asGpuClipMedia(clipType);
+  // On desktop the local transcription endpoint (cloud.openreel.video) is
+  // CORS-blocked from app://openreel, so generation is done via the GPU
+  // "Auto Captions" tile in Cloud GPU Tools instead.
+  const isDesktop = isDesktopGpuAvailable();
+
   return (
     <>
+      {gpuClipMedia && (
+        <InspectorSection
+          title="Cloud GPU Tools"
+          sectionId="cloud-gpu-tools"
+          defaultOpen
+        >
+          <AIPanel clipTypeFilter={gpuClipMedia} embedded />
+        </InspectorSection>
+      )}
+
       {clipType === "video" && (
         <>
           <InspectorSection
@@ -79,72 +101,73 @@ export const AiTab: React.FC<AiTabProps> = ({
             defaultOpen={false}
           >
             <div className="space-y-3">
-              <input
+              <FileInput
                 ref={srtInputRef}
-                type="file"
+                label="Import SRT file"
+                isLabelHidden
+                value={null}
                 accept=".srt,text/srt,text/plain"
-                onChange={handleSRTImport}
+                onChange={(files) => {
+                  const file = Array.isArray(files) ? files[0] : files;
+                  if (!file) return;
+                  void handleSRTImport({
+                    target: { files: [file] },
+                  } as unknown as React.ChangeEvent<HTMLInputElement>);
+                }}
                 className="hidden"
               />
-              <div>
-                <label className="text-[10px] text-text-secondary block mb-1">
-                  Animation Style
-                </label>
-                <Select
+              {isDesktop && (
+                <Text type="supporting" color="secondary" className="text-[11px]">
+                  Use the “Auto Captions” tool in Cloud GPU Tools above to generate captions.
+                </Text>
+              )}
+              {!isDesktop && (
+                <>
+              <div className="space-y-1">
+                <Selector
+                  label="Animation Style"
+                  size="sm"
+                  width="100%"
                   value={defaultAnimationStyle}
-                  onValueChange={(v) =>
+                  onChange={(v) =>
                     setDefaultAnimationStyle(v as CaptionAnimationStyle)
                   }
-                  disabled={isTranscribing}
-                >
-                  <SelectTrigger className="w-full bg-background-secondary border-border text-text-primary text-[11px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="bg-background-secondary border-border">
-                    {CAPTION_ANIMATION_STYLES.map((style) => (
-                      <SelectItem key={style} value={style}>
-                        {getAnimationStyleDisplayName(style)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  isDisabled={isTranscribing}
+                  options={CAPTION_ANIMATION_STYLES.map((style) => ({
+                    label: getAnimationStyleDisplayName(style),
+                    value: style,
+                  }))}
+                />
               </div>
 
-              <div>
-                <label className="text-[10px] text-text-secondary block mb-1">
-                  Target Language
-                </label>
-                <Select
+              <div className="space-y-1">
+                <Selector
+                  label="Target Language"
+                  size="sm"
+                  width="100%"
                   value={targetLanguage}
-                  onValueChange={setTargetLanguage}
-                  disabled={isTranscribing}
-                >
-                  <SelectTrigger className="w-full bg-background-secondary border-border text-text-primary text-[11px]">
-                    <SelectValue placeholder="Original (no translation)" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-background-secondary border-border">
-                    <SelectItem value="none">Original (no translation)</SelectItem>
-                    <SelectGroup>
-                      <SelectLabel className="text-[10px]">Translate to</SelectLabel>
-                      <SelectItem value="en">English</SelectItem>
-                      <SelectItem value="es">Spanish</SelectItem>
-                      <SelectItem value="fr">French</SelectItem>
-                      <SelectItem value="de">German</SelectItem>
-                      <SelectItem value="pt">Portuguese</SelectItem>
-                      <SelectItem value="it">Italian</SelectItem>
-                      <SelectItem value="nl">Dutch</SelectItem>
-                      <SelectItem value="ru">Russian</SelectItem>
-                      <SelectItem value="zh">Chinese</SelectItem>
-                      <SelectItem value="ja">Japanese</SelectItem>
-                      <SelectItem value="ko">Korean</SelectItem>
-                      <SelectItem value="ar">Arabic</SelectItem>
-                      <SelectItem value="hi">Hindi</SelectItem>
-                      <SelectItem value="tr">Turkish</SelectItem>
-                      <SelectItem value="pl">Polish</SelectItem>
-                      <SelectItem value="sv">Swedish</SelectItem>
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
+                  onChange={setTargetLanguage}
+                  isDisabled={isTranscribing}
+                  options={[
+                    { label: "Original (no translation)", value: "none" },
+                    { label: "English", value: "en" },
+                    { label: "Spanish", value: "es" },
+                    { label: "French", value: "fr" },
+                    { label: "German", value: "de" },
+                    { label: "Portuguese", value: "pt" },
+                    { label: "Italian", value: "it" },
+                    { label: "Dutch", value: "nl" },
+                    { label: "Russian", value: "ru" },
+                    { label: "Chinese", value: "zh" },
+                    { label: "Japanese", value: "ja" },
+                    { label: "Korean", value: "ko" },
+                    { label: "Arabic", value: "ar" },
+                    { label: "Hindi", value: "hi" },
+                    { label: "Turkish", value: "tr" },
+                    { label: "Polish", value: "pl" },
+                    { label: "Swedish", value: "sv" },
+                  ]}
+                />
               </div>
 
               {transcriptionProgress ? (
@@ -154,41 +177,47 @@ export const AiTab: React.FC<AiTabProps> = ({
                       size={12}
                       className="animate-spin text-primary"
                     />
-                    <span className="text-[10px] text-text-primary">
+                    <Text type="supporting" color="primary" className="text-[10px]">
                       {transcriptionProgress.message}
-                    </span>
+                    </Text>
                   </div>
-                  <div className="h-1.5 bg-background-tertiary rounded-full overflow-hidden">
-                    <div
-                      className={`h-full transition-all duration-300 ${
-                        transcriptionProgress.phase === "error"
-                          ? "bg-red-500"
-                          : transcriptionProgress.phase === "complete"
-                            ? "bg-green-500"
-                            : "bg-primary"
-                      }`}
-                      style={{ width: `${transcriptionProgress.progress}%` }}
-                    />
-                  </div>
+                  <ProgressBar
+                    label="Caption generation progress"
+                    isLabelHidden
+                    value={transcriptionProgress.progress}
+                    max={100}
+                    hasValueLabel={false}
+                    variant={
+                      transcriptionProgress.phase === "error"
+                        ? "error"
+                        : transcriptionProgress.phase === "complete"
+                          ? "success"
+                          : "accent"
+                    }
+                  />
                 </div>
               ) : (
-                <button
+                <Button
+                  label="Generate Captions"
                   onClick={handleGenerateSubtitles}
-                  disabled={isTranscribing}
-                  className="w-full py-2 bg-primary hover:bg-primary/80 text-black rounded-lg text-[11px] font-medium transition-all flex items-center justify-center gap-2"
-                >
-                  <Captions size={14} />
-                  Generate Captions
-                </button>
+                  isDisabled={isTranscribing}
+                  variant="primary"
+                  size="sm"
+                  icon={<Captions size={14} aria-hidden />}
+                  className="w-full justify-center"
+                />
               )}
-              <button
+                </>
+              )}
+              <Button
+                label="Import SRT File"
                 onClick={() => srtInputRef.current?.click()}
-                disabled={isTranscribing}
-                className="w-full py-2 bg-background-tertiary hover:bg-background-tertiary/80 border border-border text-text-primary rounded-lg text-[11px] font-medium transition-all flex items-center justify-center gap-2 disabled:opacity-50"
-              >
-                <Upload size={13} />
-                Import SRT File
-              </button>
+                isDisabled={isTranscribing}
+                variant="secondary"
+                size="sm"
+                icon={<Upload size={13} aria-hidden />}
+                className="w-full justify-center"
+              />
             </div>
           </InspectorSection>
         </>
@@ -225,64 +254,71 @@ export const AiTab: React.FC<AiTabProps> = ({
       )}
 
       {(showVideoControls || showAudioEffects || showVideoEffects) && (
-        <div className="border border-primary/30 bg-primary/5 rounded-xl p-4 relative overflow-hidden">
+        <Card
+          variant="green"
+          padding={4}
+          className="relative overflow-hidden border border-primary/30 bg-primary/5"
+        >
           <div className="flex items-center gap-2 text-primary mb-3">
             <Zap size={14} />
-            <span className="text-xs font-bold">Quick Actions</span>
+            <Text type="supporting" color="active" className="text-xs font-bold">
+              Quick Actions
+            </Text>
           </div>
           <div className="space-y-2">
             {showVideoControls && (
-              <button
+              <Button
+                label="Remove Background"
                 onClick={handleRemoveBackground}
-                disabled={isApplyingSelectedClipEffect}
-                className={`w-full py-2 border rounded-lg text-[10px] transition-all ${
+                isDisabled={isApplyingSelectedClipEffect}
+                variant="secondary"
+                size="sm"
+                className={`w-full justify-center ${
                   isApplyingSelectedClipEffect
-                    ? "bg-background-tertiary border-border text-text-muted cursor-not-allowed"
-                    : "bg-background-tertiary hover:bg-primary hover:text-white border-border hover:border-primary"
+                    ? "bg-bg-2 border-border text-fg-3"
+                    : "bg-bg-2 hover:bg-primary hover:text-white border-border hover:border-primary"
                 }`}
-              >
-                Remove Background
-              </button>
+              />
             )}
             {showAudioEffects && (
-              <button
+              <Button
+                label={
+                  isEnhancingAudio
+                    ? "Cleaning up..."
+                    : audioEnhanced
+                      ? "Noise Reduced"
+                      : "Quick Dialogue Cleanup"
+                }
                 onClick={handleEnhanceAudio}
-                disabled={isEnhancingAudio || isApplyingSelectedClipEffect}
-                className={`w-full py-2 border rounded-lg text-[10px] transition-all flex items-center justify-center gap-1.5 ${
+                isDisabled={isEnhancingAudio || isApplyingSelectedClipEffect}
+                variant="secondary"
+                size="sm"
+                icon={isEnhancingAudio ? <Loader2 size={12} className="animate-spin" aria-hidden /> : undefined}
+                className={`w-full justify-center ${
                   audioEnhanced
                     ? "bg-green-500/20 border-green-500 text-green-400"
                     : isEnhancingAudio || isApplyingSelectedClipEffect
-                      ? "bg-background-tertiary border-border text-text-muted cursor-not-allowed"
-                      : "bg-background-tertiary hover:bg-primary hover:text-white border-border hover:border-primary"
+                      ? "bg-bg-2 border-border text-fg-3"
+                      : "bg-bg-2 hover:bg-primary hover:text-white border-border hover:border-primary"
                 }`}
-              >
-                {isEnhancingAudio ? (
-                  <>
-                    <Loader2 size={12} className="animate-spin" />
-                    Cleaning up...
-                  </>
-                ) : audioEnhanced ? (
-                  "✓ Noise Reduced"
-                ) : (
-                  "Quick Dialogue Cleanup"
-                )}
-              </button>
+              />
             )}
             {showVideoEffects && (
-              <button
+              <Button
+                label={isApplyingSelectedClipEffect ? "Applying..." : "Auto-Color"}
                 onClick={handleAutoColor}
-                disabled={isApplyingSelectedClipEffect}
-                className={`w-full py-2 border rounded-lg text-[10px] transition-all ${
+                isDisabled={isApplyingSelectedClipEffect}
+                variant="secondary"
+                size="sm"
+                className={`w-full justify-center ${
                   isApplyingSelectedClipEffect
-                    ? "bg-background-tertiary border-border text-text-muted cursor-not-allowed"
-                    : "bg-background-tertiary hover:bg-primary hover:text-white border-border hover:border-primary"
+                    ? "bg-bg-2 border-border text-fg-3"
+                    : "bg-bg-2 hover:bg-primary hover:text-white border-border hover:border-primary"
                 }`}
-              >
-                {isApplyingSelectedClipEffect ? "Applying..." : "Auto-Color"}
-              </button>
+              />
             )}
           </div>
-        </div>
+        </Card>
       )}
     </>
   );

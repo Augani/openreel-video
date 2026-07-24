@@ -1,0 +1,18 @@
+{
+  "license": "All binaries are GPL FFmpeg builds invoked as a separate process. See LICENSES/FFMPEG.md. None are built --enable-nonfree (enforced at fetch time).",
+  "binaries": {
+    "darwin-arm64": {
+      "file": "darwin-arm64/ffmpeg",
+      "ffmpegVersion": "7.1",
+      "source": "OSXExperts (osxexperts.net), GPL static",
+      "sha256": "6d175a4743ca50256e89a8cdd731100f9cee33bd79aeea46894d209410dc6617"
+    },
+    "darwin-x64": {
+      "file": "darwin-x64/ffmpeg",
+      "ffmpegVersion": "6.1.1",
+      "source": "ffmpeg-static b6.1.1 (Evermeet), GPL static",
+      "sha256": "ebdddc936f61e14049a2d4b549a412b8a40deeff6540e58a9f2a2da9e6b18894"
+    }
+  },
+  "note": "Binaries are gitignored. Run `pnpm --filter @openreel/desktop fetch:ffmpeg` (host slots) or `node scripts/fetch-ffmpeg.mjs --all`. Sources/versions differ per slot (see each entry); digests are verified on every fetch."
+}

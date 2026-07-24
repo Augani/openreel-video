@@ -47,8 +47,42 @@ const ALLOWED_ORIGINS = [
   "http://localhost:4173",
 ];
 
-const MAX_REQUEST_BODY_BYTES = 1_048_576; // 1 MB
-const UPSTREAM_TIMEOUT_MS = 25_000;
+const MAX_REQUEST_BODY_BYTES = 8_388_608; // 8 MB (agent tool/state payloads)
+const UPSTREAM_TIMEOUT_MS = 120_000;
+
+class BodyTooLargeError extends Error {}
+
+/**
+ * Buffer a request body while enforcing a byte cap — so the limit holds for
+ * chunked/streamed transfers too, not just when Content-Length is present.
+ */
+async function readBodyCapped(
+  request: Request,
+  max: number,
+): Promise<ArrayBuffer | undefined> {
+  if (!request.body) return undefined;
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (!value) continue;
+    total += value.byteLength;
+    if (total > max) {
+      await reader.cancel();
+      throw new BodyTooLargeError();
+    }
+    chunks.push(value);
+  }
+  const out = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    out.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return out.buffer;
+}
 
 function getCorsHeaders(request: Request): Record<string, string> {
   const origin = request.headers.get("Origin") ?? "";
@@ -105,16 +139,27 @@ export const onRequest: PagesFunction = async (context) => {
     return jsonError("Missing x-proxy-api-key header", 401, corsHeaders);
   }
 
-  if (
-    context.request.method === "POST" &&
-    context.request.headers.has("Content-Length")
-  ) {
+  // Fast-path reject on a declared oversized body; the streaming cap below is
+  // the authoritative check (covers chunked transfers with no Content-Length).
+  if (context.request.headers.has("Content-Length")) {
     const contentLength = parseInt(
       context.request.headers.get("Content-Length") ?? "0",
       10,
     );
     if (contentLength > MAX_REQUEST_BODY_BYTES) {
       return jsonError("Request body too large", 413, corsHeaders);
+    }
+  }
+
+  let requestBody: ArrayBuffer | undefined;
+  if (context.request.method !== "GET" && context.request.method !== "HEAD") {
+    try {
+      requestBody = await readBodyCapped(context.request, MAX_REQUEST_BODY_BYTES);
+    } catch (err) {
+      if (err instanceof BodyTooLargeError) {
+        return jsonError("Request body too large", 413, corsHeaders);
+      }
+      throw err;
     }
   }
 
@@ -137,7 +182,7 @@ export const onRequest: PagesFunction = async (context) => {
     upstreamResponse = await fetch(targetUrl, {
       method: context.request.method,
       headers: upstreamHeaders,
-      body: context.request.method !== "GET" ? context.request.body : undefined,
+      body: requestBody,
       signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
     });
   } catch (err) {

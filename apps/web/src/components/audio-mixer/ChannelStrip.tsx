@@ -1,6 +1,9 @@
 import React, { useCallback, useMemo } from "react";
 import type { ChannelStripState } from "./types";
 import { volumeToDb, formatDb, formatPan } from "./types";
+import { ToolcraftButton as Button } from "@openreel/ui";
+import { ToolcraftSlider as Slider } from "@openreel/ui";
+import { ToolcraftText as Text } from "@openreel/ui";
 
 export interface ChannelStripProps {
   channel: ChannelStripState;
@@ -70,13 +73,6 @@ const Fader: React.FC<{
   onChange: (value: number) => void;
   disabled?: boolean;
 }> = ({ value, onChange, disabled }) => {
-  const handleChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      onChange(parseFloat(e.target.value));
-    },
-    [onChange],
-  );
-
   const dbValue = volumeToDb(value);
 
   return (
@@ -84,14 +80,17 @@ const Fader: React.FC<{
       <span className="text-xs text-gray-400 font-mono w-12 text-center">
         {formatDb(dbValue)} dB
       </span>
-      <input
-        type="range"
-        min="0"
-        max="4"
-        step="0.01"
+      <Slider
+        label="Volume fader"
+        isLabelHidden
+        min={0}
+        max={4}
+        step={0.01}
+        orientation="vertical"
         value={value}
-        onChange={handleChange}
-        disabled={disabled}
+        onChange={onChange}
+        isDisabled={disabled}
+        valueDisplay="none"
         className="h-24 w-2 appearance-none bg-gray-700 rounded-full cursor-pointer
  [writing-mode:vertical-lr] [direction:rtl]
  disabled:opacity-50 disabled:cursor-not-allowed
@@ -108,7 +107,6 @@ const Fader: React.FC<{
  [&::-moz-range-thumb]:rounded
  [&::-moz-range-thumb]:cursor-pointer
  [&::-moz-range-thumb]:border-0"
-        aria-label="Volume fader"
       />
     </div>
   );
@@ -122,26 +120,21 @@ const PanKnob: React.FC<{
   onChange: (value: number) => void;
   disabled?: boolean;
 }> = ({ value, onChange, disabled }) => {
-  const handleChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      onChange(parseFloat(e.target.value));
-    },
-    [onChange],
-  );
-
   return (
     <div className="flex flex-col items-center gap-1">
       <span className="text-xs text-gray-400 font-mono">
         {formatPan(value)}
       </span>
-      <input
-        type="range"
-        min="-1"
-        max="1"
-        step="0.01"
+      <Slider
+        label="Pan control"
+        isLabelHidden
+        min={-1}
+        max={1}
+        step={0.01}
         value={value}
-        onChange={handleChange}
-        disabled={disabled}
+        onChange={onChange}
+        isDisabled={disabled}
+        valueDisplay="none"
         className="w-16 h-2 appearance-none bg-gray-700 rounded-full cursor-pointer
  disabled:opacity-50 disabled:cursor-not-allowed
  [&::-webkit-slider-thumb]:appearance-none
@@ -156,7 +149,6 @@ const PanKnob: React.FC<{
  [&::-moz-range-thumb]:rounded-full
  [&::-moz-range-thumb]:cursor-pointer
  [&::-moz-range-thumb]:border-0"
-        aria-label="Pan control"
       />
     </div>
   );
@@ -219,12 +211,15 @@ export const ChannelStrip: React.FC<ChannelStripProps> = ({
       data-testid={`channel-strip-${channel.trackId}`}
     >
       {/* Track name */}
-      <div
-        className="text-xs text-gray-300 font-medium truncate w-full text-center"
-        title={channel.trackName}
-      >
-        <span className="mr-1">{trackTypeIcon}</span>
-        {channel.trackName}
+      <div title={channel.trackName} className="w-full">
+        <Text
+          type="supporting"
+          color="secondary"
+          className="text-xs text-gray-300 font-medium truncate w-full text-center"
+        >
+          <span className="mr-1">{trackTypeIcon}</span>
+          {channel.trackName}
+        </Text>
       </div>
 
       {/* Level meter */}
@@ -247,34 +242,32 @@ export const ChannelStrip: React.FC<ChannelStripProps> = ({
       {/* Mute/Solo buttons */}
       <div className="flex gap-1">
         {/* Mute button */}
-        <button
+        <Button
+          label="M"
           onClick={handleMuteClick}
+          variant="secondary"
+          size="sm"
           className={`px-2 py-1 text-xs font-bold rounded transition-colors
  ${
    channel.muted
      ? "bg-red-600 text-white"
      : "bg-gray-700 text-gray-400 hover:bg-gray-600"
  }`}
-          aria-label={channel.muted ? "Unmute track" : "Mute track"}
-          aria-pressed={channel.muted}
-        >
-          M
-        </button>
+        />
 
         {/* Solo button */}
-        <button
+        <Button
+          label="S"
           onClick={handleSoloClick}
+          variant={channel.solo ? "primary" : "secondary"}
+          size="sm"
           className={`px-2 py-1 text-xs font-bold rounded transition-colors
  ${
    channel.solo
      ? "bg-yellow-500 text-black"
      : "bg-gray-700 text-gray-400 hover:bg-gray-600"
  }`}
-          aria-label={channel.solo ? "Unsolo track" : "Solo track"}
-          aria-pressed={channel.solo}
-        >
-          S
-        </button>
+        />
       </div>
     </div>
   );

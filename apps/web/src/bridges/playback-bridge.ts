@@ -268,9 +268,9 @@ export class PlaybackBridge {
    * Update scrub position
    */
   scrubTo(time: number): void {
-    if (this.playbackController) {
-      this.playbackController.seek(time);
-    }
+    // Keep pointer movement lightweight. Preview already observes the timeline
+    // store and renders a debounced scrub frame; seeking the core controller on
+    // every mousemove duplicated video rendering and repeatedly touched audio.
     useTimelineStore.getState().updateScrubPosition(time);
   }
 
@@ -278,10 +278,15 @@ export class PlaybackBridge {
    * End scrubbing mode
    */
   endScrubbing(): void {
+    const timelineState = useTimelineStore.getState();
+    const finalPosition =
+      timelineState.scrubPosition ?? timelineState.playheadPosition;
     if (this.playbackController) {
+      // Synchronize the master clock/audio once at the final drag position.
+      void this.playbackController.scrubTo(finalPosition);
       this.playbackController.endScrubbing();
     }
-    useTimelineStore.getState().endScrubbing();
+    timelineState.endScrubbing();
   }
 
   /**

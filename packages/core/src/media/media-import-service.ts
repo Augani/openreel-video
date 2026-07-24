@@ -19,6 +19,31 @@ import {
   type ProxySettings,
   type TranscodeOptions,
 } from "./ffmpeg-fallback";
+import {
+  nativeMediaAvailable,
+  proxyViaNative,
+  transcodeViaNative,
+  probeAudioStreamCountViaNative,
+} from "./native-media-bridge";
+
+function parseBitrateKbps(value: string | undefined, fallback: number): number {
+  if (!value) return fallback;
+  const m = /^(\d+(?:\.\d+)?)\s*([kKmM]?)/.exec(value.trim());
+  if (!m) return fallback;
+  const n = Number(m[1]);
+  const unit = m[2].toLowerCase();
+  return Math.round(unit === "m" ? n * 1000 : n);
+}
+
+function presetFromSettings(settings?: Partial<ProxySettings>): "low" | "medium" | "high" {
+  const scale = (settings as { scale?: number } | undefined)?.scale;
+  if (typeof scale === "number") {
+    if (scale >= 0.7) return "high";
+    if (scale >= 0.45) return "medium";
+    return "low";
+  }
+  return "medium";
+}
 
 export interface MediaImportOptions {
   generateThumbnails?: boolean;
@@ -112,7 +137,7 @@ export class MediaImportService {
         (metadata.audioTrackCount === undefined || metadata.audioTrackCount <= 1)
       ) {
         try {
-          const probeResult = await this.ffmpegFallback.probeAudioStreams(file);
+          const probeResult = await this.probeAudioStreamsCompat(file);
           if (probeResult.audioStreamCount > 1) {
             metadata.audioTrackCount = probeResult.audioStreamCount;
           }
@@ -304,8 +329,14 @@ export class MediaImportService {
     opts: Required<MediaImportOptions>,
     transcodeOpts?: TranscodeOptions,
   ): Promise<MediaImportResult> {
-    const compatibleBlob =
-      await this.ffmpegFallback.transcodeToCompatible(file, undefined, transcodeOpts);
+    const container: "mp4" | "webm" | "mov" = transcodeOpts?.format === "mp4" ? "mp4" : "webm";
+    const compatibleBlob = nativeMediaAvailable()
+      ? await transcodeViaNative(file, {
+          container,
+          videoBitrateKbps: parseBitrateKbps(transcodeOpts?.videoBitrate, 2000),
+          audioBitrateKbps: parseBitrateKbps(transcodeOpts?.audioBitrate, 128),
+        })
+      : await this.ffmpegFallback.transcodeToCompatible(file, undefined, transcodeOpts);
     const format = transcodeOpts?.format || "webm";
     const ext = format === "mp4" ? ".mp4" : ".webm";
     const mime = format === "mp4" ? "video/mp4" : "video/webm";
@@ -322,7 +353,7 @@ export class MediaImportService {
     // Probe original file for audio tracks since WebM transcode may lose them
     if (metadata.audioTrackCount === undefined || metadata.audioTrackCount <= 1) {
       try {
-        const probeResult = await this.ffmpegFallback.probeAudioStreams(file);
+        const probeResult = await this.probeAudioStreamsCompat(file);
         if (probeResult.audioStreamCount > 1) {
           metadata.audioTrackCount = probeResult.audioStreamCount;
         }
@@ -478,6 +509,11 @@ export class MediaImportService {
       estimatedTimeRemaining: number;
     }) => void,
   ): Promise<Blob> {
+    // Desktop: native FFmpeg sidecar (hardware encoders, no wasm).
+    if (nativeMediaAvailable()) {
+      return proxyViaNative(file, presetFromSettings(settings));
+    }
+
     // Try MediaBunny first (faster, hardware-accelerated)
     if (this.mediaEngine.isAvailable()) {
       try {
@@ -491,6 +527,15 @@ export class MediaImportService {
     return this.ffmpegFallback.generateProxy(file, settings, onProgress);
   }
 
+  private async probeAudioStreamsCompat(
+    file: File | Blob,
+  ): Promise<{ audioStreamCount: number }> {
+    if (nativeMediaAvailable()) {
+      return { audioStreamCount: await probeAudioStreamCountViaNative(file) };
+    }
+    return this.ffmpegFallback.probeAudioStreams(file);
+  }
+
   async generateProxyWithPreset(
     file: File | Blob,
     preset: "low" | "medium" | "high",
@@ -500,6 +545,9 @@ export class MediaImportService {
       estimatedTimeRemaining: number;
     }) => void,
   ): Promise<Blob> {
+    if (nativeMediaAvailable()) {
+      return proxyViaNative(file, preset);
+    }
     return this.ffmpegFallback.generateProxyWithPreset(
       file,
       preset,

@@ -34,10 +34,16 @@ export interface GSAPAnimationConfig {
 
 const GSAP_EASING_MAP: Record<EasingType, string> = {
   linear: "none",
+  ease: "power2.inOut",
   "ease-in": "power2.in",
   "ease-out": "power2.out",
   "ease-in-out": "power2.inOut",
+  hold: "steps(1)",
   bezier: "power2.inOut",
+  smoothstep: "power2.inOut",
+  smootherstep: "power3.inOut",
+  snappy: "expo.out",
+  smooth: "power2.inOut",
   easeInQuad: "power1.in",
   easeOutQuad: "power1.out",
   easeInOutQuad: "power1.inOut",
@@ -62,12 +68,21 @@ const GSAP_EASING_MAP: Record<EasingType, string> = {
   easeInBack: "back.in",
   easeOutBack: "back.out",
   easeInOutBack: "back.inOut",
+  easeInBackStrong: "back.in(2.7)",
+  easeOutBackStrong: "back.out(2.7)",
+  easeInOutBackStrong: "back.inOut(2.7)",
   easeInElastic: "elastic.in",
   easeOutElastic: "elastic.out",
   easeInOutElastic: "elastic.inOut",
+  easeInElasticSoft: "elastic.in(0.65,0.3)",
+  easeOutElasticSoft: "elastic.out(0.65,0.3)",
+  easeInOutElasticSoft: "elastic.inOut(0.65,0.3)",
   easeInBounce: "bounce.in",
   easeOutBounce: "bounce.out",
   easeInOutBounce: "bounce.inOut",
+  easeInBounceSmall: "bounce.in",
+  easeOutBounceSmall: "bounce.out",
+  easeInOutBounceSmall: "bounce.inOut",
 };
 
 export function easingToGSAP(easing: EasingType): string {

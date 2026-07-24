@@ -1,6 +1,9 @@
 import React, { useState, useCallback } from "react";
-import { Scissors, Search, Loader2, Volume2 } from "lucide-react";
-import { Slider } from "@openreel/ui";
+import { ToolcraftButton as Button } from "@openreel/ui";
+import { ToolcraftCard as Card } from "@openreel/ui";
+import { ToolcraftText as Text } from "@openreel/ui";
+import { PropertySlider } from "./shell/PropertySlider";
+import { Scissors, Search, Loader2 } from "@/icons/lucide-compat";
 import { useProjectStore } from "../../../stores/project-store";
 import {
   getSilenceCutBridge,
@@ -13,6 +16,30 @@ import { toast } from "../../../stores/notification-store";
 interface AutoCutSilenceSectionProps {
   clipId: string;
 }
+
+const SilenceSlider: React.FC<{
+  label: string;
+  value: number;
+  onChange: (value: number) => void;
+  min: number;
+  max: number;
+  step: number;
+  unit?: string;
+  description?: string;
+}> = ({ label, value, onChange, min, max, step, unit = "", description }) => (
+  <PropertySlider
+    label={label}
+    min={min}
+    max={max}
+    step={step}
+    value={value}
+    onChange={onChange}
+    formatValue={(nextValue) =>
+      `${Number(nextValue.toFixed(step < 1 ? 2 : 0))}${unit}`
+    }
+    description={description}
+  />
+);
 
 export const AutoCutSilenceSection: React.FC<AutoCutSilenceSectionProps> = ({
   clipId,
@@ -115,107 +142,66 @@ export const AutoCutSilenceSection: React.FC<AutoCutSilenceSectionProps> = ({
   return (
     <div className="space-y-3">
       <div className="space-y-3">
-        <div>
-          <div className="flex items-center justify-between mb-1">
-            <label className="text-[10px] text-text-secondary flex items-center gap-1">
-              <Volume2 size={10} />
-              Silence Threshold
-            </label>
-            <span className="text-[10px] text-text-muted font-mono">
-              {settings.threshold} dB
-            </span>
-          </div>
-          <Slider
-            min={-80}
-            max={-20}
-            step={1}
-            value={[settings.threshold]}
-            onValueChange={(value) => updateSettings({ threshold: value[0] })}
-          />
-          <p className="text-[8px] text-text-muted mt-1">
-            Lower values detect more silence
-          </p>
-        </div>
+        <SilenceSlider
+          label="Silence Threshold"
+          min={-80}
+          max={-20}
+          step={1}
+          value={settings.threshold}
+          onChange={(threshold) => updateSettings({ threshold })}
+          unit=" dB"
+          description="Lower values detect more silence"
+        />
 
-        <div>
-          <div className="flex items-center justify-between mb-1">
-            <label className="text-[10px] text-text-secondary">
-              Min Duration
-            </label>
-            <span className="text-[10px] text-text-muted font-mono">
-              {settings.minSilenceDuration.toFixed(1)}s
-            </span>
-          </div>
-          <Slider
-            min={0.1}
-            max={2.0}
-            step={0.1}
-            value={[settings.minSilenceDuration]}
-            onValueChange={(value) =>
-              updateSettings({ minSilenceDuration: value[0] })
-            }
-          />
-          <p className="text-[8px] text-text-muted mt-1">
-            Minimum silence length to detect
-          </p>
-        </div>
+        <SilenceSlider
+          label="Min Duration"
+          min={0.1}
+          max={2.0}
+          step={0.1}
+          value={settings.minSilenceDuration}
+          onChange={(minSilenceDuration) =>
+            updateSettings({ minSilenceDuration })
+          }
+          unit="s"
+          description="Minimum silence length to detect"
+        />
 
         <div className="grid grid-cols-2 gap-2">
-          <div>
-            <div className="flex items-center justify-between mb-1">
-              <label className="text-[10px] text-text-secondary">
-                Pad Before
-              </label>
-              <span className="text-[10px] text-text-muted font-mono">
-                {settings.paddingBefore.toFixed(1)}s
-              </span>
-            </div>
-            <Slider
-              min={0}
-              max={2}
-              step={0.05}
-              value={[settings.paddingBefore]}
-              onValueChange={(value) =>
-                updateSettings({ paddingBefore: value[0] })
-              }
-            />
-          </div>
-          <div>
-            <div className="flex items-center justify-between mb-1">
-              <label className="text-[10px] text-text-secondary">
-                Pad After
-              </label>
-              <span className="text-[10px] text-text-muted font-mono">
-                {settings.paddingAfter.toFixed(1)}s
-              </span>
-            </div>
-            <Slider
-              min={0}
-              max={2}
-              step={0.05}
-              value={[settings.paddingAfter]}
-              onValueChange={(value) =>
-                updateSettings({ paddingAfter: value[0] })
-              }
-            />
-          </div>
+          <SilenceSlider
+            label="Pad Before"
+            min={0}
+            max={2}
+            step={0.05}
+            value={settings.paddingBefore}
+            onChange={(paddingBefore) => updateSettings({ paddingBefore })}
+            unit="s"
+          />
+          <SilenceSlider
+            label="Pad After"
+            min={0}
+            max={2}
+            step={0.05}
+            value={settings.paddingAfter}
+            onChange={(paddingAfter) => updateSettings({ paddingAfter })}
+            unit="s"
+          />
         </div>
 
         {analysisResult && (
-          <div className="p-2 bg-background-secondary rounded border border-primary/20">
+          <Card variant="muted" padding={3}>
             <div className="flex items-center justify-between mb-1">
-              <span className="text-[10px] text-text-secondary">
+              <Text type="supporting" color="secondary">
                 Silent Sections Found
-              </span>
-              <span className="text-sm font-bold text-primary">
+              </Text>
+              <Text type="body" color="primary" weight="bold">
                 {analysisResult.silentRegions.length}
-              </span>
+              </Text>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-[10px] text-text-secondary">
+              <Text type="supporting" color="secondary">
                 Total Silence
-              </span>
-              <span className="text-[10px] text-text-primary">
+              </Text>
+              <Text type="supporting" color="primary">
                 {analysisResult.totalSilenceDuration.toFixed(1)}s of{" "}
                 {analysisResult.clipDuration.toFixed(1)}s (
                 {Math.round(
@@ -224,20 +210,22 @@ export const AutoCutSilenceSection: React.FC<AutoCutSilenceSectionProps> = ({
                     100,
                 )}
                 %)
-              </span>
+              </Text>
             </div>
-          </div>
+          </Card>
         )}
 
         {(isAnalyzing || isCutting) && (
           <div className="space-y-1">
             <div className="flex items-center justify-between">
-              <span className="text-[9px] text-text-muted">
+              <Text type="supporting" color="secondary" className="text-[9px]">
                 {progressMessage}
-              </span>
-              <span className="text-[9px] text-text-muted">{progress}%</span>
+              </Text>
+              <Text type="supporting" color="secondary" className="text-[9px]">
+                {progress}%
+              </Text>
             </div>
-            <div className="h-1 bg-background-secondary rounded-full overflow-hidden">
+            <div className="h-1 bg-bg-1 rounded-full overflow-hidden">
               <div
                 className="h-full bg-primary transition-all duration-300"
                 style={{ width: `${progress}%` }}
@@ -247,52 +235,52 @@ export const AutoCutSilenceSection: React.FC<AutoCutSilenceSectionProps> = ({
         )}
 
         <div className="flex gap-2">
-          <button
+          <Button
+            label={isAnalyzing ? "Analyzing..." : analysisResult ? "Re-analyze" : "Analyze"}
+            size="sm"
+            variant={analysisResult ? "secondary" : "primary"}
+            icon={
+              isAnalyzing ? (
+                <Loader2 size={14} className="animate-spin" aria-hidden />
+              ) : (
+                <Search size={14} aria-hidden />
+              )
+            }
             onClick={handleAnalyze}
-            disabled={isAnalyzing || isCutting}
+            isDisabled={isAnalyzing || isCutting}
             className={`flex-1 py-2 rounded text-[11px] font-medium transition-colors flex items-center justify-center gap-2 ${
               analysisResult
-                ? "bg-background-secondary hover:bg-background-primary border border-border text-text-primary"
+                ? "bg-bg-1 hover:bg-background-primary border border-border text-fg"
                 : "bg-primary hover:bg-primary-hover disabled:bg-primary/50 text-white"
             }`}
-          >
-            {isAnalyzing ? (
-              <>
-                <Loader2 size={14} className="animate-spin" />
-                Analyzing...
-              </>
-            ) : (
-              <>
-                <Search size={14} />
-                {analysisResult ? "Re-analyze" : "Analyze"}
-              </>
-            )}
-          </button>
+          />
 
           {analysisResult && analysisResult.silentRegions.length > 0 && (
-            <button
+            <Button
+              label={
+                isCutting
+                  ? "Cutting..."
+                  : `Cut ${analysisResult.silentRegions.length}`
+              }
+              size="sm"
+              variant="primary"
+              icon={
+                isCutting ? (
+                  <Loader2 size={14} className="animate-spin" aria-hidden />
+                ) : (
+                  <Scissors size={14} aria-hidden />
+                )
+              }
               onClick={handleCutSilence}
-              disabled={isCutting}
+              isDisabled={isCutting}
               className="flex-1 py-2 bg-primary hover:bg-primary-hover disabled:bg-primary/50 text-white rounded text-[11px] font-medium transition-colors flex items-center justify-center gap-2"
-            >
-              {isCutting ? (
-                <>
-                  <Loader2 size={14} className="animate-spin" />
-                  Cutting...
-                </>
-              ) : (
-                <>
-                  <Scissors size={14} />
-                  Cut {analysisResult.silentRegions.length}
-                </>
-              )}
-            </button>
+            />
           )}
         </div>
 
-        <p className="text-[9px] text-text-muted text-center">
+        <Text type="supporting" color="secondary" className="text-center text-[9px]">
           Tip: Use Ctrl+Z to undo all cuts at once
-        </p>
+        </Text>
       </div>
     </div>
   );

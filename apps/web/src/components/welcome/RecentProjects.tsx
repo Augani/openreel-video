@@ -1,5 +1,8 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { Clock, Trash2, Film } from "lucide-react";
+import { Clock, Trash2, Film } from "@/icons/lucide-compat";
+import { ToolcraftClickableCard as ClickableCard } from "@openreel/ui";
+import { ToolcraftIconButton as IconButton } from "@openreel/ui";
+import { ToolcraftText as Text } from "@openreel/ui";
 import {
   checkForRecovery,
   type AutoSaveMetadata,
@@ -109,9 +112,9 @@ export const RecentProjects: React.FC<RecentProjectsProps> = ({
     return (
       <div className="flex flex-col items-center justify-center py-20">
         <div className="w-8 h-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin mb-4" />
-        <p className="text-sm text-text-secondary">
+        <Text type="supporting" color="secondary" className="text-sm text-text-secondary">
           Loading recent projects...
-        </p>
+        </Text>
       </div>
     );
   }
@@ -122,13 +125,13 @@ export const RecentProjects: React.FC<RecentProjectsProps> = ({
         <div className="w-14 h-14 rounded-2xl bg-background-tertiary flex items-center justify-center mb-4">
           <Clock size={24} className="text-text-muted" />
         </div>
-        <h3 className="text-base font-medium text-text-primary mb-2">
+        <Text type="body" color="primary" weight="medium" className="text-base text-text-primary mb-2">
           No Recent Projects
-        </h3>
-        <p className="text-sm text-text-muted text-center max-w-md">
+        </Text>
+        <Text type="supporting" color="secondary" className="text-sm text-text-muted text-center max-w-md">
           Your recently opened projects will appear here. Start a new project or
           use a template to get started.
-        </p>
+        </Text>
       </div>
     );
   }
@@ -136,9 +139,9 @@ export const RecentProjects: React.FC<RecentProjectsProps> = ({
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-medium text-text-primary">
+        <Text type="label" color="primary" weight="medium" className="text-sm text-text-primary">
           Recent Projects ({recentProjects.length})
-        </h3>
+        </Text>
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
@@ -149,9 +152,12 @@ export const RecentProjects: React.FC<RecentProjectsProps> = ({
               key={project.id}
               className="group relative flex flex-col bg-background-tertiary rounded-xl border border-border hover:border-primary/40 hover:bg-background-elevated transition-all overflow-hidden"
             >
-              <button
+              <ClickableCard
+                label={`Open ${project.name}`}
                 onClick={() => handleSelectProject(project)}
-                disabled={isLoadingThis}
+                isDisabled={isLoadingThis}
+                padding={0}
+                variant="muted"
                 className="flex flex-col flex-1 text-left disabled:opacity-70"
               >
                 <div className="aspect-video w-full bg-background flex items-center justify-center border-b border-border">
@@ -163,31 +169,32 @@ export const RecentProjects: React.FC<RecentProjectsProps> = ({
                 </div>
 
                 <div className="p-3 flex-1">
-                  <h4 className="text-sm font-medium text-text-primary truncate group-hover:text-primary transition-colors">
+                  <Text type="supporting" color="primary" weight="medium" className="text-sm text-text-primary truncate group-hover:text-primary transition-colors">
                     {project.name}
-                  </h4>
+                  </Text>
                   <div className="flex items-center gap-1.5 mt-1.5 text-xs text-text-muted">
                     <Clock size={11} />
                     <span>{formatDate(project.lastModified)}</span>
                   </div>
                 </div>
-              </button>
+              </ClickableCard>
 
-              <button
+              <IconButton
+                label="Remove from recent"
                 onClick={(e) => handleRemoveProject(project.id, e)}
+                icon={<Trash2 size={14} aria-hidden />}
+                size="sm"
+                variant="ghost"
                 className="absolute top-2 right-2 p-1.5 text-text-muted hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all rounded-lg bg-background/80 hover:bg-red-500/10 backdrop-blur-sm"
-                title="Remove from recent"
-              >
-                <Trash2 size={14} />
-              </button>
+              />
             </div>
           );
         })}
       </div>
 
-      <p className="text-xs text-text-muted text-center">
+      <Text type="supporting" color="secondary" className="text-xs text-text-muted text-center">
         Recent projects are stored locally in your browser
-      </p>
+      </Text>
     </div>
   );
 };

@@ -1,13 +1,9 @@
 import React, { useCallback, useMemo } from "react";
+import { ToolcraftCard as Card } from "@openreel/ui";
+import { ToolcraftSelectControl as Selector } from "@openreel/ui";
+import { ToolcraftText as Text } from "@openreel/ui";
+import { PropertySlider } from "./shell/PropertySlider";
 import { useProjectStore } from "../../../stores/project-store";
-import {
-  LabeledSlider as Slider,
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
-} from "@openreel/ui";
 
 interface Transform3DSectionProps {
   clipId: string;
@@ -91,86 +87,83 @@ export const Transform3DSection: React.FC<Transform3DSectionProps> = ({
 
   if (!clip) {
     return (
-      <div className="text-center py-8 text-text-muted text-xs">
+      <Text type="supporting" color="secondary" className="py-8 text-center text-xs">
         No clip selected
-      </div>
+      </Text>
     );
   }
 
   return (
     <div className="space-y-3">
-        <Slider
-          label="Rotation X"
-          value={rotate3d.x}
-          onChange={handleRotateXChange}
-          min={-360}
-          max={360}
-          step={1}
-          unit="°"
-        />
+      <PropertySlider
+        label="Rotation X"
+        value={rotate3d.x}
+        onChange={handleRotateXChange}
+        min={-360}
+        max={360}
+        step={1}
+        formatValue={(value) => `${Math.round(value)}°`}
+      />
 
-        <Slider
-          label="Rotation Y"
-          value={rotate3d.y}
-          onChange={handleRotateYChange}
-          min={-360}
-          max={360}
-          step={1}
-          unit="°"
-        />
+      <PropertySlider
+        label="Rotation Y"
+        value={rotate3d.y}
+        onChange={handleRotateYChange}
+        min={-360}
+        max={360}
+        step={1}
+        formatValue={(value) => `${Math.round(value)}°`}
+      />
 
-        <Slider
-          label="Rotation Z"
-          value={rotate3d.z}
-          onChange={handleRotateZChange}
-          min={-360}
-          max={360}
-          step={1}
-          unit="°"
-        />
+      <PropertySlider
+        label="Rotation Z"
+        value={rotate3d.z}
+        onChange={handleRotateZChange}
+        min={-360}
+        max={360}
+        step={1}
+        formatValue={(value) => `${Math.round(value)}°`}
+      />
 
-        <Slider
-          label="Perspective"
-          value={perspective}
-          onChange={handlePerspectiveChange}
-          min={100}
-          max={2000}
-          step={10}
-          unit="px"
-        />
+      <PropertySlider
+        label="Perspective"
+        value={perspective}
+        onChange={handlePerspectiveChange}
+        min={100}
+        max={2000}
+        step={10}
+        formatValue={(value) => `${Math.round(value)}px`}
+      />
 
-        <div className="space-y-1">
-          <span className="text-[10px] text-text-secondary">
-            Transform Style
-          </span>
-          <Select
-            value={transformStyle}
-            onValueChange={(v) => handleTransformStyleChange(v as "flat" | "preserve-3d")}
-          >
-            <SelectTrigger className="w-full bg-background-tertiary border-border text-text-primary">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent className="bg-background-secondary border-border">
-              <SelectItem value="flat">Flat</SelectItem>
-              <SelectItem value="preserve-3d">Preserve 3D</SelectItem>
-            </SelectContent>
-          </Select>
-          <p className="text-[9px] text-text-muted">
-            {transformStyle === "flat" &&
-              "Flattens children into the plane of this element"}
-            {transformStyle === "preserve-3d" &&
-              "Children positioned in 3D space"}
-          </p>
-        </div>
+      <div className="space-y-1">
+        <Selector
+          label="Transform Style"
+          size="sm"
+          width="100%"
+          value={transformStyle}
+          options={[
+            { label: "Flat", value: "flat" },
+            { label: "Preserve 3D", value: "preserve-3d" },
+          ]}
+          onChange={(value) =>
+            handleTransformStyleChange(value as "flat" | "preserve-3d")
+          }
+        />
+        <Text type="supporting" color="secondary" className="text-[9px]">
+          {transformStyle === "flat" &&
+            "Flattens children into the plane of this element"}
+          {transformStyle === "preserve-3d" && "Children positioned in 3D space"}
+        </Text>
+      </div>
 
       {(rotate3d.x !== 0 || rotate3d.y !== 0 || rotate3d.z !== 0) && (
-        <div className="p-2 bg-primary/5 border border-primary/20 rounded-lg">
-          <p className="text-[9px] text-text-muted">
-            <span className="text-primary font-medium">Tip:</span> 3D rotations
+        <Card variant="muted" padding={2} className="border border-primary/20 bg-primary/5">
+          <Text type="supporting" color="secondary" className="text-[9px]">
+            Tip: 3D rotations
             allow you to rotate layers along X, Y, and Z axes for depth effects.
             Adjust perspective to control the 3D depth perception.
-          </p>
-        </div>
+          </Text>
+        </Card>
       )}
     </div>
   );

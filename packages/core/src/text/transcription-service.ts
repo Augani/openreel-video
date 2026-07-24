@@ -126,7 +126,12 @@ export class TranscriptionService {
 
     const inPoint = clip.inPoint || 0;
     const outPoint = clip.outPoint || audioBuffer.duration;
-    const duration = Math.min(outPoint - inPoint, clip.duration);
+    // A sped-up clip consumes clip.duration * speed seconds of SOURCE audio, so
+    // the extracted window spans the source range the clip actually plays — not
+    // just clip.duration source seconds (which would truncate a 2x clip's
+    // captions to the first half).
+    const speed = clip.speed || 1;
+    const duration = Math.min(outPoint - inPoint, clip.duration * speed);
 
     const sampleRate = audioBuffer.sampleRate;
     const startSample = Math.floor(inPoint * sampleRate);
@@ -317,12 +322,17 @@ export class TranscriptionService {
       ];
     }
 
-    return this.groupWordsIntoSubtitles(response.words, clip.startTime);
+    return this.groupWordsIntoSubtitles(
+      response.words,
+      clip.startTime,
+      clip.speed || 1,
+    );
   }
 
   private groupWordsIntoSubtitles(
     words: CloudflareWhisperWord[],
     clipStartTime: number,
+    speed: number,
   ): Subtitle[] {
     const subtitles: Subtitle[] = [];
     const maxWords = this.config.maxWordsPerSegment || 10;
@@ -345,7 +355,7 @@ export class TranscriptionService {
         currentWords.length > 0
       ) {
         subtitles.push(
-          this.createSubtitleFromWords(currentWords, clipStartTime),
+          this.createSubtitleFromWords(currentWords, clipStartTime, speed),
         );
         currentWords = [word];
         groupStart = word.start;
@@ -354,7 +364,7 @@ export class TranscriptionService {
 
         if (isPunctuation && currentWords.length >= 3) {
           subtitles.push(
-            this.createSubtitleFromWords(currentWords, clipStartTime),
+            this.createSubtitleFromWords(currentWords, clipStartTime, speed),
           );
           currentWords = [];
         }
@@ -362,7 +372,9 @@ export class TranscriptionService {
     }
 
     if (currentWords.length > 0) {
-      subtitles.push(this.createSubtitleFromWords(currentWords, clipStartTime));
+      subtitles.push(
+        this.createSubtitleFromWords(currentWords, clipStartTime, speed),
+      );
     }
 
     return subtitles;
@@ -371,13 +383,18 @@ export class TranscriptionService {
   private createSubtitleFromWords(
     words: CloudflareWhisperWord[],
     clipStartTime: number,
+    speed: number,
   ): Subtitle {
     const text = words
       .map((w) => w.word)
       .join(" ")
       .trim();
-    const startTime = clipStartTime + words[0].start;
-    const endTime = clipStartTime + words[words.length - 1].end;
+    // Word times are SOURCE-relative seconds (the audio was trimmed to the
+    // clip window before transcription, so 0 = inPoint). A source-second plays
+    // back compressed/stretched by `speed` on the timeline.
+    const safeSpeed = speed || 1;
+    const startTime = clipStartTime + words[0].start / safeSpeed;
+    const endTime = clipStartTime + words[words.length - 1].end / safeSpeed;
 
     return {
       id: this.generateId(),
@@ -387,8 +404,8 @@ export class TranscriptionService {
       style: DEFAULT_SUBTITLE_STYLE,
       words: words.map((w) => ({
         text: w.word,
-        startTime: clipStartTime + w.start,
-        endTime: clipStartTime + w.end,
+        startTime: clipStartTime + w.start / safeSpeed,
+        endTime: clipStartTime + w.end / safeSpeed,
       })),
       animationStyle: "none",
     };

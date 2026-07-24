@@ -1,5 +1,9 @@
 import React from "react";
-import { Play, Pause, Plus, Download, FolderPlus, Volume2 } from "lucide-react";
+import { ToolcraftButton as Button } from "@openreel/ui";
+import { ToolcraftCard as Card } from "@openreel/ui";
+import { ToolcraftIconButton as IconButton } from "@openreel/ui";
+import { ToolcraftText as Text } from "@openreel/ui";
+import { Play, Pause, Plus, Download, FolderPlus, Volume2 } from "@/icons/lucide-compat";
 
 interface AudioResultProps {
   generatedAudio: Blob;
@@ -23,58 +27,62 @@ export const AudioResult: React.FC<AudioResultProps> = ({
   onDownload,
 }) => {
   return (
-    <div className="p-3 bg-background-tertiary rounded-lg border border-border space-y-3">
+    <Card padding={3} variant="muted" className="space-y-3">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center">
-            <Volume2 size={14} className="text-primary" />
+            <Volume2 size={14} className="text-primary" aria-hidden />
           </div>
           <div>
-            <p className="text-[10px] font-medium text-text-primary">
+            <Text type="label" weight="bold" display="block">
               {voiceName} Voice
-            </p>
-            <p className="text-[9px] text-text-muted">
+            </Text>
+            <Text type="supporting" color="secondary" display="block">
               {(generatedAudio.size / 1024).toFixed(1)} KB
-            </p>
+            </Text>
           </div>
         </div>
-        <button
+        <IconButton
+          label={isPlaying ? "Pause preview" : "Play preview"}
+          icon={
+            isPlaying ? (
+              <Pause size={14} aria-hidden />
+            ) : (
+              <Play size={14} className="ml-0.5" aria-hidden />
+            )
+          }
+          variant="primary"
+          size="md"
           onClick={onTogglePlayback}
-          className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-white hover:opacity-90 transition-opacity"
-        >
-          {isPlaying ? (
-            <Pause size={14} />
-          ) : (
-            <Play size={14} className="ml-0.5" />
-          )}
-        </button>
+        />
       </div>
 
       <div className="flex gap-2">
-        <button
+        <Button
+          label="Save to Media"
+          icon={<FolderPlus size={12} aria-hidden />}
+          variant="primary"
+          size="sm"
           onClick={onSaveToMedia}
-          disabled={isGenerating}
-          className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-primary text-white rounded-lg text-[10px] font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
-        >
-          <FolderPlus size={12} />
-          Save to Media
-        </button>
-        <button
+          isDisabled={isGenerating}
+          className="flex-1"
+        />
+        <IconButton
+          label="Add to Timeline"
+          icon={<Plus size={12} aria-hidden />}
+          variant="secondary"
+          size="sm"
           onClick={onAddToTimeline}
-          disabled={isGenerating}
-          className="px-3 py-2 bg-background-secondary border border-border rounded-lg text-[10px] text-text-secondary hover:text-text-primary transition-colors"
-          title="Add to Timeline"
-        >
-          <Plus size={12} />
-        </button>
-        <button
+          isDisabled={isGenerating}
+        />
+        <IconButton
+          label="Download"
+          icon={<Download size={12} aria-hidden />}
+          variant="secondary"
+          size="sm"
           onClick={onDownload}
-          className="px-3 py-2 bg-background-secondary border border-border rounded-lg text-[10px] text-text-secondary hover:text-text-primary transition-colors"
-          title="Download"
-        >
-          <Download size={12} />
-        </button>
+        />
       </div>
-    </div>
+    </Card>
   );
 };

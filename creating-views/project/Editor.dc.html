@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+<template id="__bundler_thumbnail" data-bg-color="#1a0a35">
+  <svg viewBox="0 0 1200 800" xmlns="http://www.w3.org/2000/svg">
+    <rect x="200" y="180" width="800" height="440" rx="32" fill="#f4f4f6"/>
+    <rect x="200" y="180" width="800" height="70" rx="32" fill="#fbfbfc"/>
+    <rect x="200" y="218" width="800" height="32" fill="#fbfbfc"/>
+    <circle cx="248" cy="215" r="9" fill="#ff5f57"/>
+    <circle cx="280" cy="215" r="9" fill="#febc2e"/>
+    <circle cx="312" cy="215" r="9" fill="#28c840"/>
+    <rect x="430" y="198" width="160" height="34" rx="9" fill="#ececed"/>
+    <rect x="438" y="204" width="74" height="22" rx="6" fill="#fff"/>
+    <rect x="860" y="198" width="110" height="34" rx="8" fill="#6366f1"/>
+    <rect x="230" y="280" width="200" height="310" rx="16" fill="#fff" stroke="#ebebed" stroke-width="2"/>
+    <rect x="450" y="280" width="320" height="310" rx="16" fill="#7d99a8"/>
+    <path d="M450 470 L770 470 L770 590 L450 590 Z" fill="#3a5560"/>
+    <rect x="790" y="280" width="180" height="310" rx="16" fill="#fff" stroke="#ebebed" stroke-width="2"/>
+    <rect x="56" y="56" width="180" height="80" rx="14" fill="#6366f1"/>
+    <text x="146" y="106" font-family="Inter,sans-serif" font-size="40" font-weight="700" fill="#fff" text-anchor="middle">Editor</text>
+  </svg>
+</template>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  body { margin:0; background:#d8d8dc; font-family:'Inter',-apple-system,system-ui,sans-serif; }
+  *{ box-sizing:border-box; }
+</style>
+</helmet>
+
+<div style="width:1536px; height:1024px; padding:18px; background:#d8d8dc; font-family:'Inter',-apple-system,system-ui,sans-serif;">
+<div style="width:100%; height:100%; background:#f4f4f6; border-radius:14px; box-shadow:0 24px 60px rgba(0,0,0,0.22); overflow:hidden; display:flex; flex-direction:column; border:1px solid rgba(0,0,0,0.06);">
+
+  <!-- ================= VIDEO EDITOR ================= -->
+  <sc-if value="{{ isVideo }}" hint-placeholder-val="{{ true }}">
+  <div style="display:flex; flex-direction:column; height:100%;">
+
+    <!-- TOP BAR -->
+    <div style="height:60px; flex:none; display:flex; align-items:center; padding:0 18px; background:#fbfbfc; border-bottom:1px solid #e7e7ea; gap:18px;">
+      <div style="display:flex; gap:8px; align-items:center; width:120px;">
+        <span style="width:12px;height:12px;border-radius:50%;background:#ff5f57;"></span>
+        <span style="width:12px;height:12px;border-radius:50%;background:#febc2e;"></span>
+        <span style="width:12px;height:12px;border-radius:50%;background:#28c840;"></span>
+      </div>
+      <div style="display:flex; background:#ececed; border-radius:9px; padding:3px;">
+        <button style="border:none; padding:7px 16px; font:600 13px 'Inter'; border-radius:7px; background:#fff; color:#1d1d1f; box-shadow:0 1px 2px rgba(0,0,0,0.12); cursor:pointer;">Video Editor</button>
+        <button onClick="{{ goMotion }}" style="border:none; padding:7px 16px; font:500 13px 'Inter'; border-radius:7px; background:transparent; color:#7c7c82; cursor:pointer;">Motion Design</button>
+      </div>
+      <div style="flex:1; text-align:center; font:500 14px 'Inter'; color:#3a3a3c;">New Video Project</div>
+      <div style="display:flex; align-items:center; gap:14px;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#b0b0b5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-15-6.7L3 13"/></svg>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8a8a8f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 7v6h-6"/><path d="M3 17a9 9 0 0 1 15-6.7L21 13"/></svg>
+        <div style="display:flex; align-items:center; gap:6px; background:#fff; border:1px solid #e2e2e6; border-radius:8px; padding:6px 10px; font:500 13px 'Inter'; color:#3a3a3c;">100%<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#9a9a9f" stroke-width="2.4"><path d="M6 9l6 6 6-6"/></svg></div>
+        <button style="width:36px;height:36px;display:flex;align-items:center;justify-content:center;border:1px solid #e2e2e6;background:#fff;border-radius:8px;cursor:pointer;"><svg width="14" height="14" viewBox="0 0 24 24" fill="#3a3a3c"><path d="M8 5v14l11-7z"/></svg></button>
+        <div style="display:flex;">
+          <button style="border:none; background:#6366f1; color:#fff; font:600 13px 'Inter'; padding:9px 18px; border-radius:8px 0 0 8px; cursor:pointer;">Export</button>
+          <button style="border:none; border-left:1px solid rgba(255,255,255,0.25); background:#6366f1; color:#fff; padding:0 8px; border-radius:0 8px 8px 0; cursor:pointer; display:flex; align-items:center;"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4"><path d="M6 9l6 6 6-6"/></svg></button>
+        </div>
+      </div>
+    </div>
+
+    <!-- UPPER -->
+    <div style="flex:1; display:flex; padding:10px; gap:10px; min-height:0;">
+
+      <!-- icon rail + media card -->
+      <div style="display:flex; background:#fff; border:1px solid #ebebed; border-radius:12px; overflow:hidden; width:404px; flex:none;">
+        <!-- icon rail -->
+        <div style="width:92px; flex:none; border-right:1px solid #ededf0; padding:14px 0; display:flex; flex-direction:column; align-items:center; gap:4px;">
+          <div style="display:flex;flex-direction:column;align-items:center;gap:4px;width:64px;padding:9px 0;border-radius:10px;background:#eef0fe;color:#6366f1;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 15l5-4 4 3 4-5 5 6"/><circle cx="8" cy="9" r="1.4" fill="currentColor" stroke="none"/></svg>
+            <span style="font:600 11px 'Inter';">Media</span>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:4px;width:64px;padding:9px 0;border-radius:10px;color:#86868b;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 9h18M9 5v14"/></svg>
+            <span style="font:500 11px 'Inter';">Stock</span>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:4px;width:64px;padding:9px 0;border-radius:10px;color:#86868b;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M9 18V5l10-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="16" cy="16" r="3"/></svg>
+            <span style="font:500 11px 'Inter';">Audio</span>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:4px;width:64px;padding:9px 0;border-radius:10px;color:#86868b;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 7V5h16v2M9 19h6M12 5v14"/></svg>
+            <span style="font:500 11px 'Inter';">Text</span>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:4px;width:64px;padding:9px 0;border-radius:10px;color:#86868b;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="7" cy="7" r="3.5"/><rect x="13" y="3.5" width="7" height="7" rx="1.5"/><path d="M5.5 14l4 6h-8z"/><circle cx="17" cy="17" r="3.5"/></svg>
+            <span style="font:500 11px 'Inter';">Elements</span>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:4px;width:64px;padding:9px 0;border-radius:10px;color:#86868b;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="6" width="7" height="12" rx="1"/><rect x="14" y="6" width="7" height="12" rx="1"/><path d="M10 12h4M13 10l2 2-2 2"/></svg>
+            <span style="font:500 11px 'Inter';">Transitions</span>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:4px;width:64px;padding:9px 0;border-radius:10px;color:#86868b;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3c4 5 6 8 6 11a6 6 0 0 1-12 0c0-3 2-6 6-11z"/></svg>
+            <span style="font:500 11px 'Inter';">Filters</span>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:4px;width:64px;padding:9px 0;border-radius:10px;color:#86868b;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><circle cx="18" cy="18" r="1.5"/></svg>
+            <span style="font:500 11px 'Inter';">Effects</span>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:4px;width:64px;padding:9px 0;border-radius:10px;color:#86868b;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+            <span style="font:500 11px 'Inter';">Templates</span>
+          </div>
+        </div>
+        <!-- media panel -->
+        <div style="flex:1; padding:18px 16px; display:flex; flex-direction:column; min-width:0;">
+          <div style="font:700 18px 'Inter'; color:#1d1d1f; margin-bottom:14px;">Media</div>
+          <div style="display:flex; gap:8px; margin-bottom:18px;">
+            <button style="flex:1; display:flex; align-items:center; justify-content:center; gap:7px; background:#f4f4f6; border:1px solid #e7e7ea; border-radius:9px; padding:10px; font:500 13px 'Inter'; color:#3a3a3c; cursor:pointer;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#5a5a5f" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 17v2a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-2"/></svg>Import</button>
+            <button style="flex:1; display:flex; align-items:center; justify-content:center; gap:7px; background:#f4f4f6; border:1px solid #e7e7ea; border-radius:9px; padding:10px; font:500 13px 'Inter'; color:#3a3a3c; cursor:pointer;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#5a5a5f" stroke-width="1.9"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3" fill="#5a5a5f" stroke="none"/></svg>Record</button>
+            <button style="width:42px; display:flex; align-items:center; justify-content:center; background:#f4f4f6; border:1px solid #e7e7ea; border-radius:9px; cursor:pointer;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5a5a5f" stroke-width="1.8" stroke-linecap="round"><path d="M3 7h13M3 7l3-3M3 7l3 3M21 17H8M21 17l-3-3M21 17l-3 3"/></svg></button>
+          </div>
+          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
+            <span style="font:600 13px 'Inter'; color:#3a3a3c;">Project Media</span>
+            <span style="font:500 12px 'Inter'; color:#a0a0a5;">12</span>
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; overflow:auto;">
+            <!-- mountain -->
+            <div>
+              <div style="position:relative; height:78px; border-radius:8px; overflow:hidden; background:linear-gradient(160deg,#bcd3e8 0%,#8fb0cf 40%,#5d7a93 100%);">
+                <div style="position:absolute;inset:0;background:linear-gradient(155deg,transparent 45%,#6e7d6a 60%,#3e5240 100%);"></div>
+                <div style="position:absolute;left:10%;bottom:30%;width:0;height:0;border-left:30px solid transparent;border-right:30px solid transparent;border-bottom:40px solid rgba(255,255,255,0.55);"></div>
+                <span style="position:absolute; right:6px; bottom:6px; background:rgba(0,0,0,0.6); color:#fff; font:600 10px 'Inter'; padding:2px 5px; border-radius:4px;">00:12</span>
+              </div>
+              <div style="font:500 12px 'Inter'; color:#3a3a3c; margin-top:6px;">Mountain.mp4</div>
+            </div>
+            <!-- lake -->
+            <div>
+              <div style="position:relative; height:78px; border-radius:8px; overflow:hidden; background:linear-gradient(165deg,#a9c8d4 0%,#6f9c93 45%,#2f5d52 100%);">
+                <div style="position:absolute;inset:0;background:radial-gradient(circle at 70% 30%,rgba(255,255,255,0.35),transparent 50%);"></div>
+                <span style="position:absolute; right:6px; bottom:6px; background:rgba(0,0,0,0.6); color:#fff; font:600 10px 'Inter'; padding:2px 5px; border-radius:4px;">00:18</span>
+              </div>
+              <div style="font:500 12px 'Inter'; color:#3a3a3c; margin-top:6px;">Lake.mp4</div>
+            </div>
+            <!-- sunset -->
+            <div>
+              <div style="position:relative; height:78px; border-radius:8px; overflow:hidden; background:linear-gradient(180deg,#e8a86b 0%,#d97a5a 45%,#7a4a52 100%);">
+                <div style="position:absolute;inset:0;background:radial-gradient(circle at 50% 35%,rgba(255,220,150,0.7),transparent 45%);"></div>
+                <div style="position:absolute;left:0;right:0;bottom:0;height:35%;background:linear-gradient(180deg,#5a3a48,#2e2330);"></div>
+                <span style="position:absolute; right:6px; bottom:6px; background:rgba(0,0,0,0.6); color:#fff; font:600 10px 'Inter'; padding:2px 5px; border-radius:4px;">00:20</span>
+              </div>
+              <div style="font:500 12px 'Inter'; color:#3a3a3c; margin-top:6px;">Sunset.mp4</div>
+            </div>
+            <!-- forest -->
+            <div>
+              <div style="position:relative; height:78px; border-radius:8px; overflow:hidden; background:linear-gradient(150deg,#8fa86a 0%,#5d7a3f 45%,#2f4a24 100%);">
+                <div style="position:absolute;inset:0;background:repeating-linear-gradient(105deg,rgba(0,0,0,0.12) 0 8px,transparent 8px 22px);"></div>
+                <div style="position:absolute;inset:0;background:radial-gradient(circle at 60% 20%,rgba(255,240,180,0.4),transparent 45%);"></div>
+                <span style="position:absolute; right:6px; bottom:6px; background:rgba(0,0,0,0.6); color:#fff; font:600 10px 'Inter'; padding:2px 5px; border-radius:4px;">00:15</span>
+              </div>
+              <div style="font:500 12px 'Inter'; color:#3a3a3c; margin-top:6px;">Forest.mp4</div>
+            </div>
+            <!-- soundwave -->
+            <div>
+              <div style="position:relative; height:78px; border-radius:8px; overflow:hidden; background:#f1f1f4; display:flex; align-items:center; justify-content:center; gap:2px; padding:0 10px;">
+                <svg width="100%" height="38" viewBox="0 0 160 38" preserveAspectRatio="none"><g fill="#a9a9b3"><rect x="2" y="13" width="3" height="12"/><rect x="9" y="8" width="3" height="22"/><rect x="16" y="3" width="3" height="32"/><rect x="23" y="11" width="3" height="16"/><rect x="30" y="6" width="3" height="26"/><rect x="37" y="14" width="3" height="10"/><rect x="44" y="2" width="3" height="34"/><rect x="51" y="10" width="3" height="18"/><rect x="58" y="7" width="3" height="24"/><rect x="65" y="13" width="3" height="12"/><rect x="72" y="4" width="3" height="30"/><rect x="79" y="11" width="3" height="16"/><rect x="86" y="8" width="3" height="22"/><rect x="93" y="14" width="3" height="10"/><rect x="100" y="3" width="3" height="32"/><rect x="107" y="12" width="3" height="14"/><rect x="114" y="6" width="3" height="26"/><rect x="121" y="13" width="3" height="12"/><rect x="128" y="9" width="3" height="20"/><rect x="135" y="5" width="3" height="28"/><rect x="142" y="12" width="3" height="14"/><rect x="149" y="8" width="3" height="22"/><rect x="156" y="14" width="3" height="10"/></g></svg>
+                <span style="position:absolute; right:6px; bottom:6px; background:rgba(0,0,0,0.55); color:#fff; font:600 10px 'Inter'; padding:2px 5px; border-radius:4px;">03:02</span>
+              </div>
+              <div style="font:500 12px 'Inter'; color:#3a3a3c; margin-top:6px;">Soundwave.mp3</div>
+            </div>
+            <!-- logo -->
+            <div>
+              <div style="position:relative; height:78px; border-radius:8px; overflow:hidden; background:#f8f8fa; display:flex; align-items:center; justify-content:center; border:1px solid #ededf0;">
+                <svg width="44" height="48" viewBox="0 0 44 48"><path d="M8 4 L34 16 L8 28 Z" fill="#1d1d1f"/><path d="M16 11 L26 16 L16 21 Z" fill="#f7901e"/><path d="M14 8 L38 19 L14 30 Z" fill="none" stroke="#f7901e" stroke-width="3.5" stroke-linejoin="round"/><path d="M16 30 L13 46 M24 30 L27 46" stroke="#f7901e" stroke-width="3.5" stroke-linecap="round"/></svg>
+              </div>
+              <div style="font:500 12px 'Inter'; color:#3a3a3c; margin-top:6px;">Logo.png</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- preview card -->
+      <div style="flex:1; background:#fff; border:1px solid #ebebed; border-radius:12px; display:flex; flex-direction:column; padding:18px; min-width:0;">
+        <div style="flex:1; border-radius:10px; overflow:hidden; position:relative; min-height:0; background:linear-gradient(180deg,#9fc3e0 0%,#b9d3e6 30%,#7d99a8 55%,#3a5560 75%,#1d3038 100%);">
+          <div style="position:absolute;inset:0;background:linear-gradient(120deg,transparent 30%,rgba(120,140,120,0.5) 48%,rgba(60,90,70,0.85) 65%,rgba(40,70,50,0.95) 100%);"></div>
+          <div style="position:absolute;left:0;top:42%;right:0;bottom:0;background:linear-gradient(180deg,rgba(80,110,120,0.35),rgba(20,40,48,0.9));"></div>
+          <div style="position:absolute;left:6%;top:18%;width:0;height:0;border-left:90px solid transparent;border-right:120px solid transparent;border-bottom:150px solid rgba(255,255,255,0.5);filter:blur(1px);"></div>
+          <div style="position:absolute;right:18%;top:22%;width:0;height:0;border-left:70px solid transparent;border-right:80px solid transparent;border-bottom:120px solid rgba(255,255,255,0.42);"></div>
+          <div style="position:absolute;inset:0;background:radial-gradient(ellipse at 50% 0%,rgba(255,255,255,0.25),transparent 55%);"></div>
+        </div>
+        <!-- transport -->
+        <div style="display:flex; align-items:center; margin-top:16px;">
+          <div style="font:500 13px 'Inter'; color:#3a3a3c;">00:00:07:14 <span style="color:#b0b0b5;">/ 00:00:21:03</span></div>
+          <div style="flex:1; display:flex; align-items:center; justify-content:center; gap:22px;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="#3a3a3c"><path d="M6 5v14M18 5l-9 7 9 7z"/></svg>
+            <button style="width:40px;height:40px;border-radius:50%;background:#f0f0f3;border:none;display:flex;align-items:center;justify-content:center;cursor:pointer;"><svg width="18" height="18" viewBox="0 0 24 24" fill="#1d1d1f"><path d="M8 5v14l11-7z"/></svg></button>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="#3a3a3c"><path d="M18 5v14M6 5l9 7-9 7z"/></svg>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="#3a3a3c"><path d="M5 5l9 7-9 7zM16 5h2v14h-2z"/></svg>
+          </div>
+          <div style="display:flex; align-items:center; gap:10px;">
+            <div style="display:flex; align-items:center; gap:5px; background:#f0f0f3; border-radius:7px; padding:7px 11px; font:500 12px 'Inter'; color:#3a3a3c;">Fit<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#9a9a9f" stroke-width="2.4"><path d="M6 9l6 6 6-6"/></svg></div>
+            <button style="width:34px;height:34px;border-radius:7px;background:#f0f0f3;border:none;display:flex;align-items:center;justify-content:center;cursor:pointer;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5a5a5f" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M18.4 5.6L17 7M7 17l-1.4 1.4"/></svg></button>
+          </div>
+        </div>
+      </div>
+
+      <!-- properties card -->
+      <div style="width:340px; flex:none; background:#fff; border:1px solid #ebebed; border-radius:12px; display:flex; flex-direction:column; overflow:hidden;">
+        <div style="display:flex; gap:22px; padding:16px 20px 0; border-bottom:1px solid #ededf0;">
+          <div style="font:600 14px 'Inter'; color:#1d1d1f; padding-bottom:12px; border-bottom:2px solid #6366f1;">Video</div>
+          <div style="font:500 14px 'Inter'; color:#9a9a9f; padding-bottom:12px;">Audio</div>
+          <div style="font:500 14px 'Inter'; color:#9a9a9f; padding-bottom:12px;">Effects</div>
+          <div style="font:500 14px 'Inter'; color:#9a9a9f; padding-bottom:12px;">Motion</div>
+        </div>
+        <div style="padding:18px 20px; overflow:auto; flex:1;">
+          <!-- Transform -->
+          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;"><span style="font:600 14px 'Inter'; color:#1d1d1f;">Transform</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#b0b0b5" stroke-width="2.2"><path d="M6 15l6-6 6 6"/></svg></div>
+          <div style="display:flex; align-items:center; margin-bottom:12px;"><span style="width:90px; font:500 13px 'Inter'; color:#7c7c82;">Position</span><div style="flex:1; display:flex; gap:8px;"><div style="flex:1; display:flex; align-items:center; gap:6px; border:1px solid #e7e7ea; border-radius:7px; padding:7px 9px;"><span style="font:500 12px 'Inter'; color:#b0b0b5;">X</span><span style="font:500 13px 'Inter'; color:#3a3a3c;">960</span></div><div style="flex:1; display:flex; align-items:center; gap:6px; border:1px solid #e7e7ea; border-radius:7px; padding:7px 9px;"><span style="font:500 12px 'Inter'; color:#b0b0b5;">Y</span><span style="font:500 13px 'Inter'; color:#3a3a3c;">540</span></div></div></div>
+          <div style="display:flex; align-items:center; margin-bottom:12px;"><span style="width:90px; font:500 13px 'Inter'; color:#7c7c82;">Scale</span><div style="flex:1; display:flex; align-items:center; gap:10px;"><div style="flex:1; height:4px; border-radius:2px; background:#e7e7ea; position:relative;"><div style="position:absolute;left:0;top:0;bottom:0;width:50%;background:#6366f1;border-radius:2px;"></div><div style="position:absolute;left:calc(50% - 7px);top:-5px;width:14px;height:14px;border-radius:50%;background:#fff;border:1px solid #d0d0d5;box-shadow:0 1px 3px rgba(0,0,0,0.15);"></div></div><div style="width:62px; text-align:right; border:1px solid #e7e7ea; border-radius:7px; padding:7px 9px; font:500 13px 'Inter'; color:#3a3a3c;">100%</div></div></div>
+          <div style="display:flex; align-items:center; margin-bottom:12px;"><span style="width:90px; font:500 13px 'Inter'; color:#7c7c82;">Rotation</span><div style="flex:1; display:flex; align-items:center; justify-content:space-between; border:1px solid #e7e7ea; border-radius:7px; padding:7px 10px;"><span style="font:500 13px 'Inter'; color:#3a3a3c;">0°</span><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#b0b0b5" stroke-width="2.2"><path d="M8 9l4 4 4-4M8 15l4-4 4 4" /></svg></div></div>
+          <div style="display:flex; align-items:center; margin-bottom:18px;"><span style="width:90px; font:500 13px 'Inter'; color:#7c7c82;">Anchor Point</span><div style="flex:1; display:flex; gap:8px;"><div style="flex:1; display:flex; align-items:center; gap:6px; border:1px solid #e7e7ea; border-radius:7px; padding:7px 9px;"><span style="font:500 12px 'Inter'; color:#b0b0b5;">X</span><span style="font:500 13px 'Inter'; color:#3a3a3c;">960</span></div><div style="flex:1; display:flex; align-items:center; gap:6px; border:1px solid #e7e7ea; border-radius:7px; padding:7px 9px;"><span style="font:500 12px 'Inter'; color:#b0b0b5;">Y</span><span style="font:500 13px 'Inter'; color:#3a3a3c;">540</span></div></div></div>
+          <div style="height:1px; background:#ededf0; margin:6px 0 16px;"></div>
+          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;"><span style="font:600 14px 'Inter'; color:#1d1d1f;">Crop</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#b0b0b5" stroke-width="2.2"><path d="M6 9l6 6 6-6"/></svg></div>
+          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;"><span style="font:600 14px 'Inter'; color:#1d1d1f;">Dynamic Zoom</span><div style="width:38px;height:21px;border-radius:11px;background:#e2e2e6;position:relative;"><div style="position:absolute;left:2px;top:2px;width:17px;height:17px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,0.2);"></div></div></div>
+          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;"><span style="font:600 14px 'Inter'; color:#1d1d1f;">Opacity</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#b0b0b5" stroke-width="2.2"><path d="M6 15l6-6 6 6"/></svg></div>
+          <div style="display:flex; align-items:center; gap:10px; margin-bottom:16px;"><div style="flex:1; height:4px; border-radius:2px; background:#e7e7ea; position:relative;"><div style="position:absolute;left:0;top:0;bottom:0;width:100%;background:#6366f1;border-radius:2px;"></div><div style="position:absolute;right:-1px;top:-5px;width:14px;height:14px;border-radius:50%;background:#fff;border:1px solid #d0d0d5;box-shadow:0 1px 3px rgba(0,0,0,0.15);"></div></div><div style="width:62px; text-align:right; border:1px solid #e7e7ea; border-radius:7px; padding:7px 9px; font:500 13px 'Inter'; color:#3a3a3c;">100%</div></div>
+          <div style="display:flex; align-items:center; margin-bottom:18px;"><span style="width:90px; font:600 14px 'Inter'; color:#1d1d1f;">Blending</span><div style="flex:1; display:flex; align-items:center; justify-content:space-between; border:1px solid #e7e7ea; border-radius:7px; padding:8px 10px;"><span style="font:500 13px 'Inter'; color:#3a3a3c;">Normal</span><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#b0b0b5" stroke-width="2.2"><path d="M6 9l6 6 6-6"/></svg></div></div>
+          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;"><span style="font:600 14px 'Inter'; color:#1d1d1f;">Speed</span><div style="width:38px;height:21px;border-radius:11px;background:#e2e2e6;position:relative;"><div style="position:absolute;left:2px;top:2px;width:17px;height:17px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,0.2);"></div></div></div>
+          <div style="display:flex; align-items:center; justify-content:space-between;"><span style="font:600 14px 'Inter'; color:#1d1d1f;">Stabilization</span><div style="width:38px;height:21px;border-radius:11px;background:#e2e2e6;position:relative;"><div style="position:absolute;left:2px;top:2px;width:17px;height:17px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,0.2);"></div></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TIMELINE -->
+    <div style="height:316px; flex:none; margin:0 10px 10px; background:#fff; border:1px solid #ebebed; border-radius:12px; display:flex; flex-direction:column; overflow:hidden;">
+      <!-- toolbar -->
+      <div style="height:48px; flex:none; display:flex; align-items:center; padding:0 16px; border-bottom:1px solid #ededf0; gap:18px;">
+        <div style="display:flex; gap:16px; align-items:center; color:#8a8a8f;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-15-6.7L3 13"/></svg>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M21 7v6h-6"/><path d="M3 17a9 9 0 0 1 15-6.7L21 13"/></svg>
+          <span style="width:1px;height:18px;background:#e2e2e6;"></span>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="9" y="3" width="11" height="14" rx="2"/><path d="M5 7H4a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1v-1"/></svg>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M6 3v12a3 3 0 0 0 3 3h9M6 3l-2 2M6 3l2 2M18 18l-2-2M18 18l-2 2"/><circle cx="6" cy="3" r="0"/><path d="M9 6l9 9"/></svg>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M8 5v14M3 9h5M3 13h5"/></svg>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3v18M3 12h18"/><circle cx="12" cy="12" r="9"/></svg>
+        </div>
+        <div style="flex:1;"></div>
+        <div style="display:flex; align-items:center; gap:12px;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8a8a8f" stroke-width="1.9"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4M8 11h6M11 8v6"/></svg>
+          <div style="width:150px; height:4px; border-radius:2px; background:#e7e7ea; position:relative;"><div style="position:absolute;left:0;top:-4px;width:12px;height:12px;border-radius:50%;background:#6366f1;"></div></div>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8a8a8f" stroke-width="1.9"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4M8 11h6"/></svg>
+          <span style="width:1px;height:18px;background:#e2e2e6;"></span>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8a8a8f" stroke-width="1.7"><rect x="3" y="5" width="14" height="12" rx="2"/><path d="M21 7v10"/></svg>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8a8a8f" stroke-width="1.7"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8a8a8f" stroke-width="1.7"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M12 8v8M8 12h8"/></svg>
+        </div>
+      </div>
+      <!-- timeline body -->
+      <div style="flex:1; display:flex; position:relative; min-height:0;">
+        <!-- track labels -->
+        <div style="width:170px; flex:none; border-right:1px solid #ededf0;">
+          <div style="height:34px;"></div>
+          <div style="height:62px; display:flex; align-items:center; padding:0 16px; gap:10px;"><span style="flex:1; font:600 13px 'Inter'; color:#3a3a3c;">Video 1</span><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#a0a0a5" stroke-width="1.7"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#c0c0c5" stroke-width="1.8"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></div>
+          <div style="height:62px; display:flex; align-items:center; padding:0 16px; gap:10px;"><span style="flex:1; font:600 13px 'Inter'; color:#3a3a3c;">Audio 1</span><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#a0a0a5" stroke-width="1.7"><path d="M11 5L6 9H2v6h4l5 4z"/><path d="M15 9a3 3 0 0 1 0 6"/></svg><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#c0c0c5" stroke-width="1.8"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></div>
+          <div style="height:62px; display:flex; align-items:center; padding:0 16px; gap:10px;"><span style="flex:1; font:600 13px 'Inter'; color:#3a3a3c;">Audio 2</span><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#a0a0a5" stroke-width="1.7"><path d="M11 5L6 9H2v6h4l5 4z"/><path d="M15 9a3 3 0 0 1 0 6"/></svg><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#c0c0c5" stroke-width="1.8"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></div>
+          <div style="margin:4px 12px; height:28px; border:1px dashed #dadade; border-radius:7px; display:flex; align-items:center; justify-content:center; color:#b0b0b5;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg></div>
+        </div>
+        <!-- tracks -->
+        <div style="flex:1; position:relative; overflow:hidden;">
+          <!-- ruler -->
+          <div style="height:34px; position:relative; border-bottom:1px solid #ededf0;">
+            <div style="position:absolute;left:18px;top:9px;font:500 11px 'Inter';color:#a0a0a5;">00:00</div>
+            <div style="position:absolute;left:148px;top:9px;font:500 11px 'Inter';color:#a0a0a5;">00:02</div>
+            <div style="position:absolute;left:278px;top:9px;font:500 11px 'Inter';color:#a0a0a5;">00:04</div>
+            <div style="position:absolute;left:408px;top:9px;font:500 11px 'Inter';color:#a0a0a5;">00:06</div>
+            <div style="position:absolute;left:538px;top:9px;font:500 11px 'Inter';color:#a0a0a5;">00:08</div>
+            <div style="position:absolute;left:668px;top:9px;font:500 11px 'Inter';color:#a0a0a5;">00:12</div>
+            <div style="position:absolute;left:798px;top:9px;font:500 11px 'Inter';color:#a0a0a5;">00:12</div>
+            <div style="position:absolute;left:928px;top:9px;font:500 11px 'Inter';color:#a0a0a5;">00:16</div>
+            <div style="position:absolute;left:1058px;top:9px;font:500 11px 'Inter';color:#a0a0a5;">00:18</div>
+            <div style="position:absolute;left:1188px;top:9px;font:500 11px 'Inter';color:#a0a0a5;">00:20</div>
+            <div style="position:absolute;left:1300px;top:9px;font:500 11px 'Inter';color:#a0a0a5;">00:22</div>
+          </div>
+          <!-- video track -->
+          <div style="height:62px; display:flex; align-items:center; padding:0 8px; gap:4px;">
+            <div style="position:relative; height:48px; width:320px; border-radius:8px; overflow:hidden; background:linear-gradient(160deg,#bcd3e8,#5d7a93);"><div style="position:absolute;inset:0;background:linear-gradient(155deg,transparent 45%,#3e5240);"></div><span style="position:absolute;left:8px;bottom:6px;color:#fff;font:600 11px 'Inter';text-shadow:0 1px 2px rgba(0,0,0,0.4);">Mountain.mp4</span></div>
+            <div style="position:relative; height:48px; width:255px; border-radius:8px; overflow:hidden; background:linear-gradient(165deg,#a9c8d4,#2f5d52);"><div style="position:absolute;left:6px;top:50%;transform:translateY(-50%);width:18px;height:18px;border-radius:5px;background:rgba(255,255,255,0.85);display:flex;align-items:center;justify-content:center;"><svg width="9" height="9" viewBox="0 0 24 24" fill="#3a3a3c"><rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/></svg></div><span style="position:absolute;left:30px;bottom:6px;color:#fff;font:600 11px 'Inter';text-shadow:0 1px 2px rgba(0,0,0,0.4);">Lake.mp4</span></div>
+            <div style="position:relative; height:48px; width:255px; border-radius:8px; overflow:hidden; background:linear-gradient(180deg,#e8a86b,#7a4a52);"><div style="position:absolute;left:6px;top:50%;transform:translateY(-50%);width:18px;height:18px;border-radius:5px;background:rgba(255,255,255,0.85);display:flex;align-items:center;justify-content:center;"><svg width="9" height="9" viewBox="0 0 24 24" fill="#3a3a3c"><rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/></svg></div><span style="position:absolute;left:30px;bottom:6px;color:#fff;font:600 11px 'Inter';text-shadow:0 1px 2px rgba(0,0,0,0.4);">Sunset.mp4</span></div>
+            <div style="position:relative; height:48px; width:265px; border-radius:8px; overflow:hidden; background:linear-gradient(150deg,#8fa86a,#2f4a24);"><div style="position:absolute;left:6px;top:50%;transform:translateY(-50%);width:18px;height:18px;border-radius:5px;background:rgba(255,255,255,0.85);display:flex;align-items:center;justify-content:center;"><svg width="9" height="9" viewBox="0 0 24 24" fill="#3a3a3c"><rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/></svg></div><span style="position:absolute;left:30px;bottom:6px;color:#fff;font:600 11px 'Inter';text-shadow:0 1px 2px rgba(0,0,0,0.4);">Forest.mp4</span></div>
+          </div>
+          <!-- audio 1 -->
+          <div style="height:62px; display:flex; align-items:center; padding:0 8px;">
+            <div style="position:relative; height:48px; width:660px; border-radius:8px; overflow:hidden; background:#e6f4ea; border:1px solid #cfe8d6;"><span style="position:absolute;left:8px;top:6px;color:#4a7a55;font:600 11px 'Inter';z-index:1;">Soundwave.mp3</span><svg style="position:absolute;left:0;bottom:0;" width="100%" height="30" viewBox="0 0 660 30" preserveAspectRatio="none"><g fill="#8cc79a"><rect x="6" y="10" width="2" height="10"/><rect x="12" y="6" width="2" height="18"/><rect x="18" y="12" width="2" height="6"/><rect x="24" y="3" width="2" height="24"/><rect x="30" y="9" width="2" height="12"/><rect x="36" y="5" width="2" height="20"/><rect x="42" y="11" width="2" height="8"/><rect x="48" y="7" width="2" height="16"/><rect x="54" y="4" width="2" height="22"/><rect x="60" y="10" width="2" height="10"/><rect x="66" y="8" width="2" height="14"/><rect x="72" y="3" width="2" height="24"/><rect x="78" y="11" width="2" height="8"/><rect x="84" y="6" width="2" height="18"/><rect x="90" y="9" width="2" height="12"/><rect x="96" y="5" width="2" height="20"/><rect x="102" y="12" width="2" height="6"/><rect x="108" y="7" width="2" height="16"/><rect x="114" y="4" width="2" height="22"/><rect x="120" y="10" width="2" height="10"/></g><use href="#wv" x="120"/><use href="#wv" x="240"/><use href="#wv" x="360"/><use href="#wv" x="480"/><defs><g id="wv" fill="#8cc79a"><rect x="6" y="10" width="2" height="10"/><rect x="12" y="6" width="2" height="18"/><rect x="18" y="12" width="2" height="6"/><rect x="24" y="3" width="2" height="24"/><rect x="30" y="9" width="2" height="12"/><rect x="36" y="5" width="2" height="20"/><rect x="42" y="11" width="2" height="8"/><rect x="48" y="7" width="2" height="16"/><rect x="54" y="4" width="2" height="22"/><rect x="60" y="10" width="2" height="10"/><rect x="66" y="8" width="2" height="14"/><rect x="72" y="3" width="2" height="24"/><rect x="78" y="11" width="2" height="8"/><rect x="84" y="6" width="2" height="18"/><rect x="90" y="9" width="2" height="12"/><rect x="96" y="5" width="2" height="20"/><rect x="102" y="12" width="2" height="6"/><rect x="108" y="7" width="2" height="16"/><rect x="114" y="4" width="2" height="22"/></g></defs></svg></div>
+          </div>
+          <!-- audio 2 -->
+          <div style="height:62px; display:flex; align-items:center; padding:0 8px;">
+            <div style="position:relative; height:48px; width:790px; margin-left:222px; border-radius:8px; overflow:hidden; background:#e6f4ea; border:1px solid #cfe8d6;"><span style="position:absolute;left:8px;top:6px;color:#4a7a55;font:600 11px 'Inter';z-index:1;">Ambient.mp3</span><svg style="position:absolute;left:0;bottom:0;" width="100%" height="28" viewBox="0 0 790 28" preserveAspectRatio="none"><g fill="#a6d4b0"><use href="#wv2" x="0"/><use href="#wv2" x="120"/><use href="#wv2" x="240"/><use href="#wv2" x="360"/><use href="#wv2" x="480"/><use href="#wv2" x="600"/></g><path d="M720 4 Q745 4 760 14 Q775 24 786 26" stroke="#a6d4b0" stroke-width="1.5" fill="none"/><defs><g id="wv2"><rect x="6" y="9" width="2" height="9"/><rect x="12" y="5" width="2" height="17"/><rect x="18" y="11" width="2" height="6"/><rect x="24" y="3" width="2" height="22"/><rect x="30" y="8" width="2" height="11"/><rect x="36" y="5" width="2" height="18"/><rect x="42" y="10" width="2" height="8"/><rect x="48" y="7" width="2" height="14"/><rect x="54" y="4" width="2" height="20"/><rect x="60" y="9" width="2" height="9"/><rect x="66" y="7" width="2" height="13"/><rect x="72" y="3" width="2" height="22"/><rect x="78" y="10" width="2" height="7"/><rect x="84" y="6" width="2" height="16"/><rect x="90" y="8" width="2" height="11"/><rect x="96" y="5" width="2" height="18"/><rect x="102" y="11" width="2" height="6"/><rect x="108" y="7" width="2" height="14"/><rect x="114" y="4" width="2" height="20"/></g></defs></svg></div>
+          </div>
+          <!-- playhead -->
+          <div style="position:absolute; left:408px; top:0; bottom:0; width:1px; background:#1d1d1f; z-index:5;"><div style="position:absolute;top:0;left:-7px;width:15px;height:13px;background:#1d1d1f;border-radius:3px 3px 0 0;clip-path:polygon(0 0,100% 0,100% 65%,50% 100%,0 65%);"></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  </sc-if>
+
+  <!-- ================= MOTION DESIGN ================= -->
+  <sc-if value="{{ isMotion }}" hint-placeholder-val="{{ true }}">
+  <div style="display:flex; flex-direction:column; height:100%;">
+
+    <!-- TOP BAR -->
+    <div style="height:60px; flex:none; display:flex; align-items:center; padding:0 18px; background:#fbfbfc; border-bottom:1px solid #e7e7ea; gap:18px;">
+      <div style="display:flex; gap:8px; align-items:center; width:120px;">
+        <span style="width:12px;height:12px;border-radius:50%;background:#ff5f57;"></span>
+        <span style="width:12px;height:12px;border-radius:50%;background:#febc2e;"></span>
+        <span style="width:12px;height:12px;border-radius:50%;background:#28c840;"></span>
+      </div>
+      <div style="display:flex; background:#ececed; border-radius:9px; padding:3px;">
+        <button onClick="{{ goVideo }}" style="border:none; padding:7px 16px; font:500 13px 'Inter'; border-radius:7px; background:transparent; color:#7c7c82; cursor:pointer;">Video Editor</button>
+        <button style="border:none; padding:7px 14px 7px 16px; font:600 13px 'Inter'; border-radius:7px; background:#fff; color:#1d1d1f; box-shadow:0 1px 2px rgba(0,0,0,0.12); cursor:pointer; display:flex; align-items:center; gap:7px;">Motion Design<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#9a9a9f" stroke-width="2.4"><path d="M6 9l6 6 6-6"/></svg></button>
+      </div>
+      <div style="flex:1; text-align:center; font:500 14px 'Inter'; color:#3a3a3c;">New Motion Project</div>
+      <div style="display:flex; align-items:center; gap:14px;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#b0b0b5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-15-6.7L3 13"/></svg>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8a8a8f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 7v6h-6"/><path d="M3 17a9 9 0 0 1 15-6.7L21 13"/></svg>
+        <div style="display:flex; align-items:center; gap:6px; background:#fff; border:1px solid #e2e2e6; border-radius:8px; padding:6px 10px; font:500 13px 'Inter'; color:#3a3a3c;">100%<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#9a9a9f" stroke-width="2.4"><path d="M6 9l6 6 6-6"/></svg></div>
+        <button style="width:36px;height:36px;display:flex;align-items:center;justify-content:center;border:1px solid #e2e2e6;background:#fff;border-radius:8px;cursor:pointer;"><svg width="14" height="14" viewBox="0 0 24 24" fill="#3a3a3c"><path d="M8 5v14l11-7z"/></svg></button>
+        <div style="display:flex;">
+          <button style="border:none; background:#6366f1; color:#fff; font:600 13px 'Inter'; padding:9px 18px; border-radius:8px 0 0 8px; cursor:pointer;">Export</button>
+          <button style="border:none; border-left:1px solid rgba(255,255,255,0.25); background:#6366f1; color:#fff; padding:0 8px; border-radius:0 8px 8px 0; cursor:pointer; display:flex; align-items:center;"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4"><path d="M6 9l6 6 6-6"/></svg></button>
+        </div>
+      </div>
+    </div>
+
+    <!-- UPPER -->
+    <div style="flex:1; display:flex; padding:10px; gap:10px; min-height:0;">
+
+      <!-- assets card -->
+      <div style="display:flex; background:#fff; border:1px solid #ebebed; border-radius:12px; overflow:hidden; width:430px; flex:none;">
+        <!-- icon rail -->
+        <div style="width:78px; flex:none; border-right:1px solid #ededf0; padding:14px 0; display:flex; flex-direction:column; align-items:center; gap:6px;">
+          <div style="display:flex;flex-direction:column;align-items:center;gap:4px;width:60px;padding:9px 0;border-radius:10px;background:#eef0fe;color:#6366f1;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2l8 4.5v9L12 20l-8-4.5v-9z"/><path d="M12 11l8-4.5M12 11v9M12 11L4 6.5"/></svg><span style="font:600 10px 'Inter';">Assets</span></div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:4px;width:60px;padding:9px 0;border-radius:10px;color:#86868b;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 6h16M4 12h16M4 18h10"/></svg><span style="font:500 10px 'Inter';">Library</span></div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:4px;width:60px;padding:9px 0;border-radius:10px;color:#86868b;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 7V5h16v2M9 19h6M12 5v14"/></svg><span style="font:500 10px 'Inter';">Text</span></div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:4px;width:60px;padding:9px 0;border-radius:10px;color:#86868b;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="8" cy="8" r="4"/><rect x="13" y="13" width="7" height="7" rx="1"/><path d="M14 4h6v6"/></svg><span style="font:500 10px 'Inter';">Shapes</span></div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:4px;width:60px;padding:9px 0;border-radius:10px;color:#86868b;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M10 9l5 3-5 3z" fill="currentColor"/></svg><span style="font:500 10px 'Inter';">Media</span></div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:4px;width:60px;padding:9px 0;border-radius:10px;color:#86868b;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/></svg><span style="font:500 10px 'Inter';">Effects</span></div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:4px;width:60px;padding:9px 0;border-radius:10px;color:#86868b;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M10 4H6a2 2 0 0 0-2 2v4a2 2 0 0 0 2 2h4M14 12h4a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-4M10 20a3 3 0 0 0 0-6M14 10a3 3 0 0 1 0-6"/></svg><span style="font:500 10px 'Inter';">Plugins</span></div>
+        </div>
+        <!-- assets panel -->
+        <div style="flex:1; padding:18px 16px; display:flex; flex-direction:column; min-width:0;">
+          <div style="font:700 18px 'Inter'; color:#1d1d1f; margin-bottom:14px;">Assets</div>
+          <div style="display:flex; gap:8px; margin-bottom:16px;">
+            <div style="flex:1; display:flex; align-items:center; gap:8px; background:#f4f4f6; border:1px solid #e7e7ea; border-radius:9px; padding:9px 11px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#a0a0a5" stroke-width="1.9"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg><span style="font:500 13px 'Inter'; color:#a0a0a5;">Search assets...</span></div>
+            <button style="width:42px; display:flex; align-items:center; justify-content:center; background:#f4f4f6; border:1px solid #e7e7ea; border-radius:9px; cursor:pointer;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5a5a5f" stroke-width="1.8"><path d="M3 5h18l-7 8v6l-4-2v-4z"/></svg></button>
+          </div>
+          <div style="display:flex; gap:18px; border-bottom:1px solid #ededf0; margin-bottom:16px;">
+            <span style="font:600 13px 'Inter'; color:#1d1d1f; padding-bottom:9px; border-bottom:2px solid #6366f1;">All</span>
+            <span style="font:500 13px 'Inter'; color:#9a9a9f; padding-bottom:9px;">Footage</span>
+            <span style="font:500 13px 'Inter'; color:#9a9a9f; padding-bottom:9px;">Images</span>
+            <span style="font:500 13px 'Inter'; color:#9a9a9f; padding-bottom:9px;">Solids</span>
+            <span style="font:500 13px 'Inter'; color:#9a9a9f; padding-bottom:9px;">Comps</span>
+          </div>
+          <div style="font:600 12px 'Inter'; color:#7c7c82; margin-bottom:10px;">Frequently Used</div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; overflow:auto;">
+            <div><div style="height:70px; border-radius:8px; background:linear-gradient(135deg,#2a1840,#4a2a6a 60%,#1a1030);"></div><div style="font:500 12px 'Inter'; color:#3a3a3c; margin-top:6px;">BG_Gradient</div></div>
+            <div><div style="height:70px; border-radius:8px; background:radial-gradient(circle at 40% 40%,#3a6ea5,#1a3a5a 55%,#0a1a2a); position:relative; overflow:hidden;"><div style="position:absolute;left:18%;top:18%;width:55%;height:55%;border-radius:50%;background:radial-gradient(circle at 35% 30%,#5a8ec5,#1a3a5a);box-shadow:0 0 12px rgba(90,140,200,0.5);"></div></div><div style="font:500 12px 'Inter'; color:#3a3a3c; margin-top:6px;">Planet.png</div></div>
+            <div><div style="height:70px; border-radius:8px; background:#141420; position:relative; overflow:hidden;"><div style="position:absolute;inset:0;background:linear-gradient(transparent 95%,rgba(120,120,160,0.5) 95%) 0 0/14px 14px,linear-gradient(90deg,transparent 95%,rgba(120,120,160,0.5) 95%) 0 0/14px 14px;transform:perspective(60px) rotateX(40deg);"></div></div><div style="font:500 12px 'Inter'; color:#3a3a3c; margin-top:6px;">Grid.png</div></div>
+            <div><div style="height:70px; border-radius:8px; background:#f8f8fa; display:flex; align-items:center; justify-content:center; border:1px solid #ededf0;"><svg width="40" height="44" viewBox="0 0 44 48"><path d="M8 4 L34 16 L8 28 Z" fill="#1d1d1f"/><path d="M16 11 L26 16 L16 21 Z" fill="#f7901e"/><path d="M14 8 L38 19 L14 30 Z" fill="none" stroke="#f7901e" stroke-width="3.5" stroke-linejoin="round"/><path d="M16 30 L13 46 M24 30 L27 46" stroke="#f7901e" stroke-width="3.5" stroke-linecap="round"/></svg></div><div style="font:500 12px 'Inter'; color:#3a3a3c; margin-top:6px;">Logo.png</div></div>
+            <div><div style="height:70px; border-radius:8px; background:radial-gradient(ellipse at 50% 50%,#a05ed0,#3a1a5a 60%,#0a0a1a); position:relative; overflow:hidden;"><div style="position:absolute;left:0;right:0;top:48%;height:4px;background:rgba(220,180,255,0.9);filter:blur(2px);"></div></div><div style="font:500 12px 'Inter'; color:#3a3a3c; margin-top:6px;">Light Leak.mp4</div></div>
+            <div><div style="height:70px; border-radius:8px; background:radial-gradient(circle at 50% 60%,#3a2a5a,#0a0a1a); position:relative; overflow:hidden;"><div style="position:absolute;inset:0;background:radial-gradient(circle at 30% 40%,#f7a040 0.5px,transparent 1.5px) 0 0/16px 14px,radial-gradient(circle at 70% 65%,#e060c0 0.5px,transparent 1.5px) 5px 7px/20px 18px;"></div></div><div style="font:500 12px 'Inter'; color:#3a3a3c; margin-top:6px;">Particles.mov</div></div>
+          </div>
+          <div style="display:flex; align-items:center; justify-content:space-between; margin:16px 0 10px;"><span style="font:600 12px 'Inter'; color:#7c7c82;">Compositions</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#a0a0a5" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg></div>
+          <div style="display:flex; align-items:center; gap:10px; padding:8px; border-radius:8px; background:#f7f7f9; margin-bottom:8px;"><div style="width:30px;height:24px;border-radius:5px;background:#dadce8;display:flex;align-items:center;justify-content:center;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#7c7c82" stroke-width="1.8"><rect x="3" y="5" width="18" height="14" rx="2"/></svg></div><div style="flex:1;"><div style="font:600 12px 'Inter'; color:#1d1d1f;">Main Comp</div><div style="font:500 11px 'Inter'; color:#a0a0a5;">1920×1080 · 30fps</div></div><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#a0a0a5" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg></div>
+          <div style="display:flex; align-items:center; gap:10px; padding:8px; border-radius:8px;"><div style="width:30px;height:24px;border-radius:5px;background:#dadce8;display:flex;align-items:center;justify-content:center;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#7c7c82" stroke-width="1.8"><rect x="3" y="5" width="18" height="14" rx="2"/></svg></div><div style="flex:1;"><div style="font:600 12px 'Inter'; color:#1d1d1f;">Logo Animation</div><div style="font:500 11px 'Inter'; color:#a0a0a5;">1920×1080 · 30fps</div></div><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#a0a0a5" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg></div>
+        </div>
+      </div>
+
+      <!-- canvas card -->
+      <div style="flex:1; background:#fff; border:1px solid #ebebed; border-radius:12px; display:flex; flex-direction:column; overflow:hidden; min-width:0;">
+        <!-- comp tabs -->
+        <div style="height:40px; flex:none; display:flex; align-items:center; padding:0 12px; border-bottom:1px solid #ededf0; gap:6px;">
+          <div style="display:flex; align-items:center; gap:8px; background:#f0f0f3; border-radius:7px 7px 0 0; padding:8px 12px; font:600 12px 'Inter'; color:#1d1d1f;">Main Comp<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#a0a0a5" stroke-width="2.2"><path d="M6 6l12 12M18 6L6 18"/></svg></div>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#a0a0a5" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+        </div>
+        <!-- canvas toolbar -->
+        <div style="height:42px; flex:none; display:flex; align-items:center; padding:0 14px; border-bottom:1px solid #ededf0; gap:16px; color:#6a6a70;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="#3a3a3c"><path d="M4 2l7 18 2.5-7L20 11z"/></svg>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M18 11V6a2 2 0 0 0-4 0M14 10V4a2 2 0 0 0-4 0v2M10 10.5V6a2 2 0 0 0-4 0v8"/><path d="M18 8a2 2 0 0 1 4 0v6a8 8 0 0 1-8 8h-2a8 8 0 0 1-7-4l-2.5-5a2 2 0 0 1 3.5-2L7 14"/></svg>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
+          <span style="width:1px;height:18px;background:#e2e2e6;"></span>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 8V4h4M20 8V4h-4M4 16v4h4M20 16v4h-4"/></svg>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 9h6v6H9z"/></svg>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 7V5h16v2M9 19h6M12 5v14"/></svg>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 19l7-7-4-4-7 7-3 7z"/></svg>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="9"/><path d="M12 3v18"/></svg>
+          <span style="width:1px;height:18px;background:#e2e2e6;"></span>
+          <div style="display:flex; align-items:center; gap:7px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 8h12l4 4-4 4H4M8 4v4M16 16v4"/></svg><span style="font:500 12px 'Inter';">Snapping</span></div>
+          <div style="flex:1;"></div>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 20h8M12 17v3"/></svg>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/></svg>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 15l5-4 4 3 4-5 5 6"/></svg>
+        </div>
+        <!-- canvas viewport -->
+        <div style="flex:1; position:relative; min-height:0; background:radial-gradient(ellipse at 50% 75%,#3a1a6a 0%,#1a0a35 45%,#08040f 100%); overflow:hidden;">
+          <!-- planet -->
+          <div style="position:absolute; left:50%; bottom:-46%; transform:translateX(-50%); width:115%; padding-bottom:115%; border-radius:50%; background:radial-gradient(circle at 50% 18%,#6a4aa0 0%,#3a1a6a 35%,#1a0a35 70%); box-shadow:inset 0 14px 50px rgba(180,140,255,0.4),0 -8px 60px rgba(140,90,220,0.5);"></div>
+          <div style="position:absolute; left:0; right:0; top:62%; height:2px; background:rgba(200,160,255,0.7); filter:blur(3px);"></div>
+          <!-- light leak -->
+          <div style="position:absolute; left:50%; top:40%; transform:translateX(-50%); width:60%; height:80px; background:radial-gradient(ellipse,rgba(180,120,255,0.45),transparent 70%); filter:blur(8px);"></div>
+          <!-- grid hint near bottom -->
+          <div style="position:absolute; left:0; right:0; bottom:0; height:30%; background:repeating-linear-gradient(90deg,transparent 0 38px,rgba(150,110,220,0.18) 38px 39px); transform:perspective(180px) rotateX(60deg); transform-origin:bottom;"></div>
+          <!-- particles -->
+          <div style="position:absolute;inset:0;background:radial-gradient(circle at 22% 30%,rgba(255,255,255,0.7) 0.8px,transparent 2px) 0 0/90px 80px,radial-gradient(circle at 70% 20%,rgba(247,160,64,0.8) 0.8px,transparent 2px) 30px 20px/120px 100px,radial-gradient(circle at 85% 55%,rgba(224,96,192,0.7) 0.8px,transparent 2px) 0 0/140px 120px;"></div>
+          <!-- selection box -->
+          <div style="position:absolute; left:33%; top:18%; width:34%; height:52%;">
+            <!-- orbit ellipse -->
+            <div style="position:absolute; left:-12%; top:8%; width:124%; height:88%; border-radius:50%; border:1px dashed rgba(180,160,255,0.55); transform:rotate(-18deg);"></div>
+            <!-- bounding box -->
+            <div style="position:absolute; inset:0; border:1.5px solid #8aa0ff;"></div>
+            <!-- handles -->
+            <div style="position:absolute;left:-4px;top:-4px;width:8px;height:8px;background:#fff;border:1px solid #8aa0ff;"></div>
+            <div style="position:absolute;left:calc(50% - 4px);top:-4px;width:8px;height:8px;background:#fff;border:1px solid #8aa0ff;"></div>
+            <div style="position:absolute;right:-4px;top:-4px;width:8px;height:8px;background:#fff;border:1px solid #8aa0ff;"></div>
+            <div style="position:absolute;left:-4px;top:calc(50% - 4px);width:8px;height:8px;background:#fff;border:1px solid #8aa0ff;"></div>
+            <div style="position:absolute;right:-4px;top:calc(50% - 4px);width:8px;height:8px;background:#fff;border:1px solid #8aa0ff;"></div>
+            <div style="position:absolute;left:-4px;bottom:-4px;width:8px;height:8px;background:#fff;border:1px solid #8aa0ff;"></div>
+            <div style="position:absolute;left:calc(50% - 4px);bottom:-4px;width:8px;height:8px;background:#fff;border:1px solid #8aa0ff;"></div>
+            <div style="position:absolute;right:-4px;bottom:-4px;width:8px;height:8px;background:#fff;border:1px solid #8aa0ff;"></div>
+            <!-- mascot -->
+            <div style="position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);"><svg width="150" height="170" viewBox="0 0 44 48"><path d="M8 4 L34 16 L8 28 Z" fill="#1a1a1a"/><path d="M16 11 L26 16 L16 21 Z" fill="#f7901e"/><path d="M14 8 L38 19 L14 30 Z" fill="none" stroke="#f7901e" stroke-width="3.5" stroke-linejoin="round"/><path d="M16 30 L13 46 M24 30 L27 46" stroke="#f7901e" stroke-width="3.5" stroke-linecap="round"/><path d="M14 18 L4 22 M30 19 L40 24" stroke="#f7901e" stroke-width="3.2" stroke-linecap="round"/></svg></div>
+            <!-- gizmo -->
+            <div style="position:absolute; left:50%; top:50%;"><div style="position:absolute;left:0;bottom:0;width:2px;height:90px;background:#3ad14a;"></div><div style="position:absolute;left:0;bottom:88px;width:0;height:0;border-left:4px solid transparent;border-right:4px solid transparent;border-bottom:8px solid #3ad14a;"></div><div style="position:absolute;left:0;top:0;width:90px;height:2px;background:#e03a3a;"></div><div style="position:absolute;left:88px;top:-3px;width:0;height:0;border-top:4px solid transparent;border-bottom:4px solid transparent;border-left:8px solid #e03a3a;"></div><div style="position:absolute;left:-3px;top:-3px;width:7px;height:7px;border-radius:50%;background:#4a7aff;"></div></div>
+            <!-- orbit dots -->
+            <div style="position:absolute;right:-3%;top:14%;width:6px;height:6px;border-radius:50%;background:#c5b8ff;"></div>
+            <div style="position:absolute;left:18%;bottom:-2%;width:6px;height:6px;border-radius:50%;background:#c5b8ff;"></div>
+          </div>
+          <!-- top-left view selector -->
+          <div style="position:absolute; left:14px; top:12px; display:flex; align-items:center; gap:6px; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.12); border-radius:7px; padding:6px 11px; font:500 12px 'Inter'; color:#e8e8ee;">Active Camera<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.6)" stroke-width="2.4"><path d="M6 9l6 6 6-6"/></svg></div>
+          <!-- top-right -->
+          <div style="position:absolute; right:14px; top:12px; display:flex; gap:8px;">
+            <div style="display:flex; align-items:center; gap:6px; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.12); border-radius:7px; padding:6px 11px; font:500 12px 'Inter'; color:#e8e8ee;">Adaptive<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.6)" stroke-width="2.4"><path d="M6 9l6 6 6-6"/></svg></div>
+            <div style="display:flex; align-items:center; gap:6px; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.12); border-radius:7px; padding:6px 11px; font:500 12px 'Inter'; color:#e8e8ee;">1 View<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.6)" stroke-width="2.4"><path d="M6 9l6 6 6-6"/></svg></div>
+          </div>
+        </div>
+        <!-- canvas bottom bar -->
+        <div style="height:42px; flex:none; display:flex; align-items:center; padding:0 14px; border-top:1px solid #ededf0; gap:14px; color:#6a6a70;">
+          <div style="display:flex; align-items:center; gap:5px; background:#f0f0f3; border-radius:7px; padding:6px 10px; font:500 12px 'Inter'; color:#3a3a3c;">(63%)<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#9a9a9f" stroke-width="2.4"><path d="M6 9l6 6 6-6"/></svg></div>
+          <div style="display:flex; align-items:center; gap:6px; background:#f0f0f3; border-radius:7px; padding:6px 10px; font:500 12px 'Inter'; color:#3a3a3c;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6a6a70" stroke-width="1.7"><rect x="3" y="5" width="18" height="14" rx="2"/></svg>Full<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#9a9a9f" stroke-width="2.4"><path d="M6 9l6 6 6-6"/></svg></div>
+          <div style="flex:1; display:flex; justify-content:center; gap:14px;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 9V5h4M20 9V5h-4M4 15v4h4M20 15v4h-4"/></svg>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="4" y="6" width="16" height="12" rx="1"/><path d="M9 6v12"/></svg>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="#6a6a70" stroke="none"><rect x="4" y="6" width="16" height="12" rx="1"/></svg>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="4" y="6" width="16" height="12" rx="1"/><path d="M4 12h16"/></svg>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="4" y="6" width="16" height="12" rx="1"/><path d="M12 6v12"/></svg>
+          </div>
+          <div style="display:flex; align-items:center; gap:6px; font:500 12px 'Inter'; color:#3a3a3c;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6a6a70" stroke-width="1.7"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18z" fill="#6a6a70"/></svg>+0.0</div>
+          <span style="font:600 12px 'Inter'; color:#3a3a3c;">00:00:02:15</span>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="6" width="18" height="13" rx="2"/><circle cx="12" cy="12.5" r="3.5"/><path d="M8 6l1.5-2h5L16 6"/></svg>
+        </div>
+      </div>
+
+      <!-- design panel -->
+      <div style="width:340px; flex:none; background:#fff; border:1px solid #ebebed; border-radius:12px; display:flex; flex-direction:column; overflow:hidden;">
+        <div style="display:flex; gap:22px; padding:16px 20px 0; border-bottom:1px solid #ededf0;">
+          <div style="font:600 14px 'Inter'; color:#1d1d1f; padding-bottom:12px; border-bottom:2px solid #6366f1;">Design</div>
+          <div style="font:500 14px 'Inter'; color:#9a9a9f; padding-bottom:12px;">Animate</div>
+          <div style="font:500 14px 'Inter'; color:#9a9a9f; padding-bottom:12px;">Inspect</div>
+        </div>
+        <div style="padding:16px 20px; overflow:auto; flex:1;">
+          <!-- Align -->
+          <div style="font:600 13px 'Inter'; color:#1d1d1f; margin-bottom:10px;">Align</div>
+          <div style="display:flex; justify-content:space-between; margin-bottom:16px; color:#6a6a70;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 3v18"/><rect x="6" y="8" width="9" height="3.5"/><rect x="6" y="13" width="6" height="3.5"/></svg>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 3v18"/><rect x="6" y="8" width="12" height="3.5"/><rect x="8" y="13" width="8" height="3.5"/></svg>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M21 3v18"/><rect x="9" y="8" width="9" height="3.5"/><rect x="12" y="13" width="6" height="3.5"/></svg>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 3h18"/><rect x="8" y="6" width="3.5" height="9"/><rect x="13" y="6" width="3.5" height="6"/></svg>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 12h18"/><rect x="8" y="6" width="3.5" height="12"/><rect x="13" y="8" width="3.5" height="8"/></svg>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 21h18"/><rect x="8" y="9" width="3.5" height="9"/><rect x="13" y="12" width="3.5" height="6"/></svg>
+          </div>
+          <div style="font:600 13px 'Inter'; color:#1d1d1f; margin-bottom:10px;">Distribute</div>
+          <div style="display:flex; justify-content:space-between; margin-bottom:18px; color:#6a6a70;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 4v16M21 4v16"/><rect x="3" y="9" width="5" height="6"/></svg>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 4v16M21 4v16"/><rect x="9.5" y="9" width="5" height="6"/></svg>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 4v16M21 4v16"/><rect x="16" y="9" width="5" height="6"/></svg>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 3h16M4 21h16"/><rect x="9" y="3" width="6" height="5"/></svg>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 3h16M4 21h16"/><rect x="9" y="9.5" width="6" height="5"/></svg>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 3h16M4 21h16"/><rect x="9" y="16" width="6" height="5"/></svg>
+          </div>
+          <div style="height:1px; background:#ededf0; margin-bottom:16px;"></div>
+          <!-- Transform -->
+          <div style="font:600 14px 'Inter'; color:#1d1d1f; margin-bottom:12px;">Transform</div>
+          <div style="display:flex; align-items:center; margin-bottom:11px;"><span style="width:62px; font:500 13px 'Inter'; color:#7c7c82;">Position</span><div style="flex:1; display:flex; gap:6px;"><div style="flex:1; display:flex; gap:4px; border:1px solid #e7e7ea; border-radius:6px; padding:6px 7px;"><span style="font:500 11px 'Inter'; color:#b0b0b5;">X</span><span style="font:500 12px 'Inter'; color:#3a3a3c;">960</span></div><div style="flex:1; display:flex; gap:4px; border:1px solid #e7e7ea; border-radius:6px; padding:6px 7px;"><span style="font:500 11px 'Inter'; color:#b0b0b5;">Y</span><span style="font:500 12px 'Inter'; color:#3a3a3c;">540</span></div><div style="flex:1; display:flex; gap:4px; border:1px solid #e7e7ea; border-radius:6px; padding:6px 7px;"><span style="font:500 11px 'Inter'; color:#b0b0b5;">Z</span><span style="font:500 12px 'Inter'; color:#3a3a3c;">0</span></div></div></div>
+          <div style="display:flex; align-items:center; margin-bottom:11px;"><span style="width:62px; font:500 13px 'Inter'; color:#7c7c82;">Scale</span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#a0a0a5" stroke-width="1.8" style="margin-right:5px;"><path d="M8 12h8M10 8a3 3 0 0 1 0 6M14 8a3 3 0 0 0 0 6"/></svg><div style="flex:1; display:flex; gap:6px;"><div style="flex:1; display:flex; gap:4px; border:1px solid #e7e7ea; border-radius:6px; padding:6px 7px;"><span style="font:500 11px 'Inter'; color:#b0b0b5;">X</span><span style="font:500 12px 'Inter'; color:#3a3a3c;">100%</span></div><div style="flex:1; display:flex; gap:4px; border:1px solid #e7e7ea; border-radius:6px; padding:6px 7px;"><span style="font:500 11px 'Inter'; color:#b0b0b5;">Y</span><span style="font:500 12px 'Inter'; color:#3a3a3c;">100%</span></div><div style="flex:1; display:flex; gap:4px; border:1px solid #e7e7ea; border-radius:6px; padding:6px 7px;"><span style="font:500 11px 'Inter'; color:#b0b0b5;">Z</span><span style="font:500 12px 'Inter'; color:#3a3a3c;">100%</span></div></div></div>
+          <div style="display:flex; align-items:center; margin-bottom:11px;"><span style="width:62px; font:500 13px 'Inter'; color:#7c7c82;">Rotation</span><div style="flex:1; display:flex; gap:6px;"><div style="flex:1; display:flex; gap:4px; border:1px solid #e7e7ea; border-radius:6px; padding:6px 7px;"><span style="font:500 11px 'Inter'; color:#b0b0b5;">X</span><span style="font:500 12px 'Inter'; color:#3a3a3c;">0°</span></div><div style="flex:1; display:flex; gap:4px; border:1px solid #e7e7ea; border-radius:6px; padding:6px 7px;"><span style="font:500 11px 'Inter'; color:#b0b0b5;">Y</span><span style="font:500 12px 'Inter'; color:#3a3a3c;">0°</span></div><div style="flex:1; display:flex; gap:4px; border:1px solid #e7e7ea; border-radius:6px; padding:6px 7px;"><span style="font:500 11px 'Inter'; color:#b0b0b5;">Z</span><span style="font:500 12px 'Inter'; color:#3a3a3c;">0°</span></div></div></div>
+          <div style="display:flex; align-items:center; margin-bottom:18px;"><span style="width:62px; font:500 13px 'Inter'; color:#7c7c82;">Opacity</span><div style="flex:1; display:flex; align-items:center; gap:10px;"><div style="flex:1; height:4px; border-radius:2px; background:#e7e7ea; position:relative;"><div style="position:absolute;left:0;top:0;bottom:0;width:100%;background:#6366f1;border-radius:2px;"></div><div style="position:absolute;right:-1px;top:-5px;width:14px;height:14px;border-radius:50%;background:#fff;border:1px solid #d0d0d5;box-shadow:0 1px 3px rgba(0,0,0,0.15);"></div></div><span style="font:500 12px 'Inter'; color:#3a3a3c; width:36px;">100%</span></div></div>
+          <div style="height:1px; background:#ededf0; margin-bottom:16px;"></div>
+          <!-- Text -->
+          <div style="font:600 14px 'Inter'; color:#1d1d1f; margin-bottom:12px;">Text</div>
+          <div style="display:flex; align-items:center; justify-content:space-between; border:1px solid #e7e7ea; border-radius:7px; padding:8px 10px; margin-bottom:8px;"><span style="font:500 13px 'Inter'; color:#3a3a3c;">Inter</span><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#b0b0b5" stroke-width="2.2"><path d="M6 9l6 6 6-6"/></svg></div>
+          <div style="display:flex; gap:8px; margin-bottom:10px;"><div style="flex:1; display:flex; align-items:center; justify-content:space-between; border:1px solid #e7e7ea; border-radius:7px; padding:8px 10px;"><span style="font:500 13px 'Inter'; color:#3a3a3c;">Semi Bold</span><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#b0b0b5" stroke-width="2.2"><path d="M6 9l6 6 6-6"/></svg></div><div style="width:88px; display:flex; align-items:center; justify-content:space-between; border:1px solid #e7e7ea; border-radius:7px; padding:8px 10px;"><span style="font:500 13px 'Inter'; color:#3a3a3c;">96 px</span><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#b0b0b5" stroke-width="2.2"><path d="M6 9l6 6 6-6"/></svg></div></div>
+          <div style="display:flex; gap:8px; margin-bottom:8px; align-items:center; color:#6a6a70;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3a3a3c" stroke-width="1.7"><path d="M3 6h18M3 12h12M3 18h15"/></svg><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M5 6h14M7 12h10M5 18h14"/></svg><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 6h18M9 12h12M6 18h15"/></svg><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 6h18M3 12h18M3 18h18"/></svg><div style="flex:1;"></div><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M5 4v16M19 4v16M9 8l3-3 3 3M9 16l3 3 3-3"/></svg><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 5h16M4 19h16M8 9l-3 3 3 3M16 9l3 3-3 3"/></svg></div>
+          <div style="display:flex; align-items:center; margin-bottom:10px; margin-top:14px;"><span style="width:56px; font:500 13px 'Inter'; color:#7c7c82;">Fill</span><div style="flex:1; display:flex; gap:8px;"><div style="flex:1; display:flex; align-items:center; gap:8px; border:1px solid #e7e7ea; border-radius:7px; padding:6px 9px;"><span style="width:18px;height:18px;border-radius:4px;background:#fff;border:1px solid #d8d8dc;"></span><span style="font:500 13px 'Inter'; color:#3a3a3c;">#FFFFFF</span></div><div style="width:74px; display:flex; align-items:center; justify-content:space-between; border:1px solid #e7e7ea; border-radius:7px; padding:6px 9px;"><span style="font:500 13px 'Inter'; color:#3a3a3c;">100%</span><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#b0b0b5" stroke-width="2.2"><path d="M6 9l6 6 6-6"/></svg></div></div></div>
+          <div style="display:flex; align-items:center; margin-bottom:16px;"><span style="width:56px; font:500 13px 'Inter'; color:#7c7c82;">Stroke</span><div style="flex:1; display:flex; gap:8px; align-items:center;"><div style="flex:1; display:flex; align-items:center; gap:8px; border:1px solid #e7e7ea; border-radius:7px; padding:6px 9px;"><span style="width:18px;height:18px;border-radius:4px;background:#000;"></span><span style="font:500 13px 'Inter'; color:#3a3a3c;">#000000</span></div><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#a0a0a5" stroke-width="1.7"><path d="M4 7h12a4 4 0 0 1 0 8H8"/></svg><div style="width:34px;height:19px;border-radius:10px;background:#6366f1;position:relative;"><div style="position:absolute;right:2px;top:2px;width:15px;height:15px;border-radius:50%;background:#fff;"></div></div></div></div>
+          <div style="font:500 13px 'Inter'; color:#7c7c82; margin-bottom:16px;">More Options</div>
+          <div style="height:1px; background:#ededf0; margin-bottom:16px;"></div>
+          <!-- Layer -->
+          <div style="font:600 14px 'Inter'; color:#1d1d1f; margin-bottom:12px;">Layer</div>
+          <div style="display:flex; align-items:center; margin-bottom:14px;"><span style="width:90px; font:500 13px 'Inter'; color:#7c7c82;">Blending</span><div style="flex:1; display:flex; align-items:center; justify-content:space-between; border:1px solid #e7e7ea; border-radius:7px; padding:8px 10px;"><span style="font:500 13px 'Inter'; color:#3a3a3c;">Normal</span><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#b0b0b5" stroke-width="2.2"><path d="M6 9l6 6 6-6"/></svg></div></div>
+          <div style="display:flex; align-items:center; justify-content:space-between;"><span style="font:500 13px 'Inter'; color:#7c7c82;">Motion Blur</span><div style="width:38px;height:21px;border-radius:11px;background:#e2e2e6;position:relative;"><div style="position:absolute;left:2px;top:2px;width:17px;height:17px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,0.2);"></div></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MOTION TIMELINE -->
+    <div style="height:316px; flex:none; margin:0 10px 10px; background:#fff; border:1px solid #ebebed; border-radius:12px; display:flex; overflow:hidden;">
+      <!-- left: layers -->
+      <div style="width:355px; flex:none; border-right:1px solid #ededf0; display:flex; flex-direction:column;">
+        <div style="height:34px; flex:none; display:flex; align-items:center; padding:0 14px; gap:20px; border-bottom:1px solid #ededf0;"><span style="font:600 13px 'Inter'; color:#1d1d1f; padding:9px 0 0; border-bottom:2px solid #6366f1; height:34px; box-sizing:border-box;">Layers</span><span style="font:500 13px 'Inter'; color:#9a9a9f;">Composition</span></div>
+        <div style="height:50px; flex:none; display:flex; align-items:center; padding:0 14px; border-bottom:1px solid #ededf0; gap:10px; color:#8a8a8f;">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="3"/><path d="M3 12s3.5-7 9-7 9 7 9 7"/></svg>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 7h16M4 12h16M4 17h10"/></svg>
+          <div style="flex:1;"></div>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 4v16M4 12h16"/><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>
+          <span style="font:600 11px 'Inter'; color:#6a6a70; border:1px solid #e2e2e6; border-radius:5px; padding:2px 6px;">3D</span>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+        </div>
+        <div style="flex:1; overflow:auto;">
+          <!-- main comp row -->
+          <div style="display:flex; align-items:center; height:30px; padding:0 12px; gap:8px;"><svg width="11" height="11" viewBox="0 0 24 24" fill="#5a5a5f"><path d="M5 5h14v14H5z"/></svg><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#7c7c82" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7c7c82" stroke-width="1.7"><rect x="3" y="5" width="18" height="14" rx="2"/></svg><span style="font:600 12px 'Inter'; color:#1d1d1f;">Main Comp</span></div>
+          <!-- Logo -->
+          <div style="display:flex; align-items:center; height:30px; padding:0 12px 0 32px; gap:8px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#9a9a9f" stroke-width="1.7"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="2.5"/></svg><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#9a9a9f" stroke-width="2.5"><path d="M9 6l6 6-6 6"/></svg><svg width="13" height="13" viewBox="0 0 16 16"><path d="M3 2 L12 6 L3 10 Z" fill="#f7901e"/></svg><span style="flex:1; font:500 12px 'Inter'; color:#3a3a3c;">Logo</span><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#c0c0c5" stroke-width="1.8"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></div>
+          <!-- Logo Glow (selected) -->
+          <div style="display:flex; align-items:center; height:30px; padding:0 12px 0 32px; gap:8px; background:#eef0fe;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="1.7"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="2.5"/></svg><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="1.7"><circle cx="12" cy="12" r="4"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/></svg><span style="flex:1; font:600 12px 'Inter'; color:#3a3a3c;">Logo Glow</span><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#c0c0c5" stroke-width="1.8"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></div>
+          <!-- Orbit Path -->
+          <div style="display:flex; align-items:center; height:30px; padding:0 12px 0 52px; gap:8px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#9a9a9f" stroke-width="1.7"><ellipse cx="12" cy="12" rx="9" ry="5"/></svg><span style="flex:1; font:500 12px 'Inter'; color:#8a8a8f;">Orbit Path</span><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#c0c0c5" stroke-width="1.8"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></div>
+          <!-- Planet -->
+          <div style="display:flex; align-items:center; height:30px; padding:0 12px 0 32px; gap:8px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#9a9a9f" stroke-width="1.7"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="2.5"/></svg><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#9a9a9f" stroke-width="2.5"><path d="M9 6l6 6-6 6"/></svg><svg width="13" height="13" viewBox="0 0 24 24" fill="#8a6ad0"><circle cx="12" cy="12" r="9"/></svg><span style="flex:1; font:500 12px 'Inter'; color:#3a3a3c;">Planet</span><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#c0c0c5" stroke-width="1.8"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></div>
+          <!-- Grid -->
+          <div style="display:flex; align-items:center; height:30px; padding:0 12px 0 32px; gap:8px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#9a9a9f" stroke-width="1.7"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="2.5"/></svg><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#9a9a9f" stroke-width="2.5"><path d="M9 6l6 6-6 6"/></svg><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6aa0d8" stroke-width="1.7"><path d="M3 9h18M3 15h18M9 3v18M15 3v18"/></svg><span style="flex:1; font:500 12px 'Inter'; color:#3a3a3c;">Grid</span><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#c0c0c5" stroke-width="1.8"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></div>
+          <!-- Light Leak -->
+          <div style="display:flex; align-items:center; height:30px; padding:0 12px 0 32px; gap:8px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#9a9a9f" stroke-width="1.7"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="2.5"/></svg><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#9a9a9f" stroke-width="2.5"><path d="M9 6l6 6-6 6"/></svg><svg width="13" height="13" viewBox="0 0 24 24" fill="#c060c0"><circle cx="12" cy="12" r="9"/></svg><span style="flex:1; font:500 12px 'Inter'; color:#3a3a3c;">Light Leak</span><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#c0c0c5" stroke-width="1.8"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></div>
+          <!-- Camera 1 -->
+          <div style="display:flex; align-items:center; height:30px; padding:0 12px 0 32px; gap:8px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#9a9a9f" stroke-width="1.7"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="2.5"/></svg><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#9a9a9f" stroke-width="2.5"><path d="M9 6l6 6-6 6"/></svg><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#7c7c82" stroke-width="1.7"><rect x="3" y="7" width="13" height="10" rx="2"/><path d="M16 11l5-3v8l-5-3z"/></svg><span style="flex:1; font:500 12px 'Inter'; color:#3a3a3c;">Camera 1</span><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#c0c0c5" stroke-width="1.8"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></div>
+          <!-- Ambient Light -->
+          <div style="display:flex; align-items:center; height:30px; padding:0 12px 0 32px; gap:8px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#9a9a9f" stroke-width="1.7"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="2.5"/></svg><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#9a9a9f" stroke-width="2.5"><path d="M9 6l6 6-6 6"/></svg><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#e0a040" stroke-width="1.7"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M4 12H1M23 12h-3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></svg><span style="flex:1; font:500 12px 'Inter'; color:#3a3a3c;">Ambient Light</span><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#c0c0c5" stroke-width="1.8"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></div>
+        </div>
+        <div style="height:38px; flex:none; border-top:1px solid #ededf0; display:flex; align-items:center; padding:0 14px; gap:14px;"><div style="display:flex; align-items:center; gap:6px; font:500 12px 'Inter'; color:#6a6a70;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>Add Layer</div><div style="flex:1;"></div><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#a0a0a5" stroke-width="1.7"><path d="M3 7v11a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-7L9 4H5a2 2 0 0 0-2 2z"/></svg><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#a0a0a5" stroke-width="1.7"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M8 5v14"/></svg></div>
+      </div>
+      <!-- right: keyframes -->
+      <div style="flex:1; display:flex; flex-direction:column; min-width:0;">
+        <div style="height:46px; flex:none; display:flex; align-items:center; padding:8px 14px; border-bottom:1px solid #ededf0; gap:14px;">
+          <div><div style="font:700 16px 'Inter'; color:#6366f1; letter-spacing:0.5px;">00:00:02:15</div><div style="font:500 10px 'Inter'; color:#a0a0a5;">00075 (30.00 fps)</div></div>
+          <div style="flex:1;"></div>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#8a8a8f" stroke-width="1.7"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4M8 11h6"/></svg>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#8a8a8f" stroke-width="1.7"><rect x="3" y="5" width="14" height="12" rx="2"/><path d="M21 8v8"/></svg>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#8a8a8f" stroke-width="1.7"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#8a8a8f" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+        </div>
+        <div style="flex:1; position:relative; overflow:hidden;">
+          <!-- frame ruler -->
+          <div style="height:24px; position:relative; border-bottom:1px solid #ededf0;">
+            <div style="position:absolute;left:96px;top:6px;font:500 10px 'Inter';color:#a0a0a5;">01:00f</div>
+            <div style="position:absolute;left:196px;top:6px;font:500 10px 'Inter';color:#a0a0a5;">02:00f</div>
+            <div style="position:absolute;left:296px;top:6px;font:500 10px 'Inter';color:#a0a0a5;">03:00f</div>
+            <div style="position:absolute;left:396px;top:6px;font:500 10px 'Inter';color:#a0a0a5;">06:00f</div>
+            <div style="position:absolute;left:496px;top:6px;font:500 10px 'Inter';color:#a0a0a5;">06:00f</div>
+            <div style="position:absolute;left:596px;top:6px;font:500 10px 'Inter';color:#a0a0a5;">07:00f</div>
+            <div style="position:absolute;left:696px;top:6px;font:500 10px 'Inter';color:#a0a0a5;">08:00f</div>
+            <div style="position:absolute;left:796px;top:6px;font:500 10px 'Inter';color:#a0a0a5;">09:00f</div>
+            <div style="position:absolute;left:888px;top:6px;font:500 10px 'Inter';color:#a0a0a5;">10:00f</div>
+          </div>
+          <!-- track rows -->
+          <div style="padding:6px 0;">
+            <div style="height:24px; padding:0 8px;"><div style="height:18px; border-radius:5px; background:linear-gradient(90deg,#e8a44a,#dd9540); position:relative;"><div style="position:absolute;right:18%;top:50%;transform:translateY(-50%) rotate(45deg);width:7px;height:7px;background:#fff;"></div></div></div>
+            <div style="height:24px; padding:0 8px;"><div style="height:18px; border-radius:5px; background:#e8a44a; position:relative; color:#7a4a10; font:600 10px 'Inter'; display:flex; align-items:center; padding-left:8px;">Scale<div style="position:absolute;left:48%;top:50%;transform:translateY(-50%) rotate(45deg);width:7px;height:7px;background:#fff;"></div><div style="position:absolute;left:54%;top:50%;transform:translateY(-50%) rotate(45deg);width:7px;height:7px;background:#fff;"></div><div style="position:absolute;left:80%;top:50%;transform:translateY(-50%) rotate(45deg);width:7px;height:7px;background:#fff;"></div><div style="position:absolute;left:90%;top:50%;transform:translateY(-50%) rotate(45deg);width:7px;height:7px;background:#fff;"></div></div></div>
+            <div style="height:24px; padding:0 8px;"><div style="height:18px; border-radius:5px; background:#9b7be0; position:relative; color:#4a2a8a; font:600 10px 'Inter'; display:flex; align-items:center; padding-left:8px;">Rotation<div style="position:absolute;left:38%;top:50%;transform:translateY(-50%);width:0;height:0;border-left:7px solid #fff;border-top:4px solid transparent;border-bottom:4px solid transparent;"></div><div style="position:absolute;left:78%;top:50%;transform:translateY(-50%) rotate(45deg);width:7px;height:7px;background:#5a3aa0;"></div><div style="position:absolute;left:88%;top:50%;transform:translateY(-50%) rotate(45deg);width:7px;height:7px;background:#fff;"></div></div></div>
+            <div style="height:24px; padding:0 8px;"><div style="height:18px; border-radius:5px; background:#c264b8; position:relative; color:#7a2a70; font:600 10px 'Inter'; display:flex; align-items:center; padding-left:8px;">Opacity<div style="position:absolute;left:33%;top:50%;transform:translateY(-50%) rotate(45deg);width:7px;height:7px;background:#fff;"></div><div style="position:absolute;left:90%;top:50%;transform:translateY(-50%) rotate(45deg);width:7px;height:7px;background:#fff;"></div></div></div>
+            <div style="height:24px; padding:0 8px;"><div style="height:18px; border-radius:5px; background:#6a9bd8; position:relative; color:#2a4a7a; font:600 10px 'Inter'; display:flex; align-items:center; padding-left:8px;">Position<div style="position:absolute;left:30%;top:50%;transform:translateY(-50%) rotate(45deg);width:7px;height:7px;background:#fff;"></div></div></div>
+            <div style="height:24px; padding:0 8px;"><div style="height:18px; border-radius:5px; background:#7fb0d8; position:relative; color:#2a4a7a; font:600 10px 'Inter'; display:flex; align-items:center; padding-left:8px;">Grid<div style="position:absolute;left:48%;top:50%;transform:translateY(-50%) rotate(45deg);width:7px;height:7px;background:#fff;"></div></div></div>
+            <div style="height:24px; padding:0 8px;"><div style="height:18px; border-radius:5px; background:#9b7be0;"></div></div>
+            <div style="height:24px; padding:0 8px;"><div style="height:18px; border-radius:5px; background:rgba(155,123,224,0.25); position:relative;"><div style="position:absolute;left:30%;top:50%;transform:translateY(-50%) rotate(45deg);width:6px;height:6px;background:#9b7be0;"></div></div></div>
+          </div>
+          <!-- playhead -->
+          <div style="position:absolute; left:296px; top:0; bottom:0; width:1px; background:#1d1d1f; z-index:5;"><div style="position:absolute;top:0;left:-6px;width:13px;height:12px;background:#1d1d1f;clip-path:polygon(0 0,100% 0,100% 60%,50% 100%,0 60%);"></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  </sc-if>
+
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1536,&quot;height&quot;:1024}}">
+class Component extends DCLogic {
+  state = { tab: 'video' };
+  renderVals() {
+    const tab = this.state.tab;
+    return {
+      isVideo: tab === 'video',
+      isMotion: tab === 'motion',
+      goVideo: () => this.setState({ tab: 'video' }),
+      goMotion: () => this.setState({ tab: 'motion' }),
+    };
+  }
+}
+</script>
+</body>
+</html>

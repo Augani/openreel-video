@@ -1,7 +1,12 @@
 import React, { useState, useCallback } from "react";
-import { Sparkles, Play, Check, Loader2 } from "lucide-react";
+import { ToolcraftButton as Button } from "@openreel/ui";
+import { ToolcraftIconButton as IconButton } from "@openreel/ui";
+import { ToolcraftNumberInputControl } from "@openreel/ui";
+import { ToolcraftText as Text } from "@openreel/ui";
+import { Sparkles, Play, Check, Loader2 } from "@/icons/lucide-compat";
 import { useProjectStore } from "../../../stores/project-store";
 import { useTimelineStore } from "../../../stores/timeline-store";
+import { applyHighlightRanges } from "../../../services/highlight-apply";
 import {
   getTranscriptionService,
   initializeTranscriptionService,
@@ -137,51 +142,57 @@ export const HighlightExtractorPanel: React.FC<HighlightExtractorPanelProps> = (
     <div className="space-y-3">
       <div className="space-y-2">
         <div className="flex items-center gap-2">
-          <label className="text-[10px] text-text-secondary">Clips</label>
-          <input
-            type="number"
+          <Text type="label" color="secondary" className="text-[10px] text-text-secondary">Clips</Text>
+          <ToolcraftNumberInputControl
+            label="Clips"
+            isLabelHidden
+            size="sm"
+            width={48}
             min={1}
             max={20}
             value={preferences.targetClipCount}
-            onChange={(e) =>
-              setPreferences((p) => ({ ...p, targetClipCount: parseInt(e.target.value) || 5 }))
+            onChange={(value) =>
+              setPreferences((p) => ({ ...p, targetClipCount: value || 5 }))
             }
             className="w-12 px-1 py-0.5 text-[10px] bg-background-secondary border border-border rounded text-text-primary"
           />
-          <label className="text-[10px] text-text-secondary">Max</label>
-          <input
-            type="number"
+          <Text type="label" color="secondary" className="text-[10px] text-text-secondary">Max</Text>
+          <ToolcraftNumberInputControl
+            label="Max duration"
+            isLabelHidden
+            size="sm"
+            width={48}
             min={1}
             max={300}
             value={preferences.maxClipDuration}
-            onChange={(e) =>
-              setPreferences((p) => ({ ...p, maxClipDuration: parseInt(e.target.value) || 60 }))
+            onChange={(value) =>
+              setPreferences((p) => ({ ...p, maxClipDuration: value || 60 }))
             }
             className="w-12 px-1 py-0.5 text-[10px] bg-background-secondary border border-border rounded text-text-primary"
           />
           <span className="text-[10px] text-text-muted">s</span>
         </div>
 
-        <button
+        <Button
+          label={
+            isProcessing ? `${phase} (${progress}%)` : "Find Highlights"
+          }
+          icon={
+            isProcessing ? (
+              <Loader2 size={14} className="animate-spin" aria-hidden />
+            ) : (
+              <Sparkles size={14} aria-hidden />
+            )
+          }
+          variant="primary"
+          size="md"
           onClick={handleAnalyze}
-          disabled={isProcessing}
+          isDisabled={isProcessing}
           className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-primary hover:bg-primary/90 text-white rounded text-[11px] font-medium transition-colors disabled:opacity-50"
-        >
-          {isProcessing ? (
-            <>
-              <Loader2 size={14} className="animate-spin" />
-              {phase} ({progress}%)
-            </>
-          ) : (
-            <>
-              <Sparkles size={14} />
-              Find Highlights
-            </>
-          )}
-        </button>
+        />
 
         {error && (
-          <p className="text-[10px] text-red-400">{error}</p>
+          <Text type="supporting" className="text-[10px] text-red-400">{error}</Text>
         )}
       </div>
 
@@ -215,15 +226,17 @@ export const HighlightExtractorPanel: React.FC<HighlightExtractorPanelProps> = (
                   </span>
                 </div>
                 <div className="flex items-center gap-1">
-                  <button
+                  <IconButton
+                    label="Preview highlight"
+                    icon={<Play size={10} className="text-text-muted" aria-hidden />}
+                    variant="ghost"
+                    size="sm"
                     onClick={(e) => {
                       e.stopPropagation();
                       handlePreview(highlight);
                     }}
                     className="p-1 hover:bg-background-secondary rounded"
-                  >
-                    <Play size={10} className="text-text-muted" />
-                  </button>
+                  />
                   {selected.has(index) && (
                     <Check size={12} className="text-primary" />
                   )}
@@ -240,73 +253,21 @@ export const HighlightExtractorPanel: React.FC<HighlightExtractorPanelProps> = (
             </div>
           ))}
 
-          <button
+          <Button
+            label={`Apply ${selected.size} Highlight${selected.size !== 1 ? "s" : ""}`}
+            icon={<Check size={14} aria-hidden />}
+            variant="primary"
+            size="md"
             onClick={async () => {
-              const selectedHighlights = highlights
-                .filter((_, i) => selected.has(i))
-                .sort((a, b) => a.start - b.start);
-              if (selectedHighlights.length === 0) return;
-
-              const store = useProjectStore.getState();
-              const proj = store.project;
-              const originalTrack = proj.timeline.tracks.find((t) =>
-                t.clips.some((c) => c.id === clipId),
+              const selectedHighlights = highlights.filter((_, i) => selected.has(i));
+              await applyHighlightRanges(
+                clipId,
+                selectedHighlights.map((h) => ({ start: h.start, end: h.end })),
               );
-              if (!originalTrack) return;
-
-              const clip = originalTrack.clips.find((c) => c.id === clipId);
-              if (!clip) return;
-
-              const clipStart = clip.startTime;
-              const clipInPoint = clip.inPoint;
-
-              const splitTimes: number[] = [];
-              for (const h of selectedHighlights) {
-                const hStartOnTimeline = clipStart + (h.start - clipInPoint);
-                const hEndOnTimeline = clipStart + (h.end - clipInPoint);
-                splitTimes.push(hStartOnTimeline);
-                splitTimes.push(hEndOnTimeline);
-              }
-
-              const uniqueSplitTimes = [...new Set(splitTimes)]
-                .sort((a, b) => a - b)
-                .filter((t) => t > clipStart && t < clipStart + clip.duration);
-
-              for (const splitTime of uniqueSplitTimes) {
-                const currentProj = useProjectStore.getState().project;
-                const track = currentProj.timeline.tracks.find((t) => t.id === originalTrack.id);
-                if (!track) break;
-
-                const clipAtTime = track.clips.find(
-                  (c) => c.startTime < splitTime && c.startTime + c.duration > splitTime,
-                );
-                if (clipAtTime) {
-                  await store.splitClip(clipAtTime.id, splitTime);
-                }
-              }
-
-              const finalProj = useProjectStore.getState().project;
-              const finalTrack = finalProj.timeline.tracks.find((t) => t.id === originalTrack.id);
-              if (!finalTrack) return;
-
-              const clipsToRemove = finalTrack.clips.filter((c) => {
-                const cSourceStart = c.inPoint;
-                const cSourceEnd = c.inPoint + c.duration;
-                return !selectedHighlights.some(
-                  (h) => h.start < cSourceEnd && h.end > cSourceStart,
-                );
-              });
-
-              for (const c of clipsToRemove.sort((a, b) => b.startTime - a.startTime)) {
-                await useProjectStore.getState().rippleDeleteClip(c.id);
-              }
             }}
-            disabled={selected.size === 0}
+            isDisabled={selected.size === 0}
             className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded text-[11px] font-medium transition-colors disabled:opacity-50"
-          >
-            <Check size={14} />
-            Apply {selected.size} Highlight{selected.size !== 1 ? "s" : ""}
-          </button>
+          />
         </div>
       )}
     </div>

@@ -4,7 +4,10 @@ import type {
   EasingType,
   ClipMetadata,
 } from "../types/timeline";
-import type { EmphasisAnimation } from "../graphics/types";
+import type {
+  EmphasisAnimation,
+  MotionShaderParamValue,
+} from "../graphics/types";
 
 export interface TextClip {
   readonly id: string;
@@ -16,6 +19,8 @@ export interface TextClip {
   readonly transform: Transform;
   readonly animation?: TextAnimation;
   readonly keyframes: Keyframe[];
+  /** Ordered visual effects applied after text rasterization. */
+  readonly effects?: import("../types/timeline").Effect[];
   readonly blendMode?: import("../video/types").BlendMode;
   readonly blendOpacity?: number;
   readonly emphasisAnimation?: EmphasisAnimation;
@@ -71,6 +76,13 @@ export interface TextStyle {
   readonly lineHeight: number;
   readonly letterSpacing: number;
   readonly textDecoration?: TextDecoration;
+  readonly shader?: TextShaderStyle;
+}
+
+export interface TextShaderStyle {
+  readonly shaderId: string;
+  readonly params: Record<string, MotionShaderParamValue>;
+  readonly progress?: number;
 }
 
 export type FontWeight =
@@ -120,7 +132,13 @@ export type TextAnimationPreset =
   | "split"
   | "flip"
   | "word-by-word"
-  | "rainbow";
+  | "rainbow"
+  | "rise"
+  | "drop"
+  | "elastic"
+  | "swing"
+  | "zoom-blur"
+  | "cascade";
 
 export interface TextAnimationParams {
   // Fade parameters
@@ -178,6 +196,8 @@ export const DEFAULT_TEXT_STYLE: TextStyle = {
   fontWeight: "bold",
   fontStyle: "normal",
   color: "#ffffff",
+  strokeColor: "#111827",
+  strokeWidth: 2,
   textAlign: "center",
   verticalAlign: "middle",
   lineHeight: 1.2,

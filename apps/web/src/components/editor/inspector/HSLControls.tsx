@@ -1,5 +1,9 @@
 import React, { useCallback, useState, useMemo } from "react";
-import { RotateCcw } from "lucide-react";
+import { ToolcraftButton as Button } from "@openreel/ui";
+import { ToolcraftClickableCard as ClickableCard } from "@openreel/ui";
+import { ToolcraftText as Text } from "@openreel/ui";
+import { PropertySlider } from "./shell/PropertySlider";
+import { RotateCcw } from "@/icons/lucide-compat";
 import type { HSLValues } from "@openreel/core";
 
 export const DEFAULT_HSL_VALUES: HSLValues = {
@@ -66,22 +70,22 @@ const ColorTab: React.FC<{
   isActive: boolean;
   onClick: () => void;
 }> = ({ color, isActive, onClick }) => (
-  <button
+  <ClickableCard
+    label={color.fullLabel}
     onClick={onClick}
     className={`flex-1 py-1.5 text-[9px] font-medium rounded transition-all ${
       isActive
-        ? "bg-background-tertiary text-text-primary shadow-sm"
-        : "text-text-muted hover:text-text-secondary"
+        ? "bg-bg-2 text-fg shadow-sm"
+        : "text-fg-3 hover:text-fg-2"
     }`}
     style={{
       borderBottom: isActive
         ? `2px solid ${color.color}`
         : "2px solid transparent",
     }}
-    title={color.fullLabel}
   >
     {color.label}
-  </button>
+  </ClickableCard>
 );
 
 /**
@@ -95,72 +99,19 @@ const HSLSlider: React.FC<{
   max: number;
   unit?: string;
   color?: string;
-}> = ({ label, value, onChange, min, max, unit = "", color }) => {
-  // Calculate percentage for slider position (handle negative ranges)
-  const range = max - min;
-  const percentage = ((value - min) / range) * 100;
-
-  // Calculate center position for bipolar sliders
-  const centerPercentage = ((0 - min) / range) * 100;
-  const isBipolar = min < 0;
-
-  return (
-    <div className="space-y-1">
-      <div className="flex items-center justify-between">
-        <span className="text-[10px] text-text-secondary">{label}</span>
-        <span className="text-[10px] font-mono text-text-primary">
-          {value > 0 ? "+" : ""}
-          {Math.round(value)}
-          {unit}
-        </span>
-      </div>
-      <div className="h-1.5 bg-background-tertiary rounded-full relative overflow-hidden">
-        <input
-          type="range"
-          min={min}
-          max={max}
-          step={1}
-          value={value}
-          onChange={(e) => onChange(parseFloat(e.target.value))}
-          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-        />
-        {/* Fill bar */}
-        {isBipolar ? (
-          // Bipolar slider: fill from center
-          <div
-            className="absolute top-0 h-full rounded-full transition-all"
-            style={{
-              backgroundColor: color || "rgb(var(--text-secondary))",
-              left: value >= 0 ? `${centerPercentage}%` : `${percentage}%`,
-              width: `${Math.abs(percentage - centerPercentage)}%`,
-            }}
-          />
-        ) : (
-          // Standard slider: fill from left
-          <div
-            className="absolute top-0 left-0 h-full rounded-full transition-all"
-            style={{
-              backgroundColor: color || "rgb(var(--text-secondary))",
-              width: `${percentage}%`,
-            }}
-          />
-        )}
-        {/* Center line for bipolar sliders */}
-        {isBipolar && (
-          <div
-            className="absolute top-0 w-0.5 h-full bg-text-muted/50"
-            style={{ left: `${centerPercentage}%` }}
-          />
-        )}
-        {/* Thumb */}
-        <div
-          className="absolute top-1/2 -translate-y-1/2 w-2.5 h-2.5 bg-white rounded-full shadow-sm pointer-events-none transition-all"
-          style={{ left: `calc(${percentage}% - 5px)` }}
-        />
-      </div>
-    </div>
-  );
-};
+}> = ({ label, value, onChange, min, max, unit = "" }) => (
+  <PropertySlider
+    label={label}
+    value={value}
+    onChange={onChange}
+    min={min}
+    max={max}
+    step={1}
+    formatValue={(nextValue) =>
+      `${nextValue > 0 ? "+" : ""}${Math.round(nextValue)}${unit}`
+    }
+  />
+);
 
 /**
  * HSLControls Component
@@ -244,13 +195,14 @@ export const HSLControls: React.FC<HSLControlsProps> = ({
       {/* Reset All Button */}
       {onReset && (
         <div className="flex justify-end">
-          <button
+          <Button
+            label="Reset All"
+            icon={<RotateCcw size={10} />}
+            variant="ghost"
+            size="sm"
             onClick={onReset}
-            className="flex items-center gap-1 px-2 py-1 text-[10px] text-text-muted hover:text-text-primary transition-colors"
-          >
-            <RotateCcw size={10} />
-            Reset All
-          </button>
+            className="flex items-center gap-1 px-2 py-1 text-[10px] text-fg-3 hover:text-fg transition-colors"
+          />
         </div>
       )}
 
@@ -273,17 +225,18 @@ export const HSLControls: React.FC<HSLControlsProps> = ({
             className="w-3 h-3 rounded-full"
             style={{ backgroundColor: activeColor.color }}
           />
-          <span className="text-[11px] font-medium text-text-primary">
+          <Text type="supporting" color="primary" className="text-[11px] font-medium">
             {activeColor.fullLabel}
-          </span>
+          </Text>
         </div>
         {hasAdjustments && (
-          <button
+          <Button
+            label="Reset"
+            variant="ghost"
+            size="sm"
             onClick={handleResetColor}
-            className="text-[9px] text-text-muted hover:text-text-secondary transition-colors"
-          >
-            Reset
-          </button>
+            className="text-[9px] text-fg-3 hover:text-fg-2 transition-colors"
+          />
         )}
       </div>
 

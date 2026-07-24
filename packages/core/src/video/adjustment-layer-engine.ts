@@ -55,6 +55,11 @@ const BLEND_MODE_INFO: Record<
   saturation: { name: "Saturation", description: "Applies saturation only" },
   color: { name: "Color", description: "Applies hue and saturation" },
   luminosity: { name: "Luminosity", description: "Applies luminosity only" },
+  add: { name: "Add", description: "Additive lighten (clamped sum)" },
+  "linear-dodge": {
+    name: "Linear Dodge",
+    description: "Additive lighten (clamped sum)",
+  },
 };
 
 function generateId(): string {
@@ -106,6 +111,17 @@ export class AdjustmentLayerEngine {
 
   getAllLayers(): AdjustmentLayer[] {
     return Array.from(this.layers.values());
+  }
+
+  loadLayers(layers: AdjustmentLayer[]): void {
+    this.clearAll();
+    for (const layer of layers) {
+      this.layers.set(layer.id, layer);
+      if (!this.layersByTrack.has(layer.trackId)) {
+        this.layersByTrack.set(layer.trackId, new Set());
+      }
+      this.layersByTrack.get(layer.trackId)!.add(layer.id);
+    }
   }
 
   getLayersForTrack(trackId: string): AdjustmentLayer[] {

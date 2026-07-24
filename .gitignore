@@ -42,13 +42,30 @@ coverage/
 .cache/
 .temp/
 .docs/
-docs/
+docs/*
+!docs/superpowers/
+.worktrees/
 # Project-specific
 /public/projects/
 *.openreel
+!apps/desktop/crates/openreel-project/tests/fixtures/*.openreel
 apps/cloud/
 apps/ios
 apps/android
+
+# Desktop bundled ffmpeg binaries (large; fetched/built per-platform, documented in MANIFEST.json)
+apps/desktop/resources/bin/**/ffmpeg
+apps/desktop/resources/bin/**/ffmpeg.exe
+
+# Desktop bundled Blender sidecars (large; fetched/built per-platform, documented in apps/desktop/RIGGING.md)
+apps/desktop/resources/rigging/blender/
+
+# Desktop electron-builder output
+apps/desktop/release/
+
+# Desktop electron-builder config lives under build/ which the global build/ rule ignores
+!apps/desktop/build/
+!apps/desktop/build/**
 
 
 
@@ -63,3 +80,15 @@ CLAUDE.md
 
 
 mobile-mockup/
+# Xcode user data
+xcuserdata/
+*.xcuserstate
+
+!docs/superpowers/
+
+# Brainstorming session artifacts
+.superpowers/
+
+# Signing certs — never commit
+*.p12
+*.pfx

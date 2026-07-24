@@ -1,4 +1,6 @@
 import type { ExportProgress } from "../export/types";
+
+const FFMPEG_CORE_BASE_URL = "https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm";
 type FFmpegInstance = {
   load(options?: {
     coreURL?: string;
@@ -130,34 +132,15 @@ export class FFmpegFallback {
 
       this.ffmpeg = new FFmpeg() as unknown as FFmpegInstance;
 
-      const useMultiThread = typeof crossOriginIsolated !== "undefined" && crossOriginIsolated;
-      const baseURL = useMultiThread
-        ? "https://unpkg.com/@ffmpeg/core-mt@0.12.6/dist/esm"
-        : "https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm";
+      const [coreURL, wasmURL] = await Promise.all([
+        toBlobURL(`${FFMPEG_CORE_BASE_URL}/ffmpeg-core.js`, "text/javascript"),
+        toBlobURL(`${FFMPEG_CORE_BASE_URL}/ffmpeg-core.wasm`, "application/wasm"),
+      ]);
 
-      if (useMultiThread) {
-        const [coreURL, wasmURL, workerURL] = await Promise.all([
-          toBlobURL(`${baseURL}/ffmpeg-core.js`, "text/javascript"),
-          toBlobURL(`${baseURL}/ffmpeg-core.wasm`, "application/wasm"),
-          toBlobURL(`${baseURL}/ffmpeg-core.worker.js`, "text/javascript"),
-        ]);
-
-        await this.ffmpeg.load({
-          coreURL,
-          wasmURL,
-          workerURL,
-        });
-      } else {
-        const [coreURL, wasmURL] = await Promise.all([
-          toBlobURL(`${baseURL}/ffmpeg-core.js`, "text/javascript"),
-          toBlobURL(`${baseURL}/ffmpeg-core.wasm`, "application/wasm"),
-        ]);
-
-        await this.ffmpeg.load({
-          coreURL,
-          wasmURL,
-        });
-      }
+      await this.ffmpeg.load({
+        coreURL,
+        wasmURL,
+      });
 
       this.loaded = true;
     } catch (error) {

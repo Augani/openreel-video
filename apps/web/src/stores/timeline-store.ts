@@ -1,5 +1,7 @@
 import { create } from "zustand";
-import { subscribeWithSelector } from "zustand/middleware";
+import { persist, subscribeWithSelector } from "zustand/middleware";
+
+export const TIMELINE_WORKSPACE_STORAGE_KEY = "openreel-timeline-workspace";
 
 export const ZOOM_PRESETS = {
   MIN: 10,
@@ -55,7 +57,7 @@ export interface TimelineState {
   setViewportDimensions: (width: number, height: number) => void;
   setTrackHeight: (height: number) => void;
   setTrackHeightById: (trackId: string, height: number) => void;
-  getTrackHeight: (trackId: string) => number;
+  getTrackHeight: (trackId: string, trackType?: string) => number;
   setLoopEnabled: (enabled: boolean) => void;
   setLoopRange: (start: number, end: number) => void;
   timeToPixels: (time: number) => number;
@@ -72,7 +74,9 @@ export interface TimelineState {
 }
 
 export const useTimelineStore = create<TimelineState>()(
-  subscribeWithSelector((set, get) => ({
+  subscribeWithSelector(
+    persist(
+      (set, get) => ({
     playheadPosition: 0,
     playbackState: "stopped",
     playbackLockedReason: null,
@@ -84,7 +88,7 @@ export const useTimelineStore = create<TimelineState>()(
 
     viewportWidth: 800,
     viewportHeight: 400,
-    trackHeight: 80,
+    trackHeight: 62,
     trackHeights: {},
 
     loopEnabled: false,
@@ -281,10 +285,11 @@ export const useTimelineStore = create<TimelineState>()(
       }));
     },
 
-    getTrackHeight: (trackId: string) => {
+    getTrackHeight: (trackId: string, _trackType?: string) => {
       const { trackHeights, trackHeight } = get();
-      // Fallback to default trackHeight if track-specific height not set (nullish coalescing)
-      return trackHeights[trackId] ?? trackHeight;
+      const override = trackHeights[trackId];
+      if (override !== undefined) return override;
+      return trackHeight;
     },
 
     setLoopEnabled: (enabled: boolean) => {
@@ -387,5 +392,14 @@ export const useTimelineStore = create<TimelineState>()(
     setKeyframeEditMode: (enabled: boolean) => {
       set({ keyframeEditMode: enabled });
     },
-  })),
+      }),
+      {
+        name: TIMELINE_WORKSPACE_STORAGE_KEY,
+        partialize: (state) => ({
+          trackHeight: state.trackHeight,
+          trackHeights: state.trackHeights,
+        }),
+      },
+    ),
+  ),
 );

@@ -175,7 +175,13 @@ export class RenderBridge {
       const project = useProjectStore.getState().project;
 
       // Render the frame using VideoEngine
-      const frame = await this.videoEngine.renderFrame(project, time);
+      const frame = await this.videoEngine.renderFrame(
+        project,
+        time,
+        undefined,
+        undefined,
+        { realtime: true },
+      );
 
       // Draw to canvas if available
       if (this.canvas && this.ctx && frame) {
@@ -368,7 +374,7 @@ export class RenderBridge {
   ): {
     transition: Transition;
     clipA: Clip;
-    clipB: Clip;
+    clipB?: Clip;
     progress: number;
   } | null {
     if (!this.transitionEngine) {
@@ -378,9 +384,11 @@ export class RenderBridge {
     for (const transition of track.transitions) {
       // Find the clips involved in this transition
       const clipA = track.clips.find((c) => c.id === transition.clipAId);
-      const clipB = track.clips.find((c) => c.id === transition.clipBId);
+      const clipB = transition.clipBId
+        ? track.clips.find((c) => c.id === transition.clipBId)
+        : undefined;
 
-      if (!clipA || !clipB) {
+      if (!clipA || (transition.clipBId && !clipB)) {
         continue;
       }
 
@@ -800,7 +808,13 @@ export class RenderBridge {
         }
 
         try {
-          const frame = await this.videoEngine.renderFrame(project, time);
+          const frame = await this.videoEngine.renderFrame(
+            project,
+            time,
+            undefined,
+            undefined,
+            { realtime: true },
+          );
           if (frame && !signal.aborted) {
             const key = RenderBridge.getCacheKey(time, frameRate);
             this.cacheFrame(key, frame);

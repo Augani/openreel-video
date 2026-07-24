@@ -10,6 +10,7 @@ export class Canvas2DFallbackRenderer implements Renderer {
   private height: number;
   private deviceLostCallbacks: Array<() => void> = [];
   private layers: RenderLayer[] = [];
+  private pendingEffects = new WeakMap<ImageBitmap, Effect[]>();
 
   constructor(config: RendererConfig) {
     this.width = config.width;
@@ -73,6 +74,9 @@ export class Canvas2DFallbackRenderer implements Renderer {
 
     ctx.save();
     ctx.globalAlpha = opacity * transform.opacity;
+    const effects = this.pendingEffects.get(image) ?? layer.effects;
+    ctx.filter = buildCanvasFilter(effects);
+    ctx.globalCompositeOperation = resolveCompositeOperation(effects);
 
     // Translate to position
     const centerX = this.width / 2 + transform.position.x;
@@ -133,10 +137,14 @@ export class Canvas2DFallbackRenderer implements Renderer {
 
   applyEffects(
     texture: GPUTexture | ImageBitmap,
-    _effects: Effect[],
+    effects: Effect[],
   ): GPUTexture | ImageBitmap {
-    // Canvas2D has limited effect support
-    // For now, just return the texture unchanged
+    if (texture instanceof ImageBitmap) {
+      this.pendingEffects.set(
+        texture,
+        effects.filter((effect) => effect.enabled),
+      );
+    }
     return texture;
   }
 
@@ -163,4 +171,77 @@ export class Canvas2DFallbackRenderer implements Renderer {
   getDevice(): GPUDevice | null {
     return null;
   }
+}
+
+function readNumber(value: unknown, fallback: number): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+function buildCanvasFilter(effects: readonly Effect[]): string {
+  const filters: string[] = [];
+  for (const effect of effects) {
+    if (!effect.enabled) continue;
+    const params = effect.params;
+    switch (effect.type) {
+      case "brightness":
+        filters.push(`brightness(${1 + readNumber(params.value, 0) / 100})`);
+        break;
+      case "contrast":
+        filters.push(`contrast(${readNumber(params.value, 1)})`);
+        break;
+      case "saturation":
+        filters.push(`saturate(${readNumber(params.value, 1)})`);
+        break;
+      case "grayscale":
+        filters.push(`grayscale(${readNumber(params.amount, 1)})`);
+        break;
+      case "sepia":
+        filters.push(`sepia(${readNumber(params.amount, 1)})`);
+        break;
+      case "invert":
+        filters.push(`invert(${readNumber(params.amount, 1)})`);
+        break;
+      case "hue":
+        filters.push(`hue-rotate(${readNumber(params.rotation, 0)}deg)`);
+        break;
+      case "blur":
+        filters.push(`blur(${Math.max(0, readNumber(params.radius, 0))}px)`);
+        break;
+      case "shadow":
+        filters.push(
+          `drop-shadow(${readNumber(params.offsetX, 0)}px ${readNumber(params.offsetY, 0)}px ${Math.max(0, readNumber(params.blur, 0))}px ${typeof params.color === "string" ? params.color : "#000000"})`,
+        );
+        break;
+    }
+  }
+  return filters.length > 0 ? filters.join(" ") : "none";
+}
+
+function resolveCompositeOperation(
+  effects: readonly Effect[],
+): GlobalCompositeOperation {
+  const blend = effects.find((effect) => effect.enabled && effect.type === "blend");
+  const mode = blend?.params.mode;
+  if (typeof mode !== "string" || mode === "normal") return "source-over";
+  if (mode === "add" || mode === "linear-dodge") return "lighter";
+  const supported = new Set<GlobalCompositeOperation>([
+    "multiply",
+    "screen",
+    "overlay",
+    "darken",
+    "lighten",
+    "color-dodge",
+    "color-burn",
+    "hard-light",
+    "soft-light",
+    "difference",
+    "exclusion",
+    "hue",
+    "saturation",
+    "color",
+    "luminosity",
+  ]);
+  return supported.has(mode as GlobalCompositeOperation)
+    ? (mode as GlobalCompositeOperation)
+    : "source-over";
 }

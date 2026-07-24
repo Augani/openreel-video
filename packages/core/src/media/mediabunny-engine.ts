@@ -12,6 +12,7 @@ import type {
   InputVideoTrack,
   InputAudioTrack,
   ConversionOptions,
+  WrappedCanvas,
 } from "mediabunny";
 
 export const SUPPORTED_VIDEO_FORMATS = [
@@ -75,6 +76,11 @@ export class ExportFrameDecoder {
   private initialized = false;
   private reusableCanvas: OffscreenCanvas | null = null;
   private reusableCtx: OffscreenCanvasRenderingContext2D | null = null;
+  private canvasIterator: AsyncIterator<WrappedCanvas> | null = null;
+  private currentFrame: WrappedCanvas | null = null;
+  private nextFrame: WrappedCanvas | null = null;
+  private iteratorDone = false;
+  private decodeTail: Promise<void> = Promise.resolve();
 
   constructor(mediabunny: typeof import("mediabunny"), file: File | Blob, width?: number) {
     this.mediabunny = mediabunny;
@@ -118,13 +124,52 @@ export class ExportFrameDecoder {
   }
 
   async getFrame(timestamp: number): Promise<OffscreenCanvas | null> {
+    const framePromise = this.decodeTail.then(() => this.getSequentialFrame(timestamp));
+    this.decodeTail = framePromise.then(
+      () => undefined,
+      () => undefined,
+    );
+    return framePromise;
+  }
+
+  private async getSequentialFrame(timestamp: number): Promise<OffscreenCanvas | null> {
     if (!this.sink) return null;
 
-    const result = await this.sink.getCanvas(timestamp);
-    if (!result) return null;
+    // Start a new sequential decode for the first request or whenever the
+    // timeline moves backwards (reverse playback, a loop, or a later clip
+    // reusing the same media from an earlier in-point).
+    if (!this.canvasIterator || (this.currentFrame && timestamp < this.currentFrame.timestamp - 1e-8)) {
+      await this.resetCanvasIterator(timestamp);
+    }
 
-    const w = result.canvas.width;
-    const h = result.canvas.height;
+    if (!this.currentFrame) return null;
+
+    // Keep one decoded frame of lookahead so selection exactly matches
+    // CanvasSink.getCanvas(): the last source frame starting at or before the
+    // requested timestamp. CanvasSink's two-canvas pool keeps both frames
+    // stable while we copy the selected one below.
+    while (true) {
+      if (!this.nextFrame && !this.iteratorDone) {
+        const next = await this.canvasIterator!.next();
+        if (next.done) {
+          this.iteratorDone = true;
+        } else {
+          this.nextFrame = next.value;
+        }
+      }
+
+      if (this.nextFrame && this.nextFrame.timestamp <= timestamp + 1e-8) {
+        this.currentFrame = this.nextFrame;
+        this.nextFrame = null;
+        continue;
+      }
+      break;
+    }
+
+    if (this.currentFrame.timestamp > timestamp + 1e-8) return null;
+
+    const w = this.currentFrame.canvas.width;
+    const h = this.currentFrame.canvas.height;
 
     if (!this.reusableCanvas || this.reusableCanvas.width !== w || this.reusableCanvas.height !== h) {
       this.reusableCanvas = new OffscreenCanvas(w, h);
@@ -132,16 +177,37 @@ export class ExportFrameDecoder {
     }
 
     this.reusableCtx!.clearRect(0, 0, w, h);
-    this.reusableCtx!.drawImage(result.canvas, 0, 0);
+    this.reusableCtx!.drawImage(this.currentFrame.canvas, 0, 0);
     return this.reusableCanvas;
   }
 
+  private async resetCanvasIterator(timestamp: number): Promise<void> {
+    await this.canvasIterator?.return?.();
+    this.currentFrame = null;
+    this.nextFrame = null;
+    this.iteratorDone = false;
+    this.canvasIterator = this.sink!.canvases(timestamp)[Symbol.asyncIterator]();
+
+    const first = await this.canvasIterator.next();
+    if (first.done) {
+      this.iteratorDone = true;
+      return;
+    }
+    this.currentFrame = first.value;
+  }
+
   dispose(): void {
+    void this.canvasIterator?.return?.();
     if (this.input) {
       this.input[Symbol.dispose]?.();
       this.input = null;
     }
     this.sink = null;
+    this.canvasIterator = null;
+    this.currentFrame = null;
+    this.nextFrame = null;
+    this.iteratorDone = false;
+    this.decodeTail = Promise.resolve();
     this.reusableCanvas = null;
     this.reusableCtx = null;
     this.initialized = false;

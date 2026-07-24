@@ -12,19 +12,21 @@ import {
   ChevronRight,
   Copy,
   RefreshCw,
+  Plus,
+  Minus,
   type LucideIcon,
-} from "lucide-react";
-import {
-  Slider,
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
-} from "@openreel/ui";
+} from "@/icons/lucide-compat";
+import { ToolcraftButton as Button } from "@openreel/ui";
+import { ToolcraftCard as Card } from "@openreel/ui";
+import { ToolcraftClickableCard as ClickableCard } from "@openreel/ui";
+import { ToolcraftIconButton as IconButton } from "@openreel/ui";
+import { ToolcraftSelectControl as Selector } from "@openreel/ui";
+import { ToolcraftNumberInputControl as NumberInput } from "@openreel/ui";
+import { ToolcraftText as Text } from "@openreel/ui";
+import { PropertySlider } from "./shell/PropertySlider";
 import { useEngineStore } from "../../../stores/engine-store";
 import { useProjectStore } from "../../../stores/project-store";
-import type { Mask, MaskShape } from "@openreel/core";
+import type { BezierPath, Mask, MaskShape } from "@openreel/core";
 import { boundsPathFromTransform } from "@openreel/core";
 
 interface MaskSectionProps {
@@ -58,6 +60,7 @@ const MaskItem: React.FC<{
   onUpdateExpansion: (value: number) => void;
   onUpdateOpacity: (value: number) => void;
   onToggleInvert: () => void;
+  onUpdatePath: (path: BezierPath) => void;
   onSetMatteSource: (
     sourceClipId: string,
     matteSource: "alpha" | "luminance" | "bounds",
@@ -76,6 +79,7 @@ const MaskItem: React.FC<{
   onUpdateExpansion,
   onUpdateOpacity,
   onToggleInvert,
+  onUpdatePath,
   onSetMatteSource,
 }) => {
   const maskTypeIcon =
@@ -97,199 +101,285 @@ const MaskItem: React.FC<{
   );
 
   return (
-    <div
-      className={`border rounded-lg overflow-hidden transition-colors ${
+    <Card
+      variant={isSelected ? "green" : "muted"}
+      padding={0}
+      className={`overflow-hidden border transition-colors ${
         isSelected ? "border-primary bg-primary/10" : "border-border"
       }`}
     >
-      <button
+      <div
         onClick={onSelect}
-        className="w-full flex items-center gap-2 p-2 hover:bg-background-tertiary transition-colors"
+        className="flex w-full cursor-pointer items-center gap-2 p-2 hover:bg-bg-2"
+        role="button"
+        tabIndex={0}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            onSelect();
+          }
+        }}
       >
-        <button
+        <IconButton
+          label={isExpanded ? "Collapse mask" : "Expand mask"}
           onClick={(e) => {
             e.stopPropagation();
             onToggleExpand();
           }}
-          className="p-0.5"
-        >
-          {isExpanded ? (
-            <ChevronDown size={12} className="text-text-muted" />
-          ) : (
-            <ChevronRight size={12} className="text-text-muted" />
-          )}
-        </button>
+          variant="ghost"
+          size="sm"
+          icon={
+            isExpanded ? (
+              <ChevronDown size={12} className="text-fg-3" aria-hidden />
+            ) : (
+              <ChevronRight size={12} className="text-fg-3" aria-hidden />
+            )
+          }
+        />
         <MaskIcon size={12} className="text-primary" />
-        <span className="flex-1 text-left text-[10px] font-medium text-text-primary">
+        <Text
+          type="supporting"
+          color="primary"
+          className="flex-1 text-left text-[10px] font-medium"
+        >
           {maskLabel}
-        </span>
-        <button
+        </Text>
+        <IconButton
+          label={mask.inverted ? "Mask Inverted" : "Mask Normal"}
           onClick={(e) => {
             e.stopPropagation();
             onToggleInvert();
           }}
-          className={`p-1 rounded transition-colors ${
+          variant="ghost"
+          size="sm"
+          icon={mask.inverted ? <EyeOff size={10} aria-hidden /> : <Eye size={10} aria-hidden />}
+          className={
             mask.inverted
               ? "bg-amber-500/20 text-amber-400"
-              : "text-text-muted hover:text-text-primary"
-          }`}
-          title={mask.inverted ? "Mask Inverted" : "Mask Normal"}
-        >
-          {mask.inverted ? <EyeOff size={10} /> : <Eye size={10} />}
-        </button>
-        <button
+              : "text-fg-3 hover:text-fg"
+          }
+        />
+        <IconButton
+          label="Duplicate Mask"
           onClick={(e) => {
             e.stopPropagation();
             onDuplicate();
           }}
-          className="p-1 text-text-muted hover:text-text-primary transition-colors"
-          title="Duplicate Mask"
-        >
-          <Copy size={10} />
-        </button>
-        <button
+          variant="ghost"
+          size="sm"
+          icon={<Copy size={10} aria-hidden />}
+          className="text-fg-3 hover:text-fg"
+        />
+        <IconButton
+          label="Delete Mask"
           onClick={(e) => {
             e.stopPropagation();
             onDelete();
           }}
-          className="p-1 text-text-muted hover:text-red-400 transition-colors"
-          title="Delete Mask"
-        >
-          <Trash2 size={10} />
-        </button>
-      </button>
+          variant="ghost"
+          size="sm"
+          icon={<Trash2 size={10} aria-hidden />}
+          className="text-fg-3 hover:text-red-400"
+        />
+      </div>
 
       {isExpanded && (
-        <div className="p-2 space-y-3 border-t border-border bg-background-tertiary/50">
+        <div className="p-2 space-y-3 border-t border-border bg-bg-2/50">
+          {mask.type === "drawn" && (
+            <div className="space-y-2 rounded border border-border bg-bg-1 p-2">
+              <div className="flex items-center justify-between gap-2">
+                <Text type="supporting" color="primary" className="text-[9.5px] font-medium">
+                  Path points
+                </Text>
+                <Button
+                  label="Add path point"
+                  onClick={() => {
+                    const last = mask.path.points.at(-1) ?? { x: 0.5, y: 0.5 };
+                    onUpdatePath({
+                      ...mask.path,
+                      points: [
+                        ...mask.path.points,
+                        {
+                          x: Math.min(1, last.x + 0.05),
+                          y: Math.min(1, last.y + 0.05),
+                        },
+                      ],
+                    });
+                  }}
+                  icon={<Plus size={10} aria-hidden />}
+                  variant="ghost"
+                  size="sm"
+                />
+              </div>
+              <div className="max-h-44 space-y-1.5 overflow-auto pr-0.5">
+                {mask.path.points.map((point, index) => (
+                  <div key={`${mask.id}-point-${index}`} className="grid grid-cols-[22px_1fr_1fr_24px] items-center gap-1">
+                    <Text type="supporting" color="secondary" className="text-[8.5px]">
+                      {index + 1}
+                    </Text>
+                    <NumberInput
+                      ariaLabel={`Point ${index + 1} X percent`}
+                      size="sm"
+                      value={point.x * 100}
+                      min={0}
+                      max={100}
+                      step={1}
+                      onChange={(value) => {
+                        const points = mask.path.points.map((candidate, pointIndex) =>
+                          pointIndex === index
+                            ? { ...candidate, x: value / 100 }
+                            : candidate,
+                        );
+                        onUpdatePath({ ...mask.path, points });
+                      }}
+                    />
+                    <NumberInput
+                      ariaLabel={`Point ${index + 1} Y percent`}
+                      size="sm"
+                      value={point.y * 100}
+                      min={0}
+                      max={100}
+                      step={1}
+                      onChange={(value) => {
+                        const points = mask.path.points.map((candidate, pointIndex) =>
+                          pointIndex === index
+                            ? { ...candidate, y: value / 100 }
+                            : candidate,
+                        );
+                        onUpdatePath({ ...mask.path, points });
+                      }}
+                    />
+                    <IconButton
+                      label={`Remove path point ${index + 1}`}
+                      onClick={() =>
+                        onUpdatePath({
+                          ...mask.path,
+                          points: mask.path.points.filter(
+                            (_, pointIndex) => pointIndex !== index,
+                          ),
+                        })
+                      }
+                      isDisabled={mask.path.points.length <= 3}
+                      variant="ghost"
+                      size="sm"
+                      icon={<Minus size={10} aria-hidden />}
+                    />
+                  </div>
+                ))}
+              </div>
+              <Text type="supporting" color="secondary" className="text-[8px] leading-tight">
+                X and Y are composition percentages. Adjust points for precise custom cutouts.
+              </Text>
+            </div>
+          )}
           {mask.type === "track-matte" && (
             <div className="space-y-2 p-2 bg-primary/5 border border-primary/20 rounded">
               <div className="flex items-center gap-1.5">
                 <Layers size={11} className="text-primary" />
-                <span className="text-[9.5px] font-medium text-text-primary">
+                <Text type="supporting" color="primary" className="text-[9.5px] font-medium">
                   Matte source
-                </span>
+                </Text>
               </div>
-              <Select
+              <Selector
+                label="Matte source"
+                isLabelHidden
+                size="sm"
+                width="100%"
                 value={mask.sourceClipId ?? ""}
-                onValueChange={(v) =>
+                onChange={(v) =>
                   onSetMatteSource(v, mask.matteSource ?? "bounds")
                 }
-              >
-                <SelectTrigger className="h-7 text-[10px]">
-                  <SelectValue placeholder="Pick a clip…" />
-                </SelectTrigger>
-                <SelectContent>
-                  {availableSources.length === 0 ? (
-                    <div className="px-2 py-1 text-[10px] text-text-muted">
-                      No other clips available
-                    </div>
-                  ) : (
-                    availableSources.map((opt) => (
-                      <SelectItem key={opt.id} value={opt.id}>
-                        {opt.label}
-                      </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
+                placeholder="Pick a clip..."
+                isDisabled={availableSources.length === 0}
+                options={availableSources.map((opt) => ({
+                  label: opt.label,
+                  value: opt.id,
+                }))}
+              />
               <div className="flex items-center justify-between">
-                <span className="text-[9px] text-text-muted">Channel</span>
+                <Text type="supporting" color="secondary" className="text-[9px]">
+                  Channel
+                </Text>
                 <div className="flex gap-1">
                   {(["bounds", "alpha", "luminance"] as const).map((m) => (
-                    <button
+                    <Button
                       key={m}
+                      label={m}
                       onClick={() =>
                         onSetMatteSource(mask.sourceClipId ?? "", m)
                       }
-                      disabled={!mask.sourceClipId}
-                      className={`px-1.5 py-0.5 text-[9px] rounded border transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                      isDisabled={!mask.sourceClipId}
+                      variant={(mask.matteSource ?? "bounds") === m ? "secondary" : "ghost"}
+                      size="sm"
+                      className={`border text-[9px] ${
                         (mask.matteSource ?? "bounds") === m
                           ? "bg-primary/20 border-primary text-primary"
-                          : "bg-background-secondary border-border text-text-secondary hover:border-primary/50"
+                          : "bg-bg-1 border-border text-fg-2 hover:border-primary/50"
                       }`}
-                    >
-                      {m}
-                    </button>
+                    />
                   ))}
                 </div>
               </div>
-              <p className="text-[8.5px] text-text-muted leading-tight">
+              <Text type="supporting" color="secondary" className="text-[8.5px] leading-tight">
                 The chosen clip&apos;s {mask.matteSource ?? "bounds"}{" "}
                 drive the visible region of this clip. Animate the source
                 clip&apos;s transform to animate the mask.
-              </p>
+              </Text>
             </div>
           )}
 
-          <div className="space-y-1">
-            <div className="flex items-center justify-between">
-              <label className="text-[9px] text-text-muted">Feathering</label>
-              <span className="text-[9px] text-text-secondary">
-                {mask.feathering}px
-              </span>
-            </div>
-            <Slider
-              min={0}
-              max={100}
-              step={1}
-              value={[mask.feathering]}
-              onValueChange={(value) => onUpdateFeathering(value[0])}
-            />
-          </div>
+          <PropertySlider
+            label="Feathering"
+            min={0}
+            max={100}
+            step={1}
+            value={mask.feathering}
+            onChange={(value: number) => onUpdateFeathering(value)}
+            formatValue={(value) => `${Math.round(value)}px`}
+          />
 
-          <div className="space-y-1">
-            <div className="flex items-center justify-between">
-              <label className="text-[9px] text-text-muted">Expansion</label>
-              <span className="text-[9px] text-text-secondary">
-                {mask.expansion}px
-              </span>
-            </div>
-            <Slider
-              min={-100}
-              max={100}
-              step={1}
-              value={[mask.expansion]}
-              onValueChange={(value) => onUpdateExpansion(value[0])}
-            />
-          </div>
+          <PropertySlider
+            label="Expansion"
+            min={-100}
+            max={100}
+            step={1}
+            value={mask.expansion}
+            onChange={(value: number) => onUpdateExpansion(value)}
+            formatValue={(value) => `${Math.round(value)}px`}
+          />
 
-          <div className="space-y-1">
-            <div className="flex items-center justify-between">
-              <label className="text-[9px] text-text-muted">Opacity</label>
-              <span className="text-[9px] text-text-secondary">
-                {Math.round(mask.opacity * 100)}%
-              </span>
-            </div>
-            <Slider
-              min={0}
-              max={100}
-              step={1}
-              value={[mask.opacity * 100]}
-              onValueChange={(value) => onUpdateOpacity(value[0] / 100)}
-            />
-          </div>
+          <PropertySlider
+            label="Opacity"
+            min={0}
+            max={100}
+            step={1}
+            value={mask.opacity * 100}
+            onChange={(value: number) => onUpdateOpacity(value / 100)}
+            formatValue={(value) => `${Math.round(value)}%`}
+          />
 
           <div className="flex items-center gap-2 pt-2 border-t border-border">
-            <button
+            <Button
+              label={mask.inverted ? "Inverted" : "Invert"}
               onClick={onToggleInvert}
-              className={`flex-1 flex items-center justify-center gap-1 py-1.5 text-[9px] rounded transition-colors ${
+              variant="secondary"
+              size="sm"
+              icon={mask.inverted ? <EyeOff size={10} aria-hidden /> : <Eye size={10} aria-hidden />}
+              className={`flex-1 justify-center ${
                 mask.inverted
                   ? "bg-amber-500/20 text-amber-400"
-                  : "bg-background-secondary text-text-secondary hover:text-text-primary"
+                  : "bg-bg-1 text-fg-2 hover:text-fg"
               }`}
-            >
-              {mask.inverted ? <EyeOff size={10} /> : <Eye size={10} />}
-              {mask.inverted ? "Inverted" : "Invert"}
-            </button>
-            <span className="text-[8px] text-text-muted">
+            />
+            <Text type="supporting" color="secondary" className="text-[8px]">
               {mask.keyframes.length > 0
                 ? `${mask.keyframes.length} keyframes`
                 : "No keyframes"}
-            </span>
+            </Text>
           </div>
         </div>
       )}
-    </div>
+    </Card>
   );
 };
 
@@ -411,10 +501,15 @@ export const MaskSection: React.FC<MaskSectionProps> = ({ clipId }) => {
 
   const triggerRefresh = useCallback(() => {
     setRefreshKey((k) => k + 1);
-    useProjectStore.setState((state) => ({
-      project: { ...state.project, modifiedAt: Date.now() },
-    }));
-  }, []);
+    if (maskEngine) {
+      void useProjectStore.getState().executeAction({
+        type: "mask/setAll",
+        id: crypto.randomUUID(),
+        timestamp: Date.now(),
+        params: { masks: maskEngine.getAllMasks() },
+      });
+    }
+  }, [maskEngine]);
 
   const handleAddShapeMask = useCallback(
     (shapeType: MaskShapeType) => {
@@ -468,11 +563,10 @@ export const MaskSection: React.FC<MaskSectionProps> = ({ clipId }) => {
   const handleDuplicateMask = useCallback(
     (mask: Mask) => {
       if (!maskEngine) return;
-      const newMask = maskEngine.createDrawnMask(clipId, { ...mask.path });
-      maskEngine.setFeathering(newMask.id, mask.feathering);
-      maskEngine.setExpansion(newMask.id, mask.expansion);
-      maskEngine.setInverted(newMask.id, mask.inverted);
+      const newMask = maskEngine.duplicateMask(mask.id, clipId);
+      if (!newMask) return;
       setSelectedMaskId(newMask.id);
+      setExpandedMasks((prev) => new Set([...prev, newMask.id]));
       triggerRefresh();
     },
     [maskEngine, clipId, triggerRefresh],
@@ -497,16 +591,40 @@ export const MaskSection: React.FC<MaskSectionProps> = ({ clipId }) => {
   );
 
   const handleUpdateOpacity = useCallback(
-    (maskId: string, _value: number) => {
+    (maskId: string, value: number) => {
       if (!maskEngine) return;
-      const mask = maskEngine.getMask(maskId);
-      if (mask) {
-        maskEngine.updateMaskPath(maskId, mask.path);
-        triggerRefresh();
-      }
+      maskEngine.setOpacity(maskId, value);
+      triggerRefresh();
     },
     [maskEngine, triggerRefresh],
   );
+
+  const handleUpdatePath = useCallback(
+    (maskId: string, path: BezierPath) => {
+      if (!maskEngine || path.points.length < 3) return;
+      maskEngine.updateMaskPath(maskId, path);
+      triggerRefresh();
+    },
+    [maskEngine, triggerRefresh],
+  );
+
+  const handleAddDrawnMask = useCallback(() => {
+    if (!maskEngine) return;
+    const mask = maskEngine.createDrawnMask(clipId, {
+      closed: true,
+      points: [
+        { x: 0.5, y: 0.16 },
+        { x: 0.78, y: 0.28 },
+        { x: 0.84, y: 0.58 },
+        { x: 0.62, y: 0.82 },
+        { x: 0.28, y: 0.76 },
+        { x: 0.16, y: 0.42 },
+      ],
+    });
+    setSelectedMaskId(mask.id);
+    setExpandedMasks((prev) => new Set([...prev, mask.id]));
+    triggerRefresh();
+  }, [clipId, maskEngine, triggerRefresh]);
 
   const handleToggleInvert = useCallback(
     (maskId: string) => {
@@ -571,71 +689,88 @@ export const MaskSection: React.FC<MaskSectionProps> = ({ clipId }) => {
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-2 p-2 bg-gradient-to-r bg-primary/10 rounded-lg border border-primary/30">
+      <Card
+        variant="green"
+        padding={2}
+        className="flex items-center gap-2 border border-primary/30 bg-primary/10"
+      >
         <Square size={16} className="text-primary" />
-        <div className="flex-1">
-          <span className="text-[11px] font-medium text-text-primary">
+        <div className="flex flex-1 flex-col gap-0.5">
+          <Text type="supporting" color="primary" className="text-[11px] font-medium">
             Masking
-          </span>
-          <p className="text-[9px] text-text-muted">
+          </Text>
+          <Text type="supporting" color="secondary" className="text-[9px]">
             Control visible regions of clip
-          </p>
+          </Text>
         </div>
-      </div>
+      </Card>
 
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <span className="text-[10px] font-medium text-text-secondary">
+          <Text type="supporting" color="secondary" className="text-[10px] font-medium">
             Add Mask Shape
-          </span>
+          </Text>
         </div>
         <div className="grid grid-cols-5 gap-1">
           {MASK_SHAPES.map((shape) => {
             const Icon = shape.icon;
             return (
-              <button
+              <ClickableCard
                 key={shape.id}
+                label={shape.name}
                 onClick={() => handleAddShapeMask(shape.id)}
-                className="flex flex-col items-center gap-1 p-2 rounded-lg bg-background-tertiary hover:bg-primary/20 border border-transparent hover:border-primary/30 transition-colors"
-                title={shape.name}
+                padding={2}
+                variant="muted"
+                className="flex flex-col items-center gap-1 border border-transparent bg-bg-2 hover:border-primary/30 hover:bg-primary/20"
               >
-                <Icon size={14} className="text-text-secondary" />
-                <span className="text-[8px] text-text-muted">{shape.name}</span>
-              </button>
+                <Icon size={14} className="text-fg-2" />
+                <Text type="supporting" color="secondary" className="text-[8px]">
+                  {shape.name}
+                </Text>
+              </ClickableCard>
             );
           })}
-          <button
-            onClick={() => {}}
-            className="flex flex-col items-center gap-1 p-2 rounded-lg bg-background-tertiary hover:bg-primary/20 border border-transparent hover:border-primary/30 transition-colors"
-            title="Draw Freehand"
+          <ClickableCard
+            label="Add custom path mask"
+            onClick={handleAddDrawnMask}
+            padding={2}
+            variant="muted"
+            className="flex flex-col items-center gap-1 border border-transparent bg-bg-2 hover:border-primary/30 hover:bg-primary/20"
           >
-            <Pen size={14} className="text-text-secondary" />
-            <span className="text-[8px] text-text-muted">Freehand</span>
-          </button>
-          <button
+            <Pen size={14} className="text-fg-2" />
+            <Text type="supporting" color="secondary" className="text-[8px]">
+              Custom
+            </Text>
+          </ClickableCard>
+          <ClickableCard
+            label="Use another clip as a track matte"
             onClick={handleAddTrackMatte}
-            className="flex flex-col items-center gap-1 p-2 rounded-lg bg-background-tertiary hover:bg-primary/20 border border-transparent hover:border-primary/30 transition-colors"
-            title="Use another clip as a track matte (Premiere-style object masking)"
+            padding={2}
+            variant="muted"
+            className="flex flex-col items-center gap-1 border border-transparent bg-bg-2 hover:border-primary/30 hover:bg-primary/20"
           >
-            <Layers size={14} className="text-text-secondary" />
-            <span className="text-[8px] text-text-muted">Track Matte</span>
-          </button>
+            <Layers size={14} className="text-fg-2" />
+            <Text type="supporting" color="secondary" className="text-[8px]">
+              Track Matte
+            </Text>
+          </ClickableCard>
         </div>
       </div>
 
       {masks.length > 0 ? (
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] font-medium text-text-secondary">
+            <Text type="supporting" color="secondary" className="text-[10px] font-medium">
               Masks ({masks.length})
-            </span>
-            <button
+            </Text>
+            <Button
+              label="Clear All"
               onClick={handleResetMasks}
-              className="flex items-center gap-1 px-2 py-1 text-[9px] text-red-400 hover:bg-red-400/10 rounded transition-colors"
-            >
-              <RefreshCw size={10} />
-              Clear All
-            </button>
+              variant="ghost"
+              size="sm"
+              icon={<RefreshCw size={10} aria-hidden />}
+              className="text-red-400 hover:bg-red-400/10"
+            />
           </div>
 
           <div className="space-y-2">
@@ -655,6 +790,7 @@ export const MaskSection: React.FC<MaskSectionProps> = ({ clipId }) => {
                 onUpdateExpansion={(v) => handleUpdateExpansion(mask.id, v)}
                 onUpdateOpacity={(v) => handleUpdateOpacity(mask.id, v)}
                 onToggleInvert={() => handleToggleInvert(mask.id)}
+                onUpdatePath={(path) => handleUpdatePath(mask.id, path)}
                 onSetMatteSource={(srcId, channel) =>
                   handleSetMatteSource(mask.id, srcId, channel)
                 }
@@ -666,19 +802,21 @@ export const MaskSection: React.FC<MaskSectionProps> = ({ clipId }) => {
         <div className="text-center py-4">
           <Square
             size={24}
-            className="mx-auto mb-2 text-text-muted opacity-50"
+            className="mx-auto mb-2 text-fg-3 opacity-50"
           />
-          <p className="text-[10px] text-text-muted">No masks on this clip</p>
-          <p className="text-[9px] text-text-muted mt-1">
+          <Text type="supporting" color="secondary" className="block text-[10px]">
+            No masks on this clip
+          </Text>
+          <Text type="supporting" color="secondary" className="mt-1 block text-[9px]">
             Click a shape above to add a mask
-          </p>
+          </Text>
         </div>
       )}
 
       <div className="pt-2 border-t border-border">
-        <p className="text-[9px] text-text-muted text-center">
+        <Text type="supporting" color="secondary" className="text-center text-[9px]">
           Masks control which parts of the clip are visible
-        </p>
+        </Text>
       </div>
     </div>
   );

@@ -3,7 +3,7 @@ import {
   createTransitionEngine,
   type TransitionValidationResult,
 } from "@openreel/core";
-import type { Transition, Clip, Track } from "@openreel/core";
+import type { Transition, Clip, Track, TransitionEdge } from "@openreel/core";
 import type { TransitionType, TransitionParams } from "@openreel/core";
 
 /**
@@ -36,6 +36,27 @@ export interface TransitionTypeInfo {
   hasDirection: boolean;
   hasCustomParams: boolean;
 }
+
+const isSameTransitionPlacement = (
+  candidate: Transition,
+  transition: Transition,
+): boolean => {
+  if (candidate.id === transition.id) {
+    return true;
+  }
+
+  if (candidate.clipBId || transition.clipBId) {
+    return (
+      candidate.clipAId === transition.clipAId &&
+      candidate.clipBId === transition.clipBId
+    );
+  }
+
+  return (
+    candidate.clipAId === transition.clipAId &&
+    (candidate.edge ?? "out") === (transition.edge ?? "out")
+  );
+};
 
 /**
  * TransitionBridge class for connecting UI to transition functionality
@@ -137,13 +158,67 @@ export class TransitionBridge {
     const trackId = clipA.trackId;
     const transitions = this.trackTransitions.get(trackId) || [];
 
-    // Remove any existing transition between these clips
+    // Remove any existing transition at this clip-to-clip placement
     const filteredTransitions = transitions.filter(
-      (t) => !(t.clipAId === clipA.id && t.clipBId === clipB.id),
+      (t) => !isSameTransitionPlacement(t, transition),
     );
 
     filteredTransitions.push(transition);
     this.trackTransitions.set(trackId, filteredTransitions);
+
+    return {
+      success: true,
+      transitionId: transition.id,
+      warning: validation.warning,
+      maxDuration: validation.maxDuration,
+    };
+  }
+
+  /**
+   * Create a transition on a single clip edge.
+   *
+   * Intro transitions blend from the project background into the clip.
+   * Outro transitions blend from the clip into the project background.
+   */
+  createClipEdgeTransition(
+    clip: Clip,
+    edge: TransitionEdge,
+    type: TransitionType,
+    duration: number,
+    params?: Partial<TransitionParams[typeof type]>,
+  ): TransitionOperationResult {
+    if (!this.initialized || !this.transitionEngine) {
+      return { success: false, error: "TransitionBridge not initialized" };
+    }
+
+    const validation = this.transitionEngine.validateClipEdgeTransition(
+      clip,
+      duration,
+    );
+
+    if (!validation.valid && !validation.warning) {
+      return { success: false, error: validation.error };
+    }
+
+    const transition = this.transitionEngine.createClipEdgeTransition(
+      clip,
+      edge,
+      type,
+      duration,
+      params,
+    );
+
+    if (!transition) {
+      return { success: false, error: "Failed to create transition" };
+    }
+
+    const transitions = this.trackTransitions.get(clip.trackId) || [];
+    const filteredTransitions = transitions.filter(
+      (t) => !isSameTransitionPlacement(t, transition),
+    );
+
+    filteredTransitions.push(transition);
+    this.trackTransitions.set(clip.trackId, filteredTransitions);
 
     return {
       success: true,
@@ -316,6 +391,17 @@ export class TransitionBridge {
     return this.transitionEngine.validateTransition(clipA, clipB, duration);
   }
 
+  validateClipEdgeTransition(
+    clip: Clip,
+    duration: number,
+  ): TransitionValidationResult {
+    if (!this.initialized || !this.transitionEngine) {
+      return { valid: false, error: "TransitionBridge not initialized" };
+    }
+
+    return this.transitionEngine.validateClipEdgeTransition(clip, duration);
+  }
+
   /**
    * Check if two clips are adjacent and can have a transition
    *
@@ -399,7 +485,126 @@ export class TransitionBridge {
         name: "Push",
         description: "Push outgoing clip with incoming",
         hasDirection: true,
-        hasCustomParams: false,
+        hasCustomParams: true,
+      },
+      {
+        type: "circleReveal",
+        name: "Circle Reveal",
+        description: "Iris reveal from the center",
+        hasDirection: false,
+        hasCustomParams: true,
+      },
+      {
+        type: "blur",
+        name: "Blur Dissolve",
+        description: "Blur out and back into the next clip",
+        hasDirection: false,
+        hasCustomParams: true,
+      },
+      {
+        type: "whipPan",
+        name: "Whip Pan",
+        description: "Fast motion-blurred pan",
+        hasDirection: true,
+        hasCustomParams: true,
+      },
+      {
+        type: "radialWipe",
+        name: "Radial Wipe",
+        description: "Clock-style angular sweep",
+        hasDirection: false,
+        hasCustomParams: true,
+      },
+      {
+        type: "pixelate",
+        name: "Pixelate",
+        description: "Chunky pixel mosaic through the cut",
+        hasDirection: false,
+        hasCustomParams: true,
+      },
+      {
+        type: "glitch",
+        name: "Glitch Cut",
+        description: "Digital slice displacement",
+        hasDirection: false,
+        hasCustomParams: true,
+      },
+      {
+        type: "blinds",
+        name: "Venetian Blinds",
+        description: "Repeating slat reveal",
+        hasDirection: true,
+        hasCustomParams: true,
+      },
+      {
+        type: "diamondReveal",
+        name: "Diamond Reveal",
+        description: "Geometric center reveal",
+        hasDirection: false,
+        hasCustomParams: true,
+      },
+      {
+        type: "spin",
+        name: "Spin",
+        description: "Rotating scale handoff",
+        hasDirection: true,
+        hasCustomParams: true,
+      },
+      {
+        type: "flip",
+        name: "Flip",
+        description: "Card-style horizontal or vertical flip",
+        hasDirection: true,
+        hasCustomParams: true,
+      },
+      {
+        type: "splitReveal",
+        name: "Split Reveal",
+        description: "Reveal outward from the center",
+        hasDirection: true,
+        hasCustomParams: true,
+      },
+      {
+        type: "flash",
+        name: "Flash Cut",
+        description: "High-energy white flash edit",
+        hasDirection: false,
+        hasCustomParams: true,
+      },
+      {
+        type: "filmBurn",
+        name: "Film Burn",
+        description: "Warm analog light leak through the edit",
+        hasDirection: false,
+        hasCustomParams: true,
+      },
+      {
+        type: "mosaic",
+        name: "Mosaic Reveal",
+        description: "Shuffled tile reveal between shots",
+        hasDirection: false,
+        hasCustomParams: true,
+      },
+      {
+        type: "ripple",
+        name: "Ripple",
+        description: "Fluid horizontal wave distortion",
+        hasDirection: false,
+        hasCustomParams: true,
+      },
+      {
+        type: "pageTurn",
+        name: "Page Turn",
+        description: "Fold the outgoing shot away like a page",
+        hasDirection: true,
+        hasCustomParams: true,
+      },
+      {
+        type: "colorSplit",
+        name: "Color Split",
+        description: "Prismatic channel ghosts through the cut",
+        hasDirection: false,
+        hasCustomParams: true,
       },
     ];
   }
@@ -476,8 +681,8 @@ export class TransitionBridge {
    * @returns The blended frame
    */
   async renderTransition(
-    outgoingFrame: CanvasImageSource,
-    incomingFrame: CanvasImageSource,
+    outgoingFrame: globalThis.CanvasImageSource,
+    incomingFrame: globalThis.CanvasImageSource,
     transition: Transition,
     progress: number,
   ): Promise<{ frame: ImageBitmap; processingTime: number } | null> {
@@ -503,8 +708,8 @@ export class TransitionBridge {
   }
 
   async renderTransitionToCanvas(
-    outgoingFrame: CanvasImageSource,
-    incomingFrame: CanvasImageSource,
+    outgoingFrame: globalThis.CanvasImageSource,
+    incomingFrame: globalThis.CanvasImageSource,
     transition: Transition,
     progress: number,
   ): Promise<OffscreenCanvas | null> {

@@ -1,18 +1,12 @@
 import React, { useCallback, useMemo } from "react";
+import { ToolcraftText as Text } from "@openreel/ui";
+import { MockSlider } from "./shell/InspectorControls";
 import { useProjectStore } from "../../../stores/project-store";
 import {
   getAvailableBlendModes,
   getBlendModeName,
   type BlendMode,
 } from "@openreel/core";
-import {
-  LabeledSlider as Slider,
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
-} from "@openreel/ui";
 
 interface BlendingSectionProps {
   clipId: string;
@@ -73,64 +67,67 @@ export const BlendingSection: React.FC<BlendingSectionProps> = ({ clipId }) => {
 
   if (!clip) {
     return (
-      <div className="text-center py-8 text-text-muted text-xs">
+      <Text
+        type="supporting"
+        color="secondary"
+        className="py-8 text-center text-xs"
+      >
         No clip selected
-      </div>
+      </Text>
     );
   }
 
   return (
     <div className="space-y-3">
-      <div className="space-y-1">
-          <span className="text-[10px] text-text-secondary">Blend Mode</span>
-          <Select
+      <div className="flex items-center">
+        <span className="w-[90px] flex-none text-[14px] font-semibold text-fg">
+          Blending
+        </span>
+        <div className="relative flex-1">
+          <select
+            aria-label="Blend mode"
             value={blendMode}
-            onValueChange={(v) => handleBlendModeChange(v as BlendMode)}
+            onChange={(event) =>
+              handleBlendModeChange(event.target.value as BlendMode)
+            }
+            className="w-full appearance-none rounded-[7px] border border-border bg-transparent px-[10px] py-[8px] pr-7 text-[13px] font-medium text-fg-2 outline-none focus:border-accent"
           >
-            <SelectTrigger className="w-full bg-background-tertiary border-border text-text-primary">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent className="bg-background-secondary border-border">
-              {availableBlendModes.map((mode) => (
-                <SelectItem key={mode} value={mode}>
-                  {getBlendModeName(mode)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <p className="text-[9px] text-text-muted">
-            {blendMode === "normal" && "Default blending, no special effect"}
-            {blendMode === "multiply" && "Darkens by multiplying colors"}
-            {blendMode === "screen" && "Lightens by screening colors"}
-            {blendMode === "overlay" && "Combines multiply and screen"}
-            {blendMode === "darken" && "Keeps darker pixels"}
-            {blendMode === "lighten" && "Keeps lighter pixels"}
-            {blendMode === "color-dodge" && "Brightens base color"}
-            {blendMode === "color-burn" && "Darkens base color"}
-            {blendMode === "hard-light" && "Strong contrast effect"}
-            {blendMode === "soft-light" && "Subtle contrast effect"}
-            {blendMode === "difference" && "Subtracts colors"}
-            {blendMode === "exclusion" && "Similar to difference but softer"}
-          </p>
+            {availableBlendModes.map((mode) => (
+              <option key={mode} value={mode}>
+                {getBlendModeName(mode)}
+              </option>
+            ))}
+          </select>
+          <svg
+            width="11"
+            height="11"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="var(--fg-muted)"
+            strokeWidth="2.2"
+            aria-hidden
+            className="pointer-events-none absolute right-[10px] top-1/2 -translate-y-1/2"
+          >
+            <path d="M6 9l6 6 6-6" />
+          </svg>
         </div>
-
-        <Slider
-          label="Opacity"
-          value={blendOpacity}
-          onChange={handleOpacityChange}
-          min={0}
-          max={100}
-          step={1}
-          unit="%"
-        />
+      </div>
 
       {blendMode !== "normal" && (
-        <div className="p-2 bg-primary/5 border border-primary/20 rounded-lg">
-          <p className="text-[9px] text-text-muted">
-            <span className="text-primary font-medium">Tip:</span> Blend modes
-            affect how this layer combines with layers below it. Experiment with
-            different modes for creative effects.
-          </p>
+        <div className="flex items-center">
+          <span className="w-[90px] flex-none text-[13px] font-medium text-fg-3">
+            Blend Opacity
+          </span>
+          <MockSlider
+            className="flex-1"
+            value={blendOpacity}
+            min={0}
+            max={100}
+            step={1}
+            onChange={handleOpacityChange}
+            showValueBox
+            formatValue={(value) => `${Math.round(value)}%`}
+          />
         </div>
       )}
     </div>

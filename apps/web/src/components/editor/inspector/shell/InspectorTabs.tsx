@@ -1,5 +1,5 @@
 import * as React from "react";
-import { cn } from "@openreel/ui/lib/utils";
+import { Tabs, TabsList, TabsTrigger } from "@openreel/ui";
 import type { InspectorTabDef, InspectorTabId } from "../clip-tabs.config";
 
 export interface InspectorTabsProps {
@@ -9,43 +9,32 @@ export interface InspectorTabsProps {
 }
 
 export const InspectorTabs: React.FC<InspectorTabsProps> = ({ tabs, activeId, onSelect }) => {
-  const handleKeyDown = (event: React.KeyboardEvent, index: number) => {
-    if (event.key !== "ArrowRight" && event.key !== "ArrowLeft") return;
-    event.preventDefault();
-    const direction = event.key === "ArrowRight" ? 1 : -1;
-    const next = tabs[(index + direction + tabs.length) % tabs.length];
-    if (next) onSelect(next.id);
-  };
-
   return (
-    <div
-      role="tablist"
-      aria-label="Inspector tabs"
-      className="flex items-center gap-0.5 px-2 border-b border-border overflow-x-auto scrollbar-none shrink-0"
+    <Tabs
+      value={activeId}
+      onValueChange={(value) => onSelect(value as InspectorTabId)}
+      className="shrink-0"
     >
-      {tabs.map((tab, index) => {
-        const Icon = tab.icon;
-        const active = tab.id === activeId;
-        return (
-          <button
-            key={tab.id}
-            role="tab"
-            aria-selected={active}
-            tabIndex={active ? 0 : -1}
-            onClick={() => onSelect(tab.id)}
-            onKeyDown={(event) => handleKeyDown(event, index)}
-            className={cn(
-              "flex items-center gap-1.5 px-2.5 py-2 text-[12px] font-medium whitespace-nowrap transition-colors border-b-2 -mb-px",
-              active
-                ? "text-accent border-accent"
-                : "text-fg-3 border-transparent hover:text-fg",
-            )}
-          >
-            <Icon size={13} />
-            <span>{tab.label}</span>
-          </button>
-        );
-      })}
-    </div>
+      <TabsList
+        aria-label="Inspector tabs"
+        className="flex h-auto items-center justify-start gap-0.5 overflow-x-auto rounded-none border-b border-border bg-transparent px-2 py-1 scrollbar-none"
+        layoutId="inspector-tabs"
+      >
+        {tabs.map((tab) => {
+          const Icon = tab.icon;
+          return (
+            <TabsTrigger
+              key={tab.id}
+              value={tab.id}
+              onClick={() => onSelect(tab.id)}
+              className="h-7 gap-1.5 rounded-[7px] px-2 text-[12px] text-fg-3 data-[state=active]:text-fg"
+            >
+              <Icon size={13} aria-hidden />
+              {tab.label}
+            </TabsTrigger>
+          );
+        })}
+      </TabsList>
+    </Tabs>
   );
 };

@@ -216,6 +216,20 @@ export class TextAnimationEngine {
       case "rainbow":
         return this.applyRainbow(clip, inProgress, outProgress, params, time);
 
+      case "rise":
+      case "drop":
+      case "elastic":
+      case "swing":
+      case "zoom-blur":
+      case "cascade":
+        return this.applyPolishedEntrance(
+          clip,
+          inProgress,
+          outProgress,
+          params,
+          preset,
+        );
+
       default:
         return {
           opacity: transform.opacity,
@@ -364,6 +378,121 @@ export class TextAnimationEngine {
       transform: { ...transform, opacity },
       style: newStyle,
       visibleText: text,
+    };
+  }
+
+  private applyPolishedEntrance(
+    clip: TextClip,
+    inProgress: number,
+    outProgress: number,
+    params: TextAnimationParams,
+    preset:
+      | "rise"
+      | "drop"
+      | "elastic"
+      | "swing"
+      | "zoom-blur"
+      | "cascade",
+  ): AnimatedTextState {
+    const { style, transform, text } = clip;
+    const progress = Math.max(
+      0,
+      Math.min(1, Math.min(inProgress, 1 - outProgress)),
+    );
+    const eased = 1 - Math.pow(1 - progress, 3);
+    const distance = (params.slideDistance ?? 36) / 250;
+    const angle = params.rotateAngle ?? 16;
+    let offsetX = 0;
+    let offsetY = 0;
+    let scale = 1;
+    let rotation = 0;
+    let blur = 0;
+
+    if (preset === "rise") {
+      offsetY = distance * (1 - eased);
+      scale = 0.88 + eased * 0.12;
+      blur = (params.blurAmount ?? 8) * (1 - progress);
+    } else if (preset === "drop") {
+      const landing =
+        1 - Math.abs(Math.cos(progress * Math.PI * 2.5)) * (1 - progress);
+      offsetY = -distance * (1 - landing);
+      rotation = angle * (1 - landing);
+    } else if (preset === "elastic") {
+      const elastic =
+        progress === 1
+          ? 1
+          : 1 - Math.cos(progress * Math.PI * 3.5) * Math.exp(-progress * 5);
+      const from = params.scaleFrom ?? 0.15;
+      scale = Math.max(0, from + (1 - from) * elastic);
+    } else if (preset === "swing") {
+      rotation = Math.cos(progress * Math.PI * 3) * angle * (1 - progress);
+      offsetY = -distance * 0.5 * (1 - eased);
+    } else if (preset === "zoom-blur") {
+      const from = params.scaleFrom ?? 1.65;
+      scale = from + (1 - from) * eased;
+      blur = (params.blurAmount ?? 14) * (1 - progress);
+    } else {
+      offsetX = -distance * 0.35 * (1 - eased);
+      offsetY = distance * (1 - eased);
+      rotation = -angle * (1 - eased);
+      scale = 0.9 + eased * 0.1;
+    }
+
+    const opacity = transform.opacity * progress;
+    const newStyle: TextStyle =
+      blur > 0
+        ? {
+            ...style,
+            shadowColor: style.color,
+            shadowBlur: blur,
+            shadowOffsetX: 0,
+            shadowOffsetY: 0,
+          }
+        : style;
+    const characterStates =
+      preset === "cascade"
+        ? text.split("").map((char, index) => {
+            const delay =
+              text.length > 1 ? (index / (text.length - 1)) * 0.42 : 0;
+            const local = Math.max(
+              0,
+              Math.min(
+                1,
+                (progress - delay) / Math.max(0.01, 1 - delay),
+              ),
+            );
+            const localEased = 1 - Math.pow(1 - local, 3);
+            const direction = index % 2 === 0 ? -1 : 1;
+            return {
+              char,
+              index,
+              opacity: transform.opacity * local,
+              offsetX: direction * distance * 0.35 * (1 - localEased),
+              offsetY: distance * (1 - localEased),
+              scale: 0.9 + localEased * 0.1,
+              rotation: direction * angle * (1 - localEased),
+            };
+          })
+        : undefined;
+
+    return {
+      opacity,
+      transform: {
+        ...transform,
+        position: {
+          x: transform.position.x + offsetX,
+          y: transform.position.y + offsetY,
+        },
+        scale: {
+          x: transform.scale.x * scale,
+          y: transform.scale.y * scale,
+        },
+        rotation: transform.rotation + rotation,
+        opacity,
+      },
+      style: newStyle,
+      visibleText: text,
+      characterStates,
     };
   }
 
@@ -831,6 +960,48 @@ export class TextAnimationEngine {
           easing: "linear",
         };
 
+      case "rise":
+        return {
+          slideDistance: 36,
+          blurAmount: 8,
+          easing: "ease-out",
+        };
+
+      case "drop":
+        return {
+          slideDistance: 60,
+          rotateAngle: 10,
+          easing: "ease-out",
+        };
+
+      case "elastic":
+        return {
+          scaleFrom: 0.15,
+          popOvershoot: 1.25,
+          easing: "ease-out",
+        };
+
+      case "swing":
+        return {
+          rotateAngle: 28,
+          slideDistance: 20,
+          easing: "ease-out",
+        };
+
+      case "zoom-blur":
+        return {
+          scaleFrom: 1.65,
+          blurAmount: 14,
+          easing: "ease-out",
+        };
+
+      case "cascade":
+        return {
+          slideDistance: 48,
+          rotateAngle: 8,
+          easing: "ease-out",
+        };
+
       default:
         return {
           easing: "ease-out",
@@ -859,6 +1030,12 @@ export class TextAnimationEngine {
       "flip",
       "word-by-word",
       "rainbow",
+      "rise",
+      "drop",
+      "elastic",
+      "swing",
+      "zoom-blur",
+      "cascade",
     ];
   }
 }

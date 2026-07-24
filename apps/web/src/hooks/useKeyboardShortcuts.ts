@@ -6,6 +6,17 @@ import {
 import { useProjectStore } from "../stores/project-store";
 import { useUIStore } from "../stores/ui-store";
 import { useTimelineStore } from "../stores/timeline-store";
+import {
+  deleteTimelineItem,
+  duplicateTimelineItem,
+  getTimelineItemKind,
+  getTimelineItemRanges,
+  getSplittableTimelineItemIds,
+  getTimelineSelectionItem,
+  getTimelineSelectionItems,
+  splitTimelineItem,
+  trimTimelineItemToPlayhead,
+} from "../utils/timeline-item-actions";
 
 export function useKeyboardShortcuts() {
   const [showShortcutsOverlay, setShowShortcutsOverlay] = useState(false);
@@ -13,18 +24,14 @@ export function useKeyboardShortcuts() {
   const {
     undo,
     redo,
-    splitClip,
-    removeClip,
     rippleDeleteClip,
     copyClips,
     pasteClips,
-    duplicateClip,
-    getClip,
     project,
     addMarker,
   } = useProjectStore();
 
-  const { getSelectedClipIds, clearSelection, toggleSnap, select } =
+  const { getSelectedClipIds, clearSelection, toggleSnap, selectMultiple } =
     useUIStore();
   const {
     togglePlayback,
@@ -69,55 +76,48 @@ export function useKeyboardShortcuts() {
   }, [seekTo]);
 
   const handleGoToEnd = useCallback(() => {
-    let maxEnd = 0;
-    for (const track of project.timeline.tracks) {
-      for (const clip of track.clips) {
-        const end = clip.startTime + clip.duration;
-        if (end > maxEnd) maxEnd = end;
-      }
-    }
+    const maxEnd = getTimelineItemRanges(project).reduce(
+      (latest, item) => Math.max(latest, item.startTime + item.duration),
+      0,
+    );
     seekTo(maxEnd);
-  }, [seekTo, project.timeline.tracks]);
+  }, [seekTo, project]);
 
   const handlePrevClip = useCallback(() => {
     const currentTime = playheadPosition;
     let prevEdge = 0;
 
-    for (const track of project.timeline.tracks) {
-      for (const clip of track.clips) {
-        const endTime = clip.startTime + clip.duration;
-        if (clip.startTime < currentTime - 0.001 && clip.startTime > prevEdge) {
-          prevEdge = clip.startTime;
-        }
-        if (endTime < currentTime - 0.001 && endTime > prevEdge) {
-          prevEdge = endTime;
-        }
+    for (const clip of getTimelineItemRanges(project)) {
+      const endTime = clip.startTime + clip.duration;
+      if (clip.startTime < currentTime - 0.001 && clip.startTime > prevEdge) {
+        prevEdge = clip.startTime;
+      }
+      if (endTime < currentTime - 0.001 && endTime > prevEdge) {
+        prevEdge = endTime;
       }
     }
 
     seekTo(prevEdge);
-  }, [seekTo, project.timeline.tracks, playheadPosition]);
+  }, [seekTo, project, playheadPosition]);
 
   const handleNextClip = useCallback(() => {
     const currentTime = playheadPosition;
     let nextEdge = Infinity;
 
-    for (const track of project.timeline.tracks) {
-      for (const clip of track.clips) {
-        const endTime = clip.startTime + clip.duration;
-        if (clip.startTime > currentTime + 0.001 && clip.startTime < nextEdge) {
-          nextEdge = clip.startTime;
-        }
-        if (endTime > currentTime + 0.001 && endTime < nextEdge) {
-          nextEdge = endTime;
-        }
+    for (const clip of getTimelineItemRanges(project)) {
+      const endTime = clip.startTime + clip.duration;
+      if (clip.startTime > currentTime + 0.001 && clip.startTime < nextEdge) {
+        nextEdge = clip.startTime;
+      }
+      if (endTime > currentTime + 0.001 && endTime < nextEdge) {
+        nextEdge = endTime;
       }
     }
 
     if (nextEdge !== Infinity) {
       seekTo(nextEdge);
     }
-  }, [seekTo, project.timeline.tracks, playheadPosition]);
+  }, [seekTo, project, playheadPosition]);
 
   const handleUndo = useCallback(() => {
     undo();
@@ -138,79 +138,104 @@ export function useKeyboardShortcuts() {
     const selectedIds = getSelectedClipIds();
     if (selectedIds.length > 0) {
       copyClips(selectedIds);
-      selectedIds.forEach((id) => removeClip(id));
+      const store = useProjectStore.getState();
+      void Promise.all(
+        selectedIds.map((id) => deleteTimelineItem(store, id)),
+      ).then(() => clearSelection());
     }
-  }, [getSelectedClipIds, copyClips, removeClip]);
+  }, [getSelectedClipIds, copyClips, clearSelection]);
 
   const handlePaste = useCallback(() => {
     const currentTime = playheadPosition;
     const firstTrack = project.timeline.tracks[0];
     if (firstTrack) {
-      pasteClips(firstTrack.id, currentTime);
+      void pasteClips(firstTrack.id, currentTime).then(() => {
+        const store = useProjectStore.getState();
+        const pastedSelection = store.lastPastedClipIds
+          .map((id) => getTimelineSelectionItem(store, id))
+          .filter((item): item is NonNullable<typeof item> => item !== null);
+        if (pastedSelection.length > 0) selectMultiple(pastedSelection);
+      });
     }
-  }, [pasteClips, playheadPosition, project.timeline.tracks]);
+  }, [pasteClips, playheadPosition, project.timeline.tracks, selectMultiple]);
 
   const handleDuplicate = useCallback(() => {
     const selectedIds = getSelectedClipIds();
-    if (selectedIds.length === 1) {
-      duplicateClip(selectedIds[0]);
-    }
-  }, [getSelectedClipIds, duplicateClip]);
+    const store = useProjectStore.getState();
+    selectedIds.forEach((id) => void duplicateTimelineItem(store, id));
+  }, [getSelectedClipIds]);
 
   const handleDelete = useCallback(() => {
+    const transitionItems = useUIStore
+      .getState()
+      .selectedItems.filter((item) => item.type === "transition");
+    if (transitionItems.length > 0) {
+      const { removeClipTransition } = useProjectStore.getState();
+      transitionItems.forEach((item) => {
+        void removeClipTransition(item.id);
+      });
+    }
     const selectedIds = getSelectedClipIds();
-    selectedIds.forEach((id) => removeClip(id));
+    const store = useProjectStore.getState();
+    selectedIds.forEach((id) => void deleteTimelineItem(store, id));
     clearSelection();
-  }, [getSelectedClipIds, removeClip, clearSelection]);
+  }, [getSelectedClipIds, clearSelection]);
 
   const handleRippleDelete = useCallback(() => {
     const selectedIds = getSelectedClipIds();
-    selectedIds.forEach((id) => rippleDeleteClip(id));
+    const store = useProjectStore.getState();
+    selectedIds
+      .filter((id) => getTimelineItemKind(store, id) === "media")
+      .forEach((id) => rippleDeleteClip(id));
     clearSelection();
   }, [getSelectedClipIds, rippleDeleteClip, clearSelection]);
 
   const handleSplit = useCallback(() => {
     const selectedIds = getSelectedClipIds();
-    if (selectedIds.length === 1) {
-      const currentTime = playheadPosition;
-      const clip = getClip(selectedIds[0]);
-      if (
-        clip &&
-        currentTime > clip.startTime &&
-        currentTime < clip.startTime + clip.duration
-      ) {
-        splitClip(selectedIds[0], currentTime);
-      }
-    }
-  }, [getSelectedClipIds, playheadPosition, getClip, splitClip]);
+    const splittableIds = getSplittableTimelineItemIds(
+      project,
+      selectedIds,
+      playheadPosition,
+    );
+    const store = useProjectStore.getState();
+    void Promise.all(
+      splittableIds.map((id) => splitTimelineItem(store, id, playheadPosition)),
+    );
+  }, [getSelectedClipIds, playheadPosition, project]);
 
   const handleTrimStart = useCallback(() => {
     const selectedIds = getSelectedClipIds();
-    if (selectedIds.length === 1) {
-      const currentTime = playheadPosition;
-      useProjectStore
-        .getState()
-        .trimToPlayhead(selectedIds[0], currentTime, true);
-    }
-  }, [getSelectedClipIds, playheadPosition]);
+    const trimmableIds = getSplittableTimelineItemIds(
+      project,
+      selectedIds,
+      playheadPosition,
+    );
+    const store = useProjectStore.getState();
+    void Promise.all(
+      trimmableIds.map((id) =>
+        trimTimelineItemToPlayhead(store, id, playheadPosition, true),
+      ),
+    );
+  }, [getSelectedClipIds, playheadPosition, project]);
 
   const handleTrimEnd = useCallback(() => {
     const selectedIds = getSelectedClipIds();
-    if (selectedIds.length === 1) {
-      const currentTime = playheadPosition;
-      useProjectStore
-        .getState()
-        .trimToPlayhead(selectedIds[0], currentTime, false);
-    }
-  }, [getSelectedClipIds, playheadPosition]);
+    const trimmableIds = getSplittableTimelineItemIds(
+      project,
+      selectedIds,
+      playheadPosition,
+    );
+    const store = useProjectStore.getState();
+    void Promise.all(
+      trimmableIds.map((id) =>
+        trimTimelineItemToPlayhead(store, id, playheadPosition, false),
+      ),
+    );
+  }, [getSelectedClipIds, playheadPosition, project]);
 
   const handleSelectAll = useCallback(() => {
-    for (const track of project.timeline.tracks) {
-      for (const clip of track.clips) {
-        select({ id: clip.id, type: "clip" });
-      }
-    }
-  }, [select, project.timeline.tracks]);
+    selectMultiple(getTimelineSelectionItems(project));
+  }, [selectMultiple, project]);
 
   const handleDeselect = useCallback(() => {
     clearSelection();
@@ -229,15 +254,12 @@ export function useKeyboardShortcuts() {
   }, [zoomOut]);
 
   const handleFitTimeline = useCallback(() => {
-    let maxEnd = 0;
-    for (const track of project.timeline.tracks) {
-      for (const clip of track.clips) {
-        const end = clip.startTime + clip.duration;
-        if (end > maxEnd) maxEnd = end;
-      }
-    }
+    const maxEnd = getTimelineItemRanges(project).reduce(
+      (latest, item) => Math.max(latest, item.startTime + item.duration),
+      0,
+    );
     zoomToFit(maxEnd || 60);
-  }, [zoomToFit, project.timeline.tracks]);
+  }, [zoomToFit, project]);
 
   const handleShowShortcuts = useCallback(() => {
     setShowShortcutsOverlay(true);

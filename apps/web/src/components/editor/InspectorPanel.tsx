@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Captions, Upload } from "lucide-react";
+import { Captions, Shuffle } from "@/icons/lucide-compat";
 import { useProjectStore } from "../../stores/project-store";
 import { useTimelineStore } from "../../stores/timeline-store";
 import { useUIStore } from "../../stores/ui-store";
@@ -28,25 +28,20 @@ import {
   useCustomFonts,
 } from "./inspector/font-options";
 import { getNoiseReductionPreset } from "./inspector/noise-reduction-presets";
+import { ToolcraftButton as Button } from "@openreel/ui";
+import { ToolcraftCard as Card } from "@openreel/ui";
+import { ToolcraftFileDropControl as FileInput } from "@openreel/ui";
+import { ToolcraftNumberInputControl } from "@openreel/ui";
+import { ToolcraftSelectableCard as SelectableCard } from "@openreel/ui";
+import { ToolcraftSelectControl as Selector } from "@openreel/ui";
+import { ToolcraftText as Text } from "@openreel/ui";
+import { ToolcraftTextAreaControl } from "@openreel/ui";
+import { ColorSelector } from "../../motion/components/primitives";
 import {
-  Input,
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
-  SelectGroup,
-  SelectLabel,
-} from "@openreel/ui";
-import {
-  getTabsForClipType,
   getTabIdsForClipType,
   type InspectorClipType,
-  type InspectorTabId,
 } from "./inspector/clip-tabs.config";
-import { InspectorTabs } from "./inspector/shell/InspectorTabs";
 import { InspectorClipHeader } from "./inspector/shell/InspectorClipHeader";
-import { InspectorTabPanel } from "./inspector/shell/InspectorTabPanel";
 import { InspectorTabErrorBoundary } from "./inspector/shell/InspectorTabErrorBoundary";
 import { InspectorSection } from "./inspector/shell/InspectorSection";
 import { ColorTab } from "./inspector/tabs/ColorTab";
@@ -57,18 +52,67 @@ import { AnimateTab } from "./inspector/tabs/AnimateTab";
 import { StyleTab } from "./inspector/tabs/StyleTab";
 import { EffectsTab } from "./inspector/tabs/EffectsTab";
 import { AiTab } from "./inspector/tabs/AiTab";
+import { TransitionInspector } from "./inspector/TransitionInspector";
+import { MultiClipInspector } from "./inspector/MultiClipInspector";
 
 // Initialize engines as singletons
 const chromaKeyEngine = new ChromaKeyEngine({ width: 1920, height: 1080 });
 
 const Section = InspectorSection;
 
+const componentToHex = (value: number): string =>
+  Math.max(0, Math.min(255, Math.round(value)))
+    .toString(16)
+    .padStart(2, "0");
+
+const cssColorToHex = (value: string | undefined, fallback: string): string => {
+  if (!value) return fallback;
+  const trimmed = value.trim();
+  if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(trimmed)) {
+    if (trimmed.length === 4) {
+      const [, r, g, b] = trimmed;
+      return `#${r}${r}${g}${g}${b}${b}`.toLowerCase();
+    }
+    return trimmed.toLowerCase();
+  }
+
+  const rgba = trimmed.match(
+    /^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)(?:\s*,\s*([\d.]+))?\s*\)$/i,
+  );
+  if (!rgba) return fallback;
+
+  return `#${componentToHex(Number(rgba[1]))}${componentToHex(
+    Number(rgba[2]),
+  )}${componentToHex(Number(rgba[3]))}`;
+};
+
+const cssColorAlpha = (
+  value: string | undefined,
+  fallback: "0" | "0.5" | "0.7" | "1" = "0.7",
+): "0" | "0.5" | "0.7" | "1" => {
+  const alpha = value?.match(/rgba?\([^,]+,[^,]+,[^,]+,\s*([\d.]+)\s*\)/i)?.[1];
+  if (alpha === "0" || alpha === "0.5" || alpha === "0.7" || alpha === "1") {
+    return alpha;
+  }
+  return fallback;
+};
+
+const rgbaFromHex = (hex: string, alpha: string): string => {
+  const value = cssColorToHex(hex, "#000000");
+  const r = parseInt(value.slice(1, 3), 16);
+  const g = parseInt(value.slice(3, 5), 16);
+  const b = parseInt(value.slice(5, 7), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+};
+
 const EmptyState: React.FC = () => (
-  <div className="flex-1 flex flex-col items-center justify-center p-8 text-center opacity-50">
-    <p className="text-sm text-text-secondary mb-2">No selection</p>
-    <p className="text-xs text-text-muted">
+  <div className="flex-1 flex flex-col items-center justify-center p-10 text-center">
+    <Text type="body" weight="semibold" display="block" className="mb-1.5 text-sm text-fg">
+      No selection
+    </Text>
+    <Text type="supporting" display="block" className="text-xs text-fg-muted">
       Select a clip to view its properties
-    </p>
+    </Text>
   </div>
 );
 
@@ -76,6 +120,9 @@ export const InspectorPanel: React.FC = () => {
   // Stores
   const {
     getClip,
+    getClipTransition,
+    updateClipTransition,
+    removeClipTransition,
     getMediaItem,
     addSubtitle,
     importSRT,
@@ -86,7 +133,7 @@ export const InspectorPanel: React.FC = () => {
     removeEditingTemplateApplication,
   } = useProjectStore();
   const project = useProjectStore((state) => state.project);
-  const { getSelectedClipIds } = useUIStore();
+  const { getSelectedClipIds, clearSelection } = useUIStore();
   const selectedItems = useUIStore((state) => state.selectedItems);
   const effectApplicationClipId = useUIStore(
     (state) => state.effectApplicationClipId,
@@ -117,7 +164,6 @@ export const InspectorPanel: React.FC = () => {
     Record<string, Record<string, EditingTemplatePrimitive>>
   >({});
   const srtInputRef = useRef<HTMLInputElement>(null);
-  const subtitleFontInputRef = useRef<HTMLInputElement>(null);
   const customFonts = useCustomFonts();
 
   useEffect(() => {
@@ -137,6 +183,27 @@ export const InspectorPanel: React.FC = () => {
     return getSubtitle(selectedSubtitleId) || null;
   }, [selectedSubtitleId, getSubtitle, project.timeline.subtitles]);
 
+  const selectedTransitionId = useMemo(() => {
+    return selectedItems.find((item) => item.type === "transition")?.id ?? null;
+  }, [selectedItems]);
+
+  const selectedTransition = useMemo(() => {
+    if (!selectedTransitionId) return null;
+    return getClipTransition(selectedTransitionId) ?? null;
+  }, [selectedTransitionId, getClipTransition, project.modifiedAt]);
+
+  const transitionClipA = useMemo(
+    () => (selectedTransition ? getClip(selectedTransition.clipAId) ?? null : null),
+    [selectedTransition, getClip, project.modifiedAt],
+  );
+  const transitionClipB = useMemo(
+    () =>
+      selectedTransition?.clipBId
+        ? getClip(selectedTransition.clipBId) ?? null
+        : null,
+    [selectedTransition, getClip, project.modifiedAt],
+  );
+
   const selectedTimelineClip = useMemo(() => {
     if (selectedClipIds.length !== 1) return null;
     return getClip(selectedClipIds[0]) || null;
@@ -146,8 +213,6 @@ export const InspectorPanel: React.FC = () => {
   const selectedClip = useMemo(() => {
     if (selectedClipIds.length !== 1) return null;
     const clipId = selectedClipIds[0];
-    const regularClip = getClip(clipId);
-    if (regularClip) return regularClip;
     const titleEngine = getTitleEngine();
     const textClip = titleEngine?.getTextClip(clipId);
     if (textClip) {
@@ -234,7 +299,7 @@ export const InspectorPanel: React.FC = () => {
         trackId: stickerClip.trackId,
       };
     }
-    return null;
+    return getClip(clipId) ?? null;
   }, [
     selectedClipIds,
     getClip,
@@ -258,14 +323,41 @@ export const InspectorPanel: React.FC = () => {
   const updateClipTransform = useProjectStore(
     (state) => state.updateClipTransform,
   );
+  const updateTextTransform = useProjectStore(
+    (state) => state.updateTextTransform,
+  );
+  const updateShapeTransform = useProjectStore(
+    (state) => state.updateShapeTransform,
+  );
 
   // Transform handlers
   const handleTransformChange = useCallback(
     (changes: Partial<Transform>) => {
       if (!selectedClip) return;
-      updateClipTransform(selectedClip.id, changes);
+      const titleEngine = getTitleEngine();
+      const graphicsEngine = getGraphicsEngine();
+      if (titleEngine?.getTextClip(selectedClip.id)) {
+        updateTextTransform(selectedClip.id, changes);
+        return;
+      }
+      if (
+        graphicsEngine?.getShapeClip(selectedClip.id) ||
+        graphicsEngine?.getSVGClip(selectedClip.id) ||
+        graphicsEngine?.getStickerClip(selectedClip.id)
+      ) {
+        updateShapeTransform(selectedClip.id, changes);
+        return;
+      }
+      void updateClipTransform(selectedClip.id, changes);
     },
-    [selectedClip, updateClipTransform],
+    [
+      getGraphicsEngine,
+      getTitleEngine,
+      selectedClip,
+      updateClipTransform,
+      updateShapeTransform,
+      updateTextTransform,
+    ],
   );
 
   // Chroma Key handlers using ChromaKeyEngine
@@ -391,12 +483,16 @@ export const InspectorPanel: React.FC = () => {
           );
 
           if (existingNoiseReduction) {
-            updateAudioEffect(
+            await updateAudioEffect(
               selectedClip.id,
               existingNoiseReduction.id,
               noiseCleanupConfig as unknown as Record<string, unknown>,
             );
-            toggleAudioEffect(selectedClip.id, existingNoiseReduction.id, true);
+            await toggleAudioEffect(
+              selectedClip.id,
+              existingNoiseReduction.id,
+              true,
+            );
           } else {
             const result = bridge.applyNoiseReduction(
               selectedClip.id,
@@ -443,22 +539,27 @@ export const InspectorPanel: React.FC = () => {
     await applyClipEffectWithPlaybackLock(
       selectedClip.id,
       "Applying auto color",
-      () => {
-        addVideoEffect(selectedClip.id, "saturation");
-        addVideoEffect(selectedClip.id, "contrast");
-        addVideoEffect(selectedClip.id, "brightness");
-        const effects = useProjectStore.getState().getVideoEffects(selectedClip.id);
-        const satEffect = effects.find((e) => e.type === "saturation");
-        const contEffect = effects.find((e) => e.type === "contrast");
-        const brightEffect = effects.find((e) => e.type === "brightness");
+      async () => {
+        const satEffect = await addVideoEffect(selectedClip.id, "saturation");
+        const contEffect = await addVideoEffect(selectedClip.id, "contrast");
+        const brightEffect = await addVideoEffect(
+          selectedClip.id,
+          "brightness",
+        );
         if (satEffect) {
-          updateVideoEffect(selectedClip.id, satEffect.id, { value: 1.15 });
+          await updateVideoEffect(selectedClip.id, satEffect.id, {
+            value: 1.15,
+          });
         }
         if (contEffect) {
-          updateVideoEffect(selectedClip.id, contEffect.id, { value: 1.1 });
+          await updateVideoEffect(selectedClip.id, contEffect.id, {
+            value: 1.1,
+          });
         }
         if (brightEffect) {
-          updateVideoEffect(selectedClip.id, brightEffect.id, { value: 5 });
+          await updateVideoEffect(selectedClip.id, brightEffect.id, {
+            value: 5,
+          });
         }
       },
     );
@@ -573,8 +674,7 @@ export const InspectorPanel: React.FC = () => {
   );
 
   const handleSubtitleFontUpload = useCallback(
-    async (event: React.ChangeEvent<HTMLInputElement>) => {
-      const file = event.target.files?.[0];
+    async (file: File) => {
       if (!file || !selectedSubtitle) return;
 
       const result = await registerCustomFont(file);
@@ -589,8 +689,6 @@ export const InspectorPanel: React.FC = () => {
         });
         toast.success("Custom font uploaded", `${result.fontFamily} is ready to use.`);
       }
-
-      event.target.value = "";
     },
     [selectedSubtitle, updateSubtitle],
   );
@@ -672,7 +770,13 @@ export const InspectorPanel: React.FC = () => {
   /**
    * Determine which sections to show based on clip type
    */
-  const showVideoEffects = clipType === "video" || clipType === "image";
+  const showVideoEffects =
+    clipType === "video" ||
+    clipType === "image" ||
+    clipType === "text" ||
+    clipType === "shape" ||
+    clipType === "svg" ||
+    clipType === "sticker";
   const showColorGrading = clipType === "video" || clipType === "image";
   const showAudioEffects = clipType === "video" || clipType === "audio";
   const showTextSection = clipType === "text";
@@ -786,186 +890,211 @@ export const InspectorPanel: React.FC = () => {
     clipType === "svg" ||
     clipType === "sticker";
 
-  const tabs = useMemo(
-    () => getTabsForClipType(clipType as InspectorClipType | null),
-    [clipType],
-  );
   const tabIds = useMemo(
     () => getTabIdsForClipType(clipType as InspectorClipType | null),
     [clipType],
   );
-  const inspectorActiveTab = useUIStore((s) => s.inspectorActiveTab);
-  const setInspectorActiveTab = useUIStore((s) => s.setInspectorActiveTab);
-
-  const activeTab: InspectorTabId =
-    (tabIds.includes(inspectorActiveTab as InspectorTabId)
-      ? (inspectorActiveTab as InspectorTabId)
-      : tabIds[0]) ?? ("transform" as InspectorTabId);
-
-  useEffect(() => {
-    if (
-      tabIds.length > 0 &&
-      !tabIds.includes(inspectorActiveTab as InspectorTabId)
-    ) {
-      setInspectorActiveTab(tabIds[0]);
-    }
-  }, [tabIds, inspectorActiveTab, setInspectorActiveTab]);
 
   return (
     <div
       data-tour="inspector"
-      className="w-full min-w-0 bg-bg-1 flex flex-col h-full"
+      className="w-full min-w-0 bg-bg-1 flex flex-col h-full overflow-hidden"
     >
-      {selectedClip && tabs.length > 0 && (
-        <>
-          <InspectorClipHeader
-            name={`${selectedClip.id.substring(0, 20)}…`}
-            durationSeconds={selectedClip.duration}
-            typeLabel={clipType ?? "clip"}
-          />
-          <InspectorTabs
-            tabs={tabs}
-            activeId={activeTab}
-            onSelect={(id) => setInspectorActiveTab(id)}
-          />
-        </>
+      {selectedClip && tabIds.length > 0 && (
+        <InspectorClipHeader
+          name={
+            project.mediaLibrary.items.find(
+              (m) => m.id === selectedClip.mediaId,
+            )?.name ??
+            (clipType
+              ? clipType.charAt(0).toUpperCase() + clipType.slice(1)
+              : "Clip")
+          }
+          durationSeconds={selectedClip.duration}
+          typeLabel={clipType ?? "clip"}
+        />
       )}
 
-      <div className="overflow-y-auto flex-1 min-h-0 pb-3.5 custom-scrollbar">
-      <div className="px-4 pt-3">
-        {selectedClip ? (
-          <InspectorTabErrorBoundary key={activeTab}>
-            <InspectorTabPanel tab="effects" active={activeTab}>
-              <EffectsTab
-                clipId={clipId}
-                clipType={clipType}
-                selectedClip={selectedClip}
-                selectedTimelineClip={selectedTimelineClip}
-                showVideoControls={showVideoControls}
-                showVideoEffects={showVideoEffects}
-                showTextSection={showTextSection}
-                appliedEditingTemplates={appliedEditingTemplates}
-                getEditingTemplate={getEditingTemplate}
-                removeEditingTemplateApplication={removeEditingTemplateApplication}
-                expandedRecipeApplicationId={expandedRecipeApplicationId}
-                setExpandedRecipeApplicationId={setExpandedRecipeApplicationId}
-                recipeControlValues={recipeControlValues}
-                setRecipeControlValues={setRecipeControlValues}
-                handleRecipeControlChange={handleRecipeControlChange}
-                handleToggleRecipeControls={handleToggleRecipeControls}
-                handleResetRecipeControls={handleResetRecipeControls}
-                handleUpdateRecipeControls={handleUpdateRecipeControls}
-                chromaKeyEnabled={chromaKeyEnabled}
-                keyColor={keyColor}
-                tolerance={tolerance}
-                handleChromaKeyToggle={handleChromaKeyToggle}
-                handleKeyColorChange={handleKeyColorChange}
-                handleToleranceChange={handleToleranceChange}
-              />
-            </InspectorTabPanel>
+      <div className="overflow-y-auto flex-1 min-h-0 custom-scrollbar">
+      <div className="py-[18px] px-5">
+        {selectedClipIds.length > 1 ? (
+          <MultiClipInspector clipIds={selectedClipIds} />
+        ) : selectedClip ? (
+          <InspectorTabErrorBoundary key={clipId}>
+            <div className="space-y-4">
+              {tabIds.includes("transform") && (
+                <TransformTab
+                  clipId={clipId}
+                  clipType={clipType}
+                  selectedClip={selectedClip}
+                  showTransformControls={showTransformControls}
+                  showVideoControls={showVideoControls}
+                  transform={transform}
+                  canvasWidth={project.settings.width}
+                  canvasHeight={project.settings.height}
+                  handleTransformChange={handleTransformChange}
+                />
+              )}
 
-            <InspectorTabPanel tab="ai" active={activeTab}>
-              <AiTab
-                clipId={clipId}
-                clipType={clipType}
-                showVideoControls={showVideoControls}
-                showAudioEffects={showAudioEffects}
-                showVideoEffects={showVideoEffects}
-                transcriptionProgress={transcriptionProgress}
-                isTranscribing={isTranscribing}
-                targetLanguage={targetLanguage}
-                setTargetLanguage={setTargetLanguage}
-                defaultAnimationStyle={defaultAnimationStyle}
-                setDefaultAnimationStyle={setDefaultAnimationStyle}
-                handleGenerateSubtitles={handleGenerateSubtitles}
-                handleSRTImport={handleSRTImport}
-                srtInputRef={srtInputRef}
-                handleRemoveBackground={handleRemoveBackground}
-                handleEnhanceAudio={handleEnhanceAudio}
-                handleAutoColor={handleAutoColor}
-                isEnhancingAudio={isEnhancingAudio}
-                audioEnhanced={audioEnhanced}
-                isApplyingSelectedClipEffect={isApplyingSelectedClipEffect}
-              />
-            </InspectorTabPanel>
+              {tabIds.includes("style") && (
+                <StyleTab
+                  clipId={clipId}
+                  showTextSection={showTextSection}
+                  showShapeSection={showShapeSection}
+                  showSVGSection={showSVGSection}
+                />
+              )}
 
-            <InspectorTabPanel tab="audio" active={activeTab}>
-              <AudioTab
-                clipId={clipId}
-                clipType={clipType}
-                showAudioEffects={showAudioEffects}
-                noiseReductionSectionTitle={noiseReductionSectionTitle}
-                selectedNoiseReductionEffect={selectedNoiseReductionEffect}
-              />
-            </InspectorTabPanel>
+              {tabIds.includes("color") && (
+                <ColorTab clipId={clipId} showColorGrading={showColorGrading} />
+              )}
 
-            <InspectorTabPanel tab="transform" active={activeTab}>
-              <TransformTab
-                clipId={clipId}
-                clipType={clipType}
-                selectedClip={selectedClip}
-                showTransformControls={showTransformControls}
-                showVideoControls={showVideoControls}
-                transform={transform}
-                handleTransformChange={handleTransformChange}
-              />
-            </InspectorTabPanel>
+              {tabIds.includes("effects") && (
+                <EffectsTab
+                  clipId={clipId}
+                  clipType={clipType}
+                  selectedClip={selectedClip}
+                  selectedTimelineClip={selectedTimelineClip}
+                  showVideoControls={showVideoControls}
+                  showVideoEffects={showVideoEffects}
+                  showTextSection={showTextSection}
+                  appliedEditingTemplates={appliedEditingTemplates}
+                  getEditingTemplate={getEditingTemplate}
+                  removeEditingTemplateApplication={removeEditingTemplateApplication}
+                  expandedRecipeApplicationId={expandedRecipeApplicationId}
+                  setExpandedRecipeApplicationId={setExpandedRecipeApplicationId}
+                  recipeControlValues={recipeControlValues}
+                  setRecipeControlValues={setRecipeControlValues}
+                  handleRecipeControlChange={handleRecipeControlChange}
+                  handleToggleRecipeControls={handleToggleRecipeControls}
+                  handleResetRecipeControls={handleResetRecipeControls}
+                  handleUpdateRecipeControls={handleUpdateRecipeControls}
+                  chromaKeyEnabled={chromaKeyEnabled}
+                  keyColor={keyColor}
+                  tolerance={tolerance}
+                  handleChromaKeyToggle={handleChromaKeyToggle}
+                  handleKeyColorChange={handleKeyColorChange}
+                  handleToleranceChange={handleToleranceChange}
+                />
+              )}
 
-            <InspectorTabPanel tab="speed" active={activeTab}>
-              <SpeedTab
-                showVideoControls={showVideoControls}
-                selectedClip={selectedClip}
-              />
-            </InspectorTabPanel>
+              {tabIds.includes("audio") && (
+                <AudioTab
+                  clipId={clipId}
+                  clipType={clipType}
+                  showAudioEffects={showAudioEffects}
+                  noiseReductionSectionTitle={noiseReductionSectionTitle}
+                  selectedNoiseReductionEffect={selectedNoiseReductionEffect}
+                />
+              )}
 
-            <InspectorTabPanel tab="animate" active={activeTab}>
-              <AnimateTab
-                clipId={clipId}
-                clipType={clipType}
-                showTextSection={showTextSection}
-              />
-            </InspectorTabPanel>
+              {tabIds.includes("speed") && (
+                <SpeedTab
+                  showVideoControls={showVideoControls}
+                  selectedClip={selectedClip}
+                />
+              )}
 
-            <InspectorTabPanel tab="color" active={activeTab}>
-              <ColorTab clipId={clipId} showColorGrading={showColorGrading} />
-            </InspectorTabPanel>
+              {tabIds.includes("animate") && (
+                <AnimateTab
+                  clipId={clipId}
+                  clipType={clipType}
+                  showTextSection={showTextSection}
+                />
+              )}
 
-            <InspectorTabPanel tab="style" active={activeTab}>
-              <StyleTab
-                clipId={clipId}
-                showTextSection={showTextSection}
-                showShapeSection={showShapeSection}
-                showSVGSection={showSVGSection}
-              />
-            </InspectorTabPanel>
-
+              {tabIds.includes("ai") && (
+                <AiTab
+                  clipId={clipId}
+                  clipType={clipType}
+                  showVideoControls={showVideoControls}
+                  showAudioEffects={showAudioEffects}
+                  showVideoEffects={showVideoEffects}
+                  transcriptionProgress={transcriptionProgress}
+                  isTranscribing={isTranscribing}
+                  targetLanguage={targetLanguage}
+                  setTargetLanguage={setTargetLanguage}
+                  defaultAnimationStyle={defaultAnimationStyle}
+                  setDefaultAnimationStyle={setDefaultAnimationStyle}
+                  handleGenerateSubtitles={handleGenerateSubtitles}
+                  handleSRTImport={handleSRTImport}
+                  srtInputRef={srtInputRef}
+                  handleRemoveBackground={handleRemoveBackground}
+                  handleEnhanceAudio={handleEnhanceAudio}
+                  handleAutoColor={handleAutoColor}
+                  isEnhancingAudio={isEnhancingAudio}
+                  audioEnhanced={audioEnhanced}
+                  isApplyingSelectedClipEffect={isApplyingSelectedClipEffect}
+                />
+              )}
+            </div>
           </InspectorTabErrorBoundary>
+        ) : selectedTransition && transitionClipA ? (
+          <div className="space-y-3">
+            <Card variant="green" padding={3} className="rounded-lg border border-accent/30 bg-accent-soft">
+              <div className="flex items-center gap-2">
+                <Shuffle size={14} className="text-accent" aria-hidden />
+                <Text type="supporting" weight="bold" className="text-fg">
+                  {selectedTransition.edge === "in"
+                    ? "Intro Transition"
+                    : selectedTransition.edge === "out"
+                      ? "Outro Transition"
+                      : "Transition"}
+                </Text>
+              </div>
+              <Text type="supporting" display="block" className="mt-1 text-[10px] text-fg-3">
+                {selectedTransition.edge === "in"
+                  ? "From the project background into this clip"
+                  : selectedTransition.edge === "out"
+                    ? "From this clip into the project background"
+                    : "Between two clips - centered on the cut"}
+              </Text>
+            </Card>
+            <TransitionInspector
+              clipA={transitionClipA}
+              clipB={transitionClipB ?? undefined}
+              edge={selectedTransition.edge}
+              transition={selectedTransition}
+              onTransitionUpdate={(id, updates) => {
+                void updateClipTransition(id, updates);
+              }}
+              onTransitionRemove={(id) => {
+                void removeClipTransition(id);
+                clearSelection();
+              }}
+            />
+          </div>
         ) : selectedSubtitle ? (
           <>
             {/* Subtitle Info */}
-            <div className="mb-4 p-3 bg-primary/10 rounded-lg border border-primary/30">
+            <Card variant="green" padding={3} className="mb-4 rounded-lg border border-accent/30 bg-accent-soft">
               <div className="flex items-center gap-2 mb-1">
-                <Captions size={14} className="text-primary" />
-                <span className="text-xs font-bold text-primary">Subtitle</span>
+                <Captions size={14} className="text-accent" aria-hidden />
+                <Text type="supporting" weight="bold" className="text-accent">
+                  Subtitle
+                </Text>
               </div>
-              <p className="text-[10px] text-text-muted">
+              <Text type="supporting" display="block" className="text-[10px] text-fg-3">
                 {selectedSubtitle.startTime.toFixed(2)}s -{" "}
                 {selectedSubtitle.endTime.toFixed(2)}s
-              </p>
-            </div>
+              </Text>
+            </Card>
 
             {/* Subtitle Text Editor */}
             <Section title="Text Content">
               <div className="space-y-3">
-                <textarea
+                <ToolcraftTextAreaControl
+                  label="Subtitle text"
+                  isLabelHidden
                   value={selectedSubtitle.text}
-                  onChange={(e) =>
+                  onChange={(text) =>
                     updateSubtitle(selectedSubtitle.id, {
-                      text: e.target.value,
+                      text,
                     })
                   }
-                  className="w-full h-24 px-3 py-2 bg-background-tertiary border border-border rounded-lg text-xs text-text-primary resize-none focus:outline-none focus:border-primary"
+                  rows={4}
                   placeholder="Enter subtitle text..."
+                  width="100%"
                 />
               </div>
             </Section>
@@ -974,35 +1103,39 @@ export const InspectorPanel: React.FC = () => {
             <Section title="Timing">
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] text-text-secondary">
+                  <Text type="supporting" color="secondary" className="text-[10px]">
                     Start Time
-                  </span>
-                  <Input
-                    type="number"
-                    step="0.1"
-                    value={selectedSubtitle.startTime.toFixed(2)}
-                    onChange={(e) =>
+                  </Text>
+                  <ToolcraftNumberInputControl
+                    label="Start Time"
+                    isLabelHidden
+                    step={0.1}
+                    value={selectedSubtitle.startTime}
+                    onChange={(value) =>
                       updateSubtitle(selectedSubtitle.id, {
-                        startTime: parseFloat(e.target.value) || 0,
+                        startTime: value || 0,
                       })
                     }
-                    className="w-20 h-7 text-[10px] bg-background-tertiary border-border text-text-primary text-right"
+                    size="sm"
+                    width={80}
                   />
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] text-text-secondary">
+                  <Text type="supporting" color="secondary" className="text-[10px]">
                     End Time
-                  </span>
-                  <Input
-                    type="number"
-                    step="0.1"
-                    value={selectedSubtitle.endTime.toFixed(2)}
-                    onChange={(e) =>
+                  </Text>
+                  <ToolcraftNumberInputControl
+                    label="End Time"
+                    isLabelHidden
+                    step={0.1}
+                    value={selectedSubtitle.endTime}
+                    onChange={(value) =>
                       updateSubtitle(selectedSubtitle.id, {
-                        endTime: parseFloat(e.target.value) || 0,
+                        endTime: value || 0,
                       })
                     }
-                    className="w-20 h-7 text-[10px] bg-background-tertiary border-border text-text-primary text-right"
+                    size="sm"
+                    width={80}
                   />
                 </div>
               </div>
@@ -1012,9 +1145,11 @@ export const InspectorPanel: React.FC = () => {
             <Section title="Position">
               <div className="grid grid-cols-3 gap-2">
                 {(["top", "center", "bottom"] as const).map((pos) => (
-                  <button
+                  <SelectableCard
                     key={pos}
-                    onClick={() =>
+                    label={pos}
+                    isSelected={(selectedSubtitle.style?.position || "bottom") === pos}
+                    onChange={() =>
                       updateSubtitle(selectedSubtitle.id, {
                         style: {
                           ...(selectedSubtitle.style || {}),
@@ -1022,14 +1157,12 @@ export const InspectorPanel: React.FC = () => {
                         } as typeof selectedSubtitle.style,
                       })
                     }
-                    className={`py-1.5 rounded text-[10px] capitalize transition-colors ${
-                      (selectedSubtitle.style?.position || "bottom") === pos
-                        ? "bg-primary text-white"
-                        : "bg-background-tertiary border border-border text-text-secondary hover:text-text-primary"
-                    }`}
+                    padding={2}
+                    variant={(selectedSubtitle.style?.position || "bottom") === pos ? "green" : "muted"}
+                    className="text-center capitalize"
                   >
                     {pos}
-                  </button>
+                  </SelectableCard>
                 ))}
               </div>
             </Section>
@@ -1038,28 +1171,27 @@ export const InspectorPanel: React.FC = () => {
             <Section title="Animation">
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] text-text-secondary">Style</span>
-                  <Select
+                  <Text type="supporting" color="secondary" className="text-[10px]">
+                    Style
+                  </Text>
+                  <Selector
+                    label="Animation style"
+                    isLabelHidden
                     value={selectedSubtitle.animationStyle || "none"}
-                    onValueChange={(v) =>
+                    onChange={(v) =>
                       updateSubtitle(selectedSubtitle.id, {
                         animationStyle: v as CaptionAnimationStyle,
                       })
                     }
-                  >
-                    <SelectTrigger className="w-auto min-w-[100px] bg-background-tertiary border-border text-text-primary text-[10px]">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="bg-background-secondary border-border">
-                      {CAPTION_ANIMATION_STYLES.map((style) => (
-                        <SelectItem key={style} value={style}>
-                          {getAnimationStyleDisplayName(style)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    options={CAPTION_ANIMATION_STYLES.map((style) => ({
+                      value: style,
+                      label: getAnimationStyleDisplayName(style),
+                    }))}
+                    size="sm"
+                    width={140}
+                  />
                 </div>
-                <p className="text-[9px] text-text-muted">
+                <Text type="supporting" color="secondary" display="block" className="text-[9px]">
                   {selectedSubtitle.animationStyle === "karaoke" &&
                     "Words fill with color as they're spoken"}
                   {selectedSubtitle.animationStyle === "word-highlight" &&
@@ -1073,14 +1205,16 @@ export const InspectorPanel: React.FC = () => {
                   {(!selectedSubtitle.animationStyle ||
                     selectedSubtitle.animationStyle === "none") &&
                     "Static text, no animation"}
-                </p>
+                </Text>
                 {selectedSubtitle.animationStyle &&
                   selectedSubtitle.animationStyle !== "none" &&
                   !selectedSubtitle.words?.length && (
-                    <p className="text-[9px] text-amber-400 bg-amber-400/10 p-2 rounded">
-                      ⚠️ No word-level timing data. Re-generate captions to
+                    <Card variant="muted" padding={2} className="bg-amber-400/10">
+                      <Text type="supporting" display="block" className="text-[9px] text-amber-400">
+                      No word-level timing data. Re-generate captions to
                       enable animation.
-                    </p>
+                      </Text>
+                    </Card>
                   )}
                 {selectedSubtitle.animationStyle &&
                   selectedSubtitle.animationStyle !== "none" &&
@@ -1088,30 +1222,25 @@ export const InspectorPanel: React.FC = () => {
                   selectedSubtitle.animationStyle !== "word-by-word" && (
                     <div className="pt-2 border-t border-border space-y-2">
                       <div className="flex items-center justify-between">
-                        <span className="text-[10px] text-text-secondary">
+                        <Text type="supporting" color="secondary" className="text-[10px]">
                           Highlight Color
-                        </span>
+                        </Text>
                         <div className="flex items-center gap-2">
-                          <input
-                            type="color"
+                          <ColorSelector
                             value={
                               selectedSubtitle.style?.highlightColor ||
                               "#ffff00"
                             }
-                            onChange={(e) =>
+                            label="Select highlight color"
+                            onChange={(highlightColor) =>
                               updateSubtitle(selectedSubtitle.id, {
                                 style: {
                                   ...(selectedSubtitle.style || {}),
-                                  highlightColor: e.target.value,
+                                  highlightColor,
                                 } as typeof selectedSubtitle.style,
                               })
                             }
-                            className="w-6 h-6 rounded border border-border cursor-pointer"
                           />
-                          <span className="text-[9px] font-mono text-text-muted uppercase">
-                            {selectedSubtitle.style?.highlightColor ||
-                              "#ffff00"}
-                          </span>
                         </div>
                       </div>
                       <div className="grid grid-cols-6 gap-1">
@@ -1123,8 +1252,9 @@ export const InspectorPanel: React.FC = () => {
                           "#ff9f43",
                           "#a55eea",
                         ].map((color) => (
-                          <button
+                          <Button
                             key={color}
+                            label={color}
                             onClick={() =>
                               updateSubtitle(selectedSubtitle.id, {
                                 style: {
@@ -1133,7 +1263,9 @@ export const InspectorPanel: React.FC = () => {
                                 } as typeof selectedSubtitle.style,
                               })
                             }
-                            className={`w-6 h-6 rounded border-2 transition-transform hover:scale-110 ${
+                            variant="ghost"
+                            size="sm"
+                            className={`h-6 w-6 rounded border-2 p-0 transition-transform hover:scale-110 ${
                               (selectedSubtitle.style?.highlightColor ||
                                 "#ffff00") === color
                                 ? "border-white"
@@ -1151,20 +1283,15 @@ export const InspectorPanel: React.FC = () => {
             {/* Subtitle Font Settings */}
             <Section title="Font">
               <div className="space-y-3">
-                <input
-                  ref={subtitleFontInputRef}
-                  type="file"
-                  accept={FONT_FILE_ACCEPT}
-                  onChange={handleSubtitleFontUpload}
-                  className="hidden"
-                />
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] text-text-secondary">
+                  <Text type="supporting" color="secondary" className="text-[10px]">
                     Font Family
-                  </span>
-                  <Select
+                  </Text>
+                  <Selector
+                    label="Font family"
+                    isLabelHidden
                     value={selectedSubtitle.style?.fontFamily || "Inter"}
-                    onValueChange={(v) =>
+                    onChange={(v) =>
                       updateSubtitle(selectedSubtitle.id, {
                         style: {
                           ...(selectedSubtitle.style || {}),
@@ -1172,63 +1299,56 @@ export const InspectorPanel: React.FC = () => {
                         } as typeof selectedSubtitle.style,
                       })
                     }
-                  >
-                    <SelectTrigger className="max-w-[120px] bg-background-tertiary border-border text-text-primary text-[10px]">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="bg-background-secondary border-border max-h-60">
-                      {Object.entries(FONT_CATEGORIES).map(([category, fonts]) => (
-                        <SelectGroup key={category}>
-                          <SelectLabel className="text-text-muted text-[10px] font-medium">
-                            {category}
-                          </SelectLabel>
-                          {fonts.map((font) => (
-                            <SelectItem key={font} value={font} style={{ fontFamily: font }}>
-                              {font}
-                            </SelectItem>
-                          ))}
-                        </SelectGroup>
-                      ))}
-                      {customFonts.length > 0 && (
-                        <SelectGroup>
-                          <SelectLabel className="text-text-muted text-[10px] font-medium">
-                            Custom Uploads
-                          </SelectLabel>
-                          {customFonts.map((font) => (
-                            <SelectItem key={font} value={font} style={{ fontFamily: font }}>
-                              {font}
-                            </SelectItem>
-                          ))}
-                        </SelectGroup>
-                      )}
-                    </SelectContent>
-                  </Select>
+                    options={[
+                      ...Object.entries(FONT_CATEGORIES).flatMap(([category, fonts]) =>
+                        fonts.map((font) => ({
+                          value: font,
+                          label: `${font} (${category})`,
+                        })),
+                      ),
+                      ...customFonts.map((font) => ({
+                        value: font,
+                        label: `${font} (Custom)`,
+                      })),
+                    ]}
+                    size="sm"
+                    width={160}
+                  />
                 </div>
-                <button
-                  onClick={() => subtitleFontInputRef.current?.click()}
-                  className="w-full py-1.5 px-2 bg-background-secondary border border-border rounded text-[10px] text-text-secondary hover:text-text-primary transition-colors flex items-center justify-center gap-1.5"
-                >
-                  <Upload size={11} />
-                  Upload Custom Font
-                </button>
+                <FileInput
+                  label="Upload Custom Font"
+                  isLabelHidden
+                  value={null}
+                  onChange={(picked) => {
+                    if (picked instanceof File) {
+                      void handleSubtitleFontUpload(picked);
+                    }
+                  }}
+                  accept={FONT_FILE_ACCEPT}
+                  mode="input"
+                  placeholder="Upload Custom Font"
+                  width="100%"
+                />
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] text-text-secondary">
+                  <Text type="supporting" color="secondary" className="text-[10px]">
                     Font Size
-                  </span>
-                  <Input
-                    type="number"
+                  </Text>
+                  <ToolcraftNumberInputControl
+                    label="Font Size"
+                    isLabelHidden
                     min={12}
                     max={72}
                     value={selectedSubtitle.style?.fontSize || 24}
-                    onChange={(e) =>
+                    onChange={(value) =>
                       updateSubtitle(selectedSubtitle.id, {
                         style: {
                           ...(selectedSubtitle.style || {}),
-                          fontSize: parseInt(e.target.value) || 24,
+                          fontSize: value || 24,
                         } as typeof selectedSubtitle.style,
                       })
                     }
-                    className="w-16 h-7 text-[10px] bg-background-tertiary border-border text-text-primary text-right"
+                    size="sm"
+                    width={80}
                   />
                 </div>
               </div>
@@ -1238,70 +1358,63 @@ export const InspectorPanel: React.FC = () => {
             <Section title="Colors">
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] text-text-secondary">
+                  <Text type="supporting" color="secondary" className="text-[10px]">
                     Text Color
-                  </span>
+                  </Text>
                   <div className="flex items-center gap-2">
-                    <input
-                      type="color"
+                    <ColorSelector
                       value={selectedSubtitle.style?.color || "#ffffff"}
-                      onChange={(e) =>
+                      label="Select subtitle text color"
+                      onChange={(color) =>
                         updateSubtitle(selectedSubtitle.id, {
                           style: {
                             ...(selectedSubtitle.style || {}),
-                            color: e.target.value,
+                            color,
                           } as typeof selectedSubtitle.style,
                         })
                       }
-                      className="w-6 h-6 rounded border border-border cursor-pointer"
                     />
-                    <span className="text-[10px] font-mono text-text-muted uppercase">
-                      {selectedSubtitle.style?.color || "#ffffff"}
-                    </span>
                   </div>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] text-text-secondary">
+                  <Text type="supporting" color="secondary" className="text-[10px]">
                     Background
-                  </span>
+                  </Text>
                   <div className="flex items-center gap-2">
-                    <input
-                      type="color"
-                      value={
-                        selectedSubtitle.style?.backgroundColor?.replace(
-                          /rgba?\([^)]+\)/,
-                          "#000000",
-                        ) || "#000000"
-                      }
-                      onChange={(e) => {
-                        const hex = e.target.value;
-                        const r = parseInt(hex.slice(1, 3), 16);
-                        const g = parseInt(hex.slice(3, 5), 16);
-                        const b = parseInt(hex.slice(5, 7), 16);
+                    <ColorSelector
+                      value={cssColorToHex(
+                        selectedSubtitle.style?.backgroundColor,
+                        "#000000",
+                      )}
+                      label="Select subtitle background color"
+                      onChange={(hex) => {
                         updateSubtitle(selectedSubtitle.id, {
                           style: {
                             ...(selectedSubtitle.style || {}),
-                            backgroundColor: `rgba(${r}, ${g}, ${b}, 0.7)`,
+                            backgroundColor: rgbaFromHex(
+                              hex,
+                              cssColorAlpha(
+                                selectedSubtitle.style?.backgroundColor,
+                              ),
+                            ),
                           } as typeof selectedSubtitle.style,
                         });
                       }}
-                      className="w-6 h-6 rounded border border-border cursor-pointer"
                     />
-                    <Select
+                    <Selector
+                      label="Background opacity"
+                      isLabelHidden
                       value={
-                        selectedSubtitle.style?.backgroundColor?.includes("0.7")
-                          ? "0.7"
-                          : selectedSubtitle.style?.backgroundColor?.includes("0.5")
-                            ? "0.5"
-                            : "1"
+                        cssColorAlpha(selectedSubtitle.style?.backgroundColor)
                       }
-                      onValueChange={(v) => {
-                        const currentBg =
-                          selectedSubtitle.style?.backgroundColor ||
-                          "rgba(0, 0, 0, 0.7)";
-                        const newBg = currentBg.replace(
-                          /[\d.]+\)$/,
-                          `${v})`,
+                      onChange={(v) => {
+                        const nextAlpha = v as "0" | "0.5" | "0.7" | "1";
+                        const newBg = rgbaFromHex(
+                          cssColorToHex(
+                            selectedSubtitle.style?.backgroundColor,
+                            "#000000",
+                          ),
+                          nextAlpha,
                         );
                         updateSubtitle(selectedSubtitle.id, {
                           style: {
@@ -1310,17 +1423,15 @@ export const InspectorPanel: React.FC = () => {
                           } as typeof selectedSubtitle.style,
                         });
                       }}
-                    >
-                      <SelectTrigger className="w-auto min-w-[50px] bg-background-tertiary border-border text-text-primary text-[9px] h-6">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent className="bg-background-secondary border-border">
-                        <SelectItem value="0">None</SelectItem>
-                        <SelectItem value="0.5">50%</SelectItem>
-                        <SelectItem value="0.7">70%</SelectItem>
-                        <SelectItem value="1">100%</SelectItem>
-                      </SelectContent>
-                    </Select>
+                      options={[
+                        { value: "0", label: "None" },
+                        { value: "0.5", label: "50%" },
+                        { value: "0.7", label: "70%" },
+                        { value: "1", label: "100%" },
+                      ]}
+                      size="sm"
+                      width={80}
+                    />
                   </div>
                 </div>
               </div>
@@ -1328,15 +1439,15 @@ export const InspectorPanel: React.FC = () => {
 
             {/* Delete Subtitle */}
             <div className="pt-4 border-t border-border">
-              <button
+              <Button
+                label="Delete Subtitle"
                 onClick={() => {
                   const { removeSubtitle } = useProjectStore.getState();
                   removeSubtitle(selectedSubtitle.id);
                 }}
-                className="w-full py-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/30 rounded-lg text-[10px] transition-all"
-              >
-                Delete Subtitle
-              </button>
+                variant="destructive"
+                className="w-full border border-red-500/30 bg-red-500/20 text-red-400 hover:bg-red-500/30"
+              />
             </div>
           </>
         ) : (

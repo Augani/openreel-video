@@ -1,7 +1,11 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
-import { Search, Layout, Clock } from "lucide-react";
+import { Box, Search, Layout, Clock } from "@/icons/lucide-compat";
+import { ToolcraftButton as Button } from "@openreel/ui";
+import { ToolcraftSelectableCard as SelectableCard } from "@openreel/ui";
+import { ToolcraftTextInputControl } from "@openreel/ui";
 import { useEngineStore } from "../../../stores/engine-store";
 import { useProjectStore } from "../../../stores/project-store";
+import { useRouter } from "../../../hooks/use-router";
 import type {
   TemplateSummary,
   TemplateCategory,
@@ -17,6 +21,10 @@ export const TemplatesTab: React.FC = () => {
   >("all");
   const [loading, setLoading] = useState(true);
   const [applying, setApplying] = useState<string | null>(null);
+  const createMotionComposition = useProjectStore(
+    (state) => state.createMotionComposition,
+  );
+  const { navigate } = useRouter();
 
   useEffect(() => {
     let cancelled = false;
@@ -96,18 +104,24 @@ export const TemplatesTab: React.FC = () => {
           size={14}
           className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-muted"
         />
-        <input
-          type="text"
+        <ToolcraftTextInputControl
+          label="Search templates"
+          isLabelHidden
           placeholder="Search templates..."
           value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
+          onChange={setSearchQuery}
           className="w-full pl-8 pr-3 py-2 text-xs bg-background-secondary border border-border rounded-lg text-text-primary placeholder:text-text-muted focus:outline-none focus:border-primary/50"
         />
       </div>
 
       <div className="flex gap-1.5 flex-wrap">
-        <button
+        <SelectableCard
+          label="All"
+          isSelected={selectedCategory === "all"}
+          onChange={() => setSelectedCategory("all")}
           onClick={() => setSelectedCategory("all")}
+          padding={1}
+          variant={selectedCategory === "all" ? "green" : "muted"}
           className={`px-2.5 py-1 text-[10px] rounded-full border transition-colors ${
             selectedCategory === "all"
               ? "bg-primary/20 border-primary text-primary"
@@ -115,11 +129,16 @@ export const TemplatesTab: React.FC = () => {
           }`}
         >
           All
-        </button>
+        </SelectableCard>
         {TEMPLATE_CATEGORIES.slice(0, 6).map((cat) => (
-          <button
+          <SelectableCard
             key={cat.id}
+            label={cat.name}
+            isSelected={selectedCategory === cat.id}
+            onChange={() => setSelectedCategory(cat.id)}
             onClick={() => setSelectedCategory(cat.id)}
+            padding={1}
+            variant={selectedCategory === cat.id ? "green" : "muted"}
             className={`px-2.5 py-1 text-[10px] rounded-full border transition-colors ${
               selectedCategory === cat.id
                 ? "bg-primary/20 border-primary text-primary"
@@ -127,9 +146,36 @@ export const TemplatesTab: React.FC = () => {
             }`}
           >
             {cat.name}
-          </button>
+          </SelectableCard>
         ))}
       </div>
+
+      <button
+        type="button"
+        aria-label="Start a Motion Creator template"
+        className="flex min-h-[72px] w-full min-w-0 items-center gap-3 rounded-lg border border-primary/35 bg-primary/10 p-3 text-left transition-colors hover:bg-primary/15"
+        onClick={async () => {
+          const composition = await createMotionComposition(
+            "Motion Template Scene",
+            "motion-ad-card",
+          );
+          if (composition) {
+            navigate("motion", { compositionId: composition.id });
+          }
+        }}
+      >
+        <span className="grid h-10 w-10 place-items-center rounded-md bg-primary text-white">
+          <Box size={18} />
+        </span>
+        <span className="min-w-0 flex-1 overflow-hidden">
+          <span className="block truncate text-xs font-semibold text-text-primary">
+            Start a Motion Creator template
+          </span>
+          <span className="mt-0.5 block overflow-hidden text-ellipsis text-[10px] leading-4 text-text-muted [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]">
+            Ads, app UI demos, lower thirds, social hooks, logo reveals, and end screens.
+          </span>
+        </span>
+      </button>
 
       {filteredTemplates.length === 0 ? (
         <div className="text-center py-8 text-text-muted text-xs">
@@ -138,10 +184,12 @@ export const TemplatesTab: React.FC = () => {
       ) : (
         <div className="grid grid-cols-2 gap-2">
           {filteredTemplates.map((template) => (
-            <button
+            <Button
               key={template.id}
+              label={template.name}
+              variant="ghost"
               onClick={() => handleApplyTemplate(template.id)}
-              disabled={applying !== null}
+              isDisabled={applying !== null}
               className="group relative flex flex-col p-3 bg-background-tertiary border border-border rounded-lg hover:border-primary/50 transition-all text-left disabled:opacity-50"
             >
               <div className="w-full aspect-video bg-background-secondary rounded mb-2 flex items-center justify-center">
@@ -172,7 +220,7 @@ export const TemplatesTab: React.FC = () => {
                   <span className="text-[10px] text-primary">Applying...</span>
                 </div>
               )}
-            </button>
+            </Button>
           ))}
         </div>
       )}

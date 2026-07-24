@@ -9,6 +9,15 @@ export interface Timeline {
   readonly markers: Marker[];
   readonly beatMarkers?: TimelineBeatMarker[];
   readonly beatAnalysis?: TimelineBeatAnalysis;
+  /**
+   * Canvas letterbox fill behind clips whose aspect differs from the project
+   * canvas. Raw values are part of the shared cross-platform project JSON
+   * schema (identical on iOS/Android). `"color"` paints `layoutBackgroundColor`;
+   * `"blur"` paints a blurred cover-fit copy of the base clip. Undefined keeps
+   * the default black bars.
+   */
+  readonly backgroundFillMode?: "color" | "blur";
+  readonly layoutBackgroundColor?: string;
 }
 
 export interface TimelineBeatMarker {
@@ -67,6 +76,29 @@ export interface EffectMetadata {
   readonly [key: string]: unknown;
 }
 
+export interface ChromaKeySettings {
+  readonly enabled: boolean;
+  readonly keyColor: { readonly r: number; readonly g: number; readonly b: number };
+  readonly tolerance: number;
+  readonly edgeSoftness: number;
+  readonly spillSuppression: number;
+}
+
+export interface SpeedKeyframe {
+  readonly id: string;
+  readonly time: number;
+  readonly speed: number;
+  readonly easing: EasingType;
+}
+
+export interface FreezeFrame {
+  readonly id: string;
+  readonly clipId: string;
+  readonly sourceTime: number;
+  readonly startTime: number;
+  readonly duration: number;
+}
+
 export interface Clip {
   readonly id: string;
   readonly mediaId: string;
@@ -80,6 +112,7 @@ export interface Clip {
   readonly transform: Transform;
   readonly blendMode?: import("../video/types").BlendMode;
   readonly blendOpacity?: number;
+  readonly colorGrading?: import("../video/color-grading-engine").ClipColorGrading;
   readonly volume: number;
   readonly fade?: { fadeIn: number; fadeOut: number };
   readonly automation?: {
@@ -100,6 +133,10 @@ export interface Clip {
     profile?: StabilizationProfile;
   };
   readonly emphasisAnimation?: EmphasisAnimation;
+  readonly chromaKey?: ChromaKeySettings;
+  readonly speedKeyframes?: SpeedKeyframe[];
+  readonly freezeFrames?: FreezeFrame[];
+  readonly pitchCorrection?: boolean;
   /** Zero-based index of the audio track within the source media file to use for this clip.
    * Undefined or 0 means the primary/first audio track. */
   readonly audioTrackIndex?: number;
@@ -141,44 +178,73 @@ export interface Keyframe {
   readonly property: string;
   readonly value: unknown;
   readonly easing: EasingType;
+  /**
+   * Optional per-keyframe temporal bezier handles (graph editor). When set with
+   * easing "bezier", the keyframe engine interpolates the OUTGOING segment using
+   * these control points (in/out in normalized 0..1 time/value space), matching
+   * After Effects' value-graph Bezier handles. Honored by keyframeEngine.applyEasing.
+   */
+  readonly bezierHandles?: {
+    readonly in: { readonly x: number; readonly y: number };
+    readonly out: { readonly x: number; readonly y: number };
+  };
+  readonly roving?: boolean;
 }
 
-export type EasingType =
-  | "linear"
-  | "ease-in"
-  | "ease-out"
-  | "ease-in-out"
-  | "bezier"
-  | "easeInQuad"
-  | "easeOutQuad"
-  | "easeInOutQuad"
-  | "easeInCubic"
-  | "easeOutCubic"
-  | "easeInOutCubic"
-  | "easeInQuart"
-  | "easeOutQuart"
-  | "easeInOutQuart"
-  | "easeInQuint"
-  | "easeOutQuint"
-  | "easeInOutQuint"
-  | "easeInSine"
-  | "easeOutSine"
-  | "easeInOutSine"
-  | "easeInExpo"
-  | "easeOutExpo"
-  | "easeInOutExpo"
-  | "easeInCirc"
-  | "easeOutCirc"
-  | "easeInOutCirc"
-  | "easeInBack"
-  | "easeOutBack"
-  | "easeInOutBack"
-  | "easeInElastic"
-  | "easeOutElastic"
-  | "easeInOutElastic"
-  | "easeInBounce"
-  | "easeOutBounce"
-  | "easeInOutBounce";
+export const EASING_TYPES = [
+  "linear",
+  "ease",
+  "ease-in",
+  "ease-out",
+  "ease-in-out",
+  "hold",
+  "bezier",
+  "smoothstep",
+  "smootherstep",
+  "snappy",
+  "smooth",
+  "easeInQuad",
+  "easeOutQuad",
+  "easeInOutQuad",
+  "easeInCubic",
+  "easeOutCubic",
+  "easeInOutCubic",
+  "easeInQuart",
+  "easeOutQuart",
+  "easeInOutQuart",
+  "easeInQuint",
+  "easeOutQuint",
+  "easeInOutQuint",
+  "easeInSine",
+  "easeOutSine",
+  "easeInOutSine",
+  "easeInExpo",
+  "easeOutExpo",
+  "easeInOutExpo",
+  "easeInCirc",
+  "easeOutCirc",
+  "easeInOutCirc",
+  "easeInBack",
+  "easeOutBack",
+  "easeInOutBack",
+  "easeInBackStrong",
+  "easeOutBackStrong",
+  "easeInOutBackStrong",
+  "easeInElastic",
+  "easeOutElastic",
+  "easeInOutElastic",
+  "easeInElasticSoft",
+  "easeOutElasticSoft",
+  "easeInOutElasticSoft",
+  "easeInBounce",
+  "easeOutBounce",
+  "easeInOutBounce",
+  "easeInBounceSmall",
+  "easeOutBounceSmall",
+  "easeInOutBounceSmall",
+] as const;
+
+export type EasingType = (typeof EASING_TYPES)[number];
 
 export interface Marker {
   readonly id: string;
@@ -187,10 +253,13 @@ export interface Marker {
   readonly color: string;
 }
 
+export type TransitionEdge = "in" | "out";
+
 export interface Transition {
   readonly id: string;
   readonly clipAId: string;
-  readonly clipBId: string;
+  readonly clipBId?: string;
+  readonly edge?: TransitionEdge;
   readonly type: TransitionType;
   readonly duration: number;
   readonly params: Record<string, unknown>;

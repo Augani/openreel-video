@@ -1,5 +1,9 @@
 import React, { useState, useCallback } from "react";
-import { Star, StarOff, ChevronDown } from "lucide-react";
+import { ToolcraftCard as Card } from "@openreel/ui";
+import { ToolcraftClickableCard as ClickableCard } from "@openreel/ui";
+import { ToolcraftIconButton as IconButton } from "@openreel/ui";
+import { ToolcraftText as Text } from "@openreel/ui";
+import { Star, StarOff, ChevronDown } from "@/icons/lucide-compat";
 import { useSettingsStore } from "../../../stores/settings-store";
 import type { ElevenLabsModel } from "./tts-types";
 
@@ -51,53 +55,67 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 
   return (
     <div className="space-y-2">
-      <label className="text-[10px] font-medium text-text-secondary">
+      <Text type="supporting" color="secondary" className="text-[10px] font-medium">
         Model
-      </label>
+      </Text>
 
       {favoriteModels.length > 0 && (
         <div className="space-y-1.5">
-          <span className="text-[9px] text-text-muted flex items-center gap-1">
-            <Star size={9} className="text-amber-400 fill-amber-400" /> Favorite Models
-          </span>
+          <Text
+            type="supporting"
+            color="secondary"
+            className="flex items-center gap-1 text-[9px]"
+          >
+            <Star size={9} className="text-amber-400 fill-amber-400" /> Favorite
+            Models
+          </Text>
           <div className="flex flex-wrap gap-1.5">
             {favoriteModels.map((fav) => (
-              <button
+              <ClickableCard
                 key={fav.modelId}
+                label={`Select ${fav.name}`}
                 onClick={() => setElevenLabsModel(fav.modelId)}
                 className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] transition-colors ${
                   elevenLabsModel === fav.modelId
                     ? "bg-primary text-white font-medium"
-                    : "bg-background-tertiary text-text-secondary hover:text-text-primary border border-border"
+                    : "bg-bg-2 text-fg-2 hover:text-fg border border-border"
                 }`}
               >
                 <Star size={8} className="text-amber-400 fill-amber-400" />
-                <span>{fav.name}</span>
-              </button>
+                <Text type="supporting" className="text-[10px]">
+                  {fav.name}
+                </Text>
+              </ClickableCard>
             ))}
           </div>
         </div>
       )}
 
       <div className="flex items-center gap-2">
-        <div
-          className="flex-1 h-8 px-2 rounded-lg border border-border bg-background-tertiary text-[10px] text-text-primary flex items-center justify-between cursor-pointer hover:border-primary/50 transition-colors"
+        <ClickableCard
+          label="Toggle model list"
+          className="flex-1 h-8 px-2 rounded-lg border border-border bg-bg-2 text-[10px] text-fg flex items-center justify-between cursor-pointer hover:border-primary/50 transition-colors"
           onClick={() => setShowAllModels(!showAllModels)}
         >
-          <span className="truncate">
+          <Text type="supporting" color="primary" className="truncate text-[10px]">
             {isLoadingModels ? "Loading models..." : getSelectedModelName()}
-          </span>
-          <ChevronDown size={12} className={`shrink-0 text-text-muted transition-transform ${showAllModels ? "rotate-180" : ""}`} />
-        </div>
+          </Text>
+          <ChevronDown
+            size={12}
+            className={`shrink-0 text-fg-3 transition-transform ${
+              showAllModels ? "rotate-180" : ""
+            }`}
+          />
+        </ClickableCard>
       </div>
 
       {showAllModels && (
-        <div className="border border-border rounded-lg overflow-hidden">
+        <Card variant="muted" padding={0} className="overflow-hidden border border-border">
           <div className="max-h-48 overflow-y-auto">
             {allModels.length === 0 ? (
-              <div className="p-3 text-center text-[10px] text-text-muted">
+              <Text type="supporting" color="secondary" className="block p-3 text-center text-[10px]">
                 {isLoadingModels ? "Loading models..." : "No models available"}
-              </div>
+              </Text>
             ) : (
               allModels.map((model) => {
                 const isSelected = elevenLabsModel === model.model_id;
@@ -105,12 +123,13 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                 const langCount = model.languages?.length ?? 0;
 
                 return (
-                  <div
+                  <ClickableCard
                     key={model.model_id}
+                    label={`Select ${model.name}`}
                     className={`flex items-center gap-2 px-2 py-1.5 cursor-pointer transition-colors ${
                       isSelected
                         ? "bg-primary/10 border-l-2 border-primary"
-                        : "hover:bg-background-tertiary border-l-2 border-transparent"
+                        : "hover:bg-bg-2 border-l-2 border-transparent"
                     }`}
                     onClick={() => {
                       setElevenLabsModel(model.model_id);
@@ -119,44 +138,55 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                   >
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5">
-                        <span className="text-[10px] font-medium text-text-primary truncate">
+                        <Text type="supporting" color="primary" className="text-[10px] font-medium truncate">
                           {model.name}
-                        </span>
+                        </Text>
                       </div>
-                      <div className="text-[8px] text-text-muted truncate">
+                      <Text type="supporting" color="secondary" className="truncate text-[8px]">
                         {model.description
-                          ? (model.description.length > 80 ? model.description.slice(0, 80) + "..." : model.description)
+                          ? model.description.length > 80
+                            ? model.description.slice(0, 80) + "..."
+                            : model.description
                           : ""}
                         {langCount > 0 && ` · ${langCount} languages`}
-                      </div>
+                      </Text>
                     </div>
 
-                    <button
+                    <IconButton
+                      label={isFav ? "Remove from favorites" : "Add to favorites"}
+                      icon={
+                        isFav ? (
+                          <Star size={10} className="fill-current" />
+                        ) : (
+                          <StarOff size={10} />
+                        )
+                      }
+                      variant="ghost"
+                      size="sm"
                       onClick={(e) => {
                         e.stopPropagation();
                         toggleFavoriteModel(model);
                       }}
-                      className={`p-1 rounded hover:bg-background-elevated transition-colors shrink-0 ${
-                        isFav ? "text-amber-400" : "text-text-muted hover:text-amber-400"
+                      className={`p-1 rounded hover:bg-bg-elev transition-colors shrink-0 ${
+                        isFav
+                          ? "text-amber-400"
+                          : "text-fg-3 hover:text-amber-400"
                       }`}
-                      title={isFav ? "Remove from favorites" : "Add to favorites"}
-                    >
-                      {isFav ? (
-                        <Star size={10} className="fill-current" />
-                      ) : (
-                        <StarOff size={10} />
-                      )}
-                    </button>
-                  </div>
+                    />
+                  </ClickableCard>
                 );
               })
             )}
           </div>
 
-          <div className="px-2 py-1 border-t border-border bg-background-secondary text-[8px] text-text-muted text-center">
+          <Text
+            type="supporting"
+            color="secondary"
+            className="block border-t border-border bg-bg-1 px-2 py-1 text-center text-[8px]"
+          >
             {allModels.length} models available
-          </div>
-        </div>
+          </Text>
+        </Card>
       )}
     </div>
   );

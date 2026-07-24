@@ -7,8 +7,13 @@ import {
   Check,
   Pencil,
   FileVideo,
-} from "lucide-react";
-import { Input } from "@openreel/ui";
+} from "@/icons/lucide-compat";
+import { ToolcraftButton as Button } from "@openreel/ui";
+import { ToolcraftCard as Card } from "@openreel/ui";
+import { ToolcraftClickableCard as ClickableCard } from "@openreel/ui";
+import { ToolcraftIconButton as IconButton } from "@openreel/ui";
+import { ToolcraftText as Text } from "@openreel/ui";
+import { ToolcraftTextInputControl } from "@openreel/ui";
 import { useProjectStore } from "../../stores/project-store";
 import { autoSaveManager, type AutoSaveMetadata } from "../../services/auto-save";
 
@@ -127,110 +132,154 @@ export const ProjectSwitcher: React.FC = () => {
 
   return (
     <div className="relative" ref={dropdownRef}>
-      <button
+      <Button
+        label={project.name}
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-background-secondary transition-colors group max-w-[200px]"
-      >
-        <FileVideo className="w-4 h-4 text-primary shrink-0" />
-        <span className="text-sm font-medium text-text-primary truncate">
-          {project.name}
-        </span>
-        <ChevronDown
-          className={`w-3.5 h-3.5 text-text-muted transition-transform duration-200 shrink-0 ${
+        variant="ghost"
+        size="md"
+        icon={<FileVideo className="h-4 w-4 shrink-0 text-primary" aria-hidden />}
+        endContent={
+          <ChevronDown
+            className={`h-3.5 w-3.5 shrink-0 text-text-muted transition-transform duration-200 ${
             isOpen ? "rotate-180" : ""
           }`}
-        />
-      </button>
+            aria-hidden
+          />
+        }
+        className="max-w-[200px] justify-start truncate hover:bg-background-secondary"
+      />
 
       {isOpen && (
-        <div className="absolute top-full left-0 mt-2 w-72 bg-background border border-border rounded-xl shadow-2xl overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+        <Card
+          variant="default"
+          padding={0}
+          className="absolute left-0 top-full z-50 mt-2 w-72 overflow-hidden border border-border bg-background shadow-2xl animate-in fade-in slide-in-from-top-2 duration-150"
+        >
           <div className="p-3 border-b border-border">
-            <div className="text-xs font-medium text-text-muted uppercase tracking-wider mb-2">
+            <Text
+              type="supporting"
+              color="secondary"
+              className="mb-2 text-xs font-medium uppercase tracking-wider"
+            >
               Current Project
-            </div>
+            </Text>
             {isEditing ? (
               <div className="flex items-center gap-2">
-                <Input
+                <ToolcraftTextInputControl
                   ref={inputRef}
-                  type="text"
+                  label="Project name"
+                  isLabelHidden
+                  size="sm"
+                  width="100%"
                   value={editName}
-                  onChange={(e) => setEditName(e.target.value)}
+                  onChange={setEditName}
                   onBlur={handleSaveName}
                   onKeyDown={handleKeyDown}
                   className="flex-1 bg-background-secondary border-primary text-text-primary"
                 />
-                <button
+                <IconButton
+                  label="Save project name"
                   onClick={handleSaveName}
-                  className="p-2 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors"
-                >
-                  <Check className="w-4 h-4" />
-                </button>
+                  variant="secondary"
+                  size="sm"
+                  icon={<Check className="h-4 w-4" aria-hidden />}
+                  className="bg-primary text-white hover:bg-primary-hover"
+                />
               </div>
             ) : (
-              <div className="flex items-center gap-2 p-2 bg-background-secondary rounded-lg group">
+              <Card
+                variant="muted"
+                padding={2}
+                className="group flex items-center gap-2 bg-background-secondary"
+              >
                 <FileVideo className="w-4 h-4 text-primary shrink-0" />
-                <span className="flex-1 text-sm font-medium text-text-primary truncate">
-                  {project.name}
-                </span>
-                <button
-                  onClick={() => setIsEditing(true)}
-                  className="p-1.5 rounded-md text-text-muted hover:text-text-primary hover:bg-background-tertiary transition-colors opacity-0 group-hover:opacity-100"
-                  title="Rename project"
+                <Text
+                  type="supporting"
+                  color="primary"
+                  className="flex-1 truncate text-sm font-medium"
                 >
-                  <Pencil className="w-3.5 h-3.5" />
-                </button>
-              </div>
+                  {project.name}
+                </Text>
+                <IconButton
+                  label="Rename project"
+                  onClick={() => setIsEditing(true)}
+                  variant="ghost"
+                  size="sm"
+                  icon={<Pencil className="h-3.5 w-3.5" aria-hidden />}
+                  className="text-text-muted opacity-0 hover:bg-background-tertiary hover:text-text-primary group-hover:opacity-100"
+                />
+              </Card>
             )}
           </div>
 
           <div className="p-2">
-            <button
+            <ClickableCard
+              label="New Project"
               onClick={handleNewProject}
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-background-secondary transition-colors text-left group"
+              padding={3}
+              variant="transparent"
+              className="group flex w-full items-center gap-3 text-left hover:bg-background-secondary"
             >
               <div className="p-1.5 bg-primary/10 rounded-md text-primary group-hover:bg-primary/20 transition-colors">
                 <Plus className="w-4 h-4" />
               </div>
               <div className="flex-1">
-                <div className="text-sm font-medium text-text-primary">New Project</div>
-                <div className="text-xs text-text-muted">Start fresh with a new canvas</div>
+                <Text type="supporting" color="primary" className="text-sm font-medium">
+                  New Project
+                </Text>
+                <Text type="supporting" color="secondary" className="text-xs">
+                  Start fresh with a new canvas
+                </Text>
               </div>
-            </button>
+            </ClickableCard>
           </div>
 
           {otherProjects.length > 0 && (
             <>
               <div className="px-3 py-2 border-t border-border">
-                <div className="text-xs font-medium text-text-muted uppercase tracking-wider flex items-center gap-2">
+                <div className="flex items-center gap-2">
                   <Clock className="w-3 h-3" />
+                  <Text
+                    type="supporting"
+                    color="secondary"
+                    className="text-xs font-medium uppercase tracking-wider"
+                  >
                   Recent Projects
+                  </Text>
                 </div>
               </div>
               <div className="max-h-64 overflow-y-auto px-2 pb-2">
                 {otherProjects.map((save) => (
-                  <button
+                  <ClickableCard
                     key={save.id}
+                    label={`Open ${save.projectName}`}
                     onClick={() => handleSwitchProject(save.id)}
-                    disabled={isLoading}
-                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-background-secondary transition-colors text-left group disabled:opacity-50"
+                    isDisabled={isLoading}
+                    padding={3}
+                    variant="transparent"
+                    className="group flex w-full items-center gap-3 text-left hover:bg-background-secondary"
                   >
                     <div className="p-1.5 bg-background-tertiary rounded-md text-text-muted group-hover:text-text-secondary transition-colors">
                       <FolderOpen className="w-4 h-4" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium text-text-primary truncate group-hover:text-primary transition-colors">
+                      <Text
+                        type="supporting"
+                        color="primary"
+                        className="truncate text-sm font-medium group-hover:text-primary"
+                      >
                         {save.projectName}
-                      </div>
-                      <div className="text-xs text-text-muted">
+                      </Text>
+                      <Text type="supporting" color="secondary" className="text-xs">
                         {formatTimeAgo(save.timestamp)}
-                      </div>
+                      </Text>
                     </div>
-                  </button>
+                  </ClickableCard>
                 ))}
               </div>
             </>
           )}
-        </div>
+        </Card>
       )}
     </div>
   );

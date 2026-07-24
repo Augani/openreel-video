@@ -1,30 +1,42 @@
-import { usePostHog } from "posthog-js/react";
 import { useCallback } from "react";
 
 type EventProperties = Record<string, string | number | boolean | null>;
 
-export function useAnalytics() {
-  const posthog = usePostHog();
+const analyticsKey = import.meta.env.VITE_PUBLIC_POSTHOG_KEY;
+const analyticsHost = import.meta.env.VITE_PUBLIC_POSTHOG_HOST;
+let analyticsClientPromise: Promise<typeof import("posthog-js").default | null> | null = null;
 
+function getAnalyticsClient(): Promise<typeof import("posthog-js").default | null> {
+  if (!analyticsKey || !analyticsHost) return Promise.resolve(null);
+  if (!analyticsClientPromise) {
+    analyticsClientPromise = import("posthog-js").then(({ default: client }) => {
+      client.init(analyticsKey, {
+        api_host: analyticsHost,
+        capture_pageview: true,
+        capture_pageleave: true,
+      });
+      return client;
+    });
+  }
+  return analyticsClientPromise;
+}
+
+export function useAnalytics() {
   const track = useCallback(
     (event: string, properties?: EventProperties) => {
-      if (posthog) {
-        posthog.capture(event, properties);
-      }
+      void getAnalyticsClient().then((client) => client?.capture(event, properties));
     },
-    [posthog]
+    [],
   );
 
   const identify = useCallback(
     (userId: string, properties?: EventProperties) => {
-      if (posthog) {
-        posthog.identify(userId, properties);
-      }
+      void getAnalyticsClient().then((client) => client?.identify(userId, properties));
     },
-    [posthog]
+    [],
   );
 
-  return { track, identify, isEnabled: !!posthog };
+  return { track, identify, isEnabled: Boolean(analyticsKey && analyticsHost) };
 }
 
 export const AnalyticsEvents = {

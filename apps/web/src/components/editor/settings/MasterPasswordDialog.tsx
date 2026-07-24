@@ -1,15 +1,12 @@
 import React, { useState, useCallback } from "react";
-import { Lock, Eye, EyeOff, ShieldCheck, AlertTriangle } from "lucide-react";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from "@openreel/ui";
-import { Input } from "@openreel/ui";
-import { Button } from "@openreel/ui";
+import { Lock, Eye, EyeOff, ShieldCheck, AlertTriangle } from "@/icons/lucide-compat";
+import { ToolcraftButton as Button } from "@openreel/ui";
+import { ToolcraftCard as Card } from "@openreel/ui";
+import { ToolcraftDialog as Dialog, ToolcraftDialogHeader as DialogHeader } from "@openreel/ui";
+import { ToolcraftIconButton as IconButton } from "@openreel/ui";
+import { ToolcraftLayout as Layout, ToolcraftLayoutContent as LayoutContent, ToolcraftLayoutFooter as LayoutFooter } from "@openreel/ui";
+import { ToolcraftText as Text } from "@openreel/ui";
+import { ToolcraftTextInputControl } from "@openreel/ui";
 
 interface MasterPasswordDialogProps {
   isOpen: boolean;
@@ -108,67 +105,74 @@ export const MasterPasswordDialog: React.FC<MasterPasswordDialogProps> = ({
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
-      <DialogContent className="sm:max-w-md bg-background">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Lock size={18} className="text-primary" />
-            {titles[mode]}
-          </DialogTitle>
-          <DialogDescription>{descriptions[mode]}</DialogDescription>
-        </DialogHeader>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
+    <Dialog
+      isOpen={isOpen}
+      onOpenChange={(open) => !open && handleClose()}
+      width={448}
+      purpose="form"
+    >
+      <Layout
+        header={
+          <DialogHeader
+            title={titles[mode]}
+            subtitle={descriptions[mode]}
+            onOpenChange={(open) => !open && handleClose()}
+            startContent={<Lock size={18} className="text-primary" aria-hidden />}
+          />
+        }
+        content={
+          <LayoutContent>
+        <form id="master-password-form" onSubmit={handleSubmit} className="space-y-4">
           {mode === "change" && (
             <div className="space-y-2">
-              <label className="text-sm font-medium text-text-secondary">
-                Current Password
-              </label>
               <div className="relative">
-                <Input
+                <ToolcraftTextInputControl
+                  label="Current Password"
                   type={showPassword ? "text" : "password"}
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={setPassword}
                   placeholder="Enter current password"
-                  autoFocus
+                  hasAutoFocus
+                  width="100%"
                   className="pr-10"
                 />
-                <button
-                  type="button"
+                <IconButton
+                  label={showPassword ? "Hide password" : "Show password"}
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-primary transition-colors"
-                >
-                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
+                  variant="ghost"
+                  size="sm"
+                  icon={showPassword ? <EyeOff size={16} aria-hidden /> : <Eye size={16} aria-hidden />}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-primary"
+                />
               </div>
             </div>
           )}
 
           {(mode === "setup" || mode === "unlock") && (
             <div className="space-y-2">
-              <label className="text-sm font-medium text-text-secondary">
-                {mode === "setup" ? "Password" : "Master Password"}
-              </label>
               <div className="relative">
-                <Input
+                <ToolcraftTextInputControl
+                  label={mode === "setup" ? "Password" : "Master Password"}
                   type={showPassword ? "text" : "password"}
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={setPassword}
                   placeholder={
                     mode === "setup"
                       ? "Min. 8 characters"
                       : "Enter master password"
                   }
-                  autoFocus
+                  hasAutoFocus
+                  width="100%"
                   className="pr-10"
                 />
-                <button
-                  type="button"
+                <IconButton
+                  label={showPassword ? "Hide password" : "Show password"}
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-primary transition-colors"
-                >
-                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
+                  variant="ghost"
+                  size="sm"
+                  icon={showPassword ? <EyeOff size={16} aria-hidden /> : <Eye size={16} aria-hidden />}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-primary"
+                />
               </div>
             </div>
           )}
@@ -176,45 +180,44 @@ export const MasterPasswordDialog: React.FC<MasterPasswordDialogProps> = ({
           {(mode === "setup" || mode === "change") && (
             <>
               <div className="space-y-2">
-                <label className="text-sm font-medium text-text-secondary">
-                  {mode === "change" ? "New Password" : "Confirm Password"}
-                </label>
                 <div className="relative">
-                  <Input
+                  <ToolcraftTextInputControl
+                    label={mode === "change" ? "New Password" : "Confirm Password"}
                     type={showNewPassword ? "text" : "password"}
                     value={mode === "change" ? newPassword : confirmPassword}
-                    onChange={(e) =>
+                    onChange={(value) =>
                       mode === "change"
-                        ? setNewPassword(e.target.value)
-                        : setConfirmPassword(e.target.value)
+                        ? setNewPassword(value)
+                        : setConfirmPassword(value)
                     }
                     placeholder={
                       mode === "change"
                         ? "Min. 8 characters"
                         : "Repeat password"
                     }
+                    width="100%"
                     className="pr-10"
                   />
-                  <button
-                    type="button"
+                  <IconButton
+                    label={showNewPassword ? "Hide password" : "Show password"}
                     onClick={() => setShowNewPassword(!showNewPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-primary transition-colors"
-                  >
-                    {showNewPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                  </button>
+                    variant="ghost"
+                    size="sm"
+                    icon={showNewPassword ? <EyeOff size={16} aria-hidden /> : <Eye size={16} aria-hidden />}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-primary"
+                  />
                 </div>
               </div>
 
               {mode === "change" && (
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-text-secondary">
-                    Confirm New Password
-                  </label>
-                  <Input
+                  <ToolcraftTextInputControl
+                    label="Confirm New Password"
                     type={showNewPassword ? "text" : "password"}
                     value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    onChange={setConfirmPassword}
                     placeholder="Repeat new password"
+                    width="100%"
                   />
                 </div>
               )}
@@ -222,44 +225,53 @@ export const MasterPasswordDialog: React.FC<MasterPasswordDialogProps> = ({
           )}
 
           {error && (
-            <div className="flex items-center gap-2 text-sm text-error bg-error/10 px-3 py-2 rounded-lg">
+            <Card variant="red" padding={2} className="flex items-center gap-2 bg-error/10 text-sm text-error">
               <AlertTriangle size={14} />
               {error}
-            </div>
+            </Card>
           )}
 
           {mode === "setup" && (
-            <div className="flex items-start gap-2 text-xs text-text-muted bg-background-secondary px-3 py-2 rounded-lg">
+            <Card variant="muted" padding={2} className="flex items-start gap-2 bg-background-secondary">
               <ShieldCheck size={14} className="mt-0.5 shrink-0 text-primary" />
-              <span>
+              <Text type="supporting" color="secondary" className="text-xs">
                 Your password is used to derive an encryption key via PBKDF2
                 (100k iterations). API keys are encrypted with AES-256-GCM.
                 If you forget this password, stored keys cannot be recovered.
-              </span>
-            </div>
+              </Text>
+            </Card>
           )}
-
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleClose}
-              disabled={loading}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" disabled={loading}>
-              {loading
-                ? "Processing..."
-                : mode === "setup"
-                  ? "Set Password"
-                  : mode === "unlock"
-                    ? "Unlock"
-                    : "Change Password"}
-            </Button>
-          </DialogFooter>
         </form>
-      </DialogContent>
+          </LayoutContent>
+        }
+        footer={
+          <LayoutFooter hasDivider>
+            <div className="flex justify-end gap-2">
+              <Button
+                label="Cancel"
+                variant="secondary"
+                onClick={handleClose}
+                isDisabled={loading}
+              />
+              <Button
+                label={
+                  loading
+                    ? "Processing..."
+                    : mode === "setup"
+                      ? "Set Password"
+                      : mode === "unlock"
+                        ? "Unlock"
+                        : "Change Password"
+                }
+                type="submit"
+                form="master-password-form"
+                isDisabled={loading}
+                variant="primary"
+              />
+            </div>
+          </LayoutFooter>
+        }
+      />
     </Dialog>
   );
 };

@@ -1,4 +1,11 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { ToolcraftButton as Button } from "@openreel/ui";
+import { ToolcraftCard as Card } from "@openreel/ui";
+import { ToolcraftCheckboxInput as CheckboxInput } from "@openreel/ui";
+import { ToolcraftIconButton as IconButton } from "@openreel/ui";
+import { ToolcraftNumberInputControl } from "@openreel/ui";
+import { ToolcraftText as Text } from "@openreel/ui";
+import { PropertySlider } from "./shell/PropertySlider";
 import {
   Target,
   X,
@@ -9,10 +16,8 @@ import {
   Maximize2,
   ChevronDown,
   ChevronRight,
-  Settings2,
   RefreshCw,
-} from "lucide-react";
-import { Slider, Checkbox, Label } from "@openreel/ui";
+} from "@/icons/lucide-compat";
 import {
   getMotionTrackingBridge,
   type MotionTrackingState,
@@ -46,6 +51,21 @@ const ALGORITHMS: {
     description: "Works with complex textures",
   },
 ];
+
+const RegionInput: React.FC<{
+  label: string;
+  value: number;
+  onChange: (value: number) => void;
+}> = ({ label, value, onChange }) => (
+  <ToolcraftNumberInputControl
+    label={label}
+    size="sm"
+    width="100%"
+    value={value}
+    onChange={onChange}
+    step={1}
+  />
+);
 
 export const MotionTrackingSection: React.FC<MotionTrackingSectionProps> = ({
   clipId,
@@ -151,207 +171,139 @@ export const MotionTrackingSection: React.FC<MotionTrackingSectionProps> = ({
     <div className="space-y-3">
       <div className="flex items-center gap-2 p-2 bg-primary/10 rounded-lg border border-primary/30">
         <Target size={16} className="text-primary" />
-        <div className="flex-1">
-          <span className="text-[11px] font-medium text-text-primary">
+        <div className="flex flex-1 flex-col gap-0.5">
+          <Text type="supporting" color="primary" weight="medium">
             Motion Tracking
-          </span>
-          <p className="text-[9px] text-text-muted">
+          </Text>
+          <Text type="supporting" color="secondary" className="text-[9px]">
             Track objects to attach elements
-          </p>
+          </Text>
         </div>
       </div>
 
       {!state.isTracking && !hasTrackingData && (
         <>
           <div className="space-y-2">
-            <label className="text-[10px] font-medium text-text-secondary">
+            <Text type="supporting" color="secondary" weight="medium">
               Tracking Region
-            </label>
+            </Text>
             <div className="grid grid-cols-2 gap-2">
-              <div className="space-y-0.5">
-                <label className="text-[9px] text-text-muted">X Position</label>
-                <input
-                  type="number"
-                  value={region.x}
-                  onChange={(e) =>
-                    setRegion({ ...region, x: Number(e.target.value) })
-                  }
-                  className="w-full px-2 py-1.5 text-[10px] bg-background-secondary border border-border rounded focus:border-primary focus:outline-none"
-                />
-              </div>
-              <div className="space-y-0.5">
-                <label className="text-[9px] text-text-muted">Y Position</label>
-                <input
-                  type="number"
-                  value={region.y}
-                  onChange={(e) =>
-                    setRegion({ ...region, y: Number(e.target.value) })
-                  }
-                  className="w-full px-2 py-1.5 text-[10px] bg-background-secondary border border-border rounded focus:border-primary focus:outline-none"
-                />
-              </div>
-              <div className="space-y-0.5">
-                <label className="text-[9px] text-text-muted">Width</label>
-                <input
-                  type="number"
-                  value={region.width}
-                  onChange={(e) =>
-                    setRegion({ ...region, width: Number(e.target.value) })
-                  }
-                  className="w-full px-2 py-1.5 text-[10px] bg-background-secondary border border-border rounded focus:border-primary focus:outline-none"
-                />
-              </div>
-              <div className="space-y-0.5">
-                <label className="text-[9px] text-text-muted">Height</label>
-                <input
-                  type="number"
-                  value={region.height}
-                  onChange={(e) =>
-                    setRegion({ ...region, height: Number(e.target.value) })
-                  }
-                  className="w-full px-2 py-1.5 text-[10px] bg-background-secondary border border-border rounded focus:border-primary focus:outline-none"
-                />
-              </div>
+              <RegionInput
+                label="X Position"
+                value={region.x}
+                onChange={(x) => setRegion({ ...region, x })}
+              />
+              <RegionInput
+                label="Y Position"
+                value={region.y}
+                onChange={(y) => setRegion({ ...region, y })}
+              />
+              <RegionInput
+                label="Width"
+                value={region.width}
+                onChange={(width) => setRegion({ ...region, width })}
+              />
+              <RegionInput
+                label="Height"
+                value={region.height}
+                onChange={(height) => setRegion({ ...region, height })}
+              />
             </div>
-            <p className="text-[9px] text-text-muted text-center">
+            <Text type="supporting" color="secondary" className="text-center text-[9px]">
               Draw region in preview or enter coordinates
-            </p>
+            </Text>
           </div>
 
-          <button
+          <Button
+            label="Advanced Options"
+            size="sm"
+            variant="ghost"
+            icon={showAdvanced ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
             onClick={() => setShowAdvanced(!showAdvanced)}
-            className="w-full flex items-center gap-2 py-1.5 text-[10px] text-text-secondary hover:text-text-primary transition-colors"
-          >
-            {showAdvanced ? (
-              <ChevronDown size={12} />
-            ) : (
-              <ChevronRight size={12} />
-            )}
-            <Settings2 size={12} />
-            Advanced Options
-          </button>
+            className="w-full flex items-center gap-2 py-1.5 text-[10px] text-fg-2 hover:text-fg transition-colors"
+          />
 
           {showAdvanced && (
-            <div className="space-y-3 p-2 bg-background-tertiary rounded-lg">
+            <Card variant="muted" padding={3} className="space-y-3">
               <div className="space-y-1.5">
-                <label className="text-[10px] font-medium text-text-secondary">
+                <Text type="supporting" color="secondary" weight="medium">
                   Algorithm
-                </label>
+                </Text>
                 <div className="space-y-1">
                   {ALGORITHMS.map((algo) => (
-                    <button
+                    <Button
                       key={algo.id}
+                      label={`${algo.name}: ${algo.description}`}
+                      size="sm"
+                      variant={algorithm === algo.id ? "primary" : "secondary"}
                       onClick={() => setAlgorithm(algo.id)}
-                      className={`w-full flex items-center gap-2 p-2 rounded-lg text-left transition-colors ${
-                        algorithm === algo.id
-                          ? "bg-primary/20 border border-primary"
-                          : "bg-background-secondary border border-transparent hover:border-border"
-                      }`}
-                    >
-                      <div
-                        className={`w-3 h-3 rounded-full border-2 flex items-center justify-center ${
-                          algorithm === algo.id
-                            ? "border-primary"
-                            : "border-border"
-                        }`}
-                      >
-                        {algorithm === algo.id && (
-                          <div className="w-1.5 h-1.5 bg-primary rounded-full" />
-                        )}
-                      </div>
-                      <div className="flex-1">
-                        <span className="text-[10px] font-medium text-text-primary">
-                          {algo.name}
-                        </span>
-                        <p className="text-[8px] text-text-muted">
-                          {algo.description}
-                        </p>
-                      </div>
-                    </button>
+                      className="w-full justify-start"
+                    />
                   ))}
                 </div>
               </div>
 
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <label className="text-[10px] text-text-secondary">
-                    Confidence Threshold
-                  </label>
-                  <span className="text-[10px] font-mono text-text-primary">
-                    {confidenceThreshold}%
-                  </span>
-                </div>
-                <Slider
-                  min={30}
-                  max={95}
-                  step={5}
-                  value={[confidenceThreshold]}
-                  onValueChange={(value) => setConfidenceThreshold(value[0])}
-                />
-                <p className="text-[8px] text-text-muted">
-                  Higher = more accurate but may lose track easier
-                </p>
-              </div>
+              <PropertySlider
+                label="Confidence Threshold"
+                min={30}
+                max={95}
+                step={5}
+                value={confidenceThreshold}
+                onChange={setConfidenceThreshold}
+                formatValue={(value) => `${value}%`}
+                description="Higher = more accurate but may lose track easier"
+              />
 
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <label className="text-[10px] text-text-secondary">
-                    Path Smoothing
-                  </label>
-                  <span className="text-[10px] font-mono text-text-primary">
-                    {smoothing}
-                  </span>
-                </div>
-                <Slider
-                  min={0}
-                  max={10}
-                  step={1}
-                  value={[smoothing]}
-                  onValueChange={(value) => setSmoothing(value[0])}
-                />
-                <p className="text-[8px] text-text-muted">
-                  Reduces jitter in tracking path
-                </p>
-              </div>
-            </div>
+              <PropertySlider
+                label="Path Smoothing"
+                min={0}
+                max={10}
+                step={1}
+                value={smoothing}
+                onChange={setSmoothing}
+                formatValue={(value) => String(value)}
+                description="Reduces jitter in tracking path"
+              />
+            </Card>
           )}
 
-          <button
+          <Button
+            label="Start Tracking"
+            size="md"
+            variant="primary"
+            icon={<Target size={14} />}
             onClick={handleStartTracking}
             className="w-full py-2.5 bg-primary hover:bg-primary-hover rounded-lg text-[11px] font-medium text-white flex items-center justify-center gap-2 transition-colors"
-          >
-            <Target size={14} />
-            Start Tracking
-          </button>
+          />
         </>
       )}
 
       {state.isTracking && (
-        <div className="space-y-3 p-3 bg-background-tertiary rounded-lg">
+        <div className="space-y-3 p-3 bg-bg-2 rounded-lg">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 bg-primary rounded-full animate-pulse" />
-              <span className="text-[11px] font-medium text-primary">
+              <Text type="supporting" color="primary" weight="medium">
                 Tracking in Progress
-              </span>
+              </Text>
             </div>
-            <button
+            <IconButton
+              label="Cancel Tracking"
+              icon={<X size={14} />}
+              size="sm"
+              variant="ghost"
               onClick={handleCancelTracking}
-              className="p-1.5 text-text-muted hover:text-red-400 hover:bg-red-400/10 rounded transition-colors"
-              title="Cancel Tracking"
-            >
-              <X size={14} />
-            </button>
+            />
           </div>
 
           <div className="space-y-1">
             <div className="flex items-center justify-between text-[10px]">
-              <span className="text-text-muted">Analyzing frames...</span>
-              <span className="font-mono text-text-primary">
+              <Text type="supporting" color="secondary">Analyzing frames...</Text>
+              <Text type="supporting" color="primary" className="font-mono">
                 {Math.round(state.progress)}%
-              </span>
+              </Text>
             </div>
-            <div className="w-full h-2 bg-background-secondary rounded-full overflow-hidden">
+            <div className="w-full h-2 bg-bg-1 rounded-full overflow-hidden">
               <div
                 className="h-full bg-primary transition-all duration-200"
                 style={{ width: `${state.progress}%` }}
@@ -374,7 +326,9 @@ export const MotionTrackingSection: React.FC<MotionTrackingSectionProps> = ({
             <AlertTriangle size={12} />
             Tracking Failed
           </div>
-          <p className="text-[9px] text-red-300/80">{state.error}</p>
+          <Text type="supporting" className="text-[9px] text-red-300/80">
+            {state.error}
+          </Text>
         </div>
       )}
 
@@ -382,139 +336,115 @@ export const MotionTrackingSection: React.FC<MotionTrackingSectionProps> = ({
         <div className="space-y-3">
           <div className="flex items-center gap-2 p-2 bg-green-500/10 border border-green-500/30 rounded-lg">
             <Check size={14} className="text-green-400" />
-            <div className="flex-1">
-              <span className="text-[10px] font-medium text-green-400">
+            <div className="flex flex-1 flex-col gap-0.5">
+              <Text type="supporting" weight="medium" className="text-[10px] text-green-400">
                 Tracking Complete
-              </span>
+              </Text>
               {state.trackingData && (
-                <p className="text-[9px] text-green-300/70">
+                <Text type="supporting" className="text-[9px] text-green-300/70">
                   {state.trackingData.keyframes.length} keyframes captured
                   {state.trackingData.lostFrames.length > 0 &&
                     ` • ${state.trackingData.lostFrames.length} frames lost`}
-                </p>
+                </Text>
               )}
             </div>
           </div>
 
           <div className="space-y-2">
-            <label className="text-[10px] font-medium text-text-secondary flex items-center gap-2">
+            <Text
+              type="supporting"
+              color="secondary"
+              weight="medium"
+              className="flex items-center gap-2"
+            >
               <Move size={12} />
               Position Offset
-            </label>
+            </Text>
             <div className="grid grid-cols-2 gap-2">
-              <div className="space-y-0.5">
-                <label className="text-[9px] text-text-muted">X Offset</label>
-                <input
-                  type="number"
-                  value={offsetX}
-                  onChange={(e) =>
-                    handleOffsetChange("x", Number(e.target.value))
-                  }
-                  className="w-full px-2 py-1.5 text-[10px] bg-background-secondary border border-border rounded focus:border-primary focus:outline-none"
-                />
-              </div>
-              <div className="space-y-0.5">
-                <label className="text-[9px] text-text-muted">Y Offset</label>
-                <input
-                  type="number"
-                  value={offsetY}
-                  onChange={(e) =>
-                    handleOffsetChange("y", Number(e.target.value))
-                  }
-                  className="w-full px-2 py-1.5 text-[10px] bg-background-secondary border border-border rounded focus:border-primary focus:outline-none"
-                />
-              </div>
+              <RegionInput
+                label="X Offset"
+                value={offsetX}
+                onChange={(value) => handleOffsetChange("x", value)}
+              />
+              <RegionInput
+                label="Y Offset"
+                value={offsetY}
+                onChange={(value) => handleOffsetChange("y", value)}
+              />
             </div>
           </div>
 
           <div className="space-y-2">
-            <Label className="text-[10px] font-medium text-text-secondary">
+            <Text type="supporting" color="secondary" weight="medium">
               Transform Options
-            </Label>
+            </Text>
             <div className="grid grid-cols-2 gap-2">
-              <div className="flex items-center gap-2 p-2 bg-background-tertiary rounded-lg">
-                <Checkbox
-                  id="apply-scale"
-                  checked={applyScale}
-                  onCheckedChange={(checked) => {
-                    const value = checked === true;
-                    setApplyScale(value);
-                    if (isApplied) {
-                      bridge.setApplyScale(clipId, value);
-                    }
-                  }}
-                />
-                <Label
-                  htmlFor="apply-scale"
-                  className="flex items-center gap-1 cursor-pointer"
-                >
-                  <Maximize2 size={10} className="text-text-muted" />
-                  <span className="text-[10px] text-text-secondary">Scale</span>
-                </Label>
-              </div>
-              <div className="flex items-center gap-2 p-2 bg-background-tertiary rounded-lg">
-                <Checkbox
-                  id="apply-rotation"
-                  checked={applyRotation}
-                  onCheckedChange={(checked) => {
-                    const value = checked === true;
-                    setApplyRotation(value);
-                    if (isApplied) {
-                      bridge.setApplyRotation(clipId, value);
-                    }
-                  }}
-                />
-                <Label
-                  htmlFor="apply-rotation"
-                  className="flex items-center gap-1 cursor-pointer"
-                >
-                  <RotateCcw size={10} className="text-text-muted" />
-                  <span className="text-[10px] text-text-secondary">
-                    Rotation
-                  </span>
-                </Label>
-              </div>
+              <CheckboxInput
+                label="Scale"
+                value={applyScale}
+                labelIcon={<Maximize2 size={10} aria-hidden />}
+                onChange={(value) => {
+                  setApplyScale(value);
+                  if (isApplied) {
+                    bridge.setApplyScale(clipId, value);
+                  }
+                }}
+              />
+              <CheckboxInput
+                label="Rotation"
+                value={applyRotation}
+                labelIcon={<RotateCcw size={10} aria-hidden />}
+                onChange={(value) => {
+                  setApplyRotation(value);
+                  if (isApplied) {
+                    bridge.setApplyRotation(clipId, value);
+                  }
+                }}
+              />
             </div>
           </div>
 
           {!isApplied ? (
-            <button
+            <Button
+              label="Apply Tracking to Clip"
+              size="md"
+              variant="secondary"
               onClick={handleApplyTracking}
               className="w-full py-2.5 bg-primary/20 border border-primary/30 rounded-lg text-[11px] font-medium text-primary hover:bg-primary/30 transition-colors"
-            >
-              Apply Tracking to Clip
-            </button>
+            />
           ) : (
             <div className="space-y-2">
               <div className="flex items-center gap-2 p-2 bg-primary/10 border border-primary/20 rounded-lg">
                 <Check size={12} className="text-primary" />
-                <span className="text-[10px] text-primary">
+                <Text type="supporting" color="primary" className="text-[10px]">
                   Tracking Applied
-                </span>
+                </Text>
               </div>
-              <button
+              <Button
+                label="Remove Tracking"
+                size="sm"
+                variant="destructive"
                 onClick={handleRemoveTracking}
                 className="w-full py-2 bg-red-500/10 border border-red-500/30 rounded-lg text-[10px] text-red-400 hover:bg-red-500/20 transition-colors"
-              >
-                Remove Tracking
-              </button>
+              />
             </div>
           )}
 
-          <button
+          <Button
+            label="Re-track with Different Settings"
+            size="sm"
+            variant="ghost"
+            icon={<RefreshCw size={10} />}
             onClick={handleStartTracking}
-            className="w-full flex items-center justify-center gap-2 py-1.5 text-[9px] text-text-muted hover:text-text-secondary transition-colors"
-          >
-            <RefreshCw size={10} />
-            Re-track with Different Settings
-          </button>
+            className="w-full flex items-center justify-center gap-2 py-1.5 text-[9px] text-fg-3 hover:text-fg-2 transition-colors"
+          />
         </div>
       )}
 
       <div className="pt-2 border-t border-border">
-        <p className="text-[9px] text-text-muted text-center">
+        <Text type="supporting" color="secondary" className="text-center text-[9px]">
           Track objects to pin graphics, text, or effects
-        </p>
+        </Text>
       </div>
     </div>
   );

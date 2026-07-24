@@ -1,6 +1,10 @@
 import React, { useState, useCallback, useMemo } from "react";
-import { Film, Camera, Moon, Palette, Wand2, Check } from "lucide-react";
-import { Slider } from "@openreel/ui";
+import { ToolcraftButton as Button } from "@openreel/ui";
+import { ToolcraftCard as Card } from "@openreel/ui";
+import { ToolcraftClickableCard as ClickableCard } from "@openreel/ui";
+import { ToolcraftText as Text } from "@openreel/ui";
+import { PropertySlider } from "./shell/PropertySlider";
+import { Film, Camera, Moon, Palette, Wand2, Check } from "@/icons/lucide-compat";
 import { useProjectStore } from "../../../stores/project-store";
 import { useUIStore } from "../../../stores/ui-store";
 import { toast } from "../../../stores/notification-store";
@@ -31,55 +35,51 @@ const PresetCard: React.FC<PresetCardProps> = ({
   isApplied,
   onApply,
 }) => {
-  const [isHovered, setIsHovered] = useState(false);
-
   return (
-    <button
+    <ClickableCard
+      label={`Apply ${preset.name} filter preset`}
       onClick={onApply}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
       className={`relative w-full p-3 rounded-lg border transition-all text-left ${
         isApplied
           ? "border-primary bg-primary/10"
-          : "border-border bg-background-tertiary hover:border-primary/50"
+          : "border-border bg-bg-2 hover:border-primary/50"
       }`}
     >
       <div className="flex items-start justify-between">
         <div className="flex-1">
           <div className="flex items-center gap-2">
-            <span className="text-[11px] font-medium text-text-primary">
+            <Text type="supporting" color="primary" weight="medium">
               {preset.name}
-            </span>
+            </Text>
             {isApplied && <Check size={12} className="text-primary" />}
           </div>
-          <p className="text-[9px] text-text-muted mt-0.5">
+          <Text type="supporting" color="secondary" display="block" className="mt-0.5 text-[9px]">
             {preset.description}
-          </p>
+          </Text>
         </div>
       </div>
       <div className="mt-2 flex gap-1 flex-wrap">
         {preset.effects.slice(0, 3).map((effect, index) => (
-          <span
+          <Text
             key={index}
-            className="px-1.5 py-0.5 text-[8px] bg-background-secondary rounded text-text-muted"
+            type="supporting"
+            color="secondary"
+            className="px-1.5 py-0.5 text-[8px] bg-bg-1 rounded text-fg-3"
           >
             {effect.type}
-          </span>
+          </Text>
         ))}
         {preset.effects.length > 3 && (
-          <span className="px-1.5 py-0.5 text-[8px] bg-background-secondary rounded text-text-muted">
+          <Text
+            type="supporting"
+            color="secondary"
+            className="px-1.5 py-0.5 text-[8px] bg-bg-1 rounded text-fg-3"
+          >
             +{preset.effects.length - 3}
-          </span>
+          </Text>
         )}
       </div>
-      {isHovered && !isApplied && (
-        <div className="absolute inset-0 flex items-center justify-center bg-background-tertiary/80 rounded-lg">
-          <span className="text-[10px] text-primary font-medium">
-            Click to Apply
-          </span>
-        </div>
-      )}
-    </button>
+    </ClickableCard>
   );
 };
 
@@ -107,17 +107,21 @@ export const FilterPresetsPanel: React.FC<FilterPresetsPanelProps> = ({
   );
 
   const handleApplyPreset = useCallback(
-    (preset: FilterPreset) => {
+    async (preset: FilterPreset) => {
       if (!targetClipId) return;
 
       const existingEffects = getVideoEffects(targetClipId);
-      existingEffects.forEach((effect) => {
-        removeVideoEffect(targetClipId, effect.id);
-      });
+      for (const effect of existingEffects) {
+        await removeVideoEffect(targetClipId, effect.id);
+      }
 
-      preset.effects.forEach((filterEffect) => {
-        addVideoEffect(targetClipId, filterEffect.type, filterEffect.params);
-      });
+      for (const filterEffect of preset.effects) {
+        await addVideoEffect(
+          targetClipId,
+          filterEffect.type,
+          filterEffect.params,
+        );
+      }
 
       setAppliedPresetId(preset.id);
       toast.success("Filter Applied", `${preset.name} preset applied`);
@@ -125,13 +129,13 @@ export const FilterPresetsPanel: React.FC<FilterPresetsPanelProps> = ({
     [targetClipId, addVideoEffect, getVideoEffects, removeVideoEffect],
   );
 
-  const handleClearEffects = useCallback(() => {
+  const handleClearEffects = useCallback(async () => {
     if (!targetClipId) return;
 
     const existingEffects = getVideoEffects(targetClipId);
-    existingEffects.forEach((effect) => {
-      removeVideoEffect(targetClipId, effect.id);
-    });
+    for (const effect of existingEffects) {
+      await removeVideoEffect(targetClipId, effect.id);
+    }
 
     setAppliedPresetId(null);
     toast.info("Effects Cleared");
@@ -140,10 +144,10 @@ export const FilterPresetsPanel: React.FC<FilterPresetsPanelProps> = ({
   if (!targetClipId) {
     return (
       <div className="p-4 text-center">
-        <Palette size={24} className="mx-auto mb-2 text-text-muted" />
-        <p className="text-[10px] text-text-muted">
+        <Palette size={24} className="mx-auto mb-2 text-fg-3" />
+        <Text type="supporting" color="secondary">
           Select a video clip to apply filters
-        </p>
+        </Text>
       </div>
     );
   }
@@ -152,11 +156,13 @@ export const FilterPresetsPanel: React.FC<FilterPresetsPanelProps> = ({
     <div className="space-y-4">
       <div className="flex items-center gap-2 p-2 bg-primary/10 rounded-lg border border-primary/30">
         <Palette size={16} className="text-primary" />
-        <div>
-          <span className="text-[11px] font-medium text-text-primary">
+        <div className="flex flex-col gap-0.5">
+          <Text type="supporting" color="primary" weight="medium" display="block">
             Filter Presets
-          </span>
-          <p className="text-[9px] text-text-muted">One-click color grades</p>
+          </Text>
+          <Text type="supporting" color="secondary" display="block" className="text-[9px]">
+            One-click color grades
+          </Text>
         </div>
       </div>
 
@@ -164,18 +170,19 @@ export const FilterPresetsPanel: React.FC<FilterPresetsPanelProps> = ({
         {FILTER_CATEGORIES.map((category) => {
           const Icon = CATEGORY_ICONS[category.id] || Palette;
           return (
-            <button
+            <Button
               key={category.id}
+              label={category.name}
+              size="sm"
+              variant={selectedCategory === category.id ? "primary" : "secondary"}
+              icon={<Icon size={12} aria-hidden />}
               onClick={() => setSelectedCategory(category.id as FilterCategory)}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] whitespace-nowrap transition-colors ${
                 selectedCategory === category.id
                   ? "bg-primary text-white font-medium"
-                  : "bg-background-tertiary text-text-secondary hover:text-text-primary"
+                  : "bg-bg-2 text-fg-2 hover:text-fg"
               }`}
-            >
-              <Icon size={12} />
-              {category.name}
-            </button>
+            />
           );
         })}
       </div>
@@ -192,33 +199,30 @@ export const FilterPresetsPanel: React.FC<FilterPresetsPanelProps> = ({
       </div>
 
       {appliedPresetId && (
-        <div className="space-y-3 p-3 bg-background-tertiary rounded-lg">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] text-text-secondary">Intensity</span>
-            <span className="text-[10px] font-mono text-text-primary">
-              {intensityValue}%
-            </span>
-          </div>
-          <Slider
+        <Card variant="muted" padding={3} className="space-y-3">
+          <PropertySlider
+            label="Intensity"
             min={0}
             max={100}
             step={1}
-            value={[intensityValue]}
-            onValueChange={(value) => setIntensityValue(value[0])}
+            value={intensityValue}
+            onChange={setIntensityValue}
+            formatValue={(value) => `${value}%`}
           />
-          <button
+          <Button
+            label="Remove All Effects"
+            size="sm"
+            variant="destructive"
             onClick={handleClearEffects}
             className="w-full py-2 text-[10px] text-red-400 hover:text-red-300 bg-red-500/10 rounded-lg transition-colors"
-          >
-            Remove All Effects
-          </button>
-        </div>
+          />
+        </Card>
       )}
 
-      <p className="text-[9px] text-text-muted text-center">
+      <Text type="supporting" color="secondary" className="text-center text-[9px]">
         {FILTER_PRESETS.length} presets across {FILTER_CATEGORIES.length}{" "}
         categories
-      </p>
+      </Text>
     </div>
   );
 };

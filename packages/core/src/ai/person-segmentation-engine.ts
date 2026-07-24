@@ -1,30 +1,73 @@
-import {
-  ImageSegmenter,
-  FilesetResolver,
-} from "@mediapipe/tasks-vision";
+import type {
+  SegmentationWorkerFrameRequest,
+  SegmentationWorkerRequest,
+  SegmentationWorkerResponse,
+} from "./person-segmentation-protocol";
+
+export { createMotionAwareOcclusionMask } from "./temporal-person-mask";
 
 export interface SegmentationResult {
   mask: ImageData;
   width: number;
   height: number;
+  /** Timeline timestamp of the exact source frame used for this matte. */
+  timestampMs: number;
+  /** Low-resolution source frame that produced this mask. */
+  referenceRgba: Uint8ClampedArray;
+  referenceWidth: number;
+  referenceHeight: number;
 }
 
-const MODEL_URL =
-  "https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_segmenter/float16/latest/selfie_segmenter.tflite";
+export interface PersonMaskOptions {
+  /** Timeline/content time. Used for deterministic sampling and seek resets. */
+  timestampMs?: number;
+  /** Keeps unrelated clips and render pipelines from sharing temporal history. */
+  streamId?: string;
+  /** Returns the latest matte immediately while a new one runs off-thread. */
+  realtime?: boolean;
+}
+
+interface QueuedFrame {
+  bitmap: ImageBitmap;
+  timestampMs: number;
+  reset: boolean;
+  generation: number;
+}
+
+interface ClientStreamState {
+  cachedMask: SegmentationResult | null;
+  inFlight: boolean;
+  queuedFrame: QueuedFrame | null;
+  lastRequestedTime: number;
+  lastSeenTime: number;
+  latestPostedTime: number;
+  latestAcceptedTime: number;
+  generation: number;
+}
+
+interface PendingRequest {
+  streamId: string;
+  timestampMs: number;
+  generation: number;
+  resolve?: (result: SegmentationResult | null) => void;
+  reject?: (error: Error) => void;
+}
+
+const DEFAULT_STREAM_ID = "default";
+const DISCONTINUITY_THRESHOLD_MS = 500;
+const MAX_STREAM_STATES = 4;
+// The high-quality multiclass model is substantially larger than the fast
+// fallback. Allow its first uncached download to finish on slower connections.
+const INITIALIZATION_TIMEOUT_MS = 45_000;
 
 export class PersonSegmentationEngine {
-  private segmenter: ImageSegmenter | null = null;
+  private worker: Worker | null = null;
   private initialized = false;
   private initializing: Promise<void> | null = null;
-  private cachedMask: SegmentationResult | null = null;
-  private lastSegmentTime = 0;
-  private segmentInterval = 66;
-  private segCanvas: HTMLCanvasElement | null = null;
-  private segCtx: CanvasRenderingContext2D | null = null;
-  private upscaleCanvas: HTMLCanvasElement | null = null;
-  private upscaleCtx: CanvasRenderingContext2D | null = null;
-  private readonly SEG_WIDTH = 512;
-  private readonly SEG_HEIGHT = 288;
+  private requestCounter = 0;
+  private segmentInterval = 16;
+  private streamStates = new Map<string, ClientStreamState>();
+  private pendingRequests = new Map<number, PendingRequest>();
 
   async initialize(): Promise<void> {
     if (this.initialized) return;
@@ -40,30 +83,56 @@ export class PersonSegmentationEngine {
   }
 
   private async doInitialize(): Promise<void> {
-    const vision = await FilesetResolver.forVisionTasks(
-      "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm",
+    if (typeof Worker === "undefined" || typeof OffscreenCanvas === "undefined") {
+      throw new Error("Background person segmentation is not supported");
+    }
+
+    // MediaPipe's WASM loader uses importScripts when it runs in a worker.
+    // Keep this a classic worker: module workers do not expose importScripts
+    // and make the loader fall back to a document-based path that cannot run
+    // off the main thread. The worker entry deliberately has no runtime module
+    // imports and loads MediaPipe's classic bundle with importScripts.
+    const worker = new Worker(
+      new URL("./person-segmentation-worker.ts", import.meta.url),
     );
+    this.worker = worker;
 
-    this.segmenter = await ImageSegmenter.createFromOptions(vision, {
-      baseOptions: {
-        modelAssetPath: MODEL_URL,
-        delegate: "GPU",
-      },
-      runningMode: "VIDEO",
-      outputCategoryMask: false,
-      outputConfidenceMasks: true,
-    });
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error("Person segmentation worker initialization timed out"));
+        }, INITIALIZATION_TIMEOUT_MS);
 
-    this.segCanvas = document.createElement("canvas");
-    this.segCanvas.width = this.SEG_WIDTH;
-    this.segCanvas.height = this.SEG_HEIGHT;
-    this.segCtx = this.segCanvas.getContext("2d", { willReadFrequently: true });
+        worker.onmessage = (event: MessageEvent<SegmentationWorkerResponse>) => {
+          if (event.data.type === "ready") {
+            clearTimeout(timeout);
+            this.initialized = true;
+            this.initializing = null;
+            resolve();
+            return;
+          }
+          if (event.data.type === "error" && event.data.requestId === undefined) {
+            clearTimeout(timeout);
+            reject(new Error(event.data.message));
+            return;
+          }
+          this.handleWorkerMessage(event.data);
+        };
 
-    this.upscaleCanvas = document.createElement("canvas");
-    this.upscaleCtx = this.upscaleCanvas.getContext("2d", { willReadFrequently: true });
+        worker.onerror = (event) => {
+          clearTimeout(timeout);
+          reject(new Error(event.message || "Person segmentation worker failed"));
+        };
 
-    this.initialized = true;
-    this.initializing = null;
+        const request: SegmentationWorkerRequest = { type: "init" };
+        worker.postMessage(request);
+      });
+    } catch (error) {
+      worker.terminate();
+      if (this.worker === worker) this.worker = null;
+      this.initialized = false;
+      throw error;
+    }
   }
 
   isInitialized(): boolean {
@@ -74,130 +143,299 @@ export class PersonSegmentationEngine {
     this.segmentInterval = Math.max(16, ms);
   }
 
-  async getPersonMask(frame: ImageBitmap): Promise<SegmentationResult | null> {
-    if (!this.segmenter) return null;
+  async getPersonMask(
+    frame: ImageBitmap,
+    options: PersonMaskOptions = {},
+  ): Promise<SegmentationResult | null> {
+    if (!this.worker || !this.initialized) return null;
 
-    const now = performance.now();
-    if (this.cachedMask && now - this.lastSegmentTime < this.segmentInterval) {
-      return this.cachedMask;
+    const streamId = options.streamId ?? DEFAULT_STREAM_ID;
+    const timestampMs = Number.isFinite(options.timestampMs)
+      ? options.timestampMs!
+      : performance.now();
+    const state = this.getStreamState(streamId);
+    const timeDelta = timestampMs - state.lastSeenTime;
+    const reset =
+      state.lastSeenTime !== Number.NEGATIVE_INFINITY &&
+      (timeDelta < -1 || timeDelta > DISCONTINUITY_THRESHOLD_MS);
+    if (reset) {
+      state.cachedMask = null;
+      state.queuedFrame?.bitmap.close();
+      state.queuedFrame = null;
+      state.lastRequestedTime = Number.NEGATIVE_INFINITY;
+      state.latestPostedTime = Number.NEGATIVE_INFINITY;
+      state.latestAcceptedTime = Number.NEGATIVE_INFINITY;
+      state.generation++;
     }
+    state.lastSeenTime = timestampMs;
 
-    const outputWidth = frame.width;
-    const outputHeight = frame.height;
-
-    if (!this.segCtx || !this.segCanvas) return null;
-
-    this.segCtx.drawImage(frame, 0, 0, this.SEG_WIDTH, this.SEG_HEIGHT);
-
-    let rawMask: Float32Array | null = null;
-
-    this.segmenter.segmentForVideo(this.segCanvas, Math.round(now), (result) => {
-      if (result.confidenceMasks && result.confidenceMasks.length > 0) {
-        const labels = this.segmenter?.getLabels() ?? [];
-        const personLabelIndex = labels.findIndex((label) =>
-          /foreground|human|person|selfie/i.test(label),
-        );
-        const foregroundMaskIndex =
-          personLabelIndex >= 0 && personLabelIndex < result.confidenceMasks.length
-            ? personLabelIndex
-            : result.confidenceMasks.length > 1
-              ? result.confidenceMasks.length - 1
-              : 0;
-        const foregroundMask =
-          result.confidenceMasks[foregroundMaskIndex] ?? result.confidenceMasks[0];
-        rawMask = new Float32Array(foregroundMask.getAsFloat32Array());
-
-        for (const confidenceMask of result.confidenceMasks) {
-          confidenceMask.close();
-        }
+    if (options.realtime) {
+      if (
+        timestampMs >= state.lastRequestedTime &&
+        timestampMs - state.lastRequestedTime < this.segmentInterval
+      ) {
+        return this.getUsableRealtimeMask(state.cachedMask, timestampMs);
       }
+      state.lastRequestedTime = timestampMs;
+      this.queueRealtimeFrame(
+        frame,
+        streamId,
+        timestampMs,
+        reset,
+        state.generation,
+      );
+      return this.getUsableRealtimeMask(state.cachedMask, timestampMs);
+    }
+
+    const bitmap = await createImageBitmap(frame);
+    return new Promise<SegmentationResult | null>((resolve, reject) => {
+      this.postFrame(
+        bitmap,
+        streamId,
+        timestampMs,
+        reset,
+        state.generation,
+        { resolve, reject },
+      );
     });
-
-    if (!rawMask) return this.cachedMask;
-
-    const segMaskData = new ImageData(this.SEG_WIDTH, this.SEG_HEIGHT);
-    for (let i = 0; i < (rawMask as Float32Array).length; i++) {
-      const alpha = Math.round((rawMask as Float32Array)[i] * 255);
-      segMaskData.data[i * 4] = 255;
-      segMaskData.data[i * 4 + 1] = 255;
-      segMaskData.data[i * 4 + 2] = 255;
-      segMaskData.data[i * 4 + 3] = alpha;
-    }
-
-    if (
-      !this.upscaleCanvas || !this.upscaleCtx ||
-      this.upscaleCanvas.width !== outputWidth ||
-      this.upscaleCanvas.height !== outputHeight
-    ) {
-      this.upscaleCanvas!.width = outputWidth;
-      this.upscaleCanvas!.height = outputHeight;
-    }
-
-    const tempCanvas = document.createElement("canvas");
-    tempCanvas.width = this.SEG_WIDTH;
-    tempCanvas.height = this.SEG_HEIGHT;
-    const tempCtx = tempCanvas.getContext("2d")!;
-    tempCtx.putImageData(segMaskData, 0, 0);
-
-    this.upscaleCtx!.imageSmoothingEnabled = true;
-    this.upscaleCtx!.imageSmoothingQuality = "high";
-    this.upscaleCtx!.clearRect(0, 0, outputWidth, outputHeight);
-    this.upscaleCtx!.drawImage(tempCanvas, 0, 0, outputWidth, outputHeight);
-
-    const maskData = this.upscaleCtx!.getImageData(0, 0, outputWidth, outputHeight);
-
-    this.refineEdges(maskData);
-
-    this.cachedMask = { mask: maskData, width: outputWidth, height: outputHeight };
-    this.lastSegmentTime = now;
-    return this.cachedMask;
   }
 
-  private refineEdges(mask: ImageData): void {
-    const { data, width, height } = mask;
-    const radius = 2;
-    const temp = new Uint8ClampedArray(width * height);
+  private getUsableRealtimeMask(
+    cachedMask: SegmentationResult | null,
+    timestampMs: number,
+  ): SegmentationResult | null {
+    if (!cachedMask) return null;
+    const ageMs = timestampMs - cachedMask.timestampMs;
+    // During continuous playback, inference can legitimately take longer than
+    // a few frames. Expiring the last good matte made the entire behind-subject
+    // text layer switch off until the worker caught up. Stream changes and
+    // seeks already clear cachedMask above, so retain it here and motion-warp it
+    // to the displayed frame until a newer result is accepted.
+    return ageMs >= -1 ? cachedMask : null;
+  }
 
-    for (let i = 0; i < data.length; i += 4) {
-      temp[i >> 2] = data[i + 3];
-    }
-
-    for (let y = radius; y < height - radius; y++) {
-      for (let x = radius; x < width - radius; x++) {
-        const idx = y * width + x;
-        const center = temp[idx];
-
-        if (center === 0 || center === 255) continue;
-
-        let sum = 0;
-        let count = 0;
-        for (let dy = -radius; dy <= radius; dy++) {
-          for (let dx = -radius; dx <= radius; dx++) {
-            sum += temp[(y + dy) * width + (x + dx)];
-            count++;
-          }
+  private queueRealtimeFrame(
+    frame: ImageBitmap,
+    streamId: string,
+    timestampMs: number,
+    reset: boolean,
+    generation: number,
+  ): void {
+    const state = this.getStreamState(streamId);
+    void createImageBitmap(frame)
+      .then((bitmap) => {
+        if (!this.worker || !this.initialized) {
+          bitmap.close();
+          return;
         }
-        const smoothed = sum / count;
+        if (state.generation !== generation) {
+          bitmap.close();
+          return;
+        }
+        // createImageBitmap() resolves asynchronously and copies for newer
+        // frames can finish first. Never let a late, older copy rewind the
+        // worker's temporal state or replace the newest queued frame.
+        if (
+          timestampMs <= state.latestPostedTime ||
+          (state.queuedFrame !== null &&
+            timestampMs <= state.queuedFrame.timestampMs)
+        ) {
+          bitmap.close();
+          return;
+        }
+        if (state.inFlight) {
+          state.queuedFrame?.bitmap.close();
+          state.queuedFrame = {
+            bitmap,
+            timestampMs,
+            reset,
+            generation,
+          };
+          return;
+        }
+        this.postFrame(
+          bitmap,
+          streamId,
+          timestampMs,
+          reset,
+          generation,
+        );
+      })
+      .catch(() => {
+        // Keep the latest good matte when a frame cannot be copied.
+      });
+  }
 
-        const contrast = smoothed < 128
-          ? smoothed * smoothed / 128
-          : 255 - (255 - smoothed) * (255 - smoothed) / 128;
-
-        data[(idx) * 4 + 3] = Math.round(contrast);
-      }
+  private postFrame(
+    bitmap: ImageBitmap,
+    streamId: string,
+    timestampMs: number,
+    reset: boolean,
+    generation: number,
+    pending: Omit<
+      PendingRequest,
+      "streamId" | "timestampMs" | "generation"
+    > = {},
+  ): void {
+    if (!this.worker) {
+      bitmap.close();
+      pending.resolve?.(null);
+      return;
     }
+
+    const state = this.getStreamState(streamId);
+    state.inFlight = true;
+    state.latestPostedTime = Math.max(state.latestPostedTime, timestampMs);
+    const requestId = ++this.requestCounter;
+    this.pendingRequests.set(requestId, {
+      streamId,
+      timestampMs,
+      generation,
+      ...pending,
+    });
+    const request: SegmentationWorkerFrameRequest = {
+      type: "segment",
+      requestId,
+      streamId,
+      timestampMs,
+      bitmap,
+      reset,
+    };
+    this.worker.postMessage(request, [bitmap]);
+  }
+
+  private handleWorkerMessage(response: SegmentationWorkerResponse): void {
+    if (response.type === "ready") return;
+
+    if (response.type === "error") {
+      if (response.requestId === undefined) return;
+      const pending = this.pendingRequests.get(response.requestId);
+      if (!pending) return;
+      this.pendingRequests.delete(response.requestId);
+      const state = this.streamStates.get(pending.streamId);
+      if (state) {
+        state.inFlight = false;
+        this.sendQueuedFrame(pending.streamId, state);
+      }
+      pending.reject?.(new Error(response.message));
+      return;
+    }
+
+    const pending = this.pendingRequests.get(response.requestId);
+    if (!pending) return;
+    this.pendingRequests.delete(response.requestId);
+
+    const state = this.streamStates.get(pending.streamId);
+    const belongsToCurrentGeneration =
+      !state || pending.generation === state.generation;
+    const result = this.createSegmentationResult(
+      response.alpha,
+      response.width,
+      response.height,
+      response.timestampMs,
+      response.referenceRgba,
+      response.referenceWidth,
+      response.referenceHeight,
+    );
+    if (state) {
+      state.inFlight = false;
+      if (
+        belongsToCurrentGeneration &&
+        response.timestampMs >= state.latestAcceptedTime
+      ) {
+        state.cachedMask = result;
+        state.latestAcceptedTime = response.timestampMs;
+      }
+      this.sendQueuedFrame(pending.streamId, state);
+    }
+    pending.resolve?.(belongsToCurrentGeneration ? result : null);
+  }
+
+  private sendQueuedFrame(streamId: string, state: ClientStreamState): void {
+    const queued = state.queuedFrame;
+    if (!queued) return;
+    state.queuedFrame = null;
+    this.postFrame(
+      queued.bitmap,
+      streamId,
+      queued.timestampMs,
+      queued.reset,
+      queued.generation,
+    );
+  }
+
+  private createSegmentationResult(
+    alpha: Uint8ClampedArray,
+    width: number,
+    height: number,
+    timestampMs: number,
+    referenceRgba: Uint8ClampedArray,
+    referenceWidth: number,
+    referenceHeight: number,
+  ): SegmentationResult {
+    const mask = new ImageData(width, height);
+    for (let index = 0; index < alpha.length; index++) {
+      const dataIndex = index * 4;
+      mask.data[dataIndex] = 255;
+      mask.data[dataIndex + 1] = 255;
+      mask.data[dataIndex + 2] = 255;
+      mask.data[dataIndex + 3] = alpha[index];
+    }
+    return {
+      mask,
+      width,
+      height,
+      timestampMs,
+      referenceRgba,
+      referenceWidth,
+      referenceHeight,
+    };
+  }
+
+  private getStreamState(streamId: string): ClientStreamState {
+    const existing = this.streamStates.get(streamId);
+    if (existing) {
+      this.streamStates.delete(streamId);
+      this.streamStates.set(streamId, existing);
+      return existing;
+    }
+
+    while (this.streamStates.size >= MAX_STREAM_STATES) {
+      const oldestStreamId = this.streamStates.keys().next().value;
+      if (oldestStreamId === undefined) break;
+      const oldest = this.streamStates.get(oldestStreamId);
+      oldest?.queuedFrame?.bitmap.close();
+      this.streamStates.delete(oldestStreamId);
+    }
+    const created: ClientStreamState = {
+      cachedMask: null,
+      inFlight: false,
+      queuedFrame: null,
+      lastRequestedTime: Number.NEGATIVE_INFINITY,
+      lastSeenTime: Number.NEGATIVE_INFINITY,
+      latestPostedTime: Number.NEGATIVE_INFINITY,
+      latestAcceptedTime: Number.NEGATIVE_INFINITY,
+      generation: 0,
+    };
+    this.streamStates.set(streamId, created);
+    return created;
   }
 
   dispose(): void {
-    if (this.segmenter) {
-      this.segmenter.close();
-      this.segmenter = null;
+    if (this.worker) {
+      const request: SegmentationWorkerRequest = { type: "dispose" };
+      this.worker.postMessage(request);
+      this.worker.terminate();
+      this.worker = null;
     }
-    this.segCanvas = null;
-    this.segCtx = null;
-    this.upscaleCanvas = null;
-    this.upscaleCtx = null;
-    this.cachedMask = null;
+    for (const state of this.streamStates.values()) {
+      state.queuedFrame?.bitmap.close();
+    }
+    for (const pending of this.pendingRequests.values()) {
+      pending.reject?.(new Error("Person segmentation engine disposed"));
+    }
+    this.streamStates.clear();
+    this.pendingRequests.clear();
     this.initialized = false;
     this.initializing = null;
   }
@@ -206,9 +444,7 @@ export class PersonSegmentationEngine {
 let instance: PersonSegmentationEngine | null = null;
 
 export function getPersonSegmentationEngine(): PersonSegmentationEngine {
-  if (!instance) {
-    instance = new PersonSegmentationEngine();
-  }
+  if (!instance) instance = new PersonSegmentationEngine();
   return instance;
 }
 

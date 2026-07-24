@@ -23,6 +23,8 @@ import { graphicsEngine } from "../graphics/graphics-engine";
 import { UpscalingEngine, getUpscalingEngine } from "../video/upscaling";
 import { getMediaEngine } from "../media/mediabunny-engine";
 import { getWavEncoder } from "../wasm/wav";
+import type { EncoderBackend, EncoderBackendFactory } from "./encoder-backend";
+import { WebCodecsBackend } from "./webcodecs-backend";
 
 export class ExportEngine {
   private static readonly AUDIO_EXPORT_CHUNK_DURATION_SECONDS = 15;
@@ -118,98 +120,6 @@ export class ExportEngine {
     }
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private async findSupportedAudioCodec(
-    outputFormat: { getSupportedAudioCodecs: () => any[] },
-    audioSettings: AudioExportSettings,
-    getFirstEncodableAudioCodec: (codecs: any[]) => Promise<string | null>,
-  ): Promise<{ codec: string; bitrate: number }> {
-    const supportedCodecs = outputFormat.getSupportedAudioCodecs();
-    const requestedBitrate = audioSettings.bitrate * 1000;
-
-    const bitrateFallbacks = [requestedBitrate, 192000, 128000, 96000].filter(
-      (b, i, arr) => arr.indexOf(b) === i,
-    );
-
-    for (const bitrate of bitrateFallbacks) {
-      const codec = await getFirstEncodableAudioCodec(supportedCodecs);
-      if (codec) {
-        const isSupported = await this.isAudioConfigSupported(
-          codec,
-          bitrate,
-          audioSettings.channels,
-          audioSettings.sampleRate,
-        );
-        if (isSupported) {
-          return { codec, bitrate };
-        }
-      }
-    }
-
-    for (const fallbackCodec of ["aac", "mp3", "opus"]) {
-      if (
-        supportedCodecs.some((c: string) =>
-          String(c).toLowerCase().includes(fallbackCodec) ||
-          (fallbackCodec === "aac" && String(c).toLowerCase().includes("mp4a")),
-        )
-      ) {
-        for (const bitrate of bitrateFallbacks) {
-          const isSupported = await this.isAudioConfigSupported(
-            fallbackCodec,
-            bitrate,
-            audioSettings.channels,
-            audioSettings.sampleRate,
-          );
-          if (isSupported) {
-            return { codec: fallbackCodec, bitrate };
-          }
-        }
-      }
-    }
-
-    const defaultCodec = await getFirstEncodableAudioCodec(supportedCodecs);
-    return {
-      codec: defaultCodec || "aac",
-      bitrate: 128000,
-    };
-  }
-
-  private async isAudioConfigSupported(
-    codec: string,
-    bitrate: number,
-    channels: number,
-    sampleRate: number,
-  ): Promise<boolean> {
-    if (typeof AudioEncoder === "undefined") {
-      return true;
-    }
-
-    try {
-      let codecString: string;
-      if (codec === "aac" || codec.includes("mp4a")) {
-        codecString = "mp4a.40.2";
-      } else if (codec === "opus") {
-        codecString = "opus";
-      } else if (codec === "mp3") {
-        codecString = "mp3";
-      } else {
-        codecString = codec;
-      }
-
-      const config: AudioEncoderConfig = {
-        codec: codecString,
-        sampleRate,
-        numberOfChannels: channels,
-        bitrate,
-      };
-
-      const support = await AudioEncoder.isConfigSupported(config);
-      return support.supported === true;
-    } catch {
-      return false;
-    }
-  }
-
   async *exportVideo(
     project: Project,
     settings: Partial<VideoExportSettings> = {},
@@ -236,7 +146,11 @@ export class ExportEngine {
       },
     };
 
-    if (fullSettings.codec === "prores") {
+    const backend = encoderBackendFactory
+      ? encoderBackendFactory(this.mediabunny)
+      : new WebCodecsBackend(this.mediabunny!);
+
+    if (backend.normalizesProResToH264 && fullSettings.codec === "prores") {
       fullSettings.codec = "h264";
       fullSettings.format = "mp4";
       fullSettings.bitrate = 25000;
@@ -246,25 +160,27 @@ export class ExportEngine {
     const { timeline } = project;
     const timelineDuration = this.calculateTimelineDuration(timeline);
 
-    const isMemoryIntensiveCodec =
-      fullSettings.codec === "vp9" ||
-      fullSettings.codec === "av1" ||
-      fullSettings.codec === "h265";
-    const isLongVideo = timelineDuration > 120;
+    if (backend.requiresWebCodecsClamping) {
+      const isMemoryIntensiveCodec =
+        fullSettings.codec === "vp9" ||
+        fullSettings.codec === "av1" ||
+        fullSettings.codec === "h265";
+      const isLongVideo = timelineDuration > 120;
 
-    let maxW = isMemoryIntensiveCodec ? 1920 : 3840;
-    let maxH = isMemoryIntensiveCodec ? 1080 : 2160;
-    if (isLongVideo) {
-      maxW = Math.min(maxW, 1920);
-      maxH = Math.min(maxH, 1080);
-    }
-    if (fullSettings.width > maxW || fullSettings.height > maxH) {
-      const scale = Math.min(maxW / fullSettings.width, maxH / fullSettings.height, 1);
-      fullSettings.width = Math.round(fullSettings.width * scale / 2) * 2;
-      fullSettings.height = Math.round(fullSettings.height * scale / 2) * 2;
-    }
-    if (isLongVideo && fullSettings.frameRate > 30) {
-      fullSettings.frameRate = 30;
+      let maxW = isMemoryIntensiveCodec ? 1920 : 3840;
+      let maxH = isMemoryIntensiveCodec ? 1080 : 2160;
+      if (isLongVideo) {
+        maxW = Math.min(maxW, 1920);
+        maxH = Math.min(maxH, 1080);
+      }
+      if (fullSettings.width > maxW || fullSettings.height > maxH) {
+        const scale = Math.min(maxW / fullSettings.width, maxH / fullSettings.height, 1);
+        fullSettings.width = Math.round(fullSettings.width * scale / 2) * 2;
+        fullSettings.height = Math.round(fullSettings.height * scale / 2) * 2;
+      }
+      if (isLongVideo && fullSettings.frameRate > 30) {
+        fullSettings.frameRate = 30;
+      }
     }
 
     this.abortController = new AbortController();
@@ -303,103 +219,20 @@ export class ExportEngine {
     }
 
     const totalFrames = Math.ceil(timelineDuration * fullSettings.frameRate);
-    let bytesWritten = 0;
 
     try {
       yield this.createProgress("preparing", 0, totalFrames, 0, 0);
 
-      const {
-        Output,
-        StreamTarget,
-        Mp4OutputFormat,
-        WebMOutputFormat,
-        MovOutputFormat,
-        VideoSampleSource,
-        AudioBufferSource,
-        VideoSample,
-        getFirstEncodableVideoCodec,
-        getFirstEncodableAudioCodec,
-        QUALITY_MEDIUM,
-      } = this.mediabunny!;
+      await backend.start(fullSettings, project, writableStream);
 
-      const diskWriter = writableStream;
-      const chunkWriter = new WritableStream<{ data: Uint8Array; position: number }>({
-        async write(chunk) {
-          const buf = chunk.data.buffer.slice(
-            chunk.data.byteOffset,
-            chunk.data.byteOffset + chunk.data.byteLength,
-          ) as ArrayBuffer;
-          await diskWriter.seek(chunk.position);
-          await diskWriter.write(buf);
-          bytesWritten += chunk.data.byteLength;
-        },
-      });
-
-      let outputFormat;
-      switch (fullSettings.format) {
-        case "webm":
-          outputFormat = new WebMOutputFormat();
-          break;
-        case "mov":
-          outputFormat = new MovOutputFormat();
-          break;
-        case "mp4":
-        default:
-          outputFormat = new Mp4OutputFormat({ fastStart: false });
-          break;
+      if (backend.audioBeforeVideo) {
+        try {
+          await this.encodeTimelineAudioToBackend(project, backend);
+        } finally {
+          this.audioEngine?.clearCache();
+        }
+        await backend.closeAudio();
       }
-
-      const target = new StreamTarget(chunkWriter, {
-        chunked: true,
-        chunkSize: 4 * 1024 * 1024,
-      });
-      const output = new Output({ format: outputFormat, target });
-
-      const videoCodec = await getFirstEncodableVideoCodec(
-        outputFormat.getSupportedVideoCodecs(),
-        { width: fullSettings.width, height: fullSettings.height },
-      );
-
-      if (!videoCodec) {
-        throw this.createError(
-          "UNSUPPORTED_CODEC",
-          "No supported video codec found",
-          "preparing",
-        );
-      }
-
-      const audioCodecResult = await this.findSupportedAudioCodec(
-        outputFormat,
-        fullSettings.audioSettings,
-        getFirstEncodableAudioCodec,
-      );
-
-      const videoSource = new VideoSampleSource({
-        codec: videoCodec,
-        bitrate: fullSettings.bitrate ? fullSettings.bitrate * 1000 : QUALITY_MEDIUM,
-        keyFrameInterval:
-          fullSettings.keyframeInterval / fullSettings.frameRate,
-        hardwareAcceleration: "prefer-software",
-      });
-      const audioSource = new AudioBufferSource({
-        codec: audioCodecResult.codec as "aac" | "opus" | "mp3",
-        bitrate: audioCodecResult.bitrate,
-      });
-      output.addVideoTrack(videoSource);
-      output.addAudioTrack(audioSource);
-      output.setMetadataTags({
-        title: project.name,
-        date: new Date(),
-      });
-
-      await output.start();
-
-      try {
-        await this.encodeTimelineAudioToSource(project, audioSource);
-      } finally {
-        this.audioEngine?.clearCache();
-      }
-      audioSource.close();
 
       const mediaEngine = getMediaEngine();
       const videoMediaIds: string[] = [];
@@ -422,6 +255,7 @@ export class ExportEngine {
         }
       }
 
+      let renderMsTotal = 0;
       for (let frame = 0; frame < totalFrames; frame++) {
         if (this.abortController.signal.aborted) {
           throw this.createError(
@@ -432,12 +266,14 @@ export class ExportEngine {
         }
 
         const time = frame / fullSettings.frameRate;
+        const renderStart = performance.now();
         const rendered = await this.videoEngine!.renderFrame(
           project,
           time,
           fullSettings.width,
           fullSettings.height,
         );
+        renderMsTotal += performance.now() - renderStart;
         const shouldUpscale = this.shouldApplyUpscaling(project, fullSettings);
         let frameImage = rendered.image;
 
@@ -452,23 +288,18 @@ export class ExportEngine {
           frameImage = upscaled;
         }
 
-        const videoSample = new VideoSample(frameImage, {
-          timestamp: time,
-          duration: 1 / fullSettings.frameRate,
-        });
-
-        await videoSource.add(videoSample);
-        videoSample.close();
-        frameImage.close();
+        await backend.addVideoFrame(
+          frameImage,
+          time,
+          1 / fullSettings.frameRate,
+        );
 
         this.currentExport!.framesRendered = frame + 1;
 
-        if ((frame + 1) % 5 === 0) {
-          this.videoEngine?.clearVideoElementCache();
-          this.videoEngine?.clearCache();
-          try {
-            mediaEngine.clearFrameCache();
-          } catch {}
+        if (backend.needsFrameThrottling && (frame + 1) % 5 === 0) {
+          // Yield to the browser without invalidating decoder state. Clearing
+          // these caches during a sequential export forces fresh seeks and can
+          // repeat source frames, which shows up as brief pauses in the file.
           await new Promise((resolve) => setTimeout(resolve, 2));
         }
 
@@ -477,11 +308,25 @@ export class ExportEngine {
           (frame + 1) / totalFrames,
           totalFrames,
           frame + 1,
-          bytesWritten,
+          backend.getBytesWritten(),
         );
       }
 
-      videoSource.close();
+      if (totalFrames > 0) {
+        console.info(
+          `[export] render=${(renderMsTotal / totalFrames).toFixed(1)}ms/f frames=${totalFrames}`,
+        );
+      }
+
+      if (!backend.audioBeforeVideo) {
+        try {
+          await this.encodeTimelineAudioToBackend(project, backend);
+        } finally {
+          this.audioEngine?.clearCache();
+        }
+        await backend.closeAudio();
+      }
+
       mediaEngine.disposeAllExportDecoders();
       mediaEngine.clearFrameCache();
       this.videoEngine?.clearVideoElementCache();
@@ -495,26 +340,25 @@ export class ExportEngine {
         0.98,
         totalFrames,
         totalFrames,
-        bytesWritten,
+        backend.getBytesWritten(),
       );
 
-      await output.finalize();
-      await writableStream.close();
+      await backend.finalize();
 
       yield this.createProgress(
         "complete",
         1,
         totalFrames,
         totalFrames,
-        bytesWritten,
+        backend.getBytesWritten(),
       );
 
       return {
         success: true,
-        stats: this.calculateStats(totalFrames, bytesWritten),
+        stats: this.calculateStats(totalFrames, backend.getBytesWritten()),
       };
     } catch (error) {
-      try { await writableStream.abort(); } catch {}
+      await backend.abort();
       if (error && typeof error === "object" && "code" in error) {
         return { success: false, error: error as ExportError };
       }
@@ -1094,9 +938,9 @@ export class ExportEngine {
     return rendered.buffer;
   }
 
-  private async encodeTimelineAudioToSource(
+  private async encodeTimelineAudioToBackend(
     project: Project,
-    audioSource: InstanceType<typeof import("mediabunny").AudioBufferSource>,
+    backend: EncoderBackend,
   ): Promise<void> {
     const timelineDuration = this.calculateTimelineDuration(project.timeline);
     if (timelineDuration <= 0) {
@@ -1132,7 +976,7 @@ export class ExportEngine {
         continue;
       }
 
-      await audioSource.add(audioBuffer);
+      await backend.addAudioBuffer(audioBuffer);
 
       // Yield between chunks so the browser can reclaim the previous buffer
       // before the next long-running render starts.
@@ -1432,6 +1276,21 @@ export class ExportEngine {
     this.initialized = false;
   }
 }
+
+let encoderBackendFactory: EncoderBackendFactory | null = null;
+
+export function setEncoderBackendFactory(
+  factory: EncoderBackendFactory | null,
+): void {
+  encoderBackendFactory = factory;
+}
+
+export function exportSettingsRequireNativeEncoder(
+  settings: Pick<VideoExportSettings, "codec" | "format">,
+): boolean {
+  return settings.codec === "prores" || settings.format === "mov";
+}
+
 let exportEngineInstance: ExportEngine | null = null;
 
 export function getExportEngine(): ExportEngine {

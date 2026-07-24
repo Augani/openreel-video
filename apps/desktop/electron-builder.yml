@@ -1,0 +1,79 @@
+appId: video.openreel.desktop
+productName: OpenReel
+# Predictable, space-free, arch-suffixed names → clean R2 URLs + a simple
+# manifest (e.g. OpenReel-1.2.3-arm64.dmg, OpenReel-1.2.3-x64.exe).
+artifactName: ${productName}-${version}-${arch}.${ext}
+asar: true
+# The MCP stdio shim must be a real on-disk file so external clients (Claude
+# Desktop / Cursor / Cline) can spawn it with `node`; unpack it from the asar.
+asarUnpack:
+  - dist/mcp-shim/**
+directories:
+  output: release
+# Update feed for electron-updater. Builds embed app-update.yml pointing at the
+# R2-backed download subdomain and generate latest*.yml + blockmaps; the release
+# CI uploads everything to R2 (the generic provider does not upload itself).
+publish:
+  provider: generic
+  url: https://dl.openreel.video
+  channel: latest
+files:
+  - dist/**/*
+  - "!**/*.map"
+  - package.json
+extraResources:
+  - from: ../web/dist
+    to: renderer
+    filter:
+      - "**/*"
+  - from: resources/bin
+    to: bin
+    filter:
+      - "**/*"
+  - from: resources/rigging
+    to: rigging
+    filter:
+      - "**/*"
+  - from: resources/aurora
+    to: aurora
+    filter:
+      - "**/*"
+  - from: LICENSES
+    to: LICENSES
+    filter:
+      - "**/*"
+mac:
+  category: public.app-category.video
+  icon: build/icon.png
+  target:
+    - target: dmg
+      arch: [arm64, x64]
+    - target: zip
+      arch: [arm64, x64]
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  # Sign downloadable (non-App-Store) builds with the Developer ID Application
+  # cert present in this team's keychain. `pnpm pack` (--dir) skips signing.
+  # electron-builder adds the "Developer ID Application:" prefix itself — supply
+  # only the common name (name + Team ID) or it errors on the duplicate prefix.
+  identity: "Augustus Otu (864H636QW4)"
+  # Notarization runs on `pnpm dist`. teamId is set here; credentials come from
+  # env at build time: APPLE_ID + APPLE_APP_SPECIFIC_PASSWORD (or APPLE_API_KEY +
+  # APPLE_API_KEY_ID + APPLE_API_ISSUER). See apps/desktop/DISTRIBUTION.md.
+  notarize:
+    teamId: "864H636QW4"
+win:
+  icon: build/icon.png
+  target:
+    - target: nsis
+      arch: [x64]
+linux:
+  icon: build/icon.png
+  target:
+    - target: AppImage
+      arch: [x64]
+    - target: deb
+      arch: [x64]
+  category: AudioVideo
