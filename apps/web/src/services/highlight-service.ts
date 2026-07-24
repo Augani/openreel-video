@@ -28,7 +28,7 @@ const DEFAULT_PREFERENCES: HighlightPreferences = {
 
 type ProgressCallback = (phase: string, progress: number, message: string) => void;
 
-const API_BASE = import.meta.env.VITE_CLOUD_API_URL || "https://openreel-cloud.niiyeboah1996.workers.dev";
+const API_BASE = import.meta.env.VITE_CLOUD_API_URL || "https://api.openreel.video";
 
 export async function extractHighlights(
   audioBuffer: AudioBuffer,

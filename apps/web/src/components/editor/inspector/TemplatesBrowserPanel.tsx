@@ -16,7 +16,10 @@ import {
   Cloud,
   ChevronLeft,
   Settings2,
-} from "lucide-react";
+} from "@/icons/lucide-compat";
+import { ToolcraftButton as Button } from "@openreel/ui";
+import { ToolcraftSelectableCard as SelectableCard } from "@openreel/ui";
+import { ToolcraftText as Text } from "@openreel/ui";
 import { useEngineStore } from "../../../stores/engine-store";
 import { useProjectStore } from "../../../stores/project-store";
 import {
@@ -64,20 +67,20 @@ const TemplateCard: React.FC<TemplateCardProps> = ({
       className={`relative p-3 rounded-lg border cursor-pointer transition-all w-full max-w-full box-border ${
         isSelected
           ? "border-primary bg-primary/10 ring-1 ring-primary"
-          : "border-border bg-background-tertiary hover:border-primary/50"
+          : "border-border bg-bg-2 hover:border-primary/50"
       }`}
     >
       <div className="flex items-start gap-3 w-full">
         <div
           className={`w-10 h-10 shrink-0 rounded-lg flex items-center justify-center ${
-            isSelected ? "bg-primary text-white" : "bg-background-secondary"
+            isSelected ? "bg-primary text-white" : "bg-bg-1"
           }`}
         >
           <Icon size={18} />
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-[11px] font-medium text-text-primary truncate">
+            <span className="text-[11px] font-medium text-fg truncate">
               {template.name}
             </span>
             {template.id.startsWith("builtin-") && (
@@ -93,11 +96,11 @@ const TemplateCard: React.FC<TemplateCardProps> = ({
             )}
           </div>
           <div className="flex items-center gap-3 mt-1">
-            <div className="flex items-center gap-1 text-[9px] text-text-muted">
+            <div className="flex items-center gap-1 text-[9px] text-fg-3">
               <Layers size={10} />
               <span>{template.placeholderCount} placeholders</span>
             </div>
-            <div className="flex items-center gap-1 text-[9px] text-text-muted">
+            <div className="flex items-center gap-1 text-[9px] text-fg-3">
               <Clock size={10} />
               <span>{template.duration}s</span>
             </div>
@@ -105,15 +108,15 @@ const TemplateCard: React.FC<TemplateCardProps> = ({
         </div>
       </div>
       {isSelected && (
-        <button
+        <Button
+          label="Use This Template"
+          variant="primary"
           onClick={(e) => {
             e.stopPropagation();
             onApply();
           }}
           className="mt-3 w-full py-1.5 text-[10px] font-medium bg-primary text-white rounded-md hover:bg-primary/90 transition-colors"
-        >
-          Use This Template
-        </button>
+        />
       )}
     </div>
   );
@@ -326,29 +329,31 @@ export const TemplatesBrowserPanel: React.FC<TemplatesBrowserPanelProps> = ({
   if (showVariablesPanel && loadedTemplate) {
     return (
       <div className="space-y-4 w-full min-w-0 max-w-full">
-        <button
+        <Button
+          label="Back to Templates"
+          variant="ghost"
+          icon={<ChevronLeft size={12} />}
           onClick={handleBackToTemplates}
-          className="flex items-center gap-1.5 text-[10px] text-text-muted hover:text-text-primary transition-colors"
-        >
-          <ChevronLeft size={12} />
-          <span>Back to Templates</span>
-        </button>
+          className="flex items-center gap-1.5 text-[10px] text-fg-3 hover:text-fg transition-colors"
+        />
 
         <div className="flex items-center gap-2 p-2 bg-primary/10 rounded-lg border border-primary/30">
           <Settings2 size={16} className="text-primary" />
           <div>
-            <span className="text-[11px] font-medium text-text-primary">
+            <span className="text-[11px] font-medium text-fg">
               {loadedTemplate.name}
             </span>
-            <p className="text-[9px] text-text-muted">
+            <Text type="supporting" color="secondary" display="block" className="text-[9px]">
               Configure template variables
-            </p>
+            </Text>
           </div>
         </div>
 
         {applyError && (
           <div className="p-2 bg-red-500/10 border border-red-500/30 rounded-lg">
-            <p className="text-[10px] text-red-400">{applyError}</p>
+            <Text type="supporting" display="block" className="text-[10px] text-red-400">
+              {applyError}
+            </Text>
           </div>
         )}
 
@@ -367,48 +372,60 @@ export const TemplatesBrowserPanel: React.FC<TemplatesBrowserPanelProps> = ({
       <div className="flex items-center gap-2 p-2 bg-primary/10 rounded-lg border border-primary/30">
         <FolderOpen size={16} className="text-primary shrink-0" />
         <div className="min-w-0 flex-1">
-          <span className="text-[11px] font-medium text-text-primary">
+          <span className="text-[11px] font-medium text-fg">
             Templates
           </span>
-          <p className="text-[9px] text-text-muted">
+          <Text type="supporting" color="secondary" display="block" className="text-[9px]">
             Start with a pre-made project
-          </p>
+          </Text>
         </div>
       </div>
 
       <div className="flex gap-1 overflow-x-auto pb-1 -mx-1 px-1">
-        <button
+        <SelectableCard
+          label="All"
+          isSelected={selectedCategory === "all"}
+          onChange={() => setSelectedCategory("all")}
           onClick={() => setSelectedCategory("all")}
+          padding={2}
+          variant={selectedCategory === "all" ? "green" : "muted"}
           className={`shrink-0 px-3 py-1.5 rounded-lg text-[10px] whitespace-nowrap transition-colors ${
             selectedCategory === "all"
               ? "bg-primary text-white font-medium"
-              : "bg-background-tertiary text-text-secondary hover:text-text-primary"
+              : "bg-bg-2 text-fg-2 hover:text-fg"
           }`}
         >
           All
-        </button>
+        </SelectableCard>
         {TEMPLATE_CATEGORIES.map((category) => {
           const Icon = CATEGORY_ICONS[category.id] || FolderOpen;
           return (
-            <button
+            <SelectableCard
               key={category.id}
+              label={category.name}
+              isSelected={selectedCategory === category.id}
+              onChange={() => setSelectedCategory(category.id)}
               onClick={() => setSelectedCategory(category.id)}
+              padding={2}
+              variant={selectedCategory === category.id ? "green" : "muted"}
               className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] whitespace-nowrap transition-colors ${
                 selectedCategory === category.id
                   ? "bg-primary text-white font-medium"
-                  : "bg-background-tertiary text-text-secondary hover:text-text-primary"
+                  : "bg-bg-2 text-fg-2 hover:text-fg"
               }`}
             >
               <Icon size={12} />
               {category.name}
-            </button>
+            </SelectableCard>
           );
         })}
       </div>
 
       {applyError && (
         <div className="p-2 bg-red-500/10 border border-red-500/30 rounded-lg">
-          <p className="text-[10px] text-red-400">{applyError}</p>
+          <Text type="supporting" display="block" className="text-[10px] text-red-400">
+            {applyError}
+          </Text>
         </div>
       )}
 
@@ -417,11 +434,11 @@ export const TemplatesBrowserPanel: React.FC<TemplatesBrowserPanelProps> = ({
           <div className="text-center py-8">
             <FolderOpen
               size={24}
-              className="mx-auto mb-2 text-text-muted opacity-50"
+              className="mx-auto mb-2 text-fg-3 opacity-50"
             />
-            <p className="text-[10px] text-text-muted">
+            <Text type="supporting" color="secondary" display="block" className="text-[10px]">
               No templates in this category
-            </p>
+            </Text>
           </div>
         ) : (
           filteredTemplates.map((template) => (
@@ -437,18 +454,18 @@ export const TemplatesBrowserPanel: React.FC<TemplatesBrowserPanelProps> = ({
       </div>
 
       <div className="pt-2 border-t border-border">
-        <button
+        <Button
+          label="Save Current Project as Template"
+          variant="ghost"
+          icon={<Plus size={12} />}
           onClick={() => setIsSaveDialogOpen(true)}
-          className="w-full flex items-center justify-center gap-2 py-2 text-[10px] text-text-secondary hover:text-text-primary bg-background-tertiary rounded-lg transition-colors"
-        >
-          <Plus size={12} />
-          <span>Save Current Project as Template</span>
-        </button>
+          className="w-full flex items-center justify-center gap-2 py-2 text-[10px] text-fg-2 hover:text-fg bg-bg-2 rounded-lg transition-colors"
+        />
       </div>
 
-      <p className="text-[9px] text-text-muted text-center">
+      <Text type="supporting" color="secondary" display="block" className="text-center text-[9px]">
         {templates.length} templates available
-      </p>
+      </Text>
 
       <SaveTemplateDialog
         isOpen={isSaveDialogOpen}

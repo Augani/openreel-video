@@ -112,3 +112,6 @@ export type {
   MotionPathConfig,
   GSAPAnimationConfig,
 } from "./gsap-engine";
+
+export * from "./evaluate-keyframes";
+export * from "./keyframe-properties";

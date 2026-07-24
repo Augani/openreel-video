@@ -4,6 +4,7 @@ import {
   type TrackingOptions,
   type TrackingJob,
   type TrackingData,
+  type TrackingKeyframe,
   type Point,
 } from "@openreel/core";
 
@@ -209,6 +210,15 @@ class MotionTrackingBridge {
 
   getTrackingDataForClip(clipId: string): TrackingData[] {
     return this.engine.getTrackingDataForClip(clipId);
+  }
+
+  ingestTrackingData(
+    clipId: string,
+    keyframes: TrackingKeyframe[],
+    region: Rectangle,
+    frameRate: number,
+  ): TrackingData {
+    return this.engine.ingestTrackingData(clipId, keyframes, region, frameRate);
   }
 
   getTrackingData(clipId: string, trackId: string): TrackingData | undefined {

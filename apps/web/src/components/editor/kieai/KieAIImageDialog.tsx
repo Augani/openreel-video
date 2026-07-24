@@ -1,12 +1,10 @@
 import { useState, useCallback, useRef } from "react";
 import { v4 as uuidv4 } from "uuid";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  Button,
-} from "@openreel/ui";
+import { ToolcraftButton as Button } from "@openreel/ui";
+import { ToolcraftCard as Card } from "@openreel/ui";
+import { ToolcraftDialog as Dialog, ToolcraftDialogHeader as DialogHeader } from "@openreel/ui";
+import { ToolcraftLayout as Layout, ToolcraftLayoutContent as LayoutContent, ToolcraftLayoutFooter as LayoutFooter } from "@openreel/ui";
+import { ToolcraftText as Text } from "@openreel/ui";
 import {
   IMAGE_MODELS,
   type ImageModelId,
@@ -220,22 +218,25 @@ export function KieAIImageDialog({ open, onClose, sourceFile, previewUrl }: Prop
     ? selectedModel.split("/")[0].replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
     : "";
 
-  return (
-    <Dialog open={open} onOpenChange={(o) => { if (!o) handleClose(); }}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>
-            {step === "pick" && "Create with KieAI"}
-            {step === "form" && `${modelLabel}`}
-            {step === "submitting" && "Submitting…"}
-            {step === "error" && "Submission Failed"}
-          </DialogTitle>
-        </DialogHeader>
+  const title =
+    step === "pick"
+      ? "Create with KieAI"
+      : step === "form"
+        ? modelLabel
+        : step === "submitting"
+          ? "Submitting..."
+          : "Submission Failed";
 
-        <div className="mt-2 max-h-[70vh] overflow-y-auto pr-1">
+  return (
+    <Dialog isOpen={open} onOpenChange={(nextOpen) => !nextOpen && handleClose()} width={512} purpose="form">
+      <Layout
+        header={<DialogHeader title={title} onOpenChange={(nextOpen) => !nextOpen && handleClose()} />}
+        content={
+          <LayoutContent className="max-h-[70vh] overflow-y-auto">
           {/* Source image preview strip */}
           {(
-            <div className="mb-4 flex items-center gap-2 rounded-lg border border-border bg-background-elevated p-2">
+            <Card variant="muted" padding={2} className="mb-4">
+              <div className="flex items-center gap-2">
               {previewUrl ? (
                 <img
                   src={previewUrl}
@@ -250,10 +251,15 @@ export function KieAIImageDialog({ open, onClose, sourceFile, previewUrl }: Prop
                 </div>
               )}
               <div className="min-w-0">
-                <p className="truncate text-xs font-medium text-text-primary">{sourceFile.name}</p>
-                <p className="text-[10px] text-text-muted">Source image</p>
+                <Text type="supporting" weight="bold" display="block" className="truncate">
+                  {sourceFile.name}
+                </Text>
+                <Text type="supporting" color="secondary" display="block" className="text-[10px]">
+                  Source image
+                </Text>
               </div>
-            </div>
+              </div>
+            </Card>
           )}
 
           {step === "pick" && <ModelPicker onSelect={handleModelSelect} />}
@@ -280,41 +286,56 @@ export function KieAIImageDialog({ open, onClose, sourceFile, previewUrl }: Prop
           {step === "submitting" && (
             <div className="space-y-4 py-4 text-center">
               <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-border border-t-primary" />
-              <p className="text-sm text-text-secondary">Uploading & submitting task…</p>
-              <Button variant="outline" size="sm" onClick={() => { abortRef.current?.abort(); handleClose(); }}>
-                Cancel
-              </Button>
+              <Text type="body" color="secondary" display="block">
+                Uploading and submitting task...
+              </Text>
+              <Button
+                label="Cancel"
+                variant="secondary"
+                size="sm"
+                onClick={() => { abortRef.current?.abort(); handleClose(); }}
+              />
             </div>
           )}
 
           {step === "error" && (
             <div className="space-y-4 py-2">
-              <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-400">
-                {errorMsg}
-              </div>
+              <Card variant="muted" padding={3} className="border border-red-500/30 bg-red-500/10">
+                <Text type="body" display="block" className="text-red-400">
+                  {errorMsg}
+                </Text>
+              </Card>
               <div className="flex gap-2">
-                <Button variant="outline" className="flex-1" onClick={handleClose}>
-                  Close
-                </Button>
-                <Button className="flex-1" onClick={() => setStep("form")}>
-                  Try Again
-                </Button>
+                <Button
+                  label="Close"
+                  variant="secondary"
+                  className="flex-1"
+                  onClick={handleClose}
+                />
+                <Button
+                  label="Try Again"
+                  variant="primary"
+                  className="flex-1"
+                  onClick={() => setStep("form")}
+                />
               </div>
             </div>
           )}
-        </div>
-
-        {step === "form" && (
-          <div className="mt-2 flex justify-start">
-            <button
-              onClick={handleBack}
-              className="text-xs text-text-muted hover:text-text-primary transition-colors"
-            >
-              ← Back to model selection
-            </button>
-          </div>
-        )}
-      </DialogContent>
+          </LayoutContent>
+        }
+        footer={
+          step === "form" ? (
+            <LayoutFooter hasDivider>
+              <Button
+                label="Back to model selection"
+                variant="ghost"
+                size="sm"
+                onClick={handleBack}
+              />
+            </LayoutFooter>
+          ) : undefined
+        }
+      />
     </Dialog>
   );
 }

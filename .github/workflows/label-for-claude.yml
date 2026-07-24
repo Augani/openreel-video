@@ -30,30 +30,32 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const comment = `👋 Thanks for opening this issue!
+            const comment = [
+              '👋 Thanks for opening this issue!',
+              '',
+              '**Claude AI Review Status:** Queued for review',
+              '',
+              "I'm Claude, the AI assistant managing this project. I'll review your issue within 24 hours and either:",
+              '- Ask for more information if needed',
+              '- Create a PR to fix the issue',
+              '- Provide guidance on the solution',
+              '',
+              '**What happens next:**',
+              "1. I'll analyze the issue and identify the root cause",
+              "2. If it's a bug, I'll create a fix PR with tests",
+              "3. If it's a feature request, I'll discuss the implementation approach",
+              '4. Augustus (human oversight) will review and approve the changes',
+              '',
+              '**To help me understand better:**',
+              '- Include reproduction steps for bugs',
+              '- Add screenshots/videos for UI issues',
+              '- Specify your environment (browser, OS)',
+              '',
+              '---',
+              '*This project is managed by Claude AI with human oversight from Augustus. [Learn more](.github/CLAUDE_WORKFLOW.md)*',
+            ].join('\n');
 
-**Claude AI Review Status:** Queued for review
-
-I'm Claude, the AI assistant managing this project. I'll review your issue within 24 hours and either:
-- Ask for more information if needed
-- Create a PR to fix the issue
-- Provide guidance on the solution
-
-**What happens next:**
-1. I'll analyze the issue and identify the root cause
-2. If it's a bug, I'll create a fix PR with tests
-3. If it's a feature request, I'll discuss the implementation approach
-4. Augustus (human oversight) will review and approve the changes
-
-**To help me understand better:**
-- Include reproduction steps for bugs
-- Add screenshots/videos for UI issues
-- Specify your environment (browser, OS)
-
----
-*This project is managed by Claude AI with human oversight from Augustus. [Learn more](.github/CLAUDE_WORKFLOW.md)*`;
-
-            github.rest.issues.createComment({
+            await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
@@ -78,7 +80,7 @@ I'm Claude, the AI assistant managing this project. I'll review your issue withi
         uses: actions/github-script@v7
         with:
           script: |
-            github.rest.issues.addLabels({
+            await github.rest.issues.addLabels({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
@@ -90,32 +92,34 @@ I'm Claude, the AI assistant managing this project. I'll review your issue withi
         uses: actions/github-script@v7
         with:
           script: |
-            const comment = `🎉 Thanks for the pull request!
+            const comment = [
+              '🎉 Thanks for the pull request!',
+              '',
+              '**Claude AI Review Status:** Queued for review',
+              '',
+              "I'll review your PR and provide feedback within 24 hours. I'll check:",
+              '- ✅ TypeScript compilation',
+              '- ✅ Test coverage',
+              '- ✅ Code style and quality',
+              '- ✅ Documentation updates',
+              '- ✅ No security issues',
+              '',
+              '**Review Process:**',
+              '1. Automated checks run (see checks below)',
+              '2. Claude provides detailed code review',
+              '3. Augustus (human) approves final merge',
+              '',
+              '**Tips for faster review:**',
+              '- Ensure all tests pass',
+              '- Add tests for new features',
+              '- Update documentation if needed',
+              '- Follow the existing code style',
+              '',
+              '---',
+              '*This project uses Claude AI for code review with human oversight. [Learn more](.github/CLAUDE_WORKFLOW.md)*',
+            ].join('\n');
 
-**Claude AI Review Status:** Queued for review
-
-I'll review your PR and provide feedback within 24 hours. I'll check:
-- ✅ TypeScript compilation
-- ✅ Test coverage
-- ✅ Code style and quality
-- ✅ Documentation updates
-- ✅ No security issues
-
-**Review Process:**
-1. Automated checks run (see checks below)
-2. Claude provides detailed code review
-3. Augustus (human) approves final merge
-
-**Tips for faster review:**
-- Ensure all tests pass
-- Add tests for new features
-- Update documentation if needed
-- Follow the existing code style
-
----
-*This project uses Claude AI for code review with human oversight. [Learn more](.github/CLAUDE_WORKFLOW.md)*`;
-
-            github.rest.issues.createComment({
+            await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,

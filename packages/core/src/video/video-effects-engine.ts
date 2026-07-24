@@ -5,6 +5,30 @@ import {
   type RendererConfig,
   isWebGPUSupported,
 } from "./renderer-factory";
+import { MotionShaderRenderer } from "../motion/motion-shader-renderer";
+import { getMotionShaderDef } from "../motion/shaders";
+import type { MotionShaderDef } from "../motion/shaders";
+
+interface ResolvedShaderEffect {
+  readonly def: MotionShaderDef;
+  readonly params: Record<string, number | string>;
+  readonly time: number;
+}
+
+function readShaderTime(params: Record<string, unknown>): number {
+  const raw = params.time;
+  return typeof raw === "number" && Number.isFinite(raw) ? raw : 0;
+}
+
+function readShaderParamValue(raw: unknown): number | string | undefined {
+  if (typeof raw === "number" && Number.isFinite(raw)) return raw;
+  if (typeof raw === "string") return raw;
+  return undefined;
+}
+
+function readEffectNumber(raw: unknown, fallback: number): number {
+  return typeof raw === "number" && Number.isFinite(raw) ? raw : fallback;
+}
 
 export interface FilterResult {
   image: ImageBitmap;
@@ -377,6 +401,16 @@ export class VideoEffectsEngine {
   private renderer: Renderer | null = null;
   private rendererFactory: RendererFactory | null = null;
   private useNewRenderer = false;
+
+  // Reusable CPU-effects canvas (FX3): avoids per-frame OffscreenCanvas allocation
+  private _fxCanvas: OffscreenCanvas | null = null;
+  private _fxCtx: OffscreenCanvasRenderingContext2D | null = null;
+  private _fxScratchCanvas: OffscreenCanvas | null = null;
+  private _fxScratchCtx: OffscreenCanvasRenderingContext2D | null = null;
+  private _shaderAlphaCanvas: OffscreenCanvas | null = null;
+  private _shaderAlphaCtx: OffscreenCanvasRenderingContext2D | null = null;
+
+  private _shaderRenderer: MotionShaderRenderer | null = null;
 
   constructor(config: VideoEffectsConfig) {
     this.width = config.width;
@@ -855,36 +889,36 @@ export class VideoEffectsEngine {
     switch (filterType) {
       case "brightness": {
         const loc = shader.uniforms.get("u_brightness");
-        if (loc) gl.uniform1f(loc, (params.value as number) || 0);
+        if (loc) gl.uniform1f(loc, readEffectNumber(params.value, 0));
         break;
       }
       case "contrast": {
         const loc = shader.uniforms.get("u_contrast");
-        if (loc) gl.uniform1f(loc, (params.value as number) || 1);
+        if (loc) gl.uniform1f(loc, readEffectNumber(params.value, 1));
         break;
       }
       case "saturation": {
         const loc = shader.uniforms.get("u_saturation");
-        if (loc) gl.uniform1f(loc, (params.value as number) || 1);
+        if (loc) gl.uniform1f(loc, readEffectNumber(params.value, 1));
         break;
       }
       case "hue": {
         const loc = shader.uniforms.get("u_hueRotation");
-        if (loc) gl.uniform1f(loc, (params.rotation as number) || 0);
+        if (loc) gl.uniform1f(loc, readEffectNumber(params.rotation, 0));
         break;
       }
       case "blur": {
         const radiusLoc = shader.uniforms.get("u_radius");
         const resLoc = shader.uniforms.get("u_resolution");
         if (radiusLoc)
-          gl.uniform1f(radiusLoc, Math.min((params.radius as number) || 0, 10));
+          gl.uniform1f(radiusLoc, Math.min(readEffectNumber(params.radius, 0), 10));
         if (resLoc) gl.uniform2f(resLoc, this.width, this.height);
         break;
       }
       case "sharpen": {
         const amountLoc = shader.uniforms.get("u_amount");
         const resLoc = shader.uniforms.get("u_resolution");
-        if (amountLoc) gl.uniform1f(amountLoc, (params.amount as number) || 0);
+        if (amountLoc) gl.uniform1f(amountLoc, readEffectNumber(params.amount, 0));
         if (resLoc) gl.uniform2f(resLoc, this.width, this.height);
         break;
       }
@@ -894,11 +928,11 @@ export class VideoEffectsEngine {
         const midpointLoc = shader.uniforms.get("u_midpoint");
         const featherLoc = shader.uniforms.get("u_feather");
         if (amountLoc)
-          gl.uniform1f(amountLoc, (params.amount as number) || 0.5);
+          gl.uniform1f(amountLoc, readEffectNumber(params.amount, 0));
         if (midpointLoc)
-          gl.uniform1f(midpointLoc, (params.midpoint as number) || 0.5);
+          gl.uniform1f(midpointLoc, readEffectNumber(params.midpoint, 0.5));
         if (featherLoc)
-          gl.uniform1f(featherLoc, (params.feather as number) || 0.3);
+          gl.uniform1f(featherLoc, readEffectNumber(params.feather, 0.3));
         break;
       }
       case "grain": {
@@ -906,8 +940,8 @@ export class VideoEffectsEngine {
         const sizeLoc = shader.uniforms.get("u_size");
         const timeLoc = shader.uniforms.get("u_time");
         if (amountLoc)
-          gl.uniform1f(amountLoc, (params.amount as number) || 0.1);
-        if (sizeLoc) gl.uniform1f(sizeLoc, (params.size as number) || 1);
+          gl.uniform1f(amountLoc, readEffectNumber(params.amount, 0));
+        if (sizeLoc) gl.uniform1f(sizeLoc, readEffectNumber(params.size, 1));
         if (timeLoc) gl.uniform1f(timeLoc, performance.now() / 1000);
         break;
       }
@@ -927,20 +961,20 @@ export class VideoEffectsEngine {
           );
         }
         if (toleranceLoc)
-          gl.uniform1f(toleranceLoc, (params.tolerance as number) || 0.3);
+          gl.uniform1f(toleranceLoc, readEffectNumber(params.tolerance, 0.3));
         if (softnessLoc)
-          gl.uniform1f(softnessLoc, (params.edgeSoftness as number) || 0.1);
+          gl.uniform1f(softnessLoc, readEffectNumber(params.edgeSoftness, 0.1));
         break;
       }
       // Color grading filters
       case "temperature": {
         const tempLoc = shader.uniforms.get("u_temperature");
-        if (tempLoc) gl.uniform1f(tempLoc, (params.value as number) || 0);
+        if (tempLoc) gl.uniform1f(tempLoc, readEffectNumber(params.value, 0));
         break;
       }
       case "tint": {
         const tintLoc = shader.uniforms.get("u_tint");
-        if (tintLoc) gl.uniform1f(tintLoc, (params.value as number) || 0);
+        if (tintLoc) gl.uniform1f(tintLoc, readEffectNumber(params.value, 0));
         break;
       }
       case "tonal": {
@@ -948,11 +982,11 @@ export class VideoEffectsEngine {
         const midtonesLoc = shader.uniforms.get("u_midtones");
         const highlightsLoc = shader.uniforms.get("u_highlights");
         if (shadowsLoc)
-          gl.uniform1f(shadowsLoc, (params.shadows as number) || 0);
+          gl.uniform1f(shadowsLoc, readEffectNumber(params.shadows, 0));
         if (midtonesLoc)
-          gl.uniform1f(midtonesLoc, (params.midtones as number) || 0);
+          gl.uniform1f(midtonesLoc, readEffectNumber(params.midtones, 0));
         if (highlightsLoc)
-          gl.uniform1f(highlightsLoc, (params.highlights as number) || 0);
+          gl.uniform1f(highlightsLoc, readEffectNumber(params.highlights, 0));
         break;
       }
     }
@@ -967,48 +1001,254 @@ export class VideoEffectsEngine {
    * This avoids manual pixel manipulation for simple effects while supporting complex ones.
    * CSS filters are chained in one drawImage call for efficiency.
    */
-  private async applyEffectsCPU(
-    image: ImageBitmap,
-    effects: Effect[],
-  ): Promise<ImageBitmap> {
-    const canvas = new OffscreenCanvas(image.width, image.height);
-    const ctx = canvas.getContext("2d", { willReadFrequently: true })!;
+  private getFxContext(
+    width: number,
+    height: number,
+  ): OffscreenCanvasRenderingContext2D {
+    if (
+      !this._fxCanvas ||
+      !this._fxCtx ||
+      VideoEffectsEngine.needsResize(this._fxCanvas, width, height)
+    ) {
+      const canvas = this._fxCanvas ?? new OffscreenCanvas(width, height);
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d", { willReadFrequently: true });
+      if (!ctx) {
+        throw new Error("Failed to acquire 2D context for CPU effects");
+      }
+      this._fxCanvas = canvas;
+      this._fxCtx = ctx;
+    }
 
+    return this._fxCtx;
+  }
+
+  private getFxScratchContext(
+    width: number,
+    height: number,
+  ): OffscreenCanvasRenderingContext2D {
+    if (
+      !this._fxScratchCanvas ||
+      !this._fxScratchCtx ||
+      VideoEffectsEngine.needsResize(this._fxScratchCanvas, width, height)
+    ) {
+      const canvas = this._fxScratchCanvas ?? new OffscreenCanvas(width, height);
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d", { willReadFrequently: true });
+      if (!ctx) {
+        throw new Error("Failed to acquire scratch context for ordered effects");
+      }
+      this._fxScratchCanvas = canvas;
+      this._fxScratchCtx = ctx;
+    }
+    return this._fxScratchCtx;
+  }
+
+  static needsResize(
+    canvas: OffscreenCanvas,
+    width: number,
+    height: number,
+  ): boolean {
+    return canvas.width !== width || canvas.height !== height;
+  }
+
+  private categorizeEffects(effects: Effect[]): {
+    cssFilters: string[];
+    pixelEffects: Effect[];
+  } {
     const cssFilters: string[] = [];
     const pixelEffects: Effect[] = [];
 
-    // Categorize effects: CSS-compatible vs pixel-level
     for (const effect of effects) {
       const filterString = this.buildCSSFilter(effect);
       if (filterString) {
-        // Simple effects that canvas.ctx.filter supports natively
         cssFilters.push(filterString);
       } else {
-        // Complex effects requiring pixel-by-pixel processing
         pixelEffects.push(effect);
       }
     }
 
-    // Apply CSS filters efficiently in one drawImage call
-    if (cssFilters.length > 0) {
-      ctx.filter = cssFilters.join(" ");
-      ctx.drawImage(image, 0, 0);
-      ctx.filter = "none";
-    } else {
-      ctx.drawImage(image, 0, 0);
+    return { cssFilters, pixelEffects };
+  }
+
+  hasPixelLevelEffects(effects: Effect[]): boolean {
+    for (const effect of effects) {
+      if (!this.buildCSSFilter(effect)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  getCssFilterString(effects: Effect[]): string | null {
+    const enabledEffects = effects.filter((effect) => effect.enabled);
+    const { cssFilters, pixelEffects } = this.categorizeEffects(enabledEffects);
+    if (pixelEffects.length > 0) {
+      return null;
+    }
+    if (cssFilters.length === 0) {
+      return null;
+    }
+    return cssFilters.join(" ");
+  }
+
+  private static isShaderEffect(effect: Effect): boolean {
+    return effect.type === "shader";
+  }
+
+  private resolveShaderEffect(effect: Effect): ResolvedShaderEffect | null {
+    if (!VideoEffectsEngine.isShaderEffect(effect)) return null;
+    const params = effect.params as Record<string, unknown>;
+    const shaderId = params.shaderId;
+    if (typeof shaderId !== "string" || shaderId.length === 0) return null;
+    const def = getMotionShaderDef(shaderId);
+    if (!def || def.category !== "effect") return null;
+
+    const resolvedParams: Record<string, number | string> = {};
+    for (const paramDef of def.params) {
+      const value = readShaderParamValue(params[paramDef.name]);
+      resolvedParams[paramDef.name] =
+        value === undefined ? paramDef.default : value;
     }
 
-    // Apply pixel-level effects sequentially (each modifies getImageData/putImageData)
-    for (const effect of pixelEffects) {
-      await this.applyEffectPixelLevel(
-        ctx,
-        effect,
-        canvas.width,
-        canvas.height,
-      );
-    }
+    return { def, params: resolvedParams, time: readShaderTime(params) };
+  }
 
+  private applyShaderEffect(
+    ctx: OffscreenCanvasRenderingContext2D,
+    canvas: OffscreenCanvas,
+    resolved: ResolvedShaderEffect,
+    width: number,
+    height: number,
+  ): void {
+    if (!MotionShaderRenderer.isSupported()) return;
+    if (!this._shaderRenderer) {
+      this._shaderRenderer = new MotionShaderRenderer();
+    }
+    if (
+      !this._shaderAlphaCanvas ||
+      !this._shaderAlphaCtx ||
+      VideoEffectsEngine.needsResize(this._shaderAlphaCanvas, width, height)
+    ) {
+      const alphaCanvas =
+        this._shaderAlphaCanvas ?? new OffscreenCanvas(width, height);
+      alphaCanvas.width = width;
+      alphaCanvas.height = height;
+      const alphaCtx = alphaCanvas.getContext("2d");
+      if (!alphaCtx) return;
+      this._shaderAlphaCanvas = alphaCanvas;
+      this._shaderAlphaCtx = alphaCtx;
+    }
+    const alphaCtx = this._shaderAlphaCtx;
+    alphaCtx.save();
+    alphaCtx.setTransform(1, 0, 0, 1, 0, 0);
+    alphaCtx.globalCompositeOperation = "copy";
+    alphaCtx.filter = "none";
+    alphaCtx.drawImage(canvas, 0, 0, width, height);
+    alphaCtx.restore();
+    const result = this._shaderRenderer.render(resolved.def, {
+      width,
+      height,
+      time: resolved.time,
+      params: resolved.params,
+      inputCanvas: canvas,
+    });
+    if (!result) return;
+    ctx.save();
+    ctx.filter = "none";
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, width, height);
+    ctx.drawImage(result, 0, 0, width, height);
+    ctx.globalCompositeOperation = "destination-in";
+    ctx.drawImage(this._shaderAlphaCanvas, 0, 0, width, height);
+    ctx.restore();
+  }
+
+  private async renderEffectsOntoFxCanvas(
+    image: ImageBitmap,
+    effects: Effect[],
+  ): Promise<OffscreenCanvas> {
+    const width = image.width;
+    const height = image.height;
+    const ctx = this.getFxContext(width, height);
+
+    ctx.filter = "none";
+    ctx.clearRect(0, 0, width, height);
+    ctx.drawImage(image, 0, 0);
+
+    // Preserve authored stack order. Adjacent CSS filters may be safely fused,
+    // but pixel and shader passes form ordering boundaries and must see the
+    // output of every preceding effect.
+    let pendingCssFilters: string[] = [];
+    const flushCssFilters = (): void => {
+      if (pendingCssFilters.length === 0) return;
+      this.applyCssFilterBatch(ctx, pendingCssFilters, width, height);
+      pendingCssFilters = [];
+    };
+
+    for (const effect of effects) {
+      const cssFilter = this.buildCSSFilter(effect);
+      if (cssFilter) {
+        pendingCssFilters.push(cssFilter);
+        continue;
+      }
+
+      flushCssFilters();
+      if (VideoEffectsEngine.isShaderEffect(effect)) {
+        const resolved = this.resolveShaderEffect(effect);
+        if (resolved) {
+          this.applyShaderEffect(ctx, ctx.canvas, resolved, width, height);
+        }
+      } else {
+        await this.applyEffectPixelLevel(ctx, effect, width, height);
+      }
+    }
+    flushCssFilters();
+
+    return ctx.canvas;
+  }
+
+  private applyCssFilterBatch(
+    ctx: OffscreenCanvasRenderingContext2D,
+    filters: readonly string[],
+    width: number,
+    height: number,
+  ): void {
+    const scratch = this.getFxScratchContext(width, height);
+    scratch.save();
+    scratch.setTransform(1, 0, 0, 1, 0, 0);
+    scratch.globalCompositeOperation = "copy";
+    scratch.filter = filters.join(" ");
+    scratch.drawImage(ctx.canvas, 0, 0, width, height);
+    scratch.restore();
+
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalCompositeOperation = "copy";
+    ctx.filter = "none";
+    ctx.drawImage(scratch.canvas, 0, 0, width, height);
+    ctx.restore();
+  }
+
+  private async applyEffectsCPU(
+    image: ImageBitmap,
+    effects: Effect[],
+  ): Promise<ImageBitmap> {
+    const canvas = await this.renderEffectsOntoFxCanvas(image, effects);
     return createImageBitmap(canvas);
+  }
+
+  async applyEffectsToCanvas(
+    image: ImageBitmap,
+    effects: Effect[],
+  ): Promise<OffscreenCanvas | null> {
+    const enabledEffects = effects.filter((e) => e.enabled);
+    if (enabledEffects.length === 0) {
+      return null;
+    }
+    return this.renderEffectsOntoFxCanvas(image, enabledEffects);
   }
 
   private async applyEffectPixelLevel(
@@ -1023,19 +1263,19 @@ export class VideoEffectsEngine {
 
     switch (effect.type) {
       case "sharpen": {
-        const amount = (params.amount as number) || 0.5;
+        const amount = readEffectNumber(params.amount, 0);
         this.applySharpenKernel(data, width, height, amount);
         break;
       }
       case "vignette": {
-        const vigAmount = (params.amount as number) || 0.5;
-        const midpoint = (params.midpoint as number) || 0.5;
-        const feather = (params.feather as number) || 0.3;
+        const vigAmount = readEffectNumber(params.amount, 0);
+        const midpoint = readEffectNumber(params.midpoint, 0.5);
+        const feather = readEffectNumber(params.feather, 0.3);
         this.applyVignette(data, width, height, vigAmount, midpoint, feather);
         break;
       }
       case "grain": {
-        const grainAmount = (params.amount as number) || 0.1;
+        const grainAmount = readEffectNumber(params.amount, 0);
         this.applyGrain(data, grainAmount);
         break;
       }
@@ -1043,8 +1283,8 @@ export class VideoEffectsEngine {
         const keyColor = params.keyColor as
           | { r: number; g: number; b: number }
           | undefined;
-        const tolerance = (params.tolerance as number) || 0.3;
-        const softness = (params.edgeSoftness as number) || 0.1;
+        const tolerance = readEffectNumber(params.tolerance, 0.3);
+        const softness = readEffectNumber(params.edgeSoftness, 0.1);
         this.applyChromaKey(
           data,
           keyColor || { r: 0, g: 1, b: 0 },
@@ -1055,37 +1295,37 @@ export class VideoEffectsEngine {
       }
       // Color grading filters
       case "temperature": {
-        const temperature = (params.value as number) || 0;
+        const temperature = readEffectNumber(params.value, 0);
         this.applyTemperature(data, temperature);
         break;
       }
       case "tint": {
-        const tint = (params.value as number) || 0;
+        const tint = readEffectNumber(params.value, 0);
         this.applyTint(data, tint);
         break;
       }
       case "tonal": {
-        const shadows = (params.shadows as number) || 0;
-        const midtones = (params.midtones as number) || 0;
-        const highlights = (params.highlights as number) || 0;
+        const shadows = readEffectNumber(params.shadows, 0);
+        const midtones = readEffectNumber(params.midtones, 0);
+        const highlights = readEffectNumber(params.highlights, 0);
         this.applyTonal(data, shadows, midtones, highlights);
         break;
       }
       case "motion-blur": {
-        const distance = (params.distance as number) || 0;
-        const angle = (params.angle as number) || 0;
+        const distance = readEffectNumber(params.distance, 0);
+        const angle = readEffectNumber(params.angle, 0);
         this.applyMotionBlur(data, width, height, distance, angle);
         break;
       }
       case "radial-blur": {
-        const amount = (params.amount as number) || 0;
-        const centerX = (params.centerX as number) || 50;
-        const centerY = (params.centerY as number) || 50;
+        const amount = readEffectNumber(params.amount, 0);
+        const centerX = readEffectNumber(params.centerX, 50);
+        const centerY = readEffectNumber(params.centerY, 50);
         this.applyRadialBlur(data, width, height, amount, centerX, centerY);
         break;
       }
       case "chromatic-aberration": {
-        const amount = (params.amount as number) || 0;
+        const amount = readEffectNumber(params.amount, 0);
         this.applyChromaticAberration(data, width, height, amount);
         break;
       }
@@ -1476,22 +1716,28 @@ export class VideoEffectsEngine {
       case "brightness":
         return `brightness(${1 + value / 100})`;
       case "contrast":
-        return `contrast(${params.value || 1})`;
+        return `contrast(${readEffectNumber(params.value, 1)})`;
       case "saturation":
-        return `saturate(${params.value || 1})`;
+        return `saturate(${readEffectNumber(params.value, 1)})`;
+      case "grayscale":
+        return `grayscale(${readEffectNumber(params.amount, 1)})`;
+      case "sepia":
+        return `sepia(${readEffectNumber(params.amount, 1)})`;
+      case "invert":
+        return `invert(${readEffectNumber(params.amount, 1)})`;
       case "hue":
-        return `hue-rotate(${params.rotation || 0}deg)`;
+        return `hue-rotate(${readEffectNumber(params.rotation, 0)}deg)`;
       case "blur":
-        return `blur(${params.radius || 0}px)`;
+        return `blur(${readEffectNumber(params.radius, 0)}px)`;
       case "shadow": {
         const color = this.toFilterColor(
           typeof params.color === "string" ? params.color : undefined,
           typeof params.opacity === "number" ? params.opacity : 0.8,
         );
-        return `drop-shadow(${params.offsetX || 0}px ${params.offsetY || 0}px ${params.blur || 0}px ${color})`;
+        return `drop-shadow(${readEffectNumber(params.offsetX, 0)}px ${readEffectNumber(params.offsetY, 0)}px ${readEffectNumber(params.blur, 0)}px ${color})`;
       }
       case "glow": {
-        const radius = Number(params.radius || 0);
+        const radius = readEffectNumber(params.radius, 0);
         const intensity =
           typeof params.intensity === "number"
             ? Math.max(0, Math.min(3, params.intensity))
@@ -1626,8 +1872,19 @@ export class VideoEffectsEngine {
       this.renderTextures = [];
     }
 
+    if (this._shaderRenderer) {
+      this._shaderRenderer.dispose();
+      this._shaderRenderer = null;
+    }
+
     this.canvas = null;
     this.gl = null;
+    this._fxCanvas = null;
+    this._fxCtx = null;
+    this._fxScratchCanvas = null;
+    this._fxScratchCtx = null;
+    this._shaderAlphaCanvas = null;
+    this._shaderAlphaCtx = null;
     this.initialized = false;
   }
 

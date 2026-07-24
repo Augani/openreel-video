@@ -1,0 +1,8 @@
+id: test.sample
+name: Sample
+category: cinematic
+accent: "#FFFFFF"
+sort: 1
+steps:
+  - exposure: 0.5
+  - saturation: 0.8

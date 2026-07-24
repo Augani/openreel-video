@@ -17,14 +17,13 @@ export const loadAudioBuffer = async (
   const audioTrackIndex = options.audioTrackIndex ?? 0;
 
   try {
-    const { getFFmpegFallback } = await import("@openreel/core/media");
-    const ffmpeg = getFFmpegFallback();
+    const { extractAudioWav } = await import("@openreel/core/media");
     options.onProgress?.({
       stage: "extracting",
       progress: 0.08,
       message: "Extracting audio track",
     });
-    const wavBlob = await ffmpeg.extractAudioAsWav(blob, audioTrackIndex, {
+    const wavBlob = await extractAudioWav(blob, audioTrackIndex, {
       onProgress: (progress) => {
         options.onProgress?.({
           stage: "extracting",

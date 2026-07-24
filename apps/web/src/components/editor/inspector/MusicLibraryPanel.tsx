@@ -8,8 +8,12 @@ import {
   Search,
   Clock,
   Volume2,
-} from "lucide-react";
-import { Input } from "@openreel/ui";
+} from "@/icons/lucide-compat";
+import { ToolcraftButton as Button } from "@openreel/ui";
+import { ToolcraftCard as Card } from "@openreel/ui";
+import { ToolcraftIconButton as IconButton } from "@openreel/ui";
+import { ToolcraftText as Text } from "@openreel/ui";
+import { ToolcraftTextInputControl } from "@openreel/ui";
 import { useEngineStore } from "../../../stores/engine-store";
 import { useProjectStore } from "../../../stores/project-store";
 import {
@@ -49,59 +53,62 @@ const SoundCard: React.FC<SoundCardProps> = ({
   };
 
   return (
-    <div className="p-2 rounded-lg border border-border bg-background-tertiary hover:border-primary/50 transition-colors">
+    <Card variant="muted" padding={2} className="border border-border hover:border-primary/50 transition-colors">
       <div className="flex items-center gap-2">
-        <button
+        <IconButton
+          label={isPlaying ? `Stop ${sound.name}` : `Preview ${sound.name}`}
+          icon={
+            isPlaying ? (
+              <Pause size={14} aria-hidden />
+            ) : (
+              <Play size={14} className="ml-0.5" aria-hidden />
+            )
+          }
+          variant={isPlaying ? "primary" : "secondary"}
+          size="md"
           onClick={isPlaying ? onStop : onPlay}
-          className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${
-            isPlaying
-              ? "bg-primary text-white"
-              : "bg-background-secondary hover:bg-primary/20"
-          }`}
-        >
-          {isPlaying ? (
-            <Pause size={14} />
-          ) : (
-            <Play size={14} className="ml-0.5" />
-          )}
-        </button>
+        />
         <div className="flex-1 min-w-0">
-          <div className="text-[10px] font-medium text-text-primary truncate">
+          <Text type="supporting" color="primary" weight="bold" className="block text-[10px] truncate">
             {sound.name}
-          </div>
+          </Text>
           <div className="flex items-center gap-2 mt-0.5">
-            <div className="flex items-center gap-1 text-[9px] text-text-muted">
-              <Clock size={10} />
-              <span>{formatDuration(sound.duration)}</span>
+            <div className="flex items-center gap-1 text-[9px] text-fg-3">
+              <Clock size={10} aria-hidden />
+              <Text type="supporting" color="secondary" className="text-[9px]">
+                {formatDuration(sound.duration)}
+              </Text>
             </div>
             {sound.bpm && (
-              <span className="text-[9px] text-text-muted">
+              <Text type="supporting" color="secondary" className="text-[9px]">
                 {sound.bpm} BPM
-              </span>
+              </Text>
             )}
           </div>
         </div>
-        <button
+        <IconButton
+          label={`Add ${sound.name} to timeline`}
+          icon={<Plus size={14} aria-hidden />}
+          variant="primary"
+          size="sm"
           onClick={onAdd}
-          className="p-1.5 rounded-md bg-primary/20 hover:bg-primary text-primary hover:text-white transition-colors"
-          title="Add to timeline"
-        >
-          <Plus size={14} />
-        </button>
+        />
       </div>
       {sound.tags.length > 0 && (
         <div className="flex flex-wrap gap-1 mt-2">
           {sound.tags.slice(0, 3).map((tag) => (
-            <span
+            <Text
               key={tag}
-              className="px-1.5 py-0.5 text-[8px] bg-background-secondary text-text-muted rounded"
+              type="supporting"
+              color="secondary"
+              className="px-1.5 py-0.5 text-[8px] bg-bg-1 rounded"
             >
               {tag}
-            </span>
+            </Text>
           ))}
         </div>
       )}
-    </div>
+    </Card>
   );
 };
 
@@ -235,107 +242,90 @@ export const MusicLibraryPanel: React.FC = () => {
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-2 p-2 bg-primary/10 rounded-lg border border-primary/30">
-        <Music size={16} className="text-primary" />
-        <div>
-          <span className="text-[11px] font-medium text-text-primary">
+      <Card variant="green" padding={2} className="flex items-center gap-2 border border-primary/30">
+        <Music size={16} className="text-primary" aria-hidden />
+        <div className="flex flex-col gap-0.5">
+          <Text type="body" color="primary" weight="bold" className="text-[11px]">
             Music & SFX
-          </span>
-          <p className="text-[9px] text-text-muted">Royalty-free sounds</p>
+          </Text>
+          <Text type="supporting" color="secondary" className="text-[9px]">
+            Royalty-free sounds
+          </Text>
         </div>
-      </div>
+      </Card>
 
       <div className="flex gap-1">
-        <button
+        <Button
+          label="Music"
+          icon={<Music size={12} aria-hidden />}
+          variant={activeTab === "music" ? "primary" : "secondary"}
+          size="sm"
           onClick={() => setActiveTab("music")}
-          className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-[10px] transition-colors ${
-            activeTab === "music"
-              ? "bg-primary text-white font-medium"
-              : "bg-background-tertiary text-text-secondary hover:text-text-primary"
-          }`}
-        >
-          <Music size={12} />
-          Music
-        </button>
-        <button
+          className="flex-1"
+        />
+        <Button
+          label="Sound FX"
+          icon={<Zap size={12} aria-hidden />}
+          variant={activeTab === "sfx" ? "primary" : "secondary"}
+          size="sm"
           onClick={() => setActiveTab("sfx")}
-          className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-[10px] transition-colors ${
-            activeTab === "sfx"
-              ? "bg-primary text-white font-medium"
-              : "bg-background-tertiary text-text-secondary hover:text-text-primary"
-          }`}
-        >
-          <Zap size={12} />
-          Sound FX
-        </button>
+          className="flex-1"
+        />
       </div>
 
       <div className="relative">
-        <Search
-          size={14}
-          className="absolute left-2 top-1/2 -translate-y-1/2 text-text-muted z-10"
-        />
-        <Input
-          type="text"
+        <ToolcraftTextInputControl
+          label="Search sounds"
+          isLabelHidden
+          size="sm"
+          width="100%"
           placeholder="Search sounds..."
           value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="pl-8 text-[10px] bg-background-secondary border-border h-8"
+          onChange={setSearchQuery}
+          startIcon={<Search size={14} aria-hidden />}
         />
       </div>
 
       {activeTab === "music" && (
         <div className="flex gap-1 overflow-x-auto pb-1">
-          <button
+          <Button
+            label="All"
+            variant={selectedGenre === "all" ? "primary" : "secondary"}
+            size="sm"
             onClick={() => setSelectedGenre("all")}
-            className={`px-2 py-1 rounded text-[9px] whitespace-nowrap transition-colors ${
-              selectedGenre === "all"
-                ? "bg-primary text-white"
-                : "bg-background-tertiary text-text-muted hover:text-text-primary"
-            }`}
-          >
-            All
-          </button>
+            className="whitespace-nowrap text-[9px]"
+          />
           {MUSIC_GENRES.map((genre) => (
-            <button
+            <Button
               key={genre.id}
+              label={genre.name}
+              variant={selectedGenre === genre.id ? "primary" : "secondary"}
+              size="sm"
               onClick={() => setSelectedGenre(genre.id)}
-              className={`px-2 py-1 rounded text-[9px] whitespace-nowrap transition-colors ${
-                selectedGenre === genre.id
-                  ? "bg-primary text-white"
-                  : "bg-background-tertiary text-text-muted hover:text-text-primary"
-              }`}
-            >
-              {genre.name}
-            </button>
+              className="whitespace-nowrap text-[9px]"
+            />
           ))}
         </div>
       )}
 
       {activeTab === "sfx" && (
         <div className="flex gap-1 overflow-x-auto pb-1">
-          <button
+          <Button
+            label="All"
+            variant={selectedSfxCategory === "all" ? "primary" : "secondary"}
+            size="sm"
             onClick={() => setSelectedSfxCategory("all")}
-            className={`px-2 py-1 rounded text-[9px] whitespace-nowrap transition-colors ${
-              selectedSfxCategory === "all"
-                ? "bg-primary text-white"
-                : "bg-background-tertiary text-text-muted hover:text-text-primary"
-            }`}
-          >
-            All
-          </button>
+            className="whitespace-nowrap text-[9px]"
+          />
           {SFX_CATEGORIES.map((cat) => (
-            <button
+            <Button
               key={cat.id}
+              label={cat.name}
+              variant={selectedSfxCategory === cat.id ? "primary" : "secondary"}
+              size="sm"
               onClick={() => setSelectedSfxCategory(cat.id)}
-              className={`px-2 py-1 rounded text-[9px] whitespace-nowrap transition-colors ${
-                selectedSfxCategory === cat.id
-                  ? "bg-primary text-white"
-                  : "bg-background-tertiary text-text-muted hover:text-text-primary"
-              }`}
-            >
-              {cat.name}
-            </button>
+              className="whitespace-nowrap text-[9px]"
+            />
           ))}
         </div>
       )}
@@ -343,17 +333,14 @@ export const MusicLibraryPanel: React.FC = () => {
       {activeTab === "music" && (
         <div className="flex flex-wrap gap-1">
           {MOOD_TAGS.slice(0, 6).map((mood) => (
-            <button
+            <Button
               key={mood.id}
+              label={mood.name}
+              variant={selectedMoods.includes(mood.id) ? "primary" : "secondary"}
+              size="sm"
               onClick={() => toggleMood(mood.id)}
-              className={`px-2 py-0.5 rounded-full text-[8px] transition-colors ${
-                selectedMoods.includes(mood.id)
-                  ? "bg-primary text-white"
-                  : "bg-background-secondary text-text-muted hover:text-text-primary"
-              }`}
-            >
-              {mood.name}
-            </button>
+              className="rounded-full text-[8px]"
+            />
           ))}
         </div>
       )}
@@ -363,12 +350,15 @@ export const MusicLibraryPanel: React.FC = () => {
           <div className="text-center py-6">
             <Volume2
               size={24}
-              className="mx-auto mb-2 text-text-muted opacity-50"
+              className="mx-auto mb-2 text-fg-3 opacity-50"
+              aria-hidden
             />
-            <p className="text-[10px] text-text-muted">No sounds found</p>
-            <p className="text-[9px] text-text-muted mt-1">
+            <Text type="supporting" color="secondary" className="block text-[10px]">
+              No sounds found
+            </Text>
+            <Text type="supporting" color="secondary" className="block text-[9px] mt-1">
               Try adjusting filters
-            </p>
+            </Text>
           </div>
         ) : (
           sounds.map((sound) => (
@@ -384,9 +374,9 @@ export const MusicLibraryPanel: React.FC = () => {
         )}
       </div>
 
-      <p className="text-[9px] text-text-muted text-center">
+      <Text type="supporting" color="secondary" className="block text-[9px] text-center">
         {sounds.length} {activeTab === "music" ? "tracks" : "effects"} available
-      </p>
+      </Text>
     </div>
   );
 };

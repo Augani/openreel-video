@@ -21,9 +21,19 @@ import {
   Clock,
   Eye,
   Sliders,
-} from "lucide-react";
-import { Dialog, DialogContent, Input } from "@openreel/ui";
+} from "@/icons/lucide-compat";
+import { ToolcraftSegmentedControl } from "@openreel/ui";
+import { ToolcraftCard as Card } from "@openreel/ui";
+import { ToolcraftClickableCard as ClickableCard } from "@openreel/ui";
+import { ToolcraftDialog as Dialog, ToolcraftDialogHeader as DialogHeader } from "@openreel/ui";
+import { ToolcraftEmptyState as EmptyState } from "@openreel/ui";
+import { ToolcraftIconButton as IconButton } from "@openreel/ui";
+import { ToolcraftKbd as Kbd } from "@openreel/ui";
+import { ToolcraftLayout as Layout, ToolcraftLayoutContent as LayoutContent, ToolcraftLayoutFooter as LayoutFooter } from "@openreel/ui";
+import { ToolcraftText as Text } from "@openreel/ui";
+import { ToolcraftTextInputControl } from "@openreel/ui";
 import { useUIStore } from "../../stores/ui-store";
+import { useProjectStore } from "../../stores/project-store";
 
 interface SearchItem {
   id: string;
@@ -69,7 +79,7 @@ const SEARCHABLE_EFFECTS: SearchItem[] = [
   },
   {
     id: "video-effects",
-    name: "Video Effects",
+    name: "Visual Effects",
     category: "Video",
     keywords: [
       "brightness",
@@ -81,9 +91,9 @@ const SEARCHABLE_EFFECTS: SearchItem[] = [
       "effects",
     ],
     icon: Sliders,
-    description: "Brightness, contrast, saturation, blur, sharpen",
+    description: "Color, blur, creative, shader, and stylize effects",
     sectionId: "video-effects",
-    clipTypes: ["video", "image"],
+    clipTypes: ["video", "image", "text", "shape"],
   },
   {
     id: "color-grading",
@@ -243,6 +253,16 @@ const SEARCHABLE_EFFECTS: SearchItem[] = [
     clipTypes: ["text"],
   },
   {
+    id: "text-material",
+    name: "Text Materials & Shaders",
+    category: "Text",
+    keywords: ["text", "material", "shader", "paper", "glsl", "gradient", "dissolve"],
+    icon: Wand2,
+    description: "Browse live shader and Paper material previews for text",
+    sectionId: "text-properties",
+    clipTypes: ["text"],
+  },
+  {
     id: "text-animation",
     name: "Text Animation",
     category: "Text",
@@ -259,6 +279,16 @@ const SEARCHABLE_EFFECTS: SearchItem[] = [
     keywords: ["shape", "fill", "stroke", "corner", "radius", "shadow"],
     icon: Square,
     description: "Shape fill, stroke, and effects",
+    sectionId: "shape-properties",
+    clipTypes: ["shape"],
+  },
+  {
+    id: "shape-shader-fill",
+    name: "Shape Shader Fill",
+    category: "Shapes",
+    keywords: ["shape", "fill", "shader", "paper", "material", "gradient"],
+    icon: Wand2,
+    description: "Apply a live shader material to the selected shape",
     sectionId: "shape-properties",
     clipTypes: ["shape"],
   },
@@ -288,6 +318,7 @@ export const SearchModal: React.FC<SearchModalProps> = ({
   const listRef = useRef<HTMLDivElement>(null);
 
   const { selectedItems, setPanelVisible } = useUIStore();
+  const project = useProjectStore((state) => state.project);
 
   const selectedClipType = useMemo(() => {
     const clipItem = selectedItems.find(
@@ -299,8 +330,17 @@ export const SearchModal: React.FC<SearchModalProps> = ({
     if (!clipItem) return null;
     if (clipItem.type === "text-clip") return "text";
     if (clipItem.type === "shape-clip") return "shape";
+    const track = project.timeline.tracks.find((candidate) =>
+      candidate.clips.some((clip) => clip.id === clipItem.id),
+    );
+    if (track?.type === "audio") return "audio";
+    const clip = track?.clips.find((candidate) => candidate.id === clipItem.id);
+    const media = clip
+      ? project.mediaLibrary.items.find((item) => item.id === clip.mediaId)
+      : undefined;
+    if (track?.type === "image" || media?.type === "image") return "image";
     return "video";
-  }, [selectedItems]);
+  }, [project.mediaLibrary.items, project.timeline.tracks, selectedItems]);
 
   const filteredEffects = useMemo(() => {
     let effects = SEARCHABLE_EFFECTS;
@@ -343,9 +383,11 @@ export const SearchModal: React.FC<SearchModalProps> = ({
         if (sectionElement) {
           sectionElement.scrollIntoView({ behavior: "smooth", block: "start" });
 
-          const button = sectionElement.querySelector("button");
-          if (button) {
-            button.click();
+          const header = sectionElement.querySelector<HTMLElement>(
+            '[data-slot="toolcraft-panel-section-header"]',
+          );
+          if (header?.getAttribute("aria-expanded") === "false") {
+            header.click();
           }
 
           sectionElement.classList.add(
@@ -414,127 +456,172 @@ export const SearchModal: React.FC<SearchModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-2xl p-0 gap-0 top-[15vh] translate-y-0 bg-background-secondary border-border rounded-2xl overflow-hidden">
-        <div className="flex items-center gap-3 px-4 py-3 border-b border-border">
-          <Search size={18} className="text-text-muted" />
-          <Input
-            ref={inputRef}
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder={
+    <Dialog
+      isOpen
+      onOpenChange={(open) => !open && onClose()}
+      width={672}
+      purpose="form"
+    >
+      <Layout
+        header={
+          <DialogHeader
+            title="Search Effects"
+            subtitle={
               selectedClipType
-                ? `Search effects for ${selectedClipType} clip...`
-                : "Search all effects and tools..."
+                ? `Find tools for the selected ${selectedClipType} clip.`
+                : "Find effects and tools across the inspector."
             }
-            className="flex-1 bg-transparent border-0 text-text-primary focus-visible:ring-0"
+            onOpenChange={(open) => !open && onClose()}
+            startContent={<Search size={18} className="text-primary" aria-hidden />}
           />
-          {query && (
-            <button
-              onClick={() => setQuery("")}
-              className="p-1 rounded hover:bg-background-tertiary text-text-muted hover:text-text-primary transition-colors"
-            >
-              <X size={14} />
-            </button>
-          )}
-          <div className="flex items-center gap-1 px-2 py-1 rounded bg-background-tertiary border border-border">
-            <span className="text-[10px] text-text-muted">ESC</span>
-          </div>
-        </div>
+        }
+        content={
+          <LayoutContent>
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <div className="min-w-0 flex-1">
+                  <ToolcraftTextInputControl
+                    ref={inputRef}
+                    label="Search effects"
+                    isLabelHidden
+                    type="text"
+                    value={query}
+                    onChange={setQuery}
+                    placeholder={
+                      selectedClipType
+                        ? `Search effects for ${selectedClipType} clip...`
+                        : "Search all effects and tools..."
+                    }
+                    startIcon={<Search size={16} aria-hidden />}
+                    width="100%"
+                    hasAutoFocus
+                  />
+                </div>
+                {query && (
+                  <IconButton
+                    label="Clear search"
+                    onClick={() => setQuery("")}
+                    variant="ghost"
+                    size="sm"
+                    icon={<X size={14} aria-hidden />}
+                  />
+                )}
+                <Kbd keys="escape" />
+              </div>
 
-        <div className="flex items-center gap-2 px-4 py-2 border-b border-border bg-background-tertiary/50">
-          {CATEGORIES.map((cat) => (
-            <button
-              key={cat.id}
-              onClick={() => setSelectedCategory(cat.id)}
-              className={`px-3 py-1.5 rounded-lg text-[11px] font-medium transition-all ${
-                selectedCategory === cat.id
-                  ? "bg-primary text-white"
-                  : "text-text-secondary hover:text-text-primary hover:bg-background-elevated"
-              }`}
-            >
-              {cat.name}
-            </button>
-          ))}
-        </div>
-
-        <div ref={listRef} className="max-h-[50vh] overflow-y-auto">
-          {filteredEffects.length === 0 ? (
-            <div className="py-12 text-center">
-              <Search
-                size={32}
-                className="mx-auto mb-3 text-text-muted opacity-50"
+              <ToolcraftSegmentedControl
+                ariaLabel="Effect category"
+                value={selectedCategory}
+                onChange={setSelectedCategory}
+                options={CATEGORIES.map((cat) => {
+                  const CategoryIcon = cat.icon;
+                  return {
+                    value: cat.id,
+                    label: cat.name,
+                    icon: CategoryIcon ? (
+                      <CategoryIcon size={14} aria-hidden />
+                    ) : undefined,
+                  };
+                })}
               />
-              <p className="text-sm text-text-muted">No effects found</p>
-              <p className="text-xs text-text-muted mt-1">
-                Try a different search term or category
-              </p>
-            </div>
-          ) : (
-            <div className="py-2">
-              {filteredEffects.map((effect, index) => {
-                const Icon = effect.icon;
-                return (
-                  <button
-                    key={effect.id}
-                    onClick={() => handleSelect(effect)}
-                    className={`w-full flex items-center gap-4 px-4 py-3 text-left transition-all ${
-                      index === selectedIndex
-                        ? "bg-primary/10 border-l-2 border-primary"
-                        : "hover:bg-background-tertiary border-l-2 border-transparent"
-                    }`}
-                  >
-                    <div
-                      className={`p-2 rounded-lg ${
-                        index === selectedIndex
-                          ? "bg-primary text-white"
-                          : "bg-background-tertiary text-text-secondary"
-                      }`}
-                    >
-                      <Icon size={16} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span
-                          className={`text-sm font-medium ${
-                            index === selectedIndex
-                              ? "text-primary"
-                              : "text-text-primary"
+
+              <div ref={listRef} className="max-h-[50vh] overflow-y-auto">
+                {filteredEffects.length === 0 ? (
+                  <EmptyState
+                    title="No effects found"
+                    description="Try a different search term or category."
+                    icon={<Search size={32} className="text-text-muted opacity-50" aria-hidden />}
+                    isCompact
+                  />
+                ) : (
+                  <div className="space-y-2 py-1">
+                    {filteredEffects.map((effect, index) => {
+                      const Icon = effect.icon;
+                      const selected = index === selectedIndex;
+                      return (
+                        <ClickableCard
+                          key={effect.id}
+                          label={`Open ${effect.name}`}
+                          onClick={() => handleSelect(effect)}
+                          padding={3}
+                          variant={selected ? "green" : "default"}
+                          className={`border ${
+                            selected ? "border-primary" : "border-border"
                           }`}
                         >
-                          {effect.name}
-                        </span>
-                        <span className="text-[10px] text-text-muted px-1.5 py-0.5 rounded bg-background-tertiary">
-                          {effect.category}
-                        </span>
-                      </div>
-                      <p className="text-xs text-text-muted mt-0.5 truncate">
-                        {effect.description}
-                      </p>
-                    </div>
-                    <div className="text-[10px] text-text-muted">
-                      ↵ to select
-                    </div>
-                  </button>
-                );
-              })}
+                          <div className="flex items-center gap-4 text-left">
+                            <div
+                              className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
+                                selected
+                                  ? "bg-primary text-white"
+                                  : "bg-background-tertiary text-text-secondary"
+                              }`}
+                            >
+                              <Icon size={16} aria-hidden />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2">
+                                <Text
+                                  type="label"
+                                  weight="bold"
+                                  color={selected ? "active" : "primary"}
+                                  maxLines={1}
+                                >
+                                  {effect.name}
+                                </Text>
+                                <Card variant="muted" padding={1} className="shrink-0">
+                                  <Text
+                                    type="supporting"
+                                    color="secondary"
+                                    className="text-[10px]"
+                                  >
+                                    {effect.category}
+                                  </Text>
+                                </Card>
+                              </div>
+                              <Text
+                                type="supporting"
+                                color="secondary"
+                                display="block"
+                                maxLines={1}
+                                className="mt-0.5"
+                              >
+                                {effect.description}
+                              </Text>
+                            </div>
+                            <Kbd keys="enter" />
+                          </div>
+                        </ClickableCard>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
-          )}
-        </div>
-
-        <div className="px-4 py-2 border-t border-border bg-background-tertiary/50 flex items-center justify-between">
-          <div className="text-[10px] text-text-muted">
-            {filteredEffects.length} effect
-            {filteredEffects.length !== 1 ? "s" : ""} available
-          </div>
-          <div className="flex items-center gap-3 text-[10px] text-text-muted">
-            <span>↑↓ Navigate</span>
-            <span>↵ Select</span>
-            <span>ESC Close</span>
-          </div>
-        </div>
-      </DialogContent>
+          </LayoutContent>
+        }
+        footer={
+          <LayoutFooter hasDivider>
+            <div className="flex items-center justify-between gap-3">
+              <Text type="supporting" color="secondary" className="text-[10px]">
+                {filteredEffects.length} effect
+                {filteredEffects.length !== 1 ? "s" : ""} available
+              </Text>
+              <div className="flex items-center gap-2">
+                <Kbd keys="up" />
+                <Kbd keys="down" />
+                <Text type="supporting" color="secondary" className="text-[10px]">
+                  Navigate
+                </Text>
+                <Kbd keys="enter" />
+                <Text type="supporting" color="secondary" className="text-[10px]">
+                  Select
+                </Text>
+              </div>
+            </div>
+          </LayoutFooter>
+        }
+      />
     </Dialog>
   );
 };

@@ -494,6 +494,108 @@ const rainbowAnimation: AnimationFn = (ctx) => {
   };
 };
 
+const entranceProgress = (
+  ctx: TextAnimationContext,
+  defaultStagger: number,
+  defaultEasing: EasingName,
+): { raw: number; eased: number } => {
+  const { unit, animation, isIn, progress } = ctx;
+  const stagger = animation.stagger ?? defaultStagger;
+  const duration = isIn ? animation.inDuration : animation.outDuration;
+  const unitDelay = unit.index * stagger;
+  const unitDuration = Math.max(
+    0.1,
+    duration - (unit.totalUnits - 1) * stagger,
+  );
+  let raw = Math.max(
+    0,
+    Math.min(1, (progress * duration - unitDelay) / unitDuration),
+  );
+  if (!isIn) raw = 1 - raw;
+  const easing = getEasing(ctx.animation.params.easing || defaultEasing);
+  return { raw, eased: easing(raw) };
+};
+
+const riseAnimation: AnimationFn = (ctx) => {
+  const { raw, eased } = entranceProgress(ctx, 0.08, "easeOutCubic");
+  const distance = ctx.animation.params.slideDistance ?? 36;
+  const blurAmount = ctx.animation.params.blurAmount ?? 8;
+  return {
+    ...DEFAULT_STATE,
+    opacity: raw,
+    offsetY: distance * (1 - eased),
+    blur: Math.max(0, blurAmount * (1 - raw)),
+    scale: { x: 0.88 + eased * 0.12, y: 0.88 + eased * 0.12 },
+  };
+};
+
+const dropAnimation: AnimationFn = (ctx) => {
+  const { raw } = entranceProgress(ctx, 0.045, "easeOutBounceSmall");
+  const bounce = EASING_FUNCTIONS.easeOutBounceSmall(raw);
+  const distance = ctx.animation.params.slideDistance ?? 60;
+  const angle = ctx.animation.params.rotateAngle ?? 10;
+  const direction = ctx.unit.index % 2 === 0 ? -1 : 1;
+  return {
+    ...DEFAULT_STATE,
+    opacity: raw > 0 ? 1 : 0,
+    offsetY: -distance * (1 - bounce),
+    rotation: direction * angle * (1 - bounce),
+  };
+};
+
+const elasticAnimation: AnimationFn = (ctx) => {
+  const { raw } = entranceProgress(ctx, 0.08, "easeOutElasticSoft");
+  const elastic = EASING_FUNCTIONS.easeOutElasticSoft(raw);
+  const scaleFrom = ctx.animation.params.scaleFrom ?? 0.15;
+  const scale = scaleFrom + (1 - scaleFrom) * elastic;
+  return {
+    ...DEFAULT_STATE,
+    opacity: raw > 0 ? 1 : 0,
+    scale: { x: Math.max(0, scale), y: Math.max(0, scale) },
+  };
+};
+
+const swingAnimation: AnimationFn = (ctx) => {
+  const { raw, eased } = entranceProgress(ctx, 0.09, "easeOutBack");
+  const angle = ctx.animation.params.rotateAngle ?? 28;
+  const distance = ctx.animation.params.slideDistance ?? 20;
+  const direction = ctx.unit.index % 2 === 0 ? -1 : 1;
+  return {
+    ...DEFAULT_STATE,
+    opacity: raw,
+    offsetY: -distance * (1 - raw),
+    rotation: direction * angle * (1 - eased),
+  };
+};
+
+const zoomBlurAnimation: AnimationFn = (ctx) => {
+  const { raw, eased } = entranceProgress(ctx, 0.06, "easeOutExpo");
+  const scaleFrom = ctx.animation.params.scaleFrom ?? 1.65;
+  const blurAmount = ctx.animation.params.blurAmount ?? 14;
+  const scale = scaleFrom + (1 - scaleFrom) * eased;
+  return {
+    ...DEFAULT_STATE,
+    opacity: raw,
+    scale: { x: scale, y: scale },
+    blur: Math.max(0, blurAmount * (1 - raw)),
+  };
+};
+
+const cascadeAnimation: AnimationFn = (ctx) => {
+  const { raw, eased } = entranceProgress(ctx, 0.035, "easeOutCubic");
+  const distance = ctx.animation.params.slideDistance ?? 48;
+  const angle = ctx.animation.params.rotateAngle ?? 8;
+  const direction = ctx.unit.index % 2 === 0 ? -1 : 1;
+  return {
+    ...DEFAULT_STATE,
+    opacity: raw,
+    offsetX: direction * distance * 0.35 * (1 - eased),
+    offsetY: distance * (1 - eased),
+    rotation: direction * angle * (1 - eased),
+    scale: { x: 0.9 + eased * 0.1, y: 0.9 + eased * 0.1 },
+  };
+};
+
 const ANIMATION_MAP: Record<TextAnimationPreset, AnimationFn> = {
   none: () => DEFAULT_STATE,
   typewriter: typewriterAnimation,
@@ -514,6 +616,12 @@ const ANIMATION_MAP: Record<TextAnimationPreset, AnimationFn> = {
   flip: flipAnimation,
   "word-by-word": wordByWordAnimation,
   rainbow: rainbowAnimation,
+  rise: riseAnimation,
+  drop: dropAnimation,
+  elastic: elasticAnimation,
+  swing: swingAnimation,
+  "zoom-blur": zoomBlurAnimation,
+  cascade: cascadeAnimation,
 };
 
 export function calculateUnitAnimationState(
@@ -701,6 +809,72 @@ export const TEXT_ANIMATION_PRESETS: TextAnimationPresetInfo[] = [
     defaultStagger: 0.2,
     defaultInDuration: 1,
     defaultOutDuration: 0.5,
+  },
+  {
+    id: "rise",
+    name: "Rise",
+    description: "Soft blurred rise with a subtle scale settle",
+    category: "entrance",
+    defaultParams: { slideDistance: 36, blurAmount: 8, easing: "easeOutCubic" },
+    defaultUnit: "word",
+    defaultStagger: 0.08,
+    defaultInDuration: 0.65,
+    defaultOutDuration: 0.35,
+  },
+  {
+    id: "drop",
+    name: "Drop",
+    description: "Characters drop in and land with a soft bounce",
+    category: "entrance",
+    defaultParams: { slideDistance: 60, rotateAngle: 10, easing: "easeOutBounceSmall" },
+    defaultUnit: "character",
+    defaultStagger: 0.045,
+    defaultInDuration: 0.8,
+    defaultOutDuration: 0.35,
+  },
+  {
+    id: "elastic",
+    name: "Elastic",
+    description: "Springy scale entrance with a controlled overshoot",
+    category: "entrance",
+    defaultParams: { scaleFrom: 0.15, popOvershoot: 1.25, easing: "easeOutElasticSoft" },
+    defaultUnit: "word",
+    defaultStagger: 0.08,
+    defaultInDuration: 0.9,
+    defaultOutDuration: 0.4,
+  },
+  {
+    id: "swing",
+    name: "Swing",
+    description: "Alternating hinged letters swing into place",
+    category: "entrance",
+    defaultParams: { rotateAngle: 28, slideDistance: 20, easing: "easeOutBack" },
+    defaultUnit: "character",
+    defaultStagger: 0.09,
+    defaultInDuration: 0.75,
+    defaultOutDuration: 0.4,
+  },
+  {
+    id: "zoom-blur",
+    name: "Zoom Blur",
+    description: "Sharpens from a cinematic forward zoom",
+    category: "entrance",
+    defaultParams: { scaleFrom: 1.65, blurAmount: 14, easing: "easeOutExpo" },
+    defaultUnit: "word",
+    defaultStagger: 0.06,
+    defaultInDuration: 0.65,
+    defaultOutDuration: 0.35,
+  },
+  {
+    id: "cascade",
+    name: "Cascade",
+    description: "Staggered diagonal character entrance",
+    category: "entrance",
+    defaultParams: { slideDistance: 48, rotateAngle: 8, easing: "easeOutCubic" },
+    defaultUnit: "character",
+    defaultStagger: 0.035,
+    defaultInDuration: 0.85,
+    defaultOutDuration: 0.4,
   },
   {
     id: "wave",

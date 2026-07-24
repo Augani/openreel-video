@@ -5,7 +5,10 @@ import React, {
   useState,
   useMemo,
 } from "react";
-import { Activity, Circle, BarChart3 } from "lucide-react";
+import { ToolcraftButton as Button } from "@openreel/ui";
+import { ToolcraftCard as Card } from "@openreel/ui";
+import { ToolcraftText as Text } from "@openreel/ui";
+import { Activity, Circle, BarChart3 } from "@/icons/lucide-compat";
 import { getEffectsBridge } from "../../../bridges/effects-bridge";
 import type {
   WaveformScopeData,
@@ -41,18 +44,18 @@ const ViewToggleButton: React.FC<{
   icon: React.ReactNode;
   label: string;
 }> = ({ active, onClick, icon, label }) => (
-  <button
+  <Button
+    label={label}
+    icon={icon as any}
+    variant={active ? "primary" : "secondary"}
+    size="sm"
     onClick={onClick}
     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-medium transition-colors ${
       active
         ? "bg-primary text-white"
-        : "bg-background-tertiary border border-border text-text-secondary hover:text-text-primary"
+        : "bg-bg-2 border border-border text-fg-2 hover:text-fg"
     }`}
-    title={label}
-  >
-    {icon}
-    <span className="hidden sm:inline">{label}</span>
-  </button>
+  />
 );
 
 /**
@@ -480,17 +483,17 @@ export const ScopesPanel: React.FC<ScopesPanelProps> = ({
   const viewContent = useMemo(() => {
     if (isLoading) {
       return (
-        <div className="flex items-center justify-center h-40 text-text-muted text-xs">
+        <Text type="supporting" color="secondary" className="flex h-40 items-center justify-center text-xs">
           Generating scope data...
-        </div>
+        </Text>
       );
     }
 
     if (!frameImage) {
       return (
-        <div className="flex items-center justify-center h-40 text-text-muted text-xs">
+        <Text type="supporting" color="secondary" className="flex h-40 items-center justify-center text-xs">
           No frame to analyze
-        </div>
+        </Text>
       );
     }
 
@@ -500,15 +503,16 @@ export const ScopesPanel: React.FC<ScopesPanelProps> = ({
           <div className="space-y-2">
             <WaveformRenderer data={waveformData} showRGB={showRGBWaveform} />
             <div className="flex items-center justify-between">
-              <span className="text-[10px] text-text-muted">
+              <Text type="supporting" color="secondary" className="text-[10px]">
                 {showRGBWaveform ? "RGB Parade" : "Luminance"}
-              </span>
-              <button
+              </Text>
+              <Button
+                label={showRGBWaveform ? "Show Luma" : "Show RGB"}
+                variant="ghost"
+                size="sm"
                 onClick={() => setShowRGBWaveform(!showRGBWaveform)}
-                className="text-[10px] text-text-secondary hover:text-text-primary transition-colors"
-              >
-                {showRGBWaveform ? "Show Luma" : "Show RGB"}
-              </button>
+                className="text-[10px] text-fg-2 hover:text-fg transition-colors"
+              />
             </div>
           </div>
         );
@@ -554,17 +558,17 @@ export const ScopesPanel: React.FC<ScopesPanelProps> = ({
       </div>
 
       {/* Scope View */}
-      <div className="bg-background-tertiary rounded-lg p-3">{viewContent}</div>
+      <Card variant="muted" padding={3}>{viewContent}</Card>
 
       {/* Info Text */}
-      <p className="text-[9px] text-text-muted">
+      <Text type="supporting" color="secondary" className="text-[9px]">
         {activeView === "waveform" &&
           "Waveform shows luminance distribution across the frame width."}
         {activeView === "vectorscope" &&
           "Vectorscope shows color saturation and hue distribution."}
         {activeView === "histogram" &&
           "Histogram shows RGB and luminance value distribution."}
-      </p>
+      </Text>
     </div>
   );
 };

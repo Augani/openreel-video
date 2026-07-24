@@ -78,7 +78,20 @@ export class NestedSequenceEngine {
     }));
 
     const relevantTrackIds = new Set(clips.map((c) => c.trackId));
-    const relevantTracks = tracks.filter((t) => relevantTrackIds.has(t.id));
+    const normalizedById = new Map(normalizedClips.map((clip) => [clip.id, clip]));
+    const relevantTracks = tracks
+      .filter((track) => relevantTrackIds.has(track.id))
+      .map((track) => ({
+        ...track,
+        clips: track.clips
+          .filter((clip) => normalizedById.has(clip.id))
+          .map((clip) => normalizedById.get(clip.id)!),
+        transitions: track.transitions.filter(
+          (transition) =>
+            normalizedById.has(transition.clipAId) &&
+            (!transition.clipBId || normalizedById.has(transition.clipBId)),
+        ),
+      }));
 
     const compound: CompoundClip = {
       id: generateId(),
@@ -194,6 +207,25 @@ export class NestedSequenceEngine {
 
   getAllInstances(): CompoundClipInstance[] {
     return Array.from(this.instances.values());
+  }
+
+  loadState(
+    compoundClips: CompoundClip[],
+    instances: CompoundClipInstance[],
+  ): void {
+    this.compoundClips.clear();
+    this.instances.clear();
+    this.instancesByCompound.clear();
+    for (const clip of compoundClips) {
+      this.compoundClips.set(clip.id, clip);
+    }
+    for (const instance of instances) {
+      this.instances.set(instance.id, instance);
+      if (!this.instancesByCompound.has(instance.compoundClipId)) {
+        this.instancesByCompound.set(instance.compoundClipId, new Set());
+      }
+      this.instancesByCompound.get(instance.compoundClipId)!.add(instance.id);
+    }
   }
 
   updateInstance(id: string, updates: Partial<CompoundClipInstance>): boolean {

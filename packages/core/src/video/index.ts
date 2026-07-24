@@ -1,6 +1,7 @@
 export * from "./video-engine";
 export * from "./video-effects-engine";
 export * from "./color-grading-engine";
+export * from "./color-grading-defaults";
 export * from "./frame-cache";
 export * from "./transition-engine";
 export * from "./animation-engine";

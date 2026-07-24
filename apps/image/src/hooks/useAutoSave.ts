@@ -7,7 +7,7 @@ const STORAGE_KEY_PREFIX = 'openreel-image-project-';
 export function useAutoSave() {
   const { project, isDirty, markClean } = useProjectStore();
   const lastSavedRef = useRef<string>('');
-  const timeoutRef = useRef<number>();
+  const timeoutRef = useRef<number | undefined>(undefined);
 
   useEffect(() => {
     if (!project || !isDirty) return;

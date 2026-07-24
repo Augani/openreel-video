@@ -1,4 +1,5 @@
 import { OPENREEL_CLOUD_URL } from "../config/api-endpoints";
+import { shareBaseOrigin } from "./share-origin";
 
 export interface ShareResult {
   shareId: string;
@@ -103,11 +104,7 @@ export function getShareDownloadUrl(shareId: string): string {
 }
 
 export function getSharePageUrl(shareId: string): string {
-  const baseUrl =
-    typeof window !== "undefined"
-      ? `${window.location.origin}${window.location.pathname}`
-      : "";
-  return `${baseUrl}#/share/${shareId}`;
+  return `${shareBaseOrigin()}#/share/${shareId}`;
 }
 
 export function formatExpiresIn(expiresAt: number): string {

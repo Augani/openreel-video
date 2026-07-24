@@ -7,8 +7,11 @@ import {
   Monitor,
   Square,
   FolderOpen,
-} from "lucide-react";
-import { Button, Switch, Label } from "@openreel/ui";
+} from "@/icons/lucide-compat";
+import { ToolcraftSwitchControl } from "@openreel/ui";
+import { ToolcraftButton as Button } from "@openreel/ui";
+import { ToolcraftClickableCard as ClickableCard } from "@openreel/ui";
+import { ToolcraftText as Text } from "@openreel/ui";
 import { useProjectStore } from "../../stores/project-store";
 import { useUIStore } from "../../stores/ui-store";
 import { SOCIAL_MEDIA_PRESETS, type SocialMediaCategory } from "@openreel/core";
@@ -36,7 +39,7 @@ const FORMAT_OPTIONS: FormatOption[] = [
     description: "TikTok, Reels, Shorts",
     dimensions: "1080 × 1920",
     icon: Smartphone,
-    gradient: "from-violet-500/20 to-fuchsia-500/20",
+    gradient: "from-emerald-500/20 to-teal-500/20",
   },
   {
     id: "horizontal",
@@ -200,14 +203,13 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ initialTab }) => {
       <div className="fixed inset-0 z-50 bg-background flex flex-col">
         <header className="flex items-center justify-between px-6 py-4 border-b border-border">
           <Button
+            label="Back"
             variant="ghost"
             size="sm"
+            icon={<ArrowRight className="rotate-180" size={16} aria-hidden />}
             onClick={() => setViewMode("home")}
-          >
-            <ArrowRight className="rotate-180" size={16} />
-            Back
-          </Button>
-          <h2 className="text-sm font-medium text-text-primary">Templates</h2>
+          />
+          <Text type="label" color="primary" weight="medium" className="text-sm text-text-primary">Templates</Text>
           <div className="w-16" />
         </header>
         <div className="flex-1 overflow-y-auto p-6">
@@ -222,16 +224,15 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ initialTab }) => {
       <div className="fixed inset-0 z-50 bg-background flex flex-col">
         <header className="flex items-center justify-between px-6 py-4 border-b border-border">
           <Button
+            label="Back"
             variant="ghost"
             size="sm"
+            icon={<ArrowRight className="rotate-180" size={16} aria-hidden />}
             onClick={() => setViewMode("home")}
-          >
-            <ArrowRight className="rotate-180" size={16} />
-            Back
-          </Button>
-          <h2 className="text-sm font-medium text-text-primary">
+          />
+          <Text type="label" color="primary" weight="medium" className="text-sm text-text-primary">
             Recent Projects
-          </h2>
+          </Text>
           <div className="w-16" />
         </header>
         <div className="flex-1 overflow-y-auto p-6">
@@ -253,20 +254,20 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ initialTab }) => {
               <div className="w-12 h-12 text-primary">
                 <OpenReelLogo className="w-full h-full" />
               </div>
-              <span className="text-xl font-semibold text-text-primary tracking-tight">
+              <Text type="body" color="primary" weight="semibold" className="text-xl text-text-primary tracking-tight">
                 Open Reel Video
-              </span>
+              </Text>
             </div>
 
-            <h1 className="text-4xl sm:text-5xl font-bold text-text-primary tracking-tight mb-3">
+            <Text type="body" color="primary" weight="bold" className="text-4xl sm:text-5xl text-text-primary tracking-tight mb-3">
               From idea to export.
-            </h1>
-            <p className="text-xl text-text-secondary mb-8">
+            </Text>
+            <Text type="supporting" color="secondary" className="text-xl text-text-secondary mb-8">
               In your browser.
-            </p>
-            <p className="text-base text-text-muted max-w-md">
+            </Text>
+            <Text type="supporting" color="secondary" className="text-base text-text-muted max-w-md">
               Pick a format and start creating. You can change this anytime.
-            </p>
+            </Text>
           </div>
 
           <div className="grid grid-cols-3 gap-4 mb-10">
@@ -275,11 +276,14 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ initialTab }) => {
               const isHovered = hoveredFormat === option.id;
 
               return (
-                <button
+                <ClickableCard
                   key={option.id}
+                  label={`Create ${option.label} project`}
                   onClick={() => handleCreateProject(option)}
                   onMouseEnter={() => setHoveredFormat(option.id)}
                   onMouseLeave={() => setHoveredFormat(null)}
+                  padding={6}
+                  variant="muted"
                   className={`
                     group relative flex flex-col items-center p-6 rounded-2xl
                     bg-background-secondary border border-border
@@ -309,12 +313,12 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ initialTab }) => {
                       />
                     </div>
 
-                    <h3 className="text-lg font-semibold text-text-primary mb-1">
+                    <Text type="body" color="primary" weight="semibold" className="text-lg text-text-primary mb-1">
                       {option.label}
-                    </h3>
-                    <p className="text-sm text-text-muted mb-3">
+                    </Text>
+                    <Text type="supporting" color="secondary" className="text-sm text-text-muted mb-3">
                       {option.description}
-                    </p>
+                    </Text>
                     <span className="text-xs font-mono text-text-muted/70 bg-background-tertiary px-2 py-1 rounded">
                       {option.dimensions}
                     </span>
@@ -331,63 +335,54 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ initialTab }) => {
                     Start creating
                     <ArrowRight size={14} />
                   </div>
-                </button>
+                </ClickableCard>
               );
             })}
           </div>
 
           <div className="flex items-center justify-center gap-3">
             <Button
-              variant="outline"
+              label="Browse templates"
+              variant="secondary"
+              icon={<Layers size={16} aria-hidden />}
               onClick={() => setViewMode("templates")}
               className="rounded-xl"
-            >
-              <Layers size={16} />
-              Browse templates
-            </Button>
+            />
             <Button
-              variant="outline"
+              label="Recent projects"
+              variant="secondary"
+              icon={<Clock size={16} aria-hidden />}
               onClick={() => setViewMode("recent")}
               className="rounded-xl"
-            >
-              <Clock size={16} />
-              Recent projects
-            </Button>
+            />
             <Button
-              variant="outline"
+              label="Open editor"
+              variant="secondary"
+              icon={<FolderOpen size={16} aria-hidden />}
               onClick={() => navigate("editor")}
               className="rounded-xl"
-            >
-              <FolderOpen size={16} />
-              Open editor
-            </Button>
+            />
           </div>
         </div>
 
         <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-4">
           <div className="flex items-center gap-2">
-            <Switch
-              id="skip-welcome"
+            <ToolcraftSwitchControl
+              label="Skip on startup"
               checked={skipWelcomeScreen}
               onCheckedChange={setSkipWelcomeScreen}
             />
-            <Label
-              htmlFor="skip-welcome"
-              className="text-xs text-text-muted cursor-pointer"
-            >
-              Skip on startup
-            </Label>
           </div>
 
           <span className="text-text-muted/30">·</span>
 
-          <p className="text-xs text-text-muted/60">
+          <Text type="supporting" color="secondary" className="text-xs text-text-muted/60">
             Press{" "}
             <kbd className="px-1.5 py-0.5 bg-background-tertiary border border-border rounded text-text-muted font-mono text-[10px]">
               Esc
             </kbd>{" "}
             to skip
-          </p>
+          </Text>
         </div>
       </div>
     </div>

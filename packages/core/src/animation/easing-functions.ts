@@ -1,5 +1,15 @@
 export type EasingName =
   | "linear"
+  | "ease"
+  | "ease-in"
+  | "ease-out"
+  | "ease-in-out"
+  | "hold"
+  | "bezier"
+  | "smoothstep"
+  | "smootherstep"
+  | "snappy"
+  | "smooth"
   | "easeInQuad"
   | "easeOutQuad"
   | "easeInOutQuad"
@@ -24,12 +34,21 @@ export type EasingName =
   | "easeInBack"
   | "easeOutBack"
   | "easeInOutBack"
+  | "easeInBackStrong"
+  | "easeOutBackStrong"
+  | "easeInOutBackStrong"
   | "easeInElastic"
   | "easeOutElastic"
   | "easeInOutElastic"
+  | "easeInElasticSoft"
+  | "easeOutElasticSoft"
+  | "easeInOutElasticSoft"
   | "easeInBounce"
   | "easeOutBounce"
-  | "easeInOutBounce";
+  | "easeInOutBounce"
+  | "easeInBounceSmall"
+  | "easeOutBounceSmall"
+  | "easeInOutBounceSmall";
 
 export interface CubicBezierEasing {
   type: "cubicBezier";
@@ -71,8 +90,42 @@ const bounceOut: EasingFn = (t) => {
   }
 };
 
+const elasticIn: EasingFn = (t) =>
+  t === 0
+    ? 0
+    : t === 1
+      ? 1
+      : -Math.pow(2, 10 * t - 10) * Math.sin((t * 10 - 10.75) * c4);
+
+const elasticOut: EasingFn = (t) =>
+  t === 0
+    ? 0
+    : t === 1
+      ? 1
+      : Math.pow(2, -10 * t) * Math.sin((t * 10 - 0.75) * c4) + 1;
+
+const elasticInOut: EasingFn = (t) =>
+  t === 0
+    ? 0
+    : t === 1
+      ? 1
+      : t < 0.5
+        ? -(Math.pow(2, 20 * t - 10) * Math.sin((20 * t - 11.125) * c5)) / 2
+        : (Math.pow(2, -20 * t + 10) * Math.sin((20 * t - 11.125) * c5)) / 2 +
+          1;
+
 export const EASING_FUNCTIONS: Record<EasingName, EasingFn> = {
   linear: (t) => t,
+  ease: cubicBezier(0.25, 0.1, 0.25, 1),
+  "ease-in": (t) => t * t,
+  "ease-out": (t) => 1 - (1 - t) * (1 - t),
+  "ease-in-out": (t) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2),
+  hold: (t) => (t >= 1 ? 1 : 0),
+  bezier: cubicBezier(0.25, 0.1, 0.25, 1),
+  smoothstep: (t) => t * t * (3 - 2 * t),
+  smootherstep: (t) => t * t * t * (t * (t * 6 - 15) + 10),
+  snappy: cubicBezier(0.19, 1, 0.22, 1),
+  smooth: cubicBezier(0.4, 0, 0.2, 1),
 
   easeInQuad: (t) => t * t,
   easeOutQuad: (t) => 1 - (1 - t) * (1 - t),
@@ -121,33 +174,38 @@ export const EASING_FUNCTIONS: Record<EasingName, EasingFn> = {
     t < 0.5
       ? (Math.pow(2 * t, 2) * ((c2 + 1) * 2 * t - c2)) / 2
       : (Math.pow(2 * t - 2, 2) * ((c2 + 1) * (t * 2 - 2) + c2) + 2) / 2,
+  easeInBackStrong: (t) => {
+    const overshoot = 2.70158;
+    return (overshoot + 1) * t * t * t - overshoot * t * t;
+  },
+  easeOutBackStrong: (t) => {
+    const overshoot = 2.70158;
+    return 1 + (overshoot + 1) * Math.pow(t - 1, 3) + overshoot * Math.pow(t - 1, 2);
+  },
+  easeInOutBackStrong: (t) => {
+    const overshoot = 2.70158 * 1.525;
+    return t < 0.5
+      ? (Math.pow(2 * t, 2) * ((overshoot + 1) * 2 * t - overshoot)) / 2
+      : (Math.pow(2 * t - 2, 2) * ((overshoot + 1) * (t * 2 - 2) + overshoot) + 2) / 2;
+  },
 
-  easeInElastic: (t) =>
-    t === 0
-      ? 0
-      : t === 1
-        ? 1
-        : -Math.pow(2, 10 * t - 10) * Math.sin((t * 10 - 10.75) * c4),
-  easeOutElastic: (t) =>
-    t === 0
-      ? 0
-      : t === 1
-        ? 1
-        : Math.pow(2, -10 * t) * Math.sin((t * 10 - 0.75) * c4) + 1,
-  easeInOutElastic: (t) =>
-    t === 0
-      ? 0
-      : t === 1
-        ? 1
-        : t < 0.5
-          ? -(Math.pow(2, 20 * t - 10) * Math.sin((20 * t - 11.125) * c5)) / 2
-          : (Math.pow(2, -20 * t + 10) * Math.sin((20 * t - 11.125) * c5)) / 2 +
-            1,
+  easeInElastic: elasticIn,
+  easeOutElastic: elasticOut,
+  easeInOutElastic: elasticInOut,
+  easeInElasticSoft: (t) => t + (elasticIn(t) - t) * 0.65,
+  easeOutElasticSoft: (t) => t + (elasticOut(t) - t) * 0.65,
+  easeInOutElasticSoft: (t) => t + (elasticInOut(t) - t) * 0.65,
 
   easeInBounce: (t) => 1 - bounceOut(1 - t),
   easeOutBounce: bounceOut,
   easeInOutBounce: (t) =>
     t < 0.5 ? (1 - bounceOut(1 - 2 * t)) / 2 : (1 + bounceOut(2 * t - 1)) / 2,
+  easeInBounceSmall: (t) => t + (1 - bounceOut(1 - t) - t) * 0.82,
+  easeOutBounceSmall: (t) => t + (bounceOut(t) - t) * 0.82,
+  easeInOutBounceSmall: (t) => {
+    const bounced = t < 0.5 ? (1 - bounceOut(1 - 2 * t)) / 2 : (1 + bounceOut(2 * t - 1)) / 2;
+    return t + (bounced - t) * 0.82;
+  },
 };
 
 /**
@@ -342,7 +400,22 @@ export interface EasingCategory {
 }
 
 export const EASING_CATEGORIES: EasingCategory[] = [
-  { name: "Basic", easings: ["linear"] },
+  {
+    name: "Basic",
+    easings: [
+      "linear",
+      "ease",
+      "ease-in",
+      "ease-out",
+      "ease-in-out",
+      "hold",
+      "bezier",
+      "smoothstep",
+      "smootherstep",
+      "snappy",
+      "smooth",
+    ],
+  },
   { name: "Quad", easings: ["easeInQuad", "easeOutQuad", "easeInOutQuad"] },
   { name: "Cubic", easings: ["easeInCubic", "easeOutCubic", "easeInOutCubic"] },
   { name: "Quart", easings: ["easeInQuart", "easeOutQuart", "easeInOutQuart"] },
@@ -350,13 +423,37 @@ export const EASING_CATEGORIES: EasingCategory[] = [
   { name: "Sine", easings: ["easeInSine", "easeOutSine", "easeInOutSine"] },
   { name: "Expo", easings: ["easeInExpo", "easeOutExpo", "easeInOutExpo"] },
   { name: "Circ", easings: ["easeInCirc", "easeOutCirc", "easeInOutCirc"] },
-  { name: "Back", easings: ["easeInBack", "easeOutBack", "easeInOutBack"] },
+  {
+    name: "Back",
+    easings: [
+      "easeInBack",
+      "easeOutBack",
+      "easeInOutBack",
+      "easeInBackStrong",
+      "easeOutBackStrong",
+      "easeInOutBackStrong",
+    ],
+  },
   {
     name: "Elastic",
-    easings: ["easeInElastic", "easeOutElastic", "easeInOutElastic"],
+    easings: [
+      "easeInElastic",
+      "easeOutElastic",
+      "easeInOutElastic",
+      "easeInElasticSoft",
+      "easeOutElasticSoft",
+      "easeInOutElasticSoft",
+    ],
   },
   {
     name: "Bounce",
-    easings: ["easeInBounce", "easeOutBounce", "easeInOutBounce"],
+    easings: [
+      "easeInBounce",
+      "easeOutBounce",
+      "easeInOutBounce",
+      "easeInBounceSmall",
+      "easeOutBounceSmall",
+      "easeInOutBounceSmall",
+    ],
   },
 ];

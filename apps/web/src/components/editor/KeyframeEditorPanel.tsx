@@ -1,20 +1,15 @@
 import React, { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import type { Keyframe, Clip } from "@openreel/core";
 import { EASING_FUNCTIONS, type EasingName } from "@openreel/core";
-import { X, Copy, Clipboard, Trash2 } from "lucide-react";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-  Button,
-  ScrollArea,
-} from "@openreel/ui";
+import { X, Copy, Clipboard, Trash2 } from "@/icons/lucide-compat";
+import { ToolcraftButton as Button } from "@openreel/ui";
+import { ToolcraftIconButton as IconButton } from "@openreel/ui";
+import { ToolcraftSelectControl as Selector } from "@openreel/ui";
+import { ToolcraftText as Text } from "@openreel/ui";
 
 const PROPERTY_COLORS: Record<string, string> = {
   "position.x": "#22d3ee",
-  "position.y": "#a78bfa",
+  "position.y": "#34d399",
   "scale.x": "#4ade80",
   "scale.y": "#86efac",
   rotation: "#f472b6",
@@ -111,6 +106,14 @@ export const KeyframeEditorPanel: React.FC<KeyframeEditorPanelProps> = ({
   const activeGroup = useMemo(() => {
     return propertyGroups.find((g) => g.property === activeProperty) || null;
   }, [propertyGroups, activeProperty]);
+
+  const selectedEasing = useMemo(() => {
+    if (!activeGroup || selectedKeyframeIds.length === 0) return "";
+    const selected = activeGroup.keyframes.find((kf) =>
+      selectedKeyframeIds.includes(kf.id),
+    );
+    return selected?.easing ?? "";
+  }, [activeGroup, selectedKeyframeIds]);
 
   const timeRange = useMemo(() => {
     if (!activeGroup || activeGroup.keyframes.length === 0) {
@@ -371,7 +374,9 @@ export const KeyframeEditorPanel: React.FC<KeyframeEditorPanelProps> = ({
   if (!clip) {
     return (
       <div className="h-full flex items-center justify-center text-text-muted">
-        <p className="text-sm">Select a clip with keyframes to edit</p>
+        <Text type="body" color="secondary" className="text-sm">
+          Select a clip with keyframes to edit
+        </Text>
       </div>
     );
   }
@@ -379,67 +384,62 @@ export const KeyframeEditorPanel: React.FC<KeyframeEditorPanelProps> = ({
   return (
     <div className="h-full flex flex-col bg-background-secondary border-l border-border">
       <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-        <h3 className="text-sm font-semibold text-text-primary">Keyframe Editor</h3>
-        <button
+        <Text type="body" weight="bold" className="text-sm">
+          Keyframe Editor
+        </Text>
+        <IconButton
+          label="Close keyframe editor"
+          icon={<X size={16} aria-hidden />}
+          variant="ghost"
+          size="sm"
           onClick={onClose}
           className="p-1 rounded hover:bg-background-elevated text-text-muted hover:text-text-primary transition-colors"
-        >
-          <X size={16} />
-        </button>
+        />
       </div>
 
       <div className="flex items-center gap-2 px-4 py-2 border-b border-border bg-background-tertiary">
-        <Select value={activeProperty || ""} onValueChange={setActiveProperty}>
-          <SelectTrigger className="w-[180px] h-8">
-            <SelectValue placeholder="Select property" />
-          </SelectTrigger>
-          <SelectContent>
-            {propertyGroups.map((group) => (
-              <SelectItem key={group.property} value={group.property}>
-                <div className="flex items-center gap-2">
-                  <div
-                    className="w-3 h-3 rounded-full"
-                    style={{ backgroundColor: group.color }}
-                  />
-                  <span>{group.property}</span>
-                </div>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <Selector
+          label="Property"
+          isLabelHidden
+          value={activeProperty || ""}
+          onChange={setActiveProperty}
+          options={propertyGroups.map((group) => ({
+            value: group.property,
+            label: group.property,
+          }))}
+          size="sm"
+          width={180}
+        />
 
         <div className="flex-1" />
 
         <Button
+          label="Copy"
           variant="ghost"
           size="sm"
+          icon={<Copy size={14} aria-hidden />}
           onClick={handleCopy}
-          disabled={selectedKeyframeIds.length === 0}
+          isDisabled={selectedKeyframeIds.length === 0}
           className="h-8 px-2"
-        >
-          <Copy size={14} className="mr-1" />
-          Copy
-        </Button>
+        />
         <Button
+          label="Paste"
           variant="ghost"
           size="sm"
+          icon={<Clipboard size={14} aria-hidden />}
           onClick={handlePaste}
-          disabled={copiedKeyframes.length === 0}
+          isDisabled={copiedKeyframes.length === 0}
           className="h-8 px-2"
-        >
-          <Clipboard size={14} className="mr-1" />
-          Paste
-        </Button>
+        />
         <Button
+          label="Delete"
           variant="ghost"
           size="sm"
+          icon={<Trash2 size={14} aria-hidden />}
           onClick={handleDelete}
-          disabled={selectedKeyframeIds.length === 0}
+          isDisabled={selectedKeyframeIds.length === 0}
           className="h-8 px-2 text-red-400 hover:text-red-300"
-        >
-          <Trash2 size={14} className="mr-1" />
-          Delete
-        </Button>
+        />
       </div>
 
       <div className="flex-1 p-4 overflow-hidden">
@@ -458,35 +458,34 @@ export const KeyframeEditorPanel: React.FC<KeyframeEditorPanelProps> = ({
       <div className="px-4 py-3 border-t border-border bg-background-tertiary">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
-            <span className="text-xs text-text-muted">Easing:</span>
-            <Select
-              value={selectedKeyframeIds.length > 0 ? undefined : ""}
-              onValueChange={handleEasingChange}
-              disabled={selectedKeyframeIds.length === 0}
-            >
-              <SelectTrigger className="w-[160px] h-7 text-xs">
-                <SelectValue placeholder="Select easing" />
-              </SelectTrigger>
-              <SelectContent>
-                {EASING_PRESETS.map((preset) => (
-                  <SelectItem key={preset.value} value={preset.value}>
-                    {preset.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Text type="supporting" color="secondary" className="text-xs">
+              Easing:
+            </Text>
+            <Selector
+              label="Easing"
+              isLabelHidden
+              value={selectedEasing}
+              onChange={handleEasingChange}
+              isDisabled={selectedKeyframeIds.length === 0}
+              options={EASING_PRESETS.map((preset) => ({
+                value: preset.value,
+                label: preset.label,
+              }))}
+              size="sm"
+              width={160}
+            />
           </div>
 
           <div className="flex-1" />
 
-          <span className="text-xs text-text-muted">
+          <Text type="supporting" color="secondary" className="text-xs">
             {selectedKeyframeIds.length} keyframe{selectedKeyframeIds.length !== 1 ? "s" : ""} selected
-          </span>
+          </Text>
         </div>
       </div>
 
       {activeGroup && (
-        <ScrollArea className="max-h-32 border-t border-border">
+        <div className="max-h-32 overflow-auto border-t border-border">
           <div className="p-2">
             <table className="w-full text-xs">
               <thead>
@@ -513,7 +512,7 @@ export const KeyframeEditorPanel: React.FC<KeyframeEditorPanelProps> = ({
               </tbody>
             </table>
           </div>
-        </ScrollArea>
+        </div>
       )}
     </div>
   );

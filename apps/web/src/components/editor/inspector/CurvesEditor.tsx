@@ -5,7 +5,10 @@ import React, {
   useMemo,
   useEffect,
 } from "react";
-import { RotateCcw } from "lucide-react";
+import { ToolcraftButton as Button } from "@openreel/ui";
+import { ToolcraftClickableCard as ClickableCard } from "@openreel/ui";
+import { ToolcraftText as Text } from "@openreel/ui";
+import { RotateCcw } from "@/icons/lucide-compat";
 import type { CurvesValues, CurvePoint } from "@openreel/core";
 
 export const DEFAULT_CURVES: CurvesValues = {
@@ -55,19 +58,20 @@ const ChannelTab: React.FC<{
   isActive: boolean;
   onClick: () => void;
 }> = ({ channel, label, isActive, onClick }) => (
-  <button
+  <ClickableCard
+    label={`Select ${label} curve channel`}
     onClick={onClick}
     className={`px-3 py-1 text-[10px] font-medium rounded transition-colors ${
       isActive
-        ? "bg-background-tertiary text-text-primary"
-        : "text-text-muted hover:text-text-secondary"
+        ? "bg-bg-2 text-fg"
+        : "text-fg-3 hover:text-fg-2"
     }`}
     style={{
       borderBottom: isActive ? `2px solid ${CHANNEL_COLORS[channel]}` : "none",
     }}
   >
     {label}
-  </button>
+  </ClickableCard>
 );
 
 /**
@@ -340,7 +344,7 @@ export const CurvesEditor: React.FC<CurvesEditorProps> = ({
       </div>
 
       {/* Curve Canvas */}
-      <div className="relative bg-background-tertiary rounded-lg overflow-hidden">
+      <div className="relative bg-bg-2 rounded-lg overflow-hidden">
         <svg
           ref={svgRef}
           width={canvasWidth}
@@ -425,22 +429,23 @@ export const CurvesEditor: React.FC<CurvesEditorProps> = ({
 
       {/* Controls */}
       <div className="flex justify-between items-center">
-        <span className="text-[9px] text-text-muted">
+        <Text type="supporting" color="secondary" className="text-[9px]">
           Click to add point • Double-click to remove
-        </span>
-        <button
+        </Text>
+        <Button
+          label="Reset"
+          icon={<RotateCcw size={10} />}
+          variant="ghost"
+          size="sm"
           onClick={handleResetChannel}
-          className="flex items-center gap-1 px-2 py-1 text-[10px] text-text-muted hover:text-text-primary transition-colors"
-        >
-          <RotateCcw size={10} />
-          Reset
-        </button>
+          className="flex items-center gap-1 px-2 py-1 text-[10px] text-fg-3 hover:text-fg transition-colors"
+        />
       </div>
 
       {/* Point count indicator */}
-      <div className="text-[9px] text-text-muted text-center">
+      <Text type="supporting" color="secondary" className="block text-center text-[9px]">
         {currentPoints.length} points
-      </div>
+      </Text>
     </div>
   );
 };

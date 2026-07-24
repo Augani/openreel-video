@@ -1,3 +1,4 @@
+import type { JSX } from "react";
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { InspectorTabErrorBoundary } from "./InspectorTabErrorBoundary";

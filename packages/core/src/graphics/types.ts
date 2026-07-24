@@ -12,6 +12,8 @@ export interface GraphicClip {
   readonly type: GraphicType;
   readonly transform: Transform;
   readonly keyframes: Keyframe[];
+  /** Ordered visual effects applied after the graphic is rasterized. */
+  readonly effects?: import("../types/timeline").Effect[];
   readonly blendMode?: import("../video/types").BlendMode;
   readonly blendOpacity?: number;
   readonly emphasisAnimation?: EmphasisAnimation;
@@ -138,36 +140,48 @@ export interface StickerClip extends GraphicClip {
   readonly name?: string;
 }
 
-export type ShapeType =
-  | "rectangle"
-  | "circle"
-  | "ellipse"
-  | "triangle"
-  | "arrow"
-  | "line"
-  | "polygon"
-  | "star"
-  // 3D primitives — these render via THREE.js geometry instead of
-  // Canvas 2D. They honor the ShapeClip transform (position, scale,
-  // rotation, rotate3d) and fill color, and support metalness/roughness
-  // via style.material3d.
-  | "mesh-cube"
-  | "mesh-sphere"
-  | "mesh-torus"
-  | "mesh-cone"
-  | "mesh-cylinder"
-  | "mesh-icosahedron";
+export const SHAPE_TYPES = [
+  "rectangle",
+  "circle",
+  "ellipse",
+  "triangle",
+  "arrow",
+  "line",
+  "polygon",
+  "path",
+  "star",
+  "mesh-cube",
+  "mesh-sphere",
+  "mesh-torus",
+  "mesh-cone",
+  "mesh-cylinder",
+  "mesh-icosahedron",
+] as const;
+
+export type ShapeType = (typeof SHAPE_TYPES)[number];
 
 export interface ShapeStyle {
   readonly fill: FillStyle;
   readonly stroke: StrokeStyle;
   readonly shadow?: ShadowStyle;
-  readonly cornerRadius?: number; // For rectangles
+  /** Layered/multiple shadows (drop + inset). Rendered in array order under the
+   *  shape; when present these are used in addition to `shadow`. */
+  readonly shadows?: readonly ShadowStyle[];
+  readonly cornerRadius?: number; // For rectangles (uniform)
+  /** Per-corner radii; overrides `cornerRadius` when present (pill tabs, top-rounded cards). */
+  readonly cornerRadii?: CornerRadii;
   readonly points?: number; // For stars (number of points)
   readonly innerRadius?: number; // For stars (inner radius ratio 0-1)
   /** Material parameters used when ShapeType is one of the mesh-*
    *  3D primitives. Ignored for 2D shapes. */
   readonly material3d?: Material3DStyle;
+}
+
+export interface CornerRadii {
+  readonly topLeft: number;
+  readonly topRight: number;
+  readonly bottomRight: number;
+  readonly bottomLeft: number;
 }
 
 export interface Material3DStyle {
@@ -176,22 +190,34 @@ export interface Material3DStyle {
   readonly roughness?: number;
 }
 
+export type MotionShaderParamValue = number | string;
+
+export interface MotionShaderFill {
+  readonly shaderId: string;
+  readonly params: Record<string, MotionShaderParamValue>;
+}
+
 export interface FillStyle {
-  readonly type: "solid" | "gradient" | "none";
+  readonly type: "solid" | "gradient" | "none" | "shader";
   readonly color?: string;
   readonly gradient?: GradientStyle;
+  readonly shader?: MotionShaderFill;
   readonly opacity: number;
 }
 
 export interface GradientStyle {
-  readonly type: "linear" | "radial";
-  readonly angle?: number; // For linear gradients (degrees)
+  readonly type: "linear" | "radial" | "conic";
+  readonly angle?: number; // For linear + conic gradients (degrees)
+  /** Center for radial/conic gradients, normalized 0-1 within the shape bounds (default 0.5,0.5). */
+  readonly center?: { readonly x: number; readonly y: number };
   readonly stops: GradientStop[];
 }
 
 export interface GradientStop {
   readonly offset: number; // 0-1
   readonly color: string;
+  /** Optional per-stop opacity 0-1, multiplied into the stop color's alpha. */
+  readonly opacity?: number;
 }
 
 export interface StrokeStyle {
@@ -202,6 +228,8 @@ export interface StrokeStyle {
   readonly dashOffset?: number;
   readonly lineCap?: "butt" | "round" | "square";
   readonly lineJoin?: "miter" | "round" | "bevel";
+  /** Gradient stroke; overrides the solid `color` when present. */
+  readonly gradient?: GradientStyle;
 }
 
 export interface ShadowStyle {
@@ -209,6 +237,10 @@ export interface ShadowStyle {
   readonly blur: number;
   readonly offsetX: number;
   readonly offsetY: number;
+  /** Grows (>0) or shrinks (<0) the shadow shape before blurring (CSS box-shadow spread). */
+  readonly spread?: number;
+  /** Inset shadow (rendered inside the shape) instead of an outer drop shadow. */
+  readonly inset?: boolean;
 }
 
 export interface ViewBox {

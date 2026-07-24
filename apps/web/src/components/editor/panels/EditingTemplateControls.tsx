@@ -1,4 +1,9 @@
 import React from "react";
+import { ToolcraftSwitchControl } from "@openreel/ui";
+import { ToolcraftSelectControl as Selector } from "@openreel/ui";
+import { ToolcraftSliderControl } from "@openreel/ui";
+import { ToolcraftText as Text } from "@openreel/ui";
+import { ToolcraftTextInputControl } from "@openreel/ui";
 import type { EditingTemplate, EditingTemplatePrimitive } from "@openreel/core";
 
 export const getEditingTemplateDefaultControlValues = (
@@ -60,22 +65,24 @@ export const EditingTemplateControls: React.FC<EditingTemplateControlsProps> = (
           return (
             <div key={control.id} className="space-y-2">
               <div className="flex items-center justify-between gap-3">
-                <label className="text-[11px] font-medium text-text-primary">
+                <Text type="label" weight="bold" display="block" className="text-[11px]">
                   {control.label}
-                </label>
+                </Text>
                 <span className="rounded-full bg-background-tertiary px-2 py-0.5 text-[10px] text-text-secondary">
                   {value}
                 </span>
               </div>
-              <input
-                type="range"
+              <ToolcraftSliderControl
+                label={control.label}
+                isLabelHidden
                 min={control.min ?? 0}
                 max={control.max ?? 100}
                 step={control.step ?? 1}
                 value={Number(value)}
-                disabled={disabled}
-                onChange={(event) => onChange(control.id, Number(event.target.value))}
-                className="w-full accent-[var(--color-primary,#22c55e)] disabled:cursor-not-allowed disabled:opacity-60"
+                isDisabled={disabled}
+                onChange={(nextValue: number) => onChange(control.id, nextValue)}
+                valueDisplay="none"
+                className="w-full disabled:cursor-not-allowed disabled:opacity-60"
               />
             </div>
           );
@@ -84,21 +91,16 @@ export const EditingTemplateControls: React.FC<EditingTemplateControlsProps> = (
         if (control.type === "toggle") {
           return (
             <div key={control.id} className="flex items-center justify-between gap-3">
-              <label className="text-[11px] font-medium text-text-primary">
+              <Text type="label" weight="bold" display="block" className="text-[11px]">
                 {control.label}
-              </label>
-              <button
-                type="button"
+              </Text>
+              <ToolcraftSwitchControl
+                ariaLabel={control.label}
+                checked={Boolean(value)}
                 disabled={disabled}
-                onClick={() => onChange(control.id, !value)}
-                className={`inline-flex h-7 w-12 items-center rounded-full px-1 transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
-                  value
-                    ? "justify-end bg-primary"
-                    : "justify-start bg-background-tertiary"
-                }`}
-              >
-                <span className="h-5 w-5 rounded-full bg-white shadow-sm" />
-              </button>
+                onCheckedChange={(nextValue) => onChange(control.id, nextValue)}
+                showLabel={false}
+              />
             </div>
           );
         }
@@ -112,26 +114,27 @@ export const EditingTemplateControls: React.FC<EditingTemplateControlsProps> = (
 
           return (
             <div key={control.id} className="space-y-2">
-              <label className="text-[11px] font-medium text-text-primary">
+              <Text type="label" weight="bold" display="block" className="text-[11px]">
                 {control.label}
-              </label>
-              <select
+              </Text>
+              <Selector
+                label={control.label}
+                isLabelHidden
+                width="100%"
                 value={`${selectedIndex}`}
-                disabled={disabled}
-                onChange={(event) => {
-                  const option = options[Number(event.target.value)];
+                isDisabled={disabled}
+                options={options.map((option, index) => ({
+                  value: `${index}`,
+                  label: option.label,
+                }))}
+                onChange={(nextValue) => {
+                  const option = options[Number(nextValue)];
                   if (option) {
                     onChange(control.id, option.value);
                   }
                 }}
                 className="h-10 w-full rounded-xl border border-border bg-background-tertiary px-3 text-xs text-text-primary focus:border-primary/50 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {options.map((option, index) => (
-                  <option key={option.label} value={`${index}`}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
+              />
             </div>
           );
         }
@@ -139,22 +142,21 @@ export const EditingTemplateControls: React.FC<EditingTemplateControlsProps> = (
         if (control.type === "color") {
           return (
             <div key={control.id} className="space-y-2">
-              <label className="text-[11px] font-medium text-text-primary">
+              <Text type="label" weight="bold" display="block" className="text-[11px]">
                 {control.label}
-              </label>
+              </Text>
               <div className="flex items-center gap-3">
-                <input
-                  type="color"
-                  value={String(value)}
-                  disabled={disabled}
-                  onChange={(event) => onChange(control.id, event.target.value)}
-                  className="h-10 w-12 rounded-lg border border-border bg-transparent disabled:cursor-not-allowed disabled:opacity-60"
+                <span
+                  className="h-10 w-12 rounded-lg border border-border"
+                  style={{ backgroundColor: String(value) }}
+                  aria-hidden
                 />
-                <input
-                  type="text"
+                <ToolcraftTextInputControl
+                  label={control.label}
+                  isLabelHidden
                   value={String(value)}
-                  disabled={disabled}
-                  onChange={(event) => onChange(control.id, event.target.value)}
+                  isDisabled={disabled}
+                  onChange={(nextValue) => onChange(control.id, nextValue)}
                   className="h-10 flex-1 rounded-xl border border-border bg-background-tertiary px-3 text-xs text-text-primary placeholder:text-text-muted focus:border-primary/50 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
                 />
               </div>
@@ -164,14 +166,15 @@ export const EditingTemplateControls: React.FC<EditingTemplateControlsProps> = (
 
         return (
           <div key={control.id} className="space-y-2">
-            <label className="text-[11px] font-medium text-text-primary">
+            <Text type="label" weight="bold" display="block" className="text-[11px]">
               {control.label}
-            </label>
-            <input
-              type="text"
+            </Text>
+            <ToolcraftTextInputControl
+              label={control.label}
+              isLabelHidden
               value={String(value)}
-              disabled={disabled}
-              onChange={(event) => onChange(control.id, event.target.value)}
+              isDisabled={disabled}
+              onChange={(nextValue) => onChange(control.id, nextValue)}
               className="h-10 w-full rounded-xl border border-border bg-background-tertiary px-3 text-xs text-text-primary placeholder:text-text-muted focus:border-primary/50 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
             />
           </div>

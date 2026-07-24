@@ -4,6 +4,7 @@ import {
   type Renderer,
   isWebGPUSupported,
   type ColorWheelValues,
+  type CpuGradingStages,
   type CurvesValues,
   type HSLValues,
   type LUTData,
@@ -13,6 +14,11 @@ import {
   DEFAULT_COLOR_WHEELS,
   DEFAULT_CURVES,
   DEFAULT_HSL,
+  isNeutralColorWheels,
+  isNeutralCurves,
+  isNeutralLut,
+  isNeutralHsl,
+  isNeutralColorGrading,
 } from "@openreel/core";
 import type { Effect } from "@openreel/core";
 import { v4 as uuidv4 } from "uuid";
@@ -23,6 +29,9 @@ export type VideoEffectType =
   | "brightness"
   | "contrast"
   | "saturation"
+  | "grayscale"
+  | "sepia"
+  | "invert"
   | "hue"
   | "blur"
   | "sharpen"
@@ -36,7 +45,8 @@ export type VideoEffectType =
   | "glow"
   | "motion-blur"
   | "radial-blur"
-  | "chromatic-aberration";
+  | "chromatic-aberration"
+  | "shader";
 
 /**
  * Video effect with full metadata
@@ -325,6 +335,34 @@ export class EffectsBridge {
     return [...effects].sort((a, b) => a.order - b.order);
   }
 
+  getNativeCssFilter(clipId: string): string | null {
+    if (!this.initialized || !this.videoEffectsEngine) {
+      return null;
+    }
+
+    const enabledEffects = this.getEffects(clipId).filter((e) => e.enabled);
+    if (enabledEffects.length === 0) {
+      return null;
+    }
+
+    const colorGrading = this.getColorGrading(clipId);
+    if (
+      Object.keys(colorGrading).length > 0 &&
+      !isNeutralColorGrading(colorGrading)
+    ) {
+      return null;
+    }
+
+    const engineEffects: Effect[] = enabledEffects.map((e) => ({
+      id: e.id,
+      type: e.type,
+      enabled: e.enabled,
+      params: e.params,
+    }));
+
+    return this.videoEffectsEngine.getCssFilterString(engineEffects);
+  }
+
   /**
    * Get a specific effect by ID
    *
@@ -460,6 +498,70 @@ export class EffectsBridge {
     }
   }
 
+  /** Process an explicit effect stack, used by timeline adjustment layers. */
+  async processEffectList(
+    image: ImageBitmap,
+    effects: readonly Effect[],
+  ): Promise<ImageBitmap> {
+    if (!this.initialized || !this.videoEffectsEngine) return image;
+    const enabled = effects.filter((effect) => effect.enabled !== false);
+    if (enabled.length === 0) return image;
+    try {
+      const result = await this.videoEffectsEngine.applyEffects(image, enabled);
+      return result.image?.width > 0 && result.image.height > 0
+        ? result.image
+        : image;
+    } catch (error) {
+      console.error("[EffectsBridge] Adjustment layer processing failed:", error);
+      return image;
+    }
+  }
+
+  async processEffectsToCanvas(
+    clipId: string,
+    image: ImageBitmap,
+  ): Promise<OffscreenCanvas | null> {
+    if (!this.initialized || !this.videoEffectsEngine) {
+      return null;
+    }
+
+    const effects = this.getEffects(clipId);
+    if (effects.length === 0) {
+      return null;
+    }
+
+    const enabledEffects = effects.filter((e) => e.enabled);
+    if (enabledEffects.length === 0) {
+      return null;
+    }
+
+    try {
+      const engineEffects: Effect[] = enabledEffects.map((e) => ({
+        id: e.id,
+        type: e.type,
+        enabled: e.enabled,
+        params: e.params,
+      }));
+
+      const canvas = await this.videoEffectsEngine.applyEffectsToCanvas(
+        image,
+        engineEffects,
+      );
+
+      if (!canvas || canvas.width === 0 || canvas.height === 0) {
+        return null;
+      }
+
+      return canvas;
+    } catch (error) {
+      console.error(
+        "[EffectsBridge] Effects-to-canvas processing failed:",
+        error,
+      );
+      return null;
+    }
+  }
+
   /**
    * Get default parameters for an effect type
    */
@@ -473,6 +575,10 @@ export class EffectsBridge {
         return { value: 1 };
       case "saturation":
         return { value: 1 };
+      case "grayscale":
+      case "sepia":
+      case "invert":
+        return { amount: 1 };
       case "hue":
         return { rotation: 0 };
       case "blur":
@@ -698,7 +804,7 @@ export class EffectsBridge {
     let totalTime = 0;
 
     // Apply color wheels
-    if (settings.colorWheels) {
+    if (settings.colorWheels && !isNeutralColorWheels(settings.colorWheels)) {
       const result = await this.colorGradingEngine.applyColorWheels(
         currentImage,
         settings.colorWheels,
@@ -707,31 +813,12 @@ export class EffectsBridge {
       totalTime += result.processingTime;
     }
 
-    // Apply curves
-    if (settings.curves) {
-      const result = await this.colorGradingEngine.applyCurves(
+    // Apply fused CPU stages (curves -> LUT -> HSL) in a single readback
+    const cpuStages = this.buildCpuGradingStages(settings);
+    if (cpuStages) {
+      const result = await this.colorGradingEngine.applyCpuGrading(
         currentImage,
-        settings.curves,
-      );
-      currentImage = result.image;
-      totalTime += result.processingTime;
-    }
-
-    // Apply LUT
-    if (settings.lut) {
-      const result = await this.colorGradingEngine.applyLUT(
-        currentImage,
-        settings.lut,
-      );
-      currentImage = result.image;
-      totalTime += result.processingTime;
-    }
-
-    // Apply HSL
-    if (settings.hsl) {
-      const result = await this.colorGradingEngine.applyHSL(
-        currentImage,
-        settings.hsl,
+        cpuStages,
       );
       currentImage = result.image;
       totalTime += result.processingTime;
@@ -783,6 +870,95 @@ export class EffectsBridge {
     }
 
     return { image: currentImage, processingTime: totalTime };
+  }
+
+  private buildCpuGradingStages(
+    settings: ColorGradingSettings,
+  ): CpuGradingStages | null {
+    const stages: CpuGradingStages = {};
+    let hasStage = false;
+
+    if (settings.curves && !isNeutralCurves(settings.curves)) {
+      stages.curves = settings.curves;
+      hasStage = true;
+    }
+    if (settings.lut && !isNeutralLut(settings.lut)) {
+      stages.lut = settings.lut;
+      hasStage = true;
+    }
+    if (settings.hsl && !isNeutralHsl(settings.hsl)) {
+      stages.hsl = settings.hsl;
+      hasStage = true;
+    }
+
+    return hasStage ? stages : null;
+  }
+
+  private isWhiteBalanceActive(settings: ColorGradingSettings): boolean {
+    return (
+      (settings.temperature !== undefined && settings.temperature !== 0) ||
+      (settings.tint !== undefined && settings.tint !== 0)
+    );
+  }
+
+  gradingYieldsCanvas(clipId: string): boolean {
+    if (!this.initialized || !this.colorGradingEngine) {
+      return false;
+    }
+    const settings = this.getColorGrading(clipId);
+    return (
+      this.buildCpuGradingStages(settings) !== null &&
+      !this.isWhiteBalanceActive(settings)
+    );
+  }
+
+  async processColorGradingToCanvas(
+    clipId: string,
+    image: ImageBitmap,
+  ): Promise<OffscreenCanvas | null> {
+    if (!this.initialized || !this.colorGradingEngine) {
+      return null;
+    }
+
+    const settings = this.getColorGrading(clipId);
+    const cpuStages = this.buildCpuGradingStages(settings);
+
+    if (!cpuStages || this.isWhiteBalanceActive(settings)) {
+      return null;
+    }
+
+    try {
+      let currentImage = image;
+      let colorWheelsBitmap: ImageBitmap | null = null;
+
+      if (settings.colorWheels && !isNeutralColorWheels(settings.colorWheels)) {
+        const result = await this.colorGradingEngine.applyColorWheels(
+          currentImage,
+          settings.colorWheels,
+        );
+        colorWheelsBitmap = result.image;
+        currentImage = result.image;
+      }
+
+      const canvas = await this.colorGradingEngine.applyCpuGradingToCanvas(
+        currentImage,
+        cpuStages,
+      );
+
+      colorWheelsBitmap?.close();
+
+      if (!canvas || canvas.width === 0 || canvas.height === 0) {
+        return null;
+      }
+
+      return canvas;
+    } catch (error) {
+      console.error(
+        "[EffectsBridge] Color-grading-to-canvas processing failed:",
+        error,
+      );
+      return null;
+    }
   }
 
   // ============================================

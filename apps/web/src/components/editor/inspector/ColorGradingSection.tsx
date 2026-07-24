@@ -1,6 +1,11 @@
 import React, { useCallback, useMemo } from "react";
-import { ChevronDown, RotateCcw, Sun, Thermometer } from "lucide-react";
-import { LabeledSlider } from "@openreel/ui";
+import { ToolcraftButton as Button } from "@openreel/ui";
+import { ToolcraftCard as Card } from "@openreel/ui";
+import { ToolcraftClickableCard as ClickableCard } from "@openreel/ui";
+import { ToolcraftIconButton as IconButton } from "@openreel/ui";
+import { ToolcraftText as Text } from "@openreel/ui";
+import { PropertySlider } from "./shell/PropertySlider";
+import { ChevronDown, RotateCcw, Sun, Thermometer } from "@/icons/lucide-compat";
 import { useProjectStore } from "../../../stores/project-store";
 import type {
   ColorWheelValues,
@@ -38,23 +43,24 @@ const SubSection: React.FC<{
   const [isOpen, setIsOpen] = React.useState(defaultOpen);
 
   return (
-    <div className="border border-border rounded-lg overflow-hidden">
-      <button
+    <Card variant="muted" padding={0} className="overflow-hidden border border-border">
+      <Button
+        label={title}
+        icon={
+          <ChevronDown
+            size={12}
+            className={`transition-transform ${
+              isOpen ? "" : "-rotate-90"
+            } text-fg-3`}
+          />
+        }
+        variant="ghost"
+        size="sm"
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 w-full p-2 bg-background-tertiary hover:bg-background-tertiary/80 transition-colors"
-      >
-        <ChevronDown
-          size={12}
-          className={`transition-transform ${
-            isOpen ? "" : "-rotate-90"
-          } text-text-muted`}
-        />
-        <span className="text-[10px] font-medium text-text-primary">
-          {title}
-        </span>
-      </button>
+        className="flex items-center gap-2 w-full p-2 bg-bg-2 hover:bg-bg-2/80 transition-colors"
+      />
       {isOpen && <div className="p-3 space-y-3">{children}</div>}
-    </div>
+    </Card>
   );
 };
 
@@ -166,36 +172,37 @@ export const ColorGradingSection: React.FC<ColorGradingSectionProps> = ({
   return (
     <div className="space-y-3">
       <div className="flex justify-end">
-        <button
+        <Button
+          label="Reset All"
+          icon={<RotateCcw size={10} />}
+          variant="ghost"
+          size="sm"
           onClick={handleResetAll}
-          className="flex items-center gap-1 px-2 py-1 text-[10px] text-text-muted hover:text-text-primary transition-colors"
-        >
-          <RotateCcw size={10} />
-          Reset All
-        </button>
+          className="flex items-center gap-1 px-2 py-1 text-[10px] text-fg-3 hover:text-fg transition-colors"
+        />
       </div>
 
       <SubSection title="White Balance" defaultOpen>
         <div className="space-y-4">
           <div className="flex items-start justify-between gap-2">
-            <p className="text-[10px] text-text-muted leading-snug">
+            <Text type="supporting" color="secondary" className="text-[10px] leading-snug">
               Warm up cool shots or cool down warm ones. Tint corrects green or
               magenta casts.
-            </p>
-            <button
+            </Text>
+            <IconButton
+              label="Reset white balance"
+              icon={<RotateCcw size={10} />}
+              variant="ghost"
+              size="sm"
               onClick={handleWhiteBalanceReset}
-              className="flex items-center gap-1 px-2 py-0.5 text-[10px] text-text-muted hover:text-text-primary transition-colors shrink-0"
-              title="Reset white balance"
-            >
-              <RotateCcw size={10} />
-              Reset
-            </button>
+              className="flex items-center gap-1 px-2 py-0.5 text-[10px] text-fg-3 hover:text-fg transition-colors shrink-0"
+            />
           </div>
 
           <div className="space-y-2">
             <div className="flex items-center gap-1.5">
-              <Thermometer size={12} className="text-text-muted" />
-              <LabeledSlider
+              <Thermometer size={12} className="text-fg-3" />
+              <PropertySlider
                 label="Temperature"
                 value={temperatureValue}
                 onChange={handleTemperatureChange}
@@ -203,9 +210,13 @@ export const ColorGradingSection: React.FC<ColorGradingSectionProps> = ({
                 max={100}
                 step={1}
                 className="flex-1"
+                formatValue={(value) =>
+                  `${value > 0 ? "+" : ""}${Math.round(value)}`
+                }
               />
             </div>
-            <div className="h-1 rounded-full pointer-events-none mx-5"
+            <div
+              className="h-1 rounded-full pointer-events-none mx-5"
               style={{
                 background:
                   "linear-gradient(to right, #4aa8ff 0%, #cccccc 50%, #ff9a3c 100%)",
@@ -216,8 +227,8 @@ export const ColorGradingSection: React.FC<ColorGradingSectionProps> = ({
 
           <div className="space-y-2">
             <div className="flex items-center gap-1.5">
-              <Sun size={12} className="text-text-muted" />
-              <LabeledSlider
+              <Sun size={12} className="text-fg-3" />
+              <PropertySlider
                 label="Tint"
                 value={tintValue}
                 onChange={handleTintChange}
@@ -225,9 +236,13 @@ export const ColorGradingSection: React.FC<ColorGradingSectionProps> = ({
                 max={100}
                 step={1}
                 className="flex-1"
+                formatValue={(value) =>
+                  `${value > 0 ? "+" : ""}${Math.round(value)}`
+                }
               />
             </div>
-            <div className="h-1 rounded-full pointer-events-none mx-5"
+            <div
+              className="h-1 rounded-full pointer-events-none mx-5"
               style={{
                 background:
                   "linear-gradient(to right, #4ad17f 0%, #cccccc 50%, #d44ad1 100%)",
@@ -237,27 +252,27 @@ export const ColorGradingSection: React.FC<ColorGradingSectionProps> = ({
           </div>
 
           <div className="pt-1">
-            <span className="text-[10px] text-text-muted block mb-1.5">
+            <Text type="supporting" color="secondary" className="mb-1.5 block text-[10px]">
               Presets
-            </span>
+            </Text>
             <div className="grid grid-cols-5 gap-1">
               {WHITE_BALANCE_PRESETS.map((preset) => {
                 const isActive =
                   Math.abs(preset.temperature - temperatureValue) < 0.5 &&
                   Math.abs(preset.tint - tintValue) < 0.5;
                 return (
-                  <button
+                  <ClickableCard
                     key={preset.label}
+                    label={`Apply ${preset.label} white balance`}
                     onClick={() => handleWhiteBalancePreset(preset)}
                     className={`py-1 rounded text-[9px] transition-colors ${
                       isActive
                         ? "bg-primary text-white"
-                        : "bg-background-tertiary border border-border text-text-secondary hover:text-text-primary"
+                        : "bg-bg-2 border border-border text-fg-2 hover:text-fg"
                     }`}
-                    title={`Temp: ${preset.temperature}, Tint: ${preset.tint}`}
                   >
                     {preset.label}
-                  </button>
+                  </ClickableCard>
                 );
               })}
             </div>

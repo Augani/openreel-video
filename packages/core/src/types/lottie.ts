@@ -159,8 +159,11 @@ export type LottieShape =
   | LottieRectShape
   | LottieEllipseShape
   | LottiePathShape
+  | LottieStarShape
   | LottieFillShape
   | LottieStrokeShape
+  | LottieGradientFillShape
+  | LottieGradientStrokeShape
   | LottieTransformShape
   | LottieTrimShape;
 
@@ -245,6 +248,42 @@ export interface LottieTrimShape extends BaseLottieShape {
   e: LottieAnimatedProperty;
   o: LottieAnimatedProperty;
   m: 1 | 2;
+}
+
+export interface LottieStarShape extends BaseLottieShape {
+  ty: "sr";
+  sy?: number;
+  p?: LottieAnimatedProperty;
+  pt?: LottieAnimatedProperty;
+  or?: LottieAnimatedProperty;
+  ir?: LottieAnimatedProperty;
+  r?: LottieAnimatedProperty;
+  os?: LottieAnimatedProperty;
+  is?: LottieAnimatedProperty;
+}
+
+export interface LottieGradientFillShape extends BaseLottieShape {
+  ty: "gf";
+  t?: 1 | 2;
+  g?: LottieGradientColors;
+  s?: LottieAnimatedProperty;
+  e?: LottieAnimatedProperty;
+  o?: LottieAnimatedProperty;
+}
+
+export interface LottieGradientStrokeShape extends BaseLottieShape {
+  ty: "gs";
+  t?: 1 | 2;
+  g?: LottieGradientColors;
+  s?: LottieAnimatedProperty;
+  e?: LottieAnimatedProperty;
+  w?: LottieAnimatedProperty;
+  o?: LottieAnimatedProperty;
+}
+
+export interface LottieGradientColors {
+  p: number;
+  k: LottieAnimatedProperty;
 }
 
 export interface LottieTextData {

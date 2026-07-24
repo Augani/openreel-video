@@ -11,19 +11,25 @@ import { useProjectStore } from "./stores/project-store";
 import { useRouter } from "./hooks/use-router";
 import { useProjectRecovery } from "./hooks/useProjectRecovery";
 import { useKieAIPoller } from "./hooks/useKieAIPoller";
+import { useGpuJobPoller } from "./hooks/useGpuJobPoller";
 import { SOCIAL_MEDIA_PRESETS, type SocialMediaCategory } from "@openreel/core";
-import { TooltipProvider } from "@openreel/ui";
+import { ToolcraftText as Text } from "@openreel/ui";
 
 const EditorInterface = lazy(() =>
   import("./components/editor/EditorInterface").then((m) => ({
     default: m.EditorInterface,
   }))
 );
+const MotionCreatorApp = lazy(() =>
+  import("./motion/MotionCreatorApp").then((module) => ({
+    default: module.MotionCreatorApp,
+  }))
+);
 
 const LoadingSpinner: React.FC<{ message: string }> = ({ message }) => (
   <div className="h-screen w-screen bg-background flex flex-col items-center justify-center">
     <div className="w-10 h-10 border-2 border-primary border-t-transparent rounded-full animate-spin mb-3" />
-    <p className="text-sm text-text-secondary">{message}</p>
+    <Text type="supporting" color="secondary" className="text-sm text-text-secondary">{message}</Text>
   </div>
 );
 
@@ -43,13 +49,20 @@ function App() {
 
   const { route, params, navigate, parsedDimensions, fps } = useRouter();
   const hasHandledInitialRoute = useRef(false);
+  const isMotionHost =
+    typeof window !== "undefined" &&
+    window.location.hostname.startsWith("motion.");
+  const isMotionSurface = isMotionHost || route === "motion";
 
   useKieAIPoller();
+  useGpuJobPoller();
 
   useEffect(() => {
     if (hasHandledInitialRoute.current) return;
 
-    if (route === "new") {
+    if (isMotionSurface) {
+      hasHandledInitialRoute.current = true;
+    } else if (route === "new") {
       hasHandledInitialRoute.current = true;
 
       let projectName = "New Project";
@@ -96,6 +109,7 @@ function App() {
     }
   }, [
     route,
+    isMotionSurface,
     params,
     parsedDimensions,
     fps,
@@ -133,37 +147,39 @@ function App() {
   const isSharePage = route === "share" && params.shareId;
 
   return (
-    <TooltipProvider>
-      <div className="h-screen w-screen bg-background text-text-primary overflow-hidden">
-        <MobileBlocker />
-        {isSharePage ? (
-          <SharePage shareId={params.shareId!} />
-        ) : showWelcome ? (
-          <WelcomeScreen initialTab={initialTab} />
-        ) : (
-          <Suspense fallback={<LoadingSpinner message="Loading editor..." />}>
-            <EditorInterface />
-          </Suspense>
-        )}
-        <ToastContainer />
-        <ScriptViewDialog
-          isOpen={activeModal === "scriptView"}
-          onClose={closeModal}
+    <div className="h-screen w-screen bg-background text-text-primary overflow-hidden">
+      <MobileBlocker />
+      {isMotionSurface ? (
+        <Suspense fallback={<LoadingSpinner message="Loading Motion Creator..." />}>
+          <MotionCreatorApp />
+        </Suspense>
+      ) : isSharePage ? (
+        <SharePage shareId={params.shareId!} />
+      ) : showWelcome ? (
+        <WelcomeScreen initialTab={initialTab} />
+      ) : (
+        <Suspense fallback={<LoadingSpinner message="Loading editor..." />}>
+          <EditorInterface />
+        </Suspense>
+      )}
+      <ToastContainer />
+      <ScriptViewDialog
+        isOpen={activeModal === "scriptView"}
+        onClose={closeModal}
+      />
+      <SearchModal isOpen={activeModal === "search"} onClose={closeModal} />
+      {showDialog && availableSaves.length > 0 && (
+        <RecoveryDialog
+          saves={availableSaves}
+          onRecover={async (saveId) => {
+            const success = await recover(saveId);
+            if (success) navigate("editor");
+          }}
+          onDismiss={dismiss}
+          onClearAll={clearAll}
         />
-        <SearchModal isOpen={activeModal === "search"} onClose={closeModal} />
-        {showDialog && availableSaves.length > 0 && (
-          <RecoveryDialog
-            saves={availableSaves}
-            onRecover={async (saveId) => {
-              const success = await recover(saveId);
-              if (success) navigate("editor");
-            }}
-            onDismiss={dismiss}
-            onClearAll={clearAll}
-          />
-        )}
-      </div>
-    </TooltipProvider>
+      )}
+    </div>
   );
 }
 

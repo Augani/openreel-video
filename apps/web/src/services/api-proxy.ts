@@ -50,6 +50,19 @@ export async function apiFetch(
 ): Promise<Response> {
   const extraHeaders = (options.headers ?? {}) as Record<string, string>;
 
+  if (typeof window !== "undefined" && window.openreel?.platform === "desktop") {
+    const result = await window.openreel.cloud.fetch(service, path, {
+      method: options.method,
+      headers: options.headers as Record<string, string> | undefined,
+      body: typeof options.body === "string" ? options.body : undefined,
+    });
+    return new Response(result.body, {
+      status: result.status,
+      statusText: result.statusText,
+      headers: result.headers,
+    });
+  }
+
   if (isDev) {
     const config = DIRECT_CONFIG[service];
     const url = `${config.baseUrl}${path}`;

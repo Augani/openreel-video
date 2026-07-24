@@ -1,5 +1,5 @@
-import type { LucideIcon } from "lucide-react";
-import { Move, Palette, Wand2, Volume2, Gauge, Film, Sparkles, Type } from "lucide-react";
+import type { LucideIcon } from "@/icons/lucide-compat";
+import { Move, Palette, Wand2, Volume2, Gauge, Film, Sparkles, Type } from "@/icons/lucide-compat";
 
 export type InspectorTabId =
   | "transform"

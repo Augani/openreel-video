@@ -1,4 +1,9 @@
 import React, { useState, useCallback, useMemo } from "react";
+import { ToolcraftButton as Button } from "@openreel/ui";
+import { ToolcraftCard as Card } from "@openreel/ui";
+import { ToolcraftClickableCard as ClickableCard } from "@openreel/ui";
+import { ToolcraftText as Text } from "@openreel/ui";
+import { PropertySlider } from "./shell/PropertySlider";
 import {
   PictureInPicture2,
   Square,
@@ -6,7 +11,7 @@ import {
   Move,
   Maximize2,
   RotateCcw,
-} from "lucide-react";
+} from "@/icons/lucide-compat";
 import { useProjectStore } from "../../../stores/project-store";
 import type { Transform } from "@openreel/core";
 
@@ -155,60 +160,37 @@ const ControlSlider: React.FC<{
   max = 1,
   step = 0.01,
   unit = "",
-}) => {
-  const percentage = ((value - min) / (max - min)) * 100;
-
-  return (
-    <div className="space-y-1">
-      <div className="flex items-center justify-between">
-        <span className="text-[10px] text-text-secondary">{label}</span>
-        <span className="text-[10px] font-mono text-text-primary bg-background-tertiary px-1.5 py-0.5 rounded border border-border">
-          {value.toFixed(2)}
-          {unit}
-        </span>
-      </div>
-      <div className="relative h-1.5">
-        <input
-          type="range"
-          min={min}
-          max={max}
-          step={step}
-          value={value}
-          onChange={(e) => onChange(parseFloat(e.target.value))}
-          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-        />
-        <div className="absolute inset-0 bg-background-tertiary rounded-full overflow-hidden">
-          <div
-            className="h-full bg-primary rounded-full transition-all"
-            style={{ width: `${percentage}%` }}
-          />
-        </div>
-        <div
-          className="absolute top-1/2 -translate-y-1/2 w-2.5 h-2.5 bg-white rounded-full shadow-sm pointer-events-none"
-          style={{ left: `calc(${percentage}% - 5px)` }}
-        />
-      </div>
-    </div>
-  );
-};
+}) => (
+  <PropertySlider
+    label={label}
+    value={value}
+    onChange={onChange}
+    min={min}
+    max={max}
+    step={step}
+    formatValue={(nextValue) => `${nextValue.toFixed(2)}${unit}`}
+  />
+);
 
 const PresetButton: React.FC<{
   preset: PiPPreset;
   isActive: boolean;
   onClick: () => void;
 }> = ({ preset, isActive, onClick }) => (
-  <button
+  <ClickableCard
+    label={preset.name}
     onClick={onClick}
     className={`flex flex-col items-center gap-1 p-2 rounded-lg border transition-colors ${
       isActive
         ? "bg-primary/20 border-primary text-primary"
-        : "bg-background-tertiary border-border text-text-muted hover:text-text-primary hover:border-primary/50"
+        : "bg-bg-2 border-border text-fg-3 hover:text-fg hover:border-primary/50"
     }`}
-    title={preset.name}
   >
     <PresetIcon type={preset.icon} />
-    <span className="text-[8px] truncate max-w-full">{preset.name}</span>
-  </button>
+    <Text type="supporting" className="truncate max-w-full text-[8px]">
+      {preset.name}
+    </Text>
+  </ClickableCard>
 );
 
 export const PiPSection: React.FC<PiPSectionProps> = ({ clipId }) => {
@@ -344,22 +326,26 @@ export const PiPSection: React.FC<PiPSectionProps> = ({ clipId }) => {
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-2 p-2 bg-gradient-to-r bg-primary/10 rounded-lg border border-primary/30">
+      <Card
+        variant="muted"
+        padding={2}
+        className="flex items-center gap-2 border border-primary/30 bg-primary/10"
+      >
         <PictureInPicture2 size={16} className="text-primary" />
-        <div className="flex-1">
-          <span className="text-[11px] font-medium text-text-primary">
+        <div className="flex-1 flex flex-col gap-0.5">
+          <Text type="supporting" color="primary" className="text-[11px] font-medium">
             Picture-in-Picture
-          </span>
-          <p className="text-[9px] text-text-muted">
+          </Text>
+          <Text type="supporting" color="secondary" className="text-[9px]">
             Position and scale video overlay
-          </p>
+          </Text>
         </div>
-      </div>
+      </Card>
 
       <div className="space-y-2">
-        <span className="text-[10px] font-medium text-text-secondary">
+        <Text type="supporting" color="secondary" className="text-[10px] font-medium">
           Corner Positions
-        </span>
+        </Text>
         <div className="grid grid-cols-4 gap-1">
           {cornerPresets.map((preset) => (
             <PresetButton
@@ -373,9 +359,9 @@ export const PiPSection: React.FC<PiPSectionProps> = ({ clipId }) => {
       </div>
 
       <div className="space-y-2">
-        <span className="text-[10px] font-medium text-text-secondary">
+        <Text type="supporting" color="secondary" className="text-[10px] font-medium">
           Split Screen
-        </span>
+        </Text>
         <div className="grid grid-cols-4 gap-1">
           {splitPresets.map((preset) => (
             <PresetButton
@@ -389,9 +375,9 @@ export const PiPSection: React.FC<PiPSectionProps> = ({ clipId }) => {
       </div>
 
       <div className="space-y-2">
-        <span className="text-[10px] font-medium text-text-secondary">
+        <Text type="supporting" color="secondary" className="text-[10px] font-medium">
           Center & Full
-        </span>
+        </Text>
         <div className="grid grid-cols-3 gap-1">
           {centerPresets.map((preset) => (
             <PresetButton
@@ -404,19 +390,20 @@ export const PiPSection: React.FC<PiPSectionProps> = ({ clipId }) => {
         </div>
       </div>
 
-      <button
+      <Button
+        label={`${showAdvanced ? "Hide" : "Show"} Advanced Controls`}
+        variant="secondary"
+        size="sm"
         onClick={() => setShowAdvanced(!showAdvanced)}
-        className="w-full py-1.5 text-[10px] text-text-secondary hover:text-text-primary bg-background-tertiary rounded-lg transition-colors"
-      >
-        {showAdvanced ? "Hide" : "Show"} Advanced Controls
-      </button>
+        className="w-full py-1.5 text-[10px] text-fg-2 hover:text-fg bg-bg-2 rounded-lg transition-colors"
+      />
 
       {showAdvanced && (
         <div className="space-y-3 pt-2 border-t border-border">
           <div className="space-y-2">
-            <span className="text-[10px] font-medium text-text-secondary">
+            <Text type="supporting" color="secondary" className="text-[10px] font-medium">
               Position
-            </span>
+            </Text>
             <ControlSlider
               label="X Position"
               value={currentTransform.position.x}
@@ -434,9 +421,9 @@ export const PiPSection: React.FC<PiPSectionProps> = ({ clipId }) => {
           </div>
 
           <div className="space-y-2">
-            <span className="text-[10px] font-medium text-text-secondary">
+            <Text type="supporting" color="secondary" className="text-[10px] font-medium">
               Scale
-            </span>
+            </Text>
             <ControlSlider
               label="Uniform Scale"
               value={currentTransform.scale.x}
@@ -461,9 +448,9 @@ export const PiPSection: React.FC<PiPSectionProps> = ({ clipId }) => {
           </div>
 
           <div className="space-y-2">
-            <span className="text-[10px] font-medium text-text-secondary">
+            <Text type="supporting" color="secondary" className="text-[10px] font-medium">
               Appearance
-            </span>
+            </Text>
             <ControlSlider
               label="Border Radius"
               value={currentTransform.borderRadius || 0}
@@ -483,17 +470,18 @@ export const PiPSection: React.FC<PiPSectionProps> = ({ clipId }) => {
         </div>
       )}
 
-      <button
+      <Button
+        label="Reset to Default"
+        icon={<RotateCcw size={12} />}
+        variant="secondary"
+        size="sm"
         onClick={handleReset}
-        className="w-full flex items-center justify-center gap-1.5 py-2 text-[10px] text-text-secondary hover:text-text-primary bg-background-tertiary rounded-lg transition-colors"
-      >
-        <RotateCcw size={12} />
-        Reset to Default
-      </button>
+        className="w-full flex items-center justify-center gap-1.5 py-2 text-[10px] text-fg-2 hover:text-fg bg-bg-2 rounded-lg transition-colors"
+      />
 
-      <p className="text-[9px] text-text-muted text-center">
+      <Text type="supporting" color="secondary" className="text-center text-[9px]">
         Drag clip in preview to fine-tune position
-      </p>
+      </Text>
     </div>
   );
 };

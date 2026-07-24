@@ -8,9 +8,11 @@ import {
   Square,
   Star,
   Crown,
-} from "lucide-react";
+} from "@/icons/lucide-compat";
 import type { ScriptableTemplate, SocialMediaCategory } from "@openreel/core";
 import { SOCIAL_MEDIA_PRESETS } from "@openreel/core";
+import { ToolcraftClickableCard as ClickableCard } from "@openreel/ui";
+import { ToolcraftText as Text } from "@openreel/ui";
 
 interface TemplateCardProps {
   template: ScriptableTemplate;
@@ -37,10 +39,10 @@ const CATEGORY_ICONS: Record<string, React.ElementType> = {
 };
 
 const CATEGORY_GRADIENTS: Record<string, string> = {
-  tiktok: "from-pink-500 to-cyan-500",
-  "instagram-reels": "from-purple-500 to-pink-500",
-  "instagram-stories": "from-amber-500 to-pink-500",
-  "instagram-post": "from-purple-500 to-pink-500",
+  tiktok: "from-emerald-500 to-cyan-500",
+  "instagram-reels": "from-emerald-500 to-teal-500",
+  "instagram-stories": "from-amber-500 to-emerald-500",
+  "instagram-post": "from-emerald-500 to-teal-500",
   "youtube-shorts": "from-red-500 to-orange-500",
   "youtube-video": "from-red-600 to-red-400",
   facebook: "from-blue-600 to-blue-400",
@@ -76,10 +78,13 @@ export const TemplateCard: React.FC<TemplateCardProps> = ({
   };
 
   return (
-    <button
+    <ClickableCard
+      label={template.name}
       onClick={onClick}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
+      padding={0}
+      variant="muted"
       className="group relative flex flex-col rounded-xl bg-background-tertiary border border-border overflow-hidden transition-all duration-200 hover:bg-background-elevated hover:border-border-hover hover:shadow-lg hover:-translate-y-0.5"
     >
       <div
@@ -135,9 +140,9 @@ export const TemplateCard: React.FC<TemplateCardProps> = ({
       </div>
 
       <div className="p-3 text-left">
-        <h3 className="text-sm font-medium text-text-primary truncate group-hover:text-primary transition-colors">
+        <Text type="supporting" color="primary" weight="medium" className="text-sm text-text-primary truncate group-hover:text-primary transition-colors">
           {template.name}
-        </h3>
+        </Text>
 
         <div className="flex items-center gap-3 mt-1.5">
           <div className="flex items-center gap-1.5 text-[11px] text-text-muted">
@@ -168,7 +173,7 @@ export const TemplateCard: React.FC<TemplateCardProps> = ({
           </div>
         )}
       </div>
-    </button>
+    </ClickableCard>
   );
 };
 

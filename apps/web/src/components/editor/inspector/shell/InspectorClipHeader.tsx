@@ -1,4 +1,5 @@
 import * as React from "react";
+import { ToolcraftBadge, ToolcraftText } from "@openreel/ui";
 
 export interface InspectorClipHeaderProps {
   name: string;
@@ -13,11 +14,13 @@ export const InspectorClipHeader: React.FC<InspectorClipHeaderProps> = ({
 }) => (
   <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-border shrink-0">
     <div className="min-w-0">
-      <p className="text-[11.5px] text-fg font-medium truncate">{name}</p>
-      <p className="text-[10px] text-fg-muted mt-0.5">{durationSeconds.toFixed(2)}s</p>
+      <ToolcraftText type="label" weight="bold" className="block" maxLines={1}>
+        {name}
+      </ToolcraftText>
+      <ToolcraftText type="supporting" color="secondary" className="mt-0.5 block">
+        {durationSeconds.toFixed(2)}s
+      </ToolcraftText>
     </div>
-    <span className="text-[10px] uppercase tracking-wide text-fg-3 bg-bg-2 border border-border rounded px-1.5 py-0.5 shrink-0">
-      {typeLabel}
-    </span>
+    <ToolcraftBadge label={typeLabel} className="shrink-0 uppercase tracking-wide" />
   </div>
 );

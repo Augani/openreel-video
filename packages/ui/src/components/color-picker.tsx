@@ -16,6 +16,7 @@ interface ParsedColor {
 export interface ColorPickerProps {
   value: string
   onChange: (value: string) => void
+  label?: string
   showAlpha?: boolean
   allowTransparent?: boolean
   disabled?: boolean
@@ -180,6 +181,7 @@ export const ColorPicker = React.forwardRef<HTMLButtonElement, ColorPickerProps>
     {
       value,
       onChange,
+      label = "Select color",
       showAlpha = false,
       allowTransparent = false,
       disabled = false,
@@ -257,6 +259,8 @@ export const ColorPicker = React.forwardRef<HTMLButtonElement, ColorPickerProps>
             ref={ref}
             type="button"
             disabled={disabled}
+            aria-label={label}
+            title={label}
             className={cn(
               "flex h-8 w-full items-center gap-2 rounded-md border border-border bg-background-tertiary px-2 text-left text-[10px] text-text-primary transition-colors hover:border-primary/60 disabled:cursor-not-allowed disabled:opacity-50",
               className,

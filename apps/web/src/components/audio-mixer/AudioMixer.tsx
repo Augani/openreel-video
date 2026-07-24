@@ -10,6 +10,10 @@ import { ChannelStrip } from "./ChannelStrip";
 import type { ChannelStripState } from "./types";
 import { volumeToDb, formatDb } from "./types";
 import { getRealtimeAudioGraph } from "@openreel/core";
+import { ToolcraftIconButton as IconButton } from "@openreel/ui";
+import { ToolcraftSlider as Slider } from "@openreel/ui";
+import { ToolcraftText as Text } from "@openreel/ui";
+import { X } from "@/icons/lucide-compat";
 
 export interface AudioMixerProps {
   /** Whether the mixer panel is visible */
@@ -27,13 +31,6 @@ const MasterChannel: React.FC<{
   rmsLevel: number;
   onVolumeChange: (volume: number) => void;
 }> = ({ volume, peakLevel, rmsLevel, onVolumeChange }) => {
-  const handleChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      onVolumeChange(parseFloat(e.target.value));
-    },
-    [onVolumeChange],
-  );
-
   const dbValue = volumeToDb(volume);
   const levelPercent = Math.min(100, Math.max(0, rmsLevel * 100));
   const peakPercent = Math.min(100, Math.max(0, peakLevel * 100));
@@ -46,7 +43,7 @@ const MasterChannel: React.FC<{
 
   return (
     <div className="flex flex-col items-center gap-2 p-3 bg-gray-900 rounded-lg min-w-[100px] border border-gray-700">
-      <div className="text-xs text-gray-300 font-bold">MASTER</div>
+      <Text type="label" weight="bold" className="text-xs text-gray-300">MASTER</Text>
 
       {/* Stereo level meter */}
       <div className="flex gap-1 h-32 w-6">
@@ -81,13 +78,16 @@ const MasterChannel: React.FC<{
         <span className="text-xs text-gray-400 font-mono w-12 text-center">
           {formatDb(dbValue)} dB
         </span>
-        <input
-          type="range"
-          min="0"
-          max="4"
-          step="0.01"
+        <Slider
+          label="Master volume fader"
+          isLabelHidden
+          min={0}
+          max={4}
+          step={0.01}
+          orientation="vertical"
           value={volume}
-          onChange={handleChange}
+          onChange={onVolumeChange}
+          valueDisplay="none"
           className="h-24 w-2 appearance-none bg-gray-700 rounded-full cursor-pointer
  [writing-mode:vertical-lr] [direction:rtl]
  [&::-webkit-slider-thumb]:appearance-none
@@ -103,7 +103,6 @@ const MasterChannel: React.FC<{
  [&::-moz-range-thumb]:rounded
  [&::-moz-range-thumb]:cursor-pointer
  [&::-moz-range-thumb]:border-0"
-          aria-label="Master volume fader"
         />
       </div>
     </div>
@@ -304,15 +303,16 @@ export const AudioMixer: React.FC<AudioMixerProps> = ({
     >
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-semibold text-white">Audio Mixer</h2>
+        <Text type="body" weight="semibold" className="text-lg text-white">Audio Mixer</Text>
         {onClose && (
-          <button
+          <IconButton
+            label="Close mixer"
             onClick={onClose}
+            icon={<X size={16} aria-hidden />}
+            variant="ghost"
+            size="sm"
             className="text-gray-400 hover:text-white transition-colors"
-            aria-label="Close mixer"
-          >
-            ✕
-          </button>
+          />
         )}
       </div>
 
@@ -332,10 +332,10 @@ export const AudioMixer: React.FC<AudioMixerProps> = ({
             />
           ))
         ) : (
-          <div className="text-gray-500 text-sm py-8 px-4">
+          <Text type="supporting" color="secondary" className="text-gray-500 text-sm py-8 px-4">
             No audio tracks in timeline. Add audio or video tracks to see
             channel strips.
-          </div>
+          </Text>
         )}
 
         {/* Separator */}

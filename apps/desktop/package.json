@@ -1,0 +1,43 @@
+{
+  "name": "@openreel/desktop",
+  "private": true,
+  "version": "1.0.0-alpha.10",
+  "type": "commonjs",
+  "main": "dist/main/index.js",
+  "bin": {
+    "openreel-mcp": "dist/mcp-shim/index.js"
+  },
+  "homepage": "https://openreel.video",
+  "author": {
+    "name": "OpenReel",
+    "email": "support@openreel.video"
+  },
+  "description": "OpenReel — open-source professional video editor",
+  "scripts": {
+    "build:main": "node scripts/prepare-aurora-native.mjs && tsup",
+    "build:renderer": "OPENREEL_DESKTOP=1 pnpm --filter @openreel/web build",
+    "build": "pnpm run build:renderer && pnpm run build:main",
+    "predev": "pnpm run build:renderer",
+    "dev": "tsup --watch --onSuccess \"electron .\"",
+    "start": "electron .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "fetch:ffmpeg": "node scripts/fetch-ffmpeg.mjs",
+    "prepare:aurora": "node scripts/prepare-aurora-native.mjs",
+    "pack": "pnpm run fetch:ffmpeg && pnpm run build && electron-builder --dir",
+    "dist": "pnpm run fetch:ffmpeg && pnpm run build && electron-builder"
+  },
+  "dependencies": {
+    "electron-updater": "^6.3.9",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "electron": "^33.0.0",
+    "electron-builder": "^24.13.3",
+    "tsup": "^8.0.0",
+    "typescript": "^5.4.5",
+    "vitest": "^1.6.0"
+  }
+}

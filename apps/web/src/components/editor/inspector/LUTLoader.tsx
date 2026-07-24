@@ -1,6 +1,11 @@
 import React, { useCallback, useRef, useState } from "react";
-import { Upload, X, AlertCircle } from "lucide-react";
-import { Slider } from "@openreel/ui";
+import { ToolcraftButton as Button } from "@openreel/ui";
+import { ToolcraftCard as Card } from "@openreel/ui";
+import { ToolcraftFileDropControl as FileInput } from "@openreel/ui";
+import { ToolcraftIconButton as IconButton } from "@openreel/ui";
+import { ToolcraftText as Text } from "@openreel/ui";
+import { PropertySlider } from "./shell/PropertySlider";
+import { Upload, X, AlertCircle } from "@/icons/lucide-compat";
 import type { LUTData } from "@openreel/core";
 
 interface LUTLoaderProps {
@@ -16,21 +21,15 @@ const IntensitySlider: React.FC<{
   const percentage = Math.round(value * 100);
 
   return (
-    <div className="space-y-1">
-      <div className="flex items-center justify-between">
-        <span className="text-[10px] text-text-secondary">Intensity</span>
-        <span className="text-[10px] font-mono text-text-primary">
-          {percentage}%
-        </span>
-      </div>
-      <Slider
-        min={0}
-        max={100}
-        step={1}
-        value={[percentage]}
-        onValueChange={(v) => onChange(v[0] / 100)}
-      />
-    </div>
+    <PropertySlider
+      label="Intensity"
+      min={0}
+      max={100}
+      step={1}
+      value={percentage}
+      onChange={(nextValue: number) => onChange(nextValue / 100)}
+      formatValue={(nextValue) => `${Math.round(nextValue)}%`}
+    />
   );
 };
 
@@ -261,53 +260,63 @@ export const LUTLoader: React.FC<LUTLoaderProps> = ({
   return (
     <div className="space-y-3">
       {/* Hidden file input */}
-      <input
+      <FileInput
         ref={fileInputRef}
-        type="file"
+        label="Load LUT file"
+        isLabelHidden
+        value={null}
         accept=".cube,.3dl"
-        onChange={handleFileSelect}
+        onChange={(files) => {
+          const file = Array.isArray(files) ? files[0] : files;
+          if (!file) return;
+          const dataTransfer = new DataTransfer();
+          dataTransfer.items.add(file);
+          handleFileSelect({
+            target: { files: dataTransfer.files },
+          } as React.ChangeEvent<HTMLInputElement>);
+        }}
+        mode="input"
         className="hidden"
       />
 
       {/* Load button or loaded LUT info */}
       {!lutData ? (
-        <button
-          onClick={handleLoadClick}
-          disabled={isLoading}
-          className="w-full py-2 bg-background-tertiary border border-border rounded-lg text-[10px] text-text-secondary hover:text-text-primary hover:border-text-secondary transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {isLoading ? (
-            <>
+        <Button
+          label={isLoading ? "Loading..." : "Load LUT (.cube, .3dl)"}
+          icon={
+            isLoading ? (
               <div className="w-3 h-3 border border-text-muted border-t-transparent rounded-full animate-spin" />
-              Loading...
-            </>
-          ) : (
-            <>
+            ) : (
               <Upload size={12} />
-              Load LUT (.cube, .3dl)
-            </>
-          )}
-        </button>
+            )
+          }
+          variant="secondary"
+          size="sm"
+          onClick={handleLoadClick}
+          isDisabled={isLoading}
+          className="w-full py-2 bg-bg-2 border border-border rounded-lg text-[10px] text-fg-2 hover:text-fg hover:border-text-secondary transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+        />
       ) : (
         <div className="space-y-2">
           {/* Loaded LUT info */}
-          <div className="flex items-center justify-between p-2 bg-background-tertiary rounded-lg">
-            <div className="flex-1 min-w-0">
-              <p className="text-[10px] text-text-primary truncate">
+          <Card variant="muted" padding={2} className="flex items-center justify-between">
+            <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+              <Text type="supporting" color="primary" className="block truncate text-[10px]">
                 {fileName || "LUT Loaded"}
-              </p>
-              <p className="text-[9px] text-text-muted">
+              </Text>
+              <Text type="supporting" color="secondary" className="text-[9px]">
                 {lutData.size}x{lutData.size}x{lutData.size} LUT
-              </p>
+              </Text>
             </div>
-            <button
+            <IconButton
+              label="Remove LUT"
+              icon={<X size={14} />}
+              variant="ghost"
+              size="sm"
               onClick={handleRemoveLUT}
-              className="p-1 text-text-muted hover:text-text-primary transition-colors"
-              title="Remove LUT"
-            >
-              <X size={14} />
-            </button>
-          </div>
+              className="p-1 text-fg-3 hover:text-fg transition-colors"
+            />
+          </Card>
 
           {/* Intensity slider */}
           <IntensitySlider
@@ -316,25 +325,28 @@ export const LUTLoader: React.FC<LUTLoaderProps> = ({
           />
 
           {/* Load different LUT button */}
-          <button
+          <Button
+            label="Load Different LUT"
+            variant="ghost"
+            size="sm"
             onClick={handleLoadClick}
-            disabled={isLoading}
-            className="w-full py-1.5 text-[10px] text-text-muted hover:text-text-secondary transition-colors"
-          >
-            Load Different LUT
-          </button>
+            isDisabled={isLoading}
+            className="w-full py-1.5 text-[10px] text-fg-3 hover:text-fg-2 transition-colors"
+          />
         </div>
       )}
 
       {/* Error message */}
       {error && (
-        <div className="flex items-start gap-2 p-2 bg-red-500/10 border border-red-500/20 rounded-lg">
+        <Card variant="muted" padding={2} className="flex items-start gap-2 border border-red-500/20 bg-red-500/10">
           <AlertCircle
             size={14}
             className="text-red-500 flex-shrink-0 mt-0.5"
           />
-          <p className="text-[10px] text-red-400">{error}</p>
-        </div>
+          <Text type="supporting" className="text-[10px] text-red-400">
+            {error}
+          </Text>
+        </Card>
       )}
     </div>
   );

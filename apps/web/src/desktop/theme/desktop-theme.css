@@ -1,0 +1,67 @@
+/* ============================================================
+   OpenReel Desktop — DaVinci-Resolve-style charcoal/emerald tokens
+   Scoped under .openreel-desktop. Overrides the same CSS variable
+   names index.css defines so desktop components reuse the existing
+   Tailwind utilities and inherit the Resolve look.
+   Surfaces: charcoal-neutral (hue ~250, low chroma).
+   Accent: emerald (hue ~162).
+   ============================================================ */
+.openreel-desktop {
+  color-scheme: dark;
+
+  --bg: oklch(0.16 0.004 250);
+  --bg-1: oklch(0.185 0.004 250);
+  --bg-2: oklch(0.21 0.004 250);
+  --bg-3: oklch(0.25 0.004 250);
+  --bg-elev: oklch(0.235 0.004 250);
+  --border: oklch(0.3 0.004 250);
+  --border-strong: oklch(0.38 0.005 250);
+
+  --fg: oklch(0.93 0.004 250);
+  --fg-2: oklch(0.72 0.006 250);
+  --fg-3: oklch(0.58 0.006 250);
+  --fg-muted: oklch(0.46 0.006 250);
+
+  --hover: oklch(0.27 0.004 250);
+  --selected: oklch(0.3 0.03 162);
+
+  --accent: oklch(0.7 0.15 162);
+  --accent-strong: oklch(0.63 0.16 162);
+  --accent-soft: oklch(0.3 0.05 162);
+  --accent-fg: oklch(0.16 0.004 250);
+  --accent-glow: oklch(0.7 0.15 162 / 0.35);
+
+  --track-bg: oklch(0.2 0.004 250);
+  --tl-bg: oklch(0.15 0.004 250);
+  --waveform: oklch(0.7 0.15 162 / 0.55);
+  --stage-bg: oklch(0.12 0.003 250);
+  --screen-bg: oklch(0 0 0);
+
+  --shadow-sm: 0 1px 0 oklch(0 0 0 / 0.4), 0 1px 2px oklch(0 0 0 / 0.3);
+  --shadow-md: 0 1px 0 oklch(0 0 0 / 0.5), 0 6px 24px oklch(0 0 0 / 0.4);
+  --shadow-lg: 0 1px 0 oklch(0 0 0 / 0.6), 0 24px 60px oklch(0 0 0 / 0.5);
+
+  --c-video: oklch(0.6 0.11 200);
+  --c-text: oklch(0.78 0.13 80);
+  --c-audio: oklch(0.7 0.1 195);
+  --c-music: oklch(0.7 0.14 295);
+
+  --background: 220 8% 10%;
+  --foreground: 0 0% 93%;
+  --card: 220 7% 14%;
+  --card-foreground: 0 0% 93%;
+  --popover: 220 7% 14%;
+  --popover-foreground: 0 0% 93%;
+  --primary: 158 64% 52%;
+  --primary-foreground: 220 8% 10%;
+  --secondary: 220 6% 19%;
+  --secondary-foreground: 0 0% 93%;
+  --muted: 220 6% 19%;
+  --muted-foreground: 220 6% 64%;
+  --accent-hsl: 220 6% 23%;
+  --accent-foreground: 0 0% 93%;
+  --destructive: 0 62% 50%;
+  --destructive-foreground: 0 0% 95%;
+  --input: 220 6% 25%;
+  --ring: 158 64% 52%;
+}

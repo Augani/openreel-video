@@ -1,19 +1,14 @@
 import { useState, useCallback } from "react";
-import { Upload, Cloud, HardDrive, Check, AlertCircle } from "lucide-react";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  Button,
-  Input,
-  Label,
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
-} from "@openreel/ui";
+import { Upload, Cloud, HardDrive, Check, AlertCircle } from "@/icons/lucide-compat";
+import { ToolcraftButton as Button } from "@openreel/ui";
+import { ToolcraftCard as Card } from "@openreel/ui";
+import { ToolcraftDialog as Dialog, ToolcraftDialogHeader as DialogHeader } from "@openreel/ui";
+import { ToolcraftLayout as Layout, ToolcraftLayoutContent as LayoutContent, ToolcraftLayoutFooter as LayoutFooter } from "@openreel/ui";
+import { ToolcraftSelectableCard as SelectableCard } from "@openreel/ui";
+import { ToolcraftSelectControl as Selector } from "@openreel/ui";
+import { ToolcraftText as Text } from "@openreel/ui";
+import { ToolcraftTextAreaControl } from "@openreel/ui";
+import { ToolcraftTextInputControl } from "@openreel/ui";
 import { useProjectStore } from "../../stores/project-store";
 import { useEngineStore } from "../../stores/engine-store";
 import {
@@ -155,167 +150,151 @@ export const SaveTemplateDialog: React.FC<SaveTemplateDialogProps> = ({
   if (!isOpen) return null;
 
   return (
-    <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-lg p-0 gap-0 bg-background border-border overflow-hidden">
-        <DialogHeader className="p-4 border-b border-border space-y-0">
-          <DialogTitle className="text-lg font-semibold text-text-primary">
-            Save as Template
-          </DialogTitle>
-        </DialogHeader>
-
-        <div className="p-4 space-y-4 max-h-[70vh] overflow-y-auto">
+    <Dialog
+      isOpen
+      onOpenChange={(open) => !open && onClose()}
+      width={512}
+      purpose="form"
+    >
+      <Layout
+        header={
+          <DialogHeader
+            title="Save as Template"
+            onOpenChange={(open) => !open && onClose()}
+          />
+        }
+        content={
+          <LayoutContent className="max-h-[70vh] overflow-y-auto">
+        <div className="space-y-4">
           {success && (
-            <div className="flex items-center gap-2 p-3 bg-green-500/10 border border-green-500/30 rounded-lg">
-              <Check size={16} className="text-green-400" />
-              <span className="text-sm text-green-400">
+            <Card variant="green" padding={3} className="flex items-center gap-2 border border-green-500/30">
+              <Check size={16} className="text-green-400" aria-hidden />
+              <Text type="supporting" className="text-green-400">
                 Template saved successfully!
-              </span>
-            </div>
+              </Text>
+            </Card>
           )}
 
           {error && (
-            <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
-              <AlertCircle size={16} className="text-red-400" />
-              <span className="text-sm text-red-400">{error}</span>
-            </div>
+            <Card variant="red" padding={3} className="flex items-center gap-2 border border-red-500/30">
+              <AlertCircle size={16} className="text-red-400" aria-hidden />
+              <Text type="supporting" className="text-red-400">{error}</Text>
+            </Card>
           )}
 
-          <div className="space-y-2">
-            <Label className="text-xs font-medium text-text-secondary">
-              Template Name <span className="text-red-400">*</span>
-            </Label>
-            <Input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="My Awesome Template"
-              className="bg-background-secondary border-border text-text-primary"
-              maxLength={50}
-            />
-            <p className="text-[10px] text-text-muted">
-              {name.length}/50 characters
-            </p>
-          </div>
+          <ToolcraftTextInputControl
+            label="Template Name"
+            isRequired
+            type="text"
+            value={name}
+            onChange={(nextName) => setName(nextName.slice(0, 50))}
+            placeholder="My Awesome Template"
+            width="100%"
+          />
+          <Text type="supporting" color="secondary" display="block" className="text-[10px]">
+            {name.length}/50 characters
+          </Text>
+
+          <ToolcraftTextAreaControl
+            label="Description"
+            isRequired
+            value={description}
+            onChange={setDescription}
+            placeholder="Describe what this template is for and how to use it..."
+            rows={4}
+            maxLength={500}
+            width="100%"
+          />
+
+          <Selector
+            label="Category"
+            value={category}
+            onChange={(nextCategory) => setCategory(nextCategory as TemplateCategory)}
+            options={TEMPLATE_CATEGORIES.map((cat) => ({
+              value: cat.id,
+              label: cat.name,
+            }))}
+            width="100%"
+          />
+
+          <ToolcraftTextInputControl
+            label="Tags (comma-separated)"
+            type="text"
+            value={tags}
+            onChange={setTags}
+            placeholder="intro, animated, youtube"
+            width="100%"
+          />
+
+          <ToolcraftTextInputControl
+            label="Author Name"
+            type="text"
+            value={author}
+            onChange={setAuthor}
+            placeholder="Your name or username"
+            width="100%"
+          />
 
           <div className="space-y-2">
-            <Label className="text-xs font-medium text-text-secondary">
-              Description <span className="text-red-400">*</span>
-            </Label>
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Describe what this template is for and how to use it..."
-              className="w-full px-3 py-2 text-sm bg-background-secondary border border-border rounded-lg text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none"
-              rows={4}
-              maxLength={500}
-            />
-            <p className="text-[10px] text-text-muted">
-              {description.length}/500 characters
-            </p>
-          </div>
-
-          <div className="space-y-2">
-            <Label className="text-xs font-medium text-text-secondary">
-              Category
-            </Label>
-            <Select value={category} onValueChange={(value) => setCategory(value as TemplateCategory)}>
-              <SelectTrigger className="w-full bg-background-secondary border-border text-text-primary">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="bg-background-secondary border-border">
-                {TEMPLATE_CATEGORIES.map((cat) => (
-                  <SelectItem key={cat.id} value={cat.id}>
-                    {cat.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <Label className="text-xs font-medium text-text-secondary">
-              Tags (comma-separated)
-            </Label>
-            <Input
-              type="text"
-              value={tags}
-              onChange={(e) => setTags(e.target.value)}
-              placeholder="intro, animated, youtube"
-              className="bg-background-secondary border-border text-text-primary"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label className="text-xs font-medium text-text-secondary">
-              Author Name
-            </Label>
-            <Input
-              type="text"
-              value={author}
-              onChange={(e) => setAuthor(e.target.value)}
-              placeholder="Your name or username"
-              className="bg-background-secondary border-border text-text-primary"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label className="text-xs font-medium text-text-secondary">
+            <Text type="supporting" color="secondary" weight="bold" display="block">
               Save Location
-            </Label>
+            </Text>
             <div className="grid grid-cols-2 gap-2">
-              <button
-                onClick={() => setSaveLocation("cloud")}
-                className={`flex items-center justify-center gap-2 px-4 py-3 rounded-lg border-2 transition-all ${
-                  saveLocation === "cloud"
-                    ? "border-primary bg-primary/10 text-primary"
-                    : "border-border bg-background-secondary text-text-secondary hover:border-primary/50"
-                }`}
+              <SelectableCard
+                label="Cloud"
+                isSelected={saveLocation === "cloud"}
+                onChange={() => setSaveLocation("cloud")}
+                padding={3}
+                variant={saveLocation === "cloud" ? "green" : "default"}
               >
-                <Cloud size={16} />
-                <span className="text-sm font-medium">Cloud</span>
-              </button>
-              <button
-                onClick={() => setSaveLocation("local")}
-                className={`flex items-center justify-center gap-2 px-4 py-3 rounded-lg border-2 transition-all ${
-                  saveLocation === "local"
-                    ? "border-primary bg-primary/10 text-primary"
-                    : "border-border bg-background-secondary text-text-secondary hover:border-primary/50"
-                }`}
+                <div className="flex items-center justify-center gap-2">
+                  <Cloud size={16} aria-hidden />
+                  <Text type="label" weight="bold">Cloud</Text>
+                </div>
+              </SelectableCard>
+              <SelectableCard
+                label="Local"
+                isSelected={saveLocation === "local"}
+                onChange={() => setSaveLocation("local")}
+                padding={3}
+                variant={saveLocation === "local" ? "green" : "default"}
               >
-                <HardDrive size={16} />
-                <span className="text-sm font-medium">Local</span>
-              </button>
+                <div className="flex items-center justify-center gap-2">
+                  <HardDrive size={16} aria-hidden />
+                  <Text type="label" weight="bold">Local</Text>
+                </div>
+              </SelectableCard>
             </div>
-            <p className="text-[10px] text-text-muted">
+            <Text type="supporting" color="secondary" display="block" className="text-[10px]">
               {saveLocation === "cloud"
                 ? "Saved to cloud and accessible from any device"
                 : "Saved locally in your browser storage"}
-            </p>
+            </Text>
           </div>
         </div>
-
-        <div className="flex items-center justify-end gap-2 p-4 border-t border-border">
-          <Button variant="ghost" onClick={onClose} disabled={isSaving}>
-            Cancel
-          </Button>
-          <Button
-            onClick={handleSave}
-            disabled={isSaving || !name.trim() || !description.trim()}
-          >
-            {isSaving ? (
-              <>
-                <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
-                Saving...
-              </>
-            ) : (
-              <>
-                <Upload size={16} />
-                Save Template
-              </>
-            )}
-          </Button>
-        </div>
-      </DialogContent>
+          </LayoutContent>
+        }
+        footer={
+          <LayoutFooter hasDivider>
+            <div className="flex items-center justify-end gap-2">
+              <Button
+                label="Cancel"
+                variant="ghost"
+                onClick={onClose}
+                isDisabled={isSaving}
+              />
+              <Button
+                label={isSaving ? "Saving..." : "Save Template"}
+                onClick={handleSave}
+                isDisabled={isSaving || !name.trim() || !description.trim()}
+                isLoading={isSaving}
+                variant="primary"
+                icon={!isSaving ? <Upload size={16} aria-hidden /> : undefined}
+              />
+            </div>
+          </LayoutFooter>
+        }
+      />
     </Dialog>
   );
 };

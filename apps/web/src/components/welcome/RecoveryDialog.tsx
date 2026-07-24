@@ -1,16 +1,11 @@
 import { useState } from "react";
-import { RotateCcw, Clock, FileVideo, ChevronDown, Trash2 } from "lucide-react";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  Button,
-  Collapsible,
-  CollapsibleTrigger,
-  CollapsibleContent,
-} from "@openreel/ui";
+import { RotateCcw, Clock, FileVideo, ChevronDown, Trash2 } from "@/icons/lucide-compat";
+import { ToolcraftButton as Button } from "@openreel/ui";
+import { ToolcraftClickableCard as ClickableCard } from "@openreel/ui";
+import { ToolcraftDialog as Dialog, ToolcraftDialogHeader as DialogHeader } from "@openreel/ui";
+import { ToolcraftIconButton as IconButton } from "@openreel/ui";
+import { ToolcraftLayout as Layout, ToolcraftLayoutContent as LayoutContent, ToolcraftLayoutFooter as LayoutFooter } from "@openreel/ui";
+import { ToolcraftText as Text } from "@openreel/ui";
 import type { AutoSaveMetadata } from "../../services/auto-save";
 
 interface RecoveryDialogProps {
@@ -71,118 +66,129 @@ export const RecoveryDialog: React.FC<RecoveryDialogProps> = ({
   };
 
   return (
-    <Dialog open onOpenChange={(open) => !open && onDismiss()}>
-      <DialogContent className="max-w-md p-0 gap-0 bg-background-secondary border-border overflow-hidden">
-        <DialogHeader className="p-5 border-b border-border space-y-0">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-primary/10 rounded-xl shrink-0">
-              <RotateCcw className="w-5 h-5 text-primary" />
-            </div>
-            <div>
-              <DialogTitle className="text-base font-semibold text-text-primary">
-                Recover Your Work
-              </DialogTitle>
-              <DialogDescription className="text-sm text-text-secondary mt-0.5">
-                We found an unsaved project
-              </DialogDescription>
-            </div>
-          </div>
-        </DialogHeader>
-
-        <div className="p-5">
-          <button
+    <Dialog
+      isOpen
+      onOpenChange={(open) => !open && onDismiss()}
+      width={448}
+      purpose="form"
+    >
+      <Layout
+        header={
+          <DialogHeader
+            title="Recover Your Work"
+            subtitle="We found an unsaved project"
+            onOpenChange={(open) => !open && onDismiss()}
+            startContent={<RotateCcw className="w-5 h-5 text-primary" aria-hidden />}
+          />
+        }
+        content={
+          <LayoutContent>
+          <ClickableCard
+            label={`Recover ${mostRecent.projectName}`}
+            isDisabled={selectedSave === mostRecent.id}
             onClick={() => handleRecover(mostRecent.id)}
-            disabled={selectedSave === mostRecent.id}
+            padding={4}
+            variant="muted"
             className="w-full bg-background-tertiary rounded-xl border border-border p-4 mb-4 text-left hover:border-primary/50 hover:bg-background-elevated transition-all group disabled:opacity-70"
           >
             <div className="flex items-center gap-3 mb-3">
               <FileVideo className="w-5 h-5 text-text-muted group-hover:text-primary transition-colors" />
-              <span className="font-medium text-text-primary truncate">
+              <Text type="supporting" color="primary" weight="medium" className="truncate">
                 {mostRecent.projectName}
-              </span>
+              </Text>
             </div>
             <div className="flex items-center gap-2 text-sm text-text-muted">
               <Clock className="w-4 h-4 shrink-0" />
-              <span>Last saved {formatTimeAgo(mostRecent.timestamp)}</span>
+              <Text type="supporting" color="secondary" className="text-sm">Last saved {formatTimeAgo(mostRecent.timestamp)}</Text>
               <span className="text-text-muted/50">•</span>
-              <span className="text-text-muted/70 truncate">
+              <Text type="supporting" color="secondary" className="text-text-muted/70 truncate">
                 {formatDate(mostRecent.timestamp)}
-              </span>
+              </Text>
             </div>
-          </button>
-
-          <div className="flex gap-3">
-            <Button
-              variant="outline"
-              onClick={onDismiss}
-              className="flex-1"
-            >
-              Start Fresh
-            </Button>
-            <Button
-              onClick={() => handleRecover(mostRecent.id)}
-              disabled={selectedSave === mostRecent.id}
-              className="flex-1"
-            >
-              {selectedSave === mostRecent.id ? "Recovering..." : "Recover Project"}
-            </Button>
-          </div>
+          </ClickableCard>
 
           {olderSaves.length > 0 && (
-            <Collapsible
-              open={showOlderSaves}
-              onOpenChange={setShowOlderSaves}
-              className="mt-4 pt-4 border-t border-border"
-            >
+            <div className="mt-4 pt-4 border-t border-border">
               <div className="flex items-center justify-between">
-                <CollapsibleTrigger className="flex items-center gap-2 text-sm text-text-muted hover:text-text-secondary transition-colors">
-                  <ChevronDown
-                    className={`w-4 h-4 transition-transform duration-200 ${showOlderSaves ? "rotate-180" : ""}`}
-                  />
-                  <span>
-                    {olderSaves.length} older {olderSaves.length === 1 ? "save" : "saves"} available
-                  </span>
-                </CollapsibleTrigger>
+                <Button
+                  label={`${olderSaves.length} older ${olderSaves.length === 1 ? "save" : "saves"} available`}
+                  variant="ghost"
+                  size="sm"
+                  icon={
+                    <ChevronDown
+                      className={`w-4 h-4 transition-transform duration-200 ${showOlderSaves ? "rotate-180" : ""}`}
+                      aria-hidden
+                    />
+                  }
+                  onClick={() => setShowOlderSaves((value) => !value)}
+                  className="text-sm text-text-muted hover:text-text-secondary"
+                />
                 {onClearAll && (
-                  <button
+                  <IconButton
+                    label="Clear all saved projects"
                     onClick={handleClearAll}
-                    disabled={isClearing}
+                    isDisabled={isClearing}
+                    icon={<Trash2 className="w-4 h-4" aria-hidden />}
+                    size="sm"
+                    variant="ghost"
                     className="p-1.5 rounded-lg text-text-muted hover:text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-50"
-                    title="Clear all saved projects"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  />
                 )}
               </div>
 
-              <CollapsibleContent className="mt-3 space-y-2 max-h-48 overflow-y-auto pr-1 scrollbar-thin">
+              {showOlderSaves && (
+              <div className="mt-3 space-y-2 max-h-48 overflow-y-auto pr-1 scrollbar-thin">
                 {olderSaves.map((save) => (
-                  <button
+                  <ClickableCard
                     key={save.id}
+                    label={`Recover ${save.projectName}`}
                     onClick={() => handleRecover(save.id)}
-                    disabled={selectedSave === save.id}
+                    isDisabled={selectedSave === save.id}
+                    padding={3}
+                    variant="muted"
                     className="w-full text-left p-3 rounded-lg bg-background-tertiary border border-border hover:border-border-hover hover:bg-background-elevated transition-all group disabled:opacity-70"
                   >
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium text-text-primary truncate group-hover:text-primary transition-colors">
+                        <Text type="supporting" color="primary" weight="medium" className="text-sm truncate group-hover:text-primary transition-colors">
                           {save.projectName}
-                        </div>
-                        <div className="text-xs text-text-muted mt-1">
+                        </Text>
+                        <Text type="supporting" color="secondary" className="text-xs text-text-muted mt-1">
                           {formatDate(save.timestamp)}
-                        </div>
+                        </Text>
                       </div>
-                      <div className="text-xs text-text-muted/70 shrink-0">
+                      <Text type="supporting" color="secondary" className="text-xs text-text-muted/70 shrink-0">
                         {formatTimeAgo(save.timestamp)}
-                      </div>
+                      </Text>
                     </div>
-                  </button>
+                  </ClickableCard>
                 ))}
-              </CollapsibleContent>
-            </Collapsible>
+              </div>
+              )}
+            </div>
           )}
-        </div>
-      </DialogContent>
+          </LayoutContent>
+        }
+        footer={
+          <LayoutFooter>
+            <div className="flex w-full gap-2">
+              <Button
+                label="Start Fresh"
+                variant="secondary"
+                onClick={onDismiss}
+                className="flex-1"
+              />
+              <Button
+                label={selectedSave === mostRecent.id ? "Recovering..." : "Recover Project"}
+                variant="primary"
+                onClick={() => handleRecover(mostRecent.id)}
+                isDisabled={selectedSave === mostRecent.id}
+                className="flex-1"
+              />
+            </div>
+          </LayoutFooter>
+        }
+      />
     </Dialog>
   );
 };

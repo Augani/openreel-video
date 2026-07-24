@@ -13,8 +13,10 @@ import type {
   SubtitleAction,
   MediaAction,
   ProjectAction,
+  MarkerAction,
 } from "../types/actions";
 import type { Project, Timeline, Track, Clip } from "../types";
+import { getActionHandler } from "./registry";
 
 export class ActionValidator {
   validate(action: Action, project: Project): ValidationResult {
@@ -34,6 +36,12 @@ export class ActionValidator {
       });
       return { valid: false, errors };
     }
+
+    const handler = getActionHandler(action.type);
+    if (handler) {
+      return handler.validate(action, project);
+    }
+
     const typeValidationErrors = this.validateActionType(
       action as TimelineAction,
       project,
@@ -72,6 +80,8 @@ export class ActionValidator {
       return this.validateAudioAction(action as AudioAction, project);
     } else if (type.startsWith("subtitle/")) {
       return this.validateSubtitleAction(action as SubtitleAction, project);
+    } else if (type.startsWith("marker/")) {
+      return this.validateMarkerAction(action as MarkerAction, project);
     }
 
     return [
@@ -117,7 +127,8 @@ export class ActionValidator {
         break;
 
       case "project/updateSettings":
-        // Settings are partial, so just check they're an object
+      case "project/setCanvasBackground":
+        // Params are partial, so just check they're an object
         if (
           !action.params ||
           typeof action.params !== "object" ||
@@ -125,8 +136,36 @@ export class ActionValidator {
         ) {
           errors.push({
             code: "INVALID_PARAMS",
-            message: "Settings must be an object",
+            message: "Params must be an object",
             path: "params",
+          });
+        }
+        break;
+
+      case "project/registerGeneratedShader":
+        if (
+          !action.params.def ||
+          typeof action.params.def !== "object" ||
+          typeof action.params.def.id !== "string" ||
+          typeof action.params.def.glsl !== "string"
+        ) {
+          errors.push({
+            code: "INVALID_PARAMS",
+            message: "A valid shader def is required",
+            path: "params.def",
+          });
+        }
+        break;
+
+      case "project/removeGeneratedShader":
+        if (
+          !action.params.shaderId ||
+          typeof action.params.shaderId !== "string"
+        ) {
+          errors.push({
+            code: "INVALID_PARAMS",
+            message: "shaderId is required and must be a string",
+            path: "params.shaderId",
           });
         }
         break;
@@ -220,6 +259,37 @@ export class ActionValidator {
           errors.push({
             code: "INVALID_PARAMS",
             message: "Track position must be a non-negative number",
+            path: "params.position",
+          });
+        }
+        break;
+
+      case "track/duplicate":
+        if (
+          !action.params.sourceTrackId ||
+          typeof action.params.sourceTrackId !== "string"
+        ) {
+          errors.push({
+            code: "INVALID_PARAMS",
+            message: "Source track ID is required and must be a string",
+            path: "params.sourceTrackId",
+          });
+        } else if (!this.findTrack(timeline, action.params.sourceTrackId)) {
+          errors.push({
+            code: "TRACK_NOT_FOUND",
+            message: `Track with ID ${action.params.sourceTrackId} not found`,
+            path: "params.sourceTrackId",
+          });
+        }
+        if (
+          action.params.position !== undefined &&
+          (typeof action.params.position !== "number" ||
+            action.params.position < 0 ||
+            action.params.position > timeline.tracks.length)
+        ) {
+          errors.push({
+            code: "INVALID_PARAMS",
+            message: "Track position must be within the timeline",
             path: "params.position",
           });
         }
@@ -324,6 +394,88 @@ export class ActionValidator {
             }`,
             path: "params.newPosition",
           });
+        }
+        break;
+
+      case "track/rename":
+        if (
+          !action.params.trackId ||
+          typeof action.params.trackId !== "string"
+        ) {
+          errors.push({
+            code: "INVALID_PARAMS",
+            message: "Track ID is required and must be a string",
+            path: "params.trackId",
+          });
+        } else {
+          const track = this.findTrack(timeline, action.params.trackId);
+          if (!track) {
+            errors.push({
+              code: "TRACK_NOT_FOUND",
+              message: `Track with ID ${action.params.trackId} not found`,
+              path: "params.trackId",
+            });
+          }
+        }
+        if (
+          typeof action.params.name !== "string" ||
+          action.params.name.trim().length === 0
+        ) {
+          errors.push({
+            code: "INVALID_PARAMS",
+            message: "Track name is required and must be a non-empty string",
+            path: "params.name",
+          });
+        }
+        break;
+    }
+
+    return errors;
+  }
+
+  private validateMarkerAction(
+    action: MarkerAction,
+    project: Project,
+  ): ValidationError[] {
+    const errors: ValidationError[] = [];
+    const timeline = project.timeline;
+
+    switch (action.type) {
+      case "marker/add":
+        if (
+          typeof action.params.time !== "number" ||
+          action.params.time < 0
+        ) {
+          errors.push({
+            code: "INVALID_PARAMS",
+            message: "Marker time must be a non-negative number",
+            path: "params.time",
+          });
+        }
+        break;
+
+      case "marker/remove":
+      case "marker/update":
+        if (
+          !action.params.markerId ||
+          typeof action.params.markerId !== "string"
+        ) {
+          errors.push({
+            code: "INVALID_PARAMS",
+            message: "Marker ID is required and must be a string",
+            path: "params.markerId",
+          });
+        } else {
+          const marker = timeline.markers.find(
+            (m) => m.id === action.params.markerId,
+          );
+          if (!marker) {
+            errors.push({
+              code: "INVALID_PARAMS",
+              message: `Marker with ID ${action.params.markerId} not found`,
+              path: "params.markerId",
+            });
+          }
         }
         break;
     }
@@ -601,6 +753,37 @@ export class ActionValidator {
           }
         }
         break;
+
+      case "clip/setBlendMode":
+      case "clip/setBlendOpacity":
+      case "clip/setEmphasisAnimation":
+      case "clip/setColorGrading":
+        if (!action.params.clipId || typeof action.params.clipId !== "string") {
+          errors.push({
+            code: "INVALID_PARAMS",
+            message: "Clip ID is required and must be a string",
+            path: "params.clipId",
+          });
+        } else {
+          const clip = this.findClip(timeline, action.params.clipId);
+          if (!clip) {
+            errors.push({
+              code: "CLIP_NOT_FOUND",
+              message: `Clip with ID ${action.params.clipId} not found`,
+              path: "params.clipId",
+            });
+          } else {
+            const track = this.findTrack(timeline, clip.trackId);
+            if (track?.locked) {
+              errors.push({
+                code: "TRACK_LOCKED",
+                message: `Track containing clip ${action.params.clipId} is locked`,
+                path: "params.clipId",
+              });
+            }
+          }
+        }
+        break;
     }
 
     return errors;
@@ -658,6 +841,7 @@ export class ActionValidator {
 
       case "effect/remove":
       case "effect/update":
+      case "effect/toggle":
       case "effect/reorder":
         if (
           !action.params.effectId ||
@@ -695,6 +879,17 @@ export class ActionValidator {
               path: "params.newIndex",
             });
           }
+        }
+
+        if (
+          action.type === "effect/toggle" &&
+          typeof action.params.enabled !== "boolean"
+        ) {
+          errors.push({
+            code: "INVALID_PARAMS",
+            message: "Enabled parameter must be a boolean",
+            path: "params.enabled",
+          });
         }
         break;
     }
@@ -757,6 +952,10 @@ export class ActionValidator {
   ): ValidationError[] {
     const errors: ValidationError[] = [];
     const timeline = project.timeline;
+
+    if (action.type === "keyframe/setAll") {
+      return errors;
+    }
 
     if (!action.params.clipId || typeof action.params.clipId !== "string") {
       errors.push({
@@ -892,6 +1091,30 @@ export class ActionValidator {
         }
         break;
 
+      case "transition/set": {
+        const transition = action.params.transition as
+          | { id?: unknown; clipAId?: unknown }
+          | undefined;
+        if (
+          !transition ||
+          typeof transition.id !== "string" ||
+          typeof transition.clipAId !== "string"
+        ) {
+          errors.push({
+            code: "INVALID_PARAMS",
+            message: "A valid transition with id and clipAId is required",
+            path: "params.transition",
+          });
+        } else if (!this.findClip(timeline, transition.clipAId)) {
+          errors.push({
+            code: "CLIP_NOT_FOUND",
+            message: `Clip A with ID ${transition.clipAId} not found`,
+            path: "params.transition.clipAId",
+          });
+        }
+        break;
+      }
+
       case "transition/remove":
       case "transition/update":
         if (
@@ -1007,6 +1230,54 @@ export class ActionValidator {
             code: "INVALID_PARAMS",
             message: "Automation points must be an array",
             path: "params.points",
+          });
+        }
+        break;
+
+      case "audio/addEffect": {
+        const effect = action.params.effect as { id?: unknown } | undefined;
+        if (!effect || typeof effect.id !== "string") {
+          errors.push({
+            code: "INVALID_PARAMS",
+            message: "A valid effect object with an id is required",
+            path: "params.effect",
+          });
+        }
+        break;
+      }
+
+      case "audio/removeEffect":
+      case "audio/updateEffect":
+      case "audio/toggleEffect":
+        if (
+          !action.params.effectId ||
+          typeof action.params.effectId !== "string"
+        ) {
+          errors.push({
+            code: "INVALID_PARAMS",
+            message: "Effect ID is required and must be a string",
+            path: "params.effectId",
+          });
+        } else {
+          const effectExists = (clip.audioEffects ?? []).some(
+            (e) => e.id === action.params.effectId,
+          );
+          if (!effectExists) {
+            errors.push({
+              code: "EFFECT_NOT_FOUND",
+              message: `Audio effect with ID ${action.params.effectId} not found on clip`,
+              path: "params.effectId",
+            });
+          }
+        }
+        if (
+          action.type === "audio/toggleEffect" &&
+          typeof action.params.enabled !== "boolean"
+        ) {
+          errors.push({
+            code: "INVALID_PARAMS",
+            message: "Enabled parameter must be a boolean",
+            path: "params.enabled",
           });
         }
         break;

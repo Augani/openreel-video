@@ -1,5 +1,7 @@
 export * from "./types";
 export * from "./clip-volume-automation";
+export * from "./clip-fade-envelope";
+export * from "./transition-audio-fades";
 export * from "./fft";
 export * from "./audio-engine";
 export * from "./realtime-processor";

@@ -1,3 +1,4 @@
+import type { JSX } from "react";
 import React, { useCallback, useState, useMemo } from "react";
 import {
   ArrowRight,
@@ -13,7 +14,7 @@ import {
   Diamond,
   Star,
   Droplets,
-} from "lucide-react";
+} from "@/icons/lucide-compat";
 import type {
   Clip as TimelineClip,
   Keyframe,
@@ -21,18 +22,18 @@ import type {
   Transform,
   GraphicClip,
   Transition,
+  TransitionEdge,
 } from "@openreel/core";
 import { useProjectStore } from "../../../stores/project-store";
 import { useEngineStore } from "../../../stores/engine-store";
 import { toast } from "../../../stores/notification-store";
 import { TransitionInspector } from "./TransitionInspector";
-import {
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
-} from "@openreel/ui";
+import { ToolcraftButton as Button } from "@openreel/ui";
+import { ToolcraftCard as Card } from "@openreel/ui";
+import { ToolcraftClickableCard as ClickableCard } from "@openreel/ui";
+import { ToolcraftNumberInputControl } from "@openreel/ui";
+import { ToolcraftSelectControl as Selector } from "@openreel/ui";
+import { ToolcraftText as Text } from "@openreel/ui";
 
 type MutableGraphicClip = {
   -readonly [K in keyof GraphicClip]: GraphicClip[K];
@@ -63,7 +64,7 @@ interface TransitionConfig {
 const PRESETS: {
   id: TransitionPreset;
   label: string;
-  icon: React.ReactNode;
+  icon: JSX.Element | null;
 }[] = [
   { id: "none", label: "None", icon: null },
   { id: "fade", label: "Fade", icon: <Eye size={12} /> },
@@ -112,6 +113,14 @@ interface AdjacentTransitionConfig {
   description: string;
   clipA: TimelineClip;
   clipB: TimelineClip;
+  transition?: Transition;
+}
+
+interface EdgeTransitionConfig {
+  key: "intro" | "outro";
+  title: string;
+  description: string;
+  edge: TransitionEdge;
   transition?: Transition;
 }
 
@@ -945,6 +954,19 @@ export const ClipTransitionSection: React.FC<ClipTransitionSectionProps> = ({
         currentClip,
         previousClip,
         nextClip,
+        trackType: track.type,
+        introTransition: track.transitions.find(
+          (transition) =>
+            transition.clipAId === currentClip.id &&
+            !transition.clipBId &&
+            (transition.edge ?? "out") === "in",
+        ),
+        outroTransition: track.transitions.find(
+          (transition) =>
+            transition.clipAId === currentClip.id &&
+            !transition.clipBId &&
+            (transition.edge ?? "out") === "out",
+        ),
         incomingTransition: previousClip
           ? track.transitions.find(
               (transition) =>
@@ -1026,6 +1048,33 @@ export const ClipTransitionSection: React.FC<ClipTransitionSectionProps> = ({
     }
 
     return transitions;
+  }, [timelineClipContext]);
+
+  const edgeTransitions = useMemo<EdgeTransitionConfig[]>(() => {
+    if (
+      !timelineClipContext ||
+      (timelineClipContext.trackType !== "video" &&
+        timelineClipContext.trackType !== "image")
+    ) {
+      return [];
+    }
+
+    return [
+      {
+        key: "intro",
+        title: "Intro Transition",
+        description: "From the project background into this clip",
+        edge: "in",
+        transition: timelineClipContext.introTransition,
+      },
+      {
+        key: "outro",
+        title: "Outro Transition",
+        description: "From this clip into the project background",
+        edge: "out",
+        transition: timelineClipContext.outroTransition,
+      },
+    ];
   }, [timelineClipContext]);
 
   const handleTransitionCreate = useCallback(
@@ -1161,143 +1210,223 @@ export const ClipTransitionSection: React.FC<ClipTransitionSectionProps> = ({
     <div className="space-y-4">
       {/* Entry Transition */}
       <div className="space-y-2">
-        <span className="text-[10px] font-medium text-text-secondary uppercase tracking-wider">
+        <Text
+          type="supporting"
+          color="secondary"
+          className="text-[10px] font-medium uppercase tracking-wider"
+        >
           Entry Animation
-        </span>
+        </Text>
         <div className="grid grid-cols-3 gap-1">
           {PRESETS.map((preset) => (
-            <button
+            <ClickableCard
               key={`entry-${preset.id}`}
+              label={`Set entry animation to ${preset.label}`}
               onClick={() => setEntryPreset(preset.id)}
-              className={`flex items-center justify-center gap-1 py-1.5 px-2 rounded text-[9px] transition-all ${
+              padding={2}
+              variant={entryPreset === preset.id ? "green" : "muted"}
+              className={`flex items-center justify-center gap-1 border ${
                 entryPreset === preset.id
-                  ? "bg-primary text-white font-medium"
-                  : "bg-background-tertiary border border-border text-text-secondary hover:text-text-primary hover:border-text-muted"
+                  ? "border-primary bg-primary text-white font-medium"
+                  : "bg-bg-2 border border-border text-fg-2 hover:text-fg hover:border-text-muted"
               }`}
             >
               {preset.icon}
-              <span>{preset.label}</span>
-            </button>
+              <Text
+                type="supporting"
+                color="inherit"
+                className="text-[9px]"
+              >
+                {preset.label}
+              </Text>
+            </ClickableCard>
           ))}
         </div>
         {entryPreset !== "none" && (
           <div className="flex gap-2 mt-2">
-            <div className="flex-1">
-              <label className="text-[9px] text-text-muted">Duration</label>
-              <input
-                type="number"
-                step="0.1"
-                min="0.1"
-                max={clip.data.duration / 2}
-                value={entryDuration}
-                onChange={(e) =>
-                  setEntryDuration(parseFloat(e.target.value) || 0.5)
-                }
-                className="w-full px-2 py-1 text-[10px] bg-background-tertiary border border-border rounded"
-              />
-            </div>
-            <div className="flex-1">
-              <label className="text-[9px] text-text-muted">Easing</label>
-              <Select value={entryEasing} onValueChange={(v) => setEntryEasing(v as EasingType)}>
-                <SelectTrigger className="w-full bg-background-tertiary border-border text-text-primary text-[10px] h-7">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="bg-background-secondary border-border">
-                  {EASINGS.map((e) => (
-                    <SelectItem key={e.id} value={e.id}>
-                      {e.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <ToolcraftNumberInputControl
+              label="Duration"
+              size="sm"
+              width="100%"
+              step={0.1}
+              min={0.1}
+              max={clip.data.duration / 2}
+              value={entryDuration}
+              onChange={(value) => setEntryDuration(value || 0.5)}
+              units="s"
+            />
+            <Selector
+              label="Easing"
+              size="sm"
+              width="100%"
+              value={entryEasing}
+              onChange={(value) => setEntryEasing(value as EasingType)}
+              options={EASINGS.map((e) => ({
+                label: e.label,
+                value: e.id,
+              }))}
+            />
           </div>
         )}
       </div>
 
       {/* Exit Transition */}
       <div className="space-y-2">
-        <span className="text-[10px] font-medium text-text-secondary uppercase tracking-wider">
+        <Text
+          type="supporting"
+          color="secondary"
+          className="text-[10px] font-medium uppercase tracking-wider"
+        >
           Exit Animation
-        </span>
+        </Text>
         <div className="grid grid-cols-3 gap-1">
           {PRESETS.map((preset) => (
-            <button
+            <ClickableCard
               key={`exit-${preset.id}`}
+              label={`Set exit animation to ${preset.label}`}
               onClick={() => setExitPreset(preset.id)}
-              className={`flex items-center justify-center gap-1 py-1.5 px-2 rounded text-[9px] transition-all ${
+              padding={2}
+              variant={exitPreset === preset.id ? "green" : "muted"}
+              className={`flex items-center justify-center gap-1 border ${
                 exitPreset === preset.id
-                  ? "bg-primary text-white font-medium"
-                  : "bg-background-tertiary border border-border text-text-secondary hover:text-text-primary hover:border-text-muted"
+                  ? "border-primary bg-primary text-white font-medium"
+                  : "bg-bg-2 border border-border text-fg-2 hover:text-fg hover:border-text-muted"
               }`}
             >
               {preset.icon}
-              <span>{preset.label}</span>
-            </button>
+              <Text
+                type="supporting"
+                color="inherit"
+                className="text-[9px]"
+              >
+                {preset.label}
+              </Text>
+            </ClickableCard>
           ))}
         </div>
         {exitPreset !== "none" && (
           <div className="flex gap-2 mt-2">
-            <div className="flex-1">
-              <label className="text-[9px] text-text-muted">Duration</label>
-              <input
-                type="number"
-                step="0.1"
-                min="0.1"
-                max={clip.data.duration / 2}
-                value={exitDuration}
-                onChange={(e) =>
-                  setExitDuration(parseFloat(e.target.value) || 0.5)
-                }
-                className="w-full px-2 py-1 text-[10px] bg-background-tertiary border border-border rounded"
-              />
-            </div>
-            <div className="flex-1">
-              <label className="text-[9px] text-text-muted">Easing</label>
-              <Select value={exitEasing} onValueChange={(v) => setExitEasing(v as EasingType)}>
-                <SelectTrigger className="w-full bg-background-tertiary border-border text-text-primary text-[10px] h-7">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="bg-background-secondary border-border">
-                  {EASINGS.map((e) => (
-                    <SelectItem key={e.id} value={e.id}>
-                      {e.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <ToolcraftNumberInputControl
+              label="Duration"
+              size="sm"
+              width="100%"
+              step={0.1}
+              min={0.1}
+              max={clip.data.duration / 2}
+              value={exitDuration}
+              onChange={(value) => setExitDuration(value || 0.5)}
+              units="s"
+            />
+            <Selector
+              label="Easing"
+              size="sm"
+              width="100%"
+              value={exitEasing}
+              onChange={(value) => setExitEasing(value as EasingType)}
+              options={EASINGS.map((e) => ({
+                label: e.label,
+                value: e.id,
+              }))}
+            />
           </div>
         )}
       </div>
 
       {/* Apply Button */}
-      <button
+      <Button
+        label="Apply Entry/Exit Animations"
         onClick={applyTransitions}
-        className="w-full py-2 bg-primary hover:bg-primary-hover text-white font-medium rounded-lg text-[11px] transition-all"
-      >
-        Apply Entry/Exit Animations
-      </button>
+        variant="primary"
+        size="sm"
+        className="w-full justify-center"
+      />
 
       <div className="space-y-3 border-t border-border pt-3">
-        <span className="text-[10px] font-medium text-text-secondary uppercase tracking-wider">
+        <Text
+          type="supporting"
+          color="secondary"
+          className="text-[10px] font-medium uppercase tracking-wider"
+        >
+          Single-Clip Transitions
+        </Text>
+
+        {edgeTransitions.length > 0 ? (
+          edgeTransitions.map((edgeTransition) => (
+            <Card
+              key={edgeTransition.key}
+              variant="muted"
+              padding={3}
+              className="space-y-2 border border-border bg-bg-1"
+            >
+              <div className="space-y-1">
+                <Text
+                  type="supporting"
+                  color="primary"
+                  className="text-[10px] font-medium"
+                >
+                  {edgeTransition.title}
+                </Text>
+                <Text
+                  type="supporting"
+                  color="secondary"
+                  className="text-[9px]"
+                >
+                  {edgeTransition.description}
+                </Text>
+              </div>
+
+              {timelineClipContext && (
+                <TransitionInspector
+                  clipA={timelineClipContext.currentClip}
+                  edge={edgeTransition.edge}
+                  transition={edgeTransition.transition}
+                  onTransitionCreate={handleTransitionCreate}
+                  onTransitionUpdate={handleTransitionUpdate}
+                  onTransitionRemove={handleTransitionRemove}
+                />
+              )}
+            </Card>
+          ))
+        ) : (
+          <Text type="supporting" color="secondary" className="text-[10px]">
+            Single-clip transitions are available for video and image clips.
+          </Text>
+        )}
+      </div>
+
+      <div className="space-y-3 border-t border-border pt-3">
+        <Text
+          type="supporting"
+          color="secondary"
+          className="text-[10px] font-medium uppercase tracking-wider"
+        >
           Clip-to-Clip Transitions
-        </span>
+        </Text>
 
         {timelineClipContext ? (
           adjacentTransitions.length > 0 ? (
             adjacentTransitions.map((adjacentTransition) => (
-              <div
+              <Card
                 key={adjacentTransition.key}
-                className="space-y-2 rounded-lg border border-border bg-background-secondary p-3"
+                variant="muted"
+                padding={3}
+                className="space-y-2 border border-border bg-bg-1"
               >
                 <div className="space-y-1">
-                  <p className="text-[10px] font-medium text-text-primary">
+                  <Text
+                    type="supporting"
+                    color="primary"
+                    className="text-[10px] font-medium"
+                  >
                     {adjacentTransition.title}
-                  </p>
-                  <p className="text-[9px] text-text-muted">
+                  </Text>
+                  <Text
+                    type="supporting"
+                    color="secondary"
+                    className="text-[9px]"
+                  >
                     {adjacentTransition.description}
-                  </p>
+                  </Text>
                 </div>
 
                 <TransitionInspector
@@ -1308,17 +1437,17 @@ export const ClipTransitionSection: React.FC<ClipTransitionSectionProps> = ({
                   onTransitionUpdate={handleTransitionUpdate}
                   onTransitionRemove={handleTransitionRemove}
                 />
-              </div>
+              </Card>
             ))
           ) : (
-            <p className="text-[10px] text-text-muted">
+            <Text type="supporting" color="secondary" className="text-[10px]">
               No adjacent clips are available on this track.
-            </p>
+            </Text>
           )
         ) : (
-          <p className="text-[10px] text-text-muted">
+          <Text type="supporting" color="secondary" className="text-[10px]">
             Clip-to-clip transitions are available for timeline media clips.
-          </p>
+          </Text>
         )}
       </div>
     </div>

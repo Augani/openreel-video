@@ -1,5 +1,9 @@
 import React, { useCallback, useState, useRef } from "react";
-import { Upload, FileImage, AlertCircle, Check, X } from "lucide-react";
+import { ToolcraftCard as Card } from "@openreel/ui";
+import { ToolcraftFileDropControl as FileInput } from "@openreel/ui";
+import { ToolcraftIconButton as IconButton } from "@openreel/ui";
+import { ToolcraftText as Text } from "@openreel/ui";
+import { Upload, FileImage, AlertCircle, Check, X } from "@/icons/lucide-compat";
 import { getGraphicsBridge } from "../../../bridges";
 
 interface SVGImporterProps {
@@ -161,16 +165,26 @@ export const SVGImporter: React.FC<SVGImporterProps> = ({
   return (
     <div className="space-y-3">
       {/* Hidden file input */}
-      <input
+      <FileInput
         ref={fileInputRef}
-        type="file"
+        label="Import SVG file"
+        isLabelHidden
+        value={null}
         accept=".svg"
-        onChange={handleFileSelect}
+        onChange={(files) => {
+          const file = Array.isArray(files) ? files[0] : files;
+          if (!file) return;
+          handleFileSelect({
+            target: { files: [file] },
+          } as unknown as React.ChangeEvent<HTMLInputElement>);
+        }}
         className="hidden"
       />
 
       {/* Drop zone / Import button */}
-      <div
+      <Card
+        variant="muted"
+        padding={4}
         onClick={handleClick}
         onDragOver={handleDragOver}
         onDrop={handleDrop}
@@ -195,61 +209,67 @@ export const SVGImporter: React.FC<SVGImporterProps> = ({
           ) : status === "error" ? (
             <AlertCircle size={24} className="text-red-500" />
           ) : (
-            <Upload size={24} className="text-text-muted" />
+            <Upload size={24} className="text-fg-3" />
           )}
 
           {/* Status text */}
           <div className="text-center">
             {status === "loading" ? (
-              <p className="text-[10px] text-text-secondary">Importing...</p>
+              <Text type="supporting" color="secondary" className="text-[10px]">
+                Importing...
+              </Text>
             ) : status === "success" ? (
-              <p className="text-[10px] text-green-500">
+              <Text type="supporting" className="text-[10px] text-green-500">
                 SVG imported successfully
-              </p>
+              </Text>
             ) : status === "error" ? (
-              <p className="text-[10px] text-red-500">{errorMessage}</p>
+              <Text type="supporting" className="text-[10px] text-red-500">
+                {errorMessage}
+              </Text>
             ) : (
-              <>
-                <p className="text-[10px] text-text-primary font-medium">
+              <div className="flex flex-col gap-0.5">
+                <Text type="supporting" color="primary" className="block text-[10px] font-medium">
                   Import SVG
-                </p>
-                <p className="text-[9px] text-text-muted">
+                </Text>
+                <Text type="supporting" color="secondary" className="block text-[9px]">
                   Click or drag & drop
-                </p>
-              </>
+                </Text>
+              </div>
             )}
           </div>
 
           {/* File name */}
           {fileName && status !== "idle" && (
-            <div className="flex items-center gap-1 px-2 py-1 bg-background-tertiary rounded">
-              <FileImage size={12} className="text-text-muted" />
-              <span className="text-[9px] text-text-secondary truncate max-w-[150px]">
+            <div className="flex items-center gap-1 px-2 py-1 bg-bg-2 rounded">
+              <FileImage size={12} className="text-fg-3" />
+              <Text type="supporting" color="secondary" className="truncate max-w-[150px] text-[9px]">
                 {fileName}
-              </span>
+              </Text>
             </div>
           )}
         </div>
 
         {/* Clear error button */}
         {status === "error" && (
-          <button
+          <IconButton
+            label="Clear SVG import error"
+            icon={<X size={14} className="text-fg-3" />}
+            variant="ghost"
+            size="sm"
             onClick={(e) => {
               e.stopPropagation();
               clearError();
             }}
-            className="absolute top-2 right-2 p-1 rounded hover:bg-background-tertiary"
-          >
-            <X size={14} className="text-text-muted" />
-          </button>
+            className="absolute top-2 right-2 p-1 rounded hover:bg-bg-2"
+          />
         )}
-      </div>
+      </Card>
 
       {/* Supported formats info */}
-      <div className="flex items-center gap-2 text-[9px] text-text-muted">
+      <Text type="supporting" color="secondary" className="flex items-center gap-2 text-[9px]">
         <FileImage size={12} />
-        <span>Supported format: SVG (.svg)</span>
-      </div>
+        Supported format: SVG (.svg)
+      </Text>
     </div>
   );
 };

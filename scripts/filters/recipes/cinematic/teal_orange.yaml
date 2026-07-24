@@ -1,0 +1,18 @@
+id: cinematic.teal_orange
+name: Teal & Orange
+category: cinematic
+accent: "#38BDF8"
+sort: 10
+steps:
+  - temperature: -8
+  - tint: 3
+  - contrast:
+      curve: s_curve
+      amount: 1.15
+  - split_tone:
+      shadows: "#1E3A5F"
+      highlights: "#FFA94D"
+      balance: 0.0
+  - saturation: 1.10
+  - hue_shift:
+      reds: -5

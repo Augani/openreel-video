@@ -61,7 +61,7 @@ const TabsList = React.forwardRef<
     {...props}
   >
     <LayoutGroup id={layoutId}>
-      {children}
+      {children as any}
     </LayoutGroup>
   </TabsPrimitive.List>
 ))
@@ -102,21 +102,23 @@ TabsTrigger.displayName = TabsPrimitive.Trigger.displayName
 const TabsContent = React.forwardRef<
   React.ElementRef<typeof TabsPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof TabsPrimitive.Content>
->(({ className, ...props }, ref) => (
+>(({ className, children, ...props }, ref) => (
   <TabsPrimitive.Content
     ref={ref}
     asChild
     {...props}
   >
     <motion.div
-      initial={{ opacity: 0, y: 4 }}
+      initial={false}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.15 }}
       className={cn(
         "mt-2 ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
         className
       )}
-    />
+    >
+      {children}
+    </motion.div>
   </TabsPrimitive.Content>
 ))
 TabsContent.displayName = TabsPrimitive.Content.displayName

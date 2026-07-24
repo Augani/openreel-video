@@ -28,6 +28,8 @@ interface UseElevenLabsApiReturn {
 export function useElevenLabsApi(options: UseElevenLabsApiOptions): UseElevenLabsApiReturn {
   const { provider, hasElevenLabsKey, settingsOpen, elevenLabsModel, defaultLlmProvider } = options;
 
+  const isDesktop = typeof window !== "undefined" && window.openreel?.platform === "desktop";
+
   const {
     cachedElevenLabsVoices,
     cachedElevenLabsModels,
@@ -62,8 +64,8 @@ export function useElevenLabsApi(options: UseElevenLabsApiOptions): UseElevenLab
       return;
     }
 
-    const apiKey = await getSecret("elevenlabs");
-    if (!apiKey) {
+    const apiKey = isDesktop ? "" : (await getSecret("elevenlabs")) ?? "";
+    if (!isDesktop && !apiKey) {
       setAllModels(FALLBACK_MODELS);
       return;
     }
@@ -85,7 +87,7 @@ export function useElevenLabsApi(options: UseElevenLabsApiOptions): UseElevenLab
     } finally {
       setIsLoadingModels(false);
     }
-  }, [cachedElevenLabsModels, setCachedElevenLabsModels]);
+  }, [cachedElevenLabsModels, setCachedElevenLabsModels, isDesktop]);
 
   const fetchVoices = useCallback(async (signal?: AbortSignal) => {
     if (cachedElevenLabsVoices) {
@@ -95,8 +97,8 @@ export function useElevenLabsApi(options: UseElevenLabsApiOptions): UseElevenLab
 
     if (!isSessionUnlocked()) return;
 
-    const apiKey = await getSecret("elevenlabs");
-    if (!apiKey) return;
+    const apiKey = isDesktop ? "" : (await getSecret("elevenlabs")) ?? "";
+    if (!isDesktop && !apiKey) return;
 
     setIsLoadingVoices(true);
     try {
@@ -113,7 +115,7 @@ export function useElevenLabsApi(options: UseElevenLabsApiOptions): UseElevenLab
     } finally {
       setIsLoadingVoices(false);
     }
-  }, [cachedElevenLabsVoices, setCachedElevenLabsVoices]);
+  }, [cachedElevenLabsVoices, setCachedElevenLabsVoices, isDesktop]);
 
   useEffect(() => {
     if (provider === "elevenlabs" && hasElevenLabsKey) {
@@ -175,8 +177,8 @@ export function useElevenLabsApi(options: UseElevenLabsApiOptions): UseElevenLab
       throw new Error("Session locked. Unlock in Settings > API Keys first.");
     }
 
-    const apiKey = await getSecret("elevenlabs");
-    if (!apiKey) {
+    const apiKey = isDesktop ? "" : (await getSecret("elevenlabs")) ?? "";
+    if (!isDesktop && !apiKey) {
       throw new Error("ElevenLabs API key not found. Add it in Settings > API Keys.");
     }
 
@@ -205,7 +207,7 @@ export function useElevenLabsApi(options: UseElevenLabsApiOptions): UseElevenLab
     }
 
     return response.blob();
-  }, [elevenLabsModel]);
+  }, [elevenLabsModel, isDesktop]);
 
   const enhanceViaLlm = useCallback(async (inputText: string, signal?: AbortSignal): Promise<string> => {
     const llmProvider = defaultLlmProvider;
@@ -214,8 +216,8 @@ export function useElevenLabsApi(options: UseElevenLabsApiOptions): UseElevenLab
       throw new Error("Session locked. Unlock in Settings > API Keys to use text enhancement.");
     }
 
-    const apiKey = await getSecret(llmProvider);
-    if (!apiKey) {
+    const apiKey = isDesktop ? "" : (await getSecret(llmProvider)) ?? "";
+    if (!isDesktop && !apiKey) {
       throw new Error(`${llmProvider === "openai" ? "OpenAI" : "Anthropic"} API key not found. Add it in Settings > API Keys.`);
     }
 
@@ -267,7 +269,7 @@ export function useElevenLabsApi(options: UseElevenLabsApiOptions): UseElevenLab
     const data = await response.json();
     const choices = (data as { choices: Array<{ message: { content: string } }> }).choices;
     return choices?.[0]?.message?.content ?? inputText;
-  }, [defaultLlmProvider]);
+  }, [defaultLlmProvider, isDesktop]);
 
   return {
     allVoices,

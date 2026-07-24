@@ -1,3 +1,6 @@
+import { ToolcraftButton as Button } from "@openreel/ui";
+import { ToolcraftText as Text } from "@openreel/ui";
+import { ChevronRight } from "@/icons/lucide-compat";
 import { IMAGE_MODELS, type ImageModelId } from "../../../services/kieai/image-generation";
 
 interface ModelInfo {
@@ -53,11 +56,14 @@ interface Props {
 export function ModelPicker({ onSelect }: Props) {
   return (
     <div className="space-y-3">
-      <p className="text-xs text-text-muted">Select a model to generate a new image from your source.</p>
+      <Text type="supporting" color="secondary" className="text-xs text-text-muted">Select a model to generate a new image from your source.</Text>
       <div className="grid grid-cols-1 gap-2">
         {MODELS.map((m) => (
-          <button
+          <Button
             key={m.id}
+            label={m.name}
+            variant="ghost"
+            size="lg"
             onClick={() => onSelect(m.id)}
             className="flex items-start gap-3 rounded-lg border border-border bg-background-elevated p-3 text-left hover:border-primary hover:bg-primary/5 transition-colors"
           >
@@ -70,18 +76,10 @@ export function ModelPicker({ onSelect }: Props) {
                   </span>
                 )}
               </div>
-              <p className="mt-0.5 text-xs text-text-muted leading-relaxed">{m.description}</p>
+              <Text type="supporting" color="secondary" className="mt-0.5 text-xs text-text-muted leading-relaxed">{m.description}</Text>
             </div>
-            <svg
-              className="mt-0.5 h-4 w-4 flex-shrink-0 text-text-muted"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={2}
-            >
-              <path d="M9 18l6-6-6-6" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </button>
+            <ChevronRight className="mt-0.5 h-4 w-4 flex-shrink-0 text-text-muted" />
+          </Button>
         ))}
       </div>
     </div>

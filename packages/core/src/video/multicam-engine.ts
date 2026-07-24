@@ -85,6 +85,13 @@ export class MultiCamEngine {
     return Array.from(this.groups.values());
   }
 
+  loadGroups(groups: MultiCamGroup[]): void {
+    this.groups.clear();
+    for (const group of groups) {
+      this.groups.set(group.id, group);
+    }
+  }
+
   deleteGroup(groupId: string): boolean {
     this.switches.delete(groupId);
     return this.groups.delete(groupId);

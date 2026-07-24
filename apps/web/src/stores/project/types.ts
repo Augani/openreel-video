@@ -29,6 +29,8 @@ import type {
   EditingTemplate,
   EditingTemplatePrimitive,
   ResolvedEditingTemplateOverlay,
+  MotionComposition,
+  MotionCompositionInstance,
 } from "@openreel/core";
 import { ActionExecutor, ActionHistory } from "@openreel/core";
 import type {
@@ -40,12 +42,28 @@ import type { AutoSaveMetadata } from "../../services/auto-save";
 
 export type ClipHistoryEntryType = "shape" | "text" | "svg" | "sticker";
 
+export type TimelineClipboardItem =
+  | { kind: "media"; clip: Clip }
+  | { kind: "text"; clip: TextClip }
+  | { kind: "shape"; clip: ShapeClip }
+  | { kind: "svg"; clip: SVGClip }
+  | { kind: "sticker"; clip: StickerClip };
+
 export interface ClipHistoryEntry {
   type: ClipHistoryEntryType;
+  /**
+   * "create" (default when omitted) — undo deletes the clip from its engine,
+   * redo recreates it. "update" — a property edit; undo restores `clipData`
+   * (the before snapshot) and redo restores `afterData`, without ever
+   * deleting the clip.
+   */
+  op?: "create" | "update";
   timestamp: number;
   clipId: string;
   trackId: string;
   clipData: ShapeClip | TextClip | SVGClip | StickerClip;
+  /** After-edit snapshot, present only for op === "update" (used by redo). */
+  afterData?: ShapeClip | TextClip | SVGClip | StickerClip;
   hadEmptyTrackUndo?: boolean;
   trackType?: "video" | "audio" | "image" | "text" | "graphics";
 }
@@ -100,9 +118,13 @@ export interface ProjectState {
   clipRedoStack: ClipHistoryEntry[];
   templateUndoStack: EditingTemplateHistoryEntry[];
   templateRedoStack: EditingTemplateHistoryEntry[];
+  /** Order in which stacks were undone, so redo replays in the exact reverse
+   * order across the action/clip/template stacks (fixes redo asymmetry). */
+  redoJournal: Array<"action" | "clip" | "template">;
   isLoading: boolean;
   error: string | null;
-  clipboard: Clip[];
+  clipboard: TimelineClipboardItem[];
+  lastPastedClipIds: string[];
   copiedEffects: Effect[];
 
   createNewProject: (
@@ -122,6 +144,7 @@ export interface ProjectState {
     trackType: "video" | "audio" | "image" | "text" | "graphics",
     position?: number,
   ) => Promise<ActionResult>;
+  duplicateTrack: (trackId: string) => Promise<ActionResult>;
   removeTrack: (trackId: string) => Promise<ActionResult>;
   reorderTrack: (trackId: string, newPosition: number) => Promise<ActionResult>;
   lockTrack: (trackId: string, locked: boolean) => Promise<ActionResult>;
@@ -161,12 +184,12 @@ export interface ProjectState {
     trimStart: boolean,
   ) => Promise<ActionResult>;
   getClip: (clipId: string) => Clip | undefined;
-  addClipTransition: (transition: Transition) => Transition | null;
+  addClipTransition: (transition: Transition) => Promise<Transition | null>;
   updateClipTransition: (
     transitionId: string,
     updates: Partial<Pick<Transition, "type" | "duration" | "params">>,
-  ) => Transition | null;
-  removeClipTransition: (transitionId: string) => boolean;
+  ) => Promise<Transition | null>;
+  removeClipTransition: (transitionId: string) => Promise<boolean>;
   getClipTransition: (transitionId: string) => Transition | undefined;
   getClipTransitionBetweenClips: (
     clipAId: string,
@@ -175,7 +198,7 @@ export interface ProjectState {
   updateClipTransform: (
     clipId: string,
     transform: Partial<Transform>,
-  ) => boolean;
+  ) => Promise<ActionResult>;
 
   copyClips: (clipIds: string[]) => void;
   pasteClips: (trackId: string, startTime: number) => Promise<ActionResult[]>;
@@ -199,6 +222,25 @@ export interface ProjectState {
     clipId: string,
     applicationId: string,
   ) => boolean;
+
+  createMotionComposition: (
+    name?: string,
+    presetId?: string,
+  ) => Promise<MotionComposition | null>;
+  upsertMotionComposition: (
+    composition: MotionComposition,
+  ) => Promise<ActionResult>;
+  insertMotionInstance: (
+    compositionId: string,
+    placement?: Partial<
+      Pick<MotionCompositionInstance, "startTime" | "duration" | "trackId" | "name">
+    >,
+  ) => Promise<MotionCompositionInstance | null>;
+  removeMotionInstance: (instanceId: string) => Promise<ActionResult>;
+  getMotionComposition: (compositionId: string) => MotionComposition | undefined;
+  getMotionInstance: (
+    instanceId: string,
+  ) => MotionCompositionInstance | undefined;
 
   createTextClip: (
     trackId: string,
@@ -280,6 +322,35 @@ export interface ProjectState {
   getSVGClip: (clipId: string) => SVGClip | undefined;
   deleteSVGClip: (clipId: string) => boolean;
   createStickerClip: (clip: StickerClip) => StickerClip | null;
+  duplicateOverlayClip: (
+    clipId: string,
+  ) => TextClip | ShapeClip | SVGClip | StickerClip | null;
+  pasteOverlayClip: (
+    kind: "text" | "shape" | "svg" | "sticker",
+    clip: TextClip | ShapeClip | SVGClip | StickerClip,
+    startTime: number,
+    trackId?: string,
+  ) => TextClip | ShapeClip | SVGClip | StickerClip | null;
+  updateOverlayClipTiming: (
+    clipId: string,
+    updates: {
+      startTime?: number;
+      duration?: number;
+      keyframes?: Keyframe[];
+    },
+  ) => TextClip | ShapeClip | SVGClip | StickerClip | null;
+  splitOverlayClip: (
+    clipId: string,
+    time: number,
+  ) => {
+    left: TextClip | ShapeClip | SVGClip | StickerClip;
+    right: TextClip | ShapeClip | SVGClip | StickerClip;
+  } | null;
+  trimOverlayToPlayhead: (
+    clipId: string,
+    playheadTime: number,
+    trimStart: boolean,
+  ) => TextClip | ShapeClip | SVGClip | StickerClip | null;
   getStickerClip: (clipId: string) => StickerClip | undefined;
   deleteStickerClip: (clipId: string) => boolean;
 
@@ -323,41 +394,49 @@ export interface ProjectState {
     clipId: string,
     effectType: VideoEffectType,
     params?: Record<string, unknown>,
-  ) => VideoEffect | null;
+  ) => Promise<VideoEffect | null>;
+  duplicateVideoEffect: (
+    clipId: string,
+    effectId: string,
+  ) => Promise<VideoEffect | null>;
+  replaceVideoEffects: (
+    clipId: string,
+    effects: VideoEffect[],
+  ) => Promise<boolean>;
   updateVideoEffect: (
     clipId: string,
     effectId: string,
     params: Record<string, unknown>,
-  ) => VideoEffect | null;
-  removeVideoEffect: (clipId: string, effectId: string) => boolean;
+  ) => Promise<VideoEffect | null>;
+  removeVideoEffect: (clipId: string, effectId: string) => Promise<boolean>;
   reorderVideoEffects: (clipId: string, effectIds: string[]) => boolean;
   toggleVideoEffect: (
     clipId: string,
     effectId: string,
     enabled: boolean,
-  ) => VideoEffect | null;
+  ) => Promise<VideoEffect | null>;
   getVideoEffects: (clipId: string) => VideoEffect[];
   getVideoEffect: (clipId: string, effectId: string) => VideoEffect | undefined;
 
   updateColorGrading: (
     clipId: string,
     settings: Partial<ColorGradingSettings>,
-  ) => boolean;
+  ) => Promise<boolean>;
   getColorGrading: (clipId: string) => ColorGradingSettings;
-  resetColorGrading: (clipId: string) => boolean;
+  resetColorGrading: (clipId: string) => Promise<boolean>;
 
-  addAudioEffect: (clipId: string, effect: Effect) => boolean;
+  addAudioEffect: (clipId: string, effect: Effect) => Promise<boolean>;
   updateAudioEffect: (
     clipId: string,
     effectId: string,
     params: Record<string, unknown>,
-  ) => boolean;
-  removeAudioEffect: (clipId: string, effectId: string) => boolean;
+  ) => Promise<boolean>;
+  removeAudioEffect: (clipId: string, effectId: string) => Promise<boolean>;
   toggleAudioEffect: (
     clipId: string,
     effectId: string,
     enabled: boolean,
-  ) => boolean;
+  ) => Promise<boolean>;
   setAudioEffectPreviewBypass: (
     clipId: string,
     effectId: string,
@@ -409,6 +488,8 @@ export type {
   PhotoProject,
   CreateLayerOptions,
   PhotoBlendMode,
+  MotionComposition,
+  MotionCompositionInstance,
   Effect,
   Keyframe,
   Transform,

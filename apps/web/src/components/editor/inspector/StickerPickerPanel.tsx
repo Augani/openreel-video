@@ -1,7 +1,13 @@
-import React, { useState, useCallback, useMemo } from "react";
-import { Smile, Sticker, Search, Plus } from "lucide-react";
-import { Input } from "@openreel/ui";
+import React, { useState, useCallback, useMemo, useRef } from "react";
+import { Check, Smile, Sticker, Search, Plus } from "@/icons/lucide-compat";
+import { ToolcraftButton as Button } from "@openreel/ui";
+import { ToolcraftCard as Card } from "@openreel/ui";
+import { ToolcraftClickableCard as ClickableCard } from "@openreel/ui";
+import { ToolcraftText as Text } from "@openreel/ui";
+import { ToolcraftTextInputControl } from "@openreel/ui";
 import { useProjectStore } from "../../../stores/project-store";
+import { useTimelineStore } from "../../../stores/timeline-store";
+import { useUIStore } from "../../../stores/ui-store";
 import {
   stickerLibrary,
   EMOJI_CATEGORIES,
@@ -17,13 +23,17 @@ interface EmojiButtonProps {
 }
 
 const EmojiButton: React.FC<EmojiButtonProps> = ({ emoji, onAdd }) => (
-  <button
+  <ClickableCard
+    label={`Add ${emoji.name}`}
     onClick={onAdd}
-    className="w-10 h-10 flex items-center justify-center text-2xl hover:bg-background-tertiary rounded-lg transition-colors"
-    title={emoji.name}
+    width={40}
+    height={40}
+    padding={0}
+    variant="transparent"
+    className="flex items-center justify-center text-2xl"
   >
     {emoji.emoji}
-  </button>
+  </ClickableCard>
 );
 
 interface StickerCardProps {
@@ -32,10 +42,12 @@ interface StickerCardProps {
 }
 
 const StickerCard: React.FC<StickerCardProps> = ({ sticker, onAdd }) => (
-  <button
+  <ClickableCard
+    label={`Add ${sticker.name}`}
     onClick={onAdd}
-    className="p-2 rounded-lg border border-border bg-background-tertiary hover:border-primary/50 transition-colors flex flex-col items-center gap-1"
-    title={sticker.name}
+    padding={2}
+    variant="muted"
+    className="border border-border flex flex-col items-center gap-1"
   >
     {sticker.imageUrl ? (
       <img
@@ -44,22 +56,31 @@ const StickerCard: React.FC<StickerCardProps> = ({ sticker, onAdd }) => (
         className="w-8 h-8 object-contain"
       />
     ) : (
-      <span className="text-2xl">{sticker.name.slice(0, 2)}</span>
+      <Text type="body" color="primary" className="text-2xl">
+        {sticker.name.slice(0, 2)}
+      </Text>
     )}
-    <span className="text-[8px] text-text-muted truncate max-w-full">
+    <Text type="supporting" color="secondary" className="text-[8px] truncate max-w-full">
       {sticker.name}
-    </span>
-  </button>
+    </Text>
+  </ClickableCard>
 );
 
 export const StickerPickerPanel: React.FC = () => {
   const addTrack = useProjectStore((state) => state.addTrack);
   const project = useProjectStore((state) => state.project);
   const createStickerClip = useProjectStore((state) => state.createStickerClip);
+  const playheadPosition = useTimelineStore((state) => state.playheadPosition);
+  const select = useUIStore((state) => state.select);
 
   const [activeTab, setActiveTab] = useState<TabType>("emojis");
   const [selectedCategory, setSelectedCategory] = useState<string>("smileys");
   const [searchQuery, setSearchQuery] = useState("");
+  const [, setLibraryVersion] = useState(0);
+  const [isImporting, setIsImporting] = useState(false);
+  const [importMessage, setImportMessage] = useState<string | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const emojiCategories = useMemo(() => {
     return EMOJI_CATEGORIES;
@@ -72,141 +93,183 @@ export const StickerPickerPanel: React.FC = () => {
     return stickerLibrary.getEmojisByCategory(selectedCategory);
   }, [selectedCategory, searchQuery]);
 
-  const allStickers = useMemo(() => {
-    if (searchQuery) {
-      return stickerLibrary.searchStickers(searchQuery);
-    }
-    return stickerLibrary.getAllStickers();
-  }, [searchQuery]);
+  const allStickers = searchQuery
+    ? stickerLibrary.searchStickers(searchQuery)
+    : stickerLibrary.getAllStickers();
+  const stickerCategories = stickerLibrary.getCategories();
 
-  const stickerCategories = useMemo(() => {
-    return stickerLibrary.getCategories();
-  }, []);
-
-  const handleAddEmoji = useCallback(
-    (emoji: EmojiItem) => {
-      if (!project) return;
-
-      let graphicsTrack = project.timeline.tracks.find(
+  const ensureGraphicsTrack = useCallback(async () => {
+    let graphicsTrack = useProjectStore
+      .getState()
+      .project.timeline.tracks.find(
         (t) => t.type === "graphics",
       );
-      if (!graphicsTrack) {
-        addTrack("graphics");
-        graphicsTrack = project.timeline.tracks.find(
-          (t) => t.type === "graphics",
-        );
-      }
+    if (graphicsTrack) return graphicsTrack;
+    const result = await addTrack("graphics");
+    if (!result.success) return null;
+    graphicsTrack = useProjectStore
+      .getState()
+      .project.timeline.tracks.find((track) => track.type === "graphics");
+    return graphicsTrack ?? null;
+  }, [addTrack]);
+
+  const handleAddEmoji = useCallback(
+    async (emoji: EmojiItem) => {
+      if (!project) return null;
+      const graphicsTrack = await ensureGraphicsTrack();
 
       if (graphicsTrack) {
         const clip = stickerLibrary.createEmojiClip(
           emoji,
           graphicsTrack.id,
-          0,
+          playheadPosition,
           5,
         );
-        createStickerClip(clip);
+        const created = createStickerClip(clip);
+        if (created) {
+          select(
+            { type: "shape-clip", id: created.id, trackId: graphicsTrack.id },
+            false,
+          );
+        }
+        return created;
       }
+      return null;
     },
-    [project, addTrack, createStickerClip],
+    [createStickerClip, ensureGraphicsTrack, playheadPosition, project, select],
   );
 
   const handleAddSticker = useCallback(
-    (sticker: StickerItem) => {
-      if (!project) return;
-
-      let graphicsTrack = project.timeline.tracks.find(
-        (t) => t.type === "graphics",
-      );
-      if (!graphicsTrack) {
-        addTrack("graphics");
-        graphicsTrack = project.timeline.tracks.find(
-          (t) => t.type === "graphics",
-        );
-      }
+    async (sticker: StickerItem) => {
+      if (!project) return null;
+      const graphicsTrack = await ensureGraphicsTrack();
 
       if (graphicsTrack) {
         const clip = stickerLibrary.createStickerClip(
           sticker,
           graphicsTrack.id,
-          0,
+          playheadPosition,
           5,
         );
-        createStickerClip(clip);
+        const created = createStickerClip(clip);
+        if (created) {
+          select(
+            { type: "shape-clip", id: created.id, trackId: graphicsTrack.id },
+            false,
+          );
+        }
+        return created;
+      }
+      return null;
+    },
+    [createStickerClip, ensureGraphicsTrack, playheadPosition, project, select],
+  );
+
+  const handleImportSticker = useCallback(
+    async (file: File | undefined) => {
+      if (!file) return;
+      setImportMessage(null);
+      setImportError(null);
+      if (!file.type.startsWith("image/")) {
+        setImportError("Choose a PNG, JPEG, WebP, GIF, or SVG image.");
+        return;
+      }
+      if (file.size > 15 * 1024 * 1024) {
+        setImportError("Sticker files must be smaller than 15 MB.");
+        return;
+      }
+
+      setIsImporting(true);
+      try {
+        const sticker = await stickerLibrary.importSticker(
+          file,
+          file.name.replace(/\.[^/.]+$/, "") || "Custom sticker",
+        );
+        setLibraryVersion((version) => version + 1);
+        setActiveTab("stickers");
+        setSearchQuery("");
+        const created = await handleAddSticker(sticker);
+        if (!created) {
+          setImportError("The sticker was imported but could not be added to the timeline.");
+          return;
+        }
+        setImportMessage(
+          `${sticker.name} added at ${formatStickerTime(playheadPosition)}`,
+        );
+      } catch (error) {
+        console.error("Failed to import custom sticker", error);
+        setImportError("Could not read this image. Try exporting it as PNG or WebP.");
+      } finally {
+        setIsImporting(false);
+        if (fileInputRef.current) fileInputRef.current.value = "";
       }
     },
-    [project, addTrack, createStickerClip],
+    [handleAddSticker, playheadPosition],
   );
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-2 p-2 bg-gradient-to-r from-pink-500/20 to-rose-500/20 rounded-lg border border-pink-500/30">
-        <Smile size={16} className="text-primary" />
-        <div>
-          <span className="text-[11px] font-medium text-text-primary">
+      <Card
+        variant="green"
+        padding={2}
+        className="flex items-center gap-2 border border-primary/30"
+      >
+        <Smile size={16} className="text-primary" aria-hidden />
+        <div className="flex flex-col gap-0.5 min-w-0">
+          <Text type="body" color="primary" weight="bold" display="block" className="text-[11px]">
             Stickers & Emojis
-          </span>
-          <p className="text-[9px] text-text-muted">
+          </Text>
+          <Text type="supporting" color="secondary" display="block" className="text-[9px]">
             Add fun elements to your video
-          </p>
+          </Text>
         </div>
-      </div>
+      </Card>
 
       <div className="flex gap-1">
-        <button
+        <Button
+          label="Emojis"
+          icon={<Smile size={12} aria-hidden />}
+          variant={activeTab === "emojis" ? "primary" : "secondary"}
+          size="sm"
           onClick={() => setActiveTab("emojis")}
-          className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-[10px] transition-colors ${
-            activeTab === "emojis"
-              ? "bg-primary text-white font-medium"
-              : "bg-background-tertiary text-text-secondary hover:text-text-primary"
-          }`}
-        >
-          <Smile size={12} />
-          Emojis
-        </button>
-        <button
+          className="flex-1"
+        />
+        <Button
+          label="Stickers"
+          icon={<Sticker size={12} aria-hidden />}
+          variant={activeTab === "stickers" ? "primary" : "secondary"}
+          size="sm"
           onClick={() => setActiveTab("stickers")}
-          className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-[10px] transition-colors ${
-            activeTab === "stickers"
-              ? "bg-primary text-white font-medium"
-              : "bg-background-tertiary text-text-secondary hover:text-text-primary"
-          }`}
-        >
-          <Sticker size={12} />
-          Stickers
-        </button>
+          className="flex-1"
+        />
       </div>
 
       <div className="relative">
-        <Search
-          size={14}
-          className="absolute left-2 top-1/2 -translate-y-1/2 text-text-muted z-10"
-        />
-        <Input
-          type="text"
+        <ToolcraftTextInputControl
+          label={activeTab === "emojis" ? "Search emojis" : "Search stickers"}
+          isLabelHidden
+          size="sm"
+          width="100%"
           placeholder={
             activeTab === "emojis" ? "Search emojis..." : "Search stickers..."
           }
           value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="pl-8 text-[10px] bg-background-secondary border-border h-8"
+          onChange={setSearchQuery}
+          startIcon={<Search size={14} aria-hidden />}
         />
       </div>
 
       {activeTab === "emojis" && !searchQuery && (
         <div className="flex gap-1 overflow-x-auto pb-1">
           {emojiCategories.map((cat) => (
-            <button
+            <Button
               key={cat.id}
+              label={`${cat.emojis[0]?.emoji || "😀"} ${cat.name}`}
               onClick={() => setSelectedCategory(cat.id)}
-              className={`px-2 py-1 rounded text-[9px] whitespace-nowrap transition-colors flex items-center gap-1 ${
-                selectedCategory === cat.id
-                  ? "bg-primary text-white"
-                  : "bg-background-tertiary text-text-muted hover:text-text-primary"
-              }`}
-            >
-              <span>{cat.emojis[0]?.emoji || "😀"}</span>
-              <span>{cat.name}</span>
-            </button>
+              variant={selectedCategory === cat.id ? "primary" : "secondary"}
+              size="sm"
+              className="whitespace-nowrap text-[9px]"
+            />
           ))}
         </div>
       )}
@@ -216,18 +279,14 @@ export const StickerPickerPanel: React.FC = () => {
         stickerCategories.length > 0 && (
           <div className="flex gap-1 overflow-x-auto pb-1">
             {stickerCategories.map((cat) => (
-              <button
+              <Button
                 key={cat.id}
+                label={`${cat.icon ? `${cat.icon} ` : ""}${cat.name}`}
                 onClick={() => setSelectedCategory(cat.id)}
-                className={`px-2 py-1 rounded text-[9px] whitespace-nowrap transition-colors ${
-                  selectedCategory === cat.id
-                    ? "bg-primary text-white"
-                    : "bg-background-tertiary text-text-muted hover:text-text-primary"
-                }`}
-              >
-                {cat.icon && <span className="mr-1">{cat.icon}</span>}
-                {cat.name}
-              </button>
+                variant={selectedCategory === cat.id ? "primary" : "secondary"}
+                size="sm"
+                className="whitespace-nowrap text-[9px]"
+              />
             ))}
           </div>
         )}
@@ -238,16 +297,19 @@ export const StickerPickerPanel: React.FC = () => {
             <div className="col-span-6 text-center py-4">
               <Smile
                 size={24}
-                className="mx-auto mb-2 text-text-muted opacity-50"
+                className="mx-auto mb-2 text-fg-3 opacity-50"
+                aria-hidden
               />
-              <p className="text-[10px] text-text-muted">No emojis found</p>
+              <Text type="supporting" color="secondary" className="text-[10px]">
+                No emojis found
+              </Text>
             </div>
           ) : (
             currentEmojis.map((emoji) => (
               <EmojiButton
                 key={emoji.id}
                 emoji={emoji}
-                onAdd={() => handleAddEmoji(emoji)}
+                onAdd={() => void handleAddEmoji(emoji)}
               />
             ))
           )}
@@ -260,12 +322,15 @@ export const StickerPickerPanel: React.FC = () => {
             <div className="text-center py-4">
               <Sticker
                 size={24}
-                className="mx-auto mb-2 text-text-muted opacity-50"
+                className="mx-auto mb-2 text-fg-3 opacity-50"
+                aria-hidden
               />
-              <p className="text-[10px] text-text-muted">No stickers yet</p>
-              <p className="text-[9px] text-text-muted mt-1">
+              <Text type="supporting" color="secondary" className="text-[10px]">
+                No stickers yet
+              </Text>
+              <Text type="supporting" color="secondary" className="text-[9px] mt-1">
                 Import custom stickers below
-              </p>
+              </Text>
             </div>
           ) : (
             <div className="grid grid-cols-4 gap-2">
@@ -273,7 +338,7 @@ export const StickerPickerPanel: React.FC = () => {
                 <StickerCard
                   key={sticker.id}
                   sticker={sticker}
-                  onAdd={() => handleAddSticker(sticker)}
+                  onAdd={() => void handleAddSticker(sticker)}
                 />
               ))}
             </div>
@@ -282,36 +347,58 @@ export const StickerPickerPanel: React.FC = () => {
       )}
 
       <div className="pt-2 border-t border-border">
-        <button
-          onClick={() => {
-            const input = document.createElement("input");
-            input.type = "file";
-            input.accept = "image/*";
-            input.onchange = async (e) => {
-              const file = (e.target as HTMLInputElement).files?.[0];
-              if (file) {
-                await stickerLibrary.importSticker(
-                  file,
-                  file.name.replace(/\.[^/.]+$/, ""),
-                );
-              }
-            };
-            input.click();
-          }}
-          className="w-full flex items-center justify-center gap-2 py-2 text-[10px] text-text-secondary hover:text-text-primary bg-background-tertiary rounded-lg transition-colors"
-        >
-          <Plus size={12} />
-          <span>Import Custom Sticker</span>
-        </button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
+          aria-label="Choose custom sticker image"
+          className="sr-only"
+          onChange={(event) =>
+            void handleImportSticker(event.currentTarget.files?.[0])
+          }
+        />
+        <Button
+          label={isImporting ? "Importing sticker…" : "Import & Add Sticker"}
+          icon={<Plus size={12} aria-hidden />}
+          variant="secondary"
+          size="sm"
+          isDisabled={isImporting}
+          onClick={() => fileInputRef.current?.click()}
+          className="w-full"
+        />
+        {importMessage ? (
+          <div className="mt-2 flex items-center gap-1.5 rounded-md border border-accent/20 bg-accent-soft px-2 py-1.5 text-[9px] text-accent">
+            <Check size={11} aria-hidden />
+            <span>{importMessage}</span>
+          </div>
+        ) : null}
+        {importError ? (
+          <Text
+            type="supporting"
+            display="block"
+            className="mt-2 rounded-md border border-danger/20 bg-danger/10 px-2 py-1.5 text-[9px] text-danger"
+            role="alert"
+          >
+            {importError}
+          </Text>
+        ) : null}
       </div>
 
-      <p className="text-[9px] text-text-muted text-center">
+      <Text type="supporting" color="secondary" className="block text-[9px] text-center">
         {activeTab === "emojis"
           ? `${stickerLibrary.getAllEmojis().length} emojis available`
           : `${allStickers.length} stickers available`}
-      </p>
+      </Text>
     </div>
   );
 };
+
+function formatStickerTime(seconds: number): string {
+  const safeSeconds = Math.max(0, seconds);
+  const minutes = Math.floor(safeSeconds / 60);
+  const remainder = Math.floor(safeSeconds % 60);
+  const frames = Math.floor((safeSeconds % 1) * 30);
+  return `${String(minutes).padStart(2, "0")}:${String(remainder).padStart(2, "0")}:${String(frames).padStart(2, "0")}`;
+}
 
 export default StickerPickerPanel;

@@ -1,0 +1,5 @@
+numpy==1.26.4
+pyyaml==6.0.2
+jsonschema==4.23.0
+Pillow==10.4.0
+pytest==8.3.3

@@ -1,0 +1,231 @@
+name: Release Desktop
+
+# Builds the OpenReel desktop app for macOS (arm64 + x64), Windows (x64) and
+# Linux (x64) and uploads the installers + electron-updater feed (latest*.yml,
+# blockmaps) and a landing manifest.json to the R2 bucket served at
+# https://dl.openreel.video. Signs + notarizes when the cert secrets are present
+# and otherwise builds unsigned (the unsigned macOS update feed is NOT uploaded,
+# since Squirrel.Mac rejects unsigned updates).
+#
+# Required secrets:
+#   R2:      R2_ACCOUNT_ID, R2_BUCKET, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY
+#   macOS:   MAC_CSC_LINK (base64 Developer ID .p12), MAC_CSC_KEY_PASSWORD,
+#            APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID
+#   Windows: WIN_CSC_LINK (base64 Authenticode .pfx), WIN_CSC_KEY_PASSWORD
+# See apps/desktop/DISTRIBUTION.md.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: "Upload the built artifacts to R2 (otherwise build-only)"
+        type: boolean
+        default: false
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  R2_UPLOAD: ${{ (github.ref_type == 'tag' || inputs.publish) && 'true' || 'false' }}
+
+jobs:
+  quality:
+    name: Typecheck & Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "pnpm"
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build:wasm
+      - run: pnpm typecheck
+      - run: pnpm test
+
+  build:
+    name: Build (${{ matrix.os }})
+    needs: quality
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    env:
+      R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+      R2_BUCKET: ${{ secrets.R2_BUCKET }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: auto
+      # R2 rejects the checksum trailers aws-cli v2 adds by default.
+      AWS_REQUEST_CHECKSUM_CALCULATION: WHEN_REQUIRED
+      AWS_RESPONSE_CHECKSUM_VALIDATION: WHEN_REQUIRED
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest, ubuntu-latest]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build WASM modules
+        run: pnpm build:wasm
+
+      - name: Fetch ffmpeg binaries
+        run: pnpm --filter @openreel/desktop fetch:ffmpeg
+
+      # The inline-env build:renderer script does not run under Windows cmd.exe,
+      # so set OPENREEL_DESKTOP at the step level here.
+      - name: Build renderer
+        run: pnpm --filter @openreel/web build
+        env:
+          OPENREEL_DESKTOP: "1"
+
+      - name: Build main + preload
+        run: pnpm --filter @openreel/desktop build:main
+
+      - name: Package + upload (macOS)
+        if: runner.os == 'macOS'
+        working-directory: apps/desktop
+        shell: bash
+        env:
+          CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          if [ -n "$CSC_LINK" ]; then
+            echo "Signing + notarizing with Developer ID."
+            pnpm exec electron-builder --mac --publish never
+          else
+            echo "::warning::No macOS signing cert (MAC_CSC_LINK) — building UNSIGNED."
+            unset APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID CSC_LINK CSC_KEY_PASSWORD
+            pnpm exec electron-builder --mac --publish never -c.mac.identity=null
+          fi
+          # Notarize + staple the DMG itself, not just the .app inside it. macOS
+          # Sequoia/Tahoe reject a quarantined app extracted from an un-notarized
+          # DMG as "damaged" — the DMG must carry its own stapled ticket. (Mac
+          # auto-update uses the .zip, so the DMG hash in latest-mac.yml is moot.)
+          if [ -n "${CSC_LINK:-}" ]; then
+            for dmg in release/OpenReel-*.dmg; do
+              echo "Notarizing DMG: $dmg"
+              xcrun notarytool submit "$dmg" \
+                --apple-id "$APPLE_ID" \
+                --password "$APPLE_APP_SPECIFIC_PASSWORD" \
+                --team-id "$APPLE_TEAM_ID" \
+                --wait
+              xcrun stapler staple "$dmg"
+              xcrun stapler validate "$dmg"
+            done
+          fi
+          if [ "$R2_UPLOAD" != "true" ]; then exit 0; fi
+          endpoint="https://$R2_ACCOUNT_ID.r2.cloudflarestorage.com"
+          # Installers (for manual download from the landing) — always.
+          aws s3 sync release "s3://$R2_BUCKET/" --endpoint-url "$endpoint" \
+            --no-progress --exclude "*" --include "OpenReel-*.dmg"
+          # Update feed — only for signed builds (Squirrel.Mac rejects unsigned).
+          if [ -n "$CSC_LINK" ]; then
+            aws s3 sync release "s3://$R2_BUCKET/" --endpoint-url "$endpoint" \
+              --no-progress --exclude "*" --include "OpenReel-*.zip" \
+              --include "latest-mac.yml" --include "*.blockmap"
+          else
+            echo "::warning::Unsigned mac — uploaded DMG only, no update feed."
+          fi
+
+      - name: Package + upload (Windows)
+        if: runner.os == 'Windows'
+        working-directory: apps/desktop
+        shell: bash
+        env:
+          CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -z "${CSC_LINK:-}" ]; then
+            echo "::warning::No Windows signing cert (WIN_CSC_LINK) — building UNSIGNED."
+            # An exported-but-empty CSC_LINK makes electron-builder try to resolve
+            # "" as a cert file ("not a file"); drop it so the unsigned path runs.
+            unset CSC_LINK CSC_KEY_PASSWORD
+          fi
+          pnpm exec electron-builder --win --publish never
+          if [ "$R2_UPLOAD" != "true" ]; then exit 0; fi
+          endpoint="https://$R2_ACCOUNT_ID.r2.cloudflarestorage.com"
+          aws s3 sync release "s3://$R2_BUCKET/" --endpoint-url "$endpoint" \
+            --no-progress --exclude "*" --include "OpenReel-*.exe" \
+            --include "latest.yml" --include "*.blockmap"
+
+      - name: Package + upload (Linux)
+        if: runner.os == 'Linux'
+        working-directory: apps/desktop
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm exec electron-builder --linux --publish never
+          if [ "$R2_UPLOAD" != "true" ]; then exit 0; fi
+          endpoint="https://$R2_ACCOUNT_ID.r2.cloudflarestorage.com"
+          aws s3 sync release "s3://$R2_BUCKET/" --endpoint-url "$endpoint" \
+            --no-progress --exclude "*" --include "OpenReel-*.AppImage" \
+            --include "OpenReel-*.deb" --include "latest-linux.yml" \
+            --include "*.blockmap"
+
+  manifest:
+    name: Publish landing manifest.json
+    needs: build
+    if: github.ref_type == 'tag' || inputs.publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+      R2_BUCKET: ${{ secrets.R2_BUCKET }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: auto
+      AWS_REQUEST_CHECKSUM_CALCULATION: WHEN_REQUIRED
+      AWS_RESPONSE_CHECKSUM_VALIDATION: WHEN_REQUIRED
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Download this version's installers from R2
+        # The build jobs upload installers straight to R2, so the manifest is
+        # built from R2 — not GitHub Actions artifacts. This avoids the
+        # Actions artifact storage quota entirely (it is account-wide and the
+        # ~600 MB/release installers exhaust it quickly).
+        run: |
+          VERSION="$(node -p "require('./apps/desktop/package.json').version")"
+          mkdir -p artifacts
+          aws s3 sync "s3://$R2_BUCKET/" artifacts \
+            --endpoint-url "https://$R2_ACCOUNT_ID.r2.cloudflarestorage.com" \
+            --no-progress --exclude "*" --include "OpenReel-${VERSION}-*"
+          ls -la artifacts
+      - name: Build manifest.json
+        run: |
+          RELEASE_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            node apps/desktop/scripts/build-manifest.mjs artifacts manifest.json
+          cat manifest.json
+      - name: Upload manifest.json to R2
+        run: |
+          aws s3 cp manifest.json "s3://$R2_BUCKET/manifest.json" \
+            --endpoint-url "https://$R2_ACCOUNT_ID.r2.cloudflarestorage.com" \
+            --no-progress --content-type application/json \
+            --cache-control "public, max-age=300"

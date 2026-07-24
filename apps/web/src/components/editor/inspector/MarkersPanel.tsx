@@ -1,6 +1,11 @@
 import React, { useState } from "react";
-import { Flag, Plus, Trash2, Edit2, Check, X } from "lucide-react";
-import { Input, ScrollArea } from "@openreel/ui";
+import { Flag, Plus, Trash2, Edit2, Check, X } from "@/icons/lucide-compat";
+import { ToolcraftButton as Button } from "@openreel/ui";
+import { ToolcraftCard as Card } from "@openreel/ui";
+import { ToolcraftClickableCard as ClickableCard } from "@openreel/ui";
+import { ToolcraftIconButton as IconButton } from "@openreel/ui";
+import { ToolcraftText as Text } from "@openreel/ui";
+import { ToolcraftTextInputControl } from "@openreel/ui";
 import { useProjectStore } from "../../../stores/project-store";
 import { getPlaybackBridge } from "../../../bridges/playback-bridge";
 import type { Marker } from "@openreel/core";
@@ -64,34 +69,44 @@ export const MarkersPanel: React.FC = () => {
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Flag size={14} className="text-text-secondary" />
-          <span className="text-xs font-medium text-text-primary">Markers</span>
-          <span className="text-xs text-text-muted">({markers.length})</span>
+          <Flag size={14} className="text-fg-2" aria-hidden />
+          <Text type="body" color="primary" weight="bold" className="text-xs">
+            Markers
+          </Text>
+          <Text type="supporting" color="secondary" className="text-xs">
+            ({markers.length})
+          </Text>
         </div>
-        <button
+        <Button
+          label="Add"
+          icon={<Plus size={12} aria-hidden />}
+          variant="primary"
+          size="sm"
           onClick={handleAddMarker}
-          className="flex items-center gap-1 px-2 py-1 bg-primary hover:bg-primary/80 text-white rounded text-xs transition-colors"
-        >
-          <Plus size={12} />
-          Add
-        </button>
+        />
       </div>
 
       {markers.length === 0 ? (
-        <div className="py-8 text-center text-text-muted text-xs">
-          <Flag size={32} className="mx-auto mb-2 opacity-30" />
-          <p>No markers yet</p>
-          <p className="text-[10px] mt-1">Press M at playhead to add markers</p>
+        <div className="py-8 text-center text-fg-3 text-xs">
+          <Flag size={32} className="mx-auto mb-2 opacity-30" aria-hidden />
+          <Text type="supporting" color="secondary" className="block">
+            No markers yet
+          </Text>
+          <Text type="supporting" color="secondary" className="text-[10px] mt-1 block">
+            Press M at playhead to add markers
+          </Text>
         </div>
       ) : (
-        <ScrollArea className="max-h-96">
+        <div className="max-h-96 overflow-y-auto pr-1">
           <div className="space-y-1">
             {markers
             .sort((a, b) => a.time - b.time)
             .map((marker) => (
-              <div
+              <Card
                 key={marker.id}
-                className="group flex items-center gap-2 p-2 rounded hover:bg-background-tertiary transition-colors"
+                variant="transparent"
+                padding={2}
+                className="group flex items-center gap-2 transition-colors"
               >
                 <div
                   className="w-3 h-3 rounded-full flex-shrink-0"
@@ -103,77 +118,96 @@ export const MarkersPanel: React.FC = () => {
 
                 {editingId === marker.id ? (
                   <div className="flex-1 space-y-2">
-                    <Input
-                      type="text"
+                    <ToolcraftTextInputControl
+                      label="Marker label"
+                      isLabelHidden
+                      size="sm"
+                      width="100%"
                       value={editLabel}
-                      onChange={(e) => setEditLabel(e.target.value)}
-                      className="h-7 text-xs bg-background-secondary border-border text-text-primary"
+                      onChange={setEditLabel}
                       placeholder="Marker label"
                     />
                     <div className="flex gap-1">
                       {PRESET_COLORS.map((color) => (
-                        <button
+                        <ClickableCard
                           key={color}
+                          label={`Use marker color ${color}`}
                           onClick={() => setEditColor(color)}
-                          className={`w-5 h-5 rounded border-2 transition-all ${
-                            editColor === color
-                              ? "border-white scale-110"
-                              : "border-transparent"
+                          padding={0}
+                          width={20}
+                          height={20}
+                          className={`rounded border-2 transition-all ${
+                            editColor === color ? "border-white scale-110" : "border-transparent"
                           }`}
                           style={{ backgroundColor: color }}
                         />
                       ))}
                     </div>
                     <div className="flex gap-1">
-                      <button
+                      <Button
+                        label="Save"
+                        icon={<Check size={12} aria-hidden />}
+                        variant="primary"
+                        size="sm"
                         onClick={handleSaveEdit}
-                        className="flex-1 flex items-center justify-center gap-1 px-2 py-1 bg-green-500 hover:bg-green-600 text-white rounded text-xs transition-colors"
-                      >
-                        <Check size={12} />
-                        Save
-                      </button>
-                      <button
+                        className="flex-1"
+                      />
+                      <Button
+                        label="Cancel"
+                        icon={<X size={12} aria-hidden />}
+                        variant="secondary"
+                        size="sm"
                         onClick={handleCancelEdit}
-                        className="flex-1 flex items-center justify-center gap-1 px-2 py-1 bg-background-secondary hover:bg-background-primary text-text-secondary rounded text-xs transition-colors"
-                      >
-                        <X size={12} />
-                        Cancel
-                      </button>
+                        className="flex-1"
+                      />
                     </div>
                   </div>
                 ) : (
                   <>
-                    <button
+                    <ClickableCard
+                      label={`Jump to ${marker.label}`}
                       onClick={() => handleJumpTo(marker)}
-                      className="flex-1 flex items-center justify-between text-left hover:text-primary transition-colors"
+                      padding={0}
+                      variant="transparent"
+                      className="flex-1"
                     >
-                      <span className="text-xs text-text-primary">
-                        {marker.label}
-                      </span>
-                      <span className="text-[10px] font-mono text-text-muted">
-                        {formatTime(marker.time)}
-                      </span>
-                    </button>
+                      <div className="flex items-center justify-between gap-3">
+                        <Text type="supporting" color="primary" className="text-xs">
+                          {marker.label}
+                        </Text>
+                        <Text
+                          type="supporting"
+                          color="secondary"
+                          className="text-[10px] font-mono"
+                        >
+                          {formatTime(marker.time)}
+                        </Text>
+                      </div>
+                    </ClickableCard>
                     <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button
+                      <IconButton
+                        label={`Edit ${marker.label}`}
+                        icon={<Edit2 size={12} aria-hidden />}
+                        variant="ghost"
+                        size="sm"
                         onClick={() => handleStartEdit(marker)}
-                        className="p-1 hover:bg-background-secondary rounded text-text-muted hover:text-primary transition-colors"
-                      >
-                        <Edit2 size={12} />
-                      </button>
-                      <button
+                        className="text-fg-3 hover:text-primary"
+                      />
+                      <IconButton
+                        label={`Remove ${marker.label}`}
+                        icon={<Trash2 size={12} aria-hidden />}
+                        variant="ghost"
+                        size="sm"
                         onClick={() => removeMarker(marker.id)}
-                        className="p-1 hover:bg-background-secondary rounded text-text-muted hover:text-red-500 transition-colors"
-                      >
-                        <Trash2 size={12} />
-                      </button>
+                        className="text-fg-3 hover:text-red-500"
+                      />
                     </div>
                   </>
                 )}
-              </div>
+              </Card>
             ))}
           </div>
-        </ScrollArea>
+        </div>
       )}
     </div>
   );

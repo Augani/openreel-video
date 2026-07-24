@@ -5,6 +5,7 @@ import type {
   StickerClip,
   ShapeStyle,
   FillStyle,
+  MotionShaderFill,
   StrokeStyle,
   GradientStyle,
   Point2D,
@@ -21,6 +22,11 @@ import type {
 import { DEFAULT_SHAPE_STYLE, DEFAULT_GRAPHIC_TRANSFORM } from "./types";
 import type { Transform, Keyframe, ClipMetadata } from "../types/timeline";
 import { AnimationEngine } from "../video/animation-engine";
+import {
+  MotionShaderRenderer,
+  type MotionShaderCanvas,
+} from "../motion/motion-shader-renderer";
+import { getMotionShaderDef } from "../motion/shaders";
 
 interface AnimatedGraphicState {
   transform: Transform;
@@ -53,6 +59,7 @@ export class GraphicsEngine {
   private shapeClips: Map<string, ShapeClip> = new Map();
   private svgClips: Map<string, SVGClip> = new Map();
   private stickerClips: Map<string, StickerClip> = new Map();
+  private shaderRenderer: MotionShaderRenderer | null = null;
 
   /**
    * Creates a new GraphicsEngine instance.
@@ -267,6 +274,7 @@ export class GraphicsEngine {
       duration?: number;
       transform?: Partial<Transform>;
       keyframes?: Keyframe[];
+      effects?: import("../types/timeline").Effect[];
       blendMode?: import("../video/types").BlendMode;
       blendOpacity?: number;
       emphasisAnimation?: EmphasisAnimation;
@@ -283,6 +291,7 @@ export class GraphicsEngine {
         ? { ...existing.transform, ...updates.transform }
         : existing.transform,
       keyframes: updates.keyframes ?? existing.keyframes,
+      effects: updates.effects ?? existing.effects,
       blendMode: updates.blendMode ?? existing.blendMode,
       blendOpacity: updates.blendOpacity ?? existing.blendOpacity,
       emphasisAnimation:
@@ -449,7 +458,7 @@ export class GraphicsEngine {
 
     switch (graphic.type) {
       case "shape":
-        this.renderShape(ctx, graphic as ShapeClip, width, height);
+        this.renderShape(ctx, graphic as ShapeClip, width, height, time);
         break;
       case "svg":
         await this.renderSVG(
@@ -474,6 +483,7 @@ export class GraphicsEngine {
     shape: ShapeClip,
     width: number,
     height: number,
+    time: number,
   ): void {
     const { style, shapeType } = shape;
     const baseSize = Math.min(width, height);
@@ -528,18 +538,44 @@ export class GraphicsEngine {
     }
 
     if (style.fill.type !== "none") {
-      ctx.globalAlpha = style.fill.opacity;
-      if (style.fill.type === "gradient" && style.fill.gradient) {
-        ctx.fillStyle = this.createGradient(
-          ctx,
-          style.fill.gradient,
+      if (style.fill.type === "shader" && style.fill.shader) {
+        const shaderCanvas = this.renderShaderFill(
+          style.fill.shader,
           shapeSize,
           shapeSize,
+          time,
         );
+        if (shaderCanvas) {
+          ctx.save();
+          ctx.globalAlpha = style.fill.opacity;
+          ctx.clip();
+          ctx.drawImage(
+            shaderCanvas,
+            -halfSize,
+            -halfSize,
+            shapeSize,
+            shapeSize,
+          );
+          ctx.restore();
+        } else {
+          ctx.globalAlpha = style.fill.opacity;
+          ctx.fillStyle = style.fill.color || "#000000";
+          ctx.fill();
+        }
       } else {
-        ctx.fillStyle = style.fill.color || "#000000";
+        ctx.globalAlpha = style.fill.opacity;
+        if (style.fill.type === "gradient" && style.fill.gradient) {
+          ctx.fillStyle = this.createGradient(
+            ctx,
+            style.fill.gradient,
+            shapeSize,
+            shapeSize,
+          );
+        } else {
+          ctx.fillStyle = style.fill.color || "#000000";
+        }
+        ctx.fill();
       }
-      ctx.fill();
     }
 
     if (style.stroke.width > 0) {
@@ -556,6 +592,27 @@ export class GraphicsEngine {
     }
 
     ctx.restore();
+  }
+
+  private renderShaderFill(
+    shader: MotionShaderFill,
+    width: number,
+    height: number,
+    time: number,
+  ): MotionShaderCanvas | null {
+    const def = getMotionShaderDef(shader.shaderId);
+    if (!def || def.category !== "fill") return null;
+
+    if (!this.shaderRenderer) {
+      this.shaderRenderer = new MotionShaderRenderer();
+    }
+
+    return this.shaderRenderer.render(def, {
+      width,
+      height,
+      time,
+      params: shader.params,
+    });
   }
 
   /**
@@ -1799,6 +1856,7 @@ export class GraphicsEngine {
       duration?: number;
       transform?: Partial<Transform>;
       keyframes?: Keyframe[];
+      effects?: import("../types/timeline").Effect[];
       entryAnimation?: GraphicAnimation;
       exitAnimation?: GraphicAnimation;
       colorStyle?: SVGColorStyle;
@@ -1821,6 +1879,7 @@ export class GraphicsEngine {
         ? { ...existing.transform, ...updates.transform }
         : existing.transform,
       keyframes: updates.keyframes ?? existing.keyframes,
+      effects: updates.effects ?? existing.effects,
       entryAnimation: updates.entryAnimation ?? existing.entryAnimation,
       exitAnimation: updates.exitAnimation ?? existing.exitAnimation,
       colorStyle: updates.colorStyle ?? existing.colorStyle,
@@ -1937,6 +1996,7 @@ export class GraphicsEngine {
       duration?: number;
       transform?: Partial<Transform>;
       keyframes?: Keyframe[];
+      effects?: import("../types/timeline").Effect[];
       blendMode?: import("../video/types").BlendMode;
       blendOpacity?: number;
       emphasisAnimation?: EmphasisAnimation;
@@ -1956,6 +2016,7 @@ export class GraphicsEngine {
         ? { ...existing.transform, ...updates.transform }
         : existing.transform,
       keyframes: updates.keyframes ?? existing.keyframes,
+      effects: updates.effects ?? existing.effects,
       blendMode: updates.blendMode ?? existing.blendMode,
       blendOpacity: updates.blendOpacity ?? existing.blendOpacity,
       emphasisAnimation:
@@ -1977,6 +2038,8 @@ export class GraphicsEngine {
     this.svgClips.clear();
     this.stickerClips.clear();
     this.animationEngine.clearCache();
+    this.shaderRenderer?.dispose();
+    this.shaderRenderer = null;
   }
 
   loadShapeClips(clips: ShapeClip[]): void {

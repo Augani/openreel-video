@@ -29,7 +29,7 @@ export const SpeedTab: React.FC<SpeedTabProps> = ({
             <InspectorSection
               title="Speed & Direction"
               sectionId="speed"
-              defaultOpen={true}
+              defaultOpen={false}
             >
               <SpeedSection clip={selectedClip as Clip} />
             </InspectorSection>

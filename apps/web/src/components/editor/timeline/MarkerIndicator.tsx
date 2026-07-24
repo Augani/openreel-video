@@ -1,5 +1,7 @@
 import React from "react";
-import { Flag, X } from "lucide-react";
+import { ToolcraftIconButton as IconButton } from "@openreel/ui";
+import { ToolcraftTextInputControl } from "@openreel/ui";
+import { Flag, X } from "@/icons/lucide-compat";
 import type { Marker } from "@openreel/core";
 
 interface MarkerIndicatorProps {
@@ -83,29 +85,33 @@ export const MarkerIndicator: React.FC<MarkerIndicatorProps> = ({
       >
         <Flag size={10} />
         {isEditing ? (
-          <input
-            type="text"
+          <ToolcraftTextInputControl
+            label="Marker label"
+            isLabelHidden
+            size="sm"
+            width={92}
             value={editedLabel}
-            onChange={(e) => setEditedLabel(e.target.value)}
+            onChange={setEditedLabel}
             onKeyDown={handleLabelChange}
             onBlur={() => {
               setEditedLabel(marker.label);
               setIsEditing(false);
             }}
-            className="bg-transparent border-none outline-none text-white w-20 px-1"
-            autoFocus
+            hasAutoFocus
             onClick={(e) => e.stopPropagation()}
           />
         ) : (
           <span>{marker.label}</span>
         )}
         {isHovered && onRemove && (
-          <button
+          <IconButton
+            label="Remove marker"
+            icon={<X size={10} aria-hidden />}
+            size="sm"
+            variant="ghost"
             onClick={handleRemove}
-            className="ml-1 hover:bg-white/20 rounded p-0.5 transition-colors"
-          >
-            <X size={10} />
-          </button>
+            className="ml-1"
+          />
         )}
       </div>
     </div>

@@ -28,6 +28,7 @@ export type TemplateCategory =
   | "slideshow"
   | "intro-outro"
   | "lower-third"
+  | "motion"
   | "custom";
 
 export interface TemplateTimeline extends Omit<
@@ -105,5 +106,6 @@ export const TEMPLATE_CATEGORIES: Array<{
   { id: "slideshow", name: "Slideshow", icon: "images" },
   { id: "intro-outro", name: "Intro/Outro", icon: "play" },
   { id: "lower-third", name: "Lower Third", icon: "subtitles" },
+  { id: "motion", name: "Motion", icon: "sparkles" },
   { id: "custom", name: "Custom", icon: "folder" },
 ];

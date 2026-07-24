@@ -1,5 +1,5 @@
 import React from "react";
-import { ChevronDown } from "lucide-react";
+import { ToolcraftPanelSection } from "@openreel/ui";
 
 export interface InspectorSectionProps {
   title: string;
@@ -14,27 +14,18 @@ export const InspectorSection: React.FC<InspectorSectionProps> = ({
   sectionId,
   children,
 }) => {
-  const [isOpen, setIsOpen] = React.useState(defaultOpen);
+  const [isCollapsed, setIsCollapsed] = React.useState(!defaultOpen);
 
   return (
-    <div className="mb-6 transition-all" data-section-id={sectionId}>
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 text-text-secondary hover:text-text-primary transition-colors mb-3 w-full group"
-      >
-        <ChevronDown
-          size={12}
-          className={`transition-transform duration-200 ${
-            isOpen ? "" : "-rotate-90"
-          } text-text-muted group-hover:text-text-primary`}
-        />
-        <span className="text-xs font-medium">{title}</span>
-      </button>
-      {isOpen && (
-        <div className="animate-in slide-in-from-top-2 duration-200">
-          {children}
-        </div>
-      )}
-    </div>
+    <ToolcraftPanelSection
+      title={title}
+      collapsed={isCollapsed}
+      onCollapsedChange={setIsCollapsed}
+      sectionId={sectionId}
+      className="mb-4 rounded-[7px] border border-border bg-bg-1 last:border-b"
+      bodyClassName="pt-0"
+    >
+      {children}
+    </ToolcraftPanelSection>
   );
 };

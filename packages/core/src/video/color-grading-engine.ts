@@ -28,6 +28,21 @@ export interface LUTData {
   intensity: number;
 }
 
+/**
+ * Persisted, JSON-serializable color grading settings stored on a clip.
+ * LUT data is a plain number[] (not a typed array) so it survives the
+ * structured-clone / JSON snapshots used by the undo system and project
+ * storage. The live effects bridge converts to/from typed arrays.
+ */
+export interface ClipColorGrading {
+  colorWheels?: ColorWheelValues;
+  curves?: CurvesValues;
+  lut?: { data: number[]; size: number; intensity: number };
+  hsl?: HSLValues;
+  temperature?: number;
+  tint?: number;
+}
+
 export interface WaveformScopeData {
   luminance: Uint8Array;
   red: Uint8Array;
@@ -279,6 +294,12 @@ interface ShaderProgram {
   attributes: Map<string, number>;
 }
 
+export interface CpuGradingStages {
+  curves?: CurvesValues;
+  lut?: LUTData;
+  hsl?: HSLValues;
+}
+
 export class ColorGradingEngine {
   private canvas: OffscreenCanvas | null = null;
   private gl: WebGL2RenderingContext | null = null;
@@ -289,6 +310,9 @@ export class ColorGradingEngine {
   private width: number;
   private height: number;
   private initialized = false;
+
+  private _cpuCanvas: OffscreenCanvas | null = null;
+  private _cpuCtx: OffscreenCanvasRenderingContext2D | null = null;
 
   constructor(width: number = 1920, height: number = 1080) {
     this.width = width;
@@ -479,34 +503,175 @@ export class ColorGradingEngine {
     image: ImageBitmap,
     curves: CurvesValues,
   ): Promise<ColorGradingResult> {
-    const startTime = performance.now();
-    this.ensureInitialized();
+    return this.applyCpuGrading(image, { curves });
+  }
 
-    // For curves, we use CPU processing with canvas for simplicity
-    // A full implementation would use a 1D LUT texture
-    const canvas = new OffscreenCanvas(image.width, image.height);
-    const ctx = canvas.getContext("2d")!;
-    ctx.drawImage(image, 0, 0);
+  private getCpuCtx(
+    width: number,
+    height: number,
+  ): OffscreenCanvasRenderingContext2D {
+    if (
+      !this._cpuCanvas ||
+      !this._cpuCtx ||
+      this._cpuCanvas.width !== width ||
+      this._cpuCanvas.height !== height
+    ) {
+      const canvas = this._cpuCanvas ?? new OffscreenCanvas(width, height);
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d", { willReadFrequently: true });
+      if (!ctx) {
+        throw new Error("Failed to acquire 2D context for CPU color grading");
+      }
+      this._cpuCanvas = canvas;
+      this._cpuCtx = ctx;
+    }
 
-    const imageData = ctx.getImageData(0, 0, image.width, image.height);
-    const data = imageData.data;
+    return this._cpuCtx;
+  }
+
+  private applyCurvesToData(data: Uint8ClampedArray, curves: CurvesValues): void {
     const rgbLUT = this.buildCurveLUT(curves.rgb);
     const redLUT = this.buildCurveLUT(curves.red);
     const greenLUT = this.buildCurveLUT(curves.green);
     const blueLUT = this.buildCurveLUT(curves.blue);
     for (let i = 0; i < data.length; i += 4) {
-      let r = redLUT[data[i]];
-      let g = greenLUT[data[i + 1]];
-      let b = blueLUT[data[i + 2]];
+      const r = redLUT[data[i]];
+      const g = greenLUT[data[i + 1]];
+      const b = blueLUT[data[i + 2]];
 
-      // Then apply master curve
       data[i] = rgbLUT[r];
       data[i + 1] = rgbLUT[g];
       data[i + 2] = rgbLUT[b];
     }
+  }
+
+  private applyLutToData(data: Uint8ClampedArray, lut: LUTData): void {
+    const lutSize = lut.size;
+    const lutData = lut.data;
+
+    for (let i = 0; i < data.length; i += 4) {
+      const r = data[i] / 255;
+      const g = data[i + 1] / 255;
+      const b = data[i + 2] / 255;
+
+      const rIdx = r * (lutSize - 1);
+      const gIdx = g * (lutSize - 1);
+      const bIdx = b * (lutSize - 1);
+
+      const r0 = Math.floor(rIdx);
+      const g0 = Math.floor(gIdx);
+      const b0 = Math.floor(bIdx);
+
+      const r1 = Math.min(r0 + 1, lutSize - 1);
+      const g1 = Math.min(g0 + 1, lutSize - 1);
+      const b1 = Math.min(b0 + 1, lutSize - 1);
+
+      const rFrac = rIdx - r0;
+      const gFrac = gIdx - g0;
+      const bFrac = bIdx - b0;
+
+      const getLutValue = (
+        ri: number,
+        gi: number,
+        bi: number,
+        channel: number,
+      ): number => {
+        const idx = (bi * lutSize * lutSize + gi * lutSize + ri) * 3 + channel;
+        return lutData[idx] / 255;
+      };
+
+      const interpolateChannel = (channel: number): number => {
+        const c00 =
+          getLutValue(r0, g0, b0, channel) * (1 - rFrac) +
+          getLutValue(r1, g0, b0, channel) * rFrac;
+        const c01 =
+          getLutValue(r0, g0, b1, channel) * (1 - rFrac) +
+          getLutValue(r1, g0, b1, channel) * rFrac;
+        const c10 =
+          getLutValue(r0, g1, b0, channel) * (1 - rFrac) +
+          getLutValue(r1, g1, b0, channel) * rFrac;
+        const c11 =
+          getLutValue(r0, g1, b1, channel) * (1 - rFrac) +
+          getLutValue(r1, g1, b1, channel) * rFrac;
+        const c0 = c00 * (1 - gFrac) + c10 * gFrac;
+        const c1 = c01 * (1 - gFrac) + c11 * gFrac;
+        return c0 * (1 - bFrac) + c1 * bFrac;
+      };
+
+      const lutR = interpolateChannel(0);
+      const lutG = interpolateChannel(1);
+      const lutB = interpolateChannel(2);
+
+      data[i] = Math.round(
+        (r * (1 - lut.intensity) + lutR * lut.intensity) * 255,
+      );
+      data[i + 1] = Math.round(
+        (g * (1 - lut.intensity) + lutG * lut.intensity) * 255,
+      );
+      data[i + 2] = Math.round(
+        (b * (1 - lut.intensity) + lutB * lut.intensity) * 255,
+      );
+    }
+  }
+
+  private applyHslToData(data: Uint8ClampedArray, hsl: HSLValues): void {
+    for (let i = 0; i < data.length; i += 4) {
+      const r = data[i] / 255;
+      const g = data[i + 1] / 255;
+      const b = data[i + 2] / 255;
+      const hslColor = this.rgbToHsl(r, g, b);
+
+      const hueIndex = Math.floor(hslColor.h * 8) % 8;
+      hslColor.h = (hslColor.h + hsl.hue[hueIndex] / 360 + 1) % 1;
+      hslColor.s = Math.max(
+        0,
+        Math.min(1, hslColor.s + hsl.saturation[hueIndex]),
+      );
+      hslColor.l = Math.max(
+        0,
+        Math.min(1, hslColor.l + hsl.luminance[hueIndex]),
+      );
+      const rgb = this.hslToRgb(hslColor.h, hslColor.s, hslColor.l);
+
+      data[i] = Math.round(rgb.r * 255);
+      data[i + 1] = Math.round(rgb.g * 255);
+      data[i + 2] = Math.round(rgb.b * 255);
+    }
+  }
+
+  async applyCpuGradingToCanvas(
+    image: ImageBitmap,
+    stages: CpuGradingStages,
+  ): Promise<OffscreenCanvas> {
+    const ctx = this.getCpuCtx(image.width, image.height);
+    ctx.clearRect(0, 0, image.width, image.height);
+    ctx.drawImage(image, 0, 0);
+
+    const imageData = ctx.getImageData(0, 0, image.width, image.height);
+    const data = imageData.data;
+
+    if (stages.curves) {
+      this.applyCurvesToData(data, stages.curves);
+    }
+    if (stages.lut) {
+      this.applyLutToData(data, stages.lut);
+    }
+    if (stages.hsl) {
+      this.applyHslToData(data, stages.hsl);
+    }
 
     ctx.putImageData(imageData, 0, 0);
 
+    return this._cpuCanvas!;
+  }
+
+  async applyCpuGrading(
+    image: ImageBitmap,
+    stages: CpuGradingStages,
+  ): Promise<ColorGradingResult> {
+    const startTime = performance.now();
+    const canvas = await this.applyCpuGradingToCanvas(image, stages);
     const result = await createImageBitmap(canvas);
     return {
       image: result,
@@ -569,139 +734,14 @@ export class ColorGradingEngine {
     image: ImageBitmap,
     lut: LUTData,
   ): Promise<ColorGradingResult> {
-    const startTime = performance.now();
-
-    // CPU implementation for LUT application
-    const canvas = new OffscreenCanvas(image.width, image.height);
-    const ctx = canvas.getContext("2d")!;
-    ctx.drawImage(image, 0, 0);
-
-    const imageData = ctx.getImageData(0, 0, image.width, image.height);
-    const data = imageData.data;
-    const lutSize = lut.size;
-    const lutData = lut.data;
-
-    for (let i = 0; i < data.length; i += 4) {
-      const r = data[i] / 255;
-      const g = data[i + 1] / 255;
-      const b = data[i + 2] / 255;
-
-      // 3D LUT lookup with full trilinear interpolation
-      const rIdx = r * (lutSize - 1);
-      const gIdx = g * (lutSize - 1);
-      const bIdx = b * (lutSize - 1);
-
-      const r0 = Math.floor(rIdx);
-      const g0 = Math.floor(gIdx);
-      const b0 = Math.floor(bIdx);
-
-      const r1 = Math.min(r0 + 1, lutSize - 1);
-      const g1 = Math.min(g0 + 1, lutSize - 1);
-      const b1 = Math.min(b0 + 1, lutSize - 1);
-
-      const rFrac = rIdx - r0;
-      const gFrac = gIdx - g0;
-      const bFrac = bIdx - b0;
-
-      // Helper to get LUT value at specific indices
-      const getLutValue = (
-        ri: number,
-        gi: number,
-        bi: number,
-        channel: number,
-      ): number => {
-        const idx = (bi * lutSize * lutSize + gi * lutSize + ri) * 3 + channel;
-        return lutData[idx] / 255;
-      };
-
-      // Trilinear interpolation for each channel
-      const interpolateChannel = (channel: number): number => {
-        const c00 =
-          getLutValue(r0, g0, b0, channel) * (1 - rFrac) +
-          getLutValue(r1, g0, b0, channel) * rFrac;
-        const c01 =
-          getLutValue(r0, g0, b1, channel) * (1 - rFrac) +
-          getLutValue(r1, g0, b1, channel) * rFrac;
-        const c10 =
-          getLutValue(r0, g1, b0, channel) * (1 - rFrac) +
-          getLutValue(r1, g1, b0, channel) * rFrac;
-        const c11 =
-          getLutValue(r0, g1, b1, channel) * (1 - rFrac) +
-          getLutValue(r1, g1, b1, channel) * rFrac;
-        const c0 = c00 * (1 - gFrac) + c10 * gFrac;
-        const c1 = c01 * (1 - gFrac) + c11 * gFrac;
-        return c0 * (1 - bFrac) + c1 * bFrac;
-      };
-
-      const lutR = interpolateChannel(0);
-      const lutG = interpolateChannel(1);
-      const lutB = interpolateChannel(2);
-
-      // Mix with original based on intensity
-      data[i] = Math.round(
-        (r * (1 - lut.intensity) + lutR * lut.intensity) * 255,
-      );
-      data[i + 1] = Math.round(
-        (g * (1 - lut.intensity) + lutG * lut.intensity) * 255,
-      );
-      data[i + 2] = Math.round(
-        (b * (1 - lut.intensity) + lutB * lut.intensity) * 255,
-      );
-    }
-
-    ctx.putImageData(imageData, 0, 0);
-
-    const result = await createImageBitmap(canvas);
-    return {
-      image: result,
-      processingTime: performance.now() - startTime,
-    };
+    return this.applyCpuGrading(image, { lut });
   }
 
   async applyHSL(
     image: ImageBitmap,
     hsl: HSLValues,
   ): Promise<ColorGradingResult> {
-    const startTime = performance.now();
-
-    const canvas = new OffscreenCanvas(image.width, image.height);
-    const ctx = canvas.getContext("2d")!;
-    ctx.drawImage(image, 0, 0);
-
-    const imageData = ctx.getImageData(0, 0, image.width, image.height);
-    const data = imageData.data;
-
-    for (let i = 0; i < data.length; i += 4) {
-      const r = data[i] / 255;
-      const g = data[i + 1] / 255;
-      const b = data[i + 2] / 255;
-      const hslColor = this.rgbToHsl(r, g, b);
-
-      // Determine hue range (0-7)
-      const hueIndex = Math.floor(hslColor.h * 8) % 8;
-      hslColor.h = (hslColor.h + hsl.hue[hueIndex] / 360 + 1) % 1;
-      hslColor.s = Math.max(
-        0,
-        Math.min(1, hslColor.s + hsl.saturation[hueIndex]),
-      );
-      hslColor.l = Math.max(
-        0,
-        Math.min(1, hslColor.l + hsl.luminance[hueIndex]),
-      );
-      const rgb = this.hslToRgb(hslColor.h, hslColor.s, hslColor.l);
-
-      data[i] = Math.round(rgb.r * 255);
-      data[i + 1] = Math.round(rgb.g * 255);
-      data[i + 2] = Math.round(rgb.b * 255);
-    }
-
-    ctx.putImageData(imageData, 0, 0);
-
-    const result = await createImageBitmap(canvas);
-    return {
-      image: result,
-      processingTime: performance.now() - startTime,
-    };
+    return this.applyCpuGrading(image, { hsl });
   }
 
   async generateWaveform(image: ImageBitmap): Promise<WaveformScopeData> {
@@ -914,6 +954,8 @@ export class ColorGradingEngine {
 
     this.canvas = null;
     this.gl = null;
+    this._cpuCanvas = null;
+    this._cpuCtx = null;
     this.initialized = false;
   }
 }

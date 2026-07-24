@@ -1,6 +1,8 @@
 import React from "react";
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp } from "@/icons/lucide-compat";
+import { ToolcraftClickableCard as ClickableCard } from "@openreel/ui";
+import { ToolcraftText as Text } from "@openreel/ui";
 import type { Clip, FitMode, Transform } from "@openreel/core";
-import { LabeledSlider } from "@openreel/ui";
 import {
   CropSection,
   AlignmentSection,
@@ -8,6 +10,10 @@ import {
   Transform3DSection,
 } from "../";
 import { InspectorSection } from "../shell/InspectorSection";
+import {
+  MockSlider,
+  NumberField,
+} from "../shell/InspectorControls";
 
 interface TransformTabClip {
   id: string;
@@ -21,8 +27,23 @@ export interface TransformTabProps {
   showTransformControls: boolean;
   showVideoControls: boolean;
   transform: Transform;
+  canvasWidth: number;
+  canvasHeight: number;
   handleTransformChange: (changes: Partial<Transform>) => void;
 }
+
+const parseNumber = (raw: string, fallback: number): number => {
+  const cleaned = raw.replace(/[^0-9.-]/g, "");
+  const parsed = Number.parseFloat(cleaned);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const stepRotation = (current: number, delta: number): number => {
+  const next = current + delta;
+  if (next > 180) return 180;
+  if (next < -180) return -180;
+  return next;
+};
 
 export const TransformTab: React.FC<TransformTabProps> = ({
   clipId,
@@ -31,110 +52,262 @@ export const TransformTab: React.FC<TransformTabProps> = ({
   showTransformControls,
   showVideoControls,
   transform,
+  canvasWidth,
+  canvasHeight,
   handleTransformChange,
 }) => {
+  const usesNormalizedPosition =
+    clipType === "text" ||
+    clipType === "shape" ||
+    clipType === "svg" ||
+    clipType === "sticker";
+  const displayedPosition = {
+    x: usesNormalizedPosition
+      ? transform.position.x * canvasWidth
+      : transform.position.x,
+    y: usesNormalizedPosition
+      ? transform.position.y * canvasHeight
+      : transform.position.y,
+  };
+  const updateDisplayedPosition = (axis: "x" | "y", value: number) => {
+    const dimension = axis === "x" ? canvasWidth : canvasHeight;
+    handleTransformChange({
+      position: {
+        ...transform.position,
+        [axis]: usesNormalizedPosition ? value / Math.max(1, dimension) : value,
+      },
+    });
+  };
+  const nudgePosition = (x: number, y: number) => {
+    handleTransformChange({
+      position: {
+        x:
+          transform.position.x +
+          (usesNormalizedPosition ? x / Math.max(1, canvasWidth) : x),
+        y:
+          transform.position.y +
+          (usesNormalizedPosition ? y / Math.max(1, canvasHeight) : y),
+      },
+    });
+  };
+
   return (
     <>
       {showTransformControls && (
         <>
-          <InspectorSection title="Transform" sectionId="transform">
+          <InspectorSection
+            title="Transform"
+            sectionId="transform"
+            defaultOpen
+          >
             <div className="space-y-3">
-              <LabeledSlider
-                label="Position X"
-                value={transform.position.x}
-                onChange={(x) =>
-                  handleTransformChange({
-                    position: { ...transform.position, x },
-                  })
-                }
-                min={-1920}
-                max={1920}
-                step={1}
-                unit="px"
-                defaultValue={0}
+              <NumberField
+                label="Position"
+                fields={[
+                  {
+                    axis: "X",
+                    value: `${Math.round(displayedPosition.x)}`,
+                    onChange: (next) =>
+                      updateDisplayedPosition(
+                        "x",
+                        parseNumber(next, displayedPosition.x),
+                      ),
+                  },
+                  {
+                    axis: "Y",
+                    value: `${Math.round(displayedPosition.y)}`,
+                    onChange: (next) =>
+                      updateDisplayedPosition(
+                        "y",
+                        parseNumber(next, displayedPosition.y),
+                      ),
+                  },
+                ]}
               />
-              <LabeledSlider
-                label="Position Y"
-                value={transform.position.y}
-                onChange={(y) =>
-                  handleTransformChange({
-                    position: { ...transform.position, y },
-                  })
-                }
-                min={-1080}
-                max={1080}
-                step={1}
-                unit="px"
-                defaultValue={0}
+              <div className="flex items-center gap-2">
+                <span className="w-[90px] flex-none text-[11px] font-medium text-fg-muted">
+                  {usesNormalizedPosition ? "Canvas pixels" : "Offset pixels"}
+                </span>
+                <div className="grid flex-1 grid-cols-4 gap-1" role="group" aria-label="Nudge position by one pixel">
+                  {([
+                    ["Nudge left 1 pixel", ArrowLeft, -1, 0],
+                    ["Nudge up 1 pixel", ArrowUp, 0, -1],
+                    ["Nudge down 1 pixel", ArrowDown, 0, 1],
+                    ["Nudge right 1 pixel", ArrowRight, 1, 0],
+                  ] as const).map(([label, Icon, x, y]) => (
+                    <button
+                      key={label}
+                      type="button"
+                      aria-label={label}
+                      title={label}
+                      onClick={() => nudgePosition(x, y)}
+                      className="flex h-7 items-center justify-center rounded-[6px] border border-border bg-bg-2 text-fg-muted transition-colors hover:border-accent/50 hover:text-accent"
+                    >
+                      <Icon size={13} aria-hidden />
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex items-center">
+                <span className="w-[90px] flex-none text-[13px] font-medium text-fg-3">
+                  Scale
+                </span>
+                <MockSlider
+                  className="flex-1"
+                  value={transform.scale.x * 100}
+                  min={0}
+                  max={300}
+                  onChange={(next) =>
+                    handleTransformChange({
+                      scale: { x: next / 100, y: next / 100 },
+                    })
+                  }
+                  showValueBox
+                  formatValue={(value) => `${Math.round(value)}%`}
+                />
+              </div>
+
+              <div className="flex items-center">
+                <span className="w-[90px] flex-none text-[13px] font-medium text-fg-3">
+                  Rotation
+                </span>
+                <div className="flex flex-1 items-center justify-between rounded-[7px] border border-border px-[10px] py-[7px] focus-within:border-accent">
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={`${Math.round(transform.rotation)}°`}
+                    onChange={(event) =>
+                      handleTransformChange({
+                        rotation: parseNumber(
+                          event.target.value,
+                          transform.rotation,
+                        ),
+                      })
+                    }
+                    className="w-full min-w-0 bg-transparent text-[13px] font-medium text-fg-2 outline-none"
+                  />
+                  <div className="flex flex-none flex-col">
+                    <button
+                      type="button"
+                      aria-label="Increase rotation"
+                      onClick={() =>
+                        handleTransformChange({
+                          rotation: stepRotation(transform.rotation, 1),
+                        })
+                      }
+                    >
+                      <svg
+                        width="11"
+                        height="11"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="var(--fg-muted)"
+                        strokeWidth="2.2"
+                        aria-hidden
+                      >
+                        <path d="M8 15l4-4 4 4" />
+                      </svg>
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="Decrease rotation"
+                      onClick={() =>
+                        handleTransformChange({
+                          rotation: stepRotation(transform.rotation, -1),
+                        })
+                      }
+                    >
+                      <svg
+                        width="11"
+                        height="11"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="var(--fg-muted)"
+                        strokeWidth="2.2"
+                        aria-hidden
+                      >
+                        <path d="M8 9l4 4 4-4" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <NumberField
+                label="Anchor Point"
+                fields={[
+                  {
+                    axis: "X",
+                    value: `${Math.round(transform.anchor.x * 100)}%`,
+                    onChange: (next) =>
+                      handleTransformChange({
+                        anchor: {
+                          ...transform.anchor,
+                          x: parseNumber(next, transform.anchor.x * 100) / 100,
+                        },
+                      }),
+                  },
+                  {
+                    axis: "Y",
+                    value: `${Math.round(transform.anchor.y * 100)}%`,
+                    onChange: (next) =>
+                      handleTransformChange({
+                        anchor: {
+                          ...transform.anchor,
+                          y: parseNumber(next, transform.anchor.y * 100) / 100,
+                        },
+                      }),
+                  },
+                ]}
               />
-              <LabeledSlider
-                label="Scale X"
-                value={transform.scale.x * 100}
-                onChange={(x) =>
-                  handleTransformChange({
-                    scale: { ...transform.scale, x: x / 100 },
-                  })
-                }
-                min={0}
-                max={300}
-                step={1}
-                unit="%"
-                defaultValue={100}
-              />
-              <LabeledSlider
-                label="Scale Y"
-                value={transform.scale.y * 100}
-                onChange={(y) =>
-                  handleTransformChange({
-                    scale: { ...transform.scale, y: y / 100 },
-                  })
-                }
-                min={0}
-                max={300}
-                step={1}
-                unit="%"
-                defaultValue={100}
-              />
-              <LabeledSlider
-                label="Rotation"
-                value={transform.rotation}
-                onChange={(rotation) => handleTransformChange({ rotation })}
-                min={-180}
-                max={180}
-                step={1}
-                unit="°"
-                defaultValue={0}
-              />
-              <LabeledSlider
-                label="Opacity"
-                value={transform.opacity * 100}
-                onChange={(opacity) =>
-                  handleTransformChange({ opacity: opacity / 100 })
-                }
-                min={0}
-                max={100}
-                step={1}
-                unit="%"
-                defaultValue={100}
-              />
-              <LabeledSlider
-                label="Border Radius"
-                value={transform.borderRadius || 0}
-                onChange={(borderRadius) =>
-                  handleTransformChange({ borderRadius })
-                }
-                min={0}
-                max={200}
-                step={1}
-                unit="px"
-                defaultValue={0}
-              />
+
+              <div className="h-px bg-border" />
+
+              <div className="flex items-center">
+                <span className="w-[90px] flex-none text-[13px] font-medium text-fg-3">
+                  Opacity
+                </span>
+                <MockSlider
+                  className="flex-1"
+                  value={transform.opacity * 100}
+                  min={0}
+                  max={100}
+                  onChange={(next) =>
+                    handleTransformChange({ opacity: next / 100 })
+                  }
+                  showValueBox
+                  formatValue={(value) => `${Math.round(value)}%`}
+                />
+              </div>
+
+              <div className="flex items-center">
+                <span className="w-[90px] flex-none text-[13px] font-medium text-fg-3">
+                  Radius
+                </span>
+                <MockSlider
+                  className="flex-1"
+                  value={transform.borderRadius || 0}
+                  min={0}
+                  max={200}
+                  onChange={(borderRadius) =>
+                    handleTransformChange({ borderRadius })
+                  }
+                  showValueBox
+                  formatValue={(value) => `${Math.round(value)}px`}
+                />
+              </div>
+
               {(clipType === "image" || clipType === "video") && (
-                <div className="space-y-1 pt-2 border-t border-border">
-                  <span className="text-[10px] text-text-secondary">
+                <div className="space-y-2 border-t border-border pt-3">
+                  <Text
+                    type="supporting"
+                    color="secondary"
+                    className="text-[11px] text-fg-3"
+                  >
                     Fit Mode
-                  </span>
-                  <div className="grid grid-cols-3 gap-1">
+                  </Text>
+                  <div className="grid grid-cols-3 gap-1.5">
                     {(["contain", "cover", "stretch"] as FitMode[]).map(
                       (mode) => {
                         const activeMode =
@@ -142,15 +315,16 @@ export const TransformTab: React.FC<TransformTabProps> = ({
                             ? "contain"
                             : transform.fitMode;
                         return (
-                          <button
+                          <ClickableCard
                             key={mode}
+                            label={`Set fit mode to ${mode}`}
                             onClick={() =>
                               handleTransformChange({ fitMode: mode })
                             }
-                            className={`py-1.5 rounded text-[9px] capitalize transition-colors ${
+                            className={`py-2 rounded-lg text-[12px] font-medium text-center capitalize transition-colors ${
                               activeMode === mode
-                                ? "bg-primary text-white"
-                                : "bg-background-tertiary border border-border text-text-secondary hover:text-text-primary"
+                                ? "bg-accent text-accent-fg"
+                                : "bg-bg-2 border border-border text-fg-3 hover:text-fg"
                             }`}
                           >
                             {mode === "contain"
@@ -158,7 +332,7 @@ export const TransformTab: React.FC<TransformTabProps> = ({
                               : mode === "cover"
                                 ? "Fill"
                                 : mode}
-                          </button>
+                          </ClickableCard>
                         );
                       },
                     )}
@@ -192,7 +366,13 @@ export const TransformTab: React.FC<TransformTabProps> = ({
           sectionId="alignment"
           defaultOpen={false}
         >
-          <AlignmentSection clipId={clipId} />
+          <AlignmentSection
+            clipType={clipType}
+            transform={transform}
+            canvasWidth={canvasWidth}
+            canvasHeight={canvasHeight}
+            onTransformChange={handleTransformChange}
+          />
         </InspectorSection>
       )}
 
@@ -202,13 +382,9 @@ export const TransformTab: React.FC<TransformTabProps> = ({
         clipType === "shape" ||
         clipType === "svg" ||
         clipType === "sticker") && (
-        <InspectorSection
-          title="Blending"
-          sectionId="blending"
-          defaultOpen={false}
-        >
+        <div className="mb-4" data-section-id="blending">
           <BlendingSection clipId={clipId} />
-        </InspectorSection>
+        </div>
       )}
 
       {(clipType === "video" ||

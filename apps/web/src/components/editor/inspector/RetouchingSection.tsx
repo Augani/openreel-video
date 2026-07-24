@@ -1,6 +1,10 @@
 import React, { useMemo } from "react";
-import { Eraser, Copy, Eye, Target, MousePointer2 } from "lucide-react";
-import { LabeledSlider as Slider } from "@openreel/ui";
+import { ToolcraftButton as Button } from "@openreel/ui";
+import { ToolcraftCard as Card } from "@openreel/ui";
+import { ToolcraftClickableCard as ClickableCard } from "@openreel/ui";
+import { ToolcraftText as Text } from "@openreel/ui";
+import { PropertySlider } from "./shell/PropertySlider";
+import { Eraser, Copy, Eye, Target, MousePointer2 } from "@/icons/lucide-compat";
 
 export type RetouchingTool = "spotHeal" | "cloneStamp" | "redEyeRemoval";
 
@@ -28,34 +32,59 @@ const ToolButton: React.FC<{
   label: string;
   description: string;
 }> = ({ isActive, onClick, icon, label, description }) => (
-  <button
+  <ClickableCard
+    label={label}
     onClick={onClick}
     className={`flex items-center gap-3 w-full p-3 rounded-lg transition-colors ${
       isActive
         ? "bg-primary/20 border border-primary"
-        : "bg-background-tertiary border border-transparent hover:border-border"
+        : "bg-bg-2 border border-transparent hover:border-border"
     }`}
   >
     <div
       className={`p-2 rounded-lg ${
         isActive
           ? "bg-primary text-white"
-          : "bg-background-secondary text-text-secondary"
+          : "bg-bg-1 text-fg-2"
       }`}
     >
       {icon}
     </div>
     <div className="text-left">
-      <span
+      <Text
+        type="supporting"
+        weight="medium"
         className={`text-[11px] font-medium block ${
-          isActive ? "text-primary" : "text-text-primary"
+          isActive ? "text-primary" : "text-fg"
         }`}
       >
         {label}
-      </span>
-      <span className="text-[9px] text-text-muted">{description}</span>
+      </Text>
+      <Text type="supporting" color="secondary" className="text-[9px]">
+        {description}
+      </Text>
     </div>
-  </button>
+  </ClickableCard>
+);
+
+const BrushSlider: React.FC<{
+  label: string;
+  value: number;
+  onChange: (value: number) => void;
+  min: number;
+  max: number;
+  step: number;
+  unit: string;
+}> = ({ label, value, onChange, min, max, step, unit }) => (
+  <PropertySlider
+    label={label}
+    value={value}
+    onChange={onChange}
+    min={min}
+    max={max}
+    step={step}
+    formatValue={(nextValue) => `${Math.round(nextValue)}${unit}`}
+  />
 );
 
 /**
@@ -69,7 +98,7 @@ const BrushPreview: React.FC<{
   const displaySize = Math.min(size, 60);
 
   return (
-    <div className="flex items-center justify-center p-4 bg-background-tertiary rounded-lg">
+    <div className="flex items-center justify-center p-4 bg-bg-2 rounded-lg">
       <div
         className="relative rounded-full"
         style={{
@@ -88,9 +117,9 @@ const BrushPreview: React.FC<{
           }}
         />
       </div>
-      <span className="ml-3 text-[10px] text-text-muted">
+      <Text type="supporting" color="secondary" className="ml-3 text-[10px]">
         {size}px @ {Math.round(hardness * 100)}%
-      </span>
+      </Text>
     </div>
   );
 };
@@ -104,42 +133,49 @@ const CloneSourceIndicator: React.FC<{
 }> = ({ source, onClear }) => {
   if (!source) {
     return (
-      <div className="p-3 bg-background-tertiary rounded-lg text-center">
-        <Target size={20} className="mx-auto mb-1 text-text-muted" />
-        <p className="text-[10px] text-text-muted">
+      <div className="p-3 bg-bg-2 rounded-lg text-center">
+        <Target size={20} className="mx-auto mb-1 text-fg-3" />
+        <Text type="supporting" color="secondary">
           Alt+Click to set clone source
-        </p>
+        </Text>
       </div>
     );
   }
 
   return (
-    <div className="p-3 bg-background-tertiary rounded-lg">
+    <div className="p-3 bg-bg-2 rounded-lg">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Target size={14} className="text-primary" />
-          <span className="text-[10px] text-text-primary">Clone Source</span>
+          <Text type="supporting" color="primary">
+            Clone Source
+          </Text>
         </div>
-        <button
+        <Button
+          label="Clear"
+          size="sm"
+          variant="ghost"
           onClick={onClear}
-          className="text-[9px] text-text-muted hover:text-error transition-colors"
-        >
-          Clear
-        </button>
+          className="text-[9px] text-fg-3 hover:text-error transition-colors"
+        />
       </div>
       <div className="mt-2 flex items-center gap-4">
-        <span className="text-[9px] text-text-muted">
-          X:{" "}
-          <span className="text-text-primary font-mono">
+        <div className="flex items-center gap-1">
+          <Text type="supporting" color="secondary" className="text-[9px]">
+            X:
+          </Text>
+          <Text type="supporting" color="primary" className="text-[9px] font-mono">
             {Math.round(source.x)}
-          </span>
-        </span>
-        <span className="text-[9px] text-text-muted">
-          Y:{" "}
-          <span className="text-text-primary font-mono">
+          </Text>
+        </div>
+        <div className="flex items-center gap-1">
+          <Text type="supporting" color="secondary" className="text-[9px]">
+            Y:
+          </Text>
+          <Text type="supporting" color="primary" className="text-[9px] font-mono">
             {Math.round(source.y)}
-          </span>
-        </span>
+          </Text>
+        </div>
       </div>
     </div>
   );
@@ -209,9 +245,9 @@ export const RetouchingSection: React.FC<RetouchingSectionProps> = ({
     <div className="space-y-4">
       {/* Tool Selection */}
       <div className="space-y-2">
-        <span className="text-[10px] text-text-secondary font-medium">
+        <Text type="supporting" color="secondary" weight="medium">
           Retouching Tools
-        </span>
+        </Text>
         <div className="space-y-2">
           {tools.map((tool) => (
             <ToolButton
@@ -230,9 +266,9 @@ export const RetouchingSection: React.FC<RetouchingSectionProps> = ({
       {/* Clone Source (only for clone stamp) */}
       {activeTool === "cloneStamp" && (
         <div className="space-y-2">
-          <span className="text-[10px] text-text-secondary font-medium">
+          <Text type="supporting" color="secondary" weight="medium">
             Clone Source
-          </span>
+          </Text>
           <CloneSourceIndicator
             source={cloneSource}
             onClear={onClearCloneSource}
@@ -241,80 +277,82 @@ export const RetouchingSection: React.FC<RetouchingSectionProps> = ({
       )}
 
       {/* Brush Settings */}
-      <div className="space-y-3 p-3 bg-background-tertiary rounded-lg">
-        <span className="text-[10px] text-text-secondary font-medium">
-          Brush Settings
-        </span>
+      <Card variant="muted" padding={3}>
+        <div className="space-y-3">
+          <Text type="supporting" color="secondary" weight="medium">
+            Brush Settings
+          </Text>
 
-        {/* Brush Preview */}
-        <BrushPreview size={brushConfig.size} hardness={brushConfig.hardness} />
+          {/* Brush Preview */}
+          <BrushPreview size={brushConfig.size} hardness={brushConfig.hardness} />
 
-        {/* Size Slider */}
-        <Slider
-          label="Size"
-          value={brushConfig.size}
-          onChange={onBrushSizeChange}
-          min={1}
-          max={500}
-          step={1}
-          unit="px"
-        />
+          {/* Size Slider */}
+          <BrushSlider
+            label="Size"
+            value={brushConfig.size}
+            onChange={onBrushSizeChange}
+            min={1}
+            max={500}
+            step={1}
+            unit="px"
+          />
 
-        {/* Hardness Slider */}
-        <Slider
-          label="Hardness"
-          value={brushConfig.hardness * 100}
-          onChange={(value) => onBrushHardnessChange(value / 100)}
-          min={0}
-          max={100}
-          step={1}
-          unit="%"
-        />
-
-        {/* Opacity Slider */}
-        <Slider
-          label="Opacity"
-          value={brushConfig.opacity * 100}
-          onChange={(value) => onBrushOpacityChange(value / 100)}
-          min={0}
-          max={100}
-          step={1}
-          unit="%"
-        />
-
-        {/* Flow Slider (for spot healing and clone stamp) */}
-        {(activeTool === "spotHeal" || activeTool === "cloneStamp") && (
-          <Slider
-            label="Flow"
-            value={brushConfig.flow * 100}
-            onChange={(value) => onBrushFlowChange(value / 100)}
+          {/* Hardness Slider */}
+          <BrushSlider
+            label="Hardness"
+            value={brushConfig.hardness * 100}
+            onChange={(value) => onBrushHardnessChange(value / 100)}
             min={0}
             max={100}
             step={1}
             unit="%"
           />
-        )}
-      </div>
+
+          {/* Opacity Slider */}
+          <BrushSlider
+            label="Opacity"
+            value={brushConfig.opacity * 100}
+            onChange={(value) => onBrushOpacityChange(value / 100)}
+            min={0}
+            max={100}
+            step={1}
+            unit="%"
+          />
+
+          {/* Flow Slider (for spot healing and clone stamp) */}
+          {(activeTool === "spotHeal" || activeTool === "cloneStamp") && (
+            <BrushSlider
+              label="Flow"
+              value={brushConfig.flow * 100}
+              onChange={(value) => onBrushFlowChange(value / 100)}
+              min={0}
+              max={100}
+              step={1}
+              unit="%"
+            />
+          )}
+        </div>
+      </Card>
 
       {/* Tool-specific instructions */}
-      <div className="p-3 bg-background-secondary rounded-lg border border-border">
+      <Card variant="muted" padding={3}>
         <div className="flex items-start gap-2">
-          <MousePointer2 size={14} className="text-text-muted mt-0.5" />
-          <div>
-            <span className="text-[10px] text-text-primary font-medium block">
+          <MousePointer2 size={14} className="text-fg-3 mt-0.5" />
+          <div className="flex flex-col gap-1">
+            <Text type="supporting" color="primary" weight="medium">
               How to use
-            </span>
-            <p className="text-[9px] text-text-muted mt-1">
+            </Text>
+            <Text type="supporting" color="secondary" className="mt-1 text-[9px]">
               {activeTool === "spotHeal" &&
                 "Click and drag over blemishes to remove them. The tool samples surrounding pixels to blend seamlessly."}
               {activeTool === "cloneStamp" &&
                 "Alt+Click to set source point, then paint to copy pixels from source to target."}
               {activeTool === "redEyeRemoval" &&
                 "Click on red eyes to automatically detect and remove the red-eye effect."}
-            </p>
+            </Text>
           </div>
         </div>
-      </div>
+      </Card>
     </div>
   );
 };

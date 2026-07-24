@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from "react";
+import React, { useState, useCallback } from "react";
 import {
   PARTICLE_PRESETS,
   type ParticlePreset,
@@ -15,25 +15,16 @@ import {
   Eye,
   EyeOff,
   Play,
-} from "lucide-react";
-import {
-  Button,
-  Slider,
-  Label,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-  Input,
-  ScrollArea,
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@openreel/ui";
+} from "@/icons/lucide-compat";
+import { ToolcraftButton as Button } from "@openreel/ui";
+import { ToolcraftCard as Card } from "@openreel/ui";
+import { ToolcraftCollapsible as Collapsible } from "@openreel/ui";
+import { ToolcraftIconButton as IconButton } from "@openreel/ui";
+import { ToolcraftNumberInputControl } from "@openreel/ui";
+import { ToolcraftSelectControl as Selector } from "@openreel/ui";
+import { ToolcraftText as Text } from "@openreel/ui";
+import { PropertySlider } from "./shell/PropertySlider";
+import { ColorSelector } from "../../../motion/components/primitives";
 
 interface ParticleEffectsSectionProps {
   clipId: string;
@@ -123,297 +114,280 @@ export const ParticleEffectsSection: React.FC<ParticleEffectsSectionProps> = ({
   return (
     <div className="space-y-4">
       <div className="flex gap-2">
-        <Select value={selectedPreset} onValueChange={setSelectedPreset}>
-          <SelectTrigger className="flex-1 h-8 text-xs min-w-0 [&>span]:truncate">
-            <SelectValue placeholder="Select effect preset..." />
-          </SelectTrigger>
-          <SelectContent>
-            {Object.entries(groupedPresets).map(([type, presets]) => (
-              <div key={type}>
-                <div className="px-2 py-1.5 text-xs font-semibold text-text-muted uppercase tracking-wider">
-                  {type}
-                </div>
-                {presets.map((preset) => (
-                  <SelectItem key={preset.id} value={preset.id} textValue={preset.name}>
-                    {preset.name}
-                  </SelectItem>
-                ))}
-              </div>
-            ))}
-          </SelectContent>
-        </Select>
+        <Selector
+          label="Particle effect preset"
+          isLabelHidden
+          size="sm"
+          width="100%"
+          value={selectedPreset}
+          onChange={setSelectedPreset}
+          placeholder="Select effect preset..."
+          options={Object.entries(groupedPresets).flatMap(([type, presets]) =>
+            presets.map((preset) => ({
+              label: `${type} / ${preset.name}`,
+              value: preset.id,
+            })),
+          )}
+        />
         <Button
-          variant="default"
+          label="Add"
+          variant="primary"
           size="sm"
           onClick={handleAddEffect}
-          disabled={!selectedPreset}
-          className="h-8 px-3"
-        >
-          <Plus size={14} className="mr-1" />
-          Add
-        </Button>
+          isDisabled={!selectedPreset}
+          icon={<Plus size={14} aria-hidden />}
+        />
+      </div>
+
+      <div className="grid grid-cols-2 gap-2" aria-label="Particle preset previews">
+        {PARTICLE_PRESETS.map((preset) => (
+          <ParticlePresetCard
+            key={preset.id}
+            preset={preset}
+            selected={selectedPreset === preset.id}
+            onSelect={() => setSelectedPreset(preset.id)}
+          />
+        ))}
       </div>
 
       {effects.length === 0 ? (
-        <div className="text-center py-6 text-text-muted text-xs">
+        <div className="text-center py-6 text-fg-3 text-xs">
           <Sparkles size={24} className="mx-auto mb-2 opacity-50" />
-          <p>No particle effects added</p>
-          <p className="mt-1 text-[10px]">Select a preset above to add effects</p>
+          <Text type="supporting" color="secondary" className="block text-xs">
+            No particle effects added
+          </Text>
+          <Text type="supporting" color="secondary" className="block mt-1 text-[10px]">
+            Select a preset above to add effects
+          </Text>
         </div>
       ) : (
-        <ScrollArea className="max-h-[400px]">
+        <div className="max-h-[400px] overflow-y-auto">
           <div className="space-y-2 pr-2">
             {effects.map((effect) => {
               const relativeStartTime = effect.startTime - clipStartTime;
               return (
-                <div
+                <Card
                   key={effect.id}
-                  className="bg-background-tertiary rounded-lg border border-border overflow-hidden"
+                  variant="muted"
+                  padding={0}
+                  className="overflow-hidden border border-border bg-bg-2"
                 >
                   <div className="flex items-center gap-2 px-3 py-2">
-                    <button
+                    <IconButton
+                      label={expandedEffects.has(effect.id) ? "Collapse effect" : "Expand effect"}
                       onClick={() => toggleExpanded(effect.id)}
-                      className="p-0.5 rounded hover:bg-background-elevated text-text-muted"
-                    >
-                      {expandedEffects.has(effect.id) ? (
-                        <ChevronDown size={14} />
-                      ) : (
-                        <ChevronRight size={14} />
-                      )}
-                    </button>
+                      variant="ghost"
+                      size="sm"
+                      icon={
+                        expandedEffects.has(effect.id) ? (
+                          <ChevronDown size={14} aria-hidden />
+                        ) : (
+                          <ChevronRight size={14} aria-hidden />
+                        )
+                      }
+                    />
 
-                    <span className="flex-1 text-xs font-medium text-text-primary capitalize">
+                    <Text
+                      type="supporting"
+                      color="primary"
+                      className="flex-1 text-xs font-medium capitalize"
+                    >
                       {effect.type}
-                    </span>
+                    </Text>
 
                     {onPreviewEffect && (
-                      <button
+                      <IconButton
+                        label="Preview effect"
                         onClick={() => onPreviewEffect(effect.id)}
-                        className="p-1 rounded hover:bg-background-elevated text-text-muted hover:text-primary transition-colors"
-                        title="Preview effect"
-                      >
-                        <Play size={12} />
-                      </button>
+                        variant="ghost"
+                        size="sm"
+                        icon={<Play size={12} aria-hidden />}
+                        className="text-fg-3 hover:text-primary"
+                      />
                     )}
 
-                    <button
+                    <IconButton
+                      label={effect.enabled ? "Disable effect" : "Enable effect"}
                       onClick={() => onToggleEffect(effect.id, !effect.enabled)}
-                      className={`p-1 rounded transition-colors ${
+                      variant="ghost"
+                      size="sm"
+                      icon={effect.enabled ? <Eye size={12} aria-hidden /> : <EyeOff size={12} aria-hidden />}
+                      className={
                         effect.enabled
                           ? "text-primary hover:bg-primary/20"
-                          : "text-text-muted hover:bg-background-elevated"
-                      }`}
-                      title={effect.enabled ? "Disable" : "Enable"}
-                    >
-                      {effect.enabled ? <Eye size={12} /> : <EyeOff size={12} />}
-                    </button>
+                          : "text-fg-3 hover:bg-bg-elev"
+                      }
+                    />
 
-                    <button
+                    <IconButton
+                      label="Remove effect"
                       onClick={() => onRemoveEffect(effect.id)}
-                      className="p-1 rounded hover:bg-red-500/20 text-text-muted hover:text-red-400 transition-colors"
-                      title="Remove effect"
-                    >
-                      <Trash2 size={12} />
-                    </button>
+                      variant="ghost"
+                      size="sm"
+                      icon={<Trash2 size={12} aria-hidden />}
+                      className="text-fg-3 hover:text-red-400"
+                    />
                   </div>
 
                   {expandedEffects.has(effect.id) && (
                     <div className="px-3 pb-3 space-y-3 border-t border-border/50 pt-3">
                       <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <Label className="text-[10px] text-text-muted mb-1">
-                            Start Time (s)
-                          </Label>
-                          <Input
-                            type="number"
-                            value={relativeStartTime.toFixed(1)}
-                            onChange={(e) => {
-                              const val = parseFloat(e.target.value);
-                              if (!isNaN(val) && val >= 0 && val < clipDuration) {
-                                handleStartTimeChange(effect.id, effect, val);
-                              }
-                            }}
-                            className="h-7 text-xs"
-                            step={0.1}
-                            min={0}
-                            max={clipDuration}
-                          />
-                        </div>
-                        <div>
-                          <Label className="text-[10px] text-text-muted mb-1">
-                            Duration (s)
-                          </Label>
-                          <Input
-                            type="number"
-                            value={effect.duration.toFixed(1)}
-                            onChange={(e) => {
-                              const val = parseFloat(e.target.value);
-                              if (!isNaN(val) && val >= 0.1) {
-                                handleDurationChange(effect.id, effect, val);
-                              }
-                            }}
-                            className="h-7 text-xs"
-                            step={0.1}
-                            min={0.1}
-                          />
-                        </div>
+                        <ToolcraftNumberInputControl
+                          label="Start Time"
+                          size="sm"
+                          value={Number(relativeStartTime.toFixed(1))}
+                          onChange={(val) => {
+                            if (val >= 0 && val < clipDuration) {
+                              handleStartTimeChange(effect.id, effect, val);
+                            }
+                          }}
+                          step={0.1}
+                          min={0}
+                          max={clipDuration}
+                          units="s"
+                        />
+                        <ToolcraftNumberInputControl
+                          label="Duration"
+                          size="sm"
+                          value={Number(effect.duration.toFixed(1))}
+                          onChange={(val) => {
+                            if (val >= 0.1) {
+                              handleDurationChange(effect.id, effect, val);
+                            }
+                          }}
+                          step={0.1}
+                          min={0.1}
+                          units="s"
+                        />
                       </div>
 
-                      <Collapsible>
-                        <CollapsibleTrigger className="flex items-center gap-1 text-[10px] text-text-muted hover:text-text-primary">
-                          <ChevronRight size={10} className="transition-transform data-[state=open]:rotate-90" />
-                          Particle Settings
-                        </CollapsibleTrigger>
-                        <CollapsibleContent className="pt-2 space-y-3">
-                          <div>
-                            <Label className="text-[10px] text-text-muted mb-1">
-                              Particle Count: {effect.config.particleCount}
-                            </Label>
-                            <Slider
-                              value={[effect.config.particleCount]}
-                              onValueChange={([v]) =>
-                                handleConfigChange(effect.id, "particleCount", v)
-                              }
-                              min={10}
-                              max={500}
-                              step={10}
-                              className="w-full"
-                            />
-                          </div>
+                      <Collapsible
+                        defaultIsOpen={false}
+                        trigger={
+                          <Text type="supporting" color="secondary" className="text-[10px]">
+                            Particle Settings
+                          </Text>
+                        }
+                      >
+                        <div className="pt-2 space-y-3">
+                          <PropertySlider
+                            label="Particle Count"
+                            value={effect.config.particleCount}
+                            onChange={(v: number) =>
+                              handleConfigChange(effect.id, "particleCount", v)
+                            }
+                            min={10}
+                            max={500}
+                            step={10}
+                            formatValue={(value) => String(value)}
+                          />
 
-                          <div>
-                            <Label className="text-[10px] text-text-muted mb-1">
-                              Speed: {effect.config.speed}
-                            </Label>
-                            <Slider
-                              value={[effect.config.speed]}
-                              onValueChange={([v]) =>
-                                handleConfigChange(effect.id, "speed", v)
-                              }
-                              min={10}
-                              max={500}
-                              step={10}
-                              className="w-full"
-                            />
-                          </div>
+                          <PropertySlider
+                            label="Speed"
+                            value={effect.config.speed}
+                            onChange={(v: number) =>
+                              handleConfigChange(effect.id, "speed", v)
+                            }
+                            min={10}
+                            max={500}
+                            step={10}
+                            formatValue={(value) => String(value)}
+                          />
 
-                          <div>
-                            <Label className="text-[10px] text-text-muted mb-1">
-                              Gravity: {effect.config.gravity}
-                            </Label>
-                            <Slider
-                              value={[effect.config.gravity]}
-                              onValueChange={([v]) =>
-                                handleConfigChange(effect.id, "gravity", v)
-                              }
-                              min={-500}
-                              max={500}
-                              step={10}
-                              className="w-full"
-                            />
-                          </div>
+                          <PropertySlider
+                            label="Gravity"
+                            value={effect.config.gravity}
+                            onChange={(v: number) =>
+                              handleConfigChange(effect.id, "gravity", v)
+                            }
+                            min={-500}
+                            max={500}
+                            step={10}
+                            formatValue={(value) => String(value)}
+                          />
 
-                          <div>
-                            <Label className="text-[10px] text-text-muted mb-1">
-                              Emission Rate: {effect.config.emissionRate}
-                            </Label>
-                            <Slider
-                              value={[effect.config.emissionRate]}
-                              onValueChange={([v]) =>
-                                handleConfigChange(effect.id, "emissionRate", v)
-                              }
-                              min={1}
-                              max={200}
-                              step={1}
-                              className="w-full"
-                            />
-                          </div>
+                          <PropertySlider
+                            label="Emission Rate"
+                            value={effect.config.emissionRate}
+                            onChange={(v: number) =>
+                              handleConfigChange(effect.id, "emissionRate", v)
+                            }
+                            min={1}
+                            max={200}
+                            step={1}
+                            formatValue={(value) => String(value)}
+                          />
 
                           <div className="grid grid-cols-2 gap-2">
-                            <div>
-                              <Label className="text-[10px] text-text-muted mb-1">
-                                Min Size: {effect.config.size.min}
-                              </Label>
-                              <Slider
-                                value={[effect.config.size.min]}
-                                onValueChange={([v]) =>
-                                  handleConfigChange(effect.id, "size", {
-                                    ...effect.config.size,
-                                    min: v,
-                                  })
-                                }
-                                min={1}
-                                max={20}
-                                step={1}
-                                className="w-full"
-                              />
-                            </div>
-                            <div>
-                              <Label className="text-[10px] text-text-muted mb-1">
-                                Max Size: {effect.config.size.max}
-                              </Label>
-                              <Slider
-                                value={[effect.config.size.max]}
-                                onValueChange={([v]) =>
-                                  handleConfigChange(effect.id, "size", {
-                                    ...effect.config.size,
-                                    max: v,
-                                  })
-                                }
-                                min={1}
-                                max={30}
-                                step={1}
-                                className="w-full"
-                              />
-                            </div>
-                          </div>
-
-                          <div>
-                            <Label className="text-[10px] text-text-muted mb-1">
-                              Turbulence: {effect.config.turbulence}
-                            </Label>
-                            <Slider
-                              value={[effect.config.turbulence]}
-                              onValueChange={([v]) =>
-                                handleConfigChange(effect.id, "turbulence", v)
+                            <PropertySlider
+                              label="Min Size"
+                              value={effect.config.size.min}
+                              onChange={(v: number) =>
+                                handleConfigChange(effect.id, "size", {
+                                  ...effect.config.size,
+                                  min: v,
+                                })
                               }
-                              min={0}
-                              max={100}
-                              step={5}
-                              className="w-full"
+                              min={1}
+                              max={20}
+                              step={1}
+                              formatValue={(value) => String(value)}
+                            />
+                            <PropertySlider
+                              label="Max Size"
+                              value={effect.config.size.max}
+                              onChange={(v: number) =>
+                                handleConfigChange(effect.id, "size", {
+                                  ...effect.config.size,
+                                  max: v,
+                                })
+                              }
+                              min={1}
+                              max={30}
+                              step={1}
+                              formatValue={(value) => String(value)}
                             />
                           </div>
 
-                          <div>
-                            <Label className="text-[10px] text-text-muted mb-1">
-                              Blend Mode
-                            </Label>
-                            <Select
-                              value={effect.config.blendMode}
-                              onValueChange={(v) =>
-                                handleConfigChange(effect.id, "blendMode", v)
-                              }
-                            >
-                              <SelectTrigger className="h-7 text-xs">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="normal">Normal</SelectItem>
-                                <SelectItem value="add">Additive</SelectItem>
-                                <SelectItem value="multiply">Multiply</SelectItem>
-                                <SelectItem value="screen">Screen</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        </CollapsibleContent>
+                          <PropertySlider
+                            label="Turbulence"
+                            value={effect.config.turbulence}
+                            onChange={(v: number) =>
+                              handleConfigChange(effect.id, "turbulence", v)
+                            }
+                            min={0}
+                            max={100}
+                            step={5}
+                            formatValue={(value) => String(value)}
+                          />
+
+                          <Selector
+                            label="Blend Mode"
+                            size="sm"
+                            width="100%"
+                            value={effect.config.blendMode}
+                            onChange={(v) =>
+                              handleConfigChange(effect.id, "blendMode", v)
+                            }
+                            options={[
+                              { label: "Normal", value: "normal" },
+                              { label: "Additive", value: "add" },
+                              { label: "Multiply", value: "multiply" },
+                              { label: "Screen", value: "screen" },
+                            ]}
+                          />
+                        </div>
                       </Collapsible>
 
-                      <Collapsible>
-                        <CollapsibleTrigger className="flex items-center gap-1 text-[10px] text-text-muted hover:text-text-primary">
-                          <ChevronRight size={10} className="transition-transform data-[state=open]:rotate-90" />
-                          Colors ({effect.config.colors.length})
-                        </CollapsibleTrigger>
-                        <CollapsibleContent className="pt-2">
+                      <Collapsible
+                        defaultIsOpen={false}
+                        trigger={
+                          <Text type="supporting" color="secondary" className="text-[10px]">
+                            Colors ({effect.config.colors.length})
+                          </Text>
+                        }
+                      >
+                        <div className="pt-2">
                           <div className="flex flex-wrap gap-1">
                             {effect.config.colors.map((color, idx) => (
                               <ColorSwatch
@@ -434,29 +408,139 @@ export const ParticleEffectsSection: React.FC<ParticleEffectsSectionProps> = ({
                                 }
                               />
                             ))}
-                            <button
+                            <IconButton
+                              label="Add color"
                               onClick={() => {
                                 const newColors = [...effect.config.colors, "#ffffff"];
                                 handleConfigChange(effect.id, "colors", newColors);
                               }}
-                              className="w-6 h-6 rounded border border-dashed border-border flex items-center justify-center text-text-muted hover:text-text-primary hover:border-primary transition-colors"
-                            >
-                              <Plus size={12} />
-                            </button>
+                              variant="ghost"
+                              size="sm"
+                              icon={<Plus size={12} aria-hidden />}
+                              className="border border-dashed border-border text-fg-3 hover:border-primary hover:text-fg"
+                            />
                           </div>
-                        </CollapsibleContent>
+                        </div>
                       </Collapsible>
                     </div>
                   )}
-                </div>
+                </Card>
               );
             })}
           </div>
-        </ScrollArea>
+        </div>
       )}
     </div>
   );
 };
+
+const ParticlePresetCard: React.FC<{
+  preset: ParticlePreset;
+  selected: boolean;
+  onSelect: () => void;
+}> = ({ preset, selected, onSelect }) => {
+  const [hovered, setHovered] = useState(false);
+  const [progress, setProgress] = useState(0.58);
+
+  React.useEffect(() => {
+    if (!hovered) {
+      setProgress(0.58);
+      return;
+    }
+    let frame = 0;
+    const startedAt = performance.now();
+    const animate = (now: number) => {
+      setProgress(((now - startedAt) % 1400) / 1400);
+      frame = requestAnimationFrame(animate);
+    };
+    frame = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(frame);
+  }, [hovered]);
+
+  return (
+    <button
+      type="button"
+      aria-label={`Preview ${preset.name}`}
+      aria-pressed={selected}
+      onClick={onSelect}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      className={`overflow-hidden rounded-lg border p-1.5 text-left transition-colors ${
+        selected
+          ? "border-primary bg-primary/10"
+          : "border-border bg-bg-2 hover:border-primary/60"
+      }`}
+    >
+      <span
+        data-testid="particle-preset-preview"
+        data-preset-id={preset.id}
+        aria-hidden="true"
+        className="relative mb-1.5 block h-14 overflow-hidden rounded-md bg-[radial-gradient(circle_at_50%_50%,rgba(124,58,237,.18),transparent_60%),#0f1420]"
+      >
+        {Array.from({ length: 16 }, (_, index) => {
+          const style = particlePreviewStyle(preset, index, progress);
+          return (
+            <span
+              key={index}
+              className="absolute block"
+              style={style}
+            />
+          );
+        })}
+      </span>
+      <span className="block truncate text-[9px] font-semibold text-fg">
+        {preset.name}
+      </span>
+      <span className="block truncate text-[8px] capitalize text-fg-4">
+        {preset.type} · {preset.config.particleCount} particles
+      </span>
+    </button>
+  );
+};
+
+function particlePreviewStyle(
+  preset: ParticlePreset,
+  index: number,
+  progress: number,
+): React.CSSProperties {
+  const angle = (index / 16) * Math.PI * 2;
+  const phase = (progress + index * 0.071) % 1;
+  const outward = preset.type === "explode" || preset.type === "shatter";
+  const inward = preset.type === "implode" || preset.type === "morph";
+  const falling =
+    preset.type === "confetti" ||
+    preset.id === "snow-fall" ||
+    preset.type === "pixelate";
+  const radius = outward
+    ? phase * 36
+    : inward
+      ? (1 - phase) * 34
+      : 10 + ((index * 7) % 22);
+  const x = falling
+    ? 8 + ((index * 17) % 86)
+    : 50 + Math.cos(angle) * radius;
+  const y = falling
+    ? -10 + phase * 76
+    : 50 + Math.sin(angle) * radius + (preset.id === "fire-trail" ? phase * -22 : 0);
+  const size = Math.max(
+    2,
+    Math.min(9, preset.config.size.min + (index % 4)),
+  );
+  const color = preset.config.colors[index % preset.config.colors.length] ?? "#ffffff";
+  const square = preset.type === "pixelate" || preset.type === "confetti";
+  return {
+    left: `${x}%`,
+    top: `${y}%`,
+    width: size,
+    height: square ? Math.max(2, size * 0.65) : size,
+    borderRadius: square ? 1 : "50%",
+    background: color,
+    opacity: Math.max(0.18, 1 - phase * 0.72),
+    boxShadow:
+      preset.config.blendMode === "add" ? `0 0 ${size + 3}px ${color}` : undefined,
+    transform: `translate(-50%, -50%) rotate(${phase * 240 + index * 13}deg)`,
+  };
+}
 
 interface ColorSwatchProps {
   color: string;
@@ -465,55 +549,25 @@ interface ColorSwatchProps {
 }
 
 const ColorSwatch: React.FC<ColorSwatchProps> = ({ color, onChange, onRemove }) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
-
   return (
-    <Popover open={isOpen} onOpenChange={setIsOpen}>
-      <PopoverTrigger asChild>
-        <button
-          className="w-6 h-6 rounded border border-border cursor-pointer hover:ring-2 hover:ring-primary/50 transition-all"
-          style={{ backgroundColor: color }}
+    <div className="flex items-center gap-1">
+      <ColorSelector
+        value={color}
+        onChange={onChange}
+        label={`Edit color ${color}`}
+        showValue={false}
+      />
+      {onRemove && (
+        <IconButton
+          label="Remove color"
+          onClick={onRemove}
+          variant="ghost"
+          size="sm"
+          icon={<Trash2 size={12} aria-hidden />}
+          className="text-fg-3 hover:text-red-400"
         />
-      </PopoverTrigger>
-      <PopoverContent side="top" align="start" className="w-auto p-2">
-        <div className="space-y-2">
-          <input
-            ref={inputRef}
-            type="color"
-            value={color}
-            onChange={(e) => onChange(e.target.value)}
-            className="w-32 h-24 cursor-pointer border-0 p-0"
-          />
-          <div className="flex items-center gap-2">
-            <Input
-              type="text"
-              value={color}
-              onChange={(e) => {
-                const val = e.target.value;
-                if (/^#[0-9A-Fa-f]{6}$/.test(val)) {
-                  onChange(val);
-                }
-              }}
-              className="h-7 text-xs font-mono flex-1"
-              placeholder="#ffffff"
-            />
-            {onRemove && (
-              <button
-                onClick={() => {
-                  onRemove();
-                  setIsOpen(false);
-                }}
-                className="p-1.5 rounded hover:bg-red-500/20 text-text-muted hover:text-red-400 transition-colors"
-                title="Remove color"
-              >
-                <Trash2 size={12} />
-              </button>
-            )}
-          </div>
-        </div>
-      </PopoverContent>
-    </Popover>
+      )}
+    </div>
   );
 };
 

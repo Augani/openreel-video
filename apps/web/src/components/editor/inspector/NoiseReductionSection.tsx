@@ -1,5 +1,12 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { ChevronDown, Volume2, Wand2, AlertCircle, Check } from "lucide-react";
+import { ChevronDown, Volume2, Wand2, AlertCircle, Check } from "@/icons/lucide-compat";
+import { ToolcraftButton as Button } from "@openreel/ui";
+import { ToolcraftCard as Card } from "@openreel/ui";
+import { ToolcraftClickableCard as ClickableCard } from "@openreel/ui";
+import { ToolcraftProgressBar as ProgressBar } from "@openreel/ui";
+import { ToolcraftText as Text } from "@openreel/ui";
+import { PropertySlider } from "./shell/PropertySlider";
+import { MockToggle } from "./shell/InspectorControls";
 import {
   autoLearnNoiseProfile,
   extractAudioSegment,
@@ -18,7 +25,6 @@ import {
   DEFAULT_NOISE_REDUCTION,
 } from "../../../bridges/audio-bridge-effects";
 import { useProjectStore } from "../../../stores/project-store";
-import { LabeledSlider as Slider } from "@openreel/ui";
 import {
   NOISE_REDUCTION_PRESETS,
   getNoiseReductionPreset,
@@ -690,269 +696,335 @@ export const NoiseReductionSection: React.FC<NoiseReductionSectionProps> = ({
   const recommendationPreset = recommendation
     ? getNoiseReductionPreset(recommendation.presetId)
     : null;
+  const isBusy =
+    learningState === "learning" || learningState === "applying";
+  const learnButtonState = (() => {
+    switch (learningState) {
+      case "learning":
+        return {
+          label: "Analyzing...",
+          icon: <Wand2 size={12} aria-hidden />,
+          isLoading: true,
+        };
+      case "applying":
+        return {
+          label: "Applying cleanup...",
+          icon: <Wand2 size={12} aria-hidden />,
+          isLoading: true,
+        };
+      case "ready":
+        return {
+          label: "Recommendation Ready",
+          icon: <Check size={12} aria-hidden />,
+          isLoading: false,
+        };
+      case "success":
+        return {
+          label: "Cleanup Applied",
+          icon: <Check size={12} aria-hidden />,
+          isLoading: false,
+        };
+      case "error":
+        return {
+          label: "Analysis Failed",
+          icon: <AlertCircle size={12} aria-hidden />,
+          isLoading: false,
+        };
+      default:
+        return {
+          label: "Analyze & Recommend",
+          icon: <Wand2 size={12} aria-hidden />,
+          isLoading: false,
+        };
+    }
+  })();
 
   return (
-    <div
-      className={`border rounded-lg overflow-hidden ${
+    <Card
+      variant="muted"
+      padding={0}
+      className={`overflow-hidden border ${
         enabled ? "border-border" : "border-border/50 opacity-60"
       }`}
     >
-      <div className="flex items-center gap-2 p-2 bg-background-tertiary">
-        <button
+      <div className="flex items-center gap-2 p-2 bg-bg-2">
+        <ClickableCard
+          label={`${isOpen ? "Collapse" : "Expand"} noise reduction`}
           onClick={() => setIsOpen(!isOpen)}
-          className="flex-1 flex items-center gap-1"
+          padding={0}
+          variant="transparent"
+          className="flex-1"
         >
-          <ChevronDown
-            size={12}
-            className={`transition-transform ${
-              isOpen ? "" : "-rotate-90"
-            } text-text-muted`}
-          />
-          <Volume2 size={12} className="text-text-muted" />
-          <span className="text-[10px] font-medium text-text-primary">
-            Noise Reduction
-          </span>
-        </button>
-        <button
-          onClick={() => handleToggle(!enabled)}
-          className={`w-8 h-4 rounded-full transition-colors ${
-            enabled
-              ? "bg-primary"
-              : "bg-background-tertiary border border-border"
-          }`}
-        >
-          <div
-            className={`w-3 h-3 rounded-full bg-white shadow-sm transition-transform ${
-              enabled ? "translate-x-4" : "translate-x-0.5"
-            }`}
-          />
-        </button>
+          <div className="flex items-center gap-1">
+            <ChevronDown
+              size={12}
+              className={`transition-transform ${
+                isOpen ? "" : "-rotate-90"
+              } text-fg-3`}
+              aria-hidden
+            />
+            <Volume2 size={12} className="text-fg-3" aria-hidden />
+            <Text
+              type="supporting"
+              color="primary"
+              weight="bold"
+              className="text-[10px]"
+            >
+              Noise Reduction
+            </Text>
+          </div>
+        </ClickableCard>
+        <MockToggle
+          ariaLabel="Enable noise reduction"
+          checked={enabled}
+          onChange={handleToggle}
+        />
       </div>
 
       {isOpen && (
         <div className="p-3 space-y-3">
-          <p className="text-[9px] leading-relaxed text-text-muted">
+          <Text
+            type="supporting"
+            color="secondary"
+            className="text-[9px] leading-relaxed"
+          >
             Reduce white noise, wind, hum, room tone, and background music while
             keeping speech or the wanted audio in front.
-          </p>
+          </Text>
 
           <div className="grid grid-cols-2 gap-2">
             {NOISE_REDUCTION_PRESETS.map((preset) => {
               const isActive = preset.id === activePresetId;
 
               return (
-                <button
+                <ClickableCard
                   key={preset.id}
+                  label={`Use ${preset.label} noise reduction`}
                   onClick={() => handleApplyPreset(preset.id)}
-                  disabled={learningState === "learning" || learningState === "applying"}
-                  className={`rounded-lg border px-2 py-2 text-left transition-colors ${
-                    isActive
-                      ? "border-primary bg-primary/10 text-text-primary"
-                      : "border-border bg-background-secondary text-text-secondary hover:border-primary/50 hover:bg-primary/5"
-                  } disabled:cursor-wait disabled:opacity-70`}
+                  isDisabled={isBusy}
+                  padding={2}
+                  variant={isActive ? "green" : "default"}
+                  className={`border ${
+                    isActive ? "border-primary" : "border-border"
+                  }`}
                 >
-                  <div className="text-[10px] font-medium">{preset.label}</div>
-                  <div className="mt-1 text-[9px] leading-relaxed opacity-80">
+                  <Text
+                    type="supporting"
+                    color="primary"
+                    weight="bold"
+                    className="block text-[10px]"
+                  >
+                    {preset.label}
+                  </Text>
+                  <Text
+                    type="supporting"
+                    color="secondary"
+                    className="block mt-1 text-[9px] leading-relaxed"
+                  >
                     {preset.description}
-                  </div>
-                </button>
+                  </Text>
+                </ClickableCard>
               );
             })}
           </div>
 
-          <div className="rounded-lg border border-border/70 bg-background-secondary/60 px-2 py-2 text-[9px] text-text-muted">
+          <Card
+            variant="transparent"
+            padding={2}
+            className="border border-border/70 bg-bg-1/60"
+          >
             <div className="flex items-center justify-between gap-2">
-              <span>
-                Current mode: <span className="text-text-primary">{activePreset.label}</span>
-              </span>
-              <span
+              <Text type="supporting" color="secondary" className="text-[9px]">
+                Current mode: {activePreset.label}
+              </Text>
+              <Text
+                type="supporting"
                 className={`rounded-full px-2 py-0.5 text-[8px] font-medium ${
                   enabled
                     ? "bg-green-500/15 text-green-400"
-                    : "bg-background-tertiary text-text-muted"
+                    : "bg-bg-2 text-fg-3"
                 }`}
               >
                 {enabled ? "Applied" : "Off"}
-              </span>
+              </Text>
             </div>
-            <div className="mt-1">{activePreset.description}</div>
+            <Text type="supporting" color="secondary" className="mt-1 text-[9px]">
+              {activePreset.description}
+            </Text>
             {appliedMessage && (
-              <div className="mt-2 rounded-md border border-green-500/20 bg-green-500/10 px-2 py-1 text-green-400">
+              <Text
+                type="supporting"
+                className="block mt-2 rounded-md border border-green-500/20 bg-green-500/10 px-2 py-1 text-[9px] text-green-400"
+              >
                 {appliedMessage}
-              </div>
+              </Text>
             )}
-          </div>
+          </Card>
 
           {recommendation && recommendationPreset && (
-            <div className="space-y-2 rounded-lg border border-primary/40 bg-primary/10 px-3 py-3">
-              <div className="flex items-center gap-2 text-primary">
-                <Wand2 size={12} />
-                <span className="text-[10px] font-medium">Recommendation ready</span>
+            <Card
+              variant="green"
+              padding={3}
+              className="space-y-2 border border-primary/40"
+            >
+              <div className="flex items-center gap-2">
+                <Wand2 size={12} className="text-primary" aria-hidden />
+                <Text
+                  type="supporting"
+                  color="primary"
+                  weight="bold"
+                  className="text-[10px]"
+                >
+                  Recommendation ready
+                </Text>
               </div>
-              <p className="text-[9px] leading-relaxed text-text-secondary">
+              <Text
+                type="supporting"
+                color="secondary"
+                className="text-[9px] leading-relaxed"
+              >
                 Detected noise best matches {recommendationPreset.label.toLowerCase()}.
                 {recommendation.hasLearnedProfile
                   ? ` Apply ${Math.round(recommendation.config.reduction * 100)}% cleanup at ${recommendation.config.threshold.toFixed(0)} dB to save this profile on the clip.`
                   : ` Apply ${Math.round(recommendation.config.reduction * 100)}% cleanup at ${recommendation.config.threshold.toFixed(0)} dB. A custom profile could not be isolated, so this recommendation uses the best preset match for the clip.`}
-              </p>
-              <button
+              </Text>
+              <Button
+                label={
+                  learningState === "applying"
+                    ? "Applying..."
+                    : "Apply Recommended Cleanup"
+                }
+                variant="primary"
+                size="sm"
                 onClick={handleApplyRecommendation}
-                disabled={learningState === "applying"}
-                className="w-full rounded-lg bg-primary px-3 py-2 text-[10px] font-medium text-white transition-colors hover:bg-primary-hover disabled:cursor-wait disabled:opacity-70"
-              >
-                {learningState === "applying" ? "Applying..." : "Apply Recommended Cleanup"}
-              </button>
-            </div>
+                isDisabled={learningState === "applying"}
+                isLoading={learningState === "applying"}
+                className="w-full"
+              />
+            </Card>
           )}
 
-          <div className="space-y-2 rounded-lg border border-border/70 bg-background-secondary/60 px-2 py-2">
-            <div className="text-[9px] font-medium text-text-primary">
+          <Card
+            variant="transparent"
+            padding={2}
+            className="space-y-2 border border-border/70 bg-bg-1/60"
+          >
+            <Text type="supporting" color="primary" weight="bold" className="text-[9px]">
               A/B Preview
-            </div>
+            </Text>
             <div className="grid grid-cols-2 gap-2">
-              <button
+              <Button
+                label="Hear Original"
+                variant={previewingOriginal ? "primary" : "secondary"}
+                size="sm"
                 onClick={() => handleSetPreviewMode("original")}
-                disabled={!effectId}
-                className={`rounded-lg border px-2 py-1.5 text-[10px] transition-colors ${
-                  previewingOriginal
-                    ? "border-primary bg-primary/10 text-text-primary"
-                    : "border-border bg-background-secondary text-text-secondary hover:border-primary/50"
-                } disabled:cursor-not-allowed disabled:opacity-50`}
-              >
-                Hear Original
-              </button>
-              <button
+                isDisabled={!effectId}
+              />
+              <Button
+                label="Hear Cleaned"
+                variant={!previewingOriginal ? "primary" : "secondary"}
+                size="sm"
                 onClick={() => handleSetPreviewMode("cleaned")}
-                disabled={!effectId}
-                className={`rounded-lg border px-2 py-1.5 text-[10px] transition-colors ${
-                  !previewingOriginal
-                    ? "border-primary bg-primary/10 text-text-primary"
-                    : "border-border bg-background-secondary text-text-secondary hover:border-primary/50"
-                } disabled:cursor-not-allowed disabled:opacity-50`}
-              >
-                Hear Cleaned
-              </button>
+                isDisabled={!effectId}
+              />
             </div>
-            <p className="text-[9px] leading-relaxed text-text-muted">
+            <Text
+              type="supporting"
+              color="secondary"
+              className="text-[9px] leading-relaxed"
+            >
               Preview only. Export still uses the cleaned audio effect chain.
-            </p>
-          </div>
+            </Text>
+          </Card>
 
-          <Slider
+          <PropertySlider
             label="Threshold"
             value={config.threshold}
-            onChange={(v) => handleConfigChange("threshold", v)}
+            onChange={(value: number) => handleConfigChange("threshold", value)}
             min={-80}
             max={0}
-            unit="dB"
+            formatValue={(value) => `${Math.round(value)} dB`}
           />
 
-          <Slider
+          <PropertySlider
             label="Reduction"
             value={config.reduction * 100}
-            onChange={(v) => handleConfigChange("reduction", v / 100)}
+            onChange={(value: number) =>
+              handleConfigChange("reduction", value / 100)
+            }
             min={0}
             max={100}
-            unit="%"
+            formatValue={(value) => `${Math.round(value)}%`}
           />
 
-          <Slider
+          <PropertySlider
             label="Attack"
             value={config.attack ?? 10}
-            onChange={(v) => handleConfigChange("attack", v)}
+            onChange={(value: number) => handleConfigChange("attack", value)}
             min={0}
             max={100}
-            unit="ms"
+            formatValue={(value) => `${Math.round(value)} ms`}
           />
 
-          <Slider
+          <PropertySlider
             label="Release"
             value={config.release ?? 100}
-            onChange={(v) => handleConfigChange("release", v)}
+            onChange={(value: number) => handleConfigChange("release", value)}
             min={0}
             max={500}
-            unit="ms"
+            formatValue={(value) => `${Math.round(value)} ms`}
           />
 
-          <button
+          <Button
+            label={learnButtonState.label}
+            icon={learnButtonState.icon}
+            variant="primary"
+            size="sm"
             onClick={handleLearnNoiseProfile}
-            disabled={learningState === "learning" || learningState === "applying"}
-            className={`w-full py-2 rounded-lg text-[10px] font-medium transition-colors flex items-center justify-center gap-2 ${
-              learningState === "learning" || learningState === "applying"
-                ? "bg-primary/20 text-primary cursor-wait"
-                : learningState === "ready"
-                  ? "bg-primary/10 border border-primary/40 text-primary hover:bg-primary/20"
-                : learningState === "success"
-                  ? "bg-green-500/20 text-green-500"
-                  : learningState === "error"
-                    ? "bg-red-500/20 text-red-500"
-                    : "bg-primary/10 border border-primary/30 text-primary hover:bg-primary/20"
-            }`}
-          >
-            {learningState === "learning" ? (
-              <>
-                <div className="w-3 h-3 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                Analyzing...
-              </>
-            ) : learningState === "applying" ? (
-              <>
-                <div className="w-3 h-3 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                Applying cleanup...
-              </>
-            ) : learningState === "ready" ? (
-              <>
-                <Check size={12} />
-                Recommendation Ready
-              </>
-            ) : learningState === "success" ? (
-              <>
-                <Check size={12} />
-                Cleanup Applied
-              </>
-            ) : learningState === "error" ? (
-              <>
-                <AlertCircle size={12} />
-                Analysis Failed
-              </>
-            ) : (
-              <>
-                <Wand2 size={12} />
-                Analyze & Recommend
-              </>
-            )}
-          </button>
+            isDisabled={isBusy}
+            isLoading={learnButtonState.isLoading}
+            className="w-full"
+          />
 
           {analysisProgress && (learningState === "learning" || learningState === "applying") && (
-            <div className="space-y-1 rounded-lg border border-primary/20 bg-primary/5 px-2 py-2">
-              <div className="flex items-center justify-between text-[9px] text-text-secondary">
-                <span>{analysisProgress.message}</span>
-                <span>{Math.round(analysisProgress.progress * 100)}%</span>
-              </div>
-              <div className="h-1.5 overflow-hidden rounded-full bg-background-tertiary">
-                <div
-                  className="h-full rounded-full bg-primary transition-all"
-                  style={{ width: `${Math.max(6, Math.round(analysisProgress.progress * 100))}%` }}
-                />
-              </div>
-            </div>
+            <Card variant="green" padding={2} className="border border-primary/20">
+              <Text type="supporting" color="secondary" className="block text-[9px]">
+                {analysisProgress.message}
+              </Text>
+              <ProgressBar
+                label="Noise analysis progress"
+                isLabelHidden
+                value={Math.round(analysisProgress.progress * 100)}
+                max={100}
+                hasValueLabel
+                variant="accent"
+              />
+            </Card>
           )}
 
           {errorMessage && (
-            <div className="text-[9px] text-red-500 text-center">
+            <Text
+              type="supporting"
+              className="block text-[9px] text-red-500 text-center"
+            >
               {errorMessage}
-            </div>
+            </Text>
           )}
 
           {config.profile && !recommendation && learningState !== "error" && (
-            <div className="text-[9px] text-text-muted text-center">
+            <Text
+              type="supporting"
+              color="secondary"
+              className="block text-[9px] text-center"
+            >
               Learned noise profile is active on this clip.
               <br />
               Auto-tuned with {activePreset.label.toLowerCase()} and reused for export cleanup.
-            </div>
+            </Text>
           )}
         </div>
       )}
-    </div>
+    </Card>
   );
 };
 

@@ -11,13 +11,20 @@ import type {
   SubtitleAction,
   MediaAction,
   ProjectAction,
+  MarkerAction,
 } from "../types/actions";
 import type { Project, MediaItem } from "../types/project";
 import type { Track, Clip, Transition } from "../types/timeline";
+import { getActionHandler } from "./registry";
 
 export class InverseActionGenerator {
   generate(action: Action, projectBefore: Project): Action | null {
     const type = (action as TimelineAction).type;
+
+    const handler = getActionHandler(type);
+    if (handler) {
+      return handler.invert(action, projectBefore);
+    }
 
     if (type.startsWith("project/")) {
       return this.generateProjectInverse(
@@ -69,9 +76,57 @@ export class InverseActionGenerator {
         action as SubtitleAction & Action,
         projectBefore,
       );
+    } else if (type.startsWith("marker/")) {
+      return this.generateMarkerInverse(
+        action as MarkerAction & Action,
+        projectBefore,
+      );
     }
 
     return null;
+  }
+
+  private generateMarkerInverse(
+    action: MarkerAction & Action,
+    projectBefore: Project,
+  ): Action | null {
+    const timeline = projectBefore.timeline;
+
+    switch (action.type) {
+      case "marker/add":
+        return this.createInverseAction(action, "marker/remove", {
+          markerId: "__LAST_ADDED__",
+        });
+
+      case "marker/remove": {
+        const position = timeline.markers.findIndex(
+          (m) => m.id === action.params.markerId,
+        );
+        if (position === -1) return null;
+        const marker = timeline.markers[position];
+
+        return this.createInverseAction(action, "marker/restore", {
+          marker: { ...marker },
+          position,
+        });
+      }
+
+      case "marker/update": {
+        const marker = timeline.markers.find(
+          (m) => m.id === action.params.markerId,
+        );
+        if (!marker) return null;
+
+        return this.createInverseAction(action, "marker/update", {
+          markerId: action.params.markerId,
+          updates: {
+            time: marker.time,
+            label: marker.label,
+            color: marker.color,
+          },
+        });
+      }
+    }
   }
 
   private createInverseAction(
@@ -102,9 +157,34 @@ export class InverseActionGenerator {
           ...projectBefore.settings,
         });
 
+      case "project/setCanvasBackground":
+        return this.createInverseAction(action, "project/setCanvasBackground", {
+          backgroundFillMode: projectBefore.timeline.backgroundFillMode,
+          layoutBackgroundColor: projectBefore.timeline.layoutBackgroundColor,
+        });
+
       case "project/create":
         // Cannot undo project creation in a meaningful way
         return null;
+
+      case "project/registerGeneratedShader":
+        return this.createInverseAction(
+          action,
+          "project/removeGeneratedShader",
+          { shaderId: action.params.def.id },
+        );
+
+      case "project/removeGeneratedShader": {
+        const removed = (projectBefore.generatedShaders ?? []).find(
+          (def) => def.id === action.params.shaderId,
+        );
+        if (!removed) return null;
+        return this.createInverseAction(
+          action,
+          "project/registerGeneratedShader",
+          { def: removed },
+        );
+      }
     }
   }
 
@@ -114,9 +194,11 @@ export class InverseActionGenerator {
   ): Action | null {
     switch (action.type) {
       case "media/import":
-        // To undo import, we need to delete the media that was added
+        // To undo import, delete the media that was added. The executor resolves
+        // "__LAST_ADDED__" to the id recorded in lastAddedIds for the "media"
+        // category when the import was applied.
         return this.createInverseAction(action, "media/delete", {
-          mediaId: "__LAST_IMPORTED__", // Special marker to be resolved
+          mediaId: "__LAST_ADDED__",
         });
 
       case "media/delete": {
@@ -156,6 +238,11 @@ export class InverseActionGenerator {
           trackId: "__LAST_ADDED__", // Special marker to be resolved
         });
 
+      case "track/duplicate":
+        return this.createInverseAction(action, "track/remove", {
+          trackId: "__LAST_ADDED__",
+        });
+
       case "track/remove": {
         const removedTrack = timeline.tracks.find(
           (t) => t.id === action.params.trackId,
@@ -169,6 +256,18 @@ export class InverseActionGenerator {
         return this.createInverseAction(action, "track/restore", {
           track: this.cloneTrack(removedTrack),
           position,
+        });
+      }
+
+      case "track/rename": {
+        const track = timeline.tracks.find(
+          (t) => t.id === action.params.trackId,
+        );
+        if (!track) return null;
+
+        return this.createInverseAction(action, "track/rename", {
+          trackId: action.params.trackId,
+          name: track.name,
         });
       }
 
@@ -270,6 +369,11 @@ export class InverseActionGenerator {
         });
       }
 
+      case "clip/restore":
+        return this.createInverseAction(action, "clip/remove", {
+          clipId: action.params.clip.id,
+        });
+
       case "clip/move": {
         const clip = this.findClip(timeline, action.params.clipId);
         if (!clip) return null;
@@ -318,6 +422,50 @@ export class InverseActionGenerator {
         });
       }
 
+      case "clip/setBlendMode": {
+        const clip = this.findClip(timeline, action.params.clipId);
+        if (!clip) return null;
+
+        return this.createInverseAction(action, "clip/setBlendMode", {
+          clipId: action.params.clipId,
+          blendMode: clip.blendMode ?? "normal",
+        });
+      }
+
+      case "clip/setBlendOpacity": {
+        const clip = this.findClip(timeline, action.params.clipId);
+        if (!clip) return null;
+
+        return this.createInverseAction(action, "clip/setBlendOpacity", {
+          clipId: action.params.clipId,
+          opacity: clip.blendOpacity ?? 100,
+        });
+      }
+
+      case "clip/setEmphasisAnimation": {
+        const clip = this.findClip(timeline, action.params.clipId);
+        if (!clip) return null;
+
+        return this.createInverseAction(action, "clip/setEmphasisAnimation", {
+          clipId: action.params.clipId,
+          emphasisAnimation: clip.emphasisAnimation
+            ? { ...clip.emphasisAnimation }
+            : undefined,
+        });
+      }
+
+      case "clip/setColorGrading": {
+        const clip = this.findClip(timeline, action.params.clipId);
+        if (!clip) return null;
+
+        return this.createInverseAction(action, "clip/setColorGrading", {
+          clipId: action.params.clipId,
+          colorGrading: clip.colorGrading
+            ? { ...clip.colorGrading }
+            : undefined,
+        });
+      }
+
       case "clip/closeGapBefore" as ClipAction["type"]: {
         const params = action.params as { clipId: string };
         const clip = this.findClip(timeline, params.clipId);
@@ -348,7 +496,7 @@ export class InverseActionGenerator {
       case "effect/add":
         return this.createInverseAction(action, "effect/remove", {
           clipId: action.params.clipId,
-          effectId: "__LAST_ADDED__",
+          effectId: action.params.effectId ?? "__LAST_ADDED__",
         });
 
       case "effect/remove": {
@@ -381,6 +529,19 @@ export class InverseActionGenerator {
         });
       }
 
+      case "effect/toggle": {
+        const effect = clip.effects.find(
+          (e) => e.id === action.params.effectId,
+        );
+        if (!effect) return null;
+
+        return this.createInverseAction(action, "effect/toggle", {
+          clipId: action.params.clipId,
+          effectId: action.params.effectId,
+          enabled: effect.enabled,
+        });
+      }
+
       case "effect/reorder": {
         const currentIndex = clip.effects.findIndex(
           (e) => e.id === action.params.effectId,
@@ -394,6 +555,8 @@ export class InverseActionGenerator {
         });
       }
     }
+
+    return null;
   }
 
   private generateTransformInverse(
@@ -457,6 +620,8 @@ export class InverseActionGenerator {
         });
       }
     }
+
+    return null;
   }
 
   private generateTransitionInverse(
@@ -470,6 +635,21 @@ export class InverseActionGenerator {
         return this.createInverseAction(action, "transition/remove", {
           transitionId: "__LAST_ADDED__",
         });
+
+      case "transition/set": {
+        const clipA = this.findClip(
+          timeline,
+          action.params.transition.clipAId,
+        );
+        if (!clipA) return null;
+        const track = timeline.tracks.find((t) => t.id === clipA.trackId);
+        if (!track) return null;
+
+        return this.createInverseAction(action, "transition/restoreTrack", {
+          trackId: track.id,
+          transitions: (track.transitions || []).map((t) => ({ ...t })),
+        });
+      }
 
       case "transition/remove": {
         const transition = this.findTransition(
@@ -492,6 +672,7 @@ export class InverseActionGenerator {
 
         return this.createInverseAction(action, "transition/update", {
           transitionId: action.params.transitionId,
+          type: transition.type,
           duration: transition.duration,
           params: { ...transition.params },
         });
@@ -525,6 +706,54 @@ export class InverseActionGenerator {
           clipId: action.params.clipId,
           points: clip.automation?.volume ?? [],
         });
+
+      case "audio/addEffect": {
+        const effect = action.params.effect;
+        return this.createInverseAction(action, "audio/removeEffect", {
+          clipId: action.params.clipId,
+          effectId: effect.id,
+        });
+      }
+
+      case "audio/removeEffect": {
+        const index = clip.audioEffects.findIndex(
+          (e) => e.id === action.params.effectId,
+        );
+        if (index === -1) return null;
+        const effect = clip.audioEffects[index];
+
+        return this.createInverseAction(action, "audio/restoreEffect", {
+          clipId: action.params.clipId,
+          effect: { ...effect, params: { ...effect.params } },
+          index,
+        });
+      }
+
+      case "audio/updateEffect": {
+        const effect = clip.audioEffects.find(
+          (e) => e.id === action.params.effectId,
+        );
+        if (!effect) return null;
+
+        return this.createInverseAction(action, "audio/updateEffect", {
+          clipId: action.params.clipId,
+          effectId: action.params.effectId,
+          params: { ...effect.params },
+        });
+      }
+
+      case "audio/toggleEffect": {
+        const effect = clip.audioEffects.find(
+          (e) => e.id === action.params.effectId,
+        );
+        if (!effect) return null;
+
+        return this.createInverseAction(action, "audio/toggleEffect", {
+          clipId: action.params.clipId,
+          effectId: action.params.effectId,
+          enabled: effect.enabled,
+        });
+      }
     }
   }
 
@@ -577,6 +806,8 @@ export class InverseActionGenerator {
         });
       }
     }
+
+    return null;
   }
 
   private findClip(timeline: { tracks: Track[] }, clipId: string): Clip | null {
@@ -628,17 +859,18 @@ export class InverseActionGenerator {
   }
 
   private cloneClip(clip: Clip): Record<string, unknown> {
+    // Spread every field first so nothing is silently dropped (blendMode,
+    // blendOpacity, emphasisAnimation, speed, reversed, stabilization,
+    // audioTrackIndex, metadata, ...), then deep-clone the mutable nested
+    // structures so the restored clip does not share references.
     return {
-      id: clip.id,
-      mediaId: clip.mediaId,
-      trackId: clip.trackId,
-      startTime: clip.startTime,
-      duration: clip.duration,
-      inPoint: clip.inPoint,
-      outPoint: clip.outPoint,
+      ...(clip as unknown as Record<string, unknown>),
       effects: clip.effects.map((e) => ({ ...e, params: { ...e.params } })),
+      audioEffects: clip.audioEffects.map((e) => ({
+        ...e,
+        params: { ...e.params },
+      })),
       transform: { ...clip.transform },
-      volume: clip.volume,
       fade: clip.fade ? { ...clip.fade } : undefined,
       automation: clip.automation
         ? {
@@ -647,6 +879,10 @@ export class InverseActionGenerator {
           }
         : undefined,
       keyframes: clip.keyframes.map((kf) => ({ ...kf })),
+      emphasisAnimation: clip.emphasisAnimation
+        ? { ...clip.emphasisAnimation }
+        : undefined,
+      metadata: clip.metadata ? { ...clip.metadata } : undefined,
     };
   }
 }

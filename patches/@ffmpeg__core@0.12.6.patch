@@ -1,0 +1,15 @@
+diff --git a/package.json b/package.json
+index b7fa24c70a5eb892e86cfd70478d494ccae30892..c38a905094427709e895ccd345805e24a089a110 100644
+--- a/package.json
++++ b/package.json
+@@ -11,7 +11,9 @@
+     "./wasm": {
+       "import": "./dist/esm/ffmpeg-core.wasm",
+       "require": "./dist/umd/ffmpeg-core.wasm"
+-    }
++    },
++    "./dist/esm/ffmpeg-core.js": "./dist/esm/ffmpeg-core.js",
++    "./dist/esm/ffmpeg-core.wasm": "./dist/esm/ffmpeg-core.wasm"
+   },
+   "files": [
+     "dist"

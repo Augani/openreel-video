@@ -1,5 +1,10 @@
 import { v4 as uuidv4 } from "uuid";
-import type { Project, ProjectSettings, Timeline } from "@openreel/core";
+import {
+  calculateProjectDuration,
+  type Project,
+  type ProjectSettings,
+  type Timeline,
+} from "@openreel/core";
 import { generateProjectName } from "../../utils/project-names";
 
 export const DEFAULT_PROJECT_SETTINGS: ProjectSettings = {
@@ -33,18 +38,11 @@ export function createEmptyProject(
     settings: { ...DEFAULT_PROJECT_SETTINGS, ...settings },
     mediaLibrary: { items: [] },
     timeline: createDefaultTimeline(),
+    motionCompositions: [],
+    motionInstances: [],
   };
 }
 
 export function calculateTimelineDuration(project: Project): number {
-  let maxEnd = 0;
-  for (const track of project.timeline.tracks) {
-    for (const clip of track.clips) {
-      const clipEnd = clip.startTime + clip.duration;
-      if (clipEnd > maxEnd) {
-        maxEnd = clipEnd;
-      }
-    }
-  }
-  return maxEnd;
+  return calculateProjectDuration(project);
 }

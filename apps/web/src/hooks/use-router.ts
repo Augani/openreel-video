@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { shareBaseOrigin } from "../services/share-origin";
 
 export type AppRoute =
   | "welcome"
@@ -6,7 +7,8 @@ export type AppRoute =
   | "new"
   | "templates"
   | "recent"
-  | "share";
+  | "share"
+  | "motion";
 
 export interface RouteParams {
   dimensions?: string;
@@ -16,6 +18,7 @@ export interface RouteParams {
   fps?: string;
   tab?: string;
   shareId?: string;
+  compositionId?: string;
 }
 
 export interface RouterState {
@@ -44,6 +47,7 @@ function parseHash(hash: string): RouterState {
     "templates",
     "recent",
     "share",
+    "motion",
   ];
 
   if (route === "share" && pathParts[1]) {
@@ -156,11 +160,7 @@ export function generateShareableLink(
   route: AppRoute,
   params?: RouteParams,
 ): string {
-  const baseUrl =
-    typeof window !== "undefined"
-      ? `${window.location.origin}${window.location.pathname}`
-      : "";
-  return `${baseUrl}${buildHash(route, params)}`;
+  return `${shareBaseOrigin()}${buildHash(route, params)}`;
 }
 
 export function generateNewProjectLink(options: {

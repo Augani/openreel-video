@@ -1,6 +1,6 @@
 import "../../test/install-local-storage-mock";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { cleanup, render, screen, fireEvent } from "@testing-library/react";
+import { afterEach, describe, expect, it } from "vitest";
+import { cleanup, render, screen } from "@testing-library/react";
 import type { Project } from "@openreel/core";
 import { createEmptyProject } from "../../stores/project/project-helpers";
 import { useProjectStore } from "../../stores/project-store";
@@ -14,7 +14,7 @@ function seedClip(opts: {
   mediaId: string;
   trackType: "video" | "audio" | "image";
 }): Project {
-  const project = createEmptyProject("Inspector Tabs Test");
+  const project = createEmptyProject("Inspector Sections Test");
   const seeded: Project = {
     ...project,
     timeline: {
@@ -61,79 +61,64 @@ function seedClip(opts: {
   return seeded;
 }
 
-describe("InspectorPanel real tabs", () => {
-  beforeEach(() => {
-    useUIStore.setState({ inspectorActiveTab: "transform" });
-    seedClip({ mediaId: "media-vid", trackType: "video" });
-  });
-
+describe("InspectorPanel (no tabs, collapsible sections by clip type)", () => {
   afterEach(() => {
     cleanup();
     useUIStore.getState().clearSelection();
     useProjectStore.setState({ project: createEmptyProject("Reset") });
   });
 
-  it("shows the video tab set", () => {
-    render(<InspectorPanel />);
-    expect(screen.getByRole("tablist")).toBeInTheDocument();
+  it("renders collapsible sections, not a tab bar", () => {
+    seedClip({ mediaId: "media-vid", trackType: "video" });
+    const { container } = render(<InspectorPanel />);
+    expect(screen.queryByRole("tablist")).toBeNull();
     expect(
-      screen.getByRole("tab", { name: /Transform/ }),
-    ).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: /Audio/ })).toBeInTheDocument();
+      container.querySelector('[data-section-id="transform"]'),
+    ).not.toBeNull();
   });
 
-  it("switching tabs swaps the visible panel (real isolation)", () => {
+  it("the Transform section is a collapsible with a toggle header", () => {
+    seedClip({ mediaId: "media-vid", trackType: "video" });
     const { container } = render(<InspectorPanel />);
-
     const transformSection = container.querySelector<HTMLDivElement>(
       '[data-section-id="transform"]',
     );
     expect(transformSection).not.toBeNull();
-    const sectionToggle = transformSection?.querySelector("button");
-    expect(sectionToggle).not.toBeNull();
-    fireEvent.click(sectionToggle as HTMLButtonElement);
-
-    expect(screen.getByText("Position X")).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("tab", { name: /Audio/ }));
-    expect(useUIStore.getState().inspectorActiveTab).toBe("audio");
-    expect(screen.queryByText("Position X")).toBeNull();
-  });
-});
-
-describe("InspectorPanel tab sets per clip type", () => {
-  beforeEach(() => {
-    useUIStore.setState({ inspectorActiveTab: "transform" });
+    expect(transformSection?.querySelector("button")).not.toBeNull();
+    expect(transformSection?.textContent).toContain("Transform");
   });
 
-  afterEach(() => {
-    cleanup();
-    useUIStore.getState().clearSelection();
-    useProjectStore.setState({ project: createEmptyProject("Reset") });
+  it("a video clip renders the Transform section", () => {
+    seedClip({ mediaId: "media-vid", trackType: "video" });
+    const { container } = render(<InspectorPanel />);
+    expect(
+      container.querySelector('[data-section-id="transform"]'),
+    ).not.toBeNull();
   });
 
-  it("audio clip shows Audio + AI, no Speed or Transform", () => {
+  it("an audio clip does NOT render the Transform section", () => {
     seedClip({ mediaId: "media-audio", trackType: "audio" });
-    render(<InspectorPanel />);
-    expect(screen.getByRole("tab", { name: /Audio/ })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: /AI/ })).toBeInTheDocument();
-    expect(screen.queryByRole("tab", { name: /Speed/ })).toBeNull();
-    expect(screen.queryByRole("tab", { name: /Transform/ })).toBeNull();
+    const { container } = render(<InspectorPanel />);
+    expect(
+      container.querySelector('[data-section-id="transform"]'),
+    ).toBeNull();
   });
 
-  it("image clip shows Speed + Color, no Audio", () => {
+  it("shows per-clip volume and fade controls for audio media", () => {
+    seedClip({ mediaId: "media-audio", trackType: "audio" });
+    const { container } = render(<InspectorPanel />);
+
+    expect(container.querySelector('[data-section-id="clip-audio"]')).not.toBeNull();
+    expect(screen.getByText("Volume")).toBeTruthy();
+    expect(screen.getByText("Fade in")).toBeTruthy();
+    expect(screen.getByText("Fade out")).toBeTruthy();
+  });
+
+  it("an image clip renders the Transform section", () => {
     seedClip({ mediaId: "media-img", trackType: "image" });
-    render(<InspectorPanel />);
-    expect(screen.getByRole("tab", { name: /Speed/ })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: /Color/ })).toBeInTheDocument();
-    expect(screen.queryByRole("tab", { name: /Audio/ })).toBeNull();
-  });
-
-  it("text clip shows Effects + Style, no AI", () => {
-    seedClip({ mediaId: "text-1", trackType: "video" });
-    render(<InspectorPanel />);
-    expect(screen.getByRole("tab", { name: /Effects/ })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: /Style/ })).toBeInTheDocument();
-    expect(screen.queryByRole("tab", { name: /AI/ })).toBeNull();
+    const { container } = render(<InspectorPanel />);
+    expect(
+      container.querySelector('[data-section-id="transform"]'),
+    ).not.toBeNull();
   });
 });

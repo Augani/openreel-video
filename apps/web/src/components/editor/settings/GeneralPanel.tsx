@@ -1,6 +1,10 @@
 import React, { useCallback } from "react";
-import { Switch } from "@openreel/ui";
-import { Label } from "@openreel/ui";
+import { ToolcraftSwitchControl } from "@openreel/ui";
+import { ToolcraftButton as Button } from "@openreel/ui";
+import { ToolcraftClickableCard as ClickableCard } from "@openreel/ui";
+import { ToolcraftNumberInputControl } from "@openreel/ui";
+import { ToolcraftSelectControl as Selector } from "@openreel/ui";
+import { ToolcraftText as Text } from "@openreel/ui";
 import { useSettingsStore, SERVICE_REGISTRY, type TtsProvider, type LlmProvider, type AggregatorProvider } from "../../../stores/settings-store";
 import { useProjectStore } from "../../../stores/project-store";
 
@@ -12,6 +16,19 @@ const ASPECT_PRESETS: Array<{ label: string; width: number; height: number }> = 
   { label: "4:3 Standard", width: 1440, height: 1080 },
   { label: "21:9 Cinematic", width: 2560, height: 1080 },
   { label: "4K Landscape", width: 3840, height: 2160 },
+];
+
+const BACKGROUND_SWATCHES = [
+  "#000000",
+  "#FFFFFF",
+  "#1E1E1E",
+  "#2563EB",
+  "#DC2626",
+  "#16A34A",
+  "#F59E0B",
+  "#9333EA",
+  "#DB2777",
+  "#0EA5E9",
 ];
 
 export const GeneralPanel: React.FC = () => {
@@ -32,6 +49,13 @@ export const GeneralPanel: React.FC = () => {
   const projectWidth = useProjectStore((s) => s.project.settings.width);
   const projectHeight = useProjectStore((s) => s.project.settings.height);
   const updateProjectSettings = useProjectStore((s) => s.updateSettings);
+  const backgroundFillMode = useProjectStore(
+    (s) => s.project.timeline.backgroundFillMode,
+  );
+  const layoutBackgroundColor = useProjectStore(
+    (s) => s.project.timeline.layoutBackgroundColor,
+  );
+  const setCanvasBackground = useProjectStore((s) => s.setCanvasBackground);
 
   const [draftWidth, setDraftWidth] = React.useState(String(projectWidth));
   const [draftHeight, setDraftHeight] = React.useState(String(projectHeight));
@@ -84,67 +108,127 @@ export const GeneralPanel: React.FC = () => {
       {/* Project Composition */}
       <div className="space-y-4">
         <div>
-          <h3 className="text-sm font-medium text-text-primary">
+          <Text type="body" color="primary" className="text-sm font-medium">
             Project Composition
-          </h3>
-          <p className="text-xs text-text-muted mt-0.5">
+          </Text>
+          <Text type="supporting" color="secondary" className="mt-0.5 text-xs">
             Set the canvas dimensions for your project. Pick a preset for TikTok,
             Reels, YouTube, or enter custom values.
-          </p>
+          </Text>
         </div>
 
         <div className="grid grid-cols-2 gap-2">
           {ASPECT_PRESETS.map((preset) => {
             const isActive =
-              preset.width === projectWidth && preset.height === projectHeight;
+                preset.width === projectWidth && preset.height === projectHeight;
             return (
-              <button
+              <ClickableCard
                 key={preset.label}
+                label={preset.label}
                 onClick={() => applyDimensions(preset.width, preset.height)}
-                className={`text-left px-3 py-2 rounded-md text-xs transition-colors border ${
+                padding={3}
+                variant={isActive ? "green" : "muted"}
+                className={`text-left text-xs border ${
                   isActive
                     ? "border-primary bg-primary/10 text-text-primary"
                     : "border-border bg-background-tertiary text-text-secondary hover:text-text-primary hover:border-primary/40"
                 }`}
               >
-                <div className="font-medium">{preset.label}</div>
-                <div className="text-text-muted text-[10px] mt-0.5">
+                <Text type="supporting" color="inherit" className="font-medium">
+                  {preset.label}
+                </Text>
+                <Text type="supporting" color="secondary" className="mt-0.5 text-[10px]">
                   {preset.width} × {preset.height}
-                </div>
-              </button>
+                </Text>
+              </ClickableCard>
             );
           })}
         </div>
 
         <div className="flex items-end gap-2">
-          <div className="flex-1">
-            <Label className="text-xs text-text-secondary">Width</Label>
-            <input
-              type="number"
-              min={16}
-              max={7680}
-              value={draftWidth}
-              onChange={(e) => setDraftWidth(e.target.value)}
-              className="mt-1 h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
-            />
-          </div>
-          <div className="flex-1">
-            <Label className="text-xs text-text-secondary">Height</Label>
-            <input
-              type="number"
-              min={16}
-              max={7680}
-              value={draftHeight}
-              onChange={(e) => setDraftHeight(e.target.value)}
-              className="mt-1 h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
-            />
-          </div>
-          <button
+          <ToolcraftNumberInputControl
+            label="Width"
+            size="md"
+            width="100%"
+            min={16}
+            max={7680}
+            value={Number.isFinite(Number(draftWidth)) ? Number(draftWidth) : null}
+            onChange={(value) => setDraftWidth(String(value))}
+          />
+          <ToolcraftNumberInputControl
+            label="Height"
+            size="md"
+            width="100%"
+            min={16}
+            max={7680}
+            value={Number.isFinite(Number(draftHeight)) ? Number(draftHeight) : null}
+            onChange={(value) => setDraftHeight(String(value))}
+          />
+          <Button
+            label="Apply"
             onClick={handleApplyCustom}
-            className="h-9 px-3 rounded-md bg-primary text-white text-xs font-medium hover:bg-primary/90 transition-colors"
-          >
-            Apply
-          </button>
+            variant="primary"
+            size="md"
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Text type="supporting" color="secondary" className="text-xs font-medium">
+            Background fill
+          </Text>
+          <Text type="supporting" color="secondary" className="text-[11px]">
+            Fills the canvas around clips that don&apos;t match the aspect ratio.
+          </Text>
+          <div className="flex flex-wrap items-center gap-2">
+            <ClickableCard
+              label="No background fill"
+              onClick={() => setCanvasBackground(undefined, undefined)}
+              padding={2}
+              variant={!backgroundFillMode ? "green" : "muted"}
+              className={`border px-3 py-1.5 text-xs ${
+                !backgroundFillMode
+                  ? "border-primary bg-primary/10 text-text-primary"
+                  : "border-border bg-background-tertiary text-text-secondary hover:text-text-primary"
+              }`}
+            >
+              None
+            </ClickableCard>
+            <ClickableCard
+              label="Blur background fill"
+              onClick={() =>
+                setCanvasBackground("blur", layoutBackgroundColor)
+              }
+              padding={2}
+              variant={backgroundFillMode === "blur" ? "green" : "muted"}
+              className={`border px-3 py-1.5 text-xs ${
+                backgroundFillMode === "blur"
+                  ? "border-primary bg-primary/10 text-text-primary"
+                  : "border-border bg-background-tertiary text-text-secondary hover:text-text-primary"
+              }`}
+            >
+              Blur
+            </ClickableCard>
+            {BACKGROUND_SWATCHES.map((hex) => {
+              const isActive =
+                backgroundFillMode === "color" &&
+                layoutBackgroundColor?.toLowerCase() === hex.toLowerCase();
+              return (
+                <ClickableCard
+                  key={hex}
+                  label={`Background color ${hex}`}
+                  onClick={() => setCanvasBackground("color", hex)}
+                  padding={0}
+                  variant="transparent"
+                  style={{ backgroundColor: hex }}
+                  className={`h-6 w-6 rounded-full border-2 transition-transform ${
+                    isActive
+                      ? "border-primary scale-110"
+                      : "border-border hover:scale-105"
+                  }`}
+                />
+              );
+            })}
+          </div>
         </div>
       </div>
 
@@ -152,35 +236,48 @@ export const GeneralPanel: React.FC = () => {
 
       {/* Auto-save */}
       <div className="space-y-4">
-        <h3 className="text-sm font-medium text-text-primary">Auto-Save</h3>
+        <Text type="body" color="primary" className="text-sm font-medium">
+          Auto-Save
+        </Text>
 
         <div className="flex items-center justify-between">
           <div>
-            <Label className="text-sm text-text-secondary">Enable auto-save</Label>
-            <p className="text-xs text-text-muted mt-0.5">
+            <Text type="supporting" color="secondary" className="text-sm">
+              Enable auto-save
+            </Text>
+            <Text type="supporting" color="secondary" className="mt-0.5 text-xs">
               Automatically save your project at regular intervals
-            </p>
+            </Text>
           </div>
-          <Switch checked={autoSave} onCheckedChange={setAutoSave} />
+          <ToolcraftSwitchControl
+            ariaLabel="Enable auto-save"
+            checked={autoSave}
+            onCheckedChange={setAutoSave}
+            showLabel={false}
+          />
         </div>
 
         {autoSave && (
           <div className="flex items-center gap-3">
-            <Label className="text-sm text-text-secondary whitespace-nowrap">
+            <Text type="supporting" color="secondary" className="whitespace-nowrap text-sm">
               Save every
-            </Label>
-            <select
-              value={autoSaveInterval}
-              onChange={(e) => setAutoSaveInterval(Number(e.target.value))}
-              className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-            >
-              <option value={1}>1 minute</option>
-              <option value={2}>2 minutes</option>
-              <option value={5}>5 minutes</option>
-              <option value={10}>10 minutes</option>
-              <option value={15}>15 minutes</option>
-              <option value={30}>30 minutes</option>
-            </select>
+            </Text>
+            <Selector
+              label="Auto-save interval"
+              isLabelHidden
+              size="md"
+              width={150}
+              value={String(autoSaveInterval)}
+              onChange={(value) => setAutoSaveInterval(Number(value))}
+              options={[
+                { label: "1 minute", value: "1" },
+                { label: "2 minutes", value: "2" },
+                { label: "5 minutes", value: "5" },
+                { label: "10 minutes", value: "10" },
+                { label: "15 minutes", value: "15" },
+                { label: "30 minutes", value: "30" },
+              ]}
+            />
           </div>
         )}
       </div>
@@ -189,69 +286,63 @@ export const GeneralPanel: React.FC = () => {
 
       {/* Default providers */}
       <div className="space-y-4">
-        <h3 className="text-sm font-medium text-text-primary">
+        <Text type="body" color="primary" className="text-sm font-medium">
           Default AI Providers
-        </h3>
-        <p className="text-xs text-text-muted">
+        </Text>
+        <Text type="supporting" color="secondary" className="text-xs">
           Choose which service to use by default for AI features.
           Configure API keys in the &quot;API Keys&quot; tab first.
-        </p>
+        </Text>
 
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <Label className="text-sm text-text-secondary">
+            <Text type="supporting" color="secondary" className="text-sm">
               Text to Speech/Voice To Speech/Sound Effects
-            </Label>
-            <select
+            </Text>
+            <Selector
+              label="Text to Speech provider"
+              isLabelHidden
+              size="md"
+              width={180}
               value={defaultTtsProvider}
-              onChange={(e) => setDefaultTtsProvider(e.target.value as TtsProvider)}
-              className="h-9 rounded-md border border-input bg-background px-3 text-sm min-w-[140px]"
-            >
-              {ttsProviders.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.label}
-                </option>
-              ))}
-            </select>
+              onChange={(value) => setDefaultTtsProvider(value as TtsProvider)}
+              options={ttsProviders.map((s) => ({ label: s.label, value: s.id }))}
+            />
           </div>
 
           <div className="flex items-center justify-between">
-            <Label className="text-sm text-text-secondary">
+            <Text type="supporting" color="secondary" className="text-sm">
               AI Assistant (LLM)
-            </Label>
-            <select
+            </Text>
+            <Selector
+              label="AI Assistant provider"
+              isLabelHidden
+              size="md"
+              width={180}
               value={defaultLlmProvider}
-              onChange={(e) => setDefaultLlmProvider(e.target.value as LlmProvider)}
-              className="h-9 rounded-md border border-input bg-background px-3 text-sm min-w-[140px]"
-            >
-              {llmProviders.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.label}
-                </option>
-              ))}
-            </select>
+              onChange={(value) => setDefaultLlmProvider(value as LlmProvider)}
+              options={llmProviders.map((s) => ({ label: s.label, value: s.id }))}
+            />
           </div>
 
           <div className="flex items-center justify-between">
             <div>
-              <Label className="text-sm text-text-secondary">
+              <Text type="supporting" color="secondary" className="text-sm">
                 AI Aggregator
-              </Label>
-              <p className="text-xs text-text-muted mt-0.5">
+              </Text>
+              <Text type="supporting" color="secondary" className="mt-0.5 text-xs">
                 Video/image generation, upscaling, and creative AI tools
-              </p>
+              </Text>
             </div>
-            <select
+            <Selector
+              label="AI Aggregator provider"
+              isLabelHidden
+              size="md"
+              width={180}
               value={defaultAggregator}
-              onChange={(e) => setDefaultAggregator(e.target.value as AggregatorProvider)}
-              className="h-9 rounded-md border border-input bg-background px-3 text-sm min-w-[140px]"
-            >
-              {aggregatorProviders.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.label}
-                </option>
-              ))}
-            </select>
+              onChange={(value) => setDefaultAggregator(value as AggregatorProvider)}
+              options={aggregatorProviders.map((s) => ({ label: s.label, value: s.id }))}
+            />
           </div>
         </div>
       </div>

@@ -1,6 +1,6 @@
 {
   "name": "openreel",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "Professional video, audio, and photo editing in your browser",
   "type": "module",
@@ -48,7 +48,7 @@
     "node": ">=18.0.0",
     "pnpm": ">=8.0.0"
   },
-  "packageManager": "pnpm@9.0.0",
+  "packageManager": "pnpm@11.7.0",
   "dependencies": {
     "@ffmpeg/core": "0.12.6",
     "@ffmpeg/core-mt": "0.12.6",
@@ -57,5 +57,8 @@
   "workspaces": [
     "apps/*",
     "packages/*"
-  ]
+  ],
+  "devDependencies": {
+    "@astryxdesign/cli": "^0.1.1"
+  }
 }

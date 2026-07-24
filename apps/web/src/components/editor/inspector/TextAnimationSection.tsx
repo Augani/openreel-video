@@ -1,15 +1,15 @@
 import React, { useCallback } from "react";
-import { Type, Clock, Play } from "lucide-react";
+import { ToolcraftCard as Card } from "@openreel/ui";
+import { ToolcraftSelectControl as Selector } from "@openreel/ui";
+import { ToolcraftText as Text } from "@openreel/ui";
+import { Type, Clock, Play } from "@/icons/lucide-compat";
+import { PropertySlider } from "./shell/PropertySlider";
 import { useProjectStore } from "../../../stores/project-store";
-import type { TextAnimationPreset, TextAnimationParams } from "@openreel/core";
 import {
-  LabeledSlider,
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
-} from "@openreel/ui";
+  TEXT_ANIMATION_PRESETS,
+  type TextAnimationPreset,
+  type TextAnimationParams,
+} from "@openreel/core";
 
 interface PresetInfo {
   value: TextAnimationPreset;
@@ -17,80 +17,214 @@ interface PresetInfo {
   description: string;
 }
 
-const ANIMATION_PRESETS: PresetInfo[] = [
-  { value: "none", label: "None", description: "No animation" },
-  {
-    value: "typewriter",
-    label: "Typewriter",
-    description: "Characters appear one by one",
-  },
-  { value: "fade", label: "Fade", description: "Fade in and out" },
-  {
-    value: "slide-left",
-    label: "Slide Left",
-    description: "Slide in from the right",
-  },
-  {
-    value: "slide-right",
-    label: "Slide Right",
-    description: "Slide in from the left",
-  },
-  {
-    value: "slide-up",
-    label: "Slide Up",
-    description: "Slide in from below",
-  },
-  {
-    value: "slide-down",
-    label: "Slide Down",
-    description: "Slide in from above",
-  },
-  { value: "scale", label: "Scale", description: "Scale up from small" },
-  { value: "bounce", label: "Bounce", description: "Bouncy entrance" },
-  { value: "rotate", label: "Rotate", description: "Rotate into view" },
-  { value: "wave", label: "Wave", description: "Characters wave up and down" },
-  { value: "shake", label: "Shake", description: "Vibrating text effect" },
-  { value: "pop", label: "Pop", description: "Poppy entrance with overshoot" },
-  { value: "glitch", label: "Glitch", description: "Digital glitch effect" },
-  { value: "split", label: "Split", description: "Text splits from center" },
-  { value: "flip", label: "Flip", description: "3D flip animation" },
-  {
-    value: "word-by-word",
-    label: "Word by Word",
-    description: "Words appear sequentially",
-  },
-  {
-    value: "rainbow",
-    label: "Rainbow",
-    description: "Color cycles through spectrum",
-  },
-];
+const ANIMATION_PRESETS: PresetInfo[] = TEXT_ANIMATION_PRESETS.map(
+  ({ id, name, description }) => ({
+    value: id,
+    label: name,
+    description,
+  }),
+);
 
-const Slider = LabeledSlider;
+const ParamSlider: React.FC<{
+  label: string;
+  value: number;
+  onChange: (value: number) => void;
+  min: number;
+  max: number;
+  step: number;
+  unit?: string;
+}> = ({ label, value, onChange, min, max, step, unit = "" }) => (
+  <PropertySlider
+    label={label}
+    value={value}
+    onChange={onChange}
+    min={min}
+    max={max}
+    step={step}
+    formatValue={(nextValue) =>
+      `${step < 1 ? Number(nextValue.toFixed(3)) : Math.round(nextValue)}${unit}`
+    }
+  />
+);
 
 const PresetSelector: React.FC<{
   value: TextAnimationPreset;
   onChange: (preset: TextAnimationPreset) => void;
 }> = ({ value, onChange }) => (
   <div className="space-y-2">
-    <span className="text-[10px] text-text-secondary">Animation Preset</span>
-    <Select value={value} onValueChange={(v) => onChange(v as TextAnimationPreset)}>
-      <SelectTrigger className="w-full bg-background-tertiary border-border text-text-primary">
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent className="bg-background-secondary border-border max-h-60">
-        {ANIMATION_PRESETS.map((preset) => (
-          <SelectItem key={preset.value} value={preset.value}>
-            {preset.label}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-    <p className="text-[9px] text-text-muted">
+    <Selector
+      label="Animation Preset"
+      size="sm"
+      width="100%"
+      value={value}
+      options={ANIMATION_PRESETS.map((preset) => ({
+        label: preset.label,
+        value: preset.value,
+      }))}
+      onChange={(nextValue) => onChange(nextValue as TextAnimationPreset)}
+    />
+    <Text type="supporting" color="secondary" className="text-[9px]">
       {ANIMATION_PRESETS.find((p) => p.value === value)?.description}
-    </p>
+    </Text>
+    <div className="grid grid-cols-2 gap-2" aria-label="Text animation previews">
+      {ANIMATION_PRESETS.filter((preset) => preset.value !== "none").map(
+        (preset) => (
+          <TextAnimationPresetCard
+            key={preset.value}
+            preset={preset}
+            selected={preset.value === value}
+            onSelect={() => onChange(preset.value)}
+          />
+        ),
+      )}
+    </div>
   </div>
 );
+
+const TextAnimationPresetCard: React.FC<{
+  preset: PresetInfo;
+  selected: boolean;
+  onSelect: () => void;
+}> = ({ preset, selected, onSelect }) => {
+  const [hovered, setHovered] = React.useState(false);
+  const [progress, setProgress] = React.useState(0.62);
+
+  React.useEffect(() => {
+    if (!hovered) {
+      setProgress(0.62);
+      return;
+    }
+    let frame = 0;
+    const startedAt = performance.now();
+    const animate = (now: number) => {
+      setProgress(((now - startedAt) % 1200) / 1200);
+      frame = requestAnimationFrame(animate);
+    };
+    frame = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(frame);
+  }, [hovered]);
+
+  return (
+    <button
+      type="button"
+      aria-label={`Preview and apply ${preset.label}`}
+      aria-pressed={selected}
+      onClick={onSelect}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      className={`overflow-hidden rounded-lg border p-1.5 text-left transition-colors ${
+        selected
+          ? "border-primary bg-primary/10"
+          : "border-border bg-bg-2 hover:border-primary/60"
+      }`}
+    >
+      <span
+        data-testid="text-animation-preset-preview"
+        data-preset={preset.value}
+        aria-hidden="true"
+        className="relative mb-1.5 flex h-11 items-center justify-center overflow-hidden rounded-md bg-[radial-gradient(circle_at_50%_15%,rgba(139,92,246,.22),transparent_55%),#101521]"
+      >
+        <span
+          className="text-[13px] font-black tracking-tight text-white"
+          style={textAnimationPreviewStyle(preset.value, progress)}
+        >
+          OpenReel
+        </span>
+      </span>
+      <span className="block truncate text-[9px] font-semibold text-fg">
+        {preset.label}
+      </span>
+      <span className="block truncate text-[8px] text-fg-4">
+        {preset.description}
+      </span>
+    </button>
+  );
+};
+
+function textAnimationPreviewStyle(
+  preset: TextAnimationPreset,
+  progress: number,
+): React.CSSProperties {
+  const eased = 1 - Math.pow(1 - progress, 3);
+  const wave = Math.sin(progress * Math.PI * 2);
+  switch (preset) {
+    case "typewriter":
+    case "word-by-word":
+      return { clipPath: `inset(0 ${(1 - eased) * 100}% 0 0)` };
+    case "fade":
+      return { opacity: eased };
+    case "slide-left":
+      return { opacity: eased, transform: `translateX(${(1 - eased) * 34}px)` };
+    case "slide-right":
+      return { opacity: eased, transform: `translateX(${(eased - 1) * 34}px)` };
+    case "slide-up":
+      return { opacity: eased, transform: `translateY(${(1 - eased) * 22}px)` };
+    case "slide-down":
+      return { opacity: eased, transform: `translateY(${(eased - 1) * 22}px)` };
+    case "scale":
+      return { opacity: eased, transform: `scale(${0.3 + eased * 0.7})` };
+    case "blur":
+      return { opacity: eased, filter: `blur(${(1 - eased) * 7}px)` };
+    case "bounce":
+      return { transform: `translateY(${-Math.abs(wave) * 12}px)` };
+    case "rotate":
+      return { opacity: eased, transform: `rotate(${(1 - eased) * -120}deg) scale(${0.55 + eased * 0.45})` };
+    case "wave":
+      return { transform: `translateY(${wave * 6}px) rotate(${wave * 2}deg)` };
+    case "shake":
+      return { transform: `translateX(${wave * 5}px)` };
+    case "pop":
+      return { transform: `scale(${0.45 + eased * 0.55 + Math.max(0, wave) * 0.12})` };
+    case "glitch":
+      return { transform: `translateX(${wave * 4}px) skewX(${wave * 6}deg)`, textShadow: `${wave * 3}px 0 #22d3ee, ${wave * -3}px 0 #f43f5e` };
+    case "split":
+      return { letterSpacing: `${(1 - eased) * 10}px`, opacity: eased };
+    case "flip":
+      return { opacity: eased > 0.08 ? 1 : 0, transform: `perspective(100px) rotateY(${(1 - eased) * -90}deg)` };
+    case "rainbow":
+      return { filter: `hue-rotate(${progress * 360}deg)`, color: "#f472b6" };
+    case "rise":
+      return {
+        opacity: eased,
+        transform: `translateY(${(1 - eased) * 20}px) scale(${0.88 + eased * 0.12})`,
+        filter: `blur(${(1 - eased) * 6}px)`,
+      };
+    case "drop": {
+      const landing = 1 - Math.abs(Math.cos(progress * Math.PI * 2.5)) * (1 - progress);
+      return {
+        opacity: progress > 0.02 ? 1 : 0,
+        transform: `translateY(${(landing - 1) * 24}px) rotate(${(1 - landing) * -9}deg)`,
+      };
+    }
+    case "elastic": {
+      const elastic = progress === 1
+        ? 1
+        : 1 - Math.cos(progress * Math.PI * 3.5) * Math.exp(-progress * 5);
+      return { opacity: progress > 0.02 ? 1 : 0, transform: `scale(${Math.max(0.1, elastic)})` };
+    }
+    case "swing":
+      return {
+        opacity: eased,
+        transformOrigin: "50% 0%",
+        transform: `rotate(${Math.cos(progress * Math.PI * 3) * (1 - progress) * 26}deg)`,
+      };
+    case "zoom-blur":
+      return {
+        opacity: eased,
+        transform: `scale(${1.65 - eased * 0.65})`,
+        filter: `blur(${(1 - eased) * 8}px)`,
+      };
+    case "cascade":
+      return {
+        opacity: eased,
+        transform: `translate(${(1 - eased) * -12}px, ${(1 - eased) * 20}px) rotate(${(1 - eased) * -7}deg)`,
+        letterSpacing: `${(1 - eased) * 3}px`,
+      };
+    case "none":
+      return {};
+  }
+  return {};
+}
 
 const EasingSelector: React.FC<{
   value: string;
@@ -105,19 +239,14 @@ const EasingSelector: React.FC<{
 
   return (
     <div className="space-y-1">
-      <span className="text-[10px] text-text-secondary">Easing</span>
-      <Select value={value} onValueChange={onChange}>
-        <SelectTrigger className="w-full bg-background-tertiary border-border text-text-primary text-[10px]">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent className="bg-background-secondary border-border">
-          {easingOptions.map((option) => (
-            <SelectItem key={option.value} value={option.value}>
-              {option.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      <Selector
+        label="Easing"
+        size="sm"
+        width="100%"
+        value={value}
+        options={easingOptions}
+        onChange={onChange}
+      />
     </div>
   );
 };
@@ -186,8 +315,10 @@ export const TextAnimationSection: React.FC<TextAnimationSectionProps> = ({
   if (!textClip) {
     return (
       <div className="p-4 text-center">
-        <Type size={24} className="mx-auto mb-2 text-text-muted" />
-        <p className="text-[10px] text-text-muted">No text clip selected</p>
+        <Type size={24} className="mx-auto mb-2 text-fg-3" />
+        <Text type="supporting" color="secondary" className="text-[10px]">
+          No text clip selected
+        </Text>
       </div>
     );
   }
@@ -198,15 +329,15 @@ export const TextAnimationSection: React.FC<TextAnimationSectionProps> = ({
 
       {currentPreset !== "none" && (
         <>
-          <div className="space-y-3 p-3 bg-background-tertiary rounded-lg">
+          <Card variant="muted" padding={3} className="space-y-3">
             <div className="flex items-center gap-2 mb-2">
-              <Clock size={12} className="text-text-muted" />
-              <span className="text-[10px] text-text-secondary font-medium">
+              <Clock size={12} className="text-fg-3" />
+              <Text type="supporting" color="secondary" className="text-[10px] font-medium">
                 Timing
-              </span>
+              </Text>
             </div>
 
-            <Slider
+            <ParamSlider
               label="In Duration"
               value={inDuration}
               onChange={handleInDurationChange}
@@ -216,7 +347,7 @@ export const TextAnimationSection: React.FC<TextAnimationSectionProps> = ({
               unit="s"
             />
 
-            <Slider
+            <ParamSlider
               label="Out Duration"
               value={outDuration}
               onChange={handleOutDurationChange}
@@ -225,24 +356,24 @@ export const TextAnimationSection: React.FC<TextAnimationSectionProps> = ({
               step={0.1}
               unit="s"
             />
-          </div>
+          </Card>
 
-          <div className="p-3 bg-background-tertiary rounded-lg">
+          <Card variant="muted" padding={3}>
             <EasingSelector value={easing} onChange={handleEasingChange} />
-          </div>
+          </Card>
 
-          <div className="p-3 bg-background-secondary rounded-lg border border-border">
+          <Card variant="muted" padding={3} className="border border-border">
             <div className="flex items-center gap-2 mb-2">
-              <Play size={12} className="text-text-muted" />
-              <span className="text-[10px] text-text-secondary font-medium">
+              <Play size={12} className="text-fg-3" />
+              <Text type="supporting" color="secondary" className="text-[10px] font-medium">
                 Preview
-              </span>
+              </Text>
             </div>
-            <p className="text-[9px] text-text-muted">
+            <Text type="supporting" color="secondary" className="text-[9px]">
               Animation will play during preview and export. Total animation
               time: {(inDuration + outDuration).toFixed(1)}s
-            </p>
-          </div>
+            </Text>
+          </Card>
         </>
       )}
 
@@ -310,11 +441,11 @@ const FadeParams: React.FC<{
   };
 
   return (
-    <div className="space-y-2 p-3 bg-background-tertiary rounded-lg">
-      <span className="text-[10px] text-text-secondary font-medium">
+    <Card variant="muted" padding={3} className="space-y-2">
+      <Text type="supporting" color="secondary" className="text-[10px] font-medium">
         Fade Settings
-      </span>
-      <Slider
+      </Text>
+      <ParamSlider
         label="Start Opacity"
         value={startOpacity}
         onChange={(v) => handleChange(v, endOpacity)}
@@ -323,7 +454,7 @@ const FadeParams: React.FC<{
         step={0.1}
         unit=""
       />
-      <Slider
+      <ParamSlider
         label="End Opacity"
         value={endOpacity}
         onChange={(v) => handleChange(startOpacity, v)}
@@ -332,7 +463,7 @@ const FadeParams: React.FC<{
         step={0.1}
         unit=""
       />
-    </div>
+    </Card>
   );
 };
 
@@ -357,11 +488,11 @@ const SlideParams: React.FC<{
   };
 
   return (
-    <div className="space-y-2 p-3 bg-background-tertiary rounded-lg">
-      <span className="text-[10px] text-text-secondary font-medium">
+    <Card variant="muted" padding={3} className="space-y-2">
+      <Text type="supporting" color="secondary" className="text-[10px] font-medium">
         Slide Settings
-      </span>
-      <Slider
+      </Text>
+      <ParamSlider
         label="Distance"
         value={slideDistance}
         onChange={handleChange}
@@ -370,7 +501,7 @@ const SlideParams: React.FC<{
         step={0.05}
         unit=""
       />
-    </div>
+    </Card>
   );
 };
 
@@ -396,11 +527,11 @@ const ScaleParams: React.FC<{
   };
 
   return (
-    <div className="space-y-2 p-3 bg-background-tertiary rounded-lg">
-      <span className="text-[10px] text-text-secondary font-medium">
+    <Card variant="muted" padding={3} className="space-y-2">
+      <Text type="supporting" color="secondary" className="text-[10px] font-medium">
         Scale Settings
-      </span>
-      <Slider
+      </Text>
+      <ParamSlider
         label="Scale From"
         value={scaleFrom}
         onChange={(v) => handleChange(v, scaleTo)}
@@ -409,7 +540,7 @@ const ScaleParams: React.FC<{
         step={0.1}
         unit="x"
       />
-      <Slider
+      <ParamSlider
         label="Scale To"
         value={scaleTo}
         onChange={(v) => handleChange(scaleFrom, v)}
@@ -418,7 +549,7 @@ const ScaleParams: React.FC<{
         step={0.1}
         unit="x"
       />
-    </div>
+    </Card>
   );
 };
 
@@ -444,11 +575,11 @@ const BounceParams: React.FC<{
   };
 
   return (
-    <div className="space-y-2 p-3 bg-background-tertiary rounded-lg">
-      <span className="text-[10px] text-text-secondary font-medium">
+    <Card variant="muted" padding={3} className="space-y-2">
+      <Text type="supporting" color="secondary" className="text-[10px] font-medium">
         Bounce Settings
-      </span>
-      <Slider
+      </Text>
+      <ParamSlider
         label="Height"
         value={bounceHeight}
         onChange={(v) => handleChange(v, bounceCount)}
@@ -457,7 +588,7 @@ const BounceParams: React.FC<{
         step={0.01}
         unit=""
       />
-      <Slider
+      <ParamSlider
         label="Bounces"
         value={bounceCount}
         onChange={(v) => handleChange(bounceHeight, Math.round(v))}
@@ -466,7 +597,7 @@ const BounceParams: React.FC<{
         step={1}
         unit=""
       />
-    </div>
+    </Card>
   );
 };
 
@@ -491,11 +622,11 @@ const RotateParams: React.FC<{
   };
 
   return (
-    <div className="space-y-2 p-3 bg-background-tertiary rounded-lg">
-      <span className="text-[10px] text-text-secondary font-medium">
+    <Card variant="muted" padding={3} className="space-y-2">
+      <Text type="supporting" color="secondary" className="text-[10px] font-medium">
         Rotate Settings
-      </span>
-      <Slider
+      </Text>
+      <ParamSlider
         label="Angle"
         value={rotateAngle}
         onChange={handleChange}
@@ -504,7 +635,7 @@ const RotateParams: React.FC<{
         step={15}
         unit="°"
       />
-    </div>
+    </Card>
   );
 };
 
@@ -530,11 +661,11 @@ const WaveParams: React.FC<{
   };
 
   return (
-    <div className="space-y-2 p-3 bg-background-tertiary rounded-lg">
-      <span className="text-[10px] text-text-secondary font-medium">
+    <Card variant="muted" padding={3} className="space-y-2">
+      <Text type="supporting" color="secondary" className="text-[10px] font-medium">
         Wave Settings
-      </span>
-      <Slider
+      </Text>
+      <ParamSlider
         label="Amplitude"
         value={waveAmplitude}
         onChange={(v) => handleChange(v, waveFrequency)}
@@ -543,7 +674,7 @@ const WaveParams: React.FC<{
         step={0.005}
         unit=""
       />
-      <Slider
+      <ParamSlider
         label="Frequency"
         value={waveFrequency}
         onChange={(v) => handleChange(waveAmplitude, v)}
@@ -552,7 +683,7 @@ const WaveParams: React.FC<{
         step={0.5}
         unit=""
       />
-    </div>
+    </Card>
   );
 };
 
@@ -578,11 +709,11 @@ const ShakeParams: React.FC<{
   };
 
   return (
-    <div className="space-y-2 p-3 bg-background-tertiary rounded-lg">
-      <span className="text-[10px] text-text-secondary font-medium">
+    <Card variant="muted" padding={3} className="space-y-2">
+      <Text type="supporting" color="secondary" className="text-[10px] font-medium">
         Shake Settings
-      </span>
-      <Slider
+      </Text>
+      <ParamSlider
         label="Intensity"
         value={shakeIntensity}
         onChange={(v) => handleChange(v, shakeSpeed)}
@@ -591,7 +722,7 @@ const ShakeParams: React.FC<{
         step={0.001}
         unit=""
       />
-      <Slider
+      <ParamSlider
         label="Speed"
         value={shakeSpeed}
         onChange={(v) => handleChange(shakeIntensity, v)}
@@ -600,7 +731,7 @@ const ShakeParams: React.FC<{
         step={5}
         unit=""
       />
-    </div>
+    </Card>
   );
 };
 
@@ -625,11 +756,11 @@ const PopParams: React.FC<{
   };
 
   return (
-    <div className="space-y-2 p-3 bg-background-tertiary rounded-lg">
-      <span className="text-[10px] text-text-secondary font-medium">
+    <Card variant="muted" padding={3} className="space-y-2">
+      <Text type="supporting" color="secondary" className="text-[10px] font-medium">
         Pop Settings
-      </span>
-      <Slider
+      </Text>
+      <ParamSlider
         label="Overshoot"
         value={popOvershoot}
         onChange={handleChange}
@@ -638,7 +769,7 @@ const PopParams: React.FC<{
         step={0.05}
         unit="x"
       />
-    </div>
+    </Card>
   );
 };
 
@@ -664,11 +795,11 @@ const GlitchParams: React.FC<{
   };
 
   return (
-    <div className="space-y-2 p-3 bg-background-tertiary rounded-lg">
-      <span className="text-[10px] text-text-secondary font-medium">
+    <Card variant="muted" padding={3} className="space-y-2">
+      <Text type="supporting" color="secondary" className="text-[10px] font-medium">
         Glitch Settings
-      </span>
-      <Slider
+      </Text>
+      <ParamSlider
         label="Intensity"
         value={glitchIntensity}
         onChange={(v) => handleChange(v, glitchSpeed)}
@@ -677,7 +808,7 @@ const GlitchParams: React.FC<{
         step={0.005}
         unit=""
       />
-      <Slider
+      <ParamSlider
         label="Speed"
         value={glitchSpeed}
         onChange={(v) => handleChange(glitchIntensity, v)}
@@ -686,7 +817,7 @@ const GlitchParams: React.FC<{
         step={1}
         unit=""
       />
-    </div>
+    </Card>
   );
 };
 

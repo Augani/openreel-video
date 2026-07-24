@@ -1,6 +1,7 @@
 import React, { useCallback, useState, useEffect } from "react";
-import { Switch } from "@openreel/ui";
-import { Loader2 } from "lucide-react";
+import { ToolcraftText as Text } from "@openreel/ui";
+import { Loader2 } from "@/icons/lucide-compat";
+import { MockToggle } from "./shell/InspectorControls";
 import { useEngineStore } from "../../../stores/engine-store";
 import { useProjectStore } from "../../../stores/project-store";
 import { getPersonSegmentationEngine } from "@openreel/core";
@@ -45,7 +46,11 @@ export const BehindSubjectSection: React.FC<BehindSubjectSectionProps> = ({
         setIsLoading(true);
         try {
           await segEngine.initialize();
-        } catch {
+        } catch (modelError) {
+          console.warn(
+            "[BehindSubject] Person model initialization failed:",
+            modelError,
+          );
           setError("Failed to load AI model. Check your connection.");
           updateTextBehindSubject(clipId, false);
           setEnabled(false);
@@ -63,23 +68,33 @@ export const BehindSubjectSection: React.FC<BehindSubjectSectionProps> = ({
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <div className="flex-1">
-          <p className="text-[11px] text-text-primary">Place Behind Subject</p>
-          <p className="text-[9px] text-text-muted">
+        <div className="flex flex-1 flex-col gap-0.5">
+          <Text type="supporting" color="primary" className="block">
+            Place Behind Subject
+          </Text>
+          <Text type="supporting" color="secondary" className="block text-[9px]">
             Text appears behind people in the video
-          </p>
+          </Text>
         </div>
         {isLoading ? (
           <Loader2 size={14} className="animate-spin text-primary" />
         ) : (
-          <Switch checked={enabled} onCheckedChange={handleToggle} />
+          <MockToggle
+            ariaLabel="Place Behind Subject"
+            checked={enabled}
+            onChange={handleToggle}
+          />
         )}
       </div>
       {isLoading && (
-        <p className="text-[9px] text-text-muted">Loading AI model...</p>
+        <Text type="supporting" color="secondary" className="text-[9px]">
+          Loading AI model...
+        </Text>
       )}
       {error && (
-        <p className="text-[9px] text-red-400">{error}</p>
+        <Text type="supporting" className="text-[9px] text-red-400">
+          {error}
+        </Text>
       )}
     </div>
   );

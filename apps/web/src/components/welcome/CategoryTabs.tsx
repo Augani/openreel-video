@@ -13,11 +13,12 @@ import {
   Type,
   Settings,
   LayoutGrid,
-} from "lucide-react";
+} from "@/icons/lucide-compat";
 import {
   SOCIAL_MEDIA_CATEGORY_INFO,
   type SocialMediaCategory,
 } from "@openreel/core";
+import { ToolcraftButton as Button } from "@openreel/ui";
 
 interface CategoryTabsProps {
   selectedCategory: SocialMediaCategory | "all";
@@ -78,25 +79,28 @@ export const CategoryTabs: React.FC<CategoryTabsProps> = ({
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2 overflow-x-auto pb-1">
-        <button
+        <Button
+          label="All"
           onClick={() => {
             onSelectCategory("all");
             setExpandedPlatform(null);
           }}
+          variant={selectedCategory === "all" ? "primary" : "secondary"}
+          size="sm"
+          icon={<LayoutGrid size={14} aria-hidden />}
+          endContent={
+            <span
+              className={`text-xs ${selectedCategory === "all" ? "text-black/60" : "text-text-muted"}`}
+            >
+              {categoryStats.all || 0}
+            </span>
+          }
           className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all duration-200 ${
             selectedCategory === "all"
               ? "bg-primary text-black"
               : "bg-background-tertiary text-text-secondary hover:text-text-primary hover:bg-background-elevated"
           }`}
-        >
-          <LayoutGrid size={14} />
-          All
-          <span
-            className={`text-xs ${selectedCategory === "all" ? "text-black/60" : "text-text-muted"}`}
-          >
-            {categoryStats.all || 0}
-          </span>
-        </button>
+        />
 
         {PLATFORMS.map((platform) => {
           const categories = PLATFORM_CATEGORIES[platform];
@@ -111,25 +115,26 @@ export const CategoryTabs: React.FC<CategoryTabsProps> = ({
           );
 
           return (
-            <button
+            <Button
               key={platform}
+              label={platform}
               onClick={() => handlePlatformClick(platform)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all duration-200 ${
-                isActive || isExpanded
-                  ? "bg-primary text-black"
-                  : "bg-background-tertiary text-text-secondary hover:text-text-primary hover:bg-background-elevated"
-              }`}
-            >
-              <Icon size={14} />
-              {platform}
-              {count > 0 && (
+              variant={isActive || isExpanded ? "primary" : "secondary"}
+              size="sm"
+              icon={<Icon size={14} aria-hidden />}
+              endContent={count > 0 ? (
                 <span
                   className={`text-xs ${isActive || isExpanded ? "text-black/60" : "text-text-muted"}`}
                 >
                   {count}
                 </span>
-              )}
-            </button>
+              ) : undefined}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all duration-200 ${
+                isActive || isExpanded
+                  ? "bg-primary text-black"
+                  : "bg-background-tertiary text-text-secondary hover:text-text-primary hover:bg-background-elevated"
+              }`}
+            />
           );
         })}
       </div>
@@ -144,25 +149,26 @@ export const CategoryTabs: React.FC<CategoryTabsProps> = ({
             const Icon = CATEGORY_ICONS[category] || Square;
 
             return (
-              <button
+              <Button
                 key={category}
+                label={info?.name || category}
                 onClick={() => onSelectCategory(category)}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium whitespace-nowrap transition-all duration-200 ${
-                  selectedCategory === category
-                    ? "bg-primary/20 text-primary border border-primary/30"
-                    : "bg-background text-text-muted hover:text-text-secondary hover:bg-background-tertiary"
-                }`}
-              >
-                <Icon size={12} />
-                {info?.name || category}
-                {count > 0 && (
+                variant={selectedCategory === category ? "primary" : "secondary"}
+                size="sm"
+                icon={<Icon size={12} aria-hidden />}
+                endContent={count > 0 ? (
                   <span
                     className={`text-[10px] ${selectedCategory === category ? "text-primary/70" : "text-text-muted"}`}
                   >
                     {count}
                   </span>
-                )}
-              </button>
+                ) : undefined}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium whitespace-nowrap transition-all duration-200 ${
+                  selectedCategory === category
+                    ? "bg-primary/20 text-primary border border-primary/30"
+                    : "bg-background text-text-muted hover:text-text-secondary hover:bg-background-tertiary"
+                }`}
+              />
             );
           })}
         </div>

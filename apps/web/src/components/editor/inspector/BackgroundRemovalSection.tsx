@@ -1,4 +1,9 @@
 import React, { useState, useCallback, useEffect } from "react";
+import { ToolcraftButton as Button } from "@openreel/ui";
+import { ToolcraftCard as Card } from "@openreel/ui";
+import { ToolcraftClickableCard as ClickableCard } from "@openreel/ui";
+import { ToolcraftText as Text } from "@openreel/ui";
+import { PropertySlider } from "./shell/PropertySlider";
 import {
   User,
   ImageIcon,
@@ -6,8 +11,7 @@ import {
   Droplets,
   Loader2,
   Info,
-} from "lucide-react";
-import { Slider } from "@openreel/ui";
+} from "@/icons/lucide-compat";
 import {
   getBackgroundRemovalEngine,
   initializeBackgroundRemovalEngine,
@@ -17,6 +21,7 @@ import {
 } from "@openreel/core";
 import { toast } from "../../../stores/notification-store";
 import { useProcessingStore } from "../../../services/processing-manager";
+import { ColorSelector } from "../../../motion/components/primitives";
 
 interface BackgroundRemovalSectionProps {
   clipId: string;
@@ -26,12 +31,12 @@ interface BackgroundRemovalSectionProps {
 const BACKGROUND_MODES: {
   value: BackgroundMode;
   label: string;
-  icon: React.ReactNode;
+  icon: React.ElementType;
 }[] = [
-  { value: "blur", label: "Blur", icon: <Droplets size={14} /> },
-  { value: "color", label: "Color", icon: <Palette size={14} /> },
-  { value: "image", label: "Image", icon: <ImageIcon size={14} /> },
-  { value: "transparent", label: "Transparent", icon: <User size={14} /> },
+  { value: "blur", label: "Blur", icon: Droplets },
+  { value: "color", label: "Color", icon: Palette },
+  { value: "image", label: "Image", icon: ImageIcon },
+  { value: "transparent", label: "Transparent", icon: User },
 ];
 
 const PRESET_COLORS = [
@@ -152,82 +157,72 @@ export const BackgroundRemovalSection: React.FC<
   return (
     <div className="space-y-3">
       <div className="flex justify-end">
-        <button
+        <Button
+          label={settings.enabled ? "On" : "Off"}
+          icon={
+            isInitializing || isProcessing ? (
+              <Loader2 size={12} className="animate-spin" />
+            ) : undefined
+          }
+          variant={settings.enabled ? "primary" : "secondary"}
+          size="sm"
           onClick={handleToggleEnabled}
-          disabled={isInitializing || isProcessing}
-          className={`px-3 py-1 text-[10px] font-medium rounded transition-colors ${
-            settings.enabled
-              ? "bg-primary text-white"
-              : "bg-background-tertiary text-text-secondary hover:bg-background-secondary"
-          }`}
-        >
-          {isInitializing || isProcessing ? (
-            <Loader2 size={12} className="animate-spin" />
-          ) : settings.enabled ? (
-            "On"
-          ) : (
-            "Off"
-          )}
-        </button>
+          isDisabled={isInitializing || isProcessing}
+        />
       </div>
 
       {settings.enabled && (
-        <div className="space-y-3 p-3 bg-background-tertiary rounded-lg">
+        <Card variant="muted" padding={3} className="space-y-3">
           <div>
-            <label className="text-[10px] text-text-secondary block mb-2">
+            <Text type="supporting" color="secondary" className="mb-2 block text-[10px]">
               Background Mode
-            </label>
+            </Text>
             <div className="grid grid-cols-4 gap-1">
-              {BACKGROUND_MODES.map((mode) => (
-                <button
-                  key={mode.value}
-                  onClick={() => updateSettings({ mode: mode.value })}
-                  className={`flex flex-col items-center gap-1 p-2 rounded transition-colors ${
-                    settings.mode === mode.value
-                      ? "bg-primary/20 border border-primary"
-                      : "bg-background-secondary hover:bg-background-primary border border-transparent"
-                  }`}
-                >
-                  {mode.icon}
-                  <span className="text-[9px] text-text-primary">
-                    {mode.label}
-                  </span>
-                </button>
-              ))}
+              {BACKGROUND_MODES.map((mode) => {
+                const ModeIcon = mode.icon;
+                return (
+                  <ClickableCard
+                    key={mode.value}
+                    label={`${mode.label} background mode`}
+                    onClick={() => updateSettings({ mode: mode.value })}
+                    className={`flex flex-col items-center gap-1 rounded p-2 transition-colors ${
+                      settings.mode === mode.value
+                        ? "bg-primary/20 border border-primary"
+                        : "bg-bg-1 hover:bg-background-primary border border-transparent"
+                    }`}
+                  >
+                    <ModeIcon size={14} />
+                    <Text type="supporting" color="primary" className="text-[9px]">
+                      {mode.label}
+                    </Text>
+                  </ClickableCard>
+                );
+              })}
             </div>
           </div>
 
           {settings.mode === "blur" && (
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="text-[10px] text-text-secondary">
-                  Blur Amount
-                </label>
-                <span className="text-[10px] text-text-muted font-mono">
-                  {settings.blurAmount}px
-                </span>
-              </div>
-              <Slider
-                min={0}
-                max={50}
-                step={1}
-                value={[settings.blurAmount]}
-                onValueChange={(value) =>
-                  updateSettings({ blurAmount: value[0] })
-                }
-              />
-            </div>
+            <PropertySlider
+              label="Blur Amount"
+              min={0}
+              max={50}
+              step={1}
+              value={settings.blurAmount}
+              onChange={(value: number) => updateSettings({ blurAmount: value })}
+              formatValue={(value) => `${Math.round(value)}px`}
+            />
           )}
 
           {settings.mode === "color" && (
             <div>
-              <label className="text-[10px] text-text-secondary block mb-2">
+              <Text type="supporting" color="secondary" className="mb-2 block text-[10px]">
                 Background Color
-              </label>
+              </Text>
               <div className="grid grid-cols-8 gap-1 mb-2">
                 {PRESET_COLORS.map((color) => (
-                  <button
+                  <ClickableCard
                     key={color}
+                    label={`Use ${color} background color`}
                     onClick={() => updateSettings({ backgroundColor: color })}
                     className={`w-6 h-6 rounded border-2 transition-all ${
                       settings.backgroundColor === color
@@ -238,23 +233,24 @@ export const BackgroundRemovalSection: React.FC<
                   />
                 ))}
               </div>
-              <input
-                type="color"
+              <ColorSelector
                 value={settings.backgroundColor}
-                onChange={(e) =>
-                  updateSettings({ backgroundColor: e.target.value })
-                }
-                className="w-full h-8 rounded cursor-pointer"
+                onChange={(value) => updateSettings({ backgroundColor: value })}
+                label="Select replacement background color"
               />
             </div>
           )}
 
           {settings.mode === "image" && (
             <div>
-              <label className="text-[10px] text-text-secondary block mb-2">
+              <Text type="supporting" color="secondary" className="mb-2 block text-[10px]">
                 Background Image
-              </label>
-              <button
+              </Text>
+              <Button
+                label="Choose Image"
+                icon={<ImageIcon size={14} />}
+                variant="secondary"
+                size="sm"
                 onClick={() => {
                   const input = document.createElement("input");
                   input.type = "file";
@@ -272,67 +268,44 @@ export const BackgroundRemovalSection: React.FC<
                   };
                   input.click();
                 }}
-                className="w-full py-2 bg-background-secondary hover:bg-background-primary text-text-primary rounded text-[10px] transition-colors flex items-center justify-center gap-2"
-              >
-                <ImageIcon size={14} />
-                Choose Image
-              </button>
+                className="w-full justify-center"
+              />
               {settings.backgroundImageUrl && (
-                <div className="mt-2 text-[9px] text-text-muted truncate">
+                <Text type="supporting" color="secondary" className="mt-2 truncate text-[9px]">
                   Image loaded
-                </div>
+                </Text>
               )}
             </div>
           )}
 
-          <div>
-            <div className="flex items-center justify-between mb-1">
-              <label className="text-[10px] text-text-secondary">
-                Edge Smoothing
-              </label>
-              <span className="text-[10px] text-text-muted font-mono">
-                {settings.edgeBlur}
-              </span>
-            </div>
-            <Slider
-              min={0}
-              max={10}
-              step={1}
-              value={[settings.edgeBlur]}
-              onValueChange={(value) =>
-                updateSettings({ edgeBlur: value[0] })
-              }
-            />
-          </div>
+          <PropertySlider
+            label="Edge Smoothing"
+            min={0}
+            max={10}
+            step={1}
+            value={settings.edgeBlur}
+            onChange={(value: number) => updateSettings({ edgeBlur: value })}
+            formatValue={(value) => `${Math.round(value)}`}
+          />
 
-          <div>
-            <div className="flex items-center justify-between mb-1">
-              <label className="text-[10px] text-text-secondary">
-                Detection Threshold
-              </label>
-              <span className="text-[10px] text-text-muted font-mono">
-                {Math.round(settings.threshold * 100)}%
-              </span>
-            </div>
-            <Slider
-              min={0}
-              max={100}
-              step={1}
-              value={[settings.threshold * 100]}
-              onValueChange={(value) =>
-                updateSettings({ threshold: value[0] / 100 })
-              }
-            />
-          </div>
+          <PropertySlider
+            label="Detection Threshold"
+            min={0}
+            max={100}
+            step={1}
+            value={settings.threshold * 100}
+            onChange={(value: number) => updateSettings({ threshold: value / 100 })}
+            formatValue={(value) => `${Math.round(value)}%`}
+          />
 
           <div className="flex items-start gap-2 p-2 bg-primary/10 rounded border border-primary/20">
             <Info size={14} className="text-primary flex-shrink-0 mt-0.5" />
-            <p className="text-[9px] text-text-muted">
+            <Text type="supporting" color="secondary" className="text-[9px]">
               Background removal is processed in real-time. For best results,
               export your video after previewing.
-            </p>
+            </Text>
           </div>
-        </div>
+        </Card>
       )}
     </div>
   );

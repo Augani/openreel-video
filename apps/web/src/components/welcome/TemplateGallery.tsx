@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useMemo, useEffect } from "react";
-import { Search, Loader2, Layers } from "lucide-react";
-import { Input } from "@openreel/ui";
+import { Search, Loader2, Layers } from "@/icons/lucide-compat";
+import { ToolcraftText as Text } from "@openreel/ui";
+import { ToolcraftTextInputControl } from "@openreel/ui";
 import { useEngineStore } from "../../stores/engine-store";
 import {
   SOCIAL_MEDIA_CATEGORY_INFO,
@@ -160,7 +161,7 @@ export const TemplateGallery: React.FC<TemplateGalleryProps> = ({
           <div className="absolute inset-0 bg-primary/20 rounded-full blur-xl" />
           <Loader2 className="relative w-10 h-10 text-primary animate-spin" />
         </div>
-        <p className="text-sm text-text-muted mt-6">Loading templates...</p>
+        <Text type="supporting" color="secondary" className="text-sm text-text-muted mt-6">Loading templates...</Text>
       </div>
     );
   }
@@ -173,10 +174,11 @@ export const TemplateGallery: React.FC<TemplateGalleryProps> = ({
             size={18}
             className="absolute left-4 top-1/2 -translate-y-1/2 text-text-muted z-10"
           />
-          <Input
-            type="text"
+          <ToolcraftTextInputControl
+            label="Search templates"
+            isLabelHidden
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={setSearchQuery}
             placeholder="Search templates..."
             className="pl-11 bg-background-tertiary border-border rounded-xl text-text-primary"
           />
@@ -194,12 +196,12 @@ export const TemplateGallery: React.FC<TemplateGalleryProps> = ({
           <div className="w-14 h-14 rounded-2xl bg-background-tertiary flex items-center justify-center mb-4">
             <Layers size={24} className="text-text-muted" />
           </div>
-          <p className="text-base font-medium text-text-primary mb-1">
+          <Text type="supporting" color="primary" weight="medium" className="text-base text-text-primary mb-1">
             No templates found
-          </p>
-          <p className="text-sm text-text-muted">
+          </Text>
+          <Text type="supporting" color="secondary" className="text-sm text-text-muted">
             Try adjusting your search or filter
-          </p>
+          </Text>
         </div>
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">

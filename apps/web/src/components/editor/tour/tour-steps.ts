@@ -12,19 +12,21 @@ export const TOUR_STEPS: TourStep[] = [
     id: "welcome",
     target: null,
     title: "Welcome to OpenReel",
-    description: "Let's take a quick tour of the editor",
+    description:
+      "A quick map of the current editor layout: tools on the left, playback in the center, timeline below, and properties on the right.",
     position: "center",
   },
   {
     id: "assets",
     target: "[data-tour='assets']",
-    title: "Assets Panel",
-    description: "Your creative toolkit. Import media, generate AI content, add shapes, stickers, and custom SVGs.",
+    title: "Media and Creative Tools",
+    description:
+      "This left panel changes with the tool rail: import media, add text, graphics, effects, and transitions from here.",
     tips: [
-      "Drag & drop videos, audio, images",
-      "AI Gen tab: generate images & backgrounds with AI",
-      "Shapes & custom SVG imports",
-      "Stickers, backgrounds & overlays",
+      "Media holds imported videos, audio, and images",
+      "Use the left rail to switch to Text, Graphics, Effects, or Transitions",
+      "Drag assets from this panel onto the timeline",
+      "The import and record controls live at the top of this panel",
     ],
     position: "right",
   },
@@ -32,19 +34,25 @@ export const TOUR_STEPS: TourStep[] = [
     id: "timeline",
     target: "[data-tour='timeline']",
     title: "Timeline",
-    description: "Arrange and edit your clips. Drag to move, drag edges to trim.",
-    tips: ["Press S to split clips", "Space to play/pause", "Scroll to zoom"],
+    description:
+      "Arrange clips on tracks, trim edges, split selections, and use the zoom controls on the right side of the timeline bar.",
+    tips: [
+      "Press S to split the selected clip",
+      "Drag clip edges to trim",
+      "Use Add track when you need another video or audio lane",
+    ],
     position: "top",
   },
   {
     id: "preview",
     target: "[data-tour='preview']",
-    title: "Preview",
-    description: "Watch your video in real-time as you edit.",
+    title: "Player",
+    description:
+      "The center player shows the current frame and playback controls. Crop, fit, and review changes here before export.",
     tips: [
-      "Arrow keys for frame navigation",
-      "Click to scrub",
-      "Fullscreen available",
+      "Use playback controls under the canvas",
+      "The green dot means live preview is active",
+      "Fullscreen and fit tools are in the player controls",
     ],
     position: "left",
   },
@@ -53,19 +61,20 @@ export const TOUR_STEPS: TourStep[] = [
     target: "[data-tour='inspector']",
     title: "Inspector",
     description:
-      "Select a clip to see its properties. Add effects, adjust colors, animate.",
+      "Select a clip to edit its properties. Transform, color, effects, speed, and animation controls appear here.",
     tips: [
-      "Transform, effects, color grading",
-      "Keyframe any property",
-      "AI-powered tools",
+      "Use the top tabs to switch between property groups",
+      "Color grading and effects are clip-specific",
+      "Keyframe-capable controls show animation options when a clip is selected",
     ],
     position: "left",
   },
   {
     id: "complete",
     target: null,
-    title: "You're Ready!",
-    description: "Start creating! Press ? anytime for keyboard shortcuts.",
+    title: "You're Ready",
+    description:
+      "You now know where the main tools live. Use the action rail on the far left to reopen tours, settings, and project utilities.",
     position: "center",
   },
 ];

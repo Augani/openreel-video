@@ -1,0 +1,15 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "baseUrl": ".",
+    "types": ["node"],
+    "paths": {
+      "@openreel/core": ["../core/src/index.ts"],
+      "@openreel/core/*": ["../core/src/*"],
+      "@openreel/agent": ["../agent/src/index.ts"],
+      "@openreel/agent/*": ["../agent/src/*"]
+    }
+  },
+  "include": ["src"]
+}

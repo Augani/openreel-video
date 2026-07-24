@@ -1,4 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { ToolcraftButton as Button } from "@openreel/ui";
+import { ToolcraftCard as Card } from "@openreel/ui";
+import { ToolcraftClickableCard as ClickableCard } from "@openreel/ui";
+import { ToolcraftIconButton as IconButton } from "@openreel/ui";
+import { ToolcraftText as Text } from "@openreel/ui";
+import { MockToggle } from "./shell/InspectorControls";
+import { PropertySlider } from "./shell/PropertySlider";
 import {
   ArrowRight,
   ArrowLeft,
@@ -6,17 +13,36 @@ import {
   ArrowDown,
   X,
   Check,
-} from "lucide-react";
+} from "@/icons/lucide-compat";
 import {
   getTransitionBridge,
   type TransitionTypeInfo,
 } from "../../../bridges/transition-bridge";
-import type { Transition, Clip } from "@openreel/core";
+import type { Transition, Clip, TransitionEdge } from "@openreel/core";
 import type { TransitionType } from "@openreel/core";
 import { toast } from "../../../stores/notification-store";
-import { LabeledSlider, Switch } from "@openreel/ui";
 
-const TransitionSlider = LabeledSlider;
+const TransitionSlider: React.FC<{
+  label: string;
+  value: number;
+  onChange: (value: number) => void;
+  min: number;
+  max: number;
+  step?: number;
+  unit?: string;
+}> = ({ label, value, onChange, min, max, step = 1, unit = "" }) => (
+  <PropertySlider
+    label={label}
+    value={value}
+    onChange={onChange}
+    min={min}
+    max={max}
+    step={step}
+    formatValue={(nextValue) =>
+      `${step < 1 ? Number(nextValue.toFixed(2)) : Math.round(nextValue)}${unit}`
+    }
+  />
+);
 
 /**
  * Direction Selector Component
@@ -35,21 +61,24 @@ const DirectionSelector: React.FC<{
 
   return (
     <div className="space-y-1">
-      <span className="text-[10px] text-text-secondary">Direction</span>
+      <Text type="supporting" color="secondary" className="text-[10px]">
+        Direction
+      </Text>
       <div className="grid grid-cols-4 gap-1">
         {options.map((dir) => (
-          <button
+          <IconButton
             key={dir}
+            label={dir.charAt(0).toUpperCase() + dir.slice(1)}
+            icon={(directionIcons[dir] || dir) as any}
+            variant={value === dir ? "primary" : "secondary"}
+            size="sm"
             onClick={() => onChange(dir)}
             className={`p-2 rounded-lg border transition-colors flex items-center justify-center ${
               value === dir
                 ? "bg-primary/20 border-primary text-primary"
-                : "bg-background-tertiary border-border text-text-secondary hover:text-text-primary"
+                : "bg-bg-2 border-border text-fg-2 hover:text-fg"
             }`}
-            title={dir.charAt(0).toUpperCase() + dir.slice(1)}
-          >
-            {directionIcons[dir] || dir}
-          </button>
+          />
         ))}
       </div>
     </div>
@@ -62,8 +91,10 @@ const Toggle: React.FC<{
   onChange: (value: boolean) => void;
 }> = ({ label, value, onChange }) => (
   <div className="flex items-center justify-between">
-    <span className="text-[10px] text-text-secondary">{label}</span>
-    <Switch checked={value} onCheckedChange={onChange} />
+    <Text type="supporting" color="secondary" className="text-[10px]">
+      {label}
+    </Text>
+    <MockToggle ariaLabel={label} checked={value} onChange={onChange} />
   </div>
 );
 
@@ -74,11 +105,11 @@ const TransitionPreview: React.FC<{
   type: TransitionType;
   isPlaying: boolean;
 }> = ({ type, isPlaying }) => {
-  const [progress, setProgress] = React.useState(0);
+  const [progress, setProgress] = React.useState(0.45);
 
   React.useEffect(() => {
     if (!isPlaying) {
-      setProgress(0);
+      setProgress(0.45);
       return;
     }
 
@@ -143,6 +174,197 @@ const TransitionPreview: React.FC<{
           clipA: { opacity: p < 0.5 ? 1 - p * 2 : 0 },
           clipB: { opacity: p > 0.5 ? (p - 0.5) * 2 : 0 },
         };
+      case "circleReveal":
+        return {
+          clipA: {},
+          clipB: { clipPath: `circle(${p * 75}% at 50% 50%)` },
+        };
+      case "blur": {
+        const blur = Math.sin(p * Math.PI) * 12;
+        return {
+          clipA: { opacity: 1 - p, filter: `blur(${blur}px)` },
+          clipB: { opacity: p, filter: `blur(${blur}px)` },
+        };
+      }
+      case "whipPan": {
+        const blur = Math.sin(p * Math.PI) * 10;
+        return {
+          clipA: {
+            transform: `translateX(${-p * 100}%)`,
+            filter: `blur(${blur}px)`,
+          },
+          clipB: {
+            transform: `translateX(${(1 - p) * 100}%)`,
+            filter: `blur(${blur}px)`,
+          },
+        };
+      }
+      case "radialWipe": {
+        const mask = `conic-gradient(from -90deg,#000 ${p * 360}deg,transparent 0deg)`;
+        return {
+          clipA: {},
+          clipB: { maskImage: mask, WebkitMaskImage: mask },
+        };
+      }
+      case "pixelate": {
+        const amount = Math.max(1, Math.round(Math.sin(p * Math.PI) * 10));
+        return {
+          clipA: {
+            opacity: 1 - p,
+            imageRendering: "pixelated",
+            transform: `scale(${1 + amount / 400})`,
+          },
+          clipB: {
+            opacity: p,
+            imageRendering: "pixelated",
+            transform: `scale(${1 + amount / 400})`,
+          },
+        };
+      }
+      case "glitch": {
+        const amount = Math.sin(p * Math.PI) * 16;
+        return {
+          clipA: {
+            opacity: 1 - p * 0.7,
+            transform: `translateX(${-amount}px)`,
+            filter: `hue-rotate(${-amount * 2}deg)`,
+          },
+          clipB: {
+            opacity: p,
+            transform: `translateX(${amount}px)`,
+            clipPath:
+              "polygon(0 0,100% 0,100% 22%,0 22%,0 36%,100% 36%,100% 58%,0 58%,0 72%,100% 72%,100% 90%,0 90%)",
+          },
+        };
+      }
+      case "blinds": {
+        const open = Math.max(0.5, p * 16);
+        const mask = `repeating-linear-gradient(90deg,#000 0 ${open}px,transparent ${open}px 16px)`;
+        return {
+          clipA: {},
+          clipB: { maskImage: mask, WebkitMaskImage: mask },
+        };
+      }
+      case "diamondReveal":
+        return {
+          clipA: {},
+          clipB: {
+            clipPath: `polygon(50% ${50 - p * 70}%, ${50 + p * 70}% 50%, 50% ${50 + p * 70}%, ${50 - p * 70}% 50%)`,
+          },
+        };
+      case "spin": {
+        const easedIncoming = Math.max(0, Math.min(1, p));
+        return {
+          clipA: {
+            opacity: 1 - easedIncoming,
+            transform: `scale(${1 + easedIncoming * 0.35}) rotate(${easedIncoming * 180}deg)`,
+          },
+          clipB: {
+            opacity: easedIncoming,
+            transform: `scale(${0.65 + easedIncoming * 0.35}) rotate(${(easedIncoming - 1) * 180}deg)`,
+          },
+        };
+      }
+      case "flip": {
+        const outgoingAngle = p * 90;
+        const incomingAngle = (1 - p) * -90;
+        return {
+          clipA: {
+            opacity: p < 0.55 ? 1 : 0,
+            transform: `perspective(240px) rotateY(${outgoingAngle}deg)`,
+            transformOrigin: "center",
+          },
+          clipB: {
+            opacity: p > 0.45 ? 1 : 0,
+            transform: `perspective(240px) rotateY(${incomingAngle}deg)`,
+            transformOrigin: "center",
+          },
+        };
+      }
+      case "splitReveal": {
+        const edge = p * 50;
+        return {
+          clipA: {},
+          clipB: {
+            clipPath: `polygon(0 ${50 - edge}%,100% ${50 - edge}%,100% ${50 + edge}%,0 ${50 + edge}%)`,
+          },
+        };
+      }
+      case "flash": {
+        const flashAmount = Math.max(0, 1 - Math.abs(p - 0.5) * 2);
+        return {
+          clipA: {
+            opacity: 1 - p,
+            filter: `brightness(${1 + flashAmount * 4})`,
+          },
+          clipB: {
+            opacity: p,
+            filter: `brightness(${1 + flashAmount * 4})`,
+          },
+        };
+      }
+      case "filmBurn": {
+        const burn = Math.max(0, 1 - Math.abs(p - 0.5) * 2);
+        return {
+          clipA: {
+            opacity: 1 - p,
+            filter: `sepia(${burn}) saturate(${1 + burn * 2}) brightness(${1 + burn * 1.5})`,
+          },
+          clipB: {
+            opacity: p,
+            filter: `sepia(${burn}) saturate(${1 + burn * 2}) brightness(${1 + burn * 1.5})`,
+          },
+        };
+      }
+      case "mosaic": {
+        const reveal = Math.round(p * 100);
+        const mask = `linear-gradient(135deg,#000 ${reveal}%,transparent ${Math.min(100, reveal + 18)}%)`;
+        return {
+          clipA: {},
+          clipB: {
+            maskImage: mask,
+            WebkitMaskImage: mask,
+            imageRendering: "pixelated",
+          },
+        };
+      }
+      case "ripple": {
+        const wave = Math.sin(p * Math.PI) * 8;
+        return {
+          clipA: {
+            opacity: 1 - p,
+            transform: `translateX(${-wave}px) skewY(${wave * 0.25}deg)`,
+          },
+          clipB: {
+            opacity: p,
+            transform: `translateX(${wave}px) skewY(${-wave * 0.25}deg)`,
+          },
+        };
+      }
+      case "pageTurn":
+        return {
+          clipA: {
+            transform: `perspective(260px) rotateY(${p * 88}deg)`,
+            transformOrigin: "left center",
+            filter: `brightness(${1 - Math.sin(p * Math.PI) * 0.25})`,
+          },
+          clipB: {},
+        };
+      case "colorSplit": {
+        const split = Math.sin(p * Math.PI) * 10;
+        return {
+          clipA: {
+            opacity: 1 - p,
+            transform: `translateX(${-split}px)`,
+            filter: `hue-rotate(${-split * 3}deg)`,
+          },
+          clipB: {
+            opacity: p,
+            transform: `translateX(${split}px)`,
+            filter: `hue-rotate(${split * 3}deg)`,
+          },
+        };
+      }
       default:
         return { clipA: {}, clipB: {} };
     }
@@ -152,7 +374,11 @@ const TransitionPreview: React.FC<{
   const dipColor = type === "dipToWhite" ? "bg-white" : "bg-black";
 
   return (
-    <div className="relative w-full h-8 rounded overflow-hidden bg-background-secondary mb-2">
+    <div
+      data-transition-preview={type}
+      data-preview-progress={progress.toFixed(2)}
+      className="relative w-full h-8 rounded overflow-hidden bg-bg-1 mb-2"
+    >
       <div
         className="absolute inset-0 bg-primary/20"
         style={{ ...styles.clipA, transition: "none" }}
@@ -185,14 +411,15 @@ const TransitionTypeCard: React.FC<{
   const [isHovered, setIsHovered] = React.useState(false);
 
   return (
-    <button
+    <ClickableCard
+      label={typeInfo.name}
       onClick={onSelect}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       className={`p-3 rounded-lg border transition-all text-left ${
         isSelected
           ? "bg-primary/20 border-primary"
-          : "bg-background-tertiary border-border hover:border-text-secondary"
+          : "bg-bg-2 border-border hover:border-text-secondary"
       }`}
     >
       <TransitionPreview
@@ -200,17 +427,20 @@ const TransitionTypeCard: React.FC<{
         isPlaying={isHovered || isSelected}
       />
       <div className="flex items-center justify-between mb-1">
-        <span
+        <Text
+          type="supporting"
           className={`text-[10px] font-medium ${
-            isSelected ? "text-primary" : "text-text-primary"
+            isSelected ? "text-primary" : "text-fg"
           }`}
         >
           {typeInfo.name}
-        </span>
+        </Text>
         {isSelected && <Check size={12} className="text-primary" />}
       </div>
-      <p className="text-[9px] text-text-muted">{typeInfo.description}</p>
-    </button>
+      <Text type="supporting" color="secondary" className="text-[9px]">
+        {typeInfo.description}
+      </Text>
+    </ClickableCard>
   );
 };
 
@@ -219,7 +449,8 @@ const TransitionTypeCard: React.FC<{
  */
 interface TransitionInspectorProps {
   clipA: Clip;
-  clipB: Clip;
+  clipB?: Clip;
+  edge?: TransitionEdge;
   transition?: Transition;
   onTransitionCreate?: (transition: Transition) => void;
   onTransitionUpdate?: (
@@ -239,6 +470,7 @@ interface TransitionInspectorProps {
 export const TransitionInspector: React.FC<TransitionInspectorProps> = ({
   clipA,
   clipB,
+  edge,
   transition,
   onTransitionCreate,
   onTransitionUpdate,
@@ -264,28 +496,43 @@ export const TransitionInspector: React.FC<TransitionInspectorProps> = ({
     setSelectedType(nextType);
     setDuration(transition?.duration || 1.0);
     setParams(transition?.params || bridge.getDefaultParams(nextType));
-  }, [bridge, clipA.id, clipB.id, transition]);
+  }, [bridge, clipA.id, clipB?.id, edge, transition]);
 
   // Validate transition
   const validation = useMemo(() => {
     if (!bridge.isInitialized()) {
       bridge.initialize();
     }
+    if (edge) {
+      return bridge.validateClipEdgeTransition(clipA, duration);
+    }
+    if (!clipB) {
+      return {
+        valid: false,
+        error: "A second clip is required for clip-to-clip transitions",
+      };
+    }
     return bridge.validateTransition(clipA, clipB, duration);
-  }, [clipA, clipB, duration]);
+  }, [bridge, clipA, clipB, duration, edge]);
 
   // Handle type change
   const handleTypeChange = useCallback(
     (type: TransitionType) => {
       setSelectedType(type);
       const defaultParams = bridge.getDefaultParams(type);
-      setParams(defaultParams);
+      const nextParams = {
+        ...defaultParams,
+        ...(typeof params.audioFade === "boolean"
+          ? { audioFade: params.audioFade }
+          : {}),
+      };
+      setParams(nextParams);
 
       if (transition) {
-        onTransitionUpdate?.(transition.id, { type, params: defaultParams });
+        onTransitionUpdate?.(transition.id, { type, params: nextParams });
       }
     },
-    [transition, onTransitionUpdate],
+    [bridge, params.audioFade, transition, onTransitionUpdate],
   );
 
   // Handle duration change
@@ -318,13 +565,15 @@ export const TransitionInspector: React.FC<TransitionInspectorProps> = ({
 
   // Handle create transition
   const handleCreate = useCallback(() => {
-    const result = bridge.createTransition(
-      clipA,
-      clipB,
-      selectedType,
-      duration,
-      params,
-    );
+    const result = edge
+      ? bridge.createClipEdgeTransition(clipA, edge, selectedType, duration, params)
+      : clipB
+        ? bridge.createTransition(clipA, clipB, selectedType, duration, params)
+        : {
+            success: false,
+            error: "A second clip is required",
+            transitionId: undefined,
+          };
 
     if (result.success && result.transitionId) {
       const newTransition = bridge.getTransition(result.transitionId);
@@ -341,7 +590,7 @@ export const TransitionInspector: React.FC<TransitionInspectorProps> = ({
         result.error || "Could not apply transition",
       );
     }
-  }, [clipA, clipB, selectedType, duration, params, onTransitionCreate]);
+  }, [bridge, clipA, clipB, edge, selectedType, duration, params, onTransitionCreate]);
 
   // Handle remove transition
   const handleRemove = useCallback(() => {
@@ -354,6 +603,36 @@ export const TransitionInspector: React.FC<TransitionInspectorProps> = ({
 
   // Render type-specific parameters
   const renderTypeParams = () => {
+    const center =
+      params.center && typeof params.center === "object"
+        ? (params.center as { x?: number; y?: number })
+        : {};
+    const centerX = typeof center.x === "number" ? center.x : 0.5;
+    const centerY = typeof center.y === "number" ? center.y : 0.5;
+    const renderCenterControls = () => (
+      <div className="grid grid-cols-2 gap-2">
+        <TransitionSlider
+          label="Center X"
+          value={centerX * 100}
+          onChange={(value) =>
+            handleParamChange("center", { x: value / 100, y: centerY })
+          }
+          min={0}
+          max={100}
+          unit="%"
+        />
+        <TransitionSlider
+          label="Center Y"
+          value={centerY * 100}
+          onChange={(value) =>
+            handleParamChange("center", { x: centerX, y: value / 100 })
+          }
+          min={0}
+          max={100}
+          unit="%"
+        />
+      </div>
+    );
     switch (selectedType) {
       case "wipe":
         return (
@@ -397,18 +676,79 @@ export const TransitionInspector: React.FC<TransitionInspectorProps> = ({
           />
         );
 
-      case "zoom":
+      case "blur":
         return (
           <TransitionSlider
-            label="Scale"
-            value={(params.scale as number) || 2}
-            onChange={(v) => handleParamChange("scale", v)}
-            min={1.1}
-            max={4}
-            step={0.1}
-            unit="x"
+            label="Blur Strength"
+            value={((params.intensity as number) ?? 1) * 100}
+            onChange={(value) => handleParamChange("intensity", value / 100)}
+            min={0}
+            max={200}
+            step={5}
+            unit="%"
           />
         );
+
+      case "whipPan":
+        return (
+          <>
+            <DirectionSelector
+              value={(params.direction as string) || "left"}
+              onChange={(direction) => handleParamChange("direction", direction)}
+            />
+            <TransitionSlider
+              label="Motion Blur"
+              value={((params.blurIntensity as number) ?? 1) * 100}
+              onChange={(value) =>
+                handleParamChange("blurIntensity", value / 100)
+              }
+              min={0}
+              max={200}
+              step={5}
+              unit="%"
+            />
+          </>
+        );
+
+      case "radialWipe":
+        return (
+          <>
+            <TransitionSlider
+              label="Start Angle"
+              value={(params.startAngle as number) ?? -90}
+              onChange={(value) => handleParamChange("startAngle", value)}
+              min={-180}
+              max={180}
+              step={1}
+              unit="°"
+            />
+            <Toggle
+              label="Clockwise"
+              value={(params.clockwise as boolean) ?? true}
+              onChange={(value) => handleParamChange("clockwise", value)}
+            />
+          </>
+        );
+
+      case "zoom":
+        return (
+          <>
+            <TransitionSlider
+              label="Scale"
+              value={(params.scale as number) || 2}
+              onChange={(v) => handleParamChange("scale", v)}
+              min={1.1}
+              max={4}
+              step={0.1}
+              unit="x"
+            />
+            {renderCenterControls()}
+          </>
+        );
+
+      case "circleReveal":
+      case "diamondReveal":
+        return renderCenterControls();
 
       case "dipToBlack":
       case "dipToWhite":
@@ -424,6 +764,221 @@ export const TransitionInspector: React.FC<TransitionInspectorProps> = ({
           />
         );
 
+      case "pixelate":
+        return (
+          <TransitionSlider
+            label="Maximum Pixel Size"
+            value={(params.maxPixelSize as number) || 48}
+            onChange={(v) => handleParamChange("maxPixelSize", v)}
+            min={4}
+            max={128}
+            step={2}
+            unit="px"
+          />
+        );
+
+      case "glitch":
+        return (
+          <>
+            <TransitionSlider
+              label="Intensity"
+              value={((params.intensity as number) || 0.08) * 100}
+              onChange={(v) => handleParamChange("intensity", v / 100)}
+              min={1}
+              max={25}
+              unit="%"
+            />
+            <TransitionSlider
+              label="Slices"
+              value={(params.slices as number) || 12}
+              onChange={(v) => handleParamChange("slices", v)}
+              min={4}
+              max={40}
+              step={1}
+            />
+          </>
+        );
+
+      case "blinds":
+        return (
+          <>
+            <DirectionSelector
+              value={(params.direction as string) || "vertical"}
+              onChange={(direction) =>
+                handleParamChange("direction", direction)
+              }
+              options={["vertical", "horizontal"]}
+            />
+            <TransitionSlider
+              label="Slats"
+              value={(params.count as number) || 8}
+              onChange={(v) => handleParamChange("count", v)}
+              min={2}
+              max={32}
+              step={1}
+            />
+          </>
+        );
+
+      case "spin":
+        return (
+          <TransitionSlider
+            label="Rotations"
+            value={(params.rotations as number) ?? 1}
+            onChange={(value) => handleParamChange("rotations", value)}
+            min={-2}
+            max={2}
+            step={0.25}
+          />
+        );
+
+      case "flip":
+        return (
+          <DirectionSelector
+            value={(params.axis as string) || "horizontal"}
+            onChange={(axis) => handleParamChange("axis", axis)}
+            options={["horizontal", "vertical"]}
+          />
+        );
+
+      case "splitReveal":
+        return (
+          <DirectionSelector
+            value={(params.orientation as string) || "horizontal"}
+            onChange={(orientation) =>
+              handleParamChange("orientation", orientation)
+            }
+            options={["horizontal", "vertical"]}
+          />
+        );
+
+      case "flash":
+        return (
+          <TransitionSlider
+            label="Flash Intensity"
+            value={((params.intensity as number) ?? 1) * 100}
+            onChange={(value) => handleParamChange("intensity", value / 100)}
+            min={0}
+            max={150}
+            step={5}
+            unit="%"
+          />
+        );
+
+      case "filmBurn":
+        return (
+          <>
+            <TransitionSlider
+              label="Burn Intensity"
+              value={((params.intensity as number) ?? 1) * 100}
+              onChange={(value) => handleParamChange("intensity", value / 100)}
+              min={0}
+              max={200}
+              step={5}
+              unit="%"
+            />
+            <TransitionSlider
+              label="Warmth"
+              value={((params.warmth as number) ?? 0.75) * 100}
+              onChange={(value) => handleParamChange("warmth", value / 100)}
+              min={0}
+              max={100}
+              step={5}
+              unit="%"
+            />
+          </>
+        );
+
+      case "mosaic":
+        return (
+          <>
+            <TransitionSlider
+              label="Tile Columns"
+              value={(params.tiles as number) ?? 8}
+              onChange={(value) => handleParamChange("tiles", value)}
+              min={2}
+              max={24}
+              step={1}
+            />
+            <TransitionSlider
+              label="Randomness"
+              value={((params.randomness as number) ?? 0.85) * 100}
+              onChange={(value) => handleParamChange("randomness", value / 100)}
+              min={0}
+              max={100}
+              step={5}
+              unit="%"
+            />
+          </>
+        );
+
+      case "ripple":
+        return (
+          <>
+            <TransitionSlider
+              label="Amplitude"
+              value={((params.amplitude as number) ?? 0.04) * 100}
+              onChange={(value) => handleParamChange("amplitude", value / 100)}
+              min={0}
+              max={20}
+              step={0.5}
+              unit="%"
+            />
+            <TransitionSlider
+              label="Waves"
+              value={(params.waves as number) ?? 3}
+              onChange={(value) => handleParamChange("waves", value)}
+              min={0.5}
+              max={12}
+              step={0.5}
+            />
+          </>
+        );
+
+      case "pageTurn":
+        return (
+          <>
+            <DirectionSelector
+              value={(params.direction as string) || "left"}
+              onChange={(direction) => handleParamChange("direction", direction)}
+              options={["left", "right"]}
+            />
+            <TransitionSlider
+              label="Fold Shadow"
+              value={((params.shadow as number) ?? 0.55) * 100}
+              onChange={(value) => handleParamChange("shadow", value / 100)}
+              min={0}
+              max={100}
+              step={5}
+              unit="%"
+            />
+          </>
+        );
+
+      case "colorSplit":
+        return (
+          <>
+            <TransitionSlider
+              label="Maximum Offset"
+              value={(params.maxOffset as number) ?? 18}
+              onChange={(value) => handleParamChange("maxOffset", value)}
+              min={0}
+              max={80}
+              step={1}
+              unit="px"
+            />
+            <TransitionSlider
+              label="Angle"
+              value={(params.angle as number) ?? 0}
+              onChange={(value) => handleParamChange("angle", value)}
+              min={0}
+              max={360}
+              step={5}
+              unit="°"
+            />
+          </>
+        );
+
       case "crossfade":
       default:
         return null;
@@ -431,38 +986,49 @@ export const TransitionInspector: React.FC<TransitionInspectorProps> = ({
   };
 
   const selectedTypeInfo = transitionTypes.find((t) => t.type === selectedType);
+  const fromLabel = edge === "in" ? "Background" : `${clipA.id.substring(0, 12)}...`;
+  const toLabel =
+    edge === "out"
+      ? "Background"
+      : `${(clipB ?? clipA).id.substring(0, 12)}...`;
 
   return (
     <div className="space-y-4">
       {/* Clip Info */}
-      <div className="flex items-center gap-2 p-2 bg-background-tertiary rounded-lg border border-border">
-        <div className="flex-1 text-center">
-          <p className="text-[9px] text-text-muted">From</p>
-          <p className="text-[10px] text-text-primary truncate">
-            {clipA.id.substring(0, 12)}...
-          </p>
+      <Card variant="muted" padding={2} className="flex items-center gap-2 border border-border">
+        <div className="flex-1 min-w-0 flex flex-col items-center gap-0.5 text-center">
+          <Text type="supporting" color="secondary" display="block" className="text-[9px]">
+            From
+          </Text>
+          <Text type="supporting" color="primary" display="block" maxLines={1} className="w-full truncate text-[10px]">
+            {fromLabel}
+          </Text>
         </div>
-        <ArrowRight size={14} className="text-text-muted" />
-        <div className="flex-1 text-center">
-          <p className="text-[9px] text-text-muted">To</p>
-          <p className="text-[10px] text-text-primary truncate">
-            {clipB.id.substring(0, 12)}...
-          </p>
+        <ArrowRight size={14} className="text-fg-3" />
+        <div className="flex-1 min-w-0 flex flex-col items-center gap-0.5 text-center">
+          <Text type="supporting" color="secondary" display="block" className="text-[9px]">
+            To
+          </Text>
+          <Text type="supporting" color="primary" display="block" maxLines={1} className="w-full truncate text-[10px]">
+            {toLabel}
+          </Text>
         </div>
-      </div>
+      </Card>
 
       {/* Validation Warning */}
       {validation.warning && (
-        <div className="p-2 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
-          <p className="text-[10px] text-yellow-500">{validation.warning}</p>
-        </div>
+        <Card variant="muted" padding={2} className="border border-yellow-500/30 bg-yellow-500/10">
+          <Text type="supporting" className="text-[10px] text-yellow-500">
+            {validation.warning}
+          </Text>
+        </Card>
       )}
 
       {/* Transition Type Selector */}
       <div className="space-y-2">
-        <span className="text-[10px] text-text-secondary font-medium">
+        <Text type="supporting" color="secondary" className="text-[10px] font-medium">
           Transition Type
-        </span>
+        </Text>
         <div className="grid grid-cols-2 gap-2">
           {transitionTypes.map((typeInfo) => (
             <TransitionTypeCard
@@ -486,12 +1052,18 @@ export const TransitionInspector: React.FC<TransitionInspectorProps> = ({
         unit="s"
       />
 
+      <Toggle
+        label={edge ? "Fade clip audio" : "Smooth transition audio"}
+        value={(params.audioFade as boolean) ?? false}
+        onChange={(value) => handleParamChange("audioFade", value)}
+      />
+
       {/* Type-specific Parameters */}
       {selectedTypeInfo?.hasCustomParams && (
         <div className="space-y-3 pt-2 border-t border-border">
-          <span className="text-[10px] text-text-secondary font-medium">
+          <Text type="supporting" color="secondary" className="text-[10px] font-medium">
             Parameters
-          </span>
+          </Text>
           {renderTypeParams()}
         </div>
       )}
@@ -499,34 +1071,36 @@ export const TransitionInspector: React.FC<TransitionInspectorProps> = ({
       {/* Action Buttons */}
       <div className="flex gap-2 pt-2">
         {transition ? (
-          <button
+          <Button
+            label="Remove Transition"
+            icon={<X size={12} />}
+            variant="secondary"
+            size="sm"
             onClick={handleRemove}
             className="flex-1 py-2 bg-red-500/10 border border-red-500/30 rounded-lg text-[10px] text-red-400 hover:bg-red-500/20 transition-colors flex items-center justify-center gap-1"
-          >
-            <X size={12} />
-            Remove Transition
-          </button>
+          />
         ) : (
-          <button
+          <Button
+            label="Apply Transition"
+            icon={<Check size={12} />}
+            variant={validation.valid ? "primary" : "secondary"}
+            size="sm"
             onClick={handleCreate}
-            disabled={!validation.valid}
+            isDisabled={!validation.valid}
             className={`flex-1 py-2 rounded-lg text-[10px] transition-colors flex items-center justify-center gap-1 ${
               validation.valid
                 ? "bg-primary/10 border border-primary/30 text-primary hover:bg-primary/20"
-                : "bg-background-tertiary border border-border text-text-muted cursor-not-allowed"
+                : "bg-bg-2 border border-border text-fg-3 cursor-not-allowed"
             }`}
-          >
-            <Check size={12} />
-            Apply Transition
-          </button>
+          />
         )}
       </div>
 
       {/* Error Message */}
       {!validation.valid && validation.error && (
-        <p className="text-[10px] text-red-400 text-center">
+        <Text type="supporting" className="block text-center text-[10px] text-red-400">
           {validation.error}
-        </p>
+        </Text>
       )}
     </div>
   );
