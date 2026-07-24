@@ -547,7 +547,7 @@ export const EffectsPanel: React.FC = () => {
   );
 
   return (
-    <div className="flex flex-col h-full min-h-0">
+    <div className="flex flex-col flex-1 min-h-0">
       <div className="px-3 pt-3 pb-2 shrink-0">
         <div className="relative">
           <Search
@@ -612,7 +612,7 @@ export const TransitionsPanel: React.FC = () => {
   }, [query]);
 
   return (
-    <div className="flex flex-col h-full min-h-0">
+    <div className="flex flex-col flex-1 min-h-0">
       <div className="px-3 pt-3 pb-2 shrink-0">
         <div className="relative">
           <Search
