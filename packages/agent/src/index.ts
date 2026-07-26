@@ -9,6 +9,7 @@ export {
   toolDefs,
   toAnthropicTools,
   toOpenAITools,
+  toGeminiTools,
   toMcpTools,
   toCapabilityDoc,
 } from "./registry";

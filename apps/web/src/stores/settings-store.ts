@@ -33,6 +33,12 @@ export const SERVICE_REGISTRY: readonly ServiceConfig[] = [
     docsUrl: "https://docs.anthropic.com/en/docs",
   },
   {
+    id: "gemini",
+    label: "Google Gemini",
+    description: "Gemini models for script generation and AI-assisted editing",
+    docsUrl: "https://ai.google.dev/gemini-api/docs",
+  },
+  {
     id: "kie-ai",
     label: "Kie.ai",
     description: "AI aggregator for video/image generation, upscaling, and editing",
@@ -47,7 +53,7 @@ export const SERVICE_REGISTRY: readonly ServiceConfig[] = [
 ] as const;
 
 export type TtsProvider = "piper" | "elevenlabs";
-export type LlmProvider = "openai" | "anthropic";
+export type LlmProvider = "openai" | "anthropic" | "gemini";
 export type AggregatorProvider = "kie-ai" | "freepik";
 export type SettingsTab = "general" | "api-keys" | "mcp";
 

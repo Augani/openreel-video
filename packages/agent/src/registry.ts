@@ -31891,6 +31891,55 @@ export function toOpenAITools(): Array<{
   }));
 }
 
+/**
+ * Gemini's function-calling Schema is a restricted subset of OpenAPI 3.0: no
+ * `additionalProperties`, `type` values are uppercase ("OBJECT", "STRING", ...)
+ * rather than JSON Schema's lowercase, and `enum` is only valid on STRING schemas
+ * (its values must literally be strings — a numeric/boolean enum 400s). Convert
+ * recursively through properties/items.
+ */
+function toGeminiSchema(schema: JSONSchema): JSONSchema {
+  const { additionalProperties: _additionalProperties, ...rest } = schema;
+  const out: Record<string, unknown> = { ...rest };
+  if (typeof out.type === "string") {
+    out.type = out.type.toUpperCase();
+  }
+  if (Array.isArray(out.enum) && out.type !== "STRING") {
+    const values = out.enum.join(", ");
+    out.description = out.description
+      ? `${out.description} Must be one of: ${values}.`
+      : `Must be one of: ${values}.`;
+    delete out.enum;
+  }
+  if (out.properties && typeof out.properties === "object") {
+    out.properties = Object.fromEntries(
+      Object.entries(out.properties as Record<string, JSONSchema>).map(([key, value]) => [
+        key,
+        toGeminiSchema(value),
+      ]),
+    );
+  }
+  if (out.items && typeof out.items === "object") {
+    out.items = toGeminiSchema(out.items as JSONSchema);
+  }
+  return out;
+}
+
+/** Gemini generateContent tool format. */
+export function toGeminiTools(): Array<{
+  functionDeclarations: Array<{ name: string; description: string; parameters: JSONSchema }>;
+}> {
+  return [
+    {
+      functionDeclarations: listTools().map((t) => ({
+        name: t.name,
+        description: t.description,
+        parameters: toGeminiSchema(t.inputSchema),
+      })),
+    },
+  ];
+}
+
 /** MCP tools/list format. */
 export function toMcpTools(): Array<{
   name: string;

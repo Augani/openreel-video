@@ -3,6 +3,7 @@ import {
   runTurn,
   toAnthropicTools,
   toOpenAITools,
+  toGeminiTools,
   buildSystemPrompt,
 } from "@openreel/agent";
 import type { LLMClient, RunTurnResult, JobRunner } from "@openreel/agent";
@@ -46,7 +47,12 @@ export async function runHeadlessEdit(
       maxTokens: opts.maxTokens,
       fetchFn: opts.fetchFn,
     });
-  const tools = opts.provider === "anthropic" ? toAnthropicTools() : toOpenAITools();
+  const tools =
+    opts.provider === "anthropic"
+      ? toAnthropicTools()
+      : opts.provider === "gemini"
+        ? toGeminiTools()
+        : toOpenAITools();
 
   const result = await runTurn({
     host,

@@ -3,6 +3,7 @@ import {
   runTurn,
   toAnthropicTools,
   toOpenAITools,
+  toGeminiTools,
   buildSystemPrompt,
 } from "@openreel/agent";
 import type {
@@ -219,7 +220,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
       signal: controller.signal,
     });
     const tools =
-      provider === "anthropic" ? toAnthropicTools() : toOpenAITools();
+      provider === "anthropic"
+        ? toAnthropicTools()
+        : provider === "gemini"
+          ? toGeminiTools()
+          : toOpenAITools();
     const autoConfirm = useSettingsStore.getState().agentAutoConfirm;
     const dryRun = useSettingsStore.getState().agentDryRun;
 

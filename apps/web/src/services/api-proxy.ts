@@ -29,6 +29,12 @@ const DIRECT_CONFIG = {
       "anthropic-dangerous-direct-browser-access": "true",
     }),
   },
+  gemini: {
+    baseUrl: "https://generativelanguage.googleapis.com/v1beta",
+    authHeaders: (key: string): Record<string, string> => ({
+      "x-goog-api-key": key,
+    }),
+  },
 } as const;
 
 export type ApiService = keyof typeof DIRECT_CONFIG;
@@ -37,7 +43,7 @@ export type ApiService = keyof typeof DIRECT_CONFIG;
  * Fetch from a third-party API, automatically routing through the proxy
  * in production builds.
  *
- * @param service - Target service (elevenlabs, openai, anthropic)
+ * @param service - Target service (elevenlabs, openai, anthropic, gemini)
  * @param path - API path including leading slash, e.g. "/models" or "/text-to-speech/voiceId"
  * @param apiKey - Decrypted API key for the service
  * @param options - Standard RequestInit (method, body, extra headers, etc.)

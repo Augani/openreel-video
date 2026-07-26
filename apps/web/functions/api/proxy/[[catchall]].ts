@@ -1,13 +1,14 @@
 /**
  * Cloudflare Pages Function: API proxy for third-party services.
  *
- * Routes requests from the browser to ElevenLabs, OpenAI, and Anthropic
- * so that API keys never leave the same origin in production.
+ * Routes requests from the browser to ElevenLabs, OpenAI, Anthropic, and
+ * Gemini so that API keys never leave the same origin in production.
  *
  * URL pattern: /api/proxy/<service>/<path>
  *   e.g. POST /api/proxy/elevenlabs/text-to-speech/abc123
  *        POST /api/proxy/openai/chat/completions
  *        POST /api/proxy/anthropic/messages
+ *        POST /api/proxy/gemini/models/gemini-2.5-flash:generateContent
  *
  * The API key is passed via the `x-proxy-api-key` header and translated
  * to the correct service-specific header before forwarding.
@@ -37,6 +38,11 @@ const SERVICE_CONFIG: Record<string, ServiceConfig> = {
       "x-api-key": key,
       "anthropic-version": "2023-06-01",
     }),
+  },
+  gemini: {
+    baseUrl: "https://generativelanguage.googleapis.com/v1beta",
+    allowedPaths: /^models\/[\w.-]+:generateContent$/,
+    authHeaders: (key) => ({ "x-goog-api-key": key }),
   },
 };
 

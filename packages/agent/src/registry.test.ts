@@ -3,6 +3,7 @@ import {
   listTools,
   toAnthropicTools,
   toOpenAITools,
+  toGeminiTools,
   toMcpTools,
   toCapabilityDoc,
   getTool,
@@ -93,11 +94,59 @@ describe("tool registry", () => {
     }
   });
 
-  it("projects to all three provider formats with matching names", () => {
+  it("projects to all provider formats with matching names", () => {
     const base = listTools().map((t) => t.name).sort();
     expect(toAnthropicTools().map((t) => t.name).sort()).toEqual(base);
     expect(toOpenAITools().map((t) => t.function.name).sort()).toEqual(base);
     expect(toMcpTools().map((t) => t.name).sort()).toEqual(base);
+    expect(
+      toGeminiTools()[0].functionDeclarations.map((t) => t.name).sort(),
+    ).toEqual(base);
+  });
+
+  it("uppercases Gemini schema types and strips additionalProperties", () => {
+    for (const decl of toGeminiTools()[0].functionDeclarations) {
+      expect(decl.parameters.type).toBe("OBJECT");
+      expect(decl.parameters.additionalProperties).toBeUndefined();
+      for (const prop of Object.values(
+        (decl.parameters.properties ?? {}) as Record<string, { type?: unknown }>,
+      )) {
+        if (typeof prop.type === "string") {
+          expect(prop.type).toBe(prop.type.toUpperCase());
+        }
+      }
+    }
+  });
+
+  it("folds queue_motion_render's numeric resolutionScale enum into the description for Gemini", () => {
+    const decl = toGeminiTools()[0].functionDeclarations.find(
+      (t) => t.name === "queue_motion_render",
+    );
+    const resolutionScale = decl?.parameters.properties as
+      | Record<string, { type?: unknown; enum?: unknown; description?: unknown }>
+      | undefined;
+    const prop = resolutionScale?.resolutionScale;
+    expect(prop?.type).toBe("NUMBER");
+    expect(prop?.enum).toBeUndefined();
+    expect(prop?.description).toContain("1, 0.5, 0.25");
+  });
+
+  it("never emits a non-string Gemini enum (Gemini 400s on those)", () => {
+    const walk = (node: unknown): void => {
+      if (!node || typeof node !== "object") return;
+      const schema = node as { type?: unknown; enum?: unknown; properties?: unknown; items?: unknown };
+      if (Array.isArray(schema.enum)) {
+        expect(schema.type).toBe("STRING");
+        for (const value of schema.enum) expect(typeof value).toBe("string");
+      }
+      if (schema.properties && typeof schema.properties === "object") {
+        for (const value of Object.values(schema.properties as Record<string, unknown>)) walk(value);
+      }
+      if (schema.items) walk(schema.items);
+    };
+    for (const decl of toGeminiTools()[0].functionDeclarations) {
+      walk(decl.parameters);
+    }
   });
 
   it("generates a capability doc", () => {

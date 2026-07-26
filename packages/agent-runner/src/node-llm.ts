@@ -6,11 +6,14 @@ import {
 } from "@openreel/agent";
 import type { LLMClient, LLMSend } from "@openreel/agent";
 
-export type LlmProvider = "anthropic" | "openai";
+export type LlmProvider = "anthropic" | "openai" | "gemini";
 
-const ENDPOINTS: Record<LlmProvider, string> = {
-  anthropic: "https://api.anthropic.com/v1/messages",
-  openai: "https://api.openai.com/v1/chat/completions",
+// Gemini embeds the model in the URL path rather than the request body.
+const ENDPOINTS: Record<LlmProvider, (model?: string) => string> = {
+  anthropic: () => "https://api.anthropic.com/v1/messages",
+  openai: () => "https://api.openai.com/v1/chat/completions",
+  gemini: (model) =>
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
 };
 
 function authHeaders(
@@ -24,6 +27,12 @@ function authHeaders(
       "Content-Type": "application/json",
     };
   }
+  if (provider === "gemini") {
+    return {
+      "x-goog-api-key": apiKey,
+      "Content-Type": "application/json",
+    };
+  }
   return {
     Authorization: `Bearer ${apiKey}`,
     "Content-Type": "application/json",
@@ -32,19 +41,20 @@ function authHeaders(
 
 /**
  * Builds a fetch-based transport for the agent LLM clients. The API key is used
- * per-request for the Authorization header only and is never stored or logged —
- * preserving the BYOK no-persist guarantee on the server side.
+ * per-request for the Authorization/x-goog-api-key header only and is never
+ * stored or logged — preserving the BYOK no-persist guarantee on the server side.
  */
 export function makeNodeLLMSend(
   provider: LlmProvider,
   apiKey: string,
   fetchFn: typeof fetch = fetch,
+  model?: string,
 ): LLMSend {
   if (!apiKey) {
     throw new Error(`Missing API key for provider '${provider}'`);
   }
   return async (body: unknown): Promise<unknown> => {
-    const res = await fetchFn(ENDPOINTS[provider], {
+    const res = await fetchFn(ENDPOINTS[provider](model), {
       method: "POST",
       headers: authHeaders(provider, apiKey),
       body: JSON.stringify(body),
@@ -71,7 +81,7 @@ export interface NodeLLMOptions {
 }
 
 export function makeNodeLLMClient(opts: NodeLLMOptions): LLMClient {
-  const send = withRetry(makeNodeLLMSend(opts.provider, opts.apiKey, opts.fetchFn));
+  const send = withRetry(makeNodeLLMSend(opts.provider, opts.apiKey, opts.fetchFn, opts.model));
   return makeClientFromSend({
     provider: opts.provider,
     model: opts.model,

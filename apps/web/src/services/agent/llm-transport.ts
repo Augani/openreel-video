@@ -8,13 +8,16 @@ import type { LLMClient } from "@openreel/agent";
 import { apiFetch } from "../api-proxy";
 import type { LlmProvider } from "../../stores/settings-store";
 
-const PATHS: Record<LlmProvider, string> = {
-  anthropic: "/messages",
-  openai: "/chat/completions",
+// Gemini embeds the model in the URL path rather than the request body.
+const PATHS: Record<LlmProvider, (model: string) => string> = {
+  anthropic: () => "/messages",
+  openai: () => "/chat/completions",
+  gemini: (model) => `/models/${model}:generateContent`,
 };
 
 function makeSend(
   provider: LlmProvider,
+  model: string,
   apiKey: string,
   signal?: AbortSignal,
 ) {
@@ -22,7 +25,7 @@ function makeSend(
     if (signal?.aborted) {
       throw new DOMException("Aborted", "AbortError");
     }
-    const res = await apiFetch(provider, PATHS[provider], apiKey, {
+    const res = await apiFetch(provider, PATHS[provider](model), apiKey, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
@@ -55,7 +58,7 @@ export interface BYOKClientOptions {
  * direct in dev) — keys never leave their existing path.
  */
 export function makeBYOKClient(opts: BYOKClientOptions): LLMClient {
-  const send = withRetry(makeSend(opts.provider, opts.apiKey, opts.signal), {
+  const send = withRetry(makeSend(opts.provider, opts.model, opts.apiKey, opts.signal), {
     signal: opts.signal,
   });
   return makeClientFromSend({
