@@ -34,6 +34,25 @@ describe("makeNodeLLMSend", () => {
     expect((init.headers as Record<string, string>).Authorization).toBe("Bearer sk-openai");
   });
 
+  it("sends the gemini key via x-goog-api-key, with the model embedded in the URL", async () => {
+    const fetchFn = vi.fn().mockResolvedValue(okResponse({ ok: true }));
+    const send = makeNodeLLMSend(
+      "gemini",
+      "gm-secret",
+      fetchFn as unknown as typeof fetch,
+      "gemini-2.5-flash",
+    );
+    await send({ contents: [] });
+
+    const [url, init] = fetchFn.mock.calls[0];
+    expect(url).toBe(
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
+    );
+    const headers = init.headers as Record<string, string>;
+    expect(headers["x-goog-api-key"]).toBe("gm-secret");
+    expect(init.body).not.toContain("gm-secret");
+  });
+
   it("throws when no key is provided", () => {
     expect(() => makeNodeLLMSend("anthropic", "")).toThrow(/Missing API key/);
   });

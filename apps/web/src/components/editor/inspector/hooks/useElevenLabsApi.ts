@@ -218,7 +218,36 @@ export function useElevenLabsApi(options: UseElevenLabsApiOptions): UseElevenLab
 
     const apiKey = isDesktop ? "" : (await getSecret(llmProvider)) ?? "";
     if (!isDesktop && !apiKey) {
-      throw new Error(`${llmProvider === "openai" ? "OpenAI" : "Anthropic"} API key not found. Add it in Settings > API Keys.`);
+      const providerLabel =
+        llmProvider === "openai" ? "OpenAI" : llmProvider === "anthropic" ? "Anthropic" : "Gemini";
+      throw new Error(`${providerLabel} API key not found. Add it in Settings > API Keys.`);
+    }
+
+    if (llmProvider === "gemini") {
+      const model = "gemini-2.5-flash";
+      const response = await apiFetch("gemini", `/models/${model}:generateContent`, apiKey, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: ENHANCE_SYSTEM_PROMPT }] },
+          contents: [{ role: "user", parts: [{ text: inputText }] }],
+          generationConfig: { maxOutputTokens: 2048 },
+        }),
+        signal,
+      });
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error((err as Record<string, unknown>).error
+          ? String((err as Record<string, unknown>).error)
+          : `Gemini error (${response.status})`);
+      }
+
+      const data = await response.json();
+      const candidates = (data as {
+        candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+      }).candidates;
+      return candidates?.[0]?.content?.parts?.[0]?.text ?? inputText;
     }
 
     if (llmProvider === "anthropic") {

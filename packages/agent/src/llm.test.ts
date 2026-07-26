@@ -4,8 +4,11 @@ import {
   parseAnthropicResponse,
   buildOpenAIBody,
   parseOpenAIResponse,
+  buildGeminiBody,
+  parseGeminiResponse,
   AnthropicClient,
   OpenAIClient,
+  GeminiClient,
   type LoopMessage,
 } from "./llm";
 
@@ -94,5 +97,53 @@ describe("OpenAI normalization", () => {
     });
     const res = await client.complete({ messages: [{ role: "user", content: "hi" }], tools: [] });
     expect(res.text).toBe("yo");
+  });
+});
+
+describe("Gemini normalization", () => {
+  it("builds contents with functionCall + functionResponse parts", () => {
+    const body = buildGeminiBody({ system: "sys", messages: convo, tools: [] }, 1024) as {
+      systemInstruction: { parts: Array<{ text: string }> };
+      generationConfig: { maxOutputTokens: number };
+      contents: Array<{ role: string; parts: Array<Record<string, unknown>> }>;
+    };
+    expect(body.systemInstruction.parts[0].text).toBe("sys");
+    expect(body.generationConfig.maxOutputTokens).toBe(1024);
+    expect(body.contents[1].role).toBe("model");
+    expect(body.contents[1].parts.some((p) => "functionCall" in p)).toBe(true);
+    expect(body.contents[2].role).toBe("function");
+    const response = body.contents[2].parts[0].functionResponse as { name: string };
+    expect(response.name).toBe("trim_clip");
+  });
+
+  it("parses a functionCall response, synthesizing a call id", () => {
+    const parsed = parseGeminiResponse({
+      candidates: [
+        {
+          content: {
+            parts: [
+              { text: "ok" },
+              { functionCall: { name: "add_track", args: { trackType: "video" } } },
+            ],
+          },
+        },
+      ],
+      usageMetadata: { promptTokenCount: 10, candidatesTokenCount: 5 },
+    });
+    expect(parsed.text).toBe("ok");
+    expect(parsed.toolUses).toHaveLength(1);
+    expect(parsed.toolUses[0].name).toBe("add_track");
+    expect(parsed.stopReason).toBe("tool_use");
+    expect(parsed.usage).toEqual({ inputTokens: 10, outputTokens: 5 });
+  });
+
+  it("GeminiClient round-trips through an injected transport", async () => {
+    const client = new GeminiClient({
+      model: "gemini-2.5-flash",
+      send: async () => ({ candidates: [{ content: { parts: [{ text: "hi" }] } }] }),
+    });
+    const res = await client.complete({ messages: [{ role: "user", content: "hi" }], tools: [] });
+    expect(res.text).toBe("hi");
+    expect(res.stopReason).toBe("end_turn");
   });
 });

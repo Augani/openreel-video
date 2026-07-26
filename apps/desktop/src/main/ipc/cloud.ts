@@ -1,6 +1,6 @@
 import { getKeyStore } from "./keychain";
 
-export type CloudService = "elevenlabs" | "openai" | "anthropic";
+export type CloudService = "elevenlabs" | "openai" | "anthropic" | "gemini";
 
 interface ServiceConfig {
   baseUrl: string;
@@ -21,6 +21,10 @@ export const DIRECT_CONFIG: Record<CloudService, ServiceConfig> = {
   anthropic: {
     baseUrl: "https://api.anthropic.com/v1",
     authHeaders: (key) => ({ "x-api-key": key, "anthropic-version": "2023-06-01" }),
+  },
+  gemini: {
+    baseUrl: "https://generativelanguage.googleapis.com/v1beta",
+    authHeaders: (key) => ({ "x-goog-api-key": key }),
   },
 };
 

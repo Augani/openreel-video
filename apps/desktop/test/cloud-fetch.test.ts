@@ -27,6 +27,19 @@ describe("buildUpstreamRequest", () => {
     expect(r.headers["anthropic-version"]).toBe("2023-06-01");
   });
 
+  it("gemini: x-goog-api-key + model embedded in the path", () => {
+    const r = buildUpstreamRequest(
+      "gemini",
+      "/models/gemini-2.5-flash:generateContent",
+      "KEY",
+      { method: "POST", body: "{}" },
+    );
+    expect(r.url).toBe(
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
+    );
+    expect(r.headers["x-goog-api-key"]).toBe("KEY");
+  });
+
   it("merges renderer-supplied non-secret headers (e.g. content-type)", () => {
     const r = buildUpstreamRequest("openai", "/chat/completions", "KEY", {
       method: "POST",

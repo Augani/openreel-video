@@ -7,7 +7,7 @@ export interface LLMToolUse {
 /** Informational only — the loop drives control flow off toolUses, not this. */
 export type LLMStopReason = "end_turn" | "tool_use" | "max_tokens";
 
-export type LlmProviderName = "anthropic" | "openai";
+export type LlmProviderName = "anthropic" | "openai" | "gemini";
 
 export interface LLMUsage {
   readonly inputTokens: number;
@@ -347,6 +347,109 @@ export class OpenAIClient implements LLMClient {
   }
 }
 
+// ---- Gemini -----------------------------------------------------------------
+/** Maps a tool_use id to its tool name, so tool-result messages (which only carry the id) can recover the `name` Gemini's functionResponse needs. */
+function geminiToolNameById(messages: LoopMessage[]): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const m of messages) {
+    if (m.role === "assistant") {
+      for (const tu of m.toolUses) map.set(tu.id, tu.name);
+    }
+  }
+  return map;
+}
+
+/** Model is embedded in the request URL for Gemini, not the body — see the provider transports. */
+export function buildGeminiBody(input: LLMTurnInput, maxTokens: number): unknown {
+  const toolNames = geminiToolNameById(input.messages);
+  const contents = input.messages.map((m) => {
+    if (m.role === "user") {
+      return { role: "user", parts: [{ text: m.content }] };
+    }
+    if (m.role === "assistant") {
+      const parts: unknown[] = [];
+      if (m.content) parts.push({ text: m.content });
+      for (const tu of m.toolUses) {
+        parts.push({ functionCall: { name: tu.name, args: tu.input } });
+      }
+      return { role: "model", parts };
+    }
+    return {
+      role: "function",
+      parts: m.results.map((r) => {
+        const text =
+          typeof r.content === "string"
+            ? r.content
+            : (r.content.find(
+                (block): block is { type: "text"; text: string } =>
+                  block.type === "text",
+              )?.text ?? "");
+        return {
+          functionResponse: {
+            name: toolNames.get(r.toolUseId) ?? r.toolUseId,
+            response: r.isError ? { error: text } : { content: text },
+          },
+        };
+      }),
+    };
+  });
+  return {
+    ...(input.system ? { systemInstruction: { parts: [{ text: input.system }] } } : {}),
+    contents,
+    tools: input.tools,
+    generationConfig: { maxOutputTokens: maxTokens },
+  };
+}
+
+export function parseGeminiResponse(raw: unknown): LLMResponse {
+  const r = raw as {
+    candidates?: Array<{
+      content?: {
+        parts?: Array<{ text?: string; functionCall?: { name: string; args?: unknown } }>;
+      };
+      finishReason?: string;
+    }>;
+    usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number };
+  };
+  const candidate = r.candidates?.[0];
+  let text = "";
+  const toolUses: LLMToolUse[] = [];
+  let callIndex = 0;
+  for (const part of candidate?.content?.parts ?? []) {
+    if (typeof part.text === "string") text += part.text;
+    else if (part.functionCall) {
+      // Gemini doesn't assign call ids — synthesize one so the loop can pair it with its tool_result.
+      toolUses.push({
+        id: `gemini-call-${callIndex++}`,
+        name: part.functionCall.name,
+        input: (part.functionCall.args as Record<string, unknown>) ?? {},
+      });
+    }
+  }
+  const stopReason: LLMStopReason =
+    toolUses.length > 0
+      ? "tool_use"
+      : candidate?.finishReason === "MAX_TOKENS"
+        ? "max_tokens"
+        : "end_turn";
+  const usage = r.usageMetadata
+    ? {
+        inputTokens: r.usageMetadata.promptTokenCount ?? 0,
+        outputTokens: r.usageMetadata.candidatesTokenCount ?? 0,
+      }
+    : undefined;
+  return { text, toolUses, stopReason, usage };
+}
+
+export class GeminiClient implements LLMClient {
+  constructor(private readonly options: AdapterOptions) {}
+  async complete(input: LLMTurnInput): Promise<LLMResponse> {
+    const body = buildGeminiBody(input, this.options.maxTokens ?? 4096);
+    const raw = await this.options.send(body);
+    return parseGeminiResponse(raw);
+  }
+}
+
 export interface ClientFromSendOptions {
   readonly provider: LlmProviderName;
   readonly model: string;
@@ -357,9 +460,13 @@ export interface ClientFromSendOptions {
 /** Assembles the right provider client from an injected transport (shared by the web + node factories). */
 export function makeClientFromSend(opts: ClientFromSendOptions): LLMClient {
   const maxTokens = opts.maxTokens ?? 4096;
-  return opts.provider === "anthropic"
-    ? new AnthropicClient({ model: opts.model, maxTokens, send: opts.send })
-    : new OpenAIClient({ model: opts.model, maxTokens, send: opts.send });
+  if (opts.provider === "anthropic") {
+    return new AnthropicClient({ model: opts.model, maxTokens, send: opts.send });
+  }
+  if (opts.provider === "gemini") {
+    return new GeminiClient({ model: opts.model, maxTokens, send: opts.send });
+  }
+  return new OpenAIClient({ model: opts.model, maxTokens, send: opts.send });
 }
 
 // ---- Mock (tests / dry runs) ------------------------------------------------

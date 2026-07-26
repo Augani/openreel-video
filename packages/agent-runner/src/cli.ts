@@ -26,9 +26,11 @@ function parseArgs(argv: string[]): CliArgs {
       case "-m":
         args.prompt = next();
         break;
-      case "--provider":
-        args.provider = next() === "openai" ? "openai" : "anthropic";
+      case "--provider": {
+        const value = next();
+        args.provider = value === "openai" || value === "gemini" ? value : "anthropic";
         break;
+      }
       case "--model":
         args.model = next();
         break;
@@ -51,7 +53,9 @@ function resolveApiKey(provider: LlmProvider): string {
     process.env.OPENREEL_API_KEY ??
     (provider === "anthropic"
       ? process.env.ANTHROPIC_API_KEY
-      : process.env.OPENAI_API_KEY) ??
+      : provider === "gemini"
+        ? process.env.GEMINI_API_KEY
+        : process.env.OPENAI_API_KEY) ??
     ""
   );
 }
@@ -59,6 +63,7 @@ function resolveApiKey(provider: LlmProvider): string {
 const DEFAULT_MODEL: Record<LlmProvider, string> = {
   anthropic: "claude-sonnet-4-20250514",
   openai: "gpt-4o",
+  gemini: "gemini-2.5-flash",
 };
 
 const USAGE = `openreel-agent — headless project editing
@@ -69,12 +74,12 @@ Usage:
 Options:
   -p, --project <path>   Project JSON to edit (required)
   -m, --prompt  <text>   Natural-language editing instruction (required)
-      --provider <name>  anthropic | openai (default: anthropic)
+      --provider <name>  anthropic | openai | gemini (default: anthropic)
       --model <id>       Model id (default: provider default)
   -o, --out <path>       Output path (default: edit in place)
       --dry-run          Plan without applying mutations
 
-API key (never stored): OPENREEL_API_KEY, or ANTHROPIC_API_KEY / OPENAI_API_KEY.`;
+API key (never stored): OPENREEL_API_KEY, or ANTHROPIC_API_KEY / OPENAI_API_KEY / GEMINI_API_KEY.`;
 
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
@@ -84,9 +89,13 @@ async function main(): Promise<void> {
   }
   const apiKey = resolveApiKey(args.provider);
   if (!apiKey) {
-    process.stderr.write(
-      `No API key found. Set OPENREEL_API_KEY (or ${args.provider === "anthropic" ? "ANTHROPIC_API_KEY" : "OPENAI_API_KEY"}).\n`,
-    );
+    const envVar =
+      args.provider === "anthropic"
+        ? "ANTHROPIC_API_KEY"
+        : args.provider === "gemini"
+          ? "GEMINI_API_KEY"
+          : "OPENAI_API_KEY";
+    process.stderr.write(`No API key found. Set OPENREEL_API_KEY (or ${envVar}).\n`);
     process.exit(1);
   }
 
