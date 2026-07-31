@@ -120,7 +120,9 @@ type PreviewFrameSource = Parameters<typeof drawFrameWithTransform>[1];
 type PreviewCompositeOperation =
   CanvasRenderingContext2D["globalCompositeOperation"];
 
-const adjustmentBlendOperation = (mode: BlendMode): PreviewCompositeOperation =>
+const adjustmentBlendOperation = (
+  mode: BlendMode,
+): PreviewCompositeOperation =>
   mode === "add" || mode === "linear-dodge"
     ? "lighter"
     : (mode as PreviewCompositeOperation);
@@ -140,7 +142,8 @@ const applyPreviewAdjustmentLayers = async (
       layer.opacity <= 0 ||
       time < layer.startTime ||
       time >= layer.startTime + layer.duration
-    ) continue;
+    )
+      continue;
     const effects = layer.effects.filter((effect) => effect.enabled !== false);
     if (effects.length === 0) continue;
     let source: ImageBitmap | null = null;
@@ -293,17 +296,12 @@ const applyStabilizationTransform = (
   frameWidth: number,
   frameHeight: number,
 ): ClipTransform => {
-  return getStabilizedTransform(
-    clip,
-    transform,
-    sourceTime,
-    {
-      canvasWidth,
-      canvasHeight,
-      sourceWidth: frameWidth,
-      sourceHeight: frameHeight,
-    },
-  ) as ClipTransform;
+  return getStabilizedTransform(clip, transform, sourceTime, {
+    canvasWidth,
+    canvasHeight,
+    sourceWidth: frameWidth,
+    sourceHeight: frameHeight,
+  }) as ClipTransform;
 };
 
 // The WebGPU renderer maps a layer's texture onto a full-canvas quad, so a
@@ -600,7 +598,9 @@ const createTransparentImageBitmap = async (
   height: number,
 ): Promise<ImageBitmap | null> => {
   try {
-    return await createImageBitmap(createTransparentCanvasSource(width, height));
+    return await createImageBitmap(
+      createTransparentCanvasSource(width, height),
+    );
   } catch {
     return null;
   }
@@ -729,12 +729,7 @@ const renderOverlayLayerWithEffects = async (
   const layerCtx = layerCanvas.getContext("2d");
   if (!layerCtx) return;
   await render(layerCtx);
-  const prepared = await preparePreviewFrame(
-    clipId,
-    layerCanvas,
-    false,
-    true,
-  );
+  const prepared = await preparePreviewFrame(clipId, layerCanvas, false, true);
   try {
     ctx.drawImage(prepared.frame, 0, 0, canvasWidth, canvasHeight);
   } finally {
@@ -846,13 +841,13 @@ export const Preview: React.FC = () => {
   const lastGoodFrameRef = useRef<ImageBitmap | null>(null);
   const offscreenCanvasRef = useRef<OffscreenCanvas | null>(null);
   const decodeDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const decodeDebounceResolveRef = useRef<((value: ImageBitmap | null) => void) | null>(
-    null,
-  );
+  const decodeDebounceResolveRef = useRef<
+    ((value: ImageBitmap | null) => void) | null
+  >(null);
   const decodeRequestSeqRef = useRef(0);
-  const scrubVideoReleaseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
-    null,
-  );
+  const scrubVideoReleaseTimerRef = useRef<ReturnType<
+    typeof setTimeout
+  > | null>(null);
   const lastPreviewRenderTimeRef = useRef(0);
   const offscreenCtxRef = useRef<OffscreenCanvasRenderingContext2D | null>(
     null,
@@ -874,11 +869,15 @@ export const Preview: React.FC = () => {
     null,
   );
   const audioBufferCacheRef = useRef<Map<string, AudioBuffer>>(new Map());
-  const processedAudioBufferCacheRef = useRef<Map<string, AudioBuffer>>(new Map());
+  const processedAudioBufferCacheRef = useRef<Map<string, AudioBuffer>>(
+    new Map(),
+  );
   const noAudioBufferRef = useRef<Set<string>>(new Set());
 
-  const getAudioBufferCacheKey = (mediaId: string, audioTrackIndex?: number): string =>
-    `${mediaId}:${audioTrackIndex ?? 0}`;
+  const getAudioBufferCacheKey = (
+    mediaId: string,
+    audioTrackIndex?: number,
+  ): string => `${mediaId}:${audioTrackIndex ?? 0}`;
 
   const loadAudioBuffer = async (
     audioContext: AudioContext | BaseAudioContext,
@@ -907,16 +906,19 @@ export const Preview: React.FC = () => {
     return null;
   };
 
-  const getAudioEffectSignature = useCallback((effects: Effect[]): string =>
-    JSON.stringify(
-      effects.map((effect) => ({
-        id: effect.id,
-        type: effect.type,
-        enabled: effect.enabled,
-        params: effect.params,
-        metadata: effect.metadata,
-      })),
-    ), []);
+  const getAudioEffectSignature = useCallback(
+    (effects: Effect[]): string =>
+      JSON.stringify(
+        effects.map((effect) => ({
+          id: effect.id,
+          type: effect.type,
+          enabled: effect.enabled,
+          params: effect.params,
+          metadata: effect.metadata,
+        })),
+      ),
+    [],
+  );
 
   const getPreviewAudioBufferForEffects = useCallback(
     async (
@@ -935,7 +937,8 @@ export const Preview: React.FC = () => {
       }
 
       const processedCacheKey = `${baseCacheKey}:profile-denoise:${getAudioEffectSignature(profileAwareNoiseEffects)}`;
-      const cached = processedAudioBufferCacheRef.current.get(processedCacheKey);
+      const cached =
+        processedAudioBufferCacheRef.current.get(processedCacheKey);
       if (cached) {
         return { audioBuffer: cached, effects: realtimeEffects };
       }
@@ -949,41 +952,54 @@ export const Preview: React.FC = () => {
           continue;
         }
 
-        processedBuffer = await effectsEngine.applyNoiseReductionWithProfileData(
-          processedBuffer,
-          params.profile,
-          params.reduction ?? 0.5,
-          params.focus ?? "balanced",
-          params.threshold ?? -40,
-        );
+        processedBuffer =
+          await effectsEngine.applyNoiseReductionWithProfileData(
+            processedBuffer,
+            params.profile,
+            params.reduction ?? 0.5,
+            params.focus ?? "balanced",
+            params.threshold ?? -40,
+          );
       }
 
-      processedAudioBufferCacheRef.current.set(processedCacheKey, processedBuffer);
+      processedAudioBufferCacheRef.current.set(
+        processedCacheKey,
+        processedBuffer,
+      );
       return { audioBuffer: processedBuffer, effects: realtimeEffects };
     },
     [getAudioEffectSignature],
   );
 
-  const getResolvedClipAudioEffects = useCallback((clip: PreviewClip): Effect[] => {
-    return resolveTimelineClipAudioEffects(clip, {
-      tracks: timelineTracksRef.current,
-    });
-  }, []);
+  const getResolvedClipAudioEffects = useCallback(
+    (clip: PreviewClip): Effect[] => {
+      return resolveTimelineClipAudioEffects(clip, {
+        tracks: timelineTracksRef.current,
+      });
+    },
+    [],
+  );
 
-  const getResolvedClipVolumeAutomation = useCallback((clip: PreviewClip) =>
-    resolveClipVolumeAutomation(clip, {
-      tracks: timelineTracksRef.current,
-    }), []);
+  const getResolvedClipVolumeAutomation = useCallback(
+    (clip: PreviewClip) =>
+      resolveClipVolumeAutomation(clip, {
+        tracks: timelineTracksRef.current,
+      }),
+    [],
+  );
 
   const rendererRef = useRef<Renderer | null>(null);
   const rendererInitializedRef = useRef<boolean>(false);
   const motionRendererRef = useRef<MotionRenderer | null>(null);
   const motionAssetBitmapCacheRef = useRef<Map<string, ImageBitmap>>(new Map());
 
-  useEffect(() => () => {
-    motionRendererRef.current?.dispose();
-    motionRendererRef.current = null;
-  }, []);
+  useEffect(
+    () => () => {
+      motionRendererRef.current?.dispose();
+      motionRendererRef.current = null;
+    },
+    [],
+  );
 
   const [isMuted, setIsMuted] = useState(false);
   const [isRenderBridgeReady, setIsRenderBridgeReady] = useState(false);
@@ -1324,7 +1340,10 @@ export const Preview: React.FC = () => {
     // the project aspect ratio, instead of capping at a fixed small size which
     // left the monitor floating in unused space on larger screens.
     const PREVIEW_PADDING = 24;
-    const availableWidth = Math.max(1, videoAreaSize.width - PREVIEW_PADDING * 2);
+    const availableWidth = Math.max(
+      1,
+      videoAreaSize.width - PREVIEW_PADDING * 2,
+    );
     const availableHeight = Math.max(
       1,
       videoAreaSize.height - PREVIEW_PADDING * 2,
@@ -1419,7 +1438,8 @@ export const Preview: React.FC = () => {
     return null;
   }, [motionPathMode, motionPathClipId, project.timeline.tracks]);
 
-  const [motionPathConfig, setMotionPathConfig] = React.useState<MotionPathConfig | null>(null);
+  const [motionPathConfig, setMotionPathConfig] =
+    React.useState<MotionPathConfig | null>(null);
 
   React.useEffect(() => {
     if (motionPathClip) {
@@ -1446,18 +1466,20 @@ export const Preview: React.FC = () => {
         return { ...prev, points: newPoints };
       });
     },
-    []
+    [],
   );
 
   const handleMotionPathPointAdd = React.useCallback(
     (point: GSAPMotionPathPoint) => {
       setMotionPathConfig((prev) => {
         if (!prev) return prev;
-        const newPoints = [...prev.points, point].sort((a, b) => a.time - b.time);
+        const newPoints = [...prev.points, point].sort(
+          (a, b) => a.time - b.time,
+        );
         return { ...prev, points: newPoints };
       });
     },
-    []
+    [],
   );
 
   const handleMotionPathPointRemove = React.useCallback((index: number) => {
@@ -1481,12 +1503,12 @@ export const Preview: React.FC = () => {
         return { ...prev, points: newPoints };
       });
     },
-    []
+    [],
   );
 
   const particleEngine = React.useMemo(() => getParticleEngine(), []);
-  const [particleUpdateTrigger, setParticleUpdateTrigger] = React.useState(
-    () => particleEngine.getChangeVersion()
+  const [particleUpdateTrigger, setParticleUpdateTrigger] = React.useState(() =>
+    particleEngine.getChangeVersion(),
   );
 
   React.useEffect(() => {
@@ -1779,7 +1801,10 @@ export const Preview: React.FC = () => {
     (time: number, trackId?: string): boolean =>
       (project.motionInstances ?? []).some((instance) => {
         if (trackId && instance.trackId !== trackId) return false;
-        return time >= instance.startTime && time < instance.startTime + instance.duration;
+        return (
+          time >= instance.startTime &&
+          time < instance.startTime + instance.duration
+        );
       }),
     [project.motionInstances],
   );
@@ -1803,7 +1828,8 @@ export const Preview: React.FC = () => {
       const compositions = project.motionCompositions ?? [];
       const assetResolver = { resolveImageAsset: resolveMotionImageAsset };
       const renderer =
-        motionRendererRef.current ?? (motionRendererRef.current = new MotionRenderer());
+        motionRendererRef.current ??
+        (motionRendererRef.current = new MotionRenderer());
       let rendered = false;
 
       for (const instance of instances) {
@@ -2122,7 +2148,10 @@ export const Preview: React.FC = () => {
 
     for (const track of allTracks) {
       for (const clip of track.clips) {
-        const cacheKey = getAudioBufferCacheKey(clip.mediaId, clip.audioTrackIndex);
+        const cacheKey = getAudioBufferCacheKey(
+          clip.mediaId,
+          clip.audioTrackIndex,
+        );
         let audioBuffer: AudioBuffer | null | undefined =
           audioBufferCacheRef.current.get(cacheKey);
 
@@ -2158,7 +2187,11 @@ export const Preview: React.FC = () => {
           );
           if (audioEffects.length > 0) {
             try {
-              await getPreviewAudioBufferForEffects(audioBuffer, cacheKey, audioEffects);
+              await getPreviewAudioBufferForEffects(
+                audioBuffer,
+                cacheKey,
+                audioEffects,
+              );
             } catch (error) {
               console.warn(
                 `[Preview] Failed to pre-process audio effects for clip ${clip.id}:`,
@@ -2169,7 +2202,11 @@ export const Preview: React.FC = () => {
         }
       }
     }
-  }, [getMediaItem, getPreviewAudioBufferForEffects, getResolvedClipAudioEffects]);
+  }, [
+    getMediaItem,
+    getPreviewAudioBufferForEffects,
+    getResolvedClipAudioEffects,
+  ]);
 
   // Pre-warm audio decode caches when the timeline settles after an edit (e.g.
   // moving/adding a clip), so the realtime scheduler finds decoded buffers ready
@@ -2177,7 +2214,9 @@ export const Preview: React.FC = () => {
   // lands (~0.5-1s "lag then smooth"). Debounced so it never runs mid-drag, and
   // skipped during playback. preDecodeAllAudioBuffers is idempotent (cached and
   // negatively-cached buffers are no-ops), so re-warming after each edit is cheap.
-  const audioWarmupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const audioWarmupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
   const audioWarmupIdleRef = useRef<number | null>(null);
   useEffect(() => {
     if (isPlaying) {
@@ -2226,7 +2265,8 @@ export const Preview: React.FC = () => {
     (time: number): AudioClipSchedule[] => {
       const tracks = timelineTracksRef.current;
       const tracksWithAudio = tracks.filter(
-        (t) => (t.type === "audio" || t.type === "video") && !t.hidden && !t.muted,
+        (t) =>
+          (t.type === "audio" || t.type === "video") && !t.hidden && !t.muted,
       );
       const schedules: AudioClipSchedule[] = [];
 
@@ -2280,14 +2320,8 @@ export const Preview: React.FC = () => {
             pan: 0,
             effects: scheduleEffects,
             speed: clip.speed ?? 1,
-            fadeIn: Math.max(
-              clip.fade?.fadeIn ?? 0,
-              transitionFades.fadeIn,
-            ),
-            fadeOut: Math.max(
-              clip.fade?.fadeOut ?? 0,
-              transitionFades.fadeOut,
-            ),
+            fadeIn: Math.max(clip.fade?.fadeIn ?? 0, transitionFades.fadeIn),
+            fadeOut: Math.max(clip.fade?.fadeOut ?? 0, transitionFades.fadeOut),
           });
         }
       }
@@ -2320,9 +2354,11 @@ export const Preview: React.FC = () => {
       const mediaItem = getMediaItem(clip.mediaId);
       if (!mediaItem?.blob) return null;
       const vidstab = getVidstabEngine();
-      const mediaBlob = (vidstab.hasStabilized(clip.id)
-        ? vidstab.getStabilizedBlob(clip.id)
-        : mediaItem.blob)!;
+      const mediaBlob = (
+        vidstab.hasStabilized(clip.id)
+          ? vidstab.getStabilizedBlob(clip.id)
+          : mediaItem.blob
+      )!;
 
       if (mediaItem.type === "image") {
         try {
@@ -2366,8 +2402,12 @@ export const Preview: React.FC = () => {
               clipLocalTime,
             );
             const isStabilized = vidstab.hasStabilized(clip.id);
-            const mediaTime = isStabilized ? adjustedLocalTime : (clip.inPoint || 0) + adjustedLocalTime;
-            const cacheKey = isStabilized ? `${clip.mediaId}:stabilized` : clip.mediaId;
+            const mediaTime = isStabilized
+              ? adjustedLocalTime
+              : (clip.inPoint || 0) + adjustedLocalTime;
+            const cacheKey = isStabilized
+              ? `${clip.mediaId}:stabilized`
+              : clip.mediaId;
             let cached = videoElementCacheRef.current.get(cacheKey);
 
             if (!cached) {
@@ -2608,14 +2648,15 @@ export const Preview: React.FC = () => {
       // Compound clips are full nested timelines rather than media blobs.
       // Route those frames through the canonical compositor so preview and
       // export share identical nesting, timing, effects and transforms.
-      const hasActiveCompound = timelineTracks.some((track) =>
-        !track.hidden &&
-        track.clips.some(
-          (clip) =>
-            typeof clip.metadata?.compoundClipId === "string" &&
-            time >= clip.startTime &&
-            time < clip.startTime + clip.duration,
-        ),
+      const hasActiveCompound = timelineTracks.some(
+        (track) =>
+          !track.hidden &&
+          track.clips.some(
+            (clip) =>
+              typeof clip.metadata?.compoundClipId === "string" &&
+              time >= clip.startTime &&
+              time < clip.startTime + clip.duration,
+          ),
       );
       if (hasActiveCompound) {
         const frame = await getRenderBridge().renderFrame(time);
@@ -2652,6 +2693,12 @@ export const Preview: React.FC = () => {
       let shouldClearCanvas = true;
       const hadBackground = Boolean(lastGoodFrameRef.current);
       if (lastGoodFrameRef.current) {
+        // Paint the last good frame as an anti-flicker placeholder only.
+        // Do NOT clear `shouldClearCanvas` here: once we know we have fresh
+        // content to draw this tick (below), we still need a real opaque
+        // background fill before drawing it, otherwise the stale bitmap
+        // (captured under the OLD transform) shows through around/behind
+        // the newly transformed clip, producing a ghosted "double image".
         ctx.drawImage(
           lastGoodFrameRef.current,
           0,
@@ -2659,7 +2706,6 @@ export const Preview: React.FC = () => {
           canvas.width,
           canvas.height,
         );
-        shouldClearCanvas = false;
       }
 
       const activeShapeClips = getActiveShapeClips(allShapeClips, time);
@@ -2779,7 +2825,8 @@ export const Preview: React.FC = () => {
                 hasBehindSubjectText(activeTextClips) ? blendedFrame : null,
               );
               if (processedA !== clipAFrame) closeOnce(processedA);
-              if (processedB && processedB !== clipBFrame) closeOnce(processedB);
+              if (processedB && processedB !== clipBFrame)
+                closeOnce(processedB);
               closeOnce(clipAFrame);
               closeOnce(clipBFrame);
               closeOnce(blankFrame);
@@ -2972,10 +3019,11 @@ export const Preview: React.FC = () => {
                   }
                   const clipLocalTime = time - clip.startTime;
                   const speedEngine = getSpeedEngine();
-                  const adjustedLocalTime = speedEngine.getSourceTimeAtPlaybackTime(
-                    clip.id,
-                    clipLocalTime,
-                  );
+                  const adjustedLocalTime =
+                    speedEngine.getSourceTimeAtPlaybackTime(
+                      clip.id,
+                      clipLocalTime,
+                    );
                   const sourceTime = Math.max(
                     clip.inPoint,
                     Math.min(clip.outPoint, clip.inPoint + adjustedLocalTime),
@@ -3050,8 +3098,14 @@ export const Preview: React.FC = () => {
                       );
                       hasRenderedFrame = true;
                     } else {
-                      processedFrame = await applyEffectsToFrame(clip.id, frame);
-                      if (processedFrame.width > 0 && processedFrame.height > 0) {
+                      processedFrame = await applyEffectsToFrame(
+                        clip.id,
+                        frame,
+                      );
+                      if (
+                        processedFrame.width > 0 &&
+                        processedFrame.height > 0
+                      ) {
                         await drawClipFrame(
                           ctx,
                           clip.id,
@@ -3198,9 +3252,19 @@ export const Preview: React.FC = () => {
         activeShapeClips.length > 0 ||
         activeTextClips.length > 0;
 
-      if (hadBackground && hasActiveContent && offscreenCanvasRef.current) {
+      if (hadBackground && hasActiveContent && lastGoodFrameRef.current) {
+        // Nothing decoded this tick (e.g. transient decode failure), but we
+        // expected content: fall back to the actual last-good-frame bitmap
+        // rather than the offscreen buffer, since the offscreen buffer was
+        // already legitimately overwritten by the real background fill above.
         mainCtx.clearRect(0, 0, canvas.width, canvas.height);
-        mainCtx.drawImage(offscreenCanvasRef.current, 0, 0);
+        mainCtx.drawImage(
+          lastGoodFrameRef.current,
+          0,
+          0,
+          canvas.width,
+          canvas.height,
+        );
         return true;
       }
 
@@ -3508,9 +3572,7 @@ export const Preview: React.FC = () => {
 
             return getPreviewAudioEffects(
               getResolvedClipAudioEffects(clip),
-            ).some(
-              (effect) => effect.enabled,
-            );
+            ).some((effect) => effect.enabled);
           }),
       );
 
@@ -3621,7 +3683,9 @@ export const Preview: React.FC = () => {
       ): Promise<void> => {
         const vidstabCheck = getVidstabEngine();
         const clipStabilized = vidstabCheck.hasStabilized(clip.id);
-        const videoCacheId = clipStabilized ? `stabilized:${clip.id}` : clip.mediaId;
+        const videoCacheId = clipStabilized
+          ? `stabilized:${clip.id}`
+          : clip.mediaId;
 
         const existingLoad = loadingVideos.get(videoCacheId);
         if (existingLoad) {
@@ -3641,9 +3705,9 @@ export const Preview: React.FC = () => {
 
         const vidstabEng = getVidstabEngine();
         const isStabilized = vidstabEng.hasStabilized(clip.id);
-        const playBlob = (isStabilized
-          ? vidstabEng.getStabilizedBlob(clip.id)
-          : mediaItem.blob)!;
+        const playBlob = (
+          isStabilized ? vidstabEng.getStabilizedBlob(clip.id) : mediaItem.blob
+        )!;
         const cacheId = isStabilized ? `stabilized:${clip.id}` : clip.mediaId;
         const url = URL.createObjectURL(playBlob);
         const video = document.createElement("video");
@@ -3738,9 +3802,11 @@ export const Preview: React.FC = () => {
       };
 
       const findNextNativeClip = (clipId: string) => {
-        const sorted = [...clips].sort((a, b) => a.clip.startTime - b.clip.startTime);
+        const sorted = [...clips].sort(
+          (a, b) => a.clip.startTime - b.clip.startTime,
+        );
         const index = sorted.findIndex(({ clip }) => clip.id === clipId);
-        return index >= 0 ? sorted[index + 1] ?? null : null;
+        return index >= 0 ? (sorted[index + 1] ?? null) : null;
       };
 
       const findNativeClipById = (clipId: string) =>
@@ -3794,7 +3860,8 @@ export const Preview: React.FC = () => {
           ? sourceTime - clip.inPoint
           : sourceTime;
 
-        let needsDrawableWait = video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA;
+        let needsDrawableWait =
+          video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA;
         if (Math.abs(video.currentTime - videoTime) > 0.1) {
           needsDrawableWait = true;
           await new Promise<void>((resolve) => {
@@ -3821,7 +3888,9 @@ export const Preview: React.FC = () => {
         }
       };
 
-      const playVideoElement = async (video: HTMLVideoElement): Promise<void> => {
+      const playVideoElement = async (
+        video: HTMLVideoElement,
+      ): Promise<void> => {
         video.playbackRate = rateRef.current;
         if (!video.paused) {
           return;
@@ -3858,7 +3927,10 @@ export const Preview: React.FC = () => {
         // is scheduled from this same clock, so delaying this update until the
         // end of a heavy render makes sound appear to start ahead of the playhead.
         const nowPlayhead = performance.now();
-        if (nowPlayhead - lastPlayheadUpdateRef.current >= PLAYHEAD_UPDATE_THROTTLE_MS) {
+        if (
+          nowPlayhead - lastPlayheadUpdateRef.current >=
+          PLAYHEAD_UPDATE_THROTTLE_MS
+        ) {
           lastPlayheadUpdateRef.current = nowPlayhead;
           setPlayheadPosition(currentPlayhead);
         }
@@ -3889,11 +3961,11 @@ export const Preview: React.FC = () => {
             )
               ? `stabilized:${clipARecord.clip.id}`
               : clipARecord.clip.mediaId;
-            const clipBCacheId = clipBRecord && getVidstabEngine().hasStabilized(
-              clipBRecord.clip.id,
-            )
-              ? `stabilized:${clipBRecord.clip.id}`
-              : clipBRecord?.clip.mediaId;
+            const clipBCacheId =
+              clipBRecord &&
+              getVidstabEngine().hasStabilized(clipBRecord.clip.id)
+                ? `stabilized:${clipBRecord.clip.id}`
+                : clipBRecord?.clip.mediaId;
             const clipAVideo = videoCache.get(clipACacheId)?.video;
             const clipBVideo = clipBCacheId
               ? videoCache.get(clipBCacheId)?.video
@@ -3902,11 +3974,16 @@ export const Preview: React.FC = () => {
             if (clipAVideo && (!transitionInfo.clipB || clipBVideo)) {
               const sameElement =
                 Boolean(clipBVideo) && clipAVideo === clipBVideo;
-              const cutTime = clipBRecord?.clip.startTime ?? clipARecord.clip.startTime;
+              const cutTime =
+                clipBRecord?.clip.startTime ?? clipARecord.clip.startTime;
               const outgoingHeld =
-                Boolean(clipBVideo) && !sameElement && currentPlayhead >= cutTime;
+                Boolean(clipBVideo) &&
+                !sameElement &&
+                currentPlayhead >= cutTime;
               const incomingHeld =
-                Boolean(clipBVideo) && !sameElement && currentPlayhead < cutTime;
+                Boolean(clipBVideo) &&
+                !sameElement &&
+                currentPlayhead < cutTime;
 
               if (outgoingHeld) clipAVideo.pause();
               if (incomingHeld && clipBVideo) clipBVideo.pause();
@@ -4116,29 +4193,41 @@ export const Preview: React.FC = () => {
           }
 
           const nowNoClip = performance.now();
-          if (nowNoClip - lastPlayheadUpdateRef.current >= PLAYHEAD_UPDATE_THROTTLE_MS) {
+          if (
+            nowNoClip - lastPlayheadUpdateRef.current >=
+            PLAYHEAD_UPDATE_THROTTLE_MS
+          ) {
             lastPlayheadUpdateRef.current = nowNoClip;
             setPlayheadPosition(currentPlayhead);
           }
-          rafId = requestAnimationFrame(() => { drawFrame(); });
+          rafId = requestAnimationFrame(() => {
+            drawFrame();
+          });
           return;
         }
 
         const { clip, mediaItem } = activeClip;
         const vidstabPlay = getVidstabEngine();
         const clipIsStabilized = vidstabPlay.hasStabilized(clip.id);
-        const playbackCacheId = clipIsStabilized ? `stabilized:${clip.id}` : clip.mediaId;
+        const playbackCacheId = clipIsStabilized
+          ? `stabilized:${clip.id}`
+          : clip.mediaId;
         const cached = videoCache.get(playbackCacheId);
 
         if (!cached) {
           await loadVideoForClip(clip, mediaItem);
           if (!isActive || !nativePlaybackActiveRef.current) return;
           const nowNoCached = performance.now();
-          if (nowNoCached - lastPlayheadUpdateRef.current >= PLAYHEAD_UPDATE_THROTTLE_MS) {
+          if (
+            nowNoCached - lastPlayheadUpdateRef.current >=
+            PLAYHEAD_UPDATE_THROTTLE_MS
+          ) {
             lastPlayheadUpdateRef.current = nowNoCached;
             setPlayheadPosition(currentPlayhead);
           }
-          rafId = requestAnimationFrame(() => { drawFrame(); });
+          rafId = requestAnimationFrame(() => {
+            drawFrame();
+          });
           return;
         }
 
@@ -4188,7 +4277,10 @@ export const Preview: React.FC = () => {
           previewRes.scale,
         );
 
-        if (latestClip.emphasisAnimation && latestClip.emphasisAnimation.type !== "none") {
+        if (
+          latestClip.emphasisAnimation &&
+          latestClip.emphasisAnimation.type !== "none"
+        ) {
           const emphasisState = applyEmphasisAnimation(
             latestClip.emphasisAnimation,
             clipLocalTime,
@@ -4280,7 +4372,8 @@ export const Preview: React.FC = () => {
         );
 
         const bgEngine = getBackgroundRemovalEngine();
-        const hasBgRemoval = bgEngine?.isInitialized() && bgEngine.getSettings(clip.id).enabled;
+        const hasBgRemoval =
+          bgEngine?.isInitialized() && bgEngine.getSettings(clip.id).enabled;
 
         let videoFrame: HTMLVideoElement | ImageBitmap = video;
         if (hasBgRemoval) {
@@ -4424,7 +4517,11 @@ export const Preview: React.FC = () => {
           : activeStartClip.clip.mediaId;
         const startupVideo = videoCache.get(startupCacheId)?.video;
         if (startupVideo) {
-          await syncVideoToClipTime(startupVideo, activeStartClip.clip, startPosition);
+          await syncVideoToClipTime(
+            startupVideo,
+            activeStartClip.clip,
+            startPosition,
+          );
           if (!isActive || !nativePlaybackActiveRef.current) {
             cleanup(true);
             return () => {};
@@ -4435,7 +4532,9 @@ export const Preview: React.FC = () => {
 
       await masterClock.play();
       audioGraph.startScheduler(getAudioClipsForScheduler);
-      rafId = requestAnimationFrame(() => { drawFrame(); });
+      rafId = requestAnimationFrame(() => {
+        drawFrame();
+      });
 
       return cleanup;
     },
@@ -4838,7 +4937,10 @@ export const Preview: React.FC = () => {
               preparedFrame.cleanup();
 
               const nowPh = performance.now();
-              if (nowPh - lastPlayheadUpdateRef.current >= PLAYHEAD_UPDATE_THROTTLE_MS) {
+              if (
+                nowPh - lastPlayheadUpdateRef.current >=
+                PLAYHEAD_UPDATE_THROTTLE_MS
+              ) {
                 lastPlayheadUpdateRef.current = nowPh;
                 setPlayheadPosition(currentPlayhead);
               }
@@ -5080,7 +5182,8 @@ export const Preview: React.FC = () => {
         ) as OffscreenCanvasRenderingContext2D;
       }
 
-      const ctx = offscreenCtxRef.current as unknown as CanvasRenderingContext2D;
+      const ctx =
+        offscreenCtxRef.current as unknown as CanvasRenderingContext2D;
       if (!ctx) {
         console.error("[Preview] Failed to get offscreen 2D context");
         pause();
@@ -5139,7 +5242,10 @@ export const Preview: React.FC = () => {
           // Keep the timeline UI clock-aligned with audio even when decoding or
           // effects make the current visual frame expensive to produce.
           const nowPlayhead = performance.now();
-          if (nowPlayhead - lastPlayheadUpdateRef.current >= PLAYHEAD_UPDATE_THROTTLE_MS) {
+          if (
+            nowPlayhead - lastPlayheadUpdateRef.current >=
+            PLAYHEAD_UPDATE_THROTTLE_MS
+          ) {
             lastPlayheadUpdateRef.current = nowPlayhead;
             setPlayheadPosition(currentPlayhead);
           }
@@ -5177,7 +5283,8 @@ export const Preview: React.FC = () => {
             const nextClipTime = findNextClipStartTime(currentPlayhead);
             const nextTextTime = findNextTextClipStartTime(currentPlayhead);
             const nextShapeTime = findNextShapeClipStartTime(currentPlayhead);
-            const nextMotionTime = findNextMotionInstanceStartTime(currentPlayhead);
+            const nextMotionTime =
+              findNextMotionInstanceStartTime(currentPlayhead);
             const nextAudioTime = findNextAudioClipStartTime(currentPlayhead);
 
             const nextTimes = [
@@ -5221,16 +5328,24 @@ export const Preview: React.FC = () => {
             masterClock.reportVideoTime(currentPlayhead);
             const now = performance.now();
             const elapsed = now - lastFrameTimestamp;
-            const delay = Math.max(0, frameDuration / rateRef.current - elapsed);
+            const delay = Math.max(
+              0,
+              frameDuration / rateRef.current - elapsed,
+            );
             lastFrameTimestamp = now;
             isProcessingFrame = false;
             if (isActive) {
               if (delay > 0) {
                 setTimeout(() => {
-                  if (isActive) animationRef.current = requestAnimationFrame(processMultiTrackFrame);
+                  if (isActive)
+                    animationRef.current = requestAnimationFrame(
+                      processMultiTrackFrame,
+                    );
                 }, delay);
               } else {
-                animationRef.current = requestAnimationFrame(processMultiTrackFrame);
+                animationRef.current = requestAnimationFrame(
+                  processMultiTrackFrame,
+                );
               }
             }
             return;
@@ -5289,10 +5404,7 @@ export const Preview: React.FC = () => {
                     lookup.trackIndex,
                   );
                   if (resources) {
-                    playbackResourcesRef.current.set(
-                      lookup.clip.id,
-                      resources,
-                    );
+                    playbackResourcesRef.current.set(lookup.clip.id, resources);
                   }
                 }
               }
@@ -5577,7 +5689,10 @@ export const Preview: React.FC = () => {
                   );
                 const sourceTime = Math.max(
                   clip.inPoint,
-                  Math.min(clip.outPoint, (clip.inPoint || 0) + adjustedLocalTime),
+                  Math.min(
+                    clip.outPoint,
+                    (clip.inPoint || 0) + adjustedLocalTime,
+                  ),
                 );
 
                 try {
@@ -5919,7 +6034,9 @@ export const Preview: React.FC = () => {
 
             try {
               lastGoodFrameRef.current?.close();
-              lastGoodFrameRef.current = await createImageBitmap(offscreenCanvasRef.current!);
+              lastGoodFrameRef.current = await createImageBitmap(
+                offscreenCanvasRef.current!,
+              );
             } catch {}
           } else if (lastGoodFrameRef.current) {
             ctx.drawImage(
@@ -6034,7 +6151,9 @@ export const Preview: React.FC = () => {
       return nextStart;
     };
 
-    const findNextMotionInstanceStartTime = (afterTime: number): number | null => {
+    const findNextMotionInstanceStartTime = (
+      afterTime: number,
+    ): number | null => {
       let nextStart: number | null = null;
       for (const instance of project.motionInstances ?? []) {
         if (instance.startTime > afterTime) {
@@ -6147,7 +6266,9 @@ export const Preview: React.FC = () => {
 
   const lastModifiedAtRef = useRef<number>(project.modifiedAt);
   const lastPlayheadForRenderRef = useRef<number>(playheadPosition);
-  const modifiedRenderTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const modifiedRenderTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
   const renderInFlightRef = useRef<boolean>(false);
   const pendingRenderTimeRef = useRef<number | null>(null);
 
@@ -6162,7 +6283,8 @@ export const Preview: React.FC = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const playheadChanged = playheadPosition !== lastPlayheadForRenderRef.current;
+    const playheadChanged =
+      playheadPosition !== lastPlayheadForRenderRef.current;
     const modifiedChanged = project.modifiedAt !== lastModifiedAtRef.current;
 
     lastModifiedAtRef.current = project.modifiedAt;
@@ -6242,7 +6364,8 @@ export const Preview: React.FC = () => {
       setPreviewInvalidateCounter((c) => c + 1);
     };
     window.addEventListener("openreel:preview-invalidate", handler);
-    return () => window.removeEventListener("openreel:preview-invalidate", handler);
+    return () =>
+      window.removeEventListener("openreel:preview-invalidate", handler);
   }, []);
 
   useEffect(() => {
@@ -6250,7 +6373,12 @@ export const Preview: React.FC = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     renderFrameDirectly(playheadPosition);
-  }, [previewInvalidateCounter, isPlaying, renderFrameDirectly, playheadPosition]);
+  }, [
+    previewInvalidateCounter,
+    isPlaying,
+    renderFrameDirectly,
+    playheadPosition,
+  ]);
 
   const selectedClipId = useMemo(() => {
     const clipSelection = selectedItems.find((item) => item.type === "clip");
@@ -6541,7 +6669,9 @@ export const Preview: React.FC = () => {
         }
 
         if (item.type === "text-clip") {
-          const clip = allTextClips.find((candidate) => candidate.id === item.id);
+          const clip = allTextClips.find(
+            (candidate) => candidate.id === item.id,
+          );
           if (!clip) continue;
           changed = true;
           updateTextTransform(item.id, {
@@ -6554,7 +6684,9 @@ export const Preview: React.FC = () => {
         }
 
         if (item.type === "shape-clip") {
-          const clip = allShapeClips.find((candidate) => candidate.id === item.id);
+          const clip = allShapeClips.find(
+            (candidate) => candidate.id === item.id,
+          );
           if (!clip) continue;
           changed = true;
           updateShapeTransform(item.id, {
@@ -6588,7 +6720,9 @@ export const Preview: React.FC = () => {
     ],
   );
 
-  const [hoveredGraphicClipId, setHoveredGraphicClipId] = useState<string | null>(null);
+  const [hoveredGraphicClipId, setHoveredGraphicClipId] = useState<
+    string | null
+  >(null);
 
   const activeGraphicClips = useMemo(() => {
     // getActiveShapeClips returns all graphic clip types (shapes, SVGs, and stickers)
@@ -6733,7 +6867,8 @@ export const Preview: React.FC = () => {
       const posX = transform.position.x * canvasWidth * displayScale;
       const posY = transform.position.y * canvasHeight * displayScale;
 
-      const canvasOffsetX = canvasRect.left - overlayRect.left + letterboxOffsetX;
+      const canvasOffsetX =
+        canvasRect.left - overlayRect.left + letterboxOffsetX;
       const canvasOffsetY = canvasRect.top - overlayRect.top + letterboxOffsetY;
 
       const centerX = canvasOffsetX + posX;
@@ -6752,7 +6887,10 @@ export const Preview: React.FC = () => {
   );
 
   const findGraphicClipAtPoint = useCallback(
-    (clientX: number, clientY: number): ShapeClip | SVGClip | StickerClip | null => {
+    (
+      clientX: number,
+      clientY: number,
+    ): ShapeClip | SVGClip | StickerClip | null => {
       if (!overlayRef.current) return null;
       const overlayRect = overlayRef.current.getBoundingClientRect();
       const pointX = clientX - overlayRect.left;
@@ -7321,10 +7459,12 @@ export const Preview: React.FC = () => {
         // Base dimensions match how the clip is actually rendered so resize
         // handles track the cursor regardless of fit mode.
         const baseScaleW =
-          (clipBounds.width / displayScale) /
+          clipBounds.width /
+          displayScale /
           Math.max(0.001, startTransform.scaleX);
         const baseScaleH =
-          (clipBounds.height / displayScale) /
+          clipBounds.height /
+          displayScale /
           Math.max(0.001, startTransform.scaleY);
 
         const scaleDeltaX = deltaX / displayScale / (baseScaleW / 2);
@@ -7451,13 +7591,13 @@ export const Preview: React.FC = () => {
   );
 
   const handleMouseUp = useCallback(() => {
-    if (pendingTransformRef.current) {
-      updateClipTransform(
-        pendingTransformRef.current.clipId,
-        pendingTransformRef.current.transform,
-      );
-      pendingTransformRef.current = null;
-    }
+    const pendingCommit = pendingTransformRef.current
+      ? updateClipTransform(
+          pendingTransformRef.current.clipId,
+          pendingTransformRef.current.transform,
+        )
+      : null;
+    pendingTransformRef.current = null;
     setInteractionTargetType(null);
     interactionTargetIdRef.current = null;
     if (rafIdRef.current) {
@@ -7474,7 +7614,12 @@ export const Preview: React.FC = () => {
     setCanvasSnapGuides({ x: null, y: null });
 
     if (wasInteracting) {
-      renderFrameDirectly(playheadPosition);
+      // Wait for the final transform commit to land in the store before
+      // rendering, so we don't paint a frame that's one update behind the
+      // transform the user just released the drag on.
+      void (pendingCommit ?? Promise.resolve()).then(() => {
+        renderFrameDirectly(playheadPosition);
+      });
     }
   }, [updateClipTransform, renderFrameDirectly, playheadPosition]);
 
@@ -7498,13 +7643,13 @@ export const Preview: React.FC = () => {
   useEffect(() => {
     if (interactionMode !== "none") {
       const handleGlobalMouseUp = () => {
-        if (pendingTransformRef.current) {
-          updateClipTransform(
-            pendingTransformRef.current.clipId,
-            pendingTransformRef.current.transform,
-          );
-          pendingTransformRef.current = null;
-        }
+        const pendingCommit = pendingTransformRef.current
+          ? updateClipTransform(
+              pendingTransformRef.current.clipId,
+              pendingTransformRef.current.transform,
+            )
+          : null;
+        pendingTransformRef.current = null;
         if (rafIdRef.current) {
           cancelAnimationFrame(rafIdRef.current);
           rafIdRef.current = null;
@@ -7518,7 +7663,11 @@ export const Preview: React.FC = () => {
         setLiveTransform(null);
 
         if (wasInteracting) {
-          renderFrameDirectly(playheadPosition);
+          // See handleMouseUp: wait for the commit to land before rendering
+          // so the painted frame matches the exact final transform.
+          void (pendingCommit ?? Promise.resolve()).then(() => {
+            renderFrameDirectly(playheadPosition);
+          });
         }
       };
 
@@ -7549,7 +7698,8 @@ export const Preview: React.FC = () => {
 
   const handleSkipForward = useCallback(() => {
     const current = useTimelineStore.getState().playheadPosition;
-    const end = actualEndTime > 0 ? actualEndTime : project.timeline.duration || 0;
+    const end =
+      actualEndTime > 0 ? actualEndTime : project.timeline.duration || 0;
     seekTo(end > 0 ? Math.min(current + 5, end) : current + 5);
   }, [seekTo, actualEndTime, project.timeline.duration]);
 
@@ -7601,11 +7751,8 @@ export const Preview: React.FC = () => {
 
   const showTextClipHandles = !isPlaying && selectedTextClip && textClipBounds;
 
-
   const showShapeClipHandles =
-    !isPlaying &&
-    selectedShapeClip &&
-    shapeClipBounds;
+    !isPlaying && selectedShapeClip && shapeClipBounds;
 
   const showSubtitleOverlay =
     !isPlaying && selectedSubtitleObj && subtitleBounds;
@@ -7664,9 +7811,19 @@ export const Preview: React.FC = () => {
       {/* ── Panel bar header (mockup: 'Player') ───────────────── */}
       {!isMaximized && !isFullscreen && (
         <div className="flex items-center px-3.5 py-2 border-b border-border bg-bg-1 gap-2.5 min-h-[38px] shrink-0">
-          <Text type="label" color="primary" weight="semibold" className="text-[13px] tracking-tight text-fg m-0">Player</Text>
+          <Text
+            type="label"
+            color="primary"
+            weight="semibold"
+            className="text-[13px] tracking-tight text-fg m-0"
+          >
+            Player
+          </Text>
           <div className="ml-auto flex items-center gap-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-accent" title="Live preview" />
+            <span
+              className="w-1.5 h-1.5 rounded-full bg-accent"
+              title="Live preview"
+            />
           </div>
         </div>
       )}
@@ -7701,7 +7858,7 @@ export const Preview: React.FC = () => {
             isMaximized || isFullscreen
               ? "rounded-none ring-0 shadow-none"
               : isDark
-                ? "shadow-2xl rounded-[10px] ring-1 ring-border shadow-[0_0_50px_rgba(0,0,0,0.5)]"
+                ? "shadow-2xl rounded-[10px] ring-1 ring-border"
                 : "rounded-[10px] ring-1 ring-border shadow-sm"
           }`}
           style={
@@ -7728,7 +7885,8 @@ export const Preview: React.FC = () => {
             height={previewRes.height}
             className="w-full h-full object-contain bg-[var(--screen-bg)] rounded-[10px]"
             style={{
-              cursor: hoveredGraphicClipId && !isPlaying ? "pointer" : "default",
+              cursor:
+                hoveredGraphicClipId && !isPlaying ? "pointer" : "default",
             }}
           />
 
@@ -7901,7 +8059,9 @@ export const Preview: React.FC = () => {
 
               {/* Aspect ratio lock toggle */}
               <Button
-                label={lockAspectRatio ? "Unlock aspect ratio" : "Lock aspect ratio"}
+                label={
+                  lockAspectRatio ? "Unlock aspect ratio" : "Lock aspect ratio"
+                }
                 variant="ghost"
                 className={`absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-1 text-[10px] rounded pointer-events-auto transition-colors ${
                   lockAspectRatio
@@ -7976,7 +8136,9 @@ export const Preview: React.FC = () => {
 
               {/* Aspect ratio lock toggle */}
               <Button
-                label={lockAspectRatio ? "Unlock aspect ratio" : "Lock aspect ratio"}
+                label={
+                  lockAspectRatio ? "Unlock aspect ratio" : "Lock aspect ratio"
+                }
                 variant="ghost"
                 className={`absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-1 text-[10px] rounded pointer-events-auto transition-colors ${
                   lockAspectRatio
@@ -8052,7 +8214,9 @@ export const Preview: React.FC = () => {
 
               {/* Aspect ratio lock toggle */}
               <Button
-                label={lockAspectRatio ? "Unlock aspect ratio" : "Lock aspect ratio"}
+                label={
+                  lockAspectRatio ? "Unlock aspect ratio" : "Lock aspect ratio"
+                }
                 variant="ghost"
                 className={`absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-1 text-[10px] rounded pointer-events-auto transition-colors ${
                   lockAspectRatio
@@ -8122,7 +8286,8 @@ export const Preview: React.FC = () => {
           )}
 
           {/* Graphic Clip Hover Indicators */}
-          {!cropMode && !isPlaying &&
+          {!cropMode &&
+            !isPlaying &&
             activeGraphicClips.map((clip) => {
               if (clip.type === "svg") return null;
               if (clip.id === selectedShapeClipId) return null;
@@ -8176,274 +8341,275 @@ export const Preview: React.FC = () => {
 
         {/* Controls row */}
         <div className="h-12 px-4 flex items-center gap-3">
-        <div className="flex items-center gap-2">
-          <span className="font-mono text-[13px] tabular-nums tracking-tight font-medium">
-            <span className="text-fg-2">{formatTime(playheadPosition)}</span>
-            <span className="text-fg-muted mx-1.5">/</span>
-            <span className="text-fg-muted">{formatTime(actualEndTime)}</span>
-          </span>
-        </div>
+          <div className="flex items-center gap-2">
+            <span className="font-mono text-[13px] tabular-nums tracking-tight font-medium">
+              <span className="text-fg-2">{formatTime(playheadPosition)}</span>
+              <span className="text-fg-muted mx-1.5">/</span>
+              <span className="text-fg-muted">{formatTime(actualEndTime)}</span>
+            </span>
+          </div>
 
-        <div className="flex items-center gap-4 mx-auto">
-          <IconButton
-            label="Skip back 5s"
-            icon={<SkipBack size={18} />}
-            variant="ghost"
-            size="sm"
-            onClick={handleSkipBack}
-            className="w-8 h-8 grid place-items-center rounded-md text-fg-2 hover:bg-hover hover:text-fg transition-colors"
-          />
-          <IconButton
-            label={playbackLockedReason ?? (isPlaying ? "Pause" : "Play")}
-            icon={
-              isPlaying ? (
-                <Pause size={18} fill="currentColor" />
-              ) : playbackLockedReason ? (
-                <Loader2 size={18} className="animate-spin" />
-              ) : (
-                <Play size={18} fill="currentColor" className="ml-0.5" />
-              )
-            }
-            variant="ghost"
-            size="md"
-            onClick={() => {
-              togglePlayback();
-            }}
-            isDisabled={Boolean(playbackLockedReason)}
-            className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${
-              playbackLockedReason
-                ? "bg-bg-2 text-fg-muted cursor-not-allowed"
-                : "bg-bg-2 text-fg hover:bg-bg-3"
-            }`}
-          />
-          <IconButton
-            label="Skip forward 5s"
-            icon={<SkipForward size={18} />}
-            variant="ghost"
-            size="sm"
-            onClick={handleSkipForward}
-            className="w-8 h-8 grid place-items-center rounded-md text-fg-2 hover:bg-hover hover:text-fg transition-colors"
-          />
-        </div>
-
-        <div className="flex gap-1.5 items-center">
-          <IconButton
-            label={isMuted ? "Unmute" : "Mute"}
-            icon={isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
-            variant="ghost"
-            size="sm"
-            onClick={() => setIsMuted(!isMuted)}
-            className={`w-[34px] h-[34px] grid place-items-center rounded-[7px] transition-colors ${
-              isMuted
-                ? "bg-bg-2 text-status-error"
-                : "bg-bg-2 text-fg-2 hover:text-fg hover:bg-bg-3"
-            }`}
-          />
-
-          {/* Aspect ratio (project canvas size) */}
-          <div className="relative">
-            <Button
-              label="Aspect ratio"
+          <div className="flex items-center gap-4 mx-auto">
+            <IconButton
+              label="Skip back 5s"
+              icon={<SkipBack size={18} />}
               variant="ghost"
-              onClick={() => setShowAspectMenu(!showAspectMenu)}
-              className="flex items-center gap-1.5 rounded-[7px] bg-bg-2 px-[11px] py-[7px] text-[12px] font-medium text-fg-2 hover:bg-bg-3 hover:text-fg transition-colors"
-            >
-              <div className="flex items-center gap-1">
-                <Proportions size={12} />
-                <span>{aspectLabelFor(settings.width, settings.height)}</span>
-              </div>
-            </Button>
-            {showAspectMenu && (
-              <>
-                <div
-                  className="fixed inset-0 z-40"
-                  onClick={() => setShowAspectMenu(false)}
-                />
-                <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 bg-bg-elev border border-border rounded-md shadow-md py-1 z-50 min-w-[120px]">
-                  {ASPECT_PRESETS.map((opt) => {
-                    const isActive =
-                      settings.width === opt.width &&
-                      settings.height === opt.height;
-                    return (
+              size="sm"
+              onClick={handleSkipBack}
+              className="w-8 h-8 grid place-items-center rounded-md text-fg-2 hover:bg-hover hover:text-fg transition-colors"
+            />
+            <IconButton
+              label={playbackLockedReason ?? (isPlaying ? "Pause" : "Play")}
+              icon={
+                isPlaying ? (
+                  <Pause size={18} fill="currentColor" />
+                ) : playbackLockedReason ? (
+                  <Loader2 size={18} className="animate-spin" />
+                ) : (
+                  <Play size={18} fill="currentColor" className="ml-0.5" />
+                )
+              }
+              variant="ghost"
+              size="md"
+              onClick={() => {
+                togglePlayback();
+              }}
+              isDisabled={Boolean(playbackLockedReason)}
+              className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${
+                playbackLockedReason
+                  ? "bg-bg-2 text-fg-muted cursor-not-allowed"
+                  : "bg-bg-2 text-fg hover:bg-bg-3"
+              }`}
+            />
+            <IconButton
+              label="Skip forward 5s"
+              icon={<SkipForward size={18} />}
+              variant="ghost"
+              size="sm"
+              onClick={handleSkipForward}
+              className="w-8 h-8 grid place-items-center rounded-md text-fg-2 hover:bg-hover hover:text-fg transition-colors"
+            />
+          </div>
+
+          <div className="flex gap-1.5 items-center">
+            <IconButton
+              label={isMuted ? "Unmute" : "Mute"}
+              icon={isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsMuted(!isMuted)}
+              className={`w-[34px] h-[34px] grid place-items-center rounded-[7px] transition-colors ${
+                isMuted
+                  ? "bg-bg-2 text-status-error"
+                  : "bg-bg-2 text-fg-2 hover:text-fg hover:bg-bg-3"
+              }`}
+            />
+
+            {/* Aspect ratio (project canvas size) */}
+            <div className="relative">
+              <Button
+                label="Aspect ratio"
+                variant="ghost"
+                onClick={() => setShowAspectMenu(!showAspectMenu)}
+                className="flex items-center gap-1.5 rounded-[7px] bg-bg-2 px-[11px] py-[7px] text-[12px] font-medium text-fg-2 hover:bg-bg-3 hover:text-fg transition-colors"
+              >
+                <div className="flex items-center gap-1">
+                  <Proportions size={12} />
+                  <span>{aspectLabelFor(settings.width, settings.height)}</span>
+                </div>
+              </Button>
+              {showAspectMenu && (
+                <>
+                  <div
+                    className="fixed inset-0 z-40"
+                    onClick={() => setShowAspectMenu(false)}
+                  />
+                  <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 bg-bg-elev border border-border rounded-md shadow-md py-1 z-50 min-w-[120px]">
+                    {ASPECT_PRESETS.map((opt) => {
+                      const isActive =
+                        settings.width === opt.width &&
+                        settings.height === opt.height;
+                      return (
+                        <Button
+                          key={opt.label}
+                          label={`${opt.label} ${opt.width} by ${opt.height}`}
+                          variant="ghost"
+                          onClick={() => {
+                            void updateSettings({
+                              width: opt.width,
+                              height: opt.height,
+                            });
+                            setShowAspectMenu(false);
+                          }}
+                          className={`w-full px-3 py-1.5 text-[11px] font-mono text-left hover:bg-hover transition-colors flex items-center justify-between gap-3 ${
+                            isActive ? "text-accent" : "text-fg-2"
+                          }`}
+                        >
+                          <span>{opt.label}</span>
+                          <span className="text-fg-3 text-[10px]">
+                            {opt.width}×{opt.height}
+                          </span>
+                        </Button>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Playback Quality (render resolution) */}
+            <div className="relative">
+              <Button
+                label="Playback quality"
+                variant="ghost"
+                onClick={() => setShowQualityMenu(!showQualityMenu)}
+                className="rounded-[7px] bg-bg-2 px-[11px] py-[7px] text-[12px] font-medium text-fg-2 hover:bg-bg-3 hover:text-fg transition-colors"
+              >
+                {PREVIEW_QUALITY_OPTIONS.find(
+                  (o) => o.value === playbackQuality,
+                )?.label ?? "Auto"}
+              </Button>
+              {showQualityMenu && (
+                <>
+                  <div
+                    className="fixed inset-0 z-40"
+                    onClick={() => setShowQualityMenu(false)}
+                  />
+                  <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 bg-bg-elev border border-border rounded-md shadow-md py-1 z-50 min-w-[80px]">
+                    {PREVIEW_QUALITY_OPTIONS.map((opt) => (
                       <Button
-                        key={opt.label}
-                        label={`${opt.label} ${opt.width} by ${opt.height}`}
+                        key={opt.value}
+                        label={opt.label}
                         variant="ghost"
                         onClick={() => {
-                          void updateSettings({
-                            width: opt.width,
-                            height: opt.height,
-                          });
-                          setShowAspectMenu(false);
+                          setPlaybackQuality(opt.value);
+                          setShowQualityMenu(false);
                         }}
-                        className={`w-full px-3 py-1.5 text-[11px] font-mono text-left hover:bg-hover transition-colors flex items-center justify-between gap-3 ${
-                          isActive ? "text-accent" : "text-fg-2"
+                        className={`w-full px-3 py-1.5 text-[11px] font-mono text-left hover:bg-hover transition-colors ${
+                          playbackQuality === opt.value
+                            ? "text-accent"
+                            : "text-fg-2"
                         }`}
-                        >
-                        <span>{opt.label}</span>
-                        <span className="text-fg-3 text-[10px]">
-                          {opt.width}×{opt.height}
-                        </span>
+                      >
+                        {opt.label}
                       </Button>
-                    );
-                  })}
-                </div>
-              </>
-            )}
-          </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
 
-          {/* Playback Quality (render resolution) */}
-          <div className="relative">
-            <Button
-              label="Playback quality"
+            {/* Zoom Control */}
+            <div className="relative">
+              <Button
+                label="Preview Zoom"
+                variant="ghost"
+                onClick={() => setShowZoomMenu(!showZoomMenu)}
+                className="flex items-center gap-1.5 rounded-[7px] bg-bg-2 px-[11px] py-[7px] text-[12px] font-medium text-fg-2 hover:bg-bg-3 hover:text-fg transition-colors"
+              >
+                <div className="flex items-center gap-1">
+                  <ZoomIn size={12} />
+                  <span>{Math.round(zoomLevel * 100)}%</span>
+                </div>
+              </Button>
+              {showZoomMenu && (
+                <>
+                  <div
+                    className="fixed inset-0 z-40"
+                    onClick={() => setShowZoomMenu(false)}
+                  />
+                  <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 bg-bg-elev border border-border rounded-md shadow-md py-1 z-50 min-w-[80px]">
+                    {ZOOM_OPTIONS.map((opt) => (
+                      <Button
+                        key={opt.value}
+                        label={opt.label}
+                        variant="ghost"
+                        onClick={() => {
+                          setZoomLevel(opt.value);
+                          setShowZoomMenu(false);
+                        }}
+                        className={`w-full px-3 py-1.5 text-[11px] font-mono text-left hover:bg-hover transition-colors ${
+                          zoomLevel === opt.value ? "text-accent" : "text-fg-2"
+                        }`}
+                      >
+                        {opt.label}
+                      </Button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+
+            <IconButton
+              label="Canvas snapping"
+              icon={<Magnet size={16} />}
               variant="ghost"
-              onClick={() => setShowQualityMenu(!showQualityMenu)}
-              className="rounded-[7px] bg-bg-2 px-[11px] py-[7px] text-[12px] font-medium text-fg-2 hover:bg-bg-3 hover:text-fg transition-colors"
-            >
-              {PREVIEW_QUALITY_OPTIONS.find((o) => o.value === playbackQuality)
-                ?.label ?? "Auto"}
-            </Button>
-            {showQualityMenu && (
-              <>
-                <div
-                  className="fixed inset-0 z-40"
-                  onClick={() => setShowQualityMenu(false)}
-                />
-                <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 bg-bg-elev border border-border rounded-md shadow-md py-1 z-50 min-w-[80px]">
-                  {PREVIEW_QUALITY_OPTIONS.map((opt) => (
-                    <Button
-                      key={opt.value}
-                      label={opt.label}
-                      variant="ghost"
-                      onClick={() => {
-                        setPlaybackQuality(opt.value);
-                        setShowQualityMenu(false);
-                      }}
-                      className={`w-full px-3 py-1.5 text-[11px] font-mono text-left hover:bg-hover transition-colors ${
-                        playbackQuality === opt.value
-                          ? "text-accent"
-                          : "text-fg-2"
-                      }`}
-                    >
-                      {opt.label}
-                    </Button>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
-
-          {/* Zoom Control */}
-          <div className="relative">
-            <Button
-              label="Preview Zoom"
+              size="sm"
+              aria-pressed={canvasSnappingEnabled}
+              onClick={() => {
+                setCanvasSnappingEnabled((enabled) => !enabled);
+                setCanvasSnapGuides({ x: null, y: null });
+              }}
+              className={`w-[34px] h-[34px] grid place-items-center rounded-[7px] transition-colors ${
+                canvasSnappingEnabled
+                  ? "bg-accent-soft text-accent"
+                  : "bg-bg-2 text-fg-2 hover:text-fg hover:bg-bg-3"
+              }`}
+            />
+            <IconButton
+              label="Composition grid"
+              icon={<Move size={16} />}
               variant="ghost"
-              onClick={() => setShowZoomMenu(!showZoomMenu)}
-              className="flex items-center gap-1.5 rounded-[7px] bg-bg-2 px-[11px] py-[7px] text-[12px] font-medium text-fg-2 hover:bg-bg-3 hover:text-fg transition-colors"
-            >
-              <div className="flex items-center gap-1">
-                <ZoomIn size={12} />
-                <span>{Math.round(zoomLevel * 100)}%</span>
-              </div>
-            </Button>
-            {showZoomMenu && (
-              <>
-                <div
-                  className="fixed inset-0 z-40"
-                  onClick={() => setShowZoomMenu(false)}
-                />
-                <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 bg-bg-elev border border-border rounded-md shadow-md py-1 z-50 min-w-[80px]">
-                  {ZOOM_OPTIONS.map((opt) => (
-                    <Button
-                      key={opt.value}
-                      label={opt.label}
-                      variant="ghost"
-                      onClick={() => {
-                        setZoomLevel(opt.value);
-                        setShowZoomMenu(false);
-                      }}
-                      className={`w-full px-3 py-1.5 text-[11px] font-mono text-left hover:bg-hover transition-colors ${
-                        zoomLevel === opt.value
-                          ? "text-accent"
-                          : "text-fg-2"
-                      }`}
-                    >
-                      {opt.label}
-                    </Button>
-                  ))}
-                </div>
-              </>
-            )}
+              size="sm"
+              aria-pressed={showCompositionGrid}
+              onClick={() => setShowCompositionGrid((visible) => !visible)}
+              className={`w-[34px] h-[34px] grid place-items-center rounded-[7px] transition-colors ${
+                showCompositionGrid
+                  ? "bg-accent-soft text-accent"
+                  : "bg-bg-2 text-fg-2 hover:text-fg hover:bg-bg-3"
+              }`}
+            />
+            <IconButton
+              label="Title and action safe margins"
+              icon={<Proportions size={16} />}
+              variant="ghost"
+              size="sm"
+              aria-pressed={showSafeMargins}
+              onClick={() => setShowSafeMargins((visible) => !visible)}
+              className={`w-[34px] h-[34px] grid place-items-center rounded-[7px] transition-colors ${
+                showSafeMargins
+                  ? "bg-accent-soft text-accent"
+                  : "bg-bg-2 text-fg-2 hover:text-fg hover:bg-bg-3"
+              }`}
+            />
+
+            <IconButton
+              label={isFullscreen ? "Exit Full Screen" : "Full Screen"}
+              icon={<Monitor size={16} />}
+              variant="ghost"
+              size="sm"
+              onClick={handleFullscreen}
+              className={`w-[34px] h-[34px] grid place-items-center rounded-[7px] transition-colors ${
+                isFullscreen
+                  ? "bg-accent-soft text-accent"
+                  : "bg-bg-2 text-fg-2 hover:text-fg hover:bg-bg-3"
+              }`}
+            />
+            <IconButton
+              label={isMaximized ? "Restore Size" : "Maximize Preview"}
+              icon={
+                isMaximized ? <Minimize2 size={16} /> : <Maximize2 size={16} />
+              }
+              variant="ghost"
+              size="sm"
+              onClick={handleMaximize}
+              className={`w-[34px] h-[34px] grid place-items-center rounded-[7px] transition-colors ${
+                isMaximized
+                  ? "bg-accent-soft text-accent"
+                  : "bg-bg-2 text-fg-2 hover:text-fg hover:bg-bg-3"
+              }`}
+            />
           </div>
-
-          <IconButton
-            label="Canvas snapping"
-            icon={<Magnet size={16} />}
-            variant="ghost"
-            size="sm"
-            aria-pressed={canvasSnappingEnabled}
-            onClick={() => {
-              setCanvasSnappingEnabled((enabled) => !enabled);
-              setCanvasSnapGuides({ x: null, y: null });
-            }}
-            className={`w-[34px] h-[34px] grid place-items-center rounded-[7px] transition-colors ${
-              canvasSnappingEnabled
-                ? "bg-accent-soft text-accent"
-                : "bg-bg-2 text-fg-2 hover:text-fg hover:bg-bg-3"
-            }`}
-          />
-          <IconButton
-            label="Composition grid"
-            icon={<Move size={16} />}
-            variant="ghost"
-            size="sm"
-            aria-pressed={showCompositionGrid}
-            onClick={() => setShowCompositionGrid((visible) => !visible)}
-            className={`w-[34px] h-[34px] grid place-items-center rounded-[7px] transition-colors ${
-              showCompositionGrid
-                ? "bg-accent-soft text-accent"
-                : "bg-bg-2 text-fg-2 hover:text-fg hover:bg-bg-3"
-            }`}
-          />
-          <IconButton
-            label="Title and action safe margins"
-            icon={<Proportions size={16} />}
-            variant="ghost"
-            size="sm"
-            aria-pressed={showSafeMargins}
-            onClick={() => setShowSafeMargins((visible) => !visible)}
-            className={`w-[34px] h-[34px] grid place-items-center rounded-[7px] transition-colors ${
-              showSafeMargins
-                ? "bg-accent-soft text-accent"
-                : "bg-bg-2 text-fg-2 hover:text-fg hover:bg-bg-3"
-            }`}
-          />
-
-          <IconButton
-            label={isFullscreen ? "Exit Full Screen" : "Full Screen"}
-            icon={<Monitor size={16} />}
-            variant="ghost"
-            size="sm"
-            onClick={handleFullscreen}
-            className={`w-[34px] h-[34px] grid place-items-center rounded-[7px] transition-colors ${
-              isFullscreen
-                ? "bg-accent-soft text-accent"
-                : "bg-bg-2 text-fg-2 hover:text-fg hover:bg-bg-3"
-            }`}
-          />
-          <IconButton
-            label={isMaximized ? "Restore Size" : "Maximize Preview"}
-            icon={isMaximized ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
-            variant="ghost"
-            size="sm"
-            onClick={handleMaximize}
-            className={`w-[34px] h-[34px] grid place-items-center rounded-[7px] transition-colors ${
-              isMaximized
-                ? "bg-accent-soft text-accent"
-                : "bg-bg-2 text-fg-2 hover:text-fg hover:bg-bg-3"
-            }`}
-          />
-        </div>
         </div>
       </div>
     </div>

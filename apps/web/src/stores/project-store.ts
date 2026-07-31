@@ -2429,7 +2429,7 @@ export const useProjectStore = create<ProjectState>()(
           };
           const result = await actionExecutor.execute(action, project);
           if (result.success) {
-            set({ project: { ...project } });
+            set({ project: { ...project, modifiedAt: Date.now() } });
           }
           return result;
         }
