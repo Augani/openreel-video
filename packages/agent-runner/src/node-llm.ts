@@ -6,11 +6,12 @@ import {
 } from "@openreel/agent";
 import type { LLMClient, LLMSend } from "@openreel/agent";
 
-export type LlmProvider = "anthropic" | "openai";
+export type LlmProvider = "anthropic" | "openai" | "atlascloud";
 
 const ENDPOINTS: Record<LlmProvider, string> = {
   anthropic: "https://api.anthropic.com/v1/messages",
   openai: "https://api.openai.com/v1/chat/completions",
+  atlascloud: "https://api.atlascloud.ai/v1/chat/completions",
 };
 
 function authHeaders(

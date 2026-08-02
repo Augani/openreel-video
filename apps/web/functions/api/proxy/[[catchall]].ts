@@ -1,13 +1,14 @@
 /**
  * Cloudflare Pages Function: API proxy for third-party services.
  *
- * Routes requests from the browser to ElevenLabs, OpenAI, and Anthropic
+ * Routes requests from the browser to ElevenLabs, OpenAI, Anthropic, and Atlas Cloud
  * so that API keys never leave the same origin in production.
  *
  * URL pattern: /api/proxy/<service>/<path>
  *   e.g. POST /api/proxy/elevenlabs/text-to-speech/abc123
  *        POST /api/proxy/openai/chat/completions
  *        POST /api/proxy/anthropic/messages
+ *        POST /api/proxy/atlascloud/chat/completions
  *
  * The API key is passed via the `x-proxy-api-key` header and translated
  * to the correct service-specific header before forwarding.
@@ -27,6 +28,11 @@ const SERVICE_CONFIG: Record<string, ServiceConfig> = {
   },
   openai: {
     baseUrl: "https://api.openai.com/v1",
+    allowedPaths: /^(chat\/completions|models)$/,
+    authHeaders: (key) => ({ Authorization: `Bearer ${key}` }),
+  },
+  atlascloud: {
+    baseUrl: "https://api.atlascloud.ai/v1",
     allowedPaths: /^(chat\/completions|models)$/,
     authHeaders: (key) => ({ Authorization: `Bearer ${key}` }),
   },

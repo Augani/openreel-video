@@ -9,6 +9,7 @@ import { modelsFor, defaultModelFor } from "./models";
 const PROVIDERS: ReadonlyArray<{ id: LlmProvider; label: string }> = [
   { id: "anthropic", label: "Anthropic" },
   { id: "openai", label: "OpenAI" },
+  { id: "atlascloud", label: "Atlas Cloud" },
 ];
 
 interface ProviderModelPickerProps {

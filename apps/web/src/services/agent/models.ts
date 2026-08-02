@@ -19,6 +19,12 @@ export const LLM_MODELS: Record<LlmProvider, LlmModelOption[]> = {
     { id: "gpt-4.1", label: "GPT-4.1" },
     { id: "o4-mini", label: "o4-mini" },
   ],
+  atlascloud: [
+    {
+      id: "deepseek-ai/deepseek-v4-pro",
+      label: "DeepSeek V4 Pro",
+    },
+  ],
 };
 
 export function defaultModelFor(provider: LlmProvider): string {

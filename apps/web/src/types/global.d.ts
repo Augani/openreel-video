@@ -228,7 +228,7 @@ declare global {
       };
       cloud: {
         fetch(
-          service: "elevenlabs" | "openai" | "anthropic",
+          service: "elevenlabs" | "openai" | "anthropic" | "atlascloud",
           path: string,
           options?: { method?: string; headers?: Record<string, string>; body?: string },
         ): Promise<{ status: number; statusText: string; headers: Record<string, string>; body: ArrayBuffer }>;

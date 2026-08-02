@@ -21,6 +21,12 @@ const DIRECT_CONFIG = {
       Authorization: `Bearer ${key}`,
     }),
   },
+  atlascloud: {
+    baseUrl: "https://api.atlascloud.ai/v1",
+    authHeaders: (key: string): Record<string, string> => ({
+      Authorization: `Bearer ${key}`,
+    }),
+  },
   anthropic: {
     baseUrl: "https://api.anthropic.com/v1",
     authHeaders: (key: string): Record<string, string> => ({
@@ -37,7 +43,7 @@ export type ApiService = keyof typeof DIRECT_CONFIG;
  * Fetch from a third-party API, automatically routing through the proxy
  * in production builds.
  *
- * @param service - Target service (elevenlabs, openai, anthropic)
+ * @param service - Target service (elevenlabs, openai, anthropic, atlascloud)
  * @param path - API path including leading slash, e.g. "/models" or "/text-to-speech/voiceId"
  * @param apiKey - Decrypted API key for the service
  * @param options - Standard RequestInit (method, body, extra headers, etc.)

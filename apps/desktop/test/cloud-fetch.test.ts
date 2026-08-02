@@ -20,6 +20,15 @@ describe("buildUpstreamRequest", () => {
     expect(r.body).toBe('{"model":"gpt-4o-mini"}');
   });
 
+  it("atlascloud: OpenAI-compatible endpoint + Authorization Bearer", () => {
+    const r = buildUpstreamRequest("atlascloud", "/chat/completions", "KEY", {
+      method: "POST",
+      body: '{"model":"deepseek-ai/deepseek-v4-pro"}',
+    });
+    expect(r.url).toBe("https://api.atlascloud.ai/v1/chat/completions");
+    expect(r.headers["Authorization"]).toBe("Bearer KEY");
+  });
+
   it("anthropic: x-api-key + anthropic-version", () => {
     const r = buildUpstreamRequest("anthropic", "/messages", "KEY", { method: "POST", body: "{}" });
     expect(r.url).toBe("https://api.anthropic.com/v1/messages");

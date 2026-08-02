@@ -8,7 +8,10 @@ import { makeBYOKClient } from "../../services/agent/llm-transport";
 import { defaultModelFor, modelsFor } from "../../services/agent/models";
 import { getSecret, isSessionUnlocked } from "../../services/secure-storage";
 import { useProjectStore } from "../../stores/project-store";
-import { useSettingsStore } from "../../stores/settings-store";
+import {
+  useSettingsStore,
+  type LlmProvider,
+} from "../../stores/settings-store";
 import { Button, Field, TextInput } from "./primitives";
 
 interface GenerateShaderBoxProps {
@@ -27,7 +30,7 @@ function isDesktop(): boolean {
   return typeof window !== "undefined" && window.openreel?.platform === "desktop";
 }
 
-function resolveModel(): { provider: "openai" | "anthropic"; model: string } {
+function resolveModel(): { provider: LlmProvider; model: string } {
   const provider = useSettingsStore.getState().defaultLlmProvider;
   const storedModel = useSettingsStore.getState().llmModel;
   const model = modelsFor(provider).some((option) => option.id === storedModel)
@@ -36,7 +39,7 @@ function resolveModel(): { provider: "openai" | "anthropic"; model: string } {
   return { provider, model };
 }
 
-async function resolveApiKey(provider: "openai" | "anthropic"): Promise<string | null> {
+async function resolveApiKey(provider: LlmProvider): Promise<string | null> {
   if (isDesktop()) return "";
   if (!isSessionUnlocked()) return null;
   try {
