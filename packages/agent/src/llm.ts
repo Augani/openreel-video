@@ -7,7 +7,7 @@ export interface LLMToolUse {
 /** Informational only — the loop drives control flow off toolUses, not this. */
 export type LLMStopReason = "end_turn" | "tool_use" | "max_tokens";
 
-export type LlmProviderName = "anthropic" | "openai";
+export type LlmProviderName = "anthropic" | "openai" | "atlascloud";
 
 export interface LLMUsage {
   readonly inputTokens: number;

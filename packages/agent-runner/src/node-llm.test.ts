@@ -34,6 +34,23 @@ describe("makeNodeLLMSend", () => {
     expect((init.headers as Record<string, string>).Authorization).toBe("Bearer sk-openai");
   });
 
+  it("routes Atlas Cloud through its OpenAI-compatible endpoint", async () => {
+    const fetchFn = vi.fn().mockResolvedValue(okResponse({ ok: true }));
+    const send = makeNodeLLMSend(
+      "atlascloud",
+      "atlas-key",
+      fetchFn as unknown as typeof fetch,
+    );
+    await send({ model: "deepseek-ai/deepseek-v4-pro" });
+
+    const [url, init] = fetchFn.mock.calls[0];
+    expect(url).toBe("https://api.atlascloud.ai/v1/chat/completions");
+    expect((init.headers as Record<string, string>).Authorization).toBe(
+      "Bearer atlas-key",
+    );
+    expect(init.body).not.toContain("atlas-key");
+  });
+
   it("throws when no key is provided", () => {
     expect(() => makeNodeLLMSend("anthropic", "")).toThrow(/Missing API key/);
   });

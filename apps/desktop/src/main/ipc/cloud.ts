@@ -1,6 +1,6 @@
 import { getKeyStore } from "./keychain";
 
-export type CloudService = "elevenlabs" | "openai" | "anthropic";
+export type CloudService = "elevenlabs" | "openai" | "anthropic" | "atlascloud";
 
 interface ServiceConfig {
   baseUrl: string;
@@ -16,6 +16,10 @@ export const DIRECT_CONFIG: Record<CloudService, ServiceConfig> = {
   },
   openai: {
     baseUrl: "https://api.openai.com/v1",
+    authHeaders: (key) => ({ Authorization: `Bearer ${key}` }),
+  },
+  atlascloud: {
+    baseUrl: "https://api.atlascloud.ai/v1",
     authHeaders: (key) => ({ Authorization: `Bearer ${key}` }),
   },
   anthropic: {

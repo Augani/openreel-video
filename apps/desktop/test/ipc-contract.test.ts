@@ -10,6 +10,7 @@ import {
   auroraSequenceSessionEventSchema,
   auroraSequenceSessionStartArgsSchema,
   auroraSequenceSessionStartResultSchema,
+  cloudFetchArgsSchema,
   hardwareInfoSchema,
   riggingBackendProbeSchema,
   rigHumanoidModelArgsSchema,
@@ -69,6 +70,16 @@ describe("ipc-contract", () => {
   it("rejects a malformed hardware info object", () => {
     const bad = hardwareInfoSchema.safeParse({ cpu: { model: 1 } });
     expect(bad.success).toBe(false);
+  });
+
+  it("accepts Atlas Cloud requests through the cloud proxy", () => {
+    const result = cloudFetchArgsSchema.safeParse({
+      service: "atlascloud",
+      path: "/chat/completions",
+      method: "POST",
+      body: "{}",
+    });
+    expect(result.success).toBe(true);
   });
 
   it("validates a rigging backend probe result", () => {

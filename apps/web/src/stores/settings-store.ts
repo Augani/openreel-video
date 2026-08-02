@@ -33,6 +33,12 @@ export const SERVICE_REGISTRY: readonly ServiceConfig[] = [
     docsUrl: "https://docs.anthropic.com/en/docs",
   },
   {
+    id: "atlascloud",
+    label: "Atlas Cloud",
+    description: "OpenAI-compatible models for AI-assisted editing",
+    docsUrl: "https://www.atlascloud.ai/console/api-keys",
+  },
+  {
     id: "kie-ai",
     label: "Kie.ai",
     description: "AI aggregator for video/image generation, upscaling, and editing",
@@ -47,7 +53,7 @@ export const SERVICE_REGISTRY: readonly ServiceConfig[] = [
 ] as const;
 
 export type TtsProvider = "piper" | "elevenlabs";
-export type LlmProvider = "openai" | "anthropic";
+export type LlmProvider = "openai" | "anthropic" | "atlascloud";
 export type AggregatorProvider = "kie-ai" | "freepik";
 export type SettingsTab = "general" | "api-keys" | "mcp";
 
