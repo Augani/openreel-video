@@ -21,6 +21,7 @@ import { PropertySlider } from "./shell/PropertySlider";
 import { useEngineStore } from "../../../stores/engine-store";
 import { useProjectStore } from "../../../stores/project-store";
 import type { AdjustmentLayer, BlendMode, Effect } from "@openreel/core";
+import { useTranslation } from "react-i18next";
 
 interface AdjustmentLayerSectionProps {
   clipId: string;
@@ -167,6 +168,7 @@ function adjustmentEffectPreviewStyle(type: string): React.CSSProperties {
 export const AdjustmentLayerSection: React.FC<AdjustmentLayerSectionProps> = ({
   clipId,
 }) => {
+  const { t } = useTranslation();
   const getAdjustmentLayerEngine = useEngineStore(
     (state) => state.getAdjustmentLayerEngine,
   );
@@ -439,7 +441,7 @@ export const AdjustmentLayerSection: React.FC<AdjustmentLayerSectionProps> = ({
             </Text>
           </button>
           <IconButton
-            label={layer.enabled ? "Hide layer" : "Show layer"}
+            label={layer.enabled ? t("Hide layer") : t("Show layer")}
             icon={layer.enabled ? <Eye size={12} aria-hidden /> : <EyeOff size={12} aria-hidden />}
             variant="ghost"
             size="sm"
@@ -451,7 +453,7 @@ export const AdjustmentLayerSection: React.FC<AdjustmentLayerSectionProps> = ({
         {isExpanded && (
           <div className="px-2 pb-2 space-y-3">
             <PropertySlider
-              label="Opacity"
+              label={t("Opacity")}
               min={0}
               max={100}
               step={1}
@@ -463,7 +465,7 @@ export const AdjustmentLayerSection: React.FC<AdjustmentLayerSectionProps> = ({
             />
             <div className="grid grid-cols-2 gap-2">
               <PropertySlider
-                label="Start"
+                label={t("Start")}
                 min={0}
                 max={Math.max(project.timeline.duration, layer.startTime + layer.duration)}
                 step={1 / project.settings.frameRate}
@@ -472,7 +474,7 @@ export const AdjustmentLayerSection: React.FC<AdjustmentLayerSectionProps> = ({
                 formatValue={(value) => `${value.toFixed(2)}s`}
               />
               <PropertySlider
-                label="Duration"
+                label={t("Duration")}
                 min={1 / project.settings.frameRate}
                 max={Math.max(project.timeline.duration, layer.duration)}
                 step={1 / project.settings.frameRate}
@@ -489,15 +491,14 @@ export const AdjustmentLayerSection: React.FC<AdjustmentLayerSectionProps> = ({
                 className="flex items-center gap-1 text-[10px]"
               >
                 <Palette size={10} aria-hidden />
-                Blend Mode
-              </Text>
+                {t("Blend Mode")}</Text>
               <Popover
                 isOpen={showBlendModes}
                 onOpenChange={setShowBlendModes}
                 placement="below"
                 alignment="start"
                 width={220}
-                label="Blend mode"
+                label={t("Blend mode")}
                 content={
                   <div className="max-h-48 overflow-y-auto p-1.5">
                     {BLEND_MODES.map((mode) => (
@@ -542,7 +543,7 @@ export const AdjustmentLayerSection: React.FC<AdjustmentLayerSectionProps> = ({
                 className="flex items-center gap-1 text-[10px]"
               >
                 <Droplet size={10} aria-hidden />
-                Effects ({layer.effects.length})
+                {t("Effects (")}{layer.effects.length})
               </Text>
               {layer.effects.length > 0 && (
                 <div className="space-y-1">
@@ -581,7 +582,7 @@ export const AdjustmentLayerSection: React.FC<AdjustmentLayerSectionProps> = ({
                           return (
                             <PropertySlider
                               key={control.param}
-                              label={control.label}
+                              label={t(control.label)}
                               min={control.min}
                               max={control.max}
                               step={control.step}
@@ -631,8 +632,8 @@ export const AdjustmentLayerSection: React.FC<AdjustmentLayerSectionProps> = ({
                         }}
                       />
                       <span className="absolute inset-y-0 left-1/2 w-px bg-white/70" />
-                      <span className="absolute bottom-0.5 left-1 text-[7px] font-bold uppercase text-white/75">Before</span>
-                      <span className="absolute bottom-0.5 right-1 text-[7px] font-bold uppercase text-white/90">Effect</span>
+                      <span className="absolute bottom-0.5 left-1 text-[7px] font-bold uppercase text-white/75">{t("Before")}</span>
+                      <span className="absolute bottom-0.5 right-1 text-[7px] font-bold uppercase text-white/90">{t("Effect")}</span>
                     </span>
                     <Text type="supporting" color="primary" className="block truncate text-[9px] font-semibold">
                       {preset.name}
@@ -644,7 +645,7 @@ export const AdjustmentLayerSection: React.FC<AdjustmentLayerSectionProps> = ({
 
             <div className="flex gap-1 pt-2 border-t border-border">
               <Button
-                label="Duplicate"
+                label={t("Duplicate")}
                 icon={<Copy size={10} aria-hidden />}
                 variant="secondary"
                 size="sm"
@@ -652,7 +653,7 @@ export const AdjustmentLayerSection: React.FC<AdjustmentLayerSectionProps> = ({
                 className="flex-1"
               />
               <Button
-                label="Delete"
+                label={t("Delete")}
                 icon={<Trash2 size={10} aria-hidden />}
                 variant="secondary"
                 size="sm"
@@ -676,16 +677,14 @@ export const AdjustmentLayerSection: React.FC<AdjustmentLayerSectionProps> = ({
         <Layers size={16} className="text-primary" aria-hidden />
         <div className="flex flex-1 flex-col gap-0.5">
           <Text type="body" color="primary" weight="bold" className="block text-[11px]">
-            Adjustment Layers
-          </Text>
+            {t("Adjustment Layers")}</Text>
           <Text type="supporting" color="secondary" className="block text-[9px]">
-            Non-destructive effects on clips below
-          </Text>
+            {t("Non-destructive effects on clips below")}</Text>
         </div>
       </Card>
 
       <Button
-        label="Add Adjustment Layer"
+        label={t("Add Adjustment Layer")}
         icon={<Plus size={14} aria-hidden />}
         variant={currentTrack ? "primary" : "secondary"}
         size="md"
@@ -697,7 +696,7 @@ export const AdjustmentLayerSection: React.FC<AdjustmentLayerSectionProps> = ({
       {trackLayers.length > 0 && (
         <div className="space-y-2">
           <Text type="supporting" color="secondary" weight="bold">
-            Track Layers ({trackLayers.length})
+            {t("Track Layers (")}{trackLayers.length})
           </Text>
           <div className="space-y-1.5">{trackLayers.map(renderLayerItem)}</div>
         </div>
@@ -706,8 +705,7 @@ export const AdjustmentLayerSection: React.FC<AdjustmentLayerSectionProps> = ({
       {allLayers.length > trackLayers.length && (
         <div className="space-y-2 pt-2 border-t border-border">
           <Text type="supporting" color="secondary" weight="bold">
-            Other Layers
-          </Text>
+            {t("Other Layers")}</Text>
           <div className="space-y-1.5">
             {allLayers
               .filter((l) => !trackLayers.some((tl) => tl.id === l.id))
@@ -718,8 +716,7 @@ export const AdjustmentLayerSection: React.FC<AdjustmentLayerSectionProps> = ({
 
       <div className="pt-2 border-t border-border">
         <Text type="supporting" color="secondary" className="block text-[9px] text-center">
-          Apply color, effects to all clips below
-        </Text>
+          {t("Apply color, effects to all clips below")}</Text>
       </div>
     </div>
   );

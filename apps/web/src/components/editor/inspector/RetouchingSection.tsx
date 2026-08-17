@@ -5,6 +5,7 @@ import { ToolcraftClickableCard as ClickableCard } from "@openreel/ui";
 import { ToolcraftText as Text } from "@openreel/ui";
 import { PropertySlider } from "./shell/PropertySlider";
 import { Eraser, Copy, Eye, Target, MousePointer2 } from "@/icons/lucide-compat";
+import { useTranslation } from "react-i18next";
 
 export type RetouchingTool = "spotHeal" | "cloneStamp" | "redEyeRemoval";
 
@@ -94,6 +95,7 @@ const BrushPreview: React.FC<{
   size: number;
   hardness: number;
 }> = ({ size, hardness }) => {
+  const { t } = useTranslation();
   // Scale size for preview (max 60px display)
   const displaySize = Math.min(size, 60);
 
@@ -118,7 +120,7 @@ const BrushPreview: React.FC<{
         />
       </div>
       <Text type="supporting" color="secondary" className="ml-3 text-[10px]">
-        {size}px @ {Math.round(hardness * 100)}%
+        {size}{t("px @ ")}{Math.round(hardness * 100)}%
       </Text>
     </div>
   );
@@ -131,13 +133,13 @@ const CloneSourceIndicator: React.FC<{
   source: CloneSource | null;
   onClear: () => void;
 }> = ({ source, onClear }) => {
+  const { t } = useTranslation();
   if (!source) {
     return (
       <div className="p-3 bg-bg-2 rounded-lg text-center">
         <Target size={20} className="mx-auto mb-1 text-fg-3" />
         <Text type="supporting" color="secondary">
-          Alt+Click to set clone source
-        </Text>
+          {t("Alt+Click to set clone source")}</Text>
       </div>
     );
   }
@@ -148,11 +150,10 @@ const CloneSourceIndicator: React.FC<{
         <div className="flex items-center gap-2">
           <Target size={14} className="text-primary" />
           <Text type="supporting" color="primary">
-            Clone Source
-          </Text>
+            {t("Clone Source")}</Text>
         </div>
         <Button
-          label="Clear"
+          label={t("Clear")}
           size="sm"
           variant="ghost"
           onClick={onClear}
@@ -216,29 +217,30 @@ export const RetouchingSection: React.FC<RetouchingSectionProps> = ({
   onBrushFlowChange,
   onClearCloneSource,
 }) => {
+  const { t } = useTranslation();
   // Tool definitions
   const tools = useMemo(
     () => [
       {
         id: "spotHeal" as RetouchingTool,
         icon: <Eraser size={16} />,
-        label: "Spot Healing",
-        description: "Remove blemishes by sampling surrounding pixels",
+        label: t("Spot Healing"),
+        description: t("Remove blemishes by sampling surrounding pixels"),
       },
       {
         id: "cloneStamp" as RetouchingTool,
         icon: <Copy size={16} />,
-        label: "Clone Stamp",
-        description: "Copy pixels from source to target",
+        label: t("Clone Stamp"),
+        description: t("Copy pixels from source to target"),
       },
       {
         id: "redEyeRemoval" as RetouchingTool,
         icon: <Eye size={16} />,
-        label: "Red-Eye Removal",
-        description: "Remove red-eye from photos",
+        label: t("Red-Eye Removal"),
+        description: t("Remove red-eye from photos"),
       },
     ],
-    [],
+    [t],
   );
 
   return (
@@ -246,8 +248,7 @@ export const RetouchingSection: React.FC<RetouchingSectionProps> = ({
       {/* Tool Selection */}
       <div className="space-y-2">
         <Text type="supporting" color="secondary" weight="medium">
-          Retouching Tools
-        </Text>
+          {t("Retouching Tools")}</Text>
         <div className="space-y-2">
           {tools.map((tool) => (
             <ToolButton
@@ -256,7 +257,7 @@ export const RetouchingSection: React.FC<RetouchingSectionProps> = ({
               isActive={activeTool === tool.id}
               onClick={() => onToolChange(tool.id)}
               icon={tool.icon}
-              label={tool.label}
+              label={t(tool.label)}
               description={tool.description}
             />
           ))}
@@ -267,8 +268,7 @@ export const RetouchingSection: React.FC<RetouchingSectionProps> = ({
       {activeTool === "cloneStamp" && (
         <div className="space-y-2">
           <Text type="supporting" color="secondary" weight="medium">
-            Clone Source
-          </Text>
+            {t("Clone Source")}</Text>
           <CloneSourceIndicator
             source={cloneSource}
             onClear={onClearCloneSource}
@@ -280,15 +280,14 @@ export const RetouchingSection: React.FC<RetouchingSectionProps> = ({
       <Card variant="muted" padding={3}>
         <div className="space-y-3">
           <Text type="supporting" color="secondary" weight="medium">
-            Brush Settings
-          </Text>
+            {t("Brush Settings")}</Text>
 
           {/* Brush Preview */}
           <BrushPreview size={brushConfig.size} hardness={brushConfig.hardness} />
 
           {/* Size Slider */}
           <BrushSlider
-            label="Size"
+            label={t("Size")}
             value={brushConfig.size}
             onChange={onBrushSizeChange}
             min={1}
@@ -299,7 +298,7 @@ export const RetouchingSection: React.FC<RetouchingSectionProps> = ({
 
           {/* Hardness Slider */}
           <BrushSlider
-            label="Hardness"
+            label={t("Hardness")}
             value={brushConfig.hardness * 100}
             onChange={(value) => onBrushHardnessChange(value / 100)}
             min={0}
@@ -310,7 +309,7 @@ export const RetouchingSection: React.FC<RetouchingSectionProps> = ({
 
           {/* Opacity Slider */}
           <BrushSlider
-            label="Opacity"
+            label={t("Opacity")}
             value={brushConfig.opacity * 100}
             onChange={(value) => onBrushOpacityChange(value / 100)}
             min={0}
@@ -322,7 +321,7 @@ export const RetouchingSection: React.FC<RetouchingSectionProps> = ({
           {/* Flow Slider (for spot healing and clone stamp) */}
           {(activeTool === "spotHeal" || activeTool === "cloneStamp") && (
             <BrushSlider
-              label="Flow"
+              label={t("Flow")}
               value={brushConfig.flow * 100}
               onChange={(value) => onBrushFlowChange(value / 100)}
               min={0}
@@ -340,8 +339,7 @@ export const RetouchingSection: React.FC<RetouchingSectionProps> = ({
           <MousePointer2 size={14} className="text-fg-3 mt-0.5" />
           <div className="flex flex-col gap-1">
             <Text type="supporting" color="primary" weight="medium">
-              How to use
-            </Text>
+              {t("How to use")}</Text>
             <Text type="supporting" color="secondary" className="mt-1 text-[9px]">
               {activeTool === "spotHeal" &&
                 "Click and drag over blemishes to remove them. The tool samples surrounding pixels to blend seamlessly."}

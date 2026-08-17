@@ -33,8 +33,10 @@ import {
 } from "../../../services/secure-storage";
 import { MasterPasswordDialog } from "./MasterPasswordDialog";
 import { toast } from "../../../stores/notification-store";
+import { useTranslation } from "react-i18next";
 
 export const ApiKeysPanel: React.FC = () => {
+  const { t } = useTranslation();
   const { addConfiguredService, removeConfiguredService } =
     useSettingsStore();
 
@@ -179,14 +181,11 @@ export const ApiKeysPanel: React.FC = () => {
           <Shield size={32} className="text-primary" aria-hidden />
         </div>
         <Text as="h3" type="large" weight="bold" display="block" className="mb-2">
-          Secure API Key Storage
-        </Text>
+          {t("Secure API Key Storage")}</Text>
         <Text as="p" type="supporting" color="secondary" display="block" className="mb-6 max-w-sm">
-          Set up a master password to encrypt and store your API keys locally.
-          Keys are encrypted with AES-256-GCM and never leave your browser.
-        </Text>
+          {t("Set up a master password to encrypt and store your API keys locally. Keys are encrypted with AES-256-GCM and never leave your browser.")}</Text>
         <Button
-          label="Set Up Master Password"
+          label={t("Set Up Master Password")}
           onClick={() => setPasswordDialogMode("setup")}
           variant="primary"
           icon={<KeyRound size={16} aria-hidden />}
@@ -212,13 +211,11 @@ export const ApiKeysPanel: React.FC = () => {
           <Lock size={32} className="text-amber-500" aria-hidden />
         </div>
         <Text as="h3" type="large" weight="bold" display="block" className="mb-2">
-          Session Locked
-        </Text>
+          {t("Session Locked")}</Text>
         <Text as="p" type="supporting" color="secondary" display="block" className="mb-6 max-w-sm">
-          Enter your master password to view and manage API keys.
-        </Text>
+          {t("Enter your master password to view and manage API keys.")}</Text>
         <Button
-          label="Unlock"
+          label={t("Unlock")}
           onClick={() => setPasswordDialogMode("unlock")}
           variant="primary"
           icon={<Unlock size={16} aria-hidden />}
@@ -244,19 +241,18 @@ export const ApiKeysPanel: React.FC = () => {
         <div className="flex items-center gap-2">
           <Shield size={14} className="text-primary" aria-hidden />
           <Text type="supporting" color="secondary">
-            {storedKeys.length} key{storedKeys.length !== 1 ? "s" : ""} stored
-          </Text>
+            {storedKeys.length} {t(" key")}{storedKeys.length !== 1 ? "s" : ""} {t(" stored")}</Text>
         </div>
         <div className="flex items-center gap-2">
           <Button
-            label="Change Password"
+            label={t("Change Password")}
             variant="secondary"
             size="sm"
             onClick={() => setPasswordDialogMode("change")}
             icon={<Key size={14} aria-hidden />}
           />
           <Button
-            label="Lock"
+            label={t("Lock")}
             variant="secondary"
             size="sm"
             onClick={handleLock}
@@ -298,14 +294,14 @@ export const ApiKeysPanel: React.FC = () => {
                 </div>
                 <div className="flex items-center gap-1">
                   <IconButton
-                    label={isRevealed ? "Hide key" : "Show key"}
+                    label={isRevealed ? t("Hide key") : t("Show key")}
                     onClick={() => handleRevealKey(stored.id)}
                     variant="ghost"
                     size="sm"
                     icon={isRevealed ? <EyeOff size={14} aria-hidden /> : <Eye size={14} aria-hidden />}
                   />
                   <IconButton
-                    label="Delete key"
+                    label={t("Delete key")}
                     onClick={() => handleDeleteKey(stored.id)}
                     variant="destructive"
                     size="sm"
@@ -327,8 +323,7 @@ export const ApiKeysPanel: React.FC = () => {
               </Card>
 
               <Text type="supporting" color="secondary" display="block" className="mt-2 text-[10px]">
-                Added {new Date(stored.createdAt).toLocaleDateString()} &middot;
-                Updated {new Date(stored.updatedAt).toLocaleDateString()}
+                {t("Added ")}{new Date(stored.createdAt).toLocaleDateString()} {t(" · Updated ")}{new Date(stored.updatedAt).toLocaleDateString()}
               </Text>
             </Card>
           );
@@ -341,24 +336,23 @@ export const ApiKeysPanel: React.FC = () => {
           <div className="flex items-center gap-2 mb-3">
             <Plus size={14} className="text-primary" aria-hidden />
             <Text type="label" weight="bold">
-              Add{" "}
-              {SERVICE_REGISTRY.find((s) => s.id === addingService)?.label} Key
-            </Text>
+              {t("Add")}{" "}
+              {t(SERVICE_REGISTRY.find((s) => s.id === addingService)?.label ?? "")} {t(" Key")}</Text>
           </div>
           <ToolcraftTextInputControl
-            label="API key"
+            label={t("API key")}
             isLabelHidden
             type="password"
             value={newKeyValue}
             onChange={setNewKeyValue}
-            placeholder="Paste your API key here"
+            placeholder={t("Paste your API key here")}
             hasAutoFocus
             width="100%"
             className="mb-3 font-mono text-xs"
           />
           <div className="flex justify-end gap-2">
             <Button
-              label="Cancel"
+              label={t("Cancel")}
               variant="secondary"
               size="sm"
               onClick={() => {
@@ -367,7 +361,7 @@ export const ApiKeysPanel: React.FC = () => {
               }}
             />
             <Button
-              label="Save Key"
+              label={t("Save Key")}
               variant="primary"
               size="sm"
               onClick={() => handleSaveKey(addingService)}
@@ -378,8 +372,7 @@ export const ApiKeysPanel: React.FC = () => {
       ) : availableServices.length > 0 ? (
         <div>
           <Text as="h3" type="label" weight="bold" color="secondary" display="block" className="mb-3">
-            Add API Key
-          </Text>
+            {t("Add API Key")}</Text>
           <div className="grid gap-2">
             {availableServices.map((service) => (
               <ClickableCard
@@ -396,7 +389,7 @@ export const ApiKeysPanel: React.FC = () => {
                   </div>
                   <div>
                     <Text type="label" weight="bold" display="block">
-                      {service.label}
+                      {t(service.label)}
                     </Text>
                     <Text type="supporting" color="secondary" display="block">
                       {service.description}

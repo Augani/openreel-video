@@ -41,6 +41,7 @@ import {
 } from "../creation-workspace";
 import type { RecoverableScene3DLayerSummary } from "../creation-recovery";
 import { Button, ColorInput, EmptyState, IconButton, PanelHeader } from "./primitives";
+import { useTranslation } from "react-i18next";
 
 const STATUS_META: Record<
   CreationRenderStatus,
@@ -75,6 +76,7 @@ function PanelCopy({
 }
 
 export function CreationWorkspacePanel(): JSX.Element {
+  const { t } = useTranslation();
   const creation = useProjectStore((state) => state.project.creation);
   const motionCompositions = useProjectStore(
     (state) => state.project.motionCompositions ?? [],
@@ -205,7 +207,7 @@ export function CreationWorkspacePanel(): JSX.Element {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <PanelHeader title="Creation" icon={Layers3} />
+      <PanelHeader title={t("Creation")} icon={Layers3} />
       <div className="min-h-0 flex-1 space-y-3 overflow-auto p-3">
         {!workspace.available || workspace.sceneCount === 0 ? (
           workspace.recoverableScene3DLayers.length > 0 ? (
@@ -218,23 +220,23 @@ export function CreationWorkspacePanel(): JSX.Element {
           ) : (
             <EmptyState
               icon={PackageOpen}
-              title="No creation scenes"
-              description="Agent-created products, characters, and 3D worlds will appear here once MCP tools create them."
+              title={t("No creation scenes")}
+              description={t("Agent-created products, characters, and 3D worlds will appear here once MCP tools create them.")}
             />
           )
         ) : (
           <>
             <div className="grid grid-cols-3 gap-2">
-              <MetricCard label="Scenes" value={workspace.sceneCount} />
-              <MetricCard label="Assets" value={workspace.assetCount} />
+              <MetricCard label={t("Scenes")} value={workspace.sceneCount} />
+              <MetricCard label={t("Assets")} value={workspace.assetCount} />
               <MetricCard
-                label="Ready"
+                label={t("Ready")}
                 value={workspace.scenes.filter((scene) => scene.renderStatus === "ready").length}
               />
             </div>
 
             <section className="space-y-2">
-              <SectionLabel label="Agent scenes" count={workspace.scenes.length} />
+              <SectionLabel label={t("Agent scenes")} count={workspace.scenes.length} />
               <div className="space-y-2">
                 {workspace.scenes.map((scene) => (
                   <SceneButton
@@ -260,7 +262,7 @@ export function CreationWorkspacePanel(): JSX.Element {
 
             {selectedScene ? (
               <section className="space-y-2">
-                <SectionLabel label="Scene detail" count={selectedScene.objectCount} />
+                <SectionLabel label={t("Scene detail")} count={selectedScene.objectCount} />
                 <SceneDetail
                   scene={selectedScene}
                   selectedObjectId={selectedObjectId}
@@ -340,6 +342,7 @@ function SceneButton({
   onSelect: () => void;
   onOpen: () => void;
 }): JSX.Element {
+  const { t } = useTranslation();
   const status = STATUS_META[scene.renderStatus];
   const errorCount = scene.issues.filter((issue) => issue.severity === "error").length;
   const warningCount = scene.issues.filter((issue) => issue.severity === "warning").length;
@@ -352,7 +355,7 @@ function SceneButton({
     >
       <div className="flex items-start gap-2">
         <Button
-          label={scene.name}
+          label={t(scene.name)}
           variant="ghost"
           size="sm"
           onClick={onSelect}
@@ -364,20 +367,19 @@ function SceneButton({
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5">
               <span className="truncate text-[13px] font-semibold text-fg">{scene.name}</span>
-              {scene.active ? <span className="rounded bg-accent-soft px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.06em] text-accent">Active</span> : null}
+              {scene.active ? <span className="rounded bg-accent-soft px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.06em] text-accent">{t("Active")}</span> : null}
             </div>
             <div className="mt-1 text-[10.5px] tabular-nums text-fg-muted">
-              {scene.objectCount} obj · {scene.cameraCount} cam · {scene.animationCount} anim
-            </div>
+              {scene.objectCount} {t(" obj · ")}{scene.cameraCount} {t(" cam · ")}{scene.animationCount} {t(" anim")}</div>
             <div className="mt-2 flex flex-wrap items-center gap-1.5">
-              <StatusPill label={status.label} className={status.className} />
+              <StatusPill label={t(status.label)} className={status.className} />
               {errorCount > 0 ? <StatusPill label={`${errorCount} error`} className="border-red-500/30 bg-red-500/10 text-red-300" /> : null}
               {warningCount > 0 ? <StatusPill label={`${warningCount} warn`} className="border-amber-500/30 bg-amber-500/10 text-amber-300" /> : null}
             </div>
           </div>
         </Button>
         <IconButton
-          label={canOpen ? "Open bound Motion scene" : "No renderable Motion scene binding"}
+          label={canOpen ? t("Open bound Motion scene") : t("No renderable Motion scene binding")}
           icon={<Clapperboard size={15} aria-hidden />}
           size="md"
           variant="ghost"
@@ -403,10 +405,11 @@ function RecoveryCandidates({
   compact?: boolean;
   onRecover: (layer: RecoverableScene3DLayerSummary) => void;
 }): JSX.Element {
+  const { t } = useTranslation();
   return (
     <section className="space-y-2">
       <SectionLabel
-        label={compact ? "Recoverable renders" : "Rendered scenes"}
+        label={compact ? t("Recoverable renders") : t("Rendered scenes")}
         count={layers.length}
       />
       {error ? (
@@ -431,11 +434,10 @@ function RecoveryCandidates({
                     {layer.layerName}
                   </PanelCopy>
                   <PanelCopy className="mt-1 truncate text-[10.5px] text-fg-muted">
-                    {layer.compositionName} · {layer.objectCount} render object(s)
-                  </PanelCopy>
+                    {layer.compositionName} · {layer.objectCount} {t(" render object(s)")}</PanelCopy>
                 </div>
                 <Button
-                  label={recovering ? "..." : "Recover"}
+                  label={recovering ? "..." : t("Recover")}
                   variant="outline"
                   size="sm"
                   disabled={recovering}
@@ -488,6 +490,7 @@ function SceneDetail({
     patch: CreationObjectEditPatch,
   ) => Promise<void>;
 }): JSX.Element {
+  const { t } = useTranslation();
   const status = STATUS_META[scene.renderStatus];
   const canOpen = scene.renderStatus === "ready" || scene.renderStatus === "partial";
   const camera = scene.cameras.find((candidate) => candidate.active) ?? scene.cameras[0];
@@ -501,13 +504,12 @@ function SceneDetail({
           <div className="min-w-0">
             <PanelCopy className="truncate text-[13px] text-fg" weight="semibold">{scene.name}</PanelCopy>
             <PanelCopy className="mt-1 text-[10.5px] text-fg-muted">
-              {scene.boundObjectCount}/{scene.objectCount} render-bound objects
-            </PanelCopy>
+              {scene.boundObjectCount}/{scene.objectCount} {t(" render-bound objects")}</PanelCopy>
           </div>
-          <StatusPill label={status.label} className={status.className} />
+          <StatusPill label={t(status.label)} className={status.className} />
         </div>
         <Button
-          label="Open render scene"
+          label={t("Open render scene")}
           icon={Eye}
           variant="solid"
           size="md"
@@ -518,10 +520,10 @@ function SceneDetail({
         <Button
           label={
             syncing
-              ? "Syncing render"
+              ? t("Syncing render")
               : scene.renderStatus === "ready"
-                ? "Refresh render scene"
-                : "Sync render scene"
+                ? t("Refresh render scene")
+                : t("Sync render scene")
           }
           icon={RefreshCw}
           variant="outline"
@@ -582,8 +584,7 @@ function SceneDetail({
         ))}
         {scene.objects.length > 24 ? (
           <PanelCopy className="px-2 py-2 text-[11px] text-fg-muted">
-            {scene.objects.length - 24} more object(s)
-          </PanelCopy>
+            {scene.objects.length - 24} {t(" more object(s)")}</PanelCopy>
         ) : null}
       </div>
 
@@ -609,10 +610,11 @@ function AnimationRigInspector({
   rigs: readonly CreationWorkspaceRigSummary[];
   onCueTime: (time: number) => void;
 }): JSX.Element {
+  const { t } = useTranslation();
   return (
     <div className="space-y-3 border-b border-border p-3">
       {rigs.length > 0 ? (
-        <EditorGroup icon={GitBranch} label="Rigs">
+        <EditorGroup icon={GitBranch} label={t("Rigs")}>
           <div className="space-y-1.5">
             {rigs.map((rig) => (
               <RigRow key={rig.rigId} rig={rig} />
@@ -622,7 +624,7 @@ function AnimationRigInspector({
       ) : null}
 
       {animations.length > 0 ? (
-        <EditorGroup icon={Activity} label="Animation">
+        <EditorGroup icon={Activity} label={t("Animation")}>
           <div className="space-y-2">
             {animations.map((clip) => (
               <AnimationClipCard
@@ -685,6 +687,7 @@ function AnimationClipCard({
   clip: CreationWorkspaceAnimationSummary;
   onCueTime: (time: number) => void;
 }): JSX.Element {
+  const { t } = useTranslation();
   const cueTime = clip.firstTime ?? 0;
   const visibleTracks = clip.tracks.slice(0, 6);
   return (
@@ -693,8 +696,7 @@ function AnimationClipCard({
         <div className="min-w-0 flex-1">
           <PanelCopy className="truncate text-[11.5px] text-fg" weight="semibold">{clip.name}</PanelCopy>
           <PanelCopy className="mt-0.5 text-[10px] tabular-nums text-fg-muted">
-            {formatSeconds(cueTime)}-{formatSeconds(clip.lastTime ?? clip.duration)} · {clip.trackCount} tracks · {clip.keyframeCount} keys
-          </PanelCopy>
+            {formatSeconds(cueTime)}-{formatSeconds(clip.lastTime ?? clip.duration)} · {clip.trackCount} {t(" tracks · ")}{clip.keyframeCount} {t(" keys")}</PanelCopy>
         </div>
         <IconButton
           label={`Cue ${clip.name}`}
@@ -734,7 +736,7 @@ function AnimationClipCard({
                 {track.targetName ?? track.targetId}
               </PanelCopy>
               <PanelCopy className="mt-0.5 truncate tabular-nums text-fg-muted">
-                {track.channel} · {track.keyframeCount} keys · {formatTrackRange(track.firstTime, track.lastTime)}
+                {track.channel} · {track.keyframeCount} {t(" keys · ")}{formatTrackRange(track.firstTime, track.lastTime)}
               </PanelCopy>
             </div>
             <span
@@ -747,18 +749,17 @@ function AnimationClipCard({
               }`}
               title={
                 track.rendered
-                  ? "Synced to render"
+                  ? t("Synced to render")
                   : track.targetKind === "missing"
-                    ? "Missing target"
-                    : "Not render-bound"
+                    ? t("Missing target")
+                    : t("Not render-bound")
               }
             />
           </div>
         ))}
         {clip.tracks.length > visibleTracks.length ? (
           <PanelCopy className="px-1 py-0.5 text-[10px] text-fg-muted">
-            {clip.tracks.length - visibleTracks.length} more track(s)
-          </PanelCopy>
+            {clip.tracks.length - visibleTracks.length} {t(" more track(s)")}</PanelCopy>
         ) : null}
       </div>
     </div>
@@ -776,6 +777,7 @@ function CameraEditor({
   error: string | null;
   onApply: (patch: CreationCameraEditPatch) => Promise<void>;
 }): JSX.Element {
+  const { t } = useTranslation();
   const [draft, setDraft] = useState(() => cameraToDraft(camera));
 
   useEffect(() => {
@@ -806,7 +808,7 @@ function CameraEditor({
           <PanelCopy className="mt-0.5 truncate text-[10px] text-fg-muted">{camera.cameraId}</PanelCopy>
         </div>
         <IconButton
-          label="Apply camera edit"
+          label={t("Apply camera edit")}
           icon={<Check size={15} aria-hidden />}
           size="md"
           variant="primary"
@@ -824,40 +826,40 @@ function CameraEditor({
         ) : null}
 
         <ToolcraftTextInputControl
-          label="Camera"
+          label={t("Camera")}
           value={draft.name}
           onChange={(value) => setField("name", value)}
         />
 
-        <EditorGroup icon={Camera} label="Lens">
+        <EditorGroup icon={Camera} label={t("Lens")}>
           <CameraVectorInputs
-            label="Position"
+            label={t("Position")}
             values={[draft.positionX, draft.positionY, draft.positionZ]}
             fields={["positionX", "positionY", "positionZ"]}
             onChange={setField}
           />
           <CameraVectorInputs
-            label="Target"
+            label={t("Target")}
             values={[draft.targetX, draft.targetY, draft.targetZ]}
             fields={["targetX", "targetY", "targetZ"]}
             onChange={setField}
           />
           <div className="grid grid-cols-3 gap-1.5">
             <ToolcraftTextInputControl
-              label="FOV"
+              label={t("FOV")}
               value={draft.fov}
               inputClassName="tabular-nums"
               onChange={(value) => setField("fov", value)}
             />
             <ToolcraftTextInputControl
-              label="Focus"
+              label={t("Focus")}
               value={draft.focusDistance}
               inputClassName="tabular-nums"
               onChange={(value) => setField("focusDistance", value)}
             />
             <ToolcraftSwitchControl
               checked={draft.depthOfField}
-              label="DOF"
+              label={t("DOF")}
               onCheckedChange={(checked) => setField("depthOfField", checked)}
             />
           </div>
@@ -876,9 +878,10 @@ function ObjectRow({
   selected: boolean;
   onSelect: () => void;
 }): JSX.Element {
+  const { t } = useTranslation();
   return (
     <Button
-      label={object.name}
+      label={t(object.name)}
       variant={selected ? "secondary" : "ghost"}
       size="sm"
       onClick={onSelect}
@@ -913,6 +916,7 @@ function ObjectEditor({
   error: string | null;
   onApply: (patch: CreationObjectEditPatch) => Promise<void>;
 }): JSX.Element {
+  const { t } = useTranslation();
   const [draft, setDraft] = useState(() => objectToDraft(object));
 
   useEffect(() => {
@@ -946,7 +950,7 @@ function ObjectEditor({
           <PanelCopy className="mt-0.5 truncate text-[10px] text-fg-muted">{object.objectId}</PanelCopy>
         </div>
         <IconButton
-          label="Apply object edit"
+          label={t("Apply object edit")}
           icon={<Check size={15} aria-hidden />}
           size="md"
           variant="primary"
@@ -964,35 +968,35 @@ function ObjectEditor({
         ) : null}
 
         <ToolcraftTextInputControl
-          label="Name"
+          label={t("Name")}
           value={draft.name}
           onChange={(value) => setField("name", value)}
         />
 
-        <EditorGroup icon={Move3D} label="Transform">
+        <EditorGroup icon={Move3D} label={t("Transform")}>
           <VectorInputs
-            label="Position"
+            label={t("Position")}
             values={[draft.positionX, draft.positionY, draft.positionZ]}
             fields={["positionX", "positionY", "positionZ"]}
             onChange={setField}
           />
           <VectorInputs
-            label="Rotation"
+            label={t("Rotation")}
             values={[draft.rotationX, draft.rotationY, draft.rotationZ]}
             fields={["rotationX", "rotationY", "rotationZ"]}
             onChange={setField}
           />
           <VectorInputs
-            label="Scale"
+            label={t("Scale")}
             values={[draft.scaleX, draft.scaleY, draft.scaleZ]}
             fields={["scaleX", "scaleY", "scaleZ"]}
             onChange={setField}
           />
         </EditorGroup>
 
-        <EditorGroup icon={Palette} label="Material">
+        <EditorGroup icon={Palette} label={t("Material")}>
           <div className="grid grid-cols-[2.5rem_1fr] items-center gap-2">
-            <span className="text-[10px] font-medium text-fg-muted">Color</span>
+            <span className="text-[10px] font-medium text-fg-muted">{t("Color")}</span>
             <ColorInput
               value={normalizeColorInput(draft.baseColor)}
               onChange={(value) => setField("baseColor", value)}

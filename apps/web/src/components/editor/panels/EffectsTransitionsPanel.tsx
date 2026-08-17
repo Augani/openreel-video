@@ -12,6 +12,8 @@ import type {
 import type { Clip, TransitionType } from "@openreel/core";
 import { getTransitionBridge } from "../../../bridges/transition-bridge";
 import { serializeEditorEffectDropPayload } from "../timeline/effect-drop";
+import { t as ti } from "../../../i18n";
+import { useTranslation } from "react-i18next";
 
 // ─── Effect & Transition catalogs ──────────────────────────────────
 // Each item ships with a small CSS recipe used to animate the live
@@ -777,7 +779,7 @@ const TRANSITIONS: TransitionDef[] = [
     id,
     type: "spin",
     label,
-    description: "Rotating scale transition with a smooth handoff",
+    description: ti("Rotating scale transition with a smooth handoff"),
     params: { rotations },
     renderPreview: (p, thumb) => (
       <>
@@ -1167,7 +1169,7 @@ const TRANSITIONS: TransitionDef[] = [
     id,
     type: "zoom",
     label,
-    description: "Focused scale-and-dissolve transition",
+    description: ti("Focused scale-and-dissolve transition"),
     params: { scale: id === "zoom-punch" ? 3 : 2, center },
     renderPreview: (p, thumb) => (
       <>
@@ -1240,6 +1242,7 @@ const EffectCard: React.FC<{
   thumbUrl: string | null;
   onApply: () => void;
 }> = ({ def, thumbUrl, onApply }) => {
+  const { t: tr } = useTranslation();
   const [progress, setProgress] = useState(0.72);
   const [isHover, setIsHover] = useState(false);
   const rafRef = React.useRef<number | null>(null);
@@ -1323,7 +1326,7 @@ const EffectCard: React.FC<{
       </div>
       <div className="px-2 py-1.5 border-t border-border">
         <Text type="supporting" weight="bold" display="block" maxLines={1} className="text-[10.5px] text-fg leading-tight">
-          {def.label}
+          {tr(def.label)}
         </Text>
         <Text type="supporting" color="secondary" display="block" maxLines={1} className="text-[9.5px] text-fg-muted leading-tight mt-0.5">
           {def.description}
@@ -1338,6 +1341,7 @@ const TransitionCard: React.FC<{
   thumbUrl: string | null;
   onApply: () => void;
 }> = ({ def, thumbUrl, onApply }) => {
+  const { t: tr } = useTranslation();
   const [progress, setProgress] = useState(0);
   const [isHover, setIsHover] = useState(false);
   const rafRef = React.useRef<number | null>(null);
@@ -1391,7 +1395,7 @@ const TransitionCard: React.FC<{
       </div>
       <div className="px-2 py-1.5 border-t border-border">
         <Text type="supporting" weight="bold" display="block" maxLines={1} className="text-[10.5px] text-fg leading-tight">
-          {def.label}
+          {tr(def.label)}
         </Text>
         <Text type="supporting" color="secondary" display="block" maxLines={1} className="text-[9.5px] text-fg-muted leading-tight mt-0.5">
           {def.description}
@@ -1450,6 +1454,7 @@ const useCurrentClipThumbnail = (): string | null => {
 // ─── Main panel ───────────────────────────────────────────────────
 
 export const EffectsPanel: React.FC = () => {
+  const { t: tr } = useTranslation();
   const thumbUrl = useCurrentClipThumbnail();
   const getSelectedClipIds = useUIStore((s) => s.getSelectedClipIds);
   const addVideoEffect = useProjectStore((s) => s.addVideoEffect);
@@ -1508,12 +1513,12 @@ export const EffectsPanel: React.FC = () => {
     <div className="flex flex-col h-full min-h-0">
       <div className="px-3 pt-3 pb-2 shrink-0">
         <ToolcraftTextInputControl
-          label="Search effects"
+          label={tr("Search effects")}
           isLabelHidden
           type="text"
           value={query}
           onChange={setQuery}
-          placeholder="Search effects"
+          placeholder={tr("Search effects")}
           startIcon={<Search size={13} aria-hidden />}
           size="sm"
           width="100%"
@@ -1521,7 +1526,7 @@ export const EffectsPanel: React.FC = () => {
         <div
           className="mt-2 flex gap-1 overflow-x-auto pb-0.5"
           role="group"
-          aria-label="Effect categories"
+          aria-label={tr("Effect categories")}
         >
           {(["All", ...EDITOR_EFFECT_CATEGORIES] as const).map((category) => {
             const count =
@@ -1576,7 +1581,7 @@ export const EffectsPanel: React.FC = () => {
           })}
           {filtered.length === 0 && (
             <Text type="supporting" color="secondary" display="block" justify="center" className="text-[10.5px] py-6">
-              No effects match "{query}".
+              {tr("No effects match \"")}{query}".
             </Text>
           )}
         </div>
@@ -1586,6 +1591,7 @@ export const EffectsPanel: React.FC = () => {
 };
 
 export const TransitionsPanel: React.FC = () => {
+  const { t: tr } = useTranslation();
   const thumbUrl = useCurrentClipThumbnail();
   const project = useProjectStore((state) => state.project);
   const addClipTransition = useProjectStore(
@@ -1709,12 +1715,12 @@ export const TransitionsPanel: React.FC = () => {
     <div className="flex flex-col h-full min-h-0">
       <div className="px-3 pt-3 pb-2 shrink-0">
         <ToolcraftTextInputControl
-          label="Search transitions"
+          label={tr("Search transitions")}
           isLabelHidden
           type="text"
           value={query}
           onChange={setQuery}
-          placeholder="Search transitions"
+          placeholder={tr("Search transitions")}
           startIcon={<Search size={13} aria-hidden />}
           size="sm"
           width="100%"
@@ -1722,7 +1728,7 @@ export const TransitionsPanel: React.FC = () => {
         <div
           className="mt-2 flex gap-1 overflow-x-auto pb-0.5"
           role="group"
-          aria-label="Transition categories"
+          aria-label={tr("Transition categories")}
         >
           {(["All", ...TRANSITION_CATEGORIES] as const).map((category) => {
             const count =
@@ -1785,7 +1791,7 @@ export const TransitionsPanel: React.FC = () => {
           })}
           {filtered.length === 0 && (
             <Text type="supporting" color="secondary" display="block" justify="center" className="text-[10.5px] py-6">
-              No transitions match "{query}".
+              {tr("No transitions match \"")}{query}".
             </Text>
           )}
         </div>

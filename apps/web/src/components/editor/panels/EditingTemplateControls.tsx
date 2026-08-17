@@ -5,6 +5,7 @@ import { ToolcraftSliderControl } from "@openreel/ui";
 import { ToolcraftText as Text } from "@openreel/ui";
 import { ToolcraftTextInputControl } from "@openreel/ui";
 import type { EditingTemplate, EditingTemplatePrimitive } from "@openreel/core";
+import { useTranslation } from "react-i18next";
 
 export const getEditingTemplateDefaultControlValues = (
   template: EditingTemplate,
@@ -52,6 +53,7 @@ export const EditingTemplateControls: React.FC<EditingTemplateControlsProps> = (
   disabled = false,
   className,
 }) => {
+  const { t } = useTranslation();
   if (!template.controls || template.controls.length === 0) {
     return null;
   }
@@ -66,14 +68,14 @@ export const EditingTemplateControls: React.FC<EditingTemplateControlsProps> = (
             <div key={control.id} className="space-y-2">
               <div className="flex items-center justify-between gap-3">
                 <Text type="label" weight="bold" display="block" className="text-[11px]">
-                  {control.label}
+                  {t(control.label)}
                 </Text>
                 <span className="rounded-full bg-background-tertiary px-2 py-0.5 text-[10px] text-text-secondary">
                   {value}
                 </span>
               </div>
               <ToolcraftSliderControl
-                label={control.label}
+                label={t(control.label)}
                 isLabelHidden
                 min={control.min ?? 0}
                 max={control.max ?? 100}
@@ -92,10 +94,10 @@ export const EditingTemplateControls: React.FC<EditingTemplateControlsProps> = (
           return (
             <div key={control.id} className="flex items-center justify-between gap-3">
               <Text type="label" weight="bold" display="block" className="text-[11px]">
-                {control.label}
+                {t(control.label)}
               </Text>
               <ToolcraftSwitchControl
-                ariaLabel={control.label}
+                ariaLabel={t(control.label)}
                 checked={Boolean(value)}
                 disabled={disabled}
                 onCheckedChange={(nextValue) => onChange(control.id, nextValue)}
@@ -115,17 +117,17 @@ export const EditingTemplateControls: React.FC<EditingTemplateControlsProps> = (
           return (
             <div key={control.id} className="space-y-2">
               <Text type="label" weight="bold" display="block" className="text-[11px]">
-                {control.label}
+                {t(control.label)}
               </Text>
               <Selector
-                label={control.label}
+                label={t(control.label)}
                 isLabelHidden
                 width="100%"
                 value={`${selectedIndex}`}
                 isDisabled={disabled}
                 options={options.map((option, index) => ({
                   value: `${index}`,
-                  label: option.label,
+                  label: t(option.label),
                 }))}
                 onChange={(nextValue) => {
                   const option = options[Number(nextValue)];
@@ -143,7 +145,7 @@ export const EditingTemplateControls: React.FC<EditingTemplateControlsProps> = (
           return (
             <div key={control.id} className="space-y-2">
               <Text type="label" weight="bold" display="block" className="text-[11px]">
-                {control.label}
+                {t(control.label)}
               </Text>
               <div className="flex items-center gap-3">
                 <span
@@ -152,7 +154,7 @@ export const EditingTemplateControls: React.FC<EditingTemplateControlsProps> = (
                   aria-hidden
                 />
                 <ToolcraftTextInputControl
-                  label={control.label}
+                  label={t(control.label)}
                   isLabelHidden
                   value={String(value)}
                   isDisabled={disabled}
@@ -167,10 +169,10 @@ export const EditingTemplateControls: React.FC<EditingTemplateControlsProps> = (
         return (
           <div key={control.id} className="space-y-2">
             <Text type="label" weight="bold" display="block" className="text-[11px]">
-              {control.label}
+              {t(control.label)}
             </Text>
             <ToolcraftTextInputControl
-              label={control.label}
+              label={t(control.label)}
               isLabelHidden
               value={String(value)}
               isDisabled={disabled}

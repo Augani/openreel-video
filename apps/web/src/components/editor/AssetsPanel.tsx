@@ -34,6 +34,7 @@ import { KieAIImageDialog } from "./kieai/KieAIImageDialog";
 import { loadMediaBlob } from "../../services/media-storage";
 import { useKieAIStore } from "../../stores/kieai-store";
 import { StickerPickerPanel } from "./inspector/StickerPickerPanel";
+import { useTranslation } from "react-i18next";
 
 const formatDuration = (seconds: number): string => {
   const mins = Math.floor(seconds / 60);
@@ -262,6 +263,7 @@ const MediaThumbnail: React.FC<{
   onKieAI,
   onRetryKieAI,
 }) => {
+  const { t: tr } = useTranslation();
   const [isHovered, setIsHovered] = useState(false);
 
   const getIcon = () => {
@@ -313,25 +315,25 @@ const MediaThumbnail: React.FC<{
     <div className="absolute inset-0 bg-black/40 backdrop-blur-[1px] flex items-center justify-center gap-2 animate-in fade-in duration-200">
       {item.kieaiError ? (
         <PanelIconButton
-          label="Retry generation"
+          label={tr("Retry generation")}
           icon={<RefreshCw size={14} className="text-red-400" />}
           onClick={(e) => { e.stopPropagation(); onRetryKieAI?.(); }}
           className="p-2 bg-red-500/20 rounded-full hover:bg-red-500/40 backdrop-blur-sm transition-colors"
         />
       ) : item.isPending ? (
-        <div title="KieAI generation in progress…" className="p-2">
+        <div title={tr("KieAI generation in progress…")} className="p-2">
           <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
         </div>
       ) : item.isPlaceholder ? (
         <>
           <PanelIconButton
-            label="Replace asset"
+            label={tr("Replace asset")}
             icon={<RefreshCw size={14} className="text-yellow-500" />}
             onClick={(e) => { e.stopPropagation(); onReplace(); }}
             className="p-2 bg-yellow-500/20 rounded-full hover:bg-yellow-500/40 backdrop-blur-sm transition-colors"
           />
           <PanelIconButton
-            label="Delete"
+            label={tr("Delete")}
             icon={<Trash2 size={14} className="text-red-400" />}
             onClick={(e) => { e.stopPropagation(); onDelete(); }}
             className="p-2 bg-red-500/20 rounded-full hover:bg-red-500/40 backdrop-blur-sm transition-colors"
@@ -341,20 +343,20 @@ const MediaThumbnail: React.FC<{
         <>
           {item.type === "image" && onKieAI && (
             <PanelIconButton
-              label="Create with KieAI"
+              label={tr("Create with KieAI")}
               icon={<Sparkles size={14} className="text-primary" />}
               onClick={(e) => { e.stopPropagation(); onKieAI(); }}
               className="p-2 bg-primary/20 rounded-full hover:bg-primary/40 backdrop-blur-sm transition-colors"
             />
           )}
           <PanelIconButton
-            label="Add to timeline"
+            label={tr("Add to timeline")}
             icon={<Plus size={14} className="text-primary" />}
             onClick={(e) => { e.stopPropagation(); onAddToTimeline(); }}
             className="p-2 bg-primary/20 rounded-full hover:bg-primary/40 backdrop-blur-sm transition-colors"
           />
           <PanelIconButton
-            label="Delete"
+            label={tr("Delete")}
             icon={<Trash2 size={14} className="text-red-400" />}
             onClick={(e) => { e.stopPropagation(); onDelete(); }}
             className="p-2 bg-red-500/20 rounded-full hover:bg-red-500/40 backdrop-blur-sm transition-colors"
@@ -379,7 +381,7 @@ const MediaThumbnail: React.FC<{
         {/* Small thumbnail */}
         <div className="w-12 h-8 rounded-md bg-bg-2 relative overflow-hidden flex-shrink-0">
           {item.thumbnailUrl ? (
-            <img src={item.thumbnailUrl} alt={item.name} className="w-full h-full object-cover" />
+            <img src={item.thumbnailUrl} alt={tr(item.name)} className="w-full h-full object-cover" />
           ) : (
             <div className="w-full h-full flex items-center justify-center">
               <Icon size={14} className={iconColor} />
@@ -406,7 +408,7 @@ const MediaThumbnail: React.FC<{
         <div className="flex-1 min-w-0">
           <div
             className={`text-[12px] truncate font-medium ${isSelected ? "text-accent" : "text-fg-2"}`}
-            title={item.name}
+            title={tr(item.name)}
           >
             {item.name}
           </div>
@@ -424,25 +426,25 @@ const MediaThumbnail: React.FC<{
           <div className="flex items-center gap-1 flex-shrink-0">
             {item.kieaiError ? (
               <PanelIconButton
-                label="Retry generation"
+                label={tr("Retry generation")}
                 icon={<RefreshCw size={12} className="text-red-400" />}
                 onClick={(e) => { e.stopPropagation(); onRetryKieAI?.(); }}
                 className="p-1 bg-red-500/20 rounded hover:bg-red-500/40 transition-colors"
               />
             ) : item.isPending ? (
-              <div className="p-1" title="Generating…">
+              <div className="p-1" title={tr("Generating…")}>
                 <div className="h-3 w-3 animate-spin rounded-full border-2 border-primary border-t-transparent" />
               </div>
             ) : item.isPlaceholder ? (
               <>
                 <PanelIconButton
-                  label="Replace asset"
+                  label={tr("Replace asset")}
                   icon={<RefreshCw size={12} className="text-yellow-500" />}
                   onClick={(e) => { e.stopPropagation(); onReplace(); }}
                   className="p-1 bg-yellow-500/20 rounded hover:bg-yellow-500/40 transition-colors"
                 />
                 <PanelIconButton
-                  label="Delete"
+                  label={tr("Delete")}
                   icon={<Trash2 size={12} className="text-red-400" />}
                   onClick={(e) => { e.stopPropagation(); onDelete(); }}
                   className="p-1 bg-red-500/20 rounded hover:bg-red-500/40 transition-colors"
@@ -452,20 +454,20 @@ const MediaThumbnail: React.FC<{
               <>
                 {item.type === "image" && onKieAI && (
                   <PanelIconButton
-                    label="Create with KieAI"
+                    label={tr("Create with KieAI")}
                     icon={<Sparkles size={12} className="text-primary" />}
                     onClick={(e) => { e.stopPropagation(); onKieAI(); }}
                     className="p-1 bg-primary/20 rounded hover:bg-primary/40 transition-colors"
                   />
                 )}
                 <PanelIconButton
-                  label="Add to timeline"
+                  label={tr("Add to timeline")}
                   icon={<Plus size={12} className="text-primary" />}
                   onClick={(e) => { e.stopPropagation(); onAddToTimeline(); }}
                   className="p-1 bg-primary/20 rounded hover:bg-primary/40 transition-colors"
                 />
                 <PanelIconButton
-                  label="Delete"
+                  label={tr("Delete")}
                   icon={<Trash2 size={12} className="text-red-400" />}
                   onClick={(e) => { e.stopPropagation(); onDelete(); }}
                   className="p-1 bg-red-500/20 rounded hover:bg-red-500/40 transition-colors"
@@ -504,7 +506,7 @@ const MediaThumbnail: React.FC<{
         {item.thumbnailUrl ? (
           <img
             src={item.thumbnailUrl}
-            alt={item.name}
+            alt={tr(item.name)}
             className="w-full h-full object-cover"
           />
         ) : (
@@ -530,8 +532,7 @@ const MediaThumbnail: React.FC<{
         {item.kieaiError && (
           <div className="absolute top-1 left-1 px-1.5 py-0.5 bg-red-500 rounded text-[8px] text-white font-bold flex items-center gap-1">
             <AlertTriangle size={8} />
-            Failed
-          </div>
+            {tr("Failed")}</div>
         )}
 
         {/* Pending KieAI Badge */}
@@ -546,8 +547,7 @@ const MediaThumbnail: React.FC<{
         {!item.kieaiError && !item.isPending && item.isPlaceholder && (
           <div className="absolute top-1 left-1 px-1.5 py-0.5 bg-yellow-500 rounded text-[8px] text-black font-bold flex items-center gap-1">
             <AlertTriangle size={10} />
-            Missing
-          </div>
+            {tr("Missing")}</div>
         )}
 
         {/* Duration badge on thumbnail */}
@@ -590,7 +590,7 @@ const MediaThumbnail: React.FC<{
       {/* Filename below thumbnail */}
       <div
         className="text-[12px] truncate font-medium text-fg-2 mt-1.5"
-        title={item.name}
+        title={tr(item.name)}
       >
         {item.name}
       </div>
@@ -598,25 +598,26 @@ const MediaThumbnail: React.FC<{
   );
 };
 
-const EmptyState: React.FC<{ onImport: () => void }> = ({ onImport }) => (
+const EmptyState: React.FC<{ onImport: () => void }> = ({ onImport }) => {
+  const { t: tr } = useTranslation();
+  return (
   <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
     <div className="w-16 h-16 rounded-2xl bg-bg-2 border border-border flex items-center justify-center mb-4 shadow-inner">
       <Upload size={24} className="text-fg-muted" />
     </div>
     <Text type="body" color="secondary" weight="bold" display="block" className="mb-2 text-sm text-fg">
-      No media imported
-    </Text>
+      {tr("No media imported")}</Text>
     <Text type="supporting" color="secondary" display="block" className="mb-6 text-xs text-fg-3">
-      Drag files here or click to import
-    </Text>
+      {tr("Drag files here or click to import")}</Text>
     <Button
-      label="Import Media"
+      label={tr("Import Media")}
       variant="ghost"
       onClick={onImport}
       className="px-4 py-2 bg-bg-2 hover:bg-bg-3 border border-border text-fg-2 text-xs font-medium rounded-lg transition-all hover:border-accent/50"
     />
   </div>
 );
+};
 
 const LoadingIndicator: React.FC<{ message: string }> = ({ message }) => (
   <div className="absolute inset-0 bg-bg-1/90 backdrop-blur-sm flex flex-col items-center justify-center z-50">
@@ -626,6 +627,7 @@ const LoadingIndicator: React.FC<{ message: string }> = ({ message }) => (
 );
 
 export const AssetsPanel: React.FC = () => {
+  const { t: tr } = useTranslation();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [activeTab, setActiveTabRaw] = useState<AssetsTab>("media");
   const ttsHasUnsaved = useTtsAudioStore((s) => s.generatedAudio !== null && !s.isAudioSaved);
@@ -1004,11 +1006,11 @@ export const AssetsPanel: React.FC = () => {
         return (
           <div className="flex min-h-0 flex-1 flex-col">
             <div className="px-4 pt-[18px] shrink-0">
-              <div className="font-bold text-[18px] text-fg mb-[14px]">Media</div>
+              <div className="font-bold text-[18px] text-fg mb-[14px]">{tr("Media")}</div>
               <div className="flex gap-2 mb-[18px]">
                 <button
                   type="button"
-                  aria-label="Import media"
+                  aria-label={tr("Import media")}
                   onClick={triggerFileInput}
                   className="flex-1 flex items-center justify-center gap-[7px] bg-bg border border-border rounded-[9px] p-[10px] font-medium text-[13px] text-fg-2"
                 >
@@ -1025,11 +1027,10 @@ export const AssetsPanel: React.FC = () => {
                     <path d="M12 16V4M7 9l5-5 5 5" />
                     <path d="M4 17v2a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-2" />
                   </svg>
-                  Import
-                </button>
+                  {tr("Import")}</button>
                 <button
                   type="button"
-                  aria-label="Record"
+                  aria-label={tr("Record")}
                   onClick={() => openModal("recorder")}
                   className="flex-1 flex items-center justify-center gap-[7px] bg-bg border border-border rounded-[9px] p-[10px] font-medium text-[13px] text-fg-2"
                 >
@@ -1044,11 +1045,10 @@ export const AssetsPanel: React.FC = () => {
                     <circle cx="12" cy="12" r="8" />
                     <circle cx="12" cy="12" r="3" fill="var(--fg-3)" stroke="none" />
                   </svg>
-                  Record
-                </button>
+                  {tr("Record")}</button>
                 <button
                   type="button"
-                  aria-label="Sort media"
+                  aria-label={tr("Sort media")}
                   onClick={() =>
                     setSortOrder((prev) =>
                       prev === "none" ? "asc" : prev === "asc" ? "desc" : "none",
@@ -1074,7 +1074,7 @@ export const AssetsPanel: React.FC = () => {
             {missingAssetsCount > 0 && (
               <div className="px-4 pb-3 space-y-2">
                 <PanelButton
-                  label="Show Only Missing Assets"
+                  label={tr("Show Only Missing Assets")}
                   onClick={() => setShowOnlyMissing(!showOnlyMissing)}
                   className={`w-full px-3 py-2 rounded-lg border text-xs font-medium transition-all flex items-center justify-between ${
                     showOnlyMissing
@@ -1084,19 +1084,19 @@ export const AssetsPanel: React.FC = () => {
                 >
                   <div className="flex items-center gap-2">
                     <AlertTriangle size={14} />
-                    <span>Show Only Missing Assets</span>
+                    <span>{tr("Show Only Missing Assets")}</span>
                   </div>
                   <div className="px-2 py-0.5 rounded-full bg-yellow-500 text-black text-[10px] font-bold">
                     {missingAssetsCount}
                   </div>
                 </PanelButton>
                 <PanelButton
-                  label="Relink from Folder"
+                  label={tr("Relink from Folder")}
                   onClick={handleRelinkFromFolder}
                   className="w-full px-3 py-2 rounded-lg border border-yellow-500/40 bg-yellow-500/5 text-yellow-500 text-xs font-medium transition-all hover:bg-yellow-500/15 flex items-center gap-2"
                 >
                   <RefreshCw size={14} />
-                  <span>Relink from Folder…</span>
+                  <span>{tr("Relink from Folder…")}</span>
                 </PanelButton>
               </div>
             )}
@@ -1110,7 +1110,7 @@ export const AssetsPanel: React.FC = () => {
               <div className="px-4 pb-[18px] relative">
                 {filteredItems.length > 0 && (
                   <div className="flex items-center justify-between mb-3">
-                    <span className="text-[13px] font-semibold text-fg-2">Project Media</span>
+                    <span className="text-[13px] font-semibold text-fg-2">{tr("Project Media")}</span>
                     <span className="text-[12px] font-medium text-fg-muted">{filteredItems.length}</span>
                   </div>
                 )}
@@ -1135,13 +1135,13 @@ export const AssetsPanel: React.FC = () => {
                     ))}
                     <div className="flex flex-col">
                       <PanelButton
-                        label="Add media"
+                        label={tr("Add media")}
                         onClick={triggerFileInput}
                         className="h-[78px] bg-bg-2 rounded-lg border border-dashed border-border hover:border-accent/50 hover:bg-accent-soft relative flex items-center justify-center cursor-pointer transition-all overflow-hidden group"
                       >
                         <div className="flex flex-col items-center gap-1.5">
                           <Upload size={20} className="text-fg-muted group-hover:text-accent transition-colors" />
-                          <span className="text-[10px] text-fg-muted group-hover:text-accent transition-colors font-medium">Add media</span>
+                          <span className="text-[10px] text-fg-muted group-hover:text-accent transition-colors font-medium">{tr("Add media")}</span>
                         </div>
                       </PanelButton>
                     </div>
@@ -1151,8 +1151,7 @@ export const AssetsPanel: React.FC = () => {
                 {isDragOver && (
                   <div className="absolute inset-4 border-2 border-dashed border-accent rounded-xl flex items-center justify-center bg-accent-soft pointer-events-none z-50 backdrop-blur-sm">
                     <div className="text-accent text-sm font-bold bg-bg-1 px-4 py-2 rounded-full shadow-lg">
-                      Drop files to import
-                    </div>
+                      {tr("Drop files to import")}</div>
                   </div>
                 )}
               </div>
@@ -1168,8 +1167,7 @@ export const AssetsPanel: React.FC = () => {
                   <div className="flex items-center justify-between mb-3">
                     <Text type="label" color="secondary" weight="bold" display="block" className="flex items-center gap-1.5 text-xs">
                       <Palette size={12} />
-                      Backgrounds
-                    </Text>
+                      {tr("Backgrounds")}</Text>
                   </div>
                   <div className="flex gap-1.5 mb-3 flex-wrap">
                     {(["all", "solid", "gradient", "mesh", "pattern"] as const).map(
@@ -1197,7 +1195,7 @@ export const AssetsPanel: React.FC = () => {
                     {filteredBackgrounds.map((preset) => (
                       <PanelButton
                         key={preset.id}
-                        label={preset.name}
+                        label={tr(preset.name)}
                         onClick={() => handleImportBackground(preset)}
                         isDisabled={generatingBackground !== null}
                         className="aspect-square rounded-lg border border-border hover:border-primary/50 transition-all overflow-hidden relative group disabled:opacity-50"
@@ -1221,36 +1219,35 @@ export const AssetsPanel: React.FC = () => {
 
                 <div className="mb-6">
                   <Text type="label" color="secondary" weight="bold" display="block" className="mb-3 text-xs">
-                    Shapes
-                  </Text>
+                    {tr("Shapes")}</Text>
                   <div className="grid grid-cols-3 gap-2">
                     {[
                       {
                         type: "rectangle" as ShapeType,
                         icon: Square,
-                        label: "Rectangle",
+                        label: tr("Rectangle"),
                       },
-                      { type: "circle" as ShapeType, icon: Circle, label: "Circle" },
+                      { type: "circle" as ShapeType, icon: Circle, label: tr("Circle") },
                       {
                         type: "triangle" as ShapeType,
                         icon: Triangle,
-                        label: "Triangle",
+                        label: tr("Triangle"),
                       },
-                      { type: "star" as ShapeType, icon: Star, label: "Star" },
+                      { type: "star" as ShapeType, icon: Star, label: tr("Star") },
                       {
                         type: "arrow" as ShapeType,
                         icon: ArrowRight,
-                        label: "Arrow",
+                        label: tr("Arrow"),
                       },
                       {
                         type: "polygon" as ShapeType,
                         icon: Hexagon,
-                        label: "Polygon",
+                        label: tr("Polygon"),
                       },
                     ].map((shape) => (
                       <PanelButton
                         key={shape.type}
-                        label={shape.label}
+                        label={tr(shape.label)}
                         onClick={async () => {
                           const state = useProjectStore.getState();
                           const { createShapeClip, addTrack } = state;
@@ -1285,7 +1282,7 @@ export const AssetsPanel: React.FC = () => {
                           className="text-text-secondary group-hover:text-primary transition-colors"
                         />
                         <span className="text-[9px] text-text-muted group-hover:text-text-secondary">
-                          {shape.label}
+                          {tr(shape.label)}
                         </span>
                       </PanelButton>
                     ))}
@@ -1294,20 +1291,19 @@ export const AssetsPanel: React.FC = () => {
 
                 <div className="mb-6">
                   <Text type="label" color="secondary" weight="bold" display="block" className="mb-3 text-xs">
-                    3D Objects
-                  </Text>
+                    {tr("3D Objects")}</Text>
                   <div className="grid grid-cols-3 gap-2">
                     {([
-                      { type: "mesh-cube" as ShapeType, label: "Cube", icon: "□" },
-                      { type: "mesh-sphere" as ShapeType, label: "Sphere", icon: "○" },
-                      { type: "mesh-torus" as ShapeType, label: "Torus", icon: "◯" },
-                      { type: "mesh-cone" as ShapeType, label: "Cone", icon: "△" },
-                      { type: "mesh-cylinder" as ShapeType, label: "Cylinder", icon: "▯" },
-                      { type: "mesh-icosahedron" as ShapeType, label: "Icosahedron", icon: "◆" },
+                      { type: "mesh-cube" as ShapeType, label: tr("Cube"), icon: "□" },
+                      { type: "mesh-sphere" as ShapeType, label: tr("Sphere"), icon: "○" },
+                      { type: "mesh-torus" as ShapeType, label: tr("Torus"), icon: "◯" },
+                      { type: "mesh-cone" as ShapeType, label: tr("Cone"), icon: "△" },
+                      { type: "mesh-cylinder" as ShapeType, label: tr("Cylinder"), icon: "▯" },
+                      { type: "mesh-icosahedron" as ShapeType, label: tr("Icosahedron"), icon: "◆" },
                     ]).map((mesh) => (
                       <PanelButton
                         key={mesh.type}
-                        label={mesh.label}
+                        label={tr(mesh.label)}
                         onClick={async () => {
                           const state = useProjectStore.getState();
                           const { createShapeClip, addTrack, updateClipRotate3D } = state;
@@ -1349,7 +1345,7 @@ export const AssetsPanel: React.FC = () => {
                           {mesh.icon}
                         </span>
                         <span className="text-[9px] text-text-muted group-hover:text-text-secondary">
-                          {mesh.label}
+                          {tr(mesh.label)}
                         </span>
                       </PanelButton>
                     ))}
@@ -1358,10 +1354,9 @@ export const AssetsPanel: React.FC = () => {
 
                 <div className="mb-6">
                   <Text type="label" color="secondary" weight="bold" display="block" className="mb-3 text-xs">
-                    SVG Import
-                  </Text>
+                    {tr("SVG Import")}</Text>
                   <PanelButton
-                    label="Import SVG File"
+                    label={tr("Import SVG File")}
                     onClick={() => {
                       const input = document.createElement("input");
                       input.type = "file";
@@ -1406,8 +1401,7 @@ export const AssetsPanel: React.FC = () => {
                       className="text-text-secondary group-hover:text-primary transition-colors"
                     />
                     <span className="text-xs text-text-secondary group-hover:text-text-primary">
-                      Import SVG File
-                    </span>
+                      {tr("Import SVG File")}</span>
                   </PanelButton>
                 </div>
 
@@ -1424,7 +1418,7 @@ export const AssetsPanel: React.FC = () => {
             <div className="min-h-0 flex-1 overflow-auto">
               <div className="min-w-0 px-4 py-4 space-y-3">
                 <PanelButton
-                  label="Add Title"
+                  label={tr("Add Title")}
                   onClick={async () => {
                     const state = useProjectStore.getState();
                     const { createTextClip, addTrack } = state;
@@ -1457,8 +1451,7 @@ export const AssetsPanel: React.FC = () => {
                   className="flex min-h-[72px] w-full min-w-0 flex-col items-center justify-center rounded-lg border border-border bg-background-tertiary px-3 py-3 text-center transition-all hover:border-primary/50 hover:bg-primary/5"
                 >
                   <span className="block max-w-full truncate text-base font-bold leading-tight text-text-primary">
-                    Add Title
-                  </span>
+                    {tr("Add Title")}</span>
                   <Text
                     type="supporting"
                     color="secondary"
@@ -1466,14 +1459,13 @@ export const AssetsPanel: React.FC = () => {
                     maxLines={1}
                     className="mt-1 max-w-full text-[11px] leading-tight"
                   >
-                    Click to add text to timeline
-                  </Text>
+                    {tr("Click to add text to timeline")}</Text>
                 </PanelButton>
                 <div className="grid min-w-0 grid-cols-2 gap-2">
                   {TEXT_STYLE_PRESETS.map((preset) => (
                     <PanelButton
                       key={preset.name}
-                      label={preset.name}
+                      label={tr(preset.name)}
                       onClick={async () => {
                         const state = useProjectStore.getState();
                         const { createTextClip, addTrack } = state;
@@ -1564,9 +1556,9 @@ export const AssetsPanel: React.FC = () => {
             <button
               key={tab.value}
               type="button"
-              aria-label={tab.label}
+              aria-label={tr(tab.label)}
               aria-pressed={isActive}
-              title={tab.label}
+              title={tr(tab.label)}
               onClick={() => setActiveTab(tab.value)}
               className={`group flex h-16 w-[68px] shrink-0 flex-col items-center justify-center gap-1 rounded-[10px] px-1 py-2 text-[10px] leading-tight tracking-tight transition-colors ${
                 isActive
@@ -1576,7 +1568,7 @@ export const AssetsPanel: React.FC = () => {
             >
               <Icon size={20} strokeWidth={isActive ? 1.8 : 1.7} />
               <span className="block max-w-full text-center leading-[11px]">
-                {tab.label}
+                {tr(tab.label)}
               </span>
             </button>
           );
@@ -1592,7 +1584,7 @@ export const AssetsPanel: React.FC = () => {
         <input
           ref={fileInputRef}
           type="file"
-          aria-label="Import media"
+          aria-label={tr("Import media")}
           accept="video/*,audio/*,image/*"
           multiple
           className="hidden"
@@ -1608,9 +1600,9 @@ export const AssetsPanel: React.FC = () => {
             <div className="min-w-0 px-4 pt-[18px] pb-0 shrink-0">
               <div
                 className="truncate font-bold text-[18px] text-fg"
-                title={ASSETS_TABS.find((t) => t.value === activeTab)?.label}
+                title={tr(ASSETS_TABS.find((t) => t.value === activeTab)?.label ?? "")}
               >
-                {ASSETS_TABS.find((t) => t.value === activeTab)?.label}
+                {tr(ASSETS_TABS.find((t) => t.value === activeTab)?.label ?? "")}
               </div>
             </div>
           )}

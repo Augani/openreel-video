@@ -15,6 +15,7 @@ import {
   type FilterPreset,
   type FilterCategory,
 } from "@openreel/core";
+import { useTranslation } from "react-i18next";
 
 const CATEGORY_ICONS: Record<string, React.ElementType> = {
   cinematic: Film,
@@ -90,6 +91,7 @@ interface FilterPresetsPanelProps {
 export const FilterPresetsPanel: React.FC<FilterPresetsPanelProps> = ({
   clipId,
 }) => {
+  const { t } = useTranslation();
   const selectedClipIds = useUIStore((state) => state.getSelectedClipIds());
   const addVideoEffect = useProjectStore((state) => state.addVideoEffect);
   const getVideoEffects = useProjectStore((state) => state.getVideoEffects);
@@ -146,8 +148,7 @@ export const FilterPresetsPanel: React.FC<FilterPresetsPanelProps> = ({
       <div className="p-4 text-center">
         <Palette size={24} className="mx-auto mb-2 text-fg-3" />
         <Text type="supporting" color="secondary">
-          Select a video clip to apply filters
-        </Text>
+          {t("Select a video clip to apply filters")}</Text>
       </div>
     );
   }
@@ -158,11 +159,9 @@ export const FilterPresetsPanel: React.FC<FilterPresetsPanelProps> = ({
         <Palette size={16} className="text-primary" />
         <div className="flex flex-col gap-0.5">
           <Text type="supporting" color="primary" weight="medium" display="block">
-            Filter Presets
-          </Text>
+            {t("Filter Presets")}</Text>
           <Text type="supporting" color="secondary" display="block" className="text-[9px]">
-            One-click color grades
-          </Text>
+            {t("One-click color grades")}</Text>
         </div>
       </div>
 
@@ -172,7 +171,7 @@ export const FilterPresetsPanel: React.FC<FilterPresetsPanelProps> = ({
           return (
             <Button
               key={category.id}
-              label={category.name}
+              label={t(category.name)}
               size="sm"
               variant={selectedCategory === category.id ? "primary" : "secondary"}
               icon={<Icon size={12} aria-hidden />}
@@ -201,7 +200,7 @@ export const FilterPresetsPanel: React.FC<FilterPresetsPanelProps> = ({
       {appliedPresetId && (
         <Card variant="muted" padding={3} className="space-y-3">
           <PropertySlider
-            label="Intensity"
+            label={t("Intensity")}
             min={0}
             max={100}
             step={1}
@@ -210,7 +209,7 @@ export const FilterPresetsPanel: React.FC<FilterPresetsPanelProps> = ({
             formatValue={(value) => `${value}%`}
           />
           <Button
-            label="Remove All Effects"
+            label={t("Remove All Effects")}
             size="sm"
             variant="destructive"
             onClick={handleClearEffects}
@@ -220,9 +219,8 @@ export const FilterPresetsPanel: React.FC<FilterPresetsPanelProps> = ({
       )}
 
       <Text type="supporting" color="secondary" className="text-center text-[9px]">
-        {FILTER_PRESETS.length} presets across {FILTER_CATEGORIES.length}{" "}
-        categories
-      </Text>
+        {FILTER_PRESETS.length} {t(" presets across ")}{FILTER_CATEGORIES.length}{" "}
+        {t("categories")}</Text>
     </div>
   );
 };

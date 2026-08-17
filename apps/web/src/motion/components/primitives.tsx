@@ -25,6 +25,7 @@ import {
   ToolcraftTextInputControl,
 } from "@openreel/ui";
 import type { LucideIcon } from "@/icons/lucide-compat";
+import { useTranslation } from "react-i18next";
 
 type IconButtonVariant =
   | "ghost"
@@ -451,9 +452,10 @@ export function NumberInput({
   icon?: LucideIcon;
   disabled?: boolean;
 }): JSX.Element {
+  const { t } = useTranslation();
   return (
     <ToolcraftNumberInputControl
-      ariaLabel={unit ? `Value in ${unit}` : "Number value"}
+      ariaLabel={unit ? `Value in ${unit}` : t("Number value")}
       value={Number.isFinite(value) ? value : 0}
       min={min}
       max={max}
@@ -475,10 +477,11 @@ export function ColorInput({
   onChange: (value: string) => void;
   disabled?: boolean;
 }): JSX.Element {
+  const { t } = useTranslation();
   const isHex = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(value);
   return (
     <ToolcraftTextInputControl
-      ariaLabel="Color value"
+      ariaLabel={t("Color value")}
       value={value}
       onChange={onChange}
       disabled={disabled}
@@ -576,16 +579,17 @@ export function SegmentedControl<T extends string>({
   options: Array<{ value: T; label?: string; icon?: LucideIcon }>;
   onChange: (value: T) => void;
 }): JSX.Element {
+  const { t } = useTranslation();
   return (
     <ToolcraftSegmentedControl
-      ariaLabel="Segmented control"
+      ariaLabel={t("Segmented control")}
       value={value}
       onChange={onChange}
       options={options.map((option) => {
         const Icon = option.icon;
         return {
           value: option.value,
-          label: option.label,
+          label: t(option.label ?? ""),
           icon: Icon ? <Icon size={13} aria-hidden /> : undefined,
         };
       })}

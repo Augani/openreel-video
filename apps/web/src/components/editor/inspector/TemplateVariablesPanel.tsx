@@ -23,6 +23,7 @@ import type {
   TemplateReplacements,
   PlaceholderReplacement,
 } from "@openreel/core";
+import { useTranslation } from "react-i18next";
 
 interface PlaceholderInputProps {
   placeholder: TemplatePlaceholder;
@@ -37,6 +38,7 @@ const TextPlaceholderInput: React.FC<PlaceholderInputProps> = ({
   onChange,
   onClear,
 }) => {
+  const { t } = useTranslation();
   const [text, setText] = useState(
     value?.value || placeholder.defaultValue || "",
   );
@@ -65,7 +67,7 @@ const TextPlaceholderInput: React.FC<PlaceholderInputProps> = ({
         <div className="flex items-center gap-2">
           <Type size={12} className="text-primary" />
           <span className="text-[11px] font-medium text-fg">
-            {placeholder.label}
+            {t(placeholder.label)}
           </span>
           {placeholder.required && (
             <span className="text-red-400 text-[10px]">*</span>
@@ -73,7 +75,7 @@ const TextPlaceholderInput: React.FC<PlaceholderInputProps> = ({
         </div>
         {isModified && (
           <IconButton
-            label="Reset to default"
+            label={t("Reset to default")}
             icon={<Undo2 size={10} />}
             variant="ghost"
             size="sm"
@@ -90,7 +92,7 @@ const TextPlaceholderInput: React.FC<PlaceholderInputProps> = ({
       )}
 
       <ToolcraftTextAreaControl
-        label={placeholder.label}
+        label={t(placeholder.label)}
         isLabelHidden
         value={text}
         onChange={handleChange}
@@ -102,8 +104,7 @@ const TextPlaceholderInput: React.FC<PlaceholderInputProps> = ({
 
       <div className="flex justify-between text-[9px] text-fg-3">
         <span>
-          {text.length} / {maxLength} characters
-        </span>
+          {text.length} / {maxLength} {t(" characters")}</span>
       </div>
     </div>
   );
@@ -115,6 +116,7 @@ const MediaPlaceholderInput: React.FC<PlaceholderInputProps> = ({
   onChange,
   onClear,
 }) => {
+  const { t } = useTranslation();
   const project = useProjectStore((state) => state.project);
   const [selectedMediaId, setSelectedMediaId] = useState(value?.value || "");
 
@@ -157,7 +159,7 @@ const MediaPlaceholderInput: React.FC<PlaceholderInputProps> = ({
             <Image size={12} className="text-primary" />
           )}
           <span className="text-[11px] font-medium text-fg">
-            {placeholder.label}
+            {t(placeholder.label)}
           </span>
           {placeholder.required && (
             <span className="text-red-400 text-[10px]">*</span>
@@ -165,7 +167,7 @@ const MediaPlaceholderInput: React.FC<PlaceholderInputProps> = ({
         </div>
         {isModified && (
           <IconButton
-            label="Reset"
+            label={t("Reset")}
             icon={<Undo2 size={10} />}
             variant="ghost"
             size="sm"
@@ -185,18 +187,16 @@ const MediaPlaceholderInput: React.FC<PlaceholderInputProps> = ({
         <div className="p-4 border border-dashed border-border rounded-lg text-center">
           <Upload size={16} className="mx-auto mb-2 text-fg-3" />
           <Text type="supporting" color="secondary" display="block" className="text-[10px]">
-            No media available
-          </Text>
+            {t("No media available")}</Text>
           <Text type="supporting" color="secondary" display="block" className="mt-1 text-[9px]">
-            Import media to use here
-          </Text>
+            {t("Import media to use here")}</Text>
         </div>
       ) : (
         <div className="grid grid-cols-3 gap-2 max-h-32 overflow-y-auto">
           {availableMedia.map((media) => (
             <SelectableCard
               key={media.id}
-              label={media.name}
+              label={t(media.name)}
               isSelected={selectedMediaId === media.id}
               onChange={() => handleSelect(media.id)}
               onClick={() => handleSelect(media.id)}
@@ -211,7 +211,7 @@ const MediaPlaceholderInput: React.FC<PlaceholderInputProps> = ({
               {media.thumbnailUrl ? (
                 <img
                   src={media.thumbnailUrl}
-                  alt={media.name}
+                  alt={t(media.name)}
                   className="w-full h-full object-cover"
                 />
               ) : (
@@ -242,6 +242,7 @@ const SubtitlePlaceholderInput: React.FC<PlaceholderInputProps> = ({
   onChange,
   onClear,
 }) => {
+  const { t } = useTranslation();
   const [text, setText] = useState(
     value?.value || placeholder.defaultValue || "",
   );
@@ -269,7 +270,7 @@ const SubtitlePlaceholderInput: React.FC<PlaceholderInputProps> = ({
         <div className="flex items-center gap-2">
           <FileText size={12} className="text-yellow-400" />
           <span className="text-[11px] font-medium text-fg">
-            {placeholder.label}
+            {t(placeholder.label)}
           </span>
           {placeholder.required && (
             <span className="text-red-400 text-[10px]">*</span>
@@ -277,7 +278,7 @@ const SubtitlePlaceholderInput: React.FC<PlaceholderInputProps> = ({
         </div>
         {isModified && (
           <IconButton
-            label="Reset to default"
+            label={t("Reset to default")}
             icon={<Undo2 size={10} />}
             variant="ghost"
             size="sm"
@@ -294,7 +295,7 @@ const SubtitlePlaceholderInput: React.FC<PlaceholderInputProps> = ({
       )}
 
       <ToolcraftTextInputControl
-        label={placeholder.label}
+        label={t(placeholder.label)}
         isLabelHidden
         value={text}
         onChange={handleChange}
@@ -318,6 +319,7 @@ export const TemplateVariablesPanel: React.FC<TemplateVariablesPanelProps> = ({
   onChange,
   onApply,
 }) => {
+  const { t } = useTranslation();
   const placeholders = useMemo(() => {
     return template?.placeholders ?? [];
   }, [template]);
@@ -387,8 +389,7 @@ export const TemplateVariablesPanel: React.FC<TemplateVariablesPanelProps> = ({
           className="mx-auto mb-2 text-fg-3 opacity-50"
         />
         <Text type="supporting" color="secondary" display="block" className="text-[10px]">
-          Select a template to edit variables
-        </Text>
+          {t("Select a template to edit variables")}</Text>
       </div>
     );
   }
@@ -399,15 +400,14 @@ export const TemplateVariablesPanel: React.FC<TemplateVariablesPanelProps> = ({
         <div className="flex items-center gap-2">
           <Settings2 size={14} className="text-primary" />
           <span className="text-[11px] font-medium text-fg">
-            Template Variables
-          </span>
+            {t("Template Variables")}</span>
           <span className="text-[9px] text-fg-3 bg-bg-2 px-1.5 py-0.5 rounded">
             {placeholders.length}
           </span>
         </div>
         {hasChanges && (
           <Button
-            label="Reset All"
+            label={t("Reset All")}
             variant="ghost"
             icon={<RotateCcw size={10} />}
             onClick={handleResetAll}
@@ -419,8 +419,7 @@ export const TemplateVariablesPanel: React.FC<TemplateVariablesPanelProps> = ({
       {placeholders.length === 0 ? (
         <div className="text-center py-6">
           <Text type="supporting" color="secondary" display="block" className="text-[10px]">
-            This template has no editable variables
-          </Text>
+            {t("This template has no editable variables")}</Text>
         </div>
       ) : (
         <div className="space-y-4">
@@ -438,7 +437,7 @@ export const TemplateVariablesPanel: React.FC<TemplateVariablesPanelProps> = ({
       {missingRequired.length > 0 && (
         <div className="p-2 bg-amber-500/10 border border-amber-500/30 rounded-lg">
           <Text type="supporting" display="block" className="text-[10px] text-amber-400">
-            Fill in required fields:{" "}
+            {t("Fill in required fields:")}{" "}
             {missingRequired.map((p) => p.label).join(", ")}
           </Text>
         </div>
@@ -446,7 +445,7 @@ export const TemplateVariablesPanel: React.FC<TemplateVariablesPanelProps> = ({
 
       {onApply && (
         <Button
-          label="Apply Template"
+          label={t("Apply Template")}
           variant="primary"
           onClick={onApply}
           isDisabled={!canApply}

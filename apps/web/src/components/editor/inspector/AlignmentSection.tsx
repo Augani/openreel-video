@@ -11,6 +11,7 @@ import {
   AlignVerticalJustifyEnd,
 } from "@/icons/lucide-compat";
 import type { Transform } from "@openreel/core";
+import { useTranslation } from "react-i18next";
 
 interface AlignmentSectionProps {
   clipType: string | null;
@@ -27,6 +28,7 @@ export const AlignmentSection: React.FC<AlignmentSectionProps> = ({
   canvasHeight,
   onTransformChange,
 }) => {
+  const { t } = useTranslation();
   const usesNormalizedPosition =
     clipType === "text" ||
     clipType === "shape" ||
@@ -62,25 +64,24 @@ export const AlignmentSection: React.FC<AlignmentSectionProps> = ({
     <div className="space-y-3">
       <div className="flex items-center gap-2">
         <Text type="supporting" color="secondary" className="w-16">
-          Horizontal
-        </Text>
+          {t("Horizontal")}</Text>
         <div className="flex gap-1">
           <IconButton
-            label="Align Left"
+            label={t("Align Left")}
             icon={<AlignHorizontalJustifyStart size={14} aria-hidden />}
             size="sm"
             variant="ghost"
             onClick={() => handleAlign("x", 0)}
           />
           <IconButton
-            label="Center Horizontally"
+            label={t("Center Horizontally")}
             icon={<AlignHorizontalJustifyCenter size={14} aria-hidden />}
             size="sm"
             variant="ghost"
             onClick={() => handleAlign("x", 0.5)}
           />
           <IconButton
-            label="Align Right"
+            label={t("Align Right")}
             icon={<AlignHorizontalJustifyEnd size={14} aria-hidden />}
             size="sm"
             variant="ghost"
@@ -90,25 +91,24 @@ export const AlignmentSection: React.FC<AlignmentSectionProps> = ({
       </div>
       <div className="flex items-center gap-2">
         <Text type="supporting" color="secondary" className="w-16">
-          Vertical
-        </Text>
+          {t("Vertical")}</Text>
         <div className="flex gap-1">
           <IconButton
-            label="Align Top"
+            label={t("Align Top")}
             icon={<AlignVerticalJustifyStart size={14} aria-hidden />}
             size="sm"
             variant="ghost"
             onClick={() => handleAlign("y", 0)}
           />
           <IconButton
-            label="Center Vertically"
+            label={t("Center Vertically")}
             icon={<AlignVerticalJustifyCenter size={14} aria-hidden />}
             size="sm"
             variant="ghost"
             onClick={() => handleAlign("y", 0.5)}
           />
           <IconButton
-            label="Align Bottom"
+            label={t("Align Bottom")}
             icon={<AlignVerticalJustifyEnd size={14} aria-hidden />}
             size="sm"
             variant="ghost"
@@ -117,7 +117,7 @@ export const AlignmentSection: React.FC<AlignmentSectionProps> = ({
         </div>
       </div>
       <Button
-        label="Center on Canvas"
+        label={t("Center on Canvas")}
         variant="secondary"
         size="sm"
         onClick={handleCenterBoth}

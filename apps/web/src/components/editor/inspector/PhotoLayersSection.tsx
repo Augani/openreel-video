@@ -19,6 +19,7 @@ import { ToolcraftIconButton as IconButton } from "@openreel/ui";
 import { ToolcraftPopover as Popover } from "@openreel/ui";
 import { ToolcraftText as Text } from "@openreel/ui";
 import { PropertySlider } from "./shell/PropertySlider";
+import { useTranslation } from "react-i18next";
 
 const BLEND_MODES: { value: PhotoBlendMode; label: string }[] = [
   { value: "normal", label: "Normal" },
@@ -41,19 +42,19 @@ const BlendModeSelector: React.FC<{
   value: PhotoBlendMode;
   onChange: (mode: PhotoBlendMode) => void;
 }> = ({ value, onChange }) => {
+  const { t } = useTranslation();
   const selectedMode =
     BLEND_MODES.find((m) => m.value === value) || BLEND_MODES[0];
 
   return (
     <div className="flex items-center justify-between">
       <Text type="supporting" color="secondary" className="text-[10px]">
-        Blend Mode
-      </Text>
+        {t("Blend Mode")}</Text>
       <Popover
         placement="below"
         alignment="end"
         width={180}
-        label="Blend mode"
+        label={t("Blend mode")}
         content={
           <div className="max-h-48 overflow-y-auto p-1.5">
           {BLEND_MODES.map((mode) => (
@@ -65,7 +66,7 @@ const BlendModeSelector: React.FC<{
               variant={mode.value === value ? "green" : "transparent"}
             >
               <Text type="supporting" color="primary" className="text-[10px]">
-                {mode.label}
+                {t(mode.label)}
               </Text>
             </ClickableCard>
           ))}
@@ -73,7 +74,7 @@ const BlendModeSelector: React.FC<{
         }
       >
         <Button
-          label={selectedMode.label}
+          label={t(selectedMode.label)}
           variant="secondary"
           size="sm"
           endContent={<ChevronDown size={12} className="text-fg-3" aria-hidden />}
@@ -107,6 +108,7 @@ const LayerItem: React.FC<{
   onDrop,
   draggable,
 }) => {
+  const { t } = useTranslation();
   return (
     <Card
       variant={isSelected ? "green" : "muted"}
@@ -154,7 +156,7 @@ const LayerItem: React.FC<{
       {/* Layer Actions */}
       <div className="flex items-center gap-1">
         <IconButton
-          label={layer.visible ? "Hide layer" : "Show layer"}
+          label={layer.visible ? t("Hide layer") : t("Show layer")}
           icon={
             layer.visible ? (
               <Eye size={14} aria-hidden />
@@ -175,7 +177,7 @@ const LayerItem: React.FC<{
           }`}
         />
         <IconButton
-          label={layer.locked ? "Unlock layer" : "Lock layer"}
+          label={layer.locked ? t("Unlock layer") : t("Lock layer")}
           icon={
             layer.locked ? (
               <Lock size={14} aria-hidden />
@@ -239,6 +241,7 @@ export const PhotoLayersSection: React.FC<PhotoLayersSectionProps> = ({
   onDeleteLayer,
   onDuplicateLayer,
 }) => {
+  const { t } = useTranslation();
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
 
   // Get selected layer
@@ -287,10 +290,9 @@ export const PhotoLayersSection: React.FC<PhotoLayersSectionProps> = ({
       <div className="p-4 text-center">
         <Layers size={24} className="mx-auto mb-2 text-fg-3" aria-hidden />
         <Text type="supporting" color="secondary" className="text-[10px]">
-          No layers
-        </Text>
+          {t("No layers")}</Text>
         <Button
-          label="Add Layer"
+          label={t("Add Layer")}
           variant="primary"
           size="sm"
           onClick={onAddLayer}
@@ -305,10 +307,10 @@ export const PhotoLayersSection: React.FC<PhotoLayersSectionProps> = ({
       {/* Layer List Header */}
       <div className="flex items-center justify-between">
         <Text type="supporting" color="secondary" weight="bold" className="text-[10px]">
-          Layers ({layers.length})
+          {t("Layers (")}{layers.length})
         </Text>
         <IconButton
-          label="Add new layer"
+          label={t("Add new layer")}
           icon={<Plus size={14} aria-hidden />}
           variant="ghost"
           size="sm"
@@ -342,12 +344,11 @@ export const PhotoLayersSection: React.FC<PhotoLayersSectionProps> = ({
       {selectedLayer && (
         <div className="space-y-3 pt-3 border-t border-border">
           <Text type="supporting" color="secondary" weight="bold" className="text-[10px]">
-            Layer Properties
-          </Text>
+            {t("Layer Properties")}</Text>
 
           {/* Opacity Slider */}
           <PropertySlider
-            label="Opacity"
+            label={t("Opacity")}
             value={selectedLayer.opacity * 100}
             onChange={(value: number) => onSetOpacity(selectedLayer.id, value / 100)}
             min={0}
@@ -364,7 +365,7 @@ export const PhotoLayersSection: React.FC<PhotoLayersSectionProps> = ({
           {/* Layer Actions */}
           <div className="flex items-center gap-2 pt-2">
             <Button
-              label="Duplicate"
+              label={t("Duplicate")}
               icon={<Copy size={12} aria-hidden />}
               variant="secondary"
               size="sm"
@@ -372,7 +373,7 @@ export const PhotoLayersSection: React.FC<PhotoLayersSectionProps> = ({
               className="flex-1"
             />
             <Button
-              label="Delete"
+              label={t("Delete")}
               icon={<Trash2 size={12} aria-hidden />}
               variant="secondary"
               size="sm"

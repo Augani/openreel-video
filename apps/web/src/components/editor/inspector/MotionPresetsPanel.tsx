@@ -33,6 +33,7 @@ import type {
   GraphicClip,
 } from "@openreel/core";
 import { v4 as uuid } from "uuid";
+import { useTranslation } from "react-i18next";
 
 type MutableGraphicClip = {
   -readonly [K in keyof GraphicClip]: GraphicClip[K];
@@ -230,6 +231,7 @@ const PresetCard: React.FC<PresetCardProps> = ({
   isApplied,
   onApply,
 }) => {
+  const { t: tr } = useTranslation();
   const [isHovered, setIsHovered] = useState(false);
   const previewRef = useRef<HTMLDivElement>(null);
   const animationRef = useRef<Animation | null>(null);
@@ -284,8 +286,7 @@ const PresetCard: React.FC<PresetCardProps> = ({
         {isHovered && !isApplied && (
           <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
             <Text type="supporting" className="text-[10px] text-white font-medium px-2 py-1 bg-primary rounded">
-              Apply
-            </Text>
+              {tr("Apply")}</Text>
           </div>
         )}
       </div>
@@ -315,6 +316,7 @@ interface MotionPresetsPanelProps {
 export const MotionPresetsPanel: React.FC<MotionPresetsPanelProps> = ({
   clipId,
 }) => {
+  const { t: tr } = useTranslation();
   const selectedClipIds = useUIStore((state) => state.getSelectedClipIds());
   const project = useProjectStore((state) => state.project);
   const updateClipKeyframes = useProjectStore(
@@ -524,8 +526,7 @@ export const MotionPresetsPanel: React.FC<MotionPresetsPanelProps> = ({
       <div className="p-4 text-center">
         <Zap size={24} className="mx-auto mb-2 text-fg-3" />
         <Text type="supporting" color="secondary" className="text-[10px]">
-          Select a clip to apply motion presets
-        </Text>
+          {tr("Select a clip to apply motion presets")}</Text>
       </div>
     );
   }
@@ -535,8 +536,7 @@ export const MotionPresetsPanel: React.FC<MotionPresetsPanelProps> = ({
       <div className="p-4 text-center">
         <Zap size={24} className="mx-auto mb-2 text-fg-3" />
         <Text type="supporting" color="secondary" className="text-[10px]">
-          Clip not found
-        </Text>
+          {tr("Clip not found")}</Text>
       </div>
     );
   }
@@ -548,12 +548,11 @@ export const MotionPresetsPanel: React.FC<MotionPresetsPanelProps> = ({
         appliedState.emphasis) && (
         <Card variant="muted" padding={2} className="space-y-1 border border-border">
           <Text type="supporting" color="secondary" className="text-[10px] font-medium">
-            Applied Animations
-          </Text>
+            {tr("Applied Animations")}</Text>
           <div className="flex flex-wrap gap-1 mt-1">
             {appliedState.entrance && (
               <Button
-                label="Entry x"
+                label={tr("Entry x")}
                 icon={<ArrowRight size={10} />}
                 variant="ghost"
                 size="sm"
@@ -563,7 +562,7 @@ export const MotionPresetsPanel: React.FC<MotionPresetsPanelProps> = ({
             )}
             {appliedState.exit && (
               <Button
-                label="Exit x"
+                label={tr("Exit x")}
                 icon={<ArrowLeft size={10} />}
                 variant="ghost"
                 size="sm"
@@ -573,7 +572,7 @@ export const MotionPresetsPanel: React.FC<MotionPresetsPanelProps> = ({
             )}
             {appliedState.emphasis && (
               <Button
-                label="Emphasis x"
+                label={tr("Emphasis x")}
                 icon={<Zap size={10} />}
                 variant="ghost"
                 size="sm"
@@ -597,7 +596,7 @@ export const MotionPresetsPanel: React.FC<MotionPresetsPanelProps> = ({
           return (
             <Button
               key={category.id}
-              label={category.name}
+              label={tr(category.name)}
               icon={<Icon size={12} />}
               variant={selectedCategory === category.id ? "primary" : "secondary"}
               size="sm"
@@ -637,7 +636,7 @@ export const MotionPresetsPanel: React.FC<MotionPresetsPanelProps> = ({
       </div>
 
       <Text type="supporting" color="secondary" className="text-center text-[9px]">
-        {presets.length} presets in {selectedCategory}
+        {presets.length} {tr(" presets in ")}{selectedCategory}
       </Text>
     </div>
   );

@@ -6,6 +6,7 @@ import {
   WorkspaceModeTabs,
   type WorkspaceMode,
 } from "../../components/WorkspaceModeTabs";
+import { useTranslation } from "react-i18next";
 
 const EditPage = lazy(() =>
   import("../pages/EditPage").then((module) => ({ default: module.EditPage })),
@@ -17,6 +18,7 @@ const MotionPage = lazy(() =>
 type PrimaryDesktopPage = Extract<DesktopPage, "edit" | "motion">;
 
 export function Workspace(): JSX.Element {
+  const { t } = useTranslation();
   const desktopPage = useUIStore((state) => state.desktopPage);
   const setDesktopPage = useUIStore((state) => state.setDesktopPage);
   const activePage: PrimaryDesktopPage =
@@ -29,7 +31,7 @@ export function Workspace(): JSX.Element {
       <div className="flex h-10 shrink-0 items-center justify-center border-b border-border bg-bg-1 px-3">
         <WorkspaceModeTabs
           activeMode={activeMode}
-          ariaLabel="Desktop workspaces"
+          ariaLabel={t("Desktop workspaces")}
           accessibleLabels={{
             video: "Video Editing",
             motion: "Motion Creation",
@@ -40,7 +42,7 @@ export function Workspace(): JSX.Element {
         />
       </div>
       <EditorBootstrapGate>
-        <Suspense fallback={<div className="grid h-full place-items-center text-sm text-fg-muted">Loading…</div>}>
+        <Suspense fallback={<div className="grid h-full place-items-center text-sm text-fg-muted">{t("Loading…")}</div>}>
           <div className="min-h-0 flex-1">
             {activePage === "motion" ? <MotionPage /> : <EditPage />}
           </div>

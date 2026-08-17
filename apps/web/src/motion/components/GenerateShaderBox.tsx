@@ -10,6 +10,7 @@ import { getSecret, isSessionUnlocked } from "../../services/secure-storage";
 import { useProjectStore } from "../../stores/project-store";
 import { useSettingsStore } from "../../stores/settings-store";
 import { Button, Field, TextInput } from "./primitives";
+import { useTranslation } from "react-i18next";
 
 interface GenerateShaderBoxProps {
   category: MotionShaderCategory;
@@ -51,6 +52,7 @@ export function GenerateShaderBox({
   category,
   onGenerated,
 }: GenerateShaderBoxProps): JSX.Element {
+  const { t } = useTranslation();
   const [prompt, setPrompt] = useState("");
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
 
@@ -126,26 +128,24 @@ export function GenerateShaderBox({
         className="flex items-center gap-1.5"
       >
         <Sparkles size={13} />
-        Generate with AI
-      </ToolcraftText>
-      <Field label="Shader prompt">
+        {t("Generate with AI")}</ToolcraftText>
+      <Field label={t("Shader prompt")}>
         <TextInput
           value={prompt}
           onChange={setPrompt}
-          placeholder="Describe a shader, e.g. holographic foil"
+          placeholder={t("Describe a shader, e.g. holographic foil")}
           disabled={busy}
         />
       </Field>
       <Button
-        label="Generate shader"
+        label={t("Generate shader")}
         variant="solid"
         onClick={() => void runGenerate()}
         disabled={busy || prompt.trim() === ""}
       />
       {phase.kind === "generating" ? (
         <ToolcraftText type="supporting" color="secondary">
-          Generating shader...
-        </ToolcraftText>
+          {t("Generating shader...")}</ToolcraftText>
       ) : null}
       {phase.kind === "error" ? (
         <span className="block text-[11px] leading-relaxed text-status-error">

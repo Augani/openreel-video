@@ -26,6 +26,7 @@ import {
   PanelHeader,
   Section,
 } from "./primitives";
+import { useTranslation } from "react-i18next";
 
 interface AnimationPresetsPanelProps {
   composition: MotionComposition;
@@ -58,6 +59,7 @@ export function AnimationPresetsPanel({
   composition,
   embedded = false,
 }: AnimationPresetsPanelProps): JSX.Element | null {
+  const { t } = useTranslation();
   const [duration, setDuration] = useState(0.6);
   const [distance, setDistance] = useState(120);
   const [intensity, setIntensity] = useState(1);
@@ -116,12 +118,12 @@ export function AnimationPresetsPanel({
     }
     return (
       <div className="flex h-full min-h-0 flex-col">
-        <PanelHeader title="Animation Presets" icon={Sparkles} />
+        <PanelHeader title={t("Animation Presets")} icon={Sparkles} />
         <div className="flex flex-1 items-center justify-center p-4">
           <EmptyState
             icon={Sparkles}
-            title="Select a layer"
-            description="Apply entrance, exit, emphasis, and loop presets as editable keyframes."
+            title={t("Select a layer")}
+            description={t("Apply entrance, exit, emphasis, and loop presets as editable keyframes.")}
           />
         </div>
       </div>
@@ -130,11 +132,11 @@ export function AnimationPresetsPanel({
 
   return (
     <div className={embedded ? "" : "flex h-full min-h-0 flex-col"}>
-      {embedded ? null : <PanelHeader title="Animation Presets" icon={Sparkles} />}
+      {embedded ? null : <PanelHeader title={t("Animation Presets")} icon={Sparkles} />}
       <div className={embedded ? "" : "min-h-0 flex-1 overflow-auto"}>
-        <Section title="Timing" icon={MoveUp}>
+        <Section title={t("Timing")} icon={MoveUp}>
           <div className="grid grid-cols-3 gap-2.5">
-            <Field label="Duration" hint="s">
+            <Field label={t("Duration")} hint="s">
               <NumberInput
                 value={duration}
                 min={0.05}
@@ -143,7 +145,7 @@ export function AnimationPresetsPanel({
                 onChange={setDuration}
               />
             </Field>
-            <Field label="Distance" hint="px">
+            <Field label={t("Distance")} hint="px">
               <NumberInput
                 value={distance}
                 min={0}
@@ -152,7 +154,7 @@ export function AnimationPresetsPanel({
                 onChange={setDistance}
               />
             </Field>
-            <Field label="Intensity">
+            <Field label={t("Intensity")}>
               <NumberInput
                 value={intensity}
                 min={0}
@@ -165,15 +167,13 @@ export function AnimationPresetsPanel({
           <div className="rounded-md border border-border bg-bg-2 px-2.5 py-2 text-[11px] text-fg-muted">
             {selectedLayers.length > 1 ? (
               <>
-                Applies at each layer’s local playhead time across{" "}
+                {t("Applies at each layer’s local playhead time across")}{" "}
                 <span className="font-medium text-fg-2">
-                  {selectedLayers.length} selected layers
-                </span>
-                . Locked or incompatible layers are skipped.
-              </>
+                  {selectedLayers.length} {t(" selected layers")}</span>
+                {t(". Locked or incompatible layers are skipped.")}</>
             ) : (
               <>
-                Applies at local {formatSeconds(playhead - selectedLayer.startTime)} on{" "}
+                {t("Applies at local ")}{formatSeconds(playhead - selectedLayer.startTime)} on{" "}
                 <span className="font-medium text-fg-2">{selectedLayer.name}</span>.
               </>
             )}
@@ -213,10 +213,11 @@ function PresetCategorySection({
   disabled: boolean;
   onApply: (preset: MotionAnimationPreset) => void;
 }): JSX.Element {
+  const { t } = useTranslation();
   const meta = CATEGORY_META[category];
   const Icon = meta.icon;
   return (
-    <Section title={meta.label} icon={Icon}>
+    <Section title={t(meta.label)} icon={Icon}>
       <div className="grid grid-cols-1 gap-2">
         {presets.map((preset) => (
           <PresetButton
@@ -313,6 +314,7 @@ function AnimationPresetPreview({
   progress: number;
   className?: string;
 }): JSX.Element {
+  const { t } = useTranslation();
   const eased = 1 - Math.pow(1 - progress, 3);
   const pulse = Math.sin(progress * Math.PI * 2);
   const style = previewStyle(preset, eased, pulse);
@@ -337,8 +339,7 @@ function AnimationPresetPreview({
         {isShapePreset ? null : "Aa"}
       </span>
       <span className="absolute bottom-1 right-1.5 text-[7px] font-bold uppercase tracking-[0.12em] text-white/45">
-        Preview
-      </span>
+        {t("Preview")}</span>
     </span>
   );
 }

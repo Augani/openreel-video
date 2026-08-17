@@ -8,6 +8,7 @@ import {
   PROCESSING_TYPE_LABELS,
   type ProcessingTask,
 } from "../../services/processing-manager";
+import { useTranslation } from "react-i18next";
 
 const TaskItem: React.FC<{ task: ProcessingTask }> = ({ task }) => {
   const getIcon = () => {
@@ -79,6 +80,7 @@ const TaskItem: React.FC<{ task: ProcessingTask }> = ({ task }) => {
 };
 
 export const ProcessingOverlay: React.FC = () => {
+  const { t: tr } = useTranslation();
   const { tasks, isProcessing, getOverallProgress } = useProcessingStore();
   const taskList = Array.from(tasks.values());
   const activeTasks = taskList.filter(
@@ -104,26 +106,22 @@ export const ProcessingOverlay: React.FC = () => {
           </div>
           <div>
             <Text as="h3" type="label" weight="bold" display="block">
-              Processing Effects
-            </Text>
+              {tr("Processing Effects")}</Text>
             <Text type="supporting" color="secondary" display="block">
-              {activeTasks.length} task{activeTasks.length !== 1 ? "s" : ""} in
-              progress
-            </Text>
+              {activeTasks.length} {tr(" task")}{activeTasks.length !== 1 ? "s" : ""} {tr(" in progress")}</Text>
           </div>
         </div>
 
         <div className="mb-4">
           <div className="flex items-center justify-between mb-1">
             <Text type="supporting" color="secondary" className="text-[10px]">
-              Overall Progress
-            </Text>
+              {tr("Overall Progress")}</Text>
             <Text type="supporting" color="secondary" className="text-[10px] font-mono">
               {progress}%
             </Text>
           </div>
           <ProgressBar
-            label="Overall progress"
+            label={tr("Overall progress")}
             isLabelHidden
             value={progress}
             max={100}
@@ -140,8 +138,7 @@ export const ProcessingOverlay: React.FC = () => {
         </div>
 
         <Text type="supporting" color="secondary" display="block" justify="center" className="mt-4 text-[10px]">
-          Please wait while effects are being applied...
-        </Text>
+          {tr("Please wait while effects are being applied...")}</Text>
       </Card>
     </div>
   );

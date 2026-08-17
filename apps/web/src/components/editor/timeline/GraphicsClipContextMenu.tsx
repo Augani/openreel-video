@@ -8,6 +8,7 @@ import {
 } from "@/icons/lucide-compat";
 import type { ShapeClip, SVGClip, StickerClip, TextClip } from "@openreel/core";
 import { useProjectStore } from "../../../stores/project-store";
+import { t } from "../../../i18n";
 
 type GraphicsClipType = ShapeClip | SVGClip | StickerClip | TextClip;
 
@@ -105,7 +106,7 @@ export function useGraphicsClipContextMenuItems({
   if (onDuplicate) {
     items.push(
       {
-        label: "Duplicate",
+        label: t("Duplicate"),
         icon: <Layers size={14} aria-hidden />,
         onClick: handleDuplicate,
       },
@@ -114,7 +115,7 @@ export function useGraphicsClipContextMenuItems({
   }
 
   items.push({
-    label: "Delete",
+    label: t("Delete"),
     icon: <Trash2 size={14} aria-hidden />,
     onClick: handleDelete,
   });

@@ -8,6 +8,7 @@ import { MockToggle } from "./shell/InspectorControls";
 import type { Clip } from "@openreel/core";
 import { getVidstabEngine, type VidstabProgress } from "@openreel/core";
 import { useProjectStore } from "../../../stores/project-store";
+import { useTranslation } from "react-i18next";
 
 interface StabilizationSectionProps {
   clip: Clip;
@@ -16,6 +17,7 @@ interface StabilizationSectionProps {
 export const StabilizationSection: React.FC<StabilizationSectionProps> = ({
   clip,
 }) => {
+  const { t } = useTranslation();
   const { getMediaItem } = useProjectStore();
   const [processing, setProcessing] = useState(false);
   const [stage, setStage] = useState<VidstabProgress["stage"] | null>(null);
@@ -143,10 +145,9 @@ export const StabilizationSection: React.FC<StabilizationSectionProps> = ({
       <div className="flex items-center justify-between">
         <Text type="body" color="primary" className="flex items-center gap-2 text-sm">
           <Video className="h-4 w-4" />
-          Stabilize
-        </Text>
+          {t("Stabilize")}</Text>
         <MockToggle
-          ariaLabel="Enable stabilization"
+          ariaLabel={t("Enable stabilization")}
           checked={stabilization.enabled && isStabilized}
           onChange={handleToggle}
           isDisabled={processing}
@@ -154,7 +155,7 @@ export const StabilizationSection: React.FC<StabilizationSectionProps> = ({
       </div>
 
       <PropertySlider
-        label="Strength"
+        label={t("Strength")}
         value={stabilization.strength}
         min={10}
         max={100}
@@ -172,8 +173,7 @@ export const StabilizationSection: React.FC<StabilizationSectionProps> = ({
         >
           <Download className="h-3.5 w-3.5 shrink-0" />
           <Text type="supporting" color="secondary" className="text-[11px]">
-            First use requires a one-time download (~65 MB)
-          </Text>
+            {t("First use requires a one-time download (~65 MB)")}</Text>
         </Card>
       )}
 
@@ -206,7 +206,7 @@ export const StabilizationSection: React.FC<StabilizationSectionProps> = ({
 
       {isStabilized && !processing && (
         <Button
-          label="Re-stabilize"
+          label={t("Re-stabilize")}
           variant="secondary"
           size="sm"
           onClick={handleStabilize}

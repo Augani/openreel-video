@@ -1,4 +1,5 @@
 import type { JSX } from "react";
+import { useTranslation } from "react-i18next";
 
 export function MotionBrandMark({
   size = 26,
@@ -7,6 +8,7 @@ export function MotionBrandMark({
   size?: number;
   className?: string;
 }): JSX.Element {
+  const { t } = useTranslation();
   const dimension = Number.isFinite(size) && size > 0 ? size : 26;
   return (
     <svg
@@ -17,7 +19,7 @@ export function MotionBrandMark({
       xmlns="http://www.w3.org/2000/svg"
       className={className}
       role="img"
-      aria-label="OpenReel"
+      aria-label={t("OpenReel")}
     >
       <polygon points="16,2.5 16,16 4,16" fill="#2ee0a3" />
       <polygon points="16,2.5 28,16 16,16" fill="#16c08a" />

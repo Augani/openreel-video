@@ -10,8 +10,10 @@ import {
 } from "@/icons/lucide-compat";
 import { ToolcraftIconButton as IconButton } from "@openreel/ui";
 import { ToolcraftText as Text } from "@openreel/ui";
+import { useTranslation } from "react-i18next";
 
 export const MoGraphTour: React.FC = () => {
+  const { t } = useTranslation();
   const {
     isActive,
     currentStep,
@@ -193,13 +195,13 @@ export const MoGraphTour: React.FC = () => {
               <Sparkles size={16} className="text-white" />
             </div>
             <div className="flex-1">
-              <Text type="label" weight="semibold" className="text-white text-sm">{step.title}</Text>
+              <Text type="label" weight="semibold" className="text-white text-sm">{t(step.title)}</Text>
               <Text type="supporting" className="text-white/60 text-[10px]">
-                Motion Graphics Tour • Step {currentStep + 1} of {totalSteps}
+                {t("Motion Graphics Tour • Step ")}{currentStep + 1} of {totalSteps}
               </Text>
             </div>
             <IconButton
-              label="Skip tour"
+              label={t("Skip tour")}
               icon={<X size={16} />}
               variant="ghost"
               size="sm"
@@ -210,14 +212,14 @@ export const MoGraphTour: React.FC = () => {
 
           <div className="p-4">
             <Text type="supporting" color="secondary" className="text-text-secondary text-sm leading-relaxed mb-4">
-              {step.description}
+              {t(step.description)}
             </Text>
 
             {step.tips && step.tips.length > 0 && (
               <div className="bg-accent-soft rounded-lg p-3 mb-4">
                 <div className="flex items-center gap-2 mb-2">
                   <Lightbulb size={14} className="text-accent" />
-                  <span className="text-accent text-xs font-medium">Pro Tips</span>
+                  <span className="text-accent text-xs font-medium">{t("Pro Tips")}</span>
                 </div>
                 <ul className="space-y-1.5">
                   {step.tips.map((tip, i) => (
@@ -226,7 +228,7 @@ export const MoGraphTour: React.FC = () => {
                       className="text-text-muted text-xs flex items-start gap-2"
                     >
                       <span className="text-accent mt-0.5">•</span>
-                      <span>{tip}</span>
+                      <span>{t(tip)}</span>
                     </li>
                   ))}
                 </ul>
@@ -252,29 +254,28 @@ export const MoGraphTour: React.FC = () => {
             <div className="grid grid-cols-[88px_1fr_108px] items-center gap-3">
               <button
                 type="button"
-                aria-label="Back"
+                aria-label={t("Back")}
                 onClick={prev}
                 disabled={isFirstStep}
                 className="inline-flex h-9 min-w-[88px] items-center justify-center gap-1.5 whitespace-nowrap rounded-lg bg-background-tertiary px-3 text-xs font-medium text-text-secondary transition-colors hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <ChevronLeft size={14} className="shrink-0" aria-hidden />
-                <span>Back</span>
+                <span>{t("Back")}</span>
               </button>
               <button
                 type="button"
-                aria-label="Skip tour"
+                aria-label={t("Skip tour")}
                 onClick={skip}
                 className="mx-auto inline-flex h-9 items-center justify-center whitespace-nowrap rounded-lg px-3 text-xs font-medium text-text-muted transition-colors hover:bg-background-tertiary hover:text-text-secondary"
               >
-                Skip Tour
-              </button>
+                {t("Skip Tour")}</button>
               <button
                 type="button"
-                aria-label={isLastStep ? "Get Started" : "Next"}
+                aria-label={isLastStep ? t("Get Started") : t("Next")}
                 onClick={next}
                 className="inline-flex h-9 min-w-[108px] items-center justify-center gap-1.5 whitespace-nowrap rounded-lg bg-accent px-4 text-xs font-semibold text-accent-fg transition-colors hover:bg-accent-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
-                <span>{isLastStep ? "Get Started" : "Next"}</span>
+                <span>{isLastStep ? t("Get Started") : t("Next")}</span>
                 {!isLastStep && <ChevronRight size={14} className="shrink-0" aria-hidden />}
               </button>
             </div>

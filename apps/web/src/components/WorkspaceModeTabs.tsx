@@ -1,4 +1,5 @@
 import type { JSX } from "react";
+import { useTranslation } from "react-i18next";
 
 export type WorkspaceMode = "video" | "motion";
 
@@ -23,6 +24,7 @@ export function WorkspaceModeTabs({
   className?: string;
   accessibleLabels?: Partial<Record<WorkspaceMode, string>>;
 }): JSX.Element {
+  const { t } = useTranslation();
   return (
     <div
       role="tablist"
@@ -45,7 +47,7 @@ export function WorkspaceModeTabs({
                 : "bg-transparent text-fg-3 font-medium hover:text-fg-2"
             }`}
           >
-            {mode.label}
+            {t(mode.label)}
           </button>
         );
       })}

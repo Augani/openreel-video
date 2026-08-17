@@ -37,6 +37,7 @@ import {
   Section,
   SelectInput,
 } from "./primitives";
+import { useTranslation } from "react-i18next";
 
 const RESOLUTION_OPTIONS: readonly {
   readonly value: MotionExportResolutionScale;
@@ -109,6 +110,7 @@ export function RenderQueuePanel({
   composition,
   embedded = false,
 }: RenderQueuePanelProps): JSX.Element {
+  const { t } = useTranslation();
   const [isRunning, setIsRunning] = useState(false);
   const [selectedFormat, setSelectedFormat] =
     useState<MotionRenderQueueFormat>("mp4");
@@ -219,13 +221,13 @@ export function RenderQueuePanel({
     <div className={embedded ? "" : "flex h-full min-h-0 flex-col"}>
       {embedded ? null : (
         <PanelHeader
-          title="Render Queue"
+          title={t("Render Queue")}
           icon={ListChecks}
           actions={
             <>
               <IconButton
                 icon={Play}
-                label="Start render queue"
+                label={t("Start render queue")}
                 size="sm"
                 variant="solid"
                 disabled={isRunning || runnableCount === 0 || guardrailBlocking}
@@ -233,7 +235,7 @@ export function RenderQueuePanel({
               />
               <IconButton
                 icon={Trash2}
-                label="Clear render queue"
+                label={t("Clear render queue")}
                 size="sm"
                 variant="danger"
                 disabled={isRunning || renderQueue.length === 0}
@@ -244,19 +246,19 @@ export function RenderQueuePanel({
         />
       )}
       <div className={embedded ? "" : "min-h-0 flex-1 overflow-auto"}>
-        <Section title="Queue Controls" icon={FileVideo2}>
+        <Section title={t("Queue Controls")} icon={FileVideo2}>
           <Button
-            label={isRunning ? "Rendering…" : "Start render queue"}
+            label={isRunning ? t("Rendering…") : t("Start render queue")}
             icon={Play}
             variant="solid"
             disabled={isRunning || runnableCount === 0 || guardrailBlocking}
             onClick={runQueue}
             className="w-full justify-center"
           />
-          <Field label="Output format">
+          <Field label={t("Output format")}>
             <SelectInput
               value={selectedFormat}
-              placeholder="Output format"
+              placeholder={t("Output format")}
               disabled={isRunning}
               options={MOTION_EXPORT_FORMATS.map((entry) => ({
                 value: entry.id,
@@ -268,8 +270,8 @@ export function RenderQueuePanel({
               }}
             />
           </Field>
-          <Field label="Resolution">
-            <div className="flex gap-1" role="group" aria-label="Resolution">
+          <Field label={t("Resolution")}>
+            <div className="flex gap-1" role="group" aria-label={t("Resolution")}>
               {RESOLUTION_OPTIONS.map((option) => {
                 const active = resolutionScale === option.value;
                 return (
@@ -286,17 +288,17 @@ export function RenderQueuePanel({
                         : "border-border bg-bg-1 text-fg-muted"
                     }`}
                   >
-                    {option.label}
+                    {t(option.label)}
                   </button>
                 );
               })}
             </div>
           </Field>
           <div className="grid grid-cols-2 gap-2">
-            <Field label="Range start (s)">
+            <Field label={t("Range start (s)")}>
               <input
                 type="number"
-                aria-label="Range start"
+                aria-label={t("Range start")}
                 min={0}
                 step={0.1}
                 value={rangeStart}
@@ -305,10 +307,10 @@ export function RenderQueuePanel({
                 className="w-full rounded-[7px] border border-border bg-bg-1 px-[10px] py-2 text-[13px] font-medium text-fg-2 outline-none disabled:opacity-50"
               />
             </Field>
-            <Field label="Range end (s)">
+            <Field label={t("Range end (s)")}>
               <input
                 type="number"
-                aria-label="Range end"
+                aria-label={t("Range end")}
                 min={0}
                 step={0.1}
                 value={rangeEnd}
@@ -329,11 +331,10 @@ export function RenderQueuePanel({
               </span>
               {h264FallbackAcknowledged ? (
                 <span className="text-[10.5px] text-fg-muted">
-                  Will encode H.264 without transparency.
-                </span>
+                  {t("Will encode H.264 without transparency.")}</span>
               ) : (
                 <Button
-                  label="Export as H.264 anyway"
+                  label={t("Export as H.264 anyway")}
                   variant="outline"
                   disabled={isRunning}
                   onClick={() => setH264FallbackAcknowledged(true)}
@@ -344,13 +345,13 @@ export function RenderQueuePanel({
           ) : null}
           <div className="grid grid-cols-2 gap-2">
             <Button
-              label="Current"
+              label={t("Current")}
               icon={Plus}
               disabled={isRunning}
               onClick={() => addComposition(composition)}
             />
             <Button
-              label="All Scenes"
+              label={t("All Scenes")}
               icon={Plus}
               disabled={isRunning || compositions.length === 0}
               onClick={addAllScenes}
@@ -358,12 +359,12 @@ export function RenderQueuePanel({
           </div>
           <div className="grid grid-cols-2 gap-2">
             <Button
-              label="Clear completed"
+              label={t("Clear completed")}
               disabled={isRunning || renderQueue.length === 0}
               onClick={clearCompletedRenderQueueItems}
             />
             <Button
-              label="Clear queue"
+              label={t("Clear queue")}
               icon={Trash2}
               variant="danger"
               disabled={isRunning || renderQueue.length === 0}
@@ -376,8 +377,8 @@ export function RenderQueuePanel({
           {renderQueue.length === 0 ? (
             <EmptyState
               icon={FileVideo2}
-              title="Queue is empty"
-              description="Add motion scenes here for sequential MP4 rendering."
+              title={t("Queue is empty")}
+              description={t("Add motion scenes here for sequential MP4 rendering.")}
             />
           ) : (
             <div className="space-y-2">
@@ -424,6 +425,7 @@ function RenderQueueRow({
   readonly onMoveUp: () => void;
   readonly onMoveDown: () => void;
 }): JSX.Element {
+  const { t } = useTranslation();
   const status = STATUS_META[item.status];
   const StatusIcon = status.icon;
   const isRunning = item.status === "rendering";
@@ -445,8 +447,8 @@ function RenderQueueRow({
             {item.name}
           </span>
           <span className="mt-0.5 block text-[10.5px] tabular-nums text-fg-muted">
-            {item.width}×{item.height} · {item.frameRate} fps ·{" "}
-            {item.duration.toFixed(1)}s ·{" "}
+            {item.width}×{item.height} · {item.frameRate} {t(" fps ·")}{" "}
+            {item.duration.toFixed(1)}{t("s ·")}{" "}
             {MOTION_EXPORT_FORMATS.find((entry) => entry.id === item.format)
               ?.label ?? item.format}
           </span>
@@ -454,7 +456,7 @@ function RenderQueueRow({
         <span className="flex shrink-0 items-center gap-1">
           <IconButton
             icon={ChevronUp}
-            label="Move render job up"
+            label={t("Move render job up")}
             size="sm"
             variant="ghost"
             disabled={isRunning || !canMoveUp}
@@ -462,7 +464,7 @@ function RenderQueueRow({
           />
           <IconButton
             icon={ChevronDown}
-            label="Move render job down"
+            label={t("Move render job down")}
             size="sm"
             variant="ghost"
             disabled={isRunning || !canMoveDown}
@@ -471,7 +473,7 @@ function RenderQueueRow({
           {isCancelable ? (
             <IconButton
               icon={XCircle}
-              label="Cancel render job"
+              label={t("Cancel render job")}
               size="sm"
               variant="danger"
               disabled={item.cancelRequested === true}
@@ -480,7 +482,7 @@ function RenderQueueRow({
           ) : null}
           <IconButton
             icon={Trash2}
-            label="Remove render job"
+            label={t("Remove render job")}
             size="sm"
             variant="danger"
             disabled={disabled}
@@ -499,7 +501,7 @@ function RenderQueueRow({
           className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10.5px] font-semibold ${status.className}`}
         >
           <StatusIcon size={11} />
-          {status.label}
+          {t(status.label)}
         </span>
         <span className="min-w-0 truncate text-right text-[10.5px] text-fg-muted">
           {resultDetail}

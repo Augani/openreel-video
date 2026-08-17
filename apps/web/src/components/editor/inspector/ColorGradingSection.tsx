@@ -22,6 +22,7 @@ import { ColorWheelsControl } from "./ColorWheelsControl";
 import { CurvesEditor } from "./CurvesEditor";
 import { LUTLoader } from "./LUTLoader";
 import { HSLControls } from "./HSLControls";
+import { useTranslation } from "react-i18next";
 
 const WHITE_BALANCE_PRESETS: Array<{
   label: string;
@@ -71,6 +72,7 @@ interface ColorGradingSectionProps {
 export const ColorGradingSection: React.FC<ColorGradingSectionProps> = ({
   clipId,
 }) => {
+  const { t } = useTranslation();
   const { getColorGrading, updateColorGrading, resetColorGrading } =
     useProjectStore();
 
@@ -173,7 +175,7 @@ export const ColorGradingSection: React.FC<ColorGradingSectionProps> = ({
     <div className="space-y-3">
       <div className="flex justify-end">
         <Button
-          label="Reset All"
+          label={t("Reset All")}
           icon={<RotateCcw size={10} />}
           variant="ghost"
           size="sm"
@@ -182,15 +184,13 @@ export const ColorGradingSection: React.FC<ColorGradingSectionProps> = ({
         />
       </div>
 
-      <SubSection title="White Balance" defaultOpen>
+      <SubSection title={t("White Balance")} defaultOpen>
         <div className="space-y-4">
           <div className="flex items-start justify-between gap-2">
             <Text type="supporting" color="secondary" className="text-[10px] leading-snug">
-              Warm up cool shots or cool down warm ones. Tint corrects green or
-              magenta casts.
-            </Text>
+              {t("Warm up cool shots or cool down warm ones. Tint corrects green or magenta casts.")}</Text>
             <IconButton
-              label="Reset white balance"
+              label={t("Reset white balance")}
               icon={<RotateCcw size={10} />}
               variant="ghost"
               size="sm"
@@ -203,7 +203,7 @@ export const ColorGradingSection: React.FC<ColorGradingSectionProps> = ({
             <div className="flex items-center gap-1.5">
               <Thermometer size={12} className="text-fg-3" />
               <PropertySlider
-                label="Temperature"
+                label={t("Temperature")}
                 value={temperatureValue}
                 onChange={handleTemperatureChange}
                 min={-100}
@@ -229,7 +229,7 @@ export const ColorGradingSection: React.FC<ColorGradingSectionProps> = ({
             <div className="flex items-center gap-1.5">
               <Sun size={12} className="text-fg-3" />
               <PropertySlider
-                label="Tint"
+                label={t("Tint")}
                 value={tintValue}
                 onChange={handleTintChange}
                 min={-100}
@@ -253,8 +253,7 @@ export const ColorGradingSection: React.FC<ColorGradingSectionProps> = ({
 
           <div className="pt-1">
             <Text type="supporting" color="secondary" className="mb-1.5 block text-[10px]">
-              Presets
-            </Text>
+              {t("Presets")}</Text>
             <div className="grid grid-cols-5 gap-1">
               {WHITE_BALANCE_PRESETS.map((preset) => {
                 const isActive =
@@ -271,7 +270,7 @@ export const ColorGradingSection: React.FC<ColorGradingSectionProps> = ({
                         : "bg-bg-2 border border-border text-fg-2 hover:text-fg"
                     }`}
                   >
-                    {preset.label}
+                    {t(preset.label)}
                   </ClickableCard>
                 );
               })}
@@ -280,7 +279,7 @@ export const ColorGradingSection: React.FC<ColorGradingSectionProps> = ({
         </div>
       </SubSection>
 
-      <SubSection title="Color Wheels" defaultOpen={false}>
+      <SubSection title={t("Color Wheels")} defaultOpen={false}>
         <ColorWheelsControl
           values={colorWheelValues}
           onChange={handleColorWheelsChange}
@@ -288,7 +287,7 @@ export const ColorGradingSection: React.FC<ColorGradingSectionProps> = ({
         />
       </SubSection>
 
-      <SubSection title="Curves">
+      <SubSection title={t("Curves")}>
         <CurvesEditor
           values={curvesValues}
           onChange={handleCurvesChange}
@@ -296,14 +295,14 @@ export const ColorGradingSection: React.FC<ColorGradingSectionProps> = ({
         />
       </SubSection>
 
-      <SubSection title="LUT">
+      <SubSection title={t("LUT")}>
         <LUTLoader
           lutData={colorGrading.lut as LUTData | null}
           onChange={handleLUTChange}
         />
       </SubSection>
 
-      <SubSection title="HSL">
+      <SubSection title={t("HSL")}>
         <HSLControls
           values={hslValues}
           onChange={handleHSLValuesChange}

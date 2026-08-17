@@ -16,6 +16,7 @@ import { ToolcraftText as Text } from "@openreel/ui";
 import { ToolcraftTextInputControl } from "@openreel/ui";
 import { useProjectStore } from "../../stores/project-store";
 import { autoSaveManager, type AutoSaveMetadata } from "../../services/auto-save";
+import { useTranslation } from "react-i18next";
 
 function formatTimeAgo(timestamp: number): string {
   const seconds = Math.floor((Date.now() - timestamp) / 1000);
@@ -33,6 +34,7 @@ function formatTimeAgo(timestamp: number): string {
 }
 
 export const ProjectSwitcher: React.FC = () => {
+  const { t } = useTranslation();
   const { project, createNewProject, recoverFromAutoSave, renameProject } = useProjectStore();
   const [isOpen, setIsOpen] = useState(false);
   const [savedProjects, setSavedProjects] = useState<AutoSaveMetadata[]>([]);
@@ -133,7 +135,7 @@ export const ProjectSwitcher: React.FC = () => {
   return (
     <div className="relative" ref={dropdownRef}>
       <Button
-        label={project.name}
+        label={t(project.name)}
         onClick={() => setIsOpen(!isOpen)}
         variant="ghost"
         size="md"
@@ -161,13 +163,12 @@ export const ProjectSwitcher: React.FC = () => {
               color="secondary"
               className="mb-2 text-xs font-medium uppercase tracking-wider"
             >
-              Current Project
-            </Text>
+              {t("Current Project")}</Text>
             {isEditing ? (
               <div className="flex items-center gap-2">
                 <ToolcraftTextInputControl
                   ref={inputRef}
-                  label="Project name"
+                  label={t("Project name")}
                   isLabelHidden
                   size="sm"
                   width="100%"
@@ -178,7 +179,7 @@ export const ProjectSwitcher: React.FC = () => {
                   className="flex-1 bg-background-secondary border-primary text-text-primary"
                 />
                 <IconButton
-                  label="Save project name"
+                  label={t("Save project name")}
                   onClick={handleSaveName}
                   variant="secondary"
                   size="sm"
@@ -201,7 +202,7 @@ export const ProjectSwitcher: React.FC = () => {
                   {project.name}
                 </Text>
                 <IconButton
-                  label="Rename project"
+                  label={t("Rename project")}
                   onClick={() => setIsEditing(true)}
                   variant="ghost"
                   size="sm"
@@ -214,7 +215,7 @@ export const ProjectSwitcher: React.FC = () => {
 
           <div className="p-2">
             <ClickableCard
-              label="New Project"
+              label={t("New Project")}
               onClick={handleNewProject}
               padding={3}
               variant="transparent"
@@ -225,11 +226,9 @@ export const ProjectSwitcher: React.FC = () => {
               </div>
               <div className="flex-1">
                 <Text type="supporting" color="primary" className="text-sm font-medium">
-                  New Project
-                </Text>
+                  {t("New Project")}</Text>
                 <Text type="supporting" color="secondary" className="text-xs">
-                  Start fresh with a new canvas
-                </Text>
+                  {t("Start fresh with a new canvas")}</Text>
               </div>
             </ClickableCard>
           </div>
@@ -244,8 +243,7 @@ export const ProjectSwitcher: React.FC = () => {
                     color="secondary"
                     className="text-xs font-medium uppercase tracking-wider"
                   >
-                  Recent Projects
-                  </Text>
+                  {t("Recent Projects")}</Text>
                 </div>
               </div>
               <div className="max-h-64 overflow-y-auto px-2 pb-2">

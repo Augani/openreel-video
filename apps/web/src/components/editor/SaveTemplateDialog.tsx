@@ -21,6 +21,7 @@ import {
   type StickerClip,
 } from "@openreel/core";
 import { templateCloudService } from "../../services/template-cloud-service";
+import { useTranslation } from "react-i18next";
 
 interface TemplateWithGraphics extends Template {
   timeline: Template["timeline"] & {
@@ -41,6 +42,7 @@ export const SaveTemplateDialog: React.FC<SaveTemplateDialogProps> = ({
   isOpen,
   onClose,
 }) => {
+  const { t: tr } = useTranslation();
   const { project } = useProjectStore();
   const getTemplateEngine = useEngineStore((state) => state.getTemplateEngine);
   const getGraphicsEngine = useEngineStore((state) => state.getGraphicsEngine);
@@ -159,7 +161,7 @@ export const SaveTemplateDialog: React.FC<SaveTemplateDialogProps> = ({
       <Layout
         header={
           <DialogHeader
-            title="Save as Template"
+            title={tr("Save as Template")}
             onOpenChange={(open) => !open && onClose()}
           />
         }
@@ -170,8 +172,7 @@ export const SaveTemplateDialog: React.FC<SaveTemplateDialogProps> = ({
             <Card variant="green" padding={3} className="flex items-center gap-2 border border-green-500/30">
               <Check size={16} className="text-green-400" aria-hidden />
               <Text type="supporting" className="text-green-400">
-                Template saved successfully!
-              </Text>
+                {tr("Template saved successfully!")}</Text>
             </Card>
           )}
 
@@ -183,65 +184,63 @@ export const SaveTemplateDialog: React.FC<SaveTemplateDialogProps> = ({
           )}
 
           <ToolcraftTextInputControl
-            label="Template Name"
+            label={tr("Template Name")}
             isRequired
             type="text"
             value={name}
             onChange={(nextName) => setName(nextName.slice(0, 50))}
-            placeholder="My Awesome Template"
+            placeholder={tr("My Awesome Template")}
             width="100%"
           />
           <Text type="supporting" color="secondary" display="block" className="text-[10px]">
-            {name.length}/50 characters
-          </Text>
+            {name.length}{tr("/50 characters")}</Text>
 
           <ToolcraftTextAreaControl
-            label="Description"
+            label={tr("Description")}
             isRequired
             value={description}
             onChange={setDescription}
-            placeholder="Describe what this template is for and how to use it..."
+            placeholder={tr("Describe what this template is for and how to use it...")}
             rows={4}
             maxLength={500}
             width="100%"
           />
 
           <Selector
-            label="Category"
+            label={tr("Category")}
             value={category}
             onChange={(nextCategory) => setCategory(nextCategory as TemplateCategory)}
             options={TEMPLATE_CATEGORIES.map((cat) => ({
               value: cat.id,
-              label: cat.name,
+              label: tr(cat.name),
             }))}
             width="100%"
           />
 
           <ToolcraftTextInputControl
-            label="Tags (comma-separated)"
+            label={tr("Tags (comma-separated)")}
             type="text"
             value={tags}
             onChange={setTags}
-            placeholder="intro, animated, youtube"
+            placeholder={tr("intro, animated, youtube")}
             width="100%"
           />
 
           <ToolcraftTextInputControl
-            label="Author Name"
+            label={tr("Author Name")}
             type="text"
             value={author}
             onChange={setAuthor}
-            placeholder="Your name or username"
+            placeholder={tr("Your name or username")}
             width="100%"
           />
 
           <div className="space-y-2">
             <Text type="supporting" color="secondary" weight="bold" display="block">
-              Save Location
-            </Text>
+              {tr("Save Location")}</Text>
             <div className="grid grid-cols-2 gap-2">
               <SelectableCard
-                label="Cloud"
+                label={tr("Cloud")}
                 isSelected={saveLocation === "cloud"}
                 onChange={() => setSaveLocation("cloud")}
                 padding={3}
@@ -249,11 +248,11 @@ export const SaveTemplateDialog: React.FC<SaveTemplateDialogProps> = ({
               >
                 <div className="flex items-center justify-center gap-2">
                   <Cloud size={16} aria-hidden />
-                  <Text type="label" weight="bold">Cloud</Text>
+                  <Text type="label" weight="bold">{tr("Cloud")}</Text>
                 </div>
               </SelectableCard>
               <SelectableCard
-                label="Local"
+                label={tr("Local")}
                 isSelected={saveLocation === "local"}
                 onChange={() => setSaveLocation("local")}
                 padding={3}
@@ -261,7 +260,7 @@ export const SaveTemplateDialog: React.FC<SaveTemplateDialogProps> = ({
               >
                 <div className="flex items-center justify-center gap-2">
                   <HardDrive size={16} aria-hidden />
-                  <Text type="label" weight="bold">Local</Text>
+                  <Text type="label" weight="bold">{tr("Local")}</Text>
                 </div>
               </SelectableCard>
             </div>
@@ -278,13 +277,13 @@ export const SaveTemplateDialog: React.FC<SaveTemplateDialogProps> = ({
           <LayoutFooter hasDivider>
             <div className="flex items-center justify-end gap-2">
               <Button
-                label="Cancel"
+                label={tr("Cancel")}
                 variant="ghost"
                 onClick={onClose}
                 isDisabled={isSaving}
               />
               <Button
-                label={isSaving ? "Saving..." : "Save Template"}
+                label={isSaving ? tr("Saving...") : tr("Save Template")}
                 onClick={handleSave}
                 isDisabled={isSaving || !name.trim() || !description.trim()}
                 isLoading={isSaving}

@@ -19,6 +19,7 @@ import {
   isShareExpired,
   type ShareInfo,
 } from "../services/share-service";
+import { useTranslation } from "react-i18next";
 
 interface SharePageProps {
   shareId: string;
@@ -27,6 +28,7 @@ interface SharePageProps {
 type PageStatus = "loading" | "ready" | "expired" | "not-found" | "error";
 
 export const SharePage: React.FC<SharePageProps> = ({ shareId }) => {
+  const { t } = useTranslation();
   const [status, setStatus] = useState<PageStatus>("loading");
   const [shareInfo, setShareInfo] = useState<ShareInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -80,7 +82,7 @@ export const SharePage: React.FC<SharePageProps> = ({ shareId }) => {
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center space-y-4">
           <Loader2 size={48} className="text-primary animate-spin mx-auto" />
-          <Text type="supporting" color="secondary" className="text-text-muted">Loading video...</Text>
+          <Text type="supporting" color="secondary" className="text-text-muted">{t("Loading video...")}</Text>
         </div>
       </div>
     );
@@ -95,14 +97,12 @@ export const SharePage: React.FC<SharePageProps> = ({ shareId }) => {
           </div>
           <div>
             <Text type="body" color="primary" weight="bold" className="text-2xl text-text-primary">
-              Video Not Found
-            </Text>
+              {t("Video Not Found")}</Text>
             <Text type="supporting" color="secondary" className="text-text-muted mt-2">
-              This video doesn't exist or the link is invalid.
-            </Text>
+              {t("This video doesn't exist or the link is invalid.")}</Text>
           </div>
           <Button
-            label="Create Your Own Video"
+            label={t("Create Your Own Video")}
             icon={<ExternalLink size={18} aria-hidden />}
             variant="primary"
             size="lg"
@@ -123,15 +123,12 @@ export const SharePage: React.FC<SharePageProps> = ({ shareId }) => {
           </div>
           <div>
             <Text type="body" color="primary" weight="bold" className="text-2xl text-text-primary">
-              Link Expired
-            </Text>
+              {t("Link Expired")}</Text>
             <Text type="supporting" color="secondary" className="text-text-muted mt-2">
-              This share link has expired. Share links are only valid for 24
-              hours.
-            </Text>
+              {t("This share link has expired. Share links are only valid for 24 hours.")}</Text>
           </div>
           <Button
-            label="Create Your Own Video"
+            label={t("Create Your Own Video")}
             icon={<ExternalLink size={18} aria-hidden />}
             variant="primary"
             size="lg"
@@ -151,13 +148,13 @@ export const SharePage: React.FC<SharePageProps> = ({ shareId }) => {
             <AlertCircle size={40} className="text-error" />
           </div>
           <div>
-            <Text type="body" color="primary" weight="bold" className="text-2xl text-text-primary">Error</Text>
+            <Text type="body" color="primary" weight="bold" className="text-2xl text-text-primary">{t("Error")}</Text>
             <Text type="supporting" color="secondary" className="text-text-muted mt-2">
-              {error || "Something went wrong"}
+              {error || t("Something went wrong")}
             </Text>
           </div>
           <Button
-            label="Try Again"
+            label={t("Try Again")}
             variant="primary"
             size="lg"
             onClick={() => window.location.reload()}
@@ -189,13 +186,12 @@ export const SharePage: React.FC<SharePageProps> = ({ shareId }) => {
 
         <div className="relative aspect-video bg-black rounded-xl overflow-hidden shadow-2xl">
           <video src={downloadUrl} controls className="w-full h-full" poster="">
-            Your browser does not support the video tag.
-          </video>
+            {t("Your browser does not support the video tag.")}</video>
         </div>
 
         <div className="flex items-center justify-center gap-4">
           <Button
-            label="Download"
+            label={t("Download")}
             icon={<Download size={18} aria-hidden />}
             variant="primary"
             size="lg"
@@ -203,7 +199,7 @@ export const SharePage: React.FC<SharePageProps> = ({ shareId }) => {
             className="inline-flex items-center gap-2 px-6 py-3 bg-primary hover:bg-primary-hover text-white font-bold rounded-lg transition-colors"
           />
           <Button
-            label="Create Your Own"
+            label={t("Create Your Own")}
             icon={<Play size={18} aria-hidden />}
             variant="secondary"
             size="lg"
@@ -214,10 +210,9 @@ export const SharePage: React.FC<SharePageProps> = ({ shareId }) => {
 
         <div className="text-center">
           <Text type="supporting" color="secondary" className="text-xs text-text-muted">
-            Made with{" "}
+            {t("Made with")}{" "}
             <Link href="#/editor" className="text-primary hover:underline">
-              Open Reel Video
-            </Link>
+              {t("Open Reel Video")}</Link>
           </Text>
         </div>
       </div>

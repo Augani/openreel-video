@@ -3,8 +3,10 @@ import { ToolcraftButton as Button } from "@openreel/ui";
 import { useGpuJobStore } from "../../../stores/gpu-job-store";
 import { useProjectStore } from "../../../stores/project-store";
 import { getWebGpuClient } from "../../../services/gpu-web-client";
+import { useTranslation } from "react-i18next";
 
 export function AIJobList(): JSX.Element | null {
+  const { t } = useTranslation();
   const jobs = useGpuJobStore((s) => s.jobs);
   const projectId = useProjectStore((s) => s.project?.id);
   const mine = jobs.filter((job) => job.projectId === projectId);
@@ -24,7 +26,7 @@ export function AIJobList(): JSX.Element | null {
           </span>
           {job.failed ? (
             <Button
-              label="Retry"
+              label={t("Retry")}
               variant="ghost"
               size="sm"
               className="ml-2 shrink-0 text-[10px] text-primary hover:text-primary/80"
@@ -35,7 +37,7 @@ export function AIJobList(): JSX.Element | null {
             />
           ) : (
             <Button
-              label="Cancel"
+              label={t("Cancel")}
               variant="ghost"
               size="sm"
               className="ml-2 shrink-0 text-[10px] text-text-muted hover:text-text-primary"

@@ -1,6 +1,7 @@
 import type { JSX } from "react";
 import { useRef, useState } from "react";
 import type { BBox, MaskTool, NormPoint } from "./object-removal-params";
+import { useTranslation } from "react-i18next";
 
 interface SelectionCanvasProps {
   imageUrl: string;
@@ -24,6 +25,7 @@ export function SelectionCanvas({
   onBBoxChange,
   onPointsChange,
 }: SelectionCanvasProps): JSX.Element {
+  const { t } = useTranslation();
   const ref = useRef<HTMLDivElement>(null);
   const [dragStart, setDragStart] = useState<NormXY | null>(null);
   const [dragNow, setDragNow] = useState<NormXY | null>(null);
@@ -92,7 +94,7 @@ export function SelectionCanvas({
       >
         <img
           src={imageUrl}
-          alt="Selected photo"
+          alt={t("Selected photo")}
           draggable={false}
           className="block max-h-[58vh] max-w-full rounded"
         />

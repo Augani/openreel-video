@@ -1,4 +1,6 @@
 import "@testing-library/jest-dom/vitest";
+// Initialize i18next for every test so components using useTranslation get the default instance.
+import "../i18n";
 
 class LocalStorageMock {
   private store = new Map<string, string>();

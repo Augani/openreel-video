@@ -4,8 +4,10 @@ import { ToolcraftIconButton as IconButton } from "@openreel/ui";
 import { ToolcraftTextAreaControl } from "@openreel/ui";
 import { Send, Square } from "@/icons/lucide-compat";
 import { useChatStore } from "../../../stores/chat-store";
+import { useTranslation } from "react-i18next";
 
 export function ChatComposer(): JSX.Element {
+  const { t } = useTranslation();
   const status = useChatStore((s) => s.status);
   const send = useChatStore((s) => s.send);
   const stop = useChatStore((s) => s.stop);
@@ -33,19 +35,19 @@ export function ChatComposer(): JSX.Element {
     <div className="border-t border-border p-2">
       <div className="relative rounded-lg border border-border bg-bg-2 transition-colors focus-within:border-accent">
         <ToolcraftTextAreaControl
-          label="AI edit request"
+          label={t("AI edit request")}
           isLabelHidden
           value={text}
           onChange={setText}
           onKeyDown={onKeyDown}
           rows={2}
-          placeholder="Ask the AI to edit your video…"
+          placeholder={t("Ask the AI to edit your video…")}
           inputClassName="block w-full resize-none bg-transparent px-3 py-2 pr-11 text-[13px] text-fg outline-none placeholder:text-fg-muted"
         />
         <div className="absolute bottom-1.5 right-1.5">
           {busy ? (
             <IconButton
-              label="Stop"
+              label={t("Stop")}
               icon={<Square size={12} className="fill-current" aria-hidden />}
               size="sm"
               variant="destructive"
@@ -54,7 +56,7 @@ export function ChatComposer(): JSX.Element {
             />
           ) : (
             <IconButton
-              label="Send"
+              label={t("Send")}
               icon={<Send size={12} aria-hidden />}
               size="sm"
               variant="primary"
@@ -66,8 +68,7 @@ export function ChatComposer(): JSX.Element {
         </div>
       </div>
       <div className="mt-1 px-1 text-[10px] text-fg-muted">
-        Enter to send · Shift+Enter for a new line
-      </div>
+        {t("Enter to send · Shift+Enter for a new line")}</div>
     </div>
   );
 }

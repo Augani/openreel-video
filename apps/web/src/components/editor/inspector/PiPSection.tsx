@@ -14,6 +14,7 @@ import {
 } from "@/icons/lucide-compat";
 import { useProjectStore } from "../../../stores/project-store";
 import type { Transform } from "@openreel/core";
+import { useTranslation } from "react-i18next";
 
 interface PiPSectionProps {
   clipId: string;
@@ -176,9 +177,11 @@ const PresetButton: React.FC<{
   preset: PiPPreset;
   isActive: boolean;
   onClick: () => void;
-}> = ({ preset, isActive, onClick }) => (
+}> = ({ preset, isActive, onClick }) => {
+  const { t } = useTranslation();
+  return (
   <ClickableCard
-    label={preset.name}
+    label={t(preset.name)}
     onClick={onClick}
     className={`flex flex-col items-center gap-1 p-2 rounded-lg border transition-colors ${
       isActive
@@ -192,8 +195,10 @@ const PresetButton: React.FC<{
     </Text>
   </ClickableCard>
 );
+};
 
 export const PiPSection: React.FC<PiPSectionProps> = ({ clipId }) => {
+  const { t } = useTranslation();
   const project = useProjectStore((state) => state.project);
   const updateClipTransform = useProjectStore(
     (state) => state.updateClipTransform,
@@ -334,18 +339,15 @@ export const PiPSection: React.FC<PiPSectionProps> = ({ clipId }) => {
         <PictureInPicture2 size={16} className="text-primary" />
         <div className="flex-1 flex flex-col gap-0.5">
           <Text type="supporting" color="primary" className="text-[11px] font-medium">
-            Picture-in-Picture
-          </Text>
+            {t("Picture-in-Picture")}</Text>
           <Text type="supporting" color="secondary" className="text-[9px]">
-            Position and scale video overlay
-          </Text>
+            {t("Position and scale video overlay")}</Text>
         </div>
       </Card>
 
       <div className="space-y-2">
         <Text type="supporting" color="secondary" className="text-[10px] font-medium">
-          Corner Positions
-        </Text>
+          {t("Corner Positions")}</Text>
         <div className="grid grid-cols-4 gap-1">
           {cornerPresets.map((preset) => (
             <PresetButton
@@ -360,8 +362,7 @@ export const PiPSection: React.FC<PiPSectionProps> = ({ clipId }) => {
 
       <div className="space-y-2">
         <Text type="supporting" color="secondary" className="text-[10px] font-medium">
-          Split Screen
-        </Text>
+          {t("Split Screen")}</Text>
         <div className="grid grid-cols-4 gap-1">
           {splitPresets.map((preset) => (
             <PresetButton
@@ -376,8 +377,7 @@ export const PiPSection: React.FC<PiPSectionProps> = ({ clipId }) => {
 
       <div className="space-y-2">
         <Text type="supporting" color="secondary" className="text-[10px] font-medium">
-          Center & Full
-        </Text>
+          {t("Center & Full")}</Text>
         <div className="grid grid-cols-3 gap-1">
           {centerPresets.map((preset) => (
             <PresetButton
@@ -402,17 +402,16 @@ export const PiPSection: React.FC<PiPSectionProps> = ({ clipId }) => {
         <div className="space-y-3 pt-2 border-t border-border">
           <div className="space-y-2">
             <Text type="supporting" color="secondary" className="text-[10px] font-medium">
-              Position
-            </Text>
+              {t("Position")}</Text>
             <ControlSlider
-              label="X Position"
+              label={t("X Position")}
               value={currentTransform.position.x}
               onChange={(v) => handlePositionChange("x", v)}
               min={-1}
               max={1}
             />
             <ControlSlider
-              label="Y Position"
+              label={t("Y Position")}
               value={currentTransform.position.y}
               onChange={(v) => handlePositionChange("y", v)}
               min={-1}
@@ -422,24 +421,23 @@ export const PiPSection: React.FC<PiPSectionProps> = ({ clipId }) => {
 
           <div className="space-y-2">
             <Text type="supporting" color="secondary" className="text-[10px] font-medium">
-              Scale
-            </Text>
+              {t("Scale")}</Text>
             <ControlSlider
-              label="Uniform Scale"
+              label={t("Uniform Scale")}
               value={currentTransform.scale.x}
               onChange={(v) => handleScaleChange("both", v)}
               min={0.1}
               max={2}
             />
             <ControlSlider
-              label="X Scale"
+              label={t("X Scale")}
               value={currentTransform.scale.x}
               onChange={(v) => handleScaleChange("x", v)}
               min={0.1}
               max={2}
             />
             <ControlSlider
-              label="Y Scale"
+              label={t("Y Scale")}
               value={currentTransform.scale.y}
               onChange={(v) => handleScaleChange("y", v)}
               min={0.1}
@@ -449,10 +447,9 @@ export const PiPSection: React.FC<PiPSectionProps> = ({ clipId }) => {
 
           <div className="space-y-2">
             <Text type="supporting" color="secondary" className="text-[10px] font-medium">
-              Appearance
-            </Text>
+              {t("Appearance")}</Text>
             <ControlSlider
-              label="Border Radius"
+              label={t("Border Radius")}
               value={currentTransform.borderRadius || 0}
               onChange={handleBorderRadiusChange}
               min={0}
@@ -460,7 +457,7 @@ export const PiPSection: React.FC<PiPSectionProps> = ({ clipId }) => {
               unit="px"
             />
             <ControlSlider
-              label="Opacity"
+              label={t("Opacity")}
               value={currentTransform.opacity}
               onChange={handleOpacityChange}
               min={0}
@@ -471,7 +468,7 @@ export const PiPSection: React.FC<PiPSectionProps> = ({ clipId }) => {
       )}
 
       <Button
-        label="Reset to Default"
+        label={t("Reset to Default")}
         icon={<RotateCcw size={12} />}
         variant="secondary"
         size="sm"
@@ -480,8 +477,7 @@ export const PiPSection: React.FC<PiPSectionProps> = ({ clipId }) => {
       />
 
       <Text type="supporting" color="secondary" className="text-center text-[9px]">
-        Drag clip in preview to fine-tune position
-      </Text>
+        {t("Drag clip in preview to fine-tune position")}</Text>
     </div>
   );
 };

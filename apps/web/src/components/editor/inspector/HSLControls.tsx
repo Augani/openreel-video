@@ -5,6 +5,7 @@ import { ToolcraftText as Text } from "@openreel/ui";
 import { PropertySlider } from "./shell/PropertySlider";
 import { RotateCcw } from "@/icons/lucide-compat";
 import type { HSLValues } from "@openreel/core";
+import { useTranslation } from "react-i18next";
 
 export const DEFAULT_HSL_VALUES: HSLValues = {
   hue: [0, 0, 0, 0, 0, 0, 0, 0],
@@ -69,7 +70,9 @@ const ColorTab: React.FC<{
   color: (typeof COLOR_RANGES)[number];
   isActive: boolean;
   onClick: () => void;
-}> = ({ color, isActive, onClick }) => (
+}> = ({ color, isActive, onClick }) => {
+  const { t } = useTranslation();
+  return (
   <ClickableCard
     label={color.fullLabel}
     onClick={onClick}
@@ -84,9 +87,10 @@ const ColorTab: React.FC<{
         : "2px solid transparent",
     }}
   >
-    {color.label}
+    {t(color.label)}
   </ClickableCard>
 );
+};
 
 /**
  * HSL Slider component
@@ -126,6 +130,7 @@ export const HSLControls: React.FC<HSLControlsProps> = ({
   onChange,
   onReset,
 }) => {
+  const { t } = useTranslation();
   const [activeColorIndex, setActiveColorIndex] = useState(0);
 
   // Get current color info
@@ -196,7 +201,7 @@ export const HSLControls: React.FC<HSLControlsProps> = ({
       {onReset && (
         <div className="flex justify-end">
           <Button
-            label="Reset All"
+            label={t("Reset All")}
             icon={<RotateCcw size={10} />}
             variant="ghost"
             size="sm"
@@ -231,7 +236,7 @@ export const HSLControls: React.FC<HSLControlsProps> = ({
         </div>
         {hasAdjustments && (
           <Button
-            label="Reset"
+            label={t("Reset")}
             variant="ghost"
             size="sm"
             onClick={handleResetColor}
@@ -243,7 +248,7 @@ export const HSLControls: React.FC<HSLControlsProps> = ({
       {/* HSL Sliders */}
       <div className="space-y-3">
         <HSLSlider
-          label="Hue"
+          label={t("Hue")}
           value={currentHue}
           onChange={handleHueChange}
           min={-180}
@@ -252,7 +257,7 @@ export const HSLControls: React.FC<HSLControlsProps> = ({
           color={activeColor.color}
         />
         <HSLSlider
-          label="Saturation"
+          label={t("Saturation")}
           value={currentSaturation}
           onChange={handleSaturationChange}
           min={-100}
@@ -261,7 +266,7 @@ export const HSLControls: React.FC<HSLControlsProps> = ({
           color={activeColor.color}
         />
         <HSLSlider
-          label="Luminance"
+          label={t("Luminance")}
           value={currentLuminance}
           onChange={handleLuminanceChange}
           min={-100}

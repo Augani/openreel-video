@@ -19,6 +19,7 @@ import { InspectorSection } from "../shell/InspectorSection";
 import { AIPanel } from "../../ai-panel/AIPanel";
 import type { ClipMediaType } from "../../ai-panel/ai-kinds.config";
 import { isDesktopGpuAvailable } from "../../../../services/gpu-jobs";
+import { useTranslation } from "react-i18next";
 
 const GPU_CLIP_MEDIA: readonly ClipMediaType[] = ["video", "image", "audio"];
 
@@ -75,6 +76,7 @@ export const AiTab: React.FC<AiTabProps> = ({
   audioEnhanced,
   isApplyingSelectedClipEffect,
 }) => {
+  const { t } = useTranslation();
   const gpuClipMedia = asGpuClipMedia(clipType);
   // On desktop the local transcription endpoint (cloud.openreel.video) is
   // CORS-blocked from app://openreel, so generation is done via the GPU
@@ -85,7 +87,7 @@ export const AiTab: React.FC<AiTabProps> = ({
     <>
       {gpuClipMedia && (
         <InspectorSection
-          title="Cloud GPU Tools"
+          title={t("Cloud GPU Tools")}
           sectionId="cloud-gpu-tools"
           defaultOpen
         >
@@ -96,14 +98,14 @@ export const AiTab: React.FC<AiTabProps> = ({
       {clipType === "video" && (
         <>
           <InspectorSection
-            title="AI Auto-Captions"
+            title={t("AI Auto-Captions")}
             sectionId="auto-captions"
             defaultOpen={false}
           >
             <div className="space-y-3">
               <FileInput
                 ref={srtInputRef}
-                label="Import SRT file"
+                label={t("Import SRT file")}
                 isLabelHidden
                 value={null}
                 accept=".srt,text/srt,text/plain"
@@ -118,14 +120,13 @@ export const AiTab: React.FC<AiTabProps> = ({
               />
               {isDesktop && (
                 <Text type="supporting" color="secondary" className="text-[11px]">
-                  Use the “Auto Captions” tool in Cloud GPU Tools above to generate captions.
-                </Text>
+                  {t("Use the “Auto Captions” tool in Cloud GPU Tools above to generate captions.")}</Text>
               )}
               {!isDesktop && (
                 <>
               <div className="space-y-1">
                 <Selector
-                  label="Animation Style"
+                  label={t("Animation Style")}
                   size="sm"
                   width="100%"
                   value={defaultAnimationStyle}
@@ -142,30 +143,30 @@ export const AiTab: React.FC<AiTabProps> = ({
 
               <div className="space-y-1">
                 <Selector
-                  label="Target Language"
+                  label={t("Target Language")}
                   size="sm"
                   width="100%"
                   value={targetLanguage}
                   onChange={setTargetLanguage}
                   isDisabled={isTranscribing}
                   options={[
-                    { label: "Original (no translation)", value: "none" },
-                    { label: "English", value: "en" },
-                    { label: "Spanish", value: "es" },
-                    { label: "French", value: "fr" },
-                    { label: "German", value: "de" },
-                    { label: "Portuguese", value: "pt" },
-                    { label: "Italian", value: "it" },
-                    { label: "Dutch", value: "nl" },
-                    { label: "Russian", value: "ru" },
-                    { label: "Chinese", value: "zh" },
-                    { label: "Japanese", value: "ja" },
-                    { label: "Korean", value: "ko" },
-                    { label: "Arabic", value: "ar" },
-                    { label: "Hindi", value: "hi" },
-                    { label: "Turkish", value: "tr" },
-                    { label: "Polish", value: "pl" },
-                    { label: "Swedish", value: "sv" },
+                    { label: t("Original (no translation)"), value: "none" },
+                    { label: t("English"), value: "en" },
+                    { label: t("Spanish"), value: "es" },
+                    { label: t("French"), value: "fr" },
+                    { label: t("German"), value: "de" },
+                    { label: t("Portuguese"), value: "pt" },
+                    { label: t("Italian"), value: "it" },
+                    { label: t("Dutch"), value: "nl" },
+                    { label: t("Russian"), value: "ru" },
+                    { label: t("Chinese"), value: "zh" },
+                    { label: t("Japanese"), value: "ja" },
+                    { label: t("Korean"), value: "ko" },
+                    { label: t("Arabic"), value: "ar" },
+                    { label: t("Hindi"), value: "hi" },
+                    { label: t("Turkish"), value: "tr" },
+                    { label: t("Polish"), value: "pl" },
+                    { label: t("Swedish"), value: "sv" },
                   ]}
                 />
               </div>
@@ -182,7 +183,7 @@ export const AiTab: React.FC<AiTabProps> = ({
                     </Text>
                   </div>
                   <ProgressBar
-                    label="Caption generation progress"
+                    label={t("Caption generation progress")}
                     isLabelHidden
                     value={transcriptionProgress.progress}
                     max={100}
@@ -198,7 +199,7 @@ export const AiTab: React.FC<AiTabProps> = ({
                 </div>
               ) : (
                 <Button
-                  label="Generate Captions"
+                  label={t("Generate Captions")}
                   onClick={handleGenerateSubtitles}
                   isDisabled={isTranscribing}
                   variant="primary"
@@ -210,7 +211,7 @@ export const AiTab: React.FC<AiTabProps> = ({
                 </>
               )}
               <Button
-                label="Import SRT File"
+                label={t("Import SRT File")}
                 onClick={() => srtInputRef.current?.click()}
                 isDisabled={isTranscribing}
                 variant="secondary"
@@ -225,7 +226,7 @@ export const AiTab: React.FC<AiTabProps> = ({
 
       {clipType === "video" && (
         <InspectorSection
-          title="Auto Reframe"
+          title={t("Auto Reframe")}
           sectionId="auto-reframe"
           defaultOpen={false}
         >
@@ -235,7 +236,7 @@ export const AiTab: React.FC<AiTabProps> = ({
 
       {showAudioEffects && (
         <InspectorSection
-          title="Beat-Synced Auto-Edit"
+          title={t("Beat-Synced Auto-Edit")}
           sectionId="auto-edit"
           defaultOpen={false}
         >
@@ -245,7 +246,7 @@ export const AiTab: React.FC<AiTabProps> = ({
 
       {showAudioEffects && (
         <InspectorSection
-          title="AI Highlights"
+          title={t("AI Highlights")}
           sectionId="ai-highlights"
           defaultOpen={false}
         >
@@ -262,13 +263,12 @@ export const AiTab: React.FC<AiTabProps> = ({
           <div className="flex items-center gap-2 text-primary mb-3">
             <Zap size={14} />
             <Text type="supporting" color="active" className="text-xs font-bold">
-              Quick Actions
-            </Text>
+              {t("Quick Actions")}</Text>
           </div>
           <div className="space-y-2">
             {showVideoControls && (
               <Button
-                label="Remove Background"
+                label={t("Remove Background")}
                 onClick={handleRemoveBackground}
                 isDisabled={isApplyingSelectedClipEffect}
                 variant="secondary"
@@ -284,10 +284,10 @@ export const AiTab: React.FC<AiTabProps> = ({
               <Button
                 label={
                   isEnhancingAudio
-                    ? "Cleaning up..."
+                    ? t("Cleaning up...")
                     : audioEnhanced
-                      ? "Noise Reduced"
-                      : "Quick Dialogue Cleanup"
+                      ? t("Noise Reduced")
+                      : t("Quick Dialogue Cleanup")
                 }
                 onClick={handleEnhanceAudio}
                 isDisabled={isEnhancingAudio || isApplyingSelectedClipEffect}
@@ -305,7 +305,7 @@ export const AiTab: React.FC<AiTabProps> = ({
             )}
             {showVideoEffects && (
               <Button
-                label={isApplyingSelectedClipEffect ? "Applying..." : "Auto-Color"}
+                label={isApplyingSelectedClipEffect ? t("Applying...") : t("Auto-Color")}
                 onClick={handleAutoColor}
                 isDisabled={isApplyingSelectedClipEffect}
                 variant="secondary"

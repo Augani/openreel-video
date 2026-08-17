@@ -2,6 +2,7 @@ import { ToolcraftButton as Button } from "@openreel/ui";
 import { ToolcraftText as Text } from "@openreel/ui";
 import { ChevronRight } from "@/icons/lucide-compat";
 import { IMAGE_MODELS, type ImageModelId } from "../../../services/kieai/image-generation";
+import { useTranslation } from "react-i18next";
 
 interface ModelInfo {
   id: ImageModelId;
@@ -54,14 +55,15 @@ interface Props {
 }
 
 export function ModelPicker({ onSelect }: Props) {
+  const { t } = useTranslation();
   return (
     <div className="space-y-3">
-      <Text type="supporting" color="secondary" className="text-xs text-text-muted">Select a model to generate a new image from your source.</Text>
+      <Text type="supporting" color="secondary" className="text-xs text-text-muted">{t("Select a model to generate a new image from your source.")}</Text>
       <div className="grid grid-cols-1 gap-2">
         {MODELS.map((m) => (
           <Button
             key={m.id}
-            label={m.name}
+            label={t(m.name)}
             variant="ghost"
             size="lg"
             onClick={() => onSelect(m.id)}

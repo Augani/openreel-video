@@ -6,6 +6,7 @@ import { ToolcraftText as Text } from "@openreel/ui";
 import { Star, StarOff, ChevronDown } from "@/icons/lucide-compat";
 import { useSettingsStore } from "../../../stores/settings-store";
 import type { ElevenLabsModel } from "./tts-types";
+import { useTranslation } from "react-i18next";
 
 interface ModelSelectorProps {
   allModels: ElevenLabsModel[];
@@ -16,6 +17,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
   allModels,
   isLoadingModels,
 }) => {
+  const { t } = useTranslation();
   const {
     elevenLabsModel,
     setElevenLabsModel,
@@ -56,8 +58,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
   return (
     <div className="space-y-2">
       <Text type="supporting" color="secondary" className="text-[10px] font-medium">
-        Model
-      </Text>
+        {t("Model")}</Text>
 
       {favoriteModels.length > 0 && (
         <div className="space-y-1.5">
@@ -66,9 +67,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
             color="secondary"
             className="flex items-center gap-1 text-[9px]"
           >
-            <Star size={9} className="text-amber-400 fill-amber-400" /> Favorite
-            Models
-          </Text>
+            <Star size={9} className="text-amber-400 fill-amber-400" /> {t(" Favorite Models")}</Text>
           <div className="flex flex-wrap gap-1.5">
             {favoriteModels.map((fav) => (
               <ClickableCard
@@ -93,7 +92,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 
       <div className="flex items-center gap-2">
         <ClickableCard
-          label="Toggle model list"
+          label={t("Toggle model list")}
           className="flex-1 h-8 px-2 rounded-lg border border-border bg-bg-2 text-[10px] text-fg flex items-center justify-between cursor-pointer hover:border-primary/50 transition-colors"
           onClick={() => setShowAllModels(!showAllModels)}
         >
@@ -153,7 +152,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                     </div>
 
                     <IconButton
-                      label={isFav ? "Remove from favorites" : "Add to favorites"}
+                      label={isFav ? t("Remove from favorites") : t("Add to favorites")}
                       icon={
                         isFav ? (
                           <Star size={10} className="fill-current" />
@@ -184,8 +183,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
             color="secondary"
             className="block border-t border-border bg-bg-1 px-2 py-1 text-center text-[8px]"
           >
-            {allModels.length} models available
-          </Text>
+            {allModels.length} {t(" models available")}</Text>
         </Card>
       )}
     </div>

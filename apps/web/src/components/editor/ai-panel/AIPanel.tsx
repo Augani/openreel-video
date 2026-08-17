@@ -15,6 +15,7 @@ import { PhotoToolsEditor } from "./photo-tools/PhotoToolsEditor";
 import { ObjectTrackingEditor } from "./tracking/ObjectTrackingEditor";
 import { isGpuAvailable } from "../../../services/gpu-jobs";
 import { submitSelectedClipJob } from "../../../services/gpu-clip-submit";
+import { useTranslation } from "react-i18next";
 
 export interface AIPanelProps {
   clipTypeFilter?: ClipMediaType | null;
@@ -22,6 +23,7 @@ export interface AIPanelProps {
 }
 
 export function AIPanel({ clipTypeFilter = null, embedded = false }: AIPanelProps = {}): JSX.Element {
+  const { t } = useTranslation();
   const [busyKind, setBusyKind] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [editorKind, setEditorKind] = useState<string | null>(null);
@@ -56,7 +58,7 @@ export function AIPanel({ clipTypeFilter = null, embedded = false }: AIPanelProp
   };
 
   if (!isGpuAvailable()) {
-    return <div className="p-3 text-[11px] text-text-muted">AI cloud jobs are unavailable in this environment.</div>;
+    return <div className="p-3 text-[11px] text-text-muted">{t("AI cloud jobs are unavailable in this environment.")}</div>;
   }
 
   return (
@@ -73,7 +75,7 @@ export function AIPanel({ clipTypeFilter = null, embedded = false }: AIPanelProp
               .map((k) => (
                 <Button
                   key={k.kind}
-                  label={busyKind === k.kind ? "Submitting" : k.label}
+                  label={busyKind === k.kind ? t("Submitting") : k.label}
                   variant="ghost"
                   isDisabled={busyKind !== null}
                   className="rounded bg-background-tertiary px-3 py-2 text-left text-[11px] text-text-primary transition-colors hover:bg-background-secondary disabled:opacity-50"

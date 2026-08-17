@@ -26,6 +26,7 @@ import {
 } from "../motion-layer-factory";
 import { useMotionStore, type MotionToolId } from "../stores/motion-store";
 import { Button, IconButton } from "./primitives";
+import { useTranslation } from "react-i18next";
 
 interface ToolDef {
   id: MotionToolId;
@@ -69,6 +70,7 @@ const ADD_MENU: ReadonlyArray<{
 ];
 
 export function MotionToolRail(): JSX.Element {
+  const { t } = useTranslation();
   const activeTool = useMotionStore((state) => state.activeTool);
   const setActiveTool = useMotionStore((state) => state.setActiveTool);
   const activeCompositionId = useMotionStore((state) => state.activeCompositionId);
@@ -99,7 +101,7 @@ export function MotionToolRail(): JSX.Element {
 
   return (
     <nav
-      aria-label="Motion tools"
+      aria-label={t("Motion tools")}
       className="flex w-14 shrink-0 flex-col items-center gap-1.5 border-r border-border bg-bg-1 py-3.5"
     >
       {TOOL_GROUPS.map((group, groupIndex) => (
@@ -123,7 +125,7 @@ export function MotionToolRail(): JSX.Element {
       <div className="relative mt-auto flex flex-col items-center gap-1">
         <span className="mb-1 h-px w-6 bg-border" />
         <IconButton
-          label="Add layer"
+          label={t("Add layer")}
           icon={SquarePlus}
           iconSize={17}
           size="md"
@@ -146,7 +148,7 @@ export function MotionToolRail(): JSX.Element {
                 return (
                   <Button
                     key={item.type}
-                    label={item.label}
+                    label={t(item.label)}
                     variant="ghost"
                     size="sm"
                     icon={Icon}

@@ -20,12 +20,14 @@ import {
   type BBox,
   type NormPoint,
 } from "./object-removal-params";
+import { useTranslation } from "react-i18next";
 
 interface PhotoToolsEditorProps {
   onClose: () => void;
 }
 
 export function PhotoToolsEditor({ onClose }: PhotoToolsEditorProps): JSX.Element {
+  const { t } = useTranslation();
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -98,23 +100,23 @@ export function PhotoToolsEditor({ onClose }: PhotoToolsEditorProps): JSX.Elemen
       <Layout
         header={
           <DialogHeader
-            title="Object Removal"
+            title={t("Object Removal")}
             onOpenChange={(open) => !open && onClose()}
           />
         }
         content={
           <LayoutContent className="space-y-4">
         <ToolcraftSegmentedControl<ObjectMode>
-          ariaLabel="Object removal mode"
+          ariaLabel={t("Object removal mode")}
           value={mode}
           onChange={(value) => {
             setMode(value);
             setError(null);
           }}
           options={[
-            { value: "erase", label: "Erase" },
-            { value: "replace", label: "Replace" },
-            { value: "outpaint", label: "Expand" },
+            { value: "erase", label: t("Erase") },
+            { value: "replace", label: t("Replace") },
+            { value: "outpaint", label: t("Expand") },
           ]}
         />
 
@@ -132,15 +134,14 @@ export function PhotoToolsEditor({ onClose }: PhotoToolsEditorProps): JSX.Elemen
           </Text>
         ) : !imageUrl ? (
           <Text type="supporting" color="secondary" display="block" className="py-8 text-center">
-            Loading photo...
-          </Text>
+            {t("Loading photo...")}</Text>
         ) : (
           <div className="space-y-3">
             {needsMask ? (
               <>
                 <div className="flex items-center justify-between">
                   <ToolcraftSegmentedControl<MaskTool>
-                    ariaLabel="Mask tool"
+                    ariaLabel={t("Mask tool")}
                     className="w-48"
                     value={tool}
                     onChange={(value) => {
@@ -148,11 +149,11 @@ export function PhotoToolsEditor({ onClose }: PhotoToolsEditorProps): JSX.Elemen
                       clearSelection();
                     }}
                     options={[
-                      { value: "box", label: "Box" },
-                      { value: "points", label: "Points" },
+                      { value: "box", label: t("Box") },
+                      { value: "points", label: t("Points") },
                     ]}
                   />
-                  <Button label="Clear" variant="ghost" size="sm" onClick={clearSelection} />
+                  <Button label={t("Clear")} variant="ghost" size="sm" onClick={clearSelection} />
                 </div>
                 <SelectionCanvas
                   imageUrl={imageUrl}
@@ -175,20 +176,19 @@ export function PhotoToolsEditor({ onClose }: PhotoToolsEditorProps): JSX.Elemen
                     className="relative rounded border border-dashed border-primary/40 bg-primary/5"
                     style={{ padding: `${expand * 100}%` }}
                   >
-                    <img src={imageUrl} alt="Selected photo" className="block max-h-[46vh] max-w-full rounded" />
+                    <img src={imageUrl} alt={t("Selected photo")} className="block max-h-[46vh] max-w-full rounded" />
                   </div>
                 </div>
                 <div className="space-y-1">
                   <div className="flex justify-between">
                     <Text type="supporting" color="secondary" className="text-[11px]">
-                      Expand each side
-                    </Text>
+                      {t("Expand each side")}</Text>
                     <Text type="supporting" color="secondary" className="text-[11px]">
                       {Math.round(expand * 100)}%
                     </Text>
                   </div>
                   <ToolcraftSliderControl
-                    label="Expand each side"
+                    label={t("Expand each side")}
                     isLabelHidden
                     value={expand}
                     onChange={(nextExpand: number) => setExpand(nextExpand)}
@@ -203,14 +203,14 @@ export function PhotoToolsEditor({ onClose }: PhotoToolsEditorProps): JSX.Elemen
 
             {(mode === "replace" || mode === "outpaint") && (
               <ToolcraftTextInputControl
-                label={mode === "replace" ? "Replacement prompt" : "Expansion prompt"}
+                label={mode === "replace" ? t("Replacement prompt") : t("Expansion prompt")}
                 isLabelHidden
                 value={prompt}
                 onChange={setPrompt}
                 placeholder={
                   mode === "replace"
-                    ? "Describe what to put there"
-                    : "Optional: describe the extended scene"
+                    ? t("Describe what to put there")
+                    : t("Optional: describe the extended scene")
                 }
                 width="100%"
               />
@@ -231,13 +231,13 @@ export function PhotoToolsEditor({ onClose }: PhotoToolsEditorProps): JSX.Elemen
           <LayoutFooter hasDivider>
             <div className="flex justify-end gap-2">
               <Button
-                label="Cancel"
+                label={t("Cancel")}
                 variant="ghost"
                 onClick={onClose}
                 isDisabled={busy}
               />
               <Button
-                label={busy ? "Submitting..." : "Apply"}
+                label={busy ? t("Submitting...") : t("Apply")}
                 variant="primary"
                 onClick={() => void submit()}
                 isDisabled={busy || !imageUrl || Boolean(loadError)}

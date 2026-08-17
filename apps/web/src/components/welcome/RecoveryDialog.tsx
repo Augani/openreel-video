@@ -7,6 +7,7 @@ import { ToolcraftIconButton as IconButton } from "@openreel/ui";
 import { ToolcraftLayout as Layout, ToolcraftLayoutContent as LayoutContent, ToolcraftLayoutFooter as LayoutFooter } from "@openreel/ui";
 import { ToolcraftText as Text } from "@openreel/ui";
 import type { AutoSaveMetadata } from "../../services/auto-save";
+import { useTranslation } from "react-i18next";
 
 interface RecoveryDialogProps {
   saves: AutoSaveMetadata[];
@@ -46,6 +47,7 @@ export const RecoveryDialog: React.FC<RecoveryDialogProps> = ({
   onDismiss,
   onClearAll,
 }) => {
+  const { t } = useTranslation();
   const [showOlderSaves, setShowOlderSaves] = useState(false);
   const [selectedSave, setSelectedSave] = useState<string | null>(null);
   const [isClearing, setIsClearing] = useState(false);
@@ -75,8 +77,8 @@ export const RecoveryDialog: React.FC<RecoveryDialogProps> = ({
       <Layout
         header={
           <DialogHeader
-            title="Recover Your Work"
-            subtitle="We found an unsaved project"
+            title={t("Recover Your Work")}
+            subtitle={t("We found an unsaved project")}
             onOpenChange={(open) => !open && onDismiss()}
             startContent={<RotateCcw className="w-5 h-5 text-primary" aria-hidden />}
           />
@@ -99,7 +101,7 @@ export const RecoveryDialog: React.FC<RecoveryDialogProps> = ({
             </div>
             <div className="flex items-center gap-2 text-sm text-text-muted">
               <Clock className="w-4 h-4 shrink-0" />
-              <Text type="supporting" color="secondary" className="text-sm">Last saved {formatTimeAgo(mostRecent.timestamp)}</Text>
+              <Text type="supporting" color="secondary" className="text-sm">{t("Last saved ")}{formatTimeAgo(mostRecent.timestamp)}</Text>
               <span className="text-text-muted/50">•</span>
               <Text type="supporting" color="secondary" className="text-text-muted/70 truncate">
                 {formatDate(mostRecent.timestamp)}
@@ -125,7 +127,7 @@ export const RecoveryDialog: React.FC<RecoveryDialogProps> = ({
                 />
                 {onClearAll && (
                   <IconButton
-                    label="Clear all saved projects"
+                    label={t("Clear all saved projects")}
                     onClick={handleClearAll}
                     isDisabled={isClearing}
                     icon={<Trash2 className="w-4 h-4" aria-hidden />}
@@ -173,13 +175,13 @@ export const RecoveryDialog: React.FC<RecoveryDialogProps> = ({
           <LayoutFooter>
             <div className="flex w-full gap-2">
               <Button
-                label="Start Fresh"
+                label={t("Start Fresh")}
                 variant="secondary"
                 onClick={onDismiss}
                 className="flex-1"
               />
               <Button
-                label={selectedSave === mostRecent.id ? "Recovering..." : "Recover Project"}
+                label={selectedSave === mostRecent.id ? t("Recovering...") : t("Recover Project")}
                 variant="primary"
                 onClick={() => handleRecover(mostRecent.id)}
                 isDisabled={selectedSave === mostRecent.id}

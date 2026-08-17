@@ -8,6 +8,7 @@ import {
   type CreationIssueSeverity,
   type CreationSceneReview,
 } from "./creation-review";
+import { useTranslation } from "react-i18next";
 
 interface CreationReviewPanelProps {
   onClose?: () => void;
@@ -24,7 +25,9 @@ const SEVERITY_ICON: Record<CreationIssueSeverity, React.ReactNode> = {
 const SceneCard: React.FC<{ scene: CreationSceneReview; active: boolean }> = ({
   scene,
   active,
-}) => (
+}) => {
+  const { t } = useTranslation();
+  return (
   <div
     className={`rounded-lg border p-3 ${
       active ? "border-sky-500/50 bg-sky-500/5" : "border-white/10 bg-white/5"
@@ -42,9 +45,8 @@ const SceneCard: React.FC<{ scene: CreationSceneReview; active: boolean }> = ({
       )}
     </div>
     <div className="mt-1 text-xs text-white/50">
-      {scene.objectCount} object(s) · {scene.cameraCount} camera(s) · {scene.animationCount}{" "}
-      animation(s)
-    </div>
+      {scene.objectCount} {t(" object(s) · ")}{scene.cameraCount} {t(" camera(s) · ")}{scene.animationCount}{" "}
+      {t("animation(s)")}</div>
     {scene.issues.length > 0 && (
       <ul className="mt-2 space-y-1">
         {scene.issues.map((issue, index) => (
@@ -57,8 +59,10 @@ const SceneCard: React.FC<{ scene: CreationSceneReview; active: boolean }> = ({
     )}
   </div>
 );
+};
 
 export const CreationReviewPanel: React.FC<CreationReviewPanelProps> = ({ onClose }) => {
+  const { t } = useTranslation();
   const creation = useProjectStore((state) => state.project.creation);
   const motionCompositions = useProjectStore(
     (state) => state.project.motionCompositions ?? EMPTY_MOTION_COMPOSITIONS,
@@ -73,11 +77,11 @@ export const CreationReviewPanel: React.FC<CreationReviewPanelProps> = ({ onClos
       <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
         <div className="flex items-center gap-2">
           <Boxes className="h-4 w-4 text-white/80" />
-          <span className="text-sm font-semibold text-white/90">Creation Review</span>
+          <span className="text-sm font-semibold text-white/90">{t("Creation Review")}</span>
         </div>
         {onClose && (
           <IconButton
-            label="Close creation review"
+            label={t("Close creation review")}
             icon={<X className="h-4 w-4" aria-hidden />}
             variant="ghost"
             size="sm"
@@ -89,14 +93,11 @@ export const CreationReviewPanel: React.FC<CreationReviewPanelProps> = ({ onClos
 
       {!review.available ? (
         <div className="flex flex-1 items-center justify-center px-6 text-center text-sm text-white/50">
-          No agent-created 3D scenes yet. Use the creation tools to build a product, character, or
-          scene.
-        </div>
+          {t("No agent-created 3D scenes yet. Use the creation tools to build a product, character, or scene.")}</div>
       ) : (
         <div className="flex-1 overflow-y-auto p-4">
           <div className="mb-3 text-xs text-white/50">
-            {review.assetCount} asset(s) · {review.sceneCount} scene(s)
-          </div>
+            {review.assetCount} {t(" asset(s) · ")}{review.sceneCount} {t(" scene(s)")}</div>
           <div className="space-y-2">
             {review.scenes.map((scene) => (
               <SceneCard

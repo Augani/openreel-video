@@ -40,6 +40,7 @@ import {
   ToolcraftText as Text,
   ToolcraftTextInputControl,
 } from "@openreel/ui";
+import { useTranslation } from "react-i18next";
 
 type ExportType =
   | "mp4"
@@ -55,6 +56,7 @@ type ExportType =
   | "project";
 
 export const Toolbar: React.FC = () => {
+  const { t } = useTranslation();
   const { project, renameProject } = useProjectStore();
   const {
     selectedItems,
@@ -371,7 +373,7 @@ export const Toolbar: React.FC = () => {
     separator?: boolean;
   }> = [
     {
-      label: "MP4 Standard",
+      label: t("MP4 Standard"),
       iconName: "bolt",
       desc: `${projectRes} H.264 - Web & social`,
       type: "mp4",
@@ -388,26 +390,26 @@ export const Toolbar: React.FC = () => {
       ? []
       : [
           {
-            label: "4K Standard",
+            label: t("4K Standard"),
             iconName: "film",
             desc: "3840×2160 - YouTube 4K",
             type: "4k" as ExportType,
           },
         ]),
     {
-      label: "1080p High Quality",
+      label: t("1080p High Quality"),
       iconName: "film",
       desc: "1920×1080 30fps - High bitrate",
       type: "1080p-high",
     },
     {
-      label: "1080p 60fps",
+      label: t("1080p 60fps"),
       iconName: "film",
       desc: "1920×1080 - Smooth playback",
       type: "1080p-60",
     },
     {
-      label: "Audio Only (WAV)",
+      label: t("Audio Only (WAV)"),
       iconName: "music.note",
       desc: "Uncompressed audio",
       type: "wav",
@@ -426,7 +428,7 @@ export const Toolbar: React.FC = () => {
       {/* ─── Center: project name ─────────────────────────────── */}
       <div className="flex flex-1 min-w-0 items-center justify-center gap-1.5">
         <ToolcraftTextInputControl
-          label="Project name"
+          label={t("Project name")}
           isLabelHidden
           value={projectNameDraft}
           onChange={setProjectNameDraft}
@@ -474,8 +476,7 @@ export const Toolbar: React.FC = () => {
             className="flex items-center gap-1.5 rounded-[8px] bg-bg-3 px-[18px] py-[9px] text-[13px] font-semibold text-fg-2"
           >
             <Icon name="checkmark" size={13} ariaHidden />
-            Saved!
-          </button>
+            {t("Saved!")}</button>
         ) : (
           <div className="flex items-stretch">
             <button
@@ -483,14 +484,13 @@ export const Toolbar: React.FC = () => {
               onClick={() => handleExport("mp4")}
               className="rounded-l-[8px] rounded-r-none bg-accent px-[18px] py-[9px] text-[13px] font-semibold text-white"
             >
-              Export
-            </button>
+              {t("Export")}</button>
             <DropdownMenu
               isMenuOpen={isExportOpen}
               onOpenChange={setIsExportOpen}
               hasChevron={false}
               button={{
-                label: "Export options",
+                label: t("Export options"),
                 variant: "primary",
                 size: "sm",
                 isIconOnly: true,
@@ -534,12 +534,11 @@ export const Toolbar: React.FC = () => {
                             weight="bold"
                             className={option.recommended ? "text-accent" : "text-fg"}
                           >
-                            {option.label}
+                            {t(option.label)}
                           </Text>
                           {option.recommended && (
                             <Text type="supporting" className="rounded bg-accent-soft px-1.5 py-0.5 text-[10px] text-accent">
-                              Best match
-                            </Text>
+                              {t("Best match")}</Text>
                           )}
                         </div>
                       }
@@ -550,7 +549,7 @@ export const Toolbar: React.FC = () => {
                           </Text>
                           {exportEstimates.get(option.type) && (
                             <Text type="supporting" color="secondary" display="block" className="text-[10px]">
-                              Est. {exportEstimates.get(option.type)?.formatted}
+                              {t("Est. ")}{exportEstimates.get(option.type)?.formatted}
                             </Text>
                           )}
                         </div>
@@ -564,22 +563,21 @@ export const Toolbar: React.FC = () => {
                 <div className="my-1 border-t border-border" />
                 <DropdownMenuItem
                   icon={<Settings size={18} aria-hidden />}
-                  label="Custom export..."
-                  description="Full settings with AI upscaling"
+                  label={t("Custom export...")}
+                  description={t("Full settings with AI upscaling")}
                   endContent={<MoreHorizontal size={14} className="text-fg-muted" aria-hidden />}
                   onClick={() => setIsExportDialogOpen(true)}
                 />
                 <DropdownMenuItem
                   icon={<Video size={18} aria-hidden />}
-                  label="Compress video..."
-                  description="Shrink any video to a target size"
+                  label={t("Compress video...")}
+                  description={t("Shrink any video to a target size")}
                   onClick={() => setIsCompressOpen(true)}
                 />
               </div>
               <Text type="supporting" color="secondary" display="block" className="border-t border-border bg-bg-2 px-3 py-2.5 text-center text-xs">
                 {project.settings.width}×{project.settings.height} •{" "}
-                {project.settings.frameRate}fps
-              </Text>
+                {project.settings.frameRate}{t("fps")}</Text>
             </DropdownMenu>
           </div>
         )}
@@ -618,10 +616,9 @@ export const Toolbar: React.FC = () => {
           <div className="fixed top-topbar right-0 bottom-0 w-80 bg-bg-1 border-l border-border z-50 shadow-lg animate-in slide-in-from-right duration-200">
             <div className="flex items-center justify-between p-3 border-b border-border">
               <Text type="body" weight="bold" className="text-sm text-fg">
-                Action history
-              </Text>
+                {t("Action history")}</Text>
               <ToolcraftIconButton
-                label="Close action history"
+                label={t("Close action history")}
                 icon={<X size={14} aria-hidden />}
                 size="sm"
                 variant="ghost"

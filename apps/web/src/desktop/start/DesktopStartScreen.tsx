@@ -20,6 +20,7 @@ import {
   type RecentEntry,
 } from "./desktop-project-actions";
 import { useUIStore } from "../../stores/ui-store";
+import { useTranslation } from "react-i18next";
 
 const FORMAT_ICONS: Record<string, React.ElementType> = {
   vertical: Smartphone,
@@ -43,6 +44,7 @@ function formatSavedAt(savedAt: number): string {
 type ProjectMode = "edit" | "motion";
 
 export function DesktopStartScreen(): JSX.Element {
+  const { t } = useTranslation();
   const [recents, setRecents] = useState<RecentEntry[]>([]);
   const [loadingRecents, setLoadingRecents] = useState<boolean>(true);
   const [openingId, setOpeningId] = useState<string | null>(null);
@@ -95,14 +97,13 @@ export function DesktopStartScreen(): JSX.Element {
         <section>
           <div className="flex items-center gap-3">
             <OpenReelMark size={28} className="text-accent" />
-            <Heading level={1}>New Project</Heading>
+            <Heading level={1}>{t("New Project")}</Heading>
           </div>
           <Text type="supporting" display="block" className="mt-1">
-            Choose a workspace and format. You can change this later.
-          </Text>
+            {t("Choose a workspace and format. You can change this later.")}</Text>
           <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
             <SelectableCard
-              label="Video Editor"
+              label={t("Video Editor")}
               isSelected={projectMode === "edit"}
               onChange={() => setProjectMode("edit")}
               padding={5}
@@ -113,16 +114,14 @@ export function DesktopStartScreen(): JSX.Element {
                 </span>
                 <span>
                   <Text type="large" weight="bold" display="block">
-                    Video Editor
-                  </Text>
+                    {t("Video Editor")}</Text>
                   <Text type="supporting" display="block" className="mt-1">
-                    Cut, trim, caption, color, and export quickly.
-                  </Text>
+                    {t("Cut, trim, caption, color, and export quickly.")}</Text>
                 </span>
               </div>
             </SelectableCard>
             <SelectableCard
-              label="Motion Creator"
+              label={t("Motion Creator")}
               isSelected={projectMode === "motion"}
               onChange={() => setProjectMode("motion")}
               padding={5}
@@ -133,11 +132,9 @@ export function DesktopStartScreen(): JSX.Element {
                 </span>
                 <span>
                   <Text type="large" weight="bold" display="block">
-                    Motion Creator
-                  </Text>
+                    {t("Motion Creator")}</Text>
                   <Text type="supporting" display="block" className="mt-1">
-                    Design animated ads, lower thirds, app demos, and scene graphics.
-                  </Text>
+                    {t("Design animated ads, lower thirds, app demos, and scene graphics.")}</Text>
                 </span>
               </div>
             </SelectableCard>
@@ -163,7 +160,7 @@ export function DesktopStartScreen(): JSX.Element {
                       <FormatIcon size={22} aria-hidden />
                     </span>
                     <Text type="large" weight="bold" display="block">
-                      {format.label}
+                      {t(format.label)}
                     </Text>
                     <Text type="code" color="secondary" display="block">
                       {formatDimensions(format)}
@@ -177,16 +174,14 @@ export function DesktopStartScreen(): JSX.Element {
         </section>
 
         <section>
-          <Heading level={2} color="secondary">Recent</Heading>
+          <Heading level={2} color="secondary">{t("Recent")}</Heading>
           <Card className="mt-3" padding={0}>
             {loadingRecents ? (
               <Text type="supporting" display="block" className="px-4 py-6">
-                Loading recent projects...
-              </Text>
+                {t("Loading recent projects...")}</Text>
             ) : recents.length === 0 ? (
               <Text type="supporting" display="block" className="px-4 py-6">
-                No recent projects yet. Start a new project above.
-              </Text>
+                {t("No recent projects yet. Start a new project above.")}</Text>
             ) : (
               <ul className="divide-y divide-border">
                 {recents.map((entry) => (

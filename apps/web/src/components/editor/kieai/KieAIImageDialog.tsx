@@ -26,6 +26,7 @@ import { NanoBanana2Form } from "./forms/NanoBanana2Form";
 import { Flux2Form } from "./forms/Flux2Form";
 import { GrokForm } from "./forms/GrokForm";
 import { QwenForm } from "./forms/QwenForm";
+import { useTranslation } from "react-i18next";
 
 // ─── Default inputs per model ────────────────────────────────────────────────
 
@@ -62,6 +63,7 @@ interface Props {
 }
 
 export function KieAIImageDialog({ open, onClose, sourceFile, previewUrl }: Props) {
+  const { t } = useTranslation();
   const [step, setStep] = useState<Step>("pick");
   const [selectedModel, setSelectedModel] = useState<ImageModelId | null>(null);
   const [errorMsg, setErrorMsg] = useState<string>("");
@@ -240,7 +242,7 @@ export function KieAIImageDialog({ open, onClose, sourceFile, previewUrl }: Prop
               {previewUrl ? (
                 <img
                   src={previewUrl}
-                  alt="Source"
+                  alt={t("Source")}
                   className="h-10 w-10 rounded object-cover flex-shrink-0"
                 />
               ) : (
@@ -255,8 +257,7 @@ export function KieAIImageDialog({ open, onClose, sourceFile, previewUrl }: Prop
                   {sourceFile.name}
                 </Text>
                 <Text type="supporting" color="secondary" display="block" className="text-[10px]">
-                  Source image
-                </Text>
+                  {t("Source image")}</Text>
               </div>
               </div>
             </Card>
@@ -287,10 +288,9 @@ export function KieAIImageDialog({ open, onClose, sourceFile, previewUrl }: Prop
             <div className="space-y-4 py-4 text-center">
               <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-border border-t-primary" />
               <Text type="body" color="secondary" display="block">
-                Uploading and submitting task...
-              </Text>
+                {t("Uploading and submitting task...")}</Text>
               <Button
-                label="Cancel"
+                label={t("Cancel")}
                 variant="secondary"
                 size="sm"
                 onClick={() => { abortRef.current?.abort(); handleClose(); }}
@@ -307,13 +307,13 @@ export function KieAIImageDialog({ open, onClose, sourceFile, previewUrl }: Prop
               </Card>
               <div className="flex gap-2">
                 <Button
-                  label="Close"
+                  label={t("Close")}
                   variant="secondary"
                   className="flex-1"
                   onClick={handleClose}
                 />
                 <Button
-                  label="Try Again"
+                  label={t("Try Again")}
                   variant="primary"
                   className="flex-1"
                   onClick={() => setStep("form")}
@@ -327,7 +327,7 @@ export function KieAIImageDialog({ open, onClose, sourceFile, previewUrl }: Prop
           step === "form" ? (
             <LayoutFooter hasDivider>
               <Button
-                label="Back to model selection"
+                label={t("Back to model selection")}
                 variant="ghost"
                 size="sm"
                 onClick={handleBack}

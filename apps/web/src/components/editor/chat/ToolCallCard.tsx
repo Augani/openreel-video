@@ -3,6 +3,7 @@ import { useState } from "react";
 import { ToolcraftButton as Button } from "@openreel/ui";
 import { ChevronRight, Loader2, Check, X, Ban, Wrench } from "@/icons/lucide-compat";
 import type { ToolCallView } from "../../../stores/chat-store";
+import { useTranslation } from "react-i18next";
 
 const STATUS_META: Record<
   ToolCallView["status"],
@@ -44,6 +45,7 @@ function previewArgs(args: Record<string, unknown>): string {
 }
 
 export function ToolCallCard({ call }: { call: ToolCallView }): JSX.Element {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const meta = STATUS_META[call.status];
   const hasDetail =
@@ -69,7 +71,7 @@ export function ToolCallCard({ call }: { call: ToolCallView }): JSX.Element {
         <span className="font-mono text-fg">{call.name}</span>
         <span className={`ml-auto flex items-center gap-1 ${meta.tint}`}>
           {meta.icon}
-          <span className="text-[10px]">{meta.label}</span>
+          <span className="text-[10px]">{t(meta.label)}</span>
         </span>
       </Button>
 
@@ -78,8 +80,7 @@ export function ToolCallCard({ call }: { call: ToolCallView }): JSX.Element {
           {Object.keys(call.args ?? {}).length > 0 && (
             <div>
               <div className="mb-0.5 text-[9px] uppercase tracking-wide text-fg-muted">
-                Arguments
-              </div>
+                {t("Arguments")}</div>
               <pre className="overflow-x-auto whitespace-pre-wrap break-words rounded bg-bg-2 p-1.5 font-mono text-[10px] text-fg-2">
                 {JSON.stringify(call.args, null, 2)}
               </pre>
@@ -88,8 +89,7 @@ export function ToolCallCard({ call }: { call: ToolCallView }): JSX.Element {
           {call.result && (
             <div>
               <div className="mb-0.5 text-[9px] uppercase tracking-wide text-fg-muted">
-                Result
-              </div>
+                {t("Result")}</div>
               <div
                 className={
                   call.result.ok ? "text-fg-2" : "text-status-error"

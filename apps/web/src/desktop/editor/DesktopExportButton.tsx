@@ -9,6 +9,7 @@ import { deriveSourceExportMatch } from "../../services/export-source-match";
 import { useExportRunner, extForFormat, exportFilename } from "../../services/export-runner";
 import { NativeFFmpegBackend } from "../../services/native-ffmpeg-backend";
 import { Icon } from "@/icons/Icon";
+import { useTranslation } from "react-i18next";
 
 const NO_DRAG = { WebkitAppRegion: "no-drag" } as React.CSSProperties;
 
@@ -41,6 +42,7 @@ function shouldUseWebCodecs(settings: VideoExportSettings): boolean {
 }
 
 export function DesktopExportButton(): JSX.Element {
+  const { t } = useTranslation();
   const project = useProjectStore((state) => state.project);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
@@ -138,7 +140,7 @@ export function DesktopExportButton(): JSX.Element {
         style={NO_DRAG}
         onClick={cancel}
         className="mr-2"
-        aria-label="Cancel export"
+        aria-label={t("Cancel export")}
       />
     );
   }
@@ -152,7 +154,7 @@ export function DesktopExportButton(): JSX.Element {
         style={NO_DRAG}
         onClick={resetError}
         className="mr-2 max-w-[200px] truncate"
-        aria-label="Dismiss export error"
+        aria-label={t("Dismiss export error")}
       />
     );
   }
@@ -160,7 +162,7 @@ export function DesktopExportButton(): JSX.Element {
   if (state.complete) {
     return (
       <Button
-        label="Saved!"
+        label={t("Saved!")}
         variant="secondary"
         size="sm"
         style={NO_DRAG}
@@ -173,7 +175,7 @@ export function DesktopExportButton(): JSX.Element {
   return (
     <>
       <Button
-        label="Export"
+        label={t("Export")}
         variant="primary"
         size="sm"
         icon={<Icon name="square.and.arrow.up" size={15} ariaHidden />}
