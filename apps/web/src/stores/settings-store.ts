@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { subscribeWithSelector, persist } from "zustand/middleware";
 import { onSessionLock } from "../services/secure-storage";
+import { i18n, ensureLocaleLoaded, detectInitialLanguage } from "../i18n";
 
 export interface ServiceConfig {
   readonly id: string;
@@ -115,7 +116,7 @@ export const useSettingsStore = create<SettingsState>()(
       (set, get) => ({
         autoSave: true,
         autoSaveInterval: 5,
-        language: "en",
+        language: detectInitialLanguage(),
 
         defaultTtsProvider: "piper" as TtsProvider,
         defaultLlmProvider: "openai" as LlmProvider,
@@ -141,7 +142,11 @@ export const useSettingsStore = create<SettingsState>()(
         setAutoSaveInterval: (minutes: number) =>
           set({ autoSaveInterval: Math.max(1, Math.min(30, minutes)) }),
 
-        setLanguage: (lang: string) => set({ language: lang }),
+        setLanguage: (lang: string) => {
+          set({ language: lang });
+          // Load the locale bundle first so the re-render lands with translations ready.
+          void ensureLocaleLoaded(lang).then(() => i18n.changeLanguage(lang));
+        },
 
         setDefaultTtsProvider: (provider: TtsProvider) =>
           set({ defaultTtsProvider: provider }),
