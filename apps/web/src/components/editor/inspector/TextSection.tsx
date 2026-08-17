@@ -55,12 +55,14 @@ const ColorField: React.FC<{
   onChange: (color: string) => void;
   showAlpha?: boolean;
   allowTransparent?: boolean;
+  fallbackColor?: string;
 }> = ({
   label,
   value,
   onChange,
   showAlpha = false,
   allowTransparent = false,
+  fallbackColor,
 }) => (
   <div className="flex items-center justify-between gap-2">
     <Text type="supporting" color="secondary">
@@ -72,7 +74,7 @@ const ColorField: React.FC<{
         onChange={onChange}
         label={`Select ${label.toLowerCase()}`}
         allowTransparent={allowTransparent}
-        fallback={label === "Text Color" ? "#ffffff" : "#000000"}
+        fallback={fallbackColor ?? "#000000"}
         showAlpha={showAlpha}
       />
     </div>
@@ -480,6 +482,7 @@ export const TextSection: React.FC<TextSectionProps> = ({ clipId, clipIds }) => 
         <div className="space-y-2">
           <ColorField
             label={t("Text Color")}
+            fallbackColor="#ffffff"
             value={style.color}
             onChange={(color) => handleStyleChange({ color })}
           />

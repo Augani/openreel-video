@@ -1,4 +1,5 @@
 import { useEffect, useCallback, useRef, lazy, Suspense } from "react";
+import { useTranslation } from "react-i18next";
 import { ToastContainer } from "./components/Toast";
 import { ScriptViewDialog } from "./components/editor/ScriptViewDialog";
 import { SearchModal } from "./components/editor/SearchModal";
@@ -42,6 +43,7 @@ const PRESET_DIMENSIONS: Record<string, SocialMediaCategory> = {
 };
 
 function App() {
+  const { t } = useTranslation();
   const { activeModal, closeModal, skipWelcomeScreen } = useUIStore();
   const { openModal: openSearchModal } = useUIStore();
   const createNewProject = useProjectStore((state) => state.createNewProject);
@@ -150,7 +152,7 @@ function App() {
     <div className="h-screen w-screen bg-background text-text-primary overflow-hidden">
       <MobileBlocker />
       {isMotionSurface ? (
-        <Suspense fallback={<LoadingSpinner message="Loading Motion Creator..." />}>
+        <Suspense fallback={<LoadingSpinner message={t("Loading Motion Creator...")} />}>
           <MotionCreatorApp />
         </Suspense>
       ) : isSharePage ? (
@@ -158,7 +160,7 @@ function App() {
       ) : showWelcome ? (
         <WelcomeScreen initialTab={initialTab} />
       ) : (
-        <Suspense fallback={<LoadingSpinner message="Loading editor..." />}>
+        <Suspense fallback={<LoadingSpinner message={t("Loading editor...")} />}>
           <EditorInterface />
         </Suspense>
       )}
