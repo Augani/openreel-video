@@ -178,7 +178,7 @@ export const TourPopover: React.FC<TourPopoverProps> = ({
             transition={{ delay: 0.15 }}
             className="text-sm text-text-secondary mb-4"
           >
-            {step.description}
+            {t(step.description)}
           </motion.p>
 
           {step.tips && step.tips.length > 0 && (
@@ -196,7 +196,7 @@ export const TourPopover: React.FC<TourPopoverProps> = ({
                     className="flex items-start gap-2 text-xs text-text-secondary"
                   >
                     <span className="text-primary mt-0.5">•</span>
-                    {tip}
+                    {t(tip)}
                   </li>
                 ))}
               </ul>
@@ -246,7 +246,7 @@ export const TourPopover: React.FC<TourPopoverProps> = ({
             onClick={onNext}
             className="inline-flex h-9 min-w-[108px] items-center justify-center gap-1.5 whitespace-nowrap rounded-lg bg-primary px-4 text-xs font-semibold text-primary-foreground transition-colors hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
-            <span>{isLastStep ? "Get Started" : "Next"}</span>
+            <span>{isLastStep ? t("Get Started") : t("Next")}</span>
             {!isLastStep && <ChevronRight size={14} className="shrink-0" aria-hidden />}
           </button>
         </div>

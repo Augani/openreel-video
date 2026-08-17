@@ -212,7 +212,7 @@ export const MoGraphTour: React.FC = () => {
 
           <div className="p-4">
             <Text type="supporting" color="secondary" className="text-text-secondary text-sm leading-relaxed mb-4">
-              {step.description}
+              {t(step.description)}
             </Text>
 
             {step.tips && step.tips.length > 0 && (
@@ -228,7 +228,7 @@ export const MoGraphTour: React.FC = () => {
                       className="text-text-muted text-xs flex items-start gap-2"
                     >
                       <span className="text-accent mt-0.5">•</span>
-                      <span>{tip}</span>
+                      <span>{t(tip)}</span>
                     </li>
                   ))}
                 </ul>
@@ -275,7 +275,7 @@ export const MoGraphTour: React.FC = () => {
                 onClick={next}
                 className="inline-flex h-9 min-w-[108px] items-center justify-center gap-1.5 whitespace-nowrap rounded-lg bg-accent px-4 text-xs font-semibold text-accent-fg transition-colors hover:bg-accent-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
-                <span>{isLastStep ? "Get Started" : "Next"}</span>
+                <span>{isLastStep ? t("Get Started") : t("Next")}</span>
                 {!isLastStep && <ChevronRight size={14} className="shrink-0" aria-hidden />}
               </button>
             </div>

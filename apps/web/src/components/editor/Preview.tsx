@@ -8190,7 +8190,7 @@ export const Preview: React.FC = () => {
             className="w-8 h-8 grid place-items-center rounded-md text-fg-2 hover:bg-hover hover:text-fg transition-colors"
           />
           <IconButton
-            label={playbackLockedReason ?? (isPlaying ? "Pause" : "Play")}
+            label={playbackLockedReason ?? (isPlaying ? tr("Pause") : tr("Play"))}
             icon={
               isPlaying ? (
                 <Pause size={18} fill="currentColor" />
@@ -8296,8 +8296,7 @@ export const Preview: React.FC = () => {
               onClick={() => setShowQualityMenu(!showQualityMenu)}
               className="rounded-[7px] bg-bg-2 px-[11px] py-[7px] text-[12px] font-medium text-fg-2 hover:bg-bg-3 hover:text-fg transition-colors"
             >
-              {PREVIEW_QUALITY_OPTIONS.find((o) => o.value === playbackQuality)
-                ?.label ?? "Auto"}
+              {tr(PREVIEW_QUALITY_OPTIONS.find((o) => o.value === playbackQuality)?.label ?? "Auto")}
             </Button>
             {showQualityMenu && (
               <>
