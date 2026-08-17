@@ -26,6 +26,7 @@ import {
 import { useProjectStore } from "../../stores/project-store";
 import { toast } from "../../stores/notification-store";
 import { useMotionStore } from "../stores/motion-store";
+import { useTranslation } from "react-i18next";
 
 interface AssetPanelProps {
   composition: MotionComposition;
@@ -63,6 +64,7 @@ const SOLID_ASSET_TYPES: ReadonlyArray<MotionAsset["type"]> = [
 ];
 
 export function AssetPanel({ composition }: AssetPanelProps): JSX.Element {
+  const { t } = useTranslation();
   const mediaItems = useProjectStore((state) => state.project.mediaLibrary.items);
   const motionCompositions = useProjectStore(
     (state) => state.project.motionCompositions,
@@ -451,11 +453,11 @@ export function AssetPanel({ composition }: AssetPanelProps): JSX.Element {
   return (
     <div className="flex h-full min-h-0 flex-col p-[18px_16px]">
       <div className="mb-[14px] flex items-center justify-between">
-        <span className="text-[18px] font-bold text-fg">Assets</span>
+        <span className="text-[18px] font-bold text-fg">{t("Assets")}</span>
         <div className="flex items-center gap-1">
           <ToolcraftFileDropControl
             accept="image/*,video/*,audio/*"
-            label={isImportingMedia ? "Importing…" : "Import Media"}
+            label={isImportingMedia ? t("Importing…") : t("Import Media")}
             icon={<Upload size={14} aria-hidden />}
             onChange={handleMediaInputChange}
             variant="button"
@@ -463,14 +465,14 @@ export function AssetPanel({ composition }: AssetPanelProps): JSX.Element {
           />
           <ToolcraftFileDropControl
             accept=".svg,image/svg+xml"
-            label="Import SVG"
+            label={t("Import SVG")}
             icon={<FileCode2 size={14} aria-hidden />}
             onChange={handleSvgInputChange}
             variant="button"
           />
           <ToolcraftFileDropControl
             accept=".json,.lottie,application/json"
-            label="Import Lottie"
+            label={t("Import Lottie")}
             icon={<FileJson size={14} aria-hidden />}
             onChange={handleLottieInputChange}
             variant="button"
@@ -482,17 +484,17 @@ export function AssetPanel({ composition }: AssetPanelProps): JSX.Element {
         <ToolcraftTextInputControl
           value={query}
           onChange={setQuery}
-          placeholder="Search assets..."
-          ariaLabel="Search assets"
+          placeholder={t("Search assets...")}
+          ariaLabel={t("Search assets")}
           leading={<Search size={15} aria-hidden />}
           className="flex-1"
           inputClassName="h-10 rounded-[9px] bg-bg"
         />
         <button
           type="button"
-          aria-label="Show scene assets only"
+          aria-label={t("Show scene assets only")}
           aria-pressed={sceneAssetsOnly}
-          title="Show scene assets only"
+          title={t("Show scene assets only")}
           onClick={() => setSceneAssetsOnly((value) => !value)}
           className={`flex w-[42px] items-center justify-center rounded-[9px] border transition-colors ${
             sceneAssetsOnly
@@ -518,7 +520,7 @@ export function AssetPanel({ composition }: AssetPanelProps): JSX.Element {
                   : "shrink-0 pb-[9px] text-[13px] font-medium text-fg-muted"
               }
             >
-              {tab.label}
+              {t(tab.label)}
             </button>
           );
         })}
@@ -547,11 +549,10 @@ export function AssetPanel({ composition }: AssetPanelProps): JSX.Element {
 
         <div className="mb-2.5 mt-4 flex items-center justify-between">
           <span className="text-[12px] font-semibold text-fg-3">
-            Compositions
-          </span>
+            {t("Compositions")}</span>
           <button
             type="button"
-            aria-label="Create motion scene"
+            aria-label={t("Create motion scene")}
             onClick={() => void createMotionComposition("Motion Scene")}
             className="flex h-6 w-6 items-center justify-center rounded-md text-[#a0a0a5] transition-colors hover:bg-bg hover:text-accent"
           >
@@ -582,8 +583,7 @@ export function AssetPanel({ composition }: AssetPanelProps): JSX.Element {
                   {comp.name}
                 </span>
                 <span className="text-[11px] font-medium text-fg-muted">
-                  {comp.width}×{comp.height} · {comp.frameRate}fps
-                </span>
+                  {comp.width}×{comp.height} · {comp.frameRate}{t("fps")}</span>
               </span>
               <svg
                 width="16"

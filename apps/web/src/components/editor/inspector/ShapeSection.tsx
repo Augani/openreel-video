@@ -32,6 +32,7 @@ import {
   ShaderParamFields,
 } from "./ShaderControls";
 import { ColorSelector } from "../../../motion/components/primitives";
+import { useTranslation } from "react-i18next";
 
 const ColorField: React.FC<{
   label: string;
@@ -100,17 +101,17 @@ const StrokeStyleSelector: React.FC<{
   value: number[] | undefined;
   onChange: (dashArray: number[] | undefined) => void;
 }> = ({ value, onChange }) => {
+  const { t } = useTranslation();
   const styles = [
-    { value: undefined, label: "Solid", preview: "────" },
-    { value: [5, 5], label: "Dashed", preview: "- - -" },
-    { value: [2, 2], label: "Dotted", preview: "• • •" },
+    { value: undefined, label: t("Solid"), preview: "────" },
+    { value: [5, 5], label: t("Dashed"), preview: "- - -" },
+    { value: [2, 2], label: t("Dotted"), preview: "• • •" },
   ];
 
   return (
     <div className="flex items-center justify-between">
       <Text type="supporting" color="secondary">
-        Style
-      </Text>
+        {t("Style")}</Text>
       <div className="flex gap-1">
         {styles.map((style, index) => (
           <Button
@@ -134,6 +135,7 @@ const StrokeStyleSelector: React.FC<{
 const ShapeTypeDisplay: React.FC<{
   shapeType: string;
 }> = ({ shapeType }) => {
+  const { t } = useTranslation();
   const shapeIcons: Record<string, React.ReactNode> = {
     rectangle: <Square size={16} />,
     circle: <Circle size={16} />,
@@ -154,8 +156,7 @@ const ShapeTypeDisplay: React.FC<{
           {shapeType}
         </Text>
         <Text type="supporting" color="secondary" className="text-[9px]">
-          Shape clip
-        </Text>
+          {t("Shape clip")}</Text>
       </div>
     </div>
   );
@@ -170,6 +171,7 @@ interface ShapeSectionProps {
 }
 
 export const ShapeSection: React.FC<ShapeSectionProps> = ({ clipId }) => {
+  const { t } = useTranslation();
   const { getShapeClip, updateShapeStyle, project } = useProjectStore();
 
   const shapeClip = useMemo(
@@ -209,8 +211,7 @@ export const ShapeSection: React.FC<ShapeSectionProps> = ({ clipId }) => {
       <div className="p-4 text-center">
         <Square size={24} className="mx-auto mb-2 text-fg-3" />
         <Text type="supporting" color="secondary">
-          No shape clip selected
-        </Text>
+          {t("No shape clip selected")}</Text>
       </div>
     );
   }
@@ -222,10 +223,9 @@ export const ShapeSection: React.FC<ShapeSectionProps> = ({ clipId }) => {
       <Card variant="muted" padding={3}>
         <div className="space-y-2">
           <Text type="supporting" color="primary" weight="medium">
-            Fill
-          </Text>
+            {t("Fill")}</Text>
           <ToolcraftSegmentedControl<"solid" | "shader">
-            ariaLabel="Fill Type"
+            ariaLabel={t("Fill Type")}
             value={style.fill?.type === "shader" ? "shader" : "solid"}
             onChange={(fillType) => {
               if (fillType === "shader") {
@@ -253,8 +253,8 @@ export const ShapeSection: React.FC<ShapeSectionProps> = ({ clipId }) => {
               });
             }}
             options={[
-              { value: "solid", label: "Solid" },
-              { value: "shader", label: "Shader" },
+              { value: "solid", label: t("Solid") },
+              { value: "shader", label: t("Shader") },
             ]}
           />
           {style.fill?.type === "shader" && style.fill.shader ? (
@@ -273,7 +273,7 @@ export const ShapeSection: React.FC<ShapeSectionProps> = ({ clipId }) => {
             />
           ) : (
             <ColorField
-              label="Color"
+              label={t("Color")}
               value={style.fill?.color || "#3b82f6"}
               onChange={(color) =>
                 handleStyleChange({
@@ -288,7 +288,7 @@ export const ShapeSection: React.FC<ShapeSectionProps> = ({ clipId }) => {
             />
           )}
           <SliderField
-            label="Opacity"
+            label={t("Opacity")}
             value={(style.fill?.opacity || 1) * 100}
             onChange={(opacity) =>
               handleStyleChange({
@@ -309,10 +309,9 @@ export const ShapeSection: React.FC<ShapeSectionProps> = ({ clipId }) => {
       <Card variant="muted" padding={3}>
         <div className="space-y-2">
           <Text type="supporting" color="primary" weight="medium">
-            Stroke
-          </Text>
+            {t("Stroke")}</Text>
           <ColorField
-            label="Color"
+            label={t("Color")}
             value={style.stroke?.color || "#1d4ed8"}
             onChange={(color) =>
               handleStyleChange({
@@ -326,7 +325,7 @@ export const ShapeSection: React.FC<ShapeSectionProps> = ({ clipId }) => {
             }
           />
           <NumberInput
-            label="Width"
+            label={t("Width")}
             value={style.stroke?.width || 0}
             onChange={(width) =>
               handleStyleChange({
@@ -363,10 +362,9 @@ export const ShapeSection: React.FC<ShapeSectionProps> = ({ clipId }) => {
         <Card variant="muted" padding={3}>
           <div className="space-y-2">
             <Text type="supporting" color="primary" weight="medium">
-              Corners
-            </Text>
+              {t("Corners")}</Text>
             <SliderField
-              label="Radius"
+              label={t("Radius")}
               value={style.cornerRadius || 0}
               onChange={(cornerRadius) => handleStyleChange({ cornerRadius })}
               min={0}
@@ -380,10 +378,9 @@ export const ShapeSection: React.FC<ShapeSectionProps> = ({ clipId }) => {
       <Card variant="muted" padding={3}>
         <div className="space-y-2">
           <Text type="supporting" color="primary" weight="medium">
-            Shadow
-          </Text>
+            {t("Shadow")}</Text>
           <ColorField
-            label="Color"
+            label={t("Color")}
             value={style.shadow?.color || "#000000"}
             onChange={(color) =>
               handleStyleChange({
@@ -398,7 +395,7 @@ export const ShapeSection: React.FC<ShapeSectionProps> = ({ clipId }) => {
             showAlpha
           />
           <NumberInput
-            label="Offset X"
+            label={t("Offset X")}
             value={style.shadow?.offsetX || 0}
             onChange={(offsetX) =>
               handleStyleChange({
@@ -415,7 +412,7 @@ export const ShapeSection: React.FC<ShapeSectionProps> = ({ clipId }) => {
             unit="px"
           />
           <NumberInput
-            label="Offset Y"
+            label={t("Offset Y")}
             value={style.shadow?.offsetY || 0}
             onChange={(offsetY) =>
               handleStyleChange({
@@ -432,7 +429,7 @@ export const ShapeSection: React.FC<ShapeSectionProps> = ({ clipId }) => {
             unit="px"
           />
           <SliderField
-            label="Blur"
+            label={t("Blur")}
             value={style.shadow?.blur || 0}
             onChange={(blur) =>
               handleStyleChange({
@@ -458,6 +455,7 @@ const ShapeShaderFillControls: React.FC<{
   shader: MotionShaderFill;
   onChange: (shader: MotionShaderFill) => void;
 }> = ({ shader, onChange }) => {
+  const { t } = useTranslation();
   const shaderOptions = useMemo(
     () => groupShaderDefsByCollection(getMotionShaderFillDefs()),
     [],
@@ -491,7 +489,7 @@ const ShapeShaderFillControls: React.FC<{
   return (
     <div className="space-y-2 rounded border border-border/70 bg-bg-2 p-2">
       <Selector
-        label="Shader Fill"
+        label={t("Shader Fill")}
         isLabelHidden
         size="sm"
         width="100%"

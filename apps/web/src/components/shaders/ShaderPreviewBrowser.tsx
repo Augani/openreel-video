@@ -4,6 +4,7 @@ import {
   type MotionShaderDef,
 } from "@openreel/core";
 import { MotionShaderRenderer } from "@openreel/core/motion/motion-shader-renderer";
+import { useTranslation } from "react-i18next";
 
 type ShaderPreviewSample = "text" | "shape" | "effect";
 
@@ -146,6 +147,7 @@ export function ShaderPreviewBrowser({
   sample?: ShaderPreviewSample;
   label?: string;
 }): JSX.Element {
+  const { t } = useTranslation();
   const [query, setQuery] = useState("");
   const [collection, setCollection] = useState("All");
   const collections = useMemo(
@@ -190,7 +192,7 @@ export function ShaderPreviewBrowser({
         type="search"
         value={query}
         onChange={(event) => setQuery(event.target.value)}
-        placeholder={sample === "effect" ? "Search effects" : "Search materials"}
+        placeholder={sample === "effect" ? t("Search effects") : t("Search materials")}
         aria-label={`Search ${label.toLowerCase()}`}
         className="h-8 w-full rounded-[7px] border border-border bg-bg-2 px-2.5 text-xs text-fg outline-none transition-colors placeholder:text-fg-4 focus:border-accent"
       />
@@ -251,7 +253,7 @@ export function ShaderPreviewBrowser({
       </div>
       {visibleDefs.length === 0 ? (
         <div className="rounded-[8px] border border-dashed border-border px-3 py-5 text-center text-[11px] text-fg-4">
-          No {sample === "effect" ? "effects" : "materials"} match “{query}”.
+          No {sample === "effect" ? "effects" : "materials"} {t(" match “")}{query}”.
         </div>
       ) : null}
     </div>

@@ -6,6 +6,7 @@ import {
   type NotificationType,
   type Notification,
 } from "../stores/notification-store";
+import { useTranslation } from "react-i18next";
 
 const ICONS: Record<NotificationType, React.ReactNode> = {
   success: <CheckCircle2 size={20} />,
@@ -86,6 +87,7 @@ interface ToastItemProps {
 
 const ToastItem = React.forwardRef<HTMLDivElement, ToastItemProps>(
   ({ notification, onRemove }, ref) => {
+  const { t } = useTranslation();
   const [progress, setProgress] = useState(100);
   const isDark =
     typeof document !== "undefined" &&
@@ -154,7 +156,7 @@ const ToastItem = React.forwardRef<HTMLDivElement, ToastItemProps>(
             transition={{ delay: 0.05 }}
             className={`text-sm font-semibold ${isDark ? "text-zinc-100" : "text-zinc-900"}`}
           >
-            {notification.title}
+            {t(notification.title)}
           </motion.p>
           {notification.message && (
             <motion.p
@@ -185,7 +187,7 @@ const ToastItem = React.forwardRef<HTMLDivElement, ToastItemProps>(
                   : "hover:bg-black/5 text-zinc-400 hover:text-zinc-600"
               }
             `}
-            aria-label="Dismiss notification"
+            aria-label={t("Dismiss notification")}
           >
             <X size={16} />
           </motion.button>
@@ -209,13 +211,14 @@ const ToastItem = React.forwardRef<HTMLDivElement, ToastItemProps>(
 ToastItem.displayName = "ToastItem";
 
 export const ToastContainer: React.FC = () => {
+  const { t } = useTranslation();
   const { notifications, removeNotification } = useNotificationStore();
 
   return (
     <div
       className="fixed top-4 right-4 z-[9999] flex flex-col gap-3"
       role="region"
-      aria-label="Notifications"
+      aria-label={t("Notifications")}
     >
       <AnimatePresence mode="popLayout">
         {notifications.map((notification) => (

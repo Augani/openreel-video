@@ -8,6 +8,7 @@ import { ToolcraftText as Text } from "@openreel/ui";
 import { ToolcraftTextInputControl } from "@openreel/ui";
 import { getGraphicsBridge } from "../../../bridges";
 import type { StickerItem, EmojiItem } from "@openreel/core";
+import { useTranslation } from "react-i18next";
 
 type TabType = "stickers" | "emojis";
 
@@ -43,9 +44,11 @@ const CategoryTab: React.FC<{
 const EmojiGridItem: React.FC<{
   emoji: EmojiItem;
   onSelect: (emoji: EmojiItem) => void;
-}> = ({ emoji, onSelect }) => (
+}> = ({ emoji, onSelect }) => {
+  const { t } = useTranslation();
+  return (
   <ClickableCard
-    label={emoji.name}
+    label={t(emoji.name)}
     onClick={() => onSelect(emoji)}
     width={40}
     height={40}
@@ -56,6 +59,7 @@ const EmojiGridItem: React.FC<{
     {emoji.emoji}
   </ClickableCard>
 );
+};
 
 /**
  * Sticker Grid Item Component
@@ -63,9 +67,11 @@ const EmojiGridItem: React.FC<{
 const StickerGridItem: React.FC<{
   sticker: StickerItem;
   onSelect: (sticker: StickerItem) => void;
-}> = ({ sticker, onSelect }) => (
+}> = ({ sticker, onSelect }) => {
+  const { t } = useTranslation();
+  return (
   <ClickableCard
-    label={sticker.name}
+    label={t(sticker.name)}
     onClick={() => onSelect(sticker)}
     width={64}
     height={64}
@@ -75,11 +81,12 @@ const StickerGridItem: React.FC<{
   >
     <img
       src={sticker.imageUrl}
-      alt={sticker.name}
+      alt={t(sticker.name)}
       className="max-w-full max-h-full object-contain"
     />
   </ClickableCard>
 );
+};
 
 /**
  * StickerPicker Component
@@ -92,6 +99,7 @@ export const StickerPicker: React.FC<StickerPickerProps> = ({
   duration = 5,
   onSelect,
 }) => {
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<TabType>("emojis");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("smileys");
@@ -189,7 +197,7 @@ export const StickerPicker: React.FC<StickerPickerProps> = ({
       {/* Tab Switcher */}
       <div className="flex gap-1 p-1 bg-bg-2 rounded-lg">
         <Button
-          label="Emojis"
+          label={t("Emojis")}
           icon={<Smile size={14} aria-hidden />}
           variant={activeTab === "emojis" ? "primary" : "secondary"}
           size="sm"
@@ -197,7 +205,7 @@ export const StickerPicker: React.FC<StickerPickerProps> = ({
           className="flex-1"
         />
         <Button
-          label="Stickers"
+          label={t("Stickers")}
           icon={<Sticker size={14} aria-hidden />}
           variant={activeTab === "stickers" ? "primary" : "secondary"}
           size="sm"
@@ -220,7 +228,7 @@ export const StickerPicker: React.FC<StickerPickerProps> = ({
         />
         {searchQuery && (
           <IconButton
-            label="Clear search"
+            label={t("Clear search")}
             icon={<X size={12} className="text-fg-3" aria-hidden />}
             variant="ghost"
             size="sm"
@@ -308,7 +316,7 @@ export const StickerPicker: React.FC<StickerPickerProps> = ({
       {activeTab === "stickers" && (
         <div className="pt-2 border-t border-border">
           <Button
-            label="Add Custom Sticker"
+            label={t("Add Custom Sticker")}
             icon={<Plus size={14} aria-hidden />}
             variant="secondary"
             size="sm"

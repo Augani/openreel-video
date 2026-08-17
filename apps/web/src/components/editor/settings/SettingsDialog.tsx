@@ -7,6 +7,7 @@ import { useSettingsStore, type SettingsTab } from "../../../stores/settings-sto
 import { GeneralPanel } from "./GeneralPanel";
 import { ApiKeysPanel } from "./ApiKeysPanel";
 import { McpPanel } from "./McpPanel";
+import { useTranslation } from "react-i18next";
 
 const isDesktop =
   typeof window !== "undefined" && window.openreel?.platform === "desktop";
@@ -20,6 +21,7 @@ const TABS: readonly { id: SettingsTab; label: string; icon: typeof Settings }[]
 ];
 
 export const SettingsDialog: React.FC = () => {
+  const { t } = useTranslation();
   const { settingsOpen, settingsTab, closeSettings, openSettings } = useSettingsStore();
 
   const setTab = useCallback((tab: SettingsTab) => {
@@ -36,8 +38,8 @@ export const SettingsDialog: React.FC = () => {
       <Layout
         header={
           <DialogHeader
-            title="Settings"
-            subtitle="Configure preferences and manage API keys for external services."
+            title={t("Settings")}
+            subtitle={t("Configure preferences and manage API keys for external services.")}
             onOpenChange={(open) => !open && closeSettings()}
             startContent={<Settings size={18} className="text-primary" aria-hidden />}
           />
@@ -50,7 +52,7 @@ export const SettingsDialog: React.FC = () => {
               className="w-full"
             >
               <TabsList
-                aria-label="Settings"
+                aria-label={t("Settings")}
                 className="grid h-auto w-full gap-0.5 rounded-[7px] border border-border bg-bg-1 p-0.5"
                 layoutId="settings-tabs"
                 style={{
@@ -70,7 +72,7 @@ export const SettingsDialog: React.FC = () => {
                       id={`settings-tab-${tab.id}`}
                     >
                       <Icon size={14} aria-hidden />
-                      <span className="truncate">{tab.label}</span>
+                      <span className="truncate">{t(tab.label)}</span>
                     </TabsTrigger>
                   );
                 })}

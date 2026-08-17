@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { ChevronLeft, ChevronRight, X } from "@/icons/lucide-compat";
 import { ToolcraftIconButton as IconButton } from "@openreel/ui";
 import type { TourStep } from "./tour-steps";
+import { useTranslation } from "react-i18next";
 
 interface TourPopoverProps {
   step: TourStep;
@@ -33,6 +34,7 @@ export const TourPopover: React.FC<TourPopoverProps> = ({
   onSkip,
   onGoToStep,
 }) => {
+  const { t } = useTranslation();
   const { position: computedPosition, arrowPosition } = useMemo(() => {
     if (!targetRect || step.position === "center") {
       return { position: { x: 0, y: 0 }, arrowPosition: null };
@@ -150,7 +152,7 @@ export const TourPopover: React.FC<TourPopoverProps> = ({
         )}
 
         <IconButton
-          label="Skip tour"
+          label={t("Skip tour")}
           icon={<X size={14} />}
           variant="ghost"
           size="sm"
@@ -166,7 +168,7 @@ export const TourPopover: React.FC<TourPopoverProps> = ({
             transition={{ delay: 0.1 }}
             className="text-lg font-bold text-text-primary mb-2"
           >
-            {step.title}
+            {t(step.title)}
           </motion.h2>
 
           <motion.p
@@ -221,27 +223,26 @@ export const TourPopover: React.FC<TourPopoverProps> = ({
         <div className="grid grid-cols-[88px_1fr_108px] items-center gap-3 px-4 py-3 border-t border-border bg-background-tertiary rounded-b-xl">
           <button
             type="button"
-            aria-label="Back"
+            aria-label={t("Back")}
             onClick={onPrev}
             disabled={isFirstStep}
             className="inline-flex h-9 min-w-[88px] items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-3 text-xs font-medium text-text-secondary transition-colors hover:bg-background-secondary hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-30"
           >
             <ChevronLeft size={14} className="shrink-0" aria-hidden />
-            <span>Back</span>
+            <span>{t("Back")}</span>
           </button>
 
           <button
             type="button"
-            aria-label="Skip tour"
+            aria-label={t("Skip tour")}
             onClick={onSkip}
             className="mx-auto inline-flex h-9 items-center justify-center whitespace-nowrap rounded-lg px-3 text-xs font-medium text-text-muted transition-colors hover:bg-background-secondary hover:text-text-secondary"
           >
-            Skip Tour
-          </button>
+            {t("Skip Tour")}</button>
 
           <button
             type="button"
-            aria-label={isLastStep ? "Get Started" : "Next"}
+            aria-label={isLastStep ? t("Get Started") : t("Next")}
             onClick={onNext}
             className="inline-flex h-9 min-w-[108px] items-center justify-center gap-1.5 whitespace-nowrap rounded-lg bg-primary px-4 text-xs font-semibold text-primary-foreground transition-colors hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >

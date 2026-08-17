@@ -15,6 +15,7 @@ import type {
   VectorscopeData,
   HistogramData,
 } from "@openreel/core";
+import { useTranslation } from "react-i18next";
 
 /**
  * Scope view types
@@ -411,6 +412,7 @@ export const ScopesPanel: React.FC<ScopesPanelProps> = ({
   defaultView = "waveform",
   onScopeDataGenerated,
 }) => {
+  const { t } = useTranslation();
   const [activeView, setActiveView] = useState<ScopeViewType>(defaultView);
   const [waveformData, setWaveformData] = useState<WaveformScopeData | null>(
     null,
@@ -484,16 +486,14 @@ export const ScopesPanel: React.FC<ScopesPanelProps> = ({
     if (isLoading) {
       return (
         <Text type="supporting" color="secondary" className="flex h-40 items-center justify-center text-xs">
-          Generating scope data...
-        </Text>
+          {t("Generating scope data...")}</Text>
       );
     }
 
     if (!frameImage) {
       return (
         <Text type="supporting" color="secondary" className="flex h-40 items-center justify-center text-xs">
-          No frame to analyze
-        </Text>
+          {t("No frame to analyze")}</Text>
       );
     }
 
@@ -507,7 +507,7 @@ export const ScopesPanel: React.FC<ScopesPanelProps> = ({
                 {showRGBWaveform ? "RGB Parade" : "Luminance"}
               </Text>
               <Button
-                label={showRGBWaveform ? "Show Luma" : "Show RGB"}
+                label={showRGBWaveform ? t("Show Luma") : t("Show RGB")}
                 variant="ghost"
                 size="sm"
                 onClick={() => setShowRGBWaveform(!showRGBWaveform)}
@@ -530,6 +530,7 @@ export const ScopesPanel: React.FC<ScopesPanelProps> = ({
     waveformData,
     vectorscopeData,
     histogramData,
+    t,
     showRGBWaveform,
   ]);
 
@@ -541,19 +542,19 @@ export const ScopesPanel: React.FC<ScopesPanelProps> = ({
           active={activeView === "waveform"}
           onClick={() => handleViewChange("waveform")}
           icon={<Activity size={12} />}
-          label="Waveform"
+          label={t("Waveform")}
         />
         <ViewToggleButton
           active={activeView === "vectorscope"}
           onClick={() => handleViewChange("vectorscope")}
           icon={<Circle size={12} />}
-          label="Vectorscope"
+          label={t("Vectorscope")}
         />
         <ViewToggleButton
           active={activeView === "histogram"}
           onClick={() => handleViewChange("histogram")}
           icon={<BarChart3 size={12} />}
-          label="Histogram"
+          label={t("Histogram")}
         />
       </div>
 

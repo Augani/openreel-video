@@ -9,12 +9,14 @@ import { MotionCreatorShell } from "./MotionCreatorShell";
 import { useMotionPlayback } from "./hooks/use-motion-playback";
 import { useMotionAudioPlayback } from "./hooks/use-motion-audio-playback";
 import { useMotionStore } from "./stores/motion-store";
+import { useTranslation } from "react-i18next";
 
 interface MotionCreatorAppProps {
   embedded?: boolean;
 }
 
 export function MotionCreatorApp({ embedded = false }: MotionCreatorAppProps) {
+  const { t } = useTranslation();
   const { params } = useRouter();
   const hasOpenProject = useProjectStore((state) => state.hasOpenProject);
   const createNewProject = useProjectStore((state) => state.createNewProject);
@@ -111,8 +113,7 @@ export function MotionCreatorApp({ embedded = false }: MotionCreatorAppProps) {
       <div
         className={`flex ${embedded ? "h-full w-full" : "h-screen w-screen"} items-center justify-center bg-[#0c0f14] text-sm text-white/60`}
       >
-        Preparing Motion Creator...
-      </div>
+        {t("Preparing Motion Creator...")}</div>
     );
   }
 

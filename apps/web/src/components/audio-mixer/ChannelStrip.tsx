@@ -4,6 +4,7 @@ import { volumeToDb, formatDb, formatPan } from "./types";
 import { ToolcraftButton as Button } from "@openreel/ui";
 import { ToolcraftSlider as Slider } from "@openreel/ui";
 import { ToolcraftText as Text } from "@openreel/ui";
+import { useTranslation } from "react-i18next";
 
 export interface ChannelStripProps {
   channel: ChannelStripState;
@@ -73,6 +74,7 @@ const Fader: React.FC<{
   onChange: (value: number) => void;
   disabled?: boolean;
 }> = ({ value, onChange, disabled }) => {
+  const { t } = useTranslation();
   const dbValue = volumeToDb(value);
 
   return (
@@ -81,7 +83,7 @@ const Fader: React.FC<{
         {formatDb(dbValue)} dB
       </span>
       <Slider
-        label="Volume fader"
+        label={t("Volume fader")}
         isLabelHidden
         min={0}
         max={4}
@@ -120,13 +122,14 @@ const PanKnob: React.FC<{
   onChange: (value: number) => void;
   disabled?: boolean;
 }> = ({ value, onChange, disabled }) => {
+  const { t } = useTranslation();
   return (
     <div className="flex flex-col items-center gap-1">
       <span className="text-xs text-gray-400 font-mono">
         {formatPan(value)}
       </span>
       <Slider
-        label="Pan control"
+        label={t("Pan control")}
         isLabelHidden
         min={-1}
         max={1}

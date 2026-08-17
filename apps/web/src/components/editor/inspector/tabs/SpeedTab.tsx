@@ -2,6 +2,7 @@ import React from "react";
 import type { Clip } from "@openreel/core";
 import { SpeedSection, StabilizationSection, SpeedRampSection } from "../";
 import { InspectorSection } from "../shell/InspectorSection";
+import { useTranslation } from "react-i18next";
 
 interface SpeedTabClip {
   id: string;
@@ -17,6 +18,7 @@ export const SpeedTab: React.FC<SpeedTabProps> = ({
   showVideoControls,
   selectedClip,
 }) => {
+  const { t } = useTranslation();
   return (
     <>
       {showVideoControls &&
@@ -27,7 +29,7 @@ export const SpeedTab: React.FC<SpeedTabProps> = ({
         !selectedClip.mediaId.startsWith("sticker-") && (
           <>
             <InspectorSection
-              title="Speed & Direction"
+              title={t("Speed & Direction")}
               sectionId="speed"
               defaultOpen={false}
             >
@@ -42,7 +44,7 @@ export const SpeedTab: React.FC<SpeedTabProps> = ({
         !selectedClip.mediaId.startsWith("svg-") &&
         !selectedClip.mediaId.startsWith("sticker-") && (
           <InspectorSection
-            title="Stabilization"
+            title={t("Stabilization")}
             sectionId="stabilization"
             defaultOpen={false}
           >
@@ -56,7 +58,7 @@ export const SpeedTab: React.FC<SpeedTabProps> = ({
         !selectedClip.mediaId.startsWith("svg-") &&
         !selectedClip.mediaId.startsWith("sticker-") && (
           <InspectorSection
-            title="Speed Curves"
+            title={t("Speed Curves")}
             sectionId="speed-curves"
             defaultOpen={false}
           >

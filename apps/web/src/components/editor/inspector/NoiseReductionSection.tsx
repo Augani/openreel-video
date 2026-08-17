@@ -35,6 +35,7 @@ import {
   loadAudioBuffer,
   type AudioLoadProgress,
 } from "../../../utils/load-audio-buffer";
+import { useTranslation } from "react-i18next";
 
 /**
  * NoiseReductionSection Props
@@ -266,6 +267,7 @@ export const buildRecommendationProfile = (
 export const NoiseReductionSection: React.FC<NoiseReductionSectionProps> = ({
   clipId,
 }) => {
+  const { t } = useTranslation();
   const defaultFocus = DEFAULT_NOISE_REDUCTION.focus ?? "balanced";
   const project = useProjectStore((state) => state.project);
   const audioTargetClip = React.useMemo(() => {
@@ -702,37 +704,37 @@ export const NoiseReductionSection: React.FC<NoiseReductionSectionProps> = ({
     switch (learningState) {
       case "learning":
         return {
-          label: "Analyzing...",
+          label: t("Analyzing..."),
           icon: <Wand2 size={12} aria-hidden />,
           isLoading: true,
         };
       case "applying":
         return {
-          label: "Applying cleanup...",
+          label: t("Applying cleanup..."),
           icon: <Wand2 size={12} aria-hidden />,
           isLoading: true,
         };
       case "ready":
         return {
-          label: "Recommendation Ready",
+          label: t("Recommendation Ready"),
           icon: <Check size={12} aria-hidden />,
           isLoading: false,
         };
       case "success":
         return {
-          label: "Cleanup Applied",
+          label: t("Cleanup Applied"),
           icon: <Check size={12} aria-hidden />,
           isLoading: false,
         };
       case "error":
         return {
-          label: "Analysis Failed",
+          label: t("Analysis Failed"),
           icon: <AlertCircle size={12} aria-hidden />,
           isLoading: false,
         };
       default:
         return {
-          label: "Analyze & Recommend",
+          label: t("Analyze & Recommend"),
           icon: <Wand2 size={12} aria-hidden />,
           isLoading: false,
         };
@@ -770,12 +772,11 @@ export const NoiseReductionSection: React.FC<NoiseReductionSectionProps> = ({
               weight="bold"
               className="text-[10px]"
             >
-              Noise Reduction
-            </Text>
+              {t("Noise Reduction")}</Text>
           </div>
         </ClickableCard>
         <MockToggle
-          ariaLabel="Enable noise reduction"
+          ariaLabel={t("Enable noise reduction")}
           checked={enabled}
           onChange={handleToggle}
         />
@@ -788,9 +789,7 @@ export const NoiseReductionSection: React.FC<NoiseReductionSectionProps> = ({
             color="secondary"
             className="text-[9px] leading-relaxed"
           >
-            Reduce white noise, wind, hum, room tone, and background music while
-            keeping speech or the wanted audio in front.
-          </Text>
+            {t("Reduce white noise, wind, hum, room tone, and background music while keeping speech or the wanted audio in front.")}</Text>
 
           <div className="grid grid-cols-2 gap-2">
             {NOISE_REDUCTION_PRESETS.map((preset) => {
@@ -814,7 +813,7 @@ export const NoiseReductionSection: React.FC<NoiseReductionSectionProps> = ({
                     weight="bold"
                     className="block text-[10px]"
                   >
-                    {preset.label}
+                    {t(preset.label)}
                   </Text>
                   <Text
                     type="supporting"
@@ -835,7 +834,7 @@ export const NoiseReductionSection: React.FC<NoiseReductionSectionProps> = ({
           >
             <div className="flex items-center justify-between gap-2">
               <Text type="supporting" color="secondary" className="text-[9px]">
-                Current mode: {activePreset.label}
+                {t("Current mode: ")}{t(activePreset.label)}
               </Text>
               <Text
                 type="supporting"
@@ -875,15 +874,14 @@ export const NoiseReductionSection: React.FC<NoiseReductionSectionProps> = ({
                   weight="bold"
                   className="text-[10px]"
                 >
-                  Recommendation ready
-                </Text>
+                  {t("Recommendation ready")}</Text>
               </div>
               <Text
                 type="supporting"
                 color="secondary"
                 className="text-[9px] leading-relaxed"
               >
-                Detected noise best matches {recommendationPreset.label.toLowerCase()}.
+                {t("Detected noise best matches ")}{recommendationPreset.label.toLowerCase()}.
                 {recommendation.hasLearnedProfile
                   ? ` Apply ${Math.round(recommendation.config.reduction * 100)}% cleanup at ${recommendation.config.threshold.toFixed(0)} dB to save this profile on the clip.`
                   : ` Apply ${Math.round(recommendation.config.reduction * 100)}% cleanup at ${recommendation.config.threshold.toFixed(0)} dB. A custom profile could not be isolated, so this recommendation uses the best preset match for the clip.`}
@@ -891,8 +889,8 @@ export const NoiseReductionSection: React.FC<NoiseReductionSectionProps> = ({
               <Button
                 label={
                   learningState === "applying"
-                    ? "Applying..."
-                    : "Apply Recommended Cleanup"
+                    ? t("Applying...")
+                    : t("Apply Recommended Cleanup")
                 }
                 variant="primary"
                 size="sm"
@@ -910,18 +908,17 @@ export const NoiseReductionSection: React.FC<NoiseReductionSectionProps> = ({
             className="space-y-2 border border-border/70 bg-bg-1/60"
           >
             <Text type="supporting" color="primary" weight="bold" className="text-[9px]">
-              A/B Preview
-            </Text>
+              {t("A/B Preview")}</Text>
             <div className="grid grid-cols-2 gap-2">
               <Button
-                label="Hear Original"
+                label={t("Hear Original")}
                 variant={previewingOriginal ? "primary" : "secondary"}
                 size="sm"
                 onClick={() => handleSetPreviewMode("original")}
                 isDisabled={!effectId}
               />
               <Button
-                label="Hear Cleaned"
+                label={t("Hear Cleaned")}
                 variant={!previewingOriginal ? "primary" : "secondary"}
                 size="sm"
                 onClick={() => handleSetPreviewMode("cleaned")}
@@ -933,12 +930,11 @@ export const NoiseReductionSection: React.FC<NoiseReductionSectionProps> = ({
               color="secondary"
               className="text-[9px] leading-relaxed"
             >
-              Preview only. Export still uses the cleaned audio effect chain.
-            </Text>
+              {t("Preview only. Export still uses the cleaned audio effect chain.")}</Text>
           </Card>
 
           <PropertySlider
-            label="Threshold"
+            label={t("Threshold")}
             value={config.threshold}
             onChange={(value: number) => handleConfigChange("threshold", value)}
             min={-80}
@@ -947,7 +943,7 @@ export const NoiseReductionSection: React.FC<NoiseReductionSectionProps> = ({
           />
 
           <PropertySlider
-            label="Reduction"
+            label={t("Reduction")}
             value={config.reduction * 100}
             onChange={(value: number) =>
               handleConfigChange("reduction", value / 100)
@@ -958,7 +954,7 @@ export const NoiseReductionSection: React.FC<NoiseReductionSectionProps> = ({
           />
 
           <PropertySlider
-            label="Attack"
+            label={t("Attack")}
             value={config.attack ?? 10}
             onChange={(value: number) => handleConfigChange("attack", value)}
             min={0}
@@ -967,7 +963,7 @@ export const NoiseReductionSection: React.FC<NoiseReductionSectionProps> = ({
           />
 
           <PropertySlider
-            label="Release"
+            label={t("Release")}
             value={config.release ?? 100}
             onChange={(value: number) => handleConfigChange("release", value)}
             min={0}
@@ -976,7 +972,7 @@ export const NoiseReductionSection: React.FC<NoiseReductionSectionProps> = ({
           />
 
           <Button
-            label={learnButtonState.label}
+            label={t(learnButtonState.label)}
             icon={learnButtonState.icon}
             variant="primary"
             size="sm"
@@ -992,7 +988,7 @@ export const NoiseReductionSection: React.FC<NoiseReductionSectionProps> = ({
                 {analysisProgress.message}
               </Text>
               <ProgressBar
-                label="Noise analysis progress"
+                label={t("Noise analysis progress")}
                 isLabelHidden
                 value={Math.round(analysisProgress.progress * 100)}
                 max={100}
@@ -1017,10 +1013,8 @@ export const NoiseReductionSection: React.FC<NoiseReductionSectionProps> = ({
               color="secondary"
               className="block text-[9px] text-center"
             >
-              Learned noise profile is active on this clip.
-              <br />
-              Auto-tuned with {activePreset.label.toLowerCase()} and reused for export cleanup.
-            </Text>
+              {t("Learned noise profile is active on this clip. ")}<br />
+              {t("Auto-tuned with ")}{activePreset.label.toLowerCase()} {t(" and reused for export cleanup.")}</Text>
           )}
         </div>
       )}

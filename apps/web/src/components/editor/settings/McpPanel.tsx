@@ -7,6 +7,7 @@ import { ToolcraftText as Text } from "@openreel/ui";
 import { useSettingsStore } from "../../../stores/settings-store";
 import { toast } from "../../../stores/notification-store";
 import type { OpenReelMcpStatus } from "../../../types/global";
+import { useTranslation } from "react-i18next";
 
 const isDesktop = (): boolean =>
   typeof window !== "undefined" && window.openreel?.platform === "desktop";
@@ -36,6 +37,7 @@ async function copy(value: string, label: string): Promise<void> {
 }
 
 export const McpPanel: React.FC = () => {
+  const { t } = useTranslation();
   const mcpAutoAllow = useSettingsStore((s) => s.mcpAutoAllowTrustedLocal);
   const setMcpAutoAllow = useSettingsStore((s) => s.setMcpAutoAllowTrustedLocal);
 
@@ -105,13 +107,9 @@ export const McpPanel: React.FC = () => {
       <div className="flex flex-col items-center justify-center py-16 text-center">
         <Plug size={28} className="mb-3 text-text-muted" />
         <Text type="body" color="primary" className="text-sm font-medium">
-          Desktop only
-        </Text>
+          {t("Desktop only")}</Text>
         <Text type="supporting" color="secondary" className="mt-1 max-w-sm text-xs">
-          The MCP server runs inside the OpenReel desktop app, letting external AI
-          clients (Claude Desktop, Cursor, Cline) edit your project. Open OpenReel
-          on desktop to configure it.
-        </Text>
+          {t("The MCP server runs inside the OpenReel desktop app, letting external AI clients (Claude Desktop, Cursor, Cline) edit your project. Open OpenReel on desktop to configure it.")}</Text>
       </div>
     );
   }
@@ -127,19 +125,14 @@ export const McpPanel: React.FC = () => {
       <div className="space-y-4">
         <div>
           <Text type="body" color="primary" className="text-sm font-medium">
-            MCP Server
-          </Text>
+            {t("MCP Server")}</Text>
           <Text type="supporting" color="secondary" className="mt-0.5 text-xs">
-            A local Model Context Protocol server lets AI clients drive this
-            editor through the same tools as the built-in chat. It listens on
-            loopback only and requires the bearer token below.
-          </Text>
+            {t("A local Model Context Protocol server lets AI clients drive this editor through the same tools as the built-in chat. It listens on loopback only and requires the bearer token below.")}</Text>
         </div>
 
         <div className="flex items-center gap-2">
           <Text type="supporting" color="secondary" className="w-20 shrink-0 text-xs">
-            Status
-          </Text>
+            {t("Status")}</Text>
           <Text
             type="supporting"
             className={`inline-flex items-center gap-1.5 text-xs font-medium ${
@@ -158,8 +151,7 @@ export const McpPanel: React.FC = () => {
 
         <div className="flex items-center gap-2">
           <Text type="supporting" color="secondary" className="w-20 shrink-0 text-xs">
-            Tools
-          </Text>
+            {t("Tools")}</Text>
           <Text type="supporting" color="secondary" className="text-xs">
             {toolCount === null
               ? status?.running
@@ -171,13 +163,12 @@ export const McpPanel: React.FC = () => {
 
         <div className="flex items-center gap-2">
           <Text type="supporting" color="secondary" className="w-20 shrink-0 text-xs">
-            URL
-          </Text>
+            {t("URL")}</Text>
           <code className="flex-1 font-mono text-xs bg-background rounded px-3 py-2 text-text-secondary truncate">
             {status?.url || "—"}
           </code>
           <IconButton
-            label="Copy URL"
+            label={t("Copy URL")}
             onClick={() => status?.url && copy(status.url, "URL")}
             variant="ghost"
             size="sm"
@@ -188,13 +179,12 @@ export const McpPanel: React.FC = () => {
 
         <div className="flex items-center gap-2">
           <Text type="supporting" color="secondary" className="w-20 shrink-0 text-xs">
-            Token
-          </Text>
+            {t("Token")}</Text>
           <code className="flex-1 font-mono text-xs bg-background rounded px-3 py-2 text-text-secondary truncate">
             {tokenDisplay}
           </code>
           <IconButton
-            label={revealToken ? "Hide token" : "Show token"}
+            label={revealToken ? t("Hide token") : t("Show token")}
             onClick={() => setRevealToken((v) => !v)}
             variant="ghost"
             size="sm"
@@ -202,7 +192,7 @@ export const McpPanel: React.FC = () => {
             className="text-text-muted hover:bg-background-tertiary hover:text-text-primary"
           />
           <IconButton
-            label="Copy token"
+            label={t("Copy token")}
             onClick={() => status?.token && copy(status.token, "Token")}
             variant="ghost"
             size="sm"
@@ -210,7 +200,7 @@ export const McpPanel: React.FC = () => {
             className="text-text-muted hover:bg-background-tertiary hover:text-text-primary"
           />
           <IconButton
-            label="Rotate token"
+            label={t("Rotate token")}
             onClick={handleRotate}
             variant="ghost"
             size="sm"
@@ -220,7 +210,7 @@ export const McpPanel: React.FC = () => {
         </div>
 
         <Button
-          label={testing ? "Testing..." : "Test connection"}
+          label={testing ? t("Testing...") : t("Test connection")}
           size="sm"
           variant="secondary"
           onClick={handleTest}
@@ -234,11 +224,9 @@ export const McpPanel: React.FC = () => {
       <div className="space-y-3">
         <div>
           <Text type="body" color="primary" className="text-sm font-medium">
-            Available Workflows
-          </Text>
+            {t("Available Workflows")}</Text>
           <Text type="supporting" color="secondary" className="mt-0.5 text-xs">
-            The live catalog includes focused tools for each desktop workspace.
-          </Text>
+            {t("The live catalog includes focused tools for each desktop workspace.")}</Text>
         </div>
         <div className="grid grid-cols-2 gap-2">
           {[
@@ -264,19 +252,16 @@ export const McpPanel: React.FC = () => {
       <div className="space-y-4">
         <div>
           <Text type="body" color="primary" className="text-sm font-medium">
-            Client Setup
-          </Text>
+            {t("Client Setup")}</Text>
           <Text type="supporting" color="secondary" className="mt-0.5 text-xs">
-            Add this to your MCP client config (Claude Desktop, Cursor, Cline).
-            The shim connects to the running app automatically.
-          </Text>
+            {t("Add this to your MCP client config (Claude Desktop, Cursor, Cline). The shim connects to the running app automatically.")}</Text>
         </div>
         <div className="relative">
           <pre className="overflow-x-auto rounded bg-background px-3 py-2 font-mono text-[11px] text-text-secondary">
             {clientConfigSnippet(status?.shimPath ?? "")}
           </pre>
           <IconButton
-            label="Copy config"
+            label={t("Copy config")}
             onClick={() =>
               copy(clientConfigSnippet(status?.shimPath ?? ""), "Config")
             }
@@ -292,21 +277,16 @@ export const McpPanel: React.FC = () => {
 
       <div className="space-y-4">
         <Text type="body" color="primary" className="text-sm font-medium">
-          Trusted Local
-        </Text>
+          {t("Trusted Local")}</Text>
         <div className="flex items-center justify-between">
           <div>
             <Text type="supporting" color="secondary" className="text-sm">
-              Auto-allow destructive actions
-            </Text>
+              {t("Auto-allow destructive actions")}</Text>
             <Text type="supporting" color="secondary" className="mt-0.5 max-w-md text-xs">
-              When off, destructive or expensive tool calls over MCP
-              are refused with a confirmation-required notice. Turn on only if you
-              trust every connected local client.
-            </Text>
+              {t("When off, destructive or expensive tool calls over MCP are refused with a confirmation-required notice. Turn on only if you trust every connected local client.")}</Text>
           </div>
           <ToolcraftSwitchControl
-            ariaLabel="Auto-allow destructive actions"
+            ariaLabel={t("Auto-allow destructive actions")}
             checked={mcpAutoAllow}
             onCheckedChange={setMcpAutoAllow}
             showLabel={false}

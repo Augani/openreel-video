@@ -22,6 +22,7 @@ import { TemplatesBrowserPanel } from "./inspector/TemplatesBrowserPanel";
 import { MultiCameraPanel } from "./inspector/MultiCameraPanel";
 import { useTtsAudioStore } from "../../stores/tts-store";
 import { toast } from "../../stores/notification-store";
+import { useTranslation } from "react-i18next";
 
 type FeatureId = "templates" | "captions" | "tts" | "filters" | "music" | "multicam" | null;
 
@@ -107,6 +108,7 @@ const FeatureSection: React.FC<FeatureSectionProps> = ({ title, icon: Icon, chil
 );
 
 export const AIGenTab: React.FC = () => {
+  const { t } = useTranslation();
   const [activeFeature, setActiveFeature] = useState<FeatureId>(null);
   const ttsHasUnsaved = useTtsAudioStore((s) => s.generatedAudio !== null && !s.isAudioSaved);
 
@@ -144,7 +146,7 @@ export const AIGenTab: React.FC = () => {
     return (
       <div className="flex-1 flex flex-col overflow-y-auto w-full min-w-0">
         <Button
-          label="Back to AI Tools"
+          label={t("Back to AI Tools")}
           onClick={() => navigateAway(null)}
           variant="ghost"
           icon={<ChevronRight size={14} className="rotate-180" aria-hidden />}
@@ -165,18 +167,16 @@ export const AIGenTab: React.FC = () => {
             <Wand2 size={24} className="text-primary" aria-hidden />
           </div>
           <Text as="h2" type="label" weight="bold" display="block">
-            AI-Powered Tools
-          </Text>
+            {t("AI-Powered Tools")}</Text>
           <Text type="supporting" color="secondary" display="block" className="mt-1 text-[11px]">
-            Automate your editing with intelligent features
-          </Text>
+            {t("Automate your editing with intelligent features")}</Text>
         </div>
 
-        <FeatureSection title="Content Generation" icon={Wand2}>
+        <FeatureSection title={t("Content Generation")} icon={Wand2}>
           <FeatureCard
             icon={Mic}
-            title="Text to Speech"
-            description="Generate natural voiceovers from text"
+            title={t("Text to Speech")}
+            description={t("Generate natural voiceovers from text")}
             iconColor="text-blue-400"
             iconBg="bg-blue-500/20"
             activeBorder="border-blue-500/50"
@@ -187,8 +187,8 @@ export const AIGenTab: React.FC = () => {
           />
           <FeatureCard
             icon={Subtitles}
-            title="Auto Captions"
-            description="Automatically generate subtitles from audio"
+            title={t("Auto Captions")}
+            description={t("Automatically generate subtitles from audio")}
             iconColor="text-primary"
             iconBg="bg-primary/20"
             activeBorder="border-primary/50"
@@ -199,11 +199,11 @@ export const AIGenTab: React.FC = () => {
           />
         </FeatureSection>
 
-        <FeatureSection title="Templates & Presets" icon={FileStack}>
+        <FeatureSection title={t("Templates & Presets")} icon={FileStack}>
           <FeatureCard
             icon={Layers}
-            title="Project Templates"
-            description="Start with pre-built project structures"
+            title={t("Project Templates")}
+            description={t("Start with pre-built project structures")}
             iconColor="text-green-400"
             iconBg="bg-green-500/20"
             activeBorder="border-green-500/50"
@@ -214,8 +214,8 @@ export const AIGenTab: React.FC = () => {
           />
           <FeatureCard
             icon={Palette}
-            title="Filter Presets"
-            description="Apply cinematic color grades instantly"
+            title={t("Filter Presets")}
+            description={t("Apply cinematic color grades instantly")}
             iconColor="text-orange-400"
             iconBg="bg-orange-500/20"
             activeBorder="border-orange-500/50"
@@ -226,11 +226,11 @@ export const AIGenTab: React.FC = () => {
           />
         </FeatureSection>
 
-        <FeatureSection title="Media Library" icon={Volume2}>
+        <FeatureSection title={t("Media Library")} icon={Volume2}>
           <FeatureCard
             icon={Music}
-            title="Music & Sound Effects"
-            description="Browse royalty-free audio for your projects"
+            title={t("Music & Sound Effects")}
+            description={t("Browse royalty-free audio for your projects")}
             iconColor="text-teal-400"
             iconBg="bg-teal-500/20"
             activeBorder="border-teal-500/50"
@@ -241,11 +241,11 @@ export const AIGenTab: React.FC = () => {
           />
         </FeatureSection>
 
-        <FeatureSection title="Tools" icon={Video}>
+        <FeatureSection title={t("Tools")} icon={Video}>
           <FeatureCard
             icon={Video}
-            title="Multi-Camera Editing"
-            description="Sync and switch between multiple angles"
+            title={t("Multi-Camera Editing")}
+            description={t("Sync and switch between multiple angles")}
             iconColor="text-cyan-400"
             iconBg="bg-cyan-500/20"
             activeBorder="border-cyan-500/50"
@@ -258,8 +258,7 @@ export const AIGenTab: React.FC = () => {
 
         <div className="pt-2 border-t border-border">
           <Text type="supporting" color="secondary" display="block" justify="center" className="text-[9px]">
-            More AI features coming soon — image generation, auto-edit, and more
-          </Text>
+            {t("More AI features coming soon — image generation, auto-edit, and more")}</Text>
         </div>
       </div>
     </div>

@@ -17,6 +17,7 @@ import {
   Slider,
   TextInput,
 } from "../primitives";
+import { useTranslation } from "react-i18next";
 
 interface Scene3DInspectorProps {
   readonly layer: MotionScene3DLayer;
@@ -63,6 +64,7 @@ export function Scene3DInspector({
   layer,
   replaceLayer,
 }: Scene3DInspectorProps): JSX.Element {
+  const { t } = useTranslation();
   const objects = layer.objects ?? [];
   const [activeId, setActiveId] = useState<string>(objects[0]?.id ?? "");
 
@@ -125,7 +127,7 @@ export function Scene3DInspector({
 
   return (
     <>
-      <Section title="Objects" keepOpenInAccordion>
+      <Section title={t("Objects")} keepOpenInAccordion>
         <div className="space-y-1">
           {objects.map((object) => (
             <div
@@ -158,22 +160,21 @@ export function Scene3DInspector({
         </div>
         <button
           type="button"
-          aria-label="Add object"
+          aria-label={t("Add object")}
           onClick={addObject}
           className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-[7px] border border-dashed border-border-strong py-2 text-[12px] font-medium text-fg-2 hover:text-accent hover:border-accent"
         >
-          <Plus size={13} aria-hidden /> Add object
-        </button>
+          <Plus size={13} aria-hidden /> {t(" Add object")}</button>
       </Section>
 
       {active ? (
         <>
-        <Section title="Geometry" keepOpenInAccordion>
-          <Field label="Kind">
+        <Section title={t("Geometry")} keepOpenInAccordion>
+          <Field label={t("Kind")}>
             <SelectInput
               value={active.object.kind}
               options={KIND_OPTIONS}
-              placeholder="Geometry kind"
+              placeholder={t("Geometry kind")}
               onChange={(value) =>
                 value
                   ? patchActiveObject({ kind: value as MotionObject3DKind })
@@ -181,7 +182,7 @@ export function Scene3DInspector({
               }
             />
           </Field>
-          <Field label="Size">
+          <Field label={t("Size")}>
             <NumberInput
               value={active.object.size ?? 0.5}
               min={0.05}
@@ -191,7 +192,7 @@ export function Scene3DInspector({
             />
           </Field>
           {active.object.kind === "model" ? (
-            <Field label="Model URL (.glb / .gltf)">
+            <Field label={t("Model URL (.glb / .gltf)")}>
               <TextInput
                 value={active.object.modelUrl ?? ""}
                 onChange={(value) => patchActiveObject({ modelUrl: value })}
@@ -200,7 +201,7 @@ export function Scene3DInspector({
             </Field>
           ) : null}
           {active.object.kind === "text3d" ? (
-            <Field label="Text">
+            <Field label={t("Text")}>
               <TextInput
                 value={active.object.text ?? ""}
                 onChange={(value) => patchActiveObject({ text: value })}
@@ -210,9 +211,9 @@ export function Scene3DInspector({
           ) : null}
         </Section>
 
-        <Section title="Material">
-          <Field label="Color">
-            <div role="group" aria-label="Material color">
+        <Section title={t("Material")}>
+          <Field label={t("Color")}>
+            <div role="group" aria-label={t("Material color")}>
               <ColorInput
                 value={active.material?.color ?? "#10b981"}
                 onChange={(value) =>
@@ -223,7 +224,7 @@ export function Scene3DInspector({
               />
             </div>
           </Field>
-          <Field label="Metalness">
+          <Field label={t("Metalness")}>
             <Slider
               value={active.material?.metalness ?? 0.1}
               min={0}
@@ -236,7 +237,7 @@ export function Scene3DInspector({
               }
             />
           </Field>
-          <Field label="Roughness">
+          <Field label={t("Roughness")}>
             <Slider
               value={active.material?.roughness ?? 0.4}
               min={0}
@@ -249,7 +250,7 @@ export function Scene3DInspector({
               }
             />
           </Field>
-          <Field label="Opacity">
+          <Field label={t("Opacity")}>
             <Slider
               value={active.material?.opacity ?? 1}
               min={0}
@@ -264,9 +265,9 @@ export function Scene3DInspector({
           </Field>
         </Section>
 
-        <Section title="Transform">
+        <Section title={t("Transform")}>
           <Vector3Row
-            label="Position"
+            label={t("Position")}
             value={active.transform3d?.position}
             onChange={(next) =>
               patchActive({
@@ -275,7 +276,7 @@ export function Scene3DInspector({
             }
           />
           <Vector3Row
-            label="Rotation"
+            label={t("Rotation")}
             value={active.transform3d?.rotation}
             step={1}
             onChange={(next) =>
@@ -285,7 +286,7 @@ export function Scene3DInspector({
             }
           />
           <Vector3Row
-            label="Scale"
+            label={t("Scale")}
             value={active.transform3d?.scale}
             step={0.05}
             onChange={(next) =>
@@ -298,9 +299,9 @@ export function Scene3DInspector({
         </>
       ) : null}
 
-      <Section title="Camera">
-        <Field label="FOV">
-          <div role="group" aria-label="Camera FOV">
+      <Section title={t("Camera")}>
+        <Field label={t("FOV")}>
+          <div role="group" aria-label={t("Camera FOV")}>
             <NumberInput
               value={layer.camera?.fov ?? 35}
               min={10}
@@ -316,7 +317,7 @@ export function Scene3DInspector({
           </div>
         </Field>
         <Vector3Row
-          label="Position"
+          label={t("Position")}
           value={layer.camera?.position}
           onChange={(next) =>
             replaceLayer({
@@ -326,7 +327,7 @@ export function Scene3DInspector({
           }
         />
         <Vector3Row
-          label="Target"
+          label={t("Target")}
           value={layer.camera?.target}
           onChange={(next) =>
             replaceLayer({

@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Layers } from "@/icons/lucide-compat";
 import type { AdjustmentLayer } from "@openreel/core";
 import { useProjectStore } from "../../../stores/project-store";
+import { useTranslation } from "react-i18next";
 
 interface AdjustmentLayerTimelineItemProps {
   layer: AdjustmentLayer;
@@ -18,6 +19,7 @@ export const AdjustmentLayerTimelineItem: React.FC<AdjustmentLayerTimelineItemPr
   frameRate,
   onSelectOwner,
 }) => {
+  const { t } = useTranslation();
   const [gesture, setGesture] = useState<"move" | "left" | "right" | null>(null);
   const startRef = useRef({ x: 0, startTime: 0, duration: 0 });
 
@@ -107,7 +109,7 @@ export const AdjustmentLayerTimelineItem: React.FC<AdjustmentLayerTimelineItemPr
         onMouseDown={(event) => startGesture(event, "left")}
       />
       <Layers size={10} className="ml-1 shrink-0" aria-hidden />
-      <span className="truncate px-1">FX · {layer.name}</span>
+      <span className="truncate px-1">{t("FX · ")}{layer.name}</span>
       <button
         type="button"
         aria-label={`Trim end of ${layer.name}`}

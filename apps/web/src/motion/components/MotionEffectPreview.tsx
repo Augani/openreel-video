@@ -7,6 +7,7 @@ import {
   type MotionEffect,
   type MotionShapeLayer,
 } from "@openreel/core";
+import { useTranslation } from "react-i18next";
 
 interface MotionEffectPreviewProps {
   effect: MotionEffect;
@@ -16,6 +17,7 @@ const PREVIEW_WIDTH = 180;
 const PREVIEW_HEIGHT = 84;
 
 export function MotionEffectPreview({ effect }: MotionEffectPreviewProps): JSX.Element {
+  const { t } = useTranslation();
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -44,8 +46,7 @@ export function MotionEffectPreview({ effect }: MotionEffectPreviewProps): JSX.E
         className="h-full w-full"
       />
       <span className="pointer-events-none absolute bottom-1.5 left-1.5 rounded bg-black/55 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-[0.12em] text-white/80 backdrop-blur-sm">
-        Preview
-      </span>
+        {t("Preview")}</span>
     </div>
   );
 }

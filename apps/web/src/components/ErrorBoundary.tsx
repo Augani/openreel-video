@@ -1,6 +1,8 @@
 import React from "react";
 import { ToolcraftButton as Button } from "@openreel/ui";
 import { ToolcraftText as Text } from "@openreel/ui";
+import { t } from "../i18n";
+import { useTranslation } from "react-i18next";
 
 interface ErrorBoundaryProps {
   children: React.ReactNode;
@@ -44,13 +46,12 @@ export class ErrorBoundary extends React.Component<
       return (
         <div className="flex flex-col items-center justify-center p-8 text-center bg-background-secondary/50 rounded-lg m-2">
           <Text type="supporting" weight="medium" className="text-red-400 text-sm mb-2">
-            Something went wrong
-          </Text>
+            {t("Something went wrong")}</Text>
           <Text type="supporting" color="secondary" className="text-text-muted text-xs mb-4 max-w-xs">
             {this.state.error?.message || "An unexpected error occurred"}
           </Text>
           <Button
-            label="Retry"
+            label={t("Retry")}
             variant="ghost"
             size="sm"
             onClick={this.handleRetry}
@@ -72,16 +73,18 @@ interface PanelErrorBoundaryProps {
 export const PanelErrorBoundary: React.FC<PanelErrorBoundaryProps> = ({
   name,
   children,
-}) => (
+}) => {
+  const { t } = useTranslation();
+  return (
   <ErrorBoundary
     fallback={
       <div className="flex-1 flex items-center justify-center p-4 text-center">
         <Text type="supporting" color="secondary" className="text-text-muted text-xs">
-          {name} failed to load. Please refresh the page.
-        </Text>
+          {name} {t(" failed to load. Please refresh the page.")}</Text>
       </div>
     }
   >
     {children}
   </ErrorBoundary>
 );
+};

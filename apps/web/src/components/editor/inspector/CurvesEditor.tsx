@@ -10,6 +10,7 @@ import { ToolcraftClickableCard as ClickableCard } from "@openreel/ui";
 import { ToolcraftText as Text } from "@openreel/ui";
 import { RotateCcw } from "@/icons/lucide-compat";
 import type { CurvesValues, CurvePoint } from "@openreel/core";
+import { useTranslation } from "react-i18next";
 
 export const DEFAULT_CURVES: CurvesValues = {
   rgb: [
@@ -153,6 +154,7 @@ export const CurvesEditor: React.FC<CurvesEditorProps> = ({
   onChange,
   onReset: _onReset,
 }) => {
+  const { t: tr } = useTranslation();
   void _onReset;
   const [activeChannel, setActiveChannel] = useState<keyof CurvesValues>("rgb");
   const [selectedPointIndex, setSelectedPointIndex] = useState<number | null>(
@@ -319,7 +321,7 @@ export const CurvesEditor: React.FC<CurvesEditorProps> = ({
       <div className="flex gap-1 justify-center">
         <ChannelTab
           channel="rgb"
-          label="RGB"
+          label={tr("RGB")}
           isActive={activeChannel === "rgb"}
           onClick={() => setActiveChannel("rgb")}
         />
@@ -430,10 +432,9 @@ export const CurvesEditor: React.FC<CurvesEditorProps> = ({
       {/* Controls */}
       <div className="flex justify-between items-center">
         <Text type="supporting" color="secondary" className="text-[9px]">
-          Click to add point • Double-click to remove
-        </Text>
+          {tr("Click to add point • Double-click to remove")}</Text>
         <Button
-          label="Reset"
+          label={tr("Reset")}
           icon={<RotateCcw size={10} />}
           variant="ghost"
           size="sm"
@@ -444,8 +445,7 @@ export const CurvesEditor: React.FC<CurvesEditorProps> = ({
 
       {/* Point count indicator */}
       <Text type="supporting" color="secondary" className="block text-center text-[9px]">
-        {currentPoints.length} points
-      </Text>
+        {currentPoints.length} {tr(" points")}</Text>
     </div>
   );
 };

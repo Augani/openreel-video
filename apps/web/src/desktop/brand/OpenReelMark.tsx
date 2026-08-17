@@ -1,4 +1,5 @@
 import type { JSX } from "react";
+import { useTranslation } from "react-i18next";
 
 const VIEWBOX = 64;
 const CENTER = VIEWBOX / 2;
@@ -31,6 +32,7 @@ export function OpenReelMark({
   size?: number;
   className?: string;
 }): JSX.Element {
+  const { t } = useTranslation();
   const dimension = Number.isFinite(size) && size > 0 ? size : 24;
   return (
     <svg
@@ -41,7 +43,7 @@ export function OpenReelMark({
       xmlns="http://www.w3.org/2000/svg"
       className={className}
       role="img"
-      aria-label="OpenReel"
+      aria-label={t("OpenReel")}
     >
       <circle
         cx={CENTER}

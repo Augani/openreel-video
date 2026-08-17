@@ -29,6 +29,7 @@ import type {
   ScriptableTemplateReplacements,
   ExtendedPlaceholderType,
 } from "@openreel/core";
+import { useTranslation } from "react-i18next";
 
 interface TemplatePreviewModalProps {
   template: ScriptableTemplate;
@@ -58,6 +59,7 @@ export const TemplatePreviewModal: React.FC<TemplatePreviewModalProps> = ({
   onClose,
   onApply,
 }) => {
+  const { t } = useTranslation();
   const getTemplateEngine = useEngineStore((state) => state.getTemplateEngine);
   const getTitleEngine = useEngineStore((state) => state.getTitleEngine);
   const loadProject = useProjectStore((state) => state.loadProject);
@@ -205,7 +207,7 @@ export const TemplatePreviewModal: React.FC<TemplatePreviewModalProps> = ({
       <Layout
         header={
           <DialogHeader
-            title={template.name}
+            title={t(template.name)}
             onOpenChange={(open) => !open && onClose()}
             subtitle={`${formatDuration(template.timeline.duration)} · ${template.placeholders.length} editable fields`}
           />
@@ -218,7 +220,7 @@ export const TemplatePreviewModal: React.FC<TemplatePreviewModalProps> = ({
                 {template.thumbnailUrl ? (
                   <img
                     src={template.thumbnailUrl}
-                    alt={template.name}
+                    alt={t(template.name)}
                     className="w-full h-full object-cover"
                   />
                 ) : (
@@ -237,8 +239,7 @@ export const TemplatePreviewModal: React.FC<TemplatePreviewModalProps> = ({
               {template.scenes && template.scenes.length > 0 && (
                 <div className="space-y-2">
                   <Text type="label" color="secondary" weight="medium" className="text-xs text-text-muted uppercase tracking-wide">
-                    Scenes
-                  </Text>
+                    {t("Scenes")}</Text>
                   <div className="flex flex-wrap gap-2">
                     {template.scenes.map((scene) => (
                       <div
@@ -250,7 +251,7 @@ export const TemplatePreviewModal: React.FC<TemplatePreviewModalProps> = ({
                           style={{ backgroundColor: scene.color || "#22c55e" }}
                         />
                         <span className="text-text-secondary">
-                          {scene.label}
+                          {t(scene.label)}
                         </span>
                         <span className="text-text-muted">
                           ({formatDuration(scene.endTime - scene.startTime)})
@@ -264,8 +265,7 @@ export const TemplatePreviewModal: React.FC<TemplatePreviewModalProps> = ({
 
             <div className="space-y-4">
               <Text type="label" color="primary" weight="medium" className="text-sm text-text-primary">
-                Customize Template
-              </Text>
+                {t("Customize Template")}</Text>
 
               {groupedPlaceholders.main.length > 0 && (
                 <div className="space-y-4">
@@ -334,9 +334,9 @@ export const TemplatePreviewModal: React.FC<TemplatePreviewModalProps> = ({
         }
         footer={
         <LayoutFooter>
-          <Button label="Cancel" variant="ghost" onClick={onClose} />
+          <Button label={t("Cancel")} variant="ghost" onClick={onClose} />
           <Button
-            label={isApplying ? "Applying..." : "Use Template"}
+            label={isApplying ? t("Applying...") : t("Use Template")}
             icon={isApplying ? (
               <div className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />
             ) : (
@@ -365,6 +365,7 @@ const PlaceholderInput: React.FC<PlaceholderInputProps> = ({
   value,
   onChange,
 }) => {
+  const { t } = useTranslation();
   const Icon = PLACEHOLDER_ICONS[placeholder.type] || Type;
   const displayValue = value ?? placeholder.defaultValue ?? "";
 
@@ -376,7 +377,7 @@ const PlaceholderInput: React.FC<PlaceholderInputProps> = ({
         return (
           <div className="space-y-1">
             <ToolcraftTextAreaControl
-              label={placeholder.label}
+              label={t(placeholder.label)}
               isLabelHidden
               value={String(displayValue)}
               onChange={onChange}
@@ -404,7 +405,7 @@ const PlaceholderInput: React.FC<PlaceholderInputProps> = ({
           return (
             <div className="flex items-center gap-3">
               <ToolcraftSliderControl
-                label={placeholder.label}
+                label={t(placeholder.label)}
                 isLabelHidden
                 value={Number(displayValue) || 0}
                 onChange={onChange}
@@ -423,7 +424,7 @@ const PlaceholderInput: React.FC<PlaceholderInputProps> = ({
 
         return (
           <ToolcraftNumberInputControl
-            label={placeholder.label}
+            label={t(placeholder.label)}
             isLabelHidden
             value={Number(displayValue) || 0}
             onChange={(next) => onChange(next ?? 0)}
@@ -454,7 +455,7 @@ const PlaceholderInput: React.FC<PlaceholderInputProps> = ({
               style={{ backgroundColor: String(displayValue) || "#000000" }}
             />
             <ToolcraftTextInputControl
-              label={placeholder.label}
+              label={t(placeholder.label)}
               isLabelHidden
               value={String(displayValue) || "#000000"}
               onChange={onChange}
@@ -467,7 +468,7 @@ const PlaceholderInput: React.FC<PlaceholderInputProps> = ({
       default:
         return (
           <ToolcraftTextInputControl
-            label={placeholder.label}
+            label={t(placeholder.label)}
             isLabelHidden
             value={String(displayValue)}
             onChange={onChange}
@@ -483,7 +484,7 @@ const PlaceholderInput: React.FC<PlaceholderInputProps> = ({
       <div className="flex items-center gap-2">
         <Icon size={14} className="text-text-muted" />
         <Text type="label" color="primary" weight="medium" className="text-sm text-text-primary">
-          {placeholder.label}
+          {t(placeholder.label)}
         </Text>
         {placeholder.required && (
           <span className="text-red-400 text-xs">*</span>

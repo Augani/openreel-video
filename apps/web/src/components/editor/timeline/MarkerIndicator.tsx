@@ -3,6 +3,7 @@ import { ToolcraftIconButton as IconButton } from "@openreel/ui";
 import { ToolcraftTextInputControl } from "@openreel/ui";
 import { Flag, X } from "@/icons/lucide-compat";
 import type { Marker } from "@openreel/core";
+import { useTranslation } from "react-i18next";
 
 interface MarkerIndicatorProps {
   marker: Marker;
@@ -21,6 +22,7 @@ export const MarkerIndicator: React.FC<MarkerIndicatorProps> = ({
   onRemove,
   onUpdate,
 }) => {
+  const { t } = useTranslation();
   const [isHovered, setIsHovered] = React.useState(false);
   const [isEditing, setIsEditing] = React.useState(false);
   const [editedLabel, setEditedLabel] = React.useState(marker.label);
@@ -86,7 +88,7 @@ export const MarkerIndicator: React.FC<MarkerIndicatorProps> = ({
         <Flag size={10} />
         {isEditing ? (
           <ToolcraftTextInputControl
-            label="Marker label"
+            label={t("Marker label")}
             isLabelHidden
             size="sm"
             width={92}
@@ -101,11 +103,11 @@ export const MarkerIndicator: React.FC<MarkerIndicatorProps> = ({
             onClick={(e) => e.stopPropagation()}
           />
         ) : (
-          <span>{marker.label}</span>
+          <span>{t(marker.label)}</span>
         )}
         {isHovered && onRemove && (
           <IconButton
-            label="Remove marker"
+            label={t("Remove marker")}
             icon={<X size={10} aria-hidden />}
             size="sm"
             variant="ghost"

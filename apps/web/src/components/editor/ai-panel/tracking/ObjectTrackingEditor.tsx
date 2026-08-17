@@ -13,6 +13,7 @@ import { loadMediaBlob } from "../../../../services/media-storage";
 import { submitSelectedClipJob } from "../../../../services/gpu-clip-submit";
 import { SelectionCanvas } from "../photo-tools/SelectionCanvas";
 import type { BBox } from "../photo-tools/object-removal-params";
+import { useTranslation } from "react-i18next";
 
 function captureFrame(blob: Blob, time: number): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -69,6 +70,7 @@ interface ObjectTrackingEditorProps {
 }
 
 export function ObjectTrackingEditor({ onClose }: ObjectTrackingEditorProps): JSX.Element {
+  const { t } = useTranslation();
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [bbox, setBBox] = useState<BBox | null>(null);
@@ -129,8 +131,8 @@ export function ObjectTrackingEditor({ onClose }: ObjectTrackingEditorProps): JS
       <Layout
         header={
           <DialogHeader
-            title="Object Tracking"
-            subtitle="Draw a box around the object to track across the clip."
+            title={t("Object Tracking")}
+            subtitle={t("Draw a box around the object to track across the clip.")}
             onOpenChange={(open) => !open && onClose()}
           />
         }
@@ -144,7 +146,7 @@ export function ObjectTrackingEditor({ onClose }: ObjectTrackingEditorProps): JS
               </Card>
             ) : !imageUrl ? (
               <EmptyState
-                title="Loading frame..."
+                title={t("Loading frame...")}
                 icon={<Spinner size="md" />}
                 isCompact
               />
@@ -159,9 +161,7 @@ export function ObjectTrackingEditor({ onClose }: ObjectTrackingEditorProps): JS
                   onPointsChange={() => {}}
                 />
                 <Text type="supporting" color="secondary" display="block" className="text-[11px]">
-                  Afterward, attach text or graphics to it in the Motion
-                  Tracking panel.
-                </Text>
+                  {t("Afterward, attach text or graphics to it in the Motion Tracking panel.")}</Text>
                 {error && (
                   <Card variant="red" padding={2}>
                     <Text type="supporting" className="text-red-200">
@@ -177,13 +177,13 @@ export function ObjectTrackingEditor({ onClose }: ObjectTrackingEditorProps): JS
           <LayoutFooter hasDivider>
             <div className="flex justify-end gap-2">
               <Button
-                label="Cancel"
+                label={t("Cancel")}
                 variant="ghost"
                 onClick={onClose}
                 isDisabled={busy}
               />
               <Button
-                label={busy ? "Submitting..." : "Track"}
+                label={busy ? t("Submitting...") : t("Track")}
                 variant="primary"
                 onClick={() => void submit()}
                 isDisabled={busy || !!loadError || !imageUrl}

@@ -12,6 +12,7 @@ import {
   DEFAULT_BEAT_SYNC_CONFIG,
 } from "../../../bridges/audio-text-sync-bridge";
 import type { SyncMode } from "@openreel/core";
+import { useTranslation } from "react-i18next";
 
 interface BeatSyncPanelProps {
   clipId: string;
@@ -25,6 +26,7 @@ const TRACK_ICONS: Record<string, React.ReactNode> = {
 };
 
 export const AudioTextSyncPanel: React.FC<BeatSyncPanelProps> = ({ clipId }) => {
+  const { t } = useTranslation();
   const [state, setState] = useState<BeatSyncState | null>(null);
   const [showSettings, setShowSettings] = useState(false);
 
@@ -86,8 +88,7 @@ export const AudioTextSyncPanel: React.FC<BeatSyncPanelProps> = ({ clipId }) => 
       <div className="flex items-center gap-2 text-fg-2">
         <Music size={14} aria-hidden />
         <Text type="supporting" color="secondary" className="text-[10px]">
-          Sync clips to the beat of this audio
-        </Text>
+          {t("Sync clips to the beat of this audio")}</Text>
       </div>
 
       {error && (
@@ -114,7 +115,7 @@ export const AudioTextSyncPanel: React.FC<BeatSyncPanelProps> = ({ clipId }) => 
                 </Text>
               </div>
               <ProgressBar
-                label="Beat detection progress"
+                label={t("Beat detection progress")}
                 isLabelHidden
                 value={progress.percent}
                 max={100}
@@ -123,7 +124,7 @@ export const AudioTextSyncPanel: React.FC<BeatSyncPanelProps> = ({ clipId }) => 
             </div>
           ) : (
             <Button
-              label="Detect Beats"
+              label={t("Detect Beats")}
               icon={<Music size={14} aria-hidden />}
               variant="primary"
               size="sm"
@@ -141,16 +142,14 @@ export const AudioTextSyncPanel: React.FC<BeatSyncPanelProps> = ({ clipId }) => 
           >
             <div>
               <Text type="supporting" color="secondary" className="block text-[10px]">
-                BPM Detected
-              </Text>
+                {t("BPM Detected")}</Text>
               <Text type="body" color="primary" weight="bold" className="text-lg">
                 {beatAnalysis.bpm}
               </Text>
             </div>
             <div className="text-right">
               <Text type="supporting" color="secondary" className="block text-[10px]">
-                Beats
-              </Text>
+                {t("Beats")}</Text>
               <Text type="body" color="primary" weight="bold" className="text-sm">
                 {beatAnalysis.beats.length}
               </Text>
@@ -159,14 +158,12 @@ export const AudioTextSyncPanel: React.FC<BeatSyncPanelProps> = ({ clipId }) => 
 
           <div className="space-y-2">
             <Text type="supporting" color="secondary" className="block text-[10px]">
-              Select tracks to sync to beats:
-            </Text>
+              {t("Select tracks to sync to beats:")}</Text>
 
             {availableTracks.length === 0 ? (
               <Card variant="muted" padding={3}>
                 <Text type="supporting" color="secondary" className="text-[10px]">
-                  No other tracks with clips found. Add clips to other tracks first.
-                </Text>
+                  {t("No other tracks with clips found. Add clips to other tracks first.")}</Text>
               </Card>
             ) : (
               <div className="space-y-1">
@@ -203,14 +200,13 @@ export const AudioTextSyncPanel: React.FC<BeatSyncPanelProps> = ({ clipId }) => 
           {clipsToSync.length > 0 && (
             <Card variant="muted" padding={2}>
               <Text type="supporting" color="secondary" className="text-[9px]">
-                {clipsToSync.length} clips will be synced to {beatAnalysis.beats.length} beats
-              </Text>
+                {clipsToSync.length} {t(" clips will be synced to ")}{beatAnalysis.beats.length} {t(" beats")}</Text>
             </Card>
           )}
 
           <div className="border-t border-border pt-3">
             <Button
-              label="Sync Settings"
+              label={t("Sync Settings")}
               icon={<Settings2 size={12} aria-hidden />}
               variant="ghost"
               size="sm"
@@ -222,13 +218,12 @@ export const AudioTextSyncPanel: React.FC<BeatSyncPanelProps> = ({ clipId }) => 
               <Card variant="muted" padding={3} className="space-y-3">
                 <div>
                   <Text type="supporting" color="secondary" className="block mb-2 text-[10px]">
-                    Sync Mode
-                  </Text>
+                    {t("Sync Mode")}</Text>
                   <div className="space-y-1">
                     {([
-                      { value: "smart", label: "Smart", desc: "Adjust duration to fit nearest beat count" },
-                      { value: "one-per-beat", label: "One per Beat", desc: "Each clip gets exactly one beat" },
-                      { value: "preserve-duration", label: "Preserve Duration", desc: "Keep original duration, snap start to beat" },
+                      { value: "smart", label: t("Smart"), desc: "Adjust duration to fit nearest beat count" },
+                      { value: "one-per-beat", label: t("One per Beat"), desc: "Each clip gets exactly one beat" },
+                      { value: "preserve-duration", label: t("Preserve Duration"), desc: "Keep original duration, snap start to beat" },
                     ] as const).map((mode) => (
                       <ClickableCard
                         key={mode.value}
@@ -243,7 +238,7 @@ export const AudioTextSyncPanel: React.FC<BeatSyncPanelProps> = ({ clipId }) => 
                         }`}
                       >
                         <Text type="supporting" color="primary" className="block text-[10px]">
-                          {mode.label}
+                          {t(mode.label)}
                         </Text>
                         <Text type="supporting" color="secondary" className="text-[9px]">
                           {mode.desc}
@@ -255,8 +250,7 @@ export const AudioTextSyncPanel: React.FC<BeatSyncPanelProps> = ({ clipId }) => 
 
                 <div className="flex items-center justify-between gap-2">
                   <Text type="supporting" color="secondary" className="text-[10px]">
-                    Beat Subdivision
-                  </Text>
+                    {t("Beat Subdivision")}</Text>
                   <div className="flex gap-1">
                     {([1, 2, 4] as const).map((sub) => (
                       <Button
@@ -271,7 +265,7 @@ export const AudioTextSyncPanel: React.FC<BeatSyncPanelProps> = ({ clipId }) => 
                 </div>
 
                 <PropertySlider
-                  label="Offset"
+                  label={t("Offset")}
                   value={config.offsetMs}
                   onChange={(value: number) => handleUpdateConfig({ offsetMs: value })}
                   min={-500}
@@ -282,17 +276,16 @@ export const AudioTextSyncPanel: React.FC<BeatSyncPanelProps> = ({ clipId }) => 
 
                 <div className="flex items-center justify-between gap-2">
                   <Text type="supporting" color="secondary" className="text-[10px]">
-                    Downbeats Only
-                  </Text>
+                    {t("Downbeats Only")}</Text>
                   <div className="flex gap-1">
                     <Button
-                      label="All Beats"
+                      label={t("All Beats")}
                       variant={!config.snapToDownbeats ? "primary" : "secondary"}
                       size="sm"
                       onClick={() => handleUpdateConfig({ snapToDownbeats: false })}
                     />
                     <Button
-                      label="Downbeats"
+                      label={t("Downbeats")}
                       variant={config.snapToDownbeats ? "primary" : "secondary"}
                       size="sm"
                       onClick={() => handleUpdateConfig({ snapToDownbeats: true })}
@@ -306,8 +299,7 @@ export const AudioTextSyncPanel: React.FC<BeatSyncPanelProps> = ({ clipId }) => 
           {previewTimings.length > 0 && (
             <div className="space-y-2">
               <Text type="supporting" color="secondary" className="text-[9px]">
-                Preview:
-              </Text>
+                {t("Preview:")}</Text>
               <Card variant="muted" padding={2} className="max-h-24 overflow-y-auto space-y-1">
                 {previewTimings.slice(0, 5).map((timing, idx) => (
                   <div
@@ -315,17 +307,16 @@ export const AudioTextSyncPanel: React.FC<BeatSyncPanelProps> = ({ clipId }) => 
                     className="flex items-center justify-between text-[9px]"
                   >
                     <Text type="supporting" color="secondary" className="text-[9px]">
-                      Clip {idx + 1}
+                      {t("Clip ")}{idx + 1}
                     </Text>
                     <Text type="supporting" color="primary" className="text-[9px]">
-                      {timing.originalStartTime.toFixed(2)}s → {timing.newStartTime.toFixed(2)}s
+                      {timing.originalStartTime.toFixed(2)}{t("s → ")}{timing.newStartTime.toFixed(2)}s
                     </Text>
                   </div>
                 ))}
                 {previewTimings.length > 5 && (
                   <Text type="supporting" color="secondary" className="text-[9px]">
-                    ...and {previewTimings.length - 5} more
-                  </Text>
+                    {t("...and ")}{previewTimings.length - 5} {t(" more")}</Text>
                 )}
               </Card>
             </div>
@@ -347,7 +338,7 @@ export const AudioTextSyncPanel: React.FC<BeatSyncPanelProps> = ({ clipId }) => 
           <Button
             label={
               isProcessing
-                ? "Syncing..."
+                ? t("Syncing...")
                 : `Sync ${previewTimings.length} Clips to Beats`
             }
             icon={
@@ -364,7 +355,7 @@ export const AudioTextSyncPanel: React.FC<BeatSyncPanelProps> = ({ clipId }) => 
           />
 
           <Button
-            label="Re-analyze Beats"
+            label={t("Re-analyze Beats")}
             variant="secondary"
             size="sm"
             onClick={handleAnalyzeBeats}

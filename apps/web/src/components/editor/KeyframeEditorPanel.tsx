@@ -6,6 +6,7 @@ import { ToolcraftButton as Button } from "@openreel/ui";
 import { ToolcraftIconButton as IconButton } from "@openreel/ui";
 import { ToolcraftSelectControl as Selector } from "@openreel/ui";
 import { ToolcraftText as Text } from "@openreel/ui";
+import { useTranslation } from "react-i18next";
 
 const PROPERTY_COLORS: Record<string, string> = {
   "position.x": "#22d3ee",
@@ -72,6 +73,7 @@ export const KeyframeEditorPanel: React.FC<KeyframeEditorPanelProps> = ({
   onSelectKeyframe,
   copiedKeyframes,
 }) => {
+  const { t: tr } = useTranslation();
   const [activeProperty, setActiveProperty] = useState<string | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -375,8 +377,7 @@ export const KeyframeEditorPanel: React.FC<KeyframeEditorPanelProps> = ({
     return (
       <div className="h-full flex items-center justify-center text-text-muted">
         <Text type="body" color="secondary" className="text-sm">
-          Select a clip with keyframes to edit
-        </Text>
+          {tr("Select a clip with keyframes to edit")}</Text>
       </div>
     );
   }
@@ -385,10 +386,9 @@ export const KeyframeEditorPanel: React.FC<KeyframeEditorPanelProps> = ({
     <div className="h-full flex flex-col bg-background-secondary border-l border-border">
       <div className="flex items-center justify-between px-4 py-3 border-b border-border">
         <Text type="body" weight="bold" className="text-sm">
-          Keyframe Editor
-        </Text>
+          {tr("Keyframe Editor")}</Text>
         <IconButton
-          label="Close keyframe editor"
+          label={tr("Close keyframe editor")}
           icon={<X size={16} aria-hidden />}
           variant="ghost"
           size="sm"
@@ -399,7 +399,7 @@ export const KeyframeEditorPanel: React.FC<KeyframeEditorPanelProps> = ({
 
       <div className="flex items-center gap-2 px-4 py-2 border-b border-border bg-background-tertiary">
         <Selector
-          label="Property"
+          label={tr("Property")}
           isLabelHidden
           value={activeProperty || ""}
           onChange={setActiveProperty}
@@ -414,7 +414,7 @@ export const KeyframeEditorPanel: React.FC<KeyframeEditorPanelProps> = ({
         <div className="flex-1" />
 
         <Button
-          label="Copy"
+          label={tr("Copy")}
           variant="ghost"
           size="sm"
           icon={<Copy size={14} aria-hidden />}
@@ -423,7 +423,7 @@ export const KeyframeEditorPanel: React.FC<KeyframeEditorPanelProps> = ({
           className="h-8 px-2"
         />
         <Button
-          label="Paste"
+          label={tr("Paste")}
           variant="ghost"
           size="sm"
           icon={<Clipboard size={14} aria-hidden />}
@@ -432,7 +432,7 @@ export const KeyframeEditorPanel: React.FC<KeyframeEditorPanelProps> = ({
           className="h-8 px-2"
         />
         <Button
-          label="Delete"
+          label={tr("Delete")}
           variant="ghost"
           size="sm"
           icon={<Trash2 size={14} aria-hidden />}
@@ -459,17 +459,16 @@ export const KeyframeEditorPanel: React.FC<KeyframeEditorPanelProps> = ({
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
             <Text type="supporting" color="secondary" className="text-xs">
-              Easing:
-            </Text>
+              {tr("Easing:")}</Text>
             <Selector
-              label="Easing"
+              label={tr("Easing")}
               isLabelHidden
               value={selectedEasing}
               onChange={handleEasingChange}
               isDisabled={selectedKeyframeIds.length === 0}
               options={EASING_PRESETS.map((preset) => ({
                 value: preset.value,
-                label: preset.label,
+                label: tr(preset.label),
               }))}
               size="sm"
               width={160}
@@ -479,8 +478,7 @@ export const KeyframeEditorPanel: React.FC<KeyframeEditorPanelProps> = ({
           <div className="flex-1" />
 
           <Text type="supporting" color="secondary" className="text-xs">
-            {selectedKeyframeIds.length} keyframe{selectedKeyframeIds.length !== 1 ? "s" : ""} selected
-          </Text>
+            {selectedKeyframeIds.length} {tr(" keyframe")}{selectedKeyframeIds.length !== 1 ? "s" : ""} {tr(" selected")}</Text>
         </div>
       </div>
 
@@ -490,9 +488,9 @@ export const KeyframeEditorPanel: React.FC<KeyframeEditorPanelProps> = ({
             <table className="w-full text-xs">
               <thead>
                 <tr className="text-text-muted">
-                  <th className="text-left py-1 px-2">Time</th>
-                  <th className="text-left py-1 px-2">Value</th>
-                  <th className="text-left py-1 px-2">Easing</th>
+                  <th className="text-left py-1 px-2">{tr("Time")}</th>
+                  <th className="text-left py-1 px-2">{tr("Value")}</th>
+                  <th className="text-left py-1 px-2">{tr("Easing")}</th>
                 </tr>
               </thead>
               <tbody>

@@ -20,6 +20,7 @@ import { SettingsDialog } from "../components/editor/settings/SettingsDialog";
 import { ToolcraftButton as Button } from "@openreel/ui";
 import { Settings } from "@/icons/lucide-compat";
 import "./theme/desktop-theme.css";
+import { useTranslation } from "react-i18next";
 
 function detectPlatform(): string {
   if (typeof navigator !== "undefined" && /Mac/i.test(navigator.platform)) return "darwin";
@@ -28,6 +29,7 @@ function detectPlatform(): string {
 }
 
 export function DesktopApp(): JSX.Element {
+  const { t } = useTranslation();
   const platform = detectPlatform();
   const hasProject = useProjectStore((state) => state.hasOpenProject);
   const desktopPage = useUIStore((state) => state.desktopPage);
@@ -96,7 +98,7 @@ export function DesktopApp(): JSX.Element {
       <DesktopTitleBar platform={platform}>
         {hasProject && isVideoEditing ? <DesktopExportButton /> : null}
         <Button
-          label="Settings"
+          label={t("Settings")}
           variant="secondary"
           size="sm"
           icon={<Settings size={15} aria-hidden />}

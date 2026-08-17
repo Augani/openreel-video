@@ -3,6 +3,7 @@ import { ToolcraftSelectControl as Selector } from "@openreel/ui";
 import { ToolcraftTextAreaControl } from "@openreel/ui";
 import type { SeedreamInput } from "../../../../services/kieai/image-generation";
 import { ASPECT_RATIO_OPTIONS } from "./shared";
+import { useTranslation } from "react-i18next";
 
 interface Props {
   value: SeedreamInput;
@@ -12,14 +13,15 @@ interface Props {
 }
 
 export function SeedreamForm({ value, onChange, onSubmit, isLoading }: Props) {
+  const { t } = useTranslation();
   return (
     <div className="space-y-4">
       <ToolcraftTextAreaControl
-        label="Prompt"
+        label={t("Prompt")}
         isRequired
         value={value.prompt}
         onChange={(prompt) => onChange({ ...value, prompt })}
-        placeholder="Describe the image you want to generate..."
+        placeholder={t("Describe the image you want to generate...")}
         maxLength={3000}
         rows={4}
         width="100%"
@@ -27,7 +29,7 @@ export function SeedreamForm({ value, onChange, onSubmit, isLoading }: Props) {
 
       <div className="grid grid-cols-2 gap-3">
         <Selector
-          label="Aspect Ratio"
+          label={t("Aspect Ratio")}
           value={value.aspect_ratio}
           onChange={(aspect_ratio) =>
             onChange({ ...value, aspect_ratio: aspect_ratio as SeedreamInput["aspect_ratio"] })
@@ -38,14 +40,14 @@ export function SeedreamForm({ value, onChange, onSubmit, isLoading }: Props) {
         />
 
         <Selector
-          label="Quality"
+          label={t("Quality")}
           value={value.quality}
           onChange={(quality) =>
             onChange({ ...value, quality: quality as SeedreamInput["quality"] })
           }
           options={[
-            { value: "basic", label: "Basic (2K)" },
-            { value: "high", label: "High (4K)" },
+            { value: "basic", label: t("Basic (2K)") },
+            { value: "high", label: t("High (4K)") },
           ]}
           size="sm"
           width="100%"
@@ -53,7 +55,7 @@ export function SeedreamForm({ value, onChange, onSubmit, isLoading }: Props) {
       </div>
 
       <Button
-        label={isLoading ? "Generating..." : "Generate with Seedream"}
+        label={isLoading ? t("Generating...") : t("Generate with Seedream")}
         onClick={onSubmit}
         isDisabled={isLoading || !value.prompt.trim()}
         variant="primary"

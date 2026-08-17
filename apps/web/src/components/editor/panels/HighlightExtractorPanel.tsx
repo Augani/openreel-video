@@ -18,6 +18,7 @@ import {
   type HighlightResult,
   type HighlightPreferences,
 } from "../../../services/highlight-service";
+import { useTranslation } from "react-i18next";
 
 interface HighlightExtractorPanelProps {
   clipId: string;
@@ -26,6 +27,7 @@ interface HighlightExtractorPanelProps {
 export const HighlightExtractorPanel: React.FC<HighlightExtractorPanelProps> = ({
   clipId,
 }) => {
+  const { t: tr } = useTranslation();
   const [highlights, setHighlights] = useState<HighlightResult[]>([]);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [phase, setPhase] = useState("");
@@ -142,9 +144,9 @@ export const HighlightExtractorPanel: React.FC<HighlightExtractorPanelProps> = (
     <div className="space-y-3">
       <div className="space-y-2">
         <div className="flex items-center gap-2">
-          <Text type="label" color="secondary" className="text-[10px] text-text-secondary">Clips</Text>
+          <Text type="label" color="secondary" className="text-[10px] text-text-secondary">{tr("Clips")}</Text>
           <ToolcraftNumberInputControl
-            label="Clips"
+            label={tr("Clips")}
             isLabelHidden
             size="sm"
             width={48}
@@ -156,9 +158,9 @@ export const HighlightExtractorPanel: React.FC<HighlightExtractorPanelProps> = (
             }
             className="w-12 px-1 py-0.5 text-[10px] bg-background-secondary border border-border rounded text-text-primary"
           />
-          <Text type="label" color="secondary" className="text-[10px] text-text-secondary">Max</Text>
+          <Text type="label" color="secondary" className="text-[10px] text-text-secondary">{tr("Max")}</Text>
           <ToolcraftNumberInputControl
-            label="Max duration"
+            label={tr("Max duration")}
             isLabelHidden
             size="sm"
             width={48}
@@ -175,7 +177,7 @@ export const HighlightExtractorPanel: React.FC<HighlightExtractorPanelProps> = (
 
         <Button
           label={
-            isProcessing ? `${phase} (${progress}%)` : "Find Highlights"
+            isProcessing ? `${phase} (${progress}%)` : tr("Find Highlights")
           }
           icon={
             isProcessing ? (
@@ -222,12 +224,12 @@ export const HighlightExtractorPanel: React.FC<HighlightExtractorPanelProps> = (
                     {highlight.score}
                   </div>
                   <span className="text-[10px] text-text-primary font-medium truncate max-w-[140px]">
-                    {highlight.title}
+                    {tr(highlight.title)}
                   </span>
                 </div>
                 <div className="flex items-center gap-1">
                   <IconButton
-                    label="Preview highlight"
+                    label={tr("Preview highlight")}
                     icon={<Play size={10} className="text-text-muted" aria-hidden />}
                     variant="ghost"
                     size="sm"

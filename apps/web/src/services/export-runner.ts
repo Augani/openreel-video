@@ -5,6 +5,7 @@ import {
   type ExportResult,
   type Project,
 } from "@openreel/core";
+import { t } from "../i18n";
 
 export interface ExportRunnerState {
   isExporting: boolean;
@@ -308,7 +309,7 @@ export async function createDownloadWritable(
         suggestedName: filename,
         types: [
           {
-            description: "Media file",
+            description: t("Media file"),
             accept: { [mime]: [`.${ext}`] },
           },
         ],
@@ -512,7 +513,7 @@ export function useExportRunner(options: ExportRunnerOptions): UseExportRunner {
             suggestedName: filename,
             types: [
               {
-                description: "Media file",
+                description: t("Media file"),
                 accept: { [mime]: [`.${ext}`] },
               },
             ],

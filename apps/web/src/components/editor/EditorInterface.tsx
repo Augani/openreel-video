@@ -37,6 +37,7 @@ import {
   initializeTransitionBridge,
   disposeTransitionBridge,
 } from "../../bridges/transition-bridge";
+import { useTranslation } from "react-i18next";
 
 const ChatPanel = React.lazy(() =>
   import("./chat/ChatPanel").then((module) => ({ default: module.ChatPanel })),
@@ -211,6 +212,7 @@ const useEngineInitialization = () => {
  * properties on the root grid so panels can pick them up.
  */
 export const EditorInterface: React.FC = () => {
+  const { t: tr } = useTranslation();
   const { initialized, initializing, initError, initStatus } =
     useEngineInitialization();
 
@@ -432,7 +434,7 @@ export const EditorInterface: React.FC = () => {
       <div className="w-full h-full bg-bg flex items-center justify-center">
         <div className="text-center">
           <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <Text type="supporting" color="primary" className="text-fg-2 text-sm">Initializing editor…</Text>
+          <Text type="supporting" color="primary" className="text-fg-2 text-sm">{tr("Initializing editor…")}</Text>
           <Text type="supporting" color="secondary" className="text-fg-muted text-xs mt-2">{initStatus}</Text>
           {initError && (
             <Text type="supporting" className="text-status-error text-xs mt-2">{initError}</Text>
@@ -537,8 +539,7 @@ export const EditorInterface: React.FC = () => {
                 <React.Suspense
                   fallback={
                     <div className="grid h-full place-items-center text-xs text-fg-muted">
-                      Loading AI Editor…
-                    </div>
+                      {tr("Loading AI Editor…")}</div>
                   }
                 >
                   <ChatPanel

@@ -5,6 +5,7 @@ import type { ResolvedTransitionHandle } from "./transition-handles";
 import { useProjectStore } from "../../../stores/project-store";
 import { getTransitionBridge } from "../../../bridges/transition-bridge";
 import { toast } from "../../../stores/notification-store";
+import { useTranslation } from "react-i18next";
 
 const BADGE_SIZE = 18;
 const MENU_WIDTH = 200;
@@ -22,6 +23,7 @@ export const TransitionHandle: React.FC<TransitionHandleProps> = ({
   isSelected,
   onSelect,
 }) => {
+  const { t: tr } = useTranslation();
   const { centerX, transition, clipA, clipB, edge } = handle;
   const [open, setOpen] = useState(false);
   const [anchor, setAnchor] = useState<{
@@ -137,16 +139,14 @@ export const TransitionHandle: React.FC<TransitionHandleProps> = ({
             >
               <div className="py-1 max-h-72 overflow-y-auto">
                 <div className="px-3 py-1.5 text-[11px] font-semibold text-fg-muted uppercase tracking-wide">
-                  Transition
-                </div>
+                  {tr("Transition")}</div>
                 {transition && (
                   <button
                     type="button"
                     onClick={handleRemove}
                     className="w-full flex items-center px-3 py-2 text-[12px] font-medium text-destructive hover:bg-hover transition-colors text-left"
                   >
-                    Remove transition
-                  </button>
+                    {tr("Remove transition")}</button>
                 )}
                 {types.map((t) => (
                   <button

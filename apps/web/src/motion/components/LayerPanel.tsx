@@ -84,6 +84,7 @@ import { useMotionStore } from "../stores/motion-store";
 import { formatMotionTimecode } from "../motion-timecode";
 import { MOTION_LAYER_LABEL_COLORS } from "../motion-layer-labels";
 import { Button, EmptyState, IconButton, SelectInput } from "./primitives";
+import { useTranslation } from "react-i18next";
 
 interface LayerPanelProps {
   composition: MotionComposition;
@@ -152,6 +153,7 @@ const SUMMARY_PROPERTIES: readonly SummaryProperty[] = [
 ];
 
 export function LayerPanel({ composition }: LayerPanelProps): JSX.Element {
+  const { t } = useTranslation();
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -719,11 +721,11 @@ export function LayerPanel({ composition }: LayerPanelProps): JSX.Element {
   return (
     <div className="flex h-full min-h-0 flex-col bg-bg-1">
       <div className="flex h-11 shrink-0 items-center justify-between border-b border-border pl-3.5 pr-2">
-        <span className="text-[13px] font-semibold text-fg">Layers</span>
+        <span className="text-[13px] font-semibold text-fg">{t("Layers")}</span>
         <div className="flex items-center gap-0.5">
           <IconButton
             icon={VenetianMask}
-            label={composition.hideShyLayers ? "Show shy layers" : "Hide shy layers"}
+            label={composition.hideShyLayers ? t("Show shy layers") : t("Hide shy layers")}
             size="sm"
             active={Boolean(composition.hideShyLayers)}
             onClick={() =>
@@ -736,7 +738,7 @@ export function LayerPanel({ composition }: LayerPanelProps): JSX.Element {
           />
           <IconButton
             icon={Search}
-            label="Search layers"
+            label={t("Search layers")}
             size="sm"
             active={searchOpen}
             onClick={() => {
@@ -749,7 +751,7 @@ export function LayerPanel({ composition }: LayerPanelProps): JSX.Element {
           <div className="relative">
             <IconButton
               icon={SlidersHorizontal}
-              label="Layer tools"
+              label={t("Layer tools")}
               size="sm"
               active={menuOpen}
               onClick={() => setMenuOpen((value) => !value)}
@@ -762,29 +764,29 @@ export function LayerPanel({ composition }: LayerPanelProps): JSX.Element {
                   onClick={() => setMenuOpen(false)}
                 />
                 <div className="absolute right-0 top-[calc(100%+6px)] z-50 w-56 overflow-hidden rounded-lg border border-border bg-bg-elev p-1.5 shadow-lg">
-                  <MenuLabel>Add layer</MenuLabel>
-                  <AddMenuItem icon={Type} label="Text layer" onClick={addTextLayer} />
-                  <AddMenuItem icon={Square} label="Shape layer" onClick={addShapeLayer} />
-                  <AddMenuItem icon={Sparkles} label="Particle layer" onClick={addParticleLayer} />
+                  <MenuLabel>{t("Add layer")}</MenuLabel>
+                  <AddMenuItem icon={Type} label={t("Text layer")} onClick={addTextLayer} />
+                  <AddMenuItem icon={Square} label={t("Shape layer")} onClick={addShapeLayer} />
+                  <AddMenuItem icon={Sparkles} label={t("Particle layer")} onClick={addParticleLayer} />
                   <AddMenuItem
                     icon={SlidersHorizontal}
-                    label="Adjustment layer"
+                    label={t("Adjustment layer")}
                     onClick={addAdjustmentLayer}
                   />
                   <AddMenuItem
                     icon={Clapperboard}
-                    label="Precomp layer"
+                    label={t("Precomp layer")}
                     onClick={() => void addPrecompLayer()}
                   />
-                  <AddMenuItem icon={Layers} label="Group layer" onClick={addGroupLayer} />
-                  <AddMenuItem icon={Crosshair} label="Null controller" onClick={addNullLayer} />
+                  <AddMenuItem icon={Layers} label={t("Group layer")} onClick={addGroupLayer} />
+                  <AddMenuItem icon={Crosshair} label={t("Null controller")} onClick={addNullLayer} />
                   {selectedLayerIds.length > 0 ? (
                     <>
                       <div className="my-1 h-px bg-border" />
-                      <MenuLabel>Selection</MenuLabel>
+                      <MenuLabel>{t("Selection")}</MenuLabel>
                       <AddMenuItem
                         icon={Layers}
-                        label="Group selection"
+                        label={t("Group selection")}
                         onClick={() => {
                           groupSelection();
                           setMenuOpen(false);
@@ -792,7 +794,7 @@ export function LayerPanel({ composition }: LayerPanelProps): JSX.Element {
                       />
                       <AddMenuItem
                         icon={Layers}
-                        label="Ungroup"
+                        label={t("Ungroup")}
                         disabled={
                           !composition.layers.some(
                             (layer) =>
@@ -817,8 +819,8 @@ export function LayerPanel({ composition }: LayerPanelProps): JSX.Element {
                               icon={StretchHorizontal}
                               label={
                                 auto?.direction === "horizontal"
-                                  ? "Auto-layout: Row ✓"
-                                  : "Auto-layout: Row"
+                                  ? t("Auto-layout: Row ✓")
+                                  : t("Auto-layout: Row")
                               }
                               onClick={() => {
                                 setSelectionAutoLayout({
@@ -833,8 +835,8 @@ export function LayerPanel({ composition }: LayerPanelProps): JSX.Element {
                               icon={StretchVertical}
                               label={
                                 auto?.direction === "vertical"
-                                  ? "Auto-layout: Column ✓"
-                                  : "Auto-layout: Column"
+                                  ? t("Auto-layout: Column ✓")
+                                  : t("Auto-layout: Column")
                               }
                               onClick={() => {
                                 setSelectionAutoLayout({
@@ -848,7 +850,7 @@ export function LayerPanel({ composition }: LayerPanelProps): JSX.Element {
                             {auto ? (
                               <AddMenuItem
                                 icon={Unlock}
-                                label="Auto-layout: Off"
+                                label={t("Auto-layout: Off")}
                                 onClick={() => {
                                   setSelectionAutoLayout(null);
                                   setMenuOpen(false);
@@ -860,7 +862,7 @@ export function LayerPanel({ composition }: LayerPanelProps): JSX.Element {
                       })()}
                       <AddMenuItem
                         icon={Clapperboard}
-                        label="Create component (precompose)"
+                        label={t("Create component (precompose)")}
                         onClick={() => {
                           void precomposeSelection();
                           setMenuOpen(false);
@@ -868,7 +870,7 @@ export function LayerPanel({ composition }: LayerPanelProps): JSX.Element {
                       />
                       <AddMenuItem
                         icon={Copy}
-                        label="Add instance"
+                        label={t("Add instance")}
                         disabled={
                           !composition.layers.some(
                             (layer) =>
@@ -883,7 +885,7 @@ export function LayerPanel({ composition }: LayerPanelProps): JSX.Element {
                       />
                       <AddMenuItem
                         icon={Crosshair}
-                        label="Create controller"
+                        label={t("Create controller")}
                         onClick={() => {
                           createSelectionController();
                           setMenuOpen(false);
@@ -891,7 +893,7 @@ export function LayerPanel({ composition }: LayerPanelProps): JSX.Element {
                       />
                       <AddMenuItem
                         icon={Sparkles}
-                        label="Disintegrate"
+                        label={t("Disintegrate")}
                         onClick={() => {
                           disintegrateSelection();
                           setMenuOpen(false);
@@ -899,7 +901,7 @@ export function LayerPanel({ composition }: LayerPanelProps): JSX.Element {
                       />
                       <AddMenuItem
                         icon={Shuffle}
-                        label="Morph → next"
+                        label={t("Morph → next")}
                         disabled={selectedLayerIds.length !== 2}
                         onClick={() => {
                           morphSelection();
@@ -908,7 +910,7 @@ export function LayerPanel({ composition }: LayerPanelProps): JSX.Element {
                       />
                       <AddMenuItem
                         icon={MousePointerClick}
-                        label="Cursor click"
+                        label={t("Cursor click")}
                         onClick={() => {
                           cursorClickSelection();
                           setMenuOpen(false);
@@ -916,7 +918,7 @@ export function LayerPanel({ composition }: LayerPanelProps): JSX.Element {
                       />
                       <AddMenuItem
                         icon={Unlock}
-                        label="Clear parent"
+                        label={t("Clear parent")}
                         disabled={!hasParentedSelection}
                         onClick={() => {
                           clearSelectionParents();
@@ -924,14 +926,14 @@ export function LayerPanel({ composition }: LayerPanelProps): JSX.Element {
                         }}
                       />
                       <div className="mt-1 grid grid-cols-8 gap-0.5 px-1.5 pb-1">
-                        <IconButton icon={AlignHorizontalJustifyStart} label="Align left" size="sm" iconSize={13} disabled={!canAlign} onClick={() => alignSelection("left")} />
-                        <IconButton icon={AlignHorizontalJustifyCenter} label="Align center" size="sm" iconSize={13} disabled={!canAlign} onClick={() => alignSelection("center-x")} />
-                        <IconButton icon={AlignHorizontalJustifyEnd} label="Align right" size="sm" iconSize={13} disabled={!canAlign} onClick={() => alignSelection("right")} />
-                        <IconButton icon={AlignHorizontalDistributeCenter} label="Distribute H" size="sm" iconSize={13} disabled={!canDistribute} onClick={() => distributeSelection("horizontal")} />
-                        <IconButton icon={AlignVerticalJustifyStart} label="Align top" size="sm" iconSize={13} disabled={!canAlign} onClick={() => alignSelection("top")} />
-                        <IconButton icon={AlignVerticalJustifyCenter} label="Align middle" size="sm" iconSize={13} disabled={!canAlign} onClick={() => alignSelection("center-y")} />
-                        <IconButton icon={AlignVerticalJustifyEnd} label="Align bottom" size="sm" iconSize={13} disabled={!canAlign} onClick={() => alignSelection("bottom")} />
-                        <IconButton icon={AlignVerticalDistributeCenter} label="Distribute V" size="sm" iconSize={13} disabled={!canDistribute} onClick={() => distributeSelection("vertical")} />
+                        <IconButton icon={AlignHorizontalJustifyStart} label={t("Align left")} size="sm" iconSize={13} disabled={!canAlign} onClick={() => alignSelection("left")} />
+                        <IconButton icon={AlignHorizontalJustifyCenter} label={t("Align center")} size="sm" iconSize={13} disabled={!canAlign} onClick={() => alignSelection("center-x")} />
+                        <IconButton icon={AlignHorizontalJustifyEnd} label={t("Align right")} size="sm" iconSize={13} disabled={!canAlign} onClick={() => alignSelection("right")} />
+                        <IconButton icon={AlignHorizontalDistributeCenter} label={t("Distribute H")} size="sm" iconSize={13} disabled={!canDistribute} onClick={() => distributeSelection("horizontal")} />
+                        <IconButton icon={AlignVerticalJustifyStart} label={t("Align top")} size="sm" iconSize={13} disabled={!canAlign} onClick={() => alignSelection("top")} />
+                        <IconButton icon={AlignVerticalJustifyCenter} label={t("Align middle")} size="sm" iconSize={13} disabled={!canAlign} onClick={() => alignSelection("center-y")} />
+                        <IconButton icon={AlignVerticalJustifyEnd} label={t("Align bottom")} size="sm" iconSize={13} disabled={!canAlign} onClick={() => alignSelection("bottom")} />
+                        <IconButton icon={AlignVerticalDistributeCenter} label={t("Distribute V")} size="sm" iconSize={13} disabled={!canDistribute} onClick={() => distributeSelection("vertical")} />
                       </div>
                     </>
                   ) : null}
@@ -945,11 +947,11 @@ export function LayerPanel({ composition }: LayerPanelProps): JSX.Element {
       {searchOpen ? (
         <div className="shrink-0 border-b border-border bg-bg-1 px-3 py-2">
           <ToolcraftTextInputControl
-            ariaLabel="Filter layers"
+            ariaLabel={t("Filter layers")}
             autoFocus
             clearable
             value={query}
-            placeholder="Filter layers"
+            placeholder={t("Filter layers")}
             leading={<Search size={13} aria-hidden />}
             onChange={setQuery}
           />
@@ -961,11 +963,11 @@ export function LayerPanel({ composition }: LayerPanelProps): JSX.Element {
           <div className="px-3 pt-8">
             <EmptyState
               icon={Layers}
-              title="No layers yet"
-              description="Add text or shapes to start building your motion scene."
+              title={t("No layers yet")}
+              description={t("Add text or shapes to start building your motion scene.")}
               action={
                 <Button
-                  label="Add layer"
+                  label={t("Add layer")}
                   icon={Plus}
                   variant="solid"
                   onClick={addTextLayer}
@@ -980,18 +982,18 @@ export function LayerPanel({ composition }: LayerPanelProps): JSX.Element {
               style={{ gridTemplateColumns: LAYER_TABLE_COLUMNS }}
             >
               <div className="px-1 text-center">#</div>
-              <div className="px-1.5">Layer Name</div>
+              <div className="px-1.5">{t("Layer Name")}</div>
               <div className="px-1">
                 {timelineColumnMode === "modes" ? "Modes" : "Switches"}
               </div>
-              <div className="px-1.5">Parent</div>
+              <div className="px-1.5">{t("Parent")}</div>
               <div className="px-1.5 text-right">In</div>
-              <div className="px-1.5 text-right">Out</div>
+              <div className="px-1.5 text-right">{t("Out")}</div>
             </div>
 
             {visibleLayers.length === 0 ? (
               <div className="px-4 py-6 text-center text-[12px] text-fg-muted">
-                No layers match “{query}”.
+                {t("No layers match “")}{query}”.
               </div>
             ) : (
               <ul>
@@ -1100,11 +1102,11 @@ export function LayerPanel({ composition }: LayerPanelProps): JSX.Element {
                             label={
                               hasChildren
                                 ? twirlOpen
-                                  ? "Collapse group"
-                                  : "Expand group"
+                                  ? t("Collapse group")
+                                  : t("Expand group")
                                 : isExpanded
-                                  ? "Collapse layer"
-                                  : "Expand layer"
+                                  ? t("Collapse layer")
+                                  : t("Expand layer")
                             }
                             icon={
                               <ChevronRight
@@ -1187,7 +1189,7 @@ export function LayerPanel({ composition }: LayerPanelProps): JSX.Element {
                                 className={`truncate text-[12px] leading-tight ${
                                   selected ? "font-semibold text-accent" : "font-medium text-fg"
                                 }`}
-                                title={layer.name}
+                                title={t(layer.name)}
                               >
                                 {layer.name}
                               </span>
@@ -1201,12 +1203,12 @@ export function LayerPanel({ composition }: LayerPanelProps): JSX.Element {
                             }`}
                           >
                             {layer.type === "composition" ? (
-                              <LayerActionButton icon={ExternalLink} label="Open precomp" onClick={() => openPrecompLayer(layer)} />
+                              <LayerActionButton icon={ExternalLink} label={t("Open precomp")} onClick={() => openPrecompLayer(layer)} />
                             ) : null}
-                            <LayerActionButton icon={ArrowUp} label="Move forward" onClick={() => moveLayer(layer.id, 1)} />
-                            <LayerActionButton icon={ArrowDown} label="Move backward" onClick={() => moveLayer(layer.id, -1)} />
-                            <LayerActionButton icon={Copy} label="Duplicate layer" onClick={() => duplicateLayer(layer.id)} />
-                            <LayerActionButton icon={Trash2} label="Delete layer" danger onClick={() => removeLayer(layer.id)} />
+                            <LayerActionButton icon={ArrowUp} label={t("Move forward")} onClick={() => moveLayer(layer.id, 1)} />
+                            <LayerActionButton icon={ArrowDown} label={t("Move backward")} onClick={() => moveLayer(layer.id, -1)} />
+                            <LayerActionButton icon={Copy} label={t("Duplicate layer")} onClick={() => duplicateLayer(layer.id)} />
+                            <LayerActionButton icon={Trash2} label={t("Delete layer")} danger onClick={() => removeLayer(layer.id)} />
                           </div>
                         </div>
                         {timelineColumnMode === "modes" ? (
@@ -1222,7 +1224,7 @@ export function LayerPanel({ composition }: LayerPanelProps): JSX.Element {
                           <div className="flex items-center gap-0.5 px-1">
                             <LayerSwitchButton
                               icon={layer.visible ? Eye : EyeOff}
-                              label="Layer visibility"
+                              label={t("Layer visibility")}
                               active={layer.visible}
                               activeClassName="text-fg-2"
                               onClick={() =>
@@ -1231,7 +1233,7 @@ export function LayerPanel({ composition }: LayerPanelProps): JSX.Element {
                             />
                             <LayerSwitchButton
                               icon={Star}
-                              label="Solo layer"
+                              label={t("Solo layer")}
                               active={Boolean(layer.solo)}
                               activeClassName="text-status-warning"
                               fillWhenActive
@@ -1239,7 +1241,7 @@ export function LayerPanel({ composition }: LayerPanelProps): JSX.Element {
                             />
                             <LayerSwitchButton
                               icon={layer.locked ? Lock : Unlock}
-                              label="Lock layer"
+                              label={t("Lock layer")}
                               active={Boolean(layer.locked)}
                               activeClassName="text-status-warning"
                               onClick={() =>
@@ -1248,7 +1250,7 @@ export function LayerPanel({ composition }: LayerPanelProps): JSX.Element {
                             />
                             <LayerSwitchButton
                               icon={Ruler}
-                              label="Guide layer"
+                              label={t("Guide layer")}
                               active={Boolean(layer.guideLayer)}
                               activeClassName="text-accent"
                               onClick={() =>
@@ -1257,7 +1259,7 @@ export function LayerPanel({ composition }: LayerPanelProps): JSX.Element {
                             />
                             <LayerSwitchButton
                               icon={VenetianMask}
-                              label="Shy layer"
+                              label={t("Shy layer")}
                               active={Boolean(layer.shy)}
                               activeClassName="text-accent"
                               onClick={() =>
@@ -1330,13 +1332,13 @@ export function LayerPanel({ composition }: LayerPanelProps): JSX.Element {
                                     className="h-4 w-4 shrink-0 rounded-[3px]"
                                   />
                                   <Button
-                                    label={summary.label}
+                                    label={t(summary.label)}
                                     variant="ghost"
                                     size="sm"
                                     onClick={() => focusLayerProperty(layer, summary.props[0])}
                                     className="h-auto min-h-0 justify-start truncate rounded-[3px] px-0 py-0 text-left text-[11px] text-fg-3 transition-colors hover:text-fg"
                                   >
-                                    {summary.label}
+                                    {t(summary.label)}
                                   </Button>
                                 </div>
                                 <div className="px-1 text-[11px] tabular-nums text-accent">
@@ -1389,7 +1391,7 @@ export function LayerPanel({ composition }: LayerPanelProps): JSX.Element {
           />
           <div
             role="menu"
-            aria-label="Layer actions"
+            aria-label={t("Layer actions")}
             className="fixed z-[71] w-[236px] overflow-hidden rounded-lg border border-border bg-bg-elev p-1.5 shadow-xl"
             style={{ left: contextMenu.x, top: contextMenu.y }}
           >
@@ -1401,7 +1403,7 @@ export function LayerPanel({ composition }: LayerPanelProps): JSX.Element {
             </MenuLabel>
             <AddMenuItem
               icon={Pencil}
-              label="Rename layer"
+              label={t("Rename layer")}
               disabled={selectedLayerIds.length !== 1}
               onClick={() => {
                 const layer = composition.layers.find(
@@ -1412,7 +1414,7 @@ export function LayerPanel({ composition }: LayerPanelProps): JSX.Element {
             />
             <AddMenuItem
               icon={Copy}
-              label="Duplicate selection"
+              label={t("Duplicate selection")}
               onClick={() => {
                 duplicateSelection();
                 setContextMenu(null);
@@ -1420,7 +1422,7 @@ export function LayerPanel({ composition }: LayerPanelProps): JSX.Element {
             />
             <AddMenuItem
               icon={ArrowUp}
-              label="Move layer forward"
+              label={t("Move layer forward")}
               disabled={selectedLayerIds.length !== 1}
               onClick={() => {
                 moveLayer(contextMenu.layerId, 1);
@@ -1429,7 +1431,7 @@ export function LayerPanel({ composition }: LayerPanelProps): JSX.Element {
             />
             <AddMenuItem
               icon={ArrowDown}
-              label="Move layer backward"
+              label={t("Move layer backward")}
               disabled={selectedLayerIds.length !== 1}
               onClick={() => {
                 moveLayer(contextMenu.layerId, -1);
@@ -1437,12 +1439,12 @@ export function LayerPanel({ composition }: LayerPanelProps): JSX.Element {
               }}
             />
             <div className="my-1 h-px bg-border" />
-            <MenuLabel>Label color</MenuLabel>
-            <div className="grid grid-cols-7 gap-1 px-2 pb-1.5" role="group" aria-label="Layer label color">
+            <MenuLabel>{t("Label color")}</MenuLabel>
+            <div className="grid grid-cols-7 gap-1 px-2 pb-1.5" role="group" aria-label={t("Layer label color")}>
               <button
                 type="button"
-                aria-label="Clear layer label color"
-                title="None"
+                aria-label={t("Clear layer label color")}
+                title={t("None")}
                 onClick={() => setSelectionLabelColor(undefined)}
                 className="relative h-5 w-5 rounded-full border border-border bg-bg-2 transition-transform hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
               >
@@ -1453,7 +1455,7 @@ export function LayerPanel({ composition }: LayerPanelProps): JSX.Element {
                   key={label.name}
                   type="button"
                   aria-label={`Set layer label ${label.name}`}
-                  title={label.name}
+                  title={t(label.name)}
                   onClick={() => setSelectionLabelColor(label.color)}
                   className="h-5 w-5 rounded-full border border-white/20 shadow-sm transition-transform hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                   style={{ backgroundColor: label.color }}
@@ -1463,7 +1465,7 @@ export function LayerPanel({ composition }: LayerPanelProps): JSX.Element {
             <div className="my-1 h-px bg-border" />
             <AddMenuItem
               icon={Layers}
-              label="Group selection"
+              label={t("Group selection")}
               onClick={() => {
                 groupSelection();
                 setContextMenu(null);
@@ -1471,7 +1473,7 @@ export function LayerPanel({ composition }: LayerPanelProps): JSX.Element {
             />
             <AddMenuItem
               icon={Layers}
-              label="Ungroup selection"
+              label={t("Ungroup selection")}
               disabled={!composition.layers.some(
                 (layer) =>
                   layer.type === "group" && selectedLayerIds.includes(layer.id),
@@ -1483,7 +1485,7 @@ export function LayerPanel({ composition }: LayerPanelProps): JSX.Element {
             />
             <AddMenuItem
               icon={Clapperboard}
-              label="Precompose selection"
+              label={t("Precompose selection")}
               onClick={() => {
                 void precomposeSelection();
                 setContextMenu(null);
@@ -1491,7 +1493,7 @@ export function LayerPanel({ composition }: LayerPanelProps): JSX.Element {
             />
             <AddMenuItem
               icon={Crosshair}
-              label="Create controller"
+              label={t("Create controller")}
               onClick={() => {
                 createSelectionController();
                 setContextMenu(null);
@@ -1499,7 +1501,7 @@ export function LayerPanel({ composition }: LayerPanelProps): JSX.Element {
             />
             <AddMenuItem
               icon={Unlock}
-              label="Clear parent"
+              label={t("Clear parent")}
               disabled={!hasParentedSelection}
               onClick={() => {
                 clearSelectionParents();
@@ -1509,7 +1511,7 @@ export function LayerPanel({ composition }: LayerPanelProps): JSX.Element {
             <div className="my-1 h-px bg-border" />
             <AddMenuItem
               icon={Trash2}
-              label="Delete selection"
+              label={t("Delete selection")}
               onClick={removeSelection}
             />
           </div>
@@ -1545,13 +1547,14 @@ function BlendModeSelect({
   value: BlendMode;
   onChange: (value: BlendMode) => void;
 }): JSX.Element {
+  const { t } = useTranslation();
   return (
     <div className="min-w-0 flex-1">
       <SelectInput
         value={value}
         options={MOTION_BLEND_MODE_OPTIONS.map((mode) => ({
           value: mode.id,
-          label: mode.name,
+          label: t(mode.name),
         }))}
         onChange={(nextValue) => onChange(nextValue as BlendMode)}
       />
@@ -1568,6 +1571,7 @@ function ParentSelect({
   options: MotionLayer[];
   onChange: (value: string) => void;
 }): JSX.Element {
+  const { t } = useTranslation();
   return (
     <div className="min-w-0 flex-1">
       <SelectInput
@@ -1577,7 +1581,7 @@ function ParentSelect({
           { value: "", label: "-" },
           ...options.map((option) => ({
             value: option.id,
-            label: option.name,
+            label: t(option.name),
           })),
         ]}
         onChange={onChange}

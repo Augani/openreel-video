@@ -8,6 +8,7 @@ import { InspectorPanel } from "../../components/editor/InspectorPanel";
 import { PanelErrorBoundary } from "../../components/ErrorBoundary";
 import { Icon } from "@/icons/Icon";
 import { useResizable } from "../editor/useResizable";
+import { useTranslation } from "react-i18next";
 
 const Preview = lazy(() =>
   import("../../components/editor/Preview").then((m) => ({ default: m.Preview })),
@@ -17,11 +18,11 @@ const Timeline = lazy(() =>
 );
 
 function PanelLoading(): JSX.Element {
+  const { t } = useTranslation();
   return (
     <div className="grid h-full place-items-center">
       <Text type="supporting" color="secondary" className="text-xs">
-        Loading…
-      </Text>
+        {t("Loading…")}</Text>
     </div>
   );
 }
@@ -93,6 +94,7 @@ function RowHandle({
 }
 
 export function EditPage(): JSX.Element {
+  const { t } = useTranslation();
   const mediaW = useResizable({
     initial: 320,
     min: 220,
@@ -126,23 +128,23 @@ export function EditPage(): JSX.Element {
 
   return (
     <div className="grid h-full min-h-0 w-full gap-px overflow-hidden bg-border" style={gridStyle}>
-      <DockRegion label="Media" name="Media" area="media" icon="photo.on.rectangle">
+      <DockRegion label={t("Media")} name="Media" area="media" icon="photo.on.rectangle">
         <AssetsPanel />
         <ColumnHandle edge="right" onPointerDown={mediaW.onHandlePointerDown} />
       </DockRegion>
 
-      <DockRegion label="Viewer" name="Viewer" area="stage" icon="play.fill" className="bg-stage-bg">
+      <DockRegion label={t("Viewer")} name="Viewer" area="stage" icon="play.fill" className="bg-stage-bg">
         <Suspense fallback={<PanelLoading />}>
           <Preview />
         </Suspense>
       </DockRegion>
 
-      <DockRegion label="Inspector" name="Inspector" area="inspector" icon="slider.horizontal.3">
+      <DockRegion label={t("Inspector")} name="Inspector" area="inspector" icon="slider.horizontal.3">
         <InspectorPanel />
         <ColumnHandle edge="left" onPointerDown={inspectorW.onHandlePointerDown} />
       </DockRegion>
 
-      <DockRegion label="Timeline" name="Timeline" area="timeline" icon="rectangle.split.3x1" className="bg-tl-bg">
+      <DockRegion label={t("Timeline")} name="Timeline" area="timeline" icon="rectangle.split.3x1" className="bg-tl-bg">
         <Suspense fallback={<PanelLoading />}>
           <Timeline />
         </Suspense>

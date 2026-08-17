@@ -19,6 +19,7 @@ import {
   createProjectSettingsFromPreset,
   type SocialMediaCategory,
 } from "@openreel/core";
+import { useTranslation } from "react-i18next";
 
 interface StartFromScratchProps {
   onProjectCreated?: () => void;
@@ -63,6 +64,7 @@ const PRESET_ICONS: Record<string, React.ElementType> = {
 export const StartFromScratch: React.FC<StartFromScratchProps> = ({
   onProjectCreated,
 }) => {
+  const { t } = useTranslation();
   const createNewProject = useProjectStore((state) => state.createNewProject);
   const updateSettings = useProjectStore((state) => state.updateSettings);
   const { track } = useAnalytics();
@@ -108,22 +110,20 @@ export const StartFromScratch: React.FC<StartFromScratchProps> = ({
     <div className="space-y-6">
       <div>
         <Text type="label" color="primary" weight="medium" className="text-sm text-text-primary mb-2 block">
-          Project Name
-        </Text>
+          {t("Project Name")}</Text>
         <ToolcraftTextInputControl
-          label="Project Name"
+          label={t("Project Name")}
           isLabelHidden
           value={projectName}
           onChange={setProjectName}
-          placeholder="My Awesome Video"
+          placeholder={t("My Awesome Video")}
           className="max-w-md bg-background-tertiary border-border text-text-primary"
         />
       </div>
 
       <div>
         <Text type="label" color="primary" weight="medium" className="text-sm text-text-primary mb-4">
-          Select Format
-        </Text>
+          {t("Select Format")}</Text>
 
         <div className="grid md:grid-cols-2 gap-6">
           {PRESET_GROUPS.map((group) => {
@@ -192,26 +192,22 @@ export const StartFromScratch: React.FC<StartFromScratchProps> = ({
         <Info size={16} className="text-primary flex-shrink-0 mt-0.5" />
         <div>
           <Text type="supporting" color="primary" weight="medium" className="text-sm text-text-primary">
-            {info?.name || selectedPreset} Format
-          </Text>
+            {info?.name || selectedPreset} {t(" Format")}</Text>
           <Text type="supporting" color="secondary" className="text-xs text-text-muted mt-1">
-            {preset.width}×{preset.height}px • {preset.frameRate || 30}fps
-            {preset.maxDuration && ` • Max ${preset.maxDuration}s`}
+            {preset.width}×{preset.height}{t("px • ")}{preset.frameRate || 30}{t("fps ")}{preset.maxDuration && ` • Max ${preset.maxDuration}s`}
             {preset.recommendedDuration &&
               ` • Recommended ${preset.recommendedDuration}s`}
           </Text>
           {preset.safeZone && (
             <Text type="supporting" color="secondary" className="text-xs text-text-muted mt-0.5">
-              Safe zone: {preset.safeZone.top}px top, {preset.safeZone.bottom}px
-              bottom
-            </Text>
+              {t("Safe zone: ")}{preset.safeZone.top}{t("px top, ")}{preset.safeZone.bottom}{t("px bottom")}</Text>
           )}
         </div>
       </div>
 
       <div className="flex items-center justify-end gap-3">
         <Button
-          label={isCreating ? "Creating..." : "Create Project"}
+          label={isCreating ? t("Creating...") : t("Create Project")}
           icon={isCreating ? (
             <div className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />
           ) : (

@@ -75,6 +75,7 @@ import {
   type TrackLayerFilter,
 } from "./timeline/track-layer-filter";
 import { getTrackDragAutoScrollDelta } from "./timeline/track-drag-auto-scroll";
+import { useTranslation } from "react-i18next";
 
 const TRACK_LAYER_FILTERS: readonly {
   id: TrackLayerFilter;
@@ -92,6 +93,7 @@ const ADD_TRACK_ROW_HEIGHT = 36;
 const TIMELINE_SCROLLBAR_SIZE = 10;
 
 export const Timeline: React.FC = () => {
+  const { t: tr } = useTranslation();
   const containerRef = useRef<HTMLDivElement>(null);
   const tracksRef = useRef<HTMLDivElement>(null);
   const trackHeadersRef = useRef<HTMLDivElement>(null);
@@ -874,33 +876,33 @@ export const Timeline: React.FC = () => {
   const addTrackItems: DropdownMenuOption[] = useMemo(
     () => [
       {
-        label: "Video Track",
+        label: tr("Video Track"),
         icon: <Film size={16} className="text-clip-video" aria-hidden />,
         onClick: () => addTrack("video"),
       },
       {
-        label: "Audio Track",
+        label: tr("Audio Track"),
         icon: <Music size={16} className="text-clip-audio" aria-hidden />,
         onClick: () => addTrack("audio"),
       },
       { type: "divider" },
       {
-        label: "Image Track",
+        label: tr("Image Track"),
         icon: <Image size={16} className="text-clip-music" aria-hidden />,
         onClick: () => addTrack("image"),
       },
       {
-        label: "Text Track",
+        label: tr("Text Track"),
         icon: <Type size={16} className="text-clip-text" aria-hidden />,
         onClick: () => addTrack("text"),
       },
       {
-        label: "Graphics Track",
+        label: tr("Graphics Track"),
         icon: <Shapes size={16} className="text-clip-music" aria-hidden />,
         onClick: () => addTrack("graphics"),
       },
     ],
-    [addTrack],
+    [addTrack, tr],
   );
 
   // Small, mockup-styled timeline tool button
@@ -941,10 +943,10 @@ export const Timeline: React.FC = () => {
     >
       {/* ── Timeline toolbar (mock: 48px line-icon tools + emerald zoom slider) ── */}
       <div className="flex items-center h-12 px-4 gap-4 bg-bg-1 border-b border-border shrink-0 relative z-50">
-        <TLTool onClick={undo} disabled={!canUndo()} title="Undo (⌘Z)">
+        <TLTool onClick={undo} disabled={!canUndo()} title={tr("Undo (⌘Z)")}>
           <Undo2 size={16} aria-hidden />
         </TLTool>
-        <TLTool onClick={redo} disabled={!canRedo()} title="Redo (⇧⌘Z)">
+        <TLTool onClick={redo} disabled={!canRedo()} title={tr("Redo (⇧⌘Z)")}>
           <Redo2 size={16} aria-hidden />
         </TLTool>
 
@@ -953,42 +955,42 @@ export const Timeline: React.FC = () => {
         <TLTool
           onClick={handleSplit}
           disabled={splittableSelectedClipIds.length === 0}
-          title="Split (S)"
+          title={tr("Split (S)")}
         >
           <Scissors size={16} aria-hidden />
         </TLTool>
         <TLTool
           onClick={() => handleTrimToPlayhead(true)}
           disabled={splittableSelectedClipIds.length === 0}
-          title="Trim start to playhead (Q)"
+          title={tr("Trim start to playhead (Q)")}
         >
           <CornerDownLeft size={16} aria-hidden />
         </TLTool>
         <TLTool
           onClick={() => handleTrimToPlayhead(false)}
           disabled={splittableSelectedClipIds.length === 0}
-          title="Trim end to playhead (W)"
+          title={tr("Trim end to playhead (W)")}
         >
           <CornerDownRight size={16} aria-hidden />
         </TLTool>
         <TLTool
           onClick={handleDelete}
           disabled={selectedClipIds.length === 0}
-          title="Delete (Del)"
+          title={tr("Delete (Del)")}
         >
           <Trash2 size={16} aria-hidden />
         </TLTool>
         <TLTool
           onClick={handleDuplicate}
           disabled={selectedClipIds.length === 0}
-          title="Duplicate (⌘D)"
+          title={tr("Duplicate (⌘D)")}
         >
           <Copy size={16} aria-hidden />
         </TLTool>
         <TLTool
           onClick={handleRippleDelete}
           disabled={!canRippleDelete}
-          title="Ripple delete (⇧Del)"
+          title={tr("Ripple delete (⇧Del)")}
         >
           <Delete size={16} aria-hidden />
         </TLTool>
@@ -1001,7 +1003,7 @@ export const Timeline: React.FC = () => {
           menuWidth={192}
           hasChevron
           button={{
-            label: "Add track",
+            label: tr("Add track"),
             size: "sm",
             variant: "ghost",
             icon: <Plus size={16} aria-hidden />,
@@ -1023,11 +1025,11 @@ export const Timeline: React.FC = () => {
           placement="above"
           alignment="start"
           width={340}
-          label="Track layers"
+          label={tr("Track layers")}
           content={
             <>
               <div className="flex items-center justify-between px-3 py-2.5 border-b border-border bg-bg-2">
-                <span className="text-xs font-semibold text-fg">Track Layers</span>
+                <span className="text-xs font-semibold text-fg">{tr("Track Layers")}</span>
                 <span className="text-[10px] tabular-nums text-fg-3">
                   {filteredTrackEntries.length}/{tracks.length}
                 </span>
@@ -1039,19 +1041,17 @@ export const Timeline: React.FC = () => {
                   className="border-b border-danger/30 bg-danger/10 px-3 py-2.5"
                 >
                   <p className="text-[11px] font-semibold text-danger">
-                    Delete “{pendingTrackDelete.name}”?
+                    {tr("Delete “")}{pendingTrackDelete.name}”?
                   </p>
                   <p className="mt-0.5 text-[10px] leading-relaxed text-fg-3">
-                    Its clips will be removed. You can undo this action.
-                  </p>
+                    {tr("Its clips will be removed. You can undo this action.")}</p>
                   <div className="mt-2 flex justify-end gap-1.5">
                     <button
                       type="button"
                       onClick={() => setPendingTrackDeleteId(null)}
                       className="h-7 rounded-md border border-border bg-bg-1 px-2.5 text-[10px] font-semibold text-fg-2 hover:bg-hover"
                     >
-                      Cancel
-                    </button>
+                      {tr("Cancel")}</button>
                     <button
                       type="button"
                       onClick={() => {
@@ -1060,8 +1060,7 @@ export const Timeline: React.FC = () => {
                       }}
                       className="h-7 rounded-md bg-danger px-2.5 text-[10px] font-semibold text-white hover:opacity-90"
                     >
-                      Delete track
-                    </button>
+                      {tr("Delete track")}</button>
                   </div>
                 </div>
               ) : null}
@@ -1070,14 +1069,14 @@ export const Timeline: React.FC = () => {
                   type="search"
                   value={trackLayerQuery}
                   onChange={(event) => setTrackLayerQuery(event.currentTarget.value)}
-                  placeholder="Search tracks"
-                  aria-label="Search track layers"
+                  placeholder={tr("Search tracks")}
+                  aria-label={tr("Search track layers")}
                   className="h-8 w-full rounded-md border border-border bg-bg-1 px-2.5 text-[11px] text-fg outline-none placeholder:text-fg-muted focus:border-accent"
                 />
                 <div
                   className="flex gap-1 overflow-x-auto pb-0.5"
                   role="group"
-                  aria-label="Track layer types"
+                  aria-label={tr("Track layer types")}
                 >
                   {TRACK_LAYER_FILTERS.map((filter) => {
                     const count =
@@ -1096,7 +1095,7 @@ export const Timeline: React.FC = () => {
                             : "border-border bg-bg-2 text-fg-3 hover:border-accent/50 hover:text-fg"
                         }`}
                       >
-                        {filter.label} {count}
+                        {tr(filter.label)} {count}
                       </button>
                     );
                   })}
@@ -1105,16 +1104,14 @@ export const Timeline: React.FC = () => {
               <div className="p-2 max-h-60 overflow-y-auto">
                 {tracks.length === 0 ? (
                   <Text type="supporting" color="secondary" className="text-xs text-fg-muted text-center py-6">
-                    No tracks yet
-                  </Text>
+                    {tr("No tracks yet")}</Text>
                 ) : filteredTrackEntries.length === 0 ? (
                   <Text
                     type="supporting"
                     color="secondary"
                     className="block py-6 text-center text-xs text-fg-muted"
                   >
-                    No tracks match your filters
-                  </Text>
+                    {tr("No tracks match your filters")}</Text>
                 ) : (
                   <div className="space-y-0.5">
                     {filteredTrackEntries.map(({ track, index }) => {
@@ -1281,7 +1278,7 @@ export const Timeline: React.FC = () => {
           }
         >
           <IconButton
-            label="Manage track layers"
+            label={tr("Manage track layers")}
             icon={<Layers size={16} aria-hidden />}
             size="sm"
             variant={showLayersPanel ? "secondary" : "ghost"}
@@ -1292,7 +1289,7 @@ export const Timeline: React.FC = () => {
         <div className="ml-auto flex items-center gap-3">
           {/* Zoom control (mock: minus / emerald slider track + knob / plus) */}
           <div className="flex items-center gap-2.5">
-            <TLTool onClick={zoomOut} title="Zoom out">
+            <TLTool onClick={zoomOut} title={tr("Zoom out")}>
               <ZoomOut size={16} aria-hidden />
             </TLTool>
             <div className="relative h-5 w-[150px]">
@@ -1332,7 +1329,7 @@ export const Timeline: React.FC = () => {
               />
               <input
                 type="range"
-                aria-label="Timeline zoom"
+                aria-label={tr("Timeline zoom")}
                 aria-valuetext={`${Math.round(pixelsPerSecond)} pixels per second`}
                 min={ZOOM_PRESETS.MIN}
                 max={ZOOM_PRESETS.MAX}
@@ -1342,7 +1339,7 @@ export const Timeline: React.FC = () => {
                 className="absolute inset-0 h-full w-full cursor-ew-resize opacity-0"
               />
             </div>
-            <TLTool onClick={zoomIn} title="Zoom in">
+            <TLTool onClick={zoomIn} title={tr("Zoom in")}>
               <ZoomIn size={16} aria-hidden />
             </TLTool>
           </div>
@@ -1353,7 +1350,7 @@ export const Timeline: React.FC = () => {
             <TLTool
               onClick={toggleSnap}
               active={snapSettings.enabled}
-              title={snapSettings.enabled ? "Snap on (N)" : "Snap off (N)"}
+              title={snapSettings.enabled ? tr("Snap on (N)") : tr("Snap off (N)")}
             >
               <Magnet size={16} />
             </TLTool>
@@ -1364,7 +1361,7 @@ export const Timeline: React.FC = () => {
                 useTimelineStore.setState({ trackHeights: {} });
               }}
               active={trackHeight >= 52}
-              title="Large tracks"
+              title={tr("Large tracks")}
             >
               <Rows3 size={16} />
             </TLTool>
@@ -1374,7 +1371,7 @@ export const Timeline: React.FC = () => {
                 useTimelineStore.setState({ trackHeights: {} });
               }}
               active={trackHeight < 52}
-              title="Compact tracks"
+              title={tr("Compact tracks")}
             >
               <Rows2 size={16} />
             </TLTool>
@@ -1384,8 +1381,8 @@ export const Timeline: React.FC = () => {
               active={timelineMaximized}
               title={
                 timelineMaximized
-                  ? "Restore layout"
-                  : "Maximize timeline (more room)"
+                  ? tr("Restore layout")
+                  : tr("Maximize timeline (more room)")
               }
             >
               {timelineMaximized ? (
@@ -1477,7 +1474,7 @@ export const Timeline: React.FC = () => {
                 type="button"
                 onClick={() => addTrack("video")}
                 className="mx-3 my-1 h-7 flex items-center justify-center gap-1.5 rounded-[7px] border border-dashed border-border-strong text-fg-muted hover:text-fg-2 hover:border-fg-3 transition-colors"
-                aria-label="Add track"
+                aria-label={tr("Add track")}
               >
                 <Plus size={16} aria-hidden />
               </button>

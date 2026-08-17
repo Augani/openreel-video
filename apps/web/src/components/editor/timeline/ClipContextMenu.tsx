@@ -15,6 +15,7 @@ import {
 import type { Clip, Track } from "@openreel/core";
 import { useProjectStore } from "../../../stores/project-store";
 import { useTimelineStore } from "../../../stores/timeline-store";
+import { t } from "../../../i18n";
 
 interface ClipContextMenuProps {
   clip: Clip;
@@ -143,24 +144,24 @@ export function useClipContextMenuItems({
     },
     { type: "divider" },
     {
-      label: "Copy Clip",
+      label: t("Copy Clip"),
       icon: <Copy size={14} aria-hidden />,
       onClick: handleCopy,
     },
     {
-      label: "Duplicate",
+      label: t("Duplicate"),
       icon: <Layers size={14} aria-hidden />,
       onClick: handleDuplicate,
     },
     { type: "divider" },
     {
-      label: "Split at Playhead",
+      label: t("Split at Playhead"),
       icon: <Scissors size={14} aria-hidden />,
       isDisabled: !isPlayheadOnClip,
       onClick: handleSplit,
     },
     {
-      label: "Close Gap to Previous",
+      label: t("Close Gap to Previous"),
       icon: <ArrowLeftToLine size={14} aria-hidden />,
       isDisabled: !hasGapBeforeClip,
       onClick: handleCloseGap,
@@ -170,16 +171,16 @@ export function useClipContextMenuItems({
   if (isVideo || isImage) {
     items.push({
       type: "section",
-      title: "Effects",
+      title: t("Effects"),
       items: [
         {
-          label: "Copy Effects",
+          label: t("Copy Effects"),
           icon: <Sparkles size={14} aria-hidden />,
           isDisabled: !hasEffects,
           onClick: handleCopyEffects,
         },
         {
-          label: "Paste Effects",
+          label: t("Paste Effects"),
           icon: <Sparkles size={14} aria-hidden />,
           isDisabled: !hasCopiedEffects,
           onClick: handlePasteEffects,
@@ -190,7 +191,7 @@ export function useClipContextMenuItems({
 
   if (isVideoWithAudio) {
     items.push({
-      label: "Separate Audio",
+      label: t("Separate Audio"),
       icon: <Music size={14} aria-hidden />,
       onClick: handleSeparateAudio,
     });
@@ -199,16 +200,16 @@ export function useClipContextMenuItems({
   if (isAudio) {
     items.push({
       type: "section",
-      title: "Audio",
+      title: t("Audio"),
       items: [
         {
-          label: "Copy Audio Effects",
+          label: t("Copy Audio Effects"),
           icon: <Volume2 size={14} aria-hidden />,
           isDisabled: !hasEffects,
           onClick: handleCopyEffects,
         },
         {
-          label: "Paste Audio Effects",
+          label: t("Paste Audio Effects"),
           icon: <Volume2 size={14} aria-hidden />,
           isDisabled: !hasCopiedEffects,
           onClick: handlePasteEffects,
@@ -220,12 +221,12 @@ export function useClipContextMenuItems({
   items.push(
     { type: "divider" },
     {
-      label: "Ripple Delete",
+      label: t("Ripple Delete"),
       icon: <Trash2 size={14} aria-hidden />,
       onClick: handleRippleDelete,
     },
     {
-      label: "Delete",
+      label: t("Delete"),
       icon: <Trash2 size={14} aria-hidden />,
       onClick: handleDelete,
     },

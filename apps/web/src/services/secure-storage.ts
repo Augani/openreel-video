@@ -1,4 +1,4 @@
-/**
+import { t } from "../i18n";/**
  * Secure storage service for encrypting/decrypting sensitive data (API keys)
  * using Web Crypto API with PBKDF2 key derivation and AES-GCM encryption.
  *
@@ -371,7 +371,7 @@ export async function changeMasterPassword(
     const value = await decrypt(record.encryptedData, iv, oldKey);
     decryptedSecrets.push({
       id: record.id,
-      label: record.label,
+      label: t(record.label),
       value,
       createdAt: record.createdAt,
     });
@@ -400,7 +400,7 @@ export async function changeMasterPassword(
     const { encrypted, iv } = await encrypt(secret.value, newKey);
     const record: SecureRecord = {
       id: secret.id,
-      label: secret.label,
+      label: t(secret.label),
       encryptedData: encrypted,
       iv,
       createdAt: secret.createdAt,
@@ -525,7 +525,7 @@ export async function listSecrets(): Promise<Array<{ id: string; label: string; 
 
   return records.map((r) => ({
     id: r.id,
-    label: r.label,
+    label: t(r.label),
     createdAt: r.createdAt,
     updatedAt: r.updatedAt,
   }));

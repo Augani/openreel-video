@@ -6,6 +6,7 @@ import { MOTION_PRESETS, getMotionPresetCategories } from "@openreel/core";
 import { useProjectStore } from "../../stores/project-store";
 import { useMotionStore } from "../stores/motion-store";
 import { PanelHeader, SegmentedControl } from "./primitives";
+import { useTranslation } from "react-i18next";
 
 const CATEGORY_LABELS: Record<string, string> = {
   ads: "Ads",
@@ -30,6 +31,7 @@ const CATEGORY_GRADIENTS: Record<string, string> = {
 const DEFAULT_GRADIENT = "from-accent-soft via-bg-3 to-accent-soft";
 
 export function MotionTemplateBrowser(): JSX.Element {
+  const { t } = useTranslation();
   const [activeCategory, setActiveCategory] = useState<string>("all");
   const createMotionComposition = useProjectStore(
     (state) => state.createMotionComposition,
@@ -57,7 +59,7 @@ export function MotionTemplateBrowser(): JSX.Element {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <PanelHeader title="Templates" icon={Sparkles} />
+      <PanelHeader title={t("Templates")} icon={Sparkles} />
 
       <div className="shrink-0 border-b border-border px-3 py-2.5">
         <SegmentedControl
@@ -94,8 +96,7 @@ export function MotionTemplateBrowser(): JSX.Element {
                 </span>
                 {preset.variables.length > 0 ? (
                   <span className="absolute bottom-2.5 right-2.5 rounded-md bg-black/55 px-2 py-0.5 text-[10px] font-semibold text-white/90 backdrop-blur-sm">
-                    {preset.variables.length} vars
-                  </span>
+                    {preset.variables.length} {t(" vars")}</span>
                 ) : null}
               </div>
               <div className="p-3">

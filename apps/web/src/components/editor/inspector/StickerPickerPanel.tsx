@@ -14,6 +14,7 @@ import {
   type EmojiItem,
   type StickerItem,
 } from "@openreel/core";
+import { useTranslation } from "react-i18next";
 
 type TabType = "emojis" | "stickers";
 
@@ -41,7 +42,9 @@ interface StickerCardProps {
   onAdd: () => void;
 }
 
-const StickerCard: React.FC<StickerCardProps> = ({ sticker, onAdd }) => (
+const StickerCard: React.FC<StickerCardProps> = ({ sticker, onAdd }) => {
+  const { t: tr } = useTranslation();
+  return (
   <ClickableCard
     label={`Add ${sticker.name}`}
     onClick={onAdd}
@@ -52,7 +55,7 @@ const StickerCard: React.FC<StickerCardProps> = ({ sticker, onAdd }) => (
     {sticker.imageUrl ? (
       <img
         src={sticker.imageUrl}
-        alt={sticker.name}
+        alt={tr(sticker.name)}
         className="w-8 h-8 object-contain"
       />
     ) : (
@@ -65,8 +68,10 @@ const StickerCard: React.FC<StickerCardProps> = ({ sticker, onAdd }) => (
     </Text>
   </ClickableCard>
 );
+};
 
 export const StickerPickerPanel: React.FC = () => {
+  const { t: tr } = useTranslation();
   const addTrack = useProjectStore((state) => state.addTrack);
   const project = useProjectStore((state) => state.project);
   const createStickerClip = useProjectStore((state) => state.createStickerClip);
@@ -217,17 +222,15 @@ export const StickerPickerPanel: React.FC = () => {
         <Smile size={16} className="text-primary" aria-hidden />
         <div className="flex flex-col gap-0.5 min-w-0">
           <Text type="body" color="primary" weight="bold" display="block" className="text-[11px]">
-            Stickers & Emojis
-          </Text>
+            {tr("Stickers & Emojis")}</Text>
           <Text type="supporting" color="secondary" display="block" className="text-[9px]">
-            Add fun elements to your video
-          </Text>
+            {tr("Add fun elements to your video")}</Text>
         </div>
       </Card>
 
       <div className="flex gap-1">
         <Button
-          label="Emojis"
+          label={tr("Emojis")}
           icon={<Smile size={12} aria-hidden />}
           variant={activeTab === "emojis" ? "primary" : "secondary"}
           size="sm"
@@ -235,7 +238,7 @@ export const StickerPickerPanel: React.FC = () => {
           className="flex-1"
         />
         <Button
-          label="Stickers"
+          label={tr("Stickers")}
           icon={<Sticker size={12} aria-hidden />}
           variant={activeTab === "stickers" ? "primary" : "secondary"}
           size="sm"
@@ -246,12 +249,12 @@ export const StickerPickerPanel: React.FC = () => {
 
       <div className="relative">
         <ToolcraftTextInputControl
-          label={activeTab === "emojis" ? "Search emojis" : "Search stickers"}
+          label={activeTab === "emojis" ? tr("Search emojis") : tr("Search stickers")}
           isLabelHidden
           size="sm"
           width="100%"
           placeholder={
-            activeTab === "emojis" ? "Search emojis..." : "Search stickers..."
+            activeTab === "emojis" ? tr("Search emojis...") : tr("Search stickers...")
           }
           value={searchQuery}
           onChange={setSearchQuery}
@@ -301,8 +304,7 @@ export const StickerPickerPanel: React.FC = () => {
                 aria-hidden
               />
               <Text type="supporting" color="secondary" className="text-[10px]">
-                No emojis found
-              </Text>
+                {tr("No emojis found")}</Text>
             </div>
           ) : (
             currentEmojis.map((emoji) => (
@@ -326,11 +328,9 @@ export const StickerPickerPanel: React.FC = () => {
                 aria-hidden
               />
               <Text type="supporting" color="secondary" className="text-[10px]">
-                No stickers yet
-              </Text>
+                {tr("No stickers yet")}</Text>
               <Text type="supporting" color="secondary" className="text-[9px] mt-1">
-                Import custom stickers below
-              </Text>
+                {tr("Import custom stickers below")}</Text>
             </div>
           ) : (
             <div className="grid grid-cols-4 gap-2">
@@ -351,14 +351,14 @@ export const StickerPickerPanel: React.FC = () => {
           ref={fileInputRef}
           type="file"
           accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
-          aria-label="Choose custom sticker image"
+          aria-label={tr("Choose custom sticker image")}
           className="sr-only"
           onChange={(event) =>
             void handleImportSticker(event.currentTarget.files?.[0])
           }
         />
         <Button
-          label={isImporting ? "Importing sticker…" : "Import & Add Sticker"}
+          label={isImporting ? tr("Importing sticker…") : tr("Import & Add Sticker")}
           icon={<Plus size={12} aria-hidden />}
           variant="secondary"
           size="sm"

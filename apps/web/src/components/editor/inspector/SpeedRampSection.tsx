@@ -29,6 +29,7 @@ import {
   SPEED_MAX,
   SPEED_CURVE_PRESETS,
 } from "@openreel/core";
+import { useTranslation } from "react-i18next";
 
 interface ClipLike {
   id: string;
@@ -73,6 +74,7 @@ const SpeedCurveCanvas: React.FC<{
   onRemoveKeyframe,
   onMoveKeyframe,
 }) => {
+  const { t: tr } = useTranslation();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [hoveredKeyframe, setHoveredKeyframe] = useState<string | null>(null);
   const [draggingKeyframe, setDraggingKeyframe] = useState<string | null>(null);
@@ -371,13 +373,13 @@ const SpeedCurveCanvas: React.FC<{
         }`}
       />
       <div className="absolute bottom-1 right-1 text-[8px] text-fg-3 pointer-events-none">
-        Click to add • Drag to move • Click a point to remove
-      </div>
+        {tr("Click to add • Drag to move • Click a point to remove")}</div>
     </div>
   );
 };
 
 export const SpeedRampSection: React.FC<SpeedRampSectionProps> = ({ clip }) => {
+  const { t: tr } = useTranslation();
   const playheadPosition = useTimelineStore((state) => state.playheadPosition);
   const speedEngine = useMemo(() => getSpeedEngine(), []);
 
@@ -596,13 +598,13 @@ export const SpeedRampSection: React.FC<SpeedRampSectionProps> = ({ clip }) => {
     <div className="space-y-3">
       <Card variant="muted" padding={2} className="border border-border">
         <Text type="supporting" color="secondary" className="text-[10px]">
-          Effective duration: {formatDuration(effectiveDuration)}
+          {tr("Effective duration: ")}{formatDuration(effectiveDuration)}
         </Text>
       </Card>
 
       <div className="space-y-2">
         <PropertySlider
-          label="Playback Speed"
+          label={tr("Playback Speed")}
           min={Math.log(SPEED_MIN)}
           max={Math.log(SPEED_MAX)}
           step={0.01}
@@ -621,7 +623,7 @@ export const SpeedRampSection: React.FC<SpeedRampSectionProps> = ({ clip }) => {
         {SPEED_PRESETS.map((preset) => (
           <Button
             key={preset.id}
-            label={preset.name}
+            label={tr(preset.name)}
             variant={Math.abs(currentSpeed - preset.speed) < 0.01 ? "primary" : "secondary"}
             size="sm"
             onClick={() => handleSpeedChange(preset.speed)}
@@ -632,7 +634,7 @@ export const SpeedRampSection: React.FC<SpeedRampSectionProps> = ({ clip }) => {
 
       <div className="flex gap-2">
         <Button
-          label="Reverse"
+          label={tr("Reverse")}
           icon={<RotateCcw size={12} aria-hidden />}
           variant={isReverse ? "primary" : "secondary"}
           size="sm"
@@ -640,7 +642,7 @@ export const SpeedRampSection: React.FC<SpeedRampSectionProps> = ({ clip }) => {
           className="flex-1"
         />
         <Button
-          label="Pitch Correct"
+          label={tr("Pitch Correct")}
           variant={pitchCorrection ? "primary" : "secondary"}
           size="sm"
           onClick={handlePitchCorrectionToggle}
@@ -650,13 +652,12 @@ export const SpeedRampSection: React.FC<SpeedRampSectionProps> = ({ clip }) => {
 
       <div className="space-y-1.5">
         <Text type="supporting" color="secondary" weight="bold" className="text-[10px]">
-          Speed Curve Presets
-        </Text>
+          {tr("Speed Curve Presets")}</Text>
         <div className="grid grid-cols-2 gap-1">
           {SPEED_CURVE_PRESETS.map((preset) => (
             <Button
               key={preset.id}
-              label={preset.name}
+              label={tr(preset.name)}
               variant="secondary"
               size="sm"
               onClick={() => handleApplyCurvePreset(preset.id)}
@@ -711,7 +712,7 @@ export const SpeedRampSection: React.FC<SpeedRampSectionProps> = ({ clip }) => {
                     {kf.speed.toFixed(2)}x
                   </Text>
                   <IconButton
-                    label="Remove speed keyframe"
+                    label={tr("Remove speed keyframe")}
                     icon={<Trash2 size={10} aria-hidden />}
                     variant="ghost"
                     size="sm"
@@ -743,7 +744,7 @@ export const SpeedRampSection: React.FC<SpeedRampSectionProps> = ({ clip }) => {
       {isExpanded && (
         <div className="space-y-2">
           <Button
-            label="Add Freeze Frame at Playhead"
+            label={tr("Add Freeze Frame at Playhead")}
             icon={<Pause size={12} aria-hidden />}
             variant="primary"
             size="sm"
@@ -764,12 +765,12 @@ export const SpeedRampSection: React.FC<SpeedRampSectionProps> = ({ clip }) => {
                   <Text type="supporting" color="secondary" className="text-[9px]">
                     {ff.startTime.toFixed(2)}s
                   </Text>
-                  <Text type="supporting" color="secondary" className="text-[9px]">for</Text>
+                  <Text type="supporting" color="secondary" className="text-[9px]">{tr("for")}</Text>
                   <Text type="supporting" color="primary" className="text-[9px] font-mono">
                     {ff.duration.toFixed(1)}s
                   </Text>
                   <IconButton
-                    label="Remove freeze frame"
+                    label={tr("Remove freeze frame")}
                     icon={<Trash2 size={10} aria-hidden />}
                     variant="ghost"
                     size="sm"
@@ -784,7 +785,7 @@ export const SpeedRampSection: React.FC<SpeedRampSectionProps> = ({ clip }) => {
       )}
 
       <Button
-        label="Reset Speed & Effects"
+        label={tr("Reset Speed & Effects")}
         icon={<RotateCcw size={12} aria-hidden />}
         variant="secondary"
         size="sm"
