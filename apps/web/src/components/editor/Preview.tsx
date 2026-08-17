@@ -8294,7 +8294,7 @@ export const Preview: React.FC = () => {
               label={tr("Playback quality")}
               variant="ghost"
               onClick={() => setShowQualityMenu(!showQualityMenu)}
-              className="rounded-[7px] bg-bg-2 px-[11px] py-[7px] text-[12px] font-medium text-fg-2 hover:bg-bg-3 hover:text-fg transition-colors"
+              className="whitespace-nowrap rounded-[7px] bg-bg-2 px-[11px] py-[7px] text-[12px] font-medium text-fg-2 hover:bg-bg-3 hover:text-fg transition-colors"
             >
               {tr(PREVIEW_QUALITY_OPTIONS.find((o) => o.value === playbackQuality)?.label ?? "Auto")}
             </Button>
