@@ -48,7 +48,7 @@ export class ErrorBoundary extends React.Component<
           <Text type="supporting" weight="medium" className="text-red-400 text-sm mb-2">
             {t("Something went wrong")}</Text>
           <Text type="supporting" color="secondary" className="text-text-muted text-xs mb-4 max-w-xs">
-            {this.state.error?.message || "An unexpected error occurred"}
+            {this.state.error?.message || t("An unexpected error occurred")}
           </Text>
           <Button
             label={t("Retry")}
@@ -80,7 +80,7 @@ export const PanelErrorBoundary: React.FC<PanelErrorBoundaryProps> = ({
     fallback={
       <div className="flex-1 flex items-center justify-center p-4 text-center">
         <Text type="supporting" color="secondary" className="text-text-muted text-xs">
-          {name} {t(" failed to load. Please refresh the page.")}</Text>
+          {t("{{name}} failed to load. Please refresh the page.", { name })}</Text>
       </div>
     }
   >

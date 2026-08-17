@@ -165,7 +165,7 @@ const ToastItem = React.forwardRef<HTMLDivElement, ToastItemProps>(
               transition={{ delay: 0.1 }}
               className={`text-xs mt-1 leading-relaxed ${isDark ? "text-zinc-400" : "text-zinc-600"}`}
             >
-              {notification.message}
+              {t(notification.message)}
             </motion.p>
           )}
         </div>

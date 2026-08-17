@@ -150,7 +150,7 @@ export const SharePage: React.FC<SharePageProps> = ({ shareId }) => {
           <div>
             <Text type="body" color="primary" weight="bold" className="text-2xl text-text-primary">{t("Error")}</Text>
             <Text type="supporting" color="secondary" className="text-text-muted mt-2">
-              {error || "Something went wrong"}
+              {error || t("Something went wrong")}
             </Text>
           </div>
           <Button

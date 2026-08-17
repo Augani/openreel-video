@@ -145,7 +145,12 @@ export const useSettingsStore = create<SettingsState>()(
         setLanguage: (lang: string) => {
           set({ language: lang });
           // Load the locale bundle first so the re-render lands with translations ready.
-          void ensureLocaleLoaded(lang).then(() => i18n.changeLanguage(lang));
+          // If the user picked another language while this bundle was loading, leave
+          // the newer selection in charge instead of clobbering it.
+          void ensureLocaleLoaded(lang).then(async () => {
+            if (get().language !== lang) return;
+            await i18n.changeLanguage(lang);
+          });
         },
 
         setDefaultTtsProvider: (provider: TtsProvider) =>

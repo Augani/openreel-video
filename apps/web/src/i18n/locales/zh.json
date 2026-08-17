@@ -311,6 +311,7 @@
   "Ambient fill": "环境光填充",
   "Amount": "数量",
   "Amplitude": "振幅",
+  "An unexpected error occurred": "发生意外错误",
   "Analog film texture": "模拟胶片质感",
   "Analog Warp": "模拟变形",
   "Analysis Failed": "分析失败",
@@ -448,6 +449,7 @@
   "Back to Templates": "返回模板",
   "Background": "背景",
   "Background Color": "背景颜色",
+  "Background color {{color}}": "背景颜色 {{color}}",
   "Background fill": "背景填充",
   "Background Image": "背景图像",
   "Background Mode": "背景模式",
@@ -2495,6 +2497,7 @@
   "Solo": "独奏",
   "Solo layer": "独奏图层",
   "Solo track": "独奏轨道",
+  "Something went wrong": "出错了",
   "Sort media": "排序媒体",
   "Sound": "声音",
   "Sound FX": "音效",
@@ -2944,5 +2947,6 @@
   "Zoom Top Left": "左上缩放",
   "Zoom Transition": "缩放转场",
   "Zoom transition between clips": "片段之间的缩放转场",
-  "Zoom-style radial motion": "变焦式径向运动"
+  "Zoom-style radial motion": "变焦式径向运动",
+  "{{name}} failed to load. Please refresh the page.": "{{name}} 加载失败，请刷新页面。"
 }

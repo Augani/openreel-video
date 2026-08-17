@@ -230,7 +230,7 @@ export const GeneralPanel: React.FC = () => {
               return (
                 <ClickableCard
                   key={hex}
-                  label={`Background color ${hex}`}
+                  label={t("Background color {{color}}", { color: hex })}
                   onClick={() => setCanvasBackground("color", hex)}
                   padding={0}
                   variant="transparent"
