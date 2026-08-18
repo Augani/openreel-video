@@ -7,17 +7,21 @@ import { getTimelineTrackSelection } from "../../../utils/timeline-item-actions"
 
 export const CaptionBatchSelectButton: React.FC = () => {
   const project = useProjectStore((state) => state.project);
+  const getFullProject = useProjectStore((state) => state.getFullProject);
   const selectMultiple = useUIStore((state) => state.selectMultiple);
+  const projectRevision = project.modifiedAt;
 
   const captionSelection = useMemo(() => {
-    const captionTrack = project.timeline.tracks.find(
+    void projectRevision;
+    const liveProject = getFullProject();
+    const captionTrack = liveProject.timeline.tracks.find(
       (track) =>
         track.type === "text" && track.name.trim().toLowerCase() === "captions",
     );
     return captionTrack
-      ? getTimelineTrackSelection(project, captionTrack.id)
+      ? getTimelineTrackSelection(liveProject, captionTrack.id)
       : [];
-  }, [project]);
+  }, [getFullProject, projectRevision]);
 
   if (captionSelection.length < 2) return null;
 

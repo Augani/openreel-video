@@ -2,6 +2,7 @@ import "../../../test/install-local-storage-mock";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { Project, TextClip } from "@openreel/core";
+import { useEngineStore } from "../../../stores/engine-store";
 import { createEmptyProject } from "../../../stores/project/project-helpers";
 import { useProjectStore } from "../../../stores/project-store";
 import { useUIStore } from "../../../stores/ui-store";
@@ -43,7 +44,7 @@ function captionProject(): Project {
   const empty = createEmptyProject("Caption selection");
   return {
     ...empty,
-    textClips: [caption("caption-a", 0), caption("caption-b", 2)],
+    textClips: [],
     timeline: {
       ...empty.timeline,
       tracks: [
@@ -65,12 +66,17 @@ function captionProject(): Project {
 
 describe("CaptionBatchSelectButton", () => {
   beforeEach(() => {
+    useEngineStore
+      .getState()
+      .getTitleEngine()
+      ?.loadTextClips([caption("caption-a", 0), caption("caption-b", 2)]);
     useProjectStore.setState({ project: captionProject(), hasOpenProject: true });
     useUIStore.getState().clearSelection();
   });
 
   afterEach(() => {
     cleanup();
+    useEngineStore.getState().getTitleEngine()?.clear();
     useUIStore.getState().clearSelection();
   });
 

@@ -3,6 +3,7 @@ import { act, cleanup, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { Clip, Project, TextClip, Track } from "@openreel/core";
 import type { ToolcraftContextMenuOption as ContextMenuOption } from "@openreel/ui";
+import { useEngineStore } from "../../../stores/engine-store";
 import { createEmptyProject } from "../../../stores/project/project-helpers";
 import { useProjectStore } from "../../../stores/project-store";
 import { useUIStore } from "../../../stores/ui-store";
@@ -96,7 +97,7 @@ function testProject(): Project {
         },
       ],
     },
-    textClips: [caption("caption-a", 0), caption("caption-b", 2)],
+    textClips: [],
   };
 }
 
@@ -112,12 +113,17 @@ function menuAction(items: ContextMenuOption[], label: string): () => void {
 
 describe("select all clips on track context menu", () => {
   beforeEach(() => {
+    useEngineStore
+      .getState()
+      .getTitleEngine()
+      ?.loadTextClips([caption("caption-a", 0), caption("caption-b", 2)]);
     useProjectStore.setState({ project: testProject(), hasOpenProject: true });
     useUIStore.getState().clearSelection();
   });
 
   afterEach(() => {
     cleanup();
+    useEngineStore.getState().getTitleEngine()?.clear();
     useUIStore.getState().clearSelection();
   });
 
@@ -135,7 +141,7 @@ describe("select all clips on track context menu", () => {
   });
 
   it("selects all editable captions from a caption menu", () => {
-    const clip = useProjectStore.getState().project.textClips?.[0];
+    const clip = useProjectStore.getState().getAllTextClips()[0];
     if (!clip) throw new Error("Caption fixture was not created");
     const { result } = renderHook(() =>
       useGraphicsClipContextMenuItems({ clip, clipType: "text" }),

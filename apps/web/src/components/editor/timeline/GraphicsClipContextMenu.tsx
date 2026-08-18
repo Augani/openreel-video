@@ -77,7 +77,7 @@ export function useGraphicsClipContextMenuItems({
   };
 
   const handleSelectTrackClips = () => {
-    const project = useProjectStore.getState().project;
+    const project = useProjectStore.getState().getFullProject();
     selectMultiple(getTimelineTrackSelection(project, clip.trackId));
     onClose?.();
   };
