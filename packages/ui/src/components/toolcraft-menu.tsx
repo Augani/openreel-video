@@ -187,6 +187,10 @@ export function ToolcraftContextMenu({
       <ContextMenuContent
         className={cn("min-w-40", className)}
         style={menuWidth ? { width: toCssSize(menuWidth) } : undefined}
+        onPointerDown={(event) => event.stopPropagation()}
+        onMouseDown={(event) => event.stopPropagation()}
+        onMouseUp={(event) => event.stopPropagation()}
+        onClick={(event) => event.stopPropagation()}
       >
         {renderContextOptions(items, size)}
       </ContextMenuContent>
