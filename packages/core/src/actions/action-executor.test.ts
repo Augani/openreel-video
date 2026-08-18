@@ -153,7 +153,8 @@ describe("ActionExecutor transform/update", () => {
   it("deep-merges a partial axis (does not drop the other) and round-trips", async () => {
     const executor = new ActionExecutor();
     const project = makeProjectWithClip();
-    const before = JSON.stringify(project);
+    const beforeTimeline = JSON.stringify(project.timeline);
+    const beforeModifiedAt = project.modifiedAt;
 
     const result = await executor.execute(
       {
@@ -169,9 +170,53 @@ describe("ActionExecutor transform/update", () => {
       x: 100,
       y: 0,
     });
+    expect(project.modifiedAt).toBeGreaterThan(beforeModifiedAt);
 
     await executor.undo(project);
-    expect(JSON.stringify(project)).toBe(before);
+    expect(JSON.stringify(project.timeline)).toBe(beforeTimeline);
+  });
+
+  it("keeps one visual clip while moving it and fully removes it", async () => {
+    const executor = new ActionExecutor();
+    const project = makeProjectWithClip();
+    (project.timeline.tracks[0] as { type: string }).type = "image";
+
+    const beforeMove = project.modifiedAt;
+    const move = await executor.execute(
+      {
+        id: "move-image",
+        type: "clip/move",
+        params: { clipId: "c1", startTime: 2 },
+        timestamp: Date.now(),
+      } as Action,
+      project,
+    );
+
+    expect(move.success).toBe(true);
+    expect(
+      project.timeline.tracks.flatMap((track) => track.clips).filter(
+        (clip) => clip.id === "c1",
+      ),
+    ).toHaveLength(1);
+    expect(project.timeline.tracks[0].clips[0].startTime).toBe(2);
+    expect(project.modifiedAt).toBeGreaterThan(beforeMove);
+
+    const remove = await executor.execute(
+      {
+        id: "remove-image",
+        type: "clip/remove",
+        params: { clipId: "c1" },
+        timestamp: Date.now(),
+      } as Action,
+      project,
+    );
+
+    expect(remove.success).toBe(true);
+    expect(
+      project.timeline.tracks.flatMap((track) => track.clips).filter(
+        (clip) => clip.id === "c1",
+      ),
+    ).toHaveLength(0);
   });
 });
 

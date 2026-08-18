@@ -36,16 +36,37 @@ function createStore(overrides: Partial<ProjectState> = {}): ProjectState {
 }
 
 describe("timeline item actions", () => {
-  it("routes sticker deletion to the sticker action", async () => {
-    const sticker = { id: "sticker-1" };
+  it.each([
+    ["media", "getClip", "removeClip"],
+    ["text", "getTextClip", "deleteTextClip"],
+    ["shape", "getShapeClip", "deleteShapeClip"],
+    ["svg", "getSVGClip", "deleteSVGClip"],
+    ["sticker", "getStickerClip", "deleteStickerClip"],
+  ] as const)("routes %s deletion to its matching action", async (
+    kind,
+    getter,
+    remover,
+  ) => {
+    const id = `${kind}-1`;
     const store = createStore({
-      getStickerClip: vi.fn().mockReturnValue(sticker),
+      [getter]: vi.fn().mockReturnValue({ id }),
     });
 
-    await expect(deleteTimelineItem(store, sticker.id)).resolves.toBe(true);
-    expect(store.deleteStickerClip).toHaveBeenCalledWith(sticker.id);
-    expect(store.deleteShapeClip).not.toHaveBeenCalled();
-    expect(store.removeClip).not.toHaveBeenCalled();
+    await expect(deleteTimelineItem(store, id)).resolves.toBe(true);
+    expect(store[remover]).toHaveBeenCalledWith(id);
+
+    const otherRemovers = [
+      "removeClip",
+      "deleteTextClip",
+      "deleteShapeClip",
+      "deleteSVGClip",
+      "deleteStickerClip",
+    ] as const;
+    for (const otherRemover of otherRemovers) {
+      if (otherRemover !== remover) {
+        expect(store[otherRemover]).not.toHaveBeenCalled();
+      }
+    }
   });
 
   it("duplicates both media and overlay timeline items", async () => {

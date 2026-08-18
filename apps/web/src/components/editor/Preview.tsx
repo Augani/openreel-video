@@ -1187,21 +1187,44 @@ export const Preview: React.FC = () => {
   const project = useProjectStore((state) => state.project);
   const getMediaItem = useProjectStore((state) => state.getMediaItem);
 
+  useEffect(() => {
+    const cachedFrame = lastGoodFrameRef.current;
+    lastGoodFrameRef.current = null;
+    cachedFrame?.close();
+  }, [project]);
+
   // Get text clips from TitleEngine
   const getTitleEngine = useEngineStore((state) => state.getTitleEngine);
   const allTextClips = useMemo(() => {
+    if (project.textClips) return project.textClips;
     const titleEngine = getTitleEngine();
     return titleEngine?.getAllTextClips() || [];
-  }, [getTitleEngine, project.modifiedAt]);
+  }, [getTitleEngine, project.textClips]);
 
   const getGraphicsEngine = useEngineStore((state) => state.getGraphicsEngine);
   const allShapeClips = useMemo(() => {
+    if (
+      project.shapeClips ||
+      project.svgClips ||
+      project.stickerClips
+    ) {
+      return [
+        ...(project.shapeClips ?? []),
+        ...(project.svgClips ?? []),
+        ...(project.stickerClips ?? []),
+      ];
+    }
     const graphicsEngine = getGraphicsEngine();
     const shapes = graphicsEngine?.getAllShapeClips() || [];
     const svgs = graphicsEngine?.getAllSVGClips() || [];
     const stickers = graphicsEngine?.getAllStickerClips() || [];
     return [...shapes, ...svgs, ...stickers];
-  }, [getGraphicsEngine, project.modifiedAt]);
+  }, [
+    getGraphicsEngine,
+    project.shapeClips,
+    project.stickerClips,
+    project.svgClips,
+  ]);
 
   const getMaskEngine = useEngineStore((state) => state.getMaskEngine);
   const clipMasksById = useMemo(() => {
@@ -2650,17 +2673,7 @@ export const Preview: React.FC = () => {
 
       let hasRenderedFrame = false;
       let shouldClearCanvas = true;
-      const hadBackground = Boolean(lastGoodFrameRef.current);
-      if (lastGoodFrameRef.current) {
-        ctx.drawImage(
-          lastGoodFrameRef.current,
-          0,
-          0,
-          canvas.width,
-          canvas.height,
-        );
-        shouldClearCanvas = false;
-      }
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       const activeShapeClips = getActiveShapeClips(allShapeClips, time);
       const activeTextClips = getActiveTextClips(allTextClips, time);
@@ -3184,23 +3197,6 @@ export const Preview: React.FC = () => {
             offscreenCanvasRef.current,
           );
         } catch {}
-        return true;
-      }
-
-      const hasActiveContent =
-        videoTracks.some((track) =>
-          track.clips.some(
-            (clip) =>
-              time >= clip.startTime && time < clip.startTime + clip.duration,
-          ),
-        ) ||
-        hasActiveMotionInstances(time) ||
-        activeShapeClips.length > 0 ||
-        activeTextClips.length > 0;
-
-      if (hadBackground && hasActiveContent && offscreenCanvasRef.current) {
-        mainCtx.clearRect(0, 0, canvas.width, canvas.height);
-        mainCtx.drawImage(offscreenCanvasRef.current, 0, 0);
         return true;
       }
 
@@ -6145,7 +6141,7 @@ export const Preview: React.FC = () => {
     fillPreviewBackground,
   ]);
 
-  const lastModifiedAtRef = useRef<number>(project.modifiedAt);
+  const lastProjectForRenderRef = useRef(project);
   const lastPlayheadForRenderRef = useRef<number>(playheadPosition);
   const modifiedRenderTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const renderInFlightRef = useRef<boolean>(false);
@@ -6155,7 +6151,7 @@ export const Preview: React.FC = () => {
     if (isPlaying) return;
 
     if (isInteractingRef.current) {
-      lastModifiedAtRef.current = project.modifiedAt;
+      lastProjectForRenderRef.current = project;
       return;
     }
 
@@ -6163,9 +6159,9 @@ export const Preview: React.FC = () => {
     if (!canvas) return;
 
     const playheadChanged = playheadPosition !== lastPlayheadForRenderRef.current;
-    const modifiedChanged = project.modifiedAt !== lastModifiedAtRef.current;
+    const projectChanged = project !== lastProjectForRenderRef.current;
 
-    lastModifiedAtRef.current = project.modifiedAt;
+    lastProjectForRenderRef.current = project;
     lastPlayheadForRenderRef.current = playheadPosition;
 
     const previousRenderTime = lastPreviewRenderTimeRef.current;
@@ -6205,7 +6201,7 @@ export const Preview: React.FC = () => {
 
     if (playheadChanged) {
       doRender(playheadPosition);
-    } else if (modifiedChanged) {
+    } else if (projectChanged) {
       if (modifiedRenderTimerRef.current) {
         clearTimeout(modifiedRenderTimerRef.current);
       }
@@ -6228,7 +6224,7 @@ export const Preview: React.FC = () => {
     renderFrameDirectly,
     renderFallbackFrame,
     releaseScrubVideoElements,
-    project.modifiedAt,
+    project,
     isDark,
   ]);
 
@@ -7451,8 +7447,9 @@ export const Preview: React.FC = () => {
   );
 
   const handleMouseUp = useCallback(() => {
+    let transformCommit: ReturnType<typeof updateClipTransform> | null = null;
     if (pendingTransformRef.current) {
-      updateClipTransform(
+      transformCommit = updateClipTransform(
         pendingTransformRef.current.clipId,
         pendingTransformRef.current.transform,
       );
@@ -7474,7 +7471,11 @@ export const Preview: React.FC = () => {
     setCanvasSnapGuides({ x: null, y: null });
 
     if (wasInteracting) {
-      renderFrameDirectly(playheadPosition);
+      if (transformCommit) {
+        void transformCommit.then(() => renderFrameDirectly(playheadPosition));
+      } else {
+        void renderFrameDirectly(playheadPosition);
+      }
     }
   }, [updateClipTransform, renderFrameDirectly, playheadPosition]);
 
@@ -7498,8 +7499,11 @@ export const Preview: React.FC = () => {
   useEffect(() => {
     if (interactionMode !== "none") {
       const handleGlobalMouseUp = () => {
+        let transformCommit: ReturnType<
+          typeof updateClipTransform
+        > | null = null;
         if (pendingTransformRef.current) {
-          updateClipTransform(
+          transformCommit = updateClipTransform(
             pendingTransformRef.current.clipId,
             pendingTransformRef.current.transform,
           );
@@ -7518,7 +7522,13 @@ export const Preview: React.FC = () => {
         setLiveTransform(null);
 
         if (wasInteracting) {
-          renderFrameDirectly(playheadPosition);
+          if (transformCommit) {
+            void transformCommit.then(() =>
+              renderFrameDirectly(playheadPosition),
+            );
+          } else {
+            void renderFrameDirectly(playheadPosition);
+          }
         }
       };
 

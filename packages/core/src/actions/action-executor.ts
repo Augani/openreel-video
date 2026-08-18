@@ -251,6 +251,7 @@ export class ActionExecutor {
         lastAddedIds: this.lastAddedIds,
       });
       this.recalculateTimelineDuration(project);
+      this.markProjectModified(project);
       return;
     }
 
@@ -280,11 +281,16 @@ export class ActionExecutor {
 
     // Recompute timeline duration from clips after any action that may affect it
     this.recalculateTimelineDuration(project);
+    this.markProjectModified(project);
   }
 
   private recalculateTimelineDuration(project: Project): void {
     (project.timeline as MutableTimeline).duration =
       calculateProjectDuration(project);
+  }
+
+  private markProjectModified(project: Project): void {
+    (project as { modifiedAt: number }).modifiedAt = Date.now();
   }
 
   private applyProjectAction(action: ProjectAction, project: Project): void {
