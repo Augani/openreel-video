@@ -196,6 +196,11 @@ export function createClipSlice(set: Set, get: Get): ClipSlice {
             trackId: targetTrack.id,
             mediaId: videoClip.mediaId,
             startTime: videoClip.startTime,
+            duration: videoClip.duration,
+            inPoint: videoClip.inPoint,
+            outPoint: videoClip.outPoint,
+            speed: videoClip.speed,
+            reversed: videoClip.reversed,
             audioTrackIndex: trackIdx,
           },
         };

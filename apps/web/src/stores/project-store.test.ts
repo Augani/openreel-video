@@ -1866,6 +1866,44 @@ describe("ProjectStore", () => {
       expect(audioTracks[0].clips[0].mediaId).toBe("video-media-1");
     });
 
+    it("should preserve the video clip source range in separated audio", async () => {
+      const project = createProjectWithVideoClip(1);
+      const videoTrack = project.timeline.tracks[0];
+      const trimmedVideoClip = {
+        ...videoTrack.clips[0],
+        startTime: 4,
+        duration: 3,
+        inPoint: 2,
+        outPoint: 5,
+        speed: 1.5,
+        reversed: true,
+      };
+      const trimmedProject = {
+        ...project,
+        timeline: {
+          ...project.timeline,
+          tracks: [{ ...videoTrack, clips: [trimmedVideoClip] }],
+        },
+      };
+
+      useProjectStore.getState().loadProject(trimmedProject);
+      const result = await useProjectStore.getState().separateAudio("video-clip-1");
+
+      expect(result.success).toBe(true);
+      const audioClip = useProjectStore
+        .getState()
+        .project.timeline.tracks.find((track) => track.type === "audio")
+        ?.clips[0];
+      expect(audioClip).toMatchObject({
+        startTime: 4,
+        duration: 3,
+        inPoint: 2,
+        outPoint: 5,
+        speed: 1.5,
+        reversed: true,
+      });
+    });
+
     it("should create multiple audio clips when media has multiple audio tracks", async () => {
       useProjectStore.getState().loadProject(createProjectWithVideoClip(3));
       const result = await useProjectStore.getState().separateAudio("video-clip-1");

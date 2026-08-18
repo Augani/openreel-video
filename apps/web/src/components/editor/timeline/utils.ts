@@ -134,6 +134,82 @@ export const generateWaveformPath = (
   return points.join(" ");
 };
 
+interface ClipWaveformBarOptions {
+  barCount: number;
+  mediaDuration: number;
+  inPoint: number;
+  outPoint: number;
+  reversed?: boolean;
+}
+
+/**
+ * Samples the source-media waveform over the range represented by a timeline
+ * clip. Each bar uses the highest peak in its source-time bucket so short
+ * transients remain visible while genuinely silent buckets stay at zero.
+ */
+export const getClipWaveformBarAmplitudes = (
+  waveformData: Float32Array | number[] | null | undefined,
+  options: ClipWaveformBarOptions,
+): number[] => {
+  const barCount = Math.max(0, Math.floor(options.barCount));
+  if (barCount === 0) return [];
+
+  if (
+    !waveformData ||
+    waveformData.length === 0 ||
+    !Number.isFinite(options.mediaDuration) ||
+    options.mediaDuration <= 0
+  ) {
+    return Array.from({ length: barCount }, () => 0);
+  }
+
+  const mediaDuration = options.mediaDuration;
+  const sourceStart = Math.max(0, Math.min(mediaDuration, options.inPoint));
+  const sourceEnd = Math.max(
+    sourceStart,
+    Math.min(mediaDuration, options.outPoint),
+  );
+  const sourceDuration = sourceEnd - sourceStart;
+
+  if (sourceDuration <= 0) {
+    return Array.from({ length: barCount }, () => 0);
+  }
+
+  return Array.from({ length: barCount }, (_, barIndex) => {
+    const displayIndex = options.reversed
+      ? barCount - barIndex - 1
+      : barIndex;
+    const bucketStartTime =
+      sourceStart + (displayIndex / barCount) * sourceDuration;
+    const bucketEndTime =
+      sourceStart + ((displayIndex + 1) / barCount) * sourceDuration;
+    const startSample = Math.max(
+      0,
+      Math.min(
+        waveformData.length - 1,
+        Math.floor((bucketStartTime / mediaDuration) * waveformData.length),
+      ),
+    );
+    const endSample = Math.max(
+      startSample + 1,
+      Math.min(
+        waveformData.length,
+        Math.ceil((bucketEndTime / mediaDuration) * waveformData.length),
+      ),
+    );
+
+    let peak = 0;
+    for (let sampleIndex = startSample; sampleIndex < endSample; sampleIndex++) {
+      const sample = Number(waveformData[sampleIndex]);
+      if (Number.isFinite(sample)) {
+        peak = Math.max(peak, Math.abs(sample));
+      }
+    }
+
+    return Math.min(1, peak);
+  });
+};
+
 export const formatTimecode = (
   timeInSeconds: number,
   frameRate: number = 30,

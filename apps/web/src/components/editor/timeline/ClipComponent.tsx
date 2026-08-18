@@ -5,7 +5,11 @@ import type { Clip, Track, TransitionType } from "@openreel/core";
 import { useProjectStore } from "../../../stores/project-store";
 import { useUIStore } from "../../../stores/ui-store";
 import { useTimelineStore } from "../../../stores/timeline-store";
-import { calculateSnap, getClipStyle } from "./utils";
+import {
+  calculateSnap,
+  getClipStyle,
+  getClipWaveformBarAmplitudes,
+} from "./utils";
 import { useClipContextMenuItems } from "./ClipContextMenu";
 import { toast } from "../../../stores/notification-store";
 import { getTransitionBridge } from "../../../bridges/transition-bridge";
@@ -873,7 +877,16 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
       {isAudio &&
         (() => {
           const barCount = Math.max(8, Math.floor(width / 6));
-          const data = mediaItem?.waveformData;
+          const amplitudes = getClipWaveformBarAmplitudes(
+            mediaItem?.waveformData,
+            {
+              barCount,
+              mediaDuration: mediaItem?.metadata.duration ?? 0,
+              inPoint: clip.inPoint,
+              outPoint: clip.outPoint,
+              reversed: clip.reversed,
+            },
+          );
           return (
             <svg
               className="absolute left-0 bottom-0 w-full pointer-events-none"
@@ -881,12 +894,8 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
               preserveAspectRatio="none"
               viewBox={`0 0 ${barCount * 6 + 6} 28`}
             >
-              {Array.from({ length: barCount }).map((_, i) => {
-                const amp =
-                  data && data.length > 0
-                    ? Math.abs(data[Math.floor((i / barCount) * data.length)] ?? 0)
-                    : 0.35 + 0.5 * Math.abs(Math.sin(i * 1.3) * Math.cos(i * 0.7));
-                const h = Math.max(3, Math.min(24, amp * 26));
+              {amplitudes.map((amplitude, i) => {
+                const h = Math.min(24, amplitude * 26);
                 return (
                   <rect
                     key={i}
