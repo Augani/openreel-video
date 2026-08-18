@@ -18,6 +18,7 @@ describe("ToolcraftSliderControl", () => {
       />,
     );
 
+    expect(screen.getByRole("slider", { name: "Opacity" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Edit Opacity value" }));
     const input = screen.getByRole("textbox", { name: "Opacity value" });
     fireEvent.change(input, { target: { value: "25%" } });

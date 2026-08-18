@@ -8,6 +8,7 @@ import React, {
 import { ToolcraftButton as Button } from "@openreel/ui";
 import { ToolcraftCard as Card } from "@openreel/ui";
 import { ToolcraftClickableCard as ClickableCard } from "@openreel/ui";
+import { ToolcraftSliderControl } from "@openreel/ui";
 import { ToolcraftText as Text } from "@openreel/ui";
 import {
   Play,
@@ -221,12 +222,14 @@ function buildPreviewCSSKeyframes(preset: MotionPreset): globalThis.Keyframe[] {
 
 interface PresetCardProps {
   preset: MotionPreset;
+  duration: number;
   isApplied: boolean;
   onApply: () => void;
 }
 
 const PresetCard: React.FC<PresetCardProps> = ({
   preset,
+  duration,
   isApplied,
   onApply,
 }) => {
@@ -247,7 +250,7 @@ const PresetCard: React.FC<PresetCardProps> = ({
     const keyframes = buildPreviewCSSKeyframes(preset);
 
     animationRef.current = element.animate(keyframes, {
-      duration: preset.duration * 1000,
+      duration: duration * 1000,
       iterations: Infinity,
       easing: "ease-in-out",
     });
@@ -255,7 +258,7 @@ const PresetCard: React.FC<PresetCardProps> = ({
     return () => {
       animationRef.current?.cancel();
     };
-  }, [isHovered, preset]);
+  }, [duration, isHovered, preset]);
 
   return (
     <ClickableCard
@@ -294,7 +297,7 @@ const PresetCard: React.FC<PresetCardProps> = ({
           {preset.name}
         </Text>
         <Text type="supporting" color="secondary" className="text-[8px]">
-          {preset.duration}s
+          {duration}s
         </Text>
       </div>
     </ClickableCard>
@@ -331,11 +334,31 @@ export const MotionPresetsPanel: React.FC<MotionPresetsPanelProps> = ({
 
   const [selectedCategory, setSelectedCategory] =
     useState<PresetCategory>("entrance");
-  const customDurations: Record<string, number> = {};
+  const [customDurations, setCustomDurations] = useState<
+    Partial<Record<PresetCategory, number>>
+  >({});
+  const [lastAppliedPresetId, setLastAppliedPresetId] = useState<string | null>(
+    null,
+  );
+  const durationApplyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
 
   const targetClipId = clipId || selectedClipIds[0];
   const presetLibrary = useMemo(() => getPresetLibrary(), []);
-  const presets = presetLibrary[selectedCategory] || [];
+  const presets = useMemo(
+    () => presetLibrary[selectedCategory] ?? [],
+    [presetLibrary, selectedCategory],
+  );
+
+  useEffect(
+    () => () => {
+      if (durationApplyTimerRef.current) {
+        clearTimeout(durationApplyTimerRef.current);
+      }
+    },
+    [],
+  );
 
   const clip = useMemo((): { type: string; data: ClipLike } | null => {
     if (!targetClipId) return null;
@@ -345,27 +368,39 @@ export const MotionPresetsPanel: React.FC<MotionPresetsPanelProps> = ({
       .find((c) => c.id === targetClipId);
     if (regularClip) return { type: "regular", data: regularClip as ClipLike };
 
-    const textClip = getTextClip(targetClipId);
+    const textClip =
+      project.textClips?.find((candidate) => candidate.id === targetClipId) ??
+      getTextClip(targetClipId);
     if (textClip) return { type: "text", data: textClip as ClipLike };
 
-    const shapeClip = getShapeClip(targetClipId);
+    const shapeClip =
+      project.shapeClips?.find((candidate) => candidate.id === targetClipId) ??
+      getShapeClip(targetClipId);
     if (shapeClip) return { type: "shape", data: shapeClip as ClipLike };
 
-    const svgClip = getSVGClip(targetClipId);
+    const svgClip =
+      project.svgClips?.find((candidate) => candidate.id === targetClipId) ??
+      getSVGClip(targetClipId);
     if (svgClip) return { type: "svg", data: svgClip as ClipLike };
 
-    const stickerClip = getStickerClip(targetClipId);
+    const stickerClip =
+      project.stickerClips?.find(
+        (candidate) => candidate.id === targetClipId,
+      ) ?? getStickerClip(targetClipId);
     if (stickerClip) return { type: "sticker", data: stickerClip as ClipLike };
 
     return null;
   }, [
     targetClipId,
     project.timeline.tracks,
+    project.textClips,
+    project.shapeClips,
+    project.svgClips,
+    project.stickerClips,
     getTextClip,
     getShapeClip,
     getSVGClip,
     getStickerClip,
-    project.modifiedAt,
   ]);
 
   const detectAppliedPresets = useCallback(() => {
@@ -388,7 +423,7 @@ export const MotionPresetsPanel: React.FC<MotionPresetsPanelProps> = ({
   const appliedState = detectAppliedPresets();
 
   const handleApplyPreset = useCallback(
-    (preset: MotionPreset) => {
+    (preset: MotionPreset, durationOverride?: number) => {
       if (!clip || !targetClipId) return;
 
       const prefix =
@@ -410,7 +445,15 @@ export const MotionPresetsPanel: React.FC<MotionPresetsPanelProps> = ({
         anchor: { x: 0.5, y: 0.5 },
       };
 
-      const customDuration = customDurations[preset.id];
+      const customDuration = Math.min(
+        clip.data.duration,
+        Math.max(
+          0.05,
+          durationOverride ??
+            customDurations[preset.category] ??
+            preset.duration,
+        ),
+      );
       const canvas = {
         width: project.settings.width,
         height: project.settings.height,
@@ -466,9 +509,51 @@ export const MotionPresetsPanel: React.FC<MotionPresetsPanelProps> = ({
     ],
   );
 
+  const handlePresetClick = useCallback(
+    (preset: MotionPreset) => {
+      setLastAppliedPresetId(preset.id);
+      handleApplyPreset(preset);
+    },
+    [handleApplyPreset],
+  );
+
+  const handleDurationChange = useCallback(
+    (duration: number) => {
+      setCustomDurations((current) => ({
+        ...current,
+        [selectedCategory]: duration,
+      }));
+
+      const appliedPreset = presets.find(
+        (preset) => preset.id === lastAppliedPresetId,
+      );
+      if (!appliedPreset) return;
+
+      if (durationApplyTimerRef.current) {
+        clearTimeout(durationApplyTimerRef.current);
+      }
+      durationApplyTimerRef.current = setTimeout(() => {
+        durationApplyTimerRef.current = null;
+        handleApplyPreset(appliedPreset, duration);
+      }, 160);
+    },
+    [handleApplyPreset, lastAppliedPresetId, presets, selectedCategory],
+  );
+
   const handleRemovePresets = useCallback(
     (category: PresetCategory) => {
       if (!clip || !targetClipId) return;
+
+      if (durationApplyTimerRef.current) {
+        clearTimeout(durationApplyTimerRef.current);
+        durationApplyTimerRef.current = null;
+      }
+      setLastAppliedPresetId((current) =>
+        current &&
+        (presetLibrary[category] ?? []).some((preset) => preset.id === current)
+          ? null
+          : current,
+      );
 
       const prefix =
         category === "entrance"
@@ -516,6 +601,7 @@ export const MotionPresetsPanel: React.FC<MotionPresetsPanelProps> = ({
       updateClipKeyframes,
       updateTextClipKeyframes,
       getGraphicsEngine,
+      presetLibrary,
     ],
   );
 
@@ -540,6 +626,16 @@ export const MotionPresetsPanel: React.FC<MotionPresetsPanelProps> = ({
       </div>
     );
   }
+
+  const maxPresetDuration = Math.max(0.05, clip.data.duration);
+  const defaultCategoryDuration = Math.min(
+    maxPresetDuration,
+    presets[0]?.duration ?? 0.5,
+  );
+  const selectedDuration = Math.min(
+    maxPresetDuration,
+    customDurations[selectedCategory] ?? defaultCategoryDuration,
+  );
 
   return (
     <div className="space-y-4">
@@ -616,6 +712,24 @@ export const MotionPresetsPanel: React.FC<MotionPresetsPanelProps> = ({
         })}
       </div>
 
+      <Card variant="muted" padding={2} className="space-y-2 border border-border">
+        <ToolcraftSliderControl
+          ariaLabel="Motion preset duration"
+          label="Duration"
+          value={selectedDuration}
+          min={0.05}
+          max={maxPresetDuration}
+          step={0.05}
+          unit="s"
+          defaultValue={defaultCategoryDuration}
+          onChange={handleDurationChange}
+        />
+        <Text type="supporting" color="secondary" className="text-[9px]">
+          Sets how long {selectedCategory} presets run. The last applied preset
+          updates after you stop dragging.
+        </Text>
+      </Card>
+
       <div className="grid grid-cols-3 gap-2 max-h-72 overflow-y-auto">
         {presets.map((preset) => {
           const categoryKey =
@@ -629,8 +743,11 @@ export const MotionPresetsPanel: React.FC<MotionPresetsPanelProps> = ({
             <PresetCard
               key={preset.id}
               preset={preset}
+              duration={
+                customDurations[preset.category] ?? preset.duration
+              }
               isApplied={!!appliedState[categoryKey]}
-              onApply={() => handleApplyPreset(preset)}
+              onApply={() => handlePresetClick(preset)}
             />
           );
         })}

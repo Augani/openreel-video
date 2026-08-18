@@ -108,4 +108,33 @@ describe("AnimationPresetsPanel multi-selection", () => {
       previews.some((preview) => preview.dataset.presetId === "flip-in-3d"),
     ).toBe(true);
   });
+
+  it("uses the duration slider when generating preset keyframes", async () => {
+    render(<AnimationPresetsPanel composition={composition()} />);
+
+    expect(
+      screen.getByRole("slider", { name: "Motion preset duration" }),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Edit Motion preset duration value",
+      }),
+    );
+    const durationInput = screen.getByRole("textbox", {
+      name: "Motion preset duration value",
+    });
+    fireEvent.change(durationInput, { target: { value: "1.2s" } });
+    fireEvent.blur(durationInput);
+    fireEvent.click(screen.getByRole("button", { name: "Apply Fade In" }));
+
+    await waitFor(() => {
+      const stored = useProjectStore
+        .getState()
+        .project.motionCompositions?.find(
+          (candidate) => candidate.id === COMPOSITION_ID,
+        );
+      expect(stored?.layers[0]?.keyframes.at(-1)?.time).toBe(2.7);
+      expect(stored?.layers[1]?.keyframes.at(-1)?.time).toBe(1.7);
+    });
+  });
 });

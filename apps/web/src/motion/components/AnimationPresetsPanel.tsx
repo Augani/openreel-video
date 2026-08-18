@@ -16,7 +16,11 @@ import {
   type MotionAnimationPresetCategory,
   type MotionComposition,
 } from "@openreel/core";
-import { ToolcraftClickableCard, ToolcraftText } from "@openreel/ui";
+import {
+  ToolcraftClickableCard,
+  ToolcraftSliderControl,
+  ToolcraftText,
+} from "@openreel/ui";
 import { useProjectStore } from "../../stores/project-store";
 import { useMotionStore } from "../stores/motion-store";
 import {
@@ -133,16 +137,18 @@ export function AnimationPresetsPanel({
       {embedded ? null : <PanelHeader title="Animation Presets" icon={Sparkles} />}
       <div className={embedded ? "" : "min-h-0 flex-1 overflow-auto"}>
         <Section title="Timing" icon={MoveUp}>
-          <div className="grid grid-cols-3 gap-2.5">
-            <Field label="Duration" hint="s">
-              <NumberInput
-                value={duration}
-                min={0.05}
-                max={selectedLayer.duration}
-                step={0.05}
-                onChange={setDuration}
-              />
-            </Field>
+          <ToolcraftSliderControl
+            ariaLabel="Motion preset duration"
+            label="Duration"
+            value={duration}
+            min={0.05}
+            max={selectedLayer.duration}
+            step={0.05}
+            unit="s"
+            defaultValue={0.6}
+            onChange={setDuration}
+          />
+          <div className="grid grid-cols-2 gap-2.5">
             <Field label="Distance" hint="px">
               <NumberInput
                 value={distance}
