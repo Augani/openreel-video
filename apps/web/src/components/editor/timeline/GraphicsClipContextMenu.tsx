@@ -5,9 +5,12 @@ import {
   Trash2,
   Shapes,
   Type,
+  ListChecks,
 } from "@/icons/lucide-compat";
 import type { ShapeClip, SVGClip, StickerClip, TextClip } from "@openreel/core";
 import { useProjectStore } from "../../../stores/project-store";
+import { useUIStore } from "../../../stores/ui-store";
+import { getTimelineTrackSelection } from "../../../utils/timeline-item-actions";
 
 type GraphicsClipType = ShapeClip | SVGClip | StickerClip | TextClip;
 
@@ -32,6 +35,18 @@ export function useGraphicsClipContextMenuItems({
     deleteStickerClip,
     deleteTextClip,
   } = useProjectStore();
+  const selectMultiple = useUIStore((state) => state.selectMultiple);
+  const project = useProjectStore((state) => state.project);
+  const isCaption =
+    clipType === "text" &&
+    (project.timeline.tracks.some(
+      (track) =>
+        track.id === clip.trackId &&
+        track.type === "text" &&
+        track.name.trim().toLowerCase() === "captions",
+    ) ||
+      ("metadata" in clip &&
+        typeof clip.metadata?.captionSource === "string"));
 
   const handleDelete = () => {
     if (onDelete) {
@@ -58,6 +73,12 @@ export function useGraphicsClipContextMenuItems({
 
   const handleDuplicate = () => {
     onDuplicate?.();
+    onClose?.();
+  };
+
+  const handleSelectTrackClips = () => {
+    const project = useProjectStore.getState().project;
+    selectMultiple(getTimelineTrackSelection(project, clip.trackId));
     onClose?.();
   };
 
@@ -112,6 +133,15 @@ export function useGraphicsClipContextMenuItems({
       { type: "divider" },
     );
   }
+
+  items.push(
+    {
+      label: isCaption ? "Select All Captions" : "Select All Clips on Track",
+      icon: <ListChecks size={14} aria-hidden />,
+      onClick: handleSelectTrackClips,
+    },
+    { type: "divider" },
+  );
 
   items.push({
     label: "Delete",

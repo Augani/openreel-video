@@ -1,6 +1,7 @@
 import type { Project } from "@openreel/core";
 import type { ProjectState } from "../stores/project-store";
 import type { SelectionItem } from "../stores/ui-store";
+import { trimLinkedCaptions } from "./linked-caption-edit";
 
 export type TimelineItemKind =
   | "media"
@@ -27,6 +28,9 @@ type TimelineActionStore = Pick<
   | "splitOverlayClip"
   | "trimToPlayhead"
   | "trimOverlayToPlayhead"
+  | "project"
+  | "getAllTextClips"
+  | "updateOverlayClipTiming"
 >;
 
 export interface TimelineItemRange {
@@ -127,7 +131,18 @@ export async function trimTimelineItemToPlayhead(
   trimStart: boolean,
 ): Promise<boolean> {
   if (getTimelineItemKind(store, clipId) === "media") {
-    return (await store.trimToPlayhead(clipId, playheadTime, trimStart)).success;
+    const sourceClip = store.getClip(clipId);
+    const result = await store.trimToPlayhead(clipId, playheadTime, trimStart);
+    const updatedClip = store.getClip(clipId);
+    if (result.success && sourceClip && updatedClip) {
+      trimLinkedCaptions(
+        store,
+        sourceClip,
+        updatedClip.startTime,
+        updatedClip.startTime + updatedClip.duration,
+      );
+    }
+    return result.success;
   }
   return store.trimOverlayToPlayhead(clipId, playheadTime, trimStart) !== null;
 }
@@ -186,11 +201,30 @@ export function getSplittableTimelineItemIds(
 }
 
 export function getTimelineSelectionItems(project: Project): SelectionItem[] {
-  return getTimelineItemRanges(project).map((item) => ({
+  return getTimelineItemRanges(project).map(toSelectionItem);
+}
+
+/** Select every media or overlay clip assigned to one timeline track. */
+export function getTimelineTrackSelection(
+  project: Project,
+  trackId: string,
+): SelectionItem[] {
+  return getTimelineItemRanges(project)
+    .filter((item) => item.trackId === trackId)
+    .sort((left, right) =>
+      left.startTime === right.startTime
+        ? left.id.localeCompare(right.id)
+        : left.startTime - right.startTime,
+    )
+    .map(toSelectionItem);
+}
+
+function toSelectionItem(item: TimelineItemRange): SelectionItem {
+  return {
     id: item.id,
     trackId: item.trackId,
     type: item.kind === "media" ? "clip" : item.kind === "text" ? "text-clip" : "shape-clip",
-  }));
+  };
 }
 
 export function getTimelineMarqueeSelection(

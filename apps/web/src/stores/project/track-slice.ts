@@ -17,6 +17,7 @@ export type TrackSlice = Pick<
   | "hideTrack"
   | "muteTrack"
   | "soloTrack"
+  | "groupTracks"
   | "getTrack"
   | "consolidateTrack"
 >;
@@ -187,6 +188,61 @@ export function createTrackSlice(set: Set, get: Get): TrackSlice {
         set({ project: { ...project } });
       }
       return result;
+    },
+
+    groupTracks: (trackId, partnerTrackId) => {
+      const { project } = get();
+      const source = project.timeline.tracks.find((track) => track.id === trackId);
+      if (!source) return false;
+
+      if (!partnerTrackId) {
+        if (!source.groupId) return true;
+        const groupMembers = project.timeline.tracks.filter(
+          (track) => track.groupId === source.groupId,
+        );
+        set({
+          project: {
+            ...project,
+            timeline: {
+              ...project.timeline,
+              tracks: project.timeline.tracks.map((track) =>
+                track.id === trackId ||
+                (groupMembers.length === 2 && track.groupId === source.groupId)
+                  ? { ...track, groupId: undefined }
+                  : track,
+              ),
+            },
+            modifiedAt: Date.now(),
+          },
+        });
+        return true;
+      }
+
+      const partner = project.timeline.tracks.find(
+        (track) => track.id === partnerTrackId,
+      );
+      if (!partner || partner.id === source.id) return false;
+      const groupId = source.groupId ?? partner.groupId ?? `track-group-${uuidv4()}`;
+      const mergedGroupIds = new Set(
+        [source.groupId, partner.groupId].filter(Boolean) as string[],
+      );
+      set({
+        project: {
+          ...project,
+          timeline: {
+            ...project.timeline,
+            tracks: project.timeline.tracks.map((track) =>
+              track.id === source.id ||
+              track.id === partner.id ||
+              (track.groupId ? mergedGroupIds.has(track.groupId) : false)
+                ? { ...track, groupId }
+                : track,
+            ),
+          },
+          modifiedAt: Date.now(),
+        },
+      });
+      return true;
     },
 
     getTrack: (trackId) =>

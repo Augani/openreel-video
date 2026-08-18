@@ -2,6 +2,7 @@ import { v4 as uuidv4 } from "uuid";
 import type { StoreApi } from "zustand";
 import type { ProjectState } from "../project-store";
 import { useEngineStore } from "../engine-store";
+import { splitCaptionIntoSingleLineCues } from "@openreel/core";
 
 type Get = StoreApi<ProjectState>["getState"];
 type Set = StoreApi<ProjectState>["setState"];
@@ -20,7 +21,7 @@ export type SubtitleSlice = Pick<
 
 export function createSubtitleSlice(set: Set, get: Get): SubtitleSlice {
   return {
-    addSubtitle: async (subtitle) => {
+    addSubtitle: async (subtitle, metadata) => {
       const { project, addTrack, createTextClip } = get();
 
       let captionsTrack = project.timeline.tracks.find(
@@ -73,7 +74,14 @@ export function createSubtitleSlice(set: Set, get: Get): SubtitleSlice {
               backgroundColor: style.backgroundColor || undefined,
             }
           : undefined,
+        metadata,
       );
+      if (typeof metadata?.captionSourceClipId === "string") {
+        const sourceTrack = get().project.timeline.tracks.find((track) =>
+          track.clips.some((clip) => clip.id === metadata.captionSourceClipId),
+        );
+        if (sourceTrack) get().groupTracks(sourceTrack.id, captionsTrack.id);
+      }
     },
 
     removeSubtitle: (subtitleId) => {
@@ -101,7 +109,10 @@ export function createSubtitleSlice(set: Set, get: Get): SubtitleSlice {
     getSubtitle: (subtitleId) =>
       get().project.timeline.subtitles.find((s) => s.id === subtitleId),
 
-    importSRT: async (srtContent: string) => {
+    importSRT: async (
+      srtContent: string,
+      options?: { sourceClipId?: string; maxWordsPerLine?: number },
+    ) => {
       const subtitleEngine = await useEngineStore
         .getState()
         .getSubtitleEngine();
@@ -123,7 +134,30 @@ export function createSubtitleSlice(set: Set, get: Get): SubtitleSlice {
       }
 
       for (const subtitle of result.subtitles) {
-        await addSubtitle(subtitle);
+        const maxWordsPerLine = options?.maxWordsPerLine;
+        const cues = maxWordsPerLine
+          ? splitCaptionIntoSingleLineCues(
+              subtitle.text,
+              subtitle.startTime,
+              subtitle.endTime,
+              maxWordsPerLine,
+            )
+          : [subtitle];
+        for (const cue of cues) {
+          await addSubtitle(
+            {
+              ...subtitle,
+              text: cue.text,
+              startTime: cue.startTime,
+              endTime: cue.endTime,
+            },
+            {
+              captionSource: normalizedCaptionSource(srtContent),
+              captionSourceClipId: options?.sourceClipId,
+              captionMaxWordsPerLine: maxWordsPerLine,
+            },
+          );
+        }
       }
 
       return { success: true, errors: errorMessages };
@@ -133,7 +167,33 @@ export function createSubtitleSlice(set: Set, get: Get): SubtitleSlice {
       const subtitleEngine = await useEngineStore
         .getState()
         .getSubtitleEngine();
-      return subtitleEngine.exportSRT(get().project.timeline);
+      const { project } = get();
+      const captionsTrackIds = new Set(
+        project.timeline.tracks
+          .filter((track) => track.type === "text" && track.name === "Captions")
+          .map((track) => track.id),
+      );
+      const subtitles = get()
+        .getAllTextClips()
+        .filter(
+          (clip) =>
+            captionsTrackIds.has(clip.trackId) ||
+            typeof clip.metadata?.captionSource === "string",
+        )
+        .map((clip) => ({
+          id: clip.id,
+          text: clip.text,
+          startTime: clip.startTime,
+          endTime: clip.startTime + clip.duration,
+          style: {
+            fontFamily: clip.style.fontFamily,
+            fontSize: clip.style.fontSize,
+            color: clip.style.color,
+            backgroundColor: clip.style.backgroundColor ?? "transparent",
+            position: "bottom" as const,
+          },
+        }));
+      return subtitleEngine.exportSRT({ ...project.timeline, subtitles });
     },
 
     applySubtitleStylePreset: async (presetName: string) => {
@@ -141,44 +201,25 @@ export function createSubtitleSlice(set: Set, get: Get): SubtitleSlice {
         .getState()
         .getSubtitleEngine();
 
-      const { project } = get();
-      const result = subtitleEngine.applyStylePreset(
-        project.timeline,
-        presetName,
-      );
-
-      if ("error" in result) {
-        console.error(result.error);
+      const preset = subtitleEngine.getStylePreset(presetName);
+      if (!preset) {
+        console.error(`Unknown style preset: ${presetName}`);
         return false;
       }
-
-      const priorSubtitles = project.timeline.subtitles.map((s) => ({ ...s }));
-      set({
-        project: {
-          ...project,
-          timeline: result.timeline,
-          modifiedAt: Date.now(),
-        },
-        clipRedoStack: [],
-        templateRedoStack: [],
-      });
-      const actionId = uuidv4();
-      get()
-        .actionExecutor.getHistory()
-        .push(
-          {
-            type: "subtitle/setAll",
-            id: actionId,
-            timestamp: Date.now(),
-            params: { subtitles: result.timeline.subtitles },
-          },
-          {
-            type: "subtitle/setAll",
-            id: `inverse-${actionId}`,
-            timestamp: Date.now(),
-            params: { subtitles: priorSubtitles },
-          },
-        );
+      const captionsTrackIds = new Set(
+        get().project.timeline.tracks
+          .filter((track) => track.type === "text" && track.name === "Captions")
+          .map((track) => track.id),
+      );
+      for (const clip of get().getAllTextClips()) {
+        if (!captionsTrackIds.has(clip.trackId)) continue;
+        get().updateTextStyle(clip.id, {
+          fontFamily: preset.fontFamily,
+          fontSize: preset.fontSize,
+          color: preset.color,
+          backgroundColor: preset.backgroundColor,
+        });
+      }
       return true;
     },
 
@@ -189,4 +230,10 @@ export function createSubtitleSlice(set: Set, get: Get): SubtitleSlice {
       return subtitleEngine.getStylePresets();
     },
   };
+}
+
+function normalizedCaptionSource(content: string): "srt" | "vtt" {
+  return content.replace(/^\uFEFF/, "").trimStart().startsWith("WEBVTT")
+    ? "vtt"
+    : "srt";
 }

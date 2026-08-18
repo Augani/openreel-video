@@ -8,6 +8,7 @@ import {
   getSplittableTimelineItemIds,
   getTimelineMarqueeSelection,
   getTimelineSelectionItems,
+  getTimelineTrackSelection,
   splitTimelineItem,
   trimTimelineItemToPlayhead,
 } from "./timeline-item-actions";
@@ -137,6 +138,66 @@ describe("timeline item actions", () => {
       { id: "shape-1", trackId: "graphics-track", type: "shape-clip" },
       { id: "svg-1", trackId: "graphics-track", type: "shape-clip" },
       { id: "sticker-1", trackId: "graphics-track", type: "shape-clip" },
+    ]);
+  });
+
+  it("selects every clip family on one track in timeline order", () => {
+    const project = {
+      timeline: {
+        tracks: [
+          {
+            id: "caption-track",
+            clips: [
+              {
+                id: "media-caption",
+                trackId: "caption-track",
+                startTime: 3,
+                duration: 1,
+              },
+            ],
+          },
+          {
+            id: "other-track",
+            clips: [
+              {
+                id: "other-media",
+                trackId: "other-track",
+                startTime: 0,
+                duration: 1,
+              },
+            ],
+          },
+        ],
+      },
+      textClips: [
+        {
+          id: "caption-late",
+          trackId: "caption-track",
+          startTime: 5,
+          duration: 1,
+        },
+        {
+          id: "caption-early",
+          trackId: "caption-track",
+          startTime: 1,
+          duration: 1,
+        },
+      ],
+      shapeClips: [
+        {
+          id: "caption-shape",
+          trackId: "caption-track",
+          startTime: 4,
+          duration: 1,
+        },
+      ],
+    } as unknown as Project;
+
+    expect(getTimelineTrackSelection(project, "caption-track")).toEqual([
+      { id: "caption-early", trackId: "caption-track", type: "text-clip" },
+      { id: "media-caption", trackId: "caption-track", type: "clip" },
+      { id: "caption-shape", trackId: "caption-track", type: "shape-clip" },
+      { id: "caption-late", trackId: "caption-track", type: "text-clip" },
     ]);
   });
 

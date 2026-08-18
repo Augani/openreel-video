@@ -160,6 +160,7 @@ export const InspectorPanel: React.FC = () => {
     useState<CaptionAnimationStyle>("word-highlight");
   const [expandedRecipeApplicationId, setExpandedRecipeApplicationId] =
     useState<string | null>(null);
+  const [captionWordsPerLine, setCaptionWordsPerLine] = useState(5);
   const [recipeControlValues, setRecipeControlValues] = useState<
     Record<string, Record<string, EditingTemplatePrimitive>>
   >({});
@@ -650,27 +651,33 @@ export const InspectorPanel: React.FC = () => {
 
       try {
         const srtContent = await file.text();
-        const result = await importSRT(srtContent);
+        const result = await importSRT(srtContent, {
+          sourceClipId: selectedTimelineClip?.id,
+          maxWordsPerLine: captionWordsPerLine,
+        });
 
         if (result.success) {
           if (result.errors.length > 0) {
             toast.warning(
-              "SRT imported with warnings",
+              "Captions imported with warnings",
               `${result.errors.length} subtitle segment(s) were skipped.`,
             );
           } else {
-            toast.success("SRT imported", "Subtitles were added to the Captions track.");
+            toast.success(
+              "Captions imported",
+              "Each cue is now an editable text clip on the Captions track.",
+            );
           }
         } else {
-          toast.error("SRT import failed", result.errors[0] || "No valid subtitles found.");
+          toast.error("Caption import failed", result.errors[0] || "No valid captions found.");
         }
       } catch {
-        toast.error("SRT import failed", "Could not read the selected subtitle file.");
+        toast.error("Caption import failed", "Could not read the selected subtitle file.");
       } finally {
         event.target.value = "";
       }
     },
-    [importSRT],
+    [captionWordsPerLine, importSRT, selectedTimelineClip?.id],
   );
 
   const handleSubtitleFontUpload = useCallback(
@@ -1025,6 +1032,8 @@ export const InspectorPanel: React.FC = () => {
                   isEnhancingAudio={isEnhancingAudio}
                   audioEnhanced={audioEnhanced}
                   isApplyingSelectedClipEffect={isApplyingSelectedClipEffect}
+                  captionWordsPerLine={captionWordsPerLine}
+                  onCaptionWordsPerLineChange={setCaptionWordsPerLine}
                 />
               )}
             </div>

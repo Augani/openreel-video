@@ -173,6 +173,7 @@ export interface ProjectState {
   hideTrack: (trackId: string, hidden: boolean) => Promise<ActionResult>;
   muteTrack: (trackId: string, muted: boolean) => Promise<ActionResult>;
   soloTrack: (trackId: string, solo: boolean) => Promise<ActionResult>;
+  groupTracks: (trackId: string, partnerTrackId?: string) => boolean;
   renameTrack: (trackId: string, name: string) => Promise<ActionResult>;
   getTrack: (trackId: string) => Track | undefined;
 
@@ -330,6 +331,7 @@ export interface ProjectState {
     text: string,
     duration?: number,
     style?: Partial<TextStyle>,
+    metadata?: import("@openreel/core").ClipMetadata,
   ) => TextClip | null;
   updateTextContent: (clipId: string, text: string) => TextClip | null;
   updateTextStyle: (
@@ -370,7 +372,10 @@ export interface ProjectState {
   getAvailableAnimationPresets: () => TextAnimationPreset[];
 
   // Subtitle actions - subtitles are created as text clips on a Captions track
-  addSubtitle: (subtitle: import("@openreel/core").Subtitle) => Promise<void>;
+  addSubtitle: (
+    subtitle: import("@openreel/core").Subtitle,
+    metadata?: import("@openreel/core").ClipMetadata,
+  ) => Promise<void>;
   removeSubtitle: (subtitleId: string) => void;
   updateSubtitle: (
     subtitleId: string,
@@ -380,7 +385,8 @@ export interface ProjectState {
     subtitleId: string,
   ) => import("@openreel/core").Subtitle | undefined;
   importSRT: (
-    srtContent: string
+    srtContent: string,
+    options?: { sourceClipId?: string; maxWordsPerLine?: number },
   ) => Promise<{ success: boolean; errors: string[] }>;
   exportSRT: () => Promise<string>;
   applySubtitleStylePreset: (presetName: string) => Promise<boolean>;

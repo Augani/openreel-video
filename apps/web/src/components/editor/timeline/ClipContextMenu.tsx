@@ -11,10 +11,13 @@ import {
   Film,
   Image,
   ArrowLeftToLine,
+  ListChecks,
 } from "@/icons/lucide-compat";
 import type { Clip, Track } from "@openreel/core";
 import { useProjectStore } from "../../../stores/project-store";
 import { useTimelineStore } from "../../../stores/timeline-store";
+import { useUIStore } from "../../../stores/ui-store";
+import { getTimelineTrackSelection } from "../../../utils/timeline-item-actions";
 
 interface ClipContextMenuProps {
   clip: Clip;
@@ -41,6 +44,7 @@ export function useClipContextMenuItems({
     closeGapBeforeClip,
   } = useProjectStore();
   const { playheadPosition } = useTimelineStore();
+  const selectMultiple = useUIStore((state) => state.selectMultiple);
 
   const isPlayheadOnClip =
     playheadPosition >= clip.startTime &&
@@ -75,6 +79,12 @@ export function useClipContextMenuItems({
 
   const handleDuplicate = async () => {
     await duplicateClip(clip.id);
+    onClose?.();
+  };
+
+  const handleSelectTrackClips = () => {
+    const project = useProjectStore.getState().project;
+    selectMultiple(getTimelineTrackSelection(project, track.id));
     onClose?.();
   };
 
@@ -151,6 +161,11 @@ export function useClipContextMenuItems({
       label: "Duplicate",
       icon: <Layers size={14} aria-hidden />,
       onClick: handleDuplicate,
+    },
+    {
+      label: "Select All Clips on Track",
+      icon: <ListChecks size={14} aria-hidden />,
+      onClick: handleSelectTrackClips,
     },
     { type: "divider" },
     {
