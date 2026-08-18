@@ -1,0 +1,17 @@
+{
+  "rules": [
+    {
+      "allowed": {
+        "origins": [
+          "https://app.openreel.video",
+          "http://localhost:5173",
+          "http://localhost:3000"
+        ],
+        "methods": ["GET", "HEAD"],
+        "headers": ["*"]
+      },
+      "exposeHeaders": ["Accept-Ranges", "Content-Length", "Content-Range", "ETag"],
+      "maxAgeSeconds": 86400
+    }
+  ]
+}

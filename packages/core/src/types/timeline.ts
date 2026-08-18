@@ -44,6 +44,8 @@ export interface Track {
   readonly hidden: boolean;
   readonly muted: boolean;
   readonly solo: boolean;
+  /** Tracks with the same id move and trim their related items together. */
+  readonly groupId?: string;
 }
 
 export interface EditingTemplateApplicationSource {

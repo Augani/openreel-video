@@ -78,24 +78,24 @@ function generateSubtitleId(): string {
 }
 
 /**
- * Parses SRT timestamp format: HH:MM:SS,mmm (comma or period for milliseconds).
- * Both SRT standard (comma) and some variants (period) are supported.
+ * Parses SRT/VTT timestamp formats. SRT normally uses HH:MM:SS,mmm while
+ * WebVTT also permits MM:SS.mmm. One to three millisecond digits are accepted
+ * because several caption providers omit trailing zeroes.
  * Returns null if format is invalid or time values are out of range.
  */
 export function parseSRTTimestamp(timestamp: string): number | null {
-  // Regex: 1-2 digit hours : 2 digit minutes : 2 digit seconds [,.]3 digit milliseconds
   const match = timestamp
     .trim()
-    .match(/^(\d{1,2}):(\d{2}):(\d{2})[,.](\d{3})$/);
+    .match(/^(?:(\d{1,3}):)?(\d{2}):(\d{2})[,.](\d{1,3})$/);
 
   if (!match) {
     return null;
   }
 
-  const hours = parseInt(match[1], 10);
+  const hours = match[1] ? parseInt(match[1], 10) : 0;
   const minutes = parseInt(match[2], 10);
   const seconds = parseInt(match[3], 10);
-  const milliseconds = parseInt(match[4], 10);
+  const milliseconds = parseInt(match[4].padEnd(3, "0"), 10);
 
   // Validate ranges (minutes and seconds must be < 60)
   if (minutes >= 60 || seconds >= 60) {
@@ -104,6 +104,70 @@ export function parseSRTTimestamp(timestamp: string): number | null {
 
   // Convert to total seconds
   return hours * 3600 + minutes * 60 + seconds + milliseconds / 1000;
+}
+
+/** Convert caption markup to the plain text used by editable TextClips. */
+export function subtitleMarkupToText(value: string): string {
+  return value
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'")
+    .trim();
+}
+
+/** Rewrap editable caption text without changing its words. */
+export function reflowCaptionText(value: string, maxWordsPerLine: number): string {
+  const maxWords = Math.max(1, Math.floor(maxWordsPerLine));
+  const words = value.trim().split(/\s+/).filter(Boolean);
+  const lines: string[] = [];
+  for (let index = 0; index < words.length; index += maxWords) {
+    lines.push(words.slice(index, index + maxWords).join(" "));
+  }
+  return lines.join("\n");
+}
+
+export interface SingleLineCaptionCue {
+  readonly text: string;
+  readonly startTime: number;
+  readonly endTime: number;
+}
+
+/**
+ * Split one caption cue into sequential, single-line cues. Timing is divided
+ * proportionally by word count so the resulting cues remain contiguous.
+ */
+export function splitCaptionIntoSingleLineCues(
+  value: string,
+  startTime: number,
+  endTime: number,
+  maxWordsPerCue: number,
+): SingleLineCaptionCue[] {
+  const maxWords = Math.max(1, Math.floor(maxWordsPerCue));
+  const words = value.trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return [];
+
+  const safeStart = Math.max(0, startTime);
+  const safeEnd = Math.max(safeStart + 0.1, endTime);
+  const duration = safeEnd - safeStart;
+  const cues: SingleLineCaptionCue[] = [];
+
+  for (let index = 0; index < words.length; index += maxWords) {
+    const cueWords = words.slice(index, index + maxWords);
+    const cueStart = safeStart + duration * (index / words.length);
+    const cueEnd = safeStart + duration * ((index + cueWords.length) / words.length);
+    cues.push({
+      text: cueWords.join(" "),
+      startTime: cueStart,
+      endTime: cueEnd,
+    });
+  }
+
+  return cues;
 }
 
 export function formatSRTTimestamp(seconds: number): string {
@@ -129,8 +193,10 @@ export function parseSRT(srtContent: string): SRTParseResult {
   const errors: SRTParseError[] = [];
 
   const normalizedContent = srtContent
+    .replace(/^\uFEFF/, "")
     .replace(/\r\n/g, "\n")
     .replace(/\r/g, "\n");
+  const isWebVTT = normalizedContent.trimStart().startsWith("WEBVTT");
   const blocks = normalizedContent
     .split(/\n\n+/)
     .filter((block) => block.trim());
@@ -141,7 +207,12 @@ export function parseSRT(srtContent: string): SRTParseResult {
     const block = blocks[i].trim();
     const lines = block.split("\n");
 
-    if (lines.length < 2) {
+    if (/^(WEBVTT(?:\s|$)|NOTE(?:\s|$)|STYLE\s*$|REGION\s*$)/i.test(lines[0].trim())) {
+      lineNumber += block.split("\n").length + 1;
+      continue;
+    }
+
+    if (lines.length < 2 && !lines[0]?.includes("-->")) {
       errors.push({
         line: lineNumber,
         message: "Invalid subtitle block: insufficient lines",
@@ -151,27 +222,39 @@ export function parseSRT(srtContent: string): SRTParseResult {
       continue;
     }
 
-    const indexLine = lines[0].trim();
-    const index = parseInt(indexLine, 10);
-
-    if (isNaN(index)) {
+    // SRT has a numeric index, while VTT has either a cue id or no id. Find
+    // the timing line instead of forcing one provider-specific layout.
+    const timestampLineIndex = lines.findIndex((line) => line.includes("-->"));
+    if (timestampLineIndex < 0) {
       errors.push({
         line: lineNumber,
-        message: `Invalid subtitle index: "${indexLine}"`,
+        message: `Missing subtitle timestamp`,
         segment: i + 1,
       });
       lineNumber += block.split("\n").length + 1;
       continue;
     }
-
-    const timestampLine = lines[1].trim();
+    if (
+      !isWebVTT &&
+      timestampLineIndex > 0 &&
+      !/^\d+$/.test(lines[0].trim())
+    ) {
+      errors.push({
+        line: lineNumber,
+        message: `Invalid subtitle index: "${lines[0].trim()}"`,
+        segment: i + 1,
+      });
+      lineNumber += block.split("\n").length + 1;
+      continue;
+    }
+    const timestampLine = lines[timestampLineIndex].trim();
     const timestampMatch = timestampLine.match(
       /^(.+?)\s*-->\s*(.+?)(?:\s+.*)?$/,
     );
 
     if (!timestampMatch) {
       errors.push({
-        line: lineNumber + 1,
+        line: lineNumber + timestampLineIndex,
         message: `Invalid timestamp format: "${timestampLine}"`,
         segment: i + 1,
       });
@@ -184,7 +267,7 @@ export function parseSRT(srtContent: string): SRTParseResult {
 
     if (startTime === null) {
       errors.push({
-        line: lineNumber + 1,
+        line: lineNumber + timestampLineIndex,
         message: `Invalid start timestamp: "${timestampMatch[1]}"`,
         segment: i + 1,
       });
@@ -194,7 +277,7 @@ export function parseSRT(srtContent: string): SRTParseResult {
 
     if (endTime === null) {
       errors.push({
-        line: lineNumber + 1,
+        line: lineNumber + timestampLineIndex,
         message: `Invalid end timestamp: "${timestampMatch[2]}"`,
         segment: i + 1,
       });
@@ -204,7 +287,7 @@ export function parseSRT(srtContent: string): SRTParseResult {
 
     if (endTime <= startTime) {
       errors.push({
-        line: lineNumber + 1,
+        line: lineNumber + timestampLineIndex,
         message: `End time must be greater than start time`,
         segment: i + 1,
       });
@@ -212,11 +295,13 @@ export function parseSRT(srtContent: string): SRTParseResult {
       continue;
     }
 
-    const text = lines.slice(2).join("\n").trim();
+    const text = subtitleMarkupToText(
+      lines.slice(timestampLineIndex + 1).join("\n"),
+    );
 
     if (!text) {
       errors.push({
-        line: lineNumber + 2,
+        line: lineNumber + timestampLineIndex + 1,
         message: "Empty subtitle text",
         segment: i + 1,
       });

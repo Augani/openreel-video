@@ -2083,6 +2083,44 @@ Ignored block`;
     expect(captionClips).toHaveLength(1);
     expect(captionClips[0]?.text).toBe("Hello world");
   });
+
+  it("imports long SRT cues as sequential single-line caption clips", async () => {
+    const result = await useProjectStore.getState().importSRT(
+      `1
+00:00:10,000 --> 00:00:17,000
+one two three four five six seven`,
+      { maxWordsPerLine: 5 },
+    );
+
+    expect(result.success).toBe(true);
+    const captionClips = useProjectStore
+      .getState()
+      .getAllTextClips()
+      .sort((left, right) => left.startTime - right.startTime);
+    expect(captionClips).toHaveLength(2);
+    expect(captionClips.map((clip) => clip.text)).toEqual([
+      "one two three four five",
+      "six seven",
+    ]);
+    expect(captionClips.map((clip) => [clip.startTime, clip.duration])).toEqual([
+      [10, 5],
+      [15, 2],
+    ]);
+    expect(captionClips.every((clip) => !clip.text.includes("\n"))).toBe(true);
+  });
+
+  it("exports edited caption text clips back to SRT", async () => {
+    await useProjectStore.getState().importSRT(`1
+00:00:01,000 --> 00:00:03,000
+Original caption`);
+    const caption = useProjectStore.getState().getAllTextClips()[0];
+    useProjectStore.getState().updateTextContent(caption.id, "Edited caption");
+
+    const exported = await useProjectStore.getState().exportSRT();
+
+    expect(exported).toContain("00:00:01,000 --> 00:00:03,000");
+    expect(exported).toContain("Edited caption");
+  });
 });
 
 describe("ProjectStore - generated shader registry lifecycle", () => {

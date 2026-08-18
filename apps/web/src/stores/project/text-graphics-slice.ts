@@ -194,7 +194,14 @@ export function createTextGraphicsSlice(
   };
 
   return {
-    createTextClip: (trackId, startTime, text, duration = 5, style) => {
+    createTextClip: (
+      trackId,
+      startTime,
+      text,
+      duration = 5,
+      style,
+      metadata,
+    ) => {
       const titleEngine = useEngineStore.getState().titleEngine;
       if (!titleEngine) {
         console.error("TitleEngine not available yet");
@@ -212,6 +219,7 @@ export function createTextGraphicsSlice(
         text,
         duration,
         style,
+        metadata,
       });
       recordOverlayCreate("text", "textClips", textClip);
       return textClip;

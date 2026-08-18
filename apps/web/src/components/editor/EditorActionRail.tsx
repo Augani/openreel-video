@@ -61,6 +61,22 @@ export const EditorActionRail: React.FC = () => {
   const { openSettings } = useSettingsStore();
   const { navigate } = useRouter();
 
+  const themeLabel =
+    themeMode === "auto"
+      ? "System"
+      : themeMode.charAt(0).toUpperCase() + themeMode.slice(1);
+  const nextThemeLabel =
+    themeMode === "light" ? "Dark" : themeMode === "dark" ? "System" : "Light";
+  const themeIcon =
+    themeMode === "light" ? (
+      <Sun size={16} aria-hidden />
+    ) : themeMode === "dark" ? (
+      <Moon size={16} aria-hidden />
+    ) : (
+      <SunMoon size={16} aria-hidden />
+    );
+  const themeActionLabel = `Theme: ${themeLabel}. Switch to ${nextThemeLabel}`;
+
   const handleCreateMotionScene = useCallback(async () => {
     const composition = await createMotionComposition("Motion Scene");
     if (composition) {
@@ -152,6 +168,16 @@ export const EditorActionRail: React.FC = () => {
 
       <div className="flex-1" />
 
+      <Tooltip content={themeActionLabel} placement="end">
+        <IconButton
+          label={themeActionLabel}
+          icon={themeIcon}
+          size="sm"
+          variant="secondary"
+          onClick={toggleTheme}
+        />
+      </Tooltip>
+
       <DropdownMenu
         placement="end"
         button={{
@@ -164,18 +190,6 @@ export const EditorActionRail: React.FC = () => {
         hasChevron={false}
         menuWidth={224}
         items={[
-          {
-            label: `Theme: ${themeMode}`,
-            icon:
-              themeMode === "light" ? (
-                <Sun size={14} aria-hidden />
-              ) : themeMode === "dark" ? (
-                <Moon size={14} aria-hidden />
-              ) : (
-                <SunMoon size={14} aria-hidden />
-              ),
-            onClick: toggleTheme,
-          },
           {
             label: "Settings & API keys",
             icon: <Settings size={14} aria-hidden />,

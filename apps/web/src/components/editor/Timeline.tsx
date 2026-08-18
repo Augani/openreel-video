@@ -75,6 +75,11 @@ import {
   type TrackLayerFilter,
 } from "./timeline/track-layer-filter";
 import { getTrackDragAutoScrollDelta } from "./timeline/track-drag-auto-scroll";
+import {
+  moveLinkedCaptions,
+  trimLinkedCaptions,
+} from "../../utils/linked-caption-edit";
+import { CaptionBatchSelectButton } from "./timeline/CaptionBatchSelectButton";
 
 const TRACK_LAYER_FILTERS: readonly {
   id: TrackLayerFilter;
@@ -756,7 +761,15 @@ export const Timeline: React.FC = () => {
           startTime: newStartTime,
         });
       } else {
-        await moveClip(clipId, newStartTime, targetTrackId);
+        const sourceClip = store.getClip(clipId);
+        const result = await moveClip(clipId, newStartTime, targetTrackId);
+        if (result.success && sourceClip) {
+          moveLinkedCaptions(
+            useProjectStore.getState(),
+            sourceClip,
+            newStartTime,
+          );
+        }
       }
     },
     [moveClip],
@@ -866,6 +879,13 @@ export const Timeline: React.FC = () => {
           modifiedAt: Date.now(),
         },
       }));
+      const newStartTime = edge === "left" ? newTime : clip.startTime;
+      trimLinkedCaptions(
+        useProjectStore.getState(),
+        clip,
+        newStartTime,
+        newStartTime + newDuration,
+      );
     },
     [tracks],
   );
@@ -1288,6 +1308,8 @@ export const Timeline: React.FC = () => {
             data-tip-bottom="Track layers"
           />
         </Popover>
+
+        <CaptionBatchSelectButton />
 
         <div className="ml-auto flex items-center gap-3">
           {/* Zoom control (mock: minus / emerald slider track + knob / plus) */}

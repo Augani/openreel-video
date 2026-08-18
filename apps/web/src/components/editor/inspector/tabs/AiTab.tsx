@@ -13,6 +13,8 @@ import {
   getAnimationStyleDisplayName,
 } from "@openreel/core";
 import { AutoReframeSection } from "../";
+import { AutoCaptionPanel } from "../AutoCaptionPanel";
+import { CaptionEditorPanel } from "../CaptionEditorPanel";
 import { AutoEditPanel } from "../../panels/AutoEditPanel";
 import { HighlightExtractorPanel } from "../../panels/HighlightExtractorPanel";
 import { InspectorSection } from "../shell/InspectorSection";
@@ -51,6 +53,8 @@ export interface AiTabProps {
   isEnhancingAudio: boolean;
   audioEnhanced: boolean;
   isApplyingSelectedClipEffect: boolean;
+  captionWordsPerLine: number;
+  onCaptionWordsPerLineChange: (value: number) => void;
 }
 
 export const AiTab: React.FC<AiTabProps> = ({
@@ -74,6 +78,8 @@ export const AiTab: React.FC<AiTabProps> = ({
   isEnhancingAudio,
   audioEnhanced,
   isApplyingSelectedClipEffect,
+  captionWordsPerLine,
+  onCaptionWordsPerLineChange,
 }) => {
   const gpuClipMedia = asGpuClipMedia(clipType);
   // On desktop the local transcription endpoint (cloud.openreel.video) is
@@ -96,17 +102,21 @@ export const AiTab: React.FC<AiTabProps> = ({
       {clipType === "video" && (
         <>
           <InspectorSection
-            title="AI Auto-Captions"
+            title="Local Auto-Captions"
             sectionId="auto-captions"
             defaultOpen={false}
           >
             <div className="space-y-3">
+              <AutoCaptionPanel
+                clipId={clipId}
+                maxWordsPerLine={captionWordsPerLine}
+              />
               <FileInput
                 ref={srtInputRef}
-                label="Import SRT file"
+                label="Import SRT or VTT file"
                 isLabelHidden
                 value={null}
-                accept=".srt,text/srt,text/plain"
+                accept=".srt,.vtt,text/srt,text/vtt,text/plain"
                 onChange={(files) => {
                   const file = Array.isArray(files) ? files[0] : files;
                   if (!file) return;
@@ -210,7 +220,7 @@ export const AiTab: React.FC<AiTabProps> = ({
                 </>
               )}
               <Button
-                label="Import SRT File"
+                label="Import SRT / VTT as Text"
                 onClick={() => srtInputRef.current?.click()}
                 isDisabled={isTranscribing}
                 variant="secondary"
@@ -221,6 +231,19 @@ export const AiTab: React.FC<AiTabProps> = ({
             </div>
           </InspectorSection>
         </>
+      )}
+
+      {clipType === "video" && (
+        <InspectorSection
+          title="Editable Captions"
+          sectionId="editable-captions"
+          defaultOpen={false}
+        >
+          <CaptionEditorPanel
+            maxWordsPerLine={captionWordsPerLine}
+            onMaxWordsPerLineChange={onCaptionWordsPerLineChange}
+          />
+        </InspectorSection>
       )}
 
       {clipType === "video" && (

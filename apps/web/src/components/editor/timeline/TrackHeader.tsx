@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Eye, EyeOff, Volume2, VolumeX, Lock, Trash2, Pencil, AlignLeft } from "@/icons/lucide-compat";
+import { Eye, EyeOff, Volume2, VolumeX, Lock, Trash2, Pencil, AlignLeft, Link2, Unlink } from "@/icons/lucide-compat";
 import {
   ToolcraftContextMenu as ContextMenu,
   type ToolcraftContextMenuOption as ContextMenuOption,
@@ -36,6 +36,7 @@ export const TrackHeader: React.FC<TrackHeaderProps> = ({
     removeTrack,
     renameTrack,
     consolidateTrack,
+    groupTracks,
     project,
   } = useProjectStore();
   const { getTrackHeight } = useTimelineStore();
@@ -56,6 +57,14 @@ export const TrackHeader: React.FC<TrackHeaderProps> = ({
   );
   const effectivelyMuted =
     isAudio && (track.muted || (hasSoloedAudioTrack && !track.solo));
+  const groupCandidates = project.timeline.tracks.filter(
+    (candidate) =>
+      candidate.id !== track.id &&
+      candidate.groupId !== track.groupId &&
+      (track.type === "text"
+        ? candidate.type !== "text" && candidate.type !== "graphics"
+        : candidate.type === "text"),
+  );
 
   const handleRemoveTrack = async () => {
     await removeTrack(track.id);
@@ -111,6 +120,28 @@ export const TrackHeader: React.FC<TrackHeaderProps> = ({
       isDisabled: !hasGaps,
       onClick: handleRemoveGaps,
     },
+    ...(track.groupId
+      ? [
+          {
+            label: "Ungroup Track",
+            icon: <Unlink size={14} aria-hidden />,
+            onClick: () => groupTracks(track.id),
+          } satisfies ContextMenuOption,
+        ]
+      : []),
+    ...(groupCandidates.length > 0
+      ? [
+          {
+            type: "section" as const,
+            title: "Move & trim together",
+            items: groupCandidates.map((candidate) => ({
+              label: `Group with ${candidate.name}`,
+              icon: <Link2 size={14} aria-hidden />,
+              onClick: () => groupTracks(track.id, candidate.id),
+            })),
+          } satisfies ContextMenuOption,
+        ]
+      : []),
     { type: "divider" },
     {
       label: "Delete Track",
@@ -163,6 +194,13 @@ export const TrackHeader: React.FC<TrackHeaderProps> = ({
           </div>
 
           <div className="flex items-center gap-2.5 shrink-0">
+            {track.groupId && (
+              <Link2
+                size={13}
+                className="text-accent"
+                aria-label="Track is grouped"
+              />
+            )}
             {isVisual && (
               <button
                 type="button"
