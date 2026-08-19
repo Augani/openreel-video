@@ -16,6 +16,10 @@ import { isSessionUnlocked, getSecret } from "../services/secure-storage";
 import { getLiveEditorHost, runExclusive } from "../services/agent/host-singleton";
 import { makeBYOKClient } from "../services/agent/llm-transport";
 import { normalizeCompatibleBaseUrl } from "../services/api-proxy";
+import {
+  conversationTitle,
+  useChatHistoryStore,
+} from "./chat-history-store";
 import { useSettingsStore } from "./settings-store";
 import { useProjectStore } from "./project-store";
 
@@ -58,12 +62,19 @@ interface ChatState {
   lastTurnCommitted: boolean;
   lastTurnUndoSize: number | null;
   usage: TokenUsage;
+  projectId: string | null;
+  currentConversationId: string | null;
+  conversationStartedAt: number | null;
 
   send: (text: string) => Promise<void>;
   resolveConfirm: (decision: ConfirmDecision) => void;
   stop: () => void;
   undoLastTurn: () => Promise<void>;
   clearError: () => void;
+  setProjectContext: (projectId: string | null) => void;
+  newChat: () => void;
+  openConversation: (conversationId: string) => void;
+  deleteConversation: (conversationId: string) => void;
   reset: () => void;
 }
 
@@ -86,6 +97,36 @@ function undoStackSize(): number | null {
   }
 }
 
+function conversationFromMessages(messages: ChatMessage[]): LoopMessage[] {
+  return messages.flatMap((message): LoopMessage[] => {
+    if (!message.text.trim()) return [];
+    return message.role === "user"
+      ? [{ role: "user", content: message.text }]
+      : [{ role: "assistant", content: message.text, toolUses: [] }];
+  });
+}
+
+function saveConversationSnapshot(state: ChatState): void {
+  if (
+    !state.currentConversationId ||
+    !state.projectId ||
+    !state.messages.some((message) => message.role === "user")
+  ) {
+    return;
+  }
+  const now = Date.now();
+  useChatHistoryStore.getState().saveConversation({
+    id: state.currentConversationId,
+    projectId: state.projectId,
+    title: conversationTitle(state.messages),
+    createdAt: state.conversationStartedAt ?? now,
+    updatedAt: now,
+    messages: state.messages,
+    usage: state.usage,
+    error: state.error ?? undefined,
+  });
+}
+
 export const useChatStore = create<ChatState>((set, get) => ({
   messages: [],
   status: "idle",
@@ -96,6 +137,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
   lastTurnCommitted: false,
   lastTurnUndoSize: null,
   usage: { inputTokens: 0, outputTokens: 0 },
+  projectId: null,
+  currentConversationId: null,
+  conversationStartedAt: null,
 
   send: async (text: string) => {
     const trimmed = text.trim();
@@ -107,6 +151,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
     if (!useProjectStore.getState().hasOpenProject) {
       set({ error: "Open or create a project before chatting." });
       return;
+    }
+
+    const projectState = useProjectStore.getState();
+    const currentProjectId = projectState.project?.id ?? null;
+    if (current.projectId && currentProjectId && current.projectId !== currentProjectId) {
+      get().setProjectContext(currentProjectId);
     }
 
     const settings = useSettingsStore.getState();
@@ -151,7 +201,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
         return;
       }
     }
-
+    const active = get();
+    const conversationId = active.currentConversationId ?? genId();
+    const conversationStartedAt = active.conversationStartedAt ?? Date.now();
     const userMessage: ChatMessage = {
       id: genId(),
       role: "user",
@@ -175,6 +227,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
       error: null,
       abortController: controller,
       pendingConfirm: null,
+      projectId: currentProjectId,
+      currentConversationId: conversationId,
+      conversationStartedAt,
     }));
 
     const updateAssistant = (fn: (m: ChatMessage) => ChatMessage): void => {
@@ -243,24 +298,41 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const autoConfirm = useSettingsStore.getState().agentAutoConfirm;
     const dryRun = useSettingsStore.getState().agentDryRun;
 
-    const result = await runExclusive(() =>
-      runTurn({
-        host,
-        llm,
-        tools,
-        system: buildSystemPrompt(host),
-        messages: get().conversation,
-        dryRun,
-        confirmGate: autoConfirm
-          ? () => "approve_for_turn"
-          : (call) =>
-              new Promise<ConfirmDecision>((resolve) => {
-                set({ status: "awaiting_confirm", pendingConfirm: { call, resolve } });
-              }),
-        onEvent,
-        turnLabel: "AI edit",
-      }),
-    );
+    let result;
+    try {
+      result = await runExclusive(() =>
+        runTurn({
+          host,
+          llm,
+          tools,
+          system: buildSystemPrompt(host),
+          messages: get().conversation,
+          dryRun,
+          confirmGate: autoConfirm
+            ? () => "approve_for_turn"
+            : (call) =>
+                new Promise<ConfirmDecision>((resolve) => {
+                  set({ status: "awaiting_confirm", pendingConfirm: { call, resolve } });
+                }),
+          onEvent,
+          turnLabel: "AI edit",
+        }),
+      );
+    } catch (error) {
+      if (activeSeq !== seq) return;
+      set({
+        status: controller.signal.aborted ? "idle" : "error",
+        error: controller.signal.aborted
+          ? null
+          : error instanceof Error
+            ? error.message
+            : "The AI turn failed.",
+        abortController: null,
+        pendingConfirm: null,
+      });
+      saveConversationSnapshot(get());
+      return;
+    }
 
     // A reset() (or a newer turn) during the run supersedes this completion.
     if (activeSeq !== seq) return;
@@ -286,6 +358,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
           ? (state.error ?? "The AI turn failed.")
           : state.error,
     }));
+    saveConversationSnapshot(get());
   },
 
   resolveConfirm: (decision: ConfirmDecision) => {
@@ -318,6 +391,96 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   clearError: () => set({ error: null }),
 
+  setProjectContext: (projectId: string | null) => {
+    const state = get();
+    if (state.projectId === projectId) return;
+    if (state.projectId !== null && (state.messages.length > 0 || state.conversation.length > 0)) {
+      saveConversationSnapshot(state);
+    }
+    state.pendingConfirm?.resolve("reject");
+    state.abortController?.abort();
+    activeSeq++;
+    set({
+      messages: [],
+      conversation: [],
+      status: "idle",
+      pendingConfirm: null,
+      error: null,
+      abortController: null,
+      lastTurnCommitted: false,
+      lastTurnUndoSize: null,
+      usage: { inputTokens: 0, outputTokens: 0 },
+      projectId,
+      currentConversationId: null,
+      conversationStartedAt: null,
+    });
+  },
+
+  newChat: () => {
+    const state = get();
+    if (state.status === "running" || state.status === "awaiting_confirm") return;
+    saveConversationSnapshot(state);
+    activeSeq++;
+    set({
+      messages: [],
+      conversation: [],
+      status: "idle",
+      pendingConfirm: null,
+      error: null,
+      abortController: null,
+      lastTurnCommitted: false,
+      lastTurnUndoSize: null,
+      usage: { inputTokens: 0, outputTokens: 0 },
+      currentConversationId: null,
+      conversationStartedAt: null,
+    });
+  },
+
+  openConversation: (conversationId: string) => {
+    const state = get();
+    if (state.status === "running" || state.status === "awaiting_confirm") return;
+    const saved = useChatHistoryStore
+      .getState()
+      .conversations.find((item) => item.id === conversationId);
+    if (!saved || (state.projectId && saved.projectId !== state.projectId)) return;
+    if (state.currentConversationId !== conversationId) {
+      saveConversationSnapshot(state);
+    }
+    activeSeq++;
+    set({
+      messages: saved.messages,
+      conversation: conversationFromMessages(saved.messages),
+      status: "idle",
+      pendingConfirm: null,
+      error: saved.error ?? null,
+      abortController: null,
+      lastTurnCommitted: false,
+      lastTurnUndoSize: null,
+      usage: saved.usage,
+      projectId: saved.projectId,
+      currentConversationId: saved.id,
+      conversationStartedAt: saved.createdAt,
+    });
+  },
+
+  deleteConversation: (conversationId: string) => {
+    useChatHistoryStore.getState().deleteConversation(conversationId);
+    if (get().currentConversationId !== conversationId) return;
+    activeSeq++;
+    set({
+      messages: [],
+      conversation: [],
+      status: "idle",
+      pendingConfirm: null,
+      error: null,
+      abortController: null,
+      lastTurnCommitted: false,
+      lastTurnUndoSize: null,
+      usage: { inputTokens: 0, outputTokens: 0 },
+      currentConversationId: null,
+      conversationStartedAt: null,
+    });
+  },
   reset: () => {
     get().pendingConfirm?.resolve("reject");
     get().abortController?.abort();
@@ -333,6 +496,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
       lastTurnCommitted: false,
       lastTurnUndoSize: null,
       usage: { inputTokens: 0, outputTokens: 0 },
+      projectId: null,
+      currentConversationId: null,
+      conversationStartedAt: null,
     });
   },
 }));

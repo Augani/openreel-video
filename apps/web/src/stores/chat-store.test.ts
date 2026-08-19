@@ -7,7 +7,7 @@ const h = vi.hoisted(() => ({
   isSessionUnlocked: vi.fn(() => true),
   makeBYOKClient: vi.fn(() => ({ complete: vi.fn() })),
   undo: vi.fn(async () => ({ success: true })),
-  projectState: { hasOpenProject: true },
+  projectState: { hasOpenProject: true, projectId: "project-a" },
   undoStackSize: 0,
   settings: {
     defaultLlmProvider: "openai-compatible" as string | null,
@@ -49,6 +49,7 @@ vi.mock("./project-store", () => ({
   useProjectStore: {
     getState: () => ({
       hasOpenProject: h.projectState.hasOpenProject,
+      project: { id: h.projectState.projectId },
       undo: h.undo,
       actionExecutor: {
         getHistory: () => ({ getUndoStackSize: () => h.undoStackSize }),
@@ -58,6 +59,7 @@ vi.mock("./project-store", () => ({
 }));
 
 import { useChatStore } from "./chat-store";
+import { useChatHistoryStore } from "./chat-history-store";
 
 type RunTurnImpl = (input: RunTurnInput) => Promise<RunTurnResult>;
 type RunTurnImplLoose = (
@@ -76,11 +78,13 @@ const store = () => useChatStore.getState();
 describe("chat-store", () => {
   beforeEach(() => {
     store().reset();
+    useChatHistoryStore.getState().clearHistory();
     vi.clearAllMocks();
     h.getSecret.mockResolvedValue("test-key");
     h.isSessionUnlocked.mockReturnValue(true);
     h.undo.mockResolvedValue({ success: true });
     h.projectState.hasOpenProject = true;
+    h.projectState.projectId = "project-a";
     h.settings.defaultLlmProvider = "openai-compatible";
     h.settings.llmBaseUrl = "https://gateway.example/v1";
     h.settings.llmModel = "account-tool-model";
@@ -217,6 +221,64 @@ describe("chat-store", () => {
     });
   });
 
+  it("saves completed conversations and starts a fresh chat", async () => {
+    h.runTurn.mockImplementation(
+      impl(async ({ messages }) => ({
+        text: "Done!",
+        messages,
+        toolCalls: 0,
+        stoppedReason: "end_turn",
+        committed: true,
+      })),
+    );
+
+    await store().send("Create an opening title");
+    const saved = useChatHistoryStore.getState().conversations[0];
+    expect(saved).toMatchObject({
+      projectId: "project-a",
+      title: "Create an opening title",
+    });
+
+    store().newChat();
+
+    expect(store().messages).toEqual([]);
+    expect(store().currentConversationId).toBeNull();
+    expect(useChatHistoryStore.getState().conversations[0].id).toBe(saved.id);
+  });
+
+  it("opens a saved conversation for viewing and follow-up", async () => {
+    h.runTurn.mockImplementation(
+      impl(async ({ messages }) => ({
+        text: "Done!",
+        messages,
+        toolCalls: 0,
+        stoppedReason: "end_turn",
+        committed: true,
+      })),
+    );
+    await store().send("Fix the intro");
+    const savedId = useChatHistoryStore.getState().conversations[0].id;
+    store().newChat();
+
+    store().openConversation(savedId);
+
+    expect(store().currentConversationId).toBe(savedId);
+    expect(store().messages[0].text).toBe("Fix the intro");
+    expect(store().conversation[0]).toEqual({
+      role: "user",
+      content: "Fix the intro",
+    });
+  });
+
+  it("returns to an actionable error state when a turn throws", async () => {
+    h.runTurn.mockRejectedValue(new Error("provider unavailable"));
+
+    await store().send("hello");
+
+    expect(store().status).toBe("error");
+    expect(store().error).toBe("provider unavailable");
+    expect(store().abortController).toBeNull();
+  });
   it("accumulates token usage across turns", async () => {
     h.runTurn.mockImplementation(
       impl(async ({ messages }) => ({
