@@ -5,12 +5,15 @@ const h = vi.hoisted(() => ({
   runTurn: vi.fn(),
   getSecret: vi.fn(async () => "test-key"),
   isSessionUnlocked: vi.fn(() => true),
+  makeBYOKClient: vi.fn(() => ({ complete: vi.fn() })),
   undo: vi.fn(async () => ({ success: true })),
   projectState: { hasOpenProject: true },
   undoStackSize: 0,
   settings: {
-    defaultLlmProvider: "openai",
-    llmModel: "gpt-4o",
+    defaultLlmProvider: "openai-compatible" as string | null,
+    llmBaseUrl: "https://gateway.example/v1",
+    llmModel: "account-tool-model",
+    configuredServices: ["openai-compatible"] as string[],
     agentAutoConfirm: false,
     agentDryRun: false,
   },
@@ -33,12 +36,7 @@ vi.mock("../services/agent/live-host", () => ({
 }));
 
 vi.mock("../services/agent/llm-transport", () => ({
-  makeBYOKClient: () => ({ complete: vi.fn() }),
-}));
-
-vi.mock("../services/agent/models", () => ({
-  defaultModelFor: () => "gpt-4o",
-  modelsFor: () => [{ id: "gpt-4o", label: "GPT-4o" }],
+  makeBYOKClient: h.makeBYOKClient,
 }));
 
 vi.mock("./settings-store", () => ({
@@ -83,6 +81,10 @@ describe("chat-store", () => {
     h.isSessionUnlocked.mockReturnValue(true);
     h.undo.mockResolvedValue({ success: true });
     h.projectState.hasOpenProject = true;
+    h.settings.defaultLlmProvider = "openai-compatible";
+    h.settings.llmBaseUrl = "https://gateway.example/v1";
+    h.settings.llmModel = "account-tool-model";
+    h.settings.configuredServices = ["openai-compatible"];
     h.settings.agentAutoConfirm = false;
     h.settings.agentDryRun = false;
     h.undoStackSize = 0;
@@ -101,6 +103,80 @@ describe("chat-store", () => {
     await store().send("hello");
     expect(h.runTurn).not.toHaveBeenCalled();
     expect(store().error).toMatch(/unlock/i);
+  });
+
+  it("requires the user to choose an API format", async () => {
+    h.settings.defaultLlmProvider = null;
+
+    await store().send("hello");
+
+    expect(h.runTurn).not.toHaveBeenCalled();
+    expect(store().error).toMatch(/api format/i);
+  });
+
+  it("requires an endpoint model ID", async () => {
+    h.settings.llmModel = "";
+
+    await store().send("hello");
+
+    expect(h.runTurn).not.toHaveBeenCalled();
+    expect(store().error).toMatch(/model id/i);
+  });
+
+  it("runs against a keyless OpenAI-compatible endpoint", async () => {
+    h.settings.llmBaseUrl = "http://localhost:11434/v1/";
+    h.settings.llmModel = "llama3.2";
+    h.settings.configuredServices = [];
+    h.isSessionUnlocked.mockReturnValue(false);
+    h.runTurn.mockImplementation(
+      impl(async ({ messages }) => ({
+        text: "ok",
+        messages,
+        toolCalls: 0,
+        stoppedReason: "end_turn",
+        committed: true,
+      })),
+    );
+
+    await store().send("hello local model");
+
+    expect(h.getSecret).not.toHaveBeenCalled();
+    expect(h.makeBYOKClient).toHaveBeenCalledWith(
+      expect.objectContaining({
+        provider: "openai-compatible",
+        model: "llama3.2",
+        baseUrl: "http://localhost:11434/v1",
+        apiKey: "",
+      }),
+    );
+  });
+
+  it("runs against an Anthropic-compatible endpoint", async () => {
+    h.settings.defaultLlmProvider = "anthropic-compatible";
+    h.settings.llmBaseUrl = "https://gateway.example/v1/messages";
+    h.settings.llmModel = "custom-claude";
+    h.settings.configuredServices = [];
+    h.isSessionUnlocked.mockReturnValue(false);
+    h.runTurn.mockImplementation(
+      impl(async ({ messages }) => ({
+        text: "ok",
+        messages,
+        toolCalls: 0,
+        stoppedReason: "end_turn",
+        committed: true,
+      })),
+    );
+
+    await store().send("hello");
+
+    expect(h.makeBYOKClient).toHaveBeenCalledWith(
+      expect.objectContaining({
+        provider: "anthropic-compatible",
+        model: "custom-claude",
+        baseUrl: "https://gateway.example/v1",
+        apiKey: "",
+      }),
+    );
   });
 
   it("ignores empty input", async () => {

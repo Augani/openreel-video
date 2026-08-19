@@ -15,7 +15,7 @@ import type {
 import { isSessionUnlocked, getSecret } from "../services/secure-storage";
 import { getLiveEditorHost, runExclusive } from "../services/agent/host-singleton";
 import { makeBYOKClient } from "../services/agent/llm-transport";
-import { defaultModelFor, modelsFor } from "../services/agent/models";
+import { normalizeCompatibleBaseUrl } from "../services/api-proxy";
 import { useSettingsStore } from "./settings-store";
 import { useProjectStore } from "./project-store";
 
@@ -109,28 +109,47 @@ export const useChatStore = create<ChatState>((set, get) => ({
       return;
     }
 
-    const provider = useSettingsStore.getState().defaultLlmProvider;
-    const storedModel = useSettingsStore.getState().llmModel;
-    const model = modelsFor(provider).some((m) => m.id === storedModel)
-      ? storedModel
-      : defaultModelFor(provider);
+    const settings = useSettingsStore.getState();
+    const provider = settings.defaultLlmProvider;
+    if (!provider) {
+      set({ error: "Choose an API format in AI settings." });
+      return;
+    }
+    const model = settings.llmModel.trim();
+    if (!model) {
+      set({ error: "Enter or choose a model ID in AI settings." });
+      return;
+    }
+    let baseUrl: string;
+    try {
+      baseUrl = normalizeCompatibleBaseUrl(settings.llmBaseUrl);
+    } catch (error) {
+      set({
+        error:
+          error instanceof Error
+            ? error.message
+            : "Enter a valid compatible endpoint URL.",
+      });
+      return;
+    }
 
-    if (!isDesktop() && !isSessionUnlocked()) {
+    const keyConfigured = settings.configuredServices.includes(provider);
+    if (!isDesktop() && keyConfigured && !isSessionUnlocked()) {
       set({ error: "Unlock secure storage to use your API key." });
       return;
     }
     let apiKey = "";
-    try {
-      apiKey = isDesktop() ? "" : ((await getSecret(provider)) ?? "");
-    } catch {
-      set({ error: "Unlock secure storage to use your API key." });
-      return;
-    }
-    if (!isDesktop() && !apiKey) {
-      set({
-        error: `No ${provider} API key configured. Add it in Settings → API Keys.`,
-      });
-      return;
+    if (!isDesktop() && keyConfigured) {
+      try {
+        apiKey = (await getSecret(provider)) ?? "";
+      } catch {
+        set({ error: "Unlock secure storage to use your API key." });
+        return;
+      }
+      if (!apiKey) {
+        set({ error: "The configured endpoint API key could not be loaded." });
+        return;
+      }
     }
 
     const userMessage: ChatMessage = {
@@ -216,10 +235,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
       provider,
       model,
       apiKey,
+      baseUrl,
       signal: controller.signal,
     });
     const tools =
-      provider === "anthropic" ? toAnthropicTools() : toOpenAITools();
+      provider === "anthropic-compatible" ? toAnthropicTools() : toOpenAITools();
     const autoConfirm = useSettingsStore.getState().agentAutoConfirm;
     const dryRun = useSettingsStore.getState().agentDryRun;
 

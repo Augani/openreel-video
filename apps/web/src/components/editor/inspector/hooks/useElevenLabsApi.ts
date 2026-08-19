@@ -1,5 +1,8 @@
 import { useState, useCallback, useRef, useEffect } from "react";
-import type { TtsProvider } from "../../../../stores/settings-store";
+import type {
+  LlmProvider,
+  TtsProvider,
+} from "../../../../stores/settings-store";
 import { useSettingsStore } from "../../../../stores/settings-store";
 import { isSessionUnlocked, getSecret } from "../../../../services/secure-storage";
 import { apiFetch } from "../../../../services/api-proxy";
@@ -12,7 +15,9 @@ interface UseElevenLabsApiOptions {
   hasElevenLabsKey: boolean;
   settingsOpen: boolean;
   elevenLabsModel: string;
-  defaultLlmProvider: string;
+  defaultLlmProvider: LlmProvider | null;
+  llmBaseUrl: string;
+  llmModel: string;
 }
 
 interface UseElevenLabsApiReturn {
@@ -26,7 +31,15 @@ interface UseElevenLabsApiReturn {
 }
 
 export function useElevenLabsApi(options: UseElevenLabsApiOptions): UseElevenLabsApiReturn {
-  const { provider, hasElevenLabsKey, settingsOpen, elevenLabsModel, defaultLlmProvider } = options;
+  const {
+    provider,
+    hasElevenLabsKey,
+    settingsOpen,
+    elevenLabsModel,
+    defaultLlmProvider,
+    llmBaseUrl,
+    llmModel,
+  } = options;
 
   const isDesktop = typeof window !== "undefined" && window.openreel?.platform === "desktop";
 
@@ -35,6 +48,7 @@ export function useElevenLabsApi(options: UseElevenLabsApiOptions): UseElevenLab
     cachedElevenLabsModels,
     setCachedElevenLabsVoices,
     setCachedElevenLabsModels,
+    configuredServices,
   } = useSettingsStore();
 
   const [allVoices, setAllVoices] = useState<ElevenLabsVoice[]>([]);
@@ -211,26 +225,32 @@ export function useElevenLabsApi(options: UseElevenLabsApiOptions): UseElevenLab
 
   const enhanceViaLlm = useCallback(async (inputText: string, signal?: AbortSignal): Promise<string> => {
     const llmProvider = defaultLlmProvider;
+    const selectedModel = llmModel.trim();
+    if (!llmProvider || !llmBaseUrl.trim() || !selectedModel) {
+      throw new Error("Configure an AI endpoint and model before using text enhancement.");
+    }
+    const compatibleKeyConfigured = configuredServices.includes(llmProvider);
 
-    if (!isSessionUnlocked()) {
+    if (compatibleKeyConfigured && !isSessionUnlocked()) {
       throw new Error("Session locked. Unlock in Settings > API Keys to use text enhancement.");
     }
 
-    const apiKey = isDesktop ? "" : (await getSecret(llmProvider)) ?? "";
-    if (!isDesktop && !apiKey) {
-      throw new Error(`${llmProvider === "openai" ? "OpenAI" : "Anthropic"} API key not found. Add it in Settings > API Keys.`);
-    }
+    const apiKey =
+      isDesktop || (!compatibleKeyConfigured && !isSessionUnlocked())
+        ? ""
+        : (await getSecret(llmProvider)) ?? "";
 
-    if (llmProvider === "anthropic") {
-      const response = await apiFetch("anthropic", "/messages", apiKey, {
+    if (llmProvider === "anthropic-compatible") {
+      const response = await apiFetch(llmProvider, "/messages", apiKey, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
+          model: selectedModel,
           max_tokens: 2048,
           system: ENHANCE_SYSTEM_PROMPT,
           messages: [{ role: "user", content: inputText }],
         }),
+        baseUrl: llmBaseUrl,
         signal,
       });
 
@@ -246,19 +266,24 @@ export function useElevenLabsApi(options: UseElevenLabsApiOptions): UseElevenLab
       return content?.[0]?.text ?? inputText;
     }
 
-    const response = await apiFetch("openai", "/chat/completions", apiKey, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "gpt-4o-mini",
-        messages: [
-          { role: "system", content: ENHANCE_SYSTEM_PROMPT },
-          { role: "user", content: inputText },
-        ],
-        max_tokens: 2048,
-      }),
-      signal,
-    });
+    const response = await apiFetch(
+      llmProvider,
+      "/chat/completions",
+      apiKey,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: selectedModel,
+          messages: [
+            { role: "system", content: ENHANCE_SYSTEM_PROMPT },
+            { role: "user", content: inputText },
+          ],
+        }),
+        baseUrl: llmBaseUrl,
+        signal,
+      },
+    );
 
     if (!response.ok) {
       const err = await response.json().catch(() => ({}));
@@ -269,7 +294,13 @@ export function useElevenLabsApi(options: UseElevenLabsApiOptions): UseElevenLab
     const data = await response.json();
     const choices = (data as { choices: Array<{ message: { content: string } }> }).choices;
     return choices?.[0]?.message?.content ?? inputText;
-  }, [defaultLlmProvider, isDesktop]);
+  }, [
+    configuredServices,
+    defaultLlmProvider,
+    isDesktop,
+    llmBaseUrl,
+    llmModel,
+  ]);
 
   return {
     allVoices,

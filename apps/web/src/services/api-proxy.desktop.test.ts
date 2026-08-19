@@ -46,4 +46,38 @@ describe("apiFetch desktop branch", () => {
       body: undefined,
     });
   });
+
+  it("forwards a custom base URL for desktop-compatible endpoints", async () => {
+    await apiFetch("openai-compatible", "/chat/completions", "", {
+      method: "POST",
+      baseUrl: "http://localhost:11434/v1",
+      body: "{}",
+    });
+    expect(cloudFetch).toHaveBeenCalledWith(
+      "openai-compatible",
+      "/chat/completions",
+      {
+        method: "POST",
+        headers: undefined,
+        body: "{}",
+        baseUrl: "http://localhost:11434/v1",
+      },
+    );
+  });
+
+  it("forwards Anthropic-compatible model discovery", async () => {
+    await apiFetch("anthropic-compatible", "/models", "", {
+      baseUrl: "https://gateway.example/v1",
+    });
+    expect(cloudFetch).toHaveBeenCalledWith(
+      "anthropic-compatible",
+      "/models",
+      {
+        method: undefined,
+        headers: undefined,
+        body: undefined,
+        baseUrl: "https://gateway.example/v1",
+      },
+    );
+  });
 });

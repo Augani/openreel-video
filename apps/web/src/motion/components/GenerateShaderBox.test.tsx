@@ -7,6 +7,7 @@ import {
 } from "@openreel/core/motion/shaders";
 import { createEmptyProject } from "../../stores/project/project-helpers";
 import { useProjectStore } from "../../stores/project-store";
+import { useSettingsStore } from "../../stores/settings-store";
 
 const generateAiShaderMock = vi.fn();
 const getSecretMock = vi.fn();
@@ -52,6 +53,12 @@ describe("GenerateShaderBox", () => {
     getSecretMock.mockResolvedValue("sk-test-key");
     makeBYOKClientMock.mockReturnValue({
       complete: vi.fn().mockResolvedValue({ text: "{}", toolUses: [], stopReason: "end_turn" }),
+    });
+    useSettingsStore.setState({
+      defaultLlmProvider: "openai-compatible",
+      llmBaseUrl: "https://gateway.example/v1",
+      llmModel: "tool-capable-model",
+      configuredServices: ["openai-compatible"],
     });
 
     useProjectStore.setState({
@@ -110,6 +117,33 @@ describe("GenerateShaderBox", () => {
 
     expect(generateAiShaderMock).not.toHaveBeenCalled();
     expect(onGenerated).not.toHaveBeenCalled();
+  });
+
+  it("supports a keyless OpenAI-compatible shader model", async () => {
+    const def = sampleDef();
+    generateAiShaderMock.mockResolvedValue({ ok: true, def });
+    isSessionUnlockedMock.mockReturnValue(false);
+    useSettingsStore.setState({
+      defaultLlmProvider: "openai-compatible",
+      llmBaseUrl: "http://localhost:11434/v1",
+      llmModel: "qwen2.5-coder",
+      configuredServices: [],
+    });
+
+    render(<GenerateShaderBox category="fill" onGenerated={vi.fn()} />);
+    fireEvent.change(screen.getByRole("textbox", { name: "Describe a shader, e.g. holographic foil" }), {
+      target: { value: "iridescent foil" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Generate shader" }));
+
+    await waitFor(() => expect(generateAiShaderMock).toHaveBeenCalledOnce());
+    expect(getSecretMock).not.toHaveBeenCalled();
+    expect(makeBYOKClientMock).toHaveBeenCalledWith({
+      provider: "openai-compatible",
+      model: "qwen2.5-coder",
+      apiKey: "",
+      baseUrl: "http://localhost:11434/v1",
+    });
   });
 
   it("surfaces the service error", async () => {

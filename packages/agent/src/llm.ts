@@ -243,6 +243,8 @@ export function parseAnthropicResponse(raw: unknown): LLMResponse {
 export interface AdapterOptions {
   readonly model: string;
   readonly maxTokens?: number;
+  /** Some OpenAI-compatible hosts reject token-limit fields they do not implement. */
+  readonly omitMaxTokens?: boolean;
   readonly send: LLMSend;
 }
 
@@ -341,7 +343,11 @@ export function parseOpenAIResponse(raw: unknown): LLMResponse {
 export class OpenAIClient implements LLMClient {
   constructor(private readonly options: AdapterOptions) {}
   async complete(input: LLMTurnInput): Promise<LLMResponse> {
-    const body = buildOpenAIBody(input, this.options.model, this.options.maxTokens);
+    const body = buildOpenAIBody(
+      input,
+      this.options.model,
+      this.options.omitMaxTokens ? undefined : this.options.maxTokens,
+    );
     const raw = await this.options.send(body);
     return parseOpenAIResponse(raw);
   }
@@ -351,6 +357,7 @@ export interface ClientFromSendOptions {
   readonly provider: LlmProviderName;
   readonly model: string;
   readonly maxTokens?: number;
+  readonly omitMaxTokens?: boolean;
   readonly send: LLMSend;
 }
 
@@ -359,7 +366,12 @@ export function makeClientFromSend(opts: ClientFromSendOptions): LLMClient {
   const maxTokens = opts.maxTokens ?? 4096;
   return opts.provider === "anthropic"
     ? new AnthropicClient({ model: opts.model, maxTokens, send: opts.send })
-    : new OpenAIClient({ model: opts.model, maxTokens, send: opts.send });
+    : new OpenAIClient({
+        model: opts.model,
+        maxTokens,
+        omitMaxTokens: opts.omitMaxTokens,
+        send: opts.send,
+      });
 }
 
 // ---- Mock (tests / dry runs) ------------------------------------------------

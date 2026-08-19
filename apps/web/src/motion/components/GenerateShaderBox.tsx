@@ -5,10 +5,12 @@ import type { MotionShaderCategory, MotionShaderDef } from "@openreel/core";
 import { ToolcraftText } from "@openreel/ui";
 import { generateAiShader, type LlmMessage } from "../../services/ai-shader";
 import { makeBYOKClient } from "../../services/agent/llm-transport";
-import { defaultModelFor, modelsFor } from "../../services/agent/models";
 import { getSecret, isSessionUnlocked } from "../../services/secure-storage";
 import { useProjectStore } from "../../stores/project-store";
-import { useSettingsStore } from "../../stores/settings-store";
+import {
+  useSettingsStore,
+  type LlmProvider,
+} from "../../stores/settings-store";
 import { Button, Field, TextInput } from "./primitives";
 
 interface GenerateShaderBoxProps {
@@ -27,21 +29,28 @@ function isDesktop(): boolean {
   return typeof window !== "undefined" && window.openreel?.platform === "desktop";
 }
 
-function resolveModel(): { provider: "openai" | "anthropic"; model: string } {
-  const provider = useSettingsStore.getState().defaultLlmProvider;
-  const storedModel = useSettingsStore.getState().llmModel;
-  const model = modelsFor(provider).some((option) => option.id === storedModel)
-    ? storedModel
-    : defaultModelFor(provider);
-  return { provider, model };
+function resolveModel(): {
+  provider: LlmProvider | null;
+  model: string;
+  baseUrl: string;
+} {
+  const settings = useSettingsStore.getState();
+  return {
+    provider: settings.defaultLlmProvider,
+    model: settings.llmModel.trim(),
+    baseUrl: settings.llmBaseUrl,
+  };
 }
 
-async function resolveApiKey(provider: "openai" | "anthropic"): Promise<string | null> {
+async function resolveApiKey(provider: LlmProvider): Promise<string | null> {
   if (isDesktop()) return "";
+  const optionalKey =
+    !useSettingsStore.getState().configuredServices.includes(provider);
+  if (optionalKey && !isSessionUnlocked()) return "";
   if (!isSessionUnlocked()) return null;
   try {
     const key = await getSecret(provider);
-    return key ?? null;
+    return key ?? (optionalKey ? "" : null);
   } catch {
     return null;
   }
@@ -62,14 +71,18 @@ export function GenerateShaderBox({
 
     setPhase({ kind: "generating" });
 
-    const { provider, model } = resolveModel();
+    const { provider, model, baseUrl } = resolveModel();
+    if (!provider || !model || !baseUrl.trim()) {
+      setPhase({ kind: "error", message: CONFIGURE_PROVIDER });
+      return;
+    }
     const apiKey = await resolveApiKey(provider);
-    if (apiKey === null || (!isDesktop() && apiKey === "")) {
+    if (apiKey === null) {
       setPhase({ kind: "error", message: CONFIGURE_PROVIDER });
       return;
     }
 
-    const client = makeBYOKClient({ provider, model, apiKey });
+    const client = makeBYOKClient({ provider, model, apiKey, baseUrl });
     const send = async (messages: readonly LlmMessage[]): Promise<string> => {
       const response = await client.complete({
         messages: messages.map((message) => ({

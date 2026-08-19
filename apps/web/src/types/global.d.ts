@@ -228,9 +228,19 @@ declare global {
       };
       cloud: {
         fetch(
-          service: "elevenlabs" | "openai" | "anthropic",
+          service:
+            | "elevenlabs"
+            | "openai"
+            | "anthropic"
+            | "openai-compatible"
+            | "anthropic-compatible",
           path: string,
-          options?: { method?: string; headers?: Record<string, string>; body?: string },
+          options?: {
+            method?: string;
+            headers?: Record<string, string>;
+            body?: string;
+            baseUrl?: string;
+          },
         ): Promise<{ status: number; statusText: string; headers: Record<string, string>; body: ArrayBuffer }>;
       };
       gpu: {

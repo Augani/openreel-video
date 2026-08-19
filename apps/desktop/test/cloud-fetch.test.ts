@@ -41,4 +41,56 @@ describe("buildUpstreamRequest", () => {
     const r = buildUpstreamRequest("elevenlabs", "/models", "KEY", {});
     expect(r.method).toBe("GET");
   });
+
+  it("routes an OpenAI-compatible request to its user-defined endpoint", () => {
+    const r = buildUpstreamRequest("openai-compatible", "/chat/completions", "CUSTOM", {
+      method: "POST",
+      baseUrl: "http://localhost:11434/v1/",
+      body: "{}",
+    });
+    expect(r.url).toBe("http://localhost:11434/v1/chat/completions");
+    expect(r.headers.Authorization).toBe("Bearer CUSTOM");
+  });
+
+  it("allows keyless local compatible endpoints and complete endpoint URLs", () => {
+    const r = buildUpstreamRequest("openai-compatible", "/chat/completions", "", {
+      baseUrl: "http://127.0.0.1:1234/v1/chat/completions",
+    });
+    expect(r.url).toBe("http://127.0.0.1:1234/v1/chat/completions");
+    expect(r.headers.Authorization).toBeUndefined();
+  });
+
+  it("does not accept renderer-supplied compatible authorization", () => {
+    const r = buildUpstreamRequest("openai-compatible", "/chat/completions", "STORED", {
+      baseUrl: "https://provider.example/v1",
+      headers: { authorization: "Bearer injected" },
+    });
+    expect(r.headers.authorization).toBeUndefined();
+    expect(r.headers.Authorization).toBe("Bearer STORED");
+  });
+
+  it("routes Anthropic-compatible messages and model discovery", () => {
+    const message = buildUpstreamRequest(
+      "anthropic-compatible",
+      "/messages",
+      "STORED",
+      {
+        method: "POST",
+        baseUrl: "https://gateway.example/v1/messages",
+        body: "{}",
+      },
+    );
+    expect(message.url).toBe("https://gateway.example/v1/messages");
+    expect(message.headers["x-api-key"]).toBe("STORED");
+    expect(message.headers.Authorization).toBe("Bearer STORED");
+    expect(message.headers["anthropic-version"]).toBe("2023-06-01");
+
+    const models = buildUpstreamRequest(
+      "anthropic-compatible",
+      "/models",
+      "",
+      { baseUrl: "http://localhost:4000/v1" },
+    );
+    expect(models.url).toBe("http://localhost:4000/v1/models");
+  });
 });

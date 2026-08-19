@@ -100,11 +100,18 @@ export const rigHumanoidModelResultSchema = z.object({
 export type RigHumanoidModelResult = z.infer<typeof rigHumanoidModelResultSchema>;
 
 export const cloudFetchArgsSchema = z.object({
-  service: z.enum(["elevenlabs", "openai", "anthropic"]),
+  service: z.enum([
+    "elevenlabs",
+    "openai",
+    "anthropic",
+    "openai-compatible",
+    "anthropic-compatible",
+  ]),
   path: z.string(),
   method: z.string().optional(),
   headers: z.record(z.string()).optional(),
   body: z.string().optional(),
+  baseUrl: z.string().optional(),
 });
 
 export interface AuroraRenderPreviewArgs {

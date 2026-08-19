@@ -28,6 +28,8 @@ export const TextToSpeechPanel: React.FC = () => {
   const {
     defaultTtsProvider,
     defaultLlmProvider,
+    llmBaseUrl,
+    llmModel,
     openSettings,
     settingsOpen,
     configuredServices,
@@ -68,6 +70,8 @@ export const TextToSpeechPanel: React.FC = () => {
     settingsOpen,
     elevenLabsModel,
     defaultLlmProvider,
+    llmBaseUrl,
+    llmModel,
   });
 
   const {

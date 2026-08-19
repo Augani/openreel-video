@@ -7,6 +7,7 @@ export interface ServiceConfig {
   readonly label: string;
   readonly description: string;
   readonly docsUrl?: string;
+  readonly keyOptional?: boolean;
 }
 
 /**
@@ -21,16 +22,16 @@ export const SERVICE_REGISTRY: readonly ServiceConfig[] = [
     docsUrl: "https://elevenlabs.io/docs/api-reference",
   },
   {
-    id: "openai",
-    label: "OpenAI",
-    description: "GPT models for script generation and AI features",
-    docsUrl: "https://platform.openai.com/docs/api-reference",
+    id: "openai-compatible",
+    label: "OpenAI-compatible endpoint",
+    description: "Any OpenAI-compatible API host; API key optional",
+    keyOptional: true,
   },
   {
-    id: "anthropic",
-    label: "Anthropic",
-    description: "Claude models for AI-assisted editing",
-    docsUrl: "https://docs.anthropic.com/en/docs",
+    id: "anthropic-compatible",
+    label: "Anthropic-compatible endpoint",
+    description: "Any Anthropic Messages-compatible API host; API key optional",
+    keyOptional: true,
   },
   {
     id: "kie-ai",
@@ -47,12 +48,12 @@ export const SERVICE_REGISTRY: readonly ServiceConfig[] = [
 ] as const;
 
 export type TtsProvider = "piper" | "elevenlabs";
-export type LlmProvider = "openai" | "anthropic";
+export type LlmProvider = "openai-compatible" | "anthropic-compatible";
 export type AggregatorProvider = "kie-ai" | "freepik";
 export type SettingsTab = "general" | "api-keys" | "mcp";
 
 function isLlmProvider(value: unknown): value is LlmProvider {
-  return value === "openai" || value === "anthropic";
+  return value === "openai-compatible" || value === "anthropic-compatible";
 }
 
 export interface SettingsState {
@@ -63,8 +64,9 @@ export interface SettingsState {
 
   // AI/Service preferences
   defaultTtsProvider: TtsProvider;
-  defaultLlmProvider: LlmProvider;
-  /** Selected model id for the agent chat (per the current LLM provider). */
+  defaultLlmProvider: LlmProvider | null;
+  /** User-defined compatible endpoint and model for the agent chat. */
+  llmBaseUrl: string;
   llmModel: string;
   defaultAggregator: AggregatorProvider;
   elevenLabsModel: string;
@@ -93,7 +95,8 @@ export interface SettingsState {
   setAutoSaveInterval: (minutes: number) => void;
   setLanguage: (lang: string) => void;
   setDefaultTtsProvider: (provider: TtsProvider) => void;
-  setDefaultLlmProvider: (provider: LlmProvider) => void;
+  setDefaultLlmProvider: (provider: LlmProvider | null) => void;
+  setLlmBaseUrl: (url: string) => void;
   setLlmModel: (model: string) => void;
   setMcpAutoAllowTrustedLocal: (enabled: boolean) => void;
   setAgentAutoConfirm: (enabled: boolean) => void;
@@ -122,8 +125,9 @@ export const useSettingsStore = create<SettingsState>()(
         language: "en",
 
         defaultTtsProvider: "piper" as TtsProvider,
-        defaultLlmProvider: "openai" as LlmProvider,
-        llmModel: "gpt-4o",
+        defaultLlmProvider: null,
+        llmBaseUrl: "",
+        llmModel: "",
         defaultAggregator: "kie-ai" as AggregatorProvider,
         elevenLabsModel: "eleven_v3",
         favoriteVoices: [],
@@ -150,8 +154,10 @@ export const useSettingsStore = create<SettingsState>()(
         setDefaultTtsProvider: (provider: TtsProvider) =>
           set({ defaultTtsProvider: provider }),
 
-        setDefaultLlmProvider: (provider: LlmProvider) =>
+        setDefaultLlmProvider: (provider: LlmProvider | null) =>
           set({ defaultLlmProvider: provider }),
+
+        setLlmBaseUrl: (url: string) => set({ llmBaseUrl: url }),
 
         setLlmModel: (model: string) => set({ llmModel: model }),
 
@@ -225,12 +231,30 @@ export const useSettingsStore = create<SettingsState>()(
       }),
       {
         name: "openreel-settings",
-        version: 3,
+        version: 4,
         migrate: (persisted, version) => {
           const next = (persisted ?? {}) as Record<string, unknown>;
           if (version < 2) next.mcpAutoAllowTrustedLocal = true;
-          if (!isLlmProvider(next.defaultLlmProvider)) {
-            next.defaultLlmProvider = "openai";
+          const previousProvider = next.defaultLlmProvider;
+          if (!isLlmProvider(previousProvider)) {
+            next.defaultLlmProvider = null;
+            next.llmBaseUrl = "";
+            next.llmModel = "";
+          } else {
+            next.llmBaseUrl =
+              typeof next.llmBaseUrl === "string"
+                ? next.llmBaseUrl
+                : previousProvider === "openai-compatible" &&
+                    typeof next.openaiCompatibleBaseUrl === "string"
+                  ? next.openaiCompatibleBaseUrl
+                  : "";
+            next.llmModel =
+              previousProvider === "openai-compatible" &&
+              typeof next.openaiCompatibleModel === "string"
+                ? next.openaiCompatibleModel
+                : typeof next.llmModel === "string"
+                  ? next.llmModel
+                  : "";
           }
           return next as unknown as SettingsState;
         },
@@ -240,6 +264,7 @@ export const useSettingsStore = create<SettingsState>()(
           language: state.language,
           defaultTtsProvider: state.defaultTtsProvider,
           defaultLlmProvider: state.defaultLlmProvider,
+          llmBaseUrl: state.llmBaseUrl,
           llmModel: state.llmModel,
           defaultAggregator: state.defaultAggregator,
           elevenLabsModel: state.elevenLabsModel,
