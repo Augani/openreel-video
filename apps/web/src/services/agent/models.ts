@@ -21,10 +21,14 @@ export const LLM_MODELS: Record<LlmProvider, LlmModelOption[]> = {
   ],
 };
 
+const FALLBACK_LLM_PROVIDER: LlmProvider = "openai";
+
 export function defaultModelFor(provider: LlmProvider): string {
-  return LLM_MODELS[provider][0].id;
+  return modelsFor(provider)[0]?.id ?? "";
 }
 
 export function modelsFor(provider: LlmProvider): LlmModelOption[] {
-  return LLM_MODELS[provider];
+  // Persisted settings can outlive a provider option. Keep rendering and chat
+  // setup usable when a deployment no longer recognizes the stored value.
+  return LLM_MODELS[provider] ?? LLM_MODELS[FALLBACK_LLM_PROVIDER];
 }

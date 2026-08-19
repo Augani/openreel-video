@@ -51,6 +51,10 @@ export type LlmProvider = "openai" | "anthropic";
 export type AggregatorProvider = "kie-ai" | "freepik";
 export type SettingsTab = "general" | "api-keys" | "mcp";
 
+function isLlmProvider(value: unknown): value is LlmProvider {
+  return value === "openai" || value === "anthropic";
+}
+
 export interface SettingsState {
   // General preferences
   autoSave: boolean;
@@ -221,10 +225,13 @@ export const useSettingsStore = create<SettingsState>()(
       }),
       {
         name: "openreel-settings",
-        version: 2,
+        version: 3,
         migrate: (persisted, version) => {
           const next = (persisted ?? {}) as Record<string, unknown>;
           if (version < 2) next.mcpAutoAllowTrustedLocal = true;
+          if (!isLlmProvider(next.defaultLlmProvider)) {
+            next.defaultLlmProvider = "openai";
+          }
           return next as unknown as SettingsState;
         },
         partialize: (state) => ({
