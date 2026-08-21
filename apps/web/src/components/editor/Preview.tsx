@@ -2650,8 +2650,13 @@ export const Preview: React.FC = () => {
 
       let hasRenderedFrame = false;
       let shouldClearCanvas = true;
-      const hadBackground = Boolean(lastGoodFrameRef.current);
       if (lastGoodFrameRef.current) {
+        // Anti-flicker placeholder ONLY: the previous composite is pasted so
+        // the canvas is never momentarily blank while frames decode, but it
+        // must never suppress the real clear/background fill below. When a
+        // clip's transform changes, fresh content is drawn over a cleared
+        // background — otherwise stale pixels from the previous composite
+        // survive around the new position (ghosting).
         ctx.drawImage(
           lastGoodFrameRef.current,
           0,
@@ -2659,7 +2664,6 @@ export const Preview: React.FC = () => {
           canvas.width,
           canvas.height,
         );
-        shouldClearCanvas = false;
       }
 
       const activeShapeClips = getActiveShapeClips(allShapeClips, time);
@@ -3198,9 +3202,13 @@ export const Preview: React.FC = () => {
         activeShapeClips.length > 0 ||
         activeTextClips.length > 0;
 
-      if (hadBackground && hasActiveContent && offscreenCanvasRef.current) {
+      if (hasActiveContent && lastGoodFrameRef.current) {
+        // Render-failure fallback: paint from the cached composite bitmap —
+        // never from the working offscreen buffer, which may hold stale or
+        // partially-drawn pixels. This keeps the previous frame as a stable
+        // placeholder instead of ghosting partial content.
         mainCtx.clearRect(0, 0, canvas.width, canvas.height);
-        mainCtx.drawImage(offscreenCanvasRef.current, 0, 0);
+        mainCtx.drawImage(lastGoodFrameRef.current, 0, 0);
         return true;
       }
 

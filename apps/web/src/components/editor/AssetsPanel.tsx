@@ -1529,19 +1529,19 @@ export const AssetsPanel: React.FC = () => {
         );
       case "ai":
         return (
-          <div className="flex min-h-0 flex-1 flex-col border-t border-border/70 bg-background-secondary content-area-fix">
+          <div className="flex min-h-0 flex-1 flex-col border-t border-border/70 bg-background-secondary">
             <AIGenTab />
           </div>
         );
       case "recipes":
         return (
-          <div className="flex min-h-0 flex-1 flex-col border-t border-border/70 bg-background-secondary content-area-fix">
+          <div className="flex min-h-0 flex-1 flex-col border-t border-border/70 bg-background-secondary">
             <RecipesTab />
           </div>
         );
       case "templates":
         return (
-          <div className="flex min-h-0 flex-1 flex-col border-t border-border/70 bg-background-secondary content-area-fix">
+          <div className="flex min-h-0 flex-1 flex-col border-t border-border/70 bg-background-secondary">
             <TemplatesTab />
           </div>
         );
