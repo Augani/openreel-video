@@ -19,6 +19,14 @@ export const LLM_MODELS: Record<LlmProvider, LlmModelOption[]> = {
     { id: "gpt-4.1", label: "GPT-4.1" },
     { id: "o4-mini", label: "o4-mini" },
   ],
+  openrouter: [
+    { id: "openai/gpt-5.4", label: "GPT-5.4 (OpenAI)" },
+    { id: "openai/gpt-5.4-mini", label: "GPT-5.4 mini (OpenAI)" },
+    { id: "google/gemini-3.6-flash", label: "Gemini 3.6 Flash (Google)" },
+    { id: "deepseek/deepseek-v4-pro", label: "DeepSeek V4 Pro" },
+    { id: "nvidia/nemotron-3-ultra:free", label: "Nemotron 3 Ultra (free)" },
+    { id: "openai/gpt-oss-120b:free", label: "GPT-OSS 120B (free)" },
+  ],
 };
 
 export function defaultModelFor(provider: LlmProvider): string {

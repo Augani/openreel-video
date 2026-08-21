@@ -33,6 +33,12 @@ export const SERVICE_REGISTRY: readonly ServiceConfig[] = [
     docsUrl: "https://docs.anthropic.com/en/docs",
   },
   {
+    id: "openrouter",
+    label: "OpenRouter",
+    description: "Unified gateway for 400+ models (GPT, Claude, Gemini, Llama, and more)",
+    docsUrl: "https://openrouter.ai/docs",
+  },
+  {
     id: "kie-ai",
     label: "Kie.ai",
     description: "AI aggregator for video/image generation, upscaling, and editing",
@@ -47,7 +53,7 @@ export const SERVICE_REGISTRY: readonly ServiceConfig[] = [
 ] as const;
 
 export type TtsProvider = "piper" | "elevenlabs";
-export type LlmProvider = "openai" | "anthropic";
+export type LlmProvider = "openai" | "anthropic" | "openrouter";
 export type AggregatorProvider = "kie-ai" | "freepik";
 export type SettingsTab = "general" | "api-keys" | "mcp";
 

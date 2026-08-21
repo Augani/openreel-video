@@ -34,6 +34,17 @@ describe("makeNodeLLMSend", () => {
     expect((init.headers as Record<string, string>).Authorization).toBe("Bearer sk-openai");
   });
 
+  it("routes openrouter to its endpoint with a Bearer key", async () => {
+    const fetchFn = vi.fn().mockResolvedValue(okResponse({ ok: true }));
+    const send = makeNodeLLMSend("openrouter", "sk-or", fetchFn as unknown as typeof fetch);
+    await send({ model: "openai/gpt-5.4" });
+
+    const [url, init] = fetchFn.mock.calls[0];
+    expect(url).toBe("https://openrouter.ai/api/v1/chat/completions");
+    expect((init.headers as Record<string, string>).Authorization).toBe("Bearer sk-or");
+    expect(init.body).not.toContain("sk-or");
+  });
+
   it("throws when no key is provided", () => {
     expect(() => makeNodeLLMSend("anthropic", "")).toThrow(/Missing API key/);
   });

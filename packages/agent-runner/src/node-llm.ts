@@ -6,11 +6,12 @@ import {
 } from "@openreel/agent";
 import type { LLMClient, LLMSend } from "@openreel/agent";
 
-export type LlmProvider = "anthropic" | "openai";
+export type LlmProvider = "anthropic" | "openai" | "openrouter";
 
 const ENDPOINTS: Record<LlmProvider, string> = {
   anthropic: "https://api.anthropic.com/v1/messages",
   openai: "https://api.openai.com/v1/chat/completions",
+  openrouter: "https://openrouter.ai/api/v1/chat/completions",
 };
 
 function authHeaders(
@@ -24,6 +25,7 @@ function authHeaders(
       "Content-Type": "application/json",
     };
   }
+  // OpenRouter uses the same Bearer scheme as OpenAI.
   return {
     Authorization: `Bearer ${apiKey}`,
     "Content-Type": "application/json",

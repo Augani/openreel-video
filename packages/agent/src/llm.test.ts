@@ -6,6 +6,7 @@ import {
   parseOpenAIResponse,
   AnthropicClient,
   OpenAIClient,
+  makeClientFromSend,
   type LoopMessage,
 } from "./llm";
 
@@ -94,5 +95,24 @@ describe("OpenAI normalization", () => {
     });
     const res = await client.complete({ messages: [{ role: "user", content: "hi" }], tools: [] });
     expect(res.text).toBe("yo");
+  });
+
+  it("makeClientFromSend maps openrouter to the OpenAI-compatible client", async () => {
+    let seenBody: unknown = null;
+    const client = makeClientFromSend({
+      provider: "openrouter",
+      model: "openai/gpt-5.4",
+      send: async (body) => {
+        seenBody = body;
+        return {
+          choices: [{ message: { content: "ok", tool_calls: [] }, finish_reason: "stop" }],
+          usage: { prompt_tokens: 1, completion_tokens: 2 },
+        };
+      },
+    });
+    const res = await client.complete({ messages: [{ role: "user", content: "hi" }], tools: [] });
+    expect((seenBody as { model: string }).model).toBe("openai/gpt-5.4");
+    expect(res.text).toBe("ok");
+    expect(res.usage).toEqual({ inputTokens: 1, outputTokens: 2 });
   });
 });

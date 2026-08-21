@@ -26,9 +26,16 @@ function parseArgs(argv: string[]): CliArgs {
       case "-m":
         args.prompt = next();
         break;
-      case "--provider":
-        args.provider = next() === "openai" ? "openai" : "anthropic";
+      case "--provider": {
+        const value = next();
+        args.provider =
+          value === "openai"
+            ? "openai"
+            : value === "openrouter"
+              ? "openrouter"
+              : "anthropic";
         break;
+      }
       case "--model":
         args.model = next();
         break;
@@ -47,18 +54,19 @@ function parseArgs(argv: string[]): CliArgs {
 }
 
 function resolveApiKey(provider: LlmProvider): string {
-  return (
-    process.env.OPENREEL_API_KEY ??
-    (provider === "anthropic"
+  const providerEnv =
+    provider === "anthropic"
       ? process.env.ANTHROPIC_API_KEY
-      : process.env.OPENAI_API_KEY) ??
-    ""
-  );
+      : provider === "openrouter"
+        ? process.env.OPENROUTER_API_KEY
+        : process.env.OPENAI_API_KEY;
+  return process.env.OPENREEL_API_KEY ?? providerEnv ?? "";
 }
 
 const DEFAULT_MODEL: Record<LlmProvider, string> = {
   anthropic: "claude-sonnet-4-20250514",
   openai: "gpt-4o",
+  openrouter: "openai/gpt-5.4",
 };
 
 const USAGE = `openreel-agent — headless project editing
@@ -69,12 +77,12 @@ Usage:
 Options:
   -p, --project <path>   Project JSON to edit (required)
   -m, --prompt  <text>   Natural-language editing instruction (required)
-      --provider <name>  anthropic | openai (default: anthropic)
+      --provider <name>  anthropic | openai | openrouter (default: anthropic)
       --model <id>       Model id (default: provider default)
   -o, --out <path>       Output path (default: edit in place)
       --dry-run          Plan without applying mutations
 
-API key (never stored): OPENREEL_API_KEY, or ANTHROPIC_API_KEY / OPENAI_API_KEY.`;
+API key (never stored): OPENREEL_API_KEY, or ANTHROPIC_API_KEY / OPENAI_API_KEY / OPENROUTER_API_KEY.`;
 
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
@@ -85,7 +93,13 @@ async function main(): Promise<void> {
   const apiKey = resolveApiKey(args.provider);
   if (!apiKey) {
     process.stderr.write(
-      `No API key found. Set OPENREEL_API_KEY (or ${args.provider === "anthropic" ? "ANTHROPIC_API_KEY" : "OPENAI_API_KEY"}).\n`,
+      `No API key found. Set OPENREEL_API_KEY (or ${
+        args.provider === "anthropic"
+          ? "ANTHROPIC_API_KEY"
+          : args.provider === "openrouter"
+            ? "OPENROUTER_API_KEY"
+            : "OPENAI_API_KEY"
+      }).\n`,
     );
     process.exit(1);
   }

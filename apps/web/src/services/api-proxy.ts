@@ -29,6 +29,12 @@ const DIRECT_CONFIG = {
       "anthropic-dangerous-direct-browser-access": "true",
     }),
   },
+  openrouter: {
+    baseUrl: "https://openrouter.ai/api/v1",
+    authHeaders: (key: string): Record<string, string> => ({
+      Authorization: `Bearer ${key}`,
+    }),
+  },
 } as const;
 
 export type ApiService = keyof typeof DIRECT_CONFIG;

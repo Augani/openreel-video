@@ -38,6 +38,11 @@ const SERVICE_CONFIG: Record<string, ServiceConfig> = {
       "anthropic-version": "2023-06-01",
     }),
   },
+  openrouter: {
+    baseUrl: "https://openrouter.ai/api/v1",
+    allowedPaths: /^(chat\/completions|models)$/,
+    authHeaders: (key) => ({ Authorization: `Bearer ${key}` }),
+  },
 };
 
 const ALLOWED_ORIGINS = [

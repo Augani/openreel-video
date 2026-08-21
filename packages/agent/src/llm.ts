@@ -7,7 +7,7 @@ export interface LLMToolUse {
 /** Informational only — the loop drives control flow off toolUses, not this. */
 export type LLMStopReason = "end_turn" | "tool_use" | "max_tokens";
 
-export type LlmProviderName = "anthropic" | "openai";
+export type LlmProviderName = "anthropic" | "openai" | "openrouter";
 
 export interface LLMUsage {
   readonly inputTokens: number;
@@ -357,6 +357,8 @@ export interface ClientFromSendOptions {
 /** Assembles the right provider client from an injected transport (shared by the web + node factories). */
 export function makeClientFromSend(opts: ClientFromSendOptions): LLMClient {
   const maxTokens = opts.maxTokens ?? 4096;
+  // OpenRouter speaks the OpenAI chat-completions protocol, so it reuses the
+  // OpenAI client (body + response parsing) with its own endpoint/transport.
   return opts.provider === "anthropic"
     ? new AnthropicClient({ model: opts.model, maxTokens, send: opts.send })
     : new OpenAIClient({ model: opts.model, maxTokens, send: opts.send });
