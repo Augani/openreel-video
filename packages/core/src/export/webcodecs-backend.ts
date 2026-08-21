@@ -158,6 +158,7 @@ export class WebCodecsBackend implements EncoderBackend {
       bitrate: targetVideoBitrate,
       keyFrameInterval: settings.keyframeInterval / settings.frameRate,
       hardwareAcceleration: selectedHardwareAcceleration,
+      bitrateMode: settings.bitrateMode === "cbr" ? "constant" : "variable",
     });
     const audioSource = new AudioBufferSource({
       codec: audioCodecResult.codec as "aac" | "opus" | "mp3",

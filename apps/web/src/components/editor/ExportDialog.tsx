@@ -846,6 +846,22 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
                 </div>
 
                 <div>
+                  <ToolcraftSegmentedControl
+                    value={customSettings.bitrateMode}
+                    onChange={(bitrateMode) =>
+                      setCustomSettings({
+                        ...customSettings,
+                        bitrateMode: bitrateMode as "cbr" | "vbr",
+                      })
+                    }
+                    options={[
+                      { value: "vbr", label: "VBR (quality)" },
+                      { value: "cbr", label: "CBR (consistent size)" },
+                    ]}
+                  />
+                </div>
+
+                <div>
                   <ToolcraftSliderControl
                     label="Quality"
                     value={customSettings.quality}
