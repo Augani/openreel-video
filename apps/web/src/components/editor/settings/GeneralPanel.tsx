@@ -93,6 +93,7 @@ export const GeneralPanel: React.FC = () => {
     (s) =>
       s.id === "openai" ||
       s.id === "anthropic" ||
+      s.id === "openrouter" ||
       configuredServices.includes(s.id),
   );
 

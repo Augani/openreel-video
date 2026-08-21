@@ -218,7 +218,13 @@ export function useElevenLabsApi(options: UseElevenLabsApiOptions): UseElevenLab
 
     const apiKey = isDesktop ? "" : (await getSecret(llmProvider)) ?? "";
     if (!isDesktop && !apiKey) {
-      throw new Error(`${llmProvider === "openai" ? "OpenAI" : "Anthropic"} API key not found. Add it in Settings > API Keys.`);
+      const label =
+        llmProvider === "anthropic"
+          ? "Anthropic"
+          : llmProvider === "openrouter"
+            ? "OpenRouter"
+            : "OpenAI";
+      throw new Error(`${label} API key not found. Add it in Settings > API Keys.`);
     }
 
     if (llmProvider === "anthropic") {
@@ -246,11 +252,14 @@ export function useElevenLabsApi(options: UseElevenLabsApiOptions): UseElevenLab
       return content?.[0]?.text ?? inputText;
     }
 
-    const response = await apiFetch("openai", "/chat/completions", apiKey, {
+    const service: "openai" | "openrouter" =
+      llmProvider === "openrouter" ? "openrouter" : "openai";
+    const model = llmProvider === "openrouter" ? "openai/gpt-5.4-mini" : "gpt-4o-mini";
+    const response = await apiFetch(service, "/chat/completions", apiKey, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "gpt-4o-mini",
+        model,
         messages: [
           { role: "system", content: ENHANCE_SYSTEM_PROMPT },
           { role: "user", content: inputText },

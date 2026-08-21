@@ -11,6 +11,7 @@ import type { LlmProvider } from "../../stores/settings-store";
 const PATHS: Record<LlmProvider, string> = {
   anthropic: "/messages",
   openai: "/chat/completions",
+  openrouter: "/chat/completions",
 };
 
 function makeSend(
