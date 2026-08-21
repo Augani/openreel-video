@@ -1076,6 +1076,7 @@ export const VideoEffectsSection: React.FC<VideoEffectsSectionProps> = ({
           {effects.map((effect, index) => (
             <EffectItem
               key={effect.id}
+              clipId={clipId}
               effect={effect}
               onUpdate={handleUpdateEffect}
               onToggle={handleToggleEffect}

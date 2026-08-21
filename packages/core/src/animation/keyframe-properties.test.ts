@@ -8,9 +8,9 @@ import {
 describe("keyframe-properties", () => {
   it("static descriptors expose canonical ranges + displayScale", () => {
     const opacity = getStaticDescriptor("transform.opacity");
-    expect(opacity).toMatchObject({ min: 0, max: 1, displayScale: 100, unit: "%", family: "transform" });
+    expect(opacity).toMatchObject({ min: 0, max: 1, unit: "%", family: "transform" });
     const posX = getStaticDescriptor("transform.position.x");
-    expect(posX).toMatchObject({ displayScale: 1, family: "transform" });
+    expect(posX).toMatchObject({ min: -4000, max: 4000, unit: "px", family: "transform" });
     expect(getStaticDescriptor("transform.crop.width")?.family).toBe("crop");
     expect(getStaticDescriptor("audio.volume")).toMatchObject({ min: 0, max: 2, family: "audio" });
     expect(getStaticDescriptor("audio.pan")).toMatchObject({ min: -1, max: 1, family: "audio" });

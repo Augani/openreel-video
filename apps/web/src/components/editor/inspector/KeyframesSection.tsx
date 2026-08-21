@@ -184,7 +184,8 @@ const PropertySelector: React.FC<{
       width="min(260px, 100vw - 32px)"
       label="Animate property"
       content={
-                  {existingProperties.length > 0 && (
+        <div className="max-h-64 overflow-y-auto p-1.5">
+          {existingProperties.length > 0 && (
             <div className="mb-1.5 space-y-1 border-b border-border pb-1.5">
               <div className="px-2 py-1 bg-bg-2">
                 <Text type="supporting" color="secondary" weight="bold">
@@ -217,7 +218,7 @@ const PropertySelector: React.FC<{
               ))}
             </div>
           )}
-          {categories.map{categories.map((category) => (
+          {categories.map((category) => (
             <div key={category} className="space-y-1">
               <div className="px-2 py-1 bg-bg-2">
                 <Text type="supporting" color="secondary" weight="bold">

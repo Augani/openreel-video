@@ -5641,6 +5641,7 @@ export const Preview: React.FC = () => {
                       clip.id,
                       frameResult.canvas,
                       useGPUFrames,
+                      false,
                       clip.keyframes,
                     );
 

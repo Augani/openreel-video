@@ -10,7 +10,6 @@ import {
 } from "../";
 import { InspectorSection } from "../shell/InspectorSection";
 import { PropertySlider } from "../shell/PropertySlider";
-import { ClipVolumeSection } from "../ClipVolumeSection";
 
 export interface AudioTabProps {
   clipId: string;

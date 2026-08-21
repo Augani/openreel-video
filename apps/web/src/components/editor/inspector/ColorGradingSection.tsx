@@ -4,7 +4,6 @@ import { ToolcraftCard as Card } from "@openreel/ui";
 import { ToolcraftClickableCard as ClickableCard } from "@openreel/ui";
 import { ToolcraftIconButton as IconButton } from "@openreel/ui";
 import { ToolcraftText as Text } from "@openreel/ui";
-import { PropertySlider } from "./shell/PropertySlider";
 import { ChevronDown, RotateCcw, Sun, Thermometer } from "@/icons/lucide-compat";
 import { useProjectStore } from "../../../stores/project-store";
 import type {
