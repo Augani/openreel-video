@@ -44,6 +44,7 @@ import {
   resolveClipVolumeAutomation,
   getParticleEngine,
   MotionRenderer,
+  evaluateKeyframesAt,
   type Effect,
   type AudioEffectParams,
   type AudioClipSchedule,
@@ -165,9 +166,16 @@ const applyPreviewAdjustmentLayers = async (
   return applied;
 };
 
-const clipNeedsFrameProcessing = (clipId: string): boolean => {
+const clipNeedsFrameProcessing = (
+  clipId: string,
+  keyframes: PreviewClip["keyframes"] = [],
+): boolean => {
   const bgEngine = getBackgroundRemovalEngine();
   if (bgEngine?.isInitialized() && bgEngine.getSettings(clipId).enabled) {
+    return true;
+  }
+
+  if (keyframes.some((kf) => kf.property.startsWith("colorGrade."))) {
     return true;
   }
 
@@ -200,8 +208,9 @@ const preparePreviewFrame = async (
   frameCanvas: HTMLCanvasElement | OffscreenCanvas,
   preferBitmap: boolean,
   allowCanvasByRef = false,
+  keyframes: PreviewClip["keyframes"] = [],
 ): Promise<PreparedPreviewFrame> => {
-  const needsProcessing = clipNeedsFrameProcessing(clipId);
+  const needsProcessing = clipNeedsFrameProcessing(clipId, keyframes);
   if (!preferBitmap && !needsProcessing) {
     return {
       frame: frameCanvas,
@@ -2075,6 +2084,7 @@ export const Preview: React.FC = () => {
               mediaOffset,
               volume: audioClip.volume ?? 1,
               volumeAutomation: getResolvedClipVolumeAutomation(audioClip),
+              keyframes: audioClip.keyframes,
               pan: 0,
               effects: previewAudio.effects,
               speed: audioClip.speed ?? 1,
@@ -2277,6 +2287,7 @@ export const Preview: React.FC = () => {
             mediaOffset: clip.inPoint || 0,
             volume: clip.volume ?? 1,
             volumeAutomation: getResolvedClipVolumeAutomation(clip),
+            keyframes: clip.keyframes,
             pan: 0,
             effects: scheduleEffects,
             speed: clip.speed ?? 1,
@@ -3035,6 +3046,34 @@ export const Preview: React.FC = () => {
                   );
 
                   const nativeCssFilter = clipCssFilterOnly(clip.id);
+                  const gradeKeyframes = evaluateKeyframesAt(
+                    clip.keyframes,
+                    clipLocalTime,
+                  );
+                  const hasGradeOverride =
+                    gradeKeyframes.has("colorGrade.temperature") ||
+                    gradeKeyframes.has("colorGrade.tint");
+                  if (hasGradeOverride) {
+                    const override: Partial<{
+                      temperature: number;
+                      tint: number;
+                    }> = {};
+                    const temperature = gradeKeyframes.get(
+                      "colorGrade.temperature",
+                    );
+                    const tint = gradeKeyframes.get("colorGrade.tint");
+                    if (temperature !== undefined) {
+                      override.temperature = temperature;
+                    }
+                    if (tint !== undefined) {
+                      override.tint = tint;
+                    }
+                    getEffectsBridge().setColorGradingOverride(
+                      clip.id,
+                      override,
+                    );
+                  }
+
                   let processedFrame: ImageBitmap | null = null;
                   try {
                     if (nativeCssFilter) {
@@ -3087,6 +3126,9 @@ export const Preview: React.FC = () => {
                     );
                     hasRenderedFrame = true;
                   } finally {
+                    if (hasGradeOverride) {
+                      getEffectsBridge().clearColorGradingOverride(clip.id);
+                    }
                     if (processedFrame && processedFrame !== frame) {
                       processedFrame.close();
                     }
@@ -3486,7 +3528,7 @@ export const Preview: React.FC = () => {
               if (
                 clipSpeed !== 1 ||
                 isReverse ||
-                (clipNeedsFrameProcessing(clip.id) &&
+                (clipNeedsFrameProcessing(clip.id, clip.keyframes) &&
                   clipCssFilterOnly(clip.id) === null)
               ) {
                 return { canUse: false, clips: [] };
@@ -4771,6 +4813,7 @@ export const Preview: React.FC = () => {
                 frameCanvas,
                 Boolean(useGPU),
                 true,
+                clip.keyframes,
               );
               const stabilizedTransform = applyStabilizationTransform(
                 clip,
@@ -5598,6 +5641,8 @@ export const Preview: React.FC = () => {
                       clip.id,
                       frameResult.canvas,
                       useGPUFrames,
+                      false,
+                      clip.keyframes,
                     );
 
                     const stabilizedTransform = applyStabilizationTransform(

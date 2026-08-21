@@ -1,6 +1,7 @@
 import React from "react";
 import { useProjectStore } from "../../../../stores/project-store";
 import {
+  ClipVolumeSection,
   AutoCutSilenceSection,
   AudioTextSyncPanel,
   NoiseReductionSection,
@@ -48,15 +49,7 @@ export const AudioTab: React.FC<AudioTabProps> = ({
       {showAudioEffects && clip && (
         <InspectorSection title="Clip Audio" sectionId="clip-audio" defaultOpen>
           <div className="space-y-4">
-            <PropertySlider
-              label="Volume"
-              value={clip.volume * 100}
-              onChange={(value) => updateAudio("audio/setVolume", { volume: value / 100 })}
-              min={0}
-              max={400}
-              step={1}
-              formatValue={(value) => `${Math.round(value)}%`}
-            />
+            <ClipVolumeSection clipId={clipId} />
             <PropertySlider
               label="Fade in"
               value={clip.fade?.fadeIn ?? 0}
