@@ -16,3 +16,14 @@ describe("ui-store inspectorActiveTab", () => {
     expect(useUIStore.getState().inspectorActiveTab).toBe("color");
   });
 });
+
+describe("ui-store desktop page", () => {
+  beforeEach(() => {
+    useUIStore.setState({ desktopPage: "edit" });
+  });
+
+  it("redirects Motion Creator requests to the video editor while disabled", () => {
+    useUIStore.getState().setDesktopPage("motion");
+    expect(useUIStore.getState().desktopPage).toBe("edit");
+  });
+});

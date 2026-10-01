@@ -4,6 +4,7 @@ import {
   toAnthropicTools,
   toOpenAITools,
   buildSystemPrompt,
+  getTool,
   selectToolsForPrompt,
 } from "@openreel/agent";
 import type {
@@ -23,6 +24,7 @@ import {
 } from "./chat-history-store";
 import { useSettingsStore } from "./settings-store";
 import { useProjectStore } from "./project-store";
+import { MOTION_CREATOR_ENABLED } from "../config/features";
 
 export type ChatStatus = "idle" | "running" | "awaiting_confirm" | "error";
 
@@ -301,10 +303,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
       .slice(-5)
       .map((message) => message.content)
       .join("\n");
-    const selectedToolNames = selectToolsForPrompt(routingContext, {
+    const routedToolNames = selectToolsForPrompt(routingContext, {
       maxTools: 120,
       priorToolNames,
     });
+    const selectedToolNames = MOTION_CREATOR_ENABLED
+      ? routedToolNames
+      : routedToolNames.filter((name) => getTool(name)?.domain !== "motion");
     const tools =
       provider === "anthropic-compatible"
         ? toAnthropicTools(selectedToolNames)
@@ -319,7 +324,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
           host,
           llm,
           tools,
-          system: buildSystemPrompt(host, selectedToolNames),
+          system: [
+            buildSystemPrompt(host, selectedToolNames),
+            !MOTION_CREATOR_ENABLED
+              ? "Motion Creator is temporarily disabled. Do not suggest opening it or creating standalone Motion compositions. Complete edits with the available main-timeline clip, keyframe, transition, effect, audio, trim, and speed tools."
+              : "",
+          ]
+            .filter(Boolean)
+            .join("\n\n"),
           messages: get().conversation,
           dryRun,
           confirmGate: autoConfirm

@@ -1,0 +1,25 @@
+{
+	"name": "cloud",
+	"version": "0.0.0",
+	"private": true,
+	"scripts": {
+		"deploy": "wrangler deploy",
+		"dev": "wrangler dev",
+		"start": "wrangler dev",
+		"typecheck": "tsc --noEmit",
+		"test:run": "vitest run",
+		"cf-typegen": "wrangler types"
+	},
+	"devDependencies": {
+		"@cloudflare/workers-types": "^4.20260117.0",
+		"typescript": "^5.5.2",
+		"vitest": "^1.6.0",
+		"wrangler": "^3.101.0"
+	},
+	"dependencies": {
+		"@openreel/fxpkg": "workspace:*",
+		"hono": "^4.11.4",
+		"jose": "^6.2.3",
+		"zod": "^4.4.3"
+	}
+}

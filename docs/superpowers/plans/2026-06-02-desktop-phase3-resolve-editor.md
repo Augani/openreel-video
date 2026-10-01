@@ -1,5 +1,8 @@
 # Desktop Phase 3 — Resolve Editor (functional Edit/Color/Deliver) Implementation Plan
 
+> **Architecture update (2026-07-31):** The cloud GPU render queue referenced in
+> this historical plan has been removed. Deliver/export is local-only.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Make the desktop app a usable, DaVinci-Resolve-style editor: a project-start surface, then Edit (media pool · viewer · timeline · inspector), Color (viewer · scopes · grading), and Deliver (export + render queue) pages — each a bespoke desktop layout that **reuses the existing engine-bound panels** (Preview, Timeline, AssetsPanel, InspectorPanel) and shared stores, themed charcoal/teal.

@@ -6,7 +6,8 @@ pages_build_output_dir = "dist"
 # This app requires special headers for SharedArrayBuffer (used by FFmpeg.wasm)
 # Custom domains:
 # - app.openreel.video opens the standard video editor flow
-# - motion.openreel.video opens the Motion Creator surface by hostname detection
+# - motion.openreel.video currently falls back to the standard editor while
+#   Motion Creator is disabled in the web app feature configuration
 
 [env.production]
 name = "openreel"

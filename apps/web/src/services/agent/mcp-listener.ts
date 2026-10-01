@@ -117,20 +117,6 @@ function getMotionLayerId(result: ToolResult): string | null {
   );
 }
 
-function insertedMotionIntoEditor(
-  name: string,
-  args: Record<string, unknown>,
-  result: ToolResult,
-): boolean {
-  if (name === "insert_motion_into_editor") return true;
-  const data = getResultDataRecord(result);
-  return (
-    optionalString(data?.insertedInstanceId) !== null ||
-    optionalString(data?.insertedClipId) !== null ||
-    (args.insertIntoEditor === true && optionalString(data?.instanceId) !== null)
-  );
-}
-
 function followMcpMotionResult(
   name: string,
   args: Record<string, unknown>,
@@ -140,9 +126,7 @@ function followMcpMotionResult(
   const compositionId = getMotionCompositionId(args, result);
   if (!compositionId) return;
 
-  useUIStore
-    .getState()
-    .setDesktopPage(insertedMotionIntoEditor(name, args, result) ? "edit" : "motion");
+  useUIStore.getState().setDesktopPage("edit");
 
   const motion = useMotionStore.getState();
   const activeChanged = motion.activeCompositionId !== compositionId;

@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { subscribeWithSelector, persist } from "zustand/middleware";
 import type { PreviewQuality } from "../components/editor/preview/preview-resolution";
+import { MOTION_CREATOR_ENABLED } from "../config/features";
 
 export type PanelId =
   | "mediaLibrary"
@@ -577,7 +578,11 @@ export const useUIStore = create<UIState>()(
           set({ inspectorActiveTab: tabId });
         },
 
-        setDesktopPage: (page) => set({ desktopPage: page }),
+        setDesktopPage: (page) =>
+          set({
+            desktopPage:
+              page === "motion" && !MOTION_CREATOR_ENABLED ? "edit" : page,
+          }),
 
         setShowWelcomeScreen: (show: boolean) => {
           set({ showWelcomeScreen: show });
@@ -592,7 +597,7 @@ export const useUIStore = create<UIState>()(
       }),
       {
         name: "openreel-ui-preferences",
-        version: 2,
+        version: 3,
         migrate: (persisted: unknown, version: number) => {
           const state = persisted as Record<string, unknown>;
           if (version === 0) {
@@ -604,6 +609,9 @@ export const useUIStore = create<UIState>()(
               panels.agentChat = DEFAULT_PANELS.agentChat;
             }
             state.panels = panels;
+          }
+          if (version < 3 && state.desktopPage === "motion") {
+            state.desktopPage = "edit";
           }
           return state;
         },

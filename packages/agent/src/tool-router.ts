@@ -29,8 +29,31 @@ const ALWAYS_AVAILABLE = new Set([
   "batch_actions",
 ]);
 
-const MOTION_TERMS = /\b(motion|composition|layer|keyframe|animate|animation|after effects|lower third|title card|kinetic|lottie|svg|figma|particle|shader|mask|matte|precomp|camera|render frame)\b/i;
+// Keep this list specific to Motion Creator. Generic editing words such as
+// "animate", "animation", and "keyframe" also describe ordinary timeline
+// clips; treating them as Motion-only used to remove every main-timeline
+// mutation tool from the request.
+const MOTION_TERMS = /\b(motion(?: creator| graphics?)?|composition|layer|after effects|lower third|title card|kinetic|lottie|svg|figma|particle|shader|mask|matte|precomp|camera|render frame)\b/i;
 const CREATION_TERMS = /\b(3d|three[- ]?d|product|character|scene|model|gltf|glb|rig|mesh|material|texture|bevel|displacement|x[- ]?ray|cloth|camera module|exploded|cinematic|decal|cutaway)\b/i;
+
+const TIMELINE_TERMS = /\b(timeline|clip|clips|footage|video|audio|transition|trim|split|cut|speed|slow(?:er| down)?|fast(?:er| forward)?|reverse|volume|sound|fade|effect|filter|color|zoom|scale|position|crop|opacity|rotate|keyframe|animate|animation)\b/i;
+
+const TIMELINE_DOMAINS = new Set([
+  "track",
+  "clip",
+  "transform",
+  "effect",
+  "color",
+  "speed",
+  "audio",
+  "text",
+  "subtitle",
+  "graphics",
+  "transition",
+  "keyframe",
+  "marker",
+  "ai",
+]);
 
 const words = (value: string): string[] =>
   value
@@ -71,6 +94,7 @@ export function selectToolsForPrompt(
   const maxTools = Math.max(1, options.maxTools ?? DEFAULT_AGENT_TOOL_LIMIT);
   const wantsMotion = MOTION_TERMS.test(prompt);
   const wantsCreation = CREATION_TERMS.test(prompt);
+  const wantsTimeline = TIMELINE_TERMS.test(prompt);
   const prior = new Set(options.priorToolNames ?? []);
   const promptWords = new Set(words(prompt));
 
@@ -79,6 +103,10 @@ export function selectToolsForPrompt(
     if (!wantsMotion && !wantsCreation) return tool.domain !== "motion";
     if (wantsCreation && isCreationTool(tool)) return true;
     if (wantsMotion && tool.domain === "motion" && !isCreationTool(tool)) return true;
+    // A request can legitimately combine Motion/3D work with edits to an
+    // existing main-timeline clip. Do not make those tool families mutually
+    // exclusive when the user explicitly refers to timeline editing.
+    if (wantsTimeline && TIMELINE_DOMAINS.has(tool.domain)) return true;
     return tool.domain === "read" || ["project", "media", "export", "raw"].includes(tool.domain);
   });
 
@@ -90,7 +118,8 @@ export function selectToolsForPrompt(
         relevance(tool, promptWords) +
         (prior.has(tool.name) ? 5_000 : 0) +
         (wantsCreation && isCreationTool(tool) ? 100 : 0) +
-        (wantsMotion && tool.domain === "motion" ? 50 : 0),
+        (wantsMotion && tool.domain === "motion" ? 50 : 0) +
+        (wantsTimeline && TIMELINE_DOMAINS.has(tool.domain) ? 50 : 0),
     }))
     .sort((a, b) => b.score - a.score || a.index - b.index)
     .slice(0, maxTools)

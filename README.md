@@ -94,6 +94,9 @@ OpenReel Video is a fully-featured browser-based video editor that runs entirely
 ### Try Online
 Visit **[openreel.video](https://openreel.video)** to start editing immediately.
 
+To edit by chatting with OpenAI, Anthropic, or any OpenAI-compatible endpoint, follow the
+**[AI Editor setup guide](docs/AGENT-GUIDE.md#bring-your-own-key-web--desktop-chat)**.
+
 ### Run Locally
 
 ```bash

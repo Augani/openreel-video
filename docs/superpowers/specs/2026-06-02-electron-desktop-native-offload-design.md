@@ -1,5 +1,8 @@
 # OpenReel Desktop (Electron + Native Media Offload) — Design Spec
 
+> **Architecture update (2026-07-31):** Cloud GPU endpoints and broker flows in
+> this draft are retired. Desktop processing and export are local-only.
+
 **Status:** Draft for review
 **Date:** 2026-06-02
 **Supersedes:** [`2026-05-28-kael-openreel-desktop-design.md`](./2026-05-28-kael-openreel-desktop-design.md) (native Rust + wgpu + kael rewrite)
@@ -213,16 +216,13 @@ Capture ships in two steps inside Phase 3: first video-only native capture with 
 
 `window.openreel.probeHardware()` returns real specs from the main process: CPU model/physical+logical cores (`os.cpus()`), total/free RAM (`os.totalmem()`), GPU model(s) (platform queries — `system_profiler` on macOS, `wmic`/DXGI on Windows, `lspci`/`glxinfo` on Linux), and the probed encoder list (§6.2). This replaces the heuristic `device-capabilities.ts` (UA + WebGL-string + `navigator.deviceMemory` default-4) in desktop mode and feeds `export-estimator.ts` accurate, deterministic inputs (native encode FPS is far more predictable than the in-browser micro-benchmark).
 
-### 6.8 Cloud / AI: server-proxy **and** BYOK
+### 6.8 External AI providers and local media work
 
-`window.openreel.cloud.fetch(service, path, options)` in the main process decides per call:
-
-- **BYOK mode (default if a user key exists):** the key is read through the main-process key store (OS keychain where available, or `safeStorage`-encrypted ciphertext persisted under `userData`; never exposed to the renderer) and the request is made **directly from the main process** to `api.openai.com` / `api.anthropic.com` / `api.elevenlabs.io` using the `DIRECT_CONFIG` headers already defined in `api-proxy.ts`. No same-origin proxy needed; works offline-of-Cloudflare.
-- **Server-proxy mode (signed-in users without their own key):** the main process calls the **absolute** cloud Worker proxy (`https://openreel-cloud.<...>.workers.dev` / `api.openreel.video`) — *not* the relative `/api/proxy/*` Pages Function, which has no same-origin under `app://`. This requires two backend changes:
-  1. The Pages Function `ALLOWED_ORIGINS` allowlist (`functions/api/proxy/[[catchall]].ts`) — or a new Worker route — must accept the desktop client. Since the desktop request originates from the **main process** (Node, not a browser), it isn't subject to browser CORS; it sends a desktop auth token instead.
-  2. **Desktop auth:** the cloud auth broker today attests only Apple App Attest / Play Integrity (`apps/cloud/wrangler.jsonc`). Add a desktop path: browser-based OAuth/device-code handoff → short-lived scoped JWT, stored in the keychain, sent as a bearer token to the Worker. This mirrors the mobile short-lived-token model without native attestation.
-
-The GPU services (transcribe `cloud.openreel.video`, TTS `transcribe.openreel.video`, render `ai.openreel.video`) are reached the same way (main-process fetch with the desktop JWT).
+The OpenReel-hosted speech and GPU-processing services are retired. Desktop
+media processing and export stay in the app or its local sidecars. Optional
+third-party AI providers are BYOK: credentials remain in the desktop keychain
+and requests go directly through the existing main-process proxy. There is no
+OpenReel GPU token, broker, job queue, or remote-render fallback.
 
 ## 7. Data flows
 

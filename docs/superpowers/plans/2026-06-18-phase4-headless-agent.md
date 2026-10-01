@@ -1,5 +1,9 @@
 # Phase 4: Headless / Cloud Agent — Status
 
+> **Retired path (2026-07-31):** The GPU runner, broker, and remote export path
+> described below were removed. The headless agent now edits project files only;
+> app-hosted exports run locally.
+
 **Branch:** `feat/agent-phase0-readiness` · **Status:** ✅ Complete (GPU export E2E needs live infra — noted below)
 **Verification:** `@openreel/agent-runner` typecheck clean; 16 runner tests green; `tsup` builds a standalone CLI (227 KB, agent+core submodules bundled, no WebGPU barrel); built `openreel-agent` binary runs (usage + missing-key paths verified).
 

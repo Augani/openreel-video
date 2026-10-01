@@ -1,5 +1,8 @@
 # OpenReel Native Render Engine — Build Plan ("Aurora")
 
+> **Architecture update (2026-07-31):** Any cloud render-farm/GPU-worker stage in
+> this plan is cancelled. Aurora, if implemented, must run as a local desktop sidecar.
+
 > Goal: a Blender-class 3D renderer **built into the OpenReel desktop app** (Electron, macOS-first, Windows next). Months-long, greenfield, native. Codename **Aurora** (placeholder).
 >
 > Canonical references to keep on the desk: *Physically Based Rendering* (Pharr/Jakob/Humphreys, pbrt), Blender **Cycles** (path tracer) and **EEVEE** (realtime) source, Intel **OIDN**, **OpenColorIO/ACES**, **OpenUSD/Hydra**.

@@ -1,0 +1,38 @@
+{
+  "name": "openreel-cloud",
+  "main": "src/index.ts",
+  "compatibility_date": "2024-01-01",
+  "routes": [
+    {
+      "pattern": "api.openreel.video",
+      "custom_domain": true
+    }
+  ],
+  "ai": {
+    "binding": "AI"
+  },
+  "r2_buckets": [
+    {
+      "binding": "TEMPLATES_BUCKET",
+      "bucket_name": "openreel-templates"
+    },
+    {
+      "binding": "SHARES_BUCKET",
+      "bucket_name": "openreel-shares"
+    },
+    {
+      "binding": "ASSETS_BUCKET",
+      "bucket_name": "openreel-assets"
+    },
+    {
+      "binding": "CRASHES_BUCKET",
+      "bucket_name": "openreel-crashes"
+    }
+  ],
+  "vars": {
+    "ENVIRONMENT": "production"
+  },
+  "observability": {
+    "enabled": true
+  }
+}

@@ -29,13 +29,10 @@ function detectPlatform(): string {
 export function DesktopApp(): JSX.Element {
   const platform = detectPlatform();
   const hasProject = useProjectStore((state) => state.hasOpenProject);
-  const desktopPage = useUIStore((state) => state.desktopPage);
   const agentChatVisible = useUIStore(
     (state) => state.panels.agentChat?.visible ?? false,
   );
   const togglePanel = useUIStore((state) => state.togglePanel);
-  const isVideoEditing = desktopPage !== "motion";
-
 
   // Drive native-menu actions into the app: undo/redo hit the project store
   // directly; new/open/export are broadcast as events for the relevant UI to
@@ -96,7 +93,7 @@ export function DesktopApp(): JSX.Element {
   return (
     <div className="openreel-desktop isolate flex h-screen w-screen flex-col overflow-hidden bg-bg text-fg">
       <DesktopTitleBar platform={platform}>
-        {hasProject && isVideoEditing ? (
+        {hasProject ? (
           <Button
             label="AI Editor"
             variant={agentChatVisible ? "primary" : "secondary"}
@@ -107,7 +104,7 @@ export function DesktopApp(): JSX.Element {
             aria-pressed={agentChatVisible}
           />
         ) : null}
-        {hasProject && isVideoEditing ? <DesktopExportButton /> : null}
+        {hasProject ? <DesktopExportButton /> : null}
         <Button
           label="Settings"
           variant="secondary"

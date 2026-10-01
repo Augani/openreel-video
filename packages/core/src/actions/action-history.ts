@@ -49,6 +49,7 @@ const ACTION_DESCRIPTIONS: Record<
   "transform/update": () => "Transform clip",
   "keyframe/add": (params) => `Add ${params.property} keyframe`,
   "keyframe/remove": () => "Remove keyframe",
+  "keyframe/setAll": () => "Replace clip keyframes",
   "transition/add": (params) => `Add ${params.transitionType} transition`,
   "transition/set": () => "Add transition",
   "transition/update": () => "Update transition",

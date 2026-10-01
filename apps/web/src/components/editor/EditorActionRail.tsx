@@ -1,4 +1,4 @@
-import React, { useCallback } from "react";
+import React from "react";
 import {
   ToolcraftDropdownMenu as DropdownMenu,
   ToolcraftIconButton as IconButton,
@@ -48,7 +48,7 @@ const RailButton: React.FC<{
 );
 
 export const EditorActionRail: React.FC = () => {
-  const { undo, redo, createMotionComposition } = useProjectStore();
+  const { undo, redo } = useProjectStore();
   const {
     openModal,
     toggleKeyframeEditor,
@@ -76,13 +76,6 @@ export const EditorActionRail: React.FC = () => {
       <SunMoon size={16} aria-hidden />
     );
   const themeActionLabel = `Theme: ${themeLabel}. Switch to ${nextThemeLabel}`;
-
-  const handleCreateMotionScene = useCallback(async () => {
-    const composition = await createMotionComposition("Motion Scene");
-    if (composition) {
-      navigate("motion", { compositionId: composition.id });
-    }
-  }, [createMotionComposition, navigate]);
 
   return (
     <nav
@@ -120,11 +113,6 @@ export const EditorActionRail: React.FC = () => {
 
       <div className="my-1.5 h-px w-6 bg-border" />
 
-      <RailButton
-        label="Create Motion Scene"
-        icon="cube"
-        onClick={() => void handleCreateMotionScene()}
-      />
       <RailButton
         label="Action history"
         icon="clock"

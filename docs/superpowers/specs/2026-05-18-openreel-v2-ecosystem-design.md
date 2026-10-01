@@ -1,5 +1,9 @@
 # OpenReel v2 Ecosystem Design
 
+> **Historical only (retired 2026-07-31):** All cloud-GPU worker, Spot-instance,
+> auth-broker, and token-for-cloud-access proposals in this design are cancelled.
+> Shipping clients use local processing or omit features without a safe local replacement.
+
 ## Overview
 
 OpenReel v2 transforms the iOS video editor into a full creator platform competing with CapCut. The app remains fully functional offline with on-device AI, enhanced by cloud GPU power, a token-based economy ($ORC on Solana), a creator marketplace, and real-time collaboration.

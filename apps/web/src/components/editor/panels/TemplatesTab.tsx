@@ -1,11 +1,10 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
-import { Box, Search, Layout, Clock } from "@/icons/lucide-compat";
+import { Search, Layout, Clock } from "@/icons/lucide-compat";
 import { ToolcraftButton as Button } from "@openreel/ui";
 import { ToolcraftSelectableCard as SelectableCard } from "@openreel/ui";
 import { ToolcraftTextInputControl } from "@openreel/ui";
 import { useEngineStore } from "../../../stores/engine-store";
 import { useProjectStore } from "../../../stores/project-store";
-import { useRouter } from "../../../hooks/use-router";
 import type {
   TemplateSummary,
   TemplateCategory,
@@ -21,10 +20,6 @@ export const TemplatesTab: React.FC = () => {
   >("all");
   const [loading, setLoading] = useState(true);
   const [applying, setApplying] = useState<string | null>(null);
-  const createMotionComposition = useProjectStore(
-    (state) => state.createMotionComposition,
-  );
-  const { navigate } = useRouter();
 
   useEffect(() => {
     let cancelled = false;
@@ -149,33 +144,6 @@ export const TemplatesTab: React.FC = () => {
           </SelectableCard>
         ))}
       </div>
-
-      <button
-        type="button"
-        aria-label="Start a Motion Creator template"
-        className="flex min-h-[72px] w-full min-w-0 items-center gap-3 rounded-lg border border-primary/35 bg-primary/10 p-3 text-left transition-colors hover:bg-primary/15"
-        onClick={async () => {
-          const composition = await createMotionComposition(
-            "Motion Template Scene",
-            "motion-ad-card",
-          );
-          if (composition) {
-            navigate("motion", { compositionId: composition.id });
-          }
-        }}
-      >
-        <span className="grid h-10 w-10 place-items-center rounded-md bg-primary text-white">
-          <Box size={18} />
-        </span>
-        <span className="min-w-0 flex-1 overflow-hidden">
-          <span className="block truncate text-xs font-semibold text-text-primary">
-            Start a Motion Creator template
-          </span>
-          <span className="mt-0.5 block overflow-hidden text-ellipsis text-[10px] leading-4 text-text-muted [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]">
-            Ads, app UI demos, lower thirds, social hooks, logo reveals, and end screens.
-          </span>
-        </span>
-      </button>
 
       {filteredTemplates.length === 0 ? (
         <div className="text-center py-8 text-text-muted text-xs">

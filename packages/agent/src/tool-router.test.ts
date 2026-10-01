@@ -42,4 +42,36 @@ describe("agent tool router", () => {
     });
     expect(names).toContain("animate_layer");
   });
+
+  it("does not mistake existing-clip animation for Motion-only work", () => {
+    const names = selectToolsForPrompt(
+      "On the main timeline, animate the existing clips with zoom keyframes, add a whipPan transition, trim and split the footage, speed it up, add a video effect, and fade the audio",
+    );
+
+    expect(names.length).toBeLessThanOrEqual(DEFAULT_AGENT_TOOL_LIMIT);
+    expect(names).toEqual(
+      expect.arrayContaining([
+        "set_clip_transform",
+        "add_keyframe",
+        "set_clip_keyframes",
+        "add_transition",
+        "trim_clip",
+        "split_clip",
+        "set_clip_speed",
+        "add_video_effect",
+        "set_clip_fade",
+        "add_audio_effect",
+      ]),
+    );
+  });
+
+  it.each([
+    ["Animate a slow zoom on the first video clip", "add_keyframe"],
+    ["Move and scale the existing clip", "set_clip_transform"],
+    ["Add a glitch transition between these clips", "add_transition"],
+    ["Split the clip and make the second half faster", "split_clip"],
+    ["Clean up the audio on this footage", "add_audio_effect"],
+  ])("routes main-timeline request %j to %s", (prompt, expectedTool) => {
+    expect(selectToolsForPrompt(prompt)).toContain(expectedTool);
+  });
 });

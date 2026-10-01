@@ -220,6 +220,56 @@ describe("ActionExecutor transform/update", () => {
   });
 });
 
+describe("ActionExecutor AI timeline editing actions", () => {
+  it("computes duration from the new in and out points in one trim", async () => {
+    const executor = new ActionExecutor();
+    const project = makeProjectWithClip();
+
+    const result = await executor.execute({
+      id: "trim-both",
+      type: "clip/trim",
+      params: { clipId: "c1", inPoint: 0.5, outPoint: 4.5 },
+      timestamp: Date.now(),
+    } as Action, project);
+
+    expect(result.success).toBe(true);
+    expect(project.timeline.tracks[0].clips[0]).toMatchObject({
+      inPoint: 0.5,
+      outPoint: 4.5,
+      duration: 4,
+    });
+  });
+
+  it("preserves requested easing and creates stable unique keyframe ids", async () => {
+    const executor = new ActionExecutor();
+    const project = makeProjectWithClip();
+
+    for (const [id, time, value] of [
+      ["zoom-start", 0, 1],
+      ["zoom-end", 2, 1.3],
+    ] as const) {
+      const result = await executor.execute({
+        id,
+        type: "keyframe/add",
+        params: {
+          clipId: "c1",
+          property: "scale.x",
+          time,
+          value,
+          easing: "ease-in-out",
+        },
+        timestamp: Date.now(),
+      } as Action, project);
+      expect(result.success).toBe(true);
+    }
+
+    expect(project.timeline.tracks[0].clips[0].keyframes).toMatchObject([
+      { id: "keyframe-zoom-start", easing: "ease-in-out" },
+      { id: "keyframe-zoom-end", easing: "ease-in-out" },
+    ]);
+  });
+});
+
 describe("ActionExecutor compound instance synchronization", () => {
   it("keeps persisted nested timing aligned with timeline move and trim edits", async () => {
     const executor = new ActionExecutor();

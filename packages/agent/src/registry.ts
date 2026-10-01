@@ -306,6 +306,10 @@ import {
   type MotionRotation3D,
 } from "@openreel/core/motion/types";
 import type { Keyframe, Marker } from "@openreel/core/types/timeline";
+import {
+  AUDIO_EFFECT_TYPES,
+  TRANSITION_TYPES,
+} from "@openreel/core/types/effects";
 import { normalizeMotionBlurSettings } from "@openreel/core/motion/motion-blur";
 import type { BlendMode } from "@openreel/core/video/types";
 import type { LottieAnimation } from "@openreel/core/types/lottie";
@@ -411,6 +415,45 @@ const obj = (
   properties: Record<string, JSONSchema>,
   required: string[] = [],
 ): JSONSchema => ({ type: "object", properties, required, additionalProperties: true });
+
+const timelineKeyframePropertySchema: JSONSchema = {
+  type: "string",
+  enum: [
+    "opacity",
+    "position.x",
+    "position.y",
+    "scale.x",
+    "scale.y",
+    "rotation",
+    "effect.brightness",
+    "effect.contrast",
+    "effect.saturation",
+    "effect.blur",
+  ],
+};
+
+const easingSchema: JSONSchema = { type: "string", enum: [...EASING_TYPES] };
+
+const timelineKeyframeInputSchema: JSONSchema = obj(
+  {
+    id: str,
+    time: num,
+    property: timelineKeyframePropertySchema,
+    value: {},
+    easing: easingSchema,
+  },
+  ["time", "property", "value"],
+);
+
+const clipTransformSchema: JSONSchema = obj({
+  position: obj({ x: num, y: num }),
+  scale: obj({ x: num, y: num }),
+  rotation: num,
+  opacity: num,
+  anchor: obj({ x: num, y: num }),
+  crop: obj({ x: num, y: num, width: num, height: num }),
+  fitMode: { type: "string", enum: ["contain", "cover", "stretch", "none"] },
+});
 
 function vec2FromObject(
   value: unknown,
@@ -15518,15 +15561,15 @@ const TOOLS: RegisteredTool[] = [
   actionTool({ name: "add_clip", domain: "clip", actionType: "clip/add", title: "Add clip", description: "Add a media clip to a track at a time.", inputSchema: obj({ trackId: str, mediaId: str, startTime: num }, ["trackId", "mediaId", "startTime"]) }),
   actionTool({ name: "remove_clip", domain: "clip", actionType: "clip/remove", title: "Remove clip", description: "Remove a clip.", inputSchema: obj({ clipId: str }, ["clipId"]), destructive: true }),
   actionTool({ name: "move_clip", domain: "clip", actionType: "clip/move", title: "Move clip", description: "Move a clip to a new start time / track.", inputSchema: obj({ clipId: str, startTime: num, trackId: str }, ["clipId", "startTime"]) }),
-  actionTool({ name: "trim_clip", domain: "clip", actionType: "clip/trim", title: "Trim clip", description: "Set a clip's in/out points (seconds).", inputSchema: obj({ clipId: str, inPoint: num, outPoint: num }, ["clipId"]) }),
-  actionTool({ name: "split_clip", domain: "clip", actionType: "clip/split", title: "Split clip", description: "Split a clip at a time.", inputSchema: obj({ clipId: str, time: num }, ["clipId", "time"]) }),
+  actionTool({ name: "trim_clip", domain: "clip", actionType: "clip/trim", title: "Trim clip", description: "Trim an existing main-timeline clip by setting either or both source-media inPoint/outPoint values in seconds. Read the current values with get_clip first.", inputSchema: obj({ clipId: str, inPoint: num, outPoint: num }, ["clipId"]) }),
+  actionTool({ name: "split_clip", domain: "clip", actionType: "clip/split", title: "Split clip", description: "Split an existing main-timeline clip at an absolute timeline time in seconds. The time must fall strictly inside the clip's startTime..startTime+duration range.", inputSchema: obj({ clipId: str, time: num }, ["clipId", "time"]) }),
   actionTool({ name: "ripple_delete_clip", domain: "clip", actionType: "clip/rippleDelete", title: "Ripple delete", description: "Delete a clip and close the gap.", inputSchema: obj({ clipId: str }, ["clipId"]), destructive: true }),
   actionTool({ name: "slip_clip", domain: "clip", actionType: "clip/slip", title: "Slip clip", description: "Slip a clip's source by delta.", inputSchema: obj({ clipId: str, delta: num }, ["clipId", "delta"]) }),
   actionTool({ name: "slide_clip", domain: "clip", actionType: "clip/slide", title: "Slide clip", description: "Slide a clip by delta.", inputSchema: obj({ clipId: str, delta: num, prevClipId: str, nextClipId: str }, ["clipId", "delta"]) }),
   actionTool({ name: "roll_edit", domain: "clip", actionType: "clip/roll", title: "Roll edit", description: "Roll the edit point between two clips.", inputSchema: obj({ leftClipId: str, rightClipId: str, delta: num }, ["leftClipId", "rightClipId", "delta"]) }),
   actionTool({ name: "trim_to_playhead", domain: "clip", actionType: "clip/trimToPlayhead", title: "Trim to playhead", description: "Trim a clip's start/end to a time.", inputSchema: obj({ clipId: str, playheadTime: num, trimStart: bool }, ["clipId", "playheadTime", "trimStart"]) }),
   actionTool({ name: "close_gap", domain: "clip", actionType: "clip/closeGapBefore", title: "Close gap", description: "Close the gap before a clip.", inputSchema: obj({ clipId: str }, ["clipId"]) }),
-  actionTool({ name: "set_clip_speed", domain: "speed", actionType: "clip/setSpeed", title: "Set speed", description: "Set clip playback speed (recomputes duration).", inputSchema: obj({ clipId: str, speed: num }, ["clipId", "speed"]) }),
+  actionTool({ name: "set_clip_speed", domain: "speed", actionType: "clip/setSpeed", title: "Set speed", description: "Set an existing main-timeline clip's playback-speed multiplier (for example 0.5 = half speed, 2 = double speed); recomputes its duration. Use get_capabilities speed.range for limits.", inputSchema: obj({ clipId: str, speed: num }, ["clipId", "speed"]) }),
   actionTool({ name: "set_clip_reverse", domain: "speed", actionType: "clip/setReverse", title: "Reverse clip", description: "Toggle clip reverse.", inputSchema: obj({ clipId: str, reversed: bool }, ["clipId", "reversed"]) }),
   actionTool({ name: "set_clip_pitch_correction", domain: "speed", actionType: "clip/setPitchCorrection", title: "Pitch correction", description: "Toggle pitch correction on speed changes.", inputSchema: obj({ clipId: str, pitchCorrection: bool }, ["clipId", "pitchCorrection"]) }),
   actionTool({ name: "set_speed_ramp", domain: "speed", actionType: "speed/setRampData", title: "Speed ramp", description: "Set speed keyframes / freeze frames / pitch.", inputSchema: obj({ clipId: str, keyframes: { type: "array" }, freezeFrames: { type: "array" }, pitchCorrection: bool }, ["clipId"]) }),
@@ -15534,7 +15577,7 @@ const TOOLS: RegisteredTool[] = [
   actionTool({ name: "set_clip_chroma_key", domain: "speed", actionType: "clip/setChromaKey", title: "Chroma key", description: "Set green-screen / chroma-key settings.", inputSchema: obj({ clipId: str, chromaKey: { type: "object" } }, ["clipId"]) }),
 
   // transform / blend
-  actionTool({ name: "set_clip_transform", domain: "transform", actionType: "transform/update", title: "Transform clip", description: "Set position/scale/rotation/opacity/crop/fitMode.", inputSchema: obj({ clipId: str, transform: { type: "object" } }, ["clipId", "transform"]) }),
+  actionTool({ name: "set_clip_transform", domain: "transform", actionType: "transform/update", title: "Transform clip", description: "Update an existing main-timeline clip's static transform. position is a pixel offset from canvas center; scale uses 1 = 100%; rotation is degrees; opacity is 0..1. Partial nested updates are safely merged, so {scale:{x:1.2,y:1.2}} performs a 120% zoom without resetting position.", inputSchema: obj({ clipId: str, transform: clipTransformSchema }, ["clipId", "transform"]) }),
   actionTool({ name: "set_clip_blend_mode", domain: "transform", actionType: "clip/setBlendMode", title: "Blend mode", description: "Set a clip's blend mode.", inputSchema: obj({ clipId: str, blendMode: str }, ["clipId", "blendMode"]) }),
   actionTool({ name: "set_clip_blend_opacity", domain: "transform", actionType: "clip/setBlendOpacity", title: "Blend opacity", description: "Set a clip's blend opacity (0..1).", inputSchema: obj({ clipId: str, opacity: num }, ["clipId", "opacity"]) }),
 
@@ -15602,7 +15645,32 @@ const TOOLS: RegisteredTool[] = [
   actionTool({ name: "set_clip_volume", domain: "audio", actionType: "audio/setVolume", title: "Set volume", description: "Set a clip's volume (0..1+).", inputSchema: obj({ clipId: str, volume: num }, ["clipId", "volume"]) }),
   actionTool({ name: "set_clip_fade", domain: "audio", actionType: "audio/setFade", title: "Set fade", description: "Set audio fade in/out seconds.", inputSchema: obj({ clipId: str, fadeIn: num, fadeOut: num }, ["clipId"]) }),
   actionTool({ name: "add_audio_automation", domain: "audio", actionType: "audio/addAutomation", title: "Audio automation", description: "Add audio automation points.", inputSchema: obj({ clipId: str, points: { type: "array" } }, ["clipId", "points"]) }),
-  actionTool({ name: "add_audio_effect", domain: "audio", actionType: "audio/addEffect", title: "Add audio effect", description: "Add an audio effect to a clip.", inputSchema: obj({ clipId: str, effect: { type: "object" } }, ["clipId", "effect"]) }),
+  actionTool({
+    name: "add_audio_effect",
+    domain: "audio",
+    actionType: "audio/addEffect",
+    title: "Add audio effect",
+    description: "Add an audio effect to an existing main-timeline clip. Pass effectType (gain|pan|eq|compressor|reverb|delay|noiseReduction|fadeIn|fadeOut) and optional params; the effect id is generated automatically. A complete legacy effect object is also accepted.",
+    inputSchema: {
+      ...obj({
+        clipId: str,
+        effectType: { type: "string", enum: [...AUDIO_EFFECT_TYPES] },
+        params: { type: "object" },
+        effect: { type: "object" },
+      }, ["clipId"]),
+      anyOf: [{ required: ["effectType"] }, { required: ["effect"] }],
+    },
+    mapParams: (args) => ({
+      clipId: args.clipId,
+      effect:
+        asRecord(args.effect) ?? {
+          id: genId(),
+          type: args.effectType,
+          enabled: true,
+          params: asRecord(args.params) ?? {},
+        },
+    }),
+  }),
   actionTool({ name: "remove_audio_effect", domain: "audio", actionType: "audio/removeEffect", title: "Remove audio effect", description: "Remove an audio effect.", inputSchema: obj({ clipId: str, effectId: str }, ["clipId", "effectId"]) }),
   actionTool({ name: "update_audio_effect", domain: "audio", actionType: "audio/updateEffect", title: "Update audio effect", description: "Update an audio effect's params.", inputSchema: obj({ clipId: str, effectId: str, params: { type: "object" } }, ["clipId", "effectId", "params"]) }),
   actionTool({ name: "toggle_audio_effect", domain: "audio", actionType: "audio/toggleEffect", title: "Toggle audio effect", description: "Enable/disable an audio effect.", inputSchema: obj({ clipId: str, effectId: str, enabled: bool }, ["clipId", "effectId", "enabled"]) }),
@@ -15615,13 +15683,33 @@ const TOOLS: RegisteredTool[] = [
   actionTool({ name: "set_subtitle_style", domain: "subtitle", actionType: "subtitle/setStyle", title: "Subtitle style", description: "Set the global subtitle style.", inputSchema: obj({ style: { type: "object" } }, ["style"]) }),
 
   // keyframe
-  actionTool({ name: "add_keyframe", domain: "keyframe", actionType: "keyframe/add", title: "Add keyframe", description: "Add a keyframe for a clip property.", inputSchema: obj({ clipId: str, property: str, time: num, value: {} }, ["clipId", "property", "time"]) }),
+  actionTool({ name: "add_keyframe", domain: "keyframe", actionType: "keyframe/add", title: "Add keyframe", description: "Animate an existing main-timeline clip by adding a property keyframe at clip-local time in seconds. Supported transform properties are opacity, position.x/y, scale.x/y, and rotation; supported effect properties are effect.brightness/contrast/saturation/blur. Add at least two keyframes for interpolation.", inputSchema: obj({ clipId: str, property: timelineKeyframePropertySchema, time: num, value: {}, easing: easingSchema }, ["clipId", "property", "time", "value"]) }),
   actionTool({ name: "remove_keyframe", domain: "keyframe", actionType: "keyframe/remove", title: "Remove keyframe", description: "Remove a keyframe.", inputSchema: obj({ clipId: str, property: str, time: num }, ["clipId", "property", "time"]) }),
-  actionTool({ name: "set_clip_keyframes", domain: "keyframe", actionType: "keyframe/setAll", title: "Set keyframes", description: "Replace all keyframes on a clip.", inputSchema: obj({ clipId: str, keyframes: { type: "array" } }, ["clipId", "keyframes"]) }),
+  actionTool({
+    name: "set_clip_keyframes",
+    domain: "keyframe",
+    actionType: "keyframe/setAll",
+    title: "Set keyframes",
+    description: "Replace all animation keyframes on an existing main-timeline clip. Times are clip-local seconds. Each item needs property, time, and value; id and easing default automatically.",
+    inputSchema: obj({ clipId: str, keyframes: { type: "array", items: timelineKeyframeInputSchema } }, ["clipId", "keyframes"]),
+    mapParams: (args) => ({
+      clipId: args.clipId,
+      keyframes: Array.isArray(args.keyframes)
+        ? args.keyframes.map((value) => {
+            const keyframe = asRecord(value) ?? {};
+            return {
+              ...keyframe,
+              id: optionalString(keyframe.id) ?? genId(),
+              easing: optionalString(keyframe.easing) ?? "linear",
+            };
+          })
+        : args.keyframes,
+    }),
+  }),
 
   // transition
-  actionTool({ name: "add_transition", domain: "transition", actionType: "transition/add", title: "Add transition", description: "Add a transition between two clips.", inputSchema: obj({ clipAId: str, clipBId: str, transitionType: str, duration: num }, ["clipAId", "clipBId", "transitionType", "duration"]) }),
-  actionTool({ name: "update_transition", domain: "transition", actionType: "transition/update", title: "Update transition", description: "Update a transition.", inputSchema: obj({ transitionId: str, type: str, duration: num }, ["transitionId"]) }),
+  actionTool({ name: "add_transition", domain: "transition", actionType: "transition/add", title: "Add transition", description: "Add a rendered transition between two adjacent existing clips on the same main-timeline track. Use list_clips for ordered clip ids and get_capabilities transitionTypes for values such as whipPan, zoom, push, glitch, or flash.", inputSchema: obj({ clipAId: str, clipBId: str, transitionType: { type: "string", enum: [...TRANSITION_TYPES] }, duration: num }, ["clipAId", "clipBId", "transitionType", "duration"]) }),
+  actionTool({ name: "update_transition", domain: "transition", actionType: "transition/update", title: "Update transition", description: "Update an existing main-timeline transition's type and/or duration.", inputSchema: obj({ transitionId: str, type: { type: "string", enum: [...TRANSITION_TYPES] }, duration: num }, ["transitionId"]) }),
   actionTool({ name: "remove_transition", domain: "transition", actionType: "transition/remove", title: "Remove transition", description: "Remove a transition.", inputSchema: obj({ transitionId: str }, ["transitionId"]) }),
 
   // marker

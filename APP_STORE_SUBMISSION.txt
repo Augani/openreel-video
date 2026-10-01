@@ -1,0 +1,106 @@
+APP STORE SUBMISSION — OpenReel Video
+======================================
+
+APP INFORMATION
+---------------
+App Name: OpenReel Video
+Subtitle: Professional Video Editor
+Bundle ID: com.openreel.video
+Primary Category: Photo & Video
+Secondary Category: Productivity
+Content Rating: 4+ (no objectionable content)
+Price: Free
+Device Support: iPhone only (iPad not supported)
+Minimum OS Version: iOS 18.0
+
+
+PROMOTIONAL TEXT (170 chars max — shown above description, can update anytime)
+---------------
+Professional video editing on iPhone and iPad. Multi-track timeline, on-device smart tools, and hardware-accelerated export. No watermarks, ever.
+
+
+APP STORE DESCRIPTION (4000 chars max)
+---------------------------------------
+OpenReel Video is a full-featured video editor built for creators who want professional results on iPhone and iPad. Whether you're editing a short clip or a full production, OpenReel gives you the tools to do it without compromise.
+
+TIMELINE EDITING
+Work with unlimited video, audio, text, and graphics tracks on a multi-track timeline. Cut, trim, split, and ripple delete with frame-accurate precision. Scrub through your project in real time with Metal-powered GPU acceleration.
+
+EFFECTS AND COLOR
+Apply filters, blend modes, and video effects directly on the timeline. Fine-tune your look with color wheels, RGB curves, and HSL controls. Adjust brightness, contrast, saturation, and more with live preview.
+
+TEXT AND ANIMATION
+Add titles and captions with 20+ animation presets including typewriter, fade, slide, bounce, and glitch. Customize fonts, gradients, outlines, and shadows. Import SRT or VTT caption files.
+
+AUDIO TOOLS
+Mix multiple audio tracks with per-clip volume and fade controls. Apply EQ, compression, reverb, and noise reduction. Beat detection syncs your edits to the music automatically.
+
+ON-DEVICE SMART TOOLS
+Background removal, smart reframe, motion tracking, face and body analysis, stabilization, and silence cleanup use Apple's Vision, Metal, Core Image, and media frameworks on your device. No OpenReel GPU server is required.
+
+EXPORT
+Export in ProRes or HEVC using hardware encoding. Fast, high quality, and never watermarked.
+
+WEB APP INCLUDED
+OpenReel also runs in Chrome and Edge at openreel.video. Same project format across all your devices.
+
+
+KEYWORDS (100 chars max, comma separated)
+------------------------------------------
+video editor,video editing,timeline,captions,AI video,background removal,reframe,color grading
+
+
+SUPPORT & MARKETING URLS
+--------------------------
+Support URL:   https://openreel.video
+Marketing URL: https://openreel.video
+Privacy Policy URL: https://openreel.video/privacy
+
+
+VERSION INFORMATION
+--------------------
+Version Number: 1.1.0
+Build Number: 1
+Copyright: 2026 Augustus Otu
+
+What's New (for version 1.1):
+Initial release. Professional multi-track video editing with on-device smart tools, real-time effects, caption import, and hardware-accelerated export.
+
+
+APP REVIEW INFORMATION
+-----------------------
+Demo Account Required: No
+Notes for reviewer:
+Background removal, smart reframe, motion tracking, and related smart tools run on the device. The app does not connect to an OpenReel-operated GPU server for these features. No login or account is required to use the editor.
+
+
+AGE RATING QUESTIONNAIRE
+--------------------------
+Made for Kids: No
+Cartoon or Fantasy Violence: No
+Realistic Violence: No
+Sexual Content: No
+Nudity: No
+Profanity: No
+Contests/Gambling: No
+Unrestricted Web Access: No
+Alcohol/Tobacco/Drugs: No
+Horror/Fear: No
+Medical/Treatment Info: No
+
+Rating Result: 4+
+
+
+CHECKLIST BEFORE SUBMITTING
+-----------------------------
+[ ] App icon uploaded (1024x1024 PNG, no alpha, no rounded corners)
+[ ] Screenshots uploaded for iPhone 6.9" (required), 6.5", 5.5"
+[ ] Privacy policy URL is live and accessible
+[ ] All required app metadata filled in App Store Connect
+[ ] Agreements, Tax, and Banking accepted at appstoreconnect.apple.com
+[ ] Export compliance answered (uses standard HTTPS encryption only — answer No to proprietary encryption)
+[ ] App build uploaded via Xcode or Transporter and processed
+[ ] Build selected under the version in App Store Connect
+[ ] Pricing set to Free
+[ ] Availability set (all territories or specific ones)
+[ ] Submit for Review

@@ -7,7 +7,6 @@ import {
 } from "@/icons/lucide-compat";
 import { useProjectStore } from "../../stores/project-store";
 import { useUIStore } from "../../stores/ui-store";
-import { useRouter } from "../../hooks/use-router";
 import {
   getExportEngine,
   getDeviceProfile,
@@ -26,10 +25,6 @@ import { ScreenRecorder } from "./ScreenRecorder";
 import { HistoryPanel } from "./inspector/HistoryPanel";
 import { ProjectSwitcher } from "./ProjectSwitcher";
 import { SettingsDialog } from "./settings/SettingsDialog";
-import {
-  WorkspaceModeTabs,
-  type WorkspaceMode,
-} from "../WorkspaceModeTabs";
 import { Icon } from "@/icons/Icon";
 import { toast } from "../../stores/notification-store";
 import { useAnalytics, AnalyticsEvents } from "../../hooks/useAnalytics";
@@ -59,11 +54,9 @@ export const Toolbar: React.FC = () => {
   const {
     selectedItems,
     setExportState: setGlobalExportState,
-    setDesktopPage,
     activeModal,
     closeModal,
   } = useUIStore();
-  const { navigate } = useRouter();
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
   const [isCompressOpen, setIsCompressOpen] = useState(false);
@@ -84,19 +77,6 @@ export const Toolbar: React.FC = () => {
       setProjectNameDraft(project.name);
     }
   }, [projectNameDraft, project.name, renameProject]);
-
-  const handleWorkspaceModeSelect = useCallback(
-    (mode: WorkspaceMode) => {
-      if (mode === "motion") {
-        setDesktopPage("motion");
-        navigate("motion");
-        return;
-      }
-      setDesktopPage("edit");
-      navigate("editor");
-    },
-    [navigate, setDesktopPage],
-  );
 
   // selectedItems drives related UX in the editor (e.g. inspector context).
   // Kept on the destructure list so future tweaks don't have to rewire it.
@@ -416,13 +396,6 @@ export const Toolbar: React.FC = () => {
 
   return (
     <header className="h-[60px] flex items-center gap-[18px] px-[18px] bg-bg-1 border-b border-border shrink-0 z-30 relative">
-      {/* ─── Left: mode switch ────────────────────────────────── */}
-      <WorkspaceModeTabs
-        activeMode="video"
-        onSelectMode={handleWorkspaceModeSelect}
-        className="shrink-0"
-      />
-
       {/* ─── Center: project name ─────────────────────────────── */}
       <div className="flex flex-1 min-w-0 items-center justify-center gap-1.5">
         <ToolcraftTextInputControl

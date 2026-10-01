@@ -19,12 +19,6 @@ const EditorInterface = lazy(() =>
     default: m.EditorInterface,
   }))
 );
-const MotionCreatorApp = lazy(() =>
-  import("./motion/MotionCreatorApp").then((module) => ({
-    default: module.MotionCreatorApp,
-  }))
-);
-
 const LoadingSpinner: React.FC<{ message: string }> = ({ message }) => (
   <div className="h-screen w-screen bg-background flex flex-col items-center justify-center">
     <div className="w-10 h-10 border-2 border-primary border-t-transparent rounded-full animate-spin mb-3" />
@@ -48,19 +42,12 @@ function App() {
 
   const { route, params, navigate, parsedDimensions, fps } = useRouter();
   const hasHandledInitialRoute = useRef(false);
-  const isMotionHost =
-    typeof window !== "undefined" &&
-    window.location.hostname.startsWith("motion.");
-  const isMotionSurface = isMotionHost || route === "motion";
-
   useKieAIPoller();
 
   useEffect(() => {
     if (hasHandledInitialRoute.current) return;
 
-    if (isMotionSurface) {
-      hasHandledInitialRoute.current = true;
-    } else if (route === "new") {
+    if (route === "new") {
       hasHandledInitialRoute.current = true;
 
       let projectName = "New Project";
@@ -107,7 +94,6 @@ function App() {
     }
   }, [
     route,
-    isMotionSurface,
     params,
     parsedDimensions,
     fps,
@@ -147,11 +133,7 @@ function App() {
   return (
     <div className="h-screen w-screen bg-background text-text-primary overflow-hidden">
       <MobileBlocker />
-      {isMotionSurface ? (
-        <Suspense fallback={<LoadingSpinner message="Loading Motion Creator..." />}>
-          <MotionCreatorApp />
-        </Suspense>
-      ) : isSharePage ? (
+      {isSharePage ? (
         <SharePage shareId={params.shareId!} />
       ) : showWelcome ? (
         <WelcomeScreen initialTab={initialTab} />

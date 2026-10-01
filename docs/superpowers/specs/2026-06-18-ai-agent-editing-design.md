@@ -1,5 +1,9 @@
 # AI Agent Video Editing — Design Spec
 
+> **Architecture update (2026-07-31):** Remote GPU job delegation and auth-broker
+> sections are superseded. Agent renders use the local app host; the headless CLI
+> edits project files without submitting remote GPU jobs.
+
 - **Date:** 2026-06-18
 - **Status:** Design (architecture approved; pending spec review)
 - **Surfaces:** Web app (`apps/web`), Desktop app (`apps/desktop`), shared core (`packages/core`), cloud (`apps/cloud`)

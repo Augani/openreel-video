@@ -4,16 +4,14 @@ import { ToolcraftBadge } from "@openreel/ui";
 import { ToolcraftCard as Card } from "@openreel/ui";
 import { ToolcraftClickableCard as ClickableCard } from "@openreel/ui";
 import { ToolcraftHeading as Heading } from "@openreel/ui";
-import { ToolcraftSelectableCard as SelectableCard } from "@openreel/ui";
 import { ToolcraftText as Text } from "@openreel/ui";
-import { Box, Smartphone, Monitor, Square, Film } from "@/icons/lucide-compat";
+import { Smartphone, Monitor, Square, Film } from "@/icons/lucide-compat";
 
 import { OpenReelMark } from "../brand/OpenReelMark";
 import { Icon } from "@/icons/Icon";
 import {
   DESKTOP_FORMATS,
   startNewProject,
-  startNewMotionProject,
   listRecentProjects,
   openRecentProject,
   type NewProjectFormat,
@@ -40,13 +38,10 @@ function formatSavedAt(savedAt: number): string {
   return date.toLocaleDateString();
 }
 
-type ProjectMode = "edit" | "motion";
-
 export function DesktopStartScreen(): JSX.Element {
   const [recents, setRecents] = useState<RecentEntry[]>([]);
   const [loadingRecents, setLoadingRecents] = useState<boolean>(true);
   const [openingId, setOpeningId] = useState<string | null>(null);
-  const [projectMode, setProjectMode] = useState<ProjectMode>("edit");
   const setDesktopPage = useUIStore((state) => state.setDesktopPage);
 
   useEffect(() => {
@@ -77,17 +72,11 @@ export function DesktopStartScreen(): JSX.Element {
   }, [setDesktopPage]);
 
   const handleStartProject = useCallback((format: NewProjectFormat) => {
-    if (projectMode === "motion") {
-      setDesktopPage("motion");
-      startNewMotionProject(format);
-      return;
-    }
-
     setDesktopPage("edit");
     startNewProject(format);
-  }, [projectMode, setDesktopPage]);
+  }, [setDesktopPage]);
 
-  const formatModeLabel = projectMode === "motion" ? "Motion Creator" : "Video Editor";
+  const formatModeLabel = "Video Editor";
 
   return (
     <div className="h-full overflow-y-auto bg-bg text-fg">
@@ -98,50 +87,8 @@ export function DesktopStartScreen(): JSX.Element {
             <Heading level={1}>New Project</Heading>
           </div>
           <Text type="supporting" display="block" className="mt-1">
-            Choose a workspace and format. You can change this later.
+            Choose a format. You can change this later.
           </Text>
-          <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <SelectableCard
-              label="Video Editor"
-              isSelected={projectMode === "edit"}
-              onChange={() => setProjectMode("edit")}
-              padding={5}
-            >
-              <div className="flex items-start gap-4">
-                <span className="flex h-11 w-11 items-center justify-center rounded-md bg-accent-soft text-accent">
-                  <Film size={22} aria-hidden />
-                </span>
-                <span>
-                  <Text type="large" weight="bold" display="block">
-                    Video Editor
-                  </Text>
-                  <Text type="supporting" display="block" className="mt-1">
-                    Cut, trim, caption, color, and export quickly.
-                  </Text>
-                </span>
-              </div>
-            </SelectableCard>
-            <SelectableCard
-              label="Motion Creator"
-              isSelected={projectMode === "motion"}
-              onChange={() => setProjectMode("motion")}
-              padding={5}
-            >
-              <div className="flex items-start gap-4">
-                <span className="flex h-11 w-11 items-center justify-center rounded-md bg-accent text-accent-fg">
-                  <Box size={22} aria-hidden />
-                </span>
-                <span>
-                  <Text type="large" weight="bold" display="block">
-                    Motion Creator
-                  </Text>
-                  <Text type="supporting" display="block" className="mt-1">
-                    Design animated ads, lower thirds, app demos, and scene graphics.
-                  </Text>
-                </span>
-              </div>
-            </SelectableCard>
-          </div>
           <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
             {DESKTOP_FORMATS.map((format) => {
               const FormatIcon = FORMAT_ICONS[format.id] ?? Film;

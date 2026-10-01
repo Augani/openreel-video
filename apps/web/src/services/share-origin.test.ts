@@ -23,4 +23,11 @@ describe("shareBaseOrigin", () => {
     expect(shareBaseOrigin()).toBe(expected);
     expect(getSharePageUrl("x")).toBe(`${expected}#/share/x`);
   });
+
+  it("redirects disabled Motion Creator links to the video editor", () => {
+    const expected = `${window.location.origin}${window.location.pathname}`;
+    expect(generateShareableLink("motion", { compositionId: "comp-1" })).toBe(
+      `${expected}#/editor`,
+    );
+  });
 });

@@ -3,6 +3,9 @@ import type { RunTurnInput, RunTurnResult } from "@openreel/agent";
 
 const h = vi.hoisted(() => ({
   runTurn: vi.fn(),
+  toOpenAITools: vi.fn((_names: Iterable<string>) => []),
+  getTool: vi.fn((_name: string): { domain: string } => ({ domain: "read" })),
+  selectToolsForPrompt: vi.fn((_context: string): string[] => []),
   getSecret: vi.fn(async () => "test-key"),
   isSessionUnlocked: vi.fn(() => true),
   makeBYOKClient: vi.fn(() => ({ complete: vi.fn() })),
@@ -22,9 +25,10 @@ const h = vi.hoisted(() => ({
 vi.mock("@openreel/agent", () => ({
   runTurn: h.runTurn,
   toAnthropicTools: () => [],
-  toOpenAITools: () => [],
+  toOpenAITools: h.toOpenAITools,
   buildSystemPrompt: () => "system",
-  selectToolsForPrompt: () => [],
+  getTool: h.getTool,
+  selectToolsForPrompt: h.selectToolsForPrompt,
 }));
 
 vi.mock("../services/secure-storage", () => ({
@@ -93,6 +97,8 @@ describe("chat-store", () => {
     h.settings.agentAutoConfirm = false;
     h.settings.agentDryRun = false;
     h.undoStackSize = 0;
+    h.getTool.mockImplementation((_name: string) => ({ domain: "read" }));
+    h.selectToolsForPrompt.mockReturnValue([]);
   });
 
   it("refuses to run without an open project", async () => {
@@ -146,6 +152,36 @@ describe("chat-store", () => {
       content: "Done!",
       toolUses: [],
     });
+  });
+
+  it("does not expose Motion Creator tools while its view is disabled", async () => {
+    h.selectToolsForPrompt.mockReturnValue([
+      "list_clips",
+      "set_clip_transform",
+      "add_motion_layer",
+    ]);
+    h.getTool.mockImplementation((name: string) => ({
+      domain: name === "add_motion_layer" ? "motion" : "read",
+    }));
+    h.runTurn.mockImplementation(
+      impl(async ({ messages }) => ({
+        text: "Done!",
+        messages,
+        toolCalls: 0,
+        stoppedReason: "end_turn",
+        committed: true,
+      })),
+    );
+
+    await store().send("Animate the first clip");
+
+    expect(h.toOpenAITools).toHaveBeenCalledWith([
+      "list_clips",
+      "set_clip_transform",
+    ]);
+    expect(h.runTurn.mock.calls[0]?.[0].system).toContain(
+      "Motion Creator is temporarily disabled",
+    );
   });
 
   it("saves completed conversations and starts a fresh chat", async () => {

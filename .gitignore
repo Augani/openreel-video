@@ -95,3 +95,9 @@ xcuserdata/
 # Signing certs — never commit
 *.p12
 *.pfx
+
+# Mobile apps stay in the private repository
+/Openreel Video/
+/Openreel Video Android/
+/apps/ios/
+/apps/android/

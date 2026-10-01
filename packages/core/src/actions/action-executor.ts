@@ -940,16 +940,14 @@ export class ActionExecutor {
           ...track,
           clips: track.clips.map((clip: MutableClip) => {
             if (clip.id === params.clipId) {
-              const updates: Partial<MutableClip> = {};
-              if (params.inPoint !== undefined) {
-                updates.inPoint = params.inPoint;
-                updates.duration = clip.outPoint - params.inPoint;
-              }
-              if (params.outPoint !== undefined) {
-                updates.outPoint = params.outPoint;
-                updates.duration = params.outPoint - clip.inPoint;
-              }
-              return { ...clip, ...updates };
+              const inPoint = params.inPoint ?? clip.inPoint;
+              const outPoint = params.outPoint ?? clip.outPoint;
+              return {
+                ...clip,
+                inPoint,
+                outPoint,
+                duration: outPoint - inPoint,
+              };
             }
             return clip;
           }),
@@ -1564,13 +1562,16 @@ export class ActionExecutor {
           time: number;
           property: string;
           value: unknown;
+          easing?: EasingType;
         };
         const newKeyframe = {
-          id: `keyframe-${Date.now()}`,
+          // Derive the id from the action so rapid sequential agent calls and
+          // redo cannot collide within the same millisecond.
+          id: `keyframe-${(action as Action).id}`,
           time: params.time,
           property: params.property,
           value: params.value,
-          easing: "linear" as const,
+          easing: params.easing ?? ("linear" as const),
         };
 
         timeline.tracks = timeline.tracks.map((track: MutableTrack) => ({
