@@ -1,315 +1,145 @@
+<div align="center">
+
 # OpenReel Video
 
-> **The open source CapCut alternative. Professional video editing in your browser. No uploads. No installs. 100% open source.**
+### Your footage. Your timeline. Your final cut.
 
-OpenReel Video is a fully-featured browser-based video editor that runs entirely client-side. Built with React, TypeScript, WebCodecs, and WebGPU for professional-grade video editing without the need for expensive software or cloud processing.
+An open source video editor for the browser and desktop.<br>
+Cut clips, add captions, mix audio, and finish your video without a watermark.
 
-**[Try it Live](https://openreel.video)** | **[Documentation](CONTRIBUTING.md)** | **[Discussions](https://github.com/Augani/openreel-video/discussions)** | **[Twitter](https://x.com/python_xi)**
+**[Open the editor](https://openreel.video)** &nbsp;·&nbsp; **[Download desktop](https://github.com/Augani/openreel-video/releases/latest)** &nbsp;·&nbsp; **[Get help](https://github.com/Augani/openreel-video/issues)**
 
-![OpenReel Editor](https://img.shields.io/badge/Lines%20of%20Code-130k+-blue) ![License](https://img.shields.io/badge/License-MIT-green) ![Status](https://img.shields.io/badge/Status-Beta-orange) ![Open Source](https://img.shields.io/badge/Open%20Source-100%25-brightgreen)
+[![License: MIT](https://img.shields.io/badge/License-MIT-6366F1?style=flat-square)](LICENSE)
+[![Desktop releases](https://img.shields.io/github/v/release/Augani/openreel-video?include_prereleases&label=Desktop&style=flat-square&color=6366F1)](https://github.com/Augani/openreel-video/releases/latest)
 
 <a href="https://github.com/sponsors/Augani">
   <img src="https://img.shields.io/badge/Sponsor_me-EA4AAA?style=for-the-badge&amp;logo=githubsponsors&amp;logoColor=white" alt="Sponsor me on GitHub" height="40">
 </a>
 
----
-
-## Why OpenReel?
-
-- **100% Client-Side** - Your videos never leave your device. No uploads, no cloud processing, complete privacy.
-- **No Installation** - Works in Chrome/Edge. Just open and start editing.
-- **Professional Features** - Multi-track timeline, keyframe animations, color grading, audio effects, and more.
-- **GPU Accelerated** - WebGPU and WebCodecs for smooth 4K editing and fast exports.
-- **Free Forever** - MIT licensed, no subscriptions, no watermarks.
+</div>
 
 ---
 
-## Features
+## Make something worth watching
 
-### Video Editing
-- **Multi-track timeline** - Unlimited video, audio, image, text, and graphics tracks
-- **Real-time preview** - Smooth playback with GPU acceleration
-- **Precision editing** - Frame-accurate scrubbing, cut, trim, split, ripple delete
-- **Transitions** - Crossfade, dip to black/white, wipe, slide effects
-- **Video effects** - Brightness, contrast, saturation, blur, sharpen, glow, vignette, chroma key
-- **Blend modes** - Multiply, screen, overlay, add, subtract, and more
-- **Speed control** - 0.25x to 4x with audio pitch preservation
-- **Crop & transform** - Position, scale, rotation with 3D perspective
+From a quick social clip to a longer edit, OpenReel gives you a timeline, a live preview, and control over the details.
 
-### Graphics & Text
-- **Professional text editor** - Rich styling, shadows, outlines, gradients
-- **20+ text animations** - Typewriter, fade, slide, bounce, pop, elastic, glitch
-- **Karaoke-style subtitles** - Word-by-word highlighting synced to audio
-- **Shape tools** - Rectangle, circle, arrow, polygon, star with fill/stroke
-- **SVG support** - Import SVGs with color tinting and animations
-- **Stickers & emoji** - Built-in library
-- **Background generator** - Solid colors, gradients, mesh gradients, patterns
-- **Keyframe animations** - Animate any property over time with 20+ easing curves
+| What you want to do | What you can use |
+| :--- | :--- |
+| **Get to the good part** | Trim, split, crop, ripple delete, rearrange clips, and change playback speed. |
+| **Build your story** | Stack video, audio, text, and graphics on multiple tracks. Add transitions and animate with keyframes. |
+| **Make every word readable** | Create and style captions, import SRT subtitles, and add animated titles. |
+| **Make it sound right** | Mix music and dialogue with waveforms, volume controls, fades, EQ, compression, and audio ducking. |
+| **Find your look** | Adjust color with wheels, curves, HSL controls, and LUTs. Add effects, masks, and chroma key. |
+| **Fit the platform** | Work in landscape, portrait, or square, then choose export resolution, frame rate, and bitrate. |
 
-### Audio
-- **Multi-track mixing** - Unlimited audio tracks with real-time mixing
-- **Waveform visualization** - Visual audio editing
-- **Audio effects** - EQ, compressor, reverb, delay, chorus, flanger, distortion
-- **Volume & panning** - Per-clip controls with fade in/out
-- **Beat detection** - Auto-generate markers synced to music
-- **Audio ducking** - Auto-reduce music when dialog plays
-- **Noise reduction** - 3-pass noise removal (tonal, broadband, rumble)
+## Start editing in minutes
 
-### Color Grading
-- **Color wheels** - Lift, gamma, gain controls
-- **HSL adjustments** - Hue, saturation, lightness fine-tuning
-- **Curves editor** - RGB and individual channel curves
-- **LUT support** - Import and apply 3D LUTs
-- **Built-in presets** - One-click color grading
+1. **[Open OpenReel](https://openreel.video)** and create a project.
+2. **Import your media** and drag clips onto the timeline.
+3. **Shape your edit** with cuts, captions, music, color, and transitions.
+4. **Export your video** using a preset or your own settings.
 
-### Export
-- **MP4 (H.264/H.265)** - Universal compatibility
-- **WebM (VP8/VP9/AV1)** - Web-optimized format
-- **ProRes** - Professional intermediate format (Proxy, LT, Standard, HQ, 4444)
-- **Quality presets** - 4K @ 60fps, 1080p, 720p, 480p
-- **Custom settings** - Bitrate, frame rate, codec options, color depth
-- **Hardware encoding** - WebCodecs for fast exports
-- **AI upscaling** - Enhance resolution with WebGPU shaders
-- **Audio export** - MP3, WAV, AAC, FLAC, OGG
-- **Image sequences** - JPG, PNG, WebP frame export
-- **Progress tracking** - Real-time progress with cancel support
+The browser editor needs no installation. For a native app, download a **macOS, Windows, or Linux** build from [Releases](https://github.com/Augani/openreel-video/releases/latest). Desktop builds are currently in **alpha**.
 
-### Professional Tools
-- **Unlimited undo/redo** - Full history with recovery
-- **Auto-save** - Never lose work (IndexedDB storage)
-- **Keyboard shortcuts** - Professional workflow
-- **Snap to grid** - Magnetic alignment
-- **Track management** - Show/hide, lock/unlock, reorder
-- **Subtitle support** - SRT import with customizable styling
-- **Screen recording** - Record screen, camera, or both
-- **Project sharing** - Export/import project files
+## Keep control of your footage
 
-### Performance
-- **WebGPU rendering** - GPU-accelerated compositing
-- **WebCodecs API** - Hardware video decoding/encoding
-- **Frame caching** - LRU cache for smooth playback
-- **Web Workers** - Background processing
-- **4K support** - Edit and export in 4K resolution
+**Core editing and rendering happen on your device.** You can import, cut, preview, and export local media without uploading it to a server.
+
+- **No export watermark.** Your finished video stays yours.
+- **Open source, MIT licensed.** Use it for personal or commercial work, inspect the code, or host your own copy.
+- **Save as you work.** Local autosave and undo/redo help you recover edits. Export project files for backups and moving between sessions.
+- **Choose when to connect.** Optional AI and connected services use network requests; their data handling depends on the provider and feature you choose.
+
+Browser storage can be cleared by your browser. Keep backups of your project files and original media for work you want to keep.
+
+## Export for the next step
+
+| Destination | Export options |
+| :--- | :--- |
+| **Social posts, tutorials, and everyday sharing** | MP4 with H.264; landscape, portrait, and square presets. |
+| **Web playback** | WebM, with codec availability determined by your browser and device. |
+| **High-resolution delivery** | Resolution presets up to 4K, plus custom frame rate and bitrate controls. |
+| **Further editing and compositing** | Use desktop for ProRes and exports that need transparency. |
+
+Browser codec support, available memory, and hardware affect which settings you can use and how fast exports finish. OpenReel adjusts unsupported browser settings where needed; use desktop when you need native export capabilities.
+
+## A little help from AI, if you want it
+
+Describe an edit in the **AI Editor** panel: trim a clip, add a title, adjust a transform, or build a sequence through chat. Connect your own OpenAI, Anthropic, or compatible endpoint.
+
+AI is optional and provider usage may cost money. See the [AI Editor setup guide](docs/AGENT-GUIDE.md#bring-your-own-key-web--desktop-chat) for configuration, data handling, and approval controls. Desktop also supports [MCP clients](docs/AGENT-GUIDE.md), so external assistants can work with your project.
+
+## Choose your setup
+
+| | Browser | Desktop |
+| :--- | :--- | :--- |
+| **Get started** | [Open the web editor](https://openreel.video) | [Download a release](https://github.com/Augani/openreel-video/releases/latest) |
+| **Install** | No installation | macOS, Windows, or Linux |
+| **Editing** | Timeline, captions, audio, color, effects, and keyframes | The editor with native desktop integrations |
+| **Export** | Browser-supported codecs and settings | Native FFmpeg export, including ProRes/alpha workflows |
+| **AI connection** | Bring your own provider or compatible endpoint | Provider connections plus external MCP clients |
+
+Use an up-to-date browser. Chrome or Edge is a good starting point; codec and GPU support vary across browsers and operating systems. Larger projects and 4K footage benefit from more memory and a capable GPU.
 
 ---
 
-## Quick Start
+## Run it locally
 
-### Try Online
-Visit **[openreel.video](https://openreel.video)** to start editing immediately.
-
-To edit by chatting with OpenAI, Anthropic, or any OpenAI-compatible endpoint, follow the
-**[AI Editor setup guide](docs/AGENT-GUIDE.md#bring-your-own-key-web--desktop-chat)**.
-
-### Run Locally
+Install [Node.js](https://nodejs.org/) and the pnpm version declared in [`package.json`](package.json), then:
 
 ```bash
-# Clone the repository
 git clone https://github.com/Augani/openreel-video.git
 cd openreel-video
-
-# Install dependencies (requires Node.js 18+)
 pnpm install
-
-# Start development server
 pnpm dev
-
-# Open http://localhost:5173
 ```
 
-### Build for Production
+Open the local URL printed by Vite, usually `http://localhost:5173`.
 
 ```bash
+# Build and preview the browser app
 pnpm build
 pnpm preview
-```
 
----
-
-## Browser Requirements
-
-| Browser | Version | Status |
-|---------|---------|--------|
-| Chrome | 94+ | Full support |
-| Edge | 94+ | Full support |
-| Firefox | 130+ | Full support |
-| Safari | 16.4+ | Full support |
-
-All major browsers now support WebCodecs for hardware-accelerated video encoding/decoding.
-
-**Recommended:**
-- 8GB+ RAM
-- Dedicated GPU for 4K editing
-- Modern multi-core CPU
-
----
-
-## Architecture
-
-### Monorepo Structure
-
-```
-openreel/
-├── apps/web/              # React frontend (~66k lines)
-│   └── src/
-│       ├── components/    # UI components
-│       │   └── editor/    # Editor panels (Timeline, Preview, Inspector)
-│       ├── stores/        # Zustand state management
-│       ├── services/      # Auto-save, shortcuts, screen recording
-│       └── bridges/       # Engine coordination
-│
-└── packages/core/         # Core engines (~59k lines)
-    └── src/
-        ├── video/         # Video processing, WebGPU rendering
-        ├── audio/         # Web Audio API, effects, beat detection
-        ├── graphics/      # Canvas/THREE.js, shapes, SVG
-        ├── text/          # Text rendering, animations
-        ├── export/        # MP4/WebM encoding
-        └── storage/       # IndexedDB, serialization
-```
-
-### Key Technologies
-
-- **React 18** + **TypeScript** - Type-safe UI
-- **Zustand** - Lightweight state management
-- **MediaBunny** - Video/audio processing
-- **WebCodecs** - Hardware encoding/decoding
-- **WebGPU** - GPU-accelerated rendering
-- **Web Audio API** - Professional audio processing
-- **THREE.js** - 3D transforms and effects
-- **IndexedDB** - Local project storage
-
-### Design Principles
-
-- **Action-based editing** - Every edit is an undoable action
-- **Immutable state** - Predictable updates with Zustand
-- **Engine separation** - Video, audio, graphics engines are independent
-- **Progressive enhancement** - Graceful fallbacks (WebGPU → Canvas2D)
-
----
-
-## AI-Managed Development
-
-OpenReel is an experiment in AI-assisted open source development. Claude AI helps manage:
-
-- **Issue triage** - Reviews and responds to issues
-- **Code implementation** - Writes features and fixes bugs
-- **Code review** - Maintains quality standards
-- **Documentation** - Keeps docs up to date
-
-Human oversight from Augustus ensures strategic direction and final approval on major changes. All code is public, tested, and follows best practices.
-
-**What this means for contributors:**
-- Issues get reviewed quickly (usually within 24 hours)
-- Bug fixes ship fast
-- Clear, detailed responses to questions
-- High code quality standards
-
----
-
-## Contributing
-
-We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
-
-**Ways to contribute:**
-- Report bugs with reproduction steps
-- Suggest features in Discussions
-- Submit PRs for bugs or features
-- Improve documentation
-- Write tests
-- Share effect presets
-
-**Development workflow:**
-```bash
-# Fork and clone
-git clone https://github.com/Augani/openreel-video.git
-
-# Create feature branch
-git checkout -b feat/your-feature
-
-# Make changes, then test
+# Check your changes
 pnpm typecheck
 pnpm test
 pnpm lint
-
-# Commit with conventional commits
-git commit -m "feat: add your feature"
-
-# Push and open PR
-git push origin feat/your-feature
 ```
 
----
+<details>
+<summary><strong>Inside the project</strong></summary>
 
-## Roadmap
+<br>
 
-### Completed
-- Multi-track timeline with drag-and-drop
-- Real-time video preview with GPU acceleration
-- Full editing suite (cut, trim, split, transitions)
-- Text editor with 20+ animations
-- Graphics (shapes, SVG, stickers, backgrounds)
-- Audio mixing with effects and beat detection
-- Color grading with LUT support
-- Keyframe animation system
-- Export to MP4/WebM (4K supported)
-- Screen recording
-- AI upscaling
-- Undo/redo with auto-save
+| Path | Purpose |
+| :--- | :--- |
+| [`apps/web`](apps/web) | Browser editor and shared desktop interface |
+| [`apps/desktop`](apps/desktop) | Desktop app, native integrations, and packaging |
+| [`packages/core`](packages/core) | Timeline, media, audio, rendering, and export engines |
+| [`packages/ui`](packages/ui) | Shared interface components |
+| [`packages/agent`](packages/agent) | AI editing tools and routing |
 
-### In Progress
-- Nested sequences (timeline in timeline)
-- Motion tracking
-- More export formats (ProRes, GIF)
-- Plugin system
+Built with React, TypeScript, Zustand, MediaBunny, WebCodecs, WebGPU, Web Audio, and Three.js.
 
-### Planned
-- Adjustment layers
-- Advanced masking
-- Audio spectral editing
-- Collaborative editing
-- Mobile optimization
+For desktop packaging, see the [distribution guide](apps/desktop/DISTRIBUTION.md).
+
+</details>
+
+## Help shape OpenReel
+
+**Found a bug?** [Open an issue](https://github.com/Augani/openreel-video/issues/new) with what you tried, what happened, your browser or desktop version, and steps to reproduce it.
+
+**Want to contribute?** Start with the [contributing guide](CONTRIBUTING.md). Fixes, documentation, accessibility improvements, and reproducible test cases all help.
+
+**Want to support development?** [Sponsor Augustus on GitHub](https://github.com/sponsors/Augani) to support continued work on OpenReel.
 
 ---
 
-## License
+<div align="center">
 
-MIT License - Use freely for personal and commercial projects.
+Made by [Augustus Otu](https://github.com/Augani) and [contributors](https://github.com/Augani/openreel-video/graphs/contributors).<br>
+[MIT License](LICENSE) &nbsp;·&nbsp; [Updates on X](https://x.com/python_xi) &nbsp;·&nbsp; [Sponsor](https://github.com/sponsors/Augani)
 
-See [LICENSE](LICENSE) for details.
-
----
-
-## Acknowledgments
-
-**Built with:**
-- [MediaBunny](https://mediabunny.dev) - Media processing
-- [React](https://react.dev) - UI framework
-- [Zustand](https://zustand-demo.pmnd.rs/) - State management
-- [THREE.js](https://threejs.org) - 3D rendering
-- [TailwindCSS](https://tailwindcss.com) - Styling
-
-**Inspired by:**
-- DaVinci Resolve - Professional tools done right
-- CapCut - Accessible editing for everyone
-- Figma - Browser-based professional software
-
----
-
-## Support
-
-- **GitHub Issues** - Bug reports and feature requests
-- **GitHub Discussions** - Questions and community chat
-- **Twitter/X** - [@python_xi](https://x.com/python_xi)
-
----
-
-## $OPENREEL Token
-
-CA: `B7wDnfrdtvdG7SCkRjSMJ6LkVwGWvdWrQ75iV8G9pump`
-
----
-
-**Built with care by [@python_xi](https://x.com/python_xi) and AI working together.**
-
-*Making professional video editing accessible to everyone. Forever free. Forever open source.*
+</div>
