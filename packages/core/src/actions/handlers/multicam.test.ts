@@ -98,4 +98,40 @@ describe("multicam/applyEdit", () => {
     await executor.undo(value);
     expect(value.timeline.tracks.map((entry) => entry.id)).toEqual(["a", "b"]);
   });
+  it("removes obsolete panel tracks when regenerating a smaller layout and restores them on undo", async () => {
+    const value = project();
+    Object.assign(value.timeline, { tracks: [track("old-main"), track("old-panel"), ...value.timeline.tracks] });
+    const executor = new ActionExecutor();
+    expect((await executor.execute({ type: "multicam/applyEdit", id: "replace", timestamp: 1,
+      params: { outputTracks: [track("old-main")], replacedOutputTrackIds: ["old-main", "old-panel"],
+        sourceTrackIds: ["a", "b"], groups: [] },
+    }, value)).success).toBe(true);
+    expect(value.timeline.tracks.map((entry) => entry.id)).toEqual(["old-main", "a", "b"]);
+    await executor.undo(value);
+    expect(value.timeline.tracks.map((entry) => entry.id)).toEqual(["old-main", "old-panel", "a", "b"]);
+  });
+
+  it("rejects locked sources and leaves the project untouched", async () => {
+    const value = project();
+    Object.assign(value.timeline, { tracks: [track("a", { locked: true }), track("b")] });
+    const before = JSON.stringify(value);
+    const result = await new ActionExecutor().execute({ type: "multicam/applyEdit", id: "locked", timestamp: 1,
+      params: { outputTracks: [track("output")], sourceTrackIds: ["a", "b"], groups: [] },
+    }, value);
+    expect(result.success).toBe(false);
+    expect(JSON.stringify(value)).toBe(before);
+  });
+
+  it("clears source solo so the output can play, and restores it on undo", async () => {
+    const value = project();
+    Object.assign(value.timeline, { tracks: [track("a", { solo: true }), track("b")] });
+    const executor = new ActionExecutor();
+    await executor.execute({ type: "multicam/applyEdit", id: "solo", timestamp: 1,
+      params: { outputTracks: [track("output")], sourceTrackIds: ["a", "b"], groups: [] },
+    }, value);
+    expect(value.timeline.tracks.some((entry) => entry.solo)).toBe(false);
+    await executor.undo(value);
+    expect(value.timeline.tracks.find((entry) => entry.id === "a")?.solo).toBe(true);
+  });
+
 });

@@ -1,4 +1,4 @@
-import React, { useCallback, useState, useEffect } from "react";
+import React, { useCallback, useState, useEffect, useMemo } from "react";
 import {
   X,
   Settings,
@@ -8,19 +8,18 @@ import {
 import { useProjectStore } from "../../stores/project-store";
 import { useUIStore } from "../../stores/ui-store";
 import {
-  getExportEngine,
   getDeviceProfile,
   estimateExportTime,
+  trackHasAudioItems,
   type VideoExportSettings,
   type AudioExportSettings,
-  type ExportResult,
   type DeviceProfile,
   type TimeEstimate,
 } from "@openreel/core";
 import { ExportDialog } from "./ExportDialog";
 import { CompressDialog } from "./CompressDialog";
 import { deriveSourceExportMatch } from "../../services/export-source-match";
-import { useExportRunner, extForFormat, exportFilename, writeBlobToWritable } from "../../services/export-runner";
+import { useExportRunner, extForFormat, exportFilename, type ExportDeliveryMode } from "../../services/export-runner";
 import { ScreenRecorder } from "./ScreenRecorder";
 import { HistoryPanel } from "./inspector/HistoryPanel";
 import { ProjectSwitcher } from "./ProjectSwitcher";
@@ -50,17 +49,21 @@ type ExportType =
   | "project";
 
 export const Toolbar: React.FC = () => {
-  const { project, renameProject } = useProjectStore();
-  const {
-    selectedItems,
-    setExportState: setGlobalExportState,
-    activeModal,
-    closeModal,
-  } = useUIStore();
+  const project = useProjectStore((state) => state.project);
+  const renameProject = useProjectStore((state) => state.renameProject);
+  const setGlobalExportState = useUIStore((state) => state.setExportState);
+  const activeModal = useUIStore((state) => state.activeModal);
+  const closeModal = useUIStore((state) => state.closeModal);
   const [isExportOpen, setIsExportOpen] = useState(false);
-  const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
+  const isExportDialogOpen = activeModal === "export";
+  const openExportDialog = useCallback(() => {
+    setIsExportOpen(false);
+    useUIStore.getState().openModal("export");
+  }, []);
   const [isCompressOpen, setIsCompressOpen] = useState(false);
-  const { importMedia } = useProjectStore();
+  const importMedia = useProjectStore((state) => state.importMedia);
+  const sourceMatch = useMemo(() => deriveSourceExportMatch(project), [project]);
+  const hasTimelineContent = (project.timeline?.duration ?? 0) > 0;
   const { track } = useAnalytics();
 
   // Local editable project name (committed onBlur / Enter)
@@ -77,10 +80,6 @@ export const Toolbar: React.FC = () => {
       setProjectNameDraft(project.name);
     }
   }, [projectNameDraft, project.name, renameProject]);
-
-  // selectedItems drives related UX in the editor (e.g. inspector context).
-  // Kept on the destructure list so future tweaks don't have to rewire it.
-  void selectedItems;
 
   const handleExported = useCallback(
     (videoSettings: Partial<VideoExportSettings>) => {
@@ -99,8 +98,8 @@ export const Toolbar: React.FC = () => {
   const {
     state: exportState,
     runExport,
+    runAudioExport,
     showSavePicker,
-    reportProgress,
     markComplete,
     beginExport,
     finishExportSoon,
@@ -161,15 +160,13 @@ export const Toolbar: React.FC = () => {
   const handleExport = useCallback(
     async (type: ExportType) => {
       setIsExportOpen(false);
+      if (!hasTimelineContent) return;
 
       try {
         if (type === "wav") {
-          const writable = await showSavePicker(exportFilename(project.name, "wav"), "wav");
+          const writable = await showSavePicker(exportFilename(project.name, "wav"), "wav", { delivery: window.openreel?.platform === "desktop" ? "file" : "download" });
 
-          beginExport();
-
-          const engine = getExportEngine();
-          await engine.initialize();
+          beginExport(writable);
 
           const audioSettings: Partial<AudioExportSettings> = {
             format: "wav",
@@ -178,29 +175,12 @@ export const Toolbar: React.FC = () => {
             bitDepth: 24,
           };
 
-          const generator = engine.exportAudio(project, audioSettings);
-          let finalResult: ExportResult | undefined;
-
-          while (true) {
-            const { value, done } = await generator.next();
-            if (done) {
-              finalResult = value;
-              break;
-            }
-            reportProgress(value.progress, value.phase);
-          }
-
-          if (finalResult?.success && finalResult.blob) {
-            await writeBlobToWritable(finalResult.blob, writable);
-            markComplete();
-            track(AnalyticsEvents.PROJECT_EXPORTED, {
-              format: "wav",
-              duration: project.timeline?.duration ?? 0,
-            });
-          } else {
-            try { await writable.abort(); } catch { void 0; }
-            throw new Error(finalResult?.error?.message || "Export failed");
-          }
+          await runAudioExport(audioSettings, writable);
+          markComplete();
+          track(AnalyticsEvents.PROJECT_EXPORTED, {
+            format: "wav",
+            duration: project.timeline?.duration ?? 0,
+          });
         } else {
           const base = {
             width: project.settings.width,
@@ -222,9 +202,9 @@ export const Toolbar: React.FC = () => {
           };
 
           const preset = presets[type] ?? presets.mp4;
-          const writable = await showSavePicker(exportFilename(project.name, preset.ext), preset.ext);
+          const writable = await showSavePicker(exportFilename(project.name, preset.ext), preset.ext, { delivery: window.openreel?.platform === "desktop" ? "file" : "download" });
 
-          beginExport();
+          beginExport(writable);
 
           await runExport(preset.settings, preset.ext, writable);
         }
@@ -234,18 +214,19 @@ export const Toolbar: React.FC = () => {
         failExport(error);
       }
     },
-    [project, track, runExport, showSavePicker, beginExport, reportProgress, markComplete, finishExportSoon, failExport],
+    [project, hasTimelineContent, track, runExport, runAudioExport, showSavePicker, beginExport, markComplete, finishExportSoon, failExport],
   );
 
   const handleCustomExport = useCallback(
-    async (settings: VideoExportSettings) => {
-      setIsExportDialogOpen(false);
+    async (settings: VideoExportSettings, delivery: ExportDeliveryMode = window.openreel?.platform === "desktop" ? "file" : "download") => {
+      closeModal();
+      if (!hasTimelineContent) return;
 
       try {
         const ext = extForFormat(settings.format);
-        const writable = await showSavePicker(exportFilename(project.name, ext), ext);
+        const writable = await showSavePicker(exportFilename(project.name, ext), ext, { delivery });
 
-        beginExport();
+        beginExport(writable);
 
         const needsUpscaling =
           settings.width > project.settings.width ||
@@ -277,7 +258,7 @@ export const Toolbar: React.FC = () => {
         failExport(error);
       }
     },
-    [project, track, runExport, showSavePicker, beginExport, finishExportSoon, failExport],
+    [project, hasTimelineContent, closeModal, track, runExport, showSavePicker, beginExport, finishExportSoon, failExport],
   );
 
 
@@ -395,7 +376,7 @@ export const Toolbar: React.FC = () => {
   ];
 
   return (
-    <header className="h-[60px] flex items-center gap-[18px] px-[18px] bg-bg-1 border-b border-border shrink-0 z-30 relative">
+    <header className="h-[60px] flex items-center gap-2 px-2 sm:gap-[18px] sm:px-[18px] bg-bg-1 border-b border-border shrink-0 z-30 relative">
       {/* ─── Center: project name ─────────────────────────────── */}
       <div className="flex flex-1 min-w-0 items-center justify-center gap-1.5">
         <ToolcraftTextInputControl
@@ -413,7 +394,7 @@ export const Toolbar: React.FC = () => {
             }
           }}
           width={Math.min(Math.max(projectNameDraft.length, 6) * 8 + 40, 220)}
-          className="max-w-[220px] bg-transparent border-0 text-center font-medium text-[14px] tracking-tight text-fg-2 px-2 py-0.5 rounded-md min-w-[60px] focus:bg-bg-2 focus:outline-none"
+          className="max-w-[min(220px,40vw)] bg-transparent border-0 text-center font-medium text-[14px] tracking-tight text-fg-2 px-2 py-0.5 rounded-md min-w-[60px] focus:bg-bg-2 focus:outline-none"
         />
         <ProjectSwitcher />
       </div>
@@ -453,8 +434,10 @@ export const Toolbar: React.FC = () => {
           <div className="flex items-stretch">
             <button
               type="button"
-              onClick={() => handleExport("mp4")}
-              className="rounded-l-[8px] rounded-r-none bg-accent px-[18px] py-[9px] text-[13px] font-semibold text-white"
+              onClick={openExportDialog}
+              disabled={!hasTimelineContent}
+              title={hasTimelineContent ? "Choose export settings" : "Add media or text to the timeline to export"}
+              className="rounded-l-[8px] rounded-r-none bg-accent px-[18px] py-[9px] text-[13px] font-semibold text-white disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Export
             </button>
@@ -540,7 +523,7 @@ export const Toolbar: React.FC = () => {
                   label="Custom export..."
                   description="Full settings with AI upscaling"
                   endContent={<MoreHorizontal size={14} className="text-fg-muted" aria-hidden />}
-                  onClick={() => setIsExportDialogOpen(true)}
+                  onClick={openExportDialog}
                 />
                 <DropdownMenuItem
                   icon={<Video size={18} aria-hidden />}
@@ -565,13 +548,14 @@ export const Toolbar: React.FC = () => {
       />
       <ExportDialog
         isOpen={isExportDialogOpen}
-        onClose={() => setIsExportDialogOpen(false)}
+        onClose={closeModal}
         onExport={handleCustomExport}
         duration={project.timeline?.duration ?? 0}
         projectWidth={project.settings?.width ?? 1920}
         projectHeight={project.settings?.height ?? 1080}
         frameRate={project.settings?.frameRate ?? 30}
-        sourceMatch={deriveSourceExportMatch(project)}
+        sourceMatch={sourceMatch}
+        hasAudio={project.timeline.tracks.some((track) => trackHasAudioItems(project, track.id))}
       />
 
       <ScreenRecorder

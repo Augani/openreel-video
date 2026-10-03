@@ -35,6 +35,7 @@ import { loadMediaBlob } from "../../services/media-storage";
 import { useKieAIStore } from "../../stores/kieai-store";
 import { StickerPickerPanel } from "./inspector/StickerPickerPanel";
 import { insertTimelineOverlay } from "../../stores/project/insert-timeline-overlay";
+import { PreviewProxyBadge, PreviewProxyControls } from "./PreviewProxyControls";
 
 const formatDuration = (seconds: number): string => {
   const mins = Math.floor(seconds / 60);
@@ -502,6 +503,7 @@ const MediaThumbnail: React.FC<{
         className={`h-[78px] bg-bg-2 rounded-lg border relative group cursor-pointer transition-all overflow-hidden ${borderClass}`}
       >
         {/* Thumbnail or placeholder */}
+        {item.type === "video" && <PreviewProxyBadge mediaId={item.id} />}
         {item.thumbnailUrl ? (
           <img
             src={item.thumbnailUrl}
@@ -631,6 +633,7 @@ export const AssetsPanel: React.FC = () => {
   const [activeTab, setActiveTabRaw] = useState<AssetsTab>("media");
   const ttsHasUnsaved = useTtsAudioStore((s) => s.generatedAudio !== null && !s.isAudioSaved);
   const playheadPosition = useTimelineStore((state) => state.playheadPosition);
+  const selectedIds = useUIStore((state) => state.selectedItems);
 
   const setActiveTab = useCallback((tab: AssetsTab) => {
     if (activeTab === "ai" && tab !== "ai" && ttsHasUnsaved) {
@@ -1148,6 +1151,11 @@ export const AssetsPanel: React.FC = () => {
                     </div>
                   </div>
                 )}
+
+                {/* Keep selection tools below the gallery so its first click does not move the second-click target. */}
+                {mediaItems.filter((item) => item.type === "video" && selectedIds.some((selected) => selected.id === item.id)).slice(0, 1).map((item) => (
+                  <div key={item.id} className="mt-4"><PreviewProxyControls item={item} /></div>
+                ))}
 
                 {isDragOver && (
                   <div className="absolute inset-4 border-2 border-dashed border-accent rounded-xl flex items-center justify-center bg-accent-soft pointer-events-none z-50 backdrop-blur-sm">

@@ -1,3 +1,4 @@
+import { cloneProjectForEdit } from "./project/clone-project-for-edit";
 import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
 import type {
@@ -74,6 +75,8 @@ import {
   type AutoSaveMetadata,
 } from "../services/auto-save";
 import { useEngineStore } from "./engine-store";
+import { useSettingsStore } from "./settings-store";
+import { useNotificationStore } from "./notification-store";
 import {
   createEmptyProject,
   calculateTimelineDuration,
@@ -636,6 +639,8 @@ function motionCompositionsEqual(
 // starts the interval) more than once across editor mount/unmount cycles, which
 // would otherwise leak a store subscription and fire markDirty repeatedly.
 let autoSaveInitialized = false;
+let autoSaveInitializationPromise: Promise<void> | null = null;
+let autoSaveNotificationsInitialized = false;
 
 /**
  * Create the project store
@@ -2357,7 +2362,7 @@ export const useProjectStore = create<ProjectState>()(
           candidate = other.startTime + other.duration;
         }
 
-        const projectCopy = structuredClone(project);
+        const projectCopy = cloneProjectForEdit(project);
         const action: Action = {
           type: "clip/add",
           id: uuidv4(),
@@ -2952,31 +2957,74 @@ export const useProjectStore = create<ProjectState>()(
       // Auto-save methods
       initializeAutoSave: async () => {
         if (autoSaveInitialized) return;
-        autoSaveInitialized = true;
-        await initializeAutoSave();
-        autoSaveManager.start(() => {
-          const { project } = get();
-          const titleEngine = useEngineStore.getState().getTitleEngine();
-          const graphicsEngine = useEngineStore.getState().getGraphicsEngine();
-
-          return {
-            ...project,
-            textClips: titleEngine?.getAllTextClips() || [],
-            shapeClips: graphicsEngine?.getAllShapeClips() || [],
-            svgClips: graphicsEngine?.getAllSVGClips() || [],
-            stickerClips: graphicsEngine?.getAllStickerClips() || [],
+        if (autoSaveInitializationPromise) return autoSaveInitializationPromise;
+        const initialize = async () => {
+          if (!autoSaveNotificationsInitialized) {
+            autoSaveNotificationsInitialized = true;
+            let failureNotificationId: string | null = null;
+            autoSaveManager.on("error", () => {
+              if (failureNotificationId) return;
+              failureNotificationId = useNotificationStore.getState().addNotification({
+                type: "warning",
+                title: "Automatic saving is unavailable",
+                message: "Your edits are still in this tab. Save a project copy and keep the original media files before closing it.",
+                duration: 0,
+              });
+            });
+            autoSaveManager.on("saved", () => {
+              if (failureNotificationId) {
+                useNotificationStore.getState().removeNotification(failureNotificationId);
+                failureNotificationId = null;
+              }
+            });
+          }
+          await initializeAutoSave();
+          if (!autoSaveManager.isInitialized()) return;
+          const applyAutoSaveSettings = () => {
+            const { autoSave, autoSaveInterval } = useSettingsStore.getState();
+            autoSaveManager.updateConfig({
+              enabled: autoSave,
+              interval: autoSaveInterval * 60_000,
+            });
           };
-        });
+          applyAutoSaveSettings();
+          useSettingsStore.subscribe((state, previous) => {
+            if (
+              state.autoSave !== previous.autoSave ||
+              state.autoSaveInterval !== previous.autoSaveInterval
+            ) {
+              applyAutoSaveSettings();
+            }
+          });
+          autoSaveManager.start(() => {
+            const { project } = get();
+            const titleEngine = useEngineStore.getState().getTitleEngine();
+            const graphicsEngine = useEngineStore.getState().getGraphicsEngine();
 
-        // Subscribe to project state changes to mark as dirty for auto-save
-        // Uses Zustand's subscribeWithSelector middleware to detect changes to project object only
-        // Trigger auto-save when any project field changes (timeline, media, settings, etc.)
-        useProjectStore.subscribe(
-          (state) => state.project,
-          () => {
-            autoSaveManager.markDirty(get().getFullProject());
-          },
-        );
+            return {
+              ...project,
+              textClips: titleEngine?.getAllTextClips() || [],
+              shapeClips: graphicsEngine?.getAllShapeClips() || [],
+              svgClips: graphicsEngine?.getAllSVGClips() || [],
+              stickerClips: graphicsEngine?.getAllStickerClips() || [],
+            };
+          });
+
+          // Subscribe to project state changes to mark as dirty for auto-save
+          // Uses Zustand's subscribeWithSelector middleware to detect changes to project object only
+          // Trigger auto-save when any project field changes (timeline, media, settings, etc.)
+          useProjectStore.subscribe(
+            (state) => state.project,
+            () => {
+              autoSaveManager.markDirty(get().getFullProject());
+            },
+          );
+          autoSaveInitialized = true;
+        };
+        autoSaveInitializationPromise = initialize().finally(() => {
+          autoSaveInitializationPromise = null;
+        });
+        return autoSaveInitializationPromise;
       },
 
       checkForRecovery: async () => {
@@ -3235,7 +3283,7 @@ export const useProjectStore = create<ProjectState>()(
               frameRate: project.settings.frameRate,
             });
 
-        const projectCopy = structuredClone(project);
+        const projectCopy = cloneProjectForEdit(project);
         const action: Action = {
           type: "motion/createComposition",
           id: uuidv4(),
@@ -3254,7 +3302,7 @@ export const useProjectStore = create<ProjectState>()(
 
       upsertMotionComposition: async (composition: MotionComposition) => {
         const { project, actionExecutor } = get();
-        const projectCopy = structuredClone(project);
+        const projectCopy = cloneProjectForEdit(project);
         const reflowed = reflowMotionAutoLayoutGroups(composition);
         const action: Action = {
           type: "motion/upsertComposition",
@@ -3311,7 +3359,7 @@ export const useProjectStore = create<ProjectState>()(
           return null;
         }
         const { project, actionExecutor } = get();
-        const cloned = structuredClone(project);
+        const cloned = cloneProjectForEdit(project);
         const existing = cloned.motionCompositions ?? [];
         const projectBefore: Project = {
           ...cloned,
@@ -3350,7 +3398,7 @@ export const useProjectStore = create<ProjectState>()(
           };
         }
 
-        const projectCopy = structuredClone(project);
+        const projectCopy = cloneProjectForEdit(project);
         for (const operation of plan.operations) {
           const action: Action = {
             type: "creation/applyOperation",
@@ -3391,7 +3439,7 @@ export const useProjectStore = create<ProjectState>()(
           };
         }
 
-        const projectCopy = structuredClone(project);
+        const projectCopy = cloneProjectForEdit(project);
         for (const operation of plan.operations) {
           const action: Action = {
             type: "creation/applyOperation",
@@ -3437,7 +3485,7 @@ export const useProjectStore = create<ProjectState>()(
           };
         }
 
-        const projectCopy = structuredClone(project);
+        const projectCopy = cloneProjectForEdit(project);
         for (const operation of plan.operations) {
           const action: Action = {
             type: "creation/applyOperation",
@@ -3471,7 +3519,7 @@ export const useProjectStore = create<ProjectState>()(
           name: placement.name,
         });
 
-        const projectCopy = structuredClone(project);
+        const projectCopy = cloneProjectForEdit(project);
         const action: Action = {
           type: "motion/insertInstance",
           id: uuidv4(),
@@ -3493,7 +3541,7 @@ export const useProjectStore = create<ProjectState>()(
 
       removeMotionInstance: async (instanceId: string) => {
         const { project, actionExecutor } = get();
-        const projectCopy = structuredClone(project);
+        const projectCopy = cloneProjectForEdit(project);
         const action: Action = {
           type: "motion/removeInstance",
           id: uuidv4(),

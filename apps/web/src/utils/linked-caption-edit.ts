@@ -23,11 +23,12 @@ export function getLinkedCaptions(
   const end = sourceClip.startTime + sourceClip.duration;
 
   return store.getAllTextClips().filter((caption) => {
-    if (caption.metadata?.captionSourceClipId === sourceClip.id) return true;
-    if (!sourceTrack?.groupId) return false;
     const captionTrack = store.project.timeline.tracks.find(
       (track) => track.id === caption.trackId,
     );
+    if (captionTrack?.locked) return false;
+    if (caption.metadata?.captionSourceClipId === sourceClip.id) return true;
+    if (!sourceTrack?.groupId) return false;
     if (captionTrack?.groupId !== sourceTrack.groupId) return false;
     const captionEnd = caption.startTime + caption.duration;
     return caption.startTime < end - EPSILON && captionEnd > start + EPSILON;

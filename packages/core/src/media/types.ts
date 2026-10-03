@@ -22,6 +22,8 @@ export interface MediaTrackInfo {
   hasAudio: boolean;
   rotation: number;
   canDecode: boolean;
+  /** Video-specific capability; audio decode support must not validate a proxy. */
+  canDecodeVideo?: boolean;
   videoBitrate?: number;
   audioBitrate?: number;
   /** Number of audio tracks in the file (may be > 1 for multi-track video/audio files) */
@@ -51,6 +53,8 @@ export interface WaveformData {
 }
 
 export interface ExportSettings {
+  /** Maximum seconds between video keyframes (short intervals improve seeking). */
+  keyFrameInterval?: number;
   format: "mp4" | "webm" | "mov" | "mp3" | "wav" | "aac";
   width?: number;
   height?: number;

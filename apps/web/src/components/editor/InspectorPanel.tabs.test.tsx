@@ -136,6 +136,8 @@ describe("InspectorPanel (no tabs, collapsible sections by clip type)", () => {
     expect(screen.getByText("Volume")).toBeTruthy();
     expect(screen.getByText("Fade in")).toBeTruthy();
     expect(screen.getByText("Fade out")).toBeTruthy();
+    expect(container.querySelector('[data-section-id="auto-captions"]')).not.toBeNull();
+    expect(container.querySelector('[data-section-id="editable-captions"]')).not.toBeNull();
   });
 
   it("an image clip renders the Transform section", () => {

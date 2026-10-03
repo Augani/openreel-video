@@ -14,6 +14,7 @@ import { ToolcraftTextInputControl } from "@openreel/ui";
 import {
   keyboardShortcuts,
   formatKeyComboDisplay,
+  captureKeyCombo,
   type ShortcutCategory,
   type ShortcutDefinition,
 } from "../../services/keyboard-shortcuts";
@@ -32,14 +33,21 @@ export const KeyboardShortcutsOverlay: React.FC<
   >("all");
   const [shortcuts, setShortcuts] = useState<ShortcutDefinition[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [shortcutError, setShortcutError] = useState<string | null>(null);
   const [showPresets, setShowPresets] = useState(false);
   const [activePreset, setActivePreset] = useState(
     keyboardShortcuts.getActivePreset(),
   );
 
   useEffect(() => {
-    setShortcuts(keyboardShortcuts.getAllShortcuts());
-  }, []);
+    if (isOpen) {
+      setShortcuts(keyboardShortcuts.getAllShortcuts());
+      setActivePreset(keyboardShortcuts.getActivePreset());
+      setShortcutError(null);
+    } else {
+      setEditingId(null);
+    }
+  }, [isOpen]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -91,39 +99,39 @@ export const KeyboardShortcutsOverlay: React.FC<
         return;
       }
 
-      const parts: string[] = [];
-      if (e.metaKey || e.ctrlKey) parts.push("cmd");
-      if (e.shiftKey) parts.push("shift");
-      if (e.altKey) parts.push("alt");
-      parts.push(e.key.toLowerCase());
-
-      const newKey = parts.join("+");
+      const newKey = captureKeyCombo(e);
       const conflict = keyboardShortcuts.findConflict(newKey, shortcutId);
 
       if (conflict) {
-        alert(
-          `This shortcut conflicts with "${conflict.name}". Choose a different key.`,
-        );
+        setShortcutError(`This shortcut is used by ${conflict.name}. Choose a different key.`);
         return;
       }
 
       keyboardShortcuts.setShortcut(shortcutId, newKey);
       setShortcuts(keyboardShortcuts.getAllShortcuts());
       setEditingId(null);
+      setShortcutError(null);
     },
     [],
   );
 
   const handleResetShortcut = (id: string) => {
+    const shortcut = keyboardShortcuts.getShortcut(id);
+    const conflict = shortcut && keyboardShortcuts.findConflict(shortcut.defaultKey, id);
+    if (conflict) {
+      setShortcutError(`The default key is used by ${conflict.name}. Change that shortcut first or reset all shortcuts.`);
+      return;
+    }
     keyboardShortcuts.resetShortcut(id);
     setShortcuts(keyboardShortcuts.getAllShortcuts());
+    setShortcutError(null);
   };
 
   const handleResetAll = () => {
-    if (confirm("Reset all shortcuts to defaults?")) {
-      keyboardShortcuts.resetAllShortcuts();
-      setShortcuts(keyboardShortcuts.getAllShortcuts());
-    }
+    keyboardShortcuts.resetAllShortcuts();
+    setShortcuts(keyboardShortcuts.getAllShortcuts());
+    setActivePreset(keyboardShortcuts.getActivePreset());
+    setShortcutError(null);
   };
 
   const handleApplyPreset = (presetId: string) => {
@@ -131,6 +139,7 @@ export const KeyboardShortcutsOverlay: React.FC<
     setShortcuts(keyboardShortcuts.getAllShortcuts());
     setActivePreset(presetId);
     setShowPresets(false);
+    setShortcutError(null);
   };
 
   const categories = keyboardShortcuts.getCategories();
@@ -156,6 +165,7 @@ export const KeyboardShortcutsOverlay: React.FC<
         header={
           <DialogHeader
             title="Keyboard Shortcuts"
+            subtitle="Find shortcuts, choose a preset, or customize your keys."
             onOpenChange={(open) => !open && onClose()}
             startContent={<Keyboard size={20} className="text-primary" aria-hidden />}
           />
@@ -163,6 +173,7 @@ export const KeyboardShortcutsOverlay: React.FC<
         content={
           <LayoutContent className="max-h-[65vh] overflow-y-auto">
         <div className="space-y-4">
+        {shortcutError && <p role="status" className="text-sm text-red-400">{shortcutError}</p>}
         <div className="flex items-center gap-3">
           <div className="min-w-0 flex-1">
             <ToolcraftTextInputControl
@@ -277,7 +288,7 @@ export const KeyboardShortcutsOverlay: React.FC<
                         ) : (
                           <Button
                             label={formatKeyComboDisplay(shortcut.currentKey)}
-                            onClick={() => setEditingId(shortcut.id)}
+                            onClick={() => { setEditingId(shortcut.id); setShortcutError(null); }}
                             variant="secondary"
                             size="sm"
                             className="min-w-[80px] font-mono"
@@ -316,8 +327,8 @@ export const KeyboardShortcutsOverlay: React.FC<
           <LayoutFooter hasDivider>
           <Text type="supporting" color="secondary" display="block" justify="center" className="text-[10px]">
             Click a shortcut key to customize • Press{" "}
-            <Kbd keys="?" />{" "}
-            to toggle this overlay
+            <Kbd keys="Esc" />{" "}
+            to close
           </Text>
           </LayoutFooter>
         }

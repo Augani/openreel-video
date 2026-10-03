@@ -63,27 +63,58 @@ type AutoSaveEventCallback = (data?: unknown) => void;
 export class AutoSaveManager {
   private config: AutoSaveConfig;
   private db: IDBDatabase | null = null;
+  private initializationPromise: Promise<void> | null = null;
+  private savePromise: Promise<void> | null = null;
   private intervalId: ReturnType<typeof setInterval> | null = null;
   private debounceTimeoutId: ReturnType<typeof setTimeout> | null = null;
-  private lastSavedHash: string = "";
+  private lastSavedData: string = "";
   private currentSlot: number = 0;
   private listeners: Map<AutoSaveEventType, Set<AutoSaveEventCallback>> =
     new Map();
 
   private pendingProject: Project | null = null;
   private isDirty: boolean = false;
+  private dirtyRevision = 0;
+  private getProject: (() => Project) | null = null;
+
+  private flushOnHide = (): void => {
+    if (this.getProject) this.pendingProject = this.getProject();
+    this.requestSave();
+  };
+
+  private handleVisibilityChange = (): void => {
+    if (document.visibilityState === "hidden") this.flushOnHide();
+  };
 
   constructor(config: Partial<AutoSaveConfig> = {}) {
     this.config = { ...DEFAULT_CONFIG, ...config };
+    this.config.maxSlots = Math.max(1, Math.floor(this.config.maxSlots) || 1);
+  }
+
+  isInitialized(): boolean {
+    return this.db !== null;
   }
 
   async initialize(): Promise<void> {
-    try {
-      this.db = await this.openDatabase();
-    } catch (error) {
-      console.error("[AutoSave] Failed to initialize:", error);
-      this.emit("error", { error, message: "Failed to initialize auto-save" });
-    }
+    if (this.db) return;
+    if (this.initializationPromise) return this.initializationPromise;
+
+    this.initializationPromise = this.openDatabase()
+      .then((db) => {
+        this.db = db;
+        db.onversionchange = () => {
+          db.close();
+          if (this.db === db) this.db = null;
+        };
+      })
+      .catch((error) => {
+        console.error("[AutoSave] Failed to initialize:", error);
+        this.emit("error", { error, message: "Failed to initialize auto-save" });
+      })
+      .finally(() => {
+        this.initializationPromise = null;
+      });
+    return this.initializationPromise;
   }
 
   private openDatabase(): Promise<IDBDatabase> {
@@ -123,21 +154,26 @@ export class AutoSaveManager {
   }
 
   start(getProject: () => Project): void {
+    this.stop();
+    this.getProject = getProject;
+    this.pendingProject = getProject();
+
     if (!this.config.enabled) {
       return;
     }
 
-    this.stop(); // Stop any existing auto-save
-
-    // Initial save
-    this.pendingProject = getProject();
-    this.saveIfDirty();
+    this.requestSave();
 
     // Set up periodic saves
     this.intervalId = setInterval(() => {
       this.pendingProject = getProject();
-      this.saveIfDirty();
+      this.requestSave();
     }, this.config.interval);
+
+    if (typeof window !== "undefined") {
+      window.addEventListener("pagehide", this.flushOnHide);
+      document.addEventListener("visibilitychange", this.handleVisibilityChange);
+    }
   }
 
   stop(): void {
@@ -149,6 +185,11 @@ export class AutoSaveManager {
       clearTimeout(this.debounceTimeoutId);
       this.debounceTimeoutId = null;
     }
+    if (typeof window !== "undefined") {
+      window.removeEventListener("pagehide", this.flushOnHide);
+      document.removeEventListener("visibilitychange", this.handleVisibilityChange);
+    }
+    this.getProject = null;
   }
 
   markDirty(project?: Project): void {
@@ -157,8 +198,13 @@ export class AutoSaveManager {
     // previous pendingProject would save an older snapshot.
     if (project) {
       this.pendingProject = project;
+    } else if (this.getProject) {
+      this.pendingProject = this.getProject();
     }
     this.isDirty = true;
+    this.dirtyRevision += 1;
+
+    if (!this.config.enabled) return;
 
     // Debounce the save
     if (this.debounceTimeoutId) {
@@ -166,33 +212,59 @@ export class AutoSaveManager {
     }
 
     this.debounceTimeoutId = setTimeout(() => {
-      this.saveIfDirty();
+      this.debounceTimeoutId = null;
+      this.requestSave();
     }, this.config.debounceTime);
   }
 
-  private async saveIfDirty(): Promise<void> {
-    if (!this.pendingProject || !this.isDirty) {
+  private requestSave(): void {
+    // Background failures are reported by flushPending; explicit forceSave calls
+    // keep the rejection so callers cannot report an unsuccessful save as saved.
+    void this.saveIfDirty().catch(() => {});
+  }
+
+  private async saveIfDirty(force = false): Promise<void> {
+    if (!this.config.enabled && !force) return;
+    if (this.savePromise) {
+      await this.savePromise;
+      if (force && this.isDirty) await this.saveIfDirty(true);
       return;
     }
 
-    const project = this.pendingProject;
-    const hash = this.computeHash(project);
-
-    if (hash === this.lastSavedHash) {
-      return; // No changes
-    }
-
+    const pending = this.flushPending(force);
+    this.savePromise = pending;
     try {
-      await this.save(project);
-      this.lastSavedHash = hash;
-      this.isDirty = false;
-    } catch (error) {
-      console.error("[AutoSave] Save failed:", error);
-      this.emit("error", { error, message: "Auto-save failed" });
+      await pending;
+    } finally {
+      this.savePromise = null;
     }
   }
 
-  private async save(project: Project): Promise<void> {
+  private async flushPending(force: boolean): Promise<void> {
+    try {
+      while (this.pendingProject && this.isDirty && (this.config.enabled || force)) {
+        const project = this.pendingProject;
+        const revision = this.dirtyRevision;
+        const data = serializeProjectForAutoSave(project);
+
+        if (data !== this.lastSavedData) {
+          await this.save(project, data);
+          this.lastSavedData = data;
+        }
+
+        // Edits arriving while IndexedDB commits must be saved in a subsequent
+        // snapshot. Never let an older write mark those newer edits as clean.
+        this.isDirty = revision !== this.dirtyRevision;
+      }
+    } catch (error) {
+      console.error("[AutoSave] Save failed:", error);
+      this.emit("error", { error, message: "Auto-save failed" });
+      throw error;
+    }
+  }
+
+  private async save(project: Project, data: string): Promise<void> {
+    if (!this.db) await this.initialize();
     if (!this.db) {
       throw new Error("Auto-save database not initialized");
     }
@@ -203,13 +275,12 @@ export class AutoSaveManager {
       projectName: project.name,
       timestamp: Date.now(),
       slot: this.currentSlot,
-      data: serializeProjectForAutoSave(project),
+      data,
     };
 
     await this.saveRecord(record);
 
     this.currentSlot = (this.currentSlot + 1) % this.config.maxSlots;
-    await this.cleanupOldSaves(project.id);
 
     this.emit("saved", {
       projectId: project.id,
@@ -229,29 +300,27 @@ export class AutoSaveManager {
       const store = tx.objectStore(AUTO_SAVE_STORE);
       const request = store.put(record);
 
-      request.onsuccess = () => resolve();
+      // A successful request is still provisional until its transaction commits.
+      // Keep retention in this transaction and read keys only, avoiding copies
+      // of every large project snapshot on every auto-save.
+      const retainedIds = new Set(
+        Array.from({ length: this.config.maxSlots }, (_, slot) =>
+          `${record.projectId}-slot-${slot}`,
+        ),
+      );
+      const keys = store.index("projectId").getAllKeys(record.projectId);
+      keys.onsuccess = () => {
+        for (const id of keys.result) {
+          if (!retainedIds.has(String(id))) store.delete(id);
+        }
+      };
+      tx.oncomplete = () => resolve();
+      tx.onabort = () => reject(tx.error ?? new Error("Auto-save transaction aborted"));
+      tx.onerror = () => reject(tx.error ?? new Error("Auto-save transaction failed"));
       request.onerror = () =>
         reject(new Error(`Failed to save: ${request.error?.message}`));
+      keys.onerror = () => reject(keys.error ?? new Error("Failed to prune auto-saves"));
     });
-  }
-
-  private async cleanupOldSaves(currentProjectId: string): Promise<void> {
-    if (!this.db) return;
-
-    const allSaves = await this.getAllSaves();
-    const projectSaves = allSaves.filter(
-      (s) => s.projectId === currentProjectId,
-    );
-
-    if (projectSaves.length > this.config.maxSlots) {
-      const toDelete = projectSaves
-        .sort((a, b) => b.timestamp - a.timestamp)
-        .slice(this.config.maxSlots);
-
-      for (const save of toDelete) {
-        await this.deleteRecord(save.id);
-      }
-    }
   }
 
   private deleteRecord(id: string): Promise<void> {
@@ -265,7 +334,9 @@ export class AutoSaveManager {
       const store = tx.objectStore(AUTO_SAVE_STORE);
       const request = store.delete(id);
 
-      request.onsuccess = () => resolve();
+      tx.oncomplete = () => resolve();
+      tx.onabort = () => reject(tx.error ?? new Error("Auto-save delete aborted"));
+      tx.onerror = () => reject(tx.error ?? new Error("Auto-save delete failed"));
       request.onerror = () =>
         reject(new Error(`Failed to delete: ${request.error?.message}`));
     });
@@ -387,56 +458,19 @@ export class AutoSaveManager {
       const store = tx.objectStore(AUTO_SAVE_STORE);
       const request = store.clear();
 
-      request.onsuccess = () => {
-        resolve();
-      };
+      tx.oncomplete = () => resolve();
+      tx.onabort = () => reject(tx.error ?? new Error("Clearing auto-saves aborted"));
+      tx.onerror = () => reject(tx.error ?? new Error("Clearing auto-saves failed"));
       request.onerror = () =>
         reject(new Error(`Failed to clear: ${request.error?.message}`));
     });
   }
 
-  private computeHash(project: Project): string {
-    const motionCompositions = project.motionCompositions ?? [];
-    const motionLayerCount = motionCompositions.reduce(
-      (sum, composition) => sum + (composition.layers?.length ?? 0),
-      0,
-    );
-    const motionAudioClipCount = motionCompositions.reduce(
-      (sum, composition) => sum + (composition.audioClips?.length ?? 0),
-      0,
-    );
-    const motionModifiedAt = motionCompositions.reduce(
-      (max, composition) => Math.max(max, composition.modifiedAt ?? 0),
-      0,
-    );
-
-    const key = JSON.stringify({
-      id: project.id,
-      modifiedAt: project.modifiedAt,
-      trackCount: project.timeline.tracks.length,
-      clipCount: project.timeline.tracks.reduce(
-        (sum, t) => sum + t.clips.length,
-        0,
-      ),
-      mediaCount: project.mediaLibrary.items.length,
-      motionCompositionCount: motionCompositions.length,
-      motionLayerCount,
-      motionAudioClipCount,
-      motionInstanceCount: project.motionInstances?.length ?? 0,
-      motionModifiedAt,
-    });
-
-    let hash = 0;
-    for (let i = 0; i < key.length; i++) {
-      const char = key.charCodeAt(i);
-      hash = (hash << 5) - hash + char;
-      hash = hash & hash;
-    }
-    return hash.toString(36);
-  }
-
   updateConfig(config: Partial<AutoSaveConfig>): void {
     this.config = { ...this.config, ...config };
+    this.config.maxSlots = Math.max(1, Math.floor(this.config.maxSlots) || 1);
+    this.currentSlot %= this.config.maxSlots;
+    if (this.getProject) this.start(this.getProject);
   }
 
   getConfig(): AutoSaveConfig {
@@ -467,7 +501,8 @@ export class AutoSaveManager {
   async forceSave(project: Project): Promise<void> {
     this.pendingProject = project;
     this.isDirty = true;
-    await this.saveIfDirty();
+    this.dirtyRevision += 1;
+    await this.saveIfDirty(true);
   }
 
   /**
@@ -480,7 +515,7 @@ export class AutoSaveManager {
     if (!this.isDirty) {
       return false;
     }
-    return this.computeHash(project) !== this.lastSavedHash;
+    return serializeProjectForAutoSave(project) !== this.lastSavedData;
   }
 
   destroy(): void {

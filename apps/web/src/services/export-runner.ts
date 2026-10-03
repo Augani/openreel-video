@@ -1,7 +1,8 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   getExportEngine,
   type VideoExportSettings,
+  type AudioExportSettings,
   type ExportResult,
   type Project,
 } from "@openreel/core";
@@ -15,6 +16,7 @@ export interface ExportRunnerState {
 }
 
 export type ExportContainer = "mp4" | "webm" | "mov" | "wav";
+export type ExportDeliveryMode = "download" | "file";
 
 const MIME_BY_EXT: Record<string, string> = {
   mp4: "video/mp4",
@@ -80,6 +82,41 @@ export async function writeBlobToWritable(
   }
 }
 
+/** Drain audio exports with the same cancellation and generator cleanup as video. */
+export async function runAudioExportToWritable(
+  project: Project,
+  settings: Partial<AudioExportSettings>,
+  writable: FileSystemWritableFileStream,
+  options: { assertNotCancelled: () => void; reportProgress: (progress: number, phase: string) => void },
+): Promise<void> {
+  const engine = getExportEngine();
+  let generator: ReturnType<typeof engine.exportAudio> | undefined;
+  try {
+    await engine.initialize();
+    options.assertNotCancelled();
+    generator = engine.exportAudio(project, settings);
+    for (;;) {
+      const { value, done } = await generator.next();
+      options.assertNotCancelled();
+      if (done) {
+        if (!value.success || !value.blob) {
+          if (value.error?.code === "CANCELLED") throw new DOMException("Export cancelled", "AbortError");
+          throw new Error(value.error?.message || "Audio export failed");
+        }
+        await writeBlobToWritable(value.blob, writable);
+        options.assertNotCancelled();
+        return;
+      }
+      options.reportProgress(value.progress, value.phase);
+    }
+  } catch (error) {
+    await writable.abort().catch(() => undefined);
+    throw error;
+  } finally {
+    try { await generator?.return({ success: false }); } catch { /* Preserve the original failure. */ }
+  }
+}
+
 export function progressPhaseLabel(phase: string): string {
   return phase === "complete" ? "Complete!" : `${phase}...`;
 }
@@ -87,19 +124,29 @@ export function progressPhaseLabel(phase: string): string {
 function triggerAnchorDownload(data: Blob, filename: string, onRelease?: () => void): void {
   const url = URL.createObjectURL(data);
   const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = filename;
-  document.body.appendChild(anchor);
-  anchor.click();
-  document.body.removeChild(anchor);
-  window.addEventListener(
-    "pagehide",
-    () => {
-      URL.revokeObjectURL(url);
-      onRelease?.();
-    },
-    { once: true },
-  );
+  let released = false;
+  const release = () => {
+    if (released) return;
+    released = true;
+    clearTimeout(timer);
+    window.removeEventListener("pagehide", release);
+    URL.revokeObjectURL(url);
+    onRelease?.();
+  };
+  // Give the browser time to retain large downloads before releasing the file.
+  const timer = setTimeout(release, 60_000);
+  try {
+    anchor.href = url;
+    anchor.download = filename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    window.addEventListener("pagehide", release, { once: true });
+  } catch (error) {
+    release();
+    throw error;
+  } finally {
+    anchor.remove();
+  }
 }
 
 const OPFS_TMP_PREFIX = ".openreel-export-";
@@ -156,9 +203,13 @@ async function createOpfsDownloadWritable(
   let writable: FileSystemWritableFileStream;
   try {
     fileHandle = (await root.getFileHandle(tmpName, { create: true })) as OpfsWriteHandle;
-    if (typeof fileHandle.createWritable !== "function") return null;
+    if (typeof fileHandle.createWritable !== "function") {
+      await root.removeEntry(tmpName).catch(() => undefined);
+      return null;
+    }
     writable = await fileHandle.createWritable({ keepExistingData: false });
   } catch (error) {
+    await root.removeEntry(tmpName).catch(() => undefined);
     console.warn("[export-runner] OPFS streaming unavailable; using in-memory fallback", error);
     return null;
   }
@@ -176,6 +227,10 @@ async function createOpfsDownloadWritable(
     async close() {
       await writable.close();
       const file = await fileHandle.getFile();
+      if (file.size === 0) {
+        await root.removeEntry(tmpName).catch(() => undefined);
+        throw new Error("Export produced an empty file");
+      }
       triggerAnchorDownload(file, filename, () => {
         root.removeEntry(tmpName).catch(() => undefined);
       });
@@ -195,51 +250,58 @@ function createBufferedDownloadWritable(
   filename: string,
   mime: string,
 ): FileSystemWritableFileStream {
-  let buffer = new Uint8Array(16 * 1024 * 1024);
+  let buffer = new Uint8Array(1024 * 1024);
   let length = 0;
   let cursor = 0;
-
+  let finished = false;
+  const checkOpen = () => { if (finished) throw new Error("Export destination is closed"); };
+  const validPosition = (value: number) => {
+    if (!Number.isSafeInteger(value) || value < 0) throw new Error("Invalid export file position");
+  };
   const grow = (needed: number) => {
+    if (needed > 128 * 1024 * 1024) throw new Error("This export is too large for an in-memory download. Choose a file location or enable browser storage and try again.");
     if (needed <= buffer.length) return;
-    let newSize = buffer.length;
-    while (newSize < needed) newSize *= 2;
-    const next = new Uint8Array(newSize);
+    const next = new Uint8Array(Math.max(needed, buffer.length * 2));
     next.set(buffer.subarray(0, length));
     buffer = next;
   };
-
-  const writeBytes = (bytes: Uint8Array, position: number) => {
-    const end = position + bytes.byteLength;
-    grow(end);
-    buffer.set(bytes, position);
-    if (end > length) length = end;
-    cursor = end;
-  };
-
-  return {
-    seek(position: number) {
-      cursor = position;
-      return Promise.resolve();
-    },
-    write(data: unknown) {
-      if (data instanceof ArrayBuffer) {
-        writeBytes(new Uint8Array(data), cursor);
-      } else if (ArrayBuffer.isView(data)) {
-        writeBytes(new Uint8Array(data.buffer, data.byteOffset, data.byteLength), cursor);
+  const sink = {
+    async seek(position: number) { checkOpen(); validPosition(position); cursor = position; },
+    async write(data: unknown) {
+      checkOpen();
+      if (data && typeof data === "object" && "type" in data && !(data instanceof Blob)) {
+        const command = data as { type: string; data?: unknown; position?: number; size?: number };
+        if (command.type === "seek") return sink.seek(command.position!);
+        if (command.type === "truncate") return sink.truncate(command.size!);
+        if (command.type !== "write") throw new Error("Unsupported export write command");
+        if (command.position !== undefined) await sink.seek(command.position);
+        data = command.data;
       }
-      return Promise.resolve();
+      const bytes = typeof data === "string" ? new TextEncoder().encode(data) : data instanceof Blob ? new Uint8Array(await data.arrayBuffer()) : data instanceof ArrayBuffer ? new Uint8Array(data) : ArrayBuffer.isView(data) ? new Uint8Array(data.buffer, data.byteOffset, data.byteLength) : null;
+      if (!bytes) throw new Error("Unsupported export write data");
+      const end = cursor + bytes.byteLength;
+      validPosition(end);
+      grow(end);
+      buffer.set(bytes, cursor);
+      length = Math.max(length, end);
+      cursor = end;
     },
-    close() {
+    async close() {
+      checkOpen();
+      if (!length) throw new Error("Export produced an empty file");
       triggerAnchorDownload(new Blob([buffer.slice(0, length)], { type: mime }), filename);
-      return Promise.resolve();
+      finished = true;
+      buffer = new Uint8Array(0);
     },
-    abort() {
-      return Promise.resolve();
+    async abort() { finished = true; buffer = new Uint8Array(0); length = 0; cursor = 0; },
+    async truncate(size: number) {
+      checkOpen(); validPosition(size); grow(size);
+      buffer.fill(0, Math.min(length, size), Math.max(length, size));
+      length = size;
+      cursor = Math.min(cursor, size);
     },
-    truncate() {
-      return Promise.resolve();
-    },
-  } as unknown as FileSystemWritableFileStream;
+  };
+  return sink as unknown as FileSystemWritableFileStream;
 }
 
 async function createFallbackWritable(
@@ -252,8 +314,10 @@ async function createFallbackWritable(
 export async function createDownloadWritable(
   filename: string,
   mime: string,
+  options?: { delivery?: ExportDeliveryMode },
 ): Promise<FileSystemWritableFileStream> {
   const ext = filename.split(".").pop() || "mp4";
+  if (options?.delivery === "download") return createFallbackWritable(filename, mime);
 
   if (typeof window.openreel?.fs?.showSaveDialog === "function") {
     const chosen = await window.openreel.fs.showSaveDialog({
@@ -299,6 +363,7 @@ export async function createDownloadWritable(
   }
 
   if ("showSaveFilePicker" in window) {
+    let destinationChosen = false;
     try {
       const handle = await (
         window as unknown as {
@@ -313,11 +378,16 @@ export async function createDownloadWritable(
           },
         ],
       });
-      return handle.createWritable();
+      destinationChosen = true;
+      // A chosen destination that fails to open must be reported, not changed.
+      return await handle.createWritable();
     } catch (error) {
-      if (error instanceof DOMException && error.name === "AbortError") {
+      if (destinationChosen) throw error;
+      const name = error && typeof error === "object" && "name" in error ? String(error.name) : "";
+      if (name === "AbortError") {
         throw error;
       }
+      if (!["SecurityError", "NotSupportedError"].includes(name)) throw error;
       console.warn(
         "[export-runner] showSaveFilePicker unavailable; streaming to a downloaded file instead",
         error,
@@ -348,10 +418,12 @@ export interface UseExportRunner {
     ext: string,
     writableStream: FileSystemWritableFileStream,
   ) => Promise<void>;
-  showSavePicker: (filename: string, ext: string, opts?: { streamToFile?: boolean }) => Promise<FileSystemWritableFileStream>;
+  runAudioExport: (settings: Partial<AudioExportSettings>, writable: FileSystemWritableFileStream) => Promise<void>;
+  showSavePicker: (filename: string, ext: string, opts?: { streamToFile?: boolean; delivery?: ExportDeliveryMode }) => Promise<FileSystemWritableFileStream>;
   reportProgress: (progress01: number, phase: string) => void;
   markComplete: () => void;
-  beginExport: () => void;
+  beginExport: (writable?: FileSystemWritableFileStream) => () => void;
+  assertNotCancelled: () => void;
   finishExportSoon: () => void;
   failExport: (error: unknown) => void;
   cancel: () => void;
@@ -361,8 +433,25 @@ export interface UseExportRunner {
 export function useExportRunner(options: ExportRunnerOptions): UseExportRunner {
   const { project, onExported } = options;
   const [state, setState] = useState<ExportRunnerState>(INITIAL_STATE);
+  const epoch = useRef(0);
+  const running = useRef(false);
+  const cancelled = useRef(false);
+  const activeWritable = useRef<FileSystemWritableFileStream | null>(null);
+  const resetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const beginExport = useCallback(() => {
+  const assertNotCancelled = useCallback(() => {
+    if (cancelled.current) throw new DOMException("Export cancelled", "AbortError");
+  }, []);
+
+  const beginExport = useCallback((writable?: FileSystemWritableFileStream) => {
+    if (running.current) {
+      void writable?.abort().catch(() => undefined);
+      throw new Error("The previous export is still finishing. Please retry in a moment.");
+    }
+    if (resetTimer.current) clearTimeout(resetTimer.current);
+    epoch.current += 1;
+    cancelled.current = false;
+    activeWritable.current = writable ?? null;
     setState({
       isExporting: true,
       progress: 0,
@@ -370,9 +459,14 @@ export function useExportRunner(options: ExportRunnerOptions): UseExportRunner {
       error: null,
       complete: false,
     });
+    const startedEpoch = epoch.current;
+    return () => {
+      if (cancelled.current || epoch.current !== startedEpoch) throw new DOMException("Export cancelled", "AbortError");
+    };
   }, []);
 
   const reportProgress = useCallback((progress01: number, phase: string) => {
+    if (cancelled.current) return;
     setState((prev) => ({
       ...prev,
       progress: progress01 * 100,
@@ -381,17 +475,22 @@ export function useExportRunner(options: ExportRunnerOptions): UseExportRunner {
   }, []);
 
   const markComplete = useCallback(() => {
-    setState((prev) => ({ ...prev, complete: true, phase: "Saved!" }));
-  }, []);
+    assertNotCancelled();
+    activeWritable.current = null;
+    setState((prev) => ({ ...prev, isExporting: false, progress: 100, complete: true, phase: "Saved!" }));
+  }, [assertNotCancelled]);
 
   const finishExportSoon = useCallback(() => {
-    setTimeout(() => {
-      setState(INITIAL_STATE);
+    const completedEpoch = epoch.current;
+    resetTimer.current = setTimeout(() => {
+      if (epoch.current === completedEpoch) setState(INITIAL_STATE);
     }, 2000);
   }, []);
 
   const failExport = useCallback((error: unknown) => {
-    if (error instanceof Error && error.name === "AbortError") {
+    void activeWritable.current?.abort().catch(() => undefined);
+    activeWritable.current = null;
+    if (cancelled.current || (error && typeof error === "object" && "name" in error && error.name === "AbortError")) {
       setState(INITIAL_STATE);
       return;
     }
@@ -412,40 +511,88 @@ export function useExportRunner(options: ExportRunnerOptions): UseExportRunner {
       _ext: string,
       writableStream: FileSystemWritableFileStream,
     ): Promise<void> => {
-      const engine = getExportEngine();
-      await engine.initialize();
-
-      const generator = engine.exportVideo(project, videoSettings, writableStream);
-      let finalResult: ExportResult | undefined;
-
-      while (true) {
-        const { value, done } = await generator.next();
-        if (done) {
-          finalResult = value;
-          break;
-        }
-        setState((prev) => ({
-          ...prev,
-          progress: value.progress * 100,
-          phase: progressPhaseLabel(value.phase),
-        }));
+      if (running.current) {
+        await writableStream.abort().catch(() => undefined);
+        throw new Error("An export is already running");
       }
+      const runEpoch = epoch.current;
+      running.current = true;
+      activeWritable.current = writableStream;
+      const checkCurrent = () => {
+        if (epoch.current !== runEpoch || cancelled.current) throw new DOMException("Export cancelled", "AbortError");
+      };
+      const engine = getExportEngine();
+      let generator: ReturnType<typeof engine.exportVideo> | undefined;
+      try {
+        await engine.initialize();
+        checkCurrent();
+        generator = engine.exportVideo(project, videoSettings, writableStream);
+        let finalResult: ExportResult | undefined;
 
-      if (finalResult?.success) {
-        setState((prev) => ({ ...prev, complete: true, phase: "Saved!" }));
-        onExported?.(videoSettings);
-      } else {
-        throw new Error(finalResult?.error?.message || "Export failed");
+        while (true) {
+          const { value, done } = await generator.next();
+          checkCurrent();
+          if (done) {
+            finalResult = value;
+            break;
+          }
+          setState((prev) => ({
+            ...prev,
+            progress: value.progress * 100,
+            phase: progressPhaseLabel(value.phase),
+          }));
+        }
+
+        if (finalResult?.success) {
+          activeWritable.current = null;
+          setState((prev) => ({ ...prev, isExporting: false, progress: 100, complete: true, phase: "Saved!" }));
+          onExported?.(videoSettings);
+        } else {
+          if (finalResult?.error?.code === "CANCELLED") throw new DOMException("Export cancelled", "AbortError");
+          throw new Error(finalResult?.error?.message || "Export failed");
+        }
+      } catch (error) {
+        await writableStream.abort().catch(() => undefined);
+        throw error;
+      } finally {
+        // Closing a generator runs cleanup if cancellation lands at a yield.
+        try { await generator?.return({ success: false }); } catch { /* Preserve the original failure. */ }
+        running.current = false;
+        if (activeWritable.current === writableStream) activeWritable.current = null;
       }
     },
     [project, onExported],
   );
 
+  const runAudioExport = useCallback(async (
+    settings: Partial<AudioExportSettings>,
+    writable: FileSystemWritableFileStream,
+  ) => {
+    if (running.current) {
+      await writable.abort().catch(() => undefined);
+      throw new Error("An export is already running");
+    }
+    const startedEpoch = epoch.current;
+    running.current = true;
+    activeWritable.current = writable;
+    try {
+      await runAudioExportToWritable(project, settings, writable, {
+        assertNotCancelled: () => {
+          if (cancelled.current || epoch.current !== startedEpoch) throw new DOMException("Export cancelled", "AbortError");
+        },
+        reportProgress,
+      });
+    } finally {
+      running.current = false;
+      if (activeWritable.current === writable) activeWritable.current = null;
+    }
+  }, [project, reportProgress]);
+
   const showSavePicker = useCallback(
     async (
       filename: string,
       ext: string,
-      opts?: { streamToFile?: boolean },
+      opts?: { streamToFile?: boolean; delivery?: ExportDeliveryMode },
     ): Promise<FileSystemWritableFileStream> => {
       const mime = mimeForExt(ext);
 
@@ -502,52 +649,34 @@ export function useExportRunner(options: ExportRunnerOptions): UseExportRunner {
         } as unknown as FileSystemWritableFileStream;
       }
 
-      if ("showSaveFilePicker" in window) {
-        try {
-          const handle = await (
-            window as unknown as {
-              showSaveFilePicker: (opts: unknown) => Promise<FileSystemFileHandle>;
-            }
-          ).showSaveFilePicker({
-            suggestedName: filename,
-            types: [
-              {
-                description: "Media file",
-                accept: { [mime]: [`.${ext}`] },
-              },
-            ],
-          });
-          return handle.createWritable();
-        } catch (error) {
-          if (error instanceof DOMException && error.name === "AbortError") {
-            throw error;
-          }
-          console.warn(
-            "[export-runner] showSaveFilePicker unavailable; streaming to a downloaded file instead",
-            error,
-          );
-          return createFallbackWritable(filename, mime);
-        }
-      }
-
-      return createFallbackWritable(filename, mime);
+      return createDownloadWritable(filename, mime, { delivery: opts?.delivery });
     },
     [],
   );
 
   const cancel = useCallback(() => {
+    epoch.current += 1;
+    cancelled.current = true;
+    void activeWritable.current?.abort().catch(() => undefined);
     const engine = getExportEngine();
     engine.cancel();
     setState(INITIAL_STATE);
   }, []);
 
+  useEffect(() => () => {
+    if (resetTimer.current) clearTimeout(resetTimer.current);
+    if (running.current || activeWritable.current) cancel();
+  }, [cancel]);
+
   return {
     state,
     runExport,
+    runAudioExport,
     showSavePicker,
     reportProgress,
     markComplete,
     beginExport,
+    assertNotCancelled,
     finishExportSoon,
     failExport,
     cancel,

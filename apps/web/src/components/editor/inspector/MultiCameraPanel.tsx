@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo, useEffect } from "react";
+import React, { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import {
   Video,
   Camera,
@@ -18,6 +18,8 @@ import { ToolcraftSelectControl as Selector } from "@openreel/ui";
 import { ToolcraftText as Text } from "@openreel/ui";
 import { ToolcraftTextInputControl } from "@openreel/ui";
 import { useProjectStore } from "../../../stores/project-store";
+import { useUIStore } from "../../../stores/ui-store";
+import { useTimelineStore } from "../../../stores/timeline-store";
 import { useEngineStore } from "../../../stores/engine-store";
 import { toast } from "../../../stores/notification-store";
 import { loadAudioBuffer } from "../../../utils/load-audio-buffer";
@@ -85,7 +87,6 @@ const AngleCard: React.FC<{
           ? "bg-primary/20 border-primary"
           : "bg-bg-2 border-border hover:border-primary/50"
       }`}
-      onClick={onSelect}
     >
       <div className="flex items-center gap-2">
         <div
@@ -115,7 +116,8 @@ const AngleCard: React.FC<{
             {angle.name}
           </span>
         )}
-        {isActive && <Check size={12} className="text-primary" />}
+        <IconButton label={`Cut to ${angle.name} at playhead`} icon={<Camera size={12} />}
+          variant={isActive ? "primary" : "ghost"} size="sm" onClick={onSelect} />
         <IconButton
           label="Remove angle"
           icon={<Trash2 size={10} />}
@@ -370,10 +372,20 @@ const GroupSection: React.FC<{
 
 export const MultiCameraPanel: React.FC<MultiCameraPanelProps> = () => {
   const project = useProjectStore((state) => state.project);
+  const playhead = useTimelineStore((state) => state.playheadPosition);
   const getMultiCamEngine = useEngineStore((state) => state.getMultiCamEngine);
 
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
-  const [selectedClips, setSelectedClips] = useState<string[]>([]);
+  const [selectedClips, setSelectedClips] = useState<string[]>(() =>
+    useUIStore.getState().getSelectedClipIds().filter((id) => {
+      const clip = useProjectStore.getState().getClip(id);
+      return clip && project.mediaLibrary.items.some((media) => media.id === clip.mediaId && media.type === "video");
+    }),
+  );
+  const busyRef = useRef(false);
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  const [syncBeforeAutoEdit, setSyncBeforeAutoEdit] = useState(true);
   const [processingGroupId, setProcessingGroupId] = useState<string | null>(null);
   const [groupStatus, setGroupStatus] = useState<Record<string, string>>({});
   const [overlapStrategy, setOverlapStrategy] =
@@ -393,16 +405,21 @@ export const MultiCameraPanel: React.FC<MultiCameraPanelProps> = () => {
     const loadEngine = async () => {
       const engine = await getMultiCamEngine();
       if (!cancelled) {
+        engine.loadGroups(useProjectStore.getState().project.multicamGroups ?? []);
         setMultiCamEngine(engine);
       }
     };
-    loadEngine();
+    void loadEngine().catch((error) => toast.error("Camera tools could not load", String(error)));
     return () => {
       cancelled = true;
     };
   }, [getMultiCamEngine]);
 
-  const groups = multiCamEngine?.getAllGroups() || [];
+  const groups = project.multicamGroups ?? [];
+
+  useEffect(() => {
+    if (!processingGroupId) multiCamEngine?.loadGroups(project.multicamGroups ?? []);
+  }, [multiCamEngine, project.id, project.multicamGroups, processingGroupId]);
 
   const editPolicy = useMemo<MulticamEditPolicy>(
     () => ({
@@ -417,14 +434,15 @@ export const MultiCameraPanel: React.FC<MultiCameraPanelProps> = () => {
   const availableClips = useMemo(() => {
     const clips: { id: string; name: string; trackName: string }[] = [];
     for (const track of project.timeline.tracks) {
+      if (track.locked) continue;
       for (const clip of track.clips) {
         const media = project.mediaLibrary.items.find(
           (item) => item.id === clip.mediaId,
         );
-        if (media?.type === "video") {
+        if (media?.type === "video" && !clip.metadata?.multicam) {
           clips.push({
             id: clip.id,
-            name: `Clip ${clip.id.slice(-6)}`,
+            name: media.name,
             trackName: track.name || `Track ${track.id.slice(-4)}`,
           });
         }
@@ -434,6 +452,7 @@ export const MultiCameraPanel: React.FC<MultiCameraPanelProps> = () => {
   }, [project]);
 
   const setStatus = useCallback((groupId: string, status: string) => {
+    if (!mounted.current) return;
     setGroupStatus((current) => ({ ...current, [groupId]: status }));
   }, []);
 
@@ -446,6 +465,7 @@ export const MultiCameraPanel: React.FC<MultiCameraPanelProps> = () => {
       params: { groups: multiCamEngine.getAllGroups() },
     });
     if (!result.success) {
+      multiCamEngine.loadGroups(useProjectStore.getState().project.multicamGroups ?? []);
       throw new Error(result.error?.message ?? "Could not save the camera group.");
     }
   }, [multiCamEngine]);
@@ -455,7 +475,7 @@ export const MultiCameraPanel: React.FC<MultiCameraPanelProps> = () => {
       const currentProject = useProjectStore.getState().project;
       const sources = resolveMulticamSources(currentProject, group);
       const unsupportedSource = sources.find(
-        (source) => source.clip.reversed || (source.clip.speed ?? 1) !== 1,
+        (source) => source.clip.reversed || (source.clip.speed ?? 1) !== 1 || source.clip.speedKeyframes?.length || source.clip.freezeFrames?.length,
       );
       if (unsupportedSource) {
         throw new Error(
@@ -517,7 +537,7 @@ export const MultiCameraPanel: React.FC<MultiCameraPanelProps> = () => {
   };
 
   const handleCreateGroup = useCallback(async () => {
-    if (!multiCamEngine || selectedClips.length < 2) return;
+    if (!multiCamEngine || busyRef.current || selectedClips.length < 2) return;
 
     const group = multiCamEngine.createGroup(
       `Multi-Cam ${groups.length + 1}`,
@@ -547,17 +567,6 @@ export const MultiCameraPanel: React.FC<MultiCameraPanelProps> = () => {
     selectedClips,
     updateGroupSourceLayout,
   ]);
-
-  const handleSelectAngle = useCallback(
-    (groupId: string, angleId: string) => {
-      if (!multiCamEngine) return;
-      multiCamEngine.setActiveAngle(groupId, angleId);
-      void persistGroups().catch((error) =>
-        toast.error("Could not save angle", error instanceof Error ? error.message : undefined),
-      );
-    },
-    [multiCamEngine, persistGroups],
-  );
 
   const handleRemoveAngle = useCallback(
     (groupId: string, angleId: string) => {
@@ -596,8 +605,17 @@ export const MultiCameraPanel: React.FC<MultiCameraPanelProps> = () => {
     async (groupId: string) => {
       if (!multiCamEngine) return;
       const group = multiCamEngine.getGroup(groupId);
-      if (!group || processingGroupId) return;
+      if (!group || busyRef.current) return;
+      busyRef.current = true;
       setProcessingGroupId(groupId);
+      const before = useProjectStore.getState().project;
+      const snapshot = JSON.stringify([before.id, before.timeline, before.multicamGroups]);
+      const ensureCurrent = () => {
+        const latest = useProjectStore.getState().project;
+        if (!mounted.current || snapshot !== JSON.stringify([latest.id, latest.timeline, latest.multicamGroups])) {
+          throw new Error("The project changed during analysis. Run the camera analysis again.");
+        }
+      };
       try {
         const { buffers, sources } = await decodeGroupAudio(group);
         updateGroupSourceLayout(groupId, sources);
@@ -615,6 +633,7 @@ export const MultiCameraPanel: React.FC<MultiCameraPanelProps> = () => {
             liveGroup.angles.find((angle) => angle.id === source.angle.id) ?? source.angle,
         }));
         liveGroup.duration = getMulticamAnalysisDuration(alignedSources, buffers);
+        ensureCurrent();
         await persistGroups();
         const confidences = [...results.values()].map((result) => result.confidence);
         const confidence = confidences.length
@@ -623,10 +642,12 @@ export const MultiCameraPanel: React.FC<MultiCameraPanelProps> = () => {
         setStatus(groupId, `Audio synchronized · ${Math.round(confidence * 100)}% confidence`);
         toast.success("Camera audio synchronized", group.name);
       } catch (error) {
+        multiCamEngine.loadGroups(useProjectStore.getState().project.multicamGroups ?? []);
         const message = error instanceof Error ? error.message : "Audio sync failed.";
         setStatus(groupId, message);
         toast.error("Audio sync failed", message);
       } finally {
+        busyRef.current = false;
         setProcessingGroupId(null);
       }
     },
@@ -634,7 +655,6 @@ export const MultiCameraPanel: React.FC<MultiCameraPanelProps> = () => {
       decodeGroupAudio,
       multiCamEngine,
       persistGroups,
-      processingGroupId,
       setStatus,
       updateGroupSourceLayout,
     ],
@@ -642,22 +662,30 @@ export const MultiCameraPanel: React.FC<MultiCameraPanelProps> = () => {
 
   const handleAutoEdit = useCallback(
     async (groupId: string) => {
-      if (!multiCamEngine || processingGroupId) return;
+      if (!multiCamEngine || busyRef.current) return;
       const group = multiCamEngine.getGroup(groupId);
       if (!group) return;
+      busyRef.current = true;
       setProcessingGroupId(groupId);
+      const before = useProjectStore.getState().project;
+      const snapshot = JSON.stringify([before.id, before.timeline, before.multicamGroups]);
+      const ensureCurrent = () => {
+        const latest = useProjectStore.getState().project;
+        if (!mounted.current || snapshot !== JSON.stringify([latest.id, latest.timeline, latest.multicamGroups])) {
+          throw new Error("The project changed during analysis. Run the camera analysis again.");
+        }
+      };
       try {
         const { buffers, sources } = await decodeGroupAudio(group);
         updateGroupSourceLayout(groupId, sources);
         setStatus(groupId, "Synchronizing camera audio…");
-        const { results: syncResults, drift } = await analyzeMulticamSyncInWorker(
-          buffers,
-          group.angles[0]?.id ?? "",
-        );
+        const { results: syncResults, drift } = syncBeforeAutoEdit
+          ? await analyzeMulticamSyncInWorker(buffers, group.angles[0]?.id ?? "")
+          : { results: null, drift: {} as Record<string, import("@openreel/core").MulticamDriftModel> };
 
         const liveGroup = multiCamEngine.getGroup(groupId);
         if (!liveGroup) throw new Error("Camera group is no longer available.");
-        updateAlignedSourceOffsets(liveGroup, sources, syncResults);
+        if (syncResults) updateAlignedSourceOffsets(liveGroup, sources, syncResults);
         for (const angle of liveGroup.angles) {
           angle.driftSecondsPerSecond = drift[angle.id]?.secondsPerSecond ?? 0;
         }
@@ -731,6 +759,11 @@ export const MultiCameraPanel: React.FC<MultiCameraPanelProps> = () => {
             forbid_jump_cut_same_subject: editPolicy.forbidJumpCutSameSubject,
           },
         );
+        manifest.constraints = {
+          ...manifest.constraints,
+          min_shot_ms: editPolicy.minShotMs,
+          max_shot_ms: Math.max(editPolicy.minShotMs, editPolicy.maxShotMs),
+        };
         liveGroup.manifest = manifest;
         const reactions = includeVisualReactions
           ? await analyzeMulticamFaceReactions(
@@ -818,6 +851,7 @@ export const MultiCameraPanel: React.FC<MultiCameraPanelProps> = () => {
           groups: multiCamEngine.getAllGroups(),
           outputTracks,
         });
+        ensureCurrent();
         const result = await useProjectStore.getState().executeAction(applyAction);
         if (!result.success) {
           throw new Error(result.error?.message ?? "Could not apply the automatic edit.");
@@ -838,18 +872,19 @@ export const MultiCameraPanel: React.FC<MultiCameraPanelProps> = () => {
         setStatus(groupId, message);
         toast.error("Automatic edit failed", message);
       } finally {
+        busyRef.current = false;
         setProcessingGroupId(null);
       }
     },
     [
       decodeGroupAudio,
+      syncBeforeAutoEdit,
       editPolicy,
       includeTranscripts,
       includeVisualReactions,
       multiCamEngine,
       overlapEscalation,
       overlapStrategy,
-      processingGroupId,
       setStatus,
       updateGroupSourceLayout,
     ],
@@ -969,18 +1004,20 @@ export const MultiCameraPanel: React.FC<MultiCameraPanelProps> = () => {
     async (groupId: string) => {
       if (!multiCamEngine) return;
       const group = multiCamEngine.getGroup(groupId);
-      if (!group?.outputTrackId) return;
+      if (!group) return;
+      const outputTrackId = group.outputTrackId ?? `multicam-output-${groupId}`;
       const currentProject = useProjectStore.getState().project;
       const sources = resolveMulticamSources(currentProject, group);
       const sourceClips = new Map(sources.map((source) => [source.clip.id, source.clip]));
       const outputTracks = group.shotPlan
         ? multiCamEngine.buildShotPlanTracks(
             groupId,
-            group.outputTrackId,
+            outputTrackId,
             sourceClips,
             currentProject.settings,
           )
         : [];
+      multiCamEngine.setOutputTracks(groupId, outputTracks.length ? outputTracks.map((track) => track.id) : [outputTrackId]);
       const action = outputTracks.length
         ? createMulticamApplyTracksAction({
             project: currentProject,
@@ -992,10 +1029,10 @@ export const MultiCameraPanel: React.FC<MultiCameraPanelProps> = () => {
             project: currentProject,
             group,
             groups: multiCamEngine.getAllGroups(),
-            outputTrackId: group.outputTrackId,
+            outputTrackId,
             sequence: multiCamEngine.buildSequenceClips(
               groupId,
-              group.outputTrackId,
+              outputTrackId,
               sourceClips,
             ),
           });
@@ -1005,11 +1042,36 @@ export const MultiCameraPanel: React.FC<MultiCameraPanelProps> = () => {
     [multiCamEngine],
   );
 
+  const handleSelectAngle = useCallback(async (groupId: string, angleId: string) => {
+    if (!multiCamEngine || busyRef.current) return;
+    const group = multiCamEngine.getGroup(groupId);
+    if (!group) return;
+    const time = useTimelineStore.getState().playheadPosition - group.syncPoint;
+    if (time < 0 || time >= group.duration) {
+      toast.error("Move the playhead inside the camera group", `Group range: ${group.syncPoint.toFixed(2)}s – ${(group.syncPoint + group.duration).toFixed(2)}s`);
+      return;
+    }
+    busyRef.current = true;
+    setProcessingGroupId(groupId);
+    try {
+      if (!multiCamEngine.cutToAngle(groupId, angleId, time)) throw new Error("This camera is unavailable at the playhead.");
+      await applyReviewedEdit(groupId);
+      setStatus(groupId, `Camera cut added at ${(group.syncPoint + time).toFixed(2)}s · Undo restores the previous edit`);
+    } catch (error) {
+      multiCamEngine.loadGroups(useProjectStore.getState().project.multicamGroups ?? []);
+      toast.error("Could not switch camera", error instanceof Error ? error.message : undefined);
+    } finally {
+      busyRef.current = false;
+      setProcessingGroupId(null);
+    }
+  }, [applyReviewedEdit, multiCamEngine, setStatus]);
+
   const handleAcceptCut = useCallback(async (groupId: string, switchId: string) => {
     if (!multiCamEngine?.acceptSwitch(groupId, switchId)) return;
     try {
       await applyReviewedEdit(groupId);
     } catch (error) {
+      multiCamEngine?.loadGroups(useProjectStore.getState().project.multicamGroups ?? []);
       toast.error("Could not accept cut", error instanceof Error ? error.message : undefined);
     }
   }, [applyReviewedEdit, multiCamEngine]);
@@ -1019,6 +1081,7 @@ export const MultiCameraPanel: React.FC<MultiCameraPanelProps> = () => {
     try {
       await applyReviewedEdit(groupId);
     } catch (error) {
+      multiCamEngine?.loadGroups(useProjectStore.getState().project.multicamGroups ?? []);
       toast.error("Could not reject cut", error instanceof Error ? error.message : undefined);
     }
   }, [applyReviewedEdit, multiCamEngine]);
@@ -1032,6 +1095,7 @@ export const MultiCameraPanel: React.FC<MultiCameraPanelProps> = () => {
     try {
       await applyReviewedEdit(groupId);
     } catch (error) {
+      multiCamEngine?.loadGroups(useProjectStore.getState().project.multicamGroups ?? []);
       toast.error("Could not nudge cut", error instanceof Error ? error.message : undefined);
     }
   }, [applyReviewedEdit, multiCamEngine]);
@@ -1061,7 +1125,7 @@ export const MultiCameraPanel: React.FC<MultiCameraPanelProps> = () => {
   };
 
   return (
-    <div className="space-y-3">
+    <fieldset disabled={Boolean(processingGroupId)} className="space-y-3 min-w-0">
       <div className="flex items-center gap-2 p-2 bg-primary/10 rounded-lg border border-primary/30">
         <Video size={16} className="text-primary" />
         <div className="flex-1 flex flex-col gap-0.5">
@@ -1069,12 +1133,129 @@ export const MultiCameraPanel: React.FC<MultiCameraPanelProps> = () => {
             Multi-Camera Editing
           </span>
           <Text type="supporting" color="secondary" className="text-[9px] text-fg-3">
-            Sync and switch between camera angles
+            Choose recordings of the same event, create a group, then sync audio or cut between cameras at the playhead.
           </Text>
         </div>
       </div>
 
-      <div className="space-y-2 rounded-lg border border-border bg-bg-2 p-2">
+
+      {groups.length > 0 && (
+        <div className="space-y-2">
+          <span className="text-[10px] font-medium text-fg-2">
+            Camera Groups
+          </span>
+          {groups.map((group) => (
+            <GroupSection
+              key={group.id}
+              group={{ ...group, activeAngleId: multiCamEngine?.getAngleAtTime(group.id, playhead - group.syncPoint)?.id ?? group.activeAngleId }}
+              isExpanded={expandedGroups.has(group.id)}
+              onToggle={() => toggleGroup(group.id)}
+              onSelectAngle={(angleId) => handleSelectAngle(group.id, angleId)}
+              onRemoveAngle={(angleId) => handleRemoveAngle(group.id, angleId)}
+              onRenameAngle={(angleId, name) =>
+                handleRenameAngle(group.id, angleId, name)
+              }
+              onOffsetChange={(angleId, offset) =>
+                handleOffsetChange(group.id, angleId, offset)
+              }
+              onSync={() => handleSyncAudio(group.id)}
+              onAutoEdit={() => handleAutoEdit(group.id)}
+              onAcceptCut={(switchId) => handleAcceptCut(group.id, switchId)}
+              onRejectCut={(switchId) => handleRejectCut(group.id, switchId)}
+              onNudgeCut={(switchId, delta) => handleNudgeCut(group.id, switchId, delta)}
+              onExportOtio={() => handleExportOtio(group.id)}
+              onExportOrma={() => void handleExportOrma(group.id)}
+              onFindSocialClips={() => void handleFindSocialClips(group.id)}
+              onImportManifest={(file) => void handleImportManifest(group.id, file)}
+              onExportManifest={() => handleExportManifest(group.id)}
+              onDelete={() => handleDeleteGroup(group.id)}
+              isProcessing={processingGroupId === group.id}
+              status={groupStatus[group.id]}
+            />
+          ))}
+        </div>
+      )}
+
+      <div className="space-y-2 pt-2 border-t border-border">
+        <span className="block text-[10px] font-medium text-fg-2">
+          Create New Group
+        </span>
+        <Text type="supporting" color="secondary" className="block text-[9px] text-fg-3">
+          Choose 2 or more recordings of the same event. Use separate tracks for camera sources; source tracks are hidden and muted when the edit is created.
+        </Text>
+
+        {availableClips.length === 0 ? (
+          <div className="text-center py-4">
+            <Video
+              size={24}
+              className="mx-auto mb-2 text-fg-3 opacity-50"
+            />
+            <Text type="supporting" color="secondary" className="text-[10px] text-fg-3">
+              Add video clips to unlocked timeline tracks to use multi-camera editing
+            </Text>
+          </div>
+        ) : (
+          <>
+            <div className="max-h-32 overflow-y-auto space-y-1">
+              {availableClips.map((clip) => (
+                <SelectableCard
+                  key={clip.id}
+                  label={`${clip.name} ${clip.trackName}`}
+                  isSelected={selectedClips.includes(clip.id)}
+                  onChange={() => toggleClipSelection(clip.id)}
+                  padding={2}
+                  variant={selectedClips.includes(clip.id) ? "green" : "muted"}
+                  className={`w-full flex items-center gap-2 p-2 rounded-lg text-left transition-colors ${
+                    selectedClips.includes(clip.id)
+                      ? "bg-primary/20 border border-primary"
+                      : "bg-bg-2 border border-transparent hover:border-primary/30"
+                  }`}
+                >
+                  <div
+                    className={`w-4 h-4 rounded border flex items-center justify-center ${
+                      selectedClips.includes(clip.id)
+                        ? "bg-primary border-primary"
+                        : "border-border"
+                    }`}
+                  >
+                    {selectedClips.includes(clip.id) && (
+                      <Check size={10} className="text-white" />
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <span className="text-[10px] text-fg">
+                      {clip.name}
+                    </span>
+                    <span className="text-[8px] text-fg-3 ml-1">
+                      ({clip.trackName})
+                    </span>
+                  </div>
+                </SelectableCard>
+              ))}
+            </div>
+
+            <Button
+              label={`Create Group (${selectedClips.length} selected)`}
+              variant="primary"
+              icon={<Plus size={12} />}
+              onClick={handleCreateGroup}
+              isDisabled={!multiCamEngine || selectedClips.length < 2 || Boolean(processingGroupId)}
+              className={`w-full flex items-center justify-center gap-2 py-2 text-[10px] rounded-lg transition-colors ${
+                selectedClips.length >= 2
+                  ? "bg-primary text-white hover:bg-primary/90"
+                  : "bg-bg-2 text-fg-3 cursor-not-allowed"
+              }`}
+            />
+          </>
+        )}
+      </div>
+
+      <details className="space-y-2 rounded-lg border border-border bg-bg-2 p-2">
+        <summary className="cursor-pointer text-xs">Automatic edit settings</summary>
+        <label className="flex items-center gap-2 text-[10px] text-fg-2">
+          <input type="checkbox" checked={syncBeforeAutoEdit} onChange={(event) => setSyncBeforeAutoEdit(event.target.checked)} />
+          Sync cameras before Auto Edit (turn off to use manual offsets)
+        </label>
         <span className="text-[10px] font-medium text-fg-2">Automatic edit policy</span>
         <Selector
           label="Preset"
@@ -1172,124 +1353,11 @@ export const MultiCameraPanel: React.FC<MultiCameraPanelProps> = () => {
           />
           Add local MediaPipe face/reaction cues (slower)
         </label>
-      </div>
-
-      {groups.length > 0 && (
-        <div className="space-y-2">
-          <span className="text-[10px] font-medium text-fg-2">
-            Camera Groups
-          </span>
-          {groups.map((group) => (
-            <GroupSection
-              key={group.id}
-              group={group}
-              isExpanded={expandedGroups.has(group.id)}
-              onToggle={() => toggleGroup(group.id)}
-              onSelectAngle={(angleId) => handleSelectAngle(group.id, angleId)}
-              onRemoveAngle={(angleId) => handleRemoveAngle(group.id, angleId)}
-              onRenameAngle={(angleId, name) =>
-                handleRenameAngle(group.id, angleId, name)
-              }
-              onOffsetChange={(angleId, offset) =>
-                handleOffsetChange(group.id, angleId, offset)
-              }
-              onSync={() => handleSyncAudio(group.id)}
-              onAutoEdit={() => handleAutoEdit(group.id)}
-              onAcceptCut={(switchId) => handleAcceptCut(group.id, switchId)}
-              onRejectCut={(switchId) => handleRejectCut(group.id, switchId)}
-              onNudgeCut={(switchId, delta) => handleNudgeCut(group.id, switchId, delta)}
-              onExportOtio={() => handleExportOtio(group.id)}
-              onExportOrma={() => void handleExportOrma(group.id)}
-              onFindSocialClips={() => void handleFindSocialClips(group.id)}
-              onImportManifest={(file) => void handleImportManifest(group.id, file)}
-              onExportManifest={() => handleExportManifest(group.id)}
-              onDelete={() => handleDeleteGroup(group.id)}
-              isProcessing={processingGroupId === group.id}
-              status={groupStatus[group.id]}
-            />
-          ))}
-        </div>
-      )}
-
-      <div className="space-y-2 pt-2 border-t border-border">
-        <span className="block text-[10px] font-medium text-fg-2">
-          Create New Group
-        </span>
-        <Text type="supporting" color="secondary" className="block text-[9px] text-fg-3">
-          Select 2+ video clips to create a multi-camera group
-        </Text>
-
-        {availableClips.length === 0 ? (
-          <div className="text-center py-4">
-            <Video
-              size={24}
-              className="mx-auto mb-2 text-fg-3 opacity-50"
-            />
-            <Text type="supporting" color="secondary" className="text-[10px] text-fg-3">
-              Import video clips to use multi-camera editing
-            </Text>
-          </div>
-        ) : (
-          <>
-            <div className="max-h-32 overflow-y-auto space-y-1">
-              {availableClips.map((clip) => (
-                <SelectableCard
-                  key={clip.id}
-                  label={`${clip.name} ${clip.trackName}`}
-                  isSelected={selectedClips.includes(clip.id)}
-                  onChange={() => toggleClipSelection(clip.id)}
-                  onClick={() => toggleClipSelection(clip.id)}
-                  padding={2}
-                  variant={selectedClips.includes(clip.id) ? "green" : "muted"}
-                  className={`w-full flex items-center gap-2 p-2 rounded-lg text-left transition-colors ${
-                    selectedClips.includes(clip.id)
-                      ? "bg-primary/20 border border-primary"
-                      : "bg-bg-2 border border-transparent hover:border-primary/30"
-                  }`}
-                >
-                  <div
-                    className={`w-4 h-4 rounded border flex items-center justify-center ${
-                      selectedClips.includes(clip.id)
-                        ? "bg-primary border-primary"
-                        : "border-border"
-                    }`}
-                  >
-                    {selectedClips.includes(clip.id) && (
-                      <Check size={10} className="text-white" />
-                    )}
-                  </div>
-                  <div className="flex-1">
-                    <span className="text-[10px] text-fg">
-                      {clip.name}
-                    </span>
-                    <span className="text-[8px] text-fg-3 ml-1">
-                      ({clip.trackName})
-                    </span>
-                  </div>
-                </SelectableCard>
-              ))}
-            </div>
-
-            <Button
-              label={`Create Group (${selectedClips.length} selected)`}
-              variant="primary"
-              icon={<Plus size={12} />}
-              onClick={handleCreateGroup}
-              isDisabled={selectedClips.length < 2}
-              className={`w-full flex items-center justify-center gap-2 py-2 text-[10px] rounded-lg transition-colors ${
-                selectedClips.length >= 2
-                  ? "bg-primary text-white hover:bg-primary/90"
-                  : "bg-bg-2 text-fg-3 cursor-not-allowed"
-              }`}
-            />
-          </>
-        )}
-      </div>
-
+      </details>
       <Text type="supporting" color="secondary" className="text-[9px] text-fg-3 text-center">
         Automatic edits create an editable timeline track and undo in one step
       </Text>
-    </div>
+    </fieldset>
   );
 };
 

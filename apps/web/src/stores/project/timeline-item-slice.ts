@@ -1,3 +1,4 @@
+import { cloneProjectForEdit } from "./clone-project-for-edit";
 import { v4 as uuidv4 } from "uuid";
 import type { StoreApi } from "zustand";
 import type { Action, ActionResult } from "@openreel/core";
@@ -32,7 +33,7 @@ export function createTimelineItemSlice(
     description: string,
   ): Promise<ActionResult> => {
     const { project, actionExecutor } = get();
-    const projectCopy = structuredClone(project);
+    const projectCopy = cloneProjectForEdit(project);
     const history = actionExecutor.getHistory();
     history.beginGroup(description);
     let results: ActionResult[] = [];

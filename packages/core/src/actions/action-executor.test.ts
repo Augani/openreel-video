@@ -89,6 +89,23 @@ function importAction(): Action {
   } as unknown as Action;
 }
 
+describe("trim-to-playhead history", () => {
+  it.each([true, false])("restores timeline and source bounds after trimStart=%s", async trimStart => {
+    const executor = new ActionExecutor();
+    const project = makeProjectWithClip({ startTime: 2, duration: 4, inPoint: 1, outPoint: 9, speed: 2 });
+    const before = { ...project.timeline.tracks[0].clips[0] };
+    const action: Action = { id: `trim-${trimStart}`, timestamp: Date.now(), type: "clip/trimToPlayhead",
+      params: { clipId: "c1", playheadTime: 4, trimStart } };
+    expect((await executor.execute(action, project)).success).toBe(true);
+    const trimmed = project.timeline.tracks[0].clips[0];
+    expect(trimmed.duration).toBe(2);
+    expect((await executor.undo(project)).success).toBe(true);
+    expect(project.timeline.tracks[0].clips[0]).toEqual(before);
+    expect((await executor.redo(project)).success).toBe(true);
+    expect(project.timeline.tracks[0].clips[0]).toEqual(trimmed);
+  });
+});
+
 describe("ActionExecutor media/import undo", () => {
   it("adds media on execute and removes it on undo", async () => {
     const executor = new ActionExecutor();

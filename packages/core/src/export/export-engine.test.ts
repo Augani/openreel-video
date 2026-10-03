@@ -12,6 +12,7 @@ const {
   mockGetFirstEncodableVideoCodec,
   mockOutputStart,
   mockOutputFinalize,
+  mockCanEncodeVideo,
 } = vi.hoisted(() => {
   const mockRenderFrame = vi.fn().mockResolvedValue({
     image: { close: vi.fn() },
@@ -59,6 +60,7 @@ const {
     mockGetFirstEncodableVideoCodec: vi.fn().mockResolvedValue("avc"),
     mockOutputStart: vi.fn().mockResolvedValue(undefined),
     mockOutputFinalize: vi.fn().mockResolvedValue(undefined),
+    mockCanEncodeVideo: vi.fn().mockResolvedValue(true),
   };
 });
 
@@ -154,6 +156,7 @@ vi.mock("mediabunny", () => {
     AudioBufferSource: MockAudioBufferSource,
     VideoSample: MockVideoSample,
     getFirstEncodableVideoCodec: mockGetFirstEncodableVideoCodec,
+    canEncodeVideo: mockCanEncodeVideo,
     getFirstEncodableAudioCodec: vi.fn().mockResolvedValue("aac"),
     QUALITY_MEDIUM: 1_000_000,
   };
@@ -167,6 +170,7 @@ import {
   VIDEO_QUALITY_PRESETS,
 } from "./types";
 import type { Project, Timeline, Track, Clip } from "../types";
+import type { ExportResult } from "./types";
 
 const createMockProject = (overrides?: Partial<Project>): Project => ({
   id: "test-project-id",
@@ -187,7 +191,7 @@ const createMockProject = (overrides?: Partial<Project>): Project => ({
         name: "Mock video",
         type: "video",
         fileHandle: null,
-        blob: null,
+        blob: new Blob(["original media"]),
         metadata: {
           duration: 40,
           width: 1920,
@@ -269,6 +273,7 @@ describe("ExportEngine", () => {
     mockMediaEngine.getExportDecoder.mockReturnValue(null);
     mockVideoSourceConfigs.length = 0;
     mockGetFirstEncodableVideoCodec.mockResolvedValue("avc");
+    mockCanEncodeVideo.mockResolvedValue(true);
     mockRenderFrame.mockResolvedValue({
       image: { close: vi.fn() },
       width: 1920,
@@ -443,7 +448,7 @@ describe("ExportEngine", () => {
 
     async function drainVideoExport(
       settings = { ...DEFAULT_VIDEO_SETTINGS, frameRate: 1, width: 640, height: 360 },
-    ): Promise<void> {
+    ): Promise<ExportResult> {
       const project = createMockProject({
         timeline: createMockTimeline({
           tracks: [
@@ -459,8 +464,8 @@ describe("ExportEngine", () => {
       const generator = exportEngine.exportVideo(project, settings, writableStream);
 
       while (true) {
-        const { done } = await generator.next();
-        if (done) break;
+        const { done, value } = await generator.next();
+        if (done) return value;
       }
     }
 
@@ -506,13 +511,68 @@ describe("ExportEngine", () => {
       expect(mockAudioEngine.clearCache).toHaveBeenCalled();
     });
 
+    it("aborts GPU initialization failures, restores preview mode, and allows retry", async () => {
+      mockVideoEngine.initializeGPUCompositor.mockRejectedValueOnce(new Error("GPU initialization failed"));
+      expect(await drainVideoExport()).toMatchObject({ success: false, error: { message: expect.stringContaining("GPU initialization failed") } });
+      expect(writableStream.abort).toHaveBeenCalled();
+      expect(mockVideoEngine).toHaveProperty("exportMode", false);
+      expect(await drainVideoExport()).toMatchObject({ success: true });
+    });
+
+    it("reports an unsupported requested codec before rendering instead of substituting", async () => {
+      mockGetFirstEncodableVideoCodec.mockResolvedValue(null);
+      expect(await drainVideoExport()).toMatchObject({ success: false, error: { code: "UNSUPPORTED_CODEC" } });
+      expect(mockRenderFrame).not.toHaveBeenCalled();
+      expect(writableStream.abort).toHaveBeenCalled();
+      expect(mockVideoEngine).toHaveProperty("exportMode", false);
+    });
+
+    it("reports output commit failure and permits another export", async () => {
+      vi.mocked(writableStream.close).mockRejectedValueOnce(new Error("Disk full"));
+      expect(await drainVideoExport()).toMatchObject({ success: false, error: { message: "Disk full" } });
+      expect(writableStream.abort).toHaveBeenCalled();
+      expect(mockVideoEngine).toHaveProperty("exportMode", false);
+      expect(await drainVideoExport()).toMatchObject({ success: true });
+    });
+
+    it("checks cancellation after the last frame before committing output", async () => {
+      mockVideoSourceAdd.mockImplementationOnce(async () => { exportEngine.cancel(); });
+      expect(await drainVideoExport()).toMatchObject({ success: false, error: { code: "CANCELLED" } });
+      expect(writableStream.close).not.toHaveBeenCalled();
+      expect(writableStream.abort).toHaveBeenCalled();
+      expect(mockVideoEngine).toHaveProperty("exportMode", false);
+      expect(await drainVideoExport()).toMatchObject({ success: true });
+    });
+
+    it("decodes the original video blob for export", async () => {
+      expect(await drainVideoExport()).toMatchObject({ success: true });
+      expect(mockMediaEngine.createExportDecoder).toHaveBeenCalledWith("media-1", expect.any(Blob), 640);
+    });
+
+    it("renders export audio at the selected sample rate and channel count", async () => {
+      expect(await drainVideoExport({ ...DEFAULT_VIDEO_SETTINGS, frameRate: 1, width: 640, height: 360, audioSettings: { ...DEFAULT_VIDEO_SETTINGS.audioSettings, sampleRate: 96000, channels: 1 } })).toMatchObject({ success: true });
+      expect(mockRenderAudio).toHaveBeenCalledWith(expect.objectContaining({ settings: expect.objectContaining({ sampleRate: 96000, channels: 1 }) }), 0, 1);
+    });
+
+    it("cleans up when a cancelled export generator is closed at a yield", async () => {
+      await exportEngine.initialize();
+      const project = createMockProject({ timeline: createMockTimeline({ tracks: [createMockTrack({ clips: [createMockClip({ duration: 1, outPoint: 1 })] })] }) });
+      const generator = exportEngine.exportVideo(project, DEFAULT_VIDEO_SETTINGS, writableStream);
+      await generator.next();
+      exportEngine.cancel();
+      await generator.return({ success: false });
+      expect(writableStream.abort).toHaveBeenCalled();
+      expect(mockVideoEngine).toHaveProperty("exportMode", false);
+      expect(await drainVideoExport()).toMatchObject({ success: true });
+    });
+
     it("prefers hardware WebCodecs for the default browser backend", async () => {
       mockGetFirstEncodableVideoCodec.mockImplementation(async (codecs) => codecs[0]);
 
       await drainVideoExport();
 
       expect(mockGetFirstEncodableVideoCodec).toHaveBeenCalledWith(
-        ["avc", "hevc"],
+        ["avc"],
         expect.objectContaining({ hardwareAcceleration: "prefer-hardware" }),
       );
       expect(mockVideoSourceConfigs[0]).toMatchObject({
@@ -544,13 +604,13 @@ describe("ExportEngine", () => {
       await drainVideoExport();
 
       expect(mockGetFirstEncodableVideoCodec).toHaveBeenNthCalledWith(
-        1,
-        ["avc", "hevc"],
+        2,
+        ["avc"],
         expect.objectContaining({ hardwareAcceleration: "prefer-hardware" }),
       );
       expect(mockGetFirstEncodableVideoCodec).toHaveBeenNthCalledWith(
-        2,
-        ["avc", "hevc"],
+        3,
+        ["avc"],
         expect.objectContaining({ hardwareAcceleration: "no-preference" }),
       );
       expect(mockVideoSourceConfigs[0]).toMatchObject({
@@ -571,12 +631,20 @@ describe("ExportEngine", () => {
       });
 
       expect(mockGetFirstEncodableVideoCodec).toHaveBeenCalledWith(
-        ["hevc", "avc"],
+        ["hevc"],
         expect.objectContaining({ hardwareAcceleration: "prefer-hardware" }),
       );
       expect(mockVideoSourceConfigs[0]).toMatchObject({
         codec: "hevc",
       });
+    });
+
+    it("validates the hardware hint and retries the same codec without it", async () => {
+      mockGetFirstEncodableVideoCodec.mockResolvedValue("avc");
+      mockCanEncodeVideo.mockImplementation(async (_codec, config) => config.hardwareAcceleration !== "prefer-hardware");
+      expect(await drainVideoExport()).toMatchObject({ success: true });
+      expect(mockCanEncodeVideo).toHaveBeenCalledWith("avc", expect.objectContaining({ hardwareAcceleration: "prefer-hardware", bitrateMode: "constant" }));
+      expect(mockVideoSourceConfigs[0]).toMatchObject({ codec: "avc", hardwareAcceleration: "no-preference", bitrateMode: "constant" });
     });
   });
 

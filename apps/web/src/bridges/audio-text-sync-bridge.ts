@@ -7,6 +7,7 @@ import {
   type BeatAnalysisResult,
   DEFAULT_BEAT_SYNC_CONFIG,
 } from "@openreel/core";
+import { loadAudioBuffer } from "../utils/load-audio-buffer";
 import { useProjectStore } from "../stores/project-store";
 
 export interface BeatSyncState {
@@ -38,6 +39,9 @@ const initialState: BeatSyncState = {
 export class BeatSyncBridge {
   private state: BeatSyncState = { ...initialState };
   private listeners: Set<StateListener> = new Set();
+  private analysisVersion = 0;
+  private analyzedSource = "";
+  private previewSnapshot = "";
   private audioContext: AudioContext | null = null;
 
   subscribe(listener: StateListener): () => void {
@@ -56,8 +60,14 @@ export class BeatSyncBridge {
   }
 
   setSelectedAudioClip(clipId: string | null): void {
+    this.analysisVersion++;
+    this.analyzedSource = "";
     this.setState({
       selectedAudioClipId: clipId,
+      isProcessing: false,
+      progress: null,
+      selectedTrackIds: [],
+      clipsToSync: [],
       beatAnalysis: null,
       previewTimings: [],
       error: null,
@@ -65,7 +75,7 @@ export class BeatSyncBridge {
   }
 
   setSelectedTracks(trackIds: string[]): void {
-    this.setState({ selectedTrackIds: trackIds });
+    this.setState({ selectedTrackIds: trackIds, progress: null });
     this.updateClipsToSync();
     this.updatePreview();
   }
@@ -81,7 +91,9 @@ export class BeatSyncBridge {
   updateConfig(updates: Partial<BeatSyncConfig>): void {
     this.setState({
       config: { ...this.state.config, ...updates } as BeatSyncConfig,
+      progress: null,
     });
+    this.updateClipsToSync();
     this.updatePreview();
   }
 
@@ -93,8 +105,10 @@ export class BeatSyncBridge {
     const clips: ClipInfo[] = [];
 
     for (const track of project.timeline.tracks) {
-      if (selectedTrackIds.includes(track.id)) {
+      if (selectedTrackIds.includes(track.id) && !track.locked) {
         for (const clip of track.clips) {
+          if (clip.id === this.state.selectedAudioClipId) continue;
+          if (this.state.config.syncMode === "cut-to-beats" && store.getMediaItem(clip.mediaId)?.type !== "video") continue;
           clips.push({
             id: clip.id,
             startTime: clip.startTime,
@@ -120,17 +134,56 @@ export class BeatSyncBridge {
     const audioStartTime = audioClip?.startTime ?? 0;
 
     const engine = getBeatSyncEngine();
-    const timings = engine.calculateSyncedTimings(
-      clipsToSync,
-      beatAnalysis,
-      audioStartTime,
-      config,
-    );
+    try {
+      const timings = engine.calculateSyncedTimings(
+        clipsToSync,
+        beatAnalysis,
+        audioStartTime,
+        config,
+      );
 
-    this.setState({ previewTimings: timings });
+      if (config.syncMode === "cut-to-beats") {
+        for (const timing of timings) {
+          const clip = store.getClip(timing.clipId)!;
+          const track = store.project.timeline.tracks.find((candidate) => candidate.id === clip.trackId)!;
+          if ((clip.speed ?? 1) !== 1 || clip.reversed || clip.speedKeyframes?.length || clip.freezeFrames?.length) {
+            throw new Error("Reset video speed and freeze frames before cutting to beats.");
+          }
+          if (track.groupId || track.transitions.length) {
+            throw new Error("Ungroup tracks and remove transitions before cutting to beats.");
+          }
+          if (track.clips.some((other) => !timings.some((item) => item.clipId === other.id) &&
+            other.startTime < timing.newStartTime + timing.newDuration &&
+            other.startTime + other.duration > timing.newStartTime)) {
+            throw new Error("Other clips occupy the planned sequence. Move them to another track first.");
+          }
+        }
+      }
+      this.previewSnapshot = JSON.stringify(store.project.timeline);
+      this.setState({ previewTimings: timings, error: null });
+    } catch (error) {
+      this.setState({ previewTimings: [], error: error instanceof Error ? error.message : "Cannot plan beat cuts" });
+    }
+  }
+
+  private sourceSnapshot(): string {
+    const store = useProjectStore.getState();
+    const clip = this.state.selectedAudioClipId ? store.getClip(this.state.selectedAudioClipId) : null;
+    return JSON.stringify([store.project.id, clip]);
+  }
+
+  refreshProject(): void {
+    if (this.state.isProcessing) return;
+    if (this.state.beatAnalysis && this.analyzedSource !== this.sourceSnapshot()) {
+      this.setState({ beatAnalysis: null, previewTimings: [], progress: null,
+        error: "The music clip changed. Detect beats again." });
+    }
+    this.updateClipsToSync();
+    this.updatePreview();
   }
 
   async analyzeBeats(): Promise<void> {
+    if (this.state.isProcessing) return;
     const { selectedAudioClipId } = this.state;
     if (!selectedAudioClipId) {
       this.setState({ error: "No audio clip selected" });
@@ -150,20 +203,31 @@ export class BeatSyncBridge {
       return;
     }
 
-    this.setState({ isProcessing: true, error: null });
+    if ((clip.speed ?? 1) !== 1 || clip.reversed || clip.speedKeyframes?.length || clip.freezeFrames?.length) {
+      this.setState({ error: "Reset music speed and freeze frames before detecting beats." });
+      return;
+    }
+    const version = ++this.analysisVersion;
+    const sourceSnapshot = this.sourceSnapshot();
+    this.setState({ isProcessing: true, error: null, beatAnalysis: null, previewTimings: [], progress: null });
 
     try {
       const audioBlob = await this.extractAudioFromBlob(
         mediaItem.blob,
         clip.inPoint ?? 0,
-        clip.outPoint ?? clip.duration,
+        Math.min(clip.outPoint, clip.inPoint + clip.duration),
+        clip.audioTrackIndex ?? 0,
       );
 
       const engine = getBeatSyncEngine();
       const beatAnalysis = await engine.analyzeBeats(audioBlob, (progress) =>
-        this.setState({ progress }),
+        { if (version === this.analysisVersion) this.setState({ progress }); },
       );
 
+      if (version !== this.analysisVersion) return;
+      if (sourceSnapshot !== this.sourceSnapshot()) throw new Error("The music clip changed. Detect beats again.");
+      if (beatAnalysis.beats.length < 2) throw new Error("No usable beats detected. Try a music clip with a clearer rhythm.");
+      this.analyzedSource = sourceSnapshot;
       this.setState({
         beatAnalysis,
         isProcessing: false,
@@ -172,6 +236,7 @@ export class BeatSyncBridge {
 
       this.updatePreview();
     } catch (error) {
+      if (version !== this.analysisVersion) return;
       this.setState({
         isProcessing: false,
         error: error instanceof Error ? error.message : "Beat analysis failed",
@@ -181,7 +246,8 @@ export class BeatSyncBridge {
   }
 
   async applySync(): Promise<boolean> {
-    const { previewTimings } = this.state;
+    if (this.state.isProcessing) return false;
+    const { previewTimings, config } = this.state;
     if (previewTimings.length === 0) {
       this.setState({ error: "No clips to sync" });
       return false;
@@ -189,20 +255,32 @@ export class BeatSyncBridge {
 
     const store = useProjectStore.getState();
 
-    this.setState({ isProcessing: true, error: null });
-
+    if (this.analyzedSource !== this.sourceSnapshot() || this.previewSnapshot !== JSON.stringify(store.project.timeline)) {
+      this.refreshProject();
+      this.setState({ error: "The timeline changed. Review the refreshed preview before applying." });
+      return false;
+    }
+    this.setState({ isProcessing: true, error: null, progress: null });
+    let applied = 0;
+    store.beginHistoryGroup("Sync video cuts to beats");
     try {
       for (const timing of previewTimings) {
-        await store.moveClip(timing.clipId, timing.newStartTime);
+        const moved = await store.moveClip(timing.clipId, timing.newStartTime);
+        if (!moved.success) throw new Error(moved.error?.message ?? "Could not move clip");
+        applied++;
 
         const clip = store.getClip(timing.clipId);
-        if (clip && this.state.config.syncMode !== "preserve-duration") {
+        if (clip && config.syncMode !== "preserve-duration") {
           const newOutPoint = (clip.inPoint ?? 0) + timing.newDuration;
-          await store.trimClip(timing.clipId, clip.inPoint, newOutPoint);
+          const trimmed = await store.trimClip(timing.clipId, clip.inPoint, newOutPoint);
+          if (!trimmed.success) throw new Error(trimmed.error?.message ?? "Could not trim clip");
+          applied++;
         }
       }
 
+      store.endHistoryGroup();
       this.setState({
+        previewTimings: [],
         isProcessing: false,
         progress: {
           phase: "complete",
@@ -213,6 +291,8 @@ export class BeatSyncBridge {
 
       return true;
     } catch (error) {
+      store.endHistoryGroup();
+      if (applied > 0) await store.undo();
       this.setState({
         isProcessing: false,
         error: error instanceof Error ? error.message : "Failed to apply sync",
@@ -232,12 +312,14 @@ export class BeatSyncBridge {
       : null;
 
     return project.timeline.tracks
-      .filter((track) => track.id !== audioTrackId && track.clips.length > 0)
+      .filter((track) => !track.locked && (this.state.config.syncMode === "cut-to-beats"
+        ? track.clips.some((clip) => store.getMediaItem(clip.mediaId)?.type === "video")
+        : track.id !== audioTrackId && track.clips.length > 0))
       .map((track) => ({
         id: track.id,
         name: track.name,
         type: track.type,
-        clipCount: track.clips.length,
+        clipCount: track.clips.filter((clip) => this.state.config.syncMode !== "cut-to-beats" || store.getMediaItem(clip.mediaId)?.type === "video").length,
       }));
   }
 
@@ -245,35 +327,43 @@ export class BeatSyncBridge {
     blob: Blob,
     inPoint: number,
     outPoint: number,
+    audioTrackIndex: number,
   ): Promise<Blob> {
     if (!this.audioContext) {
       this.audioContext = new AudioContext();
     }
 
-    const arrayBuffer = await blob.arrayBuffer();
-    const audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
+    const audioBuffer = await loadAudioBuffer(this.audioContext, blob, { audioTrackIndex });
+    if (!audioBuffer) throw new Error("Could not decode the music clip.");
 
     const duration = Math.min(outPoint - inPoint, audioBuffer.duration - inPoint);
+    if (duration <= 0) throw new Error("The music clip has no audio in its trimmed range.");
     const sampleRate = audioBuffer.sampleRate;
     const startSample = Math.floor(inPoint * sampleRate);
     const numSamples = Math.floor(duration * sampleRate);
 
-    const offlineContext = new OfflineAudioContext(1, numSamples, sampleRate);
-    const trimmedBuffer = offlineContext.createBuffer(1, numSamples, sampleRate);
-    const channelData = trimmedBuffer.getChannelData(0);
-    const sourceData = audioBuffer.getChannelData(0);
-
-    for (let i = 0; i < numSamples; i++) {
-      channelData[i] = sourceData[startSample + i] || 0;
+    if (numSamples < 1) throw new Error("The music clip is too short to analyze.");
+    // Choose the strongest channel within the trim. This supports right-only
+    // recordings and avoids cancelling phase-inverted stereo when downmixing.
+    let sourceData = audioBuffer.getChannelData(0);
+    let strongestEnergy = 0;
+    for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
+      const samples = audioBuffer.getChannelData(channel);
+      let energy = 0;
+      for (let i = startSample; i < startSample + numSamples; i++) {
+        energy += samples[i] * samples[i];
+      }
+      if (energy > strongestEnergy) {
+        strongestEnergy = energy;
+        sourceData = samples;
+      }
     }
-
-    const source = offlineContext.createBufferSource();
-    source.buffer = trimmedBuffer;
-    source.connect(offlineContext.destination);
-    source.start(0);
-
-    const renderedBuffer = await offlineContext.startRendering();
-    return this.audioBufferToWav(renderedBuffer);
+    if (strongestEnergy / numSamples < 1e-10) {
+      throw new Error("The selected music range is silent. Choose a range with audible music.");
+    }
+    const trimmedBuffer = this.audioContext.createBuffer(1, numSamples, sampleRate);
+    trimmedBuffer.getChannelData(0).set(sourceData.subarray(startSample, startSample + numSamples));
+    return this.audioBufferToWav(trimmedBuffer);
   }
 
   private audioBufferToWav(buffer: AudioBuffer): Blob {
@@ -325,10 +415,12 @@ export class BeatSyncBridge {
   }
 
   reset(): void {
+    this.analysisVersion++;
     this.setState({ ...initialState });
   }
 
   dispose(): void {
+    this.analysisVersion++;
     if (this.audioContext) {
       this.audioContext.close();
       this.audioContext = null;

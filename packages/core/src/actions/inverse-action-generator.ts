@@ -428,6 +428,18 @@ export class InverseActionGenerator {
         });
       }
 
+      case "clip/trimToPlayhead": {
+        const clip = this.findClip(timeline, action.params.clipId);
+        if (!clip) return null;
+        return this.createInverseAction(action, "clip/restoreTiming", {
+          clipId: clip.id,
+          startTime: clip.startTime,
+          duration: clip.duration,
+          inPoint: clip.inPoint,
+          outPoint: clip.outPoint,
+        });
+      }
+
       case "clip/split": {
         // To undo split, we need to merge the two clips back
         const clip = this.findClip(timeline, action.params.clipId);

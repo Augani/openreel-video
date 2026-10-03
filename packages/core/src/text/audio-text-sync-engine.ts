@@ -8,17 +8,19 @@ export interface ClipTiming {
   readonly newDuration: number;
 }
 
-export type SyncMode = "smart" | "one-per-beat" | "preserve-duration";
+export type SyncMode = "cut-to-beats" | "smart" | "one-per-beat" | "preserve-duration";
 
 export interface BeatSyncConfig {
   readonly syncMode: SyncMode;
   readonly beatSubdivision: 1 | 2 | 4;
+  readonly beatsPerClip?: 1 | 2 | 4 | 8;
   readonly offsetMs: number;
   readonly snapToDownbeats: boolean;
 }
 
 export const DEFAULT_BEAT_SYNC_CONFIG: BeatSyncConfig = {
-  syncMode: "smart",
+  syncMode: "cut-to-beats",
+  beatsPerClip: 4,
   beatSubdivision: 1,
   offsetMs: 0,
   snapToDownbeats: false,
@@ -70,6 +72,10 @@ export class BeatSyncEngine {
   ): ClipTiming[] {
     if (clips.length === 0 || beatAnalysis.beats.length === 0) {
       return [];
+    }
+
+    if (config.syncMode === "cut-to-beats") {
+      return this.calculateBeatCuts(clips, beatAnalysis, audioStartTime, config);
     }
 
     const sortedClips = [...clips].sort((a, b) => a.startTime - b.startTime);
@@ -138,6 +144,44 @@ export class BeatSyncEngine {
       }
     }
 
+    return timings;
+  }
+
+  private calculateBeatCuts(
+    clips: ClipInfo[],
+    analysis: BeatAnalysisResult,
+    audioStartTime: number,
+    config: BeatSyncConfig,
+  ): ClipTiming[] {
+    const stride = config.beatsPerClip ?? 4;
+    if (![1, 2, 4, 8].includes(stride)) throw new Error("Choose 1, 2, 4, or 8 beats per clip.");
+    const offset = config.offsetMs / 1000;
+    const beats = [...new Set(analysis.beats.map((beat) => beat.time))]
+      .filter((time) => Number.isFinite(time) && time >= 0 && time <= analysis.duration)
+      .sort((a, b) => a - b)
+      .filter((time) => time + offset >= 0 && time + offset <= analysis.duration);
+    const timings: ClipTiming[] = [];
+    // Each track is its own sequence; layers must not consume one another's beats.
+    const trackIds = [...new Set(clips.map((clip) => clip.trackId))];
+    for (const trackId of trackIds) {
+      const sequence = clips.filter((clip) => clip.trackId === trackId)
+        .sort((a, b) => a.startTime - b.startTime);
+      if (beats.length < sequence.length * stride + 1) {
+        throw new Error("Not enough beats for every clip. Choose fewer beats per clip or a longer music clip.");
+      }
+      sequence.forEach((clip, index) => {
+        const start = beats[index * stride] + audioStartTime + offset;
+        const duration = beats[(index + 1) * stride] - beats[index * stride];
+        if (duration > clip.duration + 0.000001) {
+          throw new Error(`Clip ${index + 1} is too short for ${stride} beats. Extend its trim or choose fewer beats per clip.`);
+        }
+        if (!Number.isFinite(start) || start < 0 || duration < 0.1) {
+          throw new Error("Beat intervals must be at least 0.1 seconds and start on the timeline.");
+        }
+        timings.push({ clipId: clip.id, originalStartTime: clip.startTime,
+          originalDuration: clip.duration, newStartTime: start, newDuration: duration });
+      });
+    }
     return timings;
   }
 

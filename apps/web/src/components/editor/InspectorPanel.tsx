@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { Captions, Shuffle } from "@/icons/lucide-compat";
 import { useProjectStore } from "../../stores/project-store";
 import { useTimelineStore } from "../../stores/timeline-store";
@@ -52,6 +53,10 @@ import { EffectsTab } from "./inspector/tabs/EffectsTab";
 import { AiTab } from "./inspector/tabs/AiTab";
 import { TransitionInspector } from "./inspector/TransitionInspector";
 import { MultiClipInspector } from "./inspector/MultiClipInspector";
+import { QuickEditBar } from "./QuickEditBar";
+import { useInspectorNavigationStore } from "../../stores/inspector-navigation-store";
+
+const MultiCameraPanel = React.lazy(() => import("./inspector/MultiCameraPanel"));
 
 // Initialize engines as singletons
 const chromaKeyEngine = new ChromaKeyEngine({ width: 1920, height: 1080 });
@@ -127,9 +132,20 @@ export const InspectorPanel: React.FC = () => {
     getEditingTemplate,
     updateEditingTemplateApplication,
     removeEditingTemplateApplication,
-  } = useProjectStore();
+  } = useProjectStore(useShallow((state) => ({
+    getClip: state.getClip,
+    getClipTransition: state.getClipTransition,
+    updateClipTransition: state.updateClipTransition,
+    removeClipTransition: state.removeClipTransition,
+    importSRT: state.importSRT,
+    updateSubtitle: state.updateSubtitle,
+    getSubtitle: state.getSubtitle,
+    getEditingTemplate: state.getEditingTemplate,
+    updateEditingTemplateApplication: state.updateEditingTemplateApplication,
+    removeEditingTemplateApplication: state.removeEditingTemplateApplication,
+  })));
   const project = useProjectStore((state) => state.project);
-  const { getSelectedClipIds, clearSelection } = useUIStore();
+  const clearSelection = useUIStore((state) => state.clearSelection);
   const selectedItems = useUIStore((state) => state.selectedItems);
   const effectApplicationClipId = useUIStore(
     (state) => state.effectApplicationClipId,
@@ -140,7 +156,9 @@ export const InspectorPanel: React.FC = () => {
   const finishEffectApplication = useUIStore(
     (state) => state.finishEffectApplication,
   );
-  const selectedClipIds = getSelectedClipIds();
+  const selectedClipIds = useMemo(() => selectedItems.filter((item) =>
+    item.type === "clip" || item.type === "text-clip" || item.type === "shape-clip",
+  ).map((item) => item.id), [selectedItems]);
   const pausePlayback = useTimelineStore((state) => state.pause);
   const lockPlayback = useTimelineStore((state) => state.lockPlayback);
   const unlockPlayback = useTimelineStore((state) => state.unlockPlayback);
@@ -158,7 +176,8 @@ export const InspectorPanel: React.FC = () => {
 
   useEffect(() => {
     setExpandedRecipeApplicationId(null);
-  }, [selectedClipIds.join("|")]);
+    useInspectorNavigationStore.getState().clearRequest();
+  }, [selectedClipIds, project.id]);
 
   // Check if a subtitle is selected
   const selectedSubtitleId = useMemo(() => {
@@ -392,7 +411,13 @@ export const InspectorPanel: React.FC = () => {
     getAudioEffects,
     updateAudioEffect,
     toggleAudioEffect,
-  } = useProjectStore();
+  } = useProjectStore(useShallow((state) => ({
+    addVideoEffect: state.addVideoEffect,
+    updateVideoEffect: state.updateVideoEffect,
+    getAudioEffects: state.getAudioEffects,
+    updateAudioEffect: state.updateAudioEffect,
+    toggleAudioEffect: state.toggleAudioEffect,
+  })));
 
   const [isEnhancingAudio, setIsEnhancingAudio] = useState(false);
   const [audioEnhanced, setAudioEnhanced] = useState(false);
@@ -415,18 +440,30 @@ export const InspectorPanel: React.FC = () => {
       label: string,
       apply: () => void | Promise<void>,
     ) => {
+      const store = useProjectStore.getState();
+      const currentClip = store.getClip(clipId) ?? store.getTextClip(clipId) ??
+        store.getShapeClip(clipId) ?? store.getSVGClip(clipId) ?? store.getStickerClip(clipId);
+      const track = store.project.timeline.tracks.find((candidate) => candidate.id === currentClip?.trackId);
+      if (!currentClip || !track || track.locked ||
+        useUIStore.getState().exportState.isExporting ||
+        useUIStore.getState().effectApplicationClipId !== null ||
+        useTimelineStore.getState().playbackLockedReason) return;
+      const projectId = store.project.id;
       pausePlayback();
       lockPlayback(label);
       startEffectApplication(clipId, label);
 
       try {
         await waitForEffectApplicationPaint();
+        if (useProjectStore.getState().project.id !== projectId) return;
         await apply();
         window.dispatchEvent(new CustomEvent("openreel:preview-invalidate"));
         await waitForEffectApplicationPaint();
       } finally {
-        finishEffectApplication();
-        unlockPlayback();
+        if (useUIStore.getState().effectApplicationClipId === clipId) {
+          finishEffectApplication();
+          if (useTimelineStore.getState().playbackLockedReason === label) unlockPlayback();
+        }
       }
     },
     [
@@ -837,6 +874,16 @@ export const InspectorPanel: React.FC = () => {
 
       <div className="overflow-y-auto flex-1 min-h-0 custom-scrollbar">
       <div className="py-[18px] px-5">
+        {selectedTimelineClip && selectedClipIds.length === 1 && (
+          <QuickEditBar clipId={selectedTimelineClip.id} onCleanAudio={handleEnhanceAudio} isCleaningAudio={isEnhancingAudio} />
+        )}
+        <Section title="Multi-Camera Editing" sectionId="multicam">
+          <InspectorTabErrorBoundary>
+            <React.Suspense fallback={<p role="status">Loading camera tools…</p>}>
+              <MultiCameraPanel key={project.id} />
+            </React.Suspense>
+          </InspectorTabErrorBoundary>
+        </Section>
         {selectedClipIds.length > 1 ? (
           <MultiClipInspector clipIds={selectedClipIds} />
         ) : selectedClip ? (

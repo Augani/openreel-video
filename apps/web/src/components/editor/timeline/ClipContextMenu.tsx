@@ -43,12 +43,12 @@ export function useClipContextMenuItems({
     copiedEffects,
     closeGapBeforeClip,
   } = useProjectStore();
-  const { playheadPosition } = useTimelineStore();
   const selectMultiple = useUIStore((state) => state.selectMultiple);
 
-  const isPlayheadOnClip =
-    playheadPosition >= clip.startTime &&
-    playheadPosition <= clip.startTime + clip.duration;
+  const isPlayheadOnClip = useTimelineStore((state) =>
+    state.playheadPosition >= clip.startTime &&
+    state.playheadPosition <= clip.startTime + clip.duration,
+  );
 
   const hasGapBeforeClip = React.useMemo(() => {
     const sorted = [...track.clips].sort((a, b) => a.startTime - b.startTime);
@@ -100,7 +100,11 @@ export function useClipContextMenuItems({
   };
 
   const handleSplit = async () => {
-    if (isPlayheadOnClip) {
+    const playheadPosition = useTimelineStore.getState().playheadPosition;
+    if (
+      playheadPosition >= clip.startTime &&
+      playheadPosition <= clip.startTime + clip.duration
+    ) {
       await splitClip(clip.id, playheadPosition);
     }
     onClose?.();

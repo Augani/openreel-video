@@ -45,6 +45,7 @@ import {
 } from "@openreel/ui";
 import { useProjectStore } from "../../stores/project-store";
 import { useTimelineStore, ZOOM_PRESETS } from "../../stores/timeline-store";
+import { useCompactEditor } from "../../hooks/useCompactEditor";
 import { useUIStore } from "../../stores/ui-store";
 import { toast } from "../../stores/notification-store";
 import { useEngineStore } from "../../stores/engine-store";
@@ -95,6 +96,8 @@ const ADD_TRACK_ROW_HEIGHT = 36;
 const TIMELINE_SCROLLBAR_SIZE = 10;
 
 export const Timeline: React.FC = () => {
+  const compact = useCompactEditor();
+  const headerWidth = compact ? 108 : 170;
   const containerRef = useRef<HTMLDivElement>(null);
   const tracksRef = useRef<HTMLDivElement>(null);
   const trackHeadersRef = useRef<HTMLDivElement>(null);
@@ -216,6 +219,7 @@ export const Timeline: React.FC = () => {
     zoomOut,
     setZoom,
     trackHeight,
+    trackHeights,
     setTrackHeight,
     setTrackHeightById,
     getTrackHeight,
@@ -265,7 +269,10 @@ export const Timeline: React.FC = () => {
     timelineMaximized,
     toggleTimelineMaximized,
   } = useUIStore();
-  const selectedClipIds = getSelectedClipIds();
+  const selectedClipIds = useMemo(
+    () => getSelectedClipIds(),
+    [getSelectedClipIds, selectedItems],
+  );
   const splittableSelectedClipIds = useMemo(
     () =>
       getSplittableTimelineItemIds(project, selectedClipIds, playheadPosition),
@@ -288,11 +295,13 @@ export const Timeline: React.FC = () => {
     return titleEngine?.getAllTextClips() ?? [];
   }, [titleEngine, project.modifiedAt]);
 
-  const getTextClipsForTrack = useCallback(
-    (trackId: string) => {
-      return allTextClips.filter((tc) => tc.trackId === trackId);
-    },
-    [allTextClips],
+  const textClipsByTrack = useMemo(
+    () =>
+      new Map(tracks.map((track) => [
+        track.id,
+        allTextClips.filter((clip) => clip.trackId === track.id),
+      ])),
+    [allTextClips, tracks],
   );
 
   const graphicsEngine = getGraphicsEngine();
@@ -303,11 +312,13 @@ export const Timeline: React.FC = () => {
     return [...shapes, ...svgs, ...stickers];
   }, [graphicsEngine, project.modifiedAt]);
 
-  const getShapeClipsForTrack = useCallback(
-    (trackId: string) => {
-      return allShapeClips.filter((sc) => sc.trackId === trackId);
-    },
-    [allShapeClips],
+  const shapeClipsByTrack = useMemo(
+    () =>
+      new Map(tracks.map((track) => [
+        track.id,
+        allShapeClips.filter((clip) => clip.trackId === track.id),
+      ])),
+    [allShapeClips, tracks],
   );
   const [isBoxSelecting, setIsBoxSelecting] = React.useState(false);
   const [selectionBox, setSelectionBox] = React.useState<{
@@ -353,7 +364,7 @@ export const Timeline: React.FC = () => {
       height += getTrackHeight(track.id, track.type);
     }
     return height;
-  }, [tracks, getTrackHeight]);
+  }, [tracks, getTrackHeight, trackHeight, trackHeights]);
 
   const trackHeightsMap = useMemo(() => {
     const map = new Map<string, number>();
@@ -361,7 +372,7 @@ export const Timeline: React.FC = () => {
       map.set(track.id, getTrackHeight(track.id, track.type));
     }
     return map;
-  }, [tracks, getTrackHeight]);
+  }, [tracks, getTrackHeight, trackHeight, trackHeights]);
 
   useEffect(() => {
     const el = tracksRef.current;
@@ -1420,7 +1431,7 @@ export const Timeline: React.FC = () => {
         onClick={handleBackgroundClick}
       >
         <div className="flex shrink-0">
-          <div className="w-[170px] h-[34px] bg-bg-1 border-b border-r border-border shrink-0" />
+          <div style={{ width: headerWidth, height: compact ? 44 : 34 }} className="bg-bg-1 border-b border-r border-border shrink-0" />
           <div className="flex-1 overflow-hidden relative bg-bg-1 border-b border-border">
             <div
               style={{
@@ -1455,7 +1466,8 @@ export const Timeline: React.FC = () => {
           <div
             ref={trackHeadersRef}
             data-testid="timeline-track-headers-scroll"
-            className="w-[170px] bg-bg-1 border-r border-border shrink-0 z-20 overflow-y-auto overflow-x-hidden scrollbar-none overscroll-contain"
+            style={{ width: headerWidth }}
+            className="bg-bg-1 border-r border-border shrink-0 z-20 overflow-y-auto overflow-x-hidden scrollbar-none overscroll-contain"
             onDragOverCapture={handleTrackDragOver}
             onScroll={(e) => {
               const nextScrollTop = e.currentTarget.scrollTop;
@@ -1639,8 +1651,8 @@ export const Timeline: React.FC = () => {
                   allTracks={visualOrderTracks}
                   pixelsPerSecond={pixelsPerSecond}
                   selectedClipIds={selectedClipIds}
-                  textClips={getTextClipsForTrack(track.id)}
-                  shapeClips={getShapeClipsForTrack(track.id)}
+                  textClips={textClipsByTrack.get(track.id)!}
+                  shapeClips={shapeClipsByTrack.get(track.id)!}
                   trackHeights={trackHeightsMap}
                   timelineRef={tracksRef}
                   onSelectClip={handleSelectClip}
@@ -1726,7 +1738,7 @@ export const Timeline: React.FC = () => {
           position={playheadPosition}
           pixelsPerSecond={pixelsPerSecond}
           scrollX={scrollX}
-          headerOffset={170}
+          headerOffset={headerWidth}
         />
       </div>
     </div>

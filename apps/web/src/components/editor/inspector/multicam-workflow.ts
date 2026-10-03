@@ -51,16 +51,20 @@ export function prepareMulticamAnalysisAudio(
   buffer: AudioBuffer,
   targetSampleRate = 2_000,
 ): { samples: Float32Array; sampleRate: number } {
-  const stride = Math.max(1, Math.floor(buffer.sampleRate / targetSampleRate));
-  const samples = new Float32Array(Math.ceil(buffer.length / stride));
-  const channelCount = Math.max(1, buffer.numberOfChannels);
-  for (let channel = 0; channel < buffer.numberOfChannels; channel++) {
-    const channelData = buffer.getChannelData(channel);
-    for (let index = 0; index < samples.length; index++) {
-      samples[index] += (channelData[index * stride] ?? 0) / channelCount;
+  const sampleRate = Math.min(buffer.sampleRate, targetSampleRate);
+  const samples = new Float32Array(Math.floor(buffer.length * sampleRate / buffer.sampleRate));
+  const channels = Array.from({ length: buffer.numberOfChannels }, (_, channel) => buffer.getChannelData(channel));
+  // Average each source window before downsampling, with one exact rate across cameras.
+  for (let index = 0; index < samples.length; index++) {
+    const start = Math.floor(index * buffer.sampleRate / sampleRate);
+    const end = Math.min(buffer.length, Math.floor((index + 1) * buffer.sampleRate / sampleRate));
+    let sum = 0;
+    for (const channel of channels) {
+      for (let source = start; source < end; source++) sum += channel[source];
     }
+    samples[index] = sum / Math.max(1, (end - start) * channels.length);
   }
-  return { samples, sampleRate: buffer.sampleRate / stride };
+  return { samples, sampleRate };
 }
 
 export function buildMulticamManifest(
@@ -178,13 +182,19 @@ export async function analyzeMulticamSyncInWorker(
     );
     const requestId = crypto.randomUUID();
     const model = await new Promise<MulticamDriftModel>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        worker.terminate();
+        reject(new Error("Audio synchronization timed out. Try shorter source clips or set offsets manually."));
+      }, 60_000);
       worker.onmessage = (event: MessageEvent<{ requestId: string; type: string; model?: MulticamDriftModel; message?: string }>) => {
         if (event.data.requestId !== requestId) return;
+        clearTimeout(timeout);
         worker.terminate();
         if (event.data.type === "result" && event.data.model) resolve(event.data.model);
         else reject(new Error(event.data.message ?? "Audio synchronization failed."));
       };
       worker.onerror = (event) => {
+        clearTimeout(timeout);
         worker.terminate();
         reject(new Error(event.message || "Audio synchronization worker failed."));
       };
@@ -218,7 +228,7 @@ export function getMulticamAnalysisDuration(
     const playbackRate = Math.max(0.01, source.clip.speed ?? 1);
     const availableMediaDuration = Math.max(
       0,
-      buffer.duration - source.clip.inPoint - Math.max(0, source.angle.offset),
+      Math.min(buffer.duration, source.clip.outPoint) - source.clip.inPoint - Math.max(0, source.angle.offset),
     ) / playbackRate;
     const alignedDuration = Math.min(source.clip.duration, availableMediaDuration);
     return Math.min(duration, alignedDuration);
@@ -234,9 +244,22 @@ export function updateAlignedSourceOffsets(
   if (!reference) return;
   for (const source of sources) {
     const result = results.get(source.angle.id);
+    if (!result || !Number.isFinite(result.offset) || result.confidence < 0.2 || result.method !== "audio") {
+      throw new Error(`Could not reliably sync ${source.angle.name}. Set camera offsets manually or use recordings with shared reference audio.`);
+    }
+  }
+  for (const source of sources) {
+    const result = results.get(source.angle.id);
     const angle = group.angles.find((candidate) => candidate.id === source.angle.id);
     if (!result || !angle) continue;
     angle.offset = result.offset + reference.clip.inPoint - source.clip.inPoint;
+  }
+  // Start where every trimmed source has footage, rather than leaving a gap
+  // when a camera needs samples before its selected in point.
+  const commonStart = Math.max(0, ...group.angles.map((angle) => -angle.offset));
+  if (commonStart > 0) {
+    group.syncPoint += commonStart;
+    for (const angle of group.angles) angle.offset += commonStart;
   }
 }
 
@@ -355,6 +378,7 @@ export function createMulticamApplyEditAction({
     timestamp: now(),
     params: {
       outputTracks: [createMulticamOutputTrack(group, outputTrackId, sequence)],
+      replacedOutputTrackIds: previousOutputTrackIds(project, group.id),
       outputTrackPosition: existingOutputIndex >= 0 ? existingOutputIndex : 0,
       sourceTrackIds: [...new Set(
         group.angles
@@ -384,6 +408,7 @@ export function createMulticamApplyTracksAction(input: {
     timestamp: (input.now ?? (() => Date.now()))(),
     params: {
       outputTracks: input.outputTracks.map((track) => structuredClone(track)),
+      replacedOutputTrackIds: previousOutputTrackIds(input.project, input.group.id),
       outputTrackPosition: existingOutputIndex >= 0 ? existingOutputIndex : 0,
       sourceTrackIds: [...new Set(
         input.group.angles
@@ -393,4 +418,9 @@ export function createMulticamApplyTracksAction(input: {
       groups: input.groups,
     },
   };
+}
+
+function previousOutputTrackIds(project: Project, groupId: string): string[] {
+  const group = project.multicamGroups?.find((entry) => entry.id === groupId);
+  return group?.outputTrackIds ?? (group?.outputTrackId ? [group.outputTrackId] : []);
 }

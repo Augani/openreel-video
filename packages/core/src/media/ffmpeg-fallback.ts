@@ -105,6 +105,7 @@ export class FFmpegFallback {
   private ffmpeg: FFmpegInstance | null = null;
   private loaded = false;
   private loading: Promise<void> | null = null;
+  private loadingAbortController: AbortController | null = null;
   private progressCallback:
     | ((data: { progress?: number; time?: number; message?: string; type?: string }) => void)
     | null = null;
@@ -117,34 +118,78 @@ export class FFmpegFallback {
     return `${Math.round(value * 2)}${unit}`;
   }
 
-  async load(): Promise<void> {
+  async load(signal?: AbortSignal): Promise<void> {
+    if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
     if (this.loaded) return;
     if (this.loading) return this.loading;
 
-    this.loading = this.doLoad();
+    this.loading = this.doLoad(signal);
     await this.loading;
   }
 
-  private async doLoad(): Promise<void> {
+  private async doLoad(signal?: AbortSignal): Promise<void> {
+    const controller = new AbortController();
+    this.loadingAbortController = controller;
+    const urls: string[] = [];
+    let instance: FFmpegInstance | undefined;
+    let downloadFailure: unknown;
+    const checkAborted = () => {
+      if (controller.signal.aborted) throw new DOMException("Aborted", "AbortError");
+    };
+    const cancel = () => {
+      if (this.loadingAbortController === controller) this.terminate();
+      else controller.abort();
+    };
+    signal?.addEventListener("abort", cancel, { once: true });
+    if (signal?.aborted) cancel();
     try {
       const { FFmpeg } = await import("@ffmpeg/ffmpeg");
-      const { toBlobURL } = await import("@ffmpeg/util");
-
-      this.ffmpeg = new FFmpeg() as unknown as FFmpegInstance;
-
-      const [coreURL, wasmURL] = await Promise.all([
-        toBlobURL(`${FFMPEG_CORE_BASE_URL}/ffmpeg-core.js`, "text/javascript"),
-        toBlobURL(`${FFMPEG_CORE_BASE_URL}/ffmpeg-core.wasm`, "application/wasm"),
+      checkAborted();
+      instance = new FFmpeg() as unknown as FFmpegInstance;
+      this.ffmpeg = instance;
+      const download = async (filename: string, mime: string): Promise<string> => {
+        try {
+          const response = await fetch(`${FFMPEG_CORE_BASE_URL}/${filename}`, { signal: controller.signal });
+          if (!response.ok) throw new Error(`FFmpeg download failed (${response.status}): ${filename}`);
+          const bytes = await response.arrayBuffer();
+          checkAborted();
+          const url = URL.createObjectURL(new Blob([bytes], { type: mime }));
+          urls.push(url);
+          return url;
+        } catch (error) {
+          if (!controller.signal.aborted) {
+            downloadFailure = error;
+            controller.abort();
+          }
+          throw error;
+        }
+      };
+      // Wait for both tasks to settle so no late download can create a URL
+      // after cleanup; a failed download aborts its sibling request.
+      const downloads = await Promise.allSettled([
+        download("ffmpeg-core.js", "text/javascript"),
+        download("ffmpeg-core.wasm", "application/wasm"),
       ]);
+      if (downloadFailure) throw downloadFailure;
+      checkAborted();
+      const [core, wasm] = downloads;
+      if (core.status === "rejected") throw core.reason;
+      if (wasm.status === "rejected") throw wasm.reason;
+      const coreURL = core.value;
+      const wasmURL = wasm.value;
 
-      await this.ffmpeg.load({
+      await instance.load({
         coreURL,
         wasmURL,
       });
-
+      checkAborted();
       this.loaded = true;
     } catch (error) {
-      this.loading = null;
+      const aborted = signal?.aborted || (controller.signal.aborted && !downloadFailure);
+      // A cancelled loader must never reset a replacement loader's state.
+      if (this.loadingAbortController === controller) this.terminate();
+      else if (!controller.signal.aborted) instance?.terminate();
+      if (aborted) throw new DOMException("Aborted", "AbortError");
       console.error("[FFmpeg] Load error:", error);
 
       throw new Error(
@@ -152,6 +197,10 @@ export class FFmpegFallback {
           error instanceof Error ? error.message : "Unknown error"
         }`,
       );
+    } finally {
+      signal?.removeEventListener("abort", cancel);
+      for (const url of urls) URL.revokeObjectURL(url);
+      if (this.loadingAbortController === controller) this.loadingAbortController = null;
     }
   }
 
@@ -322,15 +371,23 @@ export class FFmpegFallback {
     file: File | Blob,
     settings: Partial<ProxySettings> = {},
     onProgress?: (progress: ExportProgress) => void,
+    signal?: AbortSignal,
   ): Promise<Blob> {
-    await this.load();
+    if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
+    await this.load(signal);
+    if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
     this.ensureLoaded();
     const opts: ProxySettings = { ...PROXY_PRESETS.medium, ...settings };
     const inputFilename = "input";
     const outputFilename = "proxy.mp4";
+    // Proxy callers use an isolated fallback instance so cancellation cannot
+    // interrupt an unrelated export or media import.
+    const cancel = () => this.terminate();
+    signal?.addEventListener("abort", cancel, { once: true });
 
     try {
       const inputData = await this.fileToUint8Array(file);
+      if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
       await this.ffmpeg!.writeFile(inputFilename, inputData);
       this.setupProgressTracking(onProgress);
       let scaleFilter: string;
@@ -353,6 +410,8 @@ export class FFmpegFallback {
         opts.preset,
         "-crf",
         opts.crf.toString(),
+        "-force_key_frames",
+        "expr:gte(t,n_forced*1)",
         "-c:a",
         "aac",
         "-b:a",
@@ -364,8 +423,13 @@ export class FFmpegFallback {
       ]);
 
       const data = await this.ffmpeg!.readFile(outputFilename);
+      if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
       return new Blob([data.buffer as ArrayBuffer], { type: "video/mp4" });
+    } catch (error) {
+      if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
+      throw error;
     } finally {
+      signal?.removeEventListener("abort", cancel);
       this.removeProgressTracking();
       await this.cleanupFiles([inputFilename, outputFilename]);
     }
@@ -1159,13 +1223,15 @@ export class FFmpegFallback {
   }
 
   terminate(): void {
+    this.loadingAbortController?.abort();
+    this.loadingAbortController = null;
     if (this.ffmpeg) {
       this.removeProgressTracking();
       this.ffmpeg.terminate();
       this.ffmpeg = null;
-      this.loaded = false;
-      this.loading = null;
     }
+    this.loaded = false;
+    this.loading = null;
   }
 }
 let ffmpegInstance: FFmpegFallback | null = null;

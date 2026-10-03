@@ -83,6 +83,7 @@ export class RealtimeAudioGraph {
   private seekPending = false;
   private scheduleAheadTime = 0.2;
   private schedulerIntervalId: number | null = null;
+  private scheduleAudioNow: (() => void) | null = null;
   /** Persist mixer volume/pan so they survive track recreate (e.g. on seek). */
   private trackVolumeOverrides: Map<string, number> = new Map();
   private trackPanOverrides: Map<string, number> = new Map();
@@ -692,7 +693,7 @@ export class RealtimeAudioGraph {
     this.seekPending = false;
 
     const scheduleAudio = () => {
-      if (!this.isPlaying) return;
+      if (!this.isPlaying || !this.masterClock.isPlaying) return;
 
       const currentTime = this.masterClock.currentTime;
       const scheduleUntil = currentTime + this.scheduleAheadTime;
@@ -718,12 +719,14 @@ export class RealtimeAudioGraph {
       }
     };
 
+    this.scheduleAudioNow = scheduleAudio;
     this.schedulerIntervalId = window.setInterval(scheduleAudio, 100);
     scheduleAudio();
   }
 
   stopScheduler(): void {
     this.isPlaying = false;
+    this.scheduleAudioNow = null;
     if (this.schedulerIntervalId !== null) {
       window.clearInterval(this.schedulerIntervalId);
       this.schedulerIntervalId = null;
@@ -735,6 +738,12 @@ export class RealtimeAudioGraph {
     this.stopAllClips();
     this.lastScheduledTime = time;
     this.seekPending = true;
+    if (this.isPlaying && this.masterClock.isPlaying && this.scheduleAudioNow) {
+      // Loop wraps and playing seeks must replace stopped sources immediately,
+      // rather than leaving silence until the next 100 ms scheduler tick.
+      this.seekPending = false;
+      this.scheduleAudioNow();
+    }
   }
 
   dispose(): void {

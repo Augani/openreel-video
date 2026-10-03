@@ -65,25 +65,29 @@ import {
   COMPRESSION_SIZE_PRESETS,
   exportSettingsRequireNativeEncoder,
   resolveWebCodecsExportLimits,
+  checkBrowserExportCapability,
+  getVideoExportValidationError,
   type DeviceProfile,
   type BenchmarkProgress,
   type TimeEstimate,
   type CodecRecommendation,
 } from "@openreel/core";
 import { EDITING_FRAME_RATE_OPTIONS } from "./editing-frame-rate";
+import type { ExportDeliveryMode } from "../../services/export-runner";
 
 const WEB_EXPORT_GUARDRAIL_MESSAGE =
-  "Web export can't produce ProRes or alpha — this will encode H.264 without transparency. Use the desktop app for ProRes/alpha.";
+  "ProRes, transparency, and high bit depth require the desktop encoder. You can export an H.264 MP4 without transparency in this browser.";
 
 interface ExportDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  onExport: (settings: VideoExportSettings) => void;
+  onExport: (settings: VideoExportSettings, delivery?: ExportDeliveryMode) => void;
   duration?: number;
   projectWidth?: number;
   projectHeight?: number;
   frameRate?: number;
   sourceMatch?: SourceExportMatch | null;
+  hasAudio?: boolean;
 }
 
 type AspectRatioType = "vertical" | "square" | "horizontal";
@@ -124,6 +128,8 @@ function getAspectRatioLabel(aspectType: AspectRatioType): string {
   }
 }
 
+const getExportValidationError = getVideoExportValidationError;
+
 type PlatformIcon = typeof Video;
 
 const PLATFORM_ICONS: Record<string, PlatformIcon> = {
@@ -149,9 +155,14 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
   projectHeight = 1080,
   frameRate = 30,
   sourceMatch = null,
+  hasAudio = true,
 }) => {
   const isDesktop =
     typeof window !== "undefined" && window.openreel?.platform === "desktop";
+  const [delivery, setDelivery] = useState<ExportDeliveryMode>(isDesktop ? "file" : "download");
+  const [capabilityError, setCapabilityError] = useState<string | null>(null);
+  const [checkingCapability, setCheckingCapability] = useState(false);
+  const [browserAudioCodec, setBrowserAudioCodec] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"presets" | "custom" | "reduce">(
     "presets",
   );
@@ -191,11 +202,35 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
   });
 
   useEffect(() => {
-    if (!isOpen) return;
-    setCustomSettings((current) =>
-      current.frameRate === frameRate ? current : { ...current, frameRate },
-    );
-  }, [frameRate, isOpen]);
+    setCustomSettings((current) => ({
+      ...current,
+      width: projectWidth,
+      height: projectHeight,
+      frameRate,
+    }));
+  }, [projectWidth, projectHeight, frameRate]);
+
+  const projectPreset = useMemo<PlatformExportPreset>(() => ({
+    id: "project-settings",
+    name: "Project settings",
+    description: "Keep your canvas size and frame rate",
+    platform: "Custom",
+    category: "custom",
+    settings: {
+      format: "mp4",
+      codec: "h264",
+      width: projectWidth,
+      height: projectHeight,
+      frameRate,
+      bitrate: 12000,
+      bitrateMode: "vbr",
+      quality: 85,
+      keyframeInterval: Math.max(1, Math.round(frameRate * 2)),
+      audioSettings: {
+        format: "aac", sampleRate: 48000, bitDepth: 16, bitrate: 256, channels: 2,
+      },
+    },
+  }), [projectWidth, projectHeight, frameRate]);
 
   const [reduceMode, setReduceMode] = useState<"quality" | "size">("quality");
   const [reduceQuality, setReduceQuality] =
@@ -260,6 +295,8 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
     return customSettings;
   }, [activeTab, selectedPreset, reducePlan, customSettings]);
 
+  const validationError = getExportValidationError(effectiveSettings, duration);
+
   const webExportAdjustment = useMemo(
     () =>
       isDesktop
@@ -298,12 +335,33 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
   const [h264FallbackAcknowledged, setH264FallbackAcknowledged] =
     useState(false);
 
+  const resolveBrowserSettings = useCallback((chosen: VideoExportSettings): VideoExportSettings => {
+    if (isDesktop || !exportSettingsRequireNativeEncoder(chosen)) return chosen;
+    return { ...chosen, format: "mp4", codec: "h264", colorDepth: 8, pixelFormat: "yuv420", proresProfile: undefined };
+  }, [isDesktop]);
+
+  useEffect(() => {
+    if (!isOpen || isDesktop || validationError) return;
+    let active = true;
+    setCapabilityError(null);
+    setCheckingCapability(true);
+    const settings = resolveWebCodecsExportLimits(resolveBrowserSettings(effectiveSettings), duration).settings;
+    checkBrowserExportCapability(settings, undefined, hasAudio).then((capability) => {
+      if (!active) return;
+      setCapabilityError(capability.reason);
+      setBrowserAudioCodec(capability.audioCodec ?? null);
+      setCheckingCapability(false);
+    });
+    return () => { active = false; };
+  }, [isOpen, isDesktop, validationError, effectiveSettings, duration, resolveBrowserSettings, hasAudio]);
+
   useEffect(() => {
     if (isOpen) {
-      setPresets(exportPresetsManager.getAllPresets());
-      setPlatforms(exportPresetsManager.getPlatforms());
+      const videoPresets = exportPresetsManager.getAllPresets().filter((preset) => "width" in preset.settings);
+      setPresets(videoPresets);
+      setPlatforms(Array.from(new Set(videoPresets.map((preset) => preset.platform))));
       setSelectedPlatform("recommended");
-      setSelectedPreset(null);
+      setSelectedPreset(projectPreset);
 
       getDeviceProfile().then((profile) => {
         setDeviceProfile(profile);
@@ -315,7 +373,7 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
         );
       });
     }
-  }, [isOpen, projectWidth, projectHeight]);
+  }, [isOpen, projectWidth, projectHeight, projectPreset]);
 
   useEffect(() => {
     if (!deviceProfile || duration <= 0) {
@@ -366,13 +424,15 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
   const recommendedForVideo = getRecommendedPresetsForAspectRatio(
     presets,
     aspectType,
-  );
+  ).filter((preset) => {
+    const settings = preset.settings as VideoExportSettings;
+    return settings.width <= projectWidth && settings.height <= projectHeight &&
+      (isDesktop || !exportSettingsRequireNativeEncoder(settings));
+  }).slice(0, 5);
 
   const filteredPresets =
     selectedPlatform === "recommended"
-      ? recommendedForVideo.length > 0
-        ? recommendedForVideo
-        : exportPresetsManager.getRecommendedPresets()
+      ? [projectPreset, ...recommendedForVideo]
       : selectedPlatform
         ? presets.filter((p) => p.platform === selectedPlatform)
         : exportPresetsManager.getRecommendedPresets();
@@ -392,10 +452,10 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
   }, [guardrailActive]);
 
   const handleExport = useCallback(() => {
-    if (guardrailBlocking) return;
+    if (guardrailBlocking || validationError || capabilityError) return;
     if (activeTab === "reduce") {
       if (!reducePlan) return;
-      onExport(compressionPlanToExportSettings(reducePlan));
+      onExport(resolveBrowserSettings(compressionPlanToExportSettings(reducePlan)), delivery);
       onClose();
       return;
     }
@@ -407,7 +467,7 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
       ...chosen,
       encodeMode: customSettings.encodeMode ?? "balanced",
     };
-    onExport(settings);
+    onExport(resolveBrowserSettings(settings), delivery);
     onClose();
   }, [
     activeTab,
@@ -417,6 +477,10 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
     onExport,
     onClose,
     guardrailBlocking,
+    validationError,
+    capabilityError,
+    resolveBrowserSettings,
+    delivery,
   ]);
 
   const handleMatchSourceExport = useCallback(() => {
@@ -431,9 +495,10 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
       bitrate: sourceMatch.bitrate,
       encodeMode: customSettings.encodeMode ?? "balanced",
     };
-    onExport(settings);
+    if (getExportValidationError(settings, duration)) return;
+    onExport(settings, delivery);
     onClose();
-  }, [sourceMatch, customSettings, onExport, onClose]);
+  }, [sourceMatch, customSettings, duration, onExport, onClose, delivery]);
 
   const formatFileSize = (bitrate: number, durationSec: number): string => {
     const bytes = (bitrate * 1000 * durationSec) / 8;
@@ -542,6 +607,7 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
                     variant="primary"
                     size="sm"
                     onClick={handleMatchSourceExport}
+                    isDisabled={duration <= 0}
                     className="shrink-0"
                   />
                 </div>
@@ -927,6 +993,7 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
                           setCustomSettings({
                             ...customSettings,
                             format: value as "mp4" | "webm" | "mov",
+                            codec: value === "webm" ? "vp9" : customSettings.codec === "vp9" || customSettings.codec === "vp8" ? "h264" : customSettings.codec,
                           })
                         }
                         options={[
@@ -952,7 +1019,7 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
                           { value: "prores", label: "ProRes" },
                           { value: "vp9", label: "VP9" },
                           { value: "av1", label: "AV1" },
-                        ]}
+                        ].filter((option) => customSettings.format !== "webm" || ["vp9", "av1"].includes(option.value))}
                         width="100%"
                       />
 
@@ -1140,6 +1207,13 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
                       </div>
                     </div>
                     <div className="grid grid-cols-3 gap-2">
+                      {!isDesktop ? (
+                        <div className="space-y-1 text-[11px]">
+                          <p className="text-fg-muted">Audio format</p>
+                          <p className="min-h-[32px] rounded-md border border-border bg-bg-2 px-2 py-2 text-fg">{!hasAudio ? "No audio" : browserAudioCodec?.toUpperCase() ?? (customSettings.format === "webm" ? "Opus" : "Automatic")}</p>
+                          <p className="text-[10px] text-fg-muted">Compatible with this container</p>
+                        </div>
+                      ) : (
                       <Selector
                         label="Audio format"
                         value={customSettings.audioSettings.format}
@@ -1165,6 +1239,7 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
                         size="sm"
                         width="100%"
                       />
+                      )}
                       <Selector
                         label="Sample rate"
                         value={String(customSettings.audioSettings.sampleRate)}
@@ -1460,6 +1535,24 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
             hasDivider
             className="flex-col items-stretch gap-3 px-5 py-3"
           >
+            {!isDesktop && (
+              <div className="space-y-1.5">
+                <Selector label="Save video" value={delivery} onChange={(value) => setDelivery(value as ExportDeliveryMode)} options={[
+                  { value: "download", label: "Download to this device" },
+                  { value: "file", label: "Choose a file location" },
+                ]} width="100%" />
+                <p className="text-[11px] text-fg-muted">Export uses your original media at the selected quality. Choose a file location to stream large exports directly to disk.</p>
+              </div>
+            )}
+            {!isDesktop && (
+              <p role="status" className="text-[11px] text-fg-muted">{checkingCapability ? "Checking this browser’s encoder support…" : capabilityError ? "Choose another format to export in this browser." : "Codec availability depends on this browser. Try H.264 / MP4 or VP9 / WebM with Opus audio."}</p>
+            )}
+            {capabilityError && <div role="alert" className="rounded-md border border-status-warning/30 bg-status-warning/10 px-3 py-2 text-[11px] text-status-warning">{capabilityError}</div>}
+            {validationError && (
+              <div role="alert" className="rounded-md border border-status-warning/30 bg-status-warning/10 px-3 py-2 text-[11px] text-status-warning">
+                {validationError}
+              </div>
+            )}
             {webExportAdjustment?.wasAdjusted && (
               <div
                 role="alert"
@@ -1556,6 +1649,8 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
                   isDisabled={
                     (activeTab === "presets" && !selectedPreset) ||
                     (activeTab === "reduce" && !reducePlan) ||
+                    Boolean(validationError) ||
+                    Boolean(capabilityError) ||
                     guardrailBlocking
                   }
                 />

@@ -1,3 +1,5 @@
+import { useTimelineTouchGesture, listenTimelineGesture } from "./touch-gestures";
+import { TimelineTouchMoveHandle } from "./TimelineTouchMoveHandle";
 import React, { useRef, useState, useEffect, useCallback } from "react";
 import { ToolcraftContextMenu as ContextMenu } from "@openreel/ui";
 import { Box, Image, Layers } from "@/icons/lucide-compat";
@@ -18,12 +20,15 @@ import {
   TRANSITION_DRAG_MIME,
 } from "../panels/EffectsTransitionsPanel";
 import { parseEditorEffectDropPayload } from "./effect-drop";
+import { getVisibleRepeatRange } from "./visible-repeat-range";
 
 interface ClipComponentProps {
   clip: Clip;
   track: Track;
   allTracks: Track[];
   pixelsPerSecond: number;
+  scrollX: number;
+  viewportWidth: number;
   isSelected: boolean;
   trackHeights: Map<string, number>;
   timelineRef: React.RefObject<HTMLDivElement | null>;
@@ -50,6 +55,8 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
   track,
   allTracks,
   pixelsPerSecond,
+  scrollX,
+  viewportWidth,
   isSelected,
   trackHeights,
   timelineRef,
@@ -58,16 +65,14 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
   onSnapIndicator,
   onTrimClip,
 }) => {
-  const { getMediaItem } = useProjectStore();
-  const { snapSettings } = useUIStore();
+  const mediaItem = useProjectStore((state) => state.getMediaItem(clip.mediaId));
+  const snapSettings = useUIStore((state) => state.snapSettings);
   const effectApplicationClipId = useUIStore(
     (state) => state.effectApplicationClipId,
   );
   const effectApplicationLabel = useUIStore(
     (state) => state.effectApplicationLabel,
   );
-  const { playheadPosition } = useTimelineStore();
-  const mediaItem = getMediaItem(clip.mediaId);
   const motionCompositionId =
     typeof clip.metadata?.motionCompositionId === "string"
       ? clip.metadata.motionCompositionId
@@ -97,6 +102,7 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
   const multiDragSnapshotRef = useRef<
     Array<{ clipId: string; startTime: number; trackId: string }>
   >([]);
+  const dragStartTimeRef = useRef(clip.startTime);
   const trimStartRef = useRef<{
     mouseX: number;
     startTime: number;
@@ -121,6 +127,7 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
     startY: 0,
   });
   const clipRef = useRef<HTMLDivElement>(null);
+  const touchGesture = useTimelineTouchGesture();
   const contextMenuItems = useClipContextMenuItems({ clip, track });
   const moveCommitRafRef = useRef<number | null>(null);
   const pendingCommitRef = useRef<(() => void) | null>(null);
@@ -150,17 +157,19 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
   };
 
   const handleMouseDown = (e: React.MouseEvent) => {
+    if (touchGesture.shouldIgnoreMouse(e)) return false;
     if (e.button !== 0) return;
-    if (track.locked || isTrimming) return;
+    if (track.locked || isTrimming) return false;
     e.stopPropagation();
 
     const rect = clipRef.current?.parentElement?.getBoundingClientRect();
     const clipRect = clipRef.current?.getBoundingClientRect();
-    if (!rect || !clipRect) return;
+    if (!rect || !clipRect) return false;
 
     const clickX = e.clientX - rect.left;
     const clipStartX = clip.startTime * pixelsPerSecond;
     setDragOffset(clickX - clipStartX);
+    dragStartTimeRef.current = clip.startTime;
 
     dragStartRef.current = {
       mouseY: e.clientY,
@@ -389,8 +398,8 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
 
   const handleTrimMouseDown =
     (edge: "left" | "right") => (e: React.MouseEvent) => {
-      if (e.button !== 0) return;
-      if (track.locked || !onTrimClip) return;
+      if (touchGesture.shouldIgnoreMouse(e) || e.button !== 0) return false;
+      if (track.locked || !onTrimClip) return false;
       e.stopPropagation();
       setIsTrimming(true);
       setTrimEdge(edge);
@@ -423,14 +432,15 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
       onSelect(clip.id, e.shiftKey || e.metaKey);
     };
 
-    window.addEventListener("mousemove", handlePendingMouseMove);
-    window.addEventListener("mouseup", handlePendingMouseUp);
+    const stopListening = listenTimelineGesture(touchGesture.pointerId, handlePendingMouseMove, handlePendingMouseUp, () => {
+      dragPendingRef.current.active = false;
+      setIsPendingDrag(false);
+    });
 
     return () => {
-      window.removeEventListener("mousemove", handlePendingMouseMove);
-      window.removeEventListener("mouseup", handlePendingMouseUp);
+      stopListening();
     };
-  }, [isPendingDrag, clip.id, onSelect]);
+  }, [isPendingDrag, clip.id, onSelect, touchGesture.pointerId]);
 
   useEffect(() => {
     if (!isDragging) return;
@@ -495,7 +505,7 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
         rawTime,
         clip.id,
         allTracks,
-        playheadPosition,
+        useTimelineStore.getState().playheadPosition,
         dragSnapSettings,
         pixelsPerSecond,
         clip.duration,
@@ -534,7 +544,9 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
       // dragging lag and eventually exhaust memory. We keep the latest move
       // in a ref and flush it once per frame.
       const moveTime = snapResult.time;
-      const baseStartTime = clip.startTime;
+      // Keep the same origin as companion snapshots even when project updates
+      // reinstall this effect during the gesture.
+      const baseStartTime = dragStartTimeRef.current;
       const companions = multiDragSnapshotRef.current;
       pendingCommitRef.current = () => {
         onMoveClip(clip.id, moveTime, undefined);
@@ -587,8 +599,19 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
       closeGroup();
     };
 
-    window.addEventListener("mousemove", handleMouseMove);
-    window.addEventListener("mouseup", handleMouseUp);
+    const cancelDrag = () => {
+      if (animationFrameId !== null) cancelAnimationFrame(animationFrameId);
+      if (moveCommitRafRef.current !== null) cancelAnimationFrame(moveCommitRafRef.current);
+      moveCommitRafRef.current = null;
+      pendingCommitRef.current = null;
+      setIsDragging(false);
+      setDragYOffset(0);
+      setIsInvalidDrop(false);
+      onSnapIndicator(null);
+      multiDragSnapshotRef.current = [];
+      closeGroup();
+    };
+    const stopListening = listenTimelineGesture(touchGesture.pointerId, handleMouseMove, handleMouseUp, cancelDrag);
 
     return () => {
       if (animationFrameId !== null) {
@@ -598,20 +621,21 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
         cancelAnimationFrame(moveCommitRafRef.current);
         moveCommitRafRef.current = null;
       }
-      window.removeEventListener("mousemove", handleMouseMove);
-      window.removeEventListener("mouseup", handleMouseUp);
+      pendingCommitRef.current = null;
+      stopListening();
       closeGroup();
     };
   }, [
     isDragging,
+    touchGesture.pointerId,
     dragOffset,
     pixelsPerSecond,
     clip.id,
+    clip.duration,
     track.id,
     allTracks,
     trackHeights,
     timelineRef,
-    playheadPosition,
     snapSettings,
     onMoveClip,
     onSnapIndicator,
@@ -650,16 +674,58 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
       document.body.style.cursor = "";
     };
 
-    window.addEventListener("mousemove", handleMouseMove);
-    window.addEventListener("mouseup", handleMouseUp);
+    const stopListening = listenTimelineGesture(touchGesture.pointerId, handleMouseMove, handleMouseUp);
 
     return () => {
-      window.removeEventListener("mousemove", handleMouseMove);
-      window.removeEventListener("mouseup", handleMouseUp);
+      stopListening();
     };
-  }, [isTrimming, trimEdge, clip.id, pixelsPerSecond, onTrimClip]);
+  }, [isTrimming, trimEdge, clip.id, pixelsPerSecond, onTrimClip, touchGesture.pointerId]);
 
   const thumbnailCount = Math.max(1, Math.floor(width / 60));
+  const thumbnailRange = getVisibleRepeatRange(
+    left,
+    width,
+    scrollX,
+    viewportWidth,
+    thumbnailCount,
+  );
+  const thumbnailIndices = Array.from(
+    { length: thumbnailRange.end - thumbnailRange.start },
+    (_, index) => thumbnailRange.start + index,
+  );
+  const waveformBarCount = Math.max(8, Math.floor(width / 6));
+  const waveformRange = getVisibleRepeatRange(
+    left,
+    width,
+    scrollX,
+    viewportWidth,
+    waveformBarCount,
+  );
+  const waveformAmplitudes = React.useMemo(
+    () =>
+      isAudio
+        ? getClipWaveformBarAmplitudes(mediaItem?.waveformData, {
+            barCount: waveformBarCount,
+            startBar: waveformRange.start,
+            endBar: waveformRange.end,
+            mediaDuration: mediaItem?.metadata.duration ?? 0,
+            inPoint: clip.inPoint,
+            outPoint: clip.outPoint,
+            reversed: clip.reversed,
+          })
+        : [],
+    [
+      isAudio,
+      mediaItem?.waveformData,
+      mediaItem?.metadata.duration,
+      waveformBarCount,
+      waveformRange.start,
+      waveformRange.end,
+      clip.inPoint,
+      clip.outPoint,
+      clip.reversed,
+    ],
+  );
   const clipName =
     motionComposition?.name ||
     (typeof clip.metadata?.compoundClipName === "string"
@@ -718,6 +784,8 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
           aria-label={`Select clip ${clipName}`}
           aria-pressed={isSelected}
           onClick={handleClick}
+          data-timeline-clip
+          onPointerDown={touchGesture.bodyPointerDown}
           onMouseDown={handleMouseDown}
           onKeyDown={(event) => {
             if (track.locked || (event.key !== "Enter" && event.key !== " ")) return;
@@ -751,6 +819,7 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
             pointerEvents: isDragging ? 'none' : 'auto',
           }}
         >
+      {isSelected && !track.locked && <TimelineTouchMoveHandle label={`Move ${clipName}`} onPointerDown={(event) => touchGesture.start(event, handleMouseDown)} />}
       {isApplyingEffect && (
         <>
           <div className="absolute -inset-px rounded-lg border border-amber-300/80 shadow-[0_0_18px_rgba(251,191,36,0.55)] pointer-events-none animate-pulse" />
@@ -778,10 +847,10 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
 
       {isVideo &&
         (mediaItem?.filmstripThumbnails?.length || mediaItem?.thumbnailUrl) && (
-          <div className="absolute inset-0 flex pointer-events-none">
+          <div className="absolute inset-0 pointer-events-none">
             {mediaItem?.filmstripThumbnails &&
             mediaItem.filmstripThumbnails.length > 0
-              ? Array.from({ length: thumbnailCount }).map((_, i) => {
+              ? thumbnailIndices.map((i) => {
                   const clipProgress = i / Math.max(1, thumbnailCount - 1);
                   const thumbIndex = Math.min(
                     Math.floor(
@@ -793,8 +862,10 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
                   return (
                     <div
                       key={i}
-                      className="flex-1 h-full bg-cover bg-center opacity-70"
+                      className="absolute h-full bg-cover bg-center opacity-70"
                       style={{
+                        left: (i * width) / thumbnailCount,
+                        width: width / thumbnailCount,
                         backgroundImage: `url(${thumb.url})`,
                         borderRight:
                           i < thumbnailCount - 1
@@ -804,11 +875,13 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
                     />
                   );
                 })
-              : Array.from({ length: thumbnailCount }).map((_, i) => (
+              : thumbnailIndices.map((i) => (
                   <div
                     key={i}
-                    className="flex-1 h-full bg-cover bg-center opacity-60"
+                    className="absolute h-full bg-cover bg-center opacity-60"
                     style={{
+                      left: (i * width) / thumbnailCount,
+                      width: width / thumbnailCount,
                       backgroundImage: `url(${mediaItem.thumbnailUrl})`,
                       borderRight:
                         i < thumbnailCount - 1
@@ -870,42 +943,28 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
         {clipName}
       </span>
 
-      {isAudio &&
-        (() => {
-          const barCount = Math.max(8, Math.floor(width / 6));
-          const amplitudes = getClipWaveformBarAmplitudes(
-            mediaItem?.waveformData,
-            {
-              barCount,
-              mediaDuration: mediaItem?.metadata.duration ?? 0,
-              inPoint: clip.inPoint,
-              outPoint: clip.outPoint,
-              reversed: clip.reversed,
-            },
-          );
-          return (
-            <svg
-              className="absolute left-0 bottom-0 w-full pointer-events-none"
-              height="28"
-              preserveAspectRatio="none"
-              viewBox={`0 0 ${barCount * 6 + 6} 28`}
-            >
-              {amplitudes.map((amplitude, i) => {
-                const h = Math.min(24, amplitude * 26);
-                return (
-                  <rect
-                    key={i}
-                    x={i * 6 + 6}
-                    y={28 - h}
-                    width="2"
-                    height={h}
-                    fill="#8cc79a"
-                  />
-                );
-              })}
-            </svg>
-          );
-        })()}
+      {isAudio && (
+        <svg
+          className="absolute left-0 bottom-0 w-full pointer-events-none"
+          height="28"
+          preserveAspectRatio="none"
+          viewBox={`0 0 ${waveformBarCount * 6 + 6} 28`}
+        >
+          {waveformAmplitudes.map((amplitude, i) => {
+            const h = Math.min(24, amplitude * 26);
+            return (
+              <rect
+                key={waveformRange.start + i}
+                x={(waveformRange.start + i) * 6 + 6}
+                y={28 - h}
+                width="2"
+                height={h}
+                fill="#8cc79a"
+              />
+            );
+          })}
+        </svg>
+      )}
 
       {clip.keyframes && clip.keyframes.length > 0 && (
         <div className="absolute bottom-0 left-0 right-0 h-3 flex items-center pointer-events-none">
@@ -928,6 +987,9 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
       {(isVideo || isImage || isAudio) && onTrimClip && (
         <>
           <div
+            data-timeline-trim="left"
+            aria-label={`Trim start of ${clipName}`}
+            onPointerDown={(event) => touchGesture.start(event, handleTrimMouseDown("left"))}
             onMouseDown={handleTrimMouseDown("left")}
             className={`absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize z-20 flex items-center justify-center transition-opacity ${
               isSelected ? "opacity-100" : "opacity-0 group-hover:opacity-100"
@@ -940,6 +1002,9 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
             )}
           </div>
           <div
+            data-timeline-trim="right"
+            aria-label={`Trim end of ${clipName}`}
+            onPointerDown={(event) => touchGesture.start(event, handleTrimMouseDown("right"))}
             onMouseDown={handleTrimMouseDown("right")}
             className={`absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize z-20 flex items-center justify-center transition-opacity ${
               isSelected ? "opacity-100" : "opacity-0 group-hover:opacity-100"

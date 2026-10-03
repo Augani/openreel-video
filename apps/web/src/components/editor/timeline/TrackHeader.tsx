@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Eye, EyeOff, Volume2, VolumeX, Lock, Trash2, Pencil, AlignLeft, Link2, Unlink } from "@/icons/lucide-compat";
+import { Eye, EyeOff, Volume2, VolumeX, Lock, MoreHorizontal, Trash2, Pencil, AlignLeft, Link2, Unlink } from "@/icons/lucide-compat";
 import {
   ToolcraftContextMenu as ContextMenu,
+  ToolcraftDropdownMenu as DropdownMenu,
   type ToolcraftContextMenuOption as ContextMenuOption,
 } from "@openreel/ui";
 import { ToolcraftTextInputControl } from "@openreel/ui";
@@ -13,6 +14,7 @@ import {
 } from "@openreel/core";
 import { useProjectStore } from "../../../stores/project-store";
 import { useTimelineStore } from "../../../stores/timeline-store";
+import { useCompactEditor } from "../../../hooks/useCompactEditor";
 import { getTrackInfo } from "./utils";
 
 interface TrackHeaderProps {
@@ -25,14 +27,15 @@ interface TrackHeaderProps {
   keyframeCount?: number;
 }
 
-export const TrackHeader: React.FC<TrackHeaderProps> = ({
+export const TrackHeader: React.FC<TrackHeaderProps> = React.memo(function TrackHeader({
   track,
   index,
   onDragStart,
   onDragOver,
   onDrop,
   onDragEnd,
-}) => {
+}) {
+  const compact = useCompactEditor();
   const {
     lockTrack,
     hideTrack,
@@ -44,7 +47,9 @@ export const TrackHeader: React.FC<TrackHeaderProps> = ({
     groupTracks,
     project,
   } = useProjectStore();
-  const { getTrackHeight } = useTimelineStore();
+  const trackHeight = useTimelineStore((state) =>
+    state.trackHeights[track.id] ?? state.trackHeight,
+  );
 
   const [isRenaming, setIsRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState(track.name);
@@ -152,12 +157,13 @@ export const TrackHeader: React.FC<TrackHeaderProps> = ({
   return (
     <ContextMenu items={menuItems} menuWidth={180} size="sm">
       <div
-        draggable={!isRenaming}
+        data-timeline-track-header
+        draggable={!compact && !isRenaming}
         onDragStart={(e) => onDragStart(e, track.id)}
         onDragOver={onDragOver}
         onDrop={(e) => onDrop(e, track.id)}
         onDragEnd={onDragEnd}
-        style={{ height: getTrackHeight(track.id, track.type) }}
+        style={{ height: trackHeight }}
         className={`border-b border-border flex items-center gap-2.5 px-4 relative group transition-colors cursor-grab active:cursor-grabbing ${
           track.hidden || effectivelyMuted ? "opacity-60" : ""
         } ${
@@ -192,7 +198,20 @@ export const TrackHeader: React.FC<TrackHeaderProps> = ({
             )}
           </div>
 
-          <div className="flex items-center gap-2.5 shrink-0">
+          {compact && <DropdownMenu
+            menuWidth={220} placement="end" alignment="start" size="lg"
+            button={{ label: `Options for ${track.name || trackInfo.label}`, isIconOnly: true, variant: "ghost", icon: <MoreHorizontal size={18} aria-hidden /> }}
+            items={[
+              ...(isVisual ? [{ label: track.hidden ? "Show track" : "Hide track", onClick: () => hideTrack(track.id, !track.hidden) }] : []),
+              ...(isAudio ? [
+                { label: track.muted ? "Unmute track" : "Mute track", onClick: () => muteTrack(track.id, !track.muted) },
+                { label: track.solo ? "Clear solo" : "Solo track", onClick: () => soloTrack(track.id, !track.solo) },
+              ] : []),
+              { label: track.locked ? "Unlock track" : "Lock track", onClick: () => lockTrack(track.id, !track.locked) },
+              { type: "divider" }, ...menuItems,
+            ]}
+          />}
+          <div hidden={compact} className="flex items-center gap-2.5 shrink-0">
             {track.groupId && (
               <Link2
                 size={13}
@@ -274,4 +293,4 @@ export const TrackHeader: React.FC<TrackHeaderProps> = ({
       </div>
     </ContextMenu>
   );
-};
+});

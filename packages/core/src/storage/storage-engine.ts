@@ -37,8 +37,14 @@ export class StorageEngine implements IStorageEngine {
     }
 
     this.dbPromise = this.openDatabase();
-    this.db = await this.dbPromise;
-    return this.db;
+    try {
+      this.db = await this.dbPromise;
+      return this.db;
+    } finally {
+      // A failed open must not permanently cache a rejected promise: private
+      // browsing restrictions or a blocked upgrade can change during a session.
+      this.dbPromise = null;
+    }
   }
 
   private openDatabase(): Promise<IDBDatabase> {
@@ -65,7 +71,12 @@ export class StorageEngine implements IStorageEngine {
       };
 
       request.onsuccess = () => {
-        resolve(request.result);
+        const db = request.result;
+        db.onversionchange = () => {
+          db.close();
+          if (this.db === db) this.db = null;
+        };
+        resolve(db);
       };
 
       request.onupgradeneeded = (event) => {
@@ -134,15 +145,21 @@ export class StorageEngine implements IStorageEngine {
       // Execute the operation callback to get the request
       const request = operation(stores);
 
-      // Promise resolution based on IDB request lifecycle
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () =>
+      // Requests can succeed before the transaction aborts (for example on
+      // quota exhaustion). Report persistence only once the commit completes.
+      const fail = () => {
+        const error = tx.error ?? request.error;
         reject(
           createStorageError(
-            "DATABASE_ERROR",
-            `Transaction failed: ${request.error?.message}`,
+            error?.name === "QuotaExceededError" ? "QUOTA_EXCEEDED" : "DATABASE_ERROR",
+            `Transaction failed: ${error?.message ?? "Transaction aborted"}`,
           ),
         );
+      };
+      tx.oncomplete = () => resolve(request.result);
+      tx.onabort = fail;
+      tx.onerror = fail;
+      request.onerror = fail;
     });
   }
 

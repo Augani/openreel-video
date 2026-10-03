@@ -136,6 +136,8 @@ export const generateWaveformPath = (
 
 interface ClipWaveformBarOptions {
   barCount: number;
+  startBar?: number;
+  endBar?: number;
   mediaDuration: number;
   inPoint: number;
   outPoint: number;
@@ -153,6 +155,10 @@ export const getClipWaveformBarAmplitudes = (
 ): number[] => {
   const barCount = Math.max(0, Math.floor(options.barCount));
   if (barCount === 0) return [];
+  const startBar = Math.max(0, Math.min(barCount, Math.floor(options.startBar ?? 0)));
+  const endBar = Math.max(startBar, Math.min(barCount, Math.ceil(options.endBar ?? barCount)));
+  const visibleCount = endBar - startBar;
+  if (visibleCount === 0) return [];
 
   if (
     !waveformData ||
@@ -160,7 +166,7 @@ export const getClipWaveformBarAmplitudes = (
     !Number.isFinite(options.mediaDuration) ||
     options.mediaDuration <= 0
   ) {
-    return Array.from({ length: barCount }, () => 0);
+    return Array.from({ length: visibleCount }, () => 0);
   }
 
   const mediaDuration = options.mediaDuration;
@@ -172,10 +178,11 @@ export const getClipWaveformBarAmplitudes = (
   const sourceDuration = sourceEnd - sourceStart;
 
   if (sourceDuration <= 0) {
-    return Array.from({ length: barCount }, () => 0);
+    return Array.from({ length: visibleCount }, () => 0);
   }
 
-  return Array.from({ length: barCount }, (_, barIndex) => {
+  return Array.from({ length: visibleCount }, (_, visibleIndex) => {
+    const barIndex = startBar + visibleIndex;
     const displayIndex = options.reversed
       ? barCount - barIndex - 1
       : barIndex;

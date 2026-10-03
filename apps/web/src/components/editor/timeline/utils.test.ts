@@ -54,4 +54,19 @@ describe("getClipWaveformBarAmplitudes", () => {
       }),
     ).toEqual([expect.closeTo(0.4), expect.closeTo(0.8)]);
   });
+
+  it.each([false, true])("samples a visible window without shifting source mapping (reversed: %s)", (reversed) => {
+    const waveform = new Float32Array([0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8]);
+    const options = { barCount: 8, mediaDuration: 8, inPoint: 0, outPoint: 8, reversed };
+    const full = getClipWaveformBarAmplitudes(waveform, options);
+    expect(getClipWaveformBarAmplitudes(waveform, { ...options, startBar: 2, endBar: 5 }))
+      .toEqual(full.slice(2, 5));
+  });
+
+  it("allocates only visible bars for very long clips, including silent media", () => {
+    expect(getClipWaveformBarAmplitudes(null, {
+      barCount: 300_000, startBar: 20_000, endBar: 20_200,
+      mediaDuration: 3600, inPoint: 0, outPoint: 3600,
+    })).toHaveLength(200);
+  });
 });

@@ -5,6 +5,7 @@ import type {
 import type { Clip, Track } from "../types/timeline";
 import type { ProjectSettings } from "../types/project";
 import type { MulticamManifest } from "../multicam/manifest";
+import { applyMulticamDirectives } from "../multicam/shot-planner";
 import type { MulticamShotPlan } from "../multicam/shot-planner";
 import type { MulticamShotPolicy } from "../multicam/shot-planner";
 
@@ -244,6 +245,43 @@ export class MultiCamEngine {
     group.switches = switches;
 
     return switchItem;
+  }
+
+  /** Insert or replace a camera cut without changing earlier or later shots. */
+  cutToAngle(groupId: string, angleId: string, time: number): boolean {
+    const group = this.groups.get(groupId);
+    const angle = group?.angles.find((entry) => entry.id === angleId);
+    if (!group || !angle || !Number.isFinite(time) || time < 0 || time >= group.duration) return false;
+    if (group.shotPlan && group.manifest) {
+      const camera = group.manifest.cameras.find((entry) => entry.angleId === angleId || entry.clipId === angle.clipId);
+      const shot = group.shotPlan.shots.find((entry) => entry.startMs <= time * 1000 && entry.endMs > time * 1000);
+      if (!camera || !shot) return false;
+      group.shotPlan = applyMulticamDirectives(group.shotPlan, group.manifest, [{
+        id: `manual-${crypto.randomUUID()}`,
+        startMs: time * 1000,
+        endMs: shot.endMs,
+        cameraId: camera.id,
+      }]);
+      group.switches = group.shotPlan.shots.map((entry) => ({
+        id: `switch-${crypto.randomUUID()}`, groupId,
+        angleId: group.angles.find((candidate) => {
+          const camera = group.manifest!.cameras.find((item) => item.id === entry.layout.panels[0]?.cameraId);
+          return candidate.id === camera?.angleId || candidate.clipId === camera?.clipId;
+        })?.id ?? angleId,
+        time: entry.startMs / 1000, reason: entry.reason, confidence: entry.confidence,
+      }));
+    } else {
+      const switches = group.switches ?? [];
+      if (!switches.some((entry) => entry.time === 0)) {
+        switches.unshift({ id: `switch-${crypto.randomUUID()}`, groupId,
+          angleId: group.activeAngleId, time: 0, reason: "manual" });
+      }
+      group.switches = switches.filter((entry) => Math.abs(entry.time - time) > 0.000001);
+      group.switches.push({ id: `switch-${crypto.randomUUID()}`, groupId, angleId, time, reason: "manual" });
+      group.switches.sort((a, b) => a.time - b.time);
+    }
+    this.setActiveAngle(groupId, group.switches[0]?.angleId ?? angleId);
+    return true;
   }
 
   removeSwitch(groupId: string, switchId: string): boolean {

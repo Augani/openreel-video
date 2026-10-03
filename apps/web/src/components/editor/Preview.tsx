@@ -20,11 +20,13 @@ import {
   ZoomIn,
   Proportions,
   Magnet,
+  Repeat,
 } from "@/icons/lucide-compat";
 import { ToolcraftButton as Button } from "@openreel/ui";
 import { ToolcraftIconButton as IconButton } from "@openreel/ui";
 import { ToolcraftText as Text } from "@openreel/ui";
 import { useProjectStore } from "../../stores/project-store";
+import { previewProxyCache, usePreviewProxyStore } from "../../stores/preview-proxy-store";
 import { useTimelineStore } from "../../stores/timeline-store";
 import { useUIStore } from "../../stores/ui-store";
 import { useThemeStore } from "../../stores/theme-store";
@@ -63,6 +65,7 @@ import {
   getMediaItemCapabilities,
   getVisibleTrackRenderOrder,
   trackHasAudioItems,
+  calculateProjectDuration,
 } from "@openreel/core";
 import { useEngineStore } from "../../stores/engine-store";
 import {
@@ -97,6 +100,7 @@ import {
 } from "./preview/index";
 import { snapCanvasPosition } from "./preview/canvas-snapping";
 import { captureNativeVideoFrame } from "./preview/video-frame";
+import { resolvePlaybackLoop, resolvePlaybackStart } from "../../utils/playback-loop";
 import { ProcessingOverlay } from "./ProcessingOverlay";
 import { editingFrameDurationMs } from "./editing-frame-rate";
 import {
@@ -1177,7 +1181,18 @@ export const Preview: React.FC = () => {
   // Project store - subscribe to the entire project to ensure re-renders
   // when any part of the project changes (including clips)
   const project = useProjectStore((state) => state.project);
-  const getMediaItem = useProjectStore((state) => state.getMediaItem);
+  const getOriginalMediaItem = useProjectStore((state) => state.getMediaItem);
+  const proxySourceRevision = usePreviewProxyStore((state) => state.revision);
+  // The revision restarts visual decoding when proxies are created/toggled/removed.
+  const getMediaItem = useCallback((id: string) => {
+    const item = getOriginalMediaItem(id);
+    return item ? previewProxyCache.resolve(project.id, item) : undefined;
+    // Source changes must restart callbacks even though the cache lookup is live.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [getOriginalMediaItem, project.id, proxySourceRevision]);
+  const failProxyPlayback = useCallback((id: string, blob: Blob | null) => {
+    if (blob) previewProxyCache.failPlayback(id, blob);
+  }, []);
   const mediaClipHasVisual = useCallback(
     (clip: PreviewClip) =>
       getMediaItemCapabilities(getMediaItem(clip.mediaId)).visual,
@@ -1185,15 +1200,23 @@ export const Preview: React.FC = () => {
   );
   const mediaClipHasAudio = useCallback(
     (clip: PreviewClip) =>
-      getMediaItemCapabilities(getMediaItem(clip.mediaId)).audio,
-    [getMediaItem],
+      getMediaItemCapabilities(getOriginalMediaItem(clip.mediaId)).audio,
+    [getOriginalMediaItem],
   );
 
   useEffect(() => {
     const cachedFrame = lastGoodFrameRef.current;
     lastGoodFrameRef.current = null;
     cachedFrame?.close();
-  }, [project]);
+  }, [project, proxySourceRevision]);
+
+  useEffect(() => {
+    releaseScrubVideoElements();
+    for (const entry of decoderCacheRef.current.values()) entry.input[Symbol.dispose]?.();
+    decoderCacheRef.current.clear();
+    for (const entry of nativeVideoCacheRef.current.values()) releaseVideoElement(entry);
+    nativeVideoCacheRef.current.clear();
+  }, [proxySourceRevision, releaseScrubVideoElements, releaseVideoElement]);
 
   // Get text clips from TitleEngine
   const getTitleEngine = useEngineStore((state) => state.getTitleEngine);
@@ -1422,6 +1445,9 @@ export const Preview: React.FC = () => {
     playbackState,
     playbackLockedReason,
     playbackRate,
+    loopEnabled,
+    loopStart,
+    loopEnd,
     isScrubbing,
     pause,
     togglePlayback,
@@ -1550,8 +1576,8 @@ export const Preview: React.FC = () => {
       if (end > maxEnd) maxEnd = end;
     }
 
-    return maxEnd;
-  }, [project.timeline.tracks, allTextClips, allShapeClips]);
+    return Math.max(maxEnd, calculateProjectDuration(project));
+  }, [project, allTextClips, allShapeClips]);
 
   // RenderBridge is guaranteed to be initialized before Preview renders (see EditorInterface)
   useEffect(() => {
@@ -2034,7 +2060,7 @@ export const Preview: React.FC = () => {
             timelinePosition >= audioClip.startTime &&
             timelinePosition < clipEnd
           ) {
-            const mediaItem = getMediaItem(audioClip.mediaId);
+            const mediaItem = getOriginalMediaItem(audioClip.mediaId);
             if (!mediaItem?.blob) {
               continue;
             }
@@ -2127,7 +2153,7 @@ export const Preview: React.FC = () => {
       }
     },
     [
-      getMediaItem,
+      getOriginalMediaItem,
       getPreviewAudioBufferForEffects,
       getResolvedClipAudioEffects,
       getResolvedClipVolumeAutomation,
@@ -2160,7 +2186,7 @@ export const Preview: React.FC = () => {
           if (noAudioBufferRef.current.has(cacheKey)) {
             continue;
           }
-          const mediaItem = getMediaItem(clip.mediaId);
+          const mediaItem = getOriginalMediaItem(clip.mediaId);
           if (!mediaItem?.blob) {
             continue;
           }
@@ -2200,7 +2226,7 @@ export const Preview: React.FC = () => {
       }
     }
   }, [
-    getMediaItem,
+    getOriginalMediaItem,
     getPreviewAudioBufferForEffects,
     getResolvedClipAudioEffects,
     mediaClipHasAudio,
@@ -2544,6 +2570,7 @@ export const Preview: React.FC = () => {
             scheduleScrubVideoRelease();
             resolve(frame);
           } catch {
+            if (!isStaleRequest()) failProxyPlayback(clip.mediaId, mediaBlob);
             const cached = videoElementCacheRef.current.get(clip.mediaId);
             if (cached) {
               releaseVideoElement(cached);
@@ -2557,6 +2584,7 @@ export const Preview: React.FC = () => {
     },
     [
       evictOldestVideoElement,
+      failProxyPlayback,
       getMediaItem,
       releaseVideoElement,
       scheduleScrubVideoRelease,
@@ -3537,7 +3565,10 @@ export const Preview: React.FC = () => {
       }>,
       startPosition: number,
       onEnd: () => void,
+      shouldContinue: () => boolean,
     ): Promise<() => void> => {
+      let isActive = true;
+      const isCurrentPlayback = () => isActive && shouldContinue();
       const canvas = canvasRef.current;
       if (!canvas || clips.length === 0) {
         onEnd();
@@ -3561,6 +3592,7 @@ export const Preview: React.FC = () => {
         if (mediaItem?.type === "image" && mediaItem.blob) {
           try {
             const bitmap = await createImageBitmap(mediaItem.blob);
+            if (!isCurrentPlayback()) { bitmap.close(); return () => {}; }
             imageBitmapCache.set(clip.id, bitmap);
           } catch (error) {
             console.warn(`Failed to cache image bitmap for ${clip.id}:`, error);
@@ -3568,6 +3600,7 @@ export const Preview: React.FC = () => {
         }
       }
 
+      if (!isCurrentPlayback()) return () => {};
       preDecodeAllAudioBuffers().catch((error) => {
         console.warn("[Preview] Audio warmup failed:", error);
       });
@@ -3579,6 +3612,7 @@ export const Preview: React.FC = () => {
         clip: (typeof timelineTracks)[0]["clips"][0],
         mediaItem: NonNullable<ReturnType<typeof getMediaItem>>,
       ): Promise<void> => {
+        if (!isCurrentPlayback()) return Promise.resolve();
         const vidstabCheck = getVidstabEngine();
         const clipStabilized = vidstabCheck.hasStabilized(clip.id);
         const videoCacheId = clipStabilized ? `stabilized:${clip.id}` : clip.mediaId;
@@ -3633,7 +3667,10 @@ export const Preview: React.FC = () => {
               finish();
             }
           };
-          video.onerror = finish;
+          video.onerror = () => {
+            if (isCurrentPlayback() && !isStabilized) failProxyPlayback(clip.mediaId, playBlob);
+            finish();
+          };
           video.load();
           setTimeout(finish, 1200);
         });
@@ -3650,6 +3687,7 @@ export const Preview: React.FC = () => {
       if (activeStartClip) {
         await loadVideoForClip(activeStartClip.clip, activeStartClip.mediaItem);
       }
+      if (!isCurrentPlayback()) return () => {};
 
       for (const entry of clips) {
         if (entry !== activeStartClip) {
@@ -3682,9 +3720,8 @@ export const Preview: React.FC = () => {
       }
 
       await audioGraph.resume();
+      if (!isCurrentPlayback()) return () => {};
       audioGraph.seekTo(startPosition);
-
-      let isActive = true;
       let rafId: number | null = null;
       let currentClipId: string | null = null;
 
@@ -4394,7 +4431,9 @@ export const Preview: React.FC = () => {
         }
       }
 
+      if (!isCurrentPlayback()) return () => {};
       await masterClock.play();
+      if (!isCurrentPlayback()) return () => {};
       audioGraph.startScheduler(getAudioClipsForScheduler);
       rafId = requestAnimationFrame(() => { drawFrame(); });
 
@@ -4405,6 +4444,7 @@ export const Preview: React.FC = () => {
       editingFrameDuration,
       allSubtitles,
       getMediaItem,
+      failProxyPlayback,
       getAudioClipsForScheduler,
       isMuted,
       preDecodeAllAudioBuffers,
@@ -4448,9 +4488,14 @@ export const Preview: React.FC = () => {
     let isActive = true;
     let nativeCleanup: ((preserveCaches?: boolean) => void) | null = null;
 
-    if (startPositionRef.current >= actualEndTime - 0.001) {
-      startPositionRef.current = 0;
-      setPlayheadPosition(0);
+    const startPosition = resolvePlaybackStart(
+      startPositionRef.current,
+      actualEndTime,
+      resolvePlaybackLoop(useTimelineStore.getState(), actualEndTime),
+    );
+    if (startPosition !== startPositionRef.current) {
+      startPositionRef.current = startPosition;
+      setPlayheadPosition(startPosition);
     }
     const playbackStartPosition = startPositionRef.current;
 
@@ -4524,6 +4569,7 @@ export const Preview: React.FC = () => {
           const canDecode = await videoTrack.canDecode();
           if (!canDecode || !isActive) {
             input[Symbol.dispose]?.();
+            if (isActive && !canDecode) failProxyPlayback(clip.mediaId, mediaItem.blob);
             return;
           }
 
@@ -4844,7 +4890,12 @@ export const Preview: React.FC = () => {
           animationRef.current = requestAnimationFrame(processNextFrame);
         } catch (error) {
           console.error("[Preview] MediaBunny setup error:", error);
-          pause();
+          if (!isActive) return;
+          if (mediaItem.blob !== getOriginalMediaItem(clip.mediaId)?.blob) {
+            failProxyPlayback(clip.mediaId, mediaItem.blob);
+          } else {
+            pause();
+          }
         }
       } catch (outerError) {
         console.error(
@@ -4879,14 +4930,15 @@ export const Preview: React.FC = () => {
         });
 
         const videoTrack = await input.getPrimaryVideoTrack();
-        if (!videoTrack) {
+        if (!videoTrack || !isActive) {
           input[Symbol.dispose]?.();
           return null;
         }
 
         const canDecode = await videoTrack.canDecode();
-        if (!canDecode) {
+        if (!canDecode || !isActive) {
           input[Symbol.dispose]?.();
+          if (isActive) failProxyPlayback(clip.mediaId, mediaItem.blob);
           return null;
         }
 
@@ -4902,6 +4954,7 @@ export const Preview: React.FC = () => {
           trackIndex,
         };
       } catch (error) {
+        if (isActive) failProxyPlayback(clip.mediaId, mediaItem.blob);
         console.error(
           `[Preview] Failed to init resources for clip ${clip.id}:`,
           error,
@@ -5138,6 +5191,15 @@ export const Preview: React.FC = () => {
             hasVisualContent || hasCurrentAudioClip;
 
           if (!hasAnyContentAtPlayhead) {
+            if (resolvePlaybackLoop(useTimelineStore.getState(), actualEndTime)) {
+              // Preserve empty portions of the marked range while looping.
+              // Skipping to later content could jump beyond the loop's out point.
+              fillPreviewBackground(mainCtx, currentPlayhead, canvas.width, canvas.height);
+              masterClock.reportVideoTime(currentPlayhead);
+              isProcessingFrame = false;
+              animationRef.current = requestAnimationFrame(processMultiTrackFrame);
+              return;
+            }
             const nextClipTime = findNextClipStartTime(currentPlayhead);
             const nextTextTime = findNextTextClipStartTime(currentPlayhead);
             const nextShapeTime = findNextShapeClipStartTime(currentPlayhead);
@@ -5958,6 +6020,7 @@ export const Preview: React.FC = () => {
             nativeCheck.imageClips || [],
             playbackStartPosition,
             () => pause(),
+            () => isActive && previewProxyCache.store.getState().revision === proxySourceRevision,
           );
           return nativeCleanup;
         } catch (error) {
@@ -6012,6 +6075,9 @@ export const Preview: React.FC = () => {
     setPlayheadPosition,
     pause,
     getMediaItem,
+    getOriginalMediaItem,
+    failProxyPlayback,
+    proxySourceRevision,
     cleanupPlaybackResources,
     cleanupAudioResources,
     setupAudioFromAudioTrack,
@@ -6033,6 +6099,7 @@ export const Preview: React.FC = () => {
   ]);
 
   const lastProjectForRenderRef = useRef(project);
+  const lastProxyRevisionForRenderRef = useRef(proxySourceRevision);
   const lastPlayheadForRenderRef = useRef<number>(playheadPosition);
   const modifiedRenderTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const renderInFlightRef = useRef<boolean>(false);
@@ -6051,8 +6118,10 @@ export const Preview: React.FC = () => {
 
     const playheadChanged = playheadPosition !== lastPlayheadForRenderRef.current;
     const projectChanged = project !== lastProjectForRenderRef.current;
+    const sourceChanged = proxySourceRevision !== lastProxyRevisionForRenderRef.current;
 
     lastProjectForRenderRef.current = project;
+    lastProxyRevisionForRenderRef.current = proxySourceRevision;
     lastPlayheadForRenderRef.current = playheadPosition;
 
     const previousRenderTime = lastPreviewRenderTimeRef.current;
@@ -6081,7 +6150,7 @@ export const Preview: React.FC = () => {
       } finally {
         renderInFlightRef.current = false;
         const next = pendingRenderTimeRef.current;
-        if (next !== null && next !== time) {
+        if (next !== null) {
           pendingRenderTimeRef.current = null;
           doRender(next);
         } else {
@@ -6090,7 +6159,7 @@ export const Preview: React.FC = () => {
       }
     };
 
-    if (playheadChanged) {
+    if (playheadChanged || sourceChanged) {
       doRender(playheadPosition);
     } else if (projectChanged) {
       if (modifiedRenderTimerRef.current) {
@@ -6116,6 +6185,7 @@ export const Preview: React.FC = () => {
     renderFallbackFrame,
     releaseScrubVideoElements,
     project,
+    proxySourceRevision,
     isDark,
   ]);
 
@@ -7498,6 +7568,17 @@ export const Preview: React.FC = () => {
 
   const progressPercentage =
     actualEndTime > 0 ? (playheadPosition / actualEndTime) * 100 : 0;
+  const previewLoopRange = resolvePlaybackLoop(
+    { loopEnabled: true, loopStart, loopEnd },
+    actualEndTime,
+  );
+  const handleToggleLoop = () => {
+    const state = useTimelineStore.getState();
+    if (!state.loopEnabled && previewLoopRange) {
+      state.setLoopRange(previewLoopRange.start, previewLoopRange.end);
+    }
+    state.setLoopEnabled(!state.loopEnabled);
+  };
 
   const showResizeHandles = !isPlaying && selectedClip && clipBounds;
 
@@ -8129,6 +8210,17 @@ export const Preview: React.FC = () => {
         </div>
 
         <div className="flex gap-1.5 items-center">
+          <IconButton
+            label={loopEnabled ? "Disable preview loop" : "Enable preview loop"}
+            title={`Loop ${formatTime(previewLoopRange?.start ?? 0)} to ${formatTime(previewLoopRange?.end ?? 0)} • I: mark start • O: mark end • Shift+L: toggle`}
+            icon={<Repeat size={16} />}
+            aria-pressed={loopEnabled}
+            variant="ghost"
+            size="sm"
+            onClick={handleToggleLoop}
+            isDisabled={actualEndTime <= 0 || exportState.isExporting}
+            className={`w-[34px] h-[34px] grid place-items-center rounded-[7px] transition-colors ${loopEnabled ? "bg-accent/15 text-accent" : "bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg"}`}
+          />
           <IconButton
             label={isMuted ? "Unmute" : "Mute"}
             icon={isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}

@@ -28,3 +28,18 @@ export function editingFrameDurationMs(frameRate: number): number {
 export function editingFrameStepSeconds(frameRate: number): number {
   return 1 / normalizeEditingFrameRate(frameRate);
 }
+
+/** Move to an adjacent frame boundary, including after a fractional-time seek. */
+export function stepEditingFrame(
+  position: number,
+  direction: -1 | 1,
+  frameRate: number,
+): number {
+  const rate = normalizeEditingFrameRate(frameRate);
+  const frame = Math.max(0, Number.isFinite(position) ? position : 0) * rate;
+  // Tolerate floating point error when an existing seek is exactly on a frame.
+  const next = direction === 1
+    ? Math.floor(frame + 1e-7) + 1
+    : Math.ceil(frame - 1e-7) - 1;
+  return Math.max(0, next / rate);
+}

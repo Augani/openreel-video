@@ -37,14 +37,76 @@ function parseKeyCombo(key: string): {
   shift: boolean;
   alt: boolean;
 } {
+  // The plus key is itself a separator, so preserve it at the end of a combo.
   const parts = key.toLowerCase().split("+");
   return {
-    key: parts[parts.length - 1],
+    key: normalizeKey(key.endsWith("+") ? "+" : parts[parts.length - 1]),
     meta: parts.includes("cmd") || parts.includes("meta"),
     ctrl: parts.includes("ctrl"),
     shift: parts.includes("shift"),
     alt: parts.includes("alt") || parts.includes("option"),
   };
+}
+
+function normalizeKey(key: string): string {
+  if (key === " " || key === "spacebar") return "space";
+  if (key === "esc") return "escape";
+  return key.toLowerCase();
+}
+
+function comboIdentity(key: string): string {
+  const combo = parseKeyCombo(key);
+  // Cmd and Ctrl are portable aliases throughout the editor.
+  return `${combo.meta || combo.ctrl}:${combo.shift && !isShiftedSymbol(combo.key)}:${combo.alt}:${combo.key === "backspace" ? "delete" : combo.key}`;
+}
+
+const PHYSICAL_PUNCTUATION: Record<string, string> = {
+  BracketLeft: "[", BracketRight: "]", Backslash: "\\", Equal: "=",
+  Minus: "-", Semicolon: ";", Quote: "'", Comma: ",", Period: ".",
+  Slash: "/", Backquote: "`",
+};
+
+export function captureKeyCombo(event: {
+  key: string;
+  metaKey: boolean;
+  ctrlKey: boolean;
+  shiftKey: boolean;
+  altKey: boolean;
+  code?: string;
+}): string {
+  const parts: string[] = [];
+  if (event.metaKey || event.ctrlKey) parts.push("cmd");
+  // Printable symbols already include Shift (for example ? and +).
+  const key = event.altKey && event.code && PHYSICAL_PUNCTUATION[event.code]
+    ? PHYSICAL_PUNCTUATION[event.code]
+    : event.key;
+  if (event.shiftKey && !isShiftedSymbol(key)) parts.push("shift");
+  if (event.altKey) parts.push("alt");
+  parts.push(normalizeKey(key));
+  return parts.join("+");
+}
+
+function isShiftedSymbol(key: string): boolean {
+  return key.length === 1 && /[~!@#$%^&*()_+{}|:"<>?]/.test(key);
+}
+
+function hasShortcutFocus(event: KeyboardEvent): boolean {
+  const target = event.composedPath()[0] ?? event.target;
+  if (!(target instanceof Element)) return true;
+  if (
+    target.closest(
+      'input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"], [role="combobox"], [role="slider"], [role="spinbutton"], [role="listbox"], [role="menu"], [data-editor-shortcuts="off"]',
+    )
+  ) return false;
+  if (target.closest('[role="dialog"], [role="alertdialog"]')) return false;
+  // Let focused controls keep their native keyboard activation/navigation.
+  const control = target.closest('button, a[href], [role="button"], [role="tab"]');
+  if (control) {
+    const timelineItem = control.matches('[role="button"]:not(button)') && control.closest('[data-tour="timeline"]');
+    if ([" ", "Enter"].includes(event.key)) return false;
+    if (!timelineItem && ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"].includes(event.key)) return false;
+  }
+  return true;
 }
 
 function formatKeyCombo(combo: {
@@ -55,9 +117,10 @@ function formatKeyCombo(combo: {
   alt?: boolean;
 }): string {
   const parts: string[] = [];
-  if (combo.meta || combo.ctrl) parts.push("⌘");
-  if (combo.shift) parts.push("⇧");
-  if (combo.alt) parts.push("⌥");
+  const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad|iPod/i.test(navigator.platform || navigator.userAgent);
+  if (combo.meta || combo.ctrl) parts.push(isMac ? "⌘" : "Ctrl");
+  if (combo.shift) parts.push(isMac ? "⇧" : "Shift");
+  if (combo.alt) parts.push(isMac ? "⌥" : "Alt");
 
   const keyMap: Record<string, string> = {
     space: "Space",
@@ -65,8 +128,8 @@ function formatKeyCombo(combo: {
     arrowright: "→",
     arrowup: "↑",
     arrowdown: "↓",
-    delete: "⌫",
-    backspace: "⌫",
+    delete: isMac ? "⌫" : "Delete",
+    backspace: isMac ? "⌫" : "Backspace",
     escape: "Esc",
     enter: "↵",
     tab: "⇥",
@@ -75,7 +138,7 @@ function formatKeyCombo(combo: {
   };
 
   parts.push(keyMap[combo.key] || combo.key.toUpperCase());
-  return parts.join("");
+  return parts.join(isMac ? "" : "+");
 }
 
 const DEFAULT_SHORTCUTS: ShortcutDefinition[] = [
@@ -187,6 +250,36 @@ const DEFAULT_SHORTCUTS: ShortcutDefinition[] = [
     defaultKey: "]",
     currentKey: "]",
     action: "playback.nextClip",
+    enabled: true,
+  },
+  {
+    id: "playback.markLoopStart",
+    name: "Mark Loop Start",
+    description: "Set the preview loop start at the playhead",
+    category: "playback",
+    defaultKey: "i",
+    currentKey: "i",
+    action: "playback.markLoopStart",
+    enabled: true,
+  },
+  {
+    id: "playback.markLoopEnd",
+    name: "Mark Loop End",
+    description: "Set the preview loop end at the playhead",
+    category: "playback",
+    defaultKey: "o",
+    currentKey: "o",
+    action: "playback.markLoopEnd",
+    enabled: true,
+  },
+  {
+    id: "playback.toggleLoop",
+    name: "Toggle Preview Loop",
+    description: "Repeat the marked range or the full timeline",
+    category: "playback",
+    defaultKey: "shift+l",
+    currentKey: "shift+l",
+    action: "playback.toggleLoop",
     enabled: true,
   },
   {
@@ -475,25 +568,33 @@ class KeyboardShortcutsManager {
   }
 
   private loadShortcuts(): void {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    const customizations: Record<string, string> = saved
-      ? JSON.parse(saved)
-      : {};
+    let customizations: Record<string, unknown> = {};
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      const parsed: unknown = saved ? JSON.parse(saved) : {};
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        customizations = parsed as Record<string, unknown>;
+      }
+    } catch {
+      // Storage may be unavailable or a previous customization may be corrupt.
+    }
 
     DEFAULT_SHORTCUTS.forEach((shortcut) => {
       const customKey = customizations[shortcut.id];
       this.shortcuts.set(shortcut.id, {
         ...shortcut,
-        currentKey: customKey || shortcut.defaultKey,
+        currentKey: typeof customKey === "string" && customKey
+          ? customKey
+          : shortcut.defaultKey,
       });
     });
   }
 
   private loadPreset(): void {
-    const saved = localStorage.getItem(PRESET_KEY);
-    if (saved) {
-      this.activePreset = saved;
-    }
+    try {
+      const saved = localStorage.getItem(PRESET_KEY);
+      if (PRESETS.some((preset) => preset.id === saved)) this.activePreset = saved!;
+    } catch { /* In-memory shortcuts still work when storage is unavailable. */ }
   }
 
   private saveShortcuts(): void {
@@ -503,11 +604,15 @@ class KeyboardShortcutsManager {
         customizations[id] = shortcut.currentKey;
       }
     });
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(customizations));
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(customizations));
+    } catch { /* Keep the customization active for this session. */ }
   }
 
   private savePreset(): void {
-    localStorage.setItem(PRESET_KEY, this.activePreset);
+    try {
+      localStorage.setItem(PRESET_KEY, this.activePreset);
+    } catch { /* Keep the preset active for this session. */ }
   }
 
   startListening(): void {
@@ -523,19 +628,16 @@ class KeyboardShortcutsManager {
   }
 
   private handleKeyDown = (e: KeyboardEvent): void => {
-    const target = e.target;
-    if (
-      target instanceof HTMLInputElement ||
-      target instanceof HTMLTextAreaElement ||
-      (target instanceof HTMLElement && target.isContentEditable)
-    ) {
-      return;
-    }
+    if (e.defaultPrevented || e.isComposing || e.keyCode === 229 || !hasShortcutFocus(e)) return;
+    if (document.querySelector('[aria-modal="true"]:not([data-state="closed"])')) return;
 
     const matchedShortcut = this.findMatchingShortcut(e);
-    if (matchedShortcut) {
+    if (matchedShortcut && this.handlers.get(matchedShortcut.action)?.size) {
       e.preventDefault();
       e.stopPropagation();
+      // Holding a key may scrub/zoom continuously, but must not repeat edits,
+      // toggle playback, add markers, or open dialogs repeatedly.
+      if (e.repeat && !/^(playback\.(frame|second|jump5|prevClip|nextClip)|timeline\.zoom)/.test(matchedShortcut.action)) return;
       this.executeAction(matchedShortcut.action, e);
     }
   };
@@ -547,10 +649,14 @@ class KeyboardShortcutsManager {
       if (!shortcut.enabled) continue;
 
       const combo = parseKeyCombo(shortcut.currentKey);
+      const eventKey = normalizeKey(e.key);
       const keyMatches =
-        e.key.toLowerCase() === combo.key || e.code.toLowerCase() === combo.key;
+        eventKey === combo.key || e.code.toLowerCase() === combo.key ||
+        (e.altKey && PHYSICAL_PUNCTUATION[e.code] === combo.key) ||
+        (eventKey === "backspace" && combo.key === "delete");
       const metaMatches = (combo.meta || combo.ctrl) === isMeta;
-      const shiftMatches = combo.shift === e.shiftKey;
+      const shiftMatches = combo.shift === e.shiftKey ||
+        (!combo.shift && e.shiftKey && isShiftedSymbol(combo.key) && eventKey === combo.key);
       const altMatches = combo.alt === e.altKey;
 
       if (keyMatches && metaMatches && shiftMatches && altMatches) {
@@ -603,12 +709,15 @@ class KeyboardShortcutsManager {
     return true;
   }
 
-  resetShortcut(id: string): void {
+  resetShortcut(id: string): boolean {
     const shortcut = this.shortcuts.get(id);
     if (shortcut) {
+      if (this.findConflict(shortcut.defaultKey, id)) return false;
       this.shortcuts.set(id, { ...shortcut, currentKey: shortcut.defaultKey });
       this.saveShortcuts();
+      return true;
     }
+    return false;
   }
 
   resetAllShortcuts(): void {
@@ -616,12 +725,14 @@ class KeyboardShortcutsManager {
       this.shortcuts.set(id, { ...shortcut, currentKey: shortcut.defaultKey });
     });
     this.saveShortcuts();
+    this.activePreset = "openreel";
+    this.savePreset();
   }
 
   findConflict(key: string, excludeId?: string): ShortcutDefinition | null {
     for (const [id, shortcut] of this.shortcuts) {
       if (id === excludeId) continue;
-      if (shortcut.currentKey.toLowerCase() === key.toLowerCase()) {
+      if (comboIdentity(shortcut.currentKey) === comboIdentity(key)) {
         return shortcut;
       }
     }
@@ -643,6 +754,17 @@ class KeyboardShortcutsManager {
     this.resetAllShortcuts();
 
     Object.entries(preset.shortcuts).forEach(([id, key]) => {
+      // A preset override takes precedence over the default binding it replaces.
+      // Relocate that command so both remain accessible (Final Cut uses [ / ]
+      // for trimming, while OpenReel uses those keys for clip navigation).
+      const conflict = this.findConflict(key, id);
+      if (conflict) {
+        const alternative = `alt+${conflict.defaultKey}`;
+        this.shortcuts.set(conflict.id, {
+          ...conflict,
+          currentKey: this.findConflict(alternative, conflict.id) ? "" : alternative,
+        });
+      }
       const shortcut = this.shortcuts.get(id);
       if (shortcut) {
         this.shortcuts.set(id, { ...shortcut, currentKey: key });
@@ -656,7 +778,7 @@ class KeyboardShortcutsManager {
 
   formatShortcut(id: string): string {
     const shortcut = this.shortcuts.get(id);
-    if (!shortcut) return "";
+    if (!shortcut?.currentKey) return "";
     const combo = parseKeyCombo(shortcut.currentKey);
     return formatKeyCombo(combo);
   }

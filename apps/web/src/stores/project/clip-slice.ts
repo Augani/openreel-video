@@ -1,3 +1,4 @@
+import { cloneProjectForEdit } from "./clone-project-for-edit";
 import { v4 as uuidv4 } from "uuid";
 import type { StoreApi } from "zustand";
 import type { Action, ActionResult } from "@openreel/core";
@@ -30,7 +31,7 @@ export function createClipSlice(set: Set, get: Get): ClipSlice {
   return {
     addClip: async (trackId: string, mediaId: string, startTime: number) => {
       const { project, actionExecutor } = get();
-      const projectCopy = structuredClone(project);
+      const projectCopy = cloneProjectForEdit(project);
       const action: Action = {
         type: "clip/add",
         id: uuidv4(),
@@ -83,7 +84,7 @@ export function createClipSlice(set: Set, get: Get): ClipSlice {
         };
       }
 
-      const projectCopy = structuredClone(updatedProject);
+      const projectCopy = cloneProjectForEdit(updatedProject);
       const action: Action = {
         type: "clip/add",
         id: uuidv4(),
@@ -141,7 +142,7 @@ export function createClipSlice(set: Set, get: Get): ClipSlice {
         }
       }
 
-      const projectCopy = structuredClone(project);
+      const projectCopy = cloneProjectForEdit(project);
       const existingAudioCount = projectCopy.timeline.tracks.filter(
         (t) => t.type === "audio",
       ).length;

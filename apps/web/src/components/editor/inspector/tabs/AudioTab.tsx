@@ -7,6 +7,7 @@ import {
   AudioEffectsSection,
   AudioDuckingSection,
 } from "../";
+import { VoiceOverPanel } from "../VoiceOverPanel";
 import { InspectorSection } from "../shell/InspectorSection";
 import { PropertySlider } from "../shell/PropertySlider";
 
@@ -45,6 +46,11 @@ export const AudioTab: React.FC<AudioTabProps> = ({
 
   return (
     <>
+      {showAudioEffects && (
+        <InspectorSection title="Voice Over" sectionId="voice-over" defaultOpen={false}>
+          <VoiceOverPanel />
+        </InspectorSection>
+      )}
       {showAudioEffects && clip && (
         <InspectorSection title="Clip Audio" sectionId="clip-audio" defaultOpen>
           <div className="space-y-4">

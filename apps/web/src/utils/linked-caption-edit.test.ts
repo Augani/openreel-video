@@ -76,4 +76,23 @@ describe("linked caption edits", () => {
     });
     expect(store.deleteTextClip).toHaveBeenCalledWith("explicit");
   });
+
+  it("preserves locked captions for both grouped and explicit source links", () => {
+    const store = makeStore();
+    store.project = {
+      ...project,
+      timeline: {
+        ...project.timeline,
+        tracks: project.timeline.tracks.map((track) => ({
+          ...track,
+          locked: track.id !== source.trackId,
+        })),
+      },
+    };
+    expect(getLinkedCaptions(store, source)).toEqual([]);
+    expect(moveLinkedCaptions(store, source, 5)).toBe(0);
+    expect(trimLinkedCaptions(store, source, 3, 5)).toEqual({ updated: 0, removed: 0 });
+    expect(store.updateOverlayClipTiming).not.toHaveBeenCalled();
+    expect(store.deleteTextClip).not.toHaveBeenCalled();
+  });
 });

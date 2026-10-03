@@ -4,6 +4,7 @@ import type { Action, MediaItem } from "@openreel/core";
 import type { ProjectState } from "../project-store";
 import { getMediaBridge, initializeMediaBridge } from "../../bridges/media-bridge";
 import { saveMediaBlob, deleteMediaBlob } from "../../services/media-storage";
+import { toast } from "../notification-store";
 
 type Get = StoreApi<ProjectState>["getState"];
 type Set = StoreApi<ProjectState>["setState"];
@@ -18,6 +19,8 @@ export type MediaSlice = Pick<
 >;
 
 export function createMediaSlice(set: Set, get: Get): MediaSlice {
+  const replacementRequests = new Map<string, symbol>();
+
   return {
     importMedia: async (file: File) => {
       const { project } = get();
@@ -138,11 +141,22 @@ export function createMediaSlice(set: Set, get: Get): MediaSlice {
           },
         };
 
+        const currentProject = get().project;
+        if (currentProject.id !== project.id) {
+          return {
+            success: false,
+            error: {
+              code: "INVALID_PARAMS" as const,
+              message: "The project changed while importing media. Import the file again in the current project.",
+            },
+          };
+        }
+
         const updatedProject = {
-          ...project,
+          ...currentProject,
           mediaLibrary: {
-            ...project.mediaLibrary,
-            items: [...project.mediaLibrary.items, newMediaItem],
+            ...currentProject.mediaLibrary,
+            items: [...currentProject.mediaLibrary.items, newMediaItem],
           },
           modifiedAt: Date.now(),
         };
@@ -158,6 +172,10 @@ export function createMediaSlice(set: Set, get: Get): MediaSlice {
           );
         } catch (err) {
           console.error("[ProjectStore] Failed to persist media blob:", err);
+          toast.warning(
+            "Media could not be saved in browser storage",
+            `Keep the original ${file.name} so you can relink it after reloading.`,
+          );
         }
 
         if (mediaType === "video" && !thumbnailUrl) {
@@ -169,10 +187,11 @@ export function createMediaSlice(set: Set, get: Get): MediaSlice {
               );
               if (thumbs.length > 0) {
                 const currentProject = get().project;
+                if (currentProject.id !== updatedProject.id) return;
                 const mediaIndex = currentProject.mediaLibrary.items.findIndex(
                   (m) => m.id === newMediaItem.id,
                 );
-                if (mediaIndex !== -1) {
+                if (mediaIndex !== -1 && currentProject.mediaLibrary.items[mediaIndex].blob === file) {
                   const updatedItems = [...currentProject.mediaLibrary.items];
                   updatedItems[mediaIndex] = {
                     ...updatedItems[mediaIndex],
@@ -237,6 +256,9 @@ export function createMediaSlice(set: Set, get: Get): MediaSlice {
       sourceFolder?: string,
     ) => {
       const { project } = get();
+      const replacementKey = `${project.id}:${mediaId}`;
+      const replacementRequest = Symbol();
+      replacementRequests.set(replacementKey, replacementRequest);
 
       try {
         const mediaBridge = getMediaBridge();
@@ -350,17 +372,47 @@ export function createMediaSlice(set: Set, get: Get): MediaSlice {
           },
         };
 
-        const updatedItems = project.mediaLibrary.items.map((item) =>
+        const currentProject = get().project;
+        if (
+          currentProject.id !== project.id ||
+          replacementRequests.get(replacementKey) !== replacementRequest ||
+          !currentProject.mediaLibrary.items.some((item) => item.id === mediaId)
+        ) {
+          return {
+            success: false,
+            error: {
+              code: "INVALID_PARAMS" as const,
+              message: "The media or project changed while replacing the file. Try again in the current project.",
+            },
+          };
+        }
+
+        const updatedItems = currentProject.mediaLibrary.items.map((item) =>
           item.id === mediaId ? updatedItem : item,
         );
 
         set({
           project: {
-            ...project,
-            mediaLibrary: { items: updatedItems },
+            ...currentProject,
+            mediaLibrary: { ...currentProject.mediaLibrary, items: updatedItems },
             modifiedAt: Date.now(),
           },
         });
+
+        try {
+          await saveMediaBlob(
+            currentProject.id,
+            updatedItem.id,
+            file,
+            updatedItem.metadata,
+          );
+        } catch (error) {
+          console.error("[ProjectStore] Failed to persist replacement media:", error);
+          toast.warning(
+            "Replacement media could not be saved in browser storage",
+            `Keep the original ${file.name} so you can relink it after reloading.`,
+          );
+        }
 
         if (updatedItem.type === "video" && !updatedItem.thumbnailUrl) {
           setTimeout(async () => {
@@ -371,6 +423,10 @@ export function createMediaSlice(set: Set, get: Get): MediaSlice {
               );
               if (thumbs.length > 0) {
                 const currentProject = get().project;
+                if (
+                  currentProject.id !== project.id ||
+                  currentProject.mediaLibrary.items.find((item) => item.id === mediaId)?.blob !== file
+                ) return;
                 const updatedItemsWithThumbs =
                   currentProject.mediaLibrary.items.map((item) =>
                     item.id === mediaId
@@ -387,7 +443,7 @@ export function createMediaSlice(set: Set, get: Get): MediaSlice {
                 set({
                   project: {
                     ...currentProject,
-                    mediaLibrary: { items: updatedItemsWithThumbs },
+                    mediaLibrary: { ...currentProject.mediaLibrary, items: updatedItemsWithThumbs },
                     modifiedAt: Date.now(),
                   },
                 });
@@ -408,6 +464,10 @@ export function createMediaSlice(set: Set, get: Get): MediaSlice {
               error instanceof Error ? error.message : "Unknown import error",
           },
         };
+      } finally {
+        if (replacementRequests.get(replacementKey) === replacementRequest) {
+          replacementRequests.delete(replacementKey);
+        }
       }
     },
 

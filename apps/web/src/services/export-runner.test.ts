@@ -10,12 +10,14 @@ import {
   writeBlobToWritable,
   progressPhaseLabel,
   createDownloadWritable,
+  runAudioExportToWritable,
 } from "./export-runner";
 
 const { mockEngine, getExportEngineMock } = vi.hoisted(() => {
   const engine = {
     initialize: vi.fn().mockResolvedValue(undefined),
     exportVideo: vi.fn(),
+    exportAudio: vi.fn(),
     cancel: vi.fn(),
   };
   return {
@@ -222,6 +224,153 @@ describe("useExportRunner", () => {
     expect(result.current.state.isExporting).toBe(false);
     expect(result.current.state.progress).toBe(0);
   });
+
+  it("aborts an initialization failure and permits a successful retry", async () => {
+    mockEngine.initialize.mockRejectedValueOnce(new Error("GPU unavailable"));
+    mockEngine.exportVideo.mockImplementation(() => successGenerator());
+    const { result } = renderHook(() => useExportRunner({ project: fakeProject() }));
+    const first = fakeStream();
+    await act(async () => { await expect(result.current.runExport({}, "mp4", first)).rejects.toThrow("GPU unavailable"); });
+    expect(first.abort).toHaveBeenCalledOnce();
+    await act(async () => { result.current.beginExport(); await result.current.runExport({}, "mp4", fakeStream()); });
+    expect(result.current.state.complete).toBe(true);
+  });
+
+  it("does not report success or revive progress after a cancelled delayed export", async () => {
+    let finish!: () => void;
+    const waiting = new Promise<void>((resolve) => { finish = resolve; });
+    let started!: () => void;
+    const hasStarted = new Promise<void>((resolve) => { started = resolve; });
+    const cleaned = vi.fn();
+    mockEngine.exportVideo.mockImplementation(async function* () {
+      try { started(); await waiting; yield { phase: "rendering", progress: 0.8 }; return { success: true }; }
+      finally { cleaned(); }
+    });
+    const onExported = vi.fn();
+    const { result } = renderHook(() => useExportRunner({ project: fakeProject(), onExported }));
+    const writable = fakeStream();
+    let run!: Promise<void>;
+    act(() => { result.current.beginExport(writable); run = result.current.runExport({}, "mp4", writable); });
+    await act(async () => { await hasStarted; result.current.cancel(); finish(); await expect(run).rejects.toMatchObject({ name: "AbortError" }); });
+    expect(result.current.state.complete).toBe(false);
+    expect(result.current.state.progress).toBe(0);
+    expect(onExported).not.toHaveBeenCalled();
+    expect(writable.abort).toHaveBeenCalled();
+    expect(cleaned).toHaveBeenCalledOnce();
+  });
+
+  it("keeps an earlier export cancelled when a new export begins", () => {
+    const { result } = renderHook(() => useExportRunner({ project: fakeProject() }));
+    let checkFirst!: () => void;
+    let checkSecond!: () => void;
+    act(() => { checkFirst = result.current.beginExport(); result.current.cancel(); checkSecond = result.current.beginExport(); });
+    expect(checkFirst).toThrow("Export cancelled");
+    expect(checkSecond).not.toThrow();
+  });
+
+  it("keeps the audio operation locked until cancellation settles before retrying", async () => {
+    let initialize!: () => void;
+    mockEngine.initialize.mockImplementationOnce(() => new Promise<void>((resolve) => { initialize = resolve; }));
+    mockEngine.exportAudio.mockImplementation(async function* () { yield { phase: "preparing", progress: 0 }; return { success: true, blob: fakeBlob([new Uint8Array([1])]) }; });
+    const { result } = renderHook(() => useExportRunner({ project: fakeProject() }));
+    const first = fakeStream();
+    let run!: Promise<void>;
+    act(() => { result.current.beginExport(first); run = result.current.runAudioExport({ format: "wav" }, first); result.current.cancel(); });
+    const tooSoon = fakeStream();
+    expect(() => result.current.beginExport(tooSoon)).toThrow("still finishing");
+    expect(tooSoon.abort).toHaveBeenCalled();
+    await act(async () => { initialize(); await expect(run).rejects.toMatchObject({ name: "AbortError" }); });
+    expect(mockEngine.exportAudio).not.toHaveBeenCalled();
+    const retry = fakeStream();
+    await act(async () => { result.current.beginExport(retry); await result.current.runAudioExport({ format: "wav" }, retry); result.current.markComplete(); });
+    expect(retry.close).toHaveBeenCalledOnce();
+    expect(result.current.state.complete).toBe(true);
+  });
+});
+
+describe("audio export cancellation and recovery", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockEngine.initialize.mockResolvedValue(undefined);
+  });
+
+  const audioSuccess = async function* () {
+    yield { phase: "preparing", progress: 0 };
+    return { success: true, blob: fakeBlob([new Uint8Array([1, 2, 3])]) };
+  };
+
+  it("does not start a cancelled WAV export after initialization, and allows retry", async () => {
+    let initialize!: () => void;
+    mockEngine.initialize.mockImplementationOnce(() => new Promise<void>((resolve) => { initialize = resolve; }));
+    mockEngine.exportAudio.mockImplementation(audioSuccess);
+    const { result } = renderHook(() => useExportRunner({ project: fakeProject() }));
+    const first = fakeStream();
+    let assertNotCancelled!: () => void;
+    act(() => { assertNotCancelled = result.current.beginExport(first); });
+    const run = runAudioExportToWritable(fakeProject(), { format: "wav" }, first, { assertNotCancelled, reportProgress: vi.fn() });
+    act(() => { result.current.cancel(); });
+    initialize();
+    await expect(run).rejects.toMatchObject({ name: "AbortError" });
+    expect(mockEngine.exportAudio).not.toHaveBeenCalled();
+    expect(first.abort).toHaveBeenCalled();
+    expect(first.write).not.toHaveBeenCalled();
+    const second = fakeStream();
+    act(() => { assertNotCancelled = result.current.beginExport(second); });
+    await runAudioExportToWritable(fakeProject(), { format: "wav" }, second, { assertNotCancelled, reportProgress: vi.fn() });
+    expect(second.write).toHaveBeenCalledOnce();
+    expect(second.close).toHaveBeenCalledOnce();
+  });
+
+  it("closes a cancelled audio generator at a yield, releasing it for a retry", async () => {
+    let ready!: () => void;
+    const gate = new Promise<void>((resolve) => { ready = resolve; });
+    let started!: () => void;
+    const hasStarted = new Promise<void>((resolve) => { started = resolve; });
+    let locked = false;
+    const cleaned = vi.fn();
+    mockEngine.exportAudio.mockImplementation(async function* () {
+      if (locked) throw new Error("An export is already running");
+      locked = true;
+      try {
+        started(); await gate;
+        yield { phase: "preparing", progress: 0 };
+        return { success: true, blob: fakeBlob([new Uint8Array([1])]) };
+      } finally { locked = false; cleaned(); }
+    });
+    const { result } = renderHook(() => useExportRunner({ project: fakeProject() }));
+    const first = fakeStream();
+    let assertNotCancelled!: () => void;
+    act(() => { assertNotCancelled = result.current.beginExport(first); });
+    const run = runAudioExportToWritable(fakeProject(), { format: "wav" }, first, { assertNotCancelled, reportProgress: vi.fn() });
+    await hasStarted;
+    act(() => { result.current.cancel(); });
+    ready();
+    await expect(run).rejects.toMatchObject({ name: "AbortError" });
+    expect(cleaned).toHaveBeenCalledOnce();
+    expect(locked).toBe(false);
+    expect(first.close).not.toHaveBeenCalled();
+    const second = fakeStream();
+    act(() => { assertNotCancelled = result.current.beginExport(second); });
+    await runAudioExportToWritable(fakeProject(), { format: "wav" }, second, { assertNotCancelled, reportProgress: vi.fn() });
+    expect(second.close).toHaveBeenCalledOnce();
+  });
+
+  it("aborts a failed audio initialization and preserves the error", async () => {
+    mockEngine.initialize.mockRejectedValueOnce(new Error("Audio unavailable"));
+    const writable = fakeStream();
+    await expect(runAudioExportToWritable(fakeProject(), { format: "wav" }, writable, { assertNotCancelled: vi.fn(), reportProgress: vi.fn() })).rejects.toThrow("Audio unavailable");
+    expect(writable.abort).toHaveBeenCalledOnce();
+    expect(mockEngine.exportAudio).not.toHaveBeenCalled();
+  });
+
+  it("aborts output write failure without reporting successful completion", async () => {
+    mockEngine.exportAudio.mockImplementation(audioSuccess);
+    const writable = fakeStream();
+    vi.mocked(writable.write).mockRejectedValue(new Error("Disk full"));
+    await expect(runAudioExportToWritable(fakeProject(), { format: "wav" }, writable, { assertNotCancelled: vi.fn(), reportProgress: vi.fn() })).rejects.toThrow("Disk full");
+    expect(writable.abort).toHaveBeenCalled();
+    expect(writable.close).not.toHaveBeenCalled();
+  });
 });
 
 describe("writeBlobToWritable", () => {
@@ -298,6 +447,7 @@ describe("useExportRunner showSavePicker fallback", () => {
   });
 
   afterEach(() => {
+    window.dispatchEvent(new Event("pagehide"));
     vi.restoreAllMocks();
     urlApi.createObjectURL = originalCreate;
     urlApi.revokeObjectURL = originalRevoke;
@@ -415,6 +565,62 @@ describe("useExportRunner showSavePicker fallback", () => {
         },
       ],
     });
+  });
+
+  it("explicit download bypasses browser and native pickers", async () => {
+    const picker = vi.fn();
+    win.showSaveFilePicker = picker;
+    const showSaveDialog = vi.fn();
+    win.openreel = { fs: { showSaveDialog } };
+    const writable = await createDownloadWritable("Clip.mp4", "video/mp4", { delivery: "download" });
+    await writable.write(new Uint8Array([1, 2]));
+    await writable.close();
+    expect(picker).not.toHaveBeenCalled();
+    expect(showSaveDialog).not.toHaveBeenCalled();
+    expect(click).toHaveBeenCalledOnce();
+  });
+
+  it("keeps a selected destination write-open failure visible", async () => {
+    win.showSaveFilePicker = vi.fn().mockResolvedValue({ createWritable: vi.fn().mockRejectedValue(new DOMException("Permission denied", "SecurityError")) });
+    await expect(createDownloadWritable("Clip.mp4", "video/mp4")).rejects.toMatchObject({ name: "SecurityError" });
+    expect(createObjectURL).not.toHaveBeenCalled();
+  });
+
+  it("implements seek and truncate faithfully for downloaded muxer output", async () => {
+    const writable = await createDownloadWritable("Clip.mp4", "video/mp4", { delivery: "download" });
+    await writable.write(new Uint8Array([1, 2, 3, 4]));
+    await writable.seek(1);
+    await writable.write(new Uint8Array([9]));
+    await writable.truncate(3);
+    await writable.truncate(5);
+    await writable.close();
+    const blob = createObjectURL.mock.calls[0][0] as Blob;
+    const bytes = await new Promise<ArrayBuffer>((resolve, reject) => {
+      const reader = new FileReader(); reader.onload = () => resolve(reader.result as ArrayBuffer); reader.onerror = reject; reader.readAsArrayBuffer(blob);
+    });
+    expect([...new Uint8Array(bytes)]).toEqual([1, 9, 3, 0, 0]);
+  });
+
+  it("aborted downloaded exports release buffers and cannot produce a file", async () => {
+    const writable = await createDownloadWritable("Clip.mp4", "video/mp4", { delivery: "download" });
+    await writable.write(new Uint8Array([1, 2, 3]));
+    await writable.abort();
+    await expect(writable.close()).rejects.toThrow("closed");
+    await expect(writable.write(new Uint8Array([4]))).rejects.toThrow("closed");
+    expect(createObjectURL).not.toHaveBeenCalled();
+  });
+
+  it("releases completed download URLs without waiting for navigation", async () => {
+    vi.useFakeTimers();
+    try {
+      const writable = await createDownloadWritable("Clip.mp4", "video/mp4", { delivery: "download" });
+      await writable.write(new Uint8Array([1])); await writable.close();
+      expect(urlApi.revokeObjectURL).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(60_000);
+      expect(urlApi.revokeObjectURL).toHaveBeenCalledWith("blob:fake");
+      window.dispatchEvent(new Event("pagehide"));
+      expect(urlApi.revokeObjectURL).toHaveBeenCalledOnce();
+    } finally { vi.useRealTimers(); }
   });
 
   it("createDownloadWritable resolves the native ffmpeg output path on desktop", async () => {

@@ -15,6 +15,7 @@ import {
 import {
   FFmpegFallback,
   getFFmpegFallback,
+  PROXY_PRESETS,
   PROXY_THRESHOLDS,
   type ProxySettings,
   type TranscodeOptions,
@@ -36,6 +37,11 @@ function parseBitrateKbps(value: string | undefined, fallback: number): number {
 }
 
 function presetFromSettings(settings?: Partial<ProxySettings>): "low" | "medium" | "high" {
+  if (settings?.maxHeight) {
+    if (settings.maxHeight <= 540) return "low";
+    if (settings.maxHeight <= 720) return "medium";
+    return "high";
+  }
   const scale = (settings as { scale?: number } | undefined)?.scale;
   if (typeof scale === "number") {
     if (scale >= 0.7) return "high";
@@ -508,23 +514,54 @@ export class MediaImportService {
       progress: number;
       estimatedTimeRemaining: number;
     }) => void,
+    signal?: AbortSignal,
   ): Promise<Blob> {
+    if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
     // Desktop: native FFmpeg sidecar (hardware encoders, no wasm).
     if (nativeMediaAvailable()) {
-      return proxyViaNative(file, presetFromSettings(settings));
+      const blob = await proxyViaNative(file, presetFromSettings(settings));
+      if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
+      return blob;
     }
 
     // Try MediaBunny first (faster, hardware-accelerated)
     if (this.mediaEngine.isAvailable()) {
       try {
-        return await this.mediaEngine.generateProxy(file);
-      } catch {
+        const metadata = await this.mediaEngine.extractMetadata(file);
+        if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
+        const options = { ...PROXY_PRESETS.medium, ...settings };
+        const scale = Math.min(
+          1,
+          options.scale,
+          (options.maxWidth ?? 1280) / metadata.width,
+          (options.maxHeight ?? 720) / metadata.height,
+        );
+        if (!Number.isFinite(scale) || metadata.width <= 0 || metadata.height <= 0) {
+          throw new Error("Video dimensions are unavailable");
+        }
+        const blob = await this.mediaEngine.generateProxy(file, onProgress, signal, {
+          width: Math.max(2, Math.floor(metadata.width * scale / 2) * 2),
+          height: Math.max(2, Math.floor(metadata.height * scale / 2) * 2),
+          videoBitrate: options.crf >= 30 ? 1_000_000 : options.crf >= 26 ? 2_500_000 : 5_000_000,
+          audioBitrate: options.audioBitrate * 1000,
+          videoCodec: "avc",
+          audioCodec: "aac",
+        });
+        if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
+        const proxyMetadata = await this.mediaEngine.extractMetadata(blob);
+        if (!proxyMetadata.hasVideo || !(proxyMetadata.canDecodeVideo ?? proxyMetadata.canDecode)) {
+          throw new Error("Browser could not create a playable video proxy");
+        }
+        return blob;
+      } catch (error) {
+        if (signal?.aborted || (error instanceof Error && error.name === "AbortError")) throw error;
         // Fall through to FFmpeg
       }
     }
 
     // Use FFmpeg fallback with settings
-    return this.ffmpegFallback.generateProxy(file, settings, onProgress);
+    if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
+    return this.ffmpegFallback.generateProxy(file, settings, onProgress, signal);
   }
 
   private async probeAudioStreamsCompat(
@@ -544,15 +581,10 @@ export class MediaImportService {
       progress: number;
       estimatedTimeRemaining: number;
     }) => void,
+    signal?: AbortSignal,
   ): Promise<Blob> {
-    if (nativeMediaAvailable()) {
-      return proxyViaNative(file, preset);
-    }
-    return this.ffmpegFallback.generateProxyWithPreset(
-      file,
-      preset,
-      onProgress,
-    );
+    // Named presets cap resolution without unnecessarily shrinking HD sources.
+    return this.generateProxy(file, { ...PROXY_PRESETS[preset], scale: 1 }, onProgress, signal);
   }
 
   async generateProxyIfNeeded(

@@ -265,9 +265,7 @@ export function createProjectStoreHelpers(
         .getMaskEngine()
         .then((engine) => engine.loadMasks(project.masks ?? []));
     }
-    if (project.multicamGroups) {
-      multicamEngine.loadGroups(project.multicamGroups);
-    }
+    multicamEngine.loadGroups(project.multicamGroups ?? []);
     if (project.compoundClips || project.nestedInstances) {
       getNestedSequenceEngine().loadState(
         project.compoundClips ?? [],

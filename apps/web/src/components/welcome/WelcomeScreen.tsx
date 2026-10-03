@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, lazy, Suspense } from "react";
 import {
   Clock,
   Layers,
@@ -15,11 +15,18 @@ import { ToolcraftText as Text } from "@openreel/ui";
 import { useProjectStore } from "../../stores/project-store";
 import { useUIStore } from "../../stores/ui-store";
 import { SOCIAL_MEDIA_PRESETS, type SocialMediaCategory } from "@openreel/core";
-import { TemplateGallery } from "./TemplateGallery";
-import { RecentProjects } from "./RecentProjects";
 import { useRouter } from "../../hooks/use-router";
 import { useEditorPreload } from "../../hooks/useEditorPreload";
 import { useAnalytics, AnalyticsEvents } from "../../hooks/useAnalytics";
+
+const TemplateGallery = lazy(() =>
+  import("./TemplateGallery").then((module) => ({ default: module.TemplateGallery })),
+);
+const RecentProjects = lazy(() =>
+  import("./RecentProjects").then((module) => ({ default: module.RecentProjects })),
+);
+
+const LoadingView = () => <div role="status" className="p-6 text-center text-text-secondary">Loading…</div>;
 
 interface FormatOption {
   id: string;
@@ -213,7 +220,9 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ initialTab }) => {
           <div className="w-16" />
         </header>
         <div className="flex-1 overflow-y-auto p-6">
-          <TemplateGallery onTemplateApplied={handleTemplateApplied} />
+          <Suspense fallback={<LoadingView />}>
+            <TemplateGallery onTemplateApplied={handleTemplateApplied} />
+          </Suspense>
         </div>
       </div>
     );
@@ -236,7 +245,9 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ initialTab }) => {
           <div className="w-16" />
         </header>
         <div className="flex-1 overflow-y-auto p-6">
-          <RecentProjects onProjectSelected={handleProjectSelected} />
+          <Suspense fallback={<LoadingView />}>
+            <RecentProjects onProjectSelected={handleProjectSelected} />
+          </Suspense>
         </div>
       </div>
     );

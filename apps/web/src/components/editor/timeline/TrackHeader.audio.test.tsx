@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { Track } from "@openreel/core";
 import { createEmptyProject } from "../../../stores/project/project-helpers";
 import { useProjectStore } from "../../../stores/project-store";
@@ -42,8 +42,8 @@ function audioTrack(id: string, name: string): Track {
 
 const noop = () => undefined;
 
-function renderHeader(track: Track) {
-  return render(
+function header(track: Track) {
+  return (
     <TrackHeader
       track={track}
       index={0}
@@ -51,12 +51,19 @@ function renderHeader(track: Track) {
       onDragOver={noop}
       onDrop={noop}
       onDragEnd={noop}
-    />,
+    />
   );
 }
 
+function renderHeader(track: Track) {
+  return render(header(track));
+}
+
 describe("TrackHeader audio controls", () => {
+  const originalWidth = window.innerWidth;
   beforeEach(() => {
+    // Direct controls belong to the desktop layout; JSDOM defaults to 1024px.
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 1600 });
     const project = createEmptyProject("Audio controls");
     useProjectStore.setState({
       hasOpenProject: true,
@@ -94,6 +101,7 @@ describe("TrackHeader audio controls", () => {
 
   afterEach(() => {
     cleanup();
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: originalWidth });
     useProjectStore.setState({ hasOpenProject: false });
   });
 
@@ -132,5 +140,25 @@ describe("TrackHeader audio controls", () => {
       "aria-pressed",
       "true",
     );
+  });
+
+  it.each([390, 820])("retains undoable mute and solo in the compact menu at %ipx", async (width) => {
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: width });
+    function LiveHeader() {
+      const track = useProjectStore((state) => state.project.timeline.tracks[0]);
+      return header(track);
+    }
+    render(<LiveHeader />);
+    expect(screen.queryByRole("button", { name: "Solo Dialogue" })).toBeNull();
+    for (const [label, stateKey] of [["Mute track", "muted"], ["Solo track", "solo"]] as const) {
+      fireEvent.keyDown(screen.getByRole("button", { name: "Options for Dialogue" }), { key: "Enter" });
+      fireEvent.click(await screen.findByRole("menuitem", { name: label }));
+      await waitFor(() => {
+        expect(useProjectStore.getState().project.timeline.tracks[0][stateKey]).toBe(true);
+        expect(useProjectStore.getState().actionExecutor.getHistory().canUndo()).toBe(true);
+      });
+      await act(async () => { await useProjectStore.getState().undo(); });
+      expect(useProjectStore.getState().project.timeline.tracks[0][stateKey]).toBe(false);
+    }
   });
 });

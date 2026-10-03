@@ -58,6 +58,16 @@ export class MasterTimelineClock {
     return Math.max(0, Math.min(time, this.duration || Infinity));
   }
 
+  /** The unwrapped clock reveals complete loops skipped between render ticks. */
+  get loopIteration(): number {
+    if (this.state !== "playing" || !this.loopEnabled || this.loopEnd <= this.loopStart) return 0;
+    const time = this.startTimelineTime +
+      (this.audioContext.currentTime - this.startAudioContextTime) * this.playbackRate;
+    return time >= this.loopEnd
+      ? Math.floor((time - this.loopStart) / (this.loopEnd - this.loopStart))
+      : 0;
+  }
+
   get isPlaying(): boolean {
     return this.state === "playing";
   }

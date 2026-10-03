@@ -14,6 +14,7 @@ import {
   SoundLibraryEngine,
   ChromaKeyEngine,
   MultiCamEngine,
+  multicamEngine,
   MaskEngine,
   NestedSequenceEngine,
   AdjustmentLayerEngine,
@@ -389,7 +390,7 @@ export const useEngineStore = create<EngineState>()(
         () => new ChromaKeyEngine({ width: 1920, height: 1080 })
       ),
     getMultiCamEngine: () =>
-      getOrCreateEngine("multiCam", () => new MultiCamEngine()),
+      getOrCreateEngine("multiCam", () => multicamEngine),
     getMaskEngine: () =>
       getOrCreateEngine(
         "mask",

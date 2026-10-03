@@ -1,36 +1,23 @@
 import { describe, expect, it } from "vitest";
-import {
-  DEFAULT_EDITING_FRAME_RATE,
-  EDITING_FRAME_RATE_OPTIONS,
-  editingFrameDurationMs,
-  editingFrameStepSeconds,
-  normalizeEditingFrameRate,
-} from "./editing-frame-rate";
+import { stepEditingFrame } from "./editing-frame-rate";
 
-describe("editing frame rate", () => {
-  it("offers standard editorial frame rates including 60 fps", () => {
-    expect(EDITING_FRAME_RATE_OPTIONS.map((option) => option.value)).toEqual([
-      23.976,
-      24,
-      25,
-      29.97,
-      30,
-      50,
-      59.94,
-      60,
-    ]);
+describe("frame-accurate keyboard seeking", () => {
+  it.each([23.976, 24, 25, 29.97, 30, 59.94, 60])("steps one exact frame at %s fps without accumulated drift", (rate) => {
+    let time = 0;
+    for (let frame = 1; frame <= 100; frame += 1) {
+      time = stepEditingFrame(time, 1, rate);
+      expect(time).toBeCloseTo(frame / rate, 10);
+    }
+    expect(stepEditingFrame(time, -1, rate)).toBeCloseTo(99 / rate, 10);
   });
 
-  it("drives preview cadence and frame stepping from the project rate", () => {
-    expect(editingFrameDurationMs(60)).toBeCloseTo(16.667, 2);
-    expect(editingFrameStepSeconds(60)).toBeCloseTo(1 / 60, 8);
+  it("lands on neighboring frame boundaries after a fractional seek", () => {
+    expect(stepEditingFrame(1.01, 1, 30)).toBeCloseTo(31 / 30, 10);
+    expect(stepEditingFrame(1.01, -1, 30)).toBe(1);
   });
 
-  it("falls back safely for invalid project data", () => {
-    expect(normalizeEditingFrameRate(0)).toBe(DEFAULT_EDITING_FRAME_RATE);
-    expect(normalizeEditingFrameRate(Number.NaN)).toBe(
-      DEFAULT_EDITING_FRAME_RATE,
-    );
-    expect(normalizeEditingFrameRate(1000)).toBe(240);
+  it("clamps the first frame and normalizes invalid frame rates", () => {
+    expect(stepEditingFrame(0, -1, 30)).toBe(0);
+    expect(stepEditingFrame(NaN, 1, NaN)).toBe(1 / 30);
   });
 });

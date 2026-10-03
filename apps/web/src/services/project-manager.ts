@@ -336,9 +336,10 @@ class ProjectManager {
       return this.downloadProject(project);
     }
 
+    let handle: FileSystemFileHandle;
     try {
       const win = window as WindowWithFilePicker;
-      const handle = await win.showSaveFilePicker!({
+      handle = await win.showSaveFilePicker!({
         suggestedName: `${project.name}.oreel`,
         types: [
           {
@@ -347,13 +348,6 @@ class ProjectManager {
           },
         ],
       });
-
-      const success = await this.saveToFileHandle(project, handle);
-      if (success) {
-        this.currentFileHandle = handle;
-        await this.addToRecent(project, handle);
-      }
-      return success;
     } catch (error) {
       if ((error as Error).name === "AbortError") {
         return false;
@@ -364,55 +358,58 @@ class ProjectManager {
       );
       return this.downloadProject(project);
     }
+
+    // Picker cancellation returns false. A selected file that fails to write
+    // must reject so callers can distinguish failure and report it to the user.
+    await this.saveToFileHandle(project, handle);
+    this.currentFileHandle = handle;
+    await this.addToRecent(project, handle);
+    return true;
   }
 
   private async saveToFileHandle(
     project: Project,
     handle: ProjectFileRef,
   ): Promise<boolean> {
-    try {
-      if (isNativeRef(handle)) {
-        await window.openreel!.fs.writeFile(
-          handle.path,
-          JSON.stringify(project, null, 2),
-        );
-        this.emit("projectSaved", { project });
-        return true;
-      }
-
-      const writable = await (handle as FileSystemFileHandle).createWritable();
-      const data = JSON.stringify(project, null, 2);
-      await writable.write(data);
-      await writable.close();
-
+    const data = JSON.stringify(project, null, 2);
+    if (isNativeRef(handle)) {
+      await window.openreel!.fs.writeFile(handle.path, data);
       this.emit("projectSaved", { project });
       return true;
-    } catch (error) {
-      console.error("[ProjectManager] Save to file failed:", error);
-      return false;
     }
+
+    const writable = await handle.createWritable();
+    try {
+      await writable.write(data);
+      await writable.close();
+    } catch (error) {
+      // Release the stream/lock and discard partial data when writing fails.
+      await writable.abort().catch(() => {});
+      throw error;
+    }
+
+    this.emit("projectSaved", { project });
+    return true;
   }
 
   private downloadProject(project: Project): boolean {
-    try {
-      const data = JSON.stringify(project, null, 2);
-      const blob = new Blob([data], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
+    const data = JSON.stringify(project, null, 2);
+    const blob = new Blob([data], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
 
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${project.name}.oreel`;
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${project.name}.oreel`;
+    try {
       document.body.appendChild(a);
       a.click();
-      document.body.removeChild(a);
+    } finally {
+      a.remove();
       URL.revokeObjectURL(url);
-
-      this.emit("projectSaved", { project });
-      return true;
-    } catch (error) {
-      console.error("[ProjectManager] Download failed:", error);
-      return false;
     }
+
+    this.emit("projectSaved", { project });
+    return true;
   }
 
   async openProject(): Promise<Project | null> {

@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from "react";
-import { ToolcraftText as Text } from "@openreel/ui";
+import { ToolcraftText as Text, ToolcraftButton as Button } from "@openreel/ui";
 
 import { Toolbar } from "./Toolbar";
 import { EditorActionRail } from "./EditorActionRail";
@@ -14,28 +14,10 @@ import { PanelErrorBoundary } from "../ErrorBoundary";
 import { SpotlightTour, MoGraphTour } from "./tour";
 import { useProjectStore } from "../../stores/project-store";
 import { useUIStore } from "../../stores/ui-store";
-import { useEngineStore } from "../../stores/engine-store";
 import { useKeyboardShortcuts } from "../../hooks/useKeyboardShortcuts";
-import {
-  initializePlaybackBridge,
-  disposePlaybackBridge,
-} from "../../bridges/playback-bridge";
-import {
-  initializeMediaBridge,
-  disposeMediaBridge,
-} from "../../bridges/media-bridge";
-import {
-  initializeRenderBridge,
-  disposeRenderBridge,
-} from "../../bridges/render-bridge";
-import {
-  initializeEffectsBridge,
-  disposeEffectsBridge,
-} from "../../bridges/effects-bridge";
-import {
-  initializeTransitionBridge,
-  disposeTransitionBridge,
-} from "../../bridges/transition-bridge";
+import { useEditorInitialization } from "../../hooks/useEditorInitialization";
+import { useCompactEditor } from "../../hooks/useCompactEditor";
+import "./editor-responsive.css";
 
 const ChatPanel = React.lazy(() =>
   import("./chat/ChatPanel").then((module) => ({ default: module.ChatPanel })),
@@ -69,127 +51,18 @@ const RESIZE_HANDLE = 10;
 type ResizeTarget = "timeline" | "media" | "inspector" | "chat";
 
 const clamp = (value: number, min: number, max: number): number => {
-  return Math.min(Math.max(value, min), max);
+  return Math.min(Math.max(value, min), Math.max(min, max));
 };
 
 /**
  * Auto-save initialization hook
  */
 const useAutoSave = () => {
-  const { initializeAutoSave } = useProjectStore();
+  const initializeAutoSave = useProjectStore((state) => state.initializeAutoSave);
 
   useEffect(() => {
     initializeAutoSave().catch(console.error);
   }, [initializeAutoSave]);
-};
-
-/**
- * Engine and bridge initialization hook
- * Ensures all engines and bridges are fully initialized before rendering editor
- */
-const useEngineInitialization = () => {
-  const { initialize, initialized, initializing, initError } = useEngineStore();
-  const [bridgesReady, setBridgesReady] = useState(false);
-  const [initStatus, setInitStatus] = useState("Starting...");
-  const [localError, setLocalError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let isMounted = true;
-
-    const initAll = async () => {
-      try {
-        const currentState = useEngineStore.getState();
-        if (!currentState.initialized && !currentState.initializing) {
-          setInitStatus("Initializing video engine...");
-          await initialize();
-        } else if (currentState.initializing) {
-          await new Promise<void>((resolve) => {
-            const unsubscribe = useEngineStore.subscribe((state) => {
-              if (state.initialized || state.initError) {
-                unsubscribe();
-                resolve();
-              }
-            });
-          });
-        }
-
-        if (!isMounted) return;
-
-        const engineState = useEngineStore.getState();
-        if (!engineState.initialized) {
-          throw new Error(
-            engineState.initError || "Engine initialization failed",
-          );
-        }
-
-        setInitStatus("Initializing media bridge...");
-        await initializeMediaBridge();
-        if (!isMounted) return;
-
-        setInitStatus("Initializing playback bridge...");
-        await initializePlaybackBridge();
-        if (!isMounted) return;
-
-        setInitStatus("Initializing render bridge...");
-        await initializeRenderBridge();
-        if (!isMounted) return;
-
-        setInitStatus("Initializing effects bridge...");
-        const projectState = useProjectStore.getState();
-        const { width, height } = projectState.project.settings;
-        try {
-          await initializeEffectsBridge(width, height);
-        } catch (effectsError) {
-          console.error(
-            "[EditorInterface] EffectsBridge initialization failed:",
-            effectsError,
-          );
-        }
-        if (!isMounted) return;
-
-        setInitStatus("Initializing transition bridge...");
-        try {
-          initializeTransitionBridge(width, height);
-        } catch (transitionError) {
-          console.error(
-            "[EditorInterface] TransitionBridge initialization failed:",
-            transitionError,
-          );
-        }
-        if (!isMounted) return;
-
-        setBridgesReady(true);
-      } catch (error) {
-        console.error("Failed to initialize engines/bridges:", error);
-        if (isMounted) {
-          setLocalError(
-            error instanceof Error ? error.message : "Unknown error",
-          );
-          setInitStatus(
-            `Error: ${error instanceof Error ? error.message : "Unknown error"}`,
-          );
-        }
-      }
-    };
-
-    initAll();
-
-    return () => {
-      isMounted = false;
-      disposePlaybackBridge();
-      disposeMediaBridge();
-      disposeRenderBridge();
-      disposeEffectsBridge();
-      disposeTransitionBridge();
-    };
-  }, [initialize, initialized, initializing]);
-
-  return {
-    initialized: initialized && bridgesReady,
-    initializing: initializing || (!bridgesReady && initialized),
-    initError: initError || localError,
-    initStatus,
-  };
 };
 
 /**
@@ -210,23 +83,24 @@ const useEngineInitialization = () => {
  * properties on the root grid so panels can pick them up.
  */
 export const EditorInterface: React.FC = () => {
-  const { initialized, initializing, initError, initStatus } =
-    useEngineInitialization();
+  const compact = useCompactEditor();
+  const [compactPanel, setCompactPanel] = useState<"timeline" | "media" | "inspector" | "chat">("timeline");
+  const [hasOpenedChat, setHasOpenedChat] = useState(false);
+  const { initialized, initializing, initError, initStatus, retry } =
+    useEditorInitialization();
 
   const { showShortcutsOverlay, setShowShortcutsOverlay } =
     useKeyboardShortcuts();
   useAutoSave();
 
-  const {
-    keyframeEditorOpen,
-    setKeyframeEditorOpen,
-    getSelectedClipIds,
-    panels,
-    setPanelVisible,
-    timelineMaximized,
-  } = useUIStore();
-  const { project, updateClipKeyframes } = useProjectStore();
-  const tracks = project.timeline.tracks;
+  const keyframeEditorOpen = useUIStore((state) => state.keyframeEditorOpen);
+  const setKeyframeEditorOpen = useUIStore((state) => state.setKeyframeEditorOpen);
+  const selectedItems = useUIStore((state) => state.selectedItems);
+  const panels = useUIStore((state) => state.panels);
+  const setPanelVisible = useUIStore((state) => state.setPanelVisible);
+  const timelineMaximized = useUIStore((state) => state.timelineMaximized);
+  const tracks = useProjectStore((state) => state.project.timeline.tracks);
+  const updateClipKeyframes = useProjectStore((state) => state.updateClipKeyframes);
 
   const [selectedKeyframeIds, setSelectedKeyframeIds] = React.useState<string[]>([]);
   const [copiedKeyframes, setCopiedKeyframes] = React.useState<
@@ -234,7 +108,7 @@ export const EditorInterface: React.FC = () => {
   >([]);
 
   const selectedClip = React.useMemo(() => {
-    const selectedIds = getSelectedClipIds();
+    const selectedIds = selectedItems.filter((item) => item.type === "clip").map((item) => item.id);
     if (selectedIds.length === 0) return null;
     const clipId = selectedIds[0];
     for (const track of tracks) {
@@ -242,7 +116,7 @@ export const EditorInterface: React.FC = () => {
       if (clip) return clip;
     }
     return null;
-  }, [getSelectedClipIds, tracks]);
+  }, [selectedItems, tracks]);
 
   const handleUpdateKeyframe = React.useCallback(
     (
@@ -318,12 +192,23 @@ export const EditorInterface: React.FC = () => {
   // ── Layout state (resizable columns and timeline band) ──────────
   const rootRef = useRef<HTMLDivElement>(null);
   const resizeRef = useRef<ResizeTarget | null>(null);
-  const [mediaWidth, setMediaWidth] = useState(DEFAULT_MEDIA_W);
-  const [inspectorWidth, setInspectorWidth] = useState(DEFAULT_INSPECTOR_W);
+  const [mediaWidth, setMediaWidth] = useState(() => window.innerWidth < 1600 ? MIN_MEDIA_W : DEFAULT_MEDIA_W);
+  const [inspectorWidth, setInspectorWidth] = useState(() => window.innerWidth < 1600 ? MIN_INSPECTOR_W : DEFAULT_INSPECTOR_W);
   const [chatWidth, setChatWidth] = useState(DEFAULT_CHAT_W);
   const [timelineVh, setTimelineVh] = useState(DEFAULT_TIMELINE_VH);
 
   const chatVisible = panels.agentChat?.visible ?? false;
+  useEffect(() => {
+    if (chatVisible) {
+      setHasOpenedChat(true);
+      if (compact) setCompactPanel("chat");
+    }
+  }, [chatVisible, compact]);
+  const openCompactPanel = (panel: typeof compactPanel) => {
+    setCompactPanel(panel);
+    setPanelVisible("agentChat", panel === "chat");
+    if (panel === "chat") setHasOpenedChat(true);
+  };
 
   const mediaRef = useRef(mediaWidth);
   const inspectorRef = useRef(inspectorWidth);
@@ -430,11 +315,18 @@ export const EditorInterface: React.FC = () => {
     return (
       <div className="w-full h-full bg-bg flex items-center justify-center">
         <div className="text-center">
-          <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <Text type="supporting" color="primary" className="text-fg-2 text-sm">Initializing editor…</Text>
-          <Text type="supporting" color="secondary" className="text-fg-muted text-xs mt-2">{initStatus}</Text>
-          {initError && (
-            <Text type="supporting" className="text-status-error text-xs mt-2">{initError}</Text>
+          {initError ? (
+            <div role="alert" className="max-w-md space-y-4 px-6">
+              <Text type="body" weight="bold">The editor couldn't start</Text>
+              <Text type="supporting" className="text-status-error text-xs">{initError}</Text>
+              <Button label="Try again" onClick={retry} variant="primary" />
+            </div>
+          ) : (
+            <div role="status">
+              <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+              <Text type="supporting" color="primary" className="text-fg-2 text-sm">Initializing editor…</Text>
+              <Text type="supporting" color="secondary" className="text-fg-muted text-xs mt-2">{initStatus}</Text>
+            </div>
           )}
         </div>
       </div>
@@ -448,7 +340,9 @@ export const EditorInterface: React.FC = () => {
   const effectiveTimelineVh = timelineMaximized
     ? COMPACT_TIMELINE_VH
     : timelineVh;
-  const gridStyle: React.CSSProperties = chatVisible
+  const gridStyle: React.CSSProperties = compact
+    ? { gridTemplateColumns: "minmax(0, 1fr)", gridTemplateRows: "minmax(150px, 36%) minmax(0, 1fr)", gridTemplateAreas: `'stage' '${compactPanel}'` }
+    : chatVisible
     ? {
         gridTemplateColumns: `${mediaWidth}px ${RESIZE_HANDLE}px 1fr ${RESIZE_HANDLE}px ${inspectorWidth}px ${RESIZE_HANDLE}px ${chatWidth}px`,
         gridTemplateRows: `1fr ${RESIZE_HANDLE}px ${effectiveTimelineVh}vh`,
@@ -465,18 +359,20 @@ export const EditorInterface: React.FC = () => {
   return (
     <div
       ref={rootRef}
-      className="w-full h-full bg-bg text-fg overflow-hidden font-sans select-none relative z-20 flex flex-col"
+      className={`editor-shell w-full h-full bg-bg text-fg overflow-hidden font-sans select-none relative z-20 flex flex-col ${compact ? "editor-compact" : ""}`}
     >
       <Toolbar />
 
-      <div className="flex-1 min-h-0 flex">
-        <EditorActionRail />
+      <div className="editor-body flex-1 min-h-0 flex">
+        <div className="editor-rail" hidden={compact && compactPanel !== "media"}><EditorActionRail /></div>
         <div
-          className="flex-1 min-h-0 grid gap-0 bg-bg p-2.5"
+          className="editor-workspace flex-1 min-w-0 min-h-0 grid gap-0 bg-bg p-2.5"
           style={gridStyle}
         >
         <div
-          className="bg-bg-1 min-w-0 min-h-0 overflow-hidden rounded-xl border border-border shadow-sm"
+          id="editor-panel-media"
+          hidden={compact && compactPanel !== "media"}
+          className="editor-panel bg-bg-1 min-w-0 min-h-0 overflow-hidden rounded-xl border border-border shadow-sm"
           style={{ gridArea: "media" }}
         >
           <PanelErrorBoundary name="Media">
@@ -485,7 +381,8 @@ export const EditorInterface: React.FC = () => {
         </div>
 
         <div
-          className="grid place-items-center cursor-col-resize group/h"
+          hidden={compact}
+          className="editor-resizer grid place-items-center cursor-col-resize group/h"
           style={{ gridArea: "mh" }}
           onMouseDown={beginResize("media")}
         >
@@ -493,7 +390,7 @@ export const EditorInterface: React.FC = () => {
         </div>
 
         <div
-          className="bg-stage-bg min-w-0 min-h-0 overflow-hidden rounded-xl border border-border shadow-sm"
+          className="editor-stage bg-stage-bg min-w-0 min-h-0 overflow-hidden rounded-xl border border-border shadow-sm"
           style={{ gridArea: "stage" }}
         >
           <PanelErrorBoundary name="Stage">
@@ -502,7 +399,8 @@ export const EditorInterface: React.FC = () => {
         </div>
 
         <div
-          className="grid place-items-center cursor-col-resize group/h"
+          hidden={compact}
+          className="editor-resizer grid place-items-center cursor-col-resize group/h"
           style={{ gridArea: "ih" }}
           onMouseDown={beginResize("inspector")}
         >
@@ -510,7 +408,9 @@ export const EditorInterface: React.FC = () => {
         </div>
 
         <div
-          className="bg-bg-1 min-w-0 min-h-0 overflow-hidden rounded-xl border border-border shadow-sm"
+          id="editor-panel-inspector"
+          hidden={compact && compactPanel !== "inspector"}
+          className="editor-panel bg-bg-1 min-w-0 min-h-0 overflow-hidden rounded-xl border border-border shadow-sm"
           style={{ gridArea: "inspector" }}
         >
           <PanelErrorBoundary name="Inspector">
@@ -518,10 +418,11 @@ export const EditorInterface: React.FC = () => {
           </PanelErrorBoundary>
         </div>
 
-        {chatVisible && (
+        {(chatVisible || hasOpenedChat) && (
           <>
             <div
-              className="grid place-items-center cursor-col-resize group/h"
+              hidden={compact || !chatVisible}
+              className="editor-resizer grid place-items-center cursor-col-resize group/h"
               style={{ gridArea: "ch" }}
               onMouseDown={beginResize("chat")}
             >
@@ -529,7 +430,9 @@ export const EditorInterface: React.FC = () => {
             </div>
 
             <div
-              className="bg-bg-1 min-w-0 min-h-0 overflow-hidden rounded-xl border border-border shadow-sm"
+              id="editor-panel-chat"
+              hidden={!chatVisible || (compact && compactPanel !== "chat")}
+              className="editor-panel bg-bg-1 min-w-0 min-h-0 overflow-hidden rounded-xl border border-border shadow-sm"
               style={{ gridArea: "chat" }}
             >
               <PanelErrorBoundary name="AI Editor">
@@ -541,7 +444,7 @@ export const EditorInterface: React.FC = () => {
                   }
                 >
                   <ChatPanel
-                    onClose={() => setPanelVisible("agentChat", false)}
+                    onClose={() => { setPanelVisible("agentChat", false); if (compact) setCompactPanel("timeline"); }}
                   />
                 </React.Suspense>
               </PanelErrorBoundary>
@@ -550,7 +453,8 @@ export const EditorInterface: React.FC = () => {
         )}
 
         <div
-          className="grid place-items-center cursor-row-resize group/h"
+          hidden={compact}
+          className="editor-resizer grid place-items-center cursor-row-resize group/h"
           style={{ gridArea: "th" }}
           onMouseDown={beginResize("timeline")}
         >
@@ -558,7 +462,9 @@ export const EditorInterface: React.FC = () => {
         </div>
 
         <div
-          className="bg-tl-bg min-w-0 min-h-0 overflow-hidden flex flex-col rounded-xl border border-border shadow-sm"
+          id="editor-panel-timeline"
+          hidden={compact && compactPanel !== "timeline"}
+          className="editor-panel bg-tl-bg min-w-0 min-h-0 overflow-hidden flex flex-col rounded-xl border border-border shadow-sm"
           style={{ gridArea: "timeline" }}
         >
           {panels.audioMixer?.visible && (
@@ -572,6 +478,11 @@ export const EditorInterface: React.FC = () => {
             </div>
           )}
 
+          {compact && selectedItems.length > 0 && (
+            <button type="button" onClick={() => openCompactPanel("inspector")} className="shrink-0 text-xs text-accent bg-accent/10">
+              Edit selected clip · trim, captions, audio & effects
+            </button>
+          )}
           <div className="flex-1 min-h-0 flex">
             <div className="flex-1 min-w-0 min-h-0">
               <PanelErrorBoundary name="Timeline">
@@ -600,6 +511,19 @@ export const EditorInterface: React.FC = () => {
         </div>
       </div>
       </div>
+
+      {compact && (
+        <nav aria-label="Editor workspace" className="editor-workspace-tabs">
+          {([
+            ["timeline", "Timeline"], ["media", "Media"], ["inspector", "Edit"], ["chat", "AI"],
+          ] as const).map(([panel, label]) => (
+            <button key={panel} type="button" aria-controls={`editor-panel-${panel}`} aria-pressed={compactPanel === panel}
+              onClick={() => openCompactPanel(panel)} className={compactPanel === panel ? "text-accent bg-accent/10" : "text-fg-muted"}>
+              {label}
+            </button>
+          ))}
+        </nav>
+      )}
 
       <KeyboardShortcutsOverlay
         isOpen={showShortcutsOverlay}

@@ -73,7 +73,7 @@ interface TrackLaneProps {
   selectedTransitionId?: string | null;
 }
 
-export const TrackLane: React.FC<TrackLaneProps> = ({
+export const TrackLane: React.FC<TrackLaneProps> = React.memo(function TrackLane({
   track,
   allTracks,
   pixelsPerSecond,
@@ -99,18 +99,20 @@ export const TrackLane: React.FC<TrackLaneProps> = ({
   selectedKeyframeIds = [],
   onSelectTransition,
   selectedTransitionId = null,
-}) => {
-  const { isTrackExpanded, playheadPosition } = useTimelineStore();
-  const isExpanded = isTrackExpanded(track.id);
-  const { snapSettings } = useUIStore();
+}) {
+  const isExpanded = useTimelineStore((state) => state.expandedTracks.has(track.id));
+  const viewportWidth = useTimelineStore((state) => state.viewportWidth);
+  const snapSettings = useUIStore((state) => state.snapSettings);
   const [isDragOver, setIsDragOver] = useState(false);
   const [dropHint, setDropHint] = useState("Drop to add clip");
   const [isResizing, setIsResizing] = useState(false);
   const laneRef = useRef<HTMLDivElement>(null);
   const resizeStartY = useRef<number>(0);
   const resizeStartHeight = useRef<number>(0);
-  const adjustmentLayers = useProjectStore((state) =>
-    (state.project.adjustmentLayers ?? []).filter((layer) => layer.trackId === track.id),
+  const projectAdjustmentLayers = useProjectStore((state) => state.project.adjustmentLayers);
+  const adjustmentLayers = useMemo(
+    () => (projectAdjustmentLayers ?? []).filter((layer) => layer.trackId === track.id),
+    [projectAdjustmentLayers, track.id],
   );
   const frameRate = useProjectStore((state) => state.project.settings.frameRate);
   const mediaItems = useProjectStore((state) => state.project.mediaLibrary.items);
@@ -191,7 +193,7 @@ export const TrackLane: React.FC<TrackLaneProps> = ({
           rawTime,
           "",
           allTracks,
-          playheadPosition,
+          useTimelineStore.getState().playheadPosition,
           snapSettings,
           pixelsPerSecond,
         );
@@ -241,7 +243,7 @@ export const TrackLane: React.FC<TrackLaneProps> = ({
             rawTime,
             "",
             allTracks,
-            playheadPosition,
+            useTimelineStore.getState().playheadPosition,
             snapSettings,
             pixelsPerSecond,
           );
@@ -255,7 +257,6 @@ export const TrackLane: React.FC<TrackLaneProps> = ({
       allTracks,
       onDropMedia,
       pixelsPerSecond,
-      playheadPosition,
       scrollX,
       snapSettings,
       track.id,
@@ -324,6 +325,8 @@ export const TrackLane: React.FC<TrackLaneProps> = ({
               track={track}
               allTracks={allTracks}
               pixelsPerSecond={pixelsPerSecond}
+              scrollX={scrollX}
+              viewportWidth={viewportWidth}
               isSelected={selectedClipIds.includes(clip.id)}
               trackHeights={trackHeights}
               timelineRef={timelineRef}
@@ -373,6 +376,7 @@ export const TrackLane: React.FC<TrackLaneProps> = ({
               layer={layer}
               pixelsPerSecond={pixelsPerSecond}
               frameRate={frameRate}
+              isSelected={Boolean(ownerClip && selectedClipIds.includes(ownerClip.id))}
               onSelectOwner={() => ownerClip && onSelectClip(ownerClip.id, false)}
             />
           );
@@ -403,6 +407,7 @@ export const TrackLane: React.FC<TrackLaneProps> = ({
         )}
       </div>
       <div
+        data-timeline-height-resize
         className={`absolute bottom-0 left-0 right-0 h-1 cursor-row-resize hover:bg-primary/50 transition-colors z-10 ${
           isResizing ? "bg-primary" : ""
         }`}
@@ -430,4 +435,4 @@ export const TrackLane: React.FC<TrackLaneProps> = ({
       )}
     </div>
   );
-};
+});

@@ -11,6 +11,7 @@ import {
   type BeatSyncState,
   DEFAULT_BEAT_SYNC_CONFIG,
 } from "../../../bridges/audio-text-sync-bridge";
+import { useProjectStore } from "../../../stores/project-store";
 import type { SyncMode } from "@openreel/core";
 
 interface BeatSyncPanelProps {
@@ -25,6 +26,7 @@ const TRACK_ICONS: Record<string, React.ReactNode> = {
 };
 
 export const AudioTextSyncPanel: React.FC<BeatSyncPanelProps> = ({ clipId }) => {
+  const project = useProjectStore((store) => store.project);
   const [state, setState] = useState<BeatSyncState | null>(null);
   const [showSettings, setShowSettings] = useState(false);
 
@@ -36,9 +38,11 @@ export const AudioTextSyncPanel: React.FC<BeatSyncPanelProps> = ({ clipId }) => 
     return unsubscribe;
   }, [bridge, clipId]);
 
-  const availableTracks = useMemo(() => {
-    return bridge.getAvailableTracks();
-  }, [bridge, state?.beatAnalysis]);
+  useEffect(() => {
+    bridge.refreshProject();
+  }, [bridge, project]);
+
+  const availableTracks = bridge.getAvailableTracks();
 
   const handleAnalyzeBeats = useCallback(() => {
     bridge.analyzeBeats();
@@ -82,11 +86,11 @@ export const AudioTextSyncPanel: React.FC<BeatSyncPanelProps> = ({ clipId }) => 
   } = state;
 
   return (
-    <div className="space-y-4">
+    <fieldset disabled={isProcessing} className="space-y-4 min-w-0">
       <div className="flex items-center gap-2 text-fg-2">
         <Music size={14} aria-hidden />
         <Text type="supporting" color="secondary" className="text-[10px]">
-          Sync clips to the beat of this audio
+          Trim and arrange video clips in order so each cut lands on a music beat.
         </Text>
       </div>
 
@@ -165,7 +169,7 @@ export const AudioTextSyncPanel: React.FC<BeatSyncPanelProps> = ({ clipId }) => 
             {availableTracks.length === 0 ? (
               <Card variant="muted" padding={3}>
                 <Text type="supporting" color="secondary" className="text-[10px]">
-                  No other tracks with clips found. Add clips to other tracks first.
+                  No unlocked tracks with eligible clips found. Add video clips to the timeline first.
                 </Text>
               </Card>
             ) : (
@@ -200,6 +204,26 @@ export const AudioTextSyncPanel: React.FC<BeatSyncPanelProps> = ({ clipId }) => 
             )}
           </div>
 
+          {config.syncMode === "cut-to-beats" && (
+            <div className="space-y-2">
+              <Text type="supporting" color="secondary" className="block text-[10px]">
+                Cut every
+              </Text>
+              <div className="flex gap-1">
+                {([1, 2, 4, 8] as const).map((beats) => (
+                  <Button key={beats} label={`${beats} ${beats === 1 ? "beat" : "beats"}`}
+                    variant={(config.beatsPerClip ?? 4) === beats ? "primary" : "secondary"}
+                    size="sm" isDisabled={isProcessing}
+                    onClick={() => handleUpdateConfig({ beatsPerClip: beats })} />
+                ))}
+              </div>
+              <Text type="supporting" color="secondary" className="block text-[10px]">
+                Uses each video clip once, starting at its current in point. Music stays in place.
+                Choose at least two video clips for a sequence. Undo restores the original timing.
+              </Text>
+            </div>
+          )}
+
           {clipsToSync.length > 0 && (
             <Card variant="muted" padding={2}>
               <Text type="supporting" color="secondary" className="text-[9px]">
@@ -226,6 +250,7 @@ export const AudioTextSyncPanel: React.FC<BeatSyncPanelProps> = ({ clipId }) => 
                   </Text>
                   <div className="space-y-1">
                     {([
+                      { value: "cut-to-beats", label: "Cut Video to Beats", desc: "Arrange video clips with a cut every 1, 2, 4, or 8 beats" },
                       { value: "smart", label: "Smart", desc: "Adjust duration to fit nearest beat count" },
                       { value: "one-per-beat", label: "One per Beat", desc: "Each clip gets exactly one beat" },
                       { value: "preserve-duration", label: "Preserve Duration", desc: "Keep original duration, snap start to beat" },
@@ -253,7 +278,7 @@ export const AudioTextSyncPanel: React.FC<BeatSyncPanelProps> = ({ clipId }) => 
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between gap-2">
+                {config.syncMode !== "cut-to-beats" && <div className="flex items-center justify-between gap-2">
                   <Text type="supporting" color="secondary" className="text-[10px]">
                     Beat Subdivision
                   </Text>
@@ -268,7 +293,7 @@ export const AudioTextSyncPanel: React.FC<BeatSyncPanelProps> = ({ clipId }) => 
                       />
                     ))}
                   </div>
-                </div>
+                </div>}
 
                 <PropertySlider
                   label="Offset"
@@ -280,7 +305,7 @@ export const AudioTextSyncPanel: React.FC<BeatSyncPanelProps> = ({ clipId }) => 
                   formatValue={(value) => `${Math.round(value)} ms`}
                 />
 
-                <div className="flex items-center justify-between gap-2">
+                {config.syncMode !== "cut-to-beats" && <div className="flex items-center justify-between gap-2">
                   <Text type="supporting" color="secondary" className="text-[10px]">
                     Downbeats Only
                   </Text>
@@ -298,7 +323,7 @@ export const AudioTextSyncPanel: React.FC<BeatSyncPanelProps> = ({ clipId }) => 
                       onClick={() => handleUpdateConfig({ snapToDownbeats: true })}
                     />
                   </div>
-                </div>
+                </div>}
               </Card>
             )}
           </div>
@@ -318,7 +343,7 @@ export const AudioTextSyncPanel: React.FC<BeatSyncPanelProps> = ({ clipId }) => 
                       Clip {idx + 1}
                     </Text>
                     <Text type="supporting" color="primary" className="text-[9px]">
-                      {timing.originalStartTime.toFixed(2)}s → {timing.newStartTime.toFixed(2)}s
+                      {timing.newStartTime.toFixed(2)}s – {(timing.newStartTime + timing.newDuration).toFixed(2)}s
                     </Text>
                   </div>
                 ))}
@@ -348,7 +373,9 @@ export const AudioTextSyncPanel: React.FC<BeatSyncPanelProps> = ({ clipId }) => 
             label={
               isProcessing
                 ? "Syncing..."
-                : `Sync ${previewTimings.length} Clips to Beats`
+                : config.syncMode === "cut-to-beats"
+                  ? `Apply Beat Cuts to ${previewTimings.length} Clips`
+                  : `Sync ${previewTimings.length} Clips to Beats`
             }
             icon={
               isProcessing ? (
@@ -364,6 +391,7 @@ export const AudioTextSyncPanel: React.FC<BeatSyncPanelProps> = ({ clipId }) => 
           />
 
           <Button
+            isDisabled={isProcessing}
             label="Re-analyze Beats"
             variant="secondary"
             size="sm"
@@ -372,6 +400,6 @@ export const AudioTextSyncPanel: React.FC<BeatSyncPanelProps> = ({ clipId }) => 
           />
         </div>
       )}
-    </div>
+    </fieldset>
   );
 };

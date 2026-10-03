@@ -218,6 +218,16 @@ export type ClipAction =
       type: "clip/trimToPlayhead";
       params: { clipId: string; playheadTime: number; trimStart: boolean };
     }
+  | {
+      type: "clip/restoreTiming";
+      params: {
+        clipId: string;
+        startTime: number;
+        duration: number;
+        inPoint: number;
+        outPoint: number;
+      };
+    }
   | { type: "clip/closeGapBefore"; params: { clipId: string } }
   | { type: "clip/setSpeed"; params: { clipId: string; speed: number } }
   | { type: "clip/setReverse"; params: { clipId: string; reversed: boolean } }

@@ -469,6 +469,7 @@ export class MediaBunnyEngine {
         hasAudio: !!audioTrack,
         rotation,
         canDecode: canDecodeVideo || canDecodeAudio,
+        canDecodeVideo,
         videoBitrate,
         audioTrackCount,
       };
@@ -818,117 +819,132 @@ export class MediaBunnyEngine {
       source: new BlobSource(file),
       formats: ALL_FORMATS,
     });
-    let outputFormat;
-    switch (settings.format) {
-      case "webm":
-        outputFormat = new WebMOutputFormat();
-        break;
-      case "mov":
-        outputFormat = new MovOutputFormat();
-        break;
-      case "mp3":
-        outputFormat = new Mp3OutputFormat();
-        break;
-      case "mp4":
-      default:
-        outputFormat = new Mp4OutputFormat({ fastStart: "in-memory" });
-        break;
-    }
-
-    const output = new Output({
-      format: outputFormat,
-      target: new BufferTarget(),
-    });
-    const conversionOptions: Record<string, unknown> = {
-      input,
-      output,
-    };
-
-    // Video options
-    if (settings.width || settings.height || settings.videoBitrate) {
-      conversionOptions.video = {
-        ...(settings.width && { width: settings.width }),
-        ...(settings.height && { height: settings.height }),
-        ...(settings.width && settings.height && { fit: "contain" }),
-        ...(settings.frameRate && { frameRate: settings.frameRate }),
-        bitrate: settings.videoBitrate || QUALITY_HIGH,
-      };
-    }
-
-    // Audio options
-    if (settings.audioBitrate || settings.sampleRate || settings.channels) {
-      conversionOptions.audio = {
-        ...(settings.audioBitrate && { bitrate: settings.audioBitrate }),
-        ...(settings.sampleRate && { sampleRate: settings.sampleRate }),
-        ...(settings.channels && { numberOfChannels: settings.channels }),
-      };
-    }
-
-    // Discard audio for video-only export
-    if (
-      settings.format === "mp4" ||
-      settings.format === "webm" ||
-      settings.format === "mov"
-    ) {
-      if (!conversionOptions.audio) {
-        conversionOptions.audio = { bitrate: QUALITY_MEDIUM };
-      }
-    }
-
-    const conversion = await Conversion.init(
-      conversionOptions as ConversionOptions,
-    );
-
-    if (!conversion.isValid) {
-      const reasons = conversion.discardedTracks
-        .map((t: { reason: string }) => t.reason)
-        .join(", ");
-      throw new Error(`Conversion invalid: ${reasons}`);
-    }
-
-    // Warn about discarded tracks that were not explicitly discarded
-    if (conversion.discardedTracks.length > 0) {
-      console.warn(
-        "Some tracks were discarded during conversion:",
-        conversion.discardedTracks,
-      );
-    }
-    if (onProgress) {
-      let lastProgress = 0;
-      conversion.onProgress = (progress: number) => {
-        if (progress > lastProgress) {
-          lastProgress = progress;
-          onProgress({
-            phase: progress < 1 ? "encoding" : "complete",
-            progress,
-            currentFrame: 0,
-            totalFrames: 0,
-            estimatedTimeRemaining: 0,
-          });
-        }
-      };
-    }
-    if (signal) {
-      signal.addEventListener("abort", () => {
-        conversion.cancel();
-      });
-    }
-
+    let cancelConversion: (() => void) | undefined;
+    let cancellation: Promise<void> | undefined;
     try {
-      await conversion.execute();
-    } catch (error) {
-      if (signal?.aborted) {
-        throw new DOMException("Aborted", "AbortError");
+      let outputFormat;
+      switch (settings.format) {
+        case "webm":
+          outputFormat = new WebMOutputFormat();
+          break;
+        case "mov":
+          outputFormat = new MovOutputFormat();
+          break;
+        case "mp3":
+          outputFormat = new Mp3OutputFormat();
+          break;
+        case "mp4":
+        default:
+          outputFormat = new Mp4OutputFormat({ fastStart: "in-memory" });
+          break;
       }
-      throw error;
-    }
-    const buffer = output.target.buffer;
-    if (!buffer) {
-      throw new Error("Output buffer is empty");
-    }
-    const mimeType = this.getMimeTypeForFormat(settings.format);
 
-    return new Blob([buffer], { type: mimeType });
+      const output = new Output({
+        format: outputFormat,
+        target: new BufferTarget(),
+      });
+      const conversionOptions: Record<string, unknown> = {
+        input,
+        output,
+      };
+
+      // Video options
+      if (settings.width || settings.height || settings.videoBitrate) {
+        conversionOptions.video = {
+          ...(settings.width && { width: settings.width }),
+          ...(settings.height && { height: settings.height }),
+          ...(settings.width && settings.height && { fit: "contain" }),
+          ...(settings.frameRate && { frameRate: settings.frameRate }),
+          ...(settings.videoCodec && { codec: settings.videoCodec }),
+          ...(settings.keyFrameInterval && { keyFrameInterval: settings.keyFrameInterval }),
+          bitrate: settings.videoBitrate || QUALITY_HIGH,
+        };
+      }
+
+      // Audio options
+      if (settings.audioBitrate || settings.sampleRate || settings.channels) {
+        conversionOptions.audio = {
+          ...(settings.audioBitrate && { bitrate: settings.audioBitrate }),
+          ...(settings.sampleRate && { sampleRate: settings.sampleRate }),
+          ...(settings.channels && { numberOfChannels: settings.channels }),
+          ...(settings.audioCodec && { codec: settings.audioCodec }),
+        };
+      }
+
+      // Discard audio for video-only export
+      if (
+        settings.format === "mp4" ||
+        settings.format === "webm" ||
+        settings.format === "mov"
+      ) {
+        if (!conversionOptions.audio) {
+          conversionOptions.audio = { bitrate: QUALITY_MEDIUM };
+        }
+      }
+
+      const conversion = await Conversion.init(
+        conversionOptions as ConversionOptions,
+      );
+
+      if (!conversion.isValid) {
+        const reasons = conversion.discardedTracks
+          .map((t: { reason: string }) => t.reason)
+          .join(", ");
+        throw new Error(`Conversion invalid: ${reasons}`);
+      }
+
+      // Warn about discarded tracks that were not explicitly discarded
+      if (conversion.discardedTracks.length > 0) {
+        console.warn(
+          "Some tracks were discarded during conversion:",
+          conversion.discardedTracks,
+        );
+      }
+      if (onProgress) {
+        let lastProgress = 0;
+        conversion.onProgress = (progress: number) => {
+          if (progress > lastProgress) {
+            lastProgress = progress;
+            onProgress({
+              phase: progress < 1 ? "encoding" : "complete",
+              progress,
+              currentFrame: 0,
+              totalFrames: 0,
+              estimatedTimeRemaining: 0,
+            });
+          }
+        };
+      }
+      if (signal) {
+        cancelConversion = () => { cancellation = conversion.cancel().catch(() => undefined); };
+        signal.addEventListener("abort", cancelConversion, { once: true });
+        if (signal.aborted) {
+          cancelConversion();
+          throw new DOMException("Aborted", "AbortError");
+        }
+      }
+
+      try {
+        await conversion.execute();
+      } catch (error) {
+        if (signal?.aborted) {
+          throw new DOMException("Aborted", "AbortError");
+        }
+        throw error;
+      }
+      const buffer = output.target.buffer;
+      if (!buffer) {
+        throw new Error("Output buffer is empty");
+      }
+      const mimeType = this.getMimeTypeForFormat(settings.format);
+
+      if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
+      return new Blob([buffer], { type: mimeType });
+    } finally {
+      if (cancelConversion) signal?.removeEventListener("abort", cancelConversion);
+      await cancellation;
+      input[Symbol.dispose]?.();
+    }
   }
 
   async extractAudio(
@@ -1136,6 +1152,7 @@ export class MediaBunnyEngine {
     file: File | Blob,
     onProgress?: (progress: ExportProgress) => void,
     signal?: AbortSignal,
+    settings: Partial<ExportSettings> = {},
   ): Promise<Blob> {
     // Proxy settings: 540p, lower bitrate, faster encoding
     const proxySettings: ExportSettings = {
@@ -1143,6 +1160,8 @@ export class MediaBunnyEngine {
       height: 540,
       videoBitrate: 1_000_000, // 1 Mbps
       audioBitrate: 96_000, // 96 kbps
+      keyFrameInterval: 1,
+      ...settings,
     };
 
     return this.convertMedia(file, proxySettings, onProgress, signal);

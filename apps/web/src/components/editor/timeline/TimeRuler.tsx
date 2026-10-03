@@ -5,6 +5,7 @@ import React, {
   useState,
   useMemo,
 } from "react";
+import { useTimelineTouchGesture, listenTimelineGesture } from "./touch-gestures";
 import { formatTimecode } from "./utils";
 import {
   getBeatSyncBridge,
@@ -31,6 +32,7 @@ export const TimeRuler: React.FC<TimeRulerProps> = ({
   onScrubEnd,
   snapPoints,
 }) => {
+  const touchGesture = useTimelineTouchGesture();
   const rulerRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [beatState, setBeatState] = useState<BeatSyncState>(() =>
@@ -111,7 +113,8 @@ export const TimeRuler: React.FC<TimeRulerProps> = ({
   );
 
   const handleMouseDown = useCallback(
-    (e: React.MouseEvent<HTMLDivElement>) => {
+    (e: React.MouseEvent) => {
+      if (touchGesture.shouldIgnoreMouse(e) || e.button !== 0) return false;
       e.preventDefault();
       e.stopPropagation();
       setIsDragging(true);
@@ -119,7 +122,7 @@ export const TimeRuler: React.FC<TimeRulerProps> = ({
       const time = getTimeFromEvent(e);
       onSeek(time);
     },
-    [getTimeFromEvent, onSeek, onScrubStart],
+    [getTimeFromEvent, onSeek, onScrubStart, touchGesture],
   );
 
   const snapPointsRef = useRef(snapPoints);
@@ -190,24 +193,24 @@ export const TimeRuler: React.FC<TimeRulerProps> = ({
       onScrubEnd?.();
     };
 
-    window.addEventListener("mousemove", handleMouseMove);
-    window.addEventListener("mouseup", handleMouseUp);
+    const stopListening = listenTimelineGesture(touchGesture.pointerId, handleMouseMove, handleMouseUp);
 
     return () => {
       if (rafId !== null) cancelAnimationFrame(rafId);
-      window.removeEventListener("mousemove", handleMouseMove);
-      window.removeEventListener("mouseup", handleMouseUp);
+      stopListening();
     };
-  }, [isDragging, getTimeFromEvent, onSeek, onScrubEnd, safePixelsPerSecond]);
+  }, [isDragging, getTimeFromEvent, onSeek, onScrubEnd, safePixelsPerSecond, touchGesture]);
 
   return (
     <div
       ref={rulerRef}
+      data-timeline-ruler
+      onPointerDown={(event) => touchGesture.start(event, handleMouseDown)}
       className={`h-[34px] border-b border-border relative bg-bg-1 select-none ${
         isDragging ? "cursor-grabbing" : "cursor-pointer"
       }`}
       onMouseDown={handleMouseDown}
-      style={{ cursor: isDragging ? "grabbing" : "pointer" }}
+      style={{ cursor: isDragging ? "grabbing" : "pointer", touchAction: "none" }}
     >
       {ticks.map((tick) =>
         tick.showLabel && tick.time >= 0 ? (

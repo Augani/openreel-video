@@ -142,7 +142,7 @@ function project(): Project {
 }
 
 describe("multicam workflow", () => {
-  it("downmixes and decimates analysis audio before long-form processing", () => {
+  it("downmixes and averages analysis audio before long-form processing", () => {
     const left = new Float32Array([1, 2, 3, 4, 5, 6, 7, 8]);
     const right = new Float32Array([3, 4, 5, 6, 7, 8, 9, 10]);
     const buffer = {
@@ -155,7 +155,7 @@ describe("multicam workflow", () => {
     const analysis = prepareMulticamAnalysisAudio(buffer, 2_000);
 
     expect(analysis.sampleRate).toBe(2_000);
-    expect(Array.from(analysis.samples)).toEqual([2, 6]);
+    expect(Array.from(analysis.samples)).toEqual([3.5, 7.5]);
   });
 
   it("resolves each angle to its clip, track, and media", () => {
@@ -182,6 +182,26 @@ describe("multicam workflow", () => {
     expect(getMulticamAnalysisDuration(resolved, buffers)).toBe(6.5);
   });
 
+  it("uses an exact analysis rate for both 44.1kHz and 48kHz cameras", () => {
+    for (const sampleRate of [44100, 48000]) {
+      const result = prepareMulticamAnalysisAudio({ sampleRate, length: sampleRate,
+        numberOfChannels: 1, getChannelData: () => new Float32Array(sampleRate).fill(0.5),
+      } as unknown as AudioBuffer, 1000);
+      expect(result.sampleRate).toBe(1000);
+      expect(result.samples).toHaveLength(1000);
+      expect(result.samples[900]).toBe(0.5);
+    }
+  });
+
+  it("rejects unreliable sync before changing any offsets", () => {
+    const live = structuredClone(group);
+    expect(() => updateAlignedSourceOffsets(live, resolveMulticamSources(project(), group), new Map([
+      ["a", { offset: 0, confidence: 1, method: "audio" as const }],
+      ["b", { offset: 9, confidence: 0, method: "manual" as const }],
+    ]))).toThrow("Could not reliably sync");
+    expect(live.angles).toEqual(group.angles);
+  });
+
   it("translates raw sync offsets into each trimmed clip's source window", () => {
     const target = project();
     const targetClip = target.timeline.tracks[1]?.clips[0] as Clip;
@@ -199,6 +219,20 @@ describe("multicam workflow", () => {
     );
 
     expect(liveGroup.angles[1]?.offset).toBe(1);
+  });
+
+  it("starts at the common trimmed range when synchronization requires a negative offset", () => {
+    const target = project();
+    const live = structuredClone(group);
+    updateAlignedSourceOffsets(live, resolveMulticamSources(target, live), new Map([
+      ["a", { offset: 0, confidence: 1, method: "audio" as const }],
+      ["b", { offset: -2, confidence: 0.9, method: "audio" as const }],
+    ]));
+    expect(live.syncPoint).toBe(4);
+    expect(live.angles.map((angle) => angle.offset)).toEqual([2, 0]);
+    expect(getMulticamAnalysisDuration(resolveMulticamSources(target, live), new Map([
+      ["a", { duration: 20 } as AudioBuffer], ["b", { duration: 20 } as AudioBuffer],
+    ]))).toBe(6);
   });
 
   it("builds a v1 shoot manifest from the selected camera sources", () => {

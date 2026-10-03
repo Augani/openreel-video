@@ -34,7 +34,7 @@ export const ScriptViewDialog: React.FC<ScriptViewDialogProps> = ({
   isOpen,
   onClose,
 }) => {
-  const { project } = useProjectStore();
+  const project = useProjectStore((state) => isOpen ? state.project : null);
   const [activeTab, setActiveTab] = useState<"export" | "import">("export");
   const [importJson, setImportJson] = useState("");
   const [validation, setValidation] = useState<ValidationResult | null>(null);
@@ -44,7 +44,7 @@ export const ScriptViewDialog: React.FC<ScriptViewDialogProps> = ({
   const storage = useMemo(() => createStorageEngine(), []);
   const serializer = useMemo(() => createProjectSerializer(storage), [storage]);
   const fullProject = useMemo(
-    () => useProjectStore.getState().getFullProject(),
+    () => project ? useProjectStore.getState().getFullProject() : null,
     [project],
   );
 

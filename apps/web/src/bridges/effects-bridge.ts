@@ -125,6 +125,8 @@ export class EffectsBridge {
   private videoEffectsEngine: VideoEffectsEngine | null = null;
   private colorGradingEngine: ColorGradingEngine | null = null;
   private initialized = false;
+  private initializationPromise: Promise<void> | null = null;
+  private initializationGeneration = 0;
 
   // Store effects per clip
   private clipEffects: Map<string, VideoEffect[]> = new Map();
@@ -146,25 +148,59 @@ export class EffectsBridge {
    * - 1.1: Use WebGPU for video frame rendering when available
    * - 1.2: Fall back to WebGL2 when WebGPU is not available
    */
-  async initialize(width: number = 1920, height: number = 1080): Promise<void> {
+  initialize(width: number = 1920, height: number = 1080): Promise<void> {
     if (this.initialized) {
-      return;
+      return Promise.resolve();
     }
+    if (this.initializationPromise) return this.initializationPromise;
 
+    const promise = this.initializeEngines(
+      width,
+      height,
+      this.initializationGeneration,
+    );
+    this.initializationPromise = promise;
+    const clearPromise = () => {
+      if (this.initializationPromise === promise) this.initializationPromise = null;
+    };
+    void promise.then(clearPromise, clearPromise);
+    return promise;
+  }
+
+  private async initializeEngines(
+    width: number,
+    height: number,
+    generation: number,
+  ): Promise<void> {
+    let videoEffectsEngine: VideoEffectsEngine | null = null;
+    let colorGradingEngine: ColorGradingEngine | null = null;
     try {
-      this.videoEffectsEngine = new VideoEffectsEngine({
+      videoEffectsEngine = new VideoEffectsEngine({
         width,
         height,
         useGPU: true,
         preferWebGPU: isWebGPUSupported(),
       });
-      await this.videoEffectsEngine.initialize();
+      this.videoEffectsEngine = videoEffectsEngine;
+      await videoEffectsEngine.initialize();
 
-      this.colorGradingEngine = new ColorGradingEngine(width, height);
-      this.colorGradingEngine.initialize();
+      if (generation !== this.initializationGeneration) {
+        throw new Error("EffectsBridge was disposed during initialization");
+      }
+
+      colorGradingEngine = new ColorGradingEngine(width, height);
+      colorGradingEngine.initialize();
+      this.colorGradingEngine = colorGradingEngine;
 
       this.initialized = true;
     } catch (error) {
+      // GPU setup may finish after disposal. Release resources created by the
+      // old operation without touching a replacement initialization's engines.
+      videoEffectsEngine?.dispose();
+      colorGradingEngine?.dispose();
+      if (this.videoEffectsEngine === videoEffectsEngine) {
+        this.videoEffectsEngine = null;
+      }
       const errorMessage =
         error instanceof Error ? error.message : "Unknown initialization error";
       throw new Error(`EffectsBridge initialization failed: ${errorMessage}`);
@@ -1251,6 +1287,8 @@ export class EffectsBridge {
    * Dispose of the effects bridge and clean up resources
    */
   dispose(): void {
+    this.initializationGeneration++;
+    this.initializationPromise = null;
     // Clear pending re-renders
     for (const timeout of this.pendingReRenders.values()) {
       clearTimeout(timeout);
@@ -1269,6 +1307,7 @@ export class EffectsBridge {
     if (this.colorGradingEngine) {
       this.colorGradingEngine.dispose();
     }
+    this.videoEffectsEngine?.dispose();
 
     this.clipEffects.clear();
     this.clipColorGrading.clear();
@@ -1280,7 +1319,6 @@ export class EffectsBridge {
 
 // Singleton instance
 let effectsBridgeInstance: EffectsBridge | null = null;
-let bridgeInitPromise: Promise<EffectsBridge> | null = null;
 
 // Track initialization dimensions for auto-initialization
 let lastInitWidth = 1920;
@@ -1322,21 +1360,14 @@ export async function getEffectsBridgeAsync(
     return effectsBridgeInstance;
   }
 
-  if (bridgeInitPromise) {
-    return bridgeInitPromise;
+  const bridge = effectsBridgeInstance ?? (effectsBridgeInstance = new EffectsBridge());
+  await bridge.initialize(width, height);
+  if (effectsBridgeInstance !== bridge || !bridge.isInitialized()) {
+    throw new Error("EffectsBridge was disposed during initialization");
   }
-
-  bridgeInitPromise = (async () => {
-    if (!effectsBridgeInstance) {
-      effectsBridgeInstance = new EffectsBridge();
-    }
-    await effectsBridgeInstance.initialize(width, height);
-    lastInitWidth = width;
-    lastInitHeight = height;
-    return effectsBridgeInstance;
-  })();
-
-  return bridgeInitPromise;
+  lastInitWidth = width;
+  lastInitHeight = height;
+  return bridge;
 }
 
 /**

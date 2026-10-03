@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   TIMELINE_WORKSPACE_STORAGE_KEY,
   useTimelineStore,
@@ -45,6 +45,49 @@ describe("TimelineStore playback locking", () => {
     });
     expect(persisted.state).not.toHaveProperty("playheadPosition");
     expect(persisted.state).not.toHaveProperty("selectedClipIds");
+  });
+
+  it("does not serialize or write workspace preferences during playback and scrubbing", () => {
+    const store = useTimelineStore.getState();
+    store.setTrackHeightById("dialogue", 112);
+    const writes = vi.spyOn(localStorage, "setItem");
+    const serializations = vi.spyOn(JSON, "stringify");
+
+    try {
+      store.play();
+      for (let frame = 1; frame <= 120; frame++) {
+        store.setPlayheadPosition(frame / 60);
+      }
+      store.pause();
+      store.startScrubbing(3);
+      store.updateScrubPosition(4);
+      store.endScrubbing();
+      store.setScrollX(200);
+      store.setViewportDimensions(1200, 400);
+
+      expect(writes).not.toHaveBeenCalled();
+      expect(serializations).not.toHaveBeenCalled();
+
+      store.setTrackHeightById("dialogue", 120);
+      expect(writes).toHaveBeenCalledTimes(1);
+      expect(serializations).toHaveBeenCalledTimes(1);
+      expect(JSON.parse(localStorage.getItem(TIMELINE_WORKSPACE_STORAGE_KEY) ?? "{}").state)
+        .toEqual({ trackHeight: 80, trackHeights: { dialogue: 120 } });
+    } finally {
+      writes.mockRestore();
+      serializations.mockRestore();
+    }
+  });
+
+  it("writes density preferences again after persisted workspace data is cleared", () => {
+    const store = useTimelineStore.getState();
+    store.setTrackHeight(64);
+    useTimelineStore.persist.clearStorage();
+    expect(localStorage.getItem(TIMELINE_WORKSPACE_STORAGE_KEY)).toBeNull();
+
+    store.setTrackHeight(64);
+    expect(JSON.parse(localStorage.getItem(TIMELINE_WORKSPACE_STORAGE_KEY) ?? "{}").state)
+      .toEqual({ trackHeight: 64, trackHeights: {} });
   });
 
   it("blocks play and toggle while locked", () => {

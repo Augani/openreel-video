@@ -60,6 +60,19 @@ function clip(id: string): Clip {
 }
 
 describe("MultiCamEngine automatic edits", () => {
+  it("inserts manual cuts without changing the start or duplicating a boundary", () => {
+    const engine = new MultiCamEngine();
+    engine.loadGroups([group()]);
+    expect(engine.cutToAngle("group-1", "b", 3)).toBe(true);
+    expect(engine.getAngleAtTime("group-1", 1)?.id).toBe("a");
+    expect(engine.getAngleAtTime("group-1", 4)?.id).toBe("b");
+    expect(engine.cutToAngle("group-1", "a", 3)).toBe(true);
+    expect(engine.getGroup("group-1")?.switches).toHaveLength(2);
+    expect(engine.getAngleAtTime("group-1", 4)?.id).toBe("a");
+    expect(engine.cutToAngle("group-1", "b", 8)).toBe(false);
+    expect(engine.cutToAngle("group-1", "b", -1)).toBe(false);
+  });
+
   it("normalizes legacy groups and persists switch changes on the group", () => {
     const engine = new MultiCamEngine();
     engine.loadGroups([group()]);

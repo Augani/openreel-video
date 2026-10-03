@@ -50,7 +50,7 @@ export const AiTab: React.FC<AiTabProps> = ({
 }) => {
   return (
     <>
-      {clipType === "video" && (
+      {(clipType === "video" || clipType === "audio") && showAudioEffects && (
         <>
           <InspectorSection
             title="Local Auto-Captions"
@@ -90,7 +90,7 @@ export const AiTab: React.FC<AiTabProps> = ({
         </>
       )}
 
-      {clipType === "video" && (
+      {(clipType === "video" || clipType === "audio") && showAudioEffects && (
         <InspectorSection
           title="Editable Captions"
           sectionId="editable-captions"

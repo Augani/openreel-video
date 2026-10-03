@@ -9,6 +9,7 @@ interface ApplyMulticamEditParams {
   outputTrack?: Track;
   outputTracks?: Track[];
   outputTrackPosition?: number;
+  replacedOutputTrackIds?: string[];
   sourceTrackIds: string[];
   groups: MultiCamGroup[];
 }
@@ -16,7 +17,7 @@ interface ApplyMulticamEditParams {
 interface RestoreMulticamEditParams {
   outputTrackIds: string[];
   priorOutputTracks: Array<{ track: Track; position: number }>;
-  sourceTrackStates: Array<{ trackId: string; hidden: boolean; muted: boolean }>;
+  sourceTrackStates: Array<{ trackId: string; hidden: boolean; muted: boolean; solo?: boolean }>;
   groups: MultiCamGroup[];
 }
 
@@ -33,13 +34,13 @@ function applyEdit(
   params: ApplyMulticamEditParams,
 ): void {
   const outputs = outputTracks(params);
-  const outputIds = new Set(outputs.map((track) => track.id));
+  const outputIds = new Set([...outputs.map((track) => track.id), ...(params.replacedOutputTrackIds ?? [])]);
   const sourceIds = new Set(params.sourceTrackIds);
   const withoutOutput = project.timeline.tracks
     .filter((track) => !outputIds.has(track.id))
     .map((track) =>
       sourceIds.has(track.id)
-        ? { ...track, hidden: true, muted: true }
+        ? { ...track, hidden: true, muted: true, solo: false }
         : track,
     );
   const position = Math.max(
@@ -73,6 +74,13 @@ const applyMulticamEdit: ActionHandler = {
     if (!Array.isArray(params.sourceTrackIds) || !Array.isArray(params.groups)) {
       return invalid("multicam/applyEdit requires source tracks and groups");
     }
+    const replaced = params.replacedOutputTrackIds ?? [];
+    if (!Array.isArray(replaced) || replaced.some((id) => typeof id !== "string")) return invalid("Invalid multicam output replacement IDs");
+    const affected = new Set([...params.sourceTrackIds, ...outputs.map((track) => track.id), ...replaced]);
+    if (project.timeline.tracks.some((track) => affected.has(track.id) && track.locked)) {
+      return invalid("Unlock camera source and output tracks before editing multicam.");
+    }
+    if (outputs.some((track) => params.sourceTrackIds!.includes(track.id))) return invalid("Multicam output cannot replace a source track");
     const knownTrackIds = new Set(project.timeline.tracks.map((track) => track.id));
     const unknown = params.sourceTrackIds.find((id) => !knownTrackIds.has(id));
     return unknown ? invalid(`multicam source track not found: ${unknown}`) : { valid: true, errors: [] };
@@ -82,7 +90,7 @@ const applyMulticamEdit: ActionHandler = {
   },
   invert(action: Action, projectBefore: Project): Action | null {
     const params = action.params as unknown as ApplyMulticamEditParams;
-    const outputIds = outputTracks(params).map((track) => track.id);
+    const outputIds = [...new Set([...outputTracks(params).map((track) => track.id), ...(params.replacedOutputTrackIds ?? [])])];
     const priorOutputTracks = projectBefore.timeline.tracks.flatMap((track, position) =>
       outputIds.includes(track.id) ? [{ track: structuredClone(track), position }] : [],
     );
@@ -96,7 +104,7 @@ const applyMulticamEdit: ActionHandler = {
         sourceTrackStates: params.sourceTrackIds.flatMap((trackId) => {
           const track = projectBefore.timeline.tracks.find((entry) => entry.id === trackId);
           return track
-            ? [{ trackId, hidden: track.hidden, muted: track.muted }]
+            ? [{ trackId, hidden: track.hidden, muted: track.muted, solo: track.solo }]
             : [];
         }),
         groups: structuredClone(projectBefore.multicamGroups ?? []),
@@ -120,7 +128,7 @@ const restoreMulticamEdit: ActionHandler = {
       .filter((track) => !params.outputTrackIds.includes(track.id))
       .map((track) => {
         const state = states.get(track.id);
-        return state ? { ...track, hidden: state.hidden, muted: state.muted } : track;
+        return state ? { ...track, hidden: state.hidden, muted: state.muted, solo: state.solo ?? track.solo } : track;
       });
     for (const entry of [...params.priorOutputTracks].sort((left, right) => left.position - right.position)) {
       tracks.splice(

@@ -1,3 +1,4 @@
+import { cloneProjectForEdit } from "./clone-project-for-edit";
 import { v4 as uuidv4 } from "uuid";
 import type { StoreApi } from "zustand";
 import type { Action, Project } from "@openreel/core";
@@ -27,7 +28,7 @@ export function createTrackSlice(set: Set, get: Get): TrackSlice {
   return {
     addTrack: async (trackType, position, options) => {
       const { project, actionExecutor } = get();
-      const projectCopy = structuredClone(project);
+      const projectCopy = cloneProjectForEdit(project);
       const trackId = options?.trackId ?? `track-${uuidv4()}`;
       const action: Action = {
         type: "track/add",
@@ -62,7 +63,7 @@ export function createTrackSlice(set: Set, get: Get): TrackSlice {
           error: { code: "TRACK_NOT_FOUND", message: "Track not found" },
         };
       }
-      const projectCopy = structuredClone(project);
+      const projectCopy = cloneProjectForEdit(project);
       const action: Action = {
         type: "track/duplicate",
         id: uuidv4(),

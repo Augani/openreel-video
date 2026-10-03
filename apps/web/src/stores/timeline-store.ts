@@ -1,7 +1,42 @@
 import { create } from "zustand";
-import { persist, subscribeWithSelector } from "zustand/middleware";
+import {
+  createJSONStorage,
+  persist,
+  subscribeWithSelector,
+  type PersistStorage,
+} from "zustand/middleware";
 
 export const TIMELINE_WORKSPACE_STORAGE_KEY = "openreel-timeline-workspace";
+
+interface TimelineWorkspace {
+  trackHeight: number;
+  trackHeights: Record<string, number>;
+}
+
+const createWorkspaceStorage = (): PersistStorage<TimelineWorkspace> | undefined => {
+  const storage = createJSONStorage<TimelineWorkspace>(() => localStorage);
+  if (!storage) return undefined;
+
+  let savedState: TimelineWorkspace | undefined;
+  return {
+    getItem: storage.getItem,
+    removeItem: (name) => {
+      savedState = undefined;
+      return storage.removeItem(name);
+    },
+    setItem: (name, value) => {
+      // Zustand invokes persistence for every update, including every playback
+      // frame. Skip serialization and synchronous storage when density is unchanged.
+      if (
+        savedState?.trackHeight === value.state.trackHeight &&
+        savedState.trackHeights === value.state.trackHeights
+      ) return;
+      const result = storage.setItem(name, value);
+      savedState = value.state;
+      return result;
+    },
+  };
+};
 
 export const ZOOM_PRESETS = {
   MIN: 10,
@@ -395,6 +430,7 @@ export const useTimelineStore = create<TimelineState>()(
       }),
       {
         name: TIMELINE_WORKSPACE_STORAGE_KEY,
+        storage: createWorkspaceStorage(),
         partialize: (state) => ({
           trackHeight: state.trackHeight,
           trackHeights: state.trackHeights,
