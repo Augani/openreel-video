@@ -96,6 +96,7 @@ contextBridge.exposeInMainWorld("openreel", {
     extractAudioWav: (args: unknown) => ipcRenderer.invoke(CHANNELS.mediaExtractAudioWav, args),
     probeAudioStreams: (args: unknown) => ipcRenderer.invoke(CHANNELS.mediaProbeAudioStreams, args),
     fetchUrl: (args: unknown) => ipcRenderer.invoke(CHANNELS.mediaFetchUrl, args),
+    readLocal: (p: string) => ipcRenderer.invoke(CHANNELS.mediaReadLocal, { path: p }),
   },
   rigging: {
     probeBackend: () => ipcRenderer.invoke(CHANNELS.riggingProbeBackend, undefined),

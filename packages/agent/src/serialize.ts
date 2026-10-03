@@ -211,6 +211,53 @@ export function getClipDetail(
   return undefined;
 }
 
+export interface TextOverlayView {
+  readonly id: string;
+  readonly trackId: string;
+  readonly text: string;
+  readonly startSec: number;
+  readonly endSec: number;
+  readonly durationSec: number;
+}
+
+export interface SubtitleView {
+  readonly id: string;
+  readonly text: string;
+  readonly startSec: number;
+  readonly endSec: number;
+  readonly durationSec: number;
+}
+
+export interface OverlaysView {
+  readonly textClips: readonly TextOverlayView[];
+  readonly subtitles: readonly SubtitleView[];
+}
+
+/**
+ * Text clips and subtitles with their timings. They live outside
+ * `timeline.tracks`, so `list_clips` never sees them; without this a client
+ * that edits text cannot read back what a person changed by hand.
+ */
+export function listOverlays(project: Project): OverlaysView {
+  return {
+    textClips: (project.textClips ?? []).map((t) => ({
+      id: t.id,
+      trackId: t.trackId,
+      text: t.text,
+      startSec: t.startTime,
+      endSec: t.startTime + t.duration,
+      durationSec: t.duration,
+    })),
+    subtitles: (project.timeline.subtitles ?? []).map((s) => ({
+      id: s.id,
+      text: s.text,
+      startSec: s.startTime,
+      endSec: s.endTime,
+      durationSec: s.endTime - s.startTime,
+    })),
+  };
+}
+
 /** Resolve a clip by id, 0-based index, or `atSec`+trackIndex to its id. */
 export function resolveClipId(
   project: Project,

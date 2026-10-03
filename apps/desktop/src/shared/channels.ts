@@ -31,6 +31,7 @@ export const CHANNELS = {
   mediaExtractAudioWav: "openreel:media:extractAudioWav",
   mediaProbeAudioStreams: "openreel:media:probeAudioStreams",
   mediaFetchUrl: "openreel:media:fetchUrl",
+  mediaReadLocal: "openreel:media:readLocal",
   riggingProbeBackend: "openreel:rigging:probeBackend",
   riggingRigHumanoidModel: "openreel:rigging:rigHumanoidModel",
   cloudFetch: "openreel:cloud:fetch",

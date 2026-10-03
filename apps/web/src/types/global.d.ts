@@ -294,6 +294,10 @@ declare global {
           body: ArrayBuffer;
           error?: string;
         }>;
+        /** Read a local media file after main-process path and size checks. */
+        readLocal(path: string): Promise<
+          { ok: true; name: string; bytes: ArrayBuffer } | { ok: false; error: string }
+        >;
       };
       rigging?: {
         probeBackend(): Promise<OpenReelRiggingBackendProbe>;

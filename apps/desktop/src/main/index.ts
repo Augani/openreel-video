@@ -53,6 +53,7 @@ import {
   probeAudioStreams,
 } from "./ipc/media";
 import { fetchUrl } from "./ipc/fetch-url";
+import { readLocalMedia } from "./ipc/local-media";
 import { probeRiggingBackend, rigHumanoidModel } from "./sidecar/rigging-backend";
 import { disposeAuroraClient } from "./aurora/client";
 import {
@@ -65,6 +66,7 @@ import {
   extractAudioArgsSchema,
   probeAudioArgsSchema,
   fetchUrlArgsSchema,
+  readLocalMediaArgsSchema,
   auroraPreviewSessionCancelArgsSchema,
   auroraPreviewSessionStartArgsSchema,
   auroraPreviewSessionStartResultSchema,
@@ -169,6 +171,7 @@ app.whenReady().then(() => {
   handle(CHANNELS.mediaExtractAudioWav, extractAudioArgsSchema, extractAudioWav);
   handle(CHANNELS.mediaProbeAudioStreams, probeAudioArgsSchema, probeAudioStreams);
   handle(CHANNELS.mediaFetchUrl, fetchUrlArgsSchema, fetchUrl);
+  handle(CHANNELS.mediaReadLocal, readLocalMediaArgsSchema, (args) => readLocalMedia(args));
   handle(CHANNELS.auroraRenderPreview, auroraRenderPreviewArgsSchema, async (args) =>
     auroraRenderPreviewResultSchema.parse(
       await renderAuroraPreview(args as AuroraRenderPreviewArgs),
