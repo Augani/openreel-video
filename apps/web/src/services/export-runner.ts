@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { ensureProjectFonts } from "./project-fonts";
 import {
   getExportEngine,
   type VideoExportSettings,
@@ -525,6 +526,8 @@ export function useExportRunner(options: ExportRunnerOptions): UseExportRunner {
       let generator: ReturnType<typeof engine.exportVideo> | undefined;
       try {
         await engine.initialize();
+        checkCurrent();
+        await ensureProjectFonts(project);
         checkCurrent();
         generator = engine.exportVideo(project, videoSettings, writableStream);
         let finalResult: ExportResult | undefined;

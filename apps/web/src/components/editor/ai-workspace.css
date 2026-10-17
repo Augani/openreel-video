@@ -1,0 +1,13 @@
+@media (max-width: 1200px) {
+  .ai-workspace-grid { grid-template-columns: 220px 8px minmax(0, 1fr) 8px 320px !important; }
+}
+@media (max-width: 940px) {
+  .ai-workspace-grid {
+    overflow-y: auto;
+    grid-template-columns: 200px 8px minmax(0, 1fr) !important;
+    grid-template-rows: minmax(240px, 1fr) 360px 8px 200px !important;
+    grid-template-areas: 'media mh stage' 'chat chat chat' 'th th th' 'timeline timeline timeline' !important;
+  }
+  .ai-workspace-grid > [style*="chat"] { min-height: 0; }
+  .ai-workspace-grid > .ai-chat-resizer { display: none; }
+}

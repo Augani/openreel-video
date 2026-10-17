@@ -28,6 +28,8 @@ export interface VideoExportSettings {
   colorDepth?: 8 | 10 | 12;
   pixelFormat?: "yuv420" | "yuv422" | "yuv444" | "rgb";
   upscaling?: UpscalingSettings;
+  /** Timeline seconds; the Out point is exclusive. Omit to export everything. */
+  range?: { startTime: number; endTime: number };
 }
 
 export interface AudioExportSettings {

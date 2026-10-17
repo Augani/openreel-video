@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { lazy, Suspense, useState, useEffect, useCallback, useRef } from "react";
+import { createPortal } from "react-dom";
 import {
   ChevronDown,
   Plus,
@@ -14,8 +15,11 @@ import { ToolcraftClickableCard as ClickableCard } from "@openreel/ui";
 import { ToolcraftIconButton as IconButton } from "@openreel/ui";
 import { ToolcraftText as Text } from "@openreel/ui";
 import { ToolcraftTextInputControl } from "@openreel/ui";
+import { ToolcraftPopover as Popover } from "@openreel/ui";
 import { useProjectStore } from "../../stores/project-store";
 import { autoSaveManager, type AutoSaveMetadata } from "../../services/auto-save";
+import { ErrorBoundary } from "../ErrorBoundary";
+const ProjectPackageDialog = lazy(() => import("./ProjectPackageDialog").then((module) => ({ default: module.ProjectPackageDialog })));
 
 function formatTimeAgo(timestamp: number): string {
   const seconds = Math.floor((Date.now() - timestamp) / 1000);
@@ -39,7 +43,7 @@ export const ProjectSwitcher: React.FC = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(project.name);
   const [isLoading, setIsLoading] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
+  const [filesOpen, setFilesOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -64,18 +68,6 @@ export const ProjectSwitcher: React.FC = () => {
       loadSavedProjects();
     }
   }, [isOpen]);
-
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setIsOpen(false);
-        setIsEditing(false);
-      }
-    };
-
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
 
   useEffect(() => {
     if (isEditing && inputRef.current) {
@@ -131,29 +123,19 @@ export const ProjectSwitcher: React.FC = () => {
   const otherProjects = savedProjects.filter((s) => s.projectId !== project.id);
 
   return (
-    <div className="relative" ref={dropdownRef}>
-      <Button
-        label={project.name}
-        onClick={() => setIsOpen(!isOpen)}
-        variant="ghost"
-        size="md"
-        icon={<FileVideo className="h-4 w-4 shrink-0 text-primary" aria-hidden />}
-        endContent={
-          <ChevronDown
-            className={`h-3.5 w-3.5 shrink-0 text-text-muted transition-transform duration-200 ${
-            isOpen ? "rotate-180" : ""
-          }`}
-            aria-hidden
-          />
-        }
-        className="max-w-[200px] justify-start truncate hover:bg-background-secondary"
-      />
-
-      {isOpen && (
+    <div className="relative min-w-0 max-w-full">
+      <Popover
+        label="Project menu"
+        isOpen={isOpen}
+        onOpenChange={(open) => { setIsOpen(open); if (!open) setIsEditing(false); }}
+        placement="below"
+        alignment="start"
+        className="!w-[min(320px,calc(100vw-24px))] border-border bg-bg-1 shadow-xl"
+        content={
         <Card
           variant="default"
           padding={0}
-          className="absolute left-0 top-full z-50 mt-2 w-72 overflow-hidden border border-border bg-background shadow-2xl animate-in fade-in slide-in-from-top-2 duration-150"
+          className="max-h-[var(--radix-popover-content-available-height)] overflow-y-auto rounded-none border-0 bg-bg-1"
         >
           <div className="p-3 border-b border-border">
             <Text
@@ -206,13 +188,19 @@ export const ProjectSwitcher: React.FC = () => {
                   variant="ghost"
                   size="sm"
                   icon={<Pencil className="h-3.5 w-3.5" aria-hidden />}
-                  className="text-text-muted opacity-0 hover:bg-background-tertiary hover:text-text-primary group-hover:opacity-100"
+                  className="text-text-muted opacity-0 hover:bg-background-tertiary hover:text-text-primary group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100"
                 />
               </Card>
             )}
           </div>
 
           <div className="p-2">
+            <ClickableCard label="Project backups" onClick={() => { setIsOpen(false); setFilesOpen(true); }} padding={3} variant="transparent"
+              className="flex w-full items-start gap-3 text-left hover:bg-background-secondary">
+              <FolderOpen className="h-4 w-4 shrink-0 text-primary" aria-hidden />
+              <div className="min-w-0 flex-1 space-y-0.5"><Text type="supporting" display="block" className="text-sm font-medium leading-5">Project backups</Text>
+                <Text type="supporting" display="block" color="secondary" className="text-xs leading-4">Download or open a project with media</Text></div>
+            </ClickableCard>
             <ClickableCard
               label="New Project"
               onClick={handleNewProject}
@@ -223,11 +211,11 @@ export const ProjectSwitcher: React.FC = () => {
               <div className="p-1.5 bg-primary/10 rounded-md text-primary group-hover:bg-primary/20 transition-colors">
                 <Plus className="w-4 h-4" />
               </div>
-              <div className="flex-1">
-                <Text type="supporting" color="primary" className="text-sm font-medium">
+              <div className="min-w-0 flex-1 space-y-0.5">
+                <Text type="supporting" display="block" color="primary" className="text-sm font-medium leading-5">
                   New Project
                 </Text>
-                <Text type="supporting" color="secondary" className="text-xs">
+                <Text type="supporting" display="block" color="secondary" className="text-xs leading-4">
                   Start fresh with a new canvas
                 </Text>
               </div>
@@ -262,15 +250,16 @@ export const ProjectSwitcher: React.FC = () => {
                     <div className="p-1.5 bg-background-tertiary rounded-md text-text-muted group-hover:text-text-secondary transition-colors">
                       <FolderOpen className="w-4 h-4" />
                     </div>
-                    <div className="flex-1 min-w-0">
+                    <div className="flex-1 min-w-0 space-y-0.5">
                       <Text
                         type="supporting"
                         color="primary"
+                        display="block"
                         className="truncate text-sm font-medium group-hover:text-primary"
                       >
                         {save.projectName}
                       </Text>
-                      <Text type="supporting" color="secondary" className="text-xs">
+                      <Text type="supporting" display="block" color="secondary" className="text-xs leading-4">
                         {formatTimeAgo(save.timestamp)}
                       </Text>
                     </div>
@@ -280,7 +269,27 @@ export const ProjectSwitcher: React.FC = () => {
             </>
           )}
         </Card>
-      )}
+        }
+      >
+        <Button
+          label={project.name}
+          variant="ghost"
+          size="md"
+          icon={<FileVideo className="h-4 w-4 shrink-0 text-primary" aria-hidden />}
+          endContent={<ChevronDown className={`h-3.5 w-3.5 shrink-0 text-text-muted transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`} aria-hidden />}
+          className="min-w-0 max-w-full sm:max-w-[200px] justify-start truncate hover:bg-background-secondary"
+        />
+      </Popover>
+      {filesOpen && <ErrorBoundary fallback={createPortal(
+        <div role="alert" className="fixed right-3 top-[72px] z-[10000] max-w-sm rounded-lg border border-border bg-bg-1 p-4 text-sm text-fg shadow-lg">
+          <p>Project backups couldn’t open. You can keep editing, or save your project and reload the editor to try again.</p>
+          <Button label="Dismiss" variant="ghost" size="sm" onClick={() => setFilesOpen(false)} className="mt-2" />
+        </div>, document.body,
+      )}>
+        <Suspense fallback={createPortal(<div role="status" className="fixed right-3 top-[72px] z-[10000] rounded-lg border border-border bg-bg-1 p-4 text-sm text-fg shadow-lg">Opening project backups…</div>, document.body)}>
+          <ProjectPackageDialog onClose={() => setFilesOpen(false)} />
+        </Suspense>
+      </ErrorBoundary>}
     </div>
   );
 };

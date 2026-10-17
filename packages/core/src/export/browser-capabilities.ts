@@ -18,8 +18,10 @@ export function getVideoExportValidationError(settings: VideoExportSettings, dur
 }
 
 /** Check the originals, even when preview playback uses a proxy. */
-export function getMissingExportMedia(project: Project): string[] {
-  const referenced = new Set(project.timeline.tracks.flatMap((track) => track.clips.map((clip) => clip.mediaId)));
+export function getMissingExportMedia(project: Project, range?: VideoExportSettings["range"]): string[] {
+  const referenced = new Set(project.timeline.tracks.flatMap((track) => track.clips
+    .filter((clip) => !range || (clip.startTime < range.endTime && clip.startTime + clip.duration > range.startTime))
+    .map((clip) => clip.mediaId)));
   return [...referenced].flatMap((id) => {
     const item = project.mediaLibrary.items.find((candidate) => candidate.id === id);
     if (!item) return [id];

@@ -76,6 +76,17 @@ describe("Media slice asynchronous imports", () => {
     saveMediaBlob.mockReset().mockResolvedValue(undefined);
   });
 
+  it("retains the recorded audio stream count on import and replacement", async () => {
+    const media = decodedAudio();
+    Object.assign(media.media.metadata, { audioTrackCount: 3 });
+    bridge.importFile.mockResolvedValue(media);
+    const store = createMediaStore();
+    const imported = await store.getState().importMedia(new File(["a"], "recording.wav"));
+    expect(store.getState().project.mediaLibrary.items[0].metadata.audioTrackCount).toBe(3);
+    await store.getState().replaceMediaAsset(imported.actionId!, new File(["b"], "replacement.wav"));
+    expect(store.getState().project.mediaLibrary.items[0].metadata.audioTrackCount).toBe(3);
+  });
+
   it("retains every concurrent import and edits made while files decode", async () => {
     const first = deferred<ReturnType<typeof decodedAudio>>();
     const second = deferred<ReturnType<typeof decodedAudio>>();

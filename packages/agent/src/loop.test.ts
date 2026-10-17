@@ -7,6 +7,7 @@ import type { LLMClient, LLMResponse, LoopMessage, LoopToolResultBlock } from ".
 import { toAnthropicTools } from "./registry";
 import { makeEmptyProject, makeProjectWithClip } from "./test-fixtures";
 import type { AgentEvent } from "./types";
+import type { EditingHost } from "./host";
 
 const tools = toAnthropicTools();
 const userMsg = (content: string): LoopMessage[] => [{ role: "user", content }];
@@ -61,6 +62,51 @@ describe("runTurn", () => {
       dryRun: true,
     });
     expect(host.getProject().timeline.tracks[0].clips[0].speed ?? 1).toBe(1);
+  });
+
+  it("allows explicitly referenced mutation-free corrections before an atomic commit", async () => {
+    const host = new HeadlessHost(makeProjectWithClip());
+    const events: AgentEvent[] = [];
+    const llm = new MockLLMClient([
+      { text: "", stopReason: "tool_use", toolUses: [{ id: "bad-1", name: "add_transition", input: {} }] },
+      { text: "", stopReason: "tool_use", toolUses: [{ id: "bad-2", name: "add_transition", input: { retryOf: "bad-1" } }] },
+      { text: "", stopReason: "tool_use", toolUses: [{ id: "fixed", name: "add_transition", input: { retryOf: "bad-2" } }] },
+      { text: "Corrected.", stopReason: "end_turn", toolUses: [] },
+    ]);
+    let calls = 0;
+    const result = await runTurn({ host, llm, tools, messages: userMsg("add a transition"), atomic: true,
+      execute: async () => ++calls < 3 ? { ok: false, summary: "Needs correction", error: { code: "BAD_PAIR", message: "Choose adjacent clips", recoverable: true } } : { ok: true, summary: "Applied" },
+      onEvent: (event) => events.push(event),
+    });
+    expect(result.committed).toBe(true);
+    expect(events).toContainEqual({ type: "tool_recovered", callIds: ["bad-1", "bad-2"], repairedBy: "fixed" });
+    const toolMessages = result.messages.filter((message) => message.role === "tool");
+    expect(JSON.parse(toolMessages[0].results[0].content as string).error.retryOf).toBe("bad-1");
+  });
+
+  it.each(["ignored", "unreferenced-success", "wrong-reference", "wrong-tool", "retry-limit"])("rolls back atomic edits when a correction is %s", async (kind) => {
+    const host = new HeadlessHost(makeProjectWithClip());
+    const before = structuredClone(host.getProject());
+    let step = 0, attempts = 0, retryOf = "bad-1";
+    const execute = vi.fn(async (name: string, args: Record<string, unknown>, editingHost: EditingHost) => {
+      if (name === "add_marker") return executeTool(name, args, editingHost);
+      attempts++;
+      return kind === "unreferenced-success" && attempts > 1 ? { ok: true, summary: "Applied" } : { ok: false, summary: "Needs correction", error: { code: "BAD_PAIR", message: "Choose adjacent clips", recoverable: true } };
+    });
+    const llm: LLMClient = { complete: async () => {
+      step++;
+      if (step === 1) return { text: "", stopReason: "tool_use", toolUses: [{ id: "marker", name: "add_marker", input: { time: 1, label: "Pending", color: "#fff" } }, { id: "bad-1", name: "add_transition", input: {} }] };
+      if (kind === "ignored" || kind === "unreferenced-success" && step > 2) return { text: "Done", stopReason: "end_turn", toolUses: [] };
+      const id = `bad-${step}`;
+      const call = { id, name: kind === "wrong-tool" ? "add_marker" : "add_transition", input: kind === "unreferenced-success" ? {} : { retryOf: kind === "wrong-reference" ? "missing" : retryOf } };
+      retryOf = id;
+      return { text: "", stopReason: "tool_use", toolUses: [call] };
+    } };
+    const result = await runTurn({ host, llm, tools, messages: userMsg("edit"), atomic: true, execute });
+    expect(result.committed).toBe(false);
+    expect(host.getProject()).toEqual(before);
+    if (kind === "retry-limit") expect(attempts).toBe(4);
+    if (kind === "wrong-reference" || kind === "wrong-tool") expect(execute).toHaveBeenCalledTimes(2);
   });
 
   it("surfaces a provider output-limit stop as a budget stop", async () => {

@@ -10,7 +10,7 @@ describe("formatChatError", () => {
     ).toMatchObject({
       title: "Authentication failed",
       message: "The API key is invalid",
-      action: "api-keys",
+      action: "ai-editor",
     });
   });
 
@@ -21,7 +21,7 @@ describe("formatChatError", () => {
       ),
     ).toMatchObject({
       title: "Couldn’t reach the endpoint",
-      action: "general",
+      action: "ai-editor",
     });
   });
 

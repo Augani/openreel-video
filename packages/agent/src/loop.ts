@@ -1,4 +1,4 @@
-import type { EditingHost } from "./host";
+import type { EditingHost, TxnHandle } from "./host";
 import type { AgentEvent, ConfirmDecision, ToolCall, ToolResult } from "./types";
 import type {
   LLMClient,
@@ -28,6 +28,11 @@ export interface RunTurnInput {
   readonly limits?: { maxSteps?: number; maxToolCalls?: number; maxTokens?: number };
   readonly dryRun?: boolean;
   readonly turnLabel?: string;
+  /** Closed tool catalog and atomic policy used by the browser AI workspace. */
+  readonly execute?: (name: string, args: Record<string, unknown>, host: EditingHost) => Promise<ToolResult>;
+  readonly readOnly?: (name: string) => boolean;
+  readonly atomic?: boolean;
+  readonly signal?: AbortSignal;
 }
 
 export type StopReason =
@@ -113,15 +118,28 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
     outputTokens: 0,
   };
 
-  const txn = host.beginTransaction(turnLabel);
+  let txn: TxnHandle | undefined;
+  const pendingCorrections = new Map<string, { call: ToolCall; result: ToolResult; previousCallIds: string[] }>();
+  let correctionAttempts = 0;
+  const checkCancelled = (): void => { if (input.signal?.aborted) throw new DOMException("Edit cancelled; pending changes were discarded.", "AbortError"); };
+  const commit = async (): Promise<void> => {
+    checkCancelled();
+    const unresolved = pendingCorrections.values().next().value;
+    if (unresolved) throw new Error(`${unresolved.call.name}: ${unresolved.result.error?.message ?? unresolved.result.summary}. The failed call was not corrected; pending changes were discarded.`);
+    if (txn) await host.commitTransaction(txn, turnLabel);
+  };
 
   try {
+    checkCancelled();
+    txn = host.beginTransaction(turnLabel);
     for (let step = 0; step < maxSteps; step++) {
+      checkCancelled();
       if (
         maxTokens !== undefined &&
         usage.inputTokens + usage.outputTokens >= maxTokens
       ) {
-        host.commitTransaction(txn, turnLabel);
+        if (input.atomic) throw new Error("Token budget reached; pending changes were discarded.");
+        await commit();
         return {
           text: lastText,
           messages,
@@ -132,7 +150,9 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
         };
       }
       const response = await llm.complete({ system, messages, tools });
+      checkCancelled();
       lastText = response.text;
+      if (input.atomic && response.stopReason === "max_tokens") throw new Error("The model response was truncated; pending changes were discarded.");
       if (response.usage) {
         usage.inputTokens += response.usage.inputTokens;
         usage.outputTokens += response.usage.outputTokens;
@@ -141,7 +161,7 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
 
       if (response.toolUses.length === 0) {
         messages.push({ role: "assistant", content: response.text, toolUses: [] });
-        host.commitTransaction(txn, turnLabel);
+        await commit();
         emit({ type: "turn_complete", text: response.text });
         return {
           text: response.text,
@@ -162,6 +182,7 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
       const results: LoopToolResult[] = [];
       let hitToolCallLimit = false;
       for (let ti = 0; ti < response.toolUses.length; ti++) {
+        checkCancelled();
         const toolUse = response.toolUses[ti];
         if (toolCalls >= maxToolCalls) {
           // Answer every remaining tool_use so the transcript stays valid for
@@ -197,6 +218,11 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
           args: toolUse.input,
         };
         emit({ type: "tool_call", call });
+        const retryOf = call.args.retryOf;
+        const correction = typeof retryOf === "string" ? pendingCorrections.get(retryOf) : undefined;
+        if (input.atomic && retryOf !== undefined && (!correction || correction.call.name !== call.name)) {
+          throw new Error("The corrected call must reference an unresolved failure of the same tool. Pending changes were discarded.");
+        }
 
         const needsConfirm =
           !dryRun &&
@@ -218,20 +244,35 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
               content: JSON.stringify(rejected),
               isError: true,
             });
+            if (input.atomic) throw new Error("The edit was rejected; pending changes were discarded.");
             continue;
           }
         }
 
         let result;
-        if (dryRun && !isReadOnly(call.name)) {
+        if (dryRun && !(input.readOnly ?? isReadOnly)(call.name)) {
           result = {
             ok: true as const,
             summary: `[dry-run] would call ${call.name}`,
           };
         } else {
-          result = await executeTool(call.name, call.args, host);
+          result = await (input.execute ?? executeTool)(call.name, call.args, host);
+        }
+        checkCancelled();
+        if (input.atomic && !result.ok && result.error?.recoverable && correctionAttempts < 3) {
+          // Only tools that guarantee a mutation-free rejected preflight may
+          // enter this path. Every failed request must be explicitly repaired.
+          correctionAttempts++;
+          result = { ...result, error: { ...result.error, retryOf: call.id } };
+          if (typeof retryOf === "string") pendingCorrections.delete(retryOf);
+          pendingCorrections.set(call.id, { call, result, previousCallIds: correction ? [...correction.previousCallIds, correction.call.id] : [] });
         }
         emit({ type: "tool_result", call, result });
+        if (input.atomic && !result.ok && !pendingCorrections.has(call.id)) throw new Error(`${call.name}: ${result.error?.message ?? result.summary}. Pending changes were discarded.`);
+        if (input.atomic && result.ok && correction && typeof retryOf === "string") {
+          pendingCorrections.delete(retryOf);
+          emit({ type: "tool_recovered", callIds: [...correction.previousCallIds, correction.call.id], repairedBy: call.id });
+        }
         results.push({
           toolUseId: call.id,
           content: buildToolResultContent(result),
@@ -242,7 +283,8 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
       messages.push({ role: "tool", results });
 
       if (hitToolCallLimit) {
-        host.commitTransaction(txn, turnLabel);
+        if (input.atomic) throw new Error("Tool-call budget reached; pending changes were discarded.");
+        await commit();
         return {
           text: lastText,
           messages,
@@ -254,7 +296,8 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
       }
     }
 
-    host.commitTransaction(txn, turnLabel);
+    if (input.atomic) throw new Error("Step limit reached; pending changes were discarded.");
+    await commit();
     return {
       text: lastText,
       messages,
@@ -264,7 +307,7 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
       usage,
     };
   } catch (error) {
-    await host.rollbackTransaction(txn);
+    if (txn) await host.rollbackTransaction(txn);
     const message = error instanceof Error ? error.message : "Agent turn failed";
     emit({ type: "error", error: { code: "LOOP_ERROR", message } });
     return {

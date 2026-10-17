@@ -1,6 +1,8 @@
 import { CODEC_MAP, type VideoExportSettings, type AudioExportSettings, type ExportError } from "./types";
 import type { Project } from "../types/project";
 import type { EncoderBackend } from "./encoder-backend";
+import { getAacEncoderPriming } from "./audio-priming";
+import { applyMp4AudioTiming } from "./mp4-audio-timing";
 import { trackHasAudioItems } from "../timeline/timeline-items";
 
 type MediaBunnyModule = typeof import("mediabunny");
@@ -35,6 +37,13 @@ export class WebCodecsBackend implements EncoderBackend {
   private audioSource: AudioBufferSourceInstance | null = null;
   private writableStream: FileSystemWritableFileStream | null = null;
   private bytesWritten = 0;
+  private audioPriming: number | null = null;
+  private audioFrameCount = 0;
+  private audioSampleRate = 0;
+  private movieMetadata: { bytes: Uint8Array; position: number } | null = null;
+  private submittedVideoFrames = 0;
+  private encodedVideoFrames = 0;
+  private readonly pendingFrameReleases = new Set<() => void>();
 
   constructor(mediabunny: MediaBunnyModule, options?: WebCodecsBackendOptions) {
     this.mediabunny = mediabunny;
@@ -80,17 +89,24 @@ export class WebCodecsBackend implements EncoderBackend {
       },
     });
 
+    this.audioPriming = null;
+    this.audioFrameCount = 0;
+    this.audioSampleRate = settings.audioSettings.sampleRate;
+    this.movieMetadata = null;
+    this.submittedVideoFrames = 0;
+    this.encodedVideoFrames = 0;
+    const captureMovie = (bytes: Uint8Array, position: number) => { this.movieMetadata = { bytes, position }; };
     let outputFormat;
     switch (settings.format) {
       case "webm":
         outputFormat = new WebMOutputFormat();
         break;
       case "mov":
-        outputFormat = new MovOutputFormat();
+        outputFormat = new MovOutputFormat({ fastStart: false, onMoov: captureMovie });
         break;
       case "mp4":
       default:
-        outputFormat = new Mp4OutputFormat({ fastStart: false });
+        outputFormat = new Mp4OutputFormat({ fastStart: false, onMoov: captureMovie });
         break;
     }
 
@@ -151,12 +167,27 @@ export class WebCodecsBackend implements EncoderBackend {
       getFirstEncodableAudioCodec,
     ) : null;
 
+    if (audioCodecResult?.codec === "aac" && settings.format !== "webm") {
+      this.audioPriming = await getAacEncoderPriming(this.mediabunny, {
+        sampleRate: settings.audioSettings.sampleRate,
+        channels: settings.audioSettings.channels,
+        bitrate: audioCodecResult.bitrate,
+      });
+    }
+
+    // WebKit's quality encoder can buffer more frames than its message queue
+    // accepts, deadlocking before the first packet. Realtime avoids that queue
+    // deadlock; finalization still requires a packet for every submitted frame.
+    const userAgent = typeof navigator === "undefined" ? "" : navigator.userAgent;
+    const isWebKit = /AppleWebKit\//.test(userAgent) && !/(?:Chrome|Chromium|Edg)\//.test(userAgent);
     const videoSource = new VideoSampleSource({
       codec: videoCodec,
       bitrate: targetVideoBitrate,
       keyFrameInterval: settings.keyframeInterval / settings.frameRate,
       hardwareAcceleration: selectedHardwareAcceleration,
       bitrateMode: settings.bitrateMode === "cbr" ? "constant" : "variable",
+      latencyMode: isWebKit ? "realtime" : "quality",
+      onEncodedPacket: () => { this.encodedVideoFrames++; },
     });
     const audioSource = audioCodecResult ? new AudioBufferSource({
       codec: audioCodecResult.codec as "aac" | "opus" | "mp3",
@@ -178,6 +209,7 @@ export class WebCodecsBackend implements EncoderBackend {
   async addAudioBuffer(buffer: AudioBuffer): Promise<void> {
     if (!this.audioSource) return;
     await this.audioSource.add(buffer);
+    this.audioFrameCount += buffer.length;
   }
 
   async closeAudio(): Promise<void> {
@@ -197,22 +229,43 @@ export class WebCodecsBackend implements EncoderBackend {
       timestamp: timestampSec,
       duration: durationSec,
     });
+    let released = false;
+    const release = () => {
+      if (released) return;
+      released = true;
+      videoSample.close();
+      frame.close();
+      this.pendingFrameReleases.delete(release);
+    };
+    this.pendingFrameReleases.add(release);
 
     try {
       await this.videoSource.add(videoSample);
+      this.submittedVideoFrames++;
     } finally {
-      videoSample.close();
-      frame.close();
+      release();
     }
   }
 
   async finalize(): Promise<void> {
     this.videoSource?.close();
     await this.output?.finalize();
+    if (this.encodedVideoFrames !== this.submittedVideoFrames) {
+      throw new Error(`The video encoder produced ${this.encodedVideoFrames} of ${this.submittedVideoFrames} frames. Retry with a lower resolution or a different codec.`);
+    }
+    if (this.audioPriming !== null && this.audioFrameCount > 0) {
+      if (!this.movieMetadata || !this.writableStream) throw new Error("MP4 audio timing metadata was not written.");
+      const { bytes, position } = this.movieMetadata;
+      const corrected = applyMp4AudioTiming(bytes, this.audioPriming, this.audioSampleRate, this.audioFrameCount);
+      await this.writableStream.seek(position);
+      await this.writableStream.write(corrected as unknown as FileSystemWriteChunkType);
+      this.bytesWritten += corrected.byteLength;
+    }
     await this.writableStream?.close();
   }
 
   async abort(): Promise<void> {
+    for (const release of this.pendingFrameReleases) release();
     try { await this.output?.cancel(); } catch {}
     this.videoSource?.close();
     this.audioSource?.close();

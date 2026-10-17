@@ -332,6 +332,8 @@ export function buildOpenAIBody(
               )?.text ?? "");
         messages.push({ role: "tool", tool_call_id: r.toolUseId, content });
       }
+      const images = m.results.flatMap((r) => typeof r.content === "string" ? [] : r.content.filter((b) => b.type === "image").map((b) => ({ type: "image_url", image_url: { url: `data:${b.source.media_type};base64,${b.source.data}` } })));
+      if (images.length) messages.push({ role: "user", content: images });
     }
   }
   return {

@@ -15,6 +15,13 @@
 .editor-compact [data-tour="preview"] > .border-t > .h-12 { height: 48px; padding: 0 4px; gap: 4px; overflow-x: auto; overflow-y: hidden; }
 .editor-compact [data-tour="preview"] > .border-t > .h-12 > * { flex-shrink: 0; }
 .editor-compact [data-tour="preview"] > .flex-1 { padding: 4px; }
+.editor-compact [data-preview-transport] { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px; padding: 4px; flex-shrink: 0; }
+.editor-compact [data-preview-timecode] { min-width: 0; overflow: hidden; }
+.editor-compact [data-preview-timecode] input { width: 90px; }
+.editor-compact [data-preview-playback] { gap: 4px; margin: 0; }
+.editor-compact [data-preview-tools] { grid-column: 1 / -1; min-width: 0; flex-wrap: wrap; gap: 4px; }
+.editor-compact [data-preview-tools] > * { flex-shrink: 0; }
+.editor-compact [aria-label="Preview range controls"] button { min-width: 24px; }
 .editor-compact [data-tour="timeline"] > .h-12 { gap: 8px; padding: 0 4px; overflow-x: auto; overflow-y: hidden; }
 .editor-compact [data-tour="timeline"] > .h-12 > * { flex-shrink: 0; }
 .editor-compact [data-timeline-clip] { touch-action: pan-x pan-y; }

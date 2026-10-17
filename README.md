@@ -33,6 +33,10 @@ From a quick social clip to a longer edit, OpenReel gives you a timeline, a live
 | **Find your look** | Adjust color with wheels, curves, HSL controls, and LUTs. Add effects, masks, and chroma key. |
 | **Fit the platform** | Work in landscape, portrait, or square, then choose export resolution, frame rate, and bitrate. |
 
+## Edit with an AI assistant
+
+Connect your own OpenAI, Anthropic, or compatible endpoint to make reversible timeline edits. Model connections and session keys are configured in Settings → AI Editor. See the [AI editing guide](docs/ai-editing.md) for setup, supported tools, and edit-sharing behavior.
+
 ## Start editing in minutes
 
 1. **[Open OpenReel](https://openreel.video)** and create a project.

@@ -705,6 +705,11 @@ class ProjectManager {
     return this.currentFileHandle;
   }
 
+  /** Imported independent copies must not overwrite a previously opened file. */
+  releaseCurrentFileHandle(): void {
+    this.currentFileHandle = null;
+  }
+
   hasUnsavedChanges(project: Project): boolean {
     const projectWithSavedAt = project as Project & { lastSavedAt?: number };
     return (

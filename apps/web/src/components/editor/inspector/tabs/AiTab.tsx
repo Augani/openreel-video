@@ -2,7 +2,6 @@ import React from "react";
 import { Zap, Loader2, Upload } from "@/icons/lucide-compat";
 import { ToolcraftButton as Button } from "@openreel/ui";
 import { ToolcraftCard as Card } from "@openreel/ui";
-import { ToolcraftFileDropControl as FileInput } from "@openreel/ui";
 import { ToolcraftText as Text } from "@openreel/ui";
 import { AutoReframeSection } from "../";
 import { AutoCaptionPanel } from "../AutoCaptionPanel";
@@ -62,19 +61,12 @@ export const AiTab: React.FC<AiTabProps> = ({
                 clipId={clipId}
                 maxWordsPerLine={captionWordsPerLine}
               />
-              <FileInput
+              <input
                 ref={srtInputRef}
-                label="Import SRT or VTT file"
-                isLabelHidden
-                value={null}
+                type="file"
+                aria-label="Import SRT or VTT file"
                 accept=".srt,.vtt,text/srt,text/vtt,text/plain"
-                onChange={(files) => {
-                  const file = Array.isArray(files) ? files[0] : files;
-                  if (!file) return;
-                  void handleSRTImport({
-                    target: { files: [file] },
-                  } as unknown as React.ChangeEvent<HTMLInputElement>);
-                }}
+                onChange={(event) => { void handleSRTImport(event); }}
                 className="hidden"
               />
               <Button

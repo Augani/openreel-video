@@ -1,11 +1,6 @@
 import { create } from "zustand";
 import {
   runTurn,
-  toAnthropicTools,
-  toOpenAITools,
-  buildSystemPrompt,
-  getTool,
-  selectToolsForPrompt,
 } from "@openreel/agent";
 import type {
   AgentEvent,
@@ -14,21 +9,21 @@ import type {
   ToolResult,
   LoopMessage,
 } from "@openreel/agent";
-import { isSessionUnlocked, getSecret } from "../services/secure-storage";
-import { getLiveEditorHost, runExclusive } from "../services/agent/host-singleton";
-import { makeBYOKClient } from "../services/agent/llm-transport";
-import { normalizeCompatibleBaseUrl } from "../services/api-proxy";
+import { runExclusive } from "../services/agent/host-singleton";
+import { makeDirectBYOKClient, validateAIEndpoint } from "../services/agent/direct-llm-transport";
+import { EditingSession } from "../services/agent/editing-session";
+import { editingToolDefs, editingToolReadOnly, executeEditingTool, EDITING_SYSTEM } from "../services/agent/editing-tools";
+import { useAIConnectionStore } from "./ai-connection-store";
 import {
   conversationTitle,
   useChatHistoryStore,
 } from "./chat-history-store";
 import { useSettingsStore } from "./settings-store";
 import { useProjectStore } from "./project-store";
-import { MOTION_CREATOR_ENABLED } from "../config/features";
 
 export type ChatStatus = "idle" | "running" | "awaiting_confirm" | "error";
 
-export type ToolCallStatus = "running" | "done" | "error" | "rejected";
+export type ToolCallStatus = "running" | "done" | "error" | "rejected" | "retrying" | "corrected";
 
 export interface ToolCallView {
   readonly id: string;
@@ -65,6 +60,7 @@ interface ChatState {
   abortController: AbortController | null;
   lastTurnCommitted: boolean;
   lastTurnUndoSize: number | null;
+  lastTurnActionId: string | null;
   usage: TokenUsage;
   projectId: string | null;
   currentConversationId: string | null;
@@ -85,9 +81,6 @@ interface ChatState {
 const genId = (): string =>
   (globalThis as unknown as { crypto?: { randomUUID?: () => string } }).crypto
     ?.randomUUID?.() ?? `m-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-
-const isDesktop = (): boolean =>
-  typeof window !== "undefined" && window.openreel?.platform === "desktop";
 
 // Monotonic turn id: a completion whose seq is stale (reset/superseded) must not
 // write back into the store.
@@ -139,7 +132,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   error: null,
   abortController: null,
   lastTurnCommitted: false,
-  lastTurnUndoSize: null,
+  lastTurnUndoSize: null, lastTurnActionId: null,
   usage: { inputTokens: 0, outputTokens: 0 },
   projectId: null,
   currentConversationId: null,
@@ -163,43 +156,18 @@ export const useChatStore = create<ChatState>((set, get) => ({
       get().setProjectContext(currentProjectId);
     }
 
-    const settings = useSettingsStore.getState();
-    const provider = settings.defaultLlmProvider;
-    if (!provider) {
-      set({ error: "Choose an API format in AI settings." });
-      return;
-    }
-    const model = settings.llmModel.trim();
-    if (!model) {
-      set({ error: "Enter or choose a model ID in AI settings." });
-      return;
-    }
+    const { provider, model, baseUrl: inputBaseUrl, apiKey } = useAIConnectionStore.getState();
+    if (!["openai", "anthropic", "compatible"].includes(provider)) { set({ error: "Choose an API format in Settings → AI Editor." }); return; }
+    if (!model.trim()) { set({ error: "Enter a model ID in Settings → AI Editor." }); return; }
     let baseUrl: string;
-    try {
-      baseUrl = normalizeCompatibleBaseUrl(settings.llmBaseUrl);
-    } catch (error) {
-      set({ error: error instanceof Error ? error.message : "Enter a valid compatible endpoint URL." });
+    try { baseUrl = validateAIEndpoint(inputBaseUrl); } catch { set({ error: "Enter a valid HTTPS endpoint, or HTTP on localhost." }); return; }
+    if (provider !== "compatible" && !apiKey) {
+      set({
+        error: "Add your session API key in Settings → AI Editor before sending an edit request.",
+      });
       return;
     }
 
-    const keyRequired = settings.configuredServices.includes(provider);
-    if (!isDesktop() && keyRequired && !isSessionUnlocked()) {
-      set({ error: "Unlock secure storage to use your API key." });
-      return;
-    }
-    let apiKey = "";
-    if (!isDesktop() && keyRequired) {
-      try {
-        apiKey = (await getSecret(provider)) ?? "";
-      } catch {
-        set({ error: "Unlock secure storage to use your API key." });
-        return;
-      }
-      if (!apiKey) {
-        set({ error: "The configured endpoint API key could not be loaded." });
-        return;
-      }
-    }
     const active = get();
     const conversationId = active.currentConversationId ?? genId();
     const conversationStartedAt = active.conversationStartedAt ?? Date.now();
@@ -270,11 +238,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
                       ? "done"
                       : event.result.error?.code === "REJECTED"
                         ? "rejected"
-                        : "error",
+                        : event.result.error?.recoverable && event.result.error.retryOf
+                          ? "retrying"
+                          : "error",
                   }
                 : tc,
             ),
           }));
+          break;
+        case "tool_recovered":
+          updateAssistant((m) => ({ ...m, toolCalls: m.toolCalls.map((tc) => event.callIds.includes(tc.id) ? { ...tc, status: "corrected" } : tc) }));
           break;
         case "error":
           if (activeSeq === seq) set({ error: event.error.message });
@@ -284,80 +257,50 @@ export const useChatStore = create<ChatState>((set, get) => ({
       }
     };
 
-    const host = getLiveEditorHost();
-    const llm = makeBYOKClient({
+    const host = new EditingSession(controller.signal);
+    let llm;
+    try { llm = makeDirectBYOKClient({
       provider,
       model,
-      apiKey,
       baseUrl,
+      apiKey,
       signal: controller.signal,
-    });
-    const priorToolNames = get().conversation.flatMap((message) =>
-      message.role === "assistant" ? message.toolUses.map((tool) => tool.name) : [],
-    );
-    const routingContext = get()
-      .conversation.filter(
-        (message): message is Extract<LoopMessage, { role: "user" }> =>
-          message.role === "user",
-      )
-      .slice(-5)
-      .map((message) => message.content)
-      .join("\n");
-    const routedToolNames = selectToolsForPrompt(routingContext, {
-      maxTools: 120,
-      priorToolNames,
-    });
-    const selectedToolNames = MOTION_CREATOR_ENABLED
-      ? routedToolNames
-      : routedToolNames.filter((name) => getTool(name)?.domain !== "motion");
-    const tools =
-      provider === "anthropic-compatible"
-        ? toAnthropicTools(selectedToolNames)
-        : toOpenAITools(selectedToolNames);
+    }); } catch (error) {
+      set({ status: "error", error: error instanceof Error ? error.message : "Invalid connection settings", abortController: null });
+      return;
+    }
+    const tools = editingToolDefs(provider === "anthropic" ? "anthropic" : "openai");
     const autoConfirm = useSettingsStore.getState().agentAutoConfirm;
     const dryRun = useSettingsStore.getState().agentDryRun;
 
     let result;
-    try {
-      result = await runExclusive(() =>
-        runTurn({
-          host,
-          llm,
-          tools,
-          system: [
-            buildSystemPrompt(host, selectedToolNames),
-            !MOTION_CREATOR_ENABLED
-              ? "Motion Creator is temporarily disabled. Do not suggest opening it or creating standalone Motion compositions. Complete edits with the available main-timeline clip, keyframe, transition, effect, audio, trim, and speed tools."
-              : "",
-          ]
-            .filter(Boolean)
-            .join("\n\n"),
-          messages: get().conversation,
-          dryRun,
-          confirmGate: autoConfirm
-            ? () => "approve_for_turn"
-            : (call) =>
-                new Promise<ConfirmDecision>((resolve) => {
-                  set({ status: "awaiting_confirm", pendingConfirm: { call, resolve } });
-                }),
-          onEvent,
-          turnLabel: "AI edit",
-        }),
-      );
+    try { result = await runExclusive(() =>
+      runTurn({
+        host,
+        llm,
+        tools,
+        system: EDITING_SYSTEM,
+        messages: get().conversation,
+        execute: executeEditingTool,
+        readOnly: editingToolReadOnly,
+        atomic: true,
+        signal: controller.signal,
+        dryRun,
+        confirmGate: autoConfirm
+          ? () => "approve_for_turn"
+          : (call) =>
+              new Promise<ConfirmDecision>((resolve) => {
+                if (controller.signal.aborted) { resolve("reject"); return; }
+                set({ status: "awaiting_confirm", pendingConfirm: { call, resolve } });
+              }),
+        onEvent,
+        turnLabel: "AI edit",
+      }),
+    );
     } catch (error) {
       if (activeSeq !== seq) return;
-      set({
-        status: controller.signal.aborted ? "idle" : "error",
-        error: controller.signal.aborted
-          ? null
-          : error instanceof Error
-            ? error.message
-            : "The AI turn failed.",
-        abortController: null,
-        pendingConfirm: null,
-      });
-      saveConversationSnapshot(get());
-      return;
+      set({ status: controller.signal.aborted ? "idle" : "error", error: controller.signal.aborted ? null : error instanceof Error ? error.message : "The AI turn failed.", abortController: null, pendingConfirm: null, conversation: [] });
+      saveConversationSnapshot(get()); return;
     }
 
     // A reset() (or a newer turn) during the run supersedes this completion.
@@ -374,7 +317,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set((state) => ({
       messages: state.messages.map((message) => {
         if (message.id !== assistantId) return message;
-        const finalText = result.text || message.text;
+        const finalText = wasAborted ? "Cancelled. Pending edits were discarded." : !result.committed ? "The turn failed. No edits were applied." : result.text || message.text;
         const emptyNotice =
           !finalText && result.stoppedReason === "end_turn"
             ? message.toolCalls.length > 0
@@ -385,16 +328,18 @@ export const useChatStore = create<ChatState>((set, get) => ({
           ...message,
           text: finalText,
           notice: stopNotice ?? emptyNotice,
+          toolCalls: message.toolCalls.map((tc) => !result.committed && tc.status === "retrying" ? { ...tc, status: "error" } : tc),
         };
       }),
-      conversation: result.messages,
+      conversation: result.committed ? result.messages : [],
       status: wasAborted
         ? "idle"
         : result.stoppedReason === "error"
           ? "error"
           : "idle",
-      lastTurnCommitted: result.committed,
-      lastTurnUndoSize: result.committed ? undoStackSize() : null,
+      lastTurnCommitted: result.committed && host.committed,
+      lastTurnUndoSize: result.committed && host.committed ? undoStackSize() : null,
+      lastTurnActionId: result.committed && host.committed ? useProjectStore.getState().actionExecutor.getHistory().peekUndo?.()?.action.id ?? null : null,
       abortController: null,
       pendingConfirm: null,
       usage: {
@@ -430,7 +375,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
     // is on top — undoing it would hit the wrong action, so just drop the
     // affordance rather than clobber the user's edit.
     const checkpoint = get().lastTurnUndoSize;
-    if (checkpoint !== null && undoStackSize() !== checkpoint) {
+    const actionId = get().lastTurnActionId;
+    if (checkpoint !== null && undoStackSize() !== checkpoint || actionId !== null && useProjectStore.getState().actionExecutor.getHistory().peekUndo?.()?.action.id !== actionId) {
       set({ lastTurnCommitted: false, lastTurnUndoSize: null });
       return;
     }
@@ -457,7 +403,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       error: null,
       abortController: null,
       lastTurnCommitted: false,
-      lastTurnUndoSize: null,
+      lastTurnUndoSize: null, lastTurnActionId: null,
       usage: { inputTokens: 0, outputTokens: 0 },
       projectId,
       currentConversationId: null,
@@ -478,7 +424,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       error: null,
       abortController: null,
       lastTurnCommitted: false,
-      lastTurnUndoSize: null,
+      lastTurnUndoSize: null, lastTurnActionId: null,
       usage: { inputTokens: 0, outputTokens: 0 },
       currentConversationId: null,
       conversationStartedAt: null,
@@ -504,7 +450,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       error: saved.error ?? null,
       abortController: null,
       lastTurnCommitted: false,
-      lastTurnUndoSize: null,
+      lastTurnUndoSize: null, lastTurnActionId: null,
       usage: saved.usage,
       projectId: saved.projectId,
       currentConversationId: saved.id,
@@ -524,7 +470,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       error: null,
       abortController: null,
       lastTurnCommitted: false,
-      lastTurnUndoSize: null,
+      lastTurnUndoSize: null, lastTurnActionId: null,
       usage: { inputTokens: 0, outputTokens: 0 },
       currentConversationId: null,
       conversationStartedAt: null,
@@ -544,7 +490,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       error: null,
       abortController: null,
       lastTurnCommitted: false,
-      lastTurnUndoSize: null,
+      lastTurnUndoSize: null, lastTurnActionId: null,
       usage: { inputTokens: 0, outputTokens: 0 },
       projectId: null,
       currentConversationId: null,
