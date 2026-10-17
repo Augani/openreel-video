@@ -1,5 +1,7 @@
 import { cloneProjectForEdit } from "./project/clone-project-for-edit";
 import { create } from "zustand";
+import { useTimelineStore } from "./timeline-store";
+import { useUIStore } from "./ui-store";
 import { subscribeWithSelector } from "zustand/middleware";
 import type {
   Project,
@@ -1718,6 +1720,13 @@ export const useProjectStore = create<ProjectState>()(
         const previousProject = get().project;
         const nextProject = createEmptyProject(name, settings);
 
+        useTimelineStore.getState().stop();
+        useTimelineStore.getState().seekToStart();
+        useTimelineStore.getState().clearLoopRange();
+        useTimelineStore.getState().setScrollX(0);
+        useTimelineStore.getState().setScrollY(0);
+        useUIStore.getState().clearSelection();
+
         syncProjectEffectsBridge(nextProject, previousProject);
         syncProjectTransitionsBridge(nextProject, previousProject);
 
@@ -2941,9 +2950,16 @@ export const useProjectStore = create<ProjectState>()(
             },
           };
         }
-        const result = await actionExecutor.execute(action, project);
+        const targetProject = action.type === "project/applyEditSnapshot" ? get().getFullProject() : project;
+        const previousProject = action.type === "project/applyEditSnapshot" ? { ...targetProject } : undefined;
+        const result = await actionExecutor.execute(action, targetProject);
         if (result.success) {
-          set({ project: { ...project } });
+          if (action.type === "project/applyEditSnapshot") {
+            syncOverlayEnginesFromProject(targetProject);
+            syncProjectEffectsBridge(targetProject, previousProject);
+            syncProjectTransitionsBridge(targetProject, previousProject);
+          }
+          set({ project: { ...targetProject } });
         }
         return result;
       },

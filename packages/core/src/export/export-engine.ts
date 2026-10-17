@@ -162,7 +162,14 @@ export class ExportEngine {
 
     const { timeline } = project;
     const timelineDuration = this.calculateTimelineDuration(timeline);
-    const missingMedia = getMissingExportMedia(project);
+    const range = fullSettings.range;
+    if (range && (!Number.isFinite(range.startTime) || !Number.isFinite(range.endTime)
+      || range.startTime < 0 || range.endTime <= range.startTime || range.endTime > timelineDuration + 1e-7)) {
+      return { success: false, error: this.createError("INVALID_SETTINGS", "Choose an In/Out range inside the timeline, with Out after In.", "preparing") };
+    }
+    const exportStart = range?.startTime ?? 0;
+    const exportDuration = Math.min(range?.endTime ?? timelineDuration, timelineDuration) - exportStart;
+    const missingMedia = getMissingExportMedia(project, range);
     if (missingMedia.length) return { success: false, error: this.createError("INVALID_SETTINGS", `Relink the original media before exporting: ${missingMedia.join(", ")}`, "preparing") };
     const initialValidation = getVideoExportValidationError(fullSettings, timelineDuration);
     if (initialValidation) return { success: false, error: this.createError("INVALID_SETTINGS", initialValidation, "preparing") };
@@ -170,7 +177,7 @@ export class ExportEngine {
     if (backend.requiresWebCodecsClamping) {
       Object.assign(
         fullSettings,
-        resolveWebCodecsExportLimits(fullSettings, timelineDuration).settings,
+        resolveWebCodecsExportLimits(fullSettings, exportDuration).settings,
       );
     }
 
@@ -197,7 +204,7 @@ export class ExportEngine {
       };
     }
 
-    const totalFrames = Math.ceil(timelineDuration * fullSettings.frameRate);
+    const totalFrames = Math.max(1, Math.ceil(exportDuration * fullSettings.frameRate - 1e-7));
     if (this.currentExport) {
       return { success: false, error: this.createError("INVALID_SETTINGS", "An export is already running. Wait for it to finish or cancel it before retrying.", "preparing") };
     }
@@ -225,7 +232,7 @@ export class ExportEngine {
 
       if (backend.audioBeforeVideo) {
         try {
-          await this.encodeTimelineAudioToBackend(project, backend, fullSettings.audioSettings);
+          await this.encodeTimelineAudioToBackend(project, backend, fullSettings.audioSettings, exportStart, exportDuration);
         } finally {
           this.audioEngine?.clearCache();
         }
@@ -237,6 +244,7 @@ export class ExportEngine {
       const videoMediaIds: string[] = [];
       for (const track of project.timeline.tracks) {
         for (const clip of track.clips) {
+          if (range && (clip.startTime >= range.endTime || clip.startTime + clip.duration <= range.startTime)) continue;
           const mediaItem = project.mediaLibrary.items.find(
             (m) => m.id === clip.mediaId,
           );
@@ -264,12 +272,12 @@ export class ExportEngine {
 
         const time = frame / fullSettings.frameRate;
         const renderStart = performance.now();
-        const rendered = await this.videoEngine!.renderFrame(
+        const rendered = await this.waitForVideoOperation(this.videoEngine!.renderFrame(
           project,
-          time,
+          exportStart + time,
           fullSettings.width,
           fullSettings.height,
-        );
+        ), abortController.signal, "rendering", (lateFrame) => lateFrame.image.close());
         renderMsTotal += performance.now() - renderStart;
         const shouldUpscale = this.shouldApplyUpscaling(project, fullSettings);
         let frameImage = rendered.image;
@@ -285,11 +293,11 @@ export class ExportEngine {
           frameImage = upscaled;
         }
 
-        await backend.addVideoFrame(
+        await this.waitForVideoOperation(backend.addVideoFrame(
           frameImage,
           time,
           1 / fullSettings.frameRate,
-        );
+        ), abortController.signal, "encoding");
 
         this.currentExport!.framesRendered = frame + 1;
 
@@ -317,7 +325,7 @@ export class ExportEngine {
 
       if (!backend.audioBeforeVideo) {
         try {
-          await this.encodeTimelineAudioToBackend(project, backend, fullSettings.audioSettings);
+          await this.encodeTimelineAudioToBackend(project, backend, fullSettings.audioSettings, exportStart, exportDuration);
         } finally {
           this.audioEngine?.clearCache();
         }
@@ -341,7 +349,7 @@ export class ExportEngine {
       );
 
       checkCancelled();
-      await backend.finalize();
+      await this.waitForVideoOperation(backend.finalize(), abortController.signal, "muxing");
 
       yield this.createProgress(
         "complete",
@@ -396,6 +404,44 @@ export class ExportEngine {
       this.exportWorker.terminate();
       this.exportWorker = null;
     }
+  }
+
+  private waitForVideoOperation<T>(
+    operation: Promise<T>,
+    signal: AbortSignal,
+    phase: ExportProgress["phase"],
+    disposeLateResult?: (result: T) => void,
+  ): Promise<T> {
+    return new Promise((resolve, reject) => {
+      let settled = false;
+      const finish = (error?: ExportError) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        signal.removeEventListener("abort", cancel);
+        if (error) reject(error);
+      };
+      const cancel = () => finish(this.createError("CANCELLED", "Export cancelled by user", phase));
+      const timer = setTimeout(() => finish(this.createError(
+        "FRAME_ENCODE_FAILED",
+        "The video export stopped responding. Retry with a lower resolution or a different codec.",
+        phase,
+      )), 30_000);
+      signal.addEventListener("abort", cancel, { once: true });
+      if (signal.aborted) cancel();
+      operation.then((result) => {
+        if (settled) {
+          disposeLateResult?.(result);
+          return;
+        }
+        finish();
+        resolve(result);
+      }, (error: unknown) => {
+        if (settled) return;
+        finish();
+        reject(error);
+      });
+    });
   }
 
   async *exportAudio(
@@ -870,7 +916,8 @@ export class ExportEngine {
     project: Project,
     settings: VideoExportSettings | AudioExportSettings,
   ): number {
-    const duration = project.timeline.duration;
+    const duration = "codec" in settings && settings.range
+      ? settings.range.endTime - settings.range.startTime : project.timeline.duration;
 
     if ("codec" in settings) {
       const videoBitrate = settings.bitrate * 1000;
@@ -893,7 +940,8 @@ export class ExportEngine {
     project: Project,
     settings: VideoExportSettings | AudioExportSettings,
   ): number {
-    const duration = project.timeline.duration;
+    const duration = "codec" in settings && settings.range
+      ? settings.range.endTime - settings.range.startTime : project.timeline.duration;
 
     if ("codec" in settings) {
       const pixelCount = settings.width * settings.height;
@@ -951,8 +999,10 @@ export class ExportEngine {
     project: Project,
     backend: EncoderBackend,
     audioSettings: AudioExportSettings,
+    rangeStart = 0,
+    rangeDuration = this.calculateTimelineDuration(project.timeline),
   ): Promise<void> {
-    const timelineDuration = this.calculateTimelineDuration(project.timeline);
+    const timelineDuration = rangeDuration;
     if (timelineDuration <= 0) {
       return;
     }
@@ -978,7 +1028,7 @@ export class ExportEngine {
       );
       const audioBuffer = await this.renderTimelineAudio(
         project,
-        startTime,
+        rangeStart + startTime,
         currentChunkDuration,
         audioSettings,
       );

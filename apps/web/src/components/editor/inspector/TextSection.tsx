@@ -1,4 +1,5 @@
 import React, { useCallback, useMemo, useState } from "react";
+import { ensureFontFamily } from "../../../services/project-fonts";
 import { ToolcraftSegmentedControl } from "@openreel/ui";
 import { ToolcraftCard as Card } from "@openreel/ui";
 import { ToolcraftFileDropControl as FileInput } from "@openreel/ui";
@@ -235,8 +236,7 @@ export const TextSection: React.FC<TextSectionProps> = ({ clipId, clipIds }) => 
     async (changes: Partial<TextStyle>) => {
       if (changes.fontFamily) {
         try {
-          const fontSize = style.fontSize || 48;
-          await document.fonts.load(`${fontSize}px "${changes.fontFamily}"`);
+          await ensureFontFamily(changes.fontFamily, changes.fontWeight ?? style.fontWeight, text);
         } catch {
           // Font load failed, continue anyway - browser will fallback
         }
@@ -248,7 +248,7 @@ export const TextSection: React.FC<TextSectionProps> = ({ clipId, clipIds }) => 
         if (isBatch) endHistoryGroup();
       }
     },
-    [beginHistoryGroup, endHistoryGroup, isBatch, style.fontSize, targetClipIds, updateTextStyle],
+    [beginHistoryGroup, endHistoryGroup, isBatch, style.fontWeight, text, targetClipIds, updateTextStyle],
   );
 
   const handleCenterHorizontal = useCallback(() => {

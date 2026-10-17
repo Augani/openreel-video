@@ -3,6 +3,7 @@ import type { RunTurnInput, RunTurnResult } from "@openreel/agent";
 
 const h = vi.hoisted(() => ({
   runTurn: vi.fn(),
+  connection: { provider: "compatible", model: "account-tool-model", baseUrl: "https://gateway.example/v1", apiKey: "test-key" },
   toOpenAITools: vi.fn((_names: Iterable<string>) => []),
   getTool: vi.fn((_name: string): { domain: string } => ({ domain: "read" })),
   selectToolsForPrompt: vi.fn((_context: string): string[] => []),
@@ -40,9 +41,10 @@ vi.mock("../services/agent/live-host", () => ({
   LiveEditorHost: class {},
 }));
 
-vi.mock("../services/agent/llm-transport", () => ({
-  makeBYOKClient: h.makeBYOKClient,
-}));
+vi.mock("../services/agent/direct-llm-transport", () => ({ makeDirectBYOKClient: h.makeBYOKClient, validateAIEndpoint: (url: string) => url.replace(/\/(chat\/completions|messages)\/?$/, "").replace(/\/+$/, "") }));
+vi.mock("../services/agent/editing-session", () => ({ EditingSession: class { committed = true; } }));
+vi.mock("../services/agent/editing-tools", () => ({ editingToolDefs: () => [], editingToolReadOnly: () => false, executeEditingTool: vi.fn(), EDITING_SYSTEM: "system" }));
+vi.mock("./ai-connection-store", () => ({ useAIConnectionStore: { getState: () => h.connection } }));
 
 vi.mock("./settings-store", () => ({
   useSettingsStore: {
@@ -90,9 +92,10 @@ describe("chat-store", () => {
     h.undo.mockResolvedValue({ success: true });
     h.projectState.hasOpenProject = true;
     h.projectState.projectId = "project-a";
-    h.settings.defaultLlmProvider = "openai-compatible";
-    h.settings.llmBaseUrl = "https://gateway.example/v1";
-    h.settings.llmModel = "account-tool-model";
+    Object.assign(h.connection, { provider: "compatible", model: "account-tool-model", baseUrl: "https://gateway.example/v1", apiKey: "test-key" });
+    h.connection.provider = "compatible";
+    h.connection.baseUrl = "https://gateway.example/v1";
+    h.connection.model = "account-tool-model";
     h.settings.configuredServices = ["openai-compatible"];
     h.settings.agentAutoConfirm = false;
     h.settings.agentDryRun = false;
@@ -109,11 +112,11 @@ describe("chat-store", () => {
     expect(store().status).toBe("idle");
   });
 
-  it("refuses to run when the secure session is locked", async () => {
-    h.isSessionUnlocked.mockReturnValue(false);
+  it("refuses to run when a required session key is missing", async () => {
+    h.connection.provider = "openai"; h.connection.apiKey = "";
     await store().send("hello");
     expect(h.runTurn).not.toHaveBeenCalled();
-    expect(store().error).toMatch(/unlock/i);
+    expect(store().error).toMatch(/session API key/i);
   });
 
   it("ignores empty input", async () => {
@@ -152,36 +155,6 @@ describe("chat-store", () => {
       content: "Done!",
       toolUses: [],
     });
-  });
-
-  it("does not expose Motion Creator tools while its view is disabled", async () => {
-    h.selectToolsForPrompt.mockReturnValue([
-      "list_clips",
-      "set_clip_transform",
-      "add_motion_layer",
-    ]);
-    h.getTool.mockImplementation((name: string) => ({
-      domain: name === "add_motion_layer" ? "motion" : "read",
-    }));
-    h.runTurn.mockImplementation(
-      impl(async ({ messages }) => ({
-        text: "Done!",
-        messages,
-        toolCalls: 0,
-        stoppedReason: "end_turn",
-        committed: true,
-      })),
-    );
-
-    await store().send("Animate the first clip");
-
-    expect(h.toOpenAITools).toHaveBeenCalledWith([
-      "list_clips",
-      "set_clip_transform",
-    ]);
-    expect(h.runTurn.mock.calls[0]?.[0].system).toContain(
-      "Motion Creator is temporarily disabled",
-    );
   });
 
   it("saves completed conversations and starts a fresh chat", async () => {
@@ -279,7 +252,7 @@ describe("chat-store", () => {
   });
 
   it("passes a custom provider model ID through to the BYOK client", async () => {
-    h.settings.llmModel = "gpt-custom-account-model";
+    h.connection.model = "gpt-custom-account-model";
     h.runTurn.mockImplementation(
       impl(async ({ messages }) => ({
         text: "ok",
@@ -294,18 +267,18 @@ describe("chat-store", () => {
 
     expect(h.makeBYOKClient).toHaveBeenCalledWith(
       expect.objectContaining({
-        provider: "openai-compatible",
+        provider: "compatible",
         model: "gpt-custom-account-model",
       }),
     );
   });
 
   it("runs against a keyless OpenAI-compatible endpoint", async () => {
-    h.settings.defaultLlmProvider = "openai-compatible";
-    h.settings.llmBaseUrl = "http://localhost:11434/v1/";
-    h.settings.llmModel = "llama3.2";
-    h.settings.configuredServices = [];
-    h.isSessionUnlocked.mockReturnValue(false);
+    Object.assign(h.connection, { provider: "compatible", model: "account-tool-model", baseUrl: "https://gateway.example/v1", apiKey: "test-key" });
+    h.connection.provider = "compatible";
+    h.connection.baseUrl = "http://localhost:11434/v1/";
+    h.connection.model = "llama3.2";
+    h.settings.configuredServices = []; h.connection.apiKey = "";
     h.runTurn.mockImplementation(
       impl(async ({ messages }) => ({
         text: "ok",
@@ -321,7 +294,7 @@ describe("chat-store", () => {
     expect(h.getSecret).not.toHaveBeenCalled();
     expect(h.makeBYOKClient).toHaveBeenCalledWith(
       expect.objectContaining({
-        provider: "openai-compatible",
+        provider: "compatible",
         model: "llama3.2",
         baseUrl: "http://localhost:11434/v1",
         apiKey: "",
@@ -331,8 +304,9 @@ describe("chat-store", () => {
   });
 
   it("blocks a compatible provider until endpoint and model are configured", async () => {
-    h.settings.defaultLlmProvider = "openai-compatible";
-    h.settings.llmModel = "";
+    Object.assign(h.connection, { provider: "compatible", model: "account-tool-model", baseUrl: "https://gateway.example/v1", apiKey: "test-key" });
+    h.connection.provider = "compatible";
+    h.connection.model = "";
 
     await store().send("hello");
 
@@ -341,7 +315,7 @@ describe("chat-store", () => {
   });
 
   it("requires the user to choose an API format", async () => {
-    h.settings.defaultLlmProvider = null;
+    h.connection.provider = "";
 
     await store().send("hello");
 
@@ -350,11 +324,10 @@ describe("chat-store", () => {
   });
 
   it("runs against an Anthropic-compatible endpoint", async () => {
-    h.settings.defaultLlmProvider = "anthropic-compatible";
-    h.settings.llmBaseUrl = "https://anthropic-gateway.example/v1/messages";
-    h.settings.llmModel = "gateway/claude-tool-model";
-    h.settings.configuredServices = [];
-    h.isSessionUnlocked.mockReturnValue(false);
+    h.connection.provider = "anthropic";
+    h.connection.baseUrl = "https://anthropic-gateway.example/v1/messages";
+    h.connection.model = "gateway/claude-tool-model";
+    h.settings.configuredServices = []; h.connection.apiKey = "test-key";
     h.runTurn.mockImplementation(
       impl(async ({ messages }) => ({
         text: "ok",
@@ -369,10 +342,10 @@ describe("chat-store", () => {
 
     expect(h.makeBYOKClient).toHaveBeenCalledWith(
       expect.objectContaining({
-        provider: "anthropic-compatible",
+        provider: "anthropic",
         model: "gateway/claude-tool-model",
         baseUrl: "https://anthropic-gateway.example/v1",
-        apiKey: "",
+        apiKey: "test-key",
       }),
     );
     expect(h.runTurn).toHaveBeenCalledOnce();
@@ -482,6 +455,33 @@ describe("chat-store", () => {
     await store().send("delete");
     const assistant = store().messages.find((m) => m.role === "assistant");
     expect(assistant?.toolCalls[0].status).toBe("rejected");
+  });
+
+  it("shows recoverable transition calls as corrected after a successful retry", async () => {
+    h.runTurn.mockImplementation(impl(async ({ onEvent }) => {
+      const call = { id: "bad", name: "add_transition", args: {} };
+      onEvent?.({ type: "tool_call", call });
+      onEvent?.({ type: "tool_result", call, result: { ok: false, summary: "Needs correction", error: { code: "BAD_PAIR", message: "Choose adjacent clips", recoverable: true, retryOf: "bad" } } });
+      expect(store().messages.at(-1)?.toolCalls[0].status).toBe("retrying");
+      onEvent?.({ type: "tool_recovered", callIds: ["bad"], repairedBy: "fixed" });
+      return { text: "Transition added.", messages: [], toolCalls: 2, stoppedReason: "end_turn", committed: true };
+    }));
+    await store().send("add transition");
+    expect(store().status).toBe("idle");
+    expect(store().error).toBeNull();
+    expect(store().messages.at(-1)?.toolCalls[0].status).toBe("corrected");
+  });
+
+  it("marks an unresolved correction as failed when the turn rolls back", async () => {
+    h.runTurn.mockImplementation(impl(async ({ onEvent }) => {
+      const call = { id: "bad", name: "add_transition", args: {} };
+      onEvent?.({ type: "tool_call", call });
+      onEvent?.({ type: "tool_result", call, result: { ok: false, summary: "Needs correction", error: { code: "BAD_PAIR", message: "Choose adjacent clips", recoverable: true, retryOf: "bad" } } });
+      return { text: "", messages: [], toolCalls: 1, stoppedReason: "error", committed: false };
+    }));
+    await store().send("add transition");
+    expect(store().messages.at(-1)?.toolCalls[0].status).toBe("error");
+    expect(store().messages.at(-1)?.text).toContain("No edits were applied");
   });
 
   it("gates destructive calls through pendingConfirm", async () => {

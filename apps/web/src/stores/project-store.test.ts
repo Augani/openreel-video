@@ -1,6 +1,8 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { useProjectStore } from "./project-store";
 import { useEngineStore } from "./engine-store";
+import { useTimelineStore } from "./timeline-store";
+import { useUIStore } from "./ui-store";
 import type {
   Project,
   Clip,
@@ -14,6 +16,14 @@ import {
   listGeneratedMotionShaders,
 } from "@openreel/core/motion/shaders";
 import { createEmptyProject } from "./project/project-helpers";
+import { extractAudioTracks } from "../services/separate-audio";
+import { saveMediaBlob, deleteMediaBlob } from "../services/media-storage";
+
+vi.mock("../services/separate-audio", () => ({ extractAudioTracks: vi.fn() }));
+vi.mock("../services/media-storage", () => ({
+  saveMediaBlob: vi.fn(async () => {}),
+  deleteMediaBlob: vi.fn(async () => {}),
+}));
 
 const {
   mockEffectsBridge,
@@ -164,6 +174,32 @@ describe("ProjectStore", () => {
   });
 
   describe("project creation", () => {
+    it("starts a fresh timeline instead of retaining the previous project's playback and range", () => {
+      useTimelineStore.setState({
+        playheadPosition: 570,
+        playbackState: "playing",
+        loopEnabled: true,
+        loopStart: 540,
+        loopEnd: 570,
+        scrollX: 1200,
+        scrollY: 240,
+      });
+      useUIStore.getState().select({ type: "clip", id: "previous-project-clip" });
+
+      useProjectStore.getState().createNewProject("Fresh edit");
+
+      expect(useTimelineStore.getState()).toMatchObject({
+        playheadPosition: 0,
+        playbackState: "stopped",
+        loopEnabled: false,
+        loopStart: 0,
+        loopEnd: 0,
+        scrollX: 0,
+        scrollY: 0,
+      });
+      expect(useUIStore.getState().selectedItems).toEqual([]);
+    });
+
     it("should create a new project with default settings", () => {
       const { project } = useProjectStore.getState();
 
@@ -1955,6 +1991,22 @@ describe("ProjectStore", () => {
   });
 
   describe("separateAudio", () => {
+    beforeEach(() => {
+      vi.mocked(saveMediaBlob).mockReset().mockResolvedValue(undefined);
+      vi.mocked(deleteMediaBlob).mockClear();
+      vi.mocked(extractAudioTracks).mockReset().mockImplementation(async (media) =>
+        Array.from({ length: media.metadata.audioTrackCount ?? 1 }, (_, index) => ({
+          ...media,
+          id: `extracted-audio-${index}`,
+          name: `Audio ${index + 1}.wav`,
+          type: "audio" as const,
+          blob: new Blob([`stream-${index}`], { type: "audio/wav" }),
+          metadata: { ...media.metadata, hasVideo: false, hasAudio: true, audioTrackCount: 1 },
+          waveformData: new Float32Array([index / 10, 0.5]),
+        })),
+      );
+    });
+
     const createProjectWithVideoClip = (audioTrackCount?: number): Project => {
       const mediaItem: MediaItem = {
         id: "video-media-1",
@@ -2041,7 +2093,9 @@ describe("ProjectStore", () => {
       const audioTracks = project.timeline.tracks.filter((t) => t.type === "audio");
       expect(audioTracks.length).toBe(1);
       expect(audioTracks[0].clips.length).toBe(1);
-      expect(audioTracks[0].clips[0].mediaId).toBe("video-media-1");
+      expect(audioTracks[0].clips[0].mediaId).toBe("extracted-audio-0");
+      expect(project.mediaLibrary.items.find((media) => media.id === "extracted-audio-0")?.type).toBe("audio");
+      expect(saveMediaBlob).toHaveBeenCalledOnce();
     });
 
     it("should preserve the video clip source range in separated audio", async () => {
@@ -2091,12 +2145,97 @@ describe("ProjectStore", () => {
       const audioTracks = project.timeline.tracks.filter((t) => t.type === "audio");
       expect(audioTracks.length).toBe(3);
 
-      // Each audio track should have one clip with the correct audioTrackIndex
+      // Each source is audio-only: it has one stream, always addressed as 0.
       for (let i = 0; i < 3; i++) {
         expect(audioTracks[i].clips.length).toBe(1);
-        expect(audioTracks[i].clips[0].mediaId).toBe("video-media-1");
-        expect(audioTracks[i].clips[0].audioTrackIndex).toBe(i);
+        expect(audioTracks[i].clips[0].mediaId).toBe(`extracted-audio-${i}`);
+        expect(audioTracks[i].clips[0].audioTrackIndex).toBe(0);
+        expect(audioTracks[i].clips[0].metadata?.sourceAudioTrackIndex).toBe(i);
       }
+      expect(project.timeline.tracks[0].clips[0].volume).toBe(0);
+      expect(saveMediaBlob).toHaveBeenCalledTimes(3);
+    });
+
+    it("undoes separation and restores video volume in a single step, then redoes it", async () => {
+      useProjectStore.getState().loadProject(createProjectWithVideoClip(3));
+      expect((await useProjectStore.getState().separateAudio("video-clip-1")).success).toBe(true);
+      await useProjectStore.getState().undo();
+      expect(useProjectStore.getState().project.timeline.tracks).toHaveLength(1);
+      expect(useProjectStore.getState().getClip("video-clip-1")?.volume).toBe(1);
+      await useProjectStore.getState().redo();
+      const { project } = useProjectStore.getState();
+      expect(project.timeline.tracks.filter((track) => track.type === "audio")).toHaveLength(3);
+      expect(useProjectStore.getState().getClip("video-clip-1")?.volume).toBe(0);
+    });
+
+    it("leaves the timeline and original audio unchanged when extraction fails", async () => {
+      useProjectStore.getState().loadProject(createProjectWithVideoClip(3));
+      const before = useProjectStore.getState().project;
+      vi.mocked(extractAudioTracks).mockRejectedValueOnce(new Error("Missing stream"));
+      const result = await useProjectStore.getState().separateAudio("video-clip-1");
+      expect(result.success).toBe(false);
+      expect(result.error?.message).toBe("Missing stream");
+      expect(useProjectStore.getState().project).toBe(before);
+      expect(saveMediaBlob).not.toHaveBeenCalled();
+    });
+
+    it("leaves the timeline unchanged and cleans stored files if persistence fails", async () => {
+      useProjectStore.getState().loadProject(createProjectWithVideoClip(3));
+      const before = useProjectStore.getState().project;
+      vi.mocked(saveMediaBlob).mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error("Storage quota exceeded"));
+      expect((await useProjectStore.getState().separateAudio("video-clip-1")).success).toBe(false);
+      expect(useProjectStore.getState().project).toBe(before);
+      expect(deleteMediaBlob).toHaveBeenCalledWith("extracted-audio-0");
+      expect(deleteMediaBlob).toHaveBeenCalledWith("extracted-audio-1");
+    });
+
+    it("keeps edits made while decoding and uses the current clip range", async () => {
+      useProjectStore.getState().loadProject(createProjectWithVideoClip(1));
+      const extract = vi.mocked(extractAudioTracks).getMockImplementation()!;
+      vi.mocked(extractAudioTracks).mockImplementationOnce(async (media) => {
+        await useProjectStore.getState().trimClip("video-clip-1", 2, 7);
+        await useProjectStore.getState().renameProject("Edited during extraction");
+        return extract(media);
+      });
+      expect((await useProjectStore.getState().separateAudio("video-clip-1")).success).toBe(true);
+      const { project } = useProjectStore.getState();
+      expect(project.name).toBe("Edited during extraction");
+      expect(project.timeline.tracks.find((track) => track.type === "audio")?.clips[0]).toMatchObject({ inPoint: 2, outPoint: 7, duration: 5 });
+    });
+
+    it("does not reopen a project that was closed during extraction", async () => {
+      useProjectStore.getState().loadProject(createProjectWithVideoClip(1));
+      const extract = vi.mocked(extractAudioTracks).getMockImplementation()!;
+      vi.mocked(extractAudioTracks).mockImplementationOnce(async (media) => {
+        useProjectStore.getState().createNewProject("New project");
+        return extract(media);
+      });
+      expect((await useProjectStore.getState().separateAudio("video-clip-1")).success).toBe(false);
+      expect(useProjectStore.getState().project.name).toBe("New project");
+      expect(deleteMediaBlob).toHaveBeenCalledWith("extracted-audio-0");
+    });
+
+    it("does not duplicate an already separated clip", async () => {
+      useProjectStore.getState().loadProject(createProjectWithVideoClip(2));
+      expect((await useProjectStore.getState().separateAudio("video-clip-1")).success).toBe(true);
+      expect((await useProjectStore.getState().separateAudio("video-clip-1")).success).toBe(false);
+      expect(extractAudioTracks).toHaveBeenCalledOnce();
+    });
+
+    it("avoids occupied and locked audio tracks", async () => {
+      const initial = createProjectWithVideoClip(2);
+      const occupied = {
+        ...initial.timeline.tracks[0], id: "occupied-audio", type: "audio" as const,
+        clips: [{ ...initial.timeline.tracks[0].clips[0], id: "existing-audio", trackId: "occupied-audio" }],
+      };
+      initial.timeline.tracks.push(occupied, { ...occupied, id: "locked-audio", clips: [], locked: true });
+      useProjectStore.getState().loadProject(initial);
+      const result = await useProjectStore.getState().separateAudio("video-clip-1");
+      expect(result.success).toBe(true);
+      const tracks = useProjectStore.getState().project.timeline.tracks;
+      expect(tracks.find((track) => track.id === "occupied-audio")?.clips).toHaveLength(1);
+      expect(tracks.find((track) => track.id === "locked-audio")?.clips).toHaveLength(0);
+      expect(tracks.filter((track) => track.type === "audio")).toHaveLength(4);
     });
 
     it("should default to one audio track when audioTrackCount is undefined", async () => {

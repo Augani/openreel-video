@@ -101,3 +101,8 @@ xcuserdata/
 /Openreel Video Android/
 /apps/ios/
 /apps/android/
+
+# Local QA artifacts and machine-specific Android signing settings
+.codex-audit/
+.codex/
+**/local.properties

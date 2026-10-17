@@ -26,14 +26,16 @@ export function createSubtitleSlice(_set: Set, get: Get): SubtitleSlice {
 
       let captionsTrack = project.timeline.tracks.find(
         (track) =>
-          track.role === "captions" || track.name === "Captions",
+            !track.locked && !track.hidden && (track.role === "captions" || track.name === "Captions"),
       );
 
       if (!captionsTrack) {
         const existingTrackIds = new Set(
           project.timeline.tracks.map((track) => track.id),
         );
-        const result = await addTrack("video", undefined, {
+        // Front-most tracks are stored first. Captions must paint after their
+        // source video in export, just as they do in the editor preview.
+        const result = await addTrack("video", 0, {
           mode: "standard",
           role: "captions",
           name: "Captions",
@@ -52,21 +54,25 @@ export function createSubtitleSlice(_set: Set, get: Get): SubtitleSlice {
       const duration = subtitle.endTime - subtitle.startTime;
       const style = subtitle.style;
 
-      createTextClip(
+      const created = createTextClip(
         captionsTrack.id,
         subtitle.startTime,
         subtitle.text,
         duration,
-        style
-          ? {
+        {
+          ...(style ? {
               fontFamily: style.fontFamily,
               fontSize: style.fontSize,
               color: style.color,
               backgroundColor: style.backgroundColor || undefined,
-            }
-          : undefined,
+            } : {}),
+          textAlign: "center",
+        },
         metadata,
       );
+      if (created) {
+        get().updateTextTransform(created.id, { position: { x: 0.5, y: style?.position === "top" ? 0.15 : style?.position === "center" ? 0.5 : 0.85 } });
+      }
       if (typeof metadata?.captionSourceClipId === "string") {
         const sourceTrack = get().project.timeline.tracks.find((track) =>
           track.clips.some((clip) => clip.id === metadata.captionSourceClipId),

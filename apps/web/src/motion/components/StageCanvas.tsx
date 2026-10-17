@@ -1,4 +1,6 @@
 import type { JSX } from "react";
+import { useProjectFonts } from "../../hooks/useProjectFonts";
+import { motionFontProject } from "../../services/project-fonts";
 import type {
   CSSProperties,
   HTMLAttributes,
@@ -197,6 +199,8 @@ function supportsMaskPathEditing(layer: MotionLayer): boolean {
 }
 
 export function StageCanvas({ composition }: StageCanvasProps): JSX.Element {
+  const fontProject = useMemo(() => motionFontProject(composition), [composition]);
+  const fontRevision = useProjectFonts(fontProject);
   const containerRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{
@@ -2790,6 +2794,7 @@ export function StageCanvas({ composition }: StageCanvasProps): JSX.Element {
           ) : null}
           {usesRendererPreview ? (
             <RendererBackedStagePreview
+              fontRevision={fontRevision}
               composition={previewComposition}
               compositionLibrary={compositionLibrary}
               assetResolver={assetResolver}
@@ -4951,6 +4956,7 @@ function RendererBackedStagePreview({
   onVisibleFrameChange,
   isPlaying,
   getInteractionActive,
+  fontRevision = 0,
 }: {
   composition: MotionComposition;
   compositionLibrary: readonly MotionComposition[];
@@ -4961,6 +4967,7 @@ function RendererBackedStagePreview({
   onVisibleFrameChange?: (visible: boolean) => void;
   isPlaying: boolean;
   getInteractionActive: () => boolean;
+  fontRevision?: number;
 }): JSX.Element {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const renderer = useMemo(() => new MotionRenderer(), []);
@@ -5003,6 +5010,14 @@ function RendererBackedStagePreview({
   };
 
   const invalidationKeyRef = useRef<FrameCacheInvalidationKey | null>(null);
+  const fontTimeRef = useRef(time);
+  fontTimeRef.current = time;
+  useEffect(() => {
+    if (!fontRevision) return;
+    cacheRef.current?.invalidateAll();
+    setFrameCacheState({ ranges: [], filling: false });
+    renderFnRef.current?.(fontTimeRef.current);
+  }, [fontRevision]);
 
   const publishRanges = useCallback((): void => {
     const cache = cacheRef.current;

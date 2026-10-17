@@ -142,7 +142,7 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
   const left = clip.startTime * pixelsPerSecond;
   const width = clip.duration * pixelsPerSecond;
 
-  const clipMediaType = mediaItem?.type ?? track.type;
+  const clipMediaType = track.type === "audio" ? "audio" : mediaItem?.type ?? track.type;
   const isVideo = clipMediaType === "video";
   const isAudio = clipMediaType === "audio";
   const isImage = clipMediaType === "image";

@@ -43,6 +43,10 @@ export interface ToolCall {
 export interface ToolError {
   readonly code: string;
   readonly message: string;
+  /** A rejected preflight that did not mutate the draft and may be corrected. */
+  readonly recoverable?: boolean;
+  /** The failed tool call to reference explicitly in a corrected retry. */
+  readonly retryOf?: string;
 }
 
 export interface ToolResultImage {
@@ -69,6 +73,7 @@ export type AgentEvent =
   | { type: "text_delta"; text: string }
   | { type: "tool_call"; call: ToolCall }
   | { type: "tool_result"; call: ToolCall; result: ToolResult }
+  | { type: "tool_recovered"; callIds: string[]; repairedBy: string }
   | { type: "awaiting_confirmation"; call: ToolCall }
   | { type: "error"; error: ToolError }
   | { type: "turn_complete"; text: string };

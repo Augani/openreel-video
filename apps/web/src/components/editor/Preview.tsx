@@ -5,6 +5,10 @@ import React, {
   useState,
   useMemo,
 } from "react";
+import { PreviewTimecode } from "./PreviewTimecode";
+import { ExportProgressOverlay } from "./ExportProgressOverlay";
+import { useProjectFonts } from "../../hooks/useProjectFonts";
+import { formatFrameTimecode } from "../../utils/frame-timecode";
 import {
   Play,
   Pause,
@@ -34,6 +38,7 @@ import { getRenderBridge } from "../../bridges/render-bridge";
 import { getEffectsBridge } from "../../bridges/effects-bridge";
 import {
   RendererFactory,
+  getCaptionWrapWidth,
   type Renderer,
   isWebGPUSupported,
   getSpeedEngine,
@@ -1152,10 +1157,9 @@ export const Preview: React.FC = () => {
       for (const entry of entries) {
         const { width, height } = entry.contentRect;
         setCanvasSize({ width, height });
-        if (width > 0 && height > 0) {
-          offscreenCanvasRef.current = new OffscreenCanvas(width, height);
-          offscreenCtxRef.current = offscreenCanvasRef.current.getContext("2d");
-        }
+        // CSS resizing only moves handles. Replacing the drawing canvas here
+        // can discard an in-flight decoded frame when maximizing or resizing.
+        // Render paths allocate it at the actual canvas pixel resolution.
       }
     });
 
@@ -1181,6 +1185,7 @@ export const Preview: React.FC = () => {
   // Project store - subscribe to the entire project to ensure re-renders
   // when any part of the project changes (including clips)
   const project = useProjectStore((state) => state.project);
+  const fontRevision = useProjectFonts(project);
   const getOriginalMediaItem = useProjectStore((state) => state.getMediaItem);
   const proxySourceRevision = usePreviewProxyStore((state) => state.revision);
   // The revision restarts visual decoding when proxies are created/toggled/removed.
@@ -1372,7 +1377,9 @@ export const Preview: React.FC = () => {
     // Fill the available preview area (minus a small margin) while preserving
     // the project aspect ratio, instead of capping at a fixed small size which
     // left the monitor floating in unused space on larger screens.
-    const PREVIEW_PADDING = 24;
+    // ResizeObserver reports the content box: the video area's 18px padding
+    // is already excluded. Leave only a small extra gutter for selection handles.
+    const PREVIEW_PADDING = 4;
     const availableWidth = Math.max(1, videoAreaSize.width - PREVIEW_PADDING * 2);
     const availableHeight = Math.max(
       1,
@@ -3221,6 +3228,9 @@ export const Preview: React.FC = () => {
   );
 
   const renderFrameDirectlyRef = useRef(renderFrameDirectly);
+  useEffect(() => {
+    if (fontRevision > 0) void renderFrameDirectlyRef.current(useTimelineStore.getState().playheadPosition);
+  }, [fontRevision]);
   useEffect(() => {
     renderFrameDirectlyRef.current = renderFrameDirectly;
   }, [renderFrameDirectly]);
@@ -6401,10 +6411,13 @@ export const Preview: React.FC = () => {
 
     const displayScale = actualWidth / canvasWidth;
 
-    const lines = text.split("\n");
+    const captionMetrics = getTitleEngine()?.measureText(
+      text, style, getCaptionWrapWidth(selectedTextClip, canvasWidth),
+    );
+    const lines = captionMetrics?.lines.map((line) => line.text) ?? text.split("\n");
     const lineHeight = style.fontSize * style.lineHeight;
     const estimatedHeight = lines.length * lineHeight;
-    const estimatedWidth =
+    const estimatedWidth = captionMetrics?.width ??
       style.fontSize * Math.max(...lines.map((l) => l.length)) * 0.6;
 
     const textWidth = estimatedWidth * transform.scale.x * displayScale;
@@ -6429,7 +6442,7 @@ export const Preview: React.FC = () => {
       displayScale,
       isTextClip: true,
     };
-  }, [selectedTextClip, settings.width, settings.height, canvasSize]);
+  }, [selectedTextClip, settings.width, settings.height, canvasSize, getTitleEngine]);
 
   const selectedShapeClipId = useMemo(() => {
     const shapeClipSelection = selectedItems.find(
@@ -7680,27 +7693,19 @@ export const Preview: React.FC = () => {
       >
         <div
           ref={overlayRef}
-          className={`relative bg-[var(--screen-bg)] overflow-visible transition-all duration-300 ${
+          className={`relative isolate bg-[var(--screen-bg)] overflow-visible transition-all duration-300 ${
             isMaximized || isFullscreen
               ? "rounded-none ring-0 shadow-none"
               : isDark
                 ? "shadow-2xl rounded-[10px] ring-1 ring-border shadow-[0_0_50px_rgba(0,0,0,0.5)]"
                 : "rounded-[10px] ring-1 ring-border shadow-sm"
           }`}
-          style={
-            isMaximized || isFullscreen
-              ? {
-                  width: "100%",
-                  height: "100%",
-                  maxWidth: "none",
-                }
-              : {
-                  width: `${previewFrameSize.width}px`,
-                  height: `${previewFrameSize.height}px`,
-                  maxWidth: "100%",
-                  maxHeight: "100%",
-                }
-          }
+          style={{
+            width: `${previewFrameSize.width}px`,
+            height: `${previewFrameSize.height}px`,
+            maxWidth: "100%",
+            maxHeight: "100%",
+          }}
           onMouseMove={!isPlaying ? handleGraphicsMouseMove : undefined}
           onClick={!isPlaying ? handleGraphicsClick : undefined}
           onMouseLeave={() => setHoveredGraphicClipId(null)}
@@ -7794,68 +7799,6 @@ export const Preview: React.FC = () => {
                 currentTime={playheadPosition}
                 isPlaying={isPlaying}
               />
-            </div>
-          )}
-
-          {/* Export Overlay */}
-          {exportState.isExporting && (
-            <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/65 p-4 backdrop-blur-sm">
-              <div
-                role="status"
-                aria-live="polite"
-                className="w-full max-w-[360px] rounded-xl border border-white/15 bg-neutral-950/95 p-5 text-white shadow-2xl"
-              >
-                <div className="mb-5 flex min-w-0 items-start gap-3">
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary/20 ring-1 ring-primary/40">
-                    <Loader2 size={21} className="animate-spin text-primary" />
-                  </div>
-                  <div className="min-w-0 flex-1 pt-0.5">
-                    <Text
-                      type="label"
-                      weight="semibold"
-                      display="block"
-                      className="text-sm leading-5 text-white"
-                    >
-                      Exporting Video
-                    </Text>
-                    <Text
-                      type="supporting"
-                      display="block"
-                      maxLines={2}
-                      className="mt-1 text-xs leading-4 text-white/75"
-                    >
-                      {exportState.phase || "Preparing..."}
-                    </Text>
-                  </div>
-                </div>
-
-                <div className="mb-4 min-w-0">
-                  <div className="mb-2 flex items-center justify-between gap-3">
-                    <span className="text-[11px] font-medium text-white/80">
-                      Export Progress
-                    </span>
-                    <span className="shrink-0 font-mono text-[11px] font-semibold text-white">
-                      {Math.round(exportState.progress)}%
-                    </span>
-                  </div>
-                  <div className="h-2.5 overflow-hidden rounded-full bg-white/15">
-                    <div
-                      className="h-full rounded-full bg-primary transition-all duration-300"
-                      style={{
-                        width: `${Math.min(100, Math.max(0, exportState.progress))}%`,
-                      }}
-                    />
-                  </div>
-                </div>
-
-                <Text
-                  type="supporting"
-                  display="block"
-                  className="text-center text-[11px] leading-4 text-white/70"
-                >
-                  You can keep editing once the export finishes.
-                </Text>
-              </div>
             </div>
           )}
 
@@ -8134,13 +8077,14 @@ export const Preview: React.FC = () => {
               );
             })}
         </div>
+        {exportState.isExporting && <ExportProgressOverlay progress={exportState.progress} phase={exportState.phase} width={videoAreaSize.width} height={videoAreaSize.height} />}
       </div>
 
       {/* Player Controls with integrated Scrub Bar */}
       <div
-        className={`border-t border-border transition-all duration-300 ${
+        className={`shrink-0 border-t border-border transition-all duration-300 ${
           isMaximized || isFullscreen
-            ? "absolute bottom-0 left-0 right-0 z-50 bg-bg-1 backdrop-blur-sm"
+            ? "z-50 bg-bg-1 backdrop-blur-sm"
             : "z-20 bg-bg-1"
         }`}
       >
@@ -8158,16 +8102,13 @@ export const Preview: React.FC = () => {
         </div>
 
         {/* Controls row */}
-        <div className="h-12 px-4 flex items-center gap-3">
-        <div className="flex items-center gap-2">
-          <span className="font-mono text-[13px] tabular-nums tracking-tight font-medium">
-            <span className="text-fg-2">{formatTime(playheadPosition)}</span>
-            <span className="text-fg-muted mx-1.5">/</span>
-            <span className="text-fg-muted">{formatTime(actualEndTime)}</span>
-          </span>
+        <div data-preview-transport className="min-h-12 px-3 py-1 flex flex-wrap items-center gap-2">
+        <div data-preview-timecode className="flex items-center gap-2">
+          <PreviewTimecode position={playheadPosition} duration={actualEndTime} frameRate={settings.frameRate}
+            disabled={Boolean(playbackLockedReason) || exportState.isExporting} />
         </div>
 
-        <div className="flex items-center gap-4 mx-auto">
+        <div data-preview-playback className="flex items-center gap-4 mx-auto">
           <IconButton
             label="Skip back 5s"
             icon={<SkipBack size={18} />}
@@ -8209,10 +8150,10 @@ export const Preview: React.FC = () => {
           />
         </div>
 
-        <div className="flex gap-1.5 items-center">
+        <div data-preview-tools className="flex gap-1.5 items-center">
           <IconButton
             label={loopEnabled ? "Disable preview loop" : "Enable preview loop"}
-            title={`Loop ${formatTime(previewLoopRange?.start ?? 0)} to ${formatTime(previewLoopRange?.end ?? 0)} • I: mark start • O: mark end • Shift+L: toggle`}
+            title={`Loop ${formatFrameTimecode(previewLoopRange?.start ?? 0, settings.frameRate)} to ${formatFrameTimecode(previewLoopRange?.end ?? 0, settings.frameRate)} • I: mark start • O: mark end • Shift+L: toggle`}
             icon={<Repeat size={16} />}
             aria-pressed={loopEnabled}
             variant="ghost"

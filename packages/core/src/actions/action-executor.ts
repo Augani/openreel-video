@@ -172,7 +172,11 @@ export class ActionExecutor {
         },
       };
     }
-    const projectSnapshot = JSON.parse(JSON.stringify(project));
+    const projectSnapshot = {
+      ...JSON.parse(JSON.stringify(project)),
+      // Runtime media must survive snapshot undo; Blob/File handles are not JSON.
+      mediaLibrary: { items: project.mediaLibrary.items.map((item) => ({ ...item })) },
+    };
     const inverseAction = this.inverseGenerator.generate(
       action,
       projectSnapshot,
@@ -1381,7 +1385,7 @@ export class ActionExecutor {
           enabled?: boolean;
         };
         const newEffect = {
-          id: params.effectId ?? `effect-${Date.now()}`,
+          id: params.effectId ?? `effect-${crypto.randomUUID()}`,
           type: params.effectType,
           params: params.params || {},
           enabled: params.enabled ?? true,
@@ -1671,7 +1675,7 @@ export class ActionExecutor {
           );
           if (track) {
             const newTransition: Transition = {
-              id: `transition-${Date.now()}`,
+              id: `transition-${crypto.randomUUID()}`,
               clipAId: params.clipAId,
               clipBId: params.clipBId,
               type: params.transitionType,
@@ -1966,7 +1970,7 @@ export class ActionExecutor {
           endTime: number;
         };
         const newSubtitle = {
-          id: `subtitle-${Date.now()}`,
+          id: `subtitle-${crypto.randomUUID()}`,
           text: params.text,
           startTime: params.startTime,
           endTime: params.endTime,

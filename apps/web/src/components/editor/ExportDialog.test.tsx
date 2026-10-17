@@ -109,6 +109,26 @@ describe("ExportDialog", () => {
     expect(onExport).not.toHaveBeenCalled();
   });
 
+  it("exports the chosen In/Out section through the normal and quick actions", () => {
+    const onExport = vi.fn();
+    render(<ExportDialog isOpen onClose={vi.fn()} onExport={onExport} duration={6} markedRange={{ startTime: 2, endTime: 4 }} sourceMatch={SOURCE_MATCH} />);
+    fireEvent.click(screen.getByRole("radio", { name: "Marked In/Out" }));
+    fireEvent.click(screen.getByRole("button", { name: "Export Video" }));
+    expect(onExport).toHaveBeenLastCalledWith(expect.objectContaining({ range: { startTime: 2, endTime: 4 } }), "download");
+    fireEvent.click(screen.getByRole("button", { name: "Quick Export" }));
+    expect(onExport).toHaveBeenLastCalledWith(expect.objectContaining({ range: { startTime: 2, endTime: 4 } }), "download");
+    fireEvent.click(screen.getByRole("radio", { name: "Entire timeline" }));
+    fireEvent.click(screen.getByRole("button", { name: "Export Video" }));
+    expect(onExport).toHaveBeenLastCalledWith(expect.objectContaining({ range: undefined }), "download");
+  });
+
+  it("disables section export until valid In and Out points exist", () => {
+    const { rerender } = render(<ExportDialog isOpen onClose={vi.fn()} onExport={vi.fn()} duration={6} />);
+    expect(screen.getByRole("radio", { name: "Marked In/Out" })).toBeDisabled();
+    rerender(<ExportDialog isOpen onClose={vi.fn()} onExport={vi.fn()} duration={6} markedRange={{ startTime: 2, endTime: 7 }} />);
+    expect(screen.getByRole("radio", { name: "Marked In/Out" })).toBeDisabled();
+  });
+
   it("keeps audio-only presets out of the video export flow", () => {
     render(<ExportDialog isOpen onClose={vi.fn()} onExport={vi.fn()} duration={5} />);
     expect(screen.queryByText("Audio", { selector: "button" })).not.toBeInTheDocument();

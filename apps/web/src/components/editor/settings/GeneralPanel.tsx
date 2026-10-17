@@ -340,10 +340,10 @@ export const GeneralPanel: React.FC = () => {
 
           <div className="flex items-center justify-between">
             <Text type="supporting" color="secondary" className="text-sm">
-              AI Assistant API format
+              Creative tools API format
             </Text>
             <Selector
-              label="AI Assistant API format"
+              label="Creative tools API format"
               isLabelHidden
               size="md"
               width={180}
@@ -389,7 +389,7 @@ export const GeneralPanel: React.FC = () => {
                 width="100%"
               />
               <Text type="supporting" color="secondary" className="block text-[11px] leading-relaxed">
-                Load available models from the AI chat settings, or enter an ID manually when discovery is unavailable. API keys are optional.
+                Used by voice scripts and shader generation. Configure timeline chat in the AI Editor settings tab.
               </Text>
             </div>
           ) : (

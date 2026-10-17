@@ -50,7 +50,7 @@ export const SERVICE_REGISTRY: readonly ServiceConfig[] = [
 export type TtsProvider = "elevenlabs";
 export type LlmProvider = "openai-compatible" | "anthropic-compatible";
 export type AggregatorProvider = "kie-ai" | "freepik";
-export type SettingsTab = "general" | "api-keys" | "mcp";
+export type SettingsTab = "general" | "ai-editor" | "api-keys" | "mcp";
 
 function isLlmProvider(value: unknown): value is LlmProvider {
   return value === "openai-compatible" || value === "anthropic-compatible";

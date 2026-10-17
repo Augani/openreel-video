@@ -3,7 +3,7 @@ import { ToolcraftButton as Button } from "@openreel/ui";
 import { ToolcraftIconButton as IconButton } from "@openreel/ui";
 import { CircleAlert, X } from "@/icons/lucide-compat";
 
-export type ChatErrorAction = "general" | "api-keys" | "new-chat" | null;
+export type ChatErrorAction = "ai-editor" | "new-chat" | null;
 
 export interface ChatErrorPresentation {
   readonly title: string;
@@ -52,8 +52,8 @@ export function formatChatError(rawError: string): ChatErrorPresentation {
       title: "Authentication failed",
       message:
         upstream ??
-        "The endpoint rejected the API key. Check the saved key and try again.",
-      action: "api-keys",
+        "The endpoint rejected the API key. Check the session key and try again.",
+      action: "ai-editor",
       actionLabel: "Check API key",
       details,
     };
@@ -79,7 +79,7 @@ export function formatChatError(rawError: string): ChatErrorPresentation {
       title: "Couldn’t reach the endpoint",
       message:
         "Check the host URL and confirm the endpoint is online. In a browser, the host must also allow CORS requests from OpenReel.",
-      action: "general",
+      action: "ai-editor",
       actionLabel: "Check endpoint",
       details: raw,
     };
@@ -107,14 +107,14 @@ export function formatChatError(rawError: string): ChatErrorPresentation {
       message:
         upstream ??
         "Check that the base URL and model ID match what the endpoint exposes.",
-      action: "general",
+      action: "ai-editor",
       actionLabel: "Check endpoint",
       details,
     };
   }
 
   if (
-    /api format|model id|base url|compatible api|endpoint url|secure storage|unlock/.test(
+    /api format|model id|base url|api key|compatible api|endpoint url|secure storage|unlock/.test(
       searchable,
     )
   ) {
@@ -122,8 +122,8 @@ export function formatChatError(rawError: string): ChatErrorPresentation {
     return {
       title: "AI setup needed",
       message: upstream ?? raw,
-      action: keyIssue ? "api-keys" : "general",
-      actionLabel: keyIssue ? "Open API keys" : "Open AI settings",
+      action: "ai-editor",
+      actionLabel: keyIssue ? "Check API key" : "Open AI settings",
       details,
     };
   }
@@ -144,7 +144,7 @@ export function ChatErrorCard({
 }: {
   readonly error: string;
   readonly onDismiss: () => void;
-  readonly onOpenSettings: (tab: "general" | "api-keys") => void;
+  readonly onOpenSettings: (tab: "ai-editor") => void;
   readonly onNewChat: () => void;
 }): JSX.Element {
   const presentation = formatChatError(error);

@@ -7,6 +7,7 @@ import {
 } from "@/icons/lucide-compat";
 import { useProjectStore } from "../../stores/project-store";
 import { useUIStore } from "../../stores/ui-store";
+import { useTimelineStore } from "../../stores/timeline-store";
 import {
   getDeviceProfile,
   estimateExportTime,
@@ -50,6 +51,8 @@ type ExportType =
 
 export const Toolbar: React.FC = () => {
   const project = useProjectStore((state) => state.project);
+  const loopStart = useTimelineStore((state) => state.loopStart);
+  const loopEnd = useTimelineStore((state) => state.loopEnd);
   const renameProject = useProjectStore((state) => state.renameProject);
   const setGlobalExportState = useUIStore((state) => state.setExportState);
   const activeModal = useUIStore((state) => state.activeModal);
@@ -60,6 +63,7 @@ export const Toolbar: React.FC = () => {
     setIsExportOpen(false);
     useUIStore.getState().openModal("export");
   }, []);
+  const aiMode = useUIStore((s) => s.panels.agentChat?.visible ?? false);
   const [isCompressOpen, setIsCompressOpen] = useState(false);
   const importMedia = useProjectStore((state) => state.importMedia);
   const sourceMatch = useMemo(() => deriveSourceExportMatch(project), [project]);
@@ -377,8 +381,15 @@ export const Toolbar: React.FC = () => {
 
   return (
     <header className="h-[60px] flex items-center gap-2 px-2 sm:gap-[18px] sm:px-[18px] bg-bg-1 border-b border-border shrink-0 z-30 relative">
+
+      <div role="group" aria-label="Editing mode" className="flex shrink-0 rounded-lg bg-bg-3 p-1 text-xs">
+        <button type="button" aria-pressed={!aiMode} className={`rounded-md px-3 py-1.5 ${!aiMode ? "bg-bg-1 text-fg" : "text-fg-muted"}`} onClick={() => useUIStore.getState().setPanelVisible("agentChat", false)}>Manual</button>
+        <button type="button" aria-pressed={aiMode} className={`rounded-md px-3 py-1.5 ${aiMode ? "bg-accent-soft text-accent" : "text-fg-muted"}`} onClick={() => useUIStore.getState().setPanelVisible("agentChat", true)}>AI editing</button>
+      </div>
+
       {/* ─── Center: project name ─────────────────────────────── */}
       <div className="flex flex-1 min-w-0 items-center justify-center gap-1.5">
+        <div className="hidden sm:block min-w-0">
         <ToolcraftTextInputControl
           label="Project name"
           isLabelHidden
@@ -396,6 +407,7 @@ export const Toolbar: React.FC = () => {
           width={Math.min(Math.max(projectNameDraft.length, 6) * 8 + 40, 220)}
           className="max-w-[min(220px,40vw)] bg-transparent border-0 text-center font-medium text-[14px] tracking-tight text-fg-2 px-2 py-0.5 rounded-md min-w-[60px] focus:bg-bg-2 focus:outline-none"
         />
+        </div>
         <ProjectSwitcher />
       </div>
 
@@ -556,6 +568,7 @@ export const Toolbar: React.FC = () => {
         frameRate={project.settings?.frameRate ?? 30}
         sourceMatch={sourceMatch}
         hasAudio={project.timeline.tracks.some((track) => trackHasAudioItems(project, track.id))}
+        markedRange={loopEnd > loopStart ? { startTime: loopStart, endTime: loopEnd } : null}
       />
 
       <ScreenRecorder

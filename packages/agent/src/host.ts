@@ -232,7 +232,7 @@ export interface EditingHost {
   applyAction(action: Action): Promise<ActionResult>;
   /** Open an undoable transaction so a whole agent turn reverts as one unit. */
   beginTransaction(label?: string): TxnHandle;
-  commitTransaction(handle: TxnHandle, label: string): void;
+  commitTransaction(handle: TxnHandle, label: string): void | Promise<void>;
   rollbackTransaction(handle: TxnHandle): Promise<void>;
   /** Long-running GPU/analysis/export jobs. */
   runJob(kind: JobKind, params: Record<string, unknown>): Promise<JobResult>;

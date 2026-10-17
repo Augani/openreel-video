@@ -252,15 +252,17 @@ export function createHistorySlice(
         }
       }
 
-      const result = await actionExecutor.undo(project);
+      const targetProject = actionHistory.peekUndo()?.action.type === "project/applyEditSnapshot" ? get().getFullProject() : project;
+      const previousProject = { ...project };
+      const result = await actionExecutor.undo(targetProject);
       if (result.success) {
+        syncProjectEffectsBridge(targetProject, previousProject);
+        syncProjectTransitionsBridge(targetProject, previousProject);
+        syncOverlayEnginesFromProject(targetProject);
         set({
-          project: { ...project, modifiedAt: Date.now() },
+          project: { ...targetProject, modifiedAt: Date.now() },
           redoJournal: [...get().redoJournal, "action"],
         });
-        syncProjectEffectsBridge(get().project, get().project);
-        syncProjectTransitionsBridge(get().project, get().project);
-        syncOverlayEnginesFromProject();
       }
       return result;
     },
@@ -464,15 +466,17 @@ export function createHistorySlice(
         }
       }
 
-      const result = await actionExecutor.redo(project);
+      const targetProject = actionExecutor.getHistory().peekRedo()?.action.type === "project/applyEditSnapshot" ? get().getFullProject() : project;
+      const previousProject = { ...project };
+      const result = await actionExecutor.redo(targetProject);
       if (result.success) {
+        syncProjectEffectsBridge(targetProject, previousProject);
+        syncProjectTransitionsBridge(targetProject, previousProject);
+        syncOverlayEnginesFromProject(targetProject);
         set({
-          project: { ...project, modifiedAt: Date.now() },
+          project: { ...targetProject, modifiedAt: Date.now() },
           redoJournal: nextJournal,
         });
-        syncProjectEffectsBridge(get().project, get().project);
-        syncProjectTransitionsBridge(get().project, get().project);
-        syncOverlayEnginesFromProject();
       }
       return result;
     },

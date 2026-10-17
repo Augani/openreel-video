@@ -18,6 +18,16 @@ const STATUS_META: Record<
     tint: "text-status-success",
     label: "Done",
   },
+  retrying: {
+    icon: <Wrench size={12} />,
+    tint: "text-status-warning",
+    label: "Correcting",
+  },
+  corrected: {
+    icon: <Check size={12} />,
+    tint: "text-fg-muted",
+    label: "Corrected",
+  },
   error: {
     icon: <X size={12} />,
     tint: "text-status-error",
@@ -92,7 +102,7 @@ export function ToolCallCard({ call }: { call: ToolCallView }): JSX.Element {
               </div>
               <div
                 className={
-                  call.result.ok ? "text-fg-2" : "text-status-error"
+                  call.result.ok || call.status === "corrected" ? "text-fg-2" : call.status === "retrying" ? "text-status-warning" : "text-status-error"
                 }
               >
                 {call.result.summary}
@@ -100,6 +110,7 @@ export function ToolCallCard({ call }: { call: ToolCallView }): JSX.Element {
                   ? ` — ${call.result.error.message}`
                   : ""}
               </div>
+              {call.result.data !== undefined && <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap rounded bg-bg-2 p-1.5 text-[10px]">{JSON.stringify(call.result.data, null, 2)}</pre>}
             </div>
           )}
         </div>

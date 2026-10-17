@@ -43,6 +43,17 @@ export interface UpdateTextClipOptions {
   text3d?: import("./types").Text3DSettings | undefined;
 }
 
+/** Caption layout uses project pixels, even when the preview renders smaller. */
+export function getCaptionWrapWidth(
+  clip: Pick<TextClip, "metadata" | "transform">,
+  canvasWidth: number,
+  contentScaleX = 1,
+): number | undefined {
+  if (typeof clip.metadata?.captionSource !== "string") return undefined;
+  const scale = Math.max(0.001, Math.abs(clip.transform.scale.x * contentScaleX));
+  return Math.max(1, canvasWidth * 0.9 / scale - 20);
+}
+
 export class TitleEngine {
   private textClips: Map<string, TextClip> = new Map();
   private canvas: HTMLCanvasElement | OffscreenCanvas | null = null;
@@ -266,7 +277,10 @@ export class TitleEngine {
       };
     }
 
-    const metrics = this.measureText(visibleText, style, width);
+    const captionWrapWidth = getCaptionWrapWidth(
+      { ...clip, transform }, width, contentScale.x,
+    );
+    const metrics = this.measureText(visibleText, style, captionWrapWidth ?? width);
 
     ctx.save();
 
@@ -283,7 +297,9 @@ export class TitleEngine {
 
     this.applyTextStyle(ctx, style);
 
-    const lines = visibleText.split("\n");
+    const lines = captionWrapWidth === undefined
+      ? visibleText.split("\n")
+      : metrics.lines.map((line) => line.text);
     const lineHeight = style.fontSize * style.lineHeight;
     const totalHeight = lines.length * lineHeight;
     let startY = -totalHeight / 2 + lineHeight / 2;
@@ -305,6 +321,11 @@ export class TitleEngine {
       let charIdx = 0;
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
+        if (captionWrapWidth !== undefined) {
+          // Wrapping replaces a space with a visual line break. Character
+          // animations still refer to positions in the original caption.
+          charIdx = Math.max(charIdx, visibleText.indexOf(line, charIdx));
+        }
         const y = startY + i * lineHeight;
         let xOffset = 0;
 
@@ -343,7 +364,7 @@ export class TitleEngine {
           }
           charIdx++;
         }
-        charIdx++;
+        if (captionWrapWidth === undefined) charIdx++;
       }
     } else {
       for (let i = 0; i < lines.length; i++) {
@@ -432,6 +453,10 @@ export class TitleEngine {
     const lines: string[] = [];
 
     for (const paragraph of paragraphs) {
+      if (paragraph.length === 0) {
+        lines.push("");
+        continue;
+      }
       const words = paragraph.split(" ");
       let currentLine = "";
 
@@ -441,9 +466,31 @@ export class TitleEngine {
 
         if (metrics.width > maxWidth && currentLine) {
           lines.push(currentLine);
-          currentLine = word;
+          currentLine = "";
+          // An unusually long word must fit too, including URLs and hashtags.
+          for (const character of Array.from(word)) {
+            const next = currentLine + character;
+            if (ctx.measureText(next).width > maxWidth && currentLine) {
+              lines.push(currentLine);
+              currentLine = character;
+            } else {
+              currentLine = next;
+            }
+          }
         } else {
-          currentLine = testLine;
+          if (!currentLine && metrics.width > maxWidth) {
+            for (const character of Array.from(word)) {
+              const next = currentLine + character;
+              if (ctx.measureText(next).width > maxWidth && currentLine) {
+                lines.push(currentLine);
+                currentLine = character;
+              } else {
+                currentLine = next;
+              }
+            }
+          } else {
+            currentLine = testLine;
+          }
         }
       }
 

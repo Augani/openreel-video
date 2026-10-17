@@ -148,6 +148,28 @@ describe("timeline playback rendering", () => {
     expect(decorations().length).toBeLessThanOrEqual(maximum);
   });
 
+  it("renders legacy video-backed audio clips as waveforms and hides Separate Audio", () => {
+    const audioTrack = { ...track, type: "audio" as const };
+    const media = {
+      id: clip.mediaId, name: "Recording.mp4", type: "video" as const,
+      fileHandle: null, blob: null, thumbnailUrl: "blob:thumbnail",
+      waveformData: new Float32Array([0.2, 0.5, 0.8]),
+      metadata: { duration: 10, width: 1920, height: 1080, frameRate: 30,
+        codec: "h264", sampleRate: 48_000, channels: 2, fileSize: 1 },
+    };
+    const project = useProjectStore.getState().project;
+    useProjectStore.setState({ project: { ...project, mediaLibrary: { items: [media] },
+      timeline: { ...project.timeline, tracks: [audioTrack] } } });
+    const view = render(<ClipComponent clip={clip} track={audioTrack} allTracks={[audioTrack]}
+      pixelsPerSecond={50} scrollX={0} viewportWidth={1000} isSelected={false}
+      trackHeights={new Map([[track.id, 64]])} timelineRef={{ current: null }}
+      onSelect={noop} onMoveClip={noop} onSnapIndicator={noop} />);
+    expect(view.container.querySelectorAll(".bg-cover")).toHaveLength(0);
+    expect(view.container.querySelectorAll('svg[height="28"] rect').length).toBeGreaterThan(0);
+    const menu = renderHook(() => useClipContextMenuItems({ clip, track: audioTrack }));
+    expect(menu.result.current.some((item) => "label" in item && item.label === "Separate Audio")).toBe(false);
+  });
+
   it("preserves selected clip offsets across drag updates and leaves locked clips alone", async () => {
     const frames = new Map<number, Parameters<typeof window.requestAnimationFrame>[0]>();
     let frameId = 0;

@@ -74,6 +74,7 @@ import {
 } from "@openreel/core";
 import { EDITING_FRAME_RATE_OPTIONS } from "./editing-frame-rate";
 import type { ExportDeliveryMode } from "../../services/export-runner";
+import { formatFrameTimecode } from "../../utils/frame-timecode";
 
 const WEB_EXPORT_GUARDRAIL_MESSAGE =
   "ProRes, transparency, and high bit depth require the desktop encoder. You can export an H.264 MP4 without transparency in this browser.";
@@ -88,6 +89,7 @@ interface ExportDialogProps {
   frameRate?: number;
   sourceMatch?: SourceExportMatch | null;
   hasAudio?: boolean;
+  markedRange?: VideoExportSettings["range"] | null;
 }
 
 type AspectRatioType = "vertical" | "square" | "horizontal";
@@ -150,13 +152,27 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
   isOpen,
   onClose,
   onExport,
-  duration = 0,
+  duration: timelineDuration = 0,
   projectWidth = 1920,
   projectHeight = 1080,
   frameRate = 30,
   sourceMatch = null,
   hasAudio = true,
+  markedRange = null,
 }) => {
+  const [exportSection, setExportSection] = useState<"all" | "range">("all");
+  const validMarkedRange = markedRange && Number.isFinite(markedRange.startTime)
+    && Number.isFinite(markedRange.endTime) && markedRange.startTime >= 0
+    && markedRange.endTime > markedRange.startTime && markedRange.endTime <= timelineDuration + 1e-7
+    ? markedRange : null;
+  const duration = exportSection === "range"
+    ? validMarkedRange ? validMarkedRange.endTime - validMarkedRange.startTime : 0
+    : timelineDuration;
+  useEffect(() => { if (isOpen) setExportSection("all"); }, [isOpen]);
+  const applyExportSection = useCallback((settings: VideoExportSettings): VideoExportSettings => ({
+    ...settings,
+    range: exportSection === "range" && validMarkedRange ? { ...validMarkedRange } : undefined,
+  }), [exportSection, validMarkedRange]);
   const isDesktop =
     typeof window !== "undefined" && window.openreel?.platform === "desktop";
   const [delivery, setDelivery] = useState<ExportDeliveryMode>(isDesktop ? "file" : "download");
@@ -455,7 +471,7 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
     if (guardrailBlocking || validationError || capabilityError) return;
     if (activeTab === "reduce") {
       if (!reducePlan) return;
-      onExport(resolveBrowserSettings(compressionPlanToExportSettings(reducePlan)), delivery);
+      onExport(applyExportSection(resolveBrowserSettings(compressionPlanToExportSettings(reducePlan))), delivery);
       onClose();
       return;
     }
@@ -467,7 +483,7 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
       ...chosen,
       encodeMode: customSettings.encodeMode ?? "balanced",
     };
-    onExport(resolveBrowserSettings(settings), delivery);
+    onExport(applyExportSection(resolveBrowserSettings(settings)), delivery);
     onClose();
   }, [
     activeTab,
@@ -481,6 +497,7 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
     capabilityError,
     resolveBrowserSettings,
     delivery,
+    applyExportSection,
   ]);
 
   const handleMatchSourceExport = useCallback(() => {
@@ -496,9 +513,9 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
       encodeMode: customSettings.encodeMode ?? "balanced",
     };
     if (getExportValidationError(settings, duration)) return;
-    onExport(settings, delivery);
+    onExport(applyExportSection(settings), delivery);
     onClose();
-  }, [sourceMatch, customSettings, duration, onExport, onClose, delivery]);
+  }, [sourceMatch, customSettings, duration, onExport, onClose, delivery, applyExportSection]);
 
   const formatFileSize = (bitrate: number, durationSec: number): string => {
     const bytes = (bitrate * 1000 * durationSec) / 8;
@@ -553,6 +570,24 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
         content={
           <LayoutContent className="flex min-h-0 flex-1 flex-col overflow-hidden bg-bg p-0">
             <div className="shrink-0 space-y-3 border-b border-border bg-bg-1 px-5 py-4">
+              <fieldset className="space-y-2">
+                <legend className="text-[12px] font-semibold text-fg">Export section</legend>
+                <div className="flex flex-wrap items-center gap-5 text-[12px] text-fg">
+                  <label className="flex items-center gap-2">
+                    <input type="radio" name="export-section" checked={exportSection === "all"} onChange={() => setExportSection("all")} />
+                    Entire timeline
+                  </label>
+                  <label className={`flex items-center gap-2 ${!validMarkedRange ? "text-fg-muted" : ""}`}>
+                    <input type="radio" name="export-section" checked={exportSection === "range"} disabled={!validMarkedRange} onChange={() => setExportSection("range")} />
+                    Marked In/Out
+                  </label>
+                  <span className="text-fg-muted">
+                    {validMarkedRange
+                      ? `${formatFrameTimecode(validMarkedRange.startTime, frameRate)} – ${formatFrameTimecode(validMarkedRange.endTime, frameRate)}`
+                      : "Mark In and Out on the timeline to export a section."}
+                  </span>
+                </div>
+              </fieldset>
               <ToolcraftSegmentedControl<"presets" | "custom" | "reduce">
                 ariaLabel="Export mode"
                 value={activeTab}

@@ -7,6 +7,7 @@ import React, {
 } from "react";
 import { useTimelineTouchGesture, listenTimelineGesture } from "./touch-gestures";
 import { formatTimecode } from "./utils";
+import { TimelineRange } from "./TimelineRange";
 import {
   getBeatSyncBridge,
   type BeatSyncState,
@@ -21,6 +22,8 @@ interface TimeRulerProps {
   onScrubStart?: () => void;
   onScrubEnd?: () => void;
   snapPoints?: number[];
+  rangeDuration?: number;
+  frameRate?: number;
 }
 
 export const TimeRuler: React.FC<TimeRulerProps> = ({
@@ -31,6 +34,8 @@ export const TimeRuler: React.FC<TimeRulerProps> = ({
   onScrubStart,
   onScrubEnd,
   snapPoints,
+  rangeDuration = 0,
+  frameRate = 30,
 }) => {
   const touchGesture = useTimelineTouchGesture();
   const rulerRef = useRef<HTMLDivElement>(null);
@@ -206,12 +211,13 @@ export const TimeRuler: React.FC<TimeRulerProps> = ({
       ref={rulerRef}
       data-timeline-ruler
       onPointerDown={(event) => touchGesture.start(event, handleMouseDown)}
-      className={`h-[34px] border-b border-border relative bg-bg-1 select-none ${
+      className={`h-[44px] border-b border-border relative bg-bg-1 select-none ${
         isDragging ? "cursor-grabbing" : "cursor-pointer"
       }`}
       onMouseDown={handleMouseDown}
       style={{ cursor: isDragging ? "grabbing" : "pointer", touchAction: "none" }}
     >
+      <TimelineRange duration={rangeDuration} frameRate={frameRate} pixelsPerSecond={safePixelsPerSecond} />
       {ticks.map((tick) =>
         tick.showLabel && tick.time >= 0 ? (
           <span

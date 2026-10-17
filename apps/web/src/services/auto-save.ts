@@ -106,6 +106,7 @@ export class AutoSaveManager {
           db.close();
           if (this.db === db) this.db = null;
         };
+        db.onclose = () => { if (this.db === db) this.db = null; };
       })
       .catch((error) => {
         console.error("[AutoSave] Failed to initialize:", error);
@@ -115,6 +116,23 @@ export class AutoSaveManager {
         this.initializationPromise = null;
       });
     return this.initializationPromise;
+  }
+
+  private async createTransaction(mode: "readonly" | "readwrite"): Promise<IDBTransaction> {
+    await this.initialize();
+    const db = this.db;
+    if (!db) throw new Error("Database not initialized");
+    try {
+      return db.transaction(AUTO_SAVE_STORE, mode);
+    } catch (error) {
+      // Safari can close a connection while a file chooser/background tab is open.
+      // No transaction began, so reconnecting once cannot repeat a committed write.
+      if (!(error instanceof DOMException) || error.name !== "InvalidStateError") throw error;
+      if (this.db === db) this.db = null;
+      await this.initialize();
+      if (!this.db) throw error;
+      return this.db.transaction(AUTO_SAVE_STORE, mode);
+    }
   }
 
   private openDatabase(): Promise<IDBDatabase> {
@@ -289,14 +307,14 @@ export class AutoSaveManager {
     });
   }
 
-  private saveRecord(record: AutoSaveRecord): Promise<void> {
+  private async saveRecord(record: AutoSaveRecord): Promise<void> {
+    const tx = await this.createTransaction("readwrite");
     return new Promise((resolve, reject) => {
       if (!this.db) {
         reject(new Error("Database not initialized"));
         return;
       }
 
-      const tx = this.db.transaction(AUTO_SAVE_STORE, "readwrite");
       const store = tx.objectStore(AUTO_SAVE_STORE);
       const request = store.put(record);
 
@@ -323,14 +341,14 @@ export class AutoSaveManager {
     });
   }
 
-  private deleteRecord(id: string): Promise<void> {
+  private async deleteRecord(id: string): Promise<void> {
+    const tx = await this.createTransaction("readwrite");
     return new Promise((resolve, reject) => {
       if (!this.db) {
         reject(new Error("Database not initialized"));
         return;
       }
 
-      const tx = this.db.transaction(AUTO_SAVE_STORE, "readwrite");
       const store = tx.objectStore(AUTO_SAVE_STORE);
       const request = store.delete(id);
 
@@ -342,14 +360,14 @@ export class AutoSaveManager {
     });
   }
 
-  private getAllSaves(): Promise<AutoSaveRecord[]> {
+  private async getAllSaves(): Promise<AutoSaveRecord[]> {
+    const tx = await this.createTransaction("readonly");
     return new Promise((resolve, reject) => {
       if (!this.db) {
         reject(new Error("Database not initialized"));
         return;
       }
 
-      const tx = this.db.transaction(AUTO_SAVE_STORE, "readonly");
       const store = tx.objectStore(AUTO_SAVE_STORE);
       const request = store.getAll();
 
@@ -417,14 +435,14 @@ export class AutoSaveManager {
     }
   }
 
-  private getRecord(id: string): Promise<AutoSaveRecord | null> {
+  private async getRecord(id: string): Promise<AutoSaveRecord | null> {
+    const tx = await this.createTransaction("readonly");
     return new Promise((resolve, reject) => {
       if (!this.db) {
         reject(new Error("Database not initialized"));
         return;
       }
 
-      const tx = this.db.transaction(AUTO_SAVE_STORE, "readonly");
       const store = tx.objectStore(AUTO_SAVE_STORE);
       const request = store.get(id);
 
@@ -453,8 +471,8 @@ export class AutoSaveManager {
   async clearAllSaves(): Promise<void> {
     if (!this.db) return;
 
+    const tx = await this.createTransaction("readwrite");
     return new Promise((resolve, reject) => {
-      const tx = this.db!.transaction(AUTO_SAVE_STORE, "readwrite");
       const store = tx.objectStore(AUTO_SAVE_STORE);
       const request = store.clear();
 

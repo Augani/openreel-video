@@ -50,7 +50,7 @@ export interface ProjectStoreHelpers {
     clipId: string,
     before: { id: string } | undefined,
   ): void;
-  syncOverlayEnginesFromProject(): void;
+  syncOverlayEnginesFromProject(project?: Project): void;
 }
 
 export function createProjectStoreHelpers(
@@ -225,8 +225,7 @@ export function createProjectStoreHelpers(
     actionExecutor.getHistory().push(action, inverse);
   };
 
-  const syncOverlayEnginesFromProject = (): void => {
-    const { project } = get();
+  const syncOverlayEnginesFromProject = (project = get().project): void => {
     useEngineStore
       .getState()
       .getTitleEngine()

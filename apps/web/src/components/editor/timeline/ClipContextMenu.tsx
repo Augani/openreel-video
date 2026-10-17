@@ -18,6 +18,7 @@ import { useProjectStore } from "../../../stores/project-store";
 import { useTimelineStore } from "../../../stores/timeline-store";
 import { useUIStore } from "../../../stores/ui-store";
 import { getTimelineTrackSelection } from "../../../utils/timeline-item-actions";
+import { toast } from "../../../stores/notification-store";
 
 interface ClipContextMenuProps {
   clip: Clip;
@@ -60,7 +61,7 @@ export function useClipContextMenuItems({
   }, [track.clips, clip.id, clip.startTime]);
 
   const mediaItem = getMediaItem(clip.mediaId);
-  const clipMediaType = mediaItem?.type ?? track.type;
+  const clipMediaType = track.type === "audio" ? "audio" : mediaItem?.type ?? track.type;
   const isVideo = clipMediaType === "video";
   const isAudio = clipMediaType === "audio";
   const isImage = clipMediaType === "image";
@@ -116,8 +117,11 @@ export function useClipContextMenuItems({
   };
 
   const handleSeparateAudio = async () => {
-    await separateAudio(clip.id);
     onClose?.();
+    const result = await separateAudio(clip.id);
+    if (!result.success) {
+      toast.error("Could not separate audio", result.error?.message);
+    }
   };
 
   const handleCopyEffects = () => {

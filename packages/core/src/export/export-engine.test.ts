@@ -92,8 +92,12 @@ vi.mock("../media/mediabunny-engine", () => ({
   getMediaEngine: vi.fn().mockReturnValue(mockMediaEngine),
 }));
 
+vi.mock("./audio-priming", () => ({ getAacEncoderPriming: vi.fn().mockResolvedValue(2112) }));
+vi.mock("./mp4-audio-timing", () => ({ applyMp4AudioTiming: vi.fn((bytes) => bytes) }));
+
 vi.mock("mediabunny", () => {
   class MockMp4OutputFormat {
+    constructor(public options?: { onMoov?: (bytes: Uint8Array, position: number) => void }) {}
     getSupportedVideoCodecs() {
       return ["avc", "hevc"];
     }
@@ -107,11 +111,15 @@ vi.mock("mediabunny", () => {
   class MockMovOutputFormat extends MockMp4OutputFormat {}
 
   class MockOutput {
+    constructor(private options: { format: MockMp4OutputFormat }) {}
     addVideoTrack = vi.fn();
     addAudioTrack = vi.fn();
     setMetadataTags = vi.fn();
     start = mockOutputStart;
-    finalize = mockOutputFinalize;
+    finalize = async () => {
+      await mockOutputFinalize();
+      this.options.format.options?.onMoov?.(new Uint8Array(8), 1000);
+    };
   }
 
   class MockStreamTarget {
@@ -122,10 +130,13 @@ vi.mock("mediabunny", () => {
   }
 
   class MockVideoSampleSource {
-    add = mockVideoSourceAdd;
+    add = async (...args: unknown[]) => {
+      await mockVideoSourceAdd(...args);
+      (this.config.onEncodedPacket as (() => void) | undefined)?.();
+    };
     close = vi.fn();
 
-    constructor(config: Record<string, unknown>) {
+    constructor(private config: Record<string, unknown>) {
       mockVideoSourceConfigs.push(config);
     }
   }
@@ -142,7 +153,7 @@ vi.mock("mediabunny", () => {
 
     constructor(
       _data: unknown,
-      _init: { timestamp: number; duration: number },
+      public init: { timestamp: number; duration: number },
     ) {}
   }
 
@@ -284,6 +295,8 @@ describe("ExportEngine", () => {
 
   afterEach(() => {
     exportEngine.dispose();
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
   });
 
   describe("initialization", () => {
@@ -448,15 +461,16 @@ describe("ExportEngine", () => {
 
     async function drainVideoExport(
       settings = { ...DEFAULT_VIDEO_SETTINGS, frameRate: 1, width: 640, height: 360 },
+      duration = 1,
     ): Promise<ExportResult> {
       const project = createMockProject({
         timeline: createMockTimeline({
           tracks: [
             createMockTrack({
-              clips: [createMockClip({ duration: 1, outPoint: 1 })],
+              clips: [createMockClip({ duration, outPoint: duration })],
             }),
           ],
-          duration: 1,
+          duration,
         }),
       });
 
@@ -481,7 +495,7 @@ describe("ExportEngine", () => {
         }),
       });
 
-      mockRenderAudio.mockResolvedValue({ buffer: { duration: 15 } });
+      mockRenderAudio.mockImplementation(async (_project, _start, duration) => ({ buffer: { duration, length: duration * 48000 } }));
 
       await exportEngine.initialize();
 
@@ -509,6 +523,30 @@ describe("ExportEngine", () => {
       expect(mockRenderAudio).toHaveBeenNthCalledWith(3, project, 30, 10);
       expect(mockAudioSourceAdd).toHaveBeenCalledTimes(3);
       expect(mockAudioEngine.clearCache).toHaveBeenCalled();
+    });
+
+    it("renders a selected range at original timeline times with output starting at zero", async () => {
+      const settings = { ...DEFAULT_VIDEO_SETTINGS, width: 640, height: 360, frameRate: 30, range: { startTime: 2, endTime: 4 } };
+      expect(await drainVideoExport(settings, 6)).toMatchObject({ success: true, stats: { framesRendered: 60 } });
+      expect(mockRenderFrame).toHaveBeenNthCalledWith(1, expect.anything(), 2, 640, 360);
+      expect(mockRenderFrame).toHaveBeenNthCalledWith(60, expect.anything(), 2 + 59 / 30, 640, 360);
+      expect(mockVideoSourceAdd).toHaveBeenNthCalledWith(1, expect.objectContaining({ init: { timestamp: 0, duration: 1 / 30 } }));
+      expect(mockRenderAudio).toHaveBeenCalledWith(expect.anything(), 2, 2);
+    });
+
+    it("chunks selected-range audio without including sound before In or after Out", async () => {
+      mockRenderAudio.mockImplementation(async (_project, _start, duration) => ({ buffer: { duration, length: duration * 48000 } }));
+      expect(await drainVideoExport({ ...DEFAULT_VIDEO_SETTINGS, width: 640, height: 360, frameRate: 1, range: { startTime: 2, endTime: 34 } }, 35)).toMatchObject({ success: true });
+      expect(mockRenderAudio.mock.calls.map(([, start, duration]) => [start, duration])).toEqual([[2, 15], [17, 15], [32, 2]]);
+    });
+
+    it.each([
+      { startTime: -1, endTime: 2 }, { startTime: 2, endTime: 2 },
+      { startTime: 4, endTime: 2 }, { startTime: 2, endTime: 7 },
+      { startTime: NaN, endTime: 4 },
+    ])("rejects invalid export ranges before rendering: %j", async (range) => {
+      expect(await drainVideoExport({ ...DEFAULT_VIDEO_SETTINGS, frameRate: 1, width: 640, height: 360, range }, 6)).toMatchObject({ success: false, error: { code: "INVALID_SETTINGS" } });
+      expect(mockRenderFrame).not.toHaveBeenCalled();
     });
 
     it("aborts GPU initialization failures, restores preview mode, and allows retry", async () => {
@@ -542,6 +580,50 @@ describe("ExportEngine", () => {
       expect(writableStream.abort).toHaveBeenCalled();
       expect(mockVideoEngine).toHaveProperty("exportMode", false);
       expect(await drainVideoExport()).toMatchObject({ success: true });
+    });
+
+    it("cancels a stalled frame submission and releases the export for retry", async () => {
+      mockVideoSourceAdd.mockImplementationOnce(() => new Promise(() => {}));
+      const pending = drainVideoExport();
+      await vi.waitFor(() => expect(mockVideoSourceAdd).toHaveBeenCalled());
+      exportEngine.cancel();
+      expect(await pending).toMatchObject({ success: false, error: { code: "CANCELLED" } });
+      expect(writableStream.abort).toHaveBeenCalled();
+      expect(await drainVideoExport()).toMatchObject({ success: true });
+    });
+
+    it("closes a frame that arrives after its cancelled render", async () => {
+      const image = { close: vi.fn() };
+      let completeRender!: (frame: { image: typeof image; width: number; height: number }) => void;
+      mockRenderFrame.mockImplementationOnce(() => new Promise((resolve) => { completeRender = resolve; }));
+      const pending = drainVideoExport();
+      await vi.waitFor(() => expect(mockRenderFrame).toHaveBeenCalled());
+      exportEngine.cancel();
+      expect(await pending).toMatchObject({ success: false, error: { code: "CANCELLED" } });
+      completeRender({ image, width: 640, height: 360 });
+      await vi.waitFor(() => expect(image.close).toHaveBeenCalledOnce());
+    });
+
+    it("reports a stalled encoder and allows retry after its watchdog expires", async () => {
+      vi.useFakeTimers();
+      mockVideoSourceAdd.mockImplementationOnce(() => new Promise(() => {}));
+      const pending = drainVideoExport();
+      await vi.waitFor(() => expect(mockVideoSourceAdd).toHaveBeenCalled());
+      await vi.advanceTimersByTimeAsync(30_000);
+      expect(await pending).toMatchObject({ success: false, error: { message: expect.stringContaining("stopped responding") } });
+      expect(writableStream.abort).toHaveBeenCalled();
+      expect(await drainVideoExport()).toMatchObject({ success: true });
+    });
+
+    it("uses realtime encoding in WebKit and requires every output frame", async () => {
+      vi.stubGlobal("navigator", { userAgent: "AppleWebKit/605.1.15 Version/27.2 Safari/605.1.15" });
+      expect(await drainVideoExport()).toMatchObject({ success: true });
+      expect(mockVideoSourceConfigs[0]).toMatchObject({ latencyMode: "realtime" });
+      mockVideoSourceAdd.mockImplementationOnce(async () => {
+        mockVideoSourceConfigs.at(-1)!.onEncodedPacket = undefined;
+      });
+      expect(await drainVideoExport()).toMatchObject({ success: false, error: { message: expect.stringContaining("0 of 1 frames") } });
+      expect(writableStream.abort).toHaveBeenCalled();
     });
 
     it("decodes the original video blob for export", async () => {

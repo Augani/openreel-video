@@ -95,6 +95,7 @@ export interface TimelineState {
   getTrackHeight: (trackId: string, trackType?: string) => number;
   setLoopEnabled: (enabled: boolean) => void;
   setLoopRange: (start: number, end: number) => void;
+  clearLoopRange: () => void;
   timeToPixels: (time: number) => number;
   pixelsToTime: (pixels: number) => number;
   getVisibleTimeRange: () => { start: number; end: number };
@@ -339,6 +340,8 @@ export const useTimelineStore = create<TimelineState>()(
         });
       }
     },
+
+    clearLoopRange: () => set({ loopStart: 0, loopEnd: 0, loopEnabled: false }),
 
     timeToPixels: (time: number) => {
       const { pixelsPerSecond } = get();

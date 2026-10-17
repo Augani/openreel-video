@@ -5,6 +5,7 @@ import React, {
   useMemo,
   useState,
 } from "react";
+import { TimelineRangeActions } from "./timeline/TimelineRange";
 import {
   Undo2,
   Redo2,
@@ -1431,7 +1432,9 @@ export const Timeline: React.FC = () => {
         onClick={handleBackgroundClick}
       >
         <div className="flex shrink-0">
-          <div style={{ width: headerWidth, height: compact ? 44 : 34 }} className="bg-bg-1 border-b border-r border-border shrink-0" />
+          <div style={{ width: headerWidth, height: 44 }} className="bg-bg-1 border-b border-r border-border shrink-0">
+            <TimelineRangeActions duration={project.timeline.duration} frameRate={project.settings.frameRate} />
+          </div>
           <div className="flex-1 overflow-hidden relative bg-bg-1 border-b border-border">
             <div
               style={{
@@ -1441,6 +1444,8 @@ export const Timeline: React.FC = () => {
             >
               <TimeRuler
                 duration={timelineDuration}
+                rangeDuration={project.timeline.duration}
+                frameRate={project.settings.frameRate}
                 pixelsPerSecond={pixelsPerSecond}
                 scrollX={scrollX}
                 viewportWidth={viewportWidth}

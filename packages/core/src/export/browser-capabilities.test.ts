@@ -43,4 +43,9 @@ describe("browser export preflight", () => {
     project.mediaLibrary.items[0] = { ...project.mediaLibrary.items[0], blob: new Blob(["original"]) };
     expect(getMissingExportMedia(project)).toEqual([]);
   });
+  it("requires only originals overlapping the selected export section", () => {
+    const project = { timeline: { tracks: [{ clips: [{ mediaId: "missing", startTime: 0, duration: 2 }, { mediaId: "ready", startTime: 2, duration: 2 }] }] }, mediaLibrary: { items: [{ id: "missing", name: "Missing.mp4", type: "video", blob: null }, { id: "ready", type: "video", blob: new Blob(["original"]) }] } } as unknown as Project;
+    expect(getMissingExportMedia(project, { startTime: 2, endTime: 4 })).toEqual([]);
+    expect(getMissingExportMedia(project, { startTime: 1, endTime: 4 })).toEqual(["Missing.mp4"]);
+  });
 });

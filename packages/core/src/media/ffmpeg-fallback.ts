@@ -336,8 +336,11 @@ export class FFmpegFallback {
     await this.load();
     this.ensureLoaded();
 
-    const inputFilename = "input";
-    const outputFilename = "output.wav";
+    // Preview, analysis and separation can share this worker concurrently.
+    // Each extraction must own its input and output bytes.
+    const operationId = crypto.randomUUID();
+    const inputFilename = `audio_${operationId}_input`;
+    const outputFilename = `audio_${operationId}.wav`;
 
     try {
       const inputData = await this.fileToUint8Array(file);
@@ -357,10 +360,13 @@ export class FFmpegFallback {
         outputFilename,
       );
 
-      await this.ffmpeg!.exec(args);
+      const exitCode = await this.ffmpeg!.exec(args);
+      if (exitCode !== 0) {
+        throw new Error(`Could not extract audio stream ${streamIndex ?? 0} (FFmpeg exited with ${exitCode})`);
+      }
 
       const data = await this.ffmpeg!.readFile(outputFilename);
-      return new Blob([data.buffer as ArrayBuffer], { type: "audio/wav" });
+      return new Blob([data.slice().buffer as ArrayBuffer], { type: "audio/wav" });
     } finally {
       this.removeProgressTracking();
       await this.cleanupFiles([inputFilename, outputFilename]);

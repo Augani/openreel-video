@@ -1,3 +1,4 @@
+import "./ai-workspace.css";
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import { ToolcraftText as Text, ToolcraftButton as Button } from "@openreel/ui";
 
@@ -246,7 +247,7 @@ export const EditorInterface: React.FC = () => {
 
       if (target === "media") {
         const maxByStage =
-          rect.width - inspectorRef.current - chatOffset - MIN_STAGE_W;
+          rect.width - (chatOpen ? 0 : inspectorRef.current) - chatOffset - MIN_STAGE_W;
         setMediaWidth(
           clamp(e.clientX - rect.left, MIN_MEDIA_W, Math.min(MAX_MEDIA_W, maxByStage)),
         );
@@ -268,7 +269,6 @@ export const EditorInterface: React.FC = () => {
         const maxByStage =
           rect.width -
           mediaRef.current -
-          inspectorRef.current -
           2 * RESIZE_HANDLE -
           MIN_STAGE_W;
         setChatWidth(
@@ -341,13 +341,13 @@ export const EditorInterface: React.FC = () => {
     ? COMPACT_TIMELINE_VH
     : timelineVh;
   const gridStyle: React.CSSProperties = compact
-    ? { gridTemplateColumns: "minmax(0, 1fr)", gridTemplateRows: "minmax(150px, 36%) minmax(0, 1fr)", gridTemplateAreas: `'stage' '${compactPanel}'` }
+    ? { gridTemplateColumns: "minmax(0, 1fr)", gridTemplateRows: "minmax(220px, 48%) minmax(0, 1fr)", gridTemplateAreas: `'stage' '${compactPanel}'` }
     : chatVisible
     ? {
-        gridTemplateColumns: `${mediaWidth}px ${RESIZE_HANDLE}px 1fr ${RESIZE_HANDLE}px ${inspectorWidth}px ${RESIZE_HANDLE}px ${chatWidth}px`,
+        gridTemplateColumns: `${mediaWidth}px ${RESIZE_HANDLE}px minmax(0, 1fr) ${RESIZE_HANDLE}px ${chatWidth}px`,
         gridTemplateRows: `1fr ${RESIZE_HANDLE}px ${effectiveTimelineVh}vh`,
         gridTemplateAreas:
-          "'media mh stage ih inspector ch chat' 'th th th th th th th' 'timeline timeline timeline timeline timeline timeline timeline'",
+          "'media mh stage ch chat' 'th th th th th' 'timeline timeline timeline timeline timeline'",
       }
     : {
         gridTemplateColumns: `${mediaWidth}px ${RESIZE_HANDLE}px 1fr ${RESIZE_HANDLE}px ${inspectorWidth}px`,
@@ -366,7 +366,7 @@ export const EditorInterface: React.FC = () => {
       <div className="editor-body flex-1 min-h-0 flex">
         <div className="editor-rail" hidden={compact && compactPanel !== "media"}><EditorActionRail /></div>
         <div
-          className="editor-workspace flex-1 min-w-0 min-h-0 grid gap-0 bg-bg p-2.5"
+          className={`editor-workspace flex-1 min-w-0 min-h-0 grid gap-0 bg-bg p-2.5 ${chatVisible && !compact ? "ai-workspace-grid" : ""}`}
           style={gridStyle}
         >
         <div
@@ -385,6 +385,12 @@ export const EditorInterface: React.FC = () => {
           className="editor-resizer grid place-items-center cursor-col-resize group/h"
           style={{ gridArea: "mh" }}
           onMouseDown={beginResize("media")}
+          role="separator"
+          aria-label="Resize media panel"
+          aria-orientation="vertical"
+          aria-valuenow={mediaWidth}
+          tabIndex={0}
+          onKeyDown={(e) => { if (e.key === "ArrowLeft" || e.key === "ArrowRight") { e.preventDefault(); setMediaWidth((w) => clamp(w + (e.key === "ArrowRight" ? 20 : -20), MIN_MEDIA_W, MAX_MEDIA_W)); } }}
         >
           <span className="h-10 w-1 rounded-full bg-transparent group-hover/h:bg-accent/40 transition-colors" />
         </div>
@@ -398,7 +404,7 @@ export const EditorInterface: React.FC = () => {
           </PanelErrorBoundary>
         </div>
 
-        <div
+        {!chatVisible && <><div
           hidden={compact}
           className="editor-resizer grid place-items-center cursor-col-resize group/h"
           style={{ gridArea: "ih" }}
@@ -416,15 +422,21 @@ export const EditorInterface: React.FC = () => {
           <PanelErrorBoundary name="Inspector">
             <InspectorPanel />
           </PanelErrorBoundary>
-        </div>
+        </div></>}
 
         {(chatVisible || hasOpenedChat) && (
           <>
             <div
               hidden={compact || !chatVisible}
-              className="editor-resizer grid place-items-center cursor-col-resize group/h"
+              className="ai-chat-resizer editor-resizer grid place-items-center cursor-col-resize group/h"
               style={{ gridArea: "ch" }}
               onMouseDown={beginResize("chat")}
+              role="separator"
+              aria-label="Resize chat panel"
+              aria-orientation="vertical"
+              aria-valuenow={chatWidth}
+              tabIndex={0}
+              onKeyDown={(e) => { if (e.key === "ArrowLeft" || e.key === "ArrowRight") { e.preventDefault(); setChatWidth((w) => clamp(w + (e.key === "ArrowLeft" ? 20 : -20), MIN_CHAT_W, MAX_CHAT_W)); } }}
             >
               <span className="h-10 w-1 rounded-full bg-transparent group-hover/h:bg-accent/40 transition-colors" />
             </div>

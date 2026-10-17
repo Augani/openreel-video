@@ -28,6 +28,8 @@ export function toLogRecord(event: AgentEvent): AgentLogRecord {
         summary: event.result.summary,
         error: event.result.error?.message,
       };
+    case "tool_recovered":
+      return { type: event.type, ok: true, summary: `${event.callIds.length} failed tool call(s) corrected` };
     case "error":
       return { type: event.type, error: event.error.message };
   }

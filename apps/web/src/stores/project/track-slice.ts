@@ -125,15 +125,16 @@ export function createTrackSlice(set: Set, get: Get): TrackSlice {
 
     reorderTrack: async (trackId, newPosition) => {
       const { project, actionExecutor } = get();
+      const projectCopy = cloneProjectForEdit(project);
       const action: Action = {
         type: "track/reorder",
         id: uuidv4(),
         timestamp: Date.now(),
         params: { trackId, newPosition },
       };
-      const result = await actionExecutor.execute(action, project);
+      const result = await actionExecutor.execute(action, projectCopy);
       if (result.success) {
-        set({ project: { ...project, modifiedAt: Date.now() } });
+        set({ project: { ...projectCopy, modifiedAt: Date.now() } });
       }
       return result;
     },

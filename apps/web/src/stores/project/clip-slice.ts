@@ -4,6 +4,8 @@ import type { StoreApi } from "zustand";
 import type { Action, ActionResult } from "@openreel/core";
 import type { ProjectState } from "../project-store";
 import { calculateTimelineDuration } from "./index";
+import { extractAudioTracks } from "../../services/separate-audio";
+import { saveMediaBlob, deleteMediaBlob } from "../../services/media-storage";
 
 type Get = StoreApi<ProjectState>["getState"];
 type Set = StoreApi<ProjectState>["setState"];
@@ -28,6 +30,7 @@ export type ClipSlice = Pick<
 >;
 
 export function createClipSlice(set: Set, get: Get): ClipSlice {
+  const separatingClips = new Set<string>();
   return {
     addClip: async (trackId: string, mediaId: string, startTime: number) => {
       const { project, actionExecutor } = get();
@@ -99,127 +102,146 @@ export function createClipSlice(set: Set, get: Get): ClipSlice {
     },
 
     separateAudio: async (clipId: string) => {
-      const { project, actionExecutor } = get();
-      const videoClip = project.timeline.tracks
-        .flatMap((t) => t.clips)
-        .find((c) => c.id === clipId);
-      if (!videoClip) {
+      const { project } = get();
+      const sourceTrack = project.timeline.tracks.find((track) =>
+        track.clips.some((clip) => clip.id === clipId),
+      );
+      const sourceClip = sourceTrack?.clips.find((clip) => clip.id === clipId);
+      if (!sourceClip) {
         return {
           success: false,
           error: { code: "CLIP_NOT_FOUND" as const, message: "Clip not found" },
         };
       }
-
-      const mediaItem = project.mediaLibrary.items.find(
-        (m) => m.id === videoClip.mediaId,
-      );
-      if (
-        !mediaItem ||
-        mediaItem.type !== "video" ||
-        !mediaItem.metadata?.channels ||
-        mediaItem.metadata.channels === 0
-      ) {
+      const mediaItem = project.mediaLibrary.items.find((m) => m.id === sourceClip.mediaId);
+      if (sourceTrack?.type === "audio" || mediaItem?.type !== "video" ||
+          (!mediaItem.metadata.hasAudio && !mediaItem.metadata.channels)) {
         return {
           success: false,
-          error: {
-            code: "MEDIA_NOT_FOUND" as const,
-            message: "Media has no audio to separate",
-          },
+          error: { code: "MEDIA_NOT_FOUND" as const, message: "Media has no audio to separate" },
+        };
+      }
+      if (sourceTrack?.locked) {
+        return {
+          success: false,
+          error: { code: "TRACK_LOCKED" as const, message: "Unlock the video track before separating audio." },
+        };
+      }
+      const requestKey = `${project.id}:${clipId}`;
+      if (separatingClips.has(requestKey)) {
+        return {
+          success: false,
+          error: { code: "INVALID_PARAMS" as const, message: "Audio separation is already in progress." },
+        };
+      }
+      if (project.timeline.tracks.some((track) => track.clips.some(
+        (clip) => clip.metadata?.separatedFromClipId === clipId,
+      ))) {
+        return {
+          success: false,
+          error: { code: "INVALID_PARAMS" as const, message: "This clip's audio has already been separated." },
         };
       }
 
-      let audioTrackCount = mediaItem.metadata.audioTrackCount ?? 1;
-      if (audioTrackCount <= 1 && mediaItem.blob) {
-        try {
-          const { getFFmpegFallback } = await import("@openreel/core/media");
-          const ffmpeg = getFFmpegFallback();
-          const probeResult = await ffmpeg.probeAudioStreams(mediaItem.blob);
-          if (probeResult.audioStreamCount > 1) {
-            audioTrackCount = probeResult.audioStreamCount;
-          }
-        } catch {
-          // FFmpeg probe unavailable — proceed with count of 1
+      separatingClips.add(requestKey);
+      const persistedIds: string[] = [];
+      let committed = false;
+      try {
+        const sources = await extractAudioTracks(mediaItem);
+        for (const source of sources) {
+          persistedIds.push(source.id);
+          await saveMediaBlob(project.id, source.id, source.blob!, source.metadata);
         }
-      }
 
-      const projectCopy = cloneProjectForEdit(project);
-      const existingAudioCount = projectCopy.timeline.tracks.filter(
-        (t) => t.type === "audio",
-      ).length;
-
-      const newTrackIds: string[] = [];
-      for (let i = existingAudioCount; i < audioTrackCount; i++) {
-        const newTrackId = uuidv4();
-        newTrackIds.push(newTrackId);
-        const trackAction: Action = {
-          type: "track/add",
-          id: uuidv4(),
-          timestamp: Date.now(),
-          params: { trackType: "audio", trackId: newTrackId },
-        };
-        const trackResult = await actionExecutor.execute(
-          trackAction,
-          projectCopy,
+        // Extraction can take a while. Apply to the latest timeline so edits
+        // made during decoding survive, and never reopen a previous project.
+        const current = get();
+        const currentSourceTrack = current.project.timeline.tracks.find((track) =>
+          track.clips.some((clip) => clip.id === clipId),
         );
-        if (!trackResult.success) {
+        const videoClip = currentSourceTrack?.clips.find((clip) => clip.id === clipId);
+        if (current.project.id !== project.id || !videoClip ||
+            videoClip.mediaId !== mediaItem.id ||
+            current.project.mediaLibrary.items.find((m) => m.id === mediaItem.id)?.blob !== mediaItem.blob) {
           return {
             success: false,
-            error: {
-              code: "TRACK_NOT_FOUND" as const,
-              message: "Failed to create audio track",
-            },
+            error: { code: "INVALID_PARAMS" as const, message: "The video or project changed during audio separation. Try again." },
           };
         }
-      }
+        if (currentSourceTrack?.locked) {
+          return {
+            success: false,
+            error: { code: "TRACK_LOCKED" as const, message: "Unlock the video track before separating audio." },
+          };
+        }
 
-      const audioTimelineTracks = projectCopy.timeline.tracks.filter(
-        (t) => t.type === "audio",
-      );
-      if (audioTimelineTracks.length === 0) {
+        const projectCopy = cloneProjectForEdit(current.project);
+        projectCopy.mediaLibrary.items.push(...sources);
+        const availableTracks = projectCopy.timeline.tracks.filter((track) =>
+          track.type === "audio" && !track.locked && !track.muted && !track.hidden &&
+          track.clips.every((clip) => clip.startTime + clip.duration <= videoClip.startTime ||
+            clip.startTime >= videoClip.startTime + videoClip.duration),
+        );
+        const { actionExecutor } = current;
+        const history = actionExecutor.getHistory();
+        const undoSizeBefore = history.getUndoStackSize();
+        history.beginGroup("Separate audio");
+        let lastResult: ActionResult = { success: true };
+        try {
+          for (let index = 0; index < sources.length; index++) {
+            const source = sources[index];
+            const trackId = availableTracks[index]?.id ?? uuidv4();
+            if (!availableTracks[index]) {
+              lastResult = await actionExecutor.execute({
+                type: "track/add", id: uuidv4(), timestamp: Date.now(),
+                params: { trackType: "audio", trackId, name: source.name.replace(/\.wav$/, "") },
+              }, projectCopy);
+              if (!lastResult.success) return lastResult;
+            }
+            lastResult = await actionExecutor.execute({
+              type: "clip/add", id: uuidv4(), timestamp: Date.now(),
+              params: {
+                trackId, mediaId: source.id, startTime: videoClip.startTime,
+                sourceClip: {
+                  ...videoClip,
+                  id: uuidv4(), trackId, mediaId: source.id,
+                  // Each extracted file contains exactly one audio stream.
+                  audioTrackIndex: 0,
+                  effects: [], keyframes: [],
+                  metadata: { separatedFromClipId: clipId, sourceAudioTrackIndex: index },
+                },
+              },
+            }, projectCopy);
+            if (!lastResult.success) return lastResult;
+          }
+          lastResult = await actionExecutor.execute({
+            type: "audio/setVolume", id: uuidv4(), timestamp: Date.now(),
+            params: { clipId, volume: 0 },
+          }, projectCopy);
+          if (!lastResult.success) return lastResult;
+          set({ project: { ...projectCopy, modifiedAt: Date.now() } });
+          committed = true;
+          return lastResult;
+        } finally {
+          history.endGroup();
+          if (!committed && history.getUndoStackSize() > undoSizeBefore) {
+            await actionExecutor.undo(projectCopy);
+          }
+        }
+      } catch (error) {
         return {
           success: false,
           error: {
-            code: "TRACK_NOT_FOUND" as const,
-            message: "Could not find or create audio track",
+            code: "DECODE_ERROR" as const,
+            message: error instanceof Error ? error.message : "Could not separate audio.",
           },
         };
-      }
-
-      let lastResult: ActionResult = { success: true };
-      for (let trackIdx = 0; trackIdx < audioTrackCount; trackIdx++) {
-        const targetTrack = audioTimelineTracks[trackIdx];
-        if (!targetTrack) break;
-        const action: Action = {
-          type: "clip/add",
-          id: uuidv4(),
-          timestamp: Date.now(),
-          params: {
-            trackId: targetTrack.id,
-            mediaId: videoClip.mediaId,
-            startTime: videoClip.startTime,
-            duration: videoClip.duration,
-            inPoint: videoClip.inPoint,
-            outPoint: videoClip.outPoint,
-            speed: videoClip.speed,
-            reversed: videoClip.reversed,
-            audioTrackIndex: trackIdx,
-          },
-        };
-        lastResult = await actionExecutor.execute(action, projectCopy);
-        if (!lastResult.success) break;
-      }
-
-      if (lastResult.success) {
-        for (const track of projectCopy.timeline.tracks) {
-          const clipIndex = track.clips.findIndex((c) => c.id === clipId);
-          if (clipIndex !== -1) {
-            (track.clips[clipIndex] as unknown as { volume: number }).volume = 0;
-            break;
-          }
+      } finally {
+        separatingClips.delete(requestKey);
+        if (!committed) {
+          await Promise.allSettled(persistedIds.map((id) => deleteMediaBlob(id)));
         }
-        set({ project: { ...projectCopy, modifiedAt: Date.now() } });
       }
-      return lastResult;
     },
 
     removeClip: async (clipId: string) => {
