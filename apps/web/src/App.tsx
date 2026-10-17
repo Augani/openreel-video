@@ -132,7 +132,9 @@ function App() {
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
-      if (e.key === "Escape" && route !== "editor") {
+       // Welcome, templates, recent and share pages own Escape themselves.
+      const ownsEscape = ["welcome", "templates", "recent", "share"].includes(route);
+      if (e.key === "Escape" && route !== "editor" && !ownsEscape) {
         navigate("editor");
       }
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {

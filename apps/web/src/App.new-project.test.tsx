@@ -136,6 +136,15 @@ describe("new-project links", () => {
     expect(create).not.toHaveBeenCalled(); expect(useProjectStore.getState().project).toBe(opened);
   });
 
+   it.each(["#/welcome", "#/templates", "#/recent", "#/share/video-1"])("does not leave %s on Escape", async (hash) => {
+    window.location.hash = hash;
+    const view = render(<App />);
+    await view.findByText(hash.startsWith("#/share") ? "Shared video" : "Welcome");
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(window.location.hash).toBe(hash);
+    expect(view.queryByText("Editor")).toBeNull();
+  });
+  
   it.each(["#/welcome", "#/templates", "#/recent", "#/share/video-1"])("does not create an editor project for %s", async (hash) => {
     window.location.hash = hash;
     const create = vi.spyOn(useProjectStore.getState(), "createNewProject");
