@@ -255,6 +255,12 @@ export interface EditingHost {
   saveProject?(): Promise<ProjectRef>;
   importMediaFromUrl?(url: string, options?: { name?: string }): Promise<ImportedMediaRef>;
   /**
+   * Import a media file from an absolute local path. Optional: only the desktop
+   * host can read the local disk. The registry validates the path before this
+   * is called, so implementations receive an absolute path to a media file.
+   */
+  importMediaFromPath?(path: string, options?: { name?: string }): Promise<ImportedMediaRef>;
+  /**
    * Render a motion composition to a finished video file (mp4 / transparent
    * WebM / ProRes 4444 MOV). Optional because it needs the renderer-side motion
    * export pipeline that only the live/desktop web host provides — headless

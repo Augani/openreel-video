@@ -66,6 +66,8 @@ const MIME_BY_EXT: Record<string, string> = {
   aac: "audio/aac",
   m4a: "audio/mp4",
   ogg: "audio/ogg",
+  mkv: "video/x-matroska",
+  flac: "audio/flac",
   jpg: "image/jpeg",
   jpeg: "image/jpeg",
   png: "image/png",
@@ -260,7 +262,28 @@ export class LiveEditorHost implements EditingHost {
     }
     const mime = (res.contentType.split(";")[0] ?? "").trim() || MIME_BY_EXT[extFromUrl(url)] || "application/octet-stream";
     const name = options?.name ?? inferName(url, mime);
-    const file = new File([res.body], name, { type: mime });
+    return this.importFile(new File([res.body], name, { type: mime }));
+  }
+
+  async importMediaFromPath(
+    path: string,
+    options?: { name?: string },
+  ): Promise<ImportedMediaRef> {
+    this.requireOpenProject();
+    // The main process owns the path and size checks; the raw readFileBytes
+    // bridge has none, so it is deliberately not used here.
+    const readLocal = window.openreel?.media?.readLocal;
+    if (typeof readLocal !== "function") {
+      throw new Error("Importing from a local path is only available in the desktop app");
+    }
+    const res = await readLocal(path);
+    if (!res.ok) throw new Error(res.error);
+    const ext = res.name.slice(res.name.lastIndexOf(".") + 1).toLowerCase();
+    const mime = MIME_BY_EXT[ext] ?? "application/octet-stream";
+    return this.importFile(new File([res.bytes], options?.name ?? res.name, { type: mime }));
+  }
+
+  private async importFile(file: File): Promise<ImportedMediaRef> {
     const result = await useProjectStore.getState().importMedia(file);
     if (!result.success || !result.actionId) {
       throw new Error(result.error?.message ?? "Media import failed");
@@ -271,7 +294,7 @@ export class LiveEditorHost implements EditingHost {
       .project.mediaLibrary.items.find((m) => m.id === mediaId);
     return {
       mediaId,
-      name,
+      name: file.name,
       type: item?.type ?? "unknown",
       durationSec: item?.metadata?.duration ?? 0,
       width: item?.metadata?.width,

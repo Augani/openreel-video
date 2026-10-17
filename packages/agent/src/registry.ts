@@ -330,8 +330,24 @@ import {
   listTracks,
   listClips,
   getClipDetail,
+  listOverlays,
   type ClipFilter,
 } from "./serialize";
+
+/**
+ * A drive-absolute Windows path (`C:\`, `C:/`) or an absolute POSIX path. UNC
+ * and device paths (`\\host`, `\\?\`, `\\.\`) are refused outright: a UNC read
+ * authenticates to that host and leaks the user's NTLM hash. The desktop main
+ * process repeats these checks and owns the real boundary.
+ */
+const ABSOLUTE_PATH = /^(?:[A-Za-z]:[\\/]|\/(?!\/))/;
+
+/** What import_media_from_path will read. Anything else is refused unread. */
+const LOCAL_MEDIA_EXTENSIONS = new Set([
+  "mp4", "webm", "mov", "m4v", "mkv",
+  "mp3", "wav", "aac", "m4a", "ogg", "flac",
+  "jpg", "jpeg", "png", "webp", "gif",
+]);
 import { createProductCinematicMotionComposition } from "./creation-product-motion";
 import {
   summarizeCreationState,
@@ -10725,6 +10741,13 @@ const TOOLS: RegisteredTool[] = [
   readTool("get_clip", "Get clip", "Full detail for one clip by id.", obj({ clipId: str }, ["clipId"]), (a, h) =>
     getClipDetail(h.getProject(), a.clipId as string),
   ),
+  readTool(
+    "list_overlays",
+    "List overlays",
+    "Text clips and subtitles with start/end seconds. These live outside the timeline tracks, so list_clips does not include them.",
+    obj({}),
+    (_a, h) => listOverlays(h.getProject()),
+  ),
   readTool("get_capabilities", "Capabilities", "Valid enums + parameter ranges.", obj({}), (_a, h) =>
     h.capabilities(),
   ),
@@ -15549,6 +15572,45 @@ const TOOLS: RegisteredTool[] = [
       }
       host.requireOpenProject();
       const ref = await host.importMediaFromUrl(String(args.url), {
+        name: typeof args.name === "string" ? args.name : undefined,
+      });
+      return ok(`Imported ${ref.type} "${ref.name}" (${ref.durationSec.toFixed(2)}s)`, ref);
+    },
+  },
+  {
+    name: "import_media_from_path",
+    domain: "media",
+    title: "Import media from a local path",
+    description: "Import an image, video, or audio file from an absolute path on this computer into the media library. Desktop only. Returns the mediaId to use with add_clip. Requires an open project.",
+    inputSchema: obj({ path: str, name: str }, ["path"]),
+    readOnly: false,
+    destructive: false,
+    // Not costly, but it reads the local disk, so it needs the same explicit
+    // opt-in ("Trusted local — auto-allow") as an export before an external
+    // client can call it.
+    expensive: true,
+    handler: async (args, host) => {
+      if (typeof host.importMediaFromPath !== "function") {
+        return fail("import_media_from_path is not available in this host", "UNSUPPORTED");
+      }
+      const path = typeof args.path === "string" ? args.path : "";
+      if (!ABSOLUTE_PATH.test(path)) {
+        return fail(`path must be an absolute local path, not a network or device path (got "${path}")`, "INVALID_PARAMS");
+      }
+      // A second colon names an NTFS alternate data stream: secret.txt:x.mp4
+      // would read a hidden stream of secret.txt while looking like an .mp4.
+      if (path.indexOf(":", 2) !== -1) {
+        return fail(`alternate data streams are not allowed (got "${path}")`, "INVALID_PARAMS");
+      }
+      const ext = path.slice(path.lastIndexOf(".") + 1).toLowerCase();
+      if (!LOCAL_MEDIA_EXTENSIONS.has(ext) || !/[\\/][^\\/]+\.[^\\/.]+$/.test(path)) {
+        return fail(
+          `Only media files can be imported (${[...LOCAL_MEDIA_EXTENSIONS].join(", ")})`,
+          "INVALID_PARAMS",
+        );
+      }
+      host.requireOpenProject();
+      const ref = await host.importMediaFromPath(path, {
         name: typeof args.name === "string" ? args.name : undefined,
       });
       return ok(`Imported ${ref.type} "${ref.name}" (${ref.durationSec.toFixed(2)}s)`, ref);

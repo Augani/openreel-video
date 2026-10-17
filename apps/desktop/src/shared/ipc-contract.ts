@@ -53,6 +53,7 @@ export const fetchUrlArgsSchema = z.object({
   url: z.string().url(),
   maxBytes: z.number().int().positive().optional(),
 });
+export const readLocalMediaArgsSchema = z.object({ path: z.string().min(1).max(4096) });
 
 export const riggingBackendModeSchema = z.enum(["configured", "bundled", "system"]);
 export type RiggingBackendMode = z.infer<typeof riggingBackendModeSchema>;
