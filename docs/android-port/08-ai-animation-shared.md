@@ -1,9 +1,10 @@
 # OpenReel Mobile — On-device Smart Tools, Animation, and Shared Helpers
 
-> **Offline contract (2026-08-08):** Both mobile apps operate without an
-> internet connection. Do not add job APIs, uploads, authentication brokers,
-> remote model downloads, or network fallbacks. A feature that cannot work
-> locally must be hidden until a bundled/on-device implementation exists.
+> **On-device contract (updated 2026-10-17):** Both mobile apps process media
+> locally, without job APIs, uploads, authentication brokers, or cloud fallbacks.
+> Android can download an optional caption language pack after explicit user
+> confirmation; recognition then uses the installed on-device model. A feature
+> without a local implementation must remain unavailable.
 
 This document describes the current mobile architecture. It replaces the
 retired cloud-worker protocol.
@@ -33,8 +34,10 @@ retired cloud-worker protocol.
 
 ## 1. Offline invariant
 
-- Android removes `INTERNET` and `ACCESS_NETWORK_STATE` from its merged
-  manifest, including permissions introduced by transitive dependencies.
+- Android uses `INTERNET` and `ACCESS_NETWORK_STATE` for explicitly confirmed
+  ML Kit caption language-pack installation. Direct networking clients and
+  cloud media processing remain prohibited. Without that installation flow,
+  these permissions must be removed, including transitive declarations.
 - Android app backup is disabled so project media and preferences are not
   copied through a cloud backup service.
 - iOS media pickers set `showsCloudItems = false`.
@@ -60,7 +63,7 @@ mean “software rendering only”; it means no paid remote compute and no uploa
 | Background removal / subject effects | Vision + Core Image/Metal | Local effects pipeline | Rendered on device |
 | Auto Reframe | Tracking-derived transform path | Tracking-derived transform path | Centers the tracked subject with keyframes |
 | Stabilize | Local motion/tracking analysis | Counter-motion tracking keyframes | No server fallback |
-| Captions | Installed on-device Speech model | SRT/local caption editing | iOS button is unavailable without a local model |
+| Captions | Installed on-device Speech model | Installed ML Kit Speech model and SRT/local caption editing | Recognition requires an installed model; Android offers a confirmed pack download |
 | Shorts/highlights | Sampled-frame motion/detail scorer | Sampled-frame motion/detail scorer | Ranks candidate windows locally |
 | Music generation | Local music tools | Prompt-guided procedural WAV synthesis | Creates a project-local audio file |
 | LUT filters | Bundled `.cube` asset | Bundled `.cube` asset | Never downloaded |

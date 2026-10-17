@@ -33,20 +33,34 @@ function rejectPatterns(files, patterns, label) {
 
 const manifestPath = join(androidRoot, "app", "src", "main", "AndroidManifest.xml");
 const manifest = readFileSync(manifestPath, "utf8");
+const captionService = readFileSync(join(androidRoot, "app", "src", "main", "java", "com", "pythonxi", "openreelvideo", "core", "subtitles", "OnDeviceCaptionService.kt"), "utf8");
+const captionPanel = readFileSync(join(androidRoot, "app", "src", "main", "java", "com", "pythonxi", "openreelvideo", "ui", "editor", "panels", "SubtitlesTabPanel.kt"), "utf8");
+// Android's on-device recognizer can install an optional language pack after
+// the user confirms a download. Media processing still has no network client.
+const confirmedCaptionModelDownloads =
+  captionService.includes("com.google.mlkit.genai.speechrecognition.SpeechRecognition") &&
+  captionService.includes("recognizer.download()") &&
+  captionPanel.includes("onClick = appState::downloadCaptionModelAndGenerate") &&
+  captionPanel.includes("appState::cancelCaptionModelDownload");
+function hasAllowedNetworkPermission(name) {
+  return new RegExp(`android\\.permission\\.${name}"\\s+tools:node="remove"`).test(manifest) ||
+    confirmedCaptionModelDownloads && new RegExp(`<uses-permission android:name="android\\.permission\\.${name}"\\s*/>`).test(manifest);
+}
 assert(
-  /android\.permission\.INTERNET"\s+tools:node="remove"/.test(manifest),
-  "Android must explicitly remove transitive INTERNET permission",
+  hasAllowedNetworkPermission("INTERNET"),
+  "Android INTERNET permission requires a user-confirmed on-device caption-model download flow; otherwise remove it",
 );
 assert(
-  /android\.permission\.ACCESS_NETWORK_STATE"\s+tools:node="remove"/.test(manifest),
-  "Android must explicitly remove transitive network-state permission",
+  hasAllowedNetworkPermission("ACCESS_NETWORK_STATE"),
+  "Android network-state permission requires a user-confirmed on-device caption-model download flow; otherwise remove it",
 );
+assert(!manifest.includes('android:usesCleartextTraffic="true"'), "Android must not opt into cleartext network traffic");
 assert(manifest.includes('android:allowBackup="false"'), "Android backups must remain disabled");
 
 const androidFiles = filesBelow(join(androidRoot, "app", "src", "main", "java"), new Set([".kt", ".java"]));
 rejectPatterns(
   androidFiles,
-  [/\bokhttp3\b/, /\bPlayIntegrity\b/, /\bAICloudJob\b/, /https?:\/\//],
+  [/\bokhttp3\b/, /\bretrofit2\b/, /\bio\.ktor\.client\b/, /\bjava\.net\.(?:URL|HttpURLConnection|Socket)\b/, /\bPlayIntegrity\b/, /\bAICloudJob\b/, /https?:\/\//],
   "Android online dependency",
 );
 rejectPatterns(
