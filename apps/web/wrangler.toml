@@ -1,4 +1,4 @@
-name = "openreel"
+name = "hawsh-editor"
 compatibility_date = "2024-01-01"
 pages_build_output_dir = "dist"
 
@@ -10,7 +10,7 @@ pages_build_output_dir = "dist"
 #   Motion Creator is disabled in the web app feature configuration
 
 [env.production]
-name = "openreel"
+name = "hawsh-editor"
 
 [env.preview]
-name = "openreel-preview"
+name = "hawsh-editor-preview"

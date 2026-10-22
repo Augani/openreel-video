@@ -265,9 +265,15 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ initialTab }) => {
               <div className="w-12 h-12 text-primary">
                 <OpenReelLogo className="w-full h-full" />
               </div>
-              <Text type="body" color="primary" weight="semibold" className="text-xl text-text-primary tracking-tight">
-                Open Reel Video
-              </Text>
+              <div className="flex flex-col items-start">
+                <Text type="body" color="primary" weight="semibold" className="text-xl text-text-primary tracking-tight">
+                  Director's Eyes Editor
+                </Text>
+                {/* MIT attribution: this editor is a modified OpenReel (see /LICENSE.txt). */}
+                <a href="/LICENSE.txt" target="_blank" rel="noopener noreferrer" className="text-xs text-text-secondary hover:underline">
+                  by Hawsh Khalifa · built on OpenReel
+                </a>
+              </div>
             </div>
 
             <Text type="body" color="primary" weight="bold" className="text-4xl sm:text-5xl text-text-primary tracking-tight mb-3">
