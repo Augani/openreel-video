@@ -21,6 +21,7 @@ import {
   type StickerClip,
 } from "@openreel/core";
 import { templateCloudService } from "../../services/template-cloud-service";
+import { OPENREEL_CLOUD_UPLOADS } from "../../config/api-endpoints";
 
 interface TemplateWithGraphics extends Template {
   timeline: Template["timeline"] & {
@@ -50,7 +51,7 @@ export const SaveTemplateDialog: React.FC<SaveTemplateDialogProps> = ({
   const [category, setCategory] = useState<TemplateCategory>("custom");
   const [tags, setTags] = useState("");
   const [author, setAuthor] = useState("");
-  const [saveLocation, setSaveLocation] = useState<"local" | "cloud">("cloud");
+  const [saveLocation, setSaveLocation] = useState<"local" | "cloud">(OPENREEL_CLOUD_UPLOADS ? "cloud" : "local");
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -109,7 +110,7 @@ export const SaveTemplateDialog: React.FC<SaveTemplateDialogProps> = ({
         }
       }
 
-      if (saveLocation === "cloud") {
+      if (OPENREEL_CLOUD_UPLOADS && saveLocation === "cloud") {
         const result =
           await templateCloudService.uploadTemplate(templateWithMeta);
         if (!result.success) {
@@ -235,7 +236,7 @@ export const SaveTemplateDialog: React.FC<SaveTemplateDialogProps> = ({
             width="100%"
           />
 
-          <div className="space-y-2">
+          {OPENREEL_CLOUD_UPLOADS && <div className="space-y-2">
             <Text type="supporting" color="secondary" weight="bold" display="block">
               Save Location
             </Text>
@@ -270,7 +271,7 @@ export const SaveTemplateDialog: React.FC<SaveTemplateDialogProps> = ({
                 ? "Saved to cloud and accessible from any device"
                 : "Saved locally in your browser storage"}
             </Text>
-          </div>
+          </div>}
         </div>
           </LayoutContent>
         }

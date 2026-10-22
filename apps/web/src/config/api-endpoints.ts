@@ -7,6 +7,12 @@
 
 const isDev = import.meta.env.DEV;
 
+/**
+ * Uploads to OpenReel's cloud (shared templates). Off in the Hawsh Khalifa build: user content must not
+ * leave for a third-party server. Reading the public template gallery stays as is.
+ */
+export const OPENREEL_CLOUD_UPLOADS = false;
+
 /** OpenReel cloud services */
 export const OPENREEL_CLOUD_URL = isDev
   ? "http://localhost:8787"
