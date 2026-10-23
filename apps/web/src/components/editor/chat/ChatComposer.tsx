@@ -4,6 +4,7 @@ import { ToolcraftIconButton as IconButton } from "@openreel/ui";
 import { ToolcraftTextAreaControl } from "@openreel/ui";
 import { Send, Square } from "@/icons/lucide-compat";
 import { useChatStore } from "../../../stores/chat-store";
+import { AIPriceNote } from "../../../hawsh/AIPriceNote";
 
 export function ChatComposer(): JSX.Element {
   const status = useChatStore((s) => s.status);
@@ -68,6 +69,7 @@ export function ChatComposer(): JSX.Element {
       <div className="mt-1 px-1 text-[10px] text-fg-muted">
         Enter to send · Shift+Enter for a new line
       </div>
+      <AIPriceNote />
     </div>
   );
 }
