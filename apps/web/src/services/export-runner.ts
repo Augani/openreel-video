@@ -7,6 +7,7 @@ import {
   type ExportResult,
   type Project,
 } from "@openreel/core";
+import { rememberExport } from "../hawsh/lastExport";
 
 export interface ExportRunnerState {
   isExporting: boolean;
@@ -232,6 +233,7 @@ async function createOpfsDownloadWritable(
         await root.removeEntry(tmpName).catch(() => undefined);
         throw new Error("Export produced an empty file");
       }
+      rememberExport(file, filename);
       triggerAnchorDownload(file, filename, () => {
         root.removeEntry(tmpName).catch(() => undefined);
       });
@@ -290,7 +292,9 @@ function createBufferedDownloadWritable(
     async close() {
       checkOpen();
       if (!length) throw new Error("Export produced an empty file");
-      triggerAnchorDownload(new Blob([buffer.slice(0, length)], { type: mime }), filename);
+      const blob = new Blob([buffer.slice(0, length)], { type: mime });
+      rememberExport(blob, filename, mime);
+      triggerAnchorDownload(blob, filename);
       finished = true;
       buffer = new Uint8Array(0);
     },
