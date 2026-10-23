@@ -1,4 +1,5 @@
 import React from "react";
+import { SIMPLE_EDITOR } from "../../hawsh/simple";
 import {
   ToolcraftDropdownMenu as DropdownMenu,
   ToolcraftIconButton as IconButton,
@@ -113,35 +114,43 @@ export const EditorActionRail: React.FC = () => {
 
       <div className="my-1.5 h-px w-6 bg-border" />
 
+      {!SIMPLE_EDITOR && (
       <RailButton
         label="Action history"
         icon="clock"
         onClick={() => openModal("history")}
         active={activeModal === "history"}
       />
+      )}
+      {!SIMPLE_EDITOR && (
       <RailButton
         label="Keyframe editor"
         icon="diamond"
         onClick={toggleKeyframeEditor}
         active={keyframeEditorOpen}
       />
+      )}
+      {!SIMPLE_EDITOR && (
       <RailButton
         label="Audio mixer"
         icon="music.note"
         onClick={() => togglePanel("audioMixer")}
         active={Boolean(panels.audioMixer?.visible)}
       />
+      )}
       <RailButton
         label="AI Editor chat"
         icon="bubble.left.and.text.bubble.right"
         onClick={() => togglePanel("agentChat")}
         active={Boolean(panels.agentChat?.visible)}
       />
+      {!SIMPLE_EDITOR && (
       <RailButton
         label="Project JSON / Comments"
         icon="curlybraces"
         onClick={() => openModal("scriptView")}
       />
+      )}
 
       <div className="flex-1" />
 
@@ -172,7 +181,7 @@ export const EditorActionRail: React.FC = () => {
             icon: <Settings size={14} aria-hidden />,
             onClick: () => openSettings(),
           },
-          {
+          ...(SIMPLE_EDITOR ? [] : [{
             label: "Screen recorder",
             icon: (
               <Circle
@@ -182,7 +191,7 @@ export const EditorActionRail: React.FC = () => {
               />
             ),
             onClick: () => openModal("recorder"),
-          },
+          }]),
           { type: "divider" },
           {
             label: "Editor tour",
@@ -206,11 +215,11 @@ export const EditorActionRail: React.FC = () => {
             icon: <HelpCircle size={14} aria-hidden />,
             isDisabled: true,
           },
-          {
+          ...(SIMPLE_EDITOR ? [] : [{
             label: "Project JSON",
             icon: <FileCode size={14} aria-hidden />,
             isDisabled: true,
-          },
+          }]),
           {
             label: "Cmd+K to search",
             icon: <Command size={14} aria-hidden />,

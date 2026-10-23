@@ -1,4 +1,5 @@
 import React, { useState, useCallback } from "react";
+import { HIDDEN_AI_FEATURES } from "../../hawsh/simple";
 import {
   Mic,
   Subtitles,
@@ -174,6 +175,7 @@ export const AIGenTab: React.FC = () => {
         </div>
 
         <FeatureSection title="Content Generation" icon={Wand2}>
+          {!HIDDEN_AI_FEATURES.has("tts") && (
           <FeatureCard
             icon={Mic}
             title="Text to Speech"
@@ -186,6 +188,7 @@ export const AIGenTab: React.FC = () => {
             isActive={activeFeature === "tts"}
             onClick={() => handleFeatureClick("tts")}
           />
+          )}
           <FeatureCard
             icon={Subtitles}
             title="Auto Captions"
@@ -201,6 +204,7 @@ export const AIGenTab: React.FC = () => {
         </FeatureSection>
 
         <FeatureSection title="Templates & Presets" icon={FileStack}>
+          {!HIDDEN_AI_FEATURES.has("templates") && (
           <FeatureCard
             icon={Layers}
             title="Project Templates"
@@ -213,6 +217,7 @@ export const AIGenTab: React.FC = () => {
             isActive={activeFeature === "templates"}
             onClick={() => handleFeatureClick("templates")}
           />
+          )}
           <FeatureCard
             icon={Palette}
             title="Filter Presets"
@@ -227,7 +232,9 @@ export const AIGenTab: React.FC = () => {
           />
         </FeatureSection>
 
+        {!HIDDEN_AI_FEATURES.has("music") && (
         <FeatureSection title="Media Library" icon={Volume2}>
+          {!HIDDEN_AI_FEATURES.has("music") && (
           <FeatureCard
             icon={Music}
             title="Music & Sound Effects"
@@ -240,9 +247,13 @@ export const AIGenTab: React.FC = () => {
             isActive={activeFeature === "music"}
             onClick={() => handleFeatureClick("music")}
           />
+          )}
         </FeatureSection>
+        )}
 
+        {!HIDDEN_AI_FEATURES.has("multicam") && (
         <FeatureSection title="Tools" icon={Video}>
+          {!HIDDEN_AI_FEATURES.has("multicam") && (
           <FeatureCard
             icon={Video}
             title="Multi-Camera Editing"
@@ -255,7 +266,9 @@ export const AIGenTab: React.FC = () => {
             isActive={activeFeature === "multicam"}
             onClick={() => handleFeatureClick("multicam")}
           />
+          )}
         </FeatureSection>
+        )}
 
         <div className="pt-2 border-t border-border">
           <Text type="supporting" color="secondary" display="block" justify="center" className="text-[9px]">

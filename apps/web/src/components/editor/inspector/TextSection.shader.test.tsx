@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   cleanup,
   fireEvent,
@@ -12,6 +12,9 @@ import { createEmptyProject } from "../../../stores/project/project-helpers";
 import { useEngineStore } from "../../../stores/engine-store";
 import { useProjectStore } from "../../../stores/project-store";
 import { TextSection } from "./TextSection";
+
+// These tests cover OpenReel features the Hawsh simple editor hides; test them with the full UI.
+vi.mock("../../../hawsh/simple", () => ({ SIMPLE_EDITOR: false, HIDDEN_ASSET_TABS: new Set(), HIDDEN_AI_FEATURES: new Set(), HIDDEN_INSPECTOR_SECTIONS: new Set(), isHiddenSection: () => false }));
 
 const CLIP_ID = "text-shader-clip";
 const originalShowPopover = HTMLElement.prototype.showPopover;

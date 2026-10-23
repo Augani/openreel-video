@@ -4,6 +4,9 @@ import type { SourceExportMatch } from "../../services/export-source-match";
 import { ExportDialog } from "./ExportDialog";
 import { checkBrowserExportCapability } from "@openreel/core";
 
+// These tests cover OpenReel features the Hawsh simple editor hides; test them with the full UI.
+vi.mock("../../hawsh/simple", () => ({ SIMPLE_EDITOR: false, HIDDEN_ASSET_TABS: new Set(), HIDDEN_AI_FEATURES: new Set(), HIDDEN_INSPECTOR_SECTIONS: new Set(), isHiddenSection: () => false }));
+
 vi.mock("@openreel/core", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@openreel/core")>();
   return {

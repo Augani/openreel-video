@@ -1,4 +1,5 @@
 import React, { useCallback, useRef, useState } from "react";
+import { HIDDEN_ASSET_TABS, SIMPLE_EDITOR } from "../../hawsh/simple";
 import {
   Image as ImageIcon, Film, Music, Plus, Upload, Trash2,
   Square, Circle, Triangle, Star, ArrowRight, Hexagon, FileCode, AlertTriangle,
@@ -1033,6 +1034,7 @@ export const AssetsPanel: React.FC = () => {
                   </svg>
                   Import
                 </button>
+                {!SIMPLE_EDITOR && ( // Hawsh simple editor: no recording
                 <button
                   type="button"
                   aria-label="Record"
@@ -1052,6 +1054,7 @@ export const AssetsPanel: React.FC = () => {
                   </svg>
                   Record
                 </button>
+                )}
                 <button
                   type="button"
                   aria-label="Sort media"
@@ -1297,6 +1300,7 @@ export const AssetsPanel: React.FC = () => {
                   </div>
                 </div>
 
+                {!SIMPLE_EDITOR && ( // Hawsh simple editor: hidden
                 <div className="mb-6">
                   <Text type="label" color="secondary" weight="bold" display="block" className="mb-3 text-xs">
                     3D Objects
@@ -1352,7 +1356,9 @@ export const AssetsPanel: React.FC = () => {
                     ))}
                   </div>
                 </div>
+                )}
 
+                {!SIMPLE_EDITOR && ( // Hawsh simple editor: hidden
                 <div className="mb-6">
                   <Text type="label" color="secondary" weight="bold" display="block" className="mb-3 text-xs">
                     SVG Import
@@ -1397,6 +1403,7 @@ export const AssetsPanel: React.FC = () => {
                     </span>
                   </PanelButton>
                 </div>
+                )}
 
                 <div className="mb-6">
                   <StickerPickerPanel />
@@ -1532,7 +1539,7 @@ export const AssetsPanel: React.FC = () => {
     >
       {/* ── Vertical tool rail (icon + label, left) ───────────── */}
       <div className="flex flex-col items-center gap-1 px-0 py-[14px] border-r border-border bg-bg-1 overflow-y-auto scrollbar-none shrink-0 w-[92px]">
-        {ASSETS_TABS.map((tab) => {
+        {ASSETS_TABS.filter((tab) => !HIDDEN_ASSET_TABS.has(tab.value)).map((tab) => {
           const Icon = TAB_ICONS[tab.value];
           const isActive = activeTab === tab.value;
           return (

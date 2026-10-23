@@ -11,6 +11,9 @@ import { InspectorPanel } from "../InspectorPanel";
 
 import { loadAudioBuffer } from "../../../utils/load-audio-buffer";
 import { analyzeMulticamSyncInWorker } from "./multicam-workflow";
+
+// These tests cover OpenReel features the Hawsh simple editor hides; test them with the full UI.
+vi.mock("../../../hawsh/simple", () => ({ SIMPLE_EDITOR: false, HIDDEN_ASSET_TABS: new Set(), HIDDEN_AI_FEATURES: new Set(), HIDDEN_INSPECTOR_SECTIONS: new Set(), isHiddenSection: () => false }));
 vi.mock("../../../utils/load-audio-buffer", () => ({ loadAudioBuffer: vi.fn() }));
 vi.mock("../../../services/multicam-analysis-store", () => ({ saveMulticamArtifact: vi.fn().mockResolvedValue("artifact"), loadMulticamArtifact: vi.fn() }));
 vi.mock("@openreel/core", async (original) => ({ ...await original<typeof import("@openreel/core")>(), analyzeSileroVad: vi.fn() }));
