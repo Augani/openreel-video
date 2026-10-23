@@ -1,6 +1,6 @@
 /** Network side of the Director's Eyes library: list, import into the project, save an export. */
 import { HAWSH_LIBRARY_MAX_BYTES, HAWSH_PAGE_SIZE, HAWSH_REF_BUCKET } from "./config";
-import { exportProblem, imageJobItems, importFileName, referenceItems, videoJobItems, type HawshItem, type HawshKind, type HawshSource } from "./library";
+import { exportBody, exportProblem, imageJobItems, importFileName, referenceItems, videoJobItems, type HawshItem, type HawshKind, type HawshSource } from "./library";
 import { hawshClient, useHawshStore } from "./session";
 
 function signedIn() {
@@ -58,8 +58,9 @@ export async function saveExportToLibrary(blob: Blob, filename: string): Promise
   const { c, uid } = signedIn();
   const problem = exportProblem(blob, filename, HAWSH_LIBRARY_MAX_BYTES);
   if (problem) throw new Error(problem);
-  const mov = filename.toLowerCase().endsWith(".mov") || blob.type === "video/quicktime";
-  const mime = mov ? "video/quicktime" : "video/mp4";
+  const body = exportBody(blob, filename);
+  const mime = body.type;
+  const mov = mime === "video/quicktime";
   const hash = await sha256Hex(blob);
   const title = filename.replace(/\.[^.]+$/, "").slice(0, 80) || "Edited video";
   const { data: existing } = await c.from("director_ref_library").select("id").eq("user_id", uid).eq("content_sha256", hash).maybeSingle();
@@ -68,7 +69,7 @@ export async function saveExportToLibrary(blob: Blob, filename: string): Promise
     return { reused: true };
   }
   const path = `${uid}/${crypto.randomUUID()}.${mov ? "mov" : "mp4"}`;
-  const { error: upErr } = await c.storage.from(HAWSH_REF_BUCKET).upload(path, blob, { contentType: mime, upsert: false });
+  const { error: upErr } = await c.storage.from(HAWSH_REF_BUCKET).upload(path, body, { contentType: mime, upsert: false });
   if (upErr) throw new Error("Upload failed. Check your connection and try again.");
   const { error } = await c.from("director_ref_library").insert({
     user_id: uid, path, kind: "video", mime, bytes: blob.size, source: "upload", title, role: null, content_sha256: hash,
