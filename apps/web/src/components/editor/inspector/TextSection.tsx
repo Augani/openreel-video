@@ -1,4 +1,5 @@
 import React, { useCallback, useMemo, useState } from "react";
+import { SIMPLE_EDITOR } from "../../../hawsh/simple";
 import { ensureFontFamily } from "../../../services/project-fonts";
 import { ToolcraftSegmentedControl } from "@openreel/ui";
 import { ToolcraftCard as Card } from "@openreel/ui";
@@ -574,10 +575,12 @@ export const TextSection: React.FC<TextSectionProps> = ({ clipId, clipIds }) => 
         </div>
       </Card>
 
+      {!SIMPLE_EDITOR && (
       <TextShaderControls
         shader={style.shader}
         onChange={(shader) => handleStyleChange({ shader })}
       />
+      )}
 
       <Text3DControls clipId={clipId} clipIds={targetClipIds} />
     </div>

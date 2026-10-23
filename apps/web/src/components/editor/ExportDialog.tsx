@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
+import { SIMPLE_EDITOR } from "../../hawsh/simple";
 import {
   Download,
   Settings,
@@ -596,7 +597,7 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
                 options={[
                   { value: "presets", label: "Presets" },
                   { value: "reduce", label: "Smaller File" },
-                  { value: "custom", label: "Custom Settings" },
+                  ...(SIMPLE_EDITOR ? [] : [{ value: "custom" as const, label: "Custom Settings" }]),
                 ]}
               />
 

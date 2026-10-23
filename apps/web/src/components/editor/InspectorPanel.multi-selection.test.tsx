@@ -1,5 +1,5 @@
 import "../../test/install-local-storage-mock";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   cleanup,
   fireEvent,
@@ -13,6 +13,9 @@ import { useEngineStore } from "../../stores/engine-store";
 import { useProjectStore } from "../../stores/project-store";
 import { useUIStore } from "../../stores/ui-store";
 import { InspectorPanel } from "./InspectorPanel";
+
+// These tests cover OpenReel features the Hawsh simple editor hides; test them with the full UI.
+vi.mock("../../hawsh/simple", () => ({ SIMPLE_EDITOR: false, HIDDEN_ASSET_TABS: new Set(), HIDDEN_AI_FEATURES: new Set(), HIDDEN_INSPECTOR_SECTIONS: new Set(), isHiddenSection: () => false }));
 
 const TRACK_ID = "batch-track";
 const CLIP_IDS = ["batch-a", "batch-b"];

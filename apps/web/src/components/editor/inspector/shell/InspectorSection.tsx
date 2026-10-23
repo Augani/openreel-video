@@ -2,6 +2,7 @@ import React from "react";
 import { ToolcraftPanelSection } from "@openreel/ui";
 import { useInspectorNavigationStore } from "../../../../stores/inspector-navigation-store";
 import { useUIStore } from "../../../../stores/ui-store";
+import { isHiddenSection } from "../../../../hawsh/simple";
 
 export interface InspectorSectionProps {
   title: string;
@@ -10,7 +11,11 @@ export interface InspectorSectionProps {
   children: React.ReactNode;
 }
 
-export const InspectorSection: React.FC<InspectorSectionProps> = ({
+/** Hawsh simple editor: hidden sections render nothing (src/hawsh/simple.ts). */
+export const InspectorSection: React.FC<InspectorSectionProps> = (props) =>
+  isHiddenSection(props.sectionId) ? null : <InspectorSectionBody {...props} />;
+
+const InspectorSectionBody: React.FC<InspectorSectionProps> = ({
   title,
   defaultOpen = false,
   sectionId,

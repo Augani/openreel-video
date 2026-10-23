@@ -1,4 +1,5 @@
 import React from "react";
+import { SIMPLE_EDITOR } from "../../../../hawsh/simple";
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp } from "@/icons/lucide-compat";
 import { ToolcraftClickableCard as ClickableCard } from "@openreel/ui";
 import { ToolcraftText as Text } from "@openreel/ui";
@@ -383,7 +384,7 @@ export const TransformTab: React.FC<TransformTabProps> = ({
         clipType === "svg" ||
         clipType === "sticker") && (
         <div className="mb-4" data-section-id="blending">
-          <BlendingSection clipId={clipId} />
+          {!SIMPLE_EDITOR && <BlendingSection clipId={clipId} />}
         </div>
       )}
 

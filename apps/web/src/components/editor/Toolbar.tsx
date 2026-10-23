@@ -1,4 +1,5 @@
 import React, { useCallback, useState, useEffect, useMemo } from "react";
+import { SIMPLE_EDITOR } from "../../hawsh/simple";
 import {
   X,
   Settings,
@@ -530,6 +531,7 @@ export const Toolbar: React.FC = () => {
                 )}
 
                 <div className="my-1 border-t border-border" />
+                {!SIMPLE_EDITOR && (
                 <DropdownMenuItem
                   icon={<Settings size={18} aria-hidden />}
                   label="Custom export..."
@@ -537,6 +539,7 @@ export const Toolbar: React.FC = () => {
                   endContent={<MoreHorizontal size={14} className="text-fg-muted" aria-hidden />}
                   onClick={openExportDialog}
                 />
+                )}
                 <DropdownMenuItem
                   icon={<Video size={18} aria-hidden />}
                   label="Compress video..."
