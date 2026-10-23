@@ -251,3 +251,12 @@
   pointer-events: none;
   font-weight: 500;
 }
+
+/* Arabic UI (Hawsh Khalifa build, see src/hawsh/i18n): elements whose text was translated.
+   Cairo for the Arabic letters, no letter-spacing (it breaks Arabic joining), and each line takes its
+   direction from its own text so punctuation sits on the correct side inside the LTR editor layout. */
+[data-ar] {
+  font-family: "Inter", "Cairo", system-ui, sans-serif;
+  letter-spacing: normal !important;
+  unicode-bidi: plaintext;
+}
