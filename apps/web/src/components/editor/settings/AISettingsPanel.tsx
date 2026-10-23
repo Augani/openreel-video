@@ -1,7 +1,8 @@
 import { ToolcraftButton as Button, ToolcraftSwitchControl } from "@openreel/ui";
 import { useChatStore } from "../../../stores/chat-store";
 import { useSettingsStore } from "../../../stores/settings-store";
-import { AIConnectionPanel } from "./AIConnectionPanel";
+// Hawsh Khalifa build: AI editing runs only on Director's Eyes points (no provider/key fields).
+import { AIConnectionNotice as AIConnectionPanel } from "../../../hawsh/AIConnectionNotice";
 
 export function AISettingsPanel() {
   const status = useChatStore((state) => state.status);

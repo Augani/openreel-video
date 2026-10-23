@@ -3,13 +3,14 @@ import type { RunTurnInput, RunTurnResult } from "@openreel/agent";
 
 const h = vi.hoisted(() => ({
   runTurn: vi.fn(),
-  connection: { provider: "compatible", model: "account-tool-model", baseUrl: "https://gateway.example/v1", apiKey: "test-key" },
+  connection: { provider: "compatible", model: "account-tool-model", baseUrl: "https://hawsh.test/functions/v1/editor-ai", apiKey: "" },
   toOpenAITools: vi.fn((_names: Iterable<string>) => []),
   getTool: vi.fn((_name: string): { domain: string } => ({ domain: "read" })),
   selectToolsForPrompt: vi.fn((_context: string): string[] => []),
   getSecret: vi.fn(async () => "test-key"),
   isSessionUnlocked: vi.fn(() => true),
   makeBYOKClient: vi.fn(() => ({ complete: vi.fn() })),
+  makeHawshClient: vi.fn(() => ({ complete: vi.fn() })),
   undo: vi.fn(async () => ({ success: true })),
   projectState: { hasOpenProject: true, projectId: "project-a" },
   undoStackSize: 0,
@@ -42,6 +43,11 @@ vi.mock("../services/agent/live-host", () => ({
 }));
 
 vi.mock("../services/agent/direct-llm-transport", () => ({ makeDirectBYOKClient: h.makeBYOKClient, validateAIEndpoint: (url: string) => url.replace(/\/(chat\/completions|messages)\/?$/, "").replace(/\/+$/, "") }));
+vi.mock("../hawsh/ai", () => ({
+  HAWSH_AI_ONLY_MESSAGE: "المونتاج الذكي يعمل فقط برصيد عيون المخرج",
+  isHawshAI: (url: string) => url.replace(/\/+$/, "") === "https://hawsh.test/functions/v1/editor-ai",
+  makeHawshAIClient: h.makeHawshClient,
+}));
 vi.mock("../services/agent/editing-session", () => ({ EditingSession: class { committed = true; } }));
 vi.mock("../services/agent/editing-tools", () => ({ editingToolDefs: () => [], editingToolReadOnly: () => false, executeEditingTool: vi.fn(), EDITING_SYSTEM: "system" }));
 vi.mock("./ai-connection-store", () => ({ useAIConnectionStore: { getState: () => h.connection } }));
@@ -92,9 +98,8 @@ describe("chat-store", () => {
     h.undo.mockResolvedValue({ success: true });
     h.projectState.hasOpenProject = true;
     h.projectState.projectId = "project-a";
-    Object.assign(h.connection, { provider: "compatible", model: "account-tool-model", baseUrl: "https://gateway.example/v1", apiKey: "test-key" });
+    Object.assign(h.connection, { provider: "compatible", model: "account-tool-model", baseUrl: "https://hawsh.test/functions/v1/editor-ai", apiKey: "" });
     h.connection.provider = "compatible";
-    h.connection.baseUrl = "https://gateway.example/v1";
     h.connection.model = "account-tool-model";
     h.settings.configuredServices = ["openai-compatible"];
     h.settings.agentAutoConfirm = false;
@@ -112,11 +117,22 @@ describe("chat-store", () => {
     expect(store().status).toBe("idle");
   });
 
-  it("refuses to run when a required session key is missing", async () => {
-    h.connection.provider = "openai"; h.connection.apiKey = "";
+  it("refuses any connection other than Director's Eyes points", async () => {
+    Object.assign(h.connection, { provider: "openai", baseUrl: "https://api.openai.com/v1", model: "gpt-4o", apiKey: "sk-own" });
     await store().send("hello");
     expect(h.runTurn).not.toHaveBeenCalled();
-    expect(store().error).toMatch(/session API key/i);
+    expect(h.makeHawshClient).not.toHaveBeenCalled();
+    expect(store().error).toMatch(/عيون المخرج/);
+  });
+
+  it("runs on Director's Eyes points without a key", async () => {
+    h.runTurn.mockImplementation(
+      impl(async ({ messages }) => ({ text: "ok", messages, toolCalls: 0, stoppedReason: "end_turn", committed: true })),
+    );
+    await store().send("hello");
+    expect(h.makeHawshClient).toHaveBeenCalledOnce();
+    expect(h.makeBYOKClient).not.toHaveBeenCalled();
+    expect(h.runTurn).toHaveBeenCalledOnce();
   });
 
   it("ignores empty input", async () => {
@@ -251,60 +267,8 @@ describe("chat-store", () => {
     expect(store().messages.at(-1)?.notice).toMatch(/response or token limit/i);
   });
 
-  it("passes a custom provider model ID through to the BYOK client", async () => {
-    h.connection.model = "gpt-custom-account-model";
-    h.runTurn.mockImplementation(
-      impl(async ({ messages }) => ({
-        text: "ok",
-        messages,
-        toolCalls: 0,
-        stoppedReason: "end_turn",
-        committed: true,
-      })),
-    );
-
-    await store().send("hello");
-
-    expect(h.makeBYOKClient).toHaveBeenCalledWith(
-      expect.objectContaining({
-        provider: "compatible",
-        model: "gpt-custom-account-model",
-      }),
-    );
-  });
-
-  it("runs against a keyless OpenAI-compatible endpoint", async () => {
-    Object.assign(h.connection, { provider: "compatible", model: "account-tool-model", baseUrl: "https://gateway.example/v1", apiKey: "test-key" });
-    h.connection.provider = "compatible";
-    h.connection.baseUrl = "http://localhost:11434/v1/";
-    h.connection.model = "llama3.2";
-    h.settings.configuredServices = []; h.connection.apiKey = "";
-    h.runTurn.mockImplementation(
-      impl(async ({ messages }) => ({
-        text: "ok",
-        messages,
-        toolCalls: 0,
-        stoppedReason: "end_turn",
-        committed: true,
-      })),
-    );
-
-    await store().send("hello local model");
-
-    expect(h.getSecret).not.toHaveBeenCalled();
-    expect(h.makeBYOKClient).toHaveBeenCalledWith(
-      expect.objectContaining({
-        provider: "compatible",
-        model: "llama3.2",
-        baseUrl: "http://localhost:11434/v1",
-        apiKey: "",
-      }),
-    );
-    expect(h.runTurn).toHaveBeenCalledOnce();
-  });
-
   it("blocks a compatible provider until endpoint and model are configured", async () => {
-    Object.assign(h.connection, { provider: "compatible", model: "account-tool-model", baseUrl: "https://gateway.example/v1", apiKey: "test-key" });
+    Object.assign(h.connection, { provider: "compatible", model: "account-tool-model", baseUrl: "https://hawsh.test/functions/v1/editor-ai", apiKey: "" });
     h.connection.provider = "compatible";
     h.connection.model = "";
 
@@ -321,34 +285,6 @@ describe("chat-store", () => {
 
     expect(h.runTurn).not.toHaveBeenCalled();
     expect(store().error).toMatch(/api format/i);
-  });
-
-  it("runs against an Anthropic-compatible endpoint", async () => {
-    h.connection.provider = "anthropic";
-    h.connection.baseUrl = "https://anthropic-gateway.example/v1/messages";
-    h.connection.model = "gateway/claude-tool-model";
-    h.settings.configuredServices = []; h.connection.apiKey = "test-key";
-    h.runTurn.mockImplementation(
-      impl(async ({ messages }) => ({
-        text: "ok",
-        messages,
-        toolCalls: 0,
-        stoppedReason: "end_turn",
-        committed: true,
-      })),
-    );
-
-    await store().send("hello compatible model");
-
-    expect(h.makeBYOKClient).toHaveBeenCalledWith(
-      expect.objectContaining({
-        provider: "anthropic",
-        model: "gateway/claude-tool-model",
-        baseUrl: "https://anthropic-gateway.example/v1",
-        apiKey: "test-key",
-      }),
-    );
-    expect(h.runTurn).toHaveBeenCalledOnce();
   });
 
   it("clears the conversation when the open project changes", async () => {

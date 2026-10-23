@@ -1,22 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { AI_PROVIDER_DEFAULTS } from "../stores/ai-connection-store";
-import { HAWSH_AI_MODEL, HAWSH_AI_URL, isHawshAI, nextConnection } from "./ai";
+import { useAIConnectionStore } from "../stores/ai-connection-store";
+import { HAWSH_AI_MODEL, HAWSH_AI_URL, initHawshAI, isHawshAI } from "./ai";
 
-const def = { provider: "openai" as const, ...AI_PROVIDER_DEFAULTS.openai, apiKey: "" };
-const hawsh = { provider: "compatible" as const, baseUrl: HAWSH_AI_URL, model: HAWSH_AI_MODEL, apiKey: "" };
-
-describe("nextConnection", () => {
-  it("switches an untouched connection to Director's Eyes on sign-in", () => {
-    expect(nextConnection(true, def)).toEqual(hawsh);
-  });
-  it("never overwrites a connection the user set up", () => {
-    expect(nextConnection(true, { ...def, apiKey: "sk-123" })).toBeNull();
-    expect(nextConnection(true, { provider: "anthropic", ...AI_PROVIDER_DEFAULTS.anthropic, apiKey: "" })).toBeNull();
-    expect(nextConnection(true, hawsh)).toBeNull();
-  });
-  it("goes back to the default on sign-out only when it was on Director's Eyes", () => {
-    expect(nextConnection(false, hawsh)).toEqual(def);
-    expect(nextConnection(false, { ...def, apiKey: "sk-123" })).toBeNull();
+describe("initHawshAI", () => {
+  it("fixes the AI Editor connection to Director's Eyes points, replacing any own key", () => {
+    useAIConnectionStore.getState().configure({ provider: "openai", baseUrl: "https://api.openai.com/v1", model: "gpt-4o", apiKey: "sk-123" });
+    initHawshAI();
+    const s = useAIConnectionStore.getState();
+    expect({ provider: s.provider, baseUrl: s.baseUrl, model: s.model, apiKey: s.apiKey })
+      .toEqual({ provider: "compatible", baseUrl: HAWSH_AI_URL, model: HAWSH_AI_MODEL, apiKey: "" });
   });
 });
 

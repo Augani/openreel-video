@@ -10,8 +10,8 @@ import type {
   LoopMessage,
 } from "@openreel/agent";
 import { runExclusive } from "../services/agent/host-singleton";
-import { makeDirectBYOKClient, validateAIEndpoint } from "../services/agent/direct-llm-transport";
-import { isHawshAI, makeHawshAIClient } from "../hawsh/ai";
+import { validateAIEndpoint } from "../services/agent/direct-llm-transport";
+import { HAWSH_AI_ONLY_MESSAGE, isHawshAI, makeHawshAIClient } from "../hawsh/ai";
 import { EditingSession } from "../services/agent/editing-session";
 import { editingToolDefs, editingToolReadOnly, executeEditingTool, EDITING_SYSTEM } from "../services/agent/editing-tools";
 import { useAIConnectionStore } from "./ai-connection-store";
@@ -260,14 +260,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     const host = new EditingSession(controller.signal);
     let llm;
-    // Hawsh Khalifa build: the Director's Eyes connection runs on the user's points (src/hawsh/ai.ts).
-    try { llm = isHawshAI(baseUrl) ? makeHawshAIClient(controller.signal) : makeDirectBYOKClient({
-      provider,
-      model,
-      baseUrl,
-      apiKey,
-      signal: controller.signal,
-    }); } catch (error) {
+    // Hawsh Khalifa build: AI editing runs only on Director's Eyes points (src/hawsh/ai.ts).
+    if (!isHawshAI(baseUrl)) {
+      set({ status: "error", error: HAWSH_AI_ONLY_MESSAGE, abortController: null });
+      return;
+    }
+    try { llm = makeHawshAIClient(controller.signal); } catch (error) {
       set({ status: "error", error: error instanceof Error ? error.message : "Invalid connection settings", abortController: null });
       return;
     }
