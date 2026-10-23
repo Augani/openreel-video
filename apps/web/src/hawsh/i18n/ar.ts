@@ -418,6 +418,7 @@ export const AR: Record<string, string> = {
 
   // AI Generate / Recipes / Templates tabs
   "AI-Powered Tools": "أدوات بالذكاء الاصطناعي",
+  "Back to AI Tools": "رجوع لأدوات الذكاء الاصطناعي",
   "Automate your editing with intelligent features": "أتمت المونتاج بميزات ذكية",
   "Content Generation": "توليد المحتوى",
   "Text to Speech": "تحويل النص إلى كلام",

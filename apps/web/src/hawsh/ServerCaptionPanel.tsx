@@ -91,7 +91,7 @@ export const ServerCaptionPanel: React.FC<Props> = ({ clipId, maxWordsPerLine = 
 
   if (!signedIn) {
     return (
-      <div data-no-translate=""><Card variant="muted" padding={3} className="space-y-2">
+      <div data-no-translate="" dir="rtl"><Card variant="muted" padding={3} className="space-y-2">
         <Text type="supporting" className="block text-[11px] text-fg">الترجمة التلقائية تعمل بنقاط عيون المخرج.</Text>
         <a href={HAWSH_EDITOR_PAGE} target="_blank" rel="noopener noreferrer" className="text-[11px] text-primary underline">
           افتح المحرر من عيون المخرج
@@ -101,7 +101,7 @@ export const ServerCaptionPanel: React.FC<Props> = ({ clipId, maxWordsPerLine = 
   }
 
   return (
-    <div className="w-full min-w-0 space-y-3" data-no-translate="">
+    <div className="w-full min-w-0 space-y-3" data-no-translate="" dir="rtl">
       <Card variant="muted" padding={3} className="space-y-3">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-1.5">
