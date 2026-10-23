@@ -11,6 +11,7 @@ import type {
 } from "@openreel/agent";
 import { runExclusive } from "../services/agent/host-singleton";
 import { makeDirectBYOKClient, validateAIEndpoint } from "../services/agent/direct-llm-transport";
+import { isHawshAI, makeHawshAIClient } from "../hawsh/ai";
 import { EditingSession } from "../services/agent/editing-session";
 import { editingToolDefs, editingToolReadOnly, executeEditingTool, EDITING_SYSTEM } from "../services/agent/editing-tools";
 import { useAIConnectionStore } from "./ai-connection-store";
@@ -259,7 +260,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     const host = new EditingSession(controller.signal);
     let llm;
-    try { llm = makeDirectBYOKClient({
+    // Hawsh Khalifa build: the Director's Eyes connection runs on the user's points (src/hawsh/ai.ts).
+    try { llm = isHawshAI(baseUrl) ? makeHawshAIClient(controller.signal) : makeDirectBYOKClient({
       provider,
       model,
       baseUrl,
