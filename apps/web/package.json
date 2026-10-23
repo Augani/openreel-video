@@ -25,6 +25,7 @@
     "@openreel/core": "workspace:*",
     "@openreel/ui": "workspace:*",
     "@paper-design/shaders-react": "^0.0.76",
+    "@supabase/supabase-js": "2.49.4",
     "@types/react-syntax-highlighter": "^15.5.13",
     "@types/uuid": "^11.0.0",
     "framer-motion": "^12.23.24",

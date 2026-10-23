@@ -36,6 +36,7 @@ import { useKieAIStore } from "../../stores/kieai-store";
 import { StickerPickerPanel } from "./inspector/StickerPickerPanel";
 import { insertTimelineOverlay } from "../../stores/project/insert-timeline-overlay";
 import { PreviewProxyBadge, PreviewProxyControls } from "./PreviewProxyControls";
+import { HawshLibraryButton } from "../../hawsh/HawshLibrary";
 
 const formatDuration = (seconds: number): string => {
   const mins = Math.floor(seconds / 60);
@@ -1009,6 +1010,7 @@ export const AssetsPanel: React.FC = () => {
           <div className="flex min-h-0 flex-1 flex-col">
             <div className="px-4 pt-[18px] shrink-0">
               <div className="font-bold text-[18px] text-fg mb-[14px]">Media</div>
+              <HawshLibraryButton />
               <div className="flex gap-2 mb-[18px]">
                 <button
                   type="button"

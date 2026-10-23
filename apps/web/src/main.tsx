@@ -10,6 +10,8 @@ import { registerServiceWorker } from "./services/service-worker";
 import { initCustomFonts } from "./components/editor/inspector/font-options";
 import { setEncoderBackendFactory } from "@openreel/core";
 import { NativeFFmpegBackend } from "./services/native-ffmpeg-backend";
+import { takeHandoff } from "./hawsh/handoff";
+import { initHawsh } from "./hawsh/session";
 
 const DesktopApp = React.lazy(() =>
   import("./desktop/DesktopApp").then((module) => ({
@@ -30,6 +32,9 @@ if (isDesktop) {
       ),
   );
 }
+
+// Director's Eyes sign-in: strip the one-time code from the address bar before the router reads the hash.
+void initHawsh(takeHandoff());
 
 registerServiceWorker().then((registration) => {
   if (registration) {
