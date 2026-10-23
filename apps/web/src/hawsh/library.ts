@@ -75,3 +75,13 @@ export function exportProblem(blob: Pick<Blob, "size" | "type">, filename: strin
   if (blob.size > maxBytes) return `The export is larger than ${Math.round(maxBytes / 1024 / 1024)} MB, the library limit. Export a shorter or smaller video.`;
   return null;
 }
+
+/**
+ * The export as the bucket expects it: video/mp4 or video/quicktime. Streamed (OPFS) exports come back
+ * untyped, and storage-js would send them as application/octet-stream, which director-refs rejects.
+ */
+export function exportBody(blob: Blob, filename: string): Blob {
+  const mov = filename.toLowerCase().endsWith(".mov") || blob.type === "video/quicktime";
+  const mime = mov ? "video/quicktime" : "video/mp4";
+  return blob.type === mime ? blob : new Blob([blob], { type: mime });
+}

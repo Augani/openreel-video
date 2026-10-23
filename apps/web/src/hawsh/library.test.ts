@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { exportProblem, imageJobItems, importFileName, referenceItems, videoJobItems } from "./library";
+import { exportBody, exportProblem, imageJobItems, importFileName, referenceItems, videoJobItems } from "./library";
 
 describe("library rows", () => {
   it("expands image jobs into one item per image", () => {
@@ -49,5 +49,19 @@ describe("exportProblem", () => {
     expect(exportProblem({ size: 5 * MB, type: "video/webm" }, "a.webm", 100 * MB)).toMatch(/MP4/);
     expect(exportProblem({ size: 0, type: "video/mp4" }, "a.mp4", 100 * MB)).toMatch(/empty/);
     expect(exportProblem({ size: 101 * MB, type: "video/mp4" }, "a.mp4", 100 * MB)).toMatch(/100 MB/);
+  });
+});
+
+describe("exportBody", () => {
+  it("gives an untyped browser export the video type the storage bucket accepts", () => {
+    const mp4 = exportBody(new Blob([new Uint8Array(8)]), "New Project.mp4");
+    expect(mp4.type).toBe("video/mp4");
+    expect(mp4.size).toBe(8);
+    expect(exportBody(new Blob([new Uint8Array(8)]), "clip.MOV").type).toBe("video/quicktime");
+    expect(exportBody(new Blob([new Uint8Array(8)], { type: "video/quicktime" }), "clip").type).toBe("video/quicktime");
+  });
+  it("keeps an already typed blob as is", () => {
+    const typed = new Blob([new Uint8Array(8)], { type: "video/mp4" });
+    expect(exportBody(typed, "a.mp4")).toBe(typed);
   });
 });
