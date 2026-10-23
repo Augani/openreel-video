@@ -71,7 +71,9 @@ export const AR: Record<string, string> = {
   "Action history": "سجل الإجراءات",
   "Keyframe editor": "محرر الإطارات المفتاحية",
   "Audio mixer": "خلاط الصوت",
-  "AI Editor chat": "محادثة المحرر الذكي",
+  "AI Editor chat": "مساعد المونتاج",
+  "AI settings": "إعدادات مساعد المونتاج",
+  "You can change these settings when the current edit finishes.": "تقدر تغيّر هذه الإعدادات بعد انتهاء التعديل الحالي.",
   "Project JSON / Comments": "ملف المشروع JSON / التعليقات",
   "More editor actions": "إجراءات أخرى",
   "Settings & API keys": "الإعدادات ومفاتيح API",
@@ -954,8 +956,8 @@ export const AR: Record<string, string> = {
   "Rendering": "جارٍ المعالجة",
 
   // ── AI editing mode and settings ────────────────────────────────────────
-  "AI Editor": "المحرر الذكي",
-  "Loading AI Editor…": "جارٍ تحميل المحرر الذكي…",
+  "AI Editor": "مساعد المونتاج",
+  "Loading AI Editor…": "جارٍ تحميل مساعد المونتاج…",
   "Edit JSON & reusable presets": "تعديل JSON والإعدادات القابلة لإعادة الاستخدام",
   "Edit by chatting": "عدّل بالمحادثة",
   "Describe an edit in plain language and the AI will perform it on your timeline.": "صف التعديل بكلامك والذكاء الاصطناعي ينفّذه على الخط الزمني.",
