@@ -1,4 +1,6 @@
 import "./ai-workspace.css";
+import { usePhoneEditor } from "../../hawsh/mobile/phone";
+import { MobileEditor } from "../../hawsh/mobile/MobileEditor";
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import { ToolcraftText as Text, ToolcraftButton as Button } from "@openreel/ui";
 
@@ -85,6 +87,7 @@ const useAutoSave = () => {
  */
 export const EditorInterface: React.FC = () => {
   const compact = useCompactEditor();
+  const phone = usePhoneEditor(); // Hawsh phone editor (src/hawsh/mobile)
   const [compactPanel, setCompactPanel] = useState<"timeline" | "media" | "inspector" | "chat">("timeline");
   const [hasOpenedChat, setHasOpenedChat] = useState(false);
   const { initialized, initializing, initError, initStatus, retry } =
@@ -332,6 +335,8 @@ export const EditorInterface: React.FC = () => {
       </div>
     );
   }
+
+  if (phone) return <MobileEditor />;
 
   // ── Render ───────────────────────────────────────────────────────
   // Grid template uses inline CSS for the resizable columns. The CSS

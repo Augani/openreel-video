@@ -839,7 +839,7 @@ interface ClipWithPlaceholder {
   isPlaceholder?: boolean;
 }
 
-export const Preview: React.FC = () => {
+export const Preview: React.FC<{ hideControls?: boolean }> = ({ hideControls = false }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const videoAreaRef = useRef<HTMLDivElement>(null);
@@ -7658,7 +7658,7 @@ export const Preview: React.FC = () => {
       className="w-full h-full min-h-0 min-w-0 bg-stage-bg flex flex-col relative group overflow-hidden outline-none"
     >
       {/* ── Panel bar header (mockup: 'Player') ───────────────── */}
-      {!isMaximized && !isFullscreen && (
+      {!isMaximized && !isFullscreen && !hideControls && (
         <div className="flex items-center px-3.5 py-2 border-b border-border bg-bg-1 gap-2.5 min-h-[38px] shrink-0">
           <Text type="label" color="primary" weight="semibold" className="text-[13px] tracking-tight text-fg m-0">Player</Text>
           <div className="ml-auto flex items-center gap-1">
@@ -8080,7 +8080,8 @@ export const Preview: React.FC = () => {
         {exportState.isExporting && <ExportProgressOverlay progress={exportState.progress} phase={exportState.phase} width={videoAreaSize.width} height={videoAreaSize.height} />}
       </div>
 
-      {/* Player Controls with integrated Scrub Bar */}
+      {/* Player Controls with integrated Scrub Bar (hidden in the Hawsh phone editor, which draws its own play button) */}
+      {!hideControls && (
       <div
         className={`shrink-0 border-t border-border transition-all duration-300 ${
           isMaximized || isFullscreen
@@ -8381,6 +8382,7 @@ export const Preview: React.FC = () => {
         </div>
         </div>
       </div>
+      )}
     </div>
   );
 };
