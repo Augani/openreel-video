@@ -1,9 +1,8 @@
 /**
- * Phone editor shell — stage 1 (structure): top bar, large preview with one play button, the
- * timeline, and a bottom tool bar whose tools open as bottom sheets. Rendered by EditorInterface
- * instead of its desktop/compact layout on phones (see phone.ts), after the editor is initialised,
- * so all editor services keep running. Later stages replace the timeline with a touch timeline and
- * fill the remaining sheets.
+ * Phone editor shell: top bar, large preview with one play button, the touch timeline (stage 2),
+ * and a bottom tool bar whose tools open as bottom sheets. Rendered by EditorInterface instead of
+ * its desktop/compact layout on phones (see phone.ts), after the editor is initialised, so all
+ * editor services keep running. Later stages fill the remaining sheets.
  */
 import React, { Suspense, useState } from "react";
 import { useProjectStore } from "../../stores/project-store";
@@ -11,9 +10,9 @@ import { useTimelineStore } from "../../stores/timeline-store";
 import { useUIStore } from "../../stores/ui-store";
 import { useRouter } from "../../hooks/use-router";
 import { Preview } from "../../components/editor/Preview";
-import { Timeline } from "../../components/editor/Timeline";
 import { Toolbar } from "../../components/editor/Toolbar";
 import { ServerCaptionPanel } from "../ServerCaptionPanel";
+import { TouchTimeline } from "./TouchTimeline";
 
 const ChatPanel = React.lazy(() => import("../../components/editor/chat/ChatPanel").then((m) => ({ default: m.ChatPanel })));
 
@@ -69,7 +68,7 @@ export const MobileEditor: React.FC = () => {
       </section>
 
       <section className="min-h-0 flex-1 overflow-hidden" aria-label="الخط الزمني">
-        <Timeline />
+        <TouchTimeline />
       </section>
 
       <nav className="flex h-16 shrink-0 items-stretch border-t border-border bg-bg-1 pb-[env(safe-area-inset-bottom)]" dir="rtl" data-no-translate="" aria-label="أدوات المونتاج">
