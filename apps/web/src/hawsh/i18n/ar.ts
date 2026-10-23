@@ -958,6 +958,7 @@ export const AR: Record<string, string> = {
   "Describe an edit in plain language and the AI will perform it on your timeline.": "صف التعديل بكلامك والذكاء الاصطناعي ينفّذه على الخط الزمني.",
   "Connect a model": "اربط نموذجاً",
   "Ask the AI to edit your video...": "اطلب من الذكاء الاصطناعي تعديل الفيديو...",
+  "Ask the AI to edit your video…": "اطلب من الذكاء الاصطناعي تعديل الفيديو…",
   "Enter to send · Shift+Enter for a new line": "Enter للإرسال · Shift+Enter لسطر جديد",
   "Settings": "الإعدادات",
   "Configure preferences and manage API keys for external services.": "اضبط التفضيلات وأدر مفاتيح API للخدمات الخارجية.",
