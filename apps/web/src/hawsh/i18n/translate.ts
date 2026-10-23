@@ -55,6 +55,7 @@ const PATTERNS: Pattern[] = [
     return `تحديد مقطع ${kind[m[1]]} ${m[2]}`;
   }],
   [/^Go to step (\d+)$/, (m) => `الانتقال إلى الخطوة ${m[1]}`],
+  [/^Select all captions \((\d+)\)$/, (m) => `تحديد كل الترجمات (${m[1]})`],
   [/^(\d+) emojis available$/, (m) => `${m[1]} رمزاً تعبيرياً متاحاً`],
   [/^(\d+) selected$/, (m) => `${m[1]} محدد`],
   [/^(\d+) items added to the project$/, (m) => `أُضيف ${m[1]} عناصر إلى المشروع`],
