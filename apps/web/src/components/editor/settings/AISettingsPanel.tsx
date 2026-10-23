@@ -1,8 +1,6 @@
 import { ToolcraftButton as Button, ToolcraftSwitchControl } from "@openreel/ui";
 import { useChatStore } from "../../../stores/chat-store";
 import { useSettingsStore } from "../../../stores/settings-store";
-// Hawsh Khalifa build: AI editing runs only on Director's Eyes points (no provider/key fields).
-import { AIConnectionNotice as AIConnectionPanel } from "../../../hawsh/AIConnectionNotice";
 
 export function AISettingsPanel() {
   const status = useChatStore((state) => state.status);
@@ -15,13 +13,9 @@ export function AISettingsPanel() {
 
   return (
     <div className="space-y-5 pb-1">
-      <div>
-        <h3 className="text-sm font-medium text-fg">Model connection</h3>
-        <p className="mt-1 text-xs text-fg-muted">Choose the model that helps edit your timeline.</p>
-      </div>
+      {/* Hawsh Khalifa build: no model connection section — AI runs only on Director's Eyes points. */}
       {busy && <p role="status" className="text-xs text-fg-muted">You can change these settings when the current edit finishes.</p>}
-      <AIConnectionPanel disabled={busy} />
-      <div className="space-y-3 border-t border-border pt-4">
+      <div className="space-y-3">
         <ToolcraftSwitchControl
           label="Preview edits only"
           description="Plan changes without applying them to the timeline."
