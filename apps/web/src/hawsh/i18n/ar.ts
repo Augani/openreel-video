@@ -423,6 +423,8 @@ export const AR: Record<string, string> = {
   "Text to Speech": "تحويل النص إلى كلام",
   "Generate natural voiceovers from text": "ولّد تعليقاً صوتياً طبيعياً من النص",
   "Auto Captions": "ترجمة تلقائية",
+  "Local Auto-Captions": "ترجمة تلقائية",
+  "Import SRT / VTT as Text": "استيراد SRT / VTT كنص",
   "Automatically generate subtitles from audio": "ولّد الترجمة النصية من الصوت تلقائياً",
   "Templates & Presets": "القوالب والإعدادات الجاهزة",
   "Start with pre-built project structures": "ابدأ بمشاريع جاهزة",

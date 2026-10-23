@@ -54,6 +54,15 @@ export function getCaptionWrapWidth(
   return Math.max(1, canvasWidth * 0.9 / scale - 20);
 }
 
+/**
+ * Direction of one drawn line from its first strong character (Unicode bidi "plaintext"): Arabic,
+ * Hebrew, Syriac, Thaana ⇒ rtl, so trailing punctuation lands at the visual end of an Arabic caption.
+ */
+export function lineDirection(text: string): "ltr" | "rtl" {
+  const m = /[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]|[A-Za-z\u00C0-\u024F\u0370-\u03FF\u0400-\u04FF]/.exec(text);
+  return m && /[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]/.test(m[0]) ? "rtl" : "ltr";
+}
+
 export class TitleEngine {
   private textClips: Map<string, TextClip> = new Map();
   private canvas: HTMLCanvasElement | OffscreenCanvas | null = null;
@@ -370,6 +379,7 @@ export class TitleEngine {
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
         const y = startY + i * lineHeight;
+        ctx.direction = lineDirection(line);
 
         if (style.backgroundColor) {
           const lineMetrics = ctx.measureText(line);
