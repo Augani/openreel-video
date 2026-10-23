@@ -1,48 +1,26 @@
 /**
- * AI editing on Director's Eyes points. When the editor is signed in from hawsh-khalifa.com, the AI
- * Editor connection points at the site's `editor-ai` function (fixed price per model call, charged
- * from the user's points) instead of asking for an API key. The user can still switch to their own
- * key in Settings → AI Editor; we never overwrite a connection they configured themselves.
+ * AI editing on Director's Eyes points only (owner's decision 2026-10-23: no bring-your-own model).
+ * The AI Editor connection is fixed to the site's `editor-ai` function (fixed price per model call,
+ * charged from the user's points); Settings → AI Editor shows a notice instead of provider/key fields
+ * (AIConnectionNotice.tsx) and chat-store refuses any other connection.
  */
 import { LLMHttpError, makeClientFromSend, parseRetryAfterMs, withRetry, type LLMClient } from "@openreel/agent";
-import { AI_PROVIDER_DEFAULTS, useAIConnectionStore, type AIProvider } from "../stores/ai-connection-store";
+import { useAIConnectionStore } from "../stores/ai-connection-store";
 import { HAWSH_SUPABASE_URL } from "./config";
-import { hawshClient, useHawshStore } from "./session";
+import { hawshClient } from "./session";
 
 export const HAWSH_AI_URL = `${HAWSH_SUPABASE_URL}/functions/v1/editor-ai`;
 export const HAWSH_AI_MODEL = "Director's Eyes";
-
-interface Connection { provider: AIProvider; baseUrl: string; model: string; apiKey: string }
+export const HAWSH_AI_ONLY_MESSAGE = "المونتاج الذكي يعمل فقط برصيد عيون المخرج — افتح المحرر من عيون المخرج.";
+export const HAWSH_CONNECTION = { provider: "compatible", baseUrl: HAWSH_AI_URL, model: HAWSH_AI_MODEL, apiKey: "" } as const;
 
 export function isHawshAI(baseUrl: string): boolean {
   return baseUrl.trim().replace(/\/+$/, "") === HAWSH_AI_URL;
 }
 
-/**
- * The connection to use after a sign-in change, or null to leave it alone: signed in + untouched
- * default (no key typed) ⇒ Director's Eyes; signed out while on Director's Eyes ⇒ back to the default.
- */
-export function nextConnection(signedIn: boolean, current: Connection): Connection | null {
-  const onHawsh = isHawshAI(current.baseUrl);
-  if (signedIn) {
-    const untouched = current.provider === "openai" && !current.apiKey
-      && current.baseUrl === AI_PROVIDER_DEFAULTS.openai.baseUrl && current.model === AI_PROVIDER_DEFAULTS.openai.model;
-    return untouched ? { provider: "compatible", baseUrl: HAWSH_AI_URL, model: HAWSH_AI_MODEL, apiKey: "" } : null;
-  }
-  return onHawsh ? { provider: "openai", ...AI_PROVIDER_DEFAULTS.openai, apiKey: "" } : null;
-}
-
-/** Keeps the AI Editor connection in step with the Director's Eyes sign-in. Call once at startup. */
-export function initHawshAI(): () => void {
-  const apply = (signedIn: boolean) => {
-    const store = useAIConnectionStore.getState();
-    const next = nextConnection(signedIn, store);
-    if (next) store.configure(next);
-  };
-  apply(useHawshStore.getState().status === "ready");
-  return useHawshStore.subscribe((s, prev) => {
-    if ((s.status === "ready") !== (prev.status === "ready")) apply(s.status === "ready");
-  });
+/** Fixes the AI Editor connection to Director's Eyes points. Call once at startup. */
+export function initHawshAI(): void {
+  useAIConnectionStore.getState().configure({ ...HAWSH_CONNECTION });
 }
 
 /** Our server's error JSON carries a user-facing message (Arabic) — safe to show, unlike third-party bodies. */
