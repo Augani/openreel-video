@@ -4,7 +4,8 @@ import { ToolcraftButton as Button } from "@openreel/ui";
 import { ToolcraftCard as Card } from "@openreel/ui";
 import { ToolcraftText as Text } from "@openreel/ui";
 import { AutoReframeSection } from "../";
-import { AutoCaptionPanel } from "../AutoCaptionPanel";
+// Hawsh Khalifa build: captions run on the site's server (src/hawsh/ServerCaptionPanel.tsx).
+import { ServerCaptionPanel as AutoCaptionPanel } from "../../../../hawsh/ServerCaptionPanel";
 import { CaptionEditorPanel } from "../CaptionEditorPanel";
 import { AutoEditPanel } from "../../panels/AutoEditPanel";
 import { HighlightExtractorPanel } from "../../panels/HighlightExtractorPanel";
