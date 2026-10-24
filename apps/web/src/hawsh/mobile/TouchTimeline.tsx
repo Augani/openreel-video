@@ -77,7 +77,7 @@ export const TouchTimeline: React.FC = () => {
           </div>
           <div className="space-y-1.5 py-2">
             {rows.map((row) => (
-              <div key={row.trackId} className="relative" style={{ height: ROW_HEIGHT[row.kind] }}>
+              <div key={`${row.trackId}-${row.kind}`} className="relative" style={{ height: ROW_HEIGHT[row.kind] }}>
                 {row.clips.map((c) => (
                   <button key={c.id} type="button" title={c.label}
                     onClick={(e) => { e.stopPropagation(); select({ type: c.selection, id: c.id, trackId: row.trackId }); }}

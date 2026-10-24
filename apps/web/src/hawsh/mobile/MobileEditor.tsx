@@ -2,7 +2,8 @@
  * Phone editor shell: top bar, large preview with one play button, the touch timeline (stage 2),
  * and a bottom tool bar whose tools open as bottom sheets. Rendered by EditorInterface instead of
  * its desktop/compact layout on phones (see phone.ts), after the editor is initialised, so all
- * editor services keep running. Later stages fill the remaining sheets.
+ * editor services keep running. While a clip is selected the bottom bar becomes its tools (ClipTools,
+ * stage 3). Later stages fill the remaining sheets.
  */
 import React, { Suspense, useState } from "react";
 import { useProjectStore } from "../../stores/project-store";
@@ -13,6 +14,8 @@ import { Preview } from "../../components/editor/Preview";
 import { Toolbar } from "../../components/editor/Toolbar";
 import { ServerCaptionPanel } from "../ServerCaptionPanel";
 import { TouchTimeline } from "./TouchTimeline";
+import { ClipTools } from "./ClipTools";
+import { selectedTarget } from "./clip-tools";
 
 const ChatPanel = React.lazy(() => import("../../components/editor/chat/ChatPanel").then((m) => ({ default: m.ChatPanel })));
 
@@ -42,6 +45,9 @@ export const MobileEditor: React.FC = () => {
   const playhead = useTimelineStore((s) => s.playheadPosition);
   const togglePlayback = useTimelineStore((s) => s.togglePlayback);
   const openModal = useUIStore((s) => s.openModal);
+  const project = useProjectStore((s) => s.project);
+  const selectedItems = useUIStore((s) => s.selectedItems);
+  const clipSelected = selectedTarget(project, selectedItems) !== null;
   const [sheet, setSheet] = useState<SheetId | null>(null);
   const current = TOOLS.find((t) => t.id === sheet);
 
@@ -71,6 +77,7 @@ export const MobileEditor: React.FC = () => {
         <TouchTimeline />
       </section>
 
+      {clipSelected ? <ClipTools /> : (
       <nav className="flex h-16 shrink-0 items-stretch border-t border-border bg-bg-1 pb-[env(safe-area-inset-bottom)]" dir="rtl" data-no-translate="" aria-label="أدوات المونتاج">
         {TOOLS.map((t) => (
           <button key={t.id} type="button" onClick={() => setSheet(t.id)}
@@ -80,6 +87,7 @@ export const MobileEditor: React.FC = () => {
           </button>
         ))}
       </nav>
+      )}
 
       {current && (
         <div className="fixed inset-0 z-[90] flex flex-col justify-end bg-black/40" onClick={() => setSheet(null)}>

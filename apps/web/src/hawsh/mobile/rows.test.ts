@@ -22,4 +22,13 @@ describe("timelineRows", () => {
     expect(rows[1].clips[0]).toMatchObject({ id: "t1", label: "مرحبا", selection: "text-clip" });
     expect(rows[2].clips[0]).toMatchObject({ label: "song.mp3", selection: "clip" });
   });
+
+  it("splits a track holding both video and text into two rows", () => {
+    const rows = timelineRows({
+      mediaLibrary: { items: [{ id: "m1", name: "talk.mp4", thumbnailUrl: null }] },
+      timeline: { tracks: [track("mix", "video", [clip("c1", "m1", 0, 5)])] },
+      textClips: [{ id: "t1", trackId: "mix", startTime: 0, duration: 5, text: "Heading" }],
+    } as never);
+    expect(rows.map((r) => [r.trackId, r.kind, r.clips.map((c) => c.id)])).toEqual([["mix", "video", ["c1"]], ["mix", "text", ["t1"]]]);
+  });
 });

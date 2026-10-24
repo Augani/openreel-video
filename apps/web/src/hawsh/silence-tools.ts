@@ -64,7 +64,7 @@ async function decode(blob: Blob): Promise<AudioBuffer> {
 }
 
 /** Timeline ranges of silence in a clip, or a reason it can't be analysed. */
-async function analyse(project: Project, clipId: string, opts: SilenceOptions): Promise<{ regions: Region[]; clipEnd: number } | { error: string }> {
+export async function analyseSilence(project: Project, clipId: string, opts: SilenceOptions): Promise<{ regions: Region[]; clipEnd: number } | { error: string }> {
   const found = findClip(project, clipId);
   if (!found) return { error: "Clip ID was not found; use list_clips" };
   const { clip, track } = found;
@@ -82,7 +82,7 @@ const total = (regions: Region[]) => round(regions.reduce((s, r) => s + (r.end -
 
 export async function detectSilenceTool(args: Record<string, unknown>, host: EditingHost): Promise<ToolResult> {
   const opts = silenceOptions(args);
-  const res = await analyse(host.getProject(), String(args.clipId), opts);
+  const res = await analyseSilence(host.getProject(), String(args.clipId), opts);
   if ("error" in res) return { ok: false, summary: "Silence detection failed", error: { code: "INVALID_EDIT", message: res.error } };
   return {
     ok: true,
@@ -126,7 +126,7 @@ export async function applySilenceCuts(host: EditingHost, clipId: string, region
 export async function cutSilenceTool(args: Record<string, unknown>, host: EditingHost): Promise<ToolResult> {
   const opts = silenceOptions(args);
   const clipId = String(args.clipId);
-  const res = await analyse(host.getProject(), clipId, opts);
+  const res = await analyseSilence(host.getProject(), clipId, opts);
   if ("error" in res) return { ok: false, summary: "Silence cut failed", error: { code: "INVALID_EDIT", message: res.error } };
   if (!res.regions.length) return { ok: true, summary: "No silent pauses found with these settings", data: { removed: 0, totalSec: 0 } };
 
