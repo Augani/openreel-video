@@ -575,3 +575,8 @@ if (typeof window !== "undefined") {
     }
   });
 }
+
+/** Build-time ElevenLabs key from VITE_ELEVENLABS_API_KEY; bundled into client code. */
+export const ENV_ELEVENLABS_API_KEY: string = (
+  (import.meta.env as Record<string, string | undefined>).VITE_ELEVENLABS_API_KEY ?? ""
+).trim();

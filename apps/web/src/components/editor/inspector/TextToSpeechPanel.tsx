@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { ENV_ELEVENLABS_API_KEY } from "../../../services/secure-storage";
 import {
   Mic,
   Loader2,
@@ -33,7 +34,7 @@ export const TextToSpeechPanel: React.FC = () => {
     favoriteVoices,
   } = useSettingsStore();
 
-  const hasElevenLabsKey = configuredServices.includes("elevenlabs");
+  const hasElevenLabsKey = (Boolean(ENV_ELEVENLABS_API_KEY) || configuredServices.includes("elevenlabs"));
 
   const [text, setText] = useState("");
   const [selectedVoice, setSelectedVoice] = useState<string>(

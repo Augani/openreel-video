@@ -9,6 +9,18 @@ export function validateAIEndpoint(baseUrl: string): string {
   url.pathname = url.pathname.replace(/\/(?:chat\/completions|messages)\/?$/, "");
   return url.href.replace(/\/+$/, "");
 }
+/** Dev only: route the env-configured endpoint (VITE_AI_BASE_URL) through the Vite proxy so gateways without CORS headers work. */
+function devProxiedBaseUrl(baseUrl: string): string {
+  const envBase = import.meta.env.VITE_AI_BASE_URL?.trim();
+  if (!import.meta.env.DEV || !envBase || typeof window === "undefined") return baseUrl;
+  try {
+    const target = new URL(baseUrl);
+    if (target.origin !== new URL(envBase).origin) return baseUrl;
+    return `${window.location.origin}/__ai-proxy${target.pathname.replace(/\/$/, "")}`;
+  } catch {
+    return baseUrl;
+  }
+}
 export function makeDirectBYOKClient(options: DirectConnection): LLMClient {
   const baseUrl = validateAIEndpoint(options.baseUrl);
   if (!options.model.trim()) throw new Error("Enter a model ID that supports tools.");
@@ -18,7 +30,7 @@ export function makeDirectBYOKClient(options: DirectConnection): LLMClient {
     options.signal?.throwIfAborted();
     let res: Response;
     try {
-      res = await fetch(`${baseUrl}${provider === "anthropic" ? "/messages" : "/chat/completions"}`, { method: "POST", redirect: "error", credentials: "omit", headers: { "Content-Type": "application/json", ...(provider === "anthropic" ? { "x-api-key": options.apiKey, "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" } : options.apiKey ? { Authorization: `Bearer ${options.apiKey}` } : {}) }, body: JSON.stringify(body), signal: options.signal });
+      res = await fetch(`${devProxiedBaseUrl(baseUrl)}${provider === "anthropic" ? "/messages" : "/chat/completions"}`, { method: "POST", redirect: "error", credentials: "omit", headers: { "Content-Type": "application/json", ...(provider === "anthropic" ? { "x-api-key": options.apiKey, "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" } : options.apiKey ? { Authorization: `Bearer ${options.apiKey}` } : {}) }, body: JSON.stringify(body), signal: options.signal });
     } catch (error) {
       if (options.signal?.aborted) throw error;
       throw new Error("The model endpoint could not be reached. Check its URL and browser CORS support. No proxy or security bypass is used.");

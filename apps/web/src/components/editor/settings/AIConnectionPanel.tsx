@@ -1,4 +1,4 @@
-import { AI_PROVIDER_DEFAULTS, useAIConnectionStore, type AIProvider } from "../../../stores/ai-connection-store";
+import { getProviderConnection, useAIConnectionStore, type AIProvider } from "../../../stores/ai-connection-store";
 
 const inputClass = "mt-1.5 w-full rounded-md border border-border bg-bg-2 px-3 py-2 text-sm text-fg focus:outline-none focus:ring-1 focus:ring-accent disabled:opacity-50";
 export function AIConnectionPanel({ disabled = false }: { disabled?: boolean }) {
@@ -7,7 +7,7 @@ export function AIConnectionPanel({ disabled = false }: { disabled?: boolean }) 
     <div className="space-y-4 text-xs">
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="block text-fg-2">Provider
-          <select aria-label="AI provider" className={inputClass} disabled={disabled} value={connection.provider} onChange={(e) => { const provider = e.target.value as AIProvider; connection.configure({ provider, ...AI_PROVIDER_DEFAULTS[provider], apiKey: "" }); }}>
+          <select aria-label="AI provider" className={inputClass} disabled={disabled} value={connection.provider} onChange={(e) => { const provider = e.target.value as AIProvider; connection.configure(getProviderConnection(provider)); }}>
             <option value="openai">OpenAI</option><option value="anthropic">Anthropic</option><option value="compatible">OpenAI compatible / local</option>
           </select>
         </label>

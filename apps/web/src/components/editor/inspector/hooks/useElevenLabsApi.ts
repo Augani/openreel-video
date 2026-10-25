@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import type { LlmProvider } from "../../../../stores/settings-store";
 import { useSettingsStore } from "../../../../stores/settings-store";
-import { isSessionUnlocked, getSecret } from "../../../../services/secure-storage";
+import { isSessionUnlocked, getSecret, ENV_ELEVENLABS_API_KEY } from "../../../../services/secure-storage";
 import { apiFetch } from "../../../../services/api-proxy";
 import type { ElevenLabsVoice, ElevenLabsModel } from "../tts-types";
 import { FALLBACK_MODELS, ENHANCE_SYSTEM_PROMPT } from "../tts-constants";
@@ -66,12 +66,12 @@ export function useElevenLabsApi(options: UseElevenLabsApiOptions): UseElevenLab
       return;
     }
 
-    if (!isSessionUnlocked()) {
+    if (!ENV_ELEVENLABS_API_KEY && !isSessionUnlocked()) {
       setAllModels(FALLBACK_MODELS);
       return;
     }
 
-    const apiKey = isDesktop ? "" : (await getSecret("elevenlabs")) ?? "";
+    const apiKey = isDesktop ? "" : ENV_ELEVENLABS_API_KEY || ((await getSecret("elevenlabs")) ?? "");
     if (!isDesktop && !apiKey) {
       setAllModels(FALLBACK_MODELS);
       return;
@@ -102,9 +102,9 @@ export function useElevenLabsApi(options: UseElevenLabsApiOptions): UseElevenLab
       return;
     }
 
-    if (!isSessionUnlocked()) return;
+    if (!ENV_ELEVENLABS_API_KEY && !isSessionUnlocked()) return;
 
-    const apiKey = isDesktop ? "" : (await getSecret("elevenlabs")) ?? "";
+    const apiKey = isDesktop ? "" : ENV_ELEVENLABS_API_KEY || ((await getSecret("elevenlabs")) ?? "");
     if (!isDesktop && !apiKey) return;
 
     setIsLoadingVoices(true);
@@ -134,7 +134,7 @@ export function useElevenLabsApi(options: UseElevenLabsApiOptions): UseElevenLab
 
   useEffect(() => {
     if (prevSettingsOpen.current && !settingsOpen) {
-      if (hasElevenLabsKey && isSessionUnlocked()) {
+      if (hasElevenLabsKey && (ENV_ELEVENLABS_API_KEY || isSessionUnlocked())) {
         const signal = getSignal();
         if (allVoices.length === 0) fetchVoices(signal);
         if (allModels.length === 0) fetchModels(signal);
@@ -152,11 +152,11 @@ export function useElevenLabsApi(options: UseElevenLabsApiOptions): UseElevenLab
   }, []);
 
   const generateWithElevenLabs = useCallback(async (inputText: string, voiceId: string, signal?: AbortSignal): Promise<Blob> => {
-    if (!isSessionUnlocked()) {
+    if (!ENV_ELEVENLABS_API_KEY && !isSessionUnlocked()) {
       throw new Error("Session locked. Unlock in Settings > API Keys first.");
     }
 
-    const apiKey = isDesktop ? "" : (await getSecret("elevenlabs")) ?? "";
+    const apiKey = isDesktop ? "" : ENV_ELEVENLABS_API_KEY || ((await getSecret("elevenlabs")) ?? "");
     if (!isDesktop && !apiKey) {
       throw new Error("ElevenLabs API key not found. Add it in Settings > API Keys.");
     }

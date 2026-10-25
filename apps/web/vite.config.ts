@@ -1,4 +1,4 @@
-import { defineConfig } from "vite";
+import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "path";
 import { stripFfmpegPlugin } from "./vite-plugins/strip-ffmpeg";
@@ -28,7 +28,19 @@ function desktopHtmlPlugin() {
   };
 }
 
-export default defineConfig({
+function aiProxyTarget(mode: string): string | undefined {
+  const raw = loadEnv(mode, __dirname, "VITE_").VITE_AI_BASE_URL?.trim();
+  if (!raw) return undefined;
+  try {
+    return new URL(raw).origin;
+  } catch {
+    return undefined;
+  }
+}
+
+export default defineConfig(({ mode }) => {
+  const aiTarget = aiProxyTarget(mode);
+  return {
   base: isDesktop ? "./" : "/",
   plugins: [react(), desktopHtmlPlugin(), stripFfmpegPlugin(isDesktop), pruneFontsPlugin(isDesktop)],
   assetsInclude: ["**/*.wasm"],
@@ -61,6 +73,17 @@ export default defineConfig({
     },
   },
   server: {
+    // Dev-only same-origin proxy so a gateway without CORS headers still works.
+    proxy: aiTarget
+      ? {
+          "/__ai-proxy": {
+            target: aiTarget,
+            changeOrigin: true,
+            secure: true,
+            rewrite: (p: string) => p.replace(/^\/__ai-proxy/, ""),
+          },
+        }
+      : undefined,
     headers: {
       "Cross-Origin-Opener-Policy": "same-origin",
       "Cross-Origin-Embedder-Policy": "require-corp",
@@ -72,4 +95,5 @@ export default defineConfig({
       "Cross-Origin-Embedder-Policy": "require-corp",
     },
   },
+};
 });
