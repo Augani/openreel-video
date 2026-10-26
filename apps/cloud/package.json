@@ -14,7 +14,7 @@
 		"@cloudflare/workers-types": "^4.20260117.0",
 		"typescript": "^5.5.2",
 		"vitest": "^1.6.0",
-		"wrangler": "^3.101.0"
+		"wrangler": "^4.152.0"
 	},
 	"dependencies": {
 		"@openreel/fxpkg": "workspace:*",

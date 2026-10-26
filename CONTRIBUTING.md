@@ -19,7 +19,7 @@ Be respectful, constructive, and professional. We're building something great to
 ## Getting Started
 
 ### Prerequisites
-- Node.js 18 or higher
+- Node.js 22 or higher
 - pnpm (recommended) or npm
 - Git
 - Modern browser with WebCodecs support (Chrome 94+, Edge 94+)
@@ -362,7 +362,7 @@ Changes to React components hot reload automatically. For core engine changes, y
 
 **Issue**: Build fails
 - Clear node_modules and reinstall
-- Check Node.js version (18+)
+- Check Node.js version (22+)
 - Verify pnpm version
 
 **Issue**: Tests fail

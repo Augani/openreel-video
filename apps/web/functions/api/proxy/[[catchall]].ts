@@ -1,5 +1,5 @@
 /**
- * Cloudflare Pages Function: API proxy for third-party services.
+ * Cloudflare Worker API proxy (compiled from the functions directory) for third-party services.
  *
  * Routes requests from the browser to ElevenLabs, OpenAI, and Anthropic
  * so that API keys never leave the same origin in production.
@@ -86,7 +86,10 @@ async function readBodyCapped(
 
 function getCorsHeaders(request: Request): Record<string, string> {
   const origin = request.headers.get("Origin") ?? "";
-  const allowedOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+  const allowedOrigin =
+    origin === new URL(request.url).origin || ALLOWED_ORIGINS.includes(origin)
+      ? origin
+      : ALLOWED_ORIGINS[0];
   return {
     "Access-Control-Allow-Origin": allowedOrigin,
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",

@@ -13,7 +13,7 @@ fi
 echo "Uploading .cube files..."
 for cube in "$OUT"/cube/*.cube; do
   key="cube/$(basename "$cube")"
-  wrangler r2 object put "$BUCKET/$key" \
+  wrangler r2 object put --remote "$BUCKET/$key" \
     --file "$cube" \
     --content-type "text/plain" \
     --cache-control "public, max-age=31536000, immutable" \
@@ -21,7 +21,7 @@ for cube in "$OUT"/cube/*.cube; do
 done
 
 echo "Uploading manifest..."
-wrangler r2 object put "$BUCKET/manifest.json" \
+wrangler r2 object put --remote "$BUCKET/manifest.json" \
   --file "$OUT/manifest.json" \
   --content-type "application/json" \
   --cache-control "public, max-age=300, s-maxage=3600" \

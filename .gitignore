@@ -106,3 +106,6 @@ xcuserdata/
 .codex-audit/
 .codex/
 **/local.properties
+
+# Compiled Workers entry points
+.worker/

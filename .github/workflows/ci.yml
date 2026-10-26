@@ -63,3 +63,10 @@ jobs:
 
       - name: Build project
         run: pnpm build
+
+      - name: Validate Workers deployment bundles
+        run: |
+          pnpm --filter @openreel/web exec wrangler deploy --dry-run
+          pnpm --filter @openreel/image build
+          pnpm --filter @openreel/image exec wrangler deploy --dry-run
+          pnpm --dir apps/cloud exec wrangler deploy --dry-run

@@ -147,3 +147,7 @@ Made by [Augustus Otu](https://github.com/Augani) and [contributors](https://git
 [MIT License](LICENSE) &nbsp;·&nbsp; [Updates on X](https://x.com/python_xi) &nbsp;·&nbsp; [Sponsor](https://github.com/sponsors/Augani)
 
 </div>
+
+## Cloudflare deployment
+
+See [DEPLOYMENT.md](DEPLOYMENT.md) for Workers production deployments, Previews, local validation and the Pages cutover steps.

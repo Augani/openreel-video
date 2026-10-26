@@ -5,15 +5,16 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "build": "tsc --noEmit && vite build && pnpm build:worker",
     "preview": "vite preview",
-    "deploy": "wrangler pages deploy dist --project-name=openreel",
-    "deploy:preview": "wrangler pages deploy dist --project-name=openreel --branch=preview",
+    "deploy": "wrangler deploy",
+    "deploy:preview": "wrangler preview",
     "test": "vitest",
     "test:run": "vitest run",
     "lint": "eslint src",
     "typecheck": "tsc --noEmit",
-    "clean": "rm -rf dist node_modules/.vite && find src -name '*.js' -o -name '*.js.map' -o -name '*.d.ts' -o -name '*.d.ts.map' | xargs rm -f 2>/dev/null || true"
+    "clean": "rm -rf dist node_modules/.vite && find src -name '*.js' -o -name '*.js.map' -o -name '*.d.ts' -o -name '*.d.ts.map' | xargs rm -f 2>/dev/null || true",
+    "build:worker": "wrangler pages functions build functions --outdir=.worker"
   },
   "dependencies": {
     "@astryxdesign/core": "^0.1.1",
@@ -63,6 +64,6 @@
     "typescript": "^5.4.5",
     "vite": "^5.3.1",
     "vitest": "^1.6.0",
-    "wrangler": "^3.114.17"
+    "wrangler": "^4.152.0"
   }
 }

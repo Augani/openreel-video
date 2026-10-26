@@ -12,7 +12,6 @@ ignoredBuiltDependencies:
   - onnxruntime-node
   - protobufjs
   - sharp
-  - workerd
 allowBuilds:
   core-js: false
   electron: true
@@ -20,4 +19,4 @@ allowBuilds:
   onnxruntime-node: false
   protobufjs: false
   sharp: false
-  workerd: false
+  workerd: true

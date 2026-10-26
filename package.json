@@ -47,7 +47,7 @@
   },
   "homepage": "https://openreel.video",
   "engines": {
-    "node": ">=18.0.0",
+    "node": ">=22.0.0",
     "pnpm": ">=8.0.0"
   },
   "packageManager": "pnpm@11.7.0",
