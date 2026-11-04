@@ -140,6 +140,10 @@ export class ActionHistory {
   private redoStack: HistoryEntry[] = [];
   private maxHistorySize: number;
   private currentGroupId: string | null = null;
+  // Group IDs must be unique even when two groups start in the same
+  // millisecond (back-to-back programmatic/AI commits); a timestamp alone
+  // collides and undoGroup() would then revert both groups as one.
+  private groupSequence = 0;
   private groupDepth = 0;
   private snapshots: HistorySnapshot[] = [];
   private listeners: Set<() => void> = new Set();
@@ -186,7 +190,7 @@ export class ActionHistory {
       const lastTarget = getActionTargetId(lastEntry.action);
       const currentTarget = getActionTargetId(action);
       if (lastTarget !== null && lastTarget === currentTarget) {
-        groupId = lastEntry.groupId ?? `auto-${now}`;
+        groupId = lastEntry.groupId ?? `auto-${now}-${++this.groupSequence}`;
         if (!lastEntry.groupId) {
           this.undoStack[this.undoStack.length - 1] = { ...lastEntry, groupId };
         }
@@ -223,7 +227,7 @@ export class ActionHistory {
       this.groupDepth += 1;
       return this.currentGroupId;
     }
-    this.currentGroupId = `group-${Date.now()}`;
+    this.currentGroupId = `group-${Date.now()}-${++this.groupSequence}`;
     this.groupDepth = 1;
     return this.currentGroupId;
   }
