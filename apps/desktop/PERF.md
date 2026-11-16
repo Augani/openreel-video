@@ -63,7 +63,7 @@ red run means "re-run", two in a row on the same ref means a regression.
 | Job | Runner | What it checks |
 |---|---|---|
 | `web-bench` | ubuntu | `pnpm --filter @openreel/web perf:gate`: the `*.performance.test.*` Vitest suites (timeline render budget, shader browser, timeline item actions). Budgets live in those test files. |
-| `desktop-budget` | macos-14 | `pnpm --filter @openreel/desktop perf:budget -- --runs 5 --save <dir>`: builds the app, launches it 5 times (each run = a cold-start pass plus the 400-clip bench pass), takes the **median across runs** of each metric in `scripts/perf-budgets.json` and fails when one is over budget. The per-run harness JSON and the table are uploaded as the `desktop-perf` artifact and shown in the job summary. |
+| `desktop-budget` | macos-15 | `pnpm --filter @openreel/desktop perf:budget -- --runs 5 --save <dir>`: builds the app, launches it 5 times (each run = a cold-start pass plus the 400-clip bench pass), takes the **median across runs** of each metric in `scripts/perf-budgets.json` and fails when one is over budget. The per-run harness JSON and the table are uploaded as the `desktop-perf` artifact and shown in the job summary. |
 
 Run the same checks locally:
 
@@ -80,7 +80,7 @@ rounded up to leave roughly 10 % headroom, then tightened only when a change mea
 metric. Medians, not means or single runs, are checked, and every metric has a short `note` saying
 what it measures. Raise a budget only with data (before/after medians in the commit message); a
 budget that is only ever met on a quiet machine is a CI-runner problem, which is why the gate is
-manual/scheduled and why `macos-14` results are compared with each other, not with the local
+manual/scheduled and why `macos-15` results are compared with each other, not with the local
 numbers. Measure on a quiet machine: with other builds/test runs sharing the CPU the cold-start
 median moves by 20-40 %.
 

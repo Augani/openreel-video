@@ -28,7 +28,7 @@ on:
       - '.github/workflows/desktop-readiness.yml'
   workflow_dispatch:
   schedule:
-    # Weekly, on macos-14 and macos-15: catches runner image / ffmpeg / Electron drift without a code change.
+    # Weekly, on macos-15 and macos-latest: catches runner image / ffmpeg / Electron drift without a code change.
     - cron: '41 4 * * 2'
 
 concurrency:
@@ -86,7 +86,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: ${{ fromJSON((github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') && '["macos-14","macos-15"]' || '["macos-14"]') }}
+        os: ${{ fromJSON((github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') && '["macos-15","macos-latest"]' || '["macos-15"]') }}
     env:
       # The ingest / smart-render suites find ffmpeg and ffprobe here (Homebrew, arm64 runner prefix).
       FFMPEG: /opt/homebrew/bin/ffmpeg
