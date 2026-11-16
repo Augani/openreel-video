@@ -162,6 +162,18 @@ describe("MemoryGovernor", () => {
     expect(caps).toEqual([2, 3]);
   });
 
+  it("returns the same policy object on every read while nothing changed (useSyncExternalStore snapshot)", () => {
+    const gov = make();
+    gov.registerDecoder("uhd", estimateDecoderBytes(3840, 2160));
+    expect(gov.policy.maxDecoderElements).toBe(2);
+    expect(gov.policy).toBe(gov.policy);
+    const capped = gov.policy;
+    gov.registerDecoder("hd", estimateDecoderBytes(1920, 1080));
+    expect(gov.policy).toBe(capped);
+    gov.force("elevated");
+    expect(gov.policy).toBe(gov.policy);
+  });
+
   it("never lifts the pressure policy's own lower cap and never drops below one decoder", () => {
     const small = make({ systemMemoryBytes: 2 * GB }); // limit 1 GB: even one 4K decoder is over the share
     small.registerDecoder("uhd", estimateDecoderBytes(3840, 2160));

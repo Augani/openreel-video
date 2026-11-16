@@ -118,6 +118,8 @@ export function installE2EHook(): void {
     playbackStalls: () => [...getPlaybackStalls()],
     playbackEvents: () => [...getPlaybackEvents()],
     memoryGovernor: () => ({ ...getMemoryGovernor().reading, policy: getMemoryGovernor().policy }),
+    /** Opens a decoder of `bytes` in the governor, as the preview does per source; returns its release. */
+    registerMemoryDecoder: (id: string, bytes: number) => getMemoryGovernor().registerDecoder(id, bytes),
     forceMemoryPressure: (level: "normal" | "elevated" | "critical" | null) => getMemoryGovernor().force(level),
     audioClock: () => {
       const ctx = getRealtimeAudioGraph().getAudioContext();

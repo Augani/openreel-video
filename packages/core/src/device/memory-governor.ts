@@ -245,8 +245,14 @@ export class MemoryGovernor {
   private effectivePolicy(pressure: MemoryPressure): MemoryPolicy {
     const base = POLICIES[pressure];
     const cap = this.decoderCap;
-    return cap < base.maxDecoderElements ? { ...base, maxDecoderElements: cap } : base;
+    if (cap >= base.maxDecoderElements) return base;
+    // Stable identity per (level, cap): `policy` is a useSyncExternalStore snapshot, and a fresh object on every
+    // read makes React re-render forever ("Maximum update depth exceeded") while the cap is below the level's.
+    const cached = this.cappedPolicy;
+    if (cached && cached.pressure === pressure && cached.maxDecoderElements === cap) return cached;
+    return (this.cappedPolicy = { ...base, maxDecoderElements: cap });
   }
+  private cappedPolicy: MemoryPolicy | null = null;
 
   /**
    * Increments whenever the room for decoders may have changed (a decoder opened or closed, the limit moved).
