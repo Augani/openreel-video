@@ -1,5 +1,8 @@
+import { useTimelineToolGesture } from "./useTimelineToolGesture";
+import { TimelineToolGhost } from "./TimelineToolGhost";
 import React, { useRef, useCallback, useEffect, useState, useMemo } from "react";
 import type {
+  GraphicInstance,
   Track,
   TextClip,
   ShapeClip,
@@ -11,8 +14,11 @@ import {
   resolveTimelinePlacement,
 } from "@openreel/core";
 import { ClipComponent } from "./ClipComponent";
+import { getVisibleClips } from "./visible-clips";
+import { computeLaneInfos, type ClipLaneInfo } from "./clip-lane-info";
 import { TextClipComponent } from "./TextClipComponent";
 import { ShapeClipComponent } from "./ShapeClipComponent";
+import { GraphicClipComponent } from "./GraphicClipComponent";
 import { KeyframeTrack } from "./KeyframeTrack";
 import { TransitionHandle } from "./TransitionHandle";
 import { AdjustmentLayerTimelineItem } from "./AdjustmentLayerTimelineItem";
@@ -20,19 +26,35 @@ import { resolveTransitionHandles } from "./transition-handles";
 import { calculateSnap } from "./utils";
 import { useTimelineStore } from "../../../stores/timeline-store";
 import { useUIStore } from "../../../stores/ui-store";
+import { useEditorWorkspaceStore } from "../../../stores/editor-workspace-store";
+import { useEditPointStore } from "../../../stores/edit-point-store";
+import { selectGapAt } from "../../../services/edit-point-commands";
 import { useProjectStore } from "../../../stores/project-store";
 import { toast } from "../../../stores/notification-store";
+import { dropSourceRange } from "../../../services/source-monitor-commands";
+import { mediaDisplayDuration } from "@openreel/core";
+import { phoneTrackLayout } from "../mobile/mobile-timeline-layout";
+import { placeSequenceOnTimeline } from "../../../services/sequence-commands";
+
+const CLIP_SCROLL_BUCKET = 96;
 
 type GraphicClipUnion = ShapeClip | SVGClip | StickerClip;
 
 interface TrackLaneProps {
   track: Track;
+  phone?: boolean;
+  audioDivider?: boolean;
+  phoneTrackScale?: number;
+  trackTopInset?: number;
   allTracks: Track[];
   pixelsPerSecond: number;
   selectedClipIds: string[];
   textClips: TextClip[];
   shapeClips: GraphicClipUnion[];
+  /** Essential Graphics on this lane: one bar each; their member layers are not in textClips/shapeClips. */
+  graphics?: Array<{ instance: GraphicInstance; anchorId: string }>;
   trackHeights: Map<string, number>;
+  rowHeights?: Map<string, number>;
   timelineRef: React.RefObject<HTMLDivElement | null>;
   onSelectClip: (clipId: string, addToSelection: boolean) => void;
   onDropMedia: (trackId: string, mediaId: string, startTime: number) => void;
@@ -51,17 +73,17 @@ interface TrackLaneProps {
     clipId: string,
     edge: "left" | "right",
     newTime: number,
-  ) => void;
+  ) => void | Promise<void>;
   onTrimTextClip: (
     clipId: string,
     edge: "left" | "right",
     newTime: number,
-  ) => void;
+  ) => void | Promise<void>;
   onTrimShapeClip: (
     clipId: string,
     edge: "left" | "right",
     newTime: number,
-  ) => void;
+  ) => void | Promise<void>;
   scrollX: number;
   trackHeight: number;
   onResizeTrack: (trackId: string, newHeight: number) => void;
@@ -75,12 +97,18 @@ interface TrackLaneProps {
 
 export const TrackLane: React.FC<TrackLaneProps> = React.memo(function TrackLane({
   track,
+  phone = false,
+  audioDivider = false,
+  phoneTrackScale = 1,
+  trackTopInset = 0,
   allTracks,
   pixelsPerSecond,
   selectedClipIds,
   textClips,
   shapeClips,
+  graphics,
   trackHeights,
+  rowHeights,
   timelineRef,
   onSelectClip,
   onDropMedia,
@@ -107,6 +135,23 @@ export const TrackLane: React.FC<TrackLaneProps> = React.memo(function TrackLane
   const [dropHint, setDropHint] = useState("Drop to add clip");
   const [isResizing, setIsResizing] = useState(false);
   const laneRef = useRef<HTMLDivElement>(null);
+  // Empty-space click selects the gap under it (Trim mode). Clips stop their
+  // own mouse events, so a mousedown that reaches the lane is on empty space.
+  const gapDownXRef = useRef<number | null>(null);
+  const selectedGap = useEditPointStore((s) =>
+    s.selection?.type === "gap" && s.selection.trackId === track.id
+      ? `${s.selection.start}:${s.selection.end}`
+      : "",
+  );
+  const handleLaneClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const downX = gapDownXRef.current;
+    gapDownXRef.current = null;
+    if (e.button !== 0 || e.target !== e.currentTarget || downX === null) return;
+    if (Math.abs(e.clientX - downX) > 3) return;
+    if (useEditorWorkspaceStore.getState().timelineTool !== "select") return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    selectGapAt(track.id, (e.clientX - rect.left) / pixelsPerSecond);
+  };
   const resizeStartY = useRef<number>(0);
   const resizeStartHeight = useRef<number>(0);
   const projectAdjustmentLayers = useProjectStore((state) => state.project.adjustmentLayers);
@@ -147,10 +192,10 @@ export const TrackLane: React.FC<TrackLaneProps> = React.memo(function TrackLane
         }
         const startTime = Math.max(
           0,
-          (e.clientX - rect.left + scrollX) / pixelsPerSecond,
+          (e.clientX - rect.left) / pixelsPerSecond,
         );
-        const duration =
-          mediaItem.metadata.duration > 0 ? mediaItem.metadata.duration : 5;
+        const mediaLength = mediaDisplayDuration(mediaItem);
+        const duration = mediaLength > 0 ? mediaLength : 5;
         const project = useProjectStore.getState().project;
         const placement = resolveTimelinePlacement(project, {
           targetTrackId: track.id,
@@ -168,7 +213,7 @@ export const TrackLane: React.FC<TrackLaneProps> = React.memo(function TrackLane
         setDropHint("Drop to add clip");
       }
     },
-    [mediaItems, pixelsPerSecond, scrollX, track.id],
+    [mediaItems, pixelsPerSecond, track.id],
   );
 
   const handleDragLeave = useCallback(() => {
@@ -187,7 +232,7 @@ export const TrackLane: React.FC<TrackLaneProps> = React.memo(function TrackLane
       if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
         const rect = laneRef.current?.getBoundingClientRect();
         if (!rect) return;
-        const x = e.clientX - rect.left + scrollX;
+        const x = e.clientX - rect.left;
         const rawTime = Math.max(0, x / pixelsPerSecond);
         const snapResult = calculateSnap(
           rawTime,
@@ -229,15 +274,15 @@ export const TrackLane: React.FC<TrackLaneProps> = React.memo(function TrackLane
         if (
           !data ||
           typeof data !== "object" ||
-          typeof data.mediaId !== "string" ||
-          !data.mediaId.trim()
+          ((typeof data.mediaId !== "string" || !data.mediaId.trim()) &&
+            (typeof data.sequenceId !== "string" || !data.sequenceId.trim()))
         ) {
           return;
         }
 
         const rect = laneRef.current?.getBoundingClientRect();
         if (rect) {
-          const x = e.clientX - rect.left + scrollX;
+          const x = e.clientX - rect.left;
           const rawTime = Math.max(0, x / pixelsPerSecond);
           const snapResult = calculateSnap(
             rawTime,
@@ -247,6 +292,20 @@ export const TrackLane: React.FC<TrackLaneProps> = React.memo(function TrackLane
             snapSettings,
             pixelsPerSecond,
           );
+          if (typeof data.sequenceId === "string") {
+            // A sequence dragged from the Project panel is nested at the drop point.
+            void placeSequenceOnTimeline(data.sequenceId, track.id, snapResult.time);
+            return;
+          }
+          if (data.sourceMonitor === true) {
+            // Dragged from the Source monitor: its marked range, one stream
+            // or both, overwritten at the drop point.
+            const component =
+              data.component === "video" || data.component === "audio" ? data.component : "both";
+            const outcome = dropSourceRange(data.mediaId, track.id, snapResult.time, component);
+            if (!outcome.success) toast.warning("Source drop", outcome.message);
+            return;
+          }
           onDropMedia(track.id, data.mediaId, snapResult.time);
         }
       } catch {
@@ -257,7 +316,6 @@ export const TrackLane: React.FC<TrackLaneProps> = React.memo(function TrackLane
       allTracks,
       onDropMedia,
       pixelsPerSecond,
-      scrollX,
       snapSettings,
       track.id,
       track.name,
@@ -301,35 +359,98 @@ export const TrackLane: React.FC<TrackLaneProps> = React.memo(function TrackLane
     };
   }, [isResizing, track.id, onResizeTrack]);
 
+  // Offscreen clips (and their waveform/filmstrip canvases) are not mounted:
+  // a zoomed-out 400-clip project otherwise re-renders every clip per scroll.
+  const visibleClips = useMemo(() => {
+    const overlayIds = new Set<string>();
+    for (const tc of textClips) overlayIds.add(tc.id);
+    for (const sc of shapeClips) overlayIds.add(sc.id);
+    const media = overlayIds.size === 0
+      ? track.clips
+      : track.clips.filter((clip) => !overlayIds.has(clip.id));
+    return getVisibleClips(media, scrollX, viewportWidth, pixelsPerSecond, selectedClipIds);
+  }, [track.clips, textClips, shapeClips, scrollX, viewportWidth, pixelsPerSecond, selectedClipIds]);
+
+  // Clips only use the scroll position to cull thumbnails/waveform bars (120px lookahead).
+  // Quantising it (and widening the viewport by the same amount) keeps that cull a superset
+  // of the real viewport while letting memoised clips skip renders for most scroll ticks.
+  const clipScrollX = Math.floor(scrollX / CLIP_SCROLL_BUCKET) * CLIP_SCROLL_BUCKET;
+  const clipViewportWidth = Math.ceil(viewportWidth / CLIP_SCROLL_BUCKET) * CLIP_SCROLL_BUCKET + CLIP_SCROLL_BUCKET;
+
+  // Cross-clip derived state (linked audio, J/L offsets, neighbour transitions, lane badge) is
+  // folded into primitives once per commit, with identity preserved per clip when unchanged, so
+  // a one-clip move re-renders O(changed) clips rather than every mounted clip.
+  const laneInfoCache = useRef<ReadonlyMap<string, ClipLaneInfo>>(new Map());
+  const laneInfos = useMemo(() => {
+    const mediaById = new Map(mediaItems.map((item) => [item.id, item] as const));
+    const next = computeLaneInfos(
+      visibleClips,
+      {
+        track,
+        allTracks,
+        frameRate,
+        mediaTypeOf: (clip) => (track.type === "audio" ? "audio" : mediaById.get(clip.mediaId)?.type ?? track.type),
+      },
+      laneInfoCache.current,
+    );
+    return next;
+  }, [visibleClips, track, allTracks, frameRate, mediaItems]);
+  laneInfoCache.current = laneInfos;
+
+  // Gesture-time reads (drag snapping, target lane) get the latest tracks through a stable getter.
+  const allTracksRef = useRef(allTracks);
+  allTracksRef.current = allTracks;
+  const getAllTracks = useCallback(() => allTracksRef.current, []);
+
+  const toolGesture = useTimelineToolGesture(laneRef, pixelsPerSecond, onSelectClip);
+
   return (
-    <div className="relative">
+    <div className="relative" data-phone-track={phone ? track.type : undefined} style={phone ? { height: trackHeight } : undefined}>
       <div
         ref={laneRef}
-        style={{ height: trackHeight }}
+        data-track-lane={track.id}
+        data-audio-divider={audioDivider ? "true" : undefined}
+        {...toolGesture}
+        style={{ height: phone ? phoneTrackLayout(track, phoneTrackScale).lane : trackHeight }}
         className={`border-b border-border/50 relative transition-colors ${
           isDragOver
             ? "bg-primary/10 border-primary/30"
             : "bg-background-secondary/20"
         }`}
+        onMouseDown={(e) => { gapDownXRef.current = e.target === e.currentTarget ? e.clientX : null; }}
+        onClick={handleLaneClick}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
       >
-        {track.clips
-          .filter((clip) => !textClips.some((tc) => tc.id === clip.id))
-          .filter((clip) => !shapeClips.some((sc) => sc.id === clip.id))
+        {selectedGap && (() => {
+          const [start, end] = selectedGap.split(":").map(Number);
+          return (
+            <div
+              data-gap-selected={track.id}
+              aria-label="Selected gap"
+              className="absolute top-0 bottom-0 z-10 pointer-events-none border-x border-amber-400 bg-amber-400/20"
+              style={{ left: start * pixelsPerSecond, width: (end - start) * pixelsPerSecond }}
+            />
+          );
+        })()}
+        <TimelineToolGhost trackId={track.id} pixelsPerSecond={pixelsPerSecond} />
+        {visibleClips
           .map((clip) => (
             <ClipComponent
               key={clip.id}
               clip={clip}
               track={track}
-              allTracks={allTracks}
+              getAllTracks={getAllTracks}
+              laneInfo={laneInfos.get(clip.id)}
               pixelsPerSecond={pixelsPerSecond}
-              scrollX={scrollX}
-              viewportWidth={viewportWidth}
+              scrollX={clipScrollX}
+              viewportWidth={clipViewportWidth}
               isSelected={selectedClipIds.includes(clip.id)}
               trackHeights={trackHeights}
+              rowHeights={rowHeights}
               timelineRef={timelineRef}
+              trackTopInset={trackTopInset}
               onSelect={onSelectClip}
               onMoveClip={onMoveClip}
               onSnapIndicator={onSnapIndicator}
@@ -347,7 +468,9 @@ export const TrackLane: React.FC<TrackLaneProps> = React.memo(function TrackLane
             onMoveClip={onMoveTextClip}
             allTracks={allTracks}
             trackHeights={trackHeights}
+              rowHeights={rowHeights}
             timelineRef={timelineRef}
+            trackTopInset={trackTopInset}
           />
         ))}
         {shapeClips.map((shapeClip) => (
@@ -361,7 +484,20 @@ export const TrackLane: React.FC<TrackLaneProps> = React.memo(function TrackLane
             onMoveClip={onMoveClip}
             allTracks={allTracks}
             trackHeights={trackHeights}
+              rowHeights={rowHeights}
             timelineRef={timelineRef}
+            trackTopInset={trackTopInset}
+          />
+        ))}
+        {graphics?.map(({ instance, anchorId }) => (
+          <GraphicClipComponent
+            key={instance.id}
+            instance={instance}
+            anchorId={anchorId}
+            pixelsPerSecond={pixelsPerSecond}
+            isSelected={selectedClipIds.includes(anchorId)}
+            onSelect={onSelectClip}
+            allTracks={allTracks}
           />
         ))}
         {adjustmentLayers.map((layer) => {
@@ -414,7 +550,7 @@ export const TrackLane: React.FC<TrackLaneProps> = React.memo(function TrackLane
         onMouseDown={handleResizeStart}
       />
       {isExpanded && clipsWithKeyframes.length > 0 && (
-        <div className="absolute left-0 right-0" style={{ top: trackHeight }}>
+        <div className="absolute left-0 right-0" style={{ top: phone ? phoneTrackLayout(track, phoneTrackScale).row : trackHeight }}>
           {clipsWithKeyframes.map((clip) => (
             <div
               key={`keyframes-${clip.id}`}

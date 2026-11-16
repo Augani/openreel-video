@@ -29,6 +29,20 @@
       "bucket_name": "openreel-crashes"
     }
   ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "COLLAB_ROOMS",
+        "class_name": "ProjectRoom"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1-collab-rooms",
+      "new_sqlite_classes": ["ProjectRoom"]
+    }
+  ],
   "vars": {
     "ENVIRONMENT": "production"
   },

@@ -8,8 +8,10 @@ import {
   TextAnimationSection,
 } from "../";
 import { InspectorSection } from "../shell/InspectorSection";
+import { TextScrollSection } from "../TextScrollSection";
+import { SavedStylesSection } from "../SavedStylesSection";
 
-export interface AnimateTabProps {
+interface AnimateTabProps {
   clipId: string;
   clipType: string | null;
   showTextSection: boolean;
@@ -87,6 +89,16 @@ export const AnimateTab: React.FC<AnimateTabProps> = ({
           defaultOpen={false}
         >
           <TextAnimationSection clipId={clipId} />
+        </InspectorSection>
+      )}
+      {showTextSection && (
+        <InspectorSection title="Roll / Crawl" sectionId="text-scroll" defaultOpen={false}>
+          <TextScrollSection clipId={clipId} />
+        </InspectorSection>
+      )}
+      {showTextSection && (
+        <InspectorSection title="Saved Styles" sectionId="text-saved-styles" defaultOpen={false}>
+          <SavedStylesSection kind="text" targetId={clipId} />
         </InspectorSection>
       )}
     </>

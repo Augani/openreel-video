@@ -23,7 +23,3 @@ export function generateProjectName(): string {
   const city = CITY_NAMES[Math.floor(Math.random() * CITY_NAMES.length)];
   return `${adjective} ${city}`;
 }
-
-export function generateSimpleProjectName(): string {
-  return CITY_NAMES[Math.floor(Math.random() * CITY_NAMES.length)];
-}

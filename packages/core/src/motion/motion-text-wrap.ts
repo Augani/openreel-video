@@ -1,4 +1,4 @@
-export type MotionTextMeasure = (text: string) => number;
+type MotionTextMeasure = (text: string) => number;
 
 export function wrapMotionTextLines(
   text: string,

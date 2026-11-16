@@ -1,13 +1,13 @@
 import type { StickerItem, EmojiItem, StickerClip } from "./types";
 import { DEFAULT_GRAPHIC_TRANSFORM } from "./types";
 
-export interface StickerCategory {
+interface StickerCategory {
   readonly id: string;
   readonly name: string;
   readonly icon?: string;
 }
 
-export interface EmojiCategory {
+interface EmojiCategory {
   readonly id: string;
   readonly name: string;
   readonly emojis: EmojiItem[];

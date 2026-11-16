@@ -1,5 +1,16 @@
-import React, { useCallback, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import React, { useCallback, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
+import {
+  Button,
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+} from "@openreel/ui";
+import { X, Plus } from "lucide-react";
+import { useEditorWorkspaceStore } from "../../../stores/editor-workspace-store";
 import type { TransitionType } from "@openreel/core";
 import type { ResolvedTransitionHandle } from "./transition-handles";
 import { useProjectStore } from "../../../stores/project-store";
@@ -7,7 +18,7 @@ import { getTransitionBridge } from "../../../bridges/transition-bridge";
 import { toast } from "../../../stores/notification-store";
 
 const BADGE_SIZE = 18;
-const MENU_WIDTH = 200;
+const TRIM_TOOLS: ReadonlySet<string> = new Set(["ripple", "roll", "stretch", "slip", "slide", "hand", "zoom"]);
 
 interface TransitionHandleProps {
   handle: ResolvedTransitionHandle;
@@ -24,34 +35,22 @@ export const TransitionHandle: React.FC<TransitionHandleProps> = ({
 }) => {
   const { centerX, transition, clipA, clipB, edge } = handle;
   const [open, setOpen] = useState(false);
-  const [anchor, setAnchor] = useState<{
-    left: number;
-    top: number;
-    above: boolean;
-  } | null>(null);
-  const badgeRef = useRef<HTMLButtonElement>(null);
+  // The badge sits on the cut, exactly where Ripple/Roll/Rate Stretch grab the
+  // clip edges. While a trim tool is active it must not swallow those drags; the
+  // Hand and Zoom tools never open anything by clicking, and an opened menu would
+  // swallow their press (Radix locks pointer events on the page).
+  const trimToolActive = useEditorWorkspaceStore((state) =>
+    TRIM_TOOLS.has(state.timelineTool),
+  );
 
   const { addClipTransition, updateClipTransition, removeClipTransition } =
-    useProjectStore();
+    useProjectStore(useShallow((state) => ({
+      addClipTransition: state.addClipTransition,
+      updateClipTransition: state.updateClipTransition,
+      removeClipTransition: state.removeClipTransition,
+    })));
   const bridge = getTransitionBridge();
   const types = bridge.getAvailableTransitionTypes();
-
-  const openMenu = useCallback(
-    (e: React.MouseEvent) => {
-      e.stopPropagation();
-      const rect = badgeRef.current?.getBoundingClientRect();
-      if (!rect) return;
-      const above = rect.top > 300;
-      setAnchor({
-        left: rect.left,
-        top: above ? rect.top - 6 : rect.bottom + 6,
-        above,
-      });
-      setOpen(true);
-      if (transition) onSelect(transition.id, trackId);
-    },
-    [transition, onSelect, trackId],
-  );
 
   const applyType = useCallback(
     async (type: TransitionType) => {
@@ -66,14 +65,29 @@ export const TransitionHandle: React.FC<TransitionHandleProps> = ({
         return;
       }
       const params = bridge.getDefaultParams(type);
+      const duration = useEditorWorkspaceStore.getState().transitionDuration;
       const result = clipB
-        ? bridge.createTransition(clipA, clipB, type, 1.0, params)
-        : bridge.createClipEdgeTransition(clipA, edge ?? "out", type, 1.0, params);
+        ? bridge.createTransition(clipA, clipB, type, duration, params)
+        : bridge.createClipEdgeTransition(
+            clipA,
+            edge ?? "out",
+            type,
+            duration,
+            params,
+          );
       if (result.success && result.transitionId) {
         const created = bridge.getTransition(result.transitionId);
         if (created) {
-          await addClipTransition(created);
-          toast.success("Transition added", `${type} · 1.0s`);
+          const saved = await addClipTransition(created);
+          if (!saved) {
+            toast.error("Transition failed", "The edit could not be saved.");
+            return;
+          }
+          onSelect(saved.id, trackId);
+          toast.success(
+            "Transition added",
+            `${type} · ${saved.duration.toFixed(1)}s`,
+          );
           return;
         }
       }
@@ -90,6 +104,8 @@ export const TransitionHandle: React.FC<TransitionHandleProps> = ({
       addClipTransition,
       updateClipTransition,
       bridge,
+      onSelect,
+      trackId,
     ],
   );
 
@@ -112,99 +128,80 @@ export const TransitionHandle: React.FC<TransitionHandleProps> = ({
     : `Edit transition between clips: ${label}`;
   const isActive = Boolean(transition) || isSelected || open;
 
-  const menu =
-    open && anchor
-      ? createPortal(
-          <>
-            <div
-              className="fixed inset-0 z-[9998]"
-              onMouseDown={(e) => {
-                e.stopPropagation();
-                setOpen(false);
-              }}
-            />
-            <div
-              role="menu"
-              className="fixed z-[9999] rounded-lg border border-border bg-bg-1 shadow-lg overflow-hidden"
-              style={{
-                left: anchor.left,
-                width: MENU_WIDTH,
-                ...(anchor.above
-                  ? { bottom: window.innerHeight - anchor.top }
-                  : { top: anchor.top }),
-              }}
-              onMouseDown={(e) => e.stopPropagation()}
-            >
-              <div className="py-1 max-h-72 overflow-y-auto">
-                <div className="px-3 py-1.5 text-[11px] font-semibold text-fg-muted uppercase tracking-wide">
-                  Transition
-                </div>
-                {transition && (
-                  <button
-                    type="button"
-                    onClick={handleRemove}
-                    className="w-full flex items-center px-3 py-2 text-[12px] font-medium text-destructive hover:bg-hover transition-colors text-left"
-                  >
-                    Remove transition
-                  </button>
-                )}
-                {types.map((t) => (
-                  <button
-                    key={t.type}
-                    type="button"
-                    onClick={() => applyType(t.type)}
-                    className={`w-full flex flex-col px-3 py-1.5 hover:bg-hover transition-colors text-left ${
-                      transition?.type === t.type ? "bg-selected" : ""
-                    }`}
-                  >
-                    <span
-                      className={`text-[12px] font-medium ${
-                        transition?.type === t.type ? "text-accent" : "text-fg"
-                      }`}
-                    >
-                      {t.name}
-                    </span>
-                    <span className="text-[11px] text-fg-muted leading-tight">
-                      {t.description}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          </>,
-          document.body,
-        )
-      : null;
-
   return (
     <div
       className="absolute top-0 bottom-0 z-30 flex items-center pointer-events-none"
       style={{ left: centerX }}
     >
-      <button
-        ref={badgeRef}
-        type="button"
-        title={label}
-        aria-label={ariaLabel}
-        data-transition-id={transition?.id}
-        onMouseDown={(e) => e.stopPropagation()}
-        onClick={openMenu}
-        className={`pointer-events-auto flex items-center justify-center rounded-[5px] shadow-sm transition-all ${
-          isActive ? "ring-2 ring-accent" : ""
-        }`}
-        style={{
-          width: BADGE_SIZE,
-          height: BADGE_SIZE,
-          marginLeft: -(BADGE_SIZE / 2),
-          background: "rgba(255,255,255,0.85)",
+      <DropdownMenu
+        open={open}
+        onOpenChange={(next) => {
+          if (!next || !transition) setOpen(next);
         }}
       >
-        <svg width="9" height="9" viewBox="0 0 24 24" fill="#3a3a3c">
-          <rect x="6" y="5" width="4" height="14" />
-          <rect x="14" y="5" width="4" height="14" />
-        </svg>
-      </button>
-      {menu}
+        <DropdownMenuTrigger asChild>
+          <Button
+            type="button"
+            variant="ghost"
+            title={label}
+            aria-label={ariaLabel}
+            aria-pressed={isSelected}
+            data-transition-id={transition?.id}
+            data-timeline-transition
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (transition) onSelect(transition.id, trackId);
+            }}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              if (transition) onSelect(transition.id, trackId);
+              setOpen(true);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "F10" && e.shiftKey) {
+                e.preventDefault();
+                setOpen(true);
+              }
+            }}
+            className={`${trimToolActive ? "pointer-events-none" : "pointer-events-auto"} flex items-center justify-center rounded-[3px] p-0 border transition-colors ${isActive ? "border-accent bg-accent/20 text-fg" : "border-border-strong bg-bg-2 text-fg-muted hover:border-accent"}`}
+            style={{
+              width: BADGE_SIZE,
+              height: transition ? 34 : 18,
+              marginLeft: -(BADGE_SIZE / 2),
+            }}
+          >
+            {transition ? <X size={12} /> : <Plus size={12} />}
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent
+          className="w-52 max-h-72 overflow-y-auto"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <DropdownMenuLabel>Transition</DropdownMenuLabel>
+          {transition && (
+            <>
+              <DropdownMenuItem
+                className="text-red-400"
+                onSelect={() => void handleRemove()}
+              >
+                Remove transition
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+            </>
+          )}
+          {types.map((type) => (
+            <DropdownMenuItem
+              key={type.type}
+              className={transition?.type === type.type ? "text-accent" : ""}
+              onSelect={() => void applyType(type.type)}
+            >
+              {type.name}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   );
 };

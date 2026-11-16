@@ -1,11 +1,4 @@
-import type { MotionComposition, Project } from "@openreel/core";
-
-function hasComposition(
-  compositions: readonly MotionComposition[],
-  compositionId: string | null | undefined,
-): compositionId is string {
-  return !!compositionId && compositions.some((item) => item.id === compositionId);
-}
+import type { MotionComposition } from "@openreel/core";
 
 function hasScene3DLayer(composition: MotionComposition): boolean {
   return composition.layers.some((layer) => layer.type === "scene3d");
@@ -38,70 +31,6 @@ function getFirstVisibleScene3DOpacityTime(
   });
   if (opacityTimes.length === 0) return null;
   return Math.min(...opacityTimes);
-}
-
-function getBoundCreationCompositionIds(project: Project): string[] {
-  const ids: string[] = [];
-  const creation = project.creation;
-  if (!creation) return ids;
-
-  const activeScene = creation.scenes.find(
-    (scene) => scene.id === creation.activeSceneId,
-  );
-  const scenes = activeScene
-    ? [activeScene, ...creation.scenes.filter((scene) => scene.id !== activeScene.id)]
-    : creation.scenes;
-
-  for (const scene of scenes) {
-    for (const binding of scene.renderBindings) {
-      if (binding.kind === "motion-scene3d" && binding.compositionId) {
-        ids.push(binding.compositionId);
-      }
-    }
-  }
-  return ids;
-}
-
-function firstExistingCompositionId(
-  compositions: readonly MotionComposition[],
-  ids: readonly string[],
-): string | null {
-  for (const id of ids) {
-    if (hasComposition(compositions, id)) return id;
-  }
-  return null;
-}
-
-export function resolveMotionCreatorCompositionId({
-  project,
-  compositions,
-  activeCompositionId,
-  routeCompositionId,
-}: {
-  readonly project: Project;
-  readonly compositions: readonly MotionComposition[];
-  readonly activeCompositionId?: string | null;
-  readonly routeCompositionId?: string | null;
-}): string | null {
-  if (compositions.length === 0) return null;
-  if (hasComposition(compositions, routeCompositionId)) return routeCompositionId;
-  if (hasComposition(compositions, activeCompositionId)) return activeCompositionId;
-
-  const timelineCompositionId = firstExistingCompositionId(
-    compositions,
-    [...(project.motionInstances ?? [])]
-      .sort((a, b) => a.startTime - b.startTime)
-      .map((instance) => instance.compositionId),
-  );
-  if (timelineCompositionId) return timelineCompositionId;
-
-  const creationCompositionId = firstExistingCompositionId(
-    compositions,
-    getBoundCreationCompositionIds(project),
-  );
-  if (creationCompositionId) return creationCompositionId;
-
-  return compositions.find(hasScene3DLayer)?.id ?? compositions[0].id;
 }
 
 export function resolveMotionCreatorPreviewTime(

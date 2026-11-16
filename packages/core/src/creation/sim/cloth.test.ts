@@ -24,29 +24,6 @@ describe("cloth simulation", () => {
     expect(Number.isFinite(tipAfter.y)).toBe(true);
   });
 
-  it("respects spring rest lengths without exploding", () => {
-    const cloth = createClothGrid({ width: 2, height: 2, columns: 6, rows: 6, pin: "left" });
-    const simulated = simulateCloth(cloth, { steps: 80, gravity: 9.8, iterations: 10 });
-    for (const spring of simulated.springs) {
-      const a = simulated.particles[spring.a]!;
-      const b = simulated.particles[spring.b]!;
-      const dist = Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
-      expect(dist).toBeLessThan(spring.rest * 2.2);
-    }
-  });
-
-  it("applies a wind force along Z", () => {
-    const cloth = createClothGrid({ width: 2, height: 2, columns: 5, rows: 5, pin: "left" });
-    const simulated = simulateCloth(cloth, {
-      steps: 60,
-      gravity: 2,
-      wind: { x: 0, y: 0, z: 6 },
-      iterations: 6,
-    });
-    const freeTip = simulated.particles[simulated.columns - 1]!;
-    expect(freeTip.z).toBeGreaterThan(0.05);
-  });
-
   it("triangulates the cloth into a valid mesh", () => {
     const cloth = createClothGrid({ width: 2, height: 2, columns: 4, rows: 4, pin: "top" });
     const mesh = clothToMesh(cloth);

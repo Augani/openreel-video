@@ -1,3 +1,4 @@
+import { buildTriggerTrackBuffer } from "../../../services/audio-ducking-buffer";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Volume2,
@@ -18,12 +19,12 @@ import {
   type Project,
   type Track,
 } from "@openreel/core";
-import { ToolcraftButton as Button } from "@openreel/ui";
-import { ToolcraftCard as Card } from "@openreel/ui";
-import { ToolcraftClickableCard as ClickableCard } from "@openreel/ui";
-import { ToolcraftText as Text } from "@openreel/ui";
+import { Button } from "@openreel/ui";
+import { Card } from "@openreel/ui";
+import { cn } from "@openreel/ui";
+
 import { PropertySlider } from "./shell/PropertySlider";
-import { MockToggle } from "./shell/InspectorControls";
+import { InspectorToggle } from "./shell/InspectorControls";
 import { useProjectStore } from "../../../stores/project-store";
 import type { AudioDuckingSettings } from "../../../stores/project";
 
@@ -141,99 +142,12 @@ const DuckingSlider: React.FC<DuckingSliderProps> = ({
       onChange={onChange}
       formatValue={formatValue}
     />
-    <Text type="supporting" color="secondary" className="text-[8px]">
+    <span className="text-fg-2 font-normal text-[8px]">
       {description}
-    </Text>
+    </span>
   </div>
 );
 
-const buildTriggerTrackBuffer = async (
-  project: Project,
-  backgroundClip: Clip,
-  sourceTrack: Track,
-): Promise<AudioBuffer> => {
-  const overlappingClips = sourceTrack.clips.filter((sourceClip) => {
-    const sourceEnd = sourceClip.startTime + sourceClip.duration;
-    const backgroundEnd = backgroundClip.startTime + backgroundClip.duration;
-    return (
-      sourceClip.id !== backgroundClip.id &&
-      sourceClip.startTime < backgroundEnd &&
-      sourceEnd > backgroundClip.startTime
-    );
-  });
-
-  if (overlappingClips.length === 0) {
-    throw new Error("No overlapping trigger clips were found for this clip.");
-  }
-
-  const decodeContext = new AudioContext();
-
-  try {
-    const offlineContext = new OfflineAudioContext(
-      Math.max(1, project.settings.channels),
-      Math.max(1, Math.ceil(backgroundClip.duration * project.settings.sampleRate)),
-      project.settings.sampleRate,
-    );
-
-    let scheduledSources = 0;
-
-    for (const sourceClip of overlappingClips) {
-      if (sourceClip.reversed) {
-        continue;
-      }
-
-      const mediaItem = project.mediaLibrary.items.find(
-        (item) => item.id === sourceClip.mediaId,
-      );
-
-      if (!mediaItem?.blob) {
-        continue;
-      }
-
-      const overlapStart = Math.max(backgroundClip.startTime, sourceClip.startTime);
-      const overlapEnd = Math.min(
-        backgroundClip.startTime + backgroundClip.duration,
-        sourceClip.startTime + sourceClip.duration,
-      );
-
-      if (overlapEnd <= overlapStart) {
-        continue;
-      }
-
-      try {
-        const arrayBuffer = await mediaItem.blob.arrayBuffer();
-        const decodedBuffer = await decodeContext.decodeAudioData(arrayBuffer.slice(0));
-        const source = offlineContext.createBufferSource();
-        const gainNode = offlineContext.createGain();
-        const playbackRate = Math.max(0.1, sourceClip.speed ?? 1);
-        const timelineOffset = overlapStart - backgroundClip.startTime;
-        const mediaOffset =
-          sourceClip.inPoint +
-          Math.max(0, overlapStart - sourceClip.startTime) * playbackRate;
-        const renderDuration = overlapEnd - overlapStart;
-
-        source.buffer = decodedBuffer;
-        source.playbackRate.value = playbackRate;
-        gainNode.gain.value = sourceClip.volume;
-
-        source.connect(gainNode);
-        gainNode.connect(offlineContext.destination);
-        source.start(timelineOffset, mediaOffset, renderDuration * playbackRate);
-        scheduledSources += 1;
-      } catch {
-        continue;
-      }
-    }
-
-    if (scheduledSources === 0) {
-      throw new Error("No decodable trigger audio was found on the selected source track.");
-    }
-
-    return offlineContext.startRendering();
-  } finally {
-    await decodeContext.close();
-  }
-};
 
 export const AudioDuckingSection: React.FC<AudioDuckingSectionProps> = ({
   clipId,
@@ -365,7 +279,7 @@ export const AudioDuckingSection: React.FC<AudioDuckingSectionProps> = ({
         throw new Error("Failed to persist ducking on this clip.");
       }
 
-      window.dispatchEvent(new CustomEvent("openreel:preview-invalidate"));
+      window.dispatchEvent(new CustomEvent("openreel:preview-invalidate", { detail: { audioOnly: true } }));
     } catch (error) {
       setErrorMessage(
         error instanceof Error ? error.message : "Failed to apply ducking.",
@@ -385,31 +299,25 @@ export const AudioDuckingSection: React.FC<AudioDuckingSectionProps> = ({
 
     setSettings(DEFAULT_SETTINGS);
     setErrorMessage(null);
-    window.dispatchEvent(new CustomEvent("openreel:preview-invalidate"));
+    window.dispatchEvent(new CustomEvent("openreel:preview-invalidate", { detail: { audioOnly: true } }));
   }, [audioTargetClip?.id, clearClipAudioDucking, clipId]);
 
   return (
     <div className="space-y-3">
-      <Card
-        variant="green"
-        padding={2}
-        className="flex items-center gap-2 border border-primary/30"
+      <Card className="min-w-0 rounded-[7px] shadow-none bg-status-success/10 text-fg p-2 flex items-center gap-2 border border-primary/30"
       >
         <VolumeX size={16} className="text-primary" aria-hidden />
         <div className="flex flex-1 flex-col gap-0.5">
-          <Text type="body" color="primary" weight="bold" className="block text-[11px]">
+          <span className="text-fg font-bold block text-[11px]">
             Audio Ducking
-          </Text>
-          <Text type="supporting" color="secondary" className="block text-[9px]">
+          </span>
+          <span className="text-fg-2 font-normal block text-[9px]">
             Auto-lower music when speech plays
-          </Text>
+          </span>
         </div>
       </Card>
 
-      <Card
-        variant="muted"
-        padding={2}
-        className="flex items-center justify-between gap-3"
+      <Card className="min-w-0 rounded-[7px] border shadow-none border-transparent bg-bg-2 text-fg p-2 flex items-center justify-between gap-3"
       >
         <div className="flex items-center gap-2">
           <div
@@ -417,11 +325,11 @@ export const AudioDuckingSection: React.FC<AudioDuckingSectionProps> = ({
               showControls ? "bg-green-400" : "bg-gray-500"
             }`}
           />
-          <Text type="supporting" color="primary" weight="bold">
+          <span className="text-[12px] leading-5 text-fg font-bold">
             {showControls ? "Ducking Enabled" : "Ducking Disabled"}
-          </Text>
+          </span>
         </div>
-        <MockToggle
+        <InspectorToggle
           ariaLabel="Enable audio ducking"
           checked={settings.enabled}
           onChange={(checked) => updateSetting("enabled", checked)}
@@ -431,56 +339,40 @@ export const AudioDuckingSection: React.FC<AudioDuckingSectionProps> = ({
       {showControls && (
         <>
           <div className="space-y-2">
-            <Text
-              type="supporting"
-              color="secondary"
-              weight="bold"
-              className="flex items-center gap-2"
+            <span className="text-[12px] leading-5 text-fg-2 font-bold flex items-center gap-2"
             >
               <Mic size={12} aria-hidden />
               Trigger Source (Voice Track)
-            </Text>
+            </span>
             {availableSourceTracks.length > 0 ? (
               <div className="space-y-1">
                 {availableSourceTracks
                   .filter((track) => track.id !== currentTrack?.id)
                   .map((track) => (
-                  <ClickableCard
-                    key={track.id}
-                    label={`Use ${getTrackLabel(track)} as ducking trigger`}
-                    onClick={() => updateSetting("sourceTrackId", track.id)}
-                    padding={2}
-                    variant={
-                      settings.sourceTrackId === track.id ? "green" : "muted"
-                    }
-                    className="w-full border border-transparent"
-                  >
+                  <Button variant="ghost" key={track.id} onClick={() => updateSetting("sourceTrackId", track.id)} type="button" aria-label={`Use ${getTrackLabel(track)} as ducking trigger`} className={cn("group/card block h-auto min-w-0 whitespace-normal rounded-[7px] border text-left transition-[background-color,border-color,box-shadow,transform] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50", (settings.sourceTrackId === track.id ? "" : "border-transparent bg-bg-2 hover:bg-bg-3"), "p-2", "w-full border border-transparent")}>
                     <div className="flex items-center gap-2">
                       <Volume2 size={12} className="text-fg-3" aria-hidden />
-                      <Text
-                        type="supporting"
-                        color="primary"
-                        className="flex-1 text-[10px]"
+                      <span className="text-fg font-normal flex-1 text-[10px]"
                       >
                         {getTrackLabel(track)}
-                      </Text>
+                      </span>
                       {settings.sourceTrackId === track.id && (
                         <Check size={12} className="text-primary" aria-hidden />
                       )}
                     </div>
-                  </ClickableCard>
+                  </Button>
                 ))}
               </div>
             ) : (
-              <Card variant="muted" padding={3} className="text-center">
+              <Card className="min-w-0 rounded-[7px] border shadow-none border-transparent bg-bg-2 text-fg p-3 text-center">
                 <Mic
                   size={16}
                   className="mx-auto mb-1 text-fg-3 opacity-50"
                   aria-hidden
                 />
-                <Text type="supporting" color="secondary" className="text-[10px]">
+                <span className="text-fg-2 font-normal text-[10px]">
                   Add another audio or video track with speech to use as trigger
-                </Text>
+                </span>
               </Card>
             )}
           </div>
@@ -488,25 +380,16 @@ export const AudioDuckingSection: React.FC<AudioDuckingSectionProps> = ({
           {settings.sourceTrackId && (
             <>
               <div className="space-y-2">
-                <Text
-                  type="supporting"
-                  color="secondary"
-                  weight="bold"
-                  className="flex items-center gap-2"
+                <span className="text-[12px] leading-5 text-fg-2 font-bold flex items-center gap-2"
                 >
                   <Music size={12} aria-hidden />
                   Ducking Presets
-                </Text>
+                </span>
                 <div className="grid grid-cols-2 gap-1">
                   {PRESET_CONFIGS.map((preset) => (
-                    <Button
-                      key={preset.id}
-                      label={preset.name}
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => applyPreset(preset.id)}
-                      className="w-full text-[9px]"
-                    />
+                    <Button key={preset.id} onClick={() => applyPreset(preset.id)} type="button" aria-label={(preset.name).trim() || undefined} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg w-full text-[9px]">
+                      {(preset.name) ? <span className="truncate">{preset.name}</span> : null}
+                    </Button>
                   ))}
                 </div>
               </div>
@@ -535,23 +418,17 @@ export const AudioDuckingSection: React.FC<AudioDuckingSectionProps> = ({
                 />
               </div>
 
-              <Button
-                label="Timing Controls"
-                variant="ghost"
-                size="sm"
-                icon={
-                  showAdvanced ? (
+              <Button onClick={() => setShowAdvanced(!showAdvanced)} type="button" aria-label="Timing Controls" className="inline-flex min-w-0 items-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] bg-transparent text-fg-2 hover:bg-bg-2 hover:text-fg w-full justify-start">
+                <span className="flex h-4 w-4 shrink-0 items-center justify-center">{showAdvanced ? (
                     <ChevronDown size={12} aria-hidden />
                   ) : (
                     <ChevronRight size={12} aria-hidden />
-                  )
-                }
-                onClick={() => setShowAdvanced(!showAdvanced)}
-                className="w-full justify-start"
-              />
+                  )}</span>
+                <span className="truncate">{"Timing Controls"}</span>
+              </Button>
 
               {showAdvanced && (
-                <Card variant="muted" padding={2} className="space-y-3">
+                <Card className="min-w-0 rounded-[7px] border shadow-none border-transparent bg-bg-2 text-fg p-2 space-y-3">
                   <DuckingSlider
                     label="Attack"
                     min={0.01}
@@ -588,58 +465,35 @@ export const AudioDuckingSection: React.FC<AudioDuckingSectionProps> = ({
               )}
 
               {!hasAppliedDucking ? (
-                <Button
-                  label={isApplying ? "Analyzing..." : "Apply Ducking"}
-                  icon={
-                    isApplying ? (
+                <Button onClick={handleApplyDucking} type="button" aria-label={(isApplying ? "Analyzing..." : "Apply Ducking").trim() || undefined} disabled={(isApplying)} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 px-3 text-[12px] bg-accent text-accent-fg hover:bg-accent/90 w-full">
+                  {(isApplying) ? <span aria-hidden className="h-3.5 w-3.5 shrink-0 animate-spin rounded-full border-2 border-current border-r-transparent opacity-80" /> : <span className="flex h-4 w-4 shrink-0 items-center justify-center">{isApplying ? (
                       <RefreshCw size={14} className="animate-spin" aria-hidden />
                     ) : (
                       <VolumeX size={14} aria-hidden />
-                    )
-                  }
-                  variant="primary"
-                  size="md"
-                  onClick={handleApplyDucking}
-                  isDisabled={isApplying}
-                  isLoading={isApplying}
-                  className="w-full"
-                />
+                    )}</span>}
+                  <span className="truncate">{isApplying ? "Analyzing..." : "Apply Ducking"}</span>
+                </Button>
               ) : (
                 <div className="space-y-2">
-                  <Card
-                    variant="green"
-                    padding={2}
-                    className="flex items-center gap-2 border border-green-500/20"
+                  <Card className="min-w-0 rounded-[7px] shadow-none bg-status-success/10 text-fg p-2 flex items-center gap-2 border border-green-500/20"
                   >
                     <Check size={12} className="text-green-400" aria-hidden />
-                    <Text type="supporting" className="text-[10px] text-green-400">
+                    <span className="font-normal text-[10px] text-green-400">
                       Ducking Applied
-                    </Text>
+                    </span>
                   </Card>
                   <div className="grid grid-cols-2 gap-2">
-                    <Button
-                      label={isApplying ? "Updating..." : "Update"}
-                      icon={
-                        <RefreshCw
+                    <Button onClick={handleApplyDucking} type="button" aria-label={(isApplying ? "Updating..." : "Update").trim() || undefined} disabled={(isApplying)} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg">
+                      {(isApplying) ? <span aria-hidden className="h-3.5 w-3.5 shrink-0 animate-spin rounded-full border-2 border-current border-r-transparent opacity-80" /> : <span className="flex h-4 w-4 shrink-0 items-center justify-center">{<RefreshCw
                           size={10}
                           className={isApplying ? "animate-spin" : undefined}
                           aria-hidden
-                        />
-                      }
-                      variant="secondary"
-                      size="sm"
-                      onClick={handleApplyDucking}
-                      isDisabled={isApplying}
-                      isLoading={isApplying}
-                    />
-                    <Button
-                      label="Remove"
-                      variant="secondary"
-                      size="sm"
-                      onClick={handleRemoveDucking}
-                      isDisabled={isApplying}
-                      className="text-red-400"
-                    />
+                        />}</span>}
+                      <span className="truncate">{isApplying ? "Updating..." : "Update"}</span>
+                    </Button>
+                    <Button onClick={handleRemoveDucking} type="button" aria-label="Remove" disabled={(isApplying)} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] border border-border bg-bg-2 hover:bg-bg-3 hover:text-fg text-red-400">
+                      <span className="truncate">{"Remove"}</span>
+                    </Button>
                   </div>
                 </div>
               )}
@@ -649,25 +503,21 @@ export const AudioDuckingSection: React.FC<AudioDuckingSectionProps> = ({
       )}
 
       {errorMessage && (
-        <Card
-          variant="red"
-          padding={2}
-          className="flex items-center gap-2 border border-red-500/20"
+        <Card className="min-w-0 rounded-[7px] shadow-none bg-status-error/10 text-fg p-2 flex items-center gap-2 border border-red-500/20"
         >
           <AlertCircle size={12} className="text-red-400" aria-hidden />
-          <Text type="supporting" className="text-[9px] text-red-400">
+          <span className="font-normal text-[9px] text-red-400">
             {errorMessage}
-          </Text>
+          </span>
         </Card>
       )}
 
       <div className="pt-2 border-t border-border">
-        <Text type="supporting" color="secondary" className="block text-[9px] text-center">
+        <span className="text-fg-2 font-normal block text-[9px] text-center">
           Automatically reduces music volume when voice is detected
-        </Text>
+        </span>
       </div>
     </div>
   );
 };
 
-export default AudioDuckingSection;

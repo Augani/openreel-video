@@ -3,7 +3,7 @@ import type { Action } from "../types/actions";
 import { ActionExecutor } from "../actions/action-executor";
 import { ActionHistory } from "../actions/action-history";
 
-export interface ClipManagerOptions {
+interface ClipManagerOptions {
   executor?: ActionExecutor;
   history?: ActionHistory;
   snapToGridEnabled?: boolean;
@@ -11,27 +11,27 @@ export interface ClipManagerOptions {
   snapThreshold?: number; // Snap threshold in pixels (converted to time based on zoom)
 }
 
-export interface AddClipParams {
+interface AddClipParams {
   trackId: string;
   mediaId: string;
   startTime: number;
   duration?: number;
 }
 
-export interface MoveClipParams {
+interface MoveClipParams {
   clipId: string;
   startTime: number;
   trackId?: string;
 }
 
-export interface ClipOperationResult {
+interface ClipOperationResult {
   success: boolean;
   clipId?: string;
   error?: string;
   constrainedPosition?: number;
 }
 
-export interface SnapResult {
+interface SnapResult {
   snappedTime: number;
   didSnap: boolean;
   snapTarget?: "grid" | "clip-start" | "clip-end" | "playhead";
@@ -465,6 +465,10 @@ export class ClipManager {
     const project = this.createProjectWrapper(timeline);
     const result = await this.executor.execute(action, project);
 
+    // This API edits its supplied Timeline. The shared Split action returns
+    // new collections so history can retain the exact original records.
+    if (result.success && project.timeline !== timeline) Object.assign(timeline, project.timeline);
+
     return {
       success: result.success,
       clipId,
@@ -653,71 +657,5 @@ export class ClipManager {
       },
       timeline,
     };
-  }
-}
-
-export function createClip(
-  mediaId: string,
-  trackId: string,
-  startTime: number = 0,
-  duration: number = 5,
-): Clip {
-  return {
-    id: `clip-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
-    mediaId,
-    trackId,
-    startTime,
-    duration,
-    inPoint: 0,
-    outPoint: duration,
-    effects: [],
-    audioEffects: [],
-    transform: {
-      position: { x: 0, y: 0 },
-      scale: { x: 1, y: 1 },
-      rotation: 0,
-      anchor: { x: 0.5, y: 0.5 },
-      opacity: 1,
-    },
-    volume: 1,
-    keyframes: [],
-  };
-}
-
-export function cloneClip(clip: Clip, newTrackId?: string): Clip {
-  return {
-    ...clip,
-    id: `clip-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
-    trackId: newTrackId ?? clip.trackId,
-    effects: clip.effects.map((effect) => ({
-      ...effect,
-      id: `effect-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
-    })),
-    keyframes: clip.keyframes.map((kf) => ({
-      ...kf,
-      id: `keyframe-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
-    })),
-  };
-}
-
-export function getClipEndTime(clip: Clip): number {
-  return clip.startTime + clip.duration;
-}
-
-export function clipsOverlap(clipA: Clip, clipB: Clip): boolean {
-  if (clipA.trackId !== clipB.trackId) return false;
-  const aEnd = clipA.startTime + clipA.duration;
-  const bEnd = clipB.startTime + clipB.duration;
-  return clipA.startTime < bEnd && aEnd > clipB.startTime;
-}
-
-export function getGapBetweenClips(clipA: Clip, clipB: Clip): number {
-  const aEnd = clipA.startTime + clipA.duration;
-  const bEnd = clipB.startTime + clipB.duration;
-
-  if (clipA.startTime < clipB.startTime) {
-    return clipB.startTime - aEnd;
-  } else {
-    return clipA.startTime - bEnd;
   }
 }

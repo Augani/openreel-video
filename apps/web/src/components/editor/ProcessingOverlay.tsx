@@ -1,21 +1,30 @@
 import React from "react";
 import { Loader2, CheckCircle, XCircle, Clock } from "@/icons/lucide-compat";
-import { ToolcraftCard as Card } from "@openreel/ui";
-import { ToolcraftProgressBar as ProgressBar } from "@openreel/ui";
-import { ToolcraftText as Text } from "@openreel/ui";
+import { Card, Progress, cn } from "@openreel/ui";
+
 import {
   useProcessingStore,
   PROCESSING_TYPE_LABELS,
   type ProcessingTask,
 } from "../../services/processing-manager";
 
-const TaskItem: React.FC<{ task: ProcessingTask }> = ({ task }) => {
+const TaskItem = React.memo(function TaskItem({
+  task,
+}: {
+  task: ProcessingTask;
+}) {
   const getIcon = () => {
     switch (task.status) {
       case "queued":
         return <Clock size={14} className="text-text-muted" aria-hidden />;
       case "processing":
-        return <Loader2 size={14} className="text-blue-400 animate-spin" aria-hidden />;
+        return (
+          <Loader2
+            size={14}
+            className="text-blue-400 animate-spin"
+            aria-hidden
+          />
+        );
       case "completed":
         return <CheckCircle size={14} className="text-green-400" aria-hidden />;
       case "failed":
@@ -37,49 +46,71 @@ const TaskItem: React.FC<{ task: ProcessingTask }> = ({ task }) => {
   };
 
   return (
-    <Card variant="muted" padding={2} className="flex items-center gap-3 bg-black/20">
+    <Card className="min-w-0 rounded-[7px] border shadow-none border-transparent text-fg p-2 flex items-center gap-3 bg-black/20">
       {getIcon()}
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between">
-          <Text type="supporting" weight="bold" maxLines={1}>
+          <span
+            className="text-[12px] leading-5 text-fg-2 font-bold overflow-hidden"
+            style={{
+              WebkitBoxOrient: "vertical",
+              WebkitLineClamp: 1,
+              display: "-webkit-box",
+            }}
+          >
             {PROCESSING_TYPE_LABELS[task.type]}
-          </Text>
-          <Text type="supporting" className={`text-[10px] ${getStatusColor()}`}>
+          </span>
+          <span
+            className={cn(
+              "text-[12px] leading-5",
+              "text-fg-2",
+              "font-normal",
+              `text-[10px] ${getStatusColor()}`,
+            )}
+          >
             {task.status === "processing" ? `${task.progress}%` : task.status}
-          </Text>
+          </span>
         </div>
         {task.status === "processing" && (
           <div className="mt-1">
-            <ProgressBar
-              label={`${PROCESSING_TYPE_LABELS[task.type]} progress`}
-              isLabelHidden
+            <Progress
+              aria-label={`${PROCESSING_TYPE_LABELS[task.type]} progress`}
               value={task.progress}
               max={100}
-              variant="accent"
+              className="h-1.5 bg-bg-3 [&>div]:rounded-full [&>div]:bg-accent"
             />
-            <Text
-              type="supporting"
-              color="secondary"
-              display="block"
-              maxLines={1}
-              className="mt-0.5 text-[9px]"
+            <span
+              className="text-fg-2 font-normal block overflow-hidden mt-0.5 text-[9px]"
+              style={{
+                WebkitBoxOrient: "vertical",
+                WebkitLineClamp: 1,
+                display: "-webkit-box",
+              }}
             >
               {task.message}
-            </Text>
+            </span>
           </div>
         )}
         {task.status === "failed" && task.error && (
-          <Text type="supporting" display="block" maxLines={1} className="mt-0.5 text-[9px] text-red-400">
+          <span
+            className="font-normal block overflow-hidden mt-0.5 text-[9px] text-red-400"
+            style={{
+              WebkitBoxOrient: "vertical",
+              WebkitLineClamp: 1,
+              display: "-webkit-box",
+            }}
+          >
             {task.error}
-          </Text>
+          </span>
         )}
       </div>
     </Card>
   );
-};
+});
 
 export const ProcessingOverlay: React.FC = () => {
-  const { tasks, isProcessing, getOverallProgress } = useProcessingStore();
+  const tasks = useProcessingStore((state) => state.tasks);
+  const isProcessing = useProcessingStore((state) => state.isProcessing);
   const taskList = Array.from(tasks.values());
   const activeTasks = taskList.filter(
     (t) => t.status === "queued" || t.status === "processing",
@@ -89,45 +120,52 @@ export const ProcessingOverlay: React.FC = () => {
     return null;
   }
 
-  const { progress } = getOverallProgress();
+  const progress = Math.round(
+    activeTasks.reduce((sum, task) => sum + task.progress, 0) /
+      activeTasks.length,
+  );
 
   return (
-    <div className="absolute inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50">
-      <Card
-        variant="default"
-        padding={6}
-        className="max-w-sm w-full mx-4 bg-background-secondary/95 shadow-2xl border border-border"
-      >
+    <div
+      role="region"
+      aria-label="Processing Effects"
+      aria-busy
+      className="absolute inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50"
+    >
+      <Card className="min-w-0 rounded-[7px] text-fg p-6 max-w-sm w-full mx-4 bg-background-secondary/95 shadow-2xl border border-border">
         <div className="flex items-center gap-3 mb-4">
           <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center">
-            <Loader2 size={20} className="text-blue-400 animate-spin" aria-hidden />
+            <Loader2
+              size={20}
+              className="text-blue-400 animate-spin"
+              aria-hidden
+            />
           </div>
           <div>
-            <Text as="h3" type="label" weight="bold" display="block">
+            <h3 className="text-[12px] leading-4 text-fg-2 font-bold block">
               Processing Effects
-            </Text>
-            <Text type="supporting" color="secondary" display="block">
+            </h3>
+            <span className="text-[12px] leading-5 text-fg-2 font-normal block">
               {activeTasks.length} task{activeTasks.length !== 1 ? "s" : ""} in
               progress
-            </Text>
+            </span>
           </div>
         </div>
 
         <div className="mb-4">
           <div className="flex items-center justify-between mb-1">
-            <Text type="supporting" color="secondary" className="text-[10px]">
+            <span className="text-fg-2 font-normal text-[10px]">
               Overall Progress
-            </Text>
-            <Text type="supporting" color="secondary" className="text-[10px] font-mono">
+            </span>
+            <span className="text-fg-2 font-normal text-[10px] font-mono">
               {progress}%
-            </Text>
+            </span>
           </div>
-          <ProgressBar
-            label="Overall progress"
-            isLabelHidden
+          <Progress
+            aria-label="Overall progress"
             value={progress}
             max={100}
-            variant="accent"
+            className="h-1.5 bg-bg-3 [&>div]:rounded-full [&>div]:bg-accent"
           />
         </div>
 
@@ -139,12 +177,10 @@ export const ProcessingOverlay: React.FC = () => {
           </div>
         </div>
 
-        <Text type="supporting" color="secondary" display="block" justify="center" className="mt-4 text-[10px]">
+        <span className="text-fg-2 font-normal block text-center mt-4 text-[10px]">
           Please wait while effects are being applied...
-        </Text>
+        </span>
       </Card>
     </div>
   );
 };
-
-export default ProcessingOverlay;

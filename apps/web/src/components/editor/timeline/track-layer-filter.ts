@@ -2,7 +2,7 @@ import type { Track } from "@openreel/core";
 
 export type TrackLayerFilter = "all" | Track["type"];
 
-export interface FilteredTrackEntry {
+interface FilteredTrackEntry {
   readonly track: Track;
   readonly index: number;
 }

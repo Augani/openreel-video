@@ -1,8 +1,14 @@
 import gsap from "gsap";
 import { MotionPathPlugin } from "gsap/MotionPathPlugin";
-import type { EasingType, Keyframe } from "../types/timeline";
 
-gsap.registerPlugin(MotionPathPlugin);
+// Registered on first use, not at import time: a module-level side effect here kept gsap (~300 KB)
+// and its plugin in the startup entry chunk even though only the Motion Path inspector uses it.
+let pluginsRegistered = false;
+function ensureGsapPlugins(): void {
+  if (pluginsRegistered) return;
+  gsap.registerPlugin(MotionPathPlugin);
+  pluginsRegistered = true;
+}
 
 export interface GSAPMotionPathPoint {
   x: number;
@@ -24,7 +30,7 @@ export interface MotionPathConfig {
   alignOrigin: [number, number];
 }
 
-export interface GSAPAnimationConfig {
+interface GSAPAnimationConfig {
   duration: number;
   ease: string;
   delay?: number;
@@ -32,64 +38,7 @@ export interface GSAPAnimationConfig {
   yoyo?: boolean;
 }
 
-const GSAP_EASING_MAP: Record<EasingType, string> = {
-  linear: "none",
-  ease: "power2.inOut",
-  "ease-in": "power2.in",
-  "ease-out": "power2.out",
-  "ease-in-out": "power2.inOut",
-  hold: "steps(1)",
-  bezier: "power2.inOut",
-  smoothstep: "power2.inOut",
-  smootherstep: "power3.inOut",
-  snappy: "expo.out",
-  smooth: "power2.inOut",
-  easeInQuad: "power1.in",
-  easeOutQuad: "power1.out",
-  easeInOutQuad: "power1.inOut",
-  easeInCubic: "power2.in",
-  easeOutCubic: "power2.out",
-  easeInOutCubic: "power2.inOut",
-  easeInQuart: "power3.in",
-  easeOutQuart: "power3.out",
-  easeInOutQuart: "power3.inOut",
-  easeInQuint: "power4.in",
-  easeOutQuint: "power4.out",
-  easeInOutQuint: "power4.inOut",
-  easeInSine: "sine.in",
-  easeOutSine: "sine.out",
-  easeInOutSine: "sine.inOut",
-  easeInExpo: "expo.in",
-  easeOutExpo: "expo.out",
-  easeInOutExpo: "expo.inOut",
-  easeInCirc: "circ.in",
-  easeOutCirc: "circ.out",
-  easeInOutCirc: "circ.inOut",
-  easeInBack: "back.in",
-  easeOutBack: "back.out",
-  easeInOutBack: "back.inOut",
-  easeInBackStrong: "back.in(2.7)",
-  easeOutBackStrong: "back.out(2.7)",
-  easeInOutBackStrong: "back.inOut(2.7)",
-  easeInElastic: "elastic.in",
-  easeOutElastic: "elastic.out",
-  easeInOutElastic: "elastic.inOut",
-  easeInElasticSoft: "elastic.in(0.65,0.3)",
-  easeOutElasticSoft: "elastic.out(0.65,0.3)",
-  easeInOutElasticSoft: "elastic.inOut(0.65,0.3)",
-  easeInBounce: "bounce.in",
-  easeOutBounce: "bounce.out",
-  easeInOutBounce: "bounce.inOut",
-  easeInBounceSmall: "bounce.in",
-  easeOutBounceSmall: "bounce.out",
-  easeInOutBounceSmall: "bounce.inOut",
-};
-
-export function easingToGSAP(easing: EasingType): string {
-  return GSAP_EASING_MAP[easing] || "none";
-}
-
-export function sampleMotionPath(
+function sampleMotionPath(
   points: GSAPMotionPathPoint[],
   time: number
 ): { x: number; y: number; rotation?: number } | null {
@@ -180,7 +129,7 @@ function cubicBezierInterpolate(
   return { x, y, rotation };
 }
 
-export function catmullRomInterpolate(
+function catmullRomInterpolate(
   points: GSAPMotionPathPoint[],
   t: number,
   tension: number = 0.5
@@ -279,75 +228,6 @@ export function generateDefaultControlPoints(
   });
 }
 
-export function keyframesToMotionPath(
-  keyframes: Keyframe[],
-  clipDuration: number
-): GSAPMotionPathPoint[] {
-  const positionKeyframes = keyframes.filter(
-    (kf) => kf.property === "position.x" || kf.property === "position.y"
-  );
-
-  const timeGroups = new Map<number, { x?: number; y?: number }>();
-
-  for (const kf of positionKeyframes) {
-    if (!timeGroups.has(kf.time)) {
-      timeGroups.set(kf.time, {});
-    }
-    const group = timeGroups.get(kf.time)!;
-    if (kf.property === "position.x") {
-      group.x = kf.value as number;
-    } else {
-      group.y = kf.value as number;
-    }
-  }
-
-  const points: GSAPMotionPathPoint[] = [];
-
-  for (const [time, pos] of timeGroups) {
-    if (pos.x !== undefined && pos.y !== undefined) {
-      points.push({
-        x: pos.x,
-        y: pos.y,
-        time: time / clipDuration,
-      });
-    }
-  }
-
-  return generateDefaultControlPoints(
-    points.sort((a, b) => a.time - b.time)
-  );
-}
-
-export function motionPathToKeyframes(
-  points: GSAPMotionPathPoint[],
-  clipDuration: number,
-  easing: EasingType = "easeInOutCubic"
-): Keyframe[] {
-  const keyframes: Keyframe[] = [];
-
-  for (const point of points) {
-    const time = point.time * clipDuration;
-
-    keyframes.push({
-      id: `kf-pos-x-${time}`,
-      time,
-      property: "position.x",
-      value: point.x,
-      easing,
-    });
-
-    keyframes.push({
-      id: `kf-pos-y-${time}`,
-      time,
-      property: "position.y",
-      value: point.y,
-      easing,
-    });
-  }
-
-  return keyframes;
-}
-
 class GSAPAnimationEngine {
   private timelines: Map<string, gsap.core.Timeline> = new Map();
   private motionPaths: Map<string, MotionPathConfig> = new Map();
@@ -357,6 +237,7 @@ class GSAPAnimationEngine {
       this.timelines.get(clipId)!.kill();
     }
 
+    ensureGsapPlugins();
     const timeline = gsap.timeline({
       paused: true,
       defaults: {
@@ -492,12 +373,3 @@ export function getGSAPEngine(): GSAPAnimationEngine {
   }
   return gsapEngineInstance;
 }
-
-export function disposeGSAPEngine(): void {
-  if (gsapEngineInstance) {
-    gsapEngineInstance.dispose();
-    gsapEngineInstance = null;
-  }
-}
-
-export { GSAPAnimationEngine };

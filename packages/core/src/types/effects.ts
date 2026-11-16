@@ -1,5 +1,3 @@
-import type { Keyframe } from "./composition";
-
 export type LayerEffectType =
   | "blur"
   | "shadow"
@@ -34,16 +32,6 @@ export interface EffectDefinition {
   name: string;
   category: EffectCategory;
   params: EffectParamDefinition[];
-}
-
-export type EffectParamValue = number | Keyframe[];
-
-export interface LayerEffect {
-  id: string;
-  type: LayerEffectType;
-  name: string;
-  enabled: boolean;
-  params: Record<string, EffectParamValue>;
 }
 
 export const EFFECT_DEFINITIONS: EffectDefinition[] = [
@@ -543,41 +531,6 @@ export const EFFECT_DEFINITIONS: EffectDefinition[] = [
   },
 ];
 
-export function getEffectDefinition(
-  type: LayerEffectType,
-): EffectDefinition | undefined {
-  return EFFECT_DEFINITIONS.find((def) => def.type === type);
-}
-
-export function getEffectsByCategory(
-  category: EffectCategory,
-): EffectDefinition[] {
-  return EFFECT_DEFINITIONS.filter((def) => def.category === category);
-}
-
-export function createDefaultEffect(
-  type: LayerEffectType,
-  id: string,
-): LayerEffect | null {
-  const definition = getEffectDefinition(type);
-  if (!definition) return null;
-
-  const params: Record<string, number> = {};
-  for (const param of definition.params) {
-    if (typeof param.default === "number") {
-      params[param.key] = param.default;
-    }
-  }
-
-  return {
-    id,
-    type,
-    name: definition.name,
-    enabled: true,
-    params,
-  };
-}
-
 export const VIDEO_FILTER_TYPES = [
   "brightness",
   "contrast",
@@ -594,7 +547,6 @@ export const VIDEO_FILTER_TYPES = [
   "chromaKey",
   "mask",
 ] as const;
-export type VideoFilterType = (typeof VIDEO_FILTER_TYPES)[number];
 
 export const AUDIO_EFFECT_TYPES = [
   "gain",
@@ -604,10 +556,17 @@ export const AUDIO_EFFECT_TYPES = [
   "reverb",
   "delay",
   "noiseReduction",
+  "deHum",
+  "deClick",
+  "deClip",
+  "deEss",
+  "deReverb",
+  "gate",
+  "brickwallLimiter",
+  "lowPass",
   "fadeIn",
   "fadeOut",
 ] as const;
-export type AudioEffectType = (typeof AUDIO_EFFECT_TYPES)[number];
 
 export const TRANSITION_TYPES = [
   "crossfade",
@@ -649,80 +608,6 @@ export interface EQBand {
   frequency: number; // 20 to 20000 Hz
   gain: number; // -24 to 24 dB
   q: number; // 0.1 to 18
-}
-
-// Complete video filter parameter definitions
-export interface VideoFilterParams {
-  brightness: {
-    value: number; // -1 to 1, default 0
-  };
-  contrast: {
-    value: number; // 0 to 2, default 1
-  };
-  saturation: {
-    value: number; // 0 to 2, default 1
-  };
-  hue: {
-    rotation: number; // -180 to 180 degrees
-  };
-  blur: {
-    radius: number; // 0 to 100 pixels
-    type: "gaussian" | "box" | "motion";
-    angle?: number; // For motion blur, 0-360
-  };
-  sharpen: {
-    amount: number; // 0 to 2
-    radius: number; // 0.1 to 5
-    threshold: number; // 0 to 255
-  };
-  vignette: {
-    amount: number; // 0 to 1
-    midpoint: number; // 0 to 1
-    roundness: number; // 0 to 1
-    feather: number; // 0 to 1
-  };
-  grain: {
-    amount: number; // 0 to 1
-    size: number; // 0.5 to 3
-    roughness: number; // 0 to 1
-    colored: boolean;
-  };
-  colorWheels: {
-    shadows: { r: number; g: number; b: number }; // -1 to 1 each
-    midtones: { r: number; g: number; b: number };
-    highlights: { r: number; g: number; b: number };
-    shadowsLift: number; // -1 to 1
-    midtonesGamma: number; // 0.1 to 4
-    highlightsGain: number; // 0 to 4
-  };
-  curves: {
-    rgb: CurvePoint[]; // Master curve
-    red: CurvePoint[];
-    green: CurvePoint[];
-    blue: CurvePoint[];
-  };
-  lut: {
-    lutData: Uint8Array; // 3D LUT data
-    intensity: number; // 0 to 1
-  };
-  hsl: {
-    hue: number[]; // 8 hue ranges, -180 to 180 each
-    saturation: number[]; // 8 ranges, -1 to 1 each
-    luminance: number[]; // 8 ranges, -1 to 1 each
-  };
-  chromaKey: {
-    keyColor: { r: number; g: number; b: number };
-    tolerance: number; // 0 to 1
-    edgeSoftness: number; // 0 to 1
-    spillSuppression: number; // 0 to 1
-  };
-  mask: {
-    type: "rectangle" | "ellipse" | "polygon" | "bezier";
-    points: { x: number; y: number }[];
-    feather: number; // 0 to 100 pixels
-    inverted: boolean;
-    expansion: number; // -100 to 100 pixels
-  };
 }
 
 // Complete audio effect parameter definitions
@@ -771,6 +656,25 @@ export interface AudioEffectParams {
       fftSize?: number;
     };
   };
+  /** Mains hum removal: notch on `frequency` and its harmonics. */
+  deHum: { frequency: number; harmonics: number; q: number; depth: number };
+  deClick: { sensitivity: number; maxWidth: number };
+  deClip: { threshold: number; maxRun: number };
+  deEss: {
+    frequency: number;
+    bandwidthQ: number;
+    threshold: number;
+    ratio: number;
+    attack: number;
+    release: number;
+    listen: number;
+  };
+  deReverb: { amount: number; rt60: number; floor: number };
+  gate: { threshold: number; range: number; attack: number; hold: number; release: number };
+  /** Lookahead true-peak limiter (fixed 5 ms lookahead). */
+  brickwallLimiter: { ceiling: number; release: number };
+  /** Butterworth low-pass; slope in dB per octave (12, 24, 36 or 48). */
+  lowPass: { frequency: number; slope: number };
   fadeIn: {
     duration: number; // In seconds
     curve: "linear" | "exponential" | "logarithmic" | "s-curve";

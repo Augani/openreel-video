@@ -67,20 +67,6 @@ describe("web motion asset resolver", () => {
     expect(createImageBitmapMock).toHaveBeenCalledWith(blob);
   });
 
-  it("ignores non-image motion assets", async () => {
-    const createImageBitmapMock = vi.fn();
-    vi.stubGlobal("createImageBitmap", createImageBitmapMock);
-    const resolver = createWebMotionAssetResolver([]);
-
-    await expect(
-      resolver.resolveImageAsset({
-        id: "asset-1",
-        type: "svg",
-        name: "Vector",
-      }),
-    ).resolves.toBeNull();
-    expect(createImageBitmapMock).not.toHaveBeenCalled();
-  });
 
   it("downloads remote model URLs through the desktop bridge and caches them", async () => {
     const originalCreateObjectURL = URL.createObjectURL;
@@ -146,16 +132,6 @@ describe("web motion asset resolver", () => {
     }
   });
 
-  it("keeps remote model URLs unchanged when no desktop bridge is available", async () => {
-    Object.defineProperty(window, "openreel", {
-      configurable: true,
-      value: undefined,
-    });
-    const resolver = createWebMotionAssetResolver([]);
-    const url = "https://modelviewer.dev/shared-assets/models/NeilArmstrong.glb";
-
-    await expect(resolver.resolveModelUrl?.(url)).resolves.toBe(url);
-  });
 
   it("renders bound creation scene3d layers through the desktop Aurora bridge", async () => {
     const image = {

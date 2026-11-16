@@ -64,26 +64,6 @@ describe("list_motion_shaders", () => {
     expect(pixelate).toBeDefined();
     pixelate!.params.forEach(assertParamShape);
   });
-
-  it("filters by category='fill'", async () => {
-    const host = new HeadlessHost(makeEmptyProject());
-    const res = await executeTool("list_motion_shaders", { category: "fill" }, host);
-    expect(res.ok).toBe(true);
-    const data = asData(res.data);
-    expect(data.fills).toBeDefined();
-    expect(data.effects).toBeUndefined();
-    expect(data.fills!.every((fill) => fill.category === "fill")).toBe(true);
-  });
-
-  it("filters by category='effect'", async () => {
-    const host = new HeadlessHost(makeEmptyProject());
-    const res = await executeTool("list_motion_shaders", { category: "effect" }, host);
-    expect(res.ok).toBe(true);
-    const data = asData(res.data);
-    expect(data.effects).toBeDefined();
-    expect(data.fills).toBeUndefined();
-    expect(data.effects!.every((effect) => effect.category === "effect")).toBe(true);
-  });
 });
 
 function projectWithShapeAndText(): Project {

@@ -1,4 +1,15 @@
-import React from "react";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+  ToggleGroup,
+  ToggleGroupItem,
+} from "@openreel/ui";
+import {
+  SOCIAL_MEDIA_CATEGORY_INFO,
+  type SocialMediaCategory,
+} from "@openreel/core";
 import {
   Smartphone,
   Monitor,
@@ -14,19 +25,13 @@ import {
   Settings,
   LayoutGrid,
 } from "@/icons/lucide-compat";
-import {
-  SOCIAL_MEDIA_CATEGORY_INFO,
-  type SocialMediaCategory,
-} from "@openreel/core";
-import { ToolcraftButton as Button } from "@openreel/ui";
 
-interface CategoryTabsProps {
+interface Props {
   selectedCategory: SocialMediaCategory | "all";
   onSelectCategory: (category: SocialMediaCategory | "all") => void;
   categoryStats: Record<string, number>;
 }
-
-const CATEGORY_ICONS: Record<string, React.ElementType> = {
+const icons: Record<string, React.ElementType> = {
   tiktok: Smartphone,
   "instagram-reels": Smartphone,
   "instagram-stories": Smartphone,
@@ -43,138 +48,138 @@ const CATEGORY_ICONS: Record<string, React.ElementType> = {
   "lower-third": Type,
   slideshow: Layers,
   custom: Settings,
-  all: LayoutGrid,
 };
-
-const PLATFORMS = ["TikTok", "Instagram", "YouTube", "General"];
-
-const PLATFORM_CATEGORIES: Record<string, SocialMediaCategory[]> = {
-  TikTok: ["tiktok"],
-  Instagram: ["instagram-reels", "instagram-stories", "instagram-post"],
-  YouTube: ["youtube-shorts", "youtube-video"],
-  General: ["intro", "outro", "promo", "lower-third", "slideshow", "custom"],
-};
-
-export const CategoryTabs: React.FC<CategoryTabsProps> = ({
+const platforms: { name: string; categories: SocialMediaCategory[] }[] = [
+  { name: "TikTok", categories: ["tiktok"] },
+  {
+    name: "Instagram",
+    categories: ["instagram-reels", "instagram-stories", "instagram-post"],
+  },
+  { name: "YouTube", categories: ["youtube-shorts", "youtube-video"] },
+  { name: "Facebook", categories: ["facebook"] },
+  { name: "Twitter/X", categories: ["twitter"] },
+  { name: "LinkedIn", categories: ["linkedin"] },
+  { name: "Pinterest", categories: ["pinterest"] },
+  {
+    name: "General",
+    categories: [
+      "intro",
+      "outro",
+      "promo",
+      "lower-third",
+      "slideshow",
+      "custom",
+    ],
+  },
+];
+const platformClass =
+  "h-9 gap-2 rounded-lg border border-border bg-bg-2 px-4 text-sm text-fg-2 data-[state=active]:bg-primary data-[state=active]:text-black [&>.absolute]:rounded-lg [&>.absolute]:bg-primary [&>.absolute]:shadow-none";
+export function CategoryTabs({
   selectedCategory,
   onSelectCategory,
   categoryStats,
-}) => {
-  const [expandedPlatform, setExpandedPlatform] = React.useState<string | null>(
-    null,
-  );
-
-  const handlePlatformClick = (platform: string) => {
-    if (expandedPlatform === platform) {
-      setExpandedPlatform(null);
-    } else {
-      setExpandedPlatform(platform);
-      const categories = PLATFORM_CATEGORIES[platform];
-      if (categories && categories.length === 1) {
-        onSelectCategory(categories[0]);
-      }
-    }
-  };
-
+}: Props) {
+  const selectedPlatform =
+    selectedCategory === "all"
+      ? "all"
+      : (platforms.find((platform) =>
+          platform.categories.includes(selectedCategory),
+        )?.name ?? "all");
   return (
-    <div className="space-y-3">
-      <div className="flex items-center gap-2 overflow-x-auto pb-1">
-        <Button
-          label="All"
-          onClick={() => {
-            onSelectCategory("all");
-            setExpandedPlatform(null);
-          }}
-          variant={selectedCategory === "all" ? "primary" : "secondary"}
-          size="sm"
-          icon={<LayoutGrid size={14} aria-hidden />}
-          endContent={
-            <span
-              className={`text-xs ${selectedCategory === "all" ? "text-black/60" : "text-text-muted"}`}
-            >
-              {categoryStats.all || 0}
-            </span>
-          }
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all duration-200 ${
-            selectedCategory === "all"
-              ? "bg-primary text-black"
-              : "bg-background-tertiary text-text-secondary hover:text-text-primary hover:bg-background-elevated"
-          }`}
-        />
-
-        {PLATFORMS.map((platform) => {
-          const categories = PLATFORM_CATEGORIES[platform];
-          const isExpanded = expandedPlatform === platform;
-          const isActive = categories.includes(
-            selectedCategory as SocialMediaCategory,
-          );
-          const Icon = CATEGORY_ICONS[categories[0]] || Square;
-          const count = categories.reduce(
-            (sum, cat) => sum + (categoryStats[cat] || 0),
-            0,
-          );
-
-          return (
-            <Button
-              key={platform}
-              label={platform}
-              onClick={() => handlePlatformClick(platform)}
-              variant={isActive || isExpanded ? "primary" : "secondary"}
-              size="sm"
-              icon={<Icon size={14} aria-hidden />}
-              endContent={count > 0 ? (
-                <span
-                  className={`text-xs ${isActive || isExpanded ? "text-black/60" : "text-text-muted"}`}
-                >
-                  {count}
-                </span>
-              ) : undefined}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all duration-200 ${
-                isActive || isExpanded
-                  ? "bg-primary text-black"
-                  : "bg-background-tertiary text-text-secondary hover:text-text-primary hover:bg-background-elevated"
-              }`}
-            />
-          );
-        })}
-      </div>
-
-      {expandedPlatform && PLATFORM_CATEGORIES[expandedPlatform].length > 1 && (
-        <div className="flex items-center gap-2 pl-2 overflow-x-auto pb-1">
-          {PLATFORM_CATEGORIES[expandedPlatform].map((category) => {
-            const info = SOCIAL_MEDIA_CATEGORY_INFO.find(
-              (c) => c.id === category,
+    <Tabs
+      value={selectedPlatform}
+      onValueChange={(value) => {
+        if (value === "all") onSelectCategory("all");
+        else {
+          const platform = platforms.find((item) => item.name === value);
+          if (platform)
+            onSelectCategory(
+              platform.categories.includes(
+                selectedCategory as SocialMediaCategory,
+              )
+                ? selectedCategory
+                : platform.categories[0],
             );
-            const count = categoryStats[category] || 0;
-            const Icon = CATEGORY_ICONS[category] || Square;
-
+        }
+      }}
+      className="min-w-0 space-y-3"
+    >
+      <div className="max-w-full overflow-x-auto pb-1">
+        <TabsList
+          aria-label="Template platforms"
+          layoutId="template-platforms"
+          className="h-auto min-w-max justify-start gap-2 rounded-none bg-transparent p-0"
+        >
+          <TabsTrigger value="all" className={platformClass}>
+            <LayoutGrid size={14} aria-hidden />
+            All
+            <span className="text-xs opacity-60">{categoryStats.all ?? 0}</span>
+          </TabsTrigger>
+          {platforms.map((platform) => {
+            const Icon = icons[platform.categories[0]],
+              count = platform.categories.reduce(
+                (sum, category) => sum + (categoryStats[category] ?? 0),
+                0,
+              );
             return (
-              <Button
-                key={category}
-                label={info?.name || category}
-                onClick={() => onSelectCategory(category)}
-                variant={selectedCategory === category ? "primary" : "secondary"}
-                size="sm"
-                icon={<Icon size={12} aria-hidden />}
-                endContent={count > 0 ? (
-                  <span
-                    className={`text-[10px] ${selectedCategory === category ? "text-primary/70" : "text-text-muted"}`}
-                  >
-                    {count}
-                  </span>
-                ) : undefined}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium whitespace-nowrap transition-all duration-200 ${
-                  selectedCategory === category
-                    ? "bg-primary/20 text-primary border border-primary/30"
-                    : "bg-background text-text-muted hover:text-text-secondary hover:bg-background-tertiary"
-                }`}
-              />
+              <TabsTrigger
+                key={platform.name}
+                value={platform.name}
+                className={platformClass}
+              >
+                <Icon size={14} aria-hidden />
+                {platform.name}
+                {count > 0 && (
+                  <span className="text-xs opacity-60">{count}</span>
+                )}
+              </TabsTrigger>
             );
           })}
-        </div>
-      )}
-    </div>
+        </TabsList>
+      </div>
+      <TabsContent value="all" className="m-0" />
+      {platforms.map((platform) => (
+        <TabsContent
+          key={platform.name}
+          value={platform.name}
+          className="m-0 min-w-0"
+        >
+          {platform.categories.length > 1 && (
+            <div className="overflow-x-auto pb-1">
+              <ToggleGroup
+                type="single"
+                aria-label={`${platform.name} template categories`}
+                value={selectedCategory}
+                onValueChange={(value) => {
+                  if (value) onSelectCategory(value as SocialMediaCategory);
+                }}
+                className="min-w-max justify-start gap-2 pl-2"
+              >
+                {platform.categories.map((category) => {
+                  const info = SOCIAL_MEDIA_CATEGORY_INFO.find(
+                      (item) => item.id === category,
+                    ),
+                    Icon = icons[category],
+                    count = categoryStats[category] ?? 0;
+                  return (
+                    <ToggleGroupItem
+                      key={category}
+                      value={category}
+                      className="h-8 gap-2 rounded-md border border-border bg-bg-1 px-3 text-xs text-fg-3 data-[state=on]:border-primary/30 data-[state=on]:bg-primary/20 data-[state=on]:text-primary"
+                    >
+                      <Icon size={12} aria-hidden />
+                      {info?.name ?? category}
+                      {count > 0 && (
+                        <span className="text-[10px] opacity-70">{count}</span>
+                      )}
+                    </ToggleGroupItem>
+                  );
+                })}
+              </ToggleGroup>
+            </div>
+          )}
+        </TabsContent>
+      ))}
+    </Tabs>
   );
-};
-
-export default CategoryTabs;
+}

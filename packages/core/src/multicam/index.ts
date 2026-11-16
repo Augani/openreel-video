@@ -9,3 +9,6 @@ export * from "./cut-review";
 export * from "./otio";
 export * from "./reaction-analysis";
 export * from "./social-clips";
+export * from "./audio-sync";
+export * from "./audio-sync-stream";
+export * from "./source";

@@ -73,6 +73,21 @@ void main() {
 }
 `;
 
+const MIRROR_GLSL = `#version 300 es
+precision highp float;
+in vec2 vUv;
+uniform sampler2D u_input;
+uniform float u_horizontal;
+uniform float u_vertical;
+out vec4 fragColor;
+
+void main() {
+  vec2 uv = mix(vUv, vec2(1.0) - vUv,
+    step(vec2(0.5), vec2(u_horizontal, u_vertical)));
+  fragColor = texture(u_input, uv);
+}
+`;
+
 const HALFTONE_GLSL = `#version 300 es
 precision highp float;
 in vec2 vUv;
@@ -320,6 +335,16 @@ export const EFFECT_SHADERS: readonly MotionShaderDef[] = [
     glsl: PIXELATE_GLSL,
     params: [
       { name: "size", label: "Size", type: "number", default: 8, min: 1, max: 64, step: 1 },
+    ],
+  },
+  {
+    id: "mirror",
+    name: "Mirror",
+    category: "effect",
+    glsl: MIRROR_GLSL,
+    params: [
+      { name: "horizontal", label: "Horizontal", type: "number", default: 1, min: 0, max: 1, step: 1 },
+      { name: "vertical", label: "Vertical", type: "number", default: 0, min: 0, max: 1, step: 1 },
     ],
   },
   {

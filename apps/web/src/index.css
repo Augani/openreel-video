@@ -178,8 +178,6 @@
     font-size: var(--d-text);
     color: var(--fg);
     background: var(--bg);
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
     letter-spacing: -0.005em;
   }
 
@@ -201,6 +199,7 @@
   height: 10px;
 }
 ::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-corner { background: var(--bg-1); }
 ::-webkit-scrollbar-thumb {
   background: var(--border-strong);
   border-radius: 99px;

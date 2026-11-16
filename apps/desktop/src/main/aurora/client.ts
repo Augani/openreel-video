@@ -51,7 +51,7 @@ function hostScriptPath(): string {
     : path.join(__dirname, "../../aurora-host/index.js");
 }
 
-export class AuroraHostClient {
+class AuroraHostClient {
   private child: ChildProcess | null = null;
   private readonly pending = new Map<
     string,

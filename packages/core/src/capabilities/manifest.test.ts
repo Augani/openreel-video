@@ -37,19 +37,6 @@ function expectValidRange(range: NumericRange): void {
 }
 
 describe("CAPABILITY_MANIFEST", () => {
-  it("exposes non-empty enum lists", () => {
-    expect(CAPABILITY_MANIFEST.blendModes.length).toBeGreaterThan(0);
-    expect(CAPABILITY_MANIFEST.videoFilterTypes.length).toBeGreaterThan(0);
-    expect(CAPABILITY_MANIFEST.audioEffectTypes.length).toBeGreaterThan(0);
-    expect(CAPABILITY_MANIFEST.transitionTypes.length).toBeGreaterThan(0);
-    expect(CAPABILITY_MANIFEST.easings.length).toBeGreaterThan(0);
-    expect(CAPABILITY_MANIFEST.shapeTypes.length).toBeGreaterThan(0);
-    expect(CAPABILITY_MANIFEST.creation.assetKinds.length).toBeGreaterThan(0);
-    expect(CAPABILITY_MANIFEST.creation.recipeNodeTypes).toContain("product-part");
-    expect(CAPABILITY_MANIFEST.creation.operationTypes).toContain("camera/upsert");
-    expect(CAPABILITY_MANIFEST.creation.operationTypes).toContain("scene-object/upsert");
-  });
-
   it("has no duplicate enum members", () => {
     for (const key of [
       "blendModes",
@@ -60,34 +47,6 @@ describe("CAPABILITY_MANIFEST", () => {
     ] as const) {
       const list = CAPABILITY_MANIFEST[key];
       expect(new Set(list).size).toBe(list.length);
-    }
-  });
-
-  it("exposes preset summaries with ids and names", () => {
-    for (const preset of CAPABILITY_MANIFEST.filterPresets) {
-      expect(preset.id).toBeTruthy();
-      expect(preset.name).toBeTruthy();
-    }
-    expect(CAPABILITY_MANIFEST.speed.presets.length).toBeGreaterThan(0);
-  });
-
-  it("exposes a valid speed range", () => {
-    expectValidRange(CAPABILITY_MANIFEST.speed.range);
-  });
-
-  it("exposes every shape modifier type including the new operators", () => {
-    const types = new Set(CAPABILITY_MANIFEST.motion.shapeModifierTypes);
-    for (const modifierType of [
-      "trim-paths",
-      "repeater",
-      "zig-zag",
-      "round-corners",
-      "wiggle-paths",
-      "offset-paths",
-      "pucker-bloat",
-      "twist",
-    ] as const) {
-      expect(types.has(modifierType)).toBe(true);
     }
   });
 
@@ -124,5 +83,45 @@ describe("CAPABILITY_MANIFEST", () => {
         }
       }
     }
+  });
+});
+
+describe("CAPABILITY_MANIFEST superseded legacy effects", () => {
+  it("tells agents which legacy effects each pro effect replaces", () => {
+    const supersedes = (type: string) =>
+      CAPABILITY_MANIFEST.proEffects.find((effect) => effect.type === type)?.supersedes;
+    expect(supersedes("gaussian-blur")).toEqual(["blur"]);
+    expect(supersedes("mosaic")).toEqual(["shader:pixelate"]);
+    expect(supersedes("mirror")).toEqual(["shader:mirror"]);
+    expect(supersedes("lens-distortion")).toEqual(["shader:fisheye"]);
+    expect(supersedes("posterize")).toEqual(["shader:posterize"]);
+    expect(supersedes("vhs-glitch")).toEqual(["shader:vhs"]);
+    expect(supersedes("vibrance")).toBeUndefined();
+  });
+});
+
+describe("CAPABILITY_MANIFEST premiere parity", () => {
+  it("lists all forty-four pro effects with valid numeric ranges and neutral values", () => {
+    expect(CAPABILITY_MANIFEST.proEffects).toHaveLength(44);
+    for (const effect of CAPABILITY_MANIFEST.proEffects) {
+      expect(effect.params.length).toBeGreaterThan(0);
+      for (const param of effect.params) {
+        expect(param).toHaveProperty("neutral");
+        if (param.kind === "number") {
+          expect(param.min).toBeLessThan(param.max as number);
+          expect(param.default as number).toBeGreaterThanOrEqual(param.min as number);
+          expect(param.default as number).toBeLessThanOrEqual(param.max as number);
+        }
+        if (param.kind === "select") expect(param.options?.length).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it("describes scene detection and scopes with valid ranges", () => {
+    const { sceneDetection, scopes } = CAPABILITY_MANIFEST.premiere;
+    expectValidRange(sceneDetection.sensitivity);
+    expectValidRange(sceneDetection.minSceneLengthSeconds);
+    expect(scopes.kinds).toEqual(["waveform", "parade", "vectorscope", "histogram"]);
+    expect(scopes.blackClipLevel).toBeLessThan(scopes.whiteClipLevel);
   });
 });

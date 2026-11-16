@@ -1,3 +1,4 @@
+import { ChunkAccumulator } from "./chunk-accumulator";
 import {
   spawn,
   type ChildProcessWithoutNullStreams,
@@ -166,7 +167,7 @@ function parseNativeRenderResponse(buffer: Buffer): AuroraRenderedFrame {
 
   return {
     backend: "native",
-    rgba: Uint8Array.from(buffer.subarray(offset, offset + rgbaLength)),
+    rgba: new Uint8Array(buffer.subarray(offset, offset + rgbaLength)),
     width,
     height,
     coveredPixels,
@@ -265,7 +266,7 @@ function runNativeRenderer(
 
 class NativeAuroraRendererClient {
   private child: ChildProcessWithoutNullStreams | null = null;
-  private stdoutBuffer = Buffer.alloc(0);
+  private readonly stdout = new ChunkAccumulator();
   private pending:
     | {
         readonly resolve: (frame: AuroraRenderedFrame) => void;
@@ -289,7 +290,7 @@ class NativeAuroraRendererClient {
   dispose(): void {
     const child = this.child;
     this.child = null;
-    this.stdoutBuffer = Buffer.alloc(0);
+    this.stdout.clear();
     const pending = this.pending;
     this.pending = null;
     if (pending) {
@@ -349,11 +350,12 @@ class NativeAuroraRendererClient {
 
   private handleStdout(chunk: Buffer): void {
     if (!this.pending) return;
-    this.stdoutBuffer = Buffer.concat([this.stdoutBuffer, chunk]);
+    this.stdout.push(chunk);
 
     if (this.pending.expectedBytes === null) {
-      if (this.stdoutBuffer.byteLength < 4) return;
-      this.pending.expectedBytes = this.stdoutBuffer.readUInt32LE(0);
+      const prefix = this.stdout.peekUInt32LE();
+      if (prefix === null) return;
+      this.pending.expectedBytes = prefix;
       if (
         this.pending.expectedBytes <= 0 ||
         this.pending.expectedBytes > MAX_RESPONSE_BYTES
@@ -368,10 +370,9 @@ class NativeAuroraRendererClient {
     }
 
     const totalBytes = 4 + (this.pending.expectedBytes ?? 0);
-    if (this.stdoutBuffer.byteLength < totalBytes) return;
+    if (this.stdout.byteLength < totalBytes) return;
 
-    const payload = this.stdoutBuffer.subarray(4, totalBytes);
-    this.stdoutBuffer = this.stdoutBuffer.subarray(totalBytes);
+    const payload = this.stdout.take(totalBytes).subarray(4);
     const pending = this.pending;
     this.pending = null;
 
@@ -387,7 +388,7 @@ class NativeAuroraRendererClient {
     const pending = this.pending;
     this.pending = null;
     this.child = null;
-    this.stdoutBuffer = Buffer.alloc(0);
+    this.stdout.clear();
     if (pending) {
       pending.reject(error instanceof Error ? error : new Error(String(error)));
     }
@@ -421,12 +422,6 @@ function getNativeAuroraRendererClient(
     });
   }
   return sharedNativeAuroraRendererClient;
-}
-
-export function resetNativeAuroraRendererClientForTests(): void {
-  sharedNativeAuroraRendererClient?.dispose();
-  sharedNativeAuroraRendererClient = null;
-  sharedNativeAuroraRendererPath = null;
 }
 
 async function renderMeshWithNativeAuroraRendererViaFiles(

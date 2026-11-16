@@ -41,48 +41,6 @@ export function transform3d(
   return { position, rotation, scale };
 }
 
-export function addVec3(a: Vec3, b: Vec3): Vec3 {
-  return { x: a.x + b.x, y: a.y + b.y, z: a.z + b.z };
-}
-
-export function subVec3(a: Vec3, b: Vec3): Vec3 {
-  return { x: a.x - b.x, y: a.y - b.y, z: a.z - b.z };
-}
-
-export function scaleVec3(a: Vec3, s: number): Vec3 {
-  return { x: a.x * s, y: a.y * s, z: a.z * s };
-}
-
-export function mulVec3(a: Vec3, b: Vec3): Vec3 {
-  return { x: a.x * b.x, y: a.y * b.y, z: a.z * b.z };
-}
-
-export function lengthVec3(a: Vec3): number {
-  return Math.sqrt(a.x * a.x + a.y * a.y + a.z * a.z);
-}
-
-export function distanceVec3(a: Vec3, b: Vec3): number {
-  return lengthVec3(subVec3(a, b));
-}
-
-export function normalizeVec3(a: Vec3): Vec3 {
-  const len = lengthVec3(a);
-  if (len < 1e-9) return ZERO_VEC3;
-  return scaleVec3(a, 1 / len);
-}
-
-export function dotVec3(a: Vec3, b: Vec3): number {
-  return a.x * b.x + a.y * b.y + a.z * b.z;
-}
-
-export function crossVec3(a: Vec3, b: Vec3): Vec3 {
-  return {
-    x: a.y * b.z - a.z * b.y,
-    y: a.z * b.x - a.x * b.z,
-    z: a.x * b.y - a.y * b.x,
-  };
-}
-
 export function lerpVec3(a: Vec3, b: Vec3, t: number): Vec3 {
   return {
     x: a.x + (b.x - a.x) * t,
@@ -107,10 +65,6 @@ export function degToRad(deg: number): number {
   return (deg * Math.PI) / 180;
 }
 
-export function radToDeg(rad: number): number {
-  return (rad * 180) / Math.PI;
-}
-
 export function emptyBounds(): Bounds3 {
   return {
     min: { x: Infinity, y: Infinity, z: Infinity },
@@ -131,33 +85,6 @@ export function expandBounds(bounds: Bounds3, point: Vec3): Bounds3 {
       z: Math.max(bounds.max.z, point.z),
     },
   };
-}
-
-export function boundsCenter(bounds: Bounds3): Vec3 {
-  return {
-    x: (bounds.min.x + bounds.max.x) / 2,
-    y: (bounds.min.y + bounds.max.y) / 2,
-    z: (bounds.min.z + bounds.max.z) / 2,
-  };
-}
-
-export function boundsSize(bounds: Bounds3): Vec3 {
-  return {
-    x: bounds.max.x - bounds.min.x,
-    y: bounds.max.y - bounds.min.y,
-    z: bounds.max.z - bounds.min.z,
-  };
-}
-
-export function isFiniteBounds(bounds: Bounds3): boolean {
-  return (
-    Number.isFinite(bounds.min.x) &&
-    Number.isFinite(bounds.min.y) &&
-    Number.isFinite(bounds.min.z) &&
-    Number.isFinite(bounds.max.x) &&
-    Number.isFinite(bounds.max.y) &&
-    Number.isFinite(bounds.max.z)
-  );
 }
 
 function xmur3(seed: string): () => number {
@@ -209,17 +136,4 @@ export function createRng(seed: string | number): DeterministicRng {
     },
     sign: () => (rand() < 0.5 ? -1 : 1),
   };
-}
-
-let monotonicCounter = 0;
-
-export function creationId(prefix: string): string {
-  const crypto = (
-    globalThis as unknown as { crypto?: { randomUUID?: () => string } }
-  ).crypto;
-  if (crypto?.randomUUID) {
-    return `${prefix}-${crypto.randomUUID()}`;
-  }
-  monotonicCounter += 1;
-  return `${prefix}-${Date.now().toString(36)}-${monotonicCounter.toString(36)}`;
 }

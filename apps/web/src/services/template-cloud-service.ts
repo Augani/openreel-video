@@ -8,7 +8,7 @@ import { OPENREEL_CLOUD_URL } from "../config/api-endpoints";
 
 const CLOUD_API_URL = OPENREEL_CLOUD_URL;
 
-export interface CloudTemplate extends TemplateSummary {
+interface CloudTemplate extends TemplateSummary {
   author?: string;
 }
 
@@ -49,14 +49,37 @@ export class TemplateCloudService {
 
   async uploadTemplate(
     template: Template,
+    options: { signal?: AbortSignal } = {},
   ): Promise<{ success: boolean; error?: string }> {
     try {
+      // Cloud templates carry edits and relinkable references; original bytes stay local.
+      const content = template.projectContent;
+      const payload: Template = content
+        ? {
+            ...template,
+            projectContent: {
+              ...content,
+              mediaLibrary: {
+                items: content.mediaLibrary.items.map((item) => ({
+                  ...item,
+                  blob: null,
+                  fileHandle: null,
+                  thumbnailUrl: null,
+                  filmstripThumbnails: undefined,
+                  waveformData: null,
+                  isPlaceholder: true,
+                })),
+              },
+            },
+          }
+        : template;
       const response = await fetch(`${this.apiUrl}/templates`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(template),
+        body: JSON.stringify(payload),
+        signal: options.signal,
       });
 
       const data = await response.json();
@@ -108,15 +131,20 @@ export class TemplateCloudService {
     }
   }
 
-  async listScriptableTemplates(): Promise<ScriptableTemplate[]> {
+  async listScriptableTemplates(
+    options: { signal?: AbortSignal } = {},
+  ): Promise<ScriptableTemplate[]> {
     try {
-      const response = await fetch(`${this.apiUrl}/templates/scriptable`);
+      const response = await fetch(`${this.apiUrl}/templates/scriptable`, {
+        signal: options.signal,
+      });
       if (!response.ok) {
         return [];
       }
       const data = await response.json();
       return data.templates || [];
     } catch (error) {
+      if (options.signal?.aborted) return [];
       console.error("Failed to list scriptable templates from cloud:", error);
       return [];
     }

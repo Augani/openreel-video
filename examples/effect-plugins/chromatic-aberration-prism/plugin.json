@@ -1,0 +1,27 @@
+{
+  "apiVersion": 1,
+  "id": "chromatic-aberration-prism",
+  "name": "Prism Aberration",
+  "version": "1.2.0",
+  "category": "Distort",
+  "author": "OpenReel",
+  "description": "Splits red and blue along an angle with optional radial falloff from a movable centre.",
+  "parameters": [
+    { "key": "amount", "label": "Amount", "type": "float", "min": 0, "max": 60, "step": 0.5, "default": 8, "unit": "px" },
+    { "key": "angle", "label": "Angle", "type": "angle", "min": -180, "max": 180, "step": 1, "default": 0, "unit": "°" },
+    { "key": "center", "label": "Centre", "type": "point", "default": { "x": 0.5, "y": 0.5 } },
+    { "key": "falloff", "label": "Radial falloff", "type": "float", "min": 0, "max": 1, "step": 0.01, "default": 0.6 },
+    {
+      "key": "channels",
+      "label": "Split",
+      "type": "choice",
+      "default": "rb",
+      "choices": [
+        { "value": "rb", "label": "Red / Blue" },
+        { "value": "rg", "label": "Red / Green" },
+        { "value": "gb", "label": "Green / Blue" }
+      ]
+    }
+  ],
+  "shader": { "file": "shader.wgsl" }
+}

@@ -1,6 +1,6 @@
 import type { MotionLayer, MotionTransform } from "./types";
 
-export interface MotionCanvas3DProjection {
+interface MotionCanvas3DProjection {
   readonly depthScale: number;
   readonly rotationXScale: number;
   readonly rotationYScale: number;

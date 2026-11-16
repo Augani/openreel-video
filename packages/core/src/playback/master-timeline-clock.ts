@@ -5,7 +5,7 @@ export interface ClockSubscriber {
   onStateChange?: (state: ClockState) => void;
 }
 
-export interface ClockOptions {
+interface ClockOptions {
   audioContext?: AudioContext;
   frameRate?: number;
 }
@@ -258,11 +258,4 @@ export function initializeMasterClock(
   }
   masterClockInstance = new MasterTimelineClock(options);
   return masterClockInstance;
-}
-
-export function disposeMasterClock(): void {
-  if (masterClockInstance) {
-    masterClockInstance.dispose();
-    masterClockInstance = null;
-  }
 }

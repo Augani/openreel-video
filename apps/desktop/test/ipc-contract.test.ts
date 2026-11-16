@@ -22,6 +22,25 @@ describe("ipc-contract", () => {
     expect(CHANNELS.probeHardware).toBe("openreel:probeHardware");
   });
 
+  it("freezes the onboarding and MCP windowless channel names", () => {
+    expect(CHANNELS).toMatchObject({
+      onboardingAutomation: "openreel:onboarding:automation",
+      onboardingGet: "openreel:onboarding:get",
+      onboardingSet: "openreel:onboarding:set",
+      ollamaProbe: "openreel:ollama:probe",
+      samplesList: "openreel:samples:list",
+      samplesGet: "openreel:samples:get",
+      fsPickFiles: "openreel:fs:pickFiles",
+      fsPickProject: "openreel:fs:pickProject",
+      mcpGetClientStatus: "openreel:mcp:getClientStatus",
+      mcpGetPolicy: "openreel:mcp:getPolicy",
+      mcpSetPolicy: "openreel:mcp:setPolicy",
+      mcpFilesResolve: "openreel:mcp:files:resolve",
+      mcpFilesPlaceOutput: "openreel:mcp:files:placeOutput",
+      mcpAppInfo: "openreel:mcp:appInfo",
+    });
+  });
+
   it("exposes the rigging backend probe channel name", () => {
     expect(CHANNELS.riggingProbeBackend).toBe("openreel:rigging:probeBackend");
   });
@@ -238,5 +257,20 @@ describe("resolveExportArgs", () => {
     expect(out.quality).toBe(90);
     expect(out.encoder).toBe("libx265");
     expect(out.codec).toBe("hevc");
+  });
+
+  it("never picks a VAAPI encoder and passes keyframe/audio bitrate through", () => {
+    const out = resolveExportArgs(
+      {
+        width: 1920, height: 1080, frameRate: 30, codec: "h264", format: "mp4",
+        bitrateKbps: 8000, outputPath: "/tmp/o.mp4", totalFrames: 100,
+        audioSampleRate: 48000, audioChannels: 2, keyframeInterval: 60, audioBitrateKbps: 256,
+      },
+      "linux",
+      ["h264_vaapi", "libx264"],
+      "/tmp/a.wav",
+    );
+    expect(out.encoder).toBe("libx264");
+    expect(out).toMatchObject({ keyframeInterval: 60, audioBitrateKbps: 256 });
   });
 });

@@ -18,6 +18,12 @@ export interface MotionShaderRenderInput {
   readonly progress?: number;
   readonly params: Record<string, number | string>;
   readonly inputCanvas?: CanvasImageSource;
+  /**
+   * When true a failed GPU render returns null instead of the decorative 2D
+   * fallback. Used by effects that have a faithful CPU implementation and must
+   * never substitute a gradient for the real picture.
+   */
+  readonly strict?: boolean;
 }
 
 interface ActiveUniformInfo {
@@ -86,7 +92,7 @@ function colorLuminance(
   return clamp01(0.2126 * color[0] + 0.7152 * color[1] + 0.0722 * color[2]);
 }
 
-export type ShaderParamUpload =
+type ShaderParamUpload =
   | { readonly kind: "vec4"; readonly value: readonly [number, number, number, number] }
   | { readonly kind: "float"; readonly value: number };
 
@@ -191,7 +197,7 @@ function shaderFallbackColors(
  * alpha, so text/effect previews remain useful instead of silently reverting
  * to a solid color.
  */
-export function renderMotionShaderFallbackCanvas(
+function renderMotionShaderFallbackCanvas(
   def: MotionShaderDef,
   input: MotionShaderRenderInput,
 ): MotionShaderCanvas | null {
@@ -290,11 +296,13 @@ export class MotionShaderRenderer {
     def: MotionShaderDef,
     input: MotionShaderRenderInput,
   ): MotionShaderCanvas | null {
+    const fallback = (): MotionShaderCanvas | null =>
+      input.strict ? null : renderMotionShaderFallbackCanvas(def, input);
     const gl = this.ensureContext();
-    if (!gl || !this.canvas) return renderMotionShaderFallbackCanvas(def, input);
+    if (!gl || !this.canvas) return fallback();
 
     const compiled = this.ensureProgram(gl, def);
-    if (!compiled) return renderMotionShaderFallbackCanvas(def, input);
+    if (!compiled) return fallback();
 
     const width = Math.max(1, Math.floor(input.width));
     const height = Math.max(1, Math.floor(input.height));
@@ -323,6 +331,8 @@ export class MotionShaderRenderer {
         gl.activeTexture(gl.TEXTURE0);
         gl.bindTexture(gl.TEXTURE_2D, this.inputTexture);
         if (inputLocation) gl.uniform1i(inputLocation, 0);
+      } else if (input.strict) {
+        return null;
       }
 
       if (def.needsNoiseTexture) {
@@ -350,7 +360,7 @@ export class MotionShaderRenderer {
       return this.canvas;
     } catch (error) {
       console.warn(`[MotionShaderRenderer] Render failed for ${def.id}:`, error);
-      return renderMotionShaderFallbackCanvas(def, input);
+      return fallback();
     }
   }
 

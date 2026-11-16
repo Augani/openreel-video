@@ -1,1031 +1,651 @@
-import React, { useCallback, useEffect, useState } from "react";
-import { ChevronDown, Volume2, Wand2, AlertCircle, Check } from "@/icons/lucide-compat";
-import { ToolcraftButton as Button } from "@openreel/ui";
-import { ToolcraftCard as Card } from "@openreel/ui";
-import { ToolcraftClickableCard as ClickableCard } from "@openreel/ui";
-import { ToolcraftProgressBar as ProgressBar } from "@openreel/ui";
-import { ToolcraftText as Text } from "@openreel/ui";
-import { PropertySlider } from "./shell/PropertySlider";
-import { MockToggle } from "./shell/InspectorControls";
+import type { ActionExecutorLike } from "../../../services/lazy-action-executor";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ChevronDown, Check, LoaderCircle, Volume2, Wand2 } from "lucide-react";
 import {
-  autoLearnNoiseProfile,
-  extractAudioSegment,
-  resolveAudibleAudioTarget,
-  SpectralNoiseReducer,
-  type Clip,
-  type Project,
-} from "@openreel/core";
+  Alert,
+  AlertDescription,
+  Badge,
+  Button,
+  Card,
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+  Label,
+  Progress,
+  RadioGroup,
+  RadioGroupItem,
+  Switch,
+  Tabs,
+  TabsList,
+  TabsTrigger,
+} from "@openreel/ui";
+import type { Effect } from "@openreel/core";
 import {
-  getAudioBridgeEffects,
-  initializeAudioBridgeEffects,
+  DEFAULT_NOISE_REDUCTION,
   type NoiseReductionConfig,
   type NoiseReductionFocus,
-  type NoiseProfileData,
-  type SerializedNoiseProfile,
-  DEFAULT_NOISE_REDUCTION,
 } from "../../../bridges/audio-bridge-effects";
 import { useProjectStore } from "../../../stores/project-store";
+import {
+  analyzeNoiseSource,
+  noiseAnalysisSignature,
+} from "../../../services/noise-reduction-analysis";
+import {
+  editNoiseReduction,
+  findNoiseTarget,
+  ownsNoiseScope,
+  type NoiseReductionScope,
+} from "../../../services/noise-reduction-edit";
 import {
   NOISE_REDUCTION_PRESETS,
   getNoiseReductionPreset,
   suggestNoiseReductionConfig,
   suggestNoiseReductionPreset,
 } from "./noise-reduction-presets";
-import {
-  loadAudioBuffer,
-  type AudioLoadProgress,
-} from "../../../utils/load-audio-buffer";
-
-/**
- * NoiseReductionSection Props
- */
-interface NoiseReductionSectionProps {
-  clipId: string;
+import { PropertySlider } from "./shell/PropertySlider";
+const EMPTY_EFFECTS: Effect[] = [];
+const executorIds = new WeakMap<ActionExecutorLike, number>();
+let nextExecutorId = 0;
+function executorId(executor: ActionExecutorLike) {
+  let id = executorIds.get(executor);
+  if (!id) {
+    id = ++nextExecutorId;
+    executorIds.set(executor, id);
+  }
+  return id;
 }
-
-const DEFAULT_NOISE_REDUCTION_STATE: NoiseReductionConfig = {
-  threshold: DEFAULT_NOISE_REDUCTION.threshold,
-  reduction: DEFAULT_NOISE_REDUCTION.reduction,
-  attack: DEFAULT_NOISE_REDUCTION.attack,
-  release: DEFAULT_NOISE_REDUCTION.release,
-  focus: DEFAULT_NOISE_REDUCTION.focus,
-};
-
-/**
- * Learning state for noise profile
- */
-type LearningState = "idle" | "learning" | "ready" | "applying" | "success" | "error";
-
-interface NoiseRecommendation {
+type LearningState =
+  | "idle"
+  | "learning"
+  | "applying"
+  | "ready"
+  | "success"
+  | "error";
+interface AnalysisOwner {
+  scope: NoiseReductionScope;
+  signature: string;
+  effect: Effect | undefined;
+  controller: AbortController;
+}
+interface Recommendation {
+  owner: AnalysisOwner;
   presetId: NoiseReductionFocus;
   config: NoiseReductionConfig;
-  profile?: SerializedNoiseProfile;
   hasLearnedProfile: boolean;
 }
-
-interface LearnedNoiseProfileResult {
-  profile: NoiseProfileData;
-  serializedProfile: SerializedNoiseProfile;
+function currentEffect(scope: NoiseReductionScope) {
+  return findNoiseTarget(
+    useProjectStore.getState().project,
+    scope.clipId,
+  )?.audioEffects.find((effect) => effect.type === "noiseReduction");
 }
-
-interface NoiseAnalysisResult {
-  recommendationProfile: NoiseProfileData;
-  learnedProfile: LearnedNoiseProfileResult | null;
+function ownsAnalysis(owner: AnalysisOwner) {
+  return (
+    !owner.controller.signal.aborted &&
+    ownsNoiseScope(owner.scope) &&
+    currentEffect(owner.scope) === owner.effect &&
+    noiseAnalysisSignature(
+      useProjectStore.getState().project,
+      owner.scope.clipId,
+    ) === owner.signature
+  );
 }
-
-interface AnalysisProgressState {
-  progress: number;
-  message: string;
+export function NoiseReductionSection({ clipId }: { clipId: string }) {
+  const projectId = useProjectStore((state) => state.project.id),
+    executor = useProjectStore((state) => state.actionExecutor);
+  const targetId = useProjectStore(
+    (state) => findNoiseTarget(state.project, clipId)?.id ?? clipId,
+  );
+  const scope = useMemo(
+    () => ({ projectId, executor, clipId: targetId }),
+    [projectId, executor, targetId],
+  );
+  return (
+    <NoiseReductionControls
+      key={`${projectId}:${executorId(executor)}:${targetId}`}
+      scope={scope}
+    />
+  );
 }
-
-interface RecommendationProfileProgress {
-  progress: number;
-  message: string;
-}
-
-export interface RecommendationSampleRange {
-  start: number;
-  end: number;
-}
-
-const MAX_RECOMMENDATION_SAMPLE_SECONDS = 24;
-const MAX_RECOMMENDATION_SAMPLE_WINDOWS = 3;
-const MIN_RECOMMENDATION_WINDOW_SECONDS = 4;
-
-const findClipById = (project: Project, clipId: string): Clip | null => {
-  for (const track of project.timeline.tracks) {
-    const clip = track.clips.find((candidate) => candidate.id === clipId);
-    if (clip) {
-      return clip;
-    }
-  }
-
-  return null;
-};
-
-export const getRecommendationSampleRanges = (
-  duration: number,
-): RecommendationSampleRange[] => {
-  if (!Number.isFinite(duration) || duration <= 0) {
-    return [];
-  }
-
-  if (duration <= MAX_RECOMMENDATION_SAMPLE_SECONDS) {
-    return [{ start: 0, end: duration }];
-  }
-
-  const maxWindowsByDuration = Math.max(
-    1,
-    Math.min(
-      MAX_RECOMMENDATION_SAMPLE_WINDOWS,
-      Math.floor(duration / MIN_RECOMMENDATION_WINDOW_SECONDS),
-    ),
+function NoiseReductionControls({ scope }: { scope: NoiseReductionScope }) {
+  const effects = useProjectStore(
+    (state) =>
+      findNoiseTarget(state.project, scope.clipId)?.audioEffects ??
+      EMPTY_EFFECTS,
   );
-  const windowCount = Math.max(
-    1,
-    Math.min(
-      maxWindowsByDuration,
-      Math.ceil(duration / MAX_RECOMMENDATION_SAMPLE_SECONDS),
-    ),
+  const activeEffect = effects.find(
+    (effect) => effect.type === "noiseReduction",
   );
-  const windowDuration = Math.min(
-    duration,
-    MAX_RECOMMENDATION_SAMPLE_SECONDS / windowCount,
+  const [draft, setDraft] = useState<NoiseReductionConfig>(
+    DEFAULT_NOISE_REDUCTION,
   );
-  const firstCenter = windowCount === 1 ? 0.5 : 0.18;
-  const lastCenter = windowCount === 1 ? 0.5 : 0.82;
-
-  return Array.from({ length: windowCount }, (_, index) => {
-    const center =
-      windowCount === 1
-        ? 0.5
-        : firstCenter +
-          ((lastCenter - firstCenter) * index) / (windowCount - 1);
-    const maxStart = Math.max(0, duration - windowDuration);
-    const start = Math.min(
-      maxStart,
-      Math.max(0, duration * center - windowDuration / 2),
-    );
-
-    return {
-      start,
-      end: Math.min(duration, start + windowDuration),
-    };
-  });
-};
-
-const buildRecommendationSampleBuffer = (
-  audioBuffer: AudioBuffer,
-  context: BaseAudioContext,
-  onProgress?: (progress: RecommendationProfileProgress) => void,
-): { sampleBuffer: AudioBuffer; sampleCount: number } => {
-  const sampleRanges = getRecommendationSampleRanges(audioBuffer.duration);
-
-  if (sampleRanges.length === 0) {
-    throw new Error("Clip audio range is empty");
-  }
-
-  if (
-    sampleRanges.length === 1 &&
-    sampleRanges[0].start <= 0 &&
-    sampleRanges[0].end >= audioBuffer.duration
-  ) {
-    onProgress?.({ progress: 0.4, message: "Analyzing clip audio" });
-    return {
-      sampleBuffer: audioBuffer,
-      sampleCount: 1,
-    };
-  }
-
-  const segments = sampleRanges.map((sampleRange, index) => {
-    onProgress?.({
-      progress: (index + 1) / (sampleRanges.length + 1),
-      message: `Sampling clip audio (${index + 1}/${sampleRanges.length})`,
-    });
-
-    return extractAudioSegment(
-      audioBuffer,
-      sampleRange.start,
-      sampleRange.end,
-      context,
-    );
-  });
-  const sampleLength = segments.reduce(
-    (total, segment) => total + segment.length,
-    0,
+  const config = useMemo(
+    () =>
+      activeEffect
+        ? ({
+            ...DEFAULT_NOISE_REDUCTION,
+            ...activeEffect.params,
+          } as NoiseReductionConfig)
+        : draft,
+    [activeEffect, draft],
   );
-  const sampleBuffer = context.createBuffer(
-    audioBuffer.numberOfChannels,
-    sampleLength,
-    audioBuffer.sampleRate,
+  const enabled = activeEffect?.enabled ?? false,
+    previewingOriginal = activeEffect?.metadata?.previewBypass === true;
+  const activePreset = getNoiseReductionPreset(config.focus ?? "balanced");
+  const [open, setOpen] = useState(true),
+    [state, setState] = useState<LearningState>("idle");
+  const [error, setError] = useState<string | null>(null),
+    [message, setMessage] = useState<string | null>(null);
+  const [progress, setProgress] = useState<{
+    progress: number;
+    message: string;
+  } | null>(null);
+  const [recommendation, setRecommendation] = useState<Recommendation | null>(
+    null,
   );
-
-  let offset = 0;
-  for (const segment of segments) {
-    for (let channel = 0; channel < audioBuffer.numberOfChannels; channel += 1) {
-      sampleBuffer.getChannelData(channel).set(
-        segment.getChannelData(channel),
-        offset,
-      );
-    }
-
-    offset += segment.length;
-  }
-
-  onProgress?.({
-    progress: 0.85,
-    message: `Analyzing ${segments.length} clip samples`,
-  });
-
-  return {
-    sampleBuffer,
-    sampleCount: segments.length,
+  const job = useRef<AnalysisOwner | null>(null),
+    recommendationRef = useRef<Recommendation | null>(null);
+  const completion = useRef<{
+    scope: NoiseReductionScope;
+    effect: Effect | undefined;
+  } | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null),
+    generation = useRef(0);
+  const busy = state === "learning" || state === "applying";
+  const clearTimer = () => {
+    if (timer.current !== null) clearTimeout(timer.current);
+    timer.current = null;
   };
-};
-
-export const buildRecommendationProfile = (
-  clipId: string,
-  audioBuffer: AudioBuffer,
-  context: BaseAudioContext,
-  onProgress?: (progress: RecommendationProfileProgress) => void,
-): NoiseProfileData => {
-  const { sampleBuffer, sampleCount } = buildRecommendationSampleBuffer(
-    audioBuffer,
-    context,
-    onProgress,
-  );
-  const reducer = new SpectralNoiseReducer();
-  const profile = reducer.learnNoiseProfile(sampleBuffer);
-
-  onProgress?.({
-    progress: 1,
-    message:
-      sampleCount > 1
-        ? `Analyzed ${sampleCount} clip samples`
-        : "Analyzed clip audio",
-  });
-
-  return {
-    id: `analysis-${clipId}`,
-    frequencyBins: profile.frequencyBins,
-    magnitudes: profile.magnitudes,
-    standardDeviations: profile.standardDeviations,
-    sampleRate: profile.sampleRate,
-    fftSize: profile.fftSize,
-    createdAt: Date.now(),
-  };
-};
-
-/**
- * NoiseReductionSection Component
- *
- * - 14.1: Display noise reduction controls (threshold, reduction)
- * - 14.2: Learn noise profile from audio segment
- * - 14.3: Apply noise reduction with learned profile
- */
-export const NoiseReductionSection: React.FC<NoiseReductionSectionProps> = ({
-  clipId,
-}) => {
-  const defaultFocus = DEFAULT_NOISE_REDUCTION.focus ?? "balanced";
-  const project = useProjectStore((state) => state.project);
-  const audioTargetClip = React.useMemo(() => {
-    const clip = findClipById(project, clipId);
-    return clip ? resolveAudibleAudioTarget(clip, project.timeline) : null;
-  }, [clipId, project]);
-  const audioTargetClipId = audioTargetClip?.id ?? clipId;
-  const audioEffects = useProjectStore((state) =>
-    state.getAudioEffects(audioTargetClipId),
-  );
-  const setAudioEffectPreviewBypass = useProjectStore(
-    (state) => state.setAudioEffectPreviewBypass,
-  );
-  const toggleAudioEffect = useProjectStore((state) => state.toggleAudioEffect);
-
-  const [enabled, setEnabled] = useState(false);
-  const [effectId, setEffectId] = useState<string | null>(null);
-  const [config, setConfig] = useState<NoiseReductionConfig>(
-    DEFAULT_NOISE_REDUCTION_STATE,
-  );
-
-  const [learningState, setLearningState] = useState<LearningState>("idle");
-  const [activePresetId, setActivePresetId] =
-    useState<NoiseReductionFocus>(defaultFocus);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [recommendation, setRecommendation] =
-    useState<NoiseRecommendation | null>(null);
-  const [appliedMessage, setAppliedMessage] = useState<string | null>(null);
-  const [analysisProgress, setAnalysisProgress] = useState<AnalysisProgressState | null>(null);
-
-  const [isOpen, setIsOpen] = useState(true);
-
-  const activePreset = getNoiseReductionPreset(activePresetId);
-  const activeEffect = audioEffects.find((effect) => effect.type === "noiseReduction");
-  const previewingOriginal = activeEffect?.metadata?.previewBypass === true;
-
-  useEffect(() => {
-    initializeAudioBridgeEffects().catch((error) => {
-      console.error("Failed to initialize AudioBridgeEffects:", error);
-    });
-  }, []);
-
-  useEffect(() => {
+  const clearRecommendation = () => {
+    recommendationRef.current = null;
     setRecommendation(null);
-    setLearningState("idle");
-    setErrorMessage(null);
-    setAppliedMessage(null);
-    setAnalysisProgress(null);
-  }, [audioTargetClipId, clipId]);
-
-  useEffect(() => {
-    const noiseEffect = audioEffects.find((effect) => effect.type === "noiseReduction");
-
-    if (noiseEffect) {
-      setEnabled(noiseEffect.enabled);
-      setEffectId(noiseEffect.id);
-      const params = noiseEffect.params as Partial<NoiseReductionConfig>;
-      setConfig({
-        ...DEFAULT_NOISE_REDUCTION_STATE,
-        ...params,
-      });
-      setActivePresetId((params.focus ?? defaultFocus) as NoiseReductionFocus);
-      return;
-    }
-
-    setEnabled(false);
-    setEffectId(null);
-    setConfig(DEFAULT_NOISE_REDUCTION_STATE);
-    setActivePresetId(defaultFocus);
-  }, [audioEffects, clipId, defaultFocus]);
-
-  const applyNoiseReductionConfig = useCallback(
-    (nextConfig: NoiseReductionConfig, existingEffectId = effectId) => {
-      const bridge = getAudioBridgeEffects();
-
-      if (existingEffectId) {
-        const updateResult = bridge.updateNoiseReduction(
-          audioTargetClipId,
-          existingEffectId,
-          nextConfig,
-        );
-
-        if (!updateResult.success) {
-          throw new Error(
-            updateResult.error ?? "Failed to update noise reduction",
-          );
-        }
-
-        toggleAudioEffect(audioTargetClipId, existingEffectId, true);
-        setAudioEffectPreviewBypass(audioTargetClipId, existingEffectId, false);
-        setEnabled(true);
-        window.dispatchEvent(new CustomEvent("openreel:preview-invalidate"));
-        return existingEffectId;
-      }
-
-      const applyResult = bridge.applyNoiseReduction(audioTargetClipId, nextConfig);
-
-      if (!applyResult.success || !applyResult.effectId) {
-        throw new Error(applyResult.error ?? "Failed to apply noise reduction");
-      }
-
-      setEffectId(applyResult.effectId);
-      setAudioEffectPreviewBypass(audioTargetClipId, applyResult.effectId, false);
-      setEnabled(true);
-      window.dispatchEvent(new CustomEvent("openreel:preview-invalidate"));
-      return applyResult.effectId;
-    },
-    [audioTargetClipId, effectId, setAudioEffectPreviewBypass, toggleAudioEffect],
-  );
-
-  const handleToggle = useCallback(
-    (newEnabled: boolean) => {
-      if (newEnabled && !effectId) {
-        try {
-          applyNoiseReductionConfig(config);
-        } catch (error) {
-          setErrorMessage(
-            error instanceof Error
-              ? error.message
-              : "Failed to apply noise reduction",
-          );
-          return;
-        }
-      } else if (effectId) {
-        toggleAudioEffect(audioTargetClipId, effectId, newEnabled);
-        window.dispatchEvent(new CustomEvent("openreel:preview-invalidate"));
-      }
-
-      setEnabled(newEnabled);
-    },
-    [
-      applyNoiseReductionConfig,
-      audioTargetClipId,
-      config,
-      effectId,
-      toggleAudioEffect,
-    ],
-  );
-
-  const handleConfigChange = useCallback(
-    (key: keyof NoiseReductionConfig, value: number) => {
-      const bridge = getAudioBridgeEffects();
-
-      setConfig((prev) => {
-        const newConfig = { ...prev, [key]: value };
-
-        if (effectId && enabled) {
-          bridge.updateNoiseReduction(audioTargetClipId, effectId, newConfig);
-          window.dispatchEvent(new CustomEvent("openreel:preview-invalidate"));
-        }
-
-        return newConfig;
-      });
-    },
-    [audioTargetClipId, effectId, enabled],
-  );
-
-  const updateAnalysisProgress = useCallback((progress: AudioLoadProgress | AnalysisProgressState) => {
-    setAnalysisProgress({
-      progress: Math.max(0, Math.min(1, progress.progress)),
-      message: progress.message,
-    });
+  };
+  const cancel = useCallback(() => {
+    job.current?.controller.abort();
+    job.current = null;
+    generation.current++;
+    if (timer.current !== null) clearTimeout(timer.current);
+    timer.current = null;
+    recommendationRef.current = null;
+    completion.current = null;
+    setRecommendation(null);
+    setProgress(null);
+    setState("idle");
+    setError(null);
+    setMessage(null);
   }, []);
-
-  const analyzeNoiseForClip = useCallback(
-    async (): Promise<NoiseAnalysisResult> => {
-      const project = useProjectStore.getState().project;
-      const clip = project.timeline.tracks
-        .flatMap((track) => track.clips)
-        .find((candidate) => candidate.id === audioTargetClipId);
-
-      if (!clip) {
-        throw new Error("Clip not found");
-      }
-
-      const mediaItem = project.mediaLibrary.items.find(
-        (candidate) => candidate.id === clip.mediaId,
+  useEffect(() => {
+    const lifecycleGeneration = generation;
+    const unsubscribe = useProjectStore.subscribe(() => {
+      const owner = job.current ?? recommendationRef.current?.owner;
+      const completed = completion.current;
+      if (
+        (owner && !ownsAnalysis(owner)) ||
+        (completed &&
+          (!ownsNoiseScope(completed.scope) ||
+            currentEffect(completed.scope) !== completed.effect))
+      )
+        cancel();
+    });
+    return () => {
+      unsubscribe();
+      job.current?.controller.abort();
+      job.current = null;
+      completion.current = null;
+      lifecycleGeneration.current++;
+      if (timer.current !== null) clearTimeout(timer.current);
+    };
+  }, [cancel]);
+  const success = (text: string) => {
+    completion.current = { scope, effect: currentEffect(scope) };
+    setProgress(null);
+    setMessage(text);
+    setState("success");
+    const version = ++generation.current;
+    clearTimer();
+    timer.current = setTimeout(() => {
+      if (version === generation.current && ownsNoiseScope(scope))
+        setState("idle");
+      timer.current = null;
+    }, 2000);
+  };
+  const apply = (changes: Parameters<typeof editNoiseReduction>[1]) => {
+    const effect = editNoiseReduction(scope, changes);
+    if (!effect)
+      throw new Error(
+        "Unlock this clip and finish any active export before changing cleanup.",
       );
-
-      if (!mediaItem?.blob) {
-        throw new Error("No audio data available for this clip");
-      }
-
-      let audioContext: AudioContext | null = null;
-
+    return effect;
+  };
+  const begin = (): AnalysisOwner | null => {
+    if (job.current || !ownsNoiseScope(scope)) return null;
+    clearTimer();
+    clearRecommendation();
+    completion.current = null;
+    setError(null);
+    setMessage(null);
+    generation.current++;
+    const project = useProjectStore.getState().project;
+    const owner = {
+      scope,
+      signature: noiseAnalysisSignature(project, scope.clipId),
+      effect: currentEffect(scope),
+      controller: new AbortController(),
+    };
+    job.current = owner;
+    return owner;
+  };
+  const updateProgress = (
+    owner: AnalysisOwner,
+    value: { progress: number; message: string },
+  ) => {
+    if (job.current !== owner || !ownsAnalysis(owner)) return;
+    setProgress((previous) =>
+      previous?.progress === value.progress &&
+      previous.message === value.message
+        ? previous
+        : value,
+    );
+  };
+  const learn = async (presetId?: NoiseReductionFocus) => {
+    if (job.current) return;
+    let presetConfig: NoiseReductionConfig | undefined;
+    if (presetId) {
       try {
-        updateAnalysisProgress({ progress: 0.03, message: "Preparing clip analysis" });
-        audioContext = new AudioContext();
-        const audioBuffer = await loadAudioBuffer(
-          audioContext,
-          mediaItem.blob,
-          {
-            audioTrackIndex: clip.audioTrackIndex ?? 0,
-            onProgress: updateAnalysisProgress,
-          },
-        );
-
-        if (!audioBuffer) {
-          throw new Error("Failed to decode audio for analysis");
-        }
-
-        const clipStart = Math.max(0, clip.inPoint || 0);
-        const clipEnd = Math.min(
-          audioBuffer.duration,
-          clip.outPoint > clipStart ? clip.outPoint : clipStart + clip.duration,
-        );
-
-        if (clipEnd <= clipStart) {
-          throw new Error("Clip audio range is empty");
-        }
-
-        const analysisContext = new OfflineAudioContext(
-          audioBuffer.numberOfChannels,
-          Math.max(1, Math.ceil((clipEnd - clipStart) * audioBuffer.sampleRate)),
-          audioBuffer.sampleRate,
-        );
-
-        const clipBuffer = extractAudioSegment(
-          audioBuffer,
-          clipStart,
-          clipEnd,
-          analysisContext,
-        );
-
-        updateAnalysisProgress({ progress: 0.84, message: "Analyzing noise signature" });
-        const recommendationProfile = buildRecommendationProfile(
-          audioTargetClipId,
-          clipBuffer,
-          analysisContext,
-          (progress) => {
-            updateAnalysisProgress({
-              progress: 0.84 + progress.progress * 0.08,
-              message: progress.message,
-            });
-          },
-        );
-
-        updateAnalysisProgress({ progress: 0.93, message: "Learning custom cleanup profile" });
-
-        const analyzedProfile = await autoLearnNoiseProfile(
-          clipBuffer,
-          analysisContext,
-        );
-
-        updateAnalysisProgress({ progress: 1, message: "Recommendation ready" });
-
-        if (!analyzedProfile) {
-          return {
-            recommendationProfile,
-            learnedProfile: null,
-          };
-        }
-
-        const learnedProfile: NoiseProfileData = {
-          id: `profile-${audioTargetClipId}`,
-          frequencyBins: analyzedProfile.frequencyBins,
-          magnitudes: analyzedProfile.magnitudes,
-          standardDeviations: analyzedProfile.standardDeviations,
-          sampleRate: analyzedProfile.sampleRate,
-          fftSize: analyzedProfile.fftSize,
-          createdAt: Date.now(),
+        presetConfig = {
+          ...getNoiseReductionPreset(presetId).config,
+          ...(config.profile ? { profile: config.profile } : {}),
         };
-
-        return {
-          recommendationProfile,
-          learnedProfile: {
-            profile: learnedProfile,
-            serializedProfile: {
-              frequencyBins: Array.from(learnedProfile.frequencyBins),
-              magnitudes: Array.from(learnedProfile.magnitudes),
-              standardDeviations: learnedProfile.standardDeviations
-                ? Array.from(learnedProfile.standardDeviations)
-                : undefined,
-              sampleRate: learnedProfile.sampleRate,
-              fftSize: learnedProfile.fftSize,
-            },
-          },
-        };
-      } finally {
-        await audioContext?.close();
-      }
-    },
-    [audioTargetClipId, updateAnalysisProgress],
-  );
-
-  const handleApplyPreset = useCallback(
-    async (presetId: NoiseReductionFocus) => {
-      setErrorMessage(null);
-      setRecommendation(null);
-      setAppliedMessage(null);
-      setLearningState("applying");
-
-      try {
-        const presetConfig = getNoiseReductionPreset(presetId).config;
-        const nextConfig: NoiseReductionConfig = config.profile
-          ? { ...presetConfig, profile: config.profile }
-          : { ...presetConfig };
-
-        setActivePresetId(presetId);
-        setConfig(nextConfig);
-        const nextEffectId = applyNoiseReductionConfig(nextConfig);
-        let message = `${getNoiseReductionPreset(presetId).label} applied to this clip.`;
-
-        try {
-          const { learnedProfile } = await analyzeNoiseForClip();
-          if (!learnedProfile) {
-            setAnalysisProgress(null);
-            setAppliedMessage(message);
-            setLearningState("success");
-            setTimeout(() => {
-              setLearningState("idle");
-            }, 2000);
-            return;
-          }
-          const profiledConfig: NoiseReductionConfig = {
-            ...presetConfig,
-            profile: learnedProfile.serializedProfile,
-          };
-          setConfig(profiledConfig);
-          applyNoiseReductionConfig(profiledConfig, nextEffectId);
-          message = `${getNoiseReductionPreset(presetId).label} learned and applied to this clip.`;
-        } catch {
-          message = `${getNoiseReductionPreset(presetId).label} applied to this clip.`;
-        }
-
-        setAnalysisProgress(null);
-        setAppliedMessage(message);
-        setLearningState("success");
-        setTimeout(() => {
-          setLearningState("idle");
-        }, 2000);
-      } catch (error) {
-        setLearningState("error");
-        setErrorMessage(
-          error instanceof Error
-            ? error.message
-            : "Failed to apply noise reduction preset",
+        apply({ config: presetConfig, enabled: true, previewBypass: false });
+      } catch (value) {
+        setError(
+          value instanceof Error ? value.message : "Could not apply cleanup",
         );
-      }
-    },
-    [applyNoiseReductionConfig, analyzeNoiseForClip, config.profile],
-  );
-
-  const handleSetPreviewMode = useCallback(
-    (mode: "original" | "cleaned") => {
-      if (!effectId) {
+        setState("error");
         return;
       }
-
-      setAudioEffectPreviewBypass(audioTargetClipId, effectId, mode === "original");
-      window.dispatchEvent(new CustomEvent("openreel:preview-invalidate"));
-    },
-    [audioTargetClipId, effectId, setAudioEffectPreviewBypass],
-  );
-
-  const handleLearnNoiseProfile = useCallback(async () => {
-    setLearningState("learning");
-    setErrorMessage(null);
-    setRecommendation(null);
-    setAppliedMessage(null);
-    setAnalysisProgress({ progress: 0.02, message: "Preparing clip analysis" });
-
+    }
+    const owner = begin();
+    if (!owner) return;
+    setState(presetId ? "applying" : "learning");
+    setProgress({ progress: 0.02, message: "Preparing clip analysis" });
     try {
-      const { recommendationProfile, learnedProfile } = await analyzeNoiseForClip();
-
-      const suggestedPresetId = suggestNoiseReductionPreset(recommendationProfile);
-      const suggestedConfig: NoiseReductionConfig = learnedProfile
-        ? {
-            ...suggestNoiseReductionConfig(recommendationProfile),
-            profile: learnedProfile.serializedProfile,
-          }
-        : suggestNoiseReductionConfig(recommendationProfile);
-
-      setRecommendation({
-        presetId: suggestedPresetId,
-        config: suggestedConfig,
-        profile: learnedProfile?.serializedProfile,
-        hasLearnedProfile: learnedProfile !== null,
-      });
-      setAnalysisProgress(null);
-      setLearningState("ready");
-    } catch (error) {
-      setLearningState("error");
-      setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : "Failed to analyze this clip",
+      const result = await analyzeNoiseSource(
+        useProjectStore.getState().project,
+        scope.clipId,
+        owner.controller.signal,
+        (value) => updateProgress(owner, value),
       );
-      setAnalysisProgress(null);
-
-      setTimeout(() => {
-        setLearningState("idle");
-        setErrorMessage(null);
+      if (job.current !== owner || !ownsAnalysis(owner)) return;
+      job.current = null;
+      if (presetId && presetConfig) {
+        let learnedApplied = false;
+        if (result.learnedProfile) {
+          try {
+            apply({
+              config: {
+                ...getNoiseReductionPreset(presetId).config,
+                profile: result.learnedProfile.serializedProfile,
+              },
+              enabled: true,
+              previewBypass: false,
+            });
+            learnedApplied = true;
+          } catch {
+            // A new export or lock can block learning after the preset was applied.
+          }
+        }
+        success(
+          `${getNoiseReductionPreset(presetId).label}${learnedApplied ? " learned and" : ""} applied to this clip.`,
+        );
+      } else {
+        const next = {
+          owner,
+          presetId: suggestNoiseReductionPreset(result.recommendationProfile),
+          config: {
+            ...suggestNoiseReductionConfig(result.recommendationProfile),
+            ...(result.learnedProfile
+              ? { profile: result.learnedProfile.serializedProfile }
+              : {}),
+          },
+          hasLearnedProfile: !!result.learnedProfile,
+        };
+        recommendationRef.current = next;
+        setRecommendation(next);
+        setProgress(null);
+        setState("ready");
+      }
+    } catch (value) {
+      if (job.current !== owner || !ownsAnalysis(owner)) return;
+      job.current = null;
+      setProgress(null);
+      if (presetId) {
+        success(
+          `${getNoiseReductionPreset(presetId).label} applied to this clip.`,
+        );
+        return;
+      }
+      setState("error");
+      setError(
+        value instanceof Error ? value.message : "Failed to analyze this clip",
+      );
+      const version = ++generation.current;
+      clearTimer();
+      timer.current = setTimeout(() => {
+        if (version === generation.current && ownsNoiseScope(scope)) {
+          setState("idle");
+          setError(null);
+        }
+        timer.current = null;
       }, 3000);
     }
-  }, [analyzeNoiseForClip]);
-
-  const handleApplyRecommendation = useCallback(() => {
-    if (!recommendation) {
+  };
+  const change = (key: keyof NoiseReductionConfig, value: number) => {
+    const next = { ...config, [key]: value };
+    try {
+      if (activeEffect) apply({ config: next });
+      else setDraft(next);
+      setError(null);
+    } catch (value) {
+      setError(
+        value instanceof Error ? value.message : "Could not update cleanup",
+      );
+    }
+  };
+  const applyRecommendation = () => {
+    if (!recommendation || !ownsAnalysis(recommendation.owner)) {
+      cancel();
+      setError("The audio source changed. Analyze this clip again.");
       return;
     }
-
-    setLearningState("applying");
-    setErrorMessage(null);
-
+    const next = recommendation;
+    clearRecommendation();
     try {
-      setConfig(recommendation.config);
-      setActivePresetId(recommendation.presetId);
-      applyNoiseReductionConfig(recommendation.config);
-      setRecommendation(null);
-      setAppliedMessage(
-        `${getNoiseReductionPreset(recommendation.presetId).label} applied to this clip.`,
+      apply({ config: next.config, enabled: true, previewBypass: false });
+      success(
+        `${getNoiseReductionPreset(next.presetId).label} applied to this clip.`,
       );
-      setLearningState("success");
-      setTimeout(() => {
-        setLearningState("idle");
-      }, 2000);
-    } catch (error) {
-      setLearningState("error");
-      setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : "Failed to apply recommended cleanup",
+    } catch (value) {
+      if (ownsAnalysis(next.owner)) {
+        recommendationRef.current = next;
+        setRecommendation(next);
+      }
+      setState("error");
+      setError(
+        value instanceof Error ? value.message : "Could not apply cleanup",
       );
     }
-  }, [applyNoiseReductionConfig, recommendation]);
-
+  };
+  const preview = (value: string) => {
+    try {
+      apply({ previewBypass: value === "original" });
+    } catch (value) {
+      setError(
+        value instanceof Error ? value.message : "Could not change preview",
+      );
+    }
+  };
   const recommendationPreset = recommendation
     ? getNoiseReductionPreset(recommendation.presetId)
     : null;
-  const isBusy =
-    learningState === "learning" || learningState === "applying";
-  const learnButtonState = (() => {
-    switch (learningState) {
-      case "learning":
-        return {
-          label: "Analyzing...",
-          icon: <Wand2 size={12} aria-hidden />,
-          isLoading: true,
-        };
-      case "applying":
-        return {
-          label: "Applying cleanup...",
-          icon: <Wand2 size={12} aria-hidden />,
-          isLoading: true,
-        };
-      case "ready":
-        return {
-          label: "Recommendation Ready",
-          icon: <Check size={12} aria-hidden />,
-          isLoading: false,
-        };
-      case "success":
-        return {
-          label: "Cleanup Applied",
-          icon: <Check size={12} aria-hidden />,
-          isLoading: false,
-        };
-      case "error":
-        return {
-          label: "Analysis Failed",
-          icon: <AlertCircle size={12} aria-hidden />,
-          isLoading: false,
-        };
-      default:
-        return {
-          label: "Analyze & Recommend",
-          icon: <Wand2 size={12} aria-hidden />,
-          isLoading: false,
-        };
-    }
-  })();
-
+  const buttonLabel =
+    state === "learning"
+      ? "Analyzing…"
+      : state === "applying"
+        ? "Applying cleanup…"
+        : state === "ready"
+          ? "Recommendation Ready"
+          : state === "success"
+            ? "Cleanup Applied"
+            : state === "error"
+              ? "Analysis Failed"
+              : "Analyze & Recommend";
   return (
-    <Card
-      variant="muted"
-      padding={0}
-      className={`overflow-hidden border ${
-        enabled ? "border-border" : "border-border/50 opacity-60"
-      }`}
-    >
-      <div className="flex items-center gap-2 p-2 bg-bg-2">
-        <ClickableCard
-          label={`${isOpen ? "Collapse" : "Expand"} noise reduction`}
-          onClick={() => setIsOpen(!isOpen)}
-          padding={0}
-          variant="transparent"
-          className="flex-1"
-        >
-          <div className="flex items-center gap-1">
-            <ChevronDown
-              size={12}
-              className={`transition-transform ${
-                isOpen ? "" : "-rotate-90"
-              } text-fg-3`}
-              aria-hidden
-            />
-            <Volume2 size={12} className="text-fg-3" aria-hidden />
-            <Text
-              type="supporting"
-              color="primary"
-              weight="bold"
-              className="text-[10px]"
+    <Collapsible open={open} onOpenChange={setOpen} asChild>
+      <Card className="min-w-0 overflow-hidden rounded-[7px] border-border bg-bg-2 p-0 shadow-none">
+        <div className="flex items-center gap-3 px-3 py-2">
+          <CollapsibleTrigger asChild>
+            <Button
+              variant="ghost"
+              className="h-auto min-w-0 flex-1 justify-start gap-1.5 p-0 text-[11px] font-medium hover:bg-transparent"
+              aria-label={`${open ? "Collapse" : "Expand"} noise reduction`}
             >
+              <ChevronDown
+                className={`size-3 shrink-0 transition-transform ${open ? "" : "-rotate-90"}`}
+              />
+              <Volume2 className="size-3 shrink-0 text-fg-3" />
               Noise Reduction
-            </Text>
-          </div>
-        </ClickableCard>
-        <MockToggle
-          ariaLabel="Enable noise reduction"
-          checked={enabled}
-          onChange={handleToggle}
-        />
-      </div>
-
-      {isOpen && (
-        <div className="p-3 space-y-3">
-          <Text
-            type="supporting"
-            color="secondary"
-            className="text-[9px] leading-relaxed"
-          >
-            Reduce white noise, wind, hum, room tone, and background music while
-            keeping speech or the wanted audio in front.
-          </Text>
-
-          <div className="grid grid-cols-2 gap-2">
-            {NOISE_REDUCTION_PRESETS.map((preset) => {
-              const isActive = preset.id === activePresetId;
-
-              return (
-                <ClickableCard
-                  key={preset.id}
-                  label={`Use ${preset.label} noise reduction`}
-                  onClick={() => handleApplyPreset(preset.id)}
-                  isDisabled={isBusy}
-                  padding={2}
-                  variant={isActive ? "green" : "default"}
-                  className={`border ${
-                    isActive ? "border-primary" : "border-border"
-                  }`}
-                >
-                  <Text
-                    type="supporting"
-                    color="primary"
-                    weight="bold"
-                    className="block text-[10px]"
-                  >
-                    {preset.label}
-                  </Text>
-                  <Text
-                    type="supporting"
-                    color="secondary"
-                    className="block mt-1 text-[9px] leading-relaxed"
-                  >
-                    {preset.description}
-                  </Text>
-                </ClickableCard>
-              );
-            })}
-          </div>
-
-          <Card
-            variant="transparent"
-            padding={2}
-            className="border border-border/70 bg-bg-1/60"
-          >
-            <div className="flex items-center justify-between gap-2">
-              <Text type="supporting" color="secondary" className="text-[9px]">
-                Current mode: {activePreset.label}
-              </Text>
-              <Text
-                type="supporting"
-                className={`rounded-full px-2 py-0.5 text-[8px] font-medium ${
-                  enabled
-                    ? "bg-green-500/15 text-green-400"
-                    : "bg-bg-2 text-fg-3"
-                }`}
-              >
-                {enabled ? "Applied" : "Off"}
-              </Text>
-            </div>
-            <Text type="supporting" color="secondary" className="mt-1 text-[9px]">
-              {activePreset.description}
-            </Text>
-            {appliedMessage && (
-              <Text
-                type="supporting"
-                className="block mt-2 rounded-md border border-green-500/20 bg-green-500/10 px-2 py-1 text-[9px] text-green-400"
-              >
-                {appliedMessage}
-              </Text>
-            )}
-          </Card>
-
-          {recommendation && recommendationPreset && (
-            <Card
-              variant="green"
-              padding={3}
-              className="space-y-2 border border-primary/40"
-            >
-              <div className="flex items-center gap-2">
-                <Wand2 size={12} className="text-primary" aria-hidden />
-                <Text
-                  type="supporting"
-                  color="primary"
-                  weight="bold"
-                  className="text-[10px]"
-                >
-                  Recommendation ready
-                </Text>
-              </div>
-              <Text
-                type="supporting"
-                color="secondary"
-                className="text-[9px] leading-relaxed"
-              >
-                Detected noise best matches {recommendationPreset.label.toLowerCase()}.
-                {recommendation.hasLearnedProfile
-                  ? ` Apply ${Math.round(recommendation.config.reduction * 100)}% cleanup at ${recommendation.config.threshold.toFixed(0)} dB to save this profile on the clip.`
-                  : ` Apply ${Math.round(recommendation.config.reduction * 100)}% cleanup at ${recommendation.config.threshold.toFixed(0)} dB. A custom profile could not be isolated, so this recommendation uses the best preset match for the clip.`}
-              </Text>
-              <Button
-                label={
-                  learningState === "applying"
-                    ? "Applying..."
-                    : "Apply Recommended Cleanup"
-                }
-                variant="primary"
-                size="sm"
-                onClick={handleApplyRecommendation}
-                isDisabled={learningState === "applying"}
-                isLoading={learningState === "applying"}
-                className="w-full"
-              />
-            </Card>
-          )}
-
-          <Card
-            variant="transparent"
-            padding={2}
-            className="space-y-2 border border-border/70 bg-bg-1/60"
-          >
-            <Text type="supporting" color="primary" weight="bold" className="text-[9px]">
-              A/B Preview
-            </Text>
-            <div className="grid grid-cols-2 gap-2">
-              <Button
-                label="Hear Original"
-                variant={previewingOriginal ? "primary" : "secondary"}
-                size="sm"
-                onClick={() => handleSetPreviewMode("original")}
-                isDisabled={!effectId}
-              />
-              <Button
-                label="Hear Cleaned"
-                variant={!previewingOriginal ? "primary" : "secondary"}
-                size="sm"
-                onClick={() => handleSetPreviewMode("cleaned")}
-                isDisabled={!effectId}
-              />
-            </div>
-            <Text
-              type="supporting"
-              color="secondary"
-              className="text-[9px] leading-relaxed"
-            >
-              Preview only. Export still uses the cleaned audio effect chain.
-            </Text>
-          </Card>
-
-          <PropertySlider
-            label="Threshold"
-            value={config.threshold}
-            onChange={(value: number) => handleConfigChange("threshold", value)}
-            min={-80}
-            max={0}
-            formatValue={(value) => `${Math.round(value)} dB`}
+            </Button>
+          </CollapsibleTrigger>
+          <Switch
+            className="workspace-switch"
+            aria-label="Enable noise reduction"
+            checked={enabled}
+            disabled={busy}
+            onCheckedChange={(checked) => {
+              try {
+                apply(
+                  activeEffect
+                    ? { enabled: checked }
+                    : { config, enabled: checked, previewBypass: false },
+                );
+              } catch (value) {
+                setError(
+                  value instanceof Error
+                    ? value.message
+                    : "Could not change cleanup",
+                );
+              }
+            }}
           />
-
-          <PropertySlider
-            label="Reduction"
-            value={config.reduction * 100}
-            onChange={(value: number) =>
-              handleConfigChange("reduction", value / 100)
-            }
-            min={0}
-            max={100}
-            formatValue={(value) => `${Math.round(value)}%`}
-          />
-
-          <PropertySlider
-            label="Attack"
-            value={config.attack ?? 10}
-            onChange={(value: number) => handleConfigChange("attack", value)}
-            min={0}
-            max={100}
-            formatValue={(value) => `${Math.round(value)} ms`}
-          />
-
-          <PropertySlider
-            label="Release"
-            value={config.release ?? 100}
-            onChange={(value: number) => handleConfigChange("release", value)}
-            min={0}
-            max={500}
-            formatValue={(value) => `${Math.round(value)} ms`}
-          />
-
-          <Button
-            label={learnButtonState.label}
-            icon={learnButtonState.icon}
-            variant="primary"
-            size="sm"
-            onClick={handleLearnNoiseProfile}
-            isDisabled={isBusy}
-            isLoading={learnButtonState.isLoading}
-            className="w-full"
-          />
-
-          {analysisProgress && (learningState === "learning" || learningState === "applying") && (
-            <Card variant="green" padding={2} className="border border-primary/20">
-              <Text type="supporting" color="secondary" className="block text-[9px]">
-                {analysisProgress.message}
-              </Text>
-              <ProgressBar
-                label="Noise analysis progress"
-                isLabelHidden
-                value={Math.round(analysisProgress.progress * 100)}
-                max={100}
-                hasValueLabel
-                variant="accent"
-              />
-            </Card>
-          )}
-
-          {errorMessage && (
-            <Text
-              type="supporting"
-              className="block text-[9px] text-red-500 text-center"
-            >
-              {errorMessage}
-            </Text>
-          )}
-
-          {config.profile && !recommendation && learningState !== "error" && (
-            <Text
-              type="supporting"
-              color="secondary"
-              className="block text-[9px] text-center"
-            >
-              Learned noise profile is active on this clip.
-              <br />
-              Auto-tuned with {activePreset.label.toLowerCase()} and reused for export cleanup.
-            </Text>
-          )}
         </div>
-      )}
-    </Card>
+        <CollapsibleContent>
+          <div className="space-y-3 border-t border-border px-3 py-3">
+            <p className="text-[11px] leading-relaxed text-fg-2">
+              Reduce white noise, wind, hum, room tone, and background music
+              while keeping speech or the wanted audio in front.
+            </p>
+            <RadioGroup
+              aria-label="Noise reduction preset"
+              value={activePreset.id}
+              disabled={busy}
+              onValueChange={(value) =>
+                void learn(value as NoiseReductionFocus)
+              }
+              className="grid grid-cols-2 gap-2"
+            >
+              {NOISE_REDUCTION_PRESETS.map((preset) => (
+                <Label
+                  key={preset.id}
+                  className="flex cursor-pointer items-start gap-2 rounded-[7px] border border-border bg-bg-1 p-2 has-[[data-state=checked]]:border-primary has-[[data-state=checked]]:bg-primary/5 has-[:disabled]:cursor-default has-[:disabled]:opacity-50"
+                >
+                  <RadioGroupItem
+                    value={preset.id}
+                    aria-label={`Use ${preset.label} noise reduction`}
+                    className="mt-0.5 shrink-0"
+                    onClick={() => {
+                      if (activePreset.id === preset.id) void learn(preset.id);
+                    }}
+                  />
+                  <span className="min-w-0">
+                    <span className="block text-[11px] font-medium">
+                      {preset.label}
+                    </span>
+                    <span className="mt-1 block text-[10px] font-normal leading-relaxed text-fg-2">
+                      {preset.description}
+                    </span>
+                  </span>
+                </Label>
+              ))}
+            </RadioGroup>
+            <div className="rounded-[7px] border border-border bg-bg-1 p-2.5">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[11px] text-fg-2">
+                  Current mode: {activePreset.label}
+                </p>
+                <Badge variant="secondary" className="text-[10px]">
+                  {enabled ? "Applied" : "Off"}
+                </Badge>
+              </div>
+              <p className="mt-1 text-[10px] leading-relaxed text-fg-3">
+                {activePreset.description}
+              </p>
+              {message && (
+                <p
+                  role="status"
+                  className="mt-2 text-[11px] text-status-success"
+                >
+                  {message}
+                </p>
+              )}
+            </div>
+            {recommendation && recommendationPreset && (
+              <Alert className="border-primary/30 bg-primary/5 p-3">
+                <Wand2 className="size-3.5" />
+                <AlertDescription className="space-y-2 text-[11px]">
+                  <p className="font-medium text-fg">Recommendation ready</p>
+                  <p>
+                    Detected noise best matches{" "}
+                    {recommendationPreset.label.toLowerCase()}. Apply{" "}
+                    {Math.round(recommendation.config.reduction * 100)}% cleanup
+                    at {recommendation.config.threshold.toFixed(0)} dB.
+                    {recommendation.hasLearnedProfile
+                      ? " Save this learned profile on the clip."
+                      : " A custom profile could not be isolated, so this recommendation uses the best preset match for the clip."}
+                  </p>
+                  <Button
+                    size="sm"
+                    className="w-full text-[11px]"
+                    onClick={applyRecommendation}
+                  >
+                    Apply Recommended Cleanup
+                  </Button>
+                </AlertDescription>
+              </Alert>
+            )}
+            <div className="space-y-2 rounded-[7px] border border-border bg-bg-1 p-2.5">
+              <p className="text-[11px] font-medium">A/B Preview</p>
+              <Tabs
+                value={previewingOriginal ? "original" : "cleaned"}
+                onValueChange={preview}
+              >
+                <TabsList className="grid h-7 w-full grid-cols-2">
+                  <TabsTrigger
+                    value="original"
+                    disabled={!activeEffect || busy}
+                    className="text-[11px]"
+                  >
+                    Hear Original
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="cleaned"
+                    disabled={!activeEffect || busy}
+                    className="text-[11px]"
+                  >
+                    Hear Cleaned
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
+              <p className="text-[10px] leading-relaxed text-fg-3">
+                Preview only. Export still uses the cleaned audio effect chain.
+              </p>
+            </div>
+            <PropertySlider
+              label="Threshold"
+              value={config.threshold}
+              min={-80}
+              max={0}
+              onChange={(value) => change("threshold", value)}
+              formatValue={(value) => `${Math.round(value)} dB`}
+              isDisabled={busy}
+            />
+            <PropertySlider
+              label="Reduction"
+              value={config.reduction * 100}
+              min={0}
+              max={100}
+              onChange={(value) => change("reduction", value / 100)}
+              formatValue={(value) => `${Math.round(value)}%`}
+              isDisabled={busy}
+            />
+            <PropertySlider
+              label="Attack"
+              value={config.attack ?? 10}
+              min={0}
+              max={100}
+              onChange={(value) => change("attack", value)}
+              formatValue={(value) => `${Math.round(value)} ms`}
+              isDisabled={busy}
+            />
+            <PropertySlider
+              label="Release"
+              value={config.release ?? 100}
+              min={0}
+              max={500}
+              onChange={(value) => change("release", value)}
+              formatValue={(value) => `${Math.round(value)} ms`}
+              isDisabled={busy}
+            />
+            <Button
+              size="sm"
+              className="w-full gap-1.5 text-[11px]"
+              onClick={() => void learn()}
+              disabled={busy}
+            >
+              {busy ? (
+                <LoaderCircle className="size-3.5 animate-spin" />
+              ) : state === "success" ? (
+                <Check className="size-3.5" />
+              ) : (
+                <Wand2 className="size-3.5" />
+              )}
+              {buttonLabel}
+            </Button>
+            {busy && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full text-[11px]"
+                onClick={cancel}
+              >
+                Cancel analysis
+              </Button>
+            )}
+            {progress && busy && (
+              <div
+                role="status"
+                className="space-y-2 rounded-[7px] border border-border bg-bg-1 p-2.5"
+              >
+                <div className="flex justify-between gap-2 text-[11px] text-fg-2">
+                  <span>{progress.message}</span>
+                  <span className="font-mono tabular-nums">
+                    {Math.round(progress.progress * 100)}%
+                  </span>
+                </div>
+                <Progress
+                  aria-label="Noise analysis progress"
+                  value={Math.round(progress.progress * 100)}
+                />
+              </div>
+            )}
+            {error && (
+              <Alert variant="destructive" className="p-2.5">
+                <AlertDescription className="text-[11px]">
+                  {error}
+                </AlertDescription>
+              </Alert>
+            )}
+            {config.profile && !recommendation && state !== "error" && (
+              <p className="text-center text-[10px] leading-relaxed text-fg-3">
+                Learned noise profile is active on this clip.
+                <br />
+                Auto-tuned with {activePreset.label.toLowerCase()} and reused
+                for export cleanup.
+              </p>
+            )}
+          </div>
+        </CollapsibleContent>
+      </Card>
+    </Collapsible>
   );
-};
-
-export default NoiseReductionSection;
+}

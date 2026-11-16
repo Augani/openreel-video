@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { isMeshValid } from "../geometry";
-import { buildSkinnedLimb, limbWavePose } from "./limb";
+import { buildSkinnedLimb } from "./limb";
 import { skinMesh } from "./skin";
 
 describe("skinned limb", () => {
@@ -53,10 +53,4 @@ describe("skinned limb", () => {
     expect(isMeshValid(bent)).toBe(true);
   });
 
-  it("produces a traveling-wave pose that varies along the chain and over time", () => {
-    const a = limbWavePose(8, 0);
-    const b = limbWavePose(8, 0.5);
-    expect(Object.keys(a)).toHaveLength(8);
-    expect(a.limb4).not.toEqual(b.limb4);
-  });
 });

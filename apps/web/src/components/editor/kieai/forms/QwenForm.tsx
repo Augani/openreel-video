@@ -1,8 +1,15 @@
-import { ToolcraftButton as Button } from "@openreel/ui";
-import { ToolcraftSelectControl as Selector } from "@openreel/ui";
-import { ToolcraftSliderControl } from "@openreel/ui";
-import { ToolcraftText as Text } from "@openreel/ui";
-import { ToolcraftTextAreaControl } from "@openreel/ui";
+import { useId } from "react";
+import {
+  Button,
+  Label,
+  Textarea,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Slider,
+} from "@openreel/ui";
 import type { QwenInput } from "../../../../services/kieai/image-generation";
 
 interface Props {
@@ -13,100 +20,172 @@ interface Props {
 }
 
 export function QwenForm({ value, onChange, onSubmit, isLoading }: Props) {
+  const id = useId();
   const strength = value.strength ?? 0.8;
 
   return (
-    <div className="space-y-4">
-      <ToolcraftTextAreaControl
-        label="Prompt"
-        isRequired
-        value={value.prompt}
-        onChange={(prompt) => onChange({ ...value, prompt })}
-        placeholder="Describe the image you want to generate..."
-        maxLength={2000}
-        rows={4}
-        width="100%"
-      />
+    <fieldset disabled={isLoading} className="min-w-0 space-y-4 border-0 p-0">
+      <div className="space-y-1.5">
+        <Label
+          htmlFor={`${id}-prompt`}
+          className="text-[12px] font-medium text-fg-2"
+        >
+          Prompt
+        </Label>
+        <Textarea
+          id={`${id}-prompt`}
+          value={value.prompt}
+          onChange={(event) =>
+            onChange({ ...value, prompt: event.target.value })
+          }
+          required
+          disabled={isLoading}
+          placeholder="Describe the image you want to generate..."
+          maxLength={2000}
+          rows={4}
+          className="resize-y border-border bg-bg-2 text-[12px] leading-5 text-fg placeholder:text-fg-3"
+        />
+      </div>
 
       <div className="space-y-1.5">
-        <Text type="supporting" color="secondary" weight="bold" display="block">
-          Strength — {strength.toFixed(1)}
-          <Text type="supporting" color="secondary" className="ml-2">
+        <span className="text-[12px] leading-5 text-fg-2 font-bold block">
+          Strength — {strength.toFixed(2)}
+          <span className="text-[12px] leading-5 text-fg-2 font-normal ml-2">
             (0 = preserve original, 1 = full remake)
-          </Text>
-        </Text>
-        <ToolcraftSliderControl
-          label="Strength"
-          isLabelHidden
+          </span>
+        </span>
+        <Slider
+          aria-label="Strength"
+          aria-valuetext={strength.toFixed(2)}
           min={0}
           max={1}
           step={0.05}
-          value={strength}
-          onChange={(nextStrength: number) =>
-            onChange({ ...value, strength: nextStrength })
-          }
-          valueDisplay="none"
+          value={[strength]}
+          disabled={isLoading}
+          onValueChange={([next]) => {
+            if (next !== undefined) onChange({ ...value, strength: next });
+          }}
+          className="workspace-property-slider"
         />
         <div className="flex justify-between">
-          <Text type="supporting" color="secondary" className="text-[10px]">
-            Preserve
-          </Text>
-          <Text type="supporting" color="secondary" className="text-[10px]">
-            Remake
-          </Text>
+          <span className="text-fg-2 font-normal text-[10px]">Preserve</span>
+          <span className="text-fg-2 font-normal text-[10px]">Remake</span>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <Selector
-          label="Format"
-          value={value.output_format ?? "png"}
-          onChange={(output_format) =>
-            onChange({ ...value, output_format: output_format as QwenInput["output_format"] })
-          }
-          options={[
-            { value: "png", label: "PNG" },
-            { value: "jpeg", label: "JPEG" },
-          ]}
-          size="sm"
-          width="100%"
-        />
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="min-w-0 space-y-1.5">
+          <Label
+            htmlFor={`${id}-format`}
+            className="text-[12px] font-medium text-fg-2"
+          >
+            Format
+          </Label>
+          <Select
+            value={value.output_format ?? "png"}
+            onValueChange={(output_format) =>
+              onChange({
+                ...value,
+                output_format: output_format as QwenInput["output_format"],
+              })
+            }
+            disabled={isLoading}
+          >
+            <SelectTrigger
+              id={`${id}-format`}
+              className="h-8 min-w-0 border-border bg-bg-2 text-[12px]"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {[
+                { value: "png", label: "PNG" },
+                { value: "jpeg", label: "JPEG" },
+              ].map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
 
-        <Selector
-          label="Acceleration"
-          value={value.acceleration ?? "regular"}
-          onChange={(acceleration) =>
-            onChange({ ...value, acceleration: acceleration as QwenInput["acceleration"] })
+        <div className="min-w-0 space-y-1.5">
+          <Label
+            htmlFor={`${id}-acceleration`}
+            className="text-[12px] font-medium text-fg-2"
+          >
+            Acceleration
+          </Label>
+          <Select
+            value={value.acceleration ?? "regular"}
+            onValueChange={(acceleration) =>
+              onChange({
+                ...value,
+                acceleration: acceleration as QwenInput["acceleration"],
+              })
+            }
+            disabled={isLoading}
+          >
+            <SelectTrigger
+              id={`${id}-acceleration`}
+              className="h-8 min-w-0 border-border bg-bg-2 text-[12px]"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {[
+                { value: "none", label: "None (best quality)" },
+                { value: "regular", label: "Regular" },
+                { value: "high", label: "High (fastest)" },
+              ].map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <div className="space-y-1.5">
+        <Label
+          htmlFor={`${id}-negative_prompt`}
+          className="text-[12px] font-medium text-fg-2"
+        >
+          Negative Prompt (optional)
+        </Label>
+        <Textarea
+          id={`${id}-negative_prompt`}
+          value={value.negative_prompt ?? ""}
+          onChange={(event) =>
+            onChange({
+              ...value,
+              negative_prompt: event.target.value || undefined,
+            })
           }
-          options={[
-            { value: "none", label: "None (best quality)" },
-            { value: "regular", label: "Regular" },
-            { value: "high", label: "High (fastest)" },
-          ]}
-          size="sm"
-          width="100%"
+          disabled={isLoading}
+          placeholder="Describe what you don't want in the result..."
+          maxLength={500}
+          rows={2}
+          className="resize-y border-border bg-bg-2 text-[12px] leading-5 text-fg placeholder:text-fg-3"
         />
       </div>
 
-      <ToolcraftTextAreaControl
-        label="Negative Prompt (optional)"
-        value={value.negative_prompt ?? ""}
-        onChange={(negative_prompt) =>
-          onChange({ ...value, negative_prompt: negative_prompt || undefined })
-        }
-        placeholder="Describe what you don't want in the result..."
-        maxLength={500}
-        rows={2}
-        width="100%"
-      />
-
       <Button
-        label={isLoading ? "Generating..." : "Generate with Qwen"}
         onClick={onSubmit}
-        isDisabled={isLoading || !value.prompt.trim()}
-        variant="primary"
-        className="w-full"
-      />
-    </div>
+        type="button"
+        aria-label={
+          (isLoading ? "Generating..." : "Generate with Qwen").trim() ||
+          undefined
+        }
+        disabled={isLoading || !value.prompt.trim()}
+        className="h-8 w-full bg-accent text-[12px] text-accent-fg hover:bg-accent/90"
+      >
+        <span className="truncate">
+          {isLoading ? "Generating..." : "Generate with Qwen"}
+        </span>
+      </Button>
+    </fieldset>
   );
 }

@@ -28,4 +28,5 @@ describe("Inspector section navigation", () => {
     act(() => useInspectorNavigationStore.getState().requestSection("reframe", "selected"));
     expect(screen.queryByText("Caption tools")).toBeNull();
   });
+
 });

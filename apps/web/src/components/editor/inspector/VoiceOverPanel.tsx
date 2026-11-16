@@ -1,9 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import {
-  ToolcraftButton as Button,
-  ToolcraftCard as Card,
-  ToolcraftText as Text,
-} from "@openreel/ui";
+import { Button, Card } from "@openreel/ui";
 import { AlertCircle, Mic, Square } from "@/icons/lucide-compat";
 import { useProjectStore } from "../../../stores/project-store";
 import { useTimelineStore } from "../../../stores/timeline-store";
@@ -170,50 +166,39 @@ export const VoiceOverPanel: React.FC = () => {
 
   return (
     <div className="space-y-3">
-      <Card variant="muted" padding={3} className="flex items-center justify-between border border-border">
+      <Card className="min-w-0 rounded-[7px] shadow-none bg-bg-2 text-fg p-3 flex items-center justify-between border border-border">
         <div>
-          <Text type="supporting" weight="bold" className="block text-[11px] text-fg">
+          <span className="font-bold block text-[11px] text-fg">
             Record at playhead
-          </Text>
-          <Text type="supporting" color="secondary" className="block text-[9px]">
+          </span>
+          <span className="text-fg-2 font-normal block text-[9px]">
             Starts at {playheadPosition.toFixed(1)}s on a new Voice Over track.
-          </Text>
+          </span>
         </div>
         <span className={`font-mono text-sm ${isRecording ? "text-red-400" : "text-fg-2"}`}>
           {formatElapsed(elapsed)}
         </span>
       </Card>
       {error && (
-        <Card variant="muted" padding={2} className="flex items-start gap-2 border border-red-500/30 bg-red-500/10">
+        <Card className="min-w-0 rounded-[7px] shadow-none text-fg p-2 flex items-start gap-2 border border-red-500/30 bg-red-500/10">
           <AlertCircle size={14} className="mt-0.5 shrink-0 text-red-400" aria-hidden />
-          <Text type="supporting" className="text-[10px] text-red-400">{error}</Text>
+          <span className="font-normal text-[10px] text-red-400">{error}</span>
         </Card>
       )}
       {isRecording ? (
-        <Button
-          label="Stop & Add to Timeline"
-          icon={<Square size={13} aria-hidden />}
-          variant="primary"
-          size="md"
-          onClick={stopRecording}
-          className="w-full justify-center bg-red-500 hover:bg-red-600"
-        />
+        <Button onClick={stopRecording} type="button" aria-label="Stop & Add to Timeline" className="inline-flex min-w-0 items-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 px-3 text-[12px] text-accent-fg w-full justify-center bg-red-500 hover:bg-red-600">
+          <span className="flex h-4 w-4 shrink-0 items-center justify-center">{<Square size={13} aria-hidden />}</span>
+          <span className="truncate">{"Stop & Add to Timeline"}</span>
+        </Button>
       ) : (
-        <Button
-          label={isSaving ? "Adding Voice Over…" : "Record Voice Over"}
-          icon={<Mic size={14} aria-hidden />}
-          variant="primary"
-          size="md"
-          onClick={startRecording}
-          isDisabled={isSaving}
-          className="w-full justify-center"
-        />
+        <Button onClick={startRecording} type="button" aria-label={(isSaving ? "Adding Voice Over…" : "Record Voice Over").trim() || undefined} disabled={(isSaving)} className="inline-flex min-w-0 items-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 px-3 text-[12px] bg-accent text-accent-fg hover:bg-accent/90 w-full justify-center">
+          <span className="flex h-4 w-4 shrink-0 items-center justify-center">{<Mic size={14} aria-hidden />}</span>
+          <span className="truncate">{isSaving ? "Adding Voice Over…" : "Record Voice Over"}</span>
+        </Button>
       )}
-      <Text type="supporting" color="secondary" className="block text-center text-[9px]">
+      <span className="text-fg-2 font-normal block text-center text-[9px]">
         Recorded audio stays in this project and exports with the rest of the mix.
-      </Text>
+      </span>
     </div>
   );
 };
-
-export default VoiceOverPanel;

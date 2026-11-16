@@ -56,14 +56,14 @@ function createMotionExpressionGuardState(): MotionExpressionGuardState {
 
 const MOTION_EXPRESSION_MAX_DEPTH = 8;
 
-export interface MotionExpressionPreset {
+interface MotionExpressionPreset {
   readonly type: MotionExpressionType;
   readonly name: string;
   readonly description: string;
   readonly create: (property: string, id?: string) => MotionExpression;
 }
 
-export interface EvaluateMotionPropertyOptions {
+interface EvaluateMotionPropertyOptions {
   readonly keyframes: readonly Keyframe[];
   readonly expressions?: readonly MotionExpression[];
   readonly property: string;

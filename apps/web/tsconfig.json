@@ -11,6 +11,7 @@
       "@/*": ["./src/*"],
       "@openreel/core": ["../../packages/core/src/index.ts"],
       "@openreel/core/*": ["../../packages/core/src/*"],
+      "@openreel/collab": ["../../packages/collab/src/index.ts"],
       "@openreel/agent": ["../../packages/agent/src/index.ts"],
       "@openreel/agent/*": ["../../packages/agent/src/*"],
       "@openreel/ui": ["../../packages/ui/src/index.ts"],

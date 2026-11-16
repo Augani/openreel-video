@@ -7,7 +7,7 @@ import type {
 } from "./types";
 import { getMotionShaderDef, getMotionShaderTextDefs } from "./shaders";
 
-export interface MotionTextAnimatorPreset {
+interface MotionTextAnimatorPreset {
   readonly id: string;
   readonly name: string;
   readonly description: string;

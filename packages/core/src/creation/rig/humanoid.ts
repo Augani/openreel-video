@@ -134,7 +134,7 @@ export function humanoidWavePose(time: number, options: HumanoidWaveOptions = {}
   return pose;
 }
 
-export function humanoidWalkPose(time: number, options: HumanoidWaveOptions = {}): Pose {
+function humanoidWalkPose(time: number, options: HumanoidWaveOptions = {}): Pose {
   const speed = options.speed ?? 6;
   const phase = time * speed;
   const legSwing = 28 * Math.sin(phase);
@@ -153,7 +153,7 @@ export function humanoidWalkPose(time: number, options: HumanoidWaveOptions = {}
   };
 }
 
-export function humanoidIdlePose(time: number, options: HumanoidWaveOptions = {}): Pose {
+function humanoidIdlePose(time: number, options: HumanoidWaveOptions = {}): Pose {
   const speed = (options.speed ?? 6) * 0.4;
   const sway = (options.idleSway ?? 3) * Math.sin(time * speed);
   const breathe = 1.5 * Math.sin(time * speed * 1.5);
@@ -166,7 +166,7 @@ export function humanoidIdlePose(time: number, options: HumanoidWaveOptions = {}
   };
 }
 
-export function humanoidPointPose(time: number, options: HumanoidWaveOptions = {}): Pose {
+function humanoidPointPose(time: number, options: HumanoidWaveOptions = {}): Pose {
   const speed = options.speed ?? 6;
   const settle = Math.min(1, time * 2);
   const drift = 4 * Math.sin(time * speed * 0.5);

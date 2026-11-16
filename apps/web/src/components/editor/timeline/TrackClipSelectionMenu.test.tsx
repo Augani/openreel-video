@@ -1,14 +1,13 @@
 import "../../../test/install-local-storage-mock";
-import { act, cleanup, renderHook } from "@testing-library/react";
+import { cleanup, fireEvent, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { Clip, Project, TextClip, Track } from "@openreel/core";
-import type { ToolcraftContextMenuOption as ContextMenuOption } from "@openreel/ui";
+import { openContextMenu } from "../../../test/open-context-menu";
 import { useEngineStore } from "../../../stores/engine-store";
 import { createEmptyProject } from "../../../stores/project/project-helpers";
 import { useProjectStore } from "../../../stores/project-store";
 import { useUIStore } from "../../../stores/ui-store";
-import { useClipContextMenuItems } from "./ClipContextMenu";
-import { useGraphicsClipContextMenuItems } from "./GraphicsClipContextMenu";
+import { ClipContextMenu } from "./ClipContextMenu";
 
 const MEDIA_TRACK_ID = "video-track";
 const TEXT_TRACK_ID = "caption-track";
@@ -101,16 +100,6 @@ function testProject(): Project {
   };
 }
 
-function menuAction(items: ContextMenuOption[], label: string): () => void {
-  const item = items.find(
-    (candidate) => "label" in candidate && candidate.label === label,
-  );
-  if (!item || !("onClick" in item) || !item.onClick) {
-    throw new Error(`Missing menu action: ${label}`);
-  }
-  return item.onClick;
-}
-
 describe("select all clips on track context menu", () => {
   beforeEach(() => {
     useEngineStore
@@ -130,9 +119,8 @@ describe("select all clips on track context menu", () => {
   it("selects all media clips from a media clip menu", () => {
     const track = useProjectStore.getState().project.timeline.tracks[0] as Track;
     const clip = track.clips[0];
-    const { result } = renderHook(() => useClipContextMenuItems({ clip, track }));
-
-    act(() => menuAction(result.current, "Select All Clips on Track")());
+    openContextMenu(<ClipContextMenu clip={clip} track={track} />);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Select All Clips on Track" }));
 
     expect(useUIStore.getState().selectedItems).toEqual([
       { id: "video-a", trackId: MEDIA_TRACK_ID, type: "clip" },
@@ -140,18 +128,4 @@ describe("select all clips on track context menu", () => {
     ]);
   });
 
-  it("selects all editable captions from a caption menu", () => {
-    const clip = useProjectStore.getState().getAllTextClips()[0];
-    if (!clip) throw new Error("Caption fixture was not created");
-    const { result } = renderHook(() =>
-      useGraphicsClipContextMenuItems({ clip, clipType: "text" }),
-    );
-
-    act(() => menuAction(result.current, "Select All Captions")());
-
-    expect(useUIStore.getState().selectedItems).toEqual([
-      { id: "caption-a", trackId: TEXT_TRACK_ID, type: "text-clip" },
-      { id: "caption-b", trackId: TEXT_TRACK_ID, type: "text-clip" },
-    ]);
-  });
 });

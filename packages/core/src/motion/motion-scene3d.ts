@@ -27,7 +27,7 @@ export const MOTION_OBJECT_3D_KINDS: readonly MotionObject3DKind[] = [
   "room",
 ];
 
-export interface CreateMotionScene3DOptions {
+interface CreateMotionScene3DOptions {
   readonly id: string;
   readonly name?: string;
   readonly startTime?: number;

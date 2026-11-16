@@ -10,15 +10,12 @@ import type {
 } from "@openreel/core";
 import {
   calculateProjectDuration,
-  getSpeedEngine,
-  getAdjustmentLayerEngine,
-  multicamEngine,
-  getNestedSequenceEngine,
   withUniversalTracksCapability,
 } from "@openreel/core";
 import type { ProjectState } from "../project-store";
 import type { ClipHistoryEntryType } from "./index";
 import { useEngineStore } from "../engine-store";
+import { whenEngineModulesLoaded } from "../../services/lazy-engines";
 
 type Get = StoreApi<ProjectState>["getState"];
 type Set = StoreApi<ProjectState>["setState"];
@@ -161,7 +158,13 @@ export function createProjectStoreHelpers(
       type: `${prefix}/update`,
       id: `inverse-${actionId}`,
       timestamp: Date.now(),
-      params: { clipId, updates: before ? cloneClipSnapshot(before) : {} },
+      params: {
+        clipId,
+        updates: before ? cloneClipSnapshot(before) : {},
+        unset: before
+          ? Object.keys(after).filter((key) => !Object.prototype.hasOwnProperty.call(before, key))
+          : [],
+      },
     };
     const list = overlayList(project, field);
     const next = list.some((c) => c.id === clipId)
@@ -225,7 +228,14 @@ export function createProjectStoreHelpers(
     actionExecutor.getHistory().push(action, inverse);
   };
 
-  const syncOverlayEnginesFromProject = (project = get().project): void => {
+  /**
+   * Pushes the project into the (lazily loaded) engines. Runs synchronously
+   * when the engine modules are already resolved; on a cold start it replays,
+   * against the then-current project, as soon as they are.
+   */
+  const syncOverlayEnginesFromProject = (explicitProject?: Project): void => {
+    whenEngineModulesLoaded((engines) => {
+    const project = explicitProject ?? get().project;
     useEngineStore
       .getState()
       .getTitleEngine()
@@ -236,12 +246,12 @@ export function createProjectStoreHelpers(
       graphicsEngine.loadSVGClips(project.svgClips ?? []);
       graphicsEngine.loadStickerClips(project.stickerClips ?? []);
     }
-    const speedEngine = getSpeedEngine();
+    const speedEngine = engines.getSpeedEngine();
     for (const track of project.timeline.tracks) {
       for (const c of track.clips) {
         const sourceSpan = c.outPoint - c.inPoint;
-        speedEngine.setClipSpeed(c.id, c.speed ?? 1, sourceSpan);
-        speedEngine.setReverse(c.id, c.reversed ?? false, sourceSpan);
+        speedEngine.setClipSpeed(c.id, Math.abs(c.speed ?? 1), sourceSpan);
+        speedEngine.setReverse(c.id, c.reversed === true || (c.speed ?? 1) < 0, sourceSpan);
       }
     }
     const chromaClips = project.timeline.tracks
@@ -257,20 +267,21 @@ export function createProjectStoreHelpers(
           }
         });
     }
-    getAdjustmentLayerEngine().loadLayers(project.adjustmentLayers ?? []);
+    engines.getAdjustmentLayerEngine().loadLayers(project.adjustmentLayers ?? []);
     if (project.masks) {
       void useEngineStore
         .getState()
         .getMaskEngine()
         .then((engine) => engine.loadMasks(project.masks ?? []));
     }
-    multicamEngine.loadGroups(project.multicamGroups ?? []);
+    engines.multicamEngine.loadGroups(project.multicamGroups ?? []);
     if (project.compoundClips || project.nestedInstances) {
-      getNestedSequenceEngine().loadState(
+      engines.getNestedSequenceEngine().loadState(
         project.compoundClips ?? [],
         project.nestedInstances ?? [],
       );
     }
+    });
   };
 
   return {

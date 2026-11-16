@@ -8,11 +8,11 @@ import type {
 import { DEFAULT_MOTION_TRANSFORM } from "./types";
 import { createMotionNullLayer } from "./motion-null-layers";
 
-export interface ParentMotionLayersOptions {
+interface ParentMotionLayersOptions {
   readonly preserveStagePosition?: boolean;
 }
 
-export interface CreateMotionNullControllerForLayersOptions
+interface CreateMotionNullControllerForLayersOptions
   extends ParentMotionLayersOptions {
   readonly id?: string;
   readonly name?: string;
@@ -20,7 +20,7 @@ export interface CreateMotionNullControllerForLayersOptions
   readonly guideSize?: number;
 }
 
-export interface CreateMotionNullControllerForLayersResult {
+interface CreateMotionNullControllerForLayersResult {
   readonly composition: MotionComposition;
   readonly controllerLayerId: string;
 }
@@ -197,13 +197,13 @@ export function createMotionNullControllerForLayers(
   };
 }
 
-export interface GroupMotionLayersOptions {
+interface GroupMotionLayersOptions {
   readonly id?: string;
   readonly name?: string;
   readonly preserveStagePosition?: boolean;
 }
 
-export interface GroupMotionLayersResult {
+interface GroupMotionLayersResult {
   readonly composition: MotionComposition;
   readonly groupLayerId: string;
 }

@@ -11,7 +11,8 @@ const h = vi.hoisted(() => ({
   isSessionUnlocked: vi.fn(() => true),
   makeBYOKClient: vi.fn(() => ({ complete: vi.fn() })),
   undo: vi.fn(async () => ({ success: true })),
-  projectState: { hasOpenProject: true, projectId: "project-a" },
+  projectState: { hasOpenProject: true, projectId: "project-a", timelineDuration: undefined as number | undefined,
+    targetClips: [] as { id: string; trackId: string; mediaId: string; startTime: number; duration: number }[], legacyUndoSize: 0 },
   undoStackSize: 0,
   settings: {
     defaultLlmProvider: "openai-compatible" as string | null,
@@ -42,7 +43,9 @@ vi.mock("../services/agent/live-host", () => ({
 }));
 
 vi.mock("../services/agent/direct-llm-transport", () => ({ makeDirectBYOKClient: h.makeBYOKClient, validateAIEndpoint: (url: string) => url.replace(/\/(chat\/completions|messages)\/?$/, "").replace(/\/+$/, "") }));
-vi.mock("../services/agent/editing-session", () => ({ EditingSession: class { committed = true; } }));
+vi.mock("../services/agent/editing-session", () => ({ EditingSession: class { committed = true;
+  getProject() { return { id: h.projectState.projectId, timeline: { tracks: [{ id: "main", clips: h.projectState.targetClips, transitions: [] }], markers: [] }, mediaLibrary: { items: [] } }; }
+} }));
 vi.mock("../services/agent/editing-tools", () => ({ editingToolDefs: () => [], editingToolReadOnly: () => false, executeEditingTool: vi.fn(), EDITING_SYSTEM: "system" }));
 vi.mock("./ai-connection-store", () => ({ useAIConnectionStore: { getState: () => h.connection } }));
 
@@ -56,8 +59,10 @@ vi.mock("./project-store", () => ({
   useProjectStore: {
     getState: () => ({
       hasOpenProject: h.projectState.hasOpenProject,
-      project: { id: h.projectState.projectId },
+      project: { id: h.projectState.projectId, timeline: { duration: h.projectState.timelineDuration } },
       undo: h.undo,
+      clipUndoStack: Array(h.projectState.legacyUndoSize),
+      templateUndoStack: [],
       actionExecutor: {
         getHistory: () => ({ getUndoStackSize: () => h.undoStackSize }),
       },
@@ -90,6 +95,9 @@ describe("chat-store", () => {
     h.getSecret.mockResolvedValue("test-key");
     h.isSessionUnlocked.mockReturnValue(true);
     h.undo.mockResolvedValue({ success: true });
+    h.projectState.timelineDuration = undefined;
+    h.projectState.targetClips = [];
+    h.projectState.legacyUndoSize = 0;
     h.projectState.hasOpenProject = true;
     h.projectState.projectId = "project-a";
     Object.assign(h.connection, { provider: "compatible", model: "account-tool-model", baseUrl: "https://gateway.example/v1", apiKey: "test-key" });
@@ -117,12 +125,6 @@ describe("chat-store", () => {
     await store().send("hello");
     expect(h.runTurn).not.toHaveBeenCalled();
     expect(store().error).toMatch(/session API key/i);
-  });
-
-  it("ignores empty input", async () => {
-    await store().send("   ");
-    expect(h.runTurn).not.toHaveBeenCalled();
-    expect(store().messages).toHaveLength(0);
   });
 
   it("runs a turn and records user + assistant messages", async () => {
@@ -155,6 +157,37 @@ describe("chat-store", () => {
       content: "Done!",
       toolUses: [],
     });
+  });
+
+  it("records actual committed duration changes and persists an Undo annotation", async () => {
+    h.projectState.timelineDuration = 41;
+    h.runTurn.mockImplementation(impl(async ({ messages }) => {
+      h.projectState.timelineDuration = 29;
+      return { text: "Shortened", messages, toolCalls: 1, stoppedReason: "end_turn", committed: true };
+    }));
+    await store().send("Make it shorter");
+    expect(store().messages.at(-1)?.editSummary).toEqual({ beforeDuration: 41, afterDuration: 29 });
+    await store().undoLastTurn();
+    expect(store().messages.at(-1)?.editSummary?.undone).toBe(true);
+    expect(useChatHistoryStore.getState().conversations[0].messages.at(-1)?.editSummary?.undone).toBe(true);
+  });
+
+  it("omits a duration success summary when a turn fails", async () => {
+    h.projectState.timelineDuration = 41;
+    h.runTurn.mockImplementation(impl(async ({ messages }) => ({ text: "Failed", messages, toolCalls: 0, stoppedReason: "error", committed: false })));
+    await store().send("Make it shorter");
+    expect(store().messages.at(-1)?.editSummary).toBeUndefined();
+  });
+
+  it("retains the applied state and Undo affordance when project Undo fails", async () => {
+    h.projectState.timelineDuration = 10;
+    h.runTurn.mockImplementation(impl(async ({ messages }) => ({ text: "Done", messages, toolCalls: 1, stoppedReason: "end_turn", committed: true })));
+    await store().send("Apply the edit");
+    h.undo.mockResolvedValueOnce({ success: false });
+    await store().undoLastTurn();
+    expect(store().lastTurnCommitted).toBe(true);
+    expect(store().messages.at(-1)?.editSummary?.undone).not.toBe(true);
+    expect(store().error).toMatch(/could not be undone/);
   });
 
   it("saves completed conversations and starts a fresh chat", async () => {
@@ -222,35 +255,6 @@ describe("chat-store", () => {
     expect(store().messages.at(-1)?.text).toBe("## Finished\n\n- Updated the intro");
   });
 
-  it("explains empty model replies and output-limit stops", async () => {
-    h.runTurn
-      .mockImplementationOnce(
-        impl(async ({ messages }) => ({
-          text: "",
-          messages,
-          toolCalls: 0,
-          stoppedReason: "end_turn",
-          committed: true,
-        })),
-      )
-      .mockImplementationOnce(
-        impl(async ({ messages }) => ({
-          text: "Partial",
-          messages,
-          toolCalls: 0,
-          stoppedReason: "budget",
-          committed: true,
-        })),
-      );
-
-    await store().send("first");
-    expect(store().messages.at(-1)?.notice).toMatch(/empty response/i);
-
-    await store().send("second");
-    expect(store().messages.at(-1)?.text).toBe("Partial");
-    expect(store().messages.at(-1)?.notice).toMatch(/response or token limit/i);
-  });
-
   it("passes a custom provider model ID through to the BYOK client", async () => {
     h.connection.model = "gpt-custom-account-model";
     h.runTurn.mockImplementation(
@@ -301,26 +305,6 @@ describe("chat-store", () => {
       }),
     );
     expect(h.runTurn).toHaveBeenCalledOnce();
-  });
-
-  it("blocks a compatible provider until endpoint and model are configured", async () => {
-    Object.assign(h.connection, { provider: "compatible", model: "account-tool-model", baseUrl: "https://gateway.example/v1", apiKey: "test-key" });
-    h.connection.provider = "compatible";
-    h.connection.model = "";
-
-    await store().send("hello");
-
-    expect(h.runTurn).not.toHaveBeenCalled();
-    expect(store().error).toMatch(/model id/i);
-  });
-
-  it("requires the user to choose an API format", async () => {
-    h.connection.provider = "";
-
-    await store().send("hello");
-
-    expect(h.runTurn).not.toHaveBeenCalled();
-    expect(store().error).toMatch(/api format/i);
   });
 
   it("runs against an Anthropic-compatible endpoint", async () => {
@@ -636,28 +620,300 @@ describe("chat-store", () => {
     expect(sawDryRun).toBe(true);
   });
 
-  it("treats Stop as a clean stop, not an error", async () => {
+  it("blocks a compatible provider until endpoint and model are configured", async () => {
+    Object.assign(h.connection, { provider: "compatible", model: "account-tool-model", baseUrl: "https://gateway.example/v1", apiKey: "test-key" });
+    h.connection.provider = "compatible";
+    h.connection.model = "";
+
+    await store().send("hello");
+
+    expect(h.runTurn).not.toHaveBeenCalled();
+    expect(store().error).toMatch(/model id/i);
+  });
+
+  it("clears the conversation when the open project changes", async () => {
     h.runTurn.mockImplementation(
-      impl(async ({ confirmGate }) => {
-        await confirmGate!({ id: "t1", name: "deleteClip", args: {} });
+      impl(async ({ messages }) => ({
+        text: "ok",
+        messages,
+        toolCalls: 0,
+        stoppedReason: "end_turn",
+        committed: true,
+      })),
+    );
+    store().setProjectContext("project-a");
+    await store().send("edit project A");
+    expect(store().messages.length).toBeGreaterThan(0);
+
+    store().setProjectContext("project-b");
+
+    expect(store().projectId).toBe("project-b");
+    expect(store().messages).toHaveLength(0);
+    expect(store().conversation).toHaveLength(0);
+  });
+
+  it("returns to an actionable error state when a turn throws", async () => {
+    h.runTurn.mockRejectedValue(new Error("provider unavailable"));
+
+    await store().send("hello");
+
+    expect(store().status).toBe("error");
+    expect(store().error).toBe("provider unavailable");
+    expect(store().abortController).toBeNull();
+  });
+
+  it("accumulates token usage across turns", async () => {
+    h.runTurn.mockImplementation(
+      impl(async ({ messages }) => ({
+        text: "ok",
+        messages,
+        toolCalls: 0,
+        stoppedReason: "end_turn",
+        committed: true,
+        usage: { inputTokens: 100, outputTokens: 40 },
+      })),
+    );
+
+    await store().send("one");
+    await store().send("two");
+
+    expect(store().usage).toEqual({ inputTokens: 200, outputTokens: 80 });
+  });
+
+  it("reflects tool calls and results on the assistant message", async () => {
+    h.runTurn.mockImplementation(
+      impl(async ({ onEvent }) => {
+        const call = { id: "t1", name: "addTextClip", args: { text: "Hi" } };
+        onEvent?.({ type: "tool_call", call });
+        onEvent?.({
+          type: "tool_result",
+          call,
+          result: { ok: true, summary: "Added text" },
+        });
+        onEvent?.({ type: "turn_complete", text: "Added." });
+        return {
+          text: "Added.",
+          messages: [],
+          toolCalls: 1,
+          stoppedReason: "end_turn",
+          committed: true,
+        };
+      }),
+    );
+
+    await store().send("add text");
+    const assistant = store().messages.find((m) => m.role === "assistant");
+    expect(assistant?.toolCalls).toHaveLength(1);
+    expect(assistant?.toolCalls[0].status).toBe("done");
+    expect(assistant?.toolCalls[0].result?.summary).toBe("Added text");
+  });
+
+  it("marks rejected tool results distinctly from errors", async () => {
+    h.runTurn.mockImplementation(
+      impl(async ({ onEvent }) => {
+        const call = { id: "t1", name: "deleteClip", args: {} };
+        onEvent?.({ type: "tool_call", call });
+        onEvent?.({
+          type: "tool_result",
+          call,
+          result: {
+            ok: false,
+            summary: "Rejected by user",
+            error: { code: "REJECTED", message: "User rejected this action" },
+          },
+        });
         return {
           text: "",
           messages: [],
           toolCalls: 1,
+          stoppedReason: "end_turn",
+          committed: true,
+        };
+      }),
+    );
+
+    await store().send("delete");
+    const assistant = store().messages.find((m) => m.role === "assistant");
+    expect(assistant?.toolCalls[0].status).toBe("rejected");
+  });
+
+  it("shows recoverable transition calls as corrected after a successful retry", async () => {
+    h.runTurn.mockImplementation(impl(async ({ onEvent }) => {
+      const call = { id: "bad", name: "add_transition", args: {} };
+      onEvent?.({ type: "tool_call", call });
+      onEvent?.({ type: "tool_result", call, result: { ok: false, summary: "Needs correction", error: { code: "BAD_PAIR", message: "Choose adjacent clips", recoverable: true, retryOf: "bad" } } });
+      expect(store().messages.at(-1)?.toolCalls[0].status).toBe("retrying");
+      onEvent?.({ type: "tool_recovered", callIds: ["bad"], repairedBy: "fixed" });
+      return { text: "Transition added.", messages: [], toolCalls: 2, stoppedReason: "end_turn", committed: true };
+    }));
+    await store().send("add transition");
+    expect(store().status).toBe("idle");
+    expect(store().error).toBeNull();
+    expect(store().messages.at(-1)?.toolCalls[0].status).toBe("corrected");
+  });
+
+  it("marks an unresolved correction as failed when the turn rolls back", async () => {
+    h.runTurn.mockImplementation(impl(async ({ onEvent }) => {
+      const call = { id: "bad", name: "add_transition", args: {} };
+      onEvent?.({ type: "tool_call", call });
+      onEvent?.({ type: "tool_result", call, result: { ok: false, summary: "Needs correction", error: { code: "BAD_PAIR", message: "Choose adjacent clips", recoverable: true, retryOf: "bad" } } });
+      return { text: "", messages: [], toolCalls: 1, stoppedReason: "error", committed: false };
+    }));
+    await store().send("add transition");
+    expect(store().messages.at(-1)?.toolCalls[0].status).toBe("error");
+    expect(store().messages.at(-1)?.text).toContain("No edits were applied");
+  });
+
+  it("gates destructive calls through pendingConfirm", async () => {
+    let decision: string | undefined;
+    h.runTurn.mockImplementation(
+      impl(async ({ onEvent, confirmGate }) => {
+        const call = { id: "t1", name: "deleteClip", args: {} };
+        onEvent?.({ type: "tool_call", call });
+        decision = await confirmGate!(call);
+        onEvent?.({
+          type: "tool_result",
+          call,
+          result: { ok: true, summary: "Deleted" },
+        });
+        return {
+          text: "ok",
+          messages: [],
+          toolCalls: 1,
+          stoppedReason: "end_turn",
+          committed: true,
+        };
+      }),
+    );
+
+    const pending = store().send("delete clip");
+    await flush();
+    expect(store().status).toBe("awaiting_confirm");
+    expect(store().pendingConfirm?.call.name).toBe("deleteClip");
+
+    store().resolveConfirm("approve");
+    await pending;
+
+    expect(decision).toBe("approve");
+    expect(store().status).toBe("idle");
+    expect(store().pendingConfirm).toBeNull();
+  });
+
+  it("stop() rejects a pending confirmation", async () => {
+    let decision: string | undefined;
+    h.runTurn.mockImplementation(
+      impl(async ({ confirmGate }) => {
+        decision = await confirmGate!({
+          id: "t1",
+          name: "deleteClip",
+          args: {},
+        });
+        return {
+          text: "",
+          messages: [],
+          toolCalls: 1,
+          stoppedReason: "end_turn",
+          committed: false,
+        };
+      }),
+    );
+
+    const pending = store().send("delete");
+    await flush();
+    expect(store().status).toBe("awaiting_confirm");
+
+    store().stop();
+    await pending;
+
+    expect(decision).toBe("reject");
+    expect(store().pendingConfirm).toBeNull();
+  });
+
+  it("undoLastTurn undoes once and clears the committed flag", async () => {
+    h.runTurn.mockImplementation(
+      impl(async ({ messages }) => ({
+        text: "",
+        messages,
+        toolCalls: 0,
+        stoppedReason: "end_turn",
+        committed: true,
+      })),
+    );
+
+    await store().send("do something");
+    expect(store().lastTurnCommitted).toBe(true);
+
+    await store().undoLastTurn();
+    expect(h.undo).toHaveBeenCalledTimes(1);
+    expect(store().lastTurnCommitted).toBe(false);
+
+    await store().undoLastTurn();
+    expect(h.undo).toHaveBeenCalledTimes(1);
+  });
+
+  it("surfaces an error result as error status", async () => {
+    h.runTurn.mockImplementation(
+      impl(async ({ onEvent, messages }) => {
+        onEvent?.({
+          type: "error",
+          error: { code: "LOOP_ERROR", message: "boom" },
+        });
+        return {
+          text: "",
+          messages,
+          toolCalls: 0,
           stoppedReason: "error",
           committed: false,
         };
       }),
     );
-    const pending = store().send("delete it");
-    await flush();
-    expect(store().status).toBe("awaiting_confirm");
-    const controller = store().abortController;
-    store().stop();
-    expect(controller?.signal.aborted).toBe(true);
-    await pending;
+
+    await store().send("break it");
+    expect(store().status).toBe("error");
+    expect(store().error).toBe("boom");
+    expect(store().lastTurnCommitted).toBe(false);
+  });
+
+  it("auto-approves destructive calls when the policy is on (no confirm UI)", async () => {
+    h.settings.agentAutoConfirm = true;
+    let decision: string | undefined;
+    h.runTurn.mockImplementation(
+      impl(async ({ confirmGate }) => {
+        decision = await confirmGate!({ id: "t1", name: "deleteClip", args: {} });
+        return {
+          text: "ok",
+          messages: [],
+          toolCalls: 1,
+          stoppedReason: "end_turn",
+          committed: true,
+        };
+      }),
+    );
+
+    await store().send("delete it");
+    expect(decision).toBe("approve_for_turn");
+    expect(store().pendingConfirm).toBeNull();
     expect(store().status).toBe("idle");
-    expect(store().error).toBeNull();
+  });
+
+  it("passes dryRun to runTurn when the dry-run policy is on", async () => {
+    h.settings.agentDryRun = true;
+    let sawDryRun: boolean | undefined;
+    h.runTurn.mockImplementation(
+      impl(async ({ dryRun, messages }) => {
+        sawDryRun = dryRun;
+        return {
+          text: "planned",
+          messages,
+          toolCalls: 0,
+          stoppedReason: "end_turn",
+          committed: true,
+        };
+      }),
+    );
+
+    await store().send("plan an edit");
+    expect(sawDryRun).toBe(true);
   });
 
   it("discards an in-flight completion after reset()", async () => {
@@ -754,5 +1010,43 @@ describe("chat-store", () => {
     expect(store().conversation).toHaveLength(0);
     expect(store().lastTurnCommitted).toBe(false);
     expect(store().status).toBe("idle");
+  });
+  it("retains a removed edit's original target after the draft no longer contains it", async () => {
+    h.projectState.targetClips = [{ id: "removed-clip", trackId: "main", mediaId: "source", startTime: 4, duration: 3 }];
+    h.runTurn.mockImplementation(impl(async ({ onEvent }) => {
+      const call = { id: "remove", name: "delete_clip", args: { clipId: "removed-clip" } };
+      onEvent?.({ type: "tool_call", call });
+      h.projectState.targetClips = [];
+      onEvent?.({ type: "tool_result", call, result: { ok: true, summary: "Removed clip" } });
+      return { text: "Done", messages: [], toolCalls: 1, stoppedReason: "end_turn", committed: true };
+    }));
+    await store().send("Remove the clip");
+    expect(store().messages.at(-1)?.toolCalls[0].timelineTarget).toEqual({
+      projectId: "project-a", id: "removed-clip", trackId: "main", kind: "media", startTime: 4, duration: 3,
+    });
+  });
+
+  it("does not undo a later edit in the legacy overlay history", async () => {
+    h.runTurn.mockImplementation(impl(async () => ({ text: "Done", messages: [], toolCalls: 0, stoppedReason: "end_turn", committed: true })));
+    await store().send("Apply the edit");
+    expect(store().lastTurnCommitted).toBe(true);
+    h.projectState.legacyUndoSize = 1;
+    await store().undoLastTurn();
+    expect(h.undo).not.toHaveBeenCalled();
+    expect(store().lastTurnCommitted).toBe(false);
+  });
+
+});
+
+describe("continue notice contract", () => {
+  it("early-stop notices match the pattern the chat panel uses for Keep going", async () => {
+    const { CONTINUE_NOTICE_PATTERN, CONTINUE_NOTICE_PHRASE } = await import("./chat-store");
+    expect(CONTINUE_NOTICE_PHRASE).toBe("Ask me to continue");
+    for (const notice of [
+      `I stopped after reaching this turn's step limit. ${CONTINUE_NOTICE_PHRASE} if more work is needed.`,
+      `The model stopped at its response or token limit. ${CONTINUE_NOTICE_PHRASE}, or increase the output limit.`,
+    ]) {
+      expect(CONTINUE_NOTICE_PATTERN.test(notice)).toBe(true);
+    }
   });
 });

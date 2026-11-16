@@ -9,13 +9,13 @@ import {
   getMotionLayerDescendantIds,
 } from "./motion-hierarchy";
 
-export interface MotionTrackMattePreset {
+interface MotionTrackMattePreset {
   readonly type: MotionTrackMatteType;
   readonly name: string;
   readonly description: string;
 }
 
-export const MOTION_TRACK_MATTE_PRESETS: readonly MotionTrackMattePreset[] = [
+const MOTION_TRACK_MATTE_PRESETS: readonly MotionTrackMattePreset[] = [
   {
     type: "alpha",
     name: "Alpha",
@@ -67,7 +67,7 @@ export function setMotionLayerTrackMatte<T extends MotionLayer>(
   } as T;
 }
 
-export function updateMotionLayerTrackMatte<T extends MotionLayer>(
+function updateMotionLayerTrackMatte<T extends MotionLayer>(
   layer: T,
   updater: (matte: MotionTrackMatte) => MotionTrackMatte,
 ): T {

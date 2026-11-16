@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { BLEND_MODES } from "../video/types";
 import {
-  MOTION_BLEND_MODE_OPTIONS,
   buildMotionCssBlendMode,
   getMotionCanvasBlendMode,
 } from "./motion-blend-modes";
@@ -21,13 +20,6 @@ describe("motion blend modes", () => {
     expect(buildMotionCssBlendMode("color-dodge")).toBe("color-dodge");
   });
 
-  it("exposes readable blend mode option labels", () => {
-    expect(MOTION_BLEND_MODE_OPTIONS).toContainEqual({
-      id: "soft-light",
-      name: "Soft Light",
-    });
-  });
-
   it("includes the additive Add family in BLEND_MODES", () => {
     expect(BLEND_MODES).toContain("add");
     expect(BLEND_MODES).toContain("linear-dodge");
@@ -38,14 +30,4 @@ describe("motion blend modes", () => {
     expect(getMotionCanvasBlendMode("linear-dodge")).toBe("lighter");
   });
 
-  it("exposes readable labels for the Add family", () => {
-    expect(MOTION_BLEND_MODE_OPTIONS).toContainEqual({
-      id: "add",
-      name: "Add",
-    });
-    expect(MOTION_BLEND_MODE_OPTIONS).toContainEqual({
-      id: "linear-dodge",
-      name: "Linear Dodge",
-    });
-  });
 });

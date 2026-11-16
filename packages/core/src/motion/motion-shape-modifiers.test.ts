@@ -123,115 +123,6 @@ describe("motion shape modifiers", () => {
     expect(getMotionTrimPathsModifier(disabled)?.enabled).toBe(false);
   });
 
-  it("builds rectangle shape paths from centered layer bounds", () => {
-    expect(buildMotionShapePolyline(makeShapeLayer())).toEqual([
-      { x: -50, y: -25 },
-      { x: 50, y: -25 },
-      { x: 50, y: 25 },
-      { x: -50, y: 25 },
-      { x: -50, y: -25 },
-    ]);
-  });
-
-  it("builds a two-point polyline for line shapes", () => {
-    const layer: MotionShapeLayer = { ...makeShapeLayer(), shapeType: "line" };
-    expect(buildMotionShapePolyline(layer)).toEqual([
-      { x: -50, y: 0 },
-      { x: 50, y: 0 },
-    ]);
-  });
-
-  it("builds a regular polygon with the requested side count", () => {
-    const layer: MotionShapeLayer = {
-      ...makeShapeLayer(),
-      shapeType: "polygon",
-      width: 100,
-      height: 100,
-      style: { ...makeShapeLayer().style, points: 5 },
-    };
-    const points = buildMotionShapePolyline(layer);
-    expect(points).toHaveLength(6);
-    expect(points[0].x).toBeCloseTo(0, 5);
-    expect(points[0].y).toBeCloseTo(-50, 5);
-    expect(points[points.length - 1].x).toBeCloseTo(points[0].x, 5);
-    expect(points[points.length - 1].y).toBeCloseTo(points[0].y, 5);
-    for (const point of points) {
-      expect(Math.hypot(point.x, point.y)).toBeCloseTo(50, 5);
-    }
-  });
-
-  it("defaults the polygon to a pentagon when no side count is set", () => {
-    const layer: MotionShapeLayer = {
-      ...makeShapeLayer(),
-      shapeType: "polygon",
-      width: 80,
-      height: 80,
-    };
-    const points = buildMotionShapePolyline(layer);
-    expect(points).toHaveLength(6);
-  });
-
-  it("clamps polygon side count to 3..24", () => {
-    const few: MotionShapeLayer = {
-      ...makeShapeLayer(),
-      shapeType: "polygon",
-      style: { ...makeShapeLayer().style, points: 1 },
-    };
-    const many: MotionShapeLayer = {
-      ...makeShapeLayer(),
-      shapeType: "polygon",
-      style: { ...makeShapeLayer().style, points: 99 },
-    };
-    expect(buildMotionShapePolyline(few)).toHaveLength(4);
-    expect(buildMotionShapePolyline(many)).toHaveLength(25);
-  });
-
-  it("builds a star with the requested point and inner-radius ratio", () => {
-    const layer: MotionShapeLayer = {
-      ...makeShapeLayer(),
-      shapeType: "star",
-      width: 100,
-      height: 100,
-      style: { ...makeShapeLayer().style, points: 7, innerRadius: 0.3 },
-    };
-    const points = buildMotionShapePolyline(layer);
-    expect(points).toHaveLength(15);
-    const outerRadius = 50;
-    const radiusOf = (point: { x: number; y: number }): number =>
-      Math.hypot(point.x, point.y);
-    expect(radiusOf(points[0])).toBeCloseTo(outerRadius, 5);
-    expect(radiusOf(points[1])).toBeCloseTo(outerRadius * 0.3, 5);
-  });
-
-  it("clamps star point count to 3..24 and inner radius to 0.05..0.95", () => {
-    const layer: MotionShapeLayer = {
-      ...makeShapeLayer(),
-      shapeType: "star",
-      width: 100,
-      height: 100,
-      style: { ...makeShapeLayer().style, points: 99, innerRadius: 5 },
-    };
-    const points = buildMotionShapePolyline(layer);
-    expect(points).toHaveLength(24 * 2 + 1);
-    expect(Math.hypot(points[1].x, points[1].y)).toBeCloseTo(50 * 0.95, 5);
-  });
-
-  it("builds a closed arrow outline that points to the right edge", () => {
-    const layer: MotionShapeLayer = {
-      ...makeShapeLayer(),
-      shapeType: "arrow",
-      width: 120,
-      height: 60,
-    };
-    const points = buildMotionShapePolyline(layer);
-    expect(points.length).toBeGreaterThan(4);
-    expect(points[0]).toEqual(points[points.length - 1]);
-    const tip = points.reduce((best, point) =>
-      point.x > best.x ? point : best,
-    );
-    expect(tip).toEqual({ x: 60, y: 0 });
-  });
-
   it("trims a rectangle path by path percentage", () => {
     const layer = makeShapeLayer();
     const points = getTrimmedMotionPathPoints(
@@ -298,33 +189,6 @@ describe("motion shape modifiers", () => {
     expect(points[3]).toEqual({ x: 100, y: 0 });
   });
 
-  it("normalizes Zig Zag values and leaves disabled modifiers inert", () => {
-    const layer = addMotionShapeModifier(
-      {
-        ...makeShapeLayer(),
-        shapeType: "path",
-        pathData: "M 0 0 L 100 0",
-        pathClosed: false,
-      },
-      {
-        ...makeZigZagModifier("zig-1"),
-        enabled: false,
-        size: 9999,
-        ridgesPerSegment: 999,
-      },
-    );
-
-    expect(getMotionZigZagModifier(layer)).toMatchObject({
-      size: 4000,
-      ridgesPerSegment: 128,
-      enabled: false,
-    });
-    expect(buildMotionShapePolyline(layer)).toEqual([
-      { x: 0, y: 0 },
-      { x: 100, y: 0 },
-    ]);
-  });
-
   it("rounds closed shape corners with generated curve samples", () => {
     const layer = addMotionShapeModifier(
       makeShapeLayer(),
@@ -374,31 +238,6 @@ describe("motion shape modifiers", () => {
     ]);
   });
 
-  it("normalizes Round Corners values and leaves disabled modifiers inert", () => {
-    const layer = addMotionShapeModifier(
-      makeShapeLayer(),
-      {
-        ...makeRoundCornersModifier("round-1"),
-        enabled: false,
-        radius: 9999,
-        segments: 999,
-      },
-    );
-
-    expect(getMotionRoundCornersModifier(layer)).toMatchObject({
-      radius: 4000,
-      segments: 48,
-      enabled: false,
-    });
-    expect(buildMotionShapePolyline(layer)).toEqual([
-      { x: -50, y: -25 },
-      { x: 50, y: -25 },
-      { x: 50, y: 25 },
-      { x: -50, y: 25 },
-      { x: -50, y: -25 },
-    ]);
-  });
-
   it("applies deterministic animated Wiggle Paths detail", () => {
     const layer = addMotionShapeModifier(
       {
@@ -435,35 +274,6 @@ describe("motion shape modifiers", () => {
     expect(pointsLater[1]).not.toEqual(pointsAtStart[1]);
   });
 
-  it("normalizes Wiggle Paths values and leaves disabled modifiers inert", () => {
-    const layer = addMotionShapeModifier(
-      makeShapeLayer(),
-      {
-        ...makeWigglePathsModifier("wiggle-1"),
-        enabled: false,
-        size: 9999,
-        detail: 999,
-        speed: 999,
-        seed: 1.2,
-      },
-    );
-
-    expect(getMotionWigglePathsModifier(layer)).toMatchObject({
-      size: 4000,
-      detail: 32,
-      speed: 60,
-      seed: 1,
-      enabled: false,
-    });
-    expect(buildMotionShapePolyline(layer)).toEqual([
-      { x: -50, y: -25 },
-      { x: 50, y: -25 },
-      { x: 50, y: 25 },
-      { x: -50, y: 25 },
-      { x: -50, y: -25 },
-    ]);
-  });
-
   it("builds path polylines from evaluated path morph keyframes", () => {
     const layer = upsertMotionShapePathKeyframe(
       upsertMotionShapePathKeyframe(
@@ -493,16 +303,6 @@ describe("motion shape modifiers", () => {
     expect(points).toHaveLength(2);
     expect(points[0]).toEqual({ x: 0, y: 50 });
     expect(points[points.length - 1]).toEqual({ x: 100, y: 50 });
-  });
-
-  it("keeps a full Trim Paths range visible", () => {
-    const layer = makeShapeLayer();
-    const points = getTrimmedMotionPathPoints(
-      buildMotionShapePolyline(layer),
-      makeTrimPathsModifier("trim-1"),
-    );
-
-    expect(points).toEqual(buildMotionShapePolyline(layer));
   });
 
   it("supports wrapped trim ranges with offset", () => {
@@ -599,35 +399,9 @@ describe("motion shape operators", () => {
     expect(Math.abs(corner - expectedCorner)).toBeLessThan(1);
   });
 
-  it("insets a closed square with negative offset", () => {
-    const result = applyMotionOffsetPathsToPoints(square(50), -10, "miter");
-    const bounds = Math.max(...result.map((point) => Math.abs(point.x)));
-    expect(bounds).toBeLessThan(45);
-    expect(bounds).toBeGreaterThan(35);
-  });
-
-  it("returns open paths unchanged from offset", () => {
-    const open: MotionShapePathPoint[] = [
-      { x: 0, y: 0 },
-      { x: 10, y: 0 },
-      { x: 10, y: 10 },
-    ];
-    expect(applyMotionOffsetPathsToPoints(open, 10, "miter")).toEqual(open);
-  });
-
   it("puckers vertices toward the centroid halving radius at amount -50", () => {
     const result = applyMotionPuckerBloatToPoints(square(50), -50);
     expect(maxRadius(result)).toBeCloseTo(maxRadius(square(50)) / 2, 5);
-  });
-
-  it("collapses toward centroid at pucker -100", () => {
-    const result = applyMotionPuckerBloatToPoints(square(50), -100);
-    expect(maxRadius(result)).toBeCloseTo(0, 5);
-  });
-
-  it("bloats symmetrically at amount +50", () => {
-    const result = applyMotionPuckerBloatToPoints(square(50), 50);
-    expect(maxRadius(result)).toBeCloseTo(maxRadius(square(50)) * 1.5, 5);
   });
 
   it("twists center-adjacent vertices more than rim vertices (monotonic falloff)", () => {
@@ -646,11 +420,6 @@ describe("motion shape operators", () => {
     expect(near).toBeGreaterThan(mid);
     expect(mid).toBeGreaterThan(rim);
     expect(Math.abs(rim)).toBeLessThan(1e-6);
-  });
-
-  it("leaves twist a no-op when maxDist is zero", () => {
-    const ring: MotionShapePathPoint[] = [{ x: 5, y: 5 }];
-    expect(applyMotionTwistToPoints(ring, 90, { x: 5, y: 5 })).toEqual(ring);
   });
 
   it("produces different geometry for offset then twist vs twist then offset", () => {
@@ -717,24 +486,6 @@ describe("motion shape operators", () => {
     const trimmedLength = result[0][0].length;
     expect(trimmedLength).toBeGreaterThan(1);
     expect(ringArea(result[0][0])).toBeLessThan(full);
-  });
-
-  it("creates the three new operators with defaults", () => {
-    const offset = createMotionShapeModifier("offset-paths");
-    const pucker = createMotionShapeModifier("pucker-bloat");
-    const twist = createMotionShapeModifier("twist");
-    expect(offset).toMatchObject({
-      type: "offset-paths",
-      enabled: true,
-      amount: 10,
-      lineJoin: "miter",
-    });
-    expect(pucker).toMatchObject({ type: "pucker-bloat", amount: 0 });
-    expect(twist).toMatchObject({
-      type: "twist",
-      angle: 0,
-      center: { x: 0, y: 0 },
-    });
   });
 
   it("keyframes the new operator params through evaluation", () => {

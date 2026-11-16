@@ -1,6 +1,6 @@
 import { useProjectStore } from "../stores/project-store";
 
-export interface HighlightRange {
+interface HighlightRange {
   start: number;
   end: number;
 }

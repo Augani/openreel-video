@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   Key,
   Plus,
@@ -11,13 +11,11 @@ import {
   Shield,
   KeyRound,
 } from "@/icons/lucide-compat";
-import { ToolcraftButton as Button } from "@openreel/ui";
-import { ToolcraftCard as Card } from "@openreel/ui";
-import { ToolcraftClickableCard as ClickableCard } from "@openreel/ui";
-import { ToolcraftIconButton as IconButton } from "@openreel/ui";
-import { ToolcraftLink as Link } from "@openreel/ui";
-import { ToolcraftText as Text } from "@openreel/ui";
-import { ToolcraftTextInputControl } from "@openreel/ui";
+import { Button, Input } from "@openreel/ui";
+import { Card } from "@openreel/ui";
+
+
+
 import { useSettingsStore, SERVICE_REGISTRY } from "../../../stores/settings-store";
 import {
   isMasterPasswordSet,
@@ -31,16 +29,19 @@ import {
   hasSecret,
   listSecrets,
   changeMasterPassword,
+  onSessionLock,
 } from "../../../services/secure-storage";
 import { MasterPasswordDialog } from "./MasterPasswordDialog";
 import { toast } from "../../../stores/notification-store";
 
 export const ApiKeysPanel: React.FC = () => {
-  const { addConfiguredService, removeConfiguredService } =
-    useSettingsStore();
+  const addConfiguredService = useSettingsStore(state => state.addConfiguredService);
+  const removeConfiguredService = useSettingsStore(state => state.removeConfiguredService);
 
-  const [passwordSet, setPasswordSet] = useState(false);
-  const [unlocked, setUnlocked] = useState(false);
+  const systemKeychain = typeof window !== "undefined" && window.openreel?.platform === "desktop" && Boolean(window.openreel.keychain);
+  const [passwordSet, setPasswordSet] = useState(systemKeychain);
+  const [unlocked, setUnlocked] = useState(systemKeychain);
+  const epoch = useRef(0), alive = useRef(true);
   const [passwordDialogMode, setPasswordDialogMode] = useState<
     "setup" | "unlock" | "change" | null
   >(null);
@@ -59,7 +60,7 @@ export const ApiKeysPanel: React.FC = () => {
 
     if (isSessionUnlocked()) {
       const keys =
-        typeof window !== "undefined" && window.openreel?.platform === "desktop"
+        systemKeychain
           ? (
               await Promise.all(
                 SERVICE_REGISTRY.map(async (service) =>
@@ -77,11 +78,20 @@ export const ApiKeysPanel: React.FC = () => {
           : await listSecrets();
       setStoredKeys(keys);
     }
-  }, []);
+  }, [systemKeychain]);
+
+  const clearSessionView = useCallback(() => {
+    epoch.current++;
+    if (!systemKeychain) { setUnlocked(false); setStoredKeys([]); }
+    setRevealedKeys({}); setShowKey({}); setNewKeyValue(""); setAddingService(null);
+  }, [systemKeychain]);
 
   useEffect(() => {
-    refreshState();
-  }, [refreshState]);
+    alive.current = true;
+    void refreshState();
+    const unsubscribe = onSessionLock(clearSessionView);
+    return () => { alive.current = false; unsubscribe(); };
+  }, [refreshState, clearSessionView]);
 
   const handlePasswordSubmit = useCallback(
     async (password: string, newPassword?: string): Promise<boolean> => {
@@ -160,6 +170,8 @@ export const ApiKeysPanel: React.FC = () => {
   );
 
   const handleRevealKey = useCallback(async (serviceId: string) => {
+    if (!isSessionUnlocked()) return;
+    const owner = epoch.current;
     if (revealedKeys[serviceId]) {
       setShowKey((prev) => ({ ...prev, [serviceId]: !prev[serviceId] }));
       return;
@@ -167,7 +179,7 @@ export const ApiKeysPanel: React.FC = () => {
 
     try {
       const value = await getSecret(serviceId);
-      if (value) {
+      if (value && alive.current && owner === epoch.current && isSessionUnlocked()) {
         setRevealedKeys((prev) => ({ ...prev, [serviceId]: value }));
         setShowKey((prev) => ({ ...prev, [serviceId]: true }));
       }
@@ -178,11 +190,8 @@ export const ApiKeysPanel: React.FC = () => {
 
   const handleLock = useCallback(() => {
     lockSession();
-    setUnlocked(false);
-    setStoredKeys([]);
-    setRevealedKeys({});
-    setShowKey({});
-  }, []);
+    clearSessionView();
+  }, [clearSessionView]);
 
   const availableServices = SERVICE_REGISTRY.filter(
     (s) => !storedKeys.some((k) => k.id === s.id),
@@ -195,19 +204,17 @@ export const ApiKeysPanel: React.FC = () => {
         <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
           <Shield size={32} className="text-primary" aria-hidden />
         </div>
-        <Text as="h3" type="large" weight="bold" display="block" className="mb-2">
+        <h3 className="text-[15px] leading-5 text-fg-2 font-bold block mb-2">
           Secure API Key Storage
-        </Text>
-        <Text as="p" type="supporting" color="secondary" display="block" className="mb-6 max-w-sm">
+        </h3>
+        <p className="text-[12px] leading-5 text-fg-2 font-normal block mb-6 max-w-sm">
           Set up a master password to encrypt and store your API keys locally.
           Keys are encrypted with AES-256-GCM and are only sent when making a request to the selected service.
-        </Text>
-        <Button
-          label="Set Up Master Password"
-          onClick={() => setPasswordDialogMode("setup")}
-          variant="primary"
-          icon={<KeyRound size={16} aria-hidden />}
-        />
+        </p>
+        <Button onClick={() => setPasswordDialogMode("setup")} type="button" aria-label="Set Up Master Password" className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 px-3 text-[12px] bg-accent text-accent-fg hover:bg-accent/90">
+          <span className="flex h-4 w-4 shrink-0 items-center justify-center">{<KeyRound size={16} aria-hidden />}</span>
+          <span className="truncate">{"Set Up Master Password"}</span>
+        </Button>
 
         {passwordDialogMode && (
           <MasterPasswordDialog
@@ -228,18 +235,16 @@ export const ApiKeysPanel: React.FC = () => {
         <div className="w-16 h-16 rounded-full bg-amber-500/10 flex items-center justify-center mb-4">
           <Lock size={32} className="text-amber-500" aria-hidden />
         </div>
-        <Text as="h3" type="large" weight="bold" display="block" className="mb-2">
+        <h3 className="text-[15px] leading-5 text-fg-2 font-bold block mb-2">
           Session Locked
-        </Text>
-        <Text as="p" type="supporting" color="secondary" display="block" className="mb-6 max-w-sm">
+        </h3>
+        <p className="text-[12px] leading-5 text-fg-2 font-normal block mb-6 max-w-sm">
           Enter your master password to view and manage API keys.
-        </Text>
-        <Button
-          label="Unlock"
-          onClick={() => setPasswordDialogMode("unlock")}
-          variant="primary"
-          icon={<Unlock size={16} aria-hidden />}
-        />
+        </p>
+        <Button onClick={() => setPasswordDialogMode("unlock")} type="button" aria-label="Unlock" className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 px-3 text-[12px] bg-accent text-accent-fg hover:bg-accent/90">
+          <span className="flex h-4 w-4 shrink-0 items-center justify-center">{<Unlock size={16} aria-hidden />}</span>
+          <span className="truncate">{"Unlock"}</span>
+        </Button>
 
         {passwordDialogMode && (
           <MasterPasswordDialog
@@ -260,26 +265,20 @@ export const ApiKeysPanel: React.FC = () => {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Shield size={14} className="text-primary" aria-hidden />
-          <Text type="supporting" color="secondary">
+          <span className="text-[12px] leading-5 text-fg-2 font-normal">
             {storedKeys.length} key{storedKeys.length !== 1 ? "s" : ""} stored
-          </Text>
+          </span>
         </div>
-        <div className="flex items-center gap-2">
-          <Button
-            label="Change Password"
-            variant="secondary"
-            size="sm"
-            onClick={() => setPasswordDialogMode("change")}
-            icon={<Key size={14} aria-hidden />}
-          />
-          <Button
-            label="Lock"
-            variant="secondary"
-            size="sm"
-            onClick={handleLock}
-            icon={<Lock size={14} aria-hidden />}
-          />
-        </div>
+        {systemKeychain ? <span className="text-xs text-fg-2">System keychain</span> : <div className="flex items-center gap-2">
+          <Button onClick={() => setPasswordDialogMode("change")} type="button" aria-label="Change Password" className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg">
+            <span className="flex h-4 w-4 shrink-0 items-center justify-center">{<Key size={14} aria-hidden />}</span>
+            <span className="truncate">{"Change Password"}</span>
+          </Button>
+          <Button onClick={handleLock} type="button" aria-label="Lock" className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg">
+            <span className="flex h-4 w-4 shrink-0 items-center justify-center">{<Lock size={14} aria-hidden />}</span>
+            <span className="truncate">{"Lock"}</span>
+          </Button>
+        </div>}
       </div>
 
       {/* Stored keys list */}
@@ -289,65 +288,47 @@ export const ApiKeysPanel: React.FC = () => {
           const isRevealed = showKey[stored.id] && revealedKeys[stored.id];
 
           return (
-            <Card
-              key={stored.id}
-              variant="muted"
-              padding={4}
-              className="border border-border"
+            <Card key={stored.id} className="min-w-0 rounded-[7px] shadow-none bg-bg-2 text-fg p-4 border border-border"
             >
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
                   <Key size={14} className="text-primary" aria-hidden />
-                  <Text type="label" weight="bold">
+                  <span className="text-[12px] leading-4 text-fg-2 font-bold">
                     {service?.label ?? stored.label}
-                  </Text>
+                  </span>
                   {service?.docsUrl && (
-                    <Link
-                      label={`${service.label} documentation`}
-                      href={service.docsUrl}
-                      isExternalLink
-                      color="secondary"
-                      className="text-text-muted hover:text-primary"
-                    >
-                      <ExternalLink size={12} aria-hidden />
-                    </Link>
+                    <Button asChild variant="link" size="icon-sm" className="h-6 w-6 text-fg-muted hover:text-primary">
+                      <a aria-label={`${service.label} documentation`} href={service.docsUrl} target="_blank" rel="noopener noreferrer"><ExternalLink size={12} aria-hidden /></a>
+                    </Button>
                   )}
                 </div>
                 <div className="flex items-center gap-1">
-                  <IconButton
-                    label={isRevealed ? "Hide key" : "Show key"}
-                    onClick={() => handleRevealKey(stored.id)}
-                    variant="ghost"
-                    size="sm"
-                    icon={isRevealed ? <EyeOff size={14} aria-hidden /> : <Eye size={14} aria-hidden />}
-                  />
-                  <IconButton
-                    label="Delete key"
-                    onClick={() => handleDeleteKey(stored.id)}
-                    variant="destructive"
-                    size="sm"
-                    icon={<Trash2 size={14} aria-hidden />}
-                  />
+                  <Button variant="ghost" size="icon-sm" onClick={() => handleRevealKey(stored.id)} type="button" aria-label={isRevealed ? "Hide key" : "Show key"} title={isRevealed ? "Hide key" : "Show key"} className="inline-flex shrink-0 items-center justify-center rounded-[7px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 w-7 bg-transparent text-fg-muted hover:bg-bg-2 hover:text-fg">
+                    {isRevealed ? <EyeOff size={14} aria-hidden /> : <Eye size={14} aria-hidden />}
+                  </Button>
+                  <Button variant="ghost" size="icon-sm" onClick={() => handleDeleteKey(stored.id)} type="button" aria-label="Delete key" title="Delete key" className="inline-flex shrink-0 items-center justify-center rounded-[7px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 w-7 bg-status-error/12 text-status-error hover:bg-status-error/20">
+                    {<Trash2 size={14} aria-hidden />}
+                  </Button>
                 </div>
               </div>
 
               {service && (
-                <Text as="p" type="supporting" color="secondary" display="block" className="mb-2">
+                <p className="text-[12px] leading-5 text-fg-2 font-normal block mb-2">
                   {service.description}
-                </Text>
+                </p>
               )}
 
-              <Card variant="default" padding={2} className="font-mono text-xs text-text-secondary">
+              <Card className="min-w-0 rounded-[7px] border shadow-none border-border bg-bg-1 p-2 font-mono text-xs text-text-secondary">
                 {isRevealed
                   ? revealedKeys[stored.id]
                   : "••••••••••••••••••••••••••••••••"}
               </Card>
 
-              <Text type="supporting" color="secondary" display="block" className="mt-2 text-[10px]">
+              <span className="text-fg-2 font-normal block mt-2 text-[10px]">
                 {stored.createdAt > 0
                   ? `Added ${new Date(stored.createdAt).toLocaleDateString()} · Updated ${new Date(stored.updatedAt).toLocaleDateString()}`
                   : "Stored securely in the system keychain"}
-              </Text>
+              </span>
             </Card>
           );
         })}
@@ -355,79 +336,64 @@ export const ApiKeysPanel: React.FC = () => {
 
       {/* Add new key */}
       {addingService ? (
-        <Card variant="green" padding={4} className="border border-primary/30">
+        <Card className="min-w-0 rounded-[7px] shadow-none bg-status-success/10 text-fg p-4 border border-primary/30">
           <div className="flex items-center gap-2 mb-3">
             <Plus size={14} className="text-primary" aria-hidden />
-            <Text type="label" weight="bold">
+            <span className="text-[12px] leading-4 text-fg-2 font-bold">
               Add{" "}
               {SERVICE_REGISTRY.find((s) => s.id === addingService)?.keyOptional
                 ? `Optional ${SERVICE_REGISTRY.find((s) => s.id === addingService)?.label} Key`
                 : `${SERVICE_REGISTRY.find((s) => s.id === addingService)?.label} Key`}
-            </Text>
+            </span>
           </div>
-          <ToolcraftTextInputControl
-            label="API key"
-            isLabelHidden
+          <Input
+            aria-label="API key"
             type="password"
             value={newKeyValue}
-            onChange={setNewKeyValue}
+            onChange={event => setNewKeyValue(event.target.value)}
             placeholder={
               SERVICE_REGISTRY.find((s) => s.id === addingService)?.keyOptional
                 ? "Paste an API key if your endpoint requires one"
                 : "Paste your API key here"
             }
-            hasAutoFocus
-            width="100%"
-            className="mb-3 font-mono text-xs"
+            autoFocus
+            autoComplete="off"
+            className="mb-3 h-8 rounded-md bg-bg-2 font-mono text-xs md:text-xs"
           />
           <div className="flex justify-end gap-2">
-            <Button
-              label="Cancel"
-              variant="secondary"
-              size="sm"
-              onClick={() => {
+            <Button onClick={() => {
                 setAddingService(null);
                 setNewKeyValue("");
-              }}
-            />
-            <Button
-              label="Save Key"
-              variant="primary"
-              size="sm"
-              onClick={() => handleSaveKey(addingService)}
-              isDisabled={!newKeyValue.trim()}
-            />
+              }} type="button" aria-label="Cancel" className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg">
+              <span className="truncate">{"Cancel"}</span>
+            </Button>
+            <Button onClick={() => handleSaveKey(addingService)} type="button" aria-label="Save Key" disabled={(!newKeyValue.trim())} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] bg-accent text-accent-fg hover:bg-accent/90">
+              <span className="truncate">{"Save Key"}</span>
+            </Button>
           </div>
         </Card>
       ) : availableServices.length > 0 ? (
         <div>
-          <Text as="h3" type="label" weight="bold" color="secondary" display="block" className="mb-3">
+          <h3 className="text-[12px] leading-4 text-fg-2 font-bold block mb-3">
             Add API Key
-          </Text>
+          </h3>
           <div className="grid gap-2">
             {availableServices.map((service) => (
-              <ClickableCard
-                key={service.id}
-                label={`Add ${service.keyOptional ? "optional " : ""}${service.label} API key`}
-                onClick={() => setAddingService(service.id)}
-                padding={3}
-                variant="default"
-                className="border border-border"
-              >
+              <Button variant="ghost" key={service.id} onClick={() => setAddingService(service.id)} type="button" aria-label={`Add ${service.keyOptional ? "optional " : ""}${service.label} API key`} className="group/card block h-auto min-w-0 whitespace-normal rounded-[7px] text-left transition-[background-color,border-color,box-shadow,transform] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 bg-bg-1 hover:bg-bg-2 p-3 border border-border">
                 <div className="flex items-center gap-3 text-left">
                   <div className="p-2 rounded-lg bg-background-tertiary">
                     <Plus size={14} className="text-primary" aria-hidden />
                   </div>
                   <div>
-                    <Text type="label" weight="bold" display="block">
+                    <span className="text-[12px] leading-4 text-fg-2 font-bold block">
                       {service.label}{service.keyOptional ? " (optional key)" : ""}
-                    </Text>
-                    <Text type="supporting" color="secondary" display="block">
+                    </span>
+                    <span className="text-[12px] leading-5 text-fg-2 font-normal block">
                       {service.description}
-                    </Text>
+                    </span>
                   </div>
                 </div>
-              </ClickableCard>
+              </Button>
             ))}
           </div>
         </div>

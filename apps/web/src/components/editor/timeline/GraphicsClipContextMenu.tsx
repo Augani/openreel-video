@@ -1,6 +1,12 @@
-import React from "react";
-import type { ToolcraftContextMenuOption as ContextMenuOption } from "@openreel/ui";
+import { useRef } from "react";
+
+import { ContextMenuContent, ContextMenuLabel, ContextMenuItem, ContextMenuSeparator } from "@openreel/ui";
+import { useTimelineStore } from "../../../stores/timeline-store";
+import { useEditorWorkspaceStore } from "../../../stores/editor-workspace-store";
+import { getEditableTimelineSelection, getLinkedTimelineSelection } from "../../../utils/linked-timeline-selection";
+import { editTimelineSelection } from "../../../services/linked-timeline-edit";
 import {
+  Copy,
   Layers,
   Trash2,
   Shapes,
@@ -11,6 +17,7 @@ import type { ShapeClip, SVGClip, StickerClip, TextClip } from "@openreel/core";
 import { useProjectStore } from "../../../stores/project-store";
 import { useUIStore } from "../../../stores/ui-store";
 import { getTimelineTrackSelection } from "../../../utils/timeline-item-actions";
+import { replaceSelectionWithLinkedComposition } from "../../../services/linked-comp-commands";
 
 type GraphicsClipType = ShapeClip | SVGClip | StickerClip | TextClip;
 
@@ -22,21 +29,27 @@ interface GraphicsClipContextMenuProps {
   onDuplicate?: () => void;
 }
 
-export function useGraphicsClipContextMenuItems({
+export function GraphicsClipContextMenu({
   clip,
   clipType,
   onClose,
   onDelete,
   onDuplicate,
-}: GraphicsClipContextMenuProps): ContextMenuOption[] {
-  const {
-    deleteShapeClip,
-    deleteSVGClip,
-    deleteStickerClip,
-    deleteTextClip,
-  } = useProjectStore();
+}: GraphicsClipContextMenuProps) {
   const selectMultiple = useUIStore((state) => state.selectMultiple);
   const project = useProjectStore((state) => state.project);
+  const ownerProjectId = useRef(project.id);
+  const linkedSelection = useEditorWorkspaceStore(state => state.linkedSelection);
+  const exporting = useUIStore(state => state.exportState.isExporting);
+  const operationLocked = useTimelineStore(state => Boolean(state.playbackLockedReason));
+  const editingDisabled = exporting || operationLocked || !getEditableTimelineSelection(project, [clip.id], linkedSelection).ids.includes(clip.id);
+  const canAct = (edit = false) => {
+    const state = useProjectStore.getState();
+    if (state.project.id !== ownerProjectId.current || !getTimelineTrackSelection(state.getFullProject(), clip.trackId).some(item => item.id === clip.id)) return false;
+    return !edit || (!useUIStore.getState().exportState.isExporting
+      && !useTimelineStore.getState().playbackLockedReason
+      && getEditableTimelineSelection(state.getFullProject(), [clip.id], useEditorWorkspaceStore.getState().linkedSelection).ids.includes(clip.id));
+  };
   const isCaption =
     clipType === "text" &&
     (project.timeline.tracks.some(
@@ -48,35 +61,29 @@ export function useGraphicsClipContextMenuItems({
       ("metadata" in clip &&
         typeof clip.metadata?.captionSource === "string"));
 
-  const handleDelete = () => {
-    if (onDelete) {
-      onDelete();
-    } else {
-      switch (clipType) {
-        case "shape":
-          deleteShapeClip(clip.id);
-          break;
-        case "svg":
-          deleteSVGClip(clip.id);
-          break;
-        case "sticker":
-        case "emoji":
-          deleteStickerClip(clip.id);
-          break;
-        case "text":
-          deleteTextClip(clip.id);
-          break;
-      }
-    }
+  const handleDelete = async () => {
+    if (!canAct(true)) return;
+    if (onDelete) onDelete();
+    else await editTimelineSelection([clip.id], "delete");
     onClose?.();
   };
 
-  const handleDuplicate = () => {
-    onDuplicate?.();
+  const handleDuplicate = async () => {
+    if (!canAct(true)) return;
+    if (onDuplicate) onDuplicate();
+    else await editTimelineSelection([clip.id], "duplicate");
+    onClose?.();
+  };
+
+  const handleCopy = () => {
+    if (!canAct()) return;
+    const state = useProjectStore.getState();
+    state.copyClips(getLinkedTimelineSelection(state.getFullProject(), [clip.id], useEditorWorkspaceStore.getState().linkedSelection));
     onClose?.();
   };
 
   const handleSelectTrackClips = () => {
+    if (!canAct()) return;
     const project = useProjectStore.getState().getFullProject();
     selectMultiple(getTimelineTrackSelection(project, clip.trackId));
     onClose?.();
@@ -108,51 +115,29 @@ export function useGraphicsClipContextMenuItems({
     }
   };
 
-  const items: ContextMenuOption[] = [
-    {
-      type: "section",
-      title: `${getClipTypeLabel()} Clip`,
-      items: [
-        {
-          label: `${getClipTypeLabel()} Clip`,
-          icon: getClipTypeIcon(),
-          isDisabled: true,
-        },
-      ],
-    },
-    { type: "divider" },
-  ];
-
-  if (onDuplicate) {
-    items.push(
-      {
-        label: "Duplicate",
-        icon: <Layers size={14} aria-hidden />,
-        onClick: handleDuplicate,
-      },
-      { type: "divider" },
-    );
-  }
-
-  items.push(
-    {
-      label: isCaption ? "Select All Captions" : "Select All Clips on Track",
-      icon: <ListChecks size={14} aria-hidden />,
-      onClick: handleSelectTrackClips,
-    },
-    { type: "divider" },
+  return (
+    <ContextMenuContent className="w-[200px] [&_[role=menuitem]]:gap-2 [&_[role=menuitem]]:text-xs"
+      onPointerDown={event => event.stopPropagation()} onMouseDown={event => event.stopPropagation()}
+      onMouseUp={event => event.stopPropagation()} onClick={event => event.stopPropagation()}>
+      <ContextMenuLabel className="flex items-center gap-2 text-xs">{getClipTypeIcon()}{getClipTypeLabel()} Clip</ContextMenuLabel>
+      <ContextMenuSeparator />
+      <ContextMenuItem onSelect={handleCopy}><Copy size={14} aria-hidden />Copy Clip</ContextMenuItem>
+      <ContextMenuItem disabled={editingDisabled} onSelect={() => void handleDuplicate()}><Layers size={14} aria-hidden />Duplicate</ContextMenuItem>
+      <ContextMenuItem onSelect={handleSelectTrackClips}><ListChecks size={14} aria-hidden />{isCaption ? "Select All Captions" : "Select All Clips on Track"}</ContextMenuItem>
+      {(clipType === "text" || clipType === "shape" || clipType === "svg") && !isCaption && (
+        <ContextMenuItem
+          data-testid="replace-with-linked-composition"
+          disabled={editingDisabled}
+          onSelect={() => {
+            if (!canAct(true)) return;
+            if (!useUIStore.getState().getSelectedClipIds().includes(clip.id)) useUIStore.getState().select({ type: "clip", id: clip.id });
+            void replaceSelectionWithLinkedComposition();
+            onClose?.();
+          }}
+        ><Layers size={14} aria-hidden />Replace with Linked Composition</ContextMenuItem>
+      )}
+      <ContextMenuSeparator />
+      <ContextMenuItem disabled={editingDisabled} onSelect={() => void handleDelete()}><Trash2 size={14} aria-hidden />Delete</ContextMenuItem>
+    </ContextMenuContent>
   );
-
-  items.push({
-    label: "Delete",
-    icon: <Trash2 size={14} aria-hidden />,
-    onClick: handleDelete,
-  });
-
-  return items;
 }
-
-export const GraphicsClipContextMenu: React.FC<GraphicsClipContextMenuProps> = (props) => {
-  useGraphicsClipContextMenuItems(props);
-  return null;
-};

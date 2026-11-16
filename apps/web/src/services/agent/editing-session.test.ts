@@ -21,12 +21,13 @@ describe("atomic editing sessions on the real engine", () => {
     await useProjectStore.getState().redo(); expect(JSON.stringify(useProjectStore.getState().project.timeline)).toBe(committed);
   });
   it("rejects stale project state and preserves the user's intervening edit", async () => {
+    const before = JSON.stringify(useProjectStore.getState().project.timeline.tracks);
     const session = new EditingSession(); const txn = session.beginTransaction();
     await executeEditingTool("add_track", { trackType: "audio" }, session);
     await useProjectStore.getState().renameProject("User's edit");
     await expect(session.commitTransaction(txn, "AI edit")).rejects.toThrow(/project changed/);
     expect(useProjectStore.getState().project.name).toBe("User's edit");
-    expect(useProjectStore.getState().project.timeline.tracks.some((t) => t.type === "audio")).toBe(false);
+    expect(JSON.stringify(useProjectStore.getState().project.timeline.tracks)).toBe(before);
   });
   it.each(["failure", "cancel", "budget"])("discards an entire turn after %s", async (kind) => {
     const before = JSON.stringify(editSnapshot(useProjectStore.getState().project));
@@ -45,15 +46,15 @@ describe("atomic editing sessions on the real engine", () => {
     const store = useProjectStore.getState();
     useProjectStore.setState({ project: { ...store.project, mediaLibrary: { items: [{ id: "fixture-media", name: "fixture.mp4", type: "video", blob: new Blob(["fixture"]), fileHandle: null, thumbnailUrl: null, waveformData: null, metadata: { duration: 4, width: 640, height: 360, frameRate: 24, codec: "avc", sampleRate: 48000, channels: 2, fileSize: 7 } }] } } });
     const session = new EditingSession(); session.beginTransaction();
-    await executeEditingTool("add_track", { trackType: "video" }, session);
-    const trackId = session.getProject().timeline.tracks[0].id;
+    const added = await executeEditingTool("add_track", { trackType: "video" }, session);
+    const trackId = (added.data as { trackId: string }).trackId;
     expect((await executeEditingTool("add_clip", { trackId, mediaId: "fixture-media", startTime: 0 }, session)).ok).toBe(true);
-    const clipId = session.getProject().timeline.tracks[0].clips[0].id;
+    const clipId = session.getProject().timeline.tracks.find((track) => track.id === trackId)!.clips[0].id;
     expect((await executeEditingTool("add_audio_effect", { clipId, effect: { type: "eq", params: { bands: [{ type: "peaking", frequency: 1000, gain: -3, q: 1 }] } } }, session)).ok).toBe(true);
     expect((await executeEditingTool("add_audio_effect", { clipId, effect: { type: "gain", params: { value: 2 } } }, session)).ok).toBe(true);
     expect((await executeEditingTool("add_audio_effect", { clipId, effect: { type: "pan", params: { value: 2 } } }, session)).ok).toBe(false);
     expect((await executeEditingTool("apply_edit_preset", { clipId, preset: { format: "openreel-preset", version: 1, name: "Disabled look", effects: [{ id: "shared-effect", type: "brightness", params: { value: 0.1 }, enabled: false }] } }, session)).ok).toBe(true);
-    const effect = session.getProject().timeline.tracks[0].clips[0].effects[0];
+    const effect = session.getProject().timeline.tracks.find((track) => track.id === trackId)!.clips[0].effects[0];
     expect(effect.enabled).toBe(false); expect(effect.id).not.toBe("shared-effect");
   });
 });

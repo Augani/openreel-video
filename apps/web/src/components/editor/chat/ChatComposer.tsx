@@ -1,23 +1,24 @@
 import type { JSX } from "react";
-import { useState, useCallback, type KeyboardEvent } from "react";
-import { ToolcraftIconButton as IconButton } from "@openreel/ui";
-import { ToolcraftTextAreaControl } from "@openreel/ui";
-import { Send, Square } from "@/icons/lucide-compat";
+import { useCallback, useId, type KeyboardEvent, type Dispatch, type SetStateAction } from "react";
+import { Button, Textarea } from "@openreel/ui";
+import { Square } from "@/icons/lucide-compat";
 import { useChatStore } from "../../../stores/chat-store";
 
-export function ChatComposer(): JSX.Element {
+export function ChatComposer({ text, onTextChange: setText }: { text: string; onTextChange: Dispatch<SetStateAction<string>> }): JSX.Element {
   const status = useChatStore((s) => s.status);
   const send = useChatStore((s) => s.send);
   const stop = useChatStore((s) => s.stop);
-  const [text, setText] = useState("");
+  const hintId = useId();
   const busy = status === "running" || status === "awaiting_confirm";
 
   const submit = useCallback(() => {
     const value = text.trim();
     if (!value || busy) return;
+    const before = useChatStore.getState().messages;
     setText("");
     void send(value);
-  }, [text, busy, send]);
+    if (useChatStore.getState().messages === before) setText(current => current || value);
+  }, [text, busy, send, setText]);
 
   const onKeyDown = useCallback(
     (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -30,42 +31,65 @@ export function ChatComposer(): JSX.Element {
   );
 
   return (
-    <div className="border-t border-border p-2">
-      <div className="relative rounded-lg border border-border bg-bg-2 transition-colors focus-within:border-accent">
-        <ToolcraftTextAreaControl
-          label="AI edit request"
-          isLabelHidden
+    <div className="workspace-chat-composer">
+      <div className="workspace-chat-suggestions">
+        {["Add captions", "Make a 9:16 version", "Balance audio"].map((s) => (
+          <Button
+            key={s}
+            variant="outline"
+            className="h-auto shrink-0 font-normal leading-[1.4]"
+            type="button"
+            onClick={() => setText(s)}
+          >
+            {s}
+          </Button>
+        ))}
+      </div>
+      <div className="workspace-chat-input">
+        <Textarea
+          aria-label="AI edit request"
+          aria-describedby={hintId}
+          title="Enter to send · Shift+Enter for a new line"
           value={text}
-          onChange={setText}
+          onChange={(event) => setText(event.target.value)}
           onKeyDown={onKeyDown}
           rows={2}
-          placeholder="Ask the AI to edit your video…"
-          inputClassName="block w-full resize-none bg-transparent px-3 py-2 pr-11 text-[13px] text-fg outline-none placeholder:text-fg-muted"
+          placeholder="Describe an edit… e.g. “make a 9:16 version with captions”"
+          className="block w-full resize-none bg-transparent p-0 text-fg outline-none placeholder:text-fg-muted"
         />
-        <div className="absolute bottom-1.5 right-1.5">
+        <div className="workspace-chat-input-footer">
+          <div className="workspace-chat-context">
+            <span>@Timeline 1</span>
+            <span>Project context</span>
+          </div>
           {busy ? (
-            <IconButton
-              label="Stop"
-              icon={<Square size={12} className="fill-current" aria-hidden />}
-              size="sm"
+            <Button
+              type="button"
+              aria-label="Stop"
+              title="Stop"
+              size="icon-sm"
               variant="destructive"
               onClick={stop}
-              className="grid h-7 w-7 place-items-center rounded-md bg-status-error/15 text-status-error transition-colors hover:bg-status-error/25"
-            />
+              className="grid h-7 w-7 shrink-0 place-items-center rounded-md bg-status-error/15 p-0 text-status-error transition-colors hover:bg-status-error/25 [&_svg]:size-3"
+            >
+              <Square size={12} className="fill-current" aria-hidden />
+            </Button>
           ) : (
-            <IconButton
-              label="Send"
-              icon={<Send size={12} aria-hidden />}
-              size="sm"
-              variant="primary"
+            <Button
+              type="button"
+              aria-label="Send"
+              title="Send"
+              size="icon-sm"
               onClick={submit}
-              isDisabled={!text.trim()}
-              className="grid h-7 w-7 place-items-center rounded-md bg-accent text-accent-fg transition-colors hover:bg-accent/90 disabled:opacity-40"
-            />
+              disabled={!text.trim()}
+              className="grid h-7 w-7 shrink-0 place-items-center rounded-md bg-accent p-0 text-accent-fg transition-colors hover:bg-accent/90 disabled:opacity-40 [&_svg]:size-[15px]"
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7" /></svg>
+            </Button>
           )}
         </div>
       </div>
-      <div className="mt-1 px-1 text-[10px] text-fg-muted">
+      <div id={hintId} className="sr-only">
         Enter to send · Shift+Enter for a new line
       </div>
     </div>

@@ -32,12 +32,12 @@ const DIRECT_CONFIG = {
   },
 } as const;
 
-export type CompatibleApiService =
+type CompatibleApiService =
   | "openai-compatible"
   | "anthropic-compatible";
-export type ApiService = keyof typeof DIRECT_CONFIG | CompatibleApiService;
+type ApiService = keyof typeof DIRECT_CONFIG | CompatibleApiService;
 
-export interface ApiFetchOptions extends globalThis.RequestInit {
+interface ApiFetchOptions extends globalThis.RequestInit {
   /** Required only for user-defined compatible requests. */
   readonly baseUrl?: string;
 }
@@ -72,9 +72,6 @@ export function normalizeCompatibleBaseUrl(input: string): string {
   url.pathname = pathname;
   return url.toString().replace(/\/$/, "");
 }
-
-/** Backwards-compatible export for callers that used the original name. */
-export const normalizeOpenAICompatibleBaseUrl = normalizeCompatibleBaseUrl;
 
 /**
  * Fetch from a third-party API, automatically routing through the proxy

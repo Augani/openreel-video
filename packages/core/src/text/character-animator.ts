@@ -1,4 +1,5 @@
 import type { TextClip } from "./types";
+import { isTextAnimationEntry, resolveTextAnimationPhase } from "./text-animation-phase";
 import {
   calculateUnitAnimationState,
   type AnimatedUnit,
@@ -6,7 +7,7 @@ import {
   type TextAnimationContext,
 } from "./text-animation-presets";
 
-export interface CharacterInfo {
+interface CharacterInfo {
   char: string;
   x: number;
   y: number;
@@ -17,7 +18,7 @@ export interface CharacterInfo {
   globalIndex: number;
 }
 
-export interface WordInfo {
+interface WordInfo {
   word: string;
   chars: CharacterInfo[];
   x: number;
@@ -29,7 +30,7 @@ export interface WordInfo {
   globalIndex: number;
 }
 
-export interface LineInfo {
+interface LineInfo {
   text: string;
   words: WordInfo[];
   x: number;
@@ -39,7 +40,7 @@ export interface LineInfo {
   lineIndex: number;
 }
 
-export interface TextLayout {
+interface TextLayout {
   characters: CharacterInfo[];
   words: WordInfo[];
   lines: LineInfo[];
@@ -47,21 +48,21 @@ export interface TextLayout {
   totalHeight: number;
 }
 
-export interface AnimatedCharacter extends CharacterInfo {
+interface AnimatedCharacter extends CharacterInfo {
   state: UnitAnimationState;
 }
 
-export interface AnimatedWord extends WordInfo {
+interface AnimatedWord extends WordInfo {
   state: UnitAnimationState;
   animatedChars: AnimatedCharacter[];
 }
 
-export interface AnimatedLine extends LineInfo {
+interface AnimatedLine extends LineInfo {
   state: UnitAnimationState;
   animatedWords: AnimatedWord[];
 }
 
-export interface AnimatedTextLayout {
+interface AnimatedTextLayout {
   lines: AnimatedLine[];
   totalWidth: number;
   totalHeight: number;
@@ -289,7 +290,11 @@ export class CharacterAnimator {
     clip: TextClip,
     currentTime: number,
   ): AnimatedTextLayout {
-    const animation = clip.animation;
+    const sourceAnimation = clip.animation;
+    const relativeTime = currentTime - clip.startTime;
+    const animation = sourceAnimation
+      ? resolveTextAnimationPhase(sourceAnimation, isTextAnimationEntry(sourceAnimation, relativeTime, clip.duration))
+      : undefined;
     if (!animation || animation.preset === "none") {
       return this.createStaticLayout(clip);
     }
@@ -303,10 +308,9 @@ export class CharacterAnimator {
       clip.style.lineHeight,
     );
 
-    const relativeTime = currentTime - clip.startTime;
     const clipDuration = clip.duration;
 
-    const isInPhase = relativeTime <= animation.inDuration;
+    const isInPhase = relativeTime <= (sourceAnimation?.out && sourceAnimation.preset === "none" ? 0 : animation.inDuration);
     const isOutPhase = relativeTime >= clipDuration - animation.outDuration;
     const isMiddlePhase = !isInPhase && !isOutPhase;
 
@@ -514,4 +518,3 @@ export class CharacterAnimator {
   }
 }
 
-export const characterAnimator = new CharacterAnimator();

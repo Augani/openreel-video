@@ -1,10 +1,10 @@
 import React, { useState, useCallback } from "react";
-import { ToolcraftButton as Button } from "@openreel/ui";
-import { ToolcraftCard as Card } from "@openreel/ui";
-import { ToolcraftText as Text } from "@openreel/ui";
+import { Button } from "@openreel/ui";
+import { Card } from "@openreel/ui";
+
 import { Video, Download } from "@/icons/lucide-compat";
 import { PropertySlider } from "./shell/PropertySlider";
-import { MockToggle } from "./shell/InspectorControls";
+import { InspectorToggle } from "./shell/InspectorControls";
 import type { Clip } from "@openreel/core";
 import { getVidstabEngine, type VidstabProgress } from "@openreel/core";
 import { useProjectStore } from "../../../stores/project-store";
@@ -141,11 +141,11 @@ export const StabilizationSection: React.FC<StabilizationSectionProps> = ({
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <Text type="body" color="primary" className="flex items-center gap-2 text-sm">
+        <span className="text-fg font-normal flex items-center gap-2 text-sm">
           <Video className="h-4 w-4" />
           Stabilize
-        </Text>
-        <MockToggle
+        </span>
+        <InspectorToggle
           ariaLabel="Enable stabilization"
           checked={stabilization.enabled && isStabilized}
           onChange={handleToggle}
@@ -165,27 +165,24 @@ export const StabilizationSection: React.FC<StabilizationSectionProps> = ({
       />
 
       {!vidstabEngine.isLoaded() && !processing && !isStabilized && (
-        <Card
-          variant="muted"
-          padding={2}
-          className="flex items-center gap-2 border border-border/60 bg-muted/40"
+        <Card className="min-w-0 rounded-[7px] shadow-none text-fg p-2 flex items-center gap-2 border border-border/60 bg-muted/40"
         >
           <Download className="h-3.5 w-3.5 shrink-0" />
-          <Text type="supporting" color="secondary" className="text-[11px]">
+          <span className="text-fg-2 font-normal text-[11px]">
             First use requires a one-time download (~65 MB)
-          </Text>
+          </span>
         </Card>
       )}
 
       {processing && stage && (
-        <Card variant="muted" padding={2} className="space-y-1">
+        <Card className="min-w-0 rounded-[7px] border shadow-none border-transparent bg-bg-2 text-fg p-2 space-y-1">
           <div className="flex items-center justify-between">
-            <Text type="supporting" color="secondary" className="text-xs">
+            <span className="text-fg-2 font-normal text-xs">
               {stageLabel}
-            </Text>
-            <Text type="supporting" color="secondary" className="text-xs">
+            </span>
+            <span className="text-fg-2 font-normal text-xs">
               {progress}%
-            </Text>
+            </span>
           </div>
           <div className="h-1.5 w-full rounded-full bg-muted">
             <div
@@ -197,21 +194,17 @@ export const StabilizationSection: React.FC<StabilizationSectionProps> = ({
       )}
 
       {error && !processing && (
-        <Card variant="muted" padding={2} className="border border-destructive/50 bg-destructive/10">
-          <Text type="supporting" className="text-[11px] text-destructive">
+        <Card className="min-w-0 rounded-[7px] shadow-none text-fg p-2 border border-destructive/50 bg-destructive/10">
+          <span className="font-normal text-[11px] text-destructive">
           {error}
-          </Text>
+          </span>
         </Card>
       )}
 
       {isStabilized && !processing && (
-        <Button
-          label="Re-stabilize"
-          variant="secondary"
-          size="sm"
-          onClick={handleStabilize}
-          className="w-full justify-center"
-        />
+        <Button onClick={handleStabilize} type="button" aria-label="Re-stabilize" className="inline-flex min-w-0 items-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg w-full justify-center">
+          <span className="truncate">{"Re-stabilize"}</span>
+        </Button>
       )}
     </div>
   );

@@ -132,4 +132,3 @@ export const SpotlightTour: React.FC = () => {
   );
 };
 
-export { useTour } from "./useTour";

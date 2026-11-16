@@ -1,6 +1,6 @@
 import React, { useMemo } from "react";
 import { ListChecks } from "@/icons/lucide-compat";
-import { ToolcraftButton as Button } from "@openreel/ui";
+import { Button } from "@openreel/ui";
 import { useProjectStore } from "../../../stores/project-store";
 import { useUIStore } from "../../../stores/ui-store";
 import { getTimelineTrackSelection } from "../../../utils/timeline-item-actions";
@@ -27,15 +27,9 @@ export const CaptionBatchSelectButton: React.FC = () => {
   if (captionSelection.length < 2) return null;
 
   return (
-    <Button
-      label={`Select all captions (${captionSelection.length})`}
-      icon={<ListChecks size={14} aria-hidden />}
-      size="sm"
-      variant="secondary"
-      onClick={() => selectMultiple(captionSelection)}
-      className="whitespace-nowrap"
-    />
+    <Button onClick={() => selectMultiple(captionSelection)} type="button" aria-label={(`Select all captions (${captionSelection.length})`).trim() || undefined} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg whitespace-nowrap">
+      <span className="flex h-4 w-4 shrink-0 items-center justify-center">{<ListChecks size={14} aria-hidden />}</span>
+      <span className="truncate">{`Select all captions (${captionSelection.length})`}</span>
+    </Button>
   );
 };
-
-export default CaptionBatchSelectButton;

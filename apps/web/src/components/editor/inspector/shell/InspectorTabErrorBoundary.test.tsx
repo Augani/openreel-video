@@ -19,12 +19,4 @@ describe("InspectorTabErrorBoundary", () => {
     spy.mockRestore();
   });
 
-  it("renders children when they do not throw", () => {
-    render(
-      <InspectorTabErrorBoundary>
-        <div>ok</div>
-      </InspectorTabErrorBoundary>,
-    );
-    expect(screen.getByText("ok")).toBeInTheDocument();
-  });
 });

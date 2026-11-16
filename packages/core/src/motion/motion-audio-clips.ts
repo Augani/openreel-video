@@ -1,6 +1,6 @@
 import type { MotionAudioClip } from "./types";
 
-export interface MotionAudioTimingOptions {
+interface MotionAudioTimingOptions {
   readonly compositionDuration: number;
   readonly frameRate?: number;
 }

@@ -34,6 +34,7 @@ function installBridge(): void {
         for (const c of w.chunks) out.set(c.data, c.pos);
         disk.set(w.path, out);
       }),
+      releaseTemp: vi.fn(async () => true),
       readFileBytes: vi.fn(async (path: string) => {
         const b = disk.get(path) ?? new Uint8Array();
         return b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength);
@@ -128,5 +129,56 @@ describe("native-media-bridge", () => {
 
   it("probeAudioStreamCountViaNative returns the stream count", async () => {
     expect(await probeAudioStreamCountViaNative(new File([new Uint8Array([1])], "in.mp4"))).toBe(1);
+  });
+
+  it("materializes a blob once across probe and extract", async () => {
+    const blob = new Blob([new Uint8Array([1, 2, 3, 4])], { type: "video/mp4" });
+    await probeAudioStreamCountViaNative(blob);
+    await extractAudioWavViaNative(blob);
+    expect(bridgeMock().fs.tempFilePath).toHaveBeenCalledTimes(1);
+    const other = new Blob([new Uint8Array([5])], { type: "video/mp4" });
+    await probeAudioStreamCountViaNative(other);
+    expect(bridgeMock().fs.tempFilePath).toHaveBeenCalledTimes(2);
+  });
+
+  it("retries materialization after a failed write", async () => {
+    const blob = new Blob([new Uint8Array([1])], { type: "video/mp4" });
+    bridgeMock().fs.openWrite.mockRejectedValueOnce(new Error("disk full"));
+    await expect(probeAudioStreamCountViaNative(blob)).rejects.toThrow("disk full");
+    await expect(probeAudioStreamCountViaNative(blob)).resolves.toBe(1);
+  });
+
+  it("releases the oldest input copy once more than three are cached", async () => {
+    const blobs = Array.from({ length: 5 }, (_, i) => new Blob([new Uint8Array([i])], { type: "video/mp4" }));
+    for (const b of blobs) await probeAudioStreamCountViaNative(b);
+    const o = bridgeMock();
+    expect(o.fs.tempFilePath).toHaveBeenCalledTimes(5);
+    // Copies cached by earlier tests may also be evicted, so check this test's own paths.
+    const created = (await Promise.all(o.fs.tempFilePath.mock.results.map((r: { value: Promise<string> }) => r.value))) as string[];
+    const released: string[] = o.fs.releaseTemp.mock.calls.map((c: string[]) => c[0]);
+    expect(released).toEqual(expect.arrayContaining(created.slice(0, 2)));
+    for (const kept of created.slice(2)) expect(released).not.toContain(kept);
+    // The newest three stay cached and are reused.
+    await probeAudioStreamCountViaNative(blobs[4]);
+    expect(o.fs.tempFilePath).toHaveBeenCalledTimes(5);
+  });
+
+  it("does not release an evicted input copy while a job is still using it", async () => {
+    const o = bridgeMock();
+    let finish!: () => void;
+    o.media.generateProxy = vi.fn(async () => {
+      await new Promise<void>((r) => (finish = r));
+      disk.set("/tmp/proxy.mp4", new Uint8Array([1]));
+      return { outPath: "/tmp/proxy.mp4" };
+    });
+    const first = new Blob([new Uint8Array([1])], { type: "video/mp4" });
+    const running = proxyViaNative(first, "low");
+    await vi.waitFor(() => expect(o.media.generateProxy).toHaveBeenCalled());
+    for (let i = 0; i < 3; i++) await probeAudioStreamCountViaNative(new Blob([new Uint8Array([i])], { type: "video/mp4" }));
+    const firstPath = o.media.generateProxy.mock.calls[0][0].srcPath as string;
+    expect(o.fs.releaseTemp).not.toHaveBeenCalledWith(firstPath);
+    finish();
+    await running;
+    await vi.waitFor(() => expect(o.fs.releaseTemp).toHaveBeenCalledWith(firstPath));
   });
 });

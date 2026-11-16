@@ -25,9 +25,7 @@ import { mergeMotionShapeRings } from "./motion-shape-boolean";
 
 const OFFSET_MITER_LIMIT = 4;
 
-export type { MotionShapePathPoint } from "./motion-shape-path";
-
-export interface MotionShapeModifierPreset {
+interface MotionShapeModifierPreset {
   readonly type: MotionShapeModifier["type"];
   readonly name: string;
   readonly description: string;
@@ -62,7 +60,7 @@ export type MotionShapeModifierPropertyName =
 export type MotionShapeModifierProperty =
   `modifier.${string}.${MotionShapeModifierPropertyName}`;
 
-export interface MotionShapeModifierPropertyDescriptor {
+interface MotionShapeModifierPropertyDescriptor {
   readonly property: MotionShapeModifierPropertyName;
   readonly label: string;
   readonly min: number;
@@ -72,7 +70,7 @@ export interface MotionShapeModifierPropertyDescriptor {
   readonly defaultValue: number;
 }
 
-export interface MotionRepeaterCopyTransform {
+interface MotionRepeaterCopyTransform {
   readonly index: number;
   readonly amount: number;
   readonly position: {
@@ -134,7 +132,7 @@ const MOTION_SHAPE_MODIFIER_PROPERTY_DESCRIPTORS: Record<
   ],
 };
 
-export const MOTION_SHAPE_MODIFIER_PRESETS: readonly MotionShapeModifierPreset[] = [
+const MOTION_SHAPE_MODIFIER_PRESETS: readonly MotionShapeModifierPreset[] = [
   {
     type: "trim-paths",
     name: "Trim Paths",
@@ -367,7 +365,7 @@ export function getMotionWigglePathsModifier(
   );
 }
 
-export function getMotionOffsetPathsModifier(
+function getMotionOffsetPathsModifier(
   layer: MotionShapeLayer,
 ): MotionOffsetPathsModifier | undefined {
   return (layer.modifiers ?? []).find(
@@ -376,7 +374,7 @@ export function getMotionOffsetPathsModifier(
   );
 }
 
-export function getMotionPuckerBloatModifier(
+function getMotionPuckerBloatModifier(
   layer: MotionShapeLayer,
 ): MotionPuckerBloatModifier | undefined {
   return (layer.modifiers ?? []).find(
@@ -385,7 +383,7 @@ export function getMotionPuckerBloatModifier(
   );
 }
 
-export function getMotionTwistModifier(
+function getMotionTwistModifier(
   layer: MotionShapeLayer,
 ): MotionTwistModifier | undefined {
   return (layer.modifiers ?? []).find(

@@ -1,278 +1,192 @@
-import "../../../test/install-local-storage-mock";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import type { Clip } from "@openreel/core";
-import { disposeTransitionBridge } from "../../../bridges/transition-bridge";
-import { createEmptyProject } from "../../../stores/project/project-helpers";
-import { useProjectStore } from "../../../stores/project-store";
-import { useUIStore } from "../../../stores/ui-store";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EffectsPanel, TransitionsPanel } from "./EffectsTransitionsPanel";
+import { type Clip } from "@openreel/core";
+import { useUIStore } from "../../../stores/ui-store";
+import { useInspectorNavigationStore } from "../../../stores/inspector-navigation-store";
+import { useProjectStore } from "../../../stores/project-store";
+import { useEditorWorkspaceStore } from "../../../stores/editor-workspace-store";
+import { getTransitionBridge } from "../../../bridges/transition-bridge";
 
-describe("editor effect and transition catalogs", () => {
-  beforeEach(() => {
-    useUIStore.getState().clearSelection();
-  });
+beforeEach(() => {
+  useProjectStore.getState().createNewProject("Transition catalog QA");
+  useEditorWorkspaceStore.getState().setTransitionDuration(0.5);
+  useUIStore.getState().clearSelection();
+});
 
-  afterEach(() => {
-    cleanup();
-    disposeTransitionBridge();
-    useUIStore.getState().clearSelection();
+describe("effect library categories", () => {
+  it("updates keying availability when selection changes and opens the actual inspector section", () => {
+    const project = useProjectStore.getState().project;
+    const track = project.timeline.tracks.find(
+      (candidate) => candidate.name === "Main",
+    )!;
+    const clip = {
+      id: "keying-target",
+      trackId: track.id,
+      mediaId: "media",
+      startTime: 0,
+      duration: 5,
+      inPoint: 0,
+      outPoint: 5,
+      volume: 1,
+      effects: [],
+      audioEffects: [],
+      keyframes: [],
+      transform: {
+        position: { x: 0, y: 0 },
+        scale: { x: 1, y: 1 },
+        anchor: { x: 0.5, y: 0.5 },
+        rotation: 0,
+        opacity: 1,
+      },
+    };
     useProjectStore.setState({
-      hasOpenProject: false,
-      project: createEmptyProject("Reset"),
-    });
-  });
-
-  it("offers directional transition variants with animated preview cards", () => {
-    render(<TransitionsPanel />);
-
-    expect(
-      screen.getByRole("button", {
-        name: /^Wipe Left\. Drag onto a clip edge/i,
-      }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", {
-        name: /^Slide Down\. Drag onto a clip edge/i,
-      }),
-    ).toBeInTheDocument();
-    expect(screen.getByText("Whip Pan")).toBeInTheDocument();
-    expect(screen.getByText("Soft Wipe Left")).toBeInTheDocument();
-    expect(screen.getByText("Push Down")).toBeInTheDocument();
-    expect(screen.getByText("Punch Zoom")).toBeInTheDocument();
-    expect(screen.getByText("Pixelate")).toBeInTheDocument();
-    expect(screen.getByText("Glitch Cut")).toBeInTheDocument();
-    expect(screen.getByText("Venetian Blinds")).toBeInTheDocument();
-    expect(screen.getByText("Diamond Reveal")).toBeInTheDocument();
-    expect(screen.getByText("Spin Clockwise")).toBeInTheDocument();
-    expect(screen.getByText("Flip Vertical")).toBeInTheDocument();
-    expect(screen.getByText("Split Horizontal")).toBeInTheDocument();
-    expect(screen.getByText("Flash Cut")).toBeInTheDocument();
-    expect(screen.getByText("Film Burn")).toBeInTheDocument();
-    expect(screen.getByText("Red Film Burn")).toBeInTheDocument();
-    expect(screen.getByText("Cool Light Leak")).toBeInTheDocument();
-    expect(screen.getByText("Mosaic Reveal")).toBeInTheDocument();
-    expect(screen.getByText("Ripple")).toBeInTheDocument();
-    expect(screen.getByText("Page Turn Left")).toBeInTheDocument();
-    expect(screen.getByText("Page Turn Right")).toBeInTheDocument();
-    expect(screen.getByText("Color Split")).toBeInTheDocument();
-    for (const category of ["Dissolves", "Wipes", "Movement", "Stylized"]) {
-      expect(screen.getByText(category)).toBeInTheDocument();
-    }
-  });
-
-  it("filters the expanded transition library by production category", () => {
-    render(<TransitionsPanel />);
-
-    fireEvent.click(screen.getByRole("button", { name: "Stylized 13" }));
-
-    expect(screen.getByRole("button", { name: "Stylized 13" })).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
-    expect(screen.getByText("Film Burn")).toBeInTheDocument();
-    expect(screen.getByText("Punch Zoom")).toBeInTheDocument();
-    expect(screen.queryByText("Wipe Left")).not.toBeInTheDocument();
-    expect(screen.queryByText("Push Down")).not.toBeInTheDocument();
-  });
-
-  it("includes tonal balance and chroma key in the effect browser", () => {
-    render(<EffectsPanel />);
-
-    expect(screen.getByText("Tonal Balance")).toBeInTheDocument();
-    expect(screen.getByText("Chroma Key")).toBeInTheDocument();
-    expect(screen.getByText("Cinematic Punch")).toBeInTheDocument();
-    expect(screen.getByText("Golden Hour")).toBeInTheDocument();
-    expect(screen.getByText("Soft Focus")).toBeInTheDocument();
-    expect(screen.getByText("Dream Bloom")).toBeInTheDocument();
-    expect(screen.getByText("Retro Grain")).toBeInTheDocument();
-    expect(screen.getByText("RGB Split")).toBeInTheDocument();
-    expect(screen.getByText("VHS")).toBeInTheDocument();
-    expect(screen.getByText("Posterize")).toBeInTheDocument();
-    expect(screen.getByText("Duotone")).toBeInTheDocument();
-    expect(screen.getByText("Prism Split")).toBeInTheDocument();
-    expect(screen.getByText("Fisheye")).toBeInTheDocument();
-    expect(screen.getByText("Wave Warp")).toBeInTheDocument();
-    expect(screen.getByText("Scanlines")).toBeInTheDocument();
-    expect(screen.getByText("Edge Glow")).toBeInTheDocument();
-    const preview = screen
-      .getByRole("button", {
-        name: /^Golden Hour\. Drag onto a clip to apply/i,
-      })
-      .querySelector('[data-effect-preview="golden-hour"]');
-    expect(preview).toHaveAttribute("data-preview-progress", "0.72");
-  });
-
-  it("filters visual effects by category without losing previews", () => {
-    render(<EffectsPanel />);
-
-    fireEvent.click(screen.getByRole("button", { name: "Stylize 10" }));
-
-    expect(screen.getByRole("button", { name: "Stylize 10" })).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
-    expect(screen.getByText("Dream Bloom")).toBeInTheDocument();
-    expect(screen.getByText("RGB Split")).toBeInTheDocument();
-    expect(screen.queryByText("Brightness")).not.toBeInTheDocument();
-    expect(screen.queryByText("Golden Hour")).not.toBeInTheDocument();
-    expect(document.querySelectorAll("[data-effect-preview]")).toHaveLength(10);
-  });
-
-  it("applies curated effect parameters to the selected overlay", async () => {
-    useProjectStore.getState().createNewProject("Curated effect application");
-    await useProjectStore.getState().addTrack("text");
-    const textTrack = useProjectStore
-      .getState()
-      .project.timeline.tracks.find((track) => track.type === "text");
-    if (!textTrack) throw new Error("text track not created");
-    const textClip = useProjectStore
-      .getState()
-      .createTextClip(textTrack.id, 0, "Golden title", 5);
-    if (!textClip) throw new Error("text clip not created");
-    useUIStore
-      .getState()
-      .select({ type: "clip", id: textClip.id, trackId: textTrack.id });
-    render(<EffectsPanel />);
-
-    fireEvent.doubleClick(
-      screen.getByRole("button", {
-        name: /^Golden Hour\. Drag onto a clip to apply/i,
-      }),
-    );
-    fireEvent.doubleClick(
-      screen.getByRole("button", {
-        name: /^VHS\. Drag onto a clip to apply/i,
-      }),
-    );
-
-    await waitFor(() => {
-      expect(
-        useProjectStore
-          .getState()
-          .project.textClips?.find((clip) => clip.id === textClip.id)
-          ?.effects,
-      ).toEqual([
-        expect.objectContaining({
-          type: "temperature",
-          params: { value: 35 },
-        }),
-        expect.objectContaining({
-          type: "shader",
-          params: {
-            shaderId: "vhs",
-            intensity: 0.75,
-            scanlines: 0.4,
-            jitter: 0.45,
-          },
-        }),
-      ]);
-    });
-  });
-
-  it("double-clicks an effect onto a selected text overlay", async () => {
-    useProjectStore.getState().createNewProject("Text effect application");
-    await useProjectStore.getState().addTrack("text");
-    const textTrack = useProjectStore
-      .getState()
-      .project.timeline.tracks.find((track) => track.type === "text");
-    if (!textTrack) throw new Error("text track not created");
-    const textClip = useProjectStore
-      .getState()
-      .createTextClip(textTrack.id, 0, "Effect title", 5);
-    if (!textClip) throw new Error("text clip not created");
-    useUIStore
-      .getState()
-      .select({ type: "clip", id: textClip.id, trackId: textTrack.id });
-    render(<EffectsPanel />);
-
-    fireEvent.doubleClick(
-      screen.getByRole("button", {
-        name: /^Brightness\. Drag onto a clip to apply/i,
-      }),
-    );
-
-    await waitFor(() => {
-      expect(
-        useProjectStore
-          .getState()
-          .project.textClips?.find((clip) => clip.id === textClip.id)
-          ?.effects,
-      ).toEqual([
-        expect.objectContaining({ type: "brightness", enabled: true }),
-      ]);
-    });
-  });
-
-  it("double-clicks a preview variant onto the selected cut with its params", async () => {
-    const first = clip("transition-a", 0);
-    const second = clip("transition-b", 3);
-    const project = createEmptyProject("Transition application");
-    useProjectStore.setState({
-      hasOpenProject: true,
       project: {
         ...project,
         timeline: {
           ...project.timeline,
-          duration: 6,
-          tracks: [
-            {
-              id: "transition-track",
-              type: "video",
-              name: "Video",
-              clips: [first, second],
-              transitions: [],
-              locked: false,
-              hidden: false,
-              muted: false,
-              solo: false,
-            },
-          ],
+          tracks: project.timeline.tracks.map((candidate) =>
+            candidate.id === track.id
+              ? { ...candidate, clips: [clip] }
+              : candidate,
+          ),
         },
       },
     });
-    useUIStore.getState().selectMultiple([
-      { type: "clip", id: first.id, trackId: first.trackId },
-      { type: "clip", id: second.id, trackId: second.trackId },
-    ]);
-    render(<TransitionsPanel />);
-
-    fireEvent.doubleClick(
-      screen.getByRole("button", { name: /Page Turn Right\. Drag onto/i }),
+    render(<EffectsPanel />);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Keying" }),
     );
-
-    await waitFor(() => {
-      const transition =
-        useProjectStore.getState().project.timeline.tracks[0]?.transitions[0];
-      expect(transition).toMatchObject({
-        clipAId: first.id,
-        clipBId: second.id,
-        type: "pageTurn",
-        params: { direction: "right", shadow: 0.55 },
-      });
+    expect(
+      screen.getByRole("button", { name: "Configure chroma key" }),
+    ).toBeDisabled();
+    act(() =>
+      useUIStore
+        .getState()
+        .select({ type: "clip", id: clip.id, trackId: track.id }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Configure chroma key" }),
+    );
+    expect(useInspectorNavigationStore.getState().request).toMatchObject({
+      sectionId: "chroma-key",
+      clipId: clip.id,
     });
   });
 });
+afterEach(cleanup);
+describe("transition library", () => {
+  it("keeps used markers in sync with real transition edits, Undo and Redo", async () => {
+    const initial = useProjectStore.getState().project;
+    const track = initial.timeline.tracks.find(item => item.type === "video")!;
+    const clip = (id: string, startTime: number): Clip => ({
+      id, trackId: track.id, startTime, mediaId: "media", duration: 4, inPoint: 0, outPoint: 4,
+      volume: 1, effects: [], audioEffects: [], keyframes: [],
+      transform: { position: { x: 0, y: 0 }, scale: { x: 1, y: 1 },
+        anchor: { x: 0.5, y: 0.5 }, rotation: 0, opacity: 1 },
+    });
+    useProjectStore.setState({ project: { ...initial, timeline: { ...initial.timeline,
+      tracks: initial.timeline.tracks.map(item => item.id === track.id
+        ? { ...item, clips: [clip("a", 0), clip("b", 4)] } : item),
+    } } });
+    useUIStore.getState().select({ type: "clip", id: "a", trackId: track.id });
+    render(<TransitionsPanel />);
+    const card = (name: string) => screen.getByRole("button", { name: new RegExp(`^${name}\\. Drag`) });
+    expect(screen.queryByLabelText("Used in timeline")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Search transitions" }));
+    fireEvent.click(card("Wipe Right"));
+    expect(card("Wipe Right")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Apply Wipe Right to the cut" })).toBeInTheDocument();
+    await act(async () => fireEvent.keyDown(card("Wipe Right"), { key: "Enter" }));
+    const transition = useProjectStore.getState().project.timeline.tracks
+      .flatMap(item => item.transitions).find(item => item.clipAId === "a")!;
+    expect(transition).toMatchObject({ type: "wipe", duration: 0.5, params: { direction: "right" } });
+    expect(within(card("Wipe Right")).getByLabelText("Used in timeline")).toBeInTheDocument();
+    expect(within(card("Wipe left")).queryByLabelText("Used in timeline")).toBeNull();
+    await act(async () => { await useProjectStore.getState().updateClipTransition(transition.id,
+      { params: { direction: "diagonal", softness: 0 } }); });
+    expect(within(card("Wipe Right")).queryByLabelText("Used in timeline")).toBeNull();
+    expect(within(card("Diagonal wipe")).getByLabelText("Used in timeline")).toBeInTheDocument();
+    await act(async () => { expect((await useProjectStore.getState().undo()).success).toBe(true); });
+    expect(within(card("Wipe Right")).getByLabelText("Used in timeline")).toBeInTheDocument();
+    await act(async () => { expect((await useProjectStore.getState().redo()).success).toBe(true); });
+    expect(within(card("Diagonal wipe")).getByLabelText("Used in timeline")).toBeInTheDocument();
+    await act(async () => { expect(await useProjectStore.getState().removeClipTransition(transition.id)).toBe(true); });
+    expect(screen.queryByLabelText("Used in timeline")).toBeNull();
+    await act(async () => { expect((await useProjectStore.getState().undo()).success).toBe(true); });
+    expect(within(card("Diagonal wipe")).getByLabelText("Used in timeline")).toBeInTheDocument();
+    await act(async () => { await useProjectStore.getState().updateClipTransition(transition.id,
+      { type: "zoom", params: { scale: 2, center: { y: 0.15, x: 0.15 } } }); });
+    expect(within(card("Zoom Top Left")).getByLabelText("Used in timeline")).toBeInTheDocument();
+    expect(within(card("Zoom Bottom Right")).queryByLabelText("Used in timeline")).toBeNull();
+    await act(async () => {
+      await useProjectStore.getState().removeClipTransition(transition.id);
+      await useProjectStore.getState().addClipTransition({ ...transition, type: "wipe", params: {} });
+    });
+    expect(within(card("Wipe left")).getByLabelText("Used in timeline")).toBeInTheDocument();
+    expect(within(card("Diagonal wipe")).queryByLabelText("Used in timeline")).toBeNull();
+  });
 
-function clip(id: string, startTime: number): Clip {
-  return {
-    id,
-    mediaId: `media-${id}`,
-    trackId: "transition-track",
-    startTime,
-    duration: 3,
-    inPoint: 0,
-    outPoint: 3,
-    effects: [],
-    audioEffects: [],
-    transform: {
-      position: { x: 0, y: 0 },
-      scale: { x: 1, y: 1 },
-      rotation: 0,
-      anchor: { x: 0.5, y: 0.5 },
-      opacity: 1,
-    },
-    volume: 1,
-    keyframes: [],
-  };
-}
+  it("counts only the unlocked visual cuts that bulk apply will attempt", async () => {
+    const initial = useProjectStore.getState().project;
+    const makeClip = (id: string, trackId: string, startTime: number): Clip => ({
+      id, trackId, startTime, mediaId: "media", duration: 1, inPoint: 0, outPoint: 1,
+      volume: 1, effects: [], audioEffects: [], keyframes: [],
+      transform: { position: { x: 0, y: 0 }, scale: { x: 1, y: 1 },
+        anchor: { x: 0.5, y: 0.5 }, rotation: 0, opacity: 1 },
+    });
+    const main = initial.timeline.tracks.find(track => track.name === "Main")!;
+    const broll = initial.timeline.tracks.find(track => track.name === "B-roll")!;
+    const tracks = initial.timeline.tracks.map(track => ({
+      ...track,
+      clips: track.id === main.id
+        ? [makeClip("main-2", track.id, 2), makeClip("main-0", track.id, 0), makeClip("main-1", track.id, 1)]
+        : track.id === broll.id
+          ? [makeClip("broll-0", track.id, 0), makeClip("broll-1", track.id, 3)]
+          : track.type === "audio"
+            ? [makeClip(`${track.id}-0`, track.id, 0), makeClip(`${track.id}-1`, track.id, 1)] : [],
+    }));
+    useProjectStore.setState({ project: { ...initial, timeline: { ...initial.timeline, tracks } } });
+    render(<TransitionsPanel />);
+    expect(screen.getByRole("button", { name: "Apply Cross dissolve to all 2 cuts" })).toBeInTheDocument();
+    act(() => useProjectStore.setState(state => ({ project: {
+      ...state.project, timeline: { ...state.project.timeline,
+        tracks: state.project.timeline.tracks.map(track => track.id === main.id ? { ...track, locked: true } : track),
+      },
+    } })));
+    expect(screen.getByRole("button", { name: "Apply Cross dissolve to all cuts" })).toBeInTheDocument();
+    act(() => useProjectStore.setState(state => ({ project: {
+      ...state.project, timeline: { ...state.project.timeline,
+        tracks: state.project.timeline.tracks.map(track => track.id === main.id ? { ...track, locked: false }
+          : track.id === broll.id ? { ...track, clips: [makeClip("broll-0", track.id, 0), makeClip("broll-1", track.id, 1)] } : track),
+      },
+    } })));
+    const button = screen.getByRole("button", { name: "Apply Cross dissolve to all 3 cuts" });
+    const bridge = getTransitionBridge();
+    const ready = vi.spyOn(bridge, "isInitialized").mockReturnValue(true);
+    const create = vi.spyOn(bridge, "createTransition").mockReturnValue({ success: false, error: "Test rejection" });
+    try {
+      await act(async () => fireEvent.click(button));
+      expect(create.mock.calls.map(([a, b]) => [a.id, b.id])).toEqual([
+        ["broll-0", "broll-1"], ["main-0", "main-1"], ["main-1", "main-2"],
+      ]);
+    } finally { create.mockRestore(); ready.mockRestore(); }
+  });
+  it("commits the displayed default duration as seconds for drag and apply actions", () => {
+    render(<TransitionsPanel />);
+    const input = screen.getByRole("textbox", {
+      name: "Default transition duration",
+    });
+    expect(input).toHaveValue("00:00:00:15");
+    fireEvent.change(input, { target: { value: "00:00:01:00" } });
+    fireEvent.blur(input);
+    expect(useEditorWorkspaceStore.getState().transitionDuration).toBe(1);
+  });
+});

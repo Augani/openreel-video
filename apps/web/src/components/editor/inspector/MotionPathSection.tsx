@@ -1,10 +1,10 @@
 import React, { useCallback, useMemo, useState } from "react";
-import { ToolcraftButton as Button } from "@openreel/ui";
-import { ToolcraftCard as Card } from "@openreel/ui";
-import { ToolcraftClickableCard as ClickableCard } from "@openreel/ui";
-import { ToolcraftIconButton as IconButton } from "@openreel/ui";
-import { ToolcraftText as Text } from "@openreel/ui";
-import { MockToggle } from "./shell/InspectorControls";
+import { Button, cn } from "@openreel/ui";
+import { Card } from "@openreel/ui";
+
+
+
+import { InspectorToggle } from "./shell/InspectorControls";
 import { Route, Trash2, Plus, Eye, EyeOff } from "@/icons/lucide-compat";
 import { useProjectStore } from "../../../stores/project-store";
 import { useUIStore } from "../../../stores/ui-store";
@@ -152,9 +152,9 @@ export const MotionPathSection: React.FC<MotionPathSectionProps> = ({
 
   if (!clip) {
     return (
-      <Text type="supporting" color="secondary" className="py-8 text-center text-xs">
+      <span className="text-fg-2 font-normal py-8 text-center text-xs">
         No clip selected
-      </Text>
+      </span>
     );
   }
 
@@ -169,11 +169,11 @@ export const MotionPathSection: React.FC<MotionPathSectionProps> = ({
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Route size={14} className="text-primary" />
-          <Text type="supporting" color="primary" className="text-xs font-medium">
+          <span className="text-fg text-xs font-medium">
             Motion Path
-          </Text>
+          </span>
         </div>
-        <MockToggle
+        <InspectorToggle
           ariaLabel="Enable motion path"
           checked={isEnabled}
           onChange={handleEnableToggle}
@@ -182,32 +182,27 @@ export const MotionPathSection: React.FC<MotionPathSectionProps> = ({
 
       {isEnabled && (
         <>
-          <Card variant="muted" padding={3} className="space-y-3">
+          <Card className="min-w-0 rounded-[7px] border shadow-none border-transparent bg-bg-2 text-fg p-3 space-y-3">
             <div className="flex items-center justify-between">
-              <Text type="supporting" color="secondary" className="text-[10px]">
+              <span className="text-fg-2 font-normal text-[10px]">
                 Show Path
-              </Text>
+              </span>
               <div className="flex items-center gap-2">
-                <IconButton
-                  label={showPath ? "Hide path" : "Show path"}
-                  icon={showPath ? <Eye size={12} /> : <EyeOff size={12} />}
-                  variant={showPath ? "primary" : "secondary"}
-                  size="sm"
-                  onClick={() => handleShowPathToggle(!showPath)}
-                  className={`p-1.5 rounded transition-colors ${
+                <Button variant="ghost" size="icon-sm" onClick={() => handleShowPathToggle(!showPath)} type="button" aria-label={showPath ? "Hide path" : "Show path"} title={showPath ? "Hide path" : "Show path"} className={cn("inline-flex shrink-0 items-center justify-center rounded-[7px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50", "h-7 w-7", (showPath ? "bg-accent text-accent-fg hover:bg-accent/90" : "border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg"), `p-1.5 rounded transition-colors ${
                     showPath
                       ? "bg-primary/20 text-primary"
                       : "bg-bg-elev text-fg-3"
-                  }`}
-                />
+                  }`)}>
+                  {showPath ? <Eye size={12} /> : <EyeOff size={12} />}
+                </Button>
               </div>
             </div>
 
             <div className="flex items-center justify-between">
-              <Text type="supporting" color="secondary" className="text-[10px]">
+              <span className="text-fg-2 font-normal text-[10px]">
                 Auto Orient
-              </Text>
-              <MockToggle
+              </span>
+              <InspectorToggle
                 ariaLabel="Auto Orient"
                 checked={autoOrient}
                 onChange={handleAutoOrientToggle}
@@ -215,91 +210,72 @@ export const MotionPathSection: React.FC<MotionPathSectionProps> = ({
             </div>
 
             <div className="space-y-1">
-              <Text type="supporting" color="secondary" className="text-[10px]">
+              <span className="text-fg-2 font-normal text-[10px]">
                 Path Type
-              </Text>
+              </span>
               <div className="grid grid-cols-3 gap-1">
                 {(["linear", "bezier", "catmull-rom"] as const).map((type) => (
-                  <ClickableCard
-                    key={type}
-                    label={`Set path type to ${type}`}
-                    onClick={() => handlePathTypeChange(type)}
-                    className={`py-1.5 rounded text-[9px] capitalize transition-colors ${
+                  <Button variant="ghost" key={type} onClick={() => handlePathTypeChange(type)} type="button" aria-label={`Set path type to ${type}`} className={cn("group/card block h-auto min-w-0 whitespace-normal rounded-[7px] border text-left transition-[background-color,border-color,box-shadow,transform] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50", "border-border bg-bg-1 hover:bg-bg-2", "p-3", `py-1.5 rounded text-[9px] capitalize transition-colors ${
                       pathType === type
                         ? "bg-primary text-white"
                         : "bg-bg-elev border border-border text-fg-2 hover:text-fg"
-                    }`}
-                  >
+                    }`)}>
                     {type === "catmull-rom" ? "Smooth" : type}
-                  </ClickableCard>
+                  </Button>
                 ))}
               </div>
             </div>
           </Card>
 
-          <Card variant="muted" padding={3} className="flex items-center justify-between">
+          <Card className="min-w-0 rounded-[7px] border shadow-none border-transparent bg-bg-2 text-fg p-3 flex items-center justify-between">
             <div className="flex flex-col gap-0.5">
-              <Text type="supporting" color="secondary" className="text-[10px]">
+              <span className="text-fg-2 font-normal text-[10px]">
                 Path Points
-              </Text>
-              <Text type="body" color="primary" className="text-sm font-medium">
+              </span>
+              <span className="text-fg text-sm font-medium">
                 {pointCount} points
-              </Text>
+              </span>
             </div>
             <div className="flex items-center gap-1">
-              <IconButton
-                label="Add point"
-                icon={<Plus size={12} />}
-                variant="primary"
-                size="sm"
-                onClick={handleAddPoint}
-                className="p-1.5 rounded bg-primary/20 text-primary hover:bg-primary/30 transition-colors"
-              />
-              <IconButton
-                label="Clear path"
-                icon={<Trash2 size={12} />}
-                variant="secondary"
-                size="sm"
-                onClick={handleClearPath}
-                className="p-1.5 rounded bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-colors"
-              />
+              <Button variant="ghost" size="icon-sm" onClick={handleAddPoint} type="button" aria-label="Add point" title="Add point" className="inline-flex shrink-0 items-center justify-center outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 w-7 p-1.5 rounded bg-primary/20 text-primary hover:bg-primary/30 transition-colors">
+                {<Plus size={12} />}
+              </Button>
+              <Button variant="ghost" size="icon-sm" onClick={handleClearPath} type="button" aria-label="Clear path" title="Clear path" className="inline-flex shrink-0 items-center justify-center outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 w-7 border border-border hover:text-fg p-1.5 rounded bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-colors">
+                {<Trash2 size={12} />}
+              </Button>
             </div>
           </Card>
 
-          <Button
-            label={isEditing ? "Exit Edit Mode" : "Edit Path on Canvas"}
-            icon={<Route size={14} />}
-            variant={isEditing ? "primary" : "secondary"}
-            size="sm"
-            onClick={handleEditMode}
-            className={`w-full ${
+          <Button onClick={handleEditMode} type="button" aria-label={(isEditing ? "Exit Edit Mode" : "Edit Path on Canvas").trim() || undefined} className={cn("inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50", "h-7 px-2.5 text-[12px]", (isEditing ? "bg-accent text-accent-fg hover:bg-accent/90" : "border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg"), `w-full ${
               isEditing
                 ? "bg-primary text-white"
                 : "bg-bg-2 text-fg border border-border hover:bg-bg-elev"
-            }`}
-          />
+            }`)}>
+            <span className="flex h-4 w-4 shrink-0 items-center justify-center">{<Route size={14} />}</span>
+            <span className="truncate">{isEditing ? "Exit Edit Mode" : "Edit Path on Canvas"}</span>
+          </Button>
 
           {isEditing && (
-            <Card variant="muted" padding={2} className="border border-primary/30 bg-primary/10">
-              <Text type="supporting" className="text-[9px] text-primary">
-                <Text as="span" type="supporting" className="font-medium text-primary">
+            <Card className="min-w-0 rounded-[7px] shadow-none text-fg p-2 border border-primary/30 bg-primary/10">
+              <span className="font-normal text-[9px] text-primary">
+                <span className="text-[12px] leading-5 font-medium text-primary">
                   Editing:
-                </Text>{" "}
+                </span>{" "}
                 Click on the path
                 to add points. Drag points to move them. Right-click to remove.
                 Drag handles to adjust curves.
-              </Text>
+              </span>
             </Card>
           )}
 
-          <Card variant="muted" padding={2} className="border border-border bg-bg-2/50">
-            <Text type="supporting" color="secondary" className="text-[9px]">
-              <Text as="span" type="supporting" className="font-medium text-fg-2">
+          <Card className="min-w-0 rounded-[7px] shadow-none text-fg p-2 border border-border bg-bg-2/50">
+            <span className="text-fg-2 font-normal text-[9px]">
+              <span className="text-[12px] leading-5 font-medium text-fg-2">
                 Tip:
-              </Text>{" "}
+              </span>{" "}
               Motion paths animate the clip's position along a curved path over
               time. Use bezier handles for smooth curves.
-            </Text>
+            </span>
           </Card>
         </>
       )}
@@ -307,4 +283,3 @@ export const MotionPathSection: React.FC<MotionPathSectionProps> = ({
   );
 };
 
-export default MotionPathSection;

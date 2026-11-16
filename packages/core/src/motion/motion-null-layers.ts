@@ -1,7 +1,7 @@
 import type { MotionComposition, MotionNullLayer, MotionVector2 } from "./types";
 import { DEFAULT_MOTION_TRANSFORM } from "./types";
 
-export interface CreateMotionNullLayerOptions {
+interface CreateMotionNullLayerOptions {
   readonly id?: string;
   readonly name?: string;
   readonly startTime?: number;
@@ -41,18 +41,12 @@ export function createMotionNullLayer(
   });
 }
 
-export function normalizeMotionNullLayer(layer: MotionNullLayer): MotionNullLayer {
+function normalizeMotionNullLayer(layer: MotionNullLayer): MotionNullLayer {
   return {
     ...layer,
     guideColor: normalizeColor(layer.guideColor, "#14b8a6"),
     guideSize: clamp(finite(layer.guideSize, 48), 12, 240),
   };
-}
-
-export function isMotionControllerLayer(
-  layer: { readonly type: string },
-): layer is MotionNullLayer {
-  return layer.type === "null";
 }
 
 function normalizeColor(color: string | undefined, fallback: string): string {

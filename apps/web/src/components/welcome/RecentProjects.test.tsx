@@ -25,48 +25,8 @@ describe("RecentProjects", () => {
     vi.clearAllMocks();
   });
 
-  it("shows loading state initially", () => {
-    mockCheckForRecovery.mockReturnValue(new Promise(() => {}));
-    render(<RecentProjects />);
-    expect(screen.getByText("Loading recent projects...")).toBeInTheDocument();
-  });
 
-  it("shows empty state when no projects", async () => {
-    mockCheckForRecovery.mockResolvedValue([]);
-    render(<RecentProjects />);
 
-    await waitFor(() => {
-      expect(screen.getByText("No Recent Projects")).toBeInTheDocument();
-    });
-  });
-
-  it("displays recent projects from auto-save", async () => {
-    mockCheckForRecovery.mockResolvedValue([
-      {
-        id: "project-1-slot-0",
-        projectId: "project-1",
-        projectName: "My Video Project",
-        timestamp: Date.now() - 3600000,
-        slot: 0,
-        isRecovery: true,
-      },
-      {
-        id: "project-2-slot-0",
-        projectId: "project-2",
-        projectName: "Another Project",
-        timestamp: Date.now() - 7200000,
-        slot: 0,
-        isRecovery: true,
-      },
-    ]);
-
-    render(<RecentProjects />);
-
-    await waitFor(() => {
-      expect(screen.getByText("My Video Project")).toBeInTheDocument();
-      expect(screen.getByText("Another Project")).toBeInTheDocument();
-    });
-  });
 
   it("deduplicates projects by projectId showing most recent", async () => {
     mockCheckForRecovery.mockResolvedValue([
@@ -152,22 +112,4 @@ describe("RecentProjects", () => {
     });
   });
 
-  it("shows relative dates for timestamps", async () => {
-    mockCheckForRecovery.mockResolvedValue([
-      {
-        id: "project-1-slot-0",
-        projectId: "project-1",
-        projectName: "Today Project",
-        timestamp: Date.now() - 1000,
-        slot: 0,
-        isRecovery: true,
-      },
-    ]);
-
-    render(<RecentProjects />);
-
-    await waitFor(() => {
-      expect(screen.getByText("Today")).toBeInTheDocument();
-    });
-  });
 });

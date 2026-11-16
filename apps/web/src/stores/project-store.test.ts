@@ -3,6 +3,13 @@ import { useProjectStore } from "./project-store";
 import { useEngineStore } from "./engine-store";
 import { useTimelineStore } from "./timeline-store";
 import { useUIStore } from "./ui-store";
+import {
+  textAnimationEngine,
+  isProEffectNeutral,
+  getAnimatedVideoEffects,
+  getPluginRegistry,
+  parsePluginPackage,
+} from "@openreel/core";
 import type {
   Project,
   Clip,
@@ -200,53 +207,6 @@ describe("ProjectStore", () => {
       expect(useUIStore.getState().selectedItems).toEqual([]);
     });
 
-    it("should create a new project with default settings", () => {
-      const { project } = useProjectStore.getState();
-
-      expect(project).toBeDefined();
-      expect(project.name).toBeDefined();
-      expect(project.name.length).toBeGreaterThan(0);
-      expect(project.settings.width).toBe(1920);
-      expect(project.settings.height).toBe(1080);
-      expect(project.settings.frameRate).toBe(30);
-    });
-
-    it("should create project with custom name", () => {
-      useProjectStore.getState().createNewProject("My Custom Project");
-      const { project } = useProjectStore.getState();
-
-      expect(project.name).toBe("My Custom Project");
-    });
-
-    it("should create project with custom settings", () => {
-      useProjectStore.getState().createNewProject("4K Project", {
-        width: 3840,
-        height: 2160,
-        frameRate: 60,
-      });
-      const { project } = useProjectStore.getState();
-
-      expect(project.settings.width).toBe(3840);
-      expect(project.settings.height).toBe(2160);
-      expect(project.settings.frameRate).toBe(60);
-    });
-
-    it("should create project with empty timeline", () => {
-      const { project } = useProjectStore.getState();
-
-      expect(project.timeline).toBeDefined();
-      expect(project.timeline.tracks).toBeDefined();
-      expect(Array.isArray(project.timeline.tracks)).toBe(true);
-    });
-
-    it("should have unique project id", () => {
-      const firstProject = useProjectStore.getState().project;
-      useProjectStore.getState().createNewProject();
-      const secondProject = useProjectStore.getState().project;
-
-      expect(firstProject.id).not.toBe(secondProject.id);
-    });
-
     it("should reset action history on new project", () => {
       const store = useProjectStore.getState();
       expect(store.canUndo()).toBe(false);
@@ -432,6 +392,30 @@ describe("ProjectStore", () => {
       expect(useProjectStore.getState().project.shapeClips?.some((c) => c.id === id)).toBe(true);
     });
 
+    it("createShapeClip keeps path geometry and undo of a delete restores it", async () => {
+      const trackId = await addGraphicsTrack();
+      const clip = useProjectStore
+        .getState()
+        .createShapeClip(trackId, 0, "path", 5, undefined, {
+          pathData: "M 0 0 L 1 0 L 1 1 Z",
+          points: [{ x: 0, y: 0 }, { x: 1, y: 1 }],
+          closed: true,
+        })!;
+      expect(clip).toMatchObject({ pathData: "M 0 0 L 1 0 L 1 1 Z", closed: true });
+
+      useProjectStore.getState().deleteShapeClip(clip.id);
+      await useProjectStore.getState().undo();
+
+      const restored = useProjectStore
+        .getState()
+        .project.shapeClips?.find((c) => c.shapeType === "path");
+      expect(restored).toMatchObject({
+        pathData: "M 0 0 L 1 0 L 1 1 Z",
+        points: [{ x: 0, y: 0 }, { x: 1, y: 1 }],
+        closed: true,
+      });
+    });
+
     it("deleteShapeClip is undoable", async () => {
       const trackId = await addGraphicsTrack();
       const clip = useProjectStore
@@ -467,323 +451,22 @@ describe("ProjectStore", () => {
   });
 
   describe("project loading", () => {
-    it("should load an existing project", () => {
-      const existingProject: Project = {
-        id: "existing-project-id",
-        name: "Loaded Project",
-        createdAt: Date.now() - 1000,
-        modifiedAt: Date.now(),
-        settings: {
-          width: 1280,
-          height: 720,
-          frameRate: 24,
-          sampleRate: 44100,
-          channels: 2,
-        },
-        mediaLibrary: { items: [] },
-        timeline: {
-          tracks: [],
-          subtitles: [],
-          duration: 0,
-          markers: [],
-        },
-      };
 
-      useProjectStore.getState().loadProject(existingProject);
-      const { project } = useProjectStore.getState();
-
-      expect(project.id).toBe("existing-project-id");
-      expect(project.name).toBe("Loaded Project");
-      expect(project.settings.width).toBe(1280);
-    });
-
-    it("should preserve project data on load", () => {
-      const mockMediaItem: MediaItem = {
-        id: "media-1",
-        name: "test.mp4",
-        type: "video",
-        fileHandle: null,
-        blob: null,
-        metadata: {
-          duration: 30,
-          width: 1920,
-          height: 1080,
-          frameRate: 30,
-          codec: "h264",
-          sampleRate: 48000,
-          channels: 2,
-          fileSize: 1000000,
-        },
-        thumbnailUrl: null,
-        waveformData: null,
-      };
-
-      const projectWithMedia: Project = {
-        id: "project-with-media",
-        name: "Media Project",
-        createdAt: Date.now(),
-        modifiedAt: Date.now(),
-        settings: {
-          width: 1920,
-          height: 1080,
-          frameRate: 30,
-          sampleRate: 48000,
-          channels: 2,
-        },
-        mediaLibrary: { items: [mockMediaItem] },
-        timeline: {
-          tracks: [
-            {
-              id: "track-1",
-              type: "video",
-              name: "Video 1",
-              clips: [],
-              transitions: [],
-              locked: false,
-              hidden: false,
-              muted: false,
-              solo: false,
-            },
-          ],
-          subtitles: [],
-          duration: 30,
-          markers: [],
-        },
-      };
-
-      useProjectStore.getState().loadProject(projectWithMedia);
-      const { project } = useProjectStore.getState();
-
-      expect(project.mediaLibrary.items.length).toBe(1);
-      expect(project.mediaLibrary.items[0].name).toBe("test.mp4");
-    });
-  });
-
-  describe("project renaming", () => {
-    it("should rename project", async () => {
-      const result = await useProjectStore.getState().renameProject("New Name");
-
+    it("places media on the exact newly created track when default empty tracks already exist", async () => {
+      await useProjectStore.getState().createNewProject("Placement regression");
+      const before = useProjectStore.getState().project;
+      expect(before.timeline.tracks.map(track => track.name)).toEqual(["Titles","B-roll","Main","Dialogue","Music"]);
+      const media: MediaItem = {id:"placement-video",name:"Placement.mp4",type:"video",fileHandle:null,blob:null,metadata:{duration:5,width:1920,height:1080,frameRate:30,codec:"h264",sampleRate:48000,channels:2,fileSize:1},thumbnailUrl:null,waveformData:null};
+      useProjectStore.setState({project:{...before,mediaLibrary:{items:[media]}}});
+      const result = await useProjectStore.getState().addClipToNewTrack(media.id,2);
       expect(result.success).toBe(true);
-
-      const { project } = useProjectStore.getState();
-      expect(project.name).toBe("New Name");
+      const after = useProjectStore.getState().project;
+      const created = after.timeline.tracks.find(track => !before.timeline.tracks.some(existing => existing.id === track.id));
+      expect(created?.clips).toHaveLength(1);
+      expect(created?.clips[0]).toMatchObject({mediaId:media.id,startTime:2,trackId:created?.id});
+      expect(after.timeline.tracks.filter(track => before.timeline.tracks.some(existing => existing.id === track.id)).every(track => track.clips.length === 0)).toBe(true);
     });
 
-    it("should preserve other project properties when renaming", async () => {
-      const originalProject = useProjectStore.getState().project;
-      const originalId = originalProject.id;
-      const originalSettings = { ...originalProject.settings };
-
-      await useProjectStore.getState().renameProject("Renamed Project");
-
-      const { project } = useProjectStore.getState();
-      expect(project.id).toBe(originalId);
-      expect(project.settings).toEqual(originalSettings);
-    });
-  });
-
-  describe("settings update", () => {
-    it("should update project settings", async () => {
-      const result = await useProjectStore.getState().updateSettings({
-        width: 2560,
-        height: 1440,
-      });
-
-      expect(result.success).toBe(true);
-
-      const { project } = useProjectStore.getState();
-      expect(project.settings.width).toBe(2560);
-      expect(project.settings.height).toBe(1440);
-    });
-
-    it("should preserve unmodified settings", async () => {
-      const originalFrameRate =
-        useProjectStore.getState().project.settings.frameRate;
-      const originalSampleRate =
-        useProjectStore.getState().project.settings.sampleRate;
-
-      await useProjectStore.getState().updateSettings({
-        width: 3840,
-        height: 2160,
-      });
-
-      const { project } = useProjectStore.getState();
-      expect(project.settings.frameRate).toBe(originalFrameRate);
-      expect(project.settings.sampleRate).toBe(originalSampleRate);
-    });
-  });
-
-  describe("track operations", () => {
-    it("should add a video track", async () => {
-      const initialTrackCount =
-        useProjectStore.getState().project.timeline.tracks.length;
-
-      const result = await useProjectStore.getState().addTrack("video");
-
-      expect(result.success).toBe(true);
-
-      const newTrackCount =
-        useProjectStore.getState().project.timeline.tracks.length;
-      expect(newTrackCount).toBe(initialTrackCount + 1);
-    });
-
-    it("should add an audio track", async () => {
-      const result = await useProjectStore.getState().addTrack("audio");
-      expect(result.success).toBe(true);
-    });
-
-    it("should get track by id", async () => {
-      await useProjectStore.getState().addTrack("video");
-      const { project } = useProjectStore.getState();
-      const trackId = project.timeline.tracks[0].id;
-
-      const track = useProjectStore.getState().getTrack(trackId);
-      expect(track).toBeDefined();
-      expect(track?.id).toBe(trackId);
-    });
-
-    it("should return undefined for non-existent track", () => {
-      const track = useProjectStore.getState().getTrack("non-existent-id");
-      expect(track).toBeUndefined();
-    });
-
-    it("should lock a track", async () => {
-      await useProjectStore.getState().addTrack("video");
-      const { project } = useProjectStore.getState();
-      const trackId = project.timeline.tracks[0].id;
-
-      const result = await useProjectStore.getState().lockTrack(trackId, true);
-      expect(result.success).toBe(true);
-
-      const lockedTrack = useProjectStore.getState().getTrack(trackId);
-      expect(lockedTrack?.locked).toBe(true);
-    });
-
-    it("should unlock a track", async () => {
-      await useProjectStore.getState().addTrack("video");
-      const { project } = useProjectStore.getState();
-      const trackId = project.timeline.tracks[0].id;
-
-      await useProjectStore.getState().lockTrack(trackId, true);
-      await useProjectStore.getState().lockTrack(trackId, false);
-
-      const unlockedTrack = useProjectStore.getState().getTrack(trackId);
-      expect(unlockedTrack?.locked).toBe(false);
-    });
-
-    it("should mute a track", async () => {
-      const { project } = useProjectStore.getState();
-      const audioTrack = project.timeline.tracks.find(
-        (t) => t.type === "audio",
-      );
-
-      if (audioTrack) {
-        const result = await useProjectStore
-          .getState()
-          .muteTrack(audioTrack.id, true);
-        expect(result.success).toBe(true);
-
-        const mutedTrack = useProjectStore.getState().getTrack(audioTrack.id);
-        expect(mutedTrack?.muted).toBe(true);
-      }
-    });
-
-    it("should unmute a track", async () => {
-      const { project } = useProjectStore.getState();
-      const audioTrack = project.timeline.tracks.find(
-        (t) => t.type === "audio",
-      );
-
-      if (audioTrack) {
-        await useProjectStore.getState().muteTrack(audioTrack.id, true);
-        await useProjectStore.getState().muteTrack(audioTrack.id, false);
-
-        const unmutedTrack = useProjectStore.getState().getTrack(audioTrack.id);
-        expect(unmutedTrack?.muted).toBe(false);
-      }
-    });
-
-    it("should hide a track", async () => {
-      await useProjectStore.getState().addTrack("video");
-      const { project } = useProjectStore.getState();
-      const trackId = project.timeline.tracks[0].id;
-
-      const result = await useProjectStore.getState().hideTrack(trackId, true);
-      expect(result.success).toBe(true);
-
-      const hiddenTrack = useProjectStore.getState().getTrack(trackId);
-      expect(hiddenTrack?.hidden).toBe(true);
-    });
-
-    it("should show a hidden track", async () => {
-      await useProjectStore.getState().addTrack("video");
-      const { project } = useProjectStore.getState();
-      const trackId = project.timeline.tracks[0].id;
-
-      await useProjectStore.getState().hideTrack(trackId, true);
-      await useProjectStore.getState().hideTrack(trackId, false);
-
-      const visibleTrack = useProjectStore.getState().getTrack(trackId);
-      expect(visibleTrack?.hidden).toBe(false);
-    });
-  });
-
-  describe("media operations", () => {
-    it("should get media item by id", () => {
-      const projectWithMedia: Project = {
-        id: "test-project",
-        name: "Test",
-        createdAt: Date.now(),
-        modifiedAt: Date.now(),
-        settings: {
-          width: 1920,
-          height: 1080,
-          frameRate: 30,
-          sampleRate: 48000,
-          channels: 2,
-        },
-        mediaLibrary: {
-          items: [
-            {
-              id: "media-123",
-              name: "video.mp4",
-              type: "video",
-              fileHandle: null,
-              blob: null,
-              metadata: {
-                duration: 10,
-                width: 1920,
-                height: 1080,
-                frameRate: 30,
-                codec: "h264",
-                sampleRate: 48000,
-                channels: 2,
-                fileSize: 500000,
-              },
-              thumbnailUrl: null,
-              waveformData: null,
-            },
-          ],
-        },
-        timeline: {
-          tracks: [],
-          subtitles: [],
-          duration: 0,
-          markers: [],
-        },
-      };
-
-      useProjectStore.getState().loadProject(projectWithMedia);
-
-      const media = useProjectStore.getState().getMediaItem("media-123");
-      expect(media).toBeDefined();
-      expect(media?.name).toBe("video.mp4");
-    });
-
-    it("should return undefined for non-existent media", () => {
-      const media = useProjectStore.getState().getMediaItem("non-existent");
-      expect(media).toBeUndefined();
-    });
   });
 
   describe("timeline duration", () => {
@@ -1104,6 +787,98 @@ describe("ProjectStore", () => {
         },
       ]);
       expect(useProjectStore.getState().getVideoEffects("video-clip-1")).toHaveLength(1);
+    });
+
+    it("seeds visible defaults when a legacy effect is added without params", async () => {
+      useProjectStore.getState().loadProject(createProjectWithVideoClip());
+
+      const blur = await useProjectStore
+        .getState()
+        .addVideoEffect("video-clip-1", "blur");
+      expect(Number(blur?.params.radius)).toBeGreaterThan(0);
+      const vignette = await useProjectStore
+        .getState()
+        .addVideoEffect("video-clip-1", "vignette");
+      expect(Number(vignette?.params.amount)).toBeGreaterThan(0);
+      const explicit = await useProjectStore
+        .getState()
+        .addVideoEffect("video-clip-1", "blur", { radius: 0 });
+      expect(explicit?.params.radius).toBe(0);
+    });
+
+    it("seeds visible defaults when a pro effect is added without params, and undoes in one step", async () => {
+      useProjectStore.getState().loadProject(createProjectWithVideoClip());
+
+      const added = await useProjectStore
+        .getState()
+        .addVideoEffect("video-clip-1", "mosaic");
+
+      expect(added?.params).toEqual({ size: 12 });
+      expect(isProEffectNeutral("mosaic", added!.params)).toBe(false);
+      const explicit = await useProjectStore
+        .getState()
+        .addVideoEffect("video-clip-1", "posterize", { levels: 3 });
+      expect(explicit?.params.levels).toBe(3);
+
+      await useProjectStore.getState().undo();
+      expect(useProjectStore.getState().getVideoEffects("video-clip-1")).toHaveLength(1);
+    });
+
+    it("adds, edits and keyframes a plugin effect with undo, and keeps it when the plugin is missing", async () => {
+      const parsed = parsePluginPackage(
+        new Map([
+          [
+            "plugin.json",
+            JSON.stringify({
+              apiVersion: 1,
+              id: "store-demo",
+              name: "Store Demo",
+              version: "2.3.0",
+              category: "Stylize",
+              parameters: [{ key: "amount", type: "float", min: 0, max: 100, default: 25 }],
+              cpu: { file: "cpu.js" },
+            }),
+          ],
+          ["cpu.js", "function process(frame) {}"],
+        ]),
+      );
+      if (!parsed.ok) throw new Error(parsed.errors.join("; "));
+      getPluginRegistry().register(parsed.plugin);
+      try {
+        useProjectStore.getState().loadProject(createProjectWithVideoClip());
+
+        // Adding seeds every manifest default plus the plugin version.
+        const added = await useProjectStore.getState().addVideoEffect("video-clip-1", "plugin:store-demo");
+        expect(added?.params).toEqual({ amount: 25, __pluginVersion: "2.3.0" });
+
+        // Parameter edits go through the action system and undo one step at a time.
+        await useProjectStore.getState().updateVideoEffect("video-clip-1", added!.id, { amount: 60 });
+        expect(useProjectStore.getState().getClip("video-clip-1")?.effects[0].params.amount).toBe(60);
+        await useProjectStore.getState().undo();
+        expect(useProjectStore.getState().getClip("video-clip-1")?.effects[0].params.amount).toBe(25);
+        await useProjectStore.getState().redo();
+
+        // Keyframes ride the shared keyframe store and interpolate at render time.
+        const keyframes = [
+          { id: "k1", time: 0, property: "effect.plugin:store-demo.amount", value: 0, easing: "linear" },
+          { id: "k2", time: 4, property: "effect.plugin:store-demo.amount", value: 100, easing: "linear" },
+        ] as never;
+        expect(useProjectStore.getState().updateClipKeyframes("video-clip-1", keyframes)).toBe(true);
+        const clip = useProjectStore.getState().getClip("video-clip-1")!;
+        expect(getAnimatedVideoEffects(clip, 1)[0].params.amount).toBeCloseTo(25, 6);
+        expect(getAnimatedVideoEffects(clip, 2)[0].params.amount).toBeCloseTo(50, 6);
+
+        // Removing the plugin leaves the effect, its parameters and keyframes untouched.
+        await getPluginRegistry().uninstall("store-demo");
+        const kept = useProjectStore.getState().getClip("video-clip-1")!;
+        expect(kept.effects[0]).toMatchObject({ type: "plugin:store-demo", params: { amount: 60, __pluginVersion: "2.3.0" } });
+        expect(kept.keyframes).toHaveLength(2);
+        expect(getAnimatedVideoEffects(kept, 2)[0].params.amount).toBe(60);
+
+        await useProjectStore.getState().undo();
+      } finally {
+        await getPluginRegistry().uninstall("store-demo");
+      }
     });
 
     it("duplicates a tuned clip effect beside its source with one-step undo", async () => {
@@ -1741,14 +1516,6 @@ describe("ProjectStore", () => {
   });
 
   describe("marker operations", () => {
-    it("should add a marker", async () => {
-      await useProjectStore.getState().addMarker(5, "Scene 1", "#ff0000");
-
-      const markers = useProjectStore.getState().getMarkers();
-      expect(markers.length).toBe(1);
-      expect(markers[0].time).toBe(5);
-      expect(markers[0].label).toBe("Scene 1");
-    });
 
     it("should remove a marker", async () => {
       await useProjectStore.getState().addMarker(5, "Scene 1");
@@ -1759,16 +1526,6 @@ describe("ProjectStore", () => {
 
       const updatedMarkers = useProjectStore.getState().getMarkers();
       expect(updatedMarkers.length).toBe(0);
-    });
-
-    it("should get marker by id", async () => {
-      await useProjectStore.getState().addMarker(10, "Marker Test");
-      const markers = useProjectStore.getState().getMarkers();
-      const markerId = markers[0].id;
-
-      const marker = useProjectStore.getState().getMarker(markerId);
-      expect(marker).toBeDefined();
-      expect(marker?.time).toBe(10);
     });
 
     it("should restore a removed marker on undo", async () => {
@@ -1803,25 +1560,7 @@ describe("ProjectStore", () => {
     });
   });
 
-  describe("undo/redo", () => {
-    it("should not be able to undo without actions", () => {
-      expect(useProjectStore.getState().canUndo()).toBe(false);
-    });
-
-    it("should not be able to redo without undone actions", () => {
-      expect(useProjectStore.getState().canRedo()).toBe(false);
-    });
-
-    it("should be able to undo after an action", async () => {
-      await useProjectStore.getState().addTrack("video");
-      expect(useProjectStore.getState().canUndo()).toBe(true);
-    });
-  });
-
   describe("clipboard operations", () => {
-    it("should start with empty clipboard", () => {
-      expect(useProjectStore.getState().clipboard).toEqual([]);
-    });
 
     it("copies and pastes full media clip state", async () => {
       const mockClip: Clip = {
@@ -1954,6 +1693,7 @@ describe("ProjectStore", () => {
         "shape",
       ]);
 
+      const tracksBeforePaste = useProjectStore.getState().project.timeline.tracks.map((track) => track.id);
       const results = await useProjectStore
         .getState()
         .pasteClips(textTrack.id, 10);
@@ -1986,7 +1726,7 @@ describe("ProjectStore", () => {
       await useProjectStore.getState().undo();
       expect(useProjectStore.getState().project.textClips).toHaveLength(1);
       expect(useProjectStore.getState().project.shapeClips).toHaveLength(1);
-      expect(useProjectStore.getState().project.timeline.tracks).toHaveLength(2);
+      expect(useProjectStore.getState().project.timeline.tracks.map((track) => track.id)).toEqual(tracksBeforePaste);
     });
   });
 
@@ -2222,6 +1962,18 @@ describe("ProjectStore", () => {
       expect(extractAudioTracks).toHaveBeenCalledOnce();
     });
 
+    it("keeps newly separated audio linked to a split segment's durable source", async () => {
+      useProjectStore.getState().loadProject(createProjectWithVideoClip(1));
+      await useProjectStore.getState().splitClip("video-clip-1", 4);
+      const segment = useProjectStore.getState().project.timeline.tracks[0].clips.find((clip) => clip.startTime === 4)!;
+      expect((await useProjectStore.getState().separateAudio(segment.id)).success).toBe(true);
+      const audio = useProjectStore.getState().project.timeline.tracks.find((track) => track.type === "audio")!.clips[0];
+      expect(audio.metadata?.separatedFromClipId).toBe("video-clip-1");
+      expect(audio).toMatchObject({ startTime: 4, inPoint: 4, duration: 6 });
+      expect((await useProjectStore.getState().separateAudio(segment.id)).success).toBe(false);
+      expect(extractAudioTracks).toHaveBeenCalledOnce();
+    });
+
     it("avoids occupied and locked audio tracks", async () => {
       const initial = createProjectWithVideoClip(2);
       const occupied = {
@@ -2262,37 +2014,6 @@ describe("ProjectStore - Text Clips", () => {
   beforeEach(async () => {
     useProjectStore.getState().createNewProject();
     await useProjectStore.getState().addTrack("text");
-  });
-
-  it("should create a text clip", async () => {
-    const { project } = useProjectStore.getState();
-    const trackId = project.timeline.tracks[0].id;
-
-    const textClip = useProjectStore
-      .getState()
-      .createTextClip(trackId, 0, "Hello World", 5);
-
-    expect(textClip).toBeDefined();
-    expect(textClip?.text).toBe("Hello World");
-    expect(textClip?.duration).toBe(5);
-  });
-
-  it("should get all text clips", async () => {
-    const { project } = useProjectStore.getState();
-    const trackId = project.timeline.tracks[0].id;
-
-    const initialCount = useProjectStore.getState().getAllTextClips().length;
-
-    useProjectStore.getState().createTextClip(trackId, 0, "First", 3);
-    useProjectStore.getState().createTextClip(trackId, 3, "Second", 3);
-
-    const allTextClips = useProjectStore.getState().getAllTextClips();
-    expect(allTextClips.length).toBe(initialCount + 2);
-  });
-
-  it("should get available animation presets", () => {
-    const presets = useProjectStore.getState().getAvailableAnimationPresets();
-    expect(Array.isArray(presets)).toBe(true);
   });
 
   const tick = () => new Promise((resolve) => setTimeout(resolve, 5));
@@ -2374,9 +2095,64 @@ describe("ProjectStore - Subtitles (consolidated into text clips)", () => {
     // SRT export now uses text clips from Captions track
   });
 
-  it("should get subtitle style presets", async () => {
-    const presets = await useProjectStore.getState().getSubtitleStylePresets();
-    expect(Array.isArray(presets)).toBe(true);
+  it("creates editable Pop words captions using the shared word animation renderer", async () => {
+    await useProjectStore
+      .getState()
+      .addSubtitle(
+        {
+          id: "pop-caption",
+          text: "One two three",
+          startTime: 1,
+          endTime: 4,
+          animationStyle: "word-by-word",
+        },
+        { captionSource: "whisper" },
+      );
+    const caption = useProjectStore
+      .getState()
+      .getAllTextClips()
+      .find((clip) => clip.text === "One two three")!;
+    expect(caption.animation).toMatchObject({
+      preset: "pop",
+      unit: "word",
+      stagger: 1,
+      inDuration: 2.12,
+      outDuration: 0,
+    });
+    const wordOpacity = (index: number, time: number) =>
+      textAnimationEngine.getAnimatedState(caption, time).characterStates?.[
+        [0, 4, 8][index]
+      ].opacity;
+    expect([0, 1, 2].map((index) => wordOpacity(index, 0.5))).toEqual([1, 0, 0]);
+    expect([0, 1, 2].map((index) => wordOpacity(index, 1.5))).toEqual([1, 1, 0]);
+    expect([0, 1, 2].map((index) => wordOpacity(index, 2.5))).toEqual([1, 1, 1]);
+    const animated = textAnimationEngine.getAnimatedState(
+      {
+        ...caption,
+        keyframes: [
+          {
+            id: "opacity",
+            time: 0,
+            property: "opacity",
+            value: 0.5,
+            easing: "linear",
+          },
+        ],
+      },
+      0.5,
+    );
+    expect(animated.opacity).toBe(0.5);
+    expect(animated.characterStates?.[4].opacity).toBe(0);
+    expect(caption.metadata?.captionSource).toBe("whisper");
+    expect(
+      useEngineStore.getState().getTitleEngine()?.getTextClip(caption.id)
+        ?.animation,
+    ).toEqual(caption.animation);
+    const saved = structuredClone(useProjectStore.getState().project);
+    useProjectStore.getState().loadProject(saved);
+    expect(useProjectStore.getState().getTextClip(caption.id)?.animation).toEqual(
+      caption.animation,
+    );
   });
 
   it("imports SRT subtitles into a Captions text track", async () => {

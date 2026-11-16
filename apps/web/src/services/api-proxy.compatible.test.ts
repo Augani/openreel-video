@@ -2,7 +2,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   apiFetch,
   normalizeCompatibleBaseUrl,
-  normalizeOpenAICompatibleBaseUrl,
 } from "./api-proxy";
 
 afterEach(() => {
@@ -11,11 +10,11 @@ afterEach(() => {
 
 describe("OpenAI-compatible API transport", () => {
   it("normalizes base and complete Chat Completions URLs", () => {
-    expect(normalizeOpenAICompatibleBaseUrl("https://example.test/v1/")).toBe(
+    expect(normalizeCompatibleBaseUrl("https://example.test/v1/")).toBe(
       "https://example.test/v1",
     );
     expect(
-      normalizeOpenAICompatibleBaseUrl(
+      normalizeCompatibleBaseUrl(
         "http://localhost:11434/v1/chat/completions",
       ),
     ).toBe("http://localhost:11434/v1");
@@ -25,11 +24,11 @@ describe("OpenAI-compatible API transport", () => {
   });
 
   it("rejects unsafe or ambiguous endpoint URLs", () => {
-    expect(() => normalizeOpenAICompatibleBaseUrl("file:///tmp/model"))
+    expect(() => normalizeCompatibleBaseUrl("file:///tmp/model"))
       .toThrow(/http/i);
-    expect(() => normalizeOpenAICompatibleBaseUrl("https://key@example.test/v1"))
+    expect(() => normalizeCompatibleBaseUrl("https://key@example.test/v1"))
       .toThrow(/credentials/i);
-    expect(() => normalizeOpenAICompatibleBaseUrl("https://example.test/v1?key=x"))
+    expect(() => normalizeCompatibleBaseUrl("https://example.test/v1?key=x"))
       .toThrow(/query/i);
   });
 

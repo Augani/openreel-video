@@ -22,9 +22,20 @@ export async function generateThumbnailFromBlob(
     video.playsInline = true;
     video.preload = "metadata";
 
+    const src = URL.createObjectURL(blob);
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    let cleaned = false;
+    // Detach the element before revoking so an in-flight range request is not
+    // left fetching a dead blob: URL (ERR_FILE_NOT_FOUND). Runs at most once.
     const cleanup = () => {
-      URL.revokeObjectURL(video.src);
+      if (cleaned) return;
+      cleaned = true;
+      clearTimeout(timeout);
+      video.onloadeddata = video.onseeked = video.onerror = null;
+      video.removeAttribute("src");
+      video.load();
       video.remove();
+      URL.revokeObjectURL(src);
     };
 
     video.onloadeddata = () => {
@@ -70,21 +81,23 @@ export async function generateThumbnailFromBlob(
       resolve(null);
     };
 
-    setTimeout(() => {
+    timeout = setTimeout(() => {
       cleanup();
       resolve(null);
     }, 5000);
 
-    video.src = URL.createObjectURL(blob);
+    video.src = src;
   });
 }
 
 export function createMissingMediaItem(item: MediaItem): MediaItem {
+  const droppedThumbnail = item.thumbnailUrl?.startsWith("blob:") ?? false;
+  const { thumbnailPixelAspect: _marker, ...rest } = item;
   return {
-    ...item,
+    ...(droppedThumbnail ? rest : item),
     fileHandle: null,
     blob: null,
-    thumbnailUrl: item.thumbnailUrl?.startsWith("blob:")
+    thumbnailUrl: droppedThumbnail
       ? null
       : item.thumbnailUrl,
     waveformData: null,
@@ -122,8 +135,11 @@ export async function restoreMediaItem(
     }
   }
 
+  // A regenerated thumbnail is square: the old marker no longer describes it.
+  const { thumbnailPixelAspect: _marker, ...rest } = item;
+  const regenerated = thumbnailUrl !== item.thumbnailUrl;
   return {
-    ...item,
+    ...(regenerated ? rest : item),
     fileHandle: null,
     blob,
     thumbnailUrl,

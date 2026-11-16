@@ -1,10 +1,18 @@
-import { useState, useCallback, useRef } from "react";
+import { memo, useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { v4 as uuidv4 } from "uuid";
-import { ToolcraftButton as Button } from "@openreel/ui";
-import { ToolcraftCard as Card } from "@openreel/ui";
-import { ToolcraftDialog as Dialog, ToolcraftDialogHeader as DialogHeader } from "@openreel/ui";
-import { ToolcraftLayout as Layout, ToolcraftLayoutContent as LayoutContent, ToolcraftLayoutFooter as LayoutFooter } from "@openreel/ui";
-import { ToolcraftText as Text } from "@openreel/ui";
+import {
+  Alert,
+  AlertDescription,
+  Button,
+  Card,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@openreel/ui";
+import { ImageIcon, Loader2, X } from "@/icons/lucide-compat";
 import {
   IMAGE_MODELS,
   type ImageModelId,
@@ -17,9 +25,10 @@ import {
   createImageTask,
 } from "../../../services/kieai/image-generation";
 import { uploadFileStream } from "../../../services/kieai/file-upload";
+import { registerAcceptedImageTask } from "../../../services/kieai/image-task-registration";
 import { useProjectStore } from "../../../stores/project-store";
-import { useKieAIStore } from "../../../stores/kieai-store";
-import { ModelPicker } from "./ModelPicker";
+import { toast } from "../../../stores/notification-store";
+import { IMAGE_MODEL_OPTIONS, ModelPicker } from "./ModelPicker";
 import { SeedreamForm } from "./forms/SeedreamForm";
 import { ZImageForm } from "./forms/ZImageForm";
 import { NanoBanana2Form } from "./forms/NanoBanana2Form";
@@ -27,120 +36,157 @@ import { Flux2Form } from "./forms/Flux2Form";
 import { GrokForm } from "./forms/GrokForm";
 import { QwenForm } from "./forms/QwenForm";
 
-// ─── Default inputs per model ────────────────────────────────────────────────
-
-function defaultSeedream(): SeedreamInput {
-  return { prompt: "", image_urls: [], aspect_ratio: "1:1", quality: "basic" };
-}
-function defaultZImage(): ZImageInput {
-  return { prompt: "", aspect_ratio: "1:1" };
-}
-function defaultNanoBanana2(): NanoBanana2Input {
-  return { prompt: "", aspect_ratio: "1:1", resolution: "2K", output_format: "png" };
-}
-function defaultFlux2(): Flux2Input {
-  return { prompt: "", input_urls: [], aspect_ratio: "1:1", resolution: "1K" };
-}
-function defaultGrok(): GrokInput {
-  return { image_urls: [] };
-}
-function defaultQwen(imageUrl: string): QwenInput {
-  return { prompt: "", image_url: imageUrl, strength: 0.8, output_format: "png", acceleration: "regular" };
-}
-
-// ─── Step types ───────────────────────────────────────────────────────────────
-
+const defaultSeedream = (): SeedreamInput => ({
+  prompt: "",
+  image_urls: [],
+  aspect_ratio: "1:1",
+  quality: "basic",
+});
+const defaultZImage = (): ZImageInput => ({ prompt: "", aspect_ratio: "1:1" });
+const defaultNanoBanana2 = (): NanoBanana2Input => ({
+  prompt: "",
+  aspect_ratio: "1:1",
+  resolution: "2K",
+  output_format: "png",
+});
+const defaultFlux2 = (): Flux2Input => ({
+  prompt: "",
+  input_urls: [],
+  aspect_ratio: "1:1",
+  resolution: "1K",
+});
+const defaultGrok = (): GrokInput => ({ image_urls: [] });
+const defaultQwen = (): QwenInput => ({
+  prompt: "",
+  image_url: "",
+  strength: 0.8,
+  output_format: "png",
+  acceleration: "regular",
+});
 type Step = "pick" | "form" | "submitting" | "error";
-
 interface Props {
   open: boolean;
   onClose: () => void;
-  /** The source image file that was right-clicked */
   sourceFile: File;
-  /** Thumbnail data URL for preview (avoids blob URL lifecycle issues) */
   previewUrl: string | null;
 }
-
-export function KieAIImageDialog({ open, onClose, sourceFile, previewUrl }: Props) {
+export const KieAIImageDialog = memo(function KieAIImageDialog(props: Props) {
+  const session = useMemo(
+    () => ({ file: props.sourceFile, key: uuidv4() }),
+    [props.sourceFile],
+  );
+  return props.open ? (
+    <ImageDialogSession key={session.key} {...props} />
+  ) : null;
+});
+function ImageDialogSession({ onClose, sourceFile, previewUrl }: Props) {
+  const [owner] = useState(() => {
+    const state = useProjectStore.getState();
+    return { projectId: state.project.id, executor: state.actionExecutor };
+  });
+  const isOrigin = useProjectStore(
+    (state) =>
+      state.hasOpenProject &&
+      state.project.id === owner.projectId &&
+      state.actionExecutor === owner.executor,
+  );
   const [step, setStep] = useState<Step>("pick");
   const [selectedModel, setSelectedModel] = useState<ImageModelId | null>(null);
-  const [errorMsg, setErrorMsg] = useState<string>("");
-  const abortRef = useRef<AbortController | null>(null);
-  const { project, addPlaceholderMedia } = useProjectStore();
-  const { addTask } = useKieAIStore();
-
-  // Per-model form state
-  const [seedream, setSeedream] = useState<SeedreamInput>(defaultSeedream);
-  const [zimage, setZimage] = useState<ZImageInput>(defaultZImage);
-  const [nanoBanana2, setNanoBanana2] = useState<NanoBanana2Input>(defaultNanoBanana2);
-  const [flux2, setFlux2] = useState<Flux2Input>(defaultFlux2);
-  const [grok, setGrok] = useState<GrokInput>(defaultGrok);
-  const [qwen, setQwen] = useState<QwenInput>(() => defaultQwen(""));
-
-  const handleClose = useCallback(() => {
-    abortRef.current?.abort();
-    // Reset state for next open
-    setStep("pick");
-    setSelectedModel(null);
-    setErrorMsg("");
-    setSeedream(defaultSeedream());
-    setZimage(defaultZImage());
-    setNanoBanana2(defaultNanoBanana2());
-    setFlux2(defaultFlux2());
-    setGrok(defaultGrok());
-    setQwen(defaultQwen(""));
-    onClose();
-  }, [onClose]);
-
-  const handleModelSelect = useCallback((model: ImageModelId) => {
-    setSelectedModel(model);
-    setStep("form");
+  const [error, setError] = useState("");
+  const [phase, setPhase] = useState<"upload" | "request">("upload");
+  const job = useRef<AbortController | null>(null);
+  const active = useRef(true);
+  const closed = useRef(false);
+  const closeCallback = useRef(onClose);
+  closeCallback.current = onClose;
+  useEffect(() => {
+    active.current = true;
+    return () => {
+      active.current = false;
+      job.current?.abort();
+    };
   }, []);
-
-  const handleBack = useCallback(() => {
-    setStep("pick");
-    setSelectedModel(null);
+  const close = useCallback(() => {
+    job.current?.abort();
+    active.current = false;
+    if (!closed.current) {
+      closed.current = true;
+      closeCallback.current();
+    }
   }, []);
-
-  const handleSubmit = useCallback(async () => {
-    if (!selectedModel || !project) return;
-
+  useEffect(() => {
+    if (!isOrigin) close();
+  }, [isOrigin, close]);
+  const [seedream, setSeedream] = useState(defaultSeedream);
+  const [zimage, setZimage] = useState(defaultZImage);
+  const [nanoBanana2, setNanoBanana2] = useState(defaultNanoBanana2);
+  const [flux2, setFlux2] = useState(defaultFlux2);
+  const [grok, setGrok] = useState(defaultGrok);
+  const [qwen, setQwen] = useState(defaultQwen);
+  const originIsOpen = () => {
+    const current = useProjectStore.getState();
+    return (
+      current.hasOpenProject &&
+      current.project.id === owner.projectId &&
+      current.actionExecutor === owner.executor
+    );
+  };
+  const submit = async () => {
+    if (!selectedModel || job.current || !active.current || !originIsOpen())
+      return;
+    const drafts = {
+      [IMAGE_MODELS.SEEDREAM]: seedream,
+      [IMAGE_MODELS.Z_IMAGE]: zimage,
+      [IMAGE_MODELS.NANO_BANANA2]: nanoBanana2,
+      [IMAGE_MODELS.FLUX2]: flux2,
+      [IMAGE_MODELS.GROK]: grok,
+      [IMAGE_MODELS.QWEN]: qwen,
+    };
+    if (
+      selectedModel !== IMAGE_MODELS.GROK &&
+      !drafts[selectedModel].prompt?.trim()
+    )
+      return;
+    const controller = new AbortController();
+    job.current = controller;
+    const ownsView = () =>
+      active.current &&
+      job.current === controller &&
+      !controller.signal.aborted &&
+      originIsOpen();
     setStep("submitting");
-    setErrorMsg("");
-
-    const ac = new AbortController();
-    abortRef.current = ac;
-
+    setError("");
+    const needsUpload = selectedModel !== IMAGE_MODELS.Z_IMAGE;
+    setPhase(needsUpload ? "upload" : "request");
+    let requestWasSent = false;
     try {
-      // Upload source image first (for models that need it)
       let uploadedUrl = "";
-      const needsUpload = selectedModel !== IMAGE_MODELS.Z_IMAGE;
-
       if (needsUpload) {
-        const uploaded = await uploadFileStream(sourceFile);
-        if (ac.signal.aborted) return;
-        console.log("[KieAI] upload response:", uploaded);
-        // KieAI API may return url under different field names
+        const uploaded = await uploadFileStream(
+          sourceFile,
+          {},
+          controller.signal,
+        );
+        if (!ownsView()) return;
+        const response = uploaded as unknown as Record<string, unknown>;
         uploadedUrl =
-          uploaded.fileUrl ||
-          uploaded.downloadUrl ||
-          (uploaded as unknown as Record<string, string>)["url"] ||
-          "";
-        if (!uploadedUrl) {
-          throw new Error("Upload succeeded but returned no file URL. Check console for response.");
-        }
+          [response.fileUrl, response.downloadUrl, response.url].find(
+            (value): value is string =>
+              typeof value === "string" && value.trim().length > 0,
+          ) ?? "";
+        if (!uploadedUrl)
+          throw new Error(
+            "The upload did not return an image URL. Please try again.",
+          );
       }
-
-      if (ac.signal.aborted) return;
-
-      // Build model-specific input
+      if (!ownsView()) return;
       let input: Parameters<typeof createImageTask>[1];
       switch (selectedModel) {
         case IMAGE_MODELS.SEEDREAM:
           input = { ...seedream, image_urls: [uploadedUrl] };
           break;
         case IMAGE_MODELS.Z_IMAGE:
-          input = zimage;
+          input = { ...zimage };
           break;
         case IMAGE_MODELS.NANO_BANANA2:
           input = { ...nanoBanana2, image_input: [uploadedUrl] };
@@ -154,188 +200,245 @@ export function KieAIImageDialog({ open, onClose, sourceFile, previewUrl }: Prop
         case IMAGE_MODELS.QWEN:
           input = { ...qwen, image_url: uploadedUrl };
           break;
-        default:
-          throw new Error("Unknown model");
       }
-
-      console.log("[KieAI] createTask payload:", { model: selectedModel, input });
+      setPhase("request");
+      // Creation can be accepted remotely before its response arrives. Keep that
+      // receipt tracked even if this view closes; abort only pre-creation uploads.
+      requestWasSent = true;
       const taskId = await createImageTask(selectedModel, input);
-
-      // Bail out if the user cancelled while the request was in flight
-      if (ac.signal.aborted) return;
-
-      // Create a placeholder in the media library immediately
-      const ext = "png"; // optimistic; poller will use actual blob mime
-      const base = sourceFile.name.replace(/\.[^.]+$/, "");
-      const suggestedName = `${base}_kieai.${ext}`;
-      const mediaId = uuidv4();
-
-      const placeholder = {
-        id: mediaId,
-        name: suggestedName,
-        type: "image" as const,
-        fileHandle: null,
-        blob: null,
-        metadata: {
-          duration: 0,
-          width: 0,
-          height: 0,
-          frameRate: 0,
-          codec: "",
-          sampleRate: 0,
-          channels: 0,
-          fileSize: 0,
-        },
-        thumbnailUrl: previewUrl,
-        waveformData: null,
-        isPlaceholder: true,
-        isPending: true,
-        kieaiTaskId: taskId,
-      };
-
-      addPlaceholderMedia(placeholder);
-      addTask({
+      if (typeof taskId !== "string" || !taskId.trim())
+        throw new Error(
+          "The provider did not return a task ID. Please try again.",
+        );
+      const format =
+        selectedModel === IMAGE_MODELS.NANO_BANANA2
+          ? (nanoBanana2.output_format ?? "png")
+          : selectedModel === IMAGE_MODELS.QWEN
+            ? (qwen.output_format ?? "png")
+            : "png";
+      const base = sourceFile.name.replace(/\.[^.]+$/, "") || "image";
+      registerAcceptedImageTask({
         taskId,
-        mediaId,
-        projectId: project.id,
-        type: "image",
-        suggestedName,
-        createdAt: Date.now(),
+        mediaId: uuidv4(),
+        projectId: owner.projectId,
+        executor: owner.executor,
+        suggestedName: `${base}_kieai.${format}`,
+        previewUrl,
       });
-
-      // Close the dialog immediately — background poller takes it from here
-      handleClose();
+      if (ownsView()) close();
     } catch (err) {
-      if (err instanceof Error && err.name === "AbortError") return;
-      setErrorMsg(err instanceof Error ? err.message : String(err));
-      setStep("error");
+      if (ownsView()) {
+        setError(err instanceof Error ? err.message : String(err));
+        setStep("error");
+      } else if (requestWasSent) {
+        toast.error(
+          "Image submission failed",
+          err instanceof Error ? err.message : undefined,
+        );
+      }
+    } finally {
+      if (job.current === controller) job.current = null;
     }
-  }, [selectedModel, project, sourceFile, previewUrl, seedream, zimage, nanoBanana2, flux2, grok, qwen, addPlaceholderMedia, addTask, handleClose]);
-
-  // ─── Derived display ──────────────────────────────────────────────────────
-
-  const modelLabel = selectedModel
-    ? selectedModel.split("/")[0].replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
-    : "";
-
+  };
+  const name =
+    IMAGE_MODEL_OPTIONS.find((model) => model.id === selectedModel)?.name ?? "";
   const title =
     step === "pick"
       ? "Create with KieAI"
-      : step === "form"
-        ? modelLabel
-        : step === "submitting"
-          ? "Submitting..."
-          : "Submission Failed";
-
+      : step === "submitting"
+        ? "Submitting…"
+        : step === "error"
+          ? "Submission failed"
+          : name;
+  if (!isOrigin) return null;
   return (
-    <Dialog isOpen={open} onOpenChange={(nextOpen) => !nextOpen && handleClose()} width={512} purpose="form">
-      <Layout
-        header={<DialogHeader title={title} onOpenChange={(nextOpen) => !nextOpen && handleClose()} />}
-        content={
-          <LayoutContent className="max-h-[70vh] overflow-y-auto">
-          {/* Source image preview strip */}
-          {(
-            <Card variant="muted" padding={2} className="mb-4">
-              <div className="flex items-center gap-2">
-              {previewUrl ? (
-                <img
-                  src={previewUrl}
-                  alt="Source"
-                  className="h-10 w-10 rounded object-cover flex-shrink-0"
-                />
-              ) : (
-                <div className="h-10 w-10 rounded bg-background-tertiary flex items-center justify-center flex-shrink-0">
-                  <svg className="h-5 w-5 text-text-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
-                    <rect x="3" y="3" width="18" height="18" rx="2" /><path d="m3 9 4-4 4 4 4-4 4 4" /><circle cx="8.5" cy="14.5" r="1.5" />
-                  </svg>
-                </div>
-              )}
-              <div className="min-w-0">
-                <Text type="supporting" weight="bold" display="block" className="truncate">
-                  {sourceFile.name}
-                </Text>
-                <Text type="supporting" color="secondary" display="block" className="text-[10px]">
-                  Source image
-                </Text>
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) close();
+      }}
+    >
+      <DialogContent
+        hideCloseButton
+        className="flex max-h-[calc(100dvh-32px)] w-[calc(100%_-_32px)] max-w-[512px] flex-col gap-0 overflow-hidden rounded-xl border-border bg-bg-1 p-0 text-fg"
+      >
+        <DialogHeader className="shrink-0 border-b border-border px-5 py-4 text-left sm:text-left">
+          <div className="flex items-center justify-between gap-3">
+            <DialogTitle className="text-[15px] font-semibold">
+              {title}
+            </DialogTitle>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              aria-label="Close dialog"
+              onClick={close}
+              className="h-7 w-7 text-fg-2"
+            >
+              <X size={16} aria-hidden />
+            </Button>
+          </div>
+          <DialogDescription className="sr-only">
+            Create an image with your chosen model, using the source as a
+            reference when supported.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="min-h-0 space-y-4 overflow-y-auto p-5">
+          <Card className="flex min-w-0 items-center gap-3 rounded-[7px] border-border bg-bg-2 p-3 text-fg shadow-none">
+            {previewUrl ? (
+              <img
+                src={previewUrl}
+                alt="Source image"
+                className="h-10 w-10 shrink-0 rounded object-cover"
+              />
+            ) : (
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded bg-bg-3">
+                <ImageIcon size={20} className="text-fg-3" aria-hidden />
               </div>
-              </div>
-            </Card>
+            )}
+            <div className="min-w-0">
+              <p className="truncate text-[12px] font-semibold">
+                {sourceFile.name}
+              </p>
+              <p className="text-[11px] text-fg-3">Source image</p>
+            </div>
+          </Card>
+          {step === "pick" && (
+            <ModelPicker
+              onSelect={(model) => {
+                setSelectedModel(model);
+                setStep("form");
+              }}
+            />
           )}
-
-          {step === "pick" && <ModelPicker onSelect={handleModelSelect} />}
-
           {step === "form" && selectedModel === IMAGE_MODELS.SEEDREAM && (
-            <SeedreamForm value={seedream} onChange={setSeedream} onSubmit={handleSubmit} isLoading={false} />
+            <SeedreamForm
+              value={seedream}
+              onChange={setSeedream}
+              onSubmit={() => {
+                void submit();
+              }}
+              isLoading={false}
+            />
           )}
           {step === "form" && selectedModel === IMAGE_MODELS.Z_IMAGE && (
-            <ZImageForm value={zimage} onChange={setZimage} onSubmit={handleSubmit} isLoading={false} />
+            <ZImageForm
+              value={zimage}
+              onChange={setZimage}
+              onSubmit={() => {
+                void submit();
+              }}
+              isLoading={false}
+            />
           )}
           {step === "form" && selectedModel === IMAGE_MODELS.NANO_BANANA2 && (
-            <NanoBanana2Form value={nanoBanana2} onChange={setNanoBanana2} onSubmit={handleSubmit} isLoading={false} />
+            <NanoBanana2Form
+              value={nanoBanana2}
+              onChange={setNanoBanana2}
+              onSubmit={() => {
+                void submit();
+              }}
+              isLoading={false}
+            />
           )}
           {step === "form" && selectedModel === IMAGE_MODELS.FLUX2 && (
-            <Flux2Form value={flux2} onChange={setFlux2} onSubmit={handleSubmit} isLoading={false} />
+            <Flux2Form
+              value={flux2}
+              onChange={setFlux2}
+              onSubmit={() => {
+                void submit();
+              }}
+              isLoading={false}
+            />
           )}
           {step === "form" && selectedModel === IMAGE_MODELS.GROK && (
-            <GrokForm value={grok} onChange={setGrok} onSubmit={handleSubmit} isLoading={false} />
+            <GrokForm
+              value={grok}
+              onChange={setGrok}
+              onSubmit={() => {
+                void submit();
+              }}
+              isLoading={false}
+            />
           )}
           {step === "form" && selectedModel === IMAGE_MODELS.QWEN && (
-            <QwenForm value={qwen} onChange={setQwen} onSubmit={handleSubmit} isLoading={false} />
+            <QwenForm
+              value={qwen}
+              onChange={setQwen}
+              onSubmit={() => {
+                void submit();
+              }}
+              isLoading={false}
+            />
           )}
-
           {step === "submitting" && (
-            <div className="space-y-4 py-4 text-center">
-              <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-border border-t-primary" />
-              <Text type="body" color="secondary" display="block">
-                Uploading and submitting task...
-              </Text>
-              <Button
-                label="Cancel"
-                variant="secondary"
-                size="sm"
-                onClick={() => { abortRef.current?.abort(); handleClose(); }}
+            <div className="space-y-3 py-4 text-center">
+              <Loader2
+                size={28}
+                className="mx-auto animate-spin text-accent"
+                aria-hidden
               />
+              <p role="status" className="text-[13px] text-fg-2">
+                {phase === "upload"
+                  ? "Uploading source image…"
+                  : "Submitting generation…"}
+              </p>
+              {phase === "request" && (
+                <p className="text-[12px] leading-5 text-fg-3">
+                  Accepted generations continue in the media library.
+                </p>
+              )}
             </div>
           )}
-
           {step === "error" && (
-            <div className="space-y-4 py-2">
-              <Card variant="muted" padding={3} className="border border-red-500/30 bg-red-500/10">
-                <Text type="body" display="block" className="text-red-400">
-                  {errorMsg}
-                </Text>
-              </Card>
-              <div className="flex gap-2">
-                <Button
-                  label="Close"
-                  variant="secondary"
-                  className="flex-1"
-                  onClick={handleClose}
-                />
-                <Button
-                  label="Try Again"
-                  variant="primary"
-                  className="flex-1"
-                  onClick={() => setStep("form")}
-                />
-              </div>
-            </div>
+            <Alert
+              variant="destructive"
+              className="rounded-[7px] border-status-error/25 bg-status-error/10 p-3 text-fg"
+            >
+              <AlertDescription className="text-[12px] leading-5">
+                {error}
+              </AlertDescription>
+            </Alert>
           )}
-          </LayoutContent>
-        }
-        footer={
-          step === "form" ? (
-            <LayoutFooter hasDivider>
+        </div>
+        {step !== "pick" && (
+          <DialogFooter className="shrink-0 flex-row justify-end gap-2 border-t border-border px-5 py-3 sm:space-x-0">
+            {step === "form" && (
               <Button
-                label="Back to model selection"
+                type="button"
                 variant="ghost"
                 size="sm"
-                onClick={handleBack}
-              />
-            </LayoutFooter>
-          ) : undefined
-        }
-      />
+                onClick={() => {
+                  setStep("pick");
+                  setSelectedModel(null);
+                }}
+              >
+                Back to model selection
+              </Button>
+            )}
+            {step === "submitting" && (
+              <Button type="button" variant="outline" size="sm" onClick={close}>
+                {phase === "upload" ? "Cancel" : "Close"}
+              </Button>
+            )}
+            {step === "error" && (
+              <>
+                <Button type="button" variant="ghost" size="sm" onClick={close}>
+                  Close
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => setStep("form")}
+                  className="bg-accent text-accent-fg hover:bg-accent/90"
+                >
+                  Try Again
+                </Button>
+              </>
+            )}
+          </DialogFooter>
+        )}
+      </DialogContent>
     </Dialog>
   );
 }

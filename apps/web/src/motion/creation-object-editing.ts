@@ -26,7 +26,7 @@ export interface CreationObjectEditPatch {
   readonly material?: CreationObjectMaterialPatch;
 }
 
-export interface CreationObjectEditPlan {
+interface CreationObjectEditPlan {
   readonly scene: CreationScene;
   readonly operations: readonly CreationOperation[];
   readonly composition?: MotionComposition;

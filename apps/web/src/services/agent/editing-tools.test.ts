@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { runTurn, type AgentEvent, type LLMClient, type ToolResult } from "@openreel/agent";
 import { createPortableEdit, VIDEO_EDIT_PARAM_SCHEMAS } from "@openreel/core/editing/portable-project";
+import type { Project } from "@openreel/core";
 import type { EditSchema } from "@openreel/core/editing/safe-json";
 import { useProjectStore } from "../../stores/project-store";
 import { EditingSession } from "./editing-session";
@@ -9,6 +10,10 @@ import { editingToolDefs, executeEditingTool, EDITING_SYSTEM } from "./editing-t
 function data(result: ToolResult): Record<string, unknown> {
   expect(result.ok, result.error?.message).toBe(true);
   return result.data as Record<string, unknown>;
+}
+
+function mediaTrack(project: Pick<Project, "timeline">) {
+  return project.timeline.tracks.find((track) => track.clips.some((clip) => clip.mediaId === "source-video"))!;
 }
 
 async function addFixtureClip(session: EditingSession) {
@@ -37,6 +42,8 @@ describe("browser AI media and effect tools", () => {
       expect(schema.properties!.params.properties!.amount.type).toBe("number");
       expect(schema.properties!.params.additionalProperties).toBe(false);
       expect(tool.description).toContain("vignette: amount (0..1)");
+      expect(schema.properties!.params.properties!.type.enum).toEqual(["gaussian", "box", "motion"]);
+      expect(tool.description).toContain("type (gaussian | box | motion)");
       expect(tool.description).not.toContain("list_motion_shaders");
     }
     expect(EDITING_SYSTEM).toContain("mediaId is not a clipId");
@@ -78,10 +85,10 @@ describe("browser AI media and effect tools", () => {
     const added = data(await executeEditingTool("add_clip", { trackId, mediaId: "source-video", startTime: 4, inPoint: 2, outPoint: 8 }, session));
     expect(added).toMatchObject({ clipId: expect.any(String), inPoint: 2, outPoint: 8, duration: 6 });
     const split = data(await executeEditingTool("split_clip", { clipId: added.clipId, time: 7 }, session));
-    expect(split.clipIds).toEqual(session.getProject().timeline.tracks[0].clips.map((clip) => clip.id));
+    expect(split.clipIds).toEqual(mediaTrack(session.getProject()).clips.map((clip) => clip.id));
     expect(split.clipIds).toHaveLength(2);
     await session.commitTransaction(transaction, "Cut imported video");
-    expect(useProjectStore.getState().project.timeline.tracks[0].clips.map((clip) => [clip.inPoint, clip.outPoint, clip.duration])).toEqual([[2, 5, 3], [5, 8, 3]]);
+    expect(mediaTrack(useProjectStore.getState().project).clips.map((clip) => [clip.inPoint, clip.outPoint, clip.duration])).toEqual([[2, 5, 3], [5, 8, 3]]);
   });
 
   it("finds transition pairs in draft timeline order and normalizes reversed IDs and long durations", async () => {
@@ -96,9 +103,9 @@ describe("browser AI media and effect tools", () => {
     const result = await executeEditingTool("add_transition", { clipAId: b.clipId, clipBId: a.clipId, transitionType: "crossfade", duration: 1 }, session);
     expect(data(result)).toMatchObject({ clipAId: a.clipId, clipBId: b.clipId, duration: 0.3, requestedDuration: 1, reordered: true });
     expect(result.summary).toContain("shortened");
-    expect(session.getProject().timeline.tracks[0].clips.map((clip) => clip.startTime)).toEqual([2, 0]);
+    expect(mediaTrack(session.getProject()).clips.map((clip) => clip.startTime)).toEqual([2, 0]);
     await session.commitTransaction(txn, "Transition");
-    expect(useProjectStore.getState().project.timeline.tracks[0].transitions).toEqual([expect.objectContaining({ clipAId: a.clipId, clipBId: b.clipId, duration: 0.3 })]);
+    expect(mediaTrack(useProjectStore.getState().project).transitions).toEqual([expect.objectContaining({ clipAId: a.clipId, clipBId: b.clipId, duration: 0.3 })]);
   });
 
   it.each(["gap", "overlap", "different-track", "missing", "same-clip"])("rejects a %s pair without moving or mutating any clip", async (kind) => {
@@ -151,8 +158,8 @@ describe("browser AI media and effect tools", () => {
     expect(result.committed).toBe(true);
     expect(events).toContainEqual({ type: "tool_recovered", callIds: ["call-4"], repairedBy: "call-7" });
     const after = createPortableEdit(useProjectStore.getState().getFullProject());
-    expect(after.project.timeline.tracks[0].clips.map((clip) => clip.startTime)).toEqual([0, 2]);
-    expect(after.project.timeline.tracks[0].transitions).toHaveLength(1);
+    expect(mediaTrack(after.project).clips.map((clip) => clip.startTime)).toEqual([0, 2]);
+    expect(mediaTrack(after.project).transitions).toHaveLength(1);
     await useProjectStore.getState().undo(); expect(createPortableEdit(useProjectStore.getState().getFullProject())).toEqual(before);
     await useProjectStore.getState().redo(); expect(createPortableEdit(useProjectStore.getState().getFullProject())).toEqual(after);
   });
@@ -164,10 +171,10 @@ describe("browser AI media and effect tools", () => {
     const { effectId } = data(await executeEditingTool("add_video_effect", { clipId, effectType: "vignette", params }, session));
     expect(effectId).toEqual(expect.any(String));
     expect(params).toEqual({ intensity: 0.3 });
-    expect(session.getProject().timeline.tracks[0].clips[0].effects[0].params).toEqual({ amount: 0.3 });
+    expect(mediaTrack(session.getProject()).clips[0].effects[0].params).toEqual({ amount: 30 });
     data(await executeEditingTool("update_video_effect", { clipId, effectId, params: { intensity: 0.5, feather: 0.7 } }, session));
     await session.commitTransaction(transaction, "Vignette");
-    expect(createPortableEdit(useProjectStore.getState().getFullProject()).project.timeline.tracks[0].clips[0].effects[0]).toMatchObject({ type: "vignette", params: { amount: 0.5, feather: 0.7 } });
+    expect(mediaTrack(createPortableEdit(useProjectStore.getState().getFullProject()).project).clips[0].effects[0]).toMatchObject({ type: "vignette", params: { amount: 0.5, feather: 0.7 } });
   });
 
   it.each([
@@ -177,20 +184,35 @@ describe("browser AI media and effect tools", () => {
     const { clipId } = await addFixtureClip(session);
     const result = await executeEditingTool("add_video_effect", { clipId, effectType: "vignette", params }, session);
     expect(result.ok).toBe(false);
-    expect(session.getProject().timeline.tracks[0].clips[0].effects).toHaveLength(0);
+    expect(mediaTrack(session.getProject()).clips[0].effects).toHaveLength(0);
   });
 
   it.each([
-    ["brightness", { value: 0.2 }], ["contrast", { value: 1.2 }], ["saturation", { value: 1.1 }],
-    ["hue", { rotation: -15 }], ["blur", { radius: 3 }], ["sharpen", { amount: 0.5, threshold: 0.1 }],
-    ["vignette", { amount: 0.3, midpoint: 0.5 }], ["grain", { amount: 0.2, size: 1 }],
-  ])("adds and updates supported %s parameters without breaking portable edits", async (effectType, params) => {
+    ["brightness", { value: 0.2 }, { value: 20 }], ["blur", { radius: 3, type: "gaussian", angle: 45 }, { radius: 3, type: "gaussian", angle: 45 }], ["grain", { amount: 0.2, size: 1, colored: false }, { amount: 20, size: 1, colored: false }],
+  ])("adds and updates supported %s parameters without breaking portable edits", async (effectType, params, runtime) => {
+    const before = createPortableEdit(useProjectStore.getState().getFullProject());
     const session = new EditingSession(); const transaction = session.beginTransaction();
     const { clipId } = await addFixtureClip(session);
     const { effectId } = data(await executeEditingTool("add_video_effect", { clipId, effectType, params }, session));
     data(await executeEditingTool("update_video_effect", { clipId, effectId, params }, session));
+    expect(mediaTrack(session.getProject()).clips[0].effects[0].params).toEqual(runtime);
+    expect(data(await executeEditingTool("get_clip", { clipId }, session)).effects).toEqual([expect.objectContaining({ params })]);
     await session.commitTransaction(transaction, "Effect");
-    expect(createPortableEdit(useProjectStore.getState().getFullProject()).project.timeline.tracks[0].clips[0].effects[0].params).toEqual(params);
+    const after = createPortableEdit(useProjectStore.getState().getFullProject());
+    expect(mediaTrack(after.project).clips[0].effects[0].params).toEqual(params);
+    await useProjectStore.getState().undo(); expect(createPortableEdit(useProjectStore.getState().getFullProject())).toEqual(before);
+    await useProjectStore.getState().redo(); expect(createPortableEdit(useProjectStore.getState().getFullProject())).toEqual(after);
+  });
+
+  it("keeps runtime strength when a normalized partial update changes only grain size", async () => {
+    const session = new EditingSession(); session.beginTransaction();
+    const { clipId } = await addFixtureClip(session);
+    const { effectId } = data(await executeEditingTool("add_video_effect", { clipId, effectType: "grain", params: { amount: 0.29, size: 1 } }, session));
+    const params = { size: 2 };
+    data(await executeEditingTool("update_video_effect", { clipId, effectId, params }, session));
+    expect(params).toEqual({ size: 2 });
+    expect(mediaTrack(session.getProject()).clips[0].effects[0].params).toEqual({ amount: 29, size: 2 });
+    expect(data(await executeEditingTool("get_clip", { clipId }, session)).effects).toEqual([expect.objectContaining({ params: { amount: 0.29, size: 2 } })]);
   });
 
   it("retains strict validation and locked-track protection for effect updates and new clips", async () => {
@@ -199,11 +221,13 @@ describe("browser AI media and effect tools", () => {
     const { effectId } = data(await executeEditingTool("add_video_effect", { clipId, effectType: "vignette", params: { amount: 0.3 } }, session));
     expect((await executeEditingTool("update_video_effect", { clipId, effectId, params: { intensity: 2 } }, session)).ok).toBe(false);
     expect((await executeEditingTool("add_video_effect", { clipId, effectType: "blur", params: { intensity: 0.3 } }, session)).ok).toBe(false);
+    expect((await executeEditingTool("add_video_effect", { clipId, effectType: "blur", params: { type: "script" } }, session)).ok).toBe(false);
+    expect((await executeEditingTool("add_video_effect", { clipId, effectType: "grain", params: { type: "gaussian" } }, session)).ok).toBe(false);
     await session.applyAction({ type: "track/lock", id: crypto.randomUUID(), timestamp: Date.now(), params: { trackId, locked: true } });
     expect((await executeEditingTool("add_clip", { trackId, mediaId: "source-video", startTime: 10 }, session)).ok).toBe(false);
     expect((await executeEditingTool("update_video_effect", { clipId, effectId, params: { intensity: 0.5 } }, session)).ok).toBe(false);
-    expect(session.getProject().timeline.tracks[0].clips).toHaveLength(1);
-    expect(session.getProject().timeline.tracks[0].clips[0].effects[0].params).toEqual({ amount: 0.3 });
+    expect(mediaTrack(session.getProject()).clips).toHaveLength(1);
+    expect(mediaTrack(session.getProject()).clips[0].effects[0].params).toEqual({ amount: 30 });
   });
 
   it.each([{ inPoint: 8, outPoint: 2 }, { inPoint: 10 }, { outPoint: 11 }])("rejects invalid source ranges before adding a clip: %j", async (range) => {
@@ -211,6 +235,6 @@ describe("browser AI media and effect tools", () => {
     const { trackId } = data(await executeEditingTool("add_track", { trackType: "video" }, session));
     const result = await executeEditingTool("add_clip", { trackId, mediaId: "source-video", startTime: 0, ...range }, session);
     expect(result.ok).toBe(false);
-    expect(session.getProject().timeline.tracks[0].clips).toHaveLength(0);
+    expect(session.getProject().timeline.tracks.find((track) => track.id === trackId)!.clips).toHaveLength(0);
   });
 });

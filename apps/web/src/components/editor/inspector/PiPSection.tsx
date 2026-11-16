@@ -1,8 +1,8 @@
 import React, { useState, useCallback, useMemo } from "react";
-import { ToolcraftButton as Button } from "@openreel/ui";
-import { ToolcraftCard as Card } from "@openreel/ui";
-import { ToolcraftClickableCard as ClickableCard } from "@openreel/ui";
-import { ToolcraftText as Text } from "@openreel/ui";
+import { Button } from "@openreel/ui";
+import { Card } from "@openreel/ui";
+import { cn } from "@openreel/ui";
+
 import { PropertySlider } from "./shell/PropertySlider";
 import {
   PictureInPicture2,
@@ -177,20 +177,16 @@ const PresetButton: React.FC<{
   isActive: boolean;
   onClick: () => void;
 }> = ({ preset, isActive, onClick }) => (
-  <ClickableCard
-    label={preset.name}
-    onClick={onClick}
-    className={`flex flex-col items-center gap-1 p-2 rounded-lg border transition-colors ${
+  <Button variant="ghost" onClick={onClick} type="button" aria-label={preset.name} className={cn("group/card block h-auto min-w-0 whitespace-normal rounded-[7px] border text-left transition-[background-color,border-color,box-shadow,transform] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50", "border-border bg-bg-1 hover:bg-bg-2", "p-3", `flex flex-col items-center gap-1 p-2 rounded-lg border transition-colors ${
       isActive
         ? "bg-primary/20 border-primary text-primary"
         : "bg-bg-2 border-border text-fg-3 hover:text-fg hover:border-primary/50"
-    }`}
-  >
+    }`)}>
     <PresetIcon type={preset.icon} />
-    <Text type="supporting" className="truncate max-w-full text-[8px]">
+    <span className="text-fg-2 font-normal truncate max-w-full text-[8px]">
       {preset.name}
-    </Text>
-  </ClickableCard>
+    </span>
+  </Button>
 );
 
 export const PiPSection: React.FC<PiPSectionProps> = ({ clipId }) => {
@@ -326,26 +322,23 @@ export const PiPSection: React.FC<PiPSectionProps> = ({ clipId }) => {
 
   return (
     <div className="space-y-3">
-      <Card
-        variant="muted"
-        padding={2}
-        className="flex items-center gap-2 border border-primary/30 bg-primary/10"
+      <Card className="min-w-0 rounded-[7px] shadow-none text-fg p-2 flex items-center gap-2 border border-primary/30 bg-primary/10"
       >
         <PictureInPicture2 size={16} className="text-primary" />
         <div className="flex-1 flex flex-col gap-0.5">
-          <Text type="supporting" color="primary" className="text-[11px] font-medium">
+          <span className="text-fg text-[11px] font-medium">
             Picture-in-Picture
-          </Text>
-          <Text type="supporting" color="secondary" className="text-[9px]">
+          </span>
+          <span className="text-fg-2 font-normal text-[9px]">
             Position and scale video overlay
-          </Text>
+          </span>
         </div>
       </Card>
 
       <div className="space-y-2">
-        <Text type="supporting" color="secondary" className="text-[10px] font-medium">
+        <span className="text-fg-2 text-[10px] font-medium">
           Corner Positions
-        </Text>
+        </span>
         <div className="grid grid-cols-4 gap-1">
           {cornerPresets.map((preset) => (
             <PresetButton
@@ -359,9 +352,9 @@ export const PiPSection: React.FC<PiPSectionProps> = ({ clipId }) => {
       </div>
 
       <div className="space-y-2">
-        <Text type="supporting" color="secondary" className="text-[10px] font-medium">
+        <span className="text-fg-2 text-[10px] font-medium">
           Split Screen
-        </Text>
+        </span>
         <div className="grid grid-cols-4 gap-1">
           {splitPresets.map((preset) => (
             <PresetButton
@@ -375,9 +368,9 @@ export const PiPSection: React.FC<PiPSectionProps> = ({ clipId }) => {
       </div>
 
       <div className="space-y-2">
-        <Text type="supporting" color="secondary" className="text-[10px] font-medium">
+        <span className="text-fg-2 text-[10px] font-medium">
           Center & Full
-        </Text>
+        </span>
         <div className="grid grid-cols-3 gap-1">
           {centerPresets.map((preset) => (
             <PresetButton
@@ -390,20 +383,16 @@ export const PiPSection: React.FC<PiPSectionProps> = ({ clipId }) => {
         </div>
       </div>
 
-      <Button
-        label={`${showAdvanced ? "Hide" : "Show"} Advanced Controls`}
-        variant="secondary"
-        size="sm"
-        onClick={() => setShowAdvanced(!showAdvanced)}
-        className="w-full py-1.5 text-[10px] text-fg-2 hover:text-fg bg-bg-2 rounded-lg transition-colors"
-      />
+      <Button onClick={() => setShowAdvanced(!showAdvanced)} type="button" aria-label={(`${showAdvanced ? "Hide" : "Show"} Advanced Controls`).trim() || undefined} className="inline-flex min-w-0 items-center justify-center gap-1.5 font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 border border-border hover:bg-bg-3 w-full py-1.5 text-[10px] text-fg-2 hover:text-fg bg-bg-2 rounded-lg transition-colors">
+        <span className="truncate">{`${showAdvanced ? "Hide" : "Show"} Advanced Controls`}</span>
+      </Button>
 
       {showAdvanced && (
         <div className="space-y-3 pt-2 border-t border-border">
           <div className="space-y-2">
-            <Text type="supporting" color="secondary" className="text-[10px] font-medium">
+            <span className="text-fg-2 text-[10px] font-medium">
               Position
-            </Text>
+            </span>
             <ControlSlider
               label="X Position"
               value={currentTransform.position.x}
@@ -421,9 +410,9 @@ export const PiPSection: React.FC<PiPSectionProps> = ({ clipId }) => {
           </div>
 
           <div className="space-y-2">
-            <Text type="supporting" color="secondary" className="text-[10px] font-medium">
+            <span className="text-fg-2 text-[10px] font-medium">
               Scale
-            </Text>
+            </span>
             <ControlSlider
               label="Uniform Scale"
               value={currentTransform.scale.x}
@@ -448,9 +437,9 @@ export const PiPSection: React.FC<PiPSectionProps> = ({ clipId }) => {
           </div>
 
           <div className="space-y-2">
-            <Text type="supporting" color="secondary" className="text-[10px] font-medium">
+            <span className="text-fg-2 text-[10px] font-medium">
               Appearance
-            </Text>
+            </span>
             <ControlSlider
               label="Border Radius"
               value={currentTransform.borderRadius || 0}
@@ -470,20 +459,15 @@ export const PiPSection: React.FC<PiPSectionProps> = ({ clipId }) => {
         </div>
       )}
 
-      <Button
-        label="Reset to Default"
-        icon={<RotateCcw size={12} />}
-        variant="secondary"
-        size="sm"
-        onClick={handleReset}
-        className="w-full flex items-center justify-center gap-1.5 py-2 text-[10px] text-fg-2 hover:text-fg bg-bg-2 rounded-lg transition-colors"
-      />
+      <Button onClick={handleReset} type="button" aria-label="Reset to Default" className="min-w-0 font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 border border-border hover:bg-bg-3 w-full flex items-center justify-center gap-1.5 py-2 text-[10px] text-fg-2 hover:text-fg bg-bg-2 rounded-lg transition-colors">
+        <span className="flex h-4 w-4 shrink-0 items-center justify-center">{<RotateCcw size={12} />}</span>
+        <span className="truncate">{"Reset to Default"}</span>
+      </Button>
 
-      <Text type="supporting" color="secondary" className="text-center text-[9px]">
+      <span className="text-fg-2 font-normal text-center text-[9px]">
         Drag clip in preview to fine-tune position
-      </Text>
+      </span>
     </div>
   );
 };
 
-export default PiPSection;

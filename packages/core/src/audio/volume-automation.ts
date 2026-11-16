@@ -1,31 +1,31 @@
 import type { AutomationPoint } from "../types/timeline";
 
-export type AutomationCurve =
+type AutomationCurve =
   | "linear"
   | "exponential"
   | "logarithmic"
   | "s-curve"
   | "bezier";
 
-export interface AudioBezierControlPoints {
+interface AudioBezierControlPoints {
   readonly cp1x: number; // 0 to 1
   readonly cp1y: number; // 0 to 1
   readonly cp2x: number; // 0 to 1
   readonly cp2y: number; // 0 to 1
 }
 
-export interface VolumeKeyframe extends AutomationPoint {
+interface VolumeKeyframe extends AutomationPoint {
   readonly curve?: AutomationCurve;
   readonly bezierControls?: AudioBezierControlPoints;
 }
 
-export interface FadeConfig {
+interface FadeConfig {
   readonly duration: number; // In seconds
   readonly curve: AutomationCurve;
   readonly bezierControls?: AudioBezierControlPoints;
 }
 
-export interface DuckingConfig {
+interface DuckingConfig {
   readonly threshold: number; // dB level to trigger ducking (-60 to 0)
   readonly reduction: number; // Amount to reduce background (0 to 1)
   readonly attack: number; // Time to duck in seconds
@@ -33,19 +33,19 @@ export interface DuckingConfig {
   readonly holdTime: number; // Minimum time to hold ducking
 }
 
-export interface VolumeAutomationResult {
+interface VolumeAutomationResult {
   readonly buffer: AudioBuffer;
   readonly appliedKeyframes: number;
 }
 
-export const VOLUME_MIN = 0;
-export const VOLUME_MAX = 4;
+const VOLUME_MIN = 0;
+const VOLUME_MAX = 4;
 
 export function clampVolume(volume: number): number {
   return Math.max(VOLUME_MIN, Math.min(VOLUME_MAX, volume));
 }
 
-export class VolumeAutomation {
+class VolumeAutomation {
   private audioContext: AudioContext | OfflineAudioContext | null = null;
   private initialized = false;
 
@@ -532,23 +532,6 @@ export class VolumeAutomation {
     this.initialized = false;
   }
 }
-let volumeAutomationInstance: VolumeAutomation | null = null;
-
-export function getVolumeAutomation(): VolumeAutomation {
-  if (!volumeAutomationInstance) {
-    volumeAutomationInstance = new VolumeAutomation();
-  }
-  return volumeAutomationInstance;
-}
-
-export async function initializeVolumeAutomation(
-  context?: AudioContext | OfflineAudioContext,
-): Promise<VolumeAutomation> {
-  const engine = getVolumeAutomation();
-  await engine.initialize(context);
-  return engine;
-}
-
 export class AudioDucker {
   private audioContext: AudioContext | OfflineAudioContext | null = null;
   private initialized = false;
@@ -806,20 +789,4 @@ export class AudioDucker {
     this.audioContext = null;
     this.initialized = false;
   }
-}
-let audioDuckerInstance: AudioDucker | null = null;
-
-export function getAudioDucker(): AudioDucker {
-  if (!audioDuckerInstance) {
-    audioDuckerInstance = new AudioDucker();
-  }
-  return audioDuckerInstance;
-}
-
-export async function initializeAudioDucker(
-  context?: AudioContext | OfflineAudioContext,
-): Promise<AudioDucker> {
-  const ducker = getAudioDucker();
-  await ducker.initialize(context);
-  return ducker;
 }

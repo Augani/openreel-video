@@ -1,300 +1,401 @@
-import { useState, useCallback } from "react";
-import { Upload, Cloud, HardDrive, Check, AlertCircle } from "@/icons/lucide-compat";
-import { ToolcraftButton as Button } from "@openreel/ui";
-import { ToolcraftCard as Card } from "@openreel/ui";
-import { ToolcraftDialog as Dialog, ToolcraftDialogHeader as DialogHeader } from "@openreel/ui";
-import { ToolcraftLayout as Layout, ToolcraftLayoutContent as LayoutContent, ToolcraftLayoutFooter as LayoutFooter } from "@openreel/ui";
-import { ToolcraftSelectableCard as SelectableCard } from "@openreel/ui";
-import { ToolcraftSelectControl as Selector } from "@openreel/ui";
-import { ToolcraftText as Text } from "@openreel/ui";
-import { ToolcraftTextAreaControl } from "@openreel/ui";
-import { ToolcraftTextInputControl } from "@openreel/ui";
-import { useProjectStore } from "../../stores/project-store";
-import { useEngineStore } from "../../stores/engine-store";
+import { useEffect, useId, useRef, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 import {
-  TEMPLATE_CATEGORIES,
-  type TemplateCategory,
-  type TemplatePlaceholder,
-  type Template,
-  type ShapeClip,
-  type SVGClip,
-  type StickerClip,
-} from "@openreel/core";
-import { templateCloudService } from "../../services/template-cloud-service";
-
-interface TemplateWithGraphics extends Template {
-  timeline: Template["timeline"] & {
-    graphics?: {
-      shapes: ShapeClip[];
-      svgs: SVGClip[];
-      stickers: StickerClip[];
-    };
-  };
-}
+  Upload,
+  Cloud,
+  HardDrive,
+  Check,
+  AlertCircle,
+  Loader2,
+  X,
+} from "@/icons/lucide-compat";
+import {
+  Button,
+  Card,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  Input,
+  Textarea,
+  Label,
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+  RadioGroup,
+  RadioGroupItem,
+  cn,
+} from "@openreel/ui";
+import { TEMPLATE_CATEGORIES, type TemplateCategory } from "@openreel/core";
+import { useProjectStore } from "../../stores/project-store";
+import { saveProjectTemplate } from "../../services/project-templates";
 
 interface SaveTemplateDialogProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-export const SaveTemplateDialog: React.FC<SaveTemplateDialogProps> = ({
+const inputClass =
+  "h-8 w-full min-w-0 rounded-[7px] border-border bg-bg-1 px-2.5 py-1.5 text-[13px] font-medium text-fg-2 placeholder:text-fg-muted focus:border-accent";
+const labelClass = "text-[11px] font-medium text-text-secondary";
+type Phase = "idle" | "preparing" | "saving";
+
+export function SaveTemplateDialog({
   isOpen,
   onClose,
-}) => {
-  const { project } = useProjectStore();
-  const getTemplateEngine = useEngineStore((state) => state.getTemplateEngine);
-  const getGraphicsEngine = useEngineStore((state) => state.getGraphicsEngine);
-
+}: SaveTemplateDialogProps) {
+  const owner = useProjectStore(
+    useShallow((state) => ({
+      projectId: state.project.id,
+      history: state.actionHistory,
+    })),
+  );
+  const id = useId();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState<TemplateCategory>("custom");
   const [tags, setTags] = useState("");
   const [author, setAuthor] = useState("");
-  const [saveLocation, setSaveLocation] = useState<"local" | "cloud">("cloud");
-  const [isSaving, setIsSaving] = useState(false);
+  const [location, setLocation] = useState<"local" | "cloud">("cloud");
+  const [phase, setPhase] = useState<Phase>("idle");
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const phaseRef = useRef<Phase>("idle");
+  const operation = useRef<AbortController | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const openRef = useRef(isOpen);
+  const closeRef = useRef(onClose);
+  openRef.current = isOpen;
+  closeRef.current = onClose;
 
-  const handleSave = useCallback(async () => {
-    if (!name.trim()) {
-      setError("Template name is required");
-      return;
-    }
+  const clearTimer = () => {
+    if (timer.current !== null) clearTimeout(timer.current);
+    timer.current = null;
+  };
+  const resetDraft = () => {
+    setName("");
+    setDescription("");
+    setCategory("custom");
+    setTags("");
+    setAuthor("");
+    setSuccess(false);
+  };
 
-    if (!description.trim()) {
-      setError("Description is required");
-      return;
-    }
-
-    setIsSaving(true);
+  useEffect(() => {
     setError(null);
+    setSuccess(false);
+    phaseRef.current = "idle";
+    setPhase("idle");
+    return () => {
+      operation.current?.abort();
+      operation.current = null;
+      clearTimer();
+    };
+  }, [isOpen, owner.projectId, owner.history]);
 
+  const close = () => {
+    if (phaseRef.current === "saving") return;
+    operation.current?.abort();
+    clearTimer();
+    if (success) resetDraft();
+    closeRef.current();
+  };
+
+  const save = async () => {
+    if (!isOpen || phaseRef.current !== "idle" || success) return;
+    operation.current?.abort();
+    clearTimer();
+    const controller = new AbortController();
+    operation.current = controller;
+    phaseRef.current = "preparing";
+    setPhase("preparing");
+    setError(null);
     try {
-      const templateEngine = await getTemplateEngine();
-      const graphicsEngine = getGraphicsEngine();
-
-      await templateEngine.initialize();
-
-      const tagArray = tags
-        .split(",")
-        .map((t) => t.trim())
-        .filter(Boolean);
-
-      const placeholders: TemplatePlaceholder[] = [];
-
-      const template = templateEngine.createFromProject(project, {
-        name: name.trim(),
-        description: description.trim(),
+      await saveProjectTemplate({
+        owner,
+        signal: controller.signal,
+        name,
+        description,
         category,
-        placeholders,
-        tags: tagArray,
+        tags,
+        author,
+        location,
+        onWriting: () => {
+          phaseRef.current = "saving";
+          setPhase("saving");
+        },
       });
-
-      const templateWithMeta = {
-        ...template,
-        author: author.trim() || "Anonymous",
-      };
-
-      if (graphicsEngine) {
-        const shapes = graphicsEngine.getAllShapeClips();
-        const svgs = graphicsEngine.getAllSVGClips();
-        const stickers = graphicsEngine.getAllStickerClips();
-
-        if (shapes.length > 0 || svgs.length > 0 || stickers.length > 0) {
-          (templateWithMeta as TemplateWithGraphics).timeline.graphics = {
-            shapes,
-            svgs,
-            stickers,
-          };
-        }
-      }
-
-      if (saveLocation === "cloud") {
-        const result =
-          await templateCloudService.uploadTemplate(templateWithMeta);
-        if (!result.success) {
-          throw new Error(result.error || "Failed to upload to cloud");
-        }
-      } else {
-        await templateEngine.saveTemplate(templateWithMeta);
-      }
-
+      if (
+        operation.current !== controller ||
+        controller.signal.aborted ||
+        !openRef.current
+      )
+        return;
       setSuccess(true);
-      setTimeout(() => {
-        onClose();
-        setSuccess(false);
-        setName("");
-        setDescription("");
-        setTags("");
-        setAuthor("");
-        setCategory("custom");
+      timer.current = setTimeout(() => {
+        if (
+          operation.current !== controller ||
+          controller.signal.aborted ||
+          !openRef.current
+        )
+          return;
+        resetDraft();
+        closeRef.current();
       }, 1500);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save template");
+    } catch (cause) {
+      if (
+        operation.current === controller &&
+        !controller.signal.aborted &&
+        openRef.current
+      )
+        setError(
+          cause instanceof Error ? cause.message : "Failed to save template",
+        );
     } finally {
-      setIsSaving(false);
+      if (operation.current === controller) {
+        phaseRef.current = "idle";
+        setPhase("idle");
+      }
     }
-  }, [
-    name,
-    description,
-    category,
-    tags,
-    author,
-    saveLocation,
-    project,
-    getTemplateEngine,
-    getGraphicsEngine,
-    onClose,
-  ]);
+  };
 
   if (!isOpen) return null;
-
+  const busy = phase !== "idle";
   return (
     <Dialog
-      isOpen
-      onOpenChange={(open) => !open && onClose()}
-      width={512}
-      purpose="form"
+      open
+      onOpenChange={(open) => {
+        if (!open) close();
+      }}
     >
-      <Layout
-        header={
-          <DialogHeader
-            title="Save as Template"
-            onOpenChange={(open) => !open && onClose()}
-          />
-        }
-        content={
-          <LayoutContent className="max-h-[70vh] overflow-y-auto">
-        <div className="space-y-4">
-          {success && (
-            <Card variant="green" padding={3} className="flex items-center gap-2 border border-green-500/30">
-              <Check size={16} className="text-green-400" aria-hidden />
-              <Text type="supporting" className="text-green-400">
-                Template saved successfully!
-              </Text>
-            </Card>
-          )}
-
-          {error && (
-            <Card variant="red" padding={3} className="flex items-center gap-2 border border-red-500/30">
-              <AlertCircle size={16} className="text-red-400" aria-hidden />
-              <Text type="supporting" className="text-red-400">{error}</Text>
-            </Card>
-          )}
-
-          <ToolcraftTextInputControl
-            label="Template Name"
-            isRequired
-            type="text"
-            value={name}
-            onChange={(nextName) => setName(nextName.slice(0, 50))}
-            placeholder="My Awesome Template"
-            width="100%"
-          />
-          <Text type="supporting" color="secondary" display="block" className="text-[10px]">
-            {name.length}/50 characters
-          </Text>
-
-          <ToolcraftTextAreaControl
-            label="Description"
-            isRequired
-            value={description}
-            onChange={setDescription}
-            placeholder="Describe what this template is for and how to use it..."
-            rows={4}
-            maxLength={500}
-            width="100%"
-          />
-
-          <Selector
-            label="Category"
-            value={category}
-            onChange={(nextCategory) => setCategory(nextCategory as TemplateCategory)}
-            options={TEMPLATE_CATEGORIES.map((cat) => ({
-              value: cat.id,
-              label: cat.name,
-            }))}
-            width="100%"
-          />
-
-          <ToolcraftTextInputControl
-            label="Tags (comma-separated)"
-            type="text"
-            value={tags}
-            onChange={setTags}
-            placeholder="intro, animated, youtube"
-            width="100%"
-          />
-
-          <ToolcraftTextInputControl
-            label="Author Name"
-            type="text"
-            value={author}
-            onChange={setAuthor}
-            placeholder="Your name or username"
-            width="100%"
-          />
-
-          <div className="space-y-2">
-            <Text type="supporting" color="secondary" weight="bold" display="block">
-              Save Location
-            </Text>
-            <div className="grid grid-cols-2 gap-2">
-              <SelectableCard
-                label="Cloud"
-                isSelected={saveLocation === "cloud"}
-                onChange={() => setSaveLocation("cloud")}
-                padding={3}
-                variant={saveLocation === "cloud" ? "green" : "default"}
+      <DialogContent
+        hideCloseButton
+        className="flex max-h-[90dvh] w-[calc(100vw-32px)] max-w-[512px] flex-col gap-0 overflow-hidden border-border bg-bg-1 p-0 text-fg shadow-xl"
+        onEscapeKeyDown={(event) => {
+          if (phaseRef.current === "saving") event.preventDefault();
+        }}
+        onInteractOutside={(event) => {
+          if (phaseRef.current === "saving") event.preventDefault();
+        }}
+      >
+        <form
+          className="flex max-h-[90dvh] min-h-0 flex-col"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void save();
+          }}
+        >
+          <DialogHeader className="shrink-0 flex-row items-start gap-3 space-y-0 border-b border-border px-5 py-4 text-left">
+            <DialogTitle className="min-w-0 flex-1 text-[15px] font-semibold leading-5">
+              Save as Template
+            </DialogTitle>
+            <DialogDescription className="sr-only">
+              Save your current project's editable content as a reusable
+              template.
+            </DialogDescription>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              type="button"
+              aria-label="Close dialog"
+              onClick={close}
+              disabled={phase === "saving"}
+              className="h-7 w-7 shrink-0 text-fg-muted"
+            >
+              <X size={15} aria-hidden />
+            </Button>
+          </DialogHeader>
+          <div className="min-h-0 flex-1 overflow-y-auto p-4">
+            <div className="space-y-4">
+              {success && (
+                <Card
+                  role="status"
+                  className="flex items-center gap-2 rounded-[7px] border-green-500/30 bg-status-success/10 p-3 text-[12px] text-green-400 shadow-none"
+                >
+                  <Check size={16} aria-hidden />
+                  Template saved successfully!
+                </Card>
+              )}
+              {error && (
+                <Card
+                  role="alert"
+                  className="flex items-center gap-2 rounded-[7px] border-red-500/30 bg-status-error/10 p-3 text-[12px] text-red-400 shadow-none"
+                >
+                  <AlertCircle size={16} aria-hidden />
+                  {error}
+                </Card>
+              )}
+              <fieldset
+                disabled={busy || success}
+                className="min-w-0 space-y-4"
               >
-                <div className="flex items-center justify-center gap-2">
-                  <Cloud size={16} aria-hidden />
-                  <Text type="label" weight="bold">Cloud</Text>
+                <div className="space-y-1.5">
+                  <Label htmlFor={`${id}-name`} className={labelClass}>
+                    Template Name
+                  </Label>
+                  <Input
+                    id={`${id}-name`}
+                    required
+                    maxLength={50}
+                    value={name}
+                    onChange={(event) =>
+                      setName(event.target.value.slice(0, 50))
+                    }
+                    placeholder="My Awesome Template"
+                    className={inputClass}
+                    aria-describedby={`${id}-name-length`}
+                  />
+                  <p id={`${id}-name-length`} className="text-[10px] text-fg-2">
+                    {name.length}/50 characters
+                  </p>
                 </div>
-              </SelectableCard>
-              <SelectableCard
-                label="Local"
-                isSelected={saveLocation === "local"}
-                onChange={() => setSaveLocation("local")}
-                padding={3}
-                variant={saveLocation === "local" ? "green" : "default"}
-              >
-                <div className="flex items-center justify-center gap-2">
-                  <HardDrive size={16} aria-hidden />
-                  <Text type="label" weight="bold">Local</Text>
+                <div className="space-y-1.5">
+                  <Label htmlFor={`${id}-description`} className={labelClass}>
+                    Description
+                  </Label>
+                  <Textarea
+                    id={`${id}-description`}
+                    required
+                    maxLength={500}
+                    rows={4}
+                    value={description}
+                    onChange={(event) =>
+                      setDescription(event.target.value.slice(0, 500))
+                    }
+                    placeholder="Describe what this template is for and how to use it..."
+                    className={cn(
+                      inputClass,
+                      "min-h-[5.75rem] resize-y leading-5",
+                    )}
+                  />
                 </div>
-              </SelectableCard>
+                <div className="space-y-1.5">
+                  <Label htmlFor={`${id}-category`} className={labelClass}>
+                    Category
+                  </Label>
+                  <Select
+                    value={category}
+                    disabled={busy || success}
+                    onValueChange={(value) =>
+                      setCategory(value as TemplateCategory)
+                    }
+                  >
+                    <SelectTrigger id={`${id}-category`} className={inputClass}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {TEMPLATE_CATEGORIES.map((item) => (
+                        <SelectItem key={item.id} value={item.id}>
+                          {item.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor={`${id}-tags`} className={labelClass}>
+                    Tags (comma-separated)
+                  </Label>
+                  <Input
+                    id={`${id}-tags`}
+                    value={tags}
+                    onChange={(event) => setTags(event.target.value)}
+                    placeholder="intro, animated, youtube"
+                    className={inputClass}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor={`${id}-author`} className={labelClass}>
+                    Author Name
+                  </Label>
+                  <Input
+                    id={`${id}-author`}
+                    value={author}
+                    onChange={(event) => setAuthor(event.target.value)}
+                    placeholder="Your name or username"
+                    className={inputClass}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label
+                    id={`${id}-location`}
+                    className="text-[12px] font-bold text-fg-2"
+                  >
+                    Save Location
+                  </Label>
+                  <RadioGroup
+                    value={location}
+                    disabled={busy || success}
+                    onValueChange={(value) =>
+                      setLocation(value as "cloud" | "local")
+                    }
+                    aria-labelledby={`${id}-location`}
+                    className="grid grid-cols-2 gap-2"
+                  >
+                    {(["cloud", "local"] as const).map((value) => {
+                      const Icon = value === "cloud" ? Cloud : HardDrive;
+                      const title = value === "cloud" ? "Cloud" : "Local";
+                      return (
+                        <Label
+                          key={value}
+                          htmlFor={`${id}-${value}`}
+                          className={cn(
+                            "relative flex cursor-pointer items-center justify-center gap-2 rounded-[7px] border p-3 text-[12px] font-bold text-fg-2 transition-colors focus-within:ring-2 focus-within:ring-ring",
+                            location === value
+                              ? "border-accent bg-selected shadow-[0_0_0_1px_var(--accent)]"
+                              : "border-border bg-bg-1 hover:bg-bg-2",
+                          )}
+                        >
+                          <RadioGroupItem
+                            id={`${id}-${value}`}
+                            value={value}
+                            aria-label={title}
+                            className="sr-only"
+                          />
+                          <Icon size={16} aria-hidden />
+                          {title}
+                        </Label>
+                      );
+                    })}
+                  </RadioGroup>
+                  <p className="text-[10px] text-fg-2">
+                    {location === "cloud"
+                      ? "Saves your edits to cloud. Original media must be relinked on another device."
+                      : "Saved on this device with the original media."}
+                  </p>
+                </div>
+              </fieldset>
             </div>
-            <Text type="supporting" color="secondary" display="block" className="text-[10px]">
-              {saveLocation === "cloud"
-                ? "Saved to cloud and accessible from any device"
-                : "Saved locally in your browser storage"}
-            </Text>
           </div>
-        </div>
-          </LayoutContent>
-        }
-        footer={
-          <LayoutFooter hasDivider>
-            <div className="flex items-center justify-end gap-2">
-              <Button
-                label="Cancel"
-                variant="ghost"
-                onClick={onClose}
-                isDisabled={isSaving}
-              />
-              <Button
-                label={isSaving ? "Saving..." : "Save Template"}
-                onClick={handleSave}
-                isDisabled={isSaving || !name.trim() || !description.trim()}
-                isLoading={isSaving}
-                variant="primary"
-                icon={!isSaving ? <Upload size={16} aria-hidden /> : undefined}
-              />
-            </div>
-          </LayoutFooter>
-        }
-      />
+          <DialogFooter className="shrink-0 flex-row justify-end gap-2 space-x-0 border-t border-border px-5 py-4">
+            <Button
+              variant="ghost"
+              type="button"
+              onClick={close}
+              disabled={phase === "saving"}
+              className="h-8 rounded-[7px] px-3 text-[12px]"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              disabled={busy || success || !name.trim() || !description.trim()}
+              className="h-8 gap-1.5 rounded-[7px] bg-accent px-3 text-[12px] text-accent-fg hover:bg-accent/90"
+            >
+              {busy ? (
+                <Loader2 size={16} className="animate-spin" aria-hidden />
+              ) : (
+                <Upload size={16} aria-hidden />
+              )}
+              {busy ? "Saving..." : "Save Template"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
     </Dialog>
   );
-};
+}

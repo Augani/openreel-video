@@ -3,24 +3,25 @@ import {
   getTool,
   isDestructive,
   isExpensive,
-  toMcpTools,
+  toMcpToolsAnnotated,
   type ToolResult,
 } from "@openreel/agent";
 import type { MotionComposition } from "@openreel/core";
 import { getLiveEditorHost, runExclusive } from "./host-singleton";
+import { withAgentToolCall } from "../../components/onboarding/shell/project-intent";
 import { useSettingsStore } from "../../stores/settings-store";
 import { useMotionStore } from "../../motion/stores/motion-store";
 import { useUIStore } from "../../stores/ui-store";
 import { resolveMotionCreatorPreviewTime } from "../../motion/composition-selection";
 
-export interface McpBridgeRequest {
+interface McpBridgeRequest {
   readonly callId: string;
   readonly kind: "listTools" | "callTool";
   readonly name?: string;
   readonly args?: Record<string, unknown>;
 }
 
-export interface McpBridgeResponse {
+interface McpBridgeResponse {
   readonly ok: boolean;
   readonly result?: unknown;
   readonly error?: string;
@@ -160,7 +161,7 @@ export async function handleMcpBridgeRequest(
 ): Promise<McpBridgeResponse> {
   try {
     if (req.kind === "listTools") {
-      return { ok: true, result: toMcpTools() };
+      return { ok: true, result: toMcpToolsAnnotated() };
     }
     if (req.kind === "callTool") {
       const name = req.name;
@@ -173,15 +174,15 @@ export async function handleMcpBridgeRequest(
           summary: "Confirmation required",
           error: {
             code: "CONFIRMATION_REQUIRED",
-            message: `'${name}' is destructive or expensive. Enable "Trusted local — auto-allow" in Settings → MCP to permit it.`,
+            message: `'${name}' is destructive or expensive. Turn on "Allow agents to delete and export without asking" in Settings → MCP to permit it.`,
           },
         };
         return { ok: true, result: blocked };
       }
 
       const args = req.args ?? {};
-      const result = await runExclusive(() =>
-        Promise.resolve(executeTool(name, args, getLiveEditorHost())),
+      const result = await withAgentToolCall(() =>
+        runExclusive(() => Promise.resolve(executeTool(name, args, getLiveEditorHost()))),
       );
       followMcpMotionResult(name, args, result);
       return { ok: true, result };

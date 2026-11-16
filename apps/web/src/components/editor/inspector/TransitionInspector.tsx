@@ -1,26 +1,41 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { ToolcraftButton as Button } from "@openreel/ui";
-import { ToolcraftCard as Card } from "@openreel/ui";
-import { ToolcraftClickableCard as ClickableCard } from "@openreel/ui";
-import { ToolcraftIconButton as IconButton } from "@openreel/ui";
-import { ToolcraftText as Text } from "@openreel/ui";
-import { MockToggle } from "./shell/InspectorControls";
+import React, { useCallback, useEffect, useId, useMemo, useState } from "react";
+import {
+  Button,
+  Input,
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+  Label,
+  RadioGroup,
+  RadioGroupItem,
+  Switch,
+} from "@openreel/ui";
+import { useProjectStore } from "../../../stores/project-store";
+import { formatFrameTimecode } from "../../../utils/frame-timecode";
+
 import { PropertySlider } from "./shell/PropertySlider";
+import { getTrackBadge } from "../timeline/track-badge";
 import {
   ArrowRight,
   ArrowLeft,
   ArrowUp,
   ArrowDown,
-  X,
-  Check,
+  ArrowUpRight,
 } from "@/icons/lucide-compat";
-import {
-  getTransitionBridge,
-  type TransitionTypeInfo,
-} from "../../../bridges/transition-bridge";
+import { getTransitionBridge } from "../../../bridges/transition-bridge";
 import type { Transition, Clip, TransitionEdge } from "@openreel/core";
 import type { TransitionType } from "@openreel/core";
 import { toast } from "../../../stores/notification-store";
+
+const EASING_CURVES: Record<string, { label: string; path: string }> = {
+  linear: { label: "Linear", path: "M10 70 L190 10" },
+  ease: { label: "Ease in-out", path: "M10 70 C80 70 120 10 190 10" },
+  "ease-in": { label: "Ease in", path: "M10 70 Q100 70 190 10" },
+  "ease-out": { label: "Ease out", path: "M10 70 Q100 10 190 10" },
+  "ease-in-out": { label: "Quadratic in-out", path: "M10 70 Q55 70 100 40 Q145 10 190 10" },
+};
 
 const TransitionSlider: React.FC<{
   label: string;
@@ -57,28 +72,20 @@ const DirectionSelector: React.FC<{
     right: <ArrowRight size={14} />,
     up: <ArrowUp size={14} />,
     down: <ArrowDown size={14} />,
+    diagonal: <ArrowUpRight size={14} />,
   };
+  const choices = options.includes(value) ? options : [...options, value];
 
   return (
     <div className="space-y-1">
-      <Text type="supporting" color="secondary" className="text-[10px]">
+      <span className="text-fg-2 font-normal text-[10px]">
         Direction
-      </Text>
-      <div className="grid grid-cols-4 gap-1">
-        {options.map((dir) => (
-          <IconButton
-            key={dir}
-            label={dir.charAt(0).toUpperCase() + dir.slice(1)}
-            icon={(directionIcons[dir] || dir) as any}
-            variant={value === dir ? "primary" : "secondary"}
-            size="sm"
-            onClick={() => onChange(dir)}
-            className={`p-2 rounded-lg border transition-colors flex items-center justify-center ${
-              value === dir
-                ? "bg-primary/20 border-primary text-primary"
-                : "bg-bg-2 border-border text-fg-2 hover:text-fg"
-            }`}
-          />
+      </span>
+      <div className="workspace-transition-directions" style={{ gridTemplateColumns: `repeat(${choices.length}, minmax(0, 1fr))` }}>
+        {choices.map((dir) => (
+          <Button variant="outline" size="icon-sm" key={dir} onClick={() => onChange(dir)} type="button" aria-pressed={value === dir} aria-label={dir.charAt(0).toUpperCase() + dir.slice(1)} title={dir.charAt(0).toUpperCase() + dir.slice(1)}>
+            {directionIcons[dir] || dir}
+          </Button>
         ))}
       </div>
     </div>
@@ -90,359 +97,11 @@ const Toggle: React.FC<{
   value: boolean;
   onChange: (value: boolean) => void;
 }> = ({ label, value, onChange }) => (
-  <div className="flex items-center justify-between">
-    <Text type="supporting" color="secondary" className="text-[10px]">
-      {label}
-    </Text>
-    <MockToggle ariaLabel={label} checked={value} onChange={onChange} />
-  </div>
+  <label className="workspace-transition-toggle">
+    <span>{label}</span>
+    <Switch aria-label={label} checked={value} onCheckedChange={onChange} />
+  </label>
 );
-
-/**
- * Transition Preview Animation Component
- */
-const TransitionPreview: React.FC<{
-  type: TransitionType;
-  isPlaying: boolean;
-}> = ({ type, isPlaying }) => {
-  const [progress, setProgress] = React.useState(0.45);
-
-  React.useEffect(() => {
-    if (!isPlaying) {
-      setProgress(0.45);
-      return;
-    }
-
-    const duration = 1000;
-    const startTime = Date.now();
-    let animationFrame: number;
-
-    const animate = () => {
-      const elapsed = Date.now() - startTime;
-      const p = Math.min(elapsed / duration, 1);
-      setProgress(p);
-
-      if (p < 1) {
-        animationFrame = requestAnimationFrame(animate);
-      } else {
-        setTimeout(() => setProgress(0), 200);
-      }
-    };
-
-    animationFrame = requestAnimationFrame(animate);
-    return () => cancelAnimationFrame(animationFrame);
-  }, [isPlaying]);
-
-  const getTransitionStyle = (): {
-    clipA: React.CSSProperties;
-    clipB: React.CSSProperties;
-  } => {
-    const p = progress;
-    switch (type) {
-      case "crossfade":
-        return {
-          clipA: { opacity: 1 - p },
-          clipB: { opacity: p },
-        };
-      case "wipe":
-        return {
-          clipA: { clipPath: `inset(0 ${p * 100}% 0 0)` },
-          clipB: { clipPath: `inset(0 0 0 ${(1 - p) * 100}%)` },
-        };
-      case "slide":
-        return {
-          clipA: { transform: `translateX(${-p * 100}%)` },
-          clipB: { transform: `translateX(${(1 - p) * 100}%)` },
-        };
-      case "push":
-        return {
-          clipA: { transform: `translateX(${-p * 100}%)` },
-          clipB: { transform: `translateX(${(1 - p) * 100}%)` },
-        };
-      case "zoom":
-        return {
-          clipA: { transform: `scale(${1 + p * 2})`, opacity: 1 - p },
-          clipB: { transform: `scale(${2 - p})`, opacity: p },
-        };
-      case "dipToBlack":
-        return {
-          clipA: { opacity: p < 0.5 ? 1 - p * 2 : 0 },
-          clipB: { opacity: p > 0.5 ? (p - 0.5) * 2 : 0 },
-        };
-      case "dipToWhite":
-        return {
-          clipA: { opacity: p < 0.5 ? 1 - p * 2 : 0 },
-          clipB: { opacity: p > 0.5 ? (p - 0.5) * 2 : 0 },
-        };
-      case "circleReveal":
-        return {
-          clipA: {},
-          clipB: { clipPath: `circle(${p * 75}% at 50% 50%)` },
-        };
-      case "blur": {
-        const blur = Math.sin(p * Math.PI) * 12;
-        return {
-          clipA: { opacity: 1 - p, filter: `blur(${blur}px)` },
-          clipB: { opacity: p, filter: `blur(${blur}px)` },
-        };
-      }
-      case "whipPan": {
-        const blur = Math.sin(p * Math.PI) * 10;
-        return {
-          clipA: {
-            transform: `translateX(${-p * 100}%)`,
-            filter: `blur(${blur}px)`,
-          },
-          clipB: {
-            transform: `translateX(${(1 - p) * 100}%)`,
-            filter: `blur(${blur}px)`,
-          },
-        };
-      }
-      case "radialWipe": {
-        const mask = `conic-gradient(from -90deg,#000 ${p * 360}deg,transparent 0deg)`;
-        return {
-          clipA: {},
-          clipB: { maskImage: mask, WebkitMaskImage: mask },
-        };
-      }
-      case "pixelate": {
-        const amount = Math.max(1, Math.round(Math.sin(p * Math.PI) * 10));
-        return {
-          clipA: {
-            opacity: 1 - p,
-            imageRendering: "pixelated",
-            transform: `scale(${1 + amount / 400})`,
-          },
-          clipB: {
-            opacity: p,
-            imageRendering: "pixelated",
-            transform: `scale(${1 + amount / 400})`,
-          },
-        };
-      }
-      case "glitch": {
-        const amount = Math.sin(p * Math.PI) * 16;
-        return {
-          clipA: {
-            opacity: 1 - p * 0.7,
-            transform: `translateX(${-amount}px)`,
-            filter: `hue-rotate(${-amount * 2}deg)`,
-          },
-          clipB: {
-            opacity: p,
-            transform: `translateX(${amount}px)`,
-            clipPath:
-              "polygon(0 0,100% 0,100% 22%,0 22%,0 36%,100% 36%,100% 58%,0 58%,0 72%,100% 72%,100% 90%,0 90%)",
-          },
-        };
-      }
-      case "blinds": {
-        const open = Math.max(0.5, p * 16);
-        const mask = `repeating-linear-gradient(90deg,#000 0 ${open}px,transparent ${open}px 16px)`;
-        return {
-          clipA: {},
-          clipB: { maskImage: mask, WebkitMaskImage: mask },
-        };
-      }
-      case "diamondReveal":
-        return {
-          clipA: {},
-          clipB: {
-            clipPath: `polygon(50% ${50 - p * 70}%, ${50 + p * 70}% 50%, 50% ${50 + p * 70}%, ${50 - p * 70}% 50%)`,
-          },
-        };
-      case "spin": {
-        const easedIncoming = Math.max(0, Math.min(1, p));
-        return {
-          clipA: {
-            opacity: 1 - easedIncoming,
-            transform: `scale(${1 + easedIncoming * 0.35}) rotate(${easedIncoming * 180}deg)`,
-          },
-          clipB: {
-            opacity: easedIncoming,
-            transform: `scale(${0.65 + easedIncoming * 0.35}) rotate(${(easedIncoming - 1) * 180}deg)`,
-          },
-        };
-      }
-      case "flip": {
-        const outgoingAngle = p * 90;
-        const incomingAngle = (1 - p) * -90;
-        return {
-          clipA: {
-            opacity: p < 0.55 ? 1 : 0,
-            transform: `perspective(240px) rotateY(${outgoingAngle}deg)`,
-            transformOrigin: "center",
-          },
-          clipB: {
-            opacity: p > 0.45 ? 1 : 0,
-            transform: `perspective(240px) rotateY(${incomingAngle}deg)`,
-            transformOrigin: "center",
-          },
-        };
-      }
-      case "splitReveal": {
-        const edge = p * 50;
-        return {
-          clipA: {},
-          clipB: {
-            clipPath: `polygon(0 ${50 - edge}%,100% ${50 - edge}%,100% ${50 + edge}%,0 ${50 + edge}%)`,
-          },
-        };
-      }
-      case "flash": {
-        const flashAmount = Math.max(0, 1 - Math.abs(p - 0.5) * 2);
-        return {
-          clipA: {
-            opacity: 1 - p,
-            filter: `brightness(${1 + flashAmount * 4})`,
-          },
-          clipB: {
-            opacity: p,
-            filter: `brightness(${1 + flashAmount * 4})`,
-          },
-        };
-      }
-      case "filmBurn": {
-        const burn = Math.max(0, 1 - Math.abs(p - 0.5) * 2);
-        return {
-          clipA: {
-            opacity: 1 - p,
-            filter: `sepia(${burn}) saturate(${1 + burn * 2}) brightness(${1 + burn * 1.5})`,
-          },
-          clipB: {
-            opacity: p,
-            filter: `sepia(${burn}) saturate(${1 + burn * 2}) brightness(${1 + burn * 1.5})`,
-          },
-        };
-      }
-      case "mosaic": {
-        const reveal = Math.round(p * 100);
-        const mask = `linear-gradient(135deg,#000 ${reveal}%,transparent ${Math.min(100, reveal + 18)}%)`;
-        return {
-          clipA: {},
-          clipB: {
-            maskImage: mask,
-            WebkitMaskImage: mask,
-            imageRendering: "pixelated",
-          },
-        };
-      }
-      case "ripple": {
-        const wave = Math.sin(p * Math.PI) * 8;
-        return {
-          clipA: {
-            opacity: 1 - p,
-            transform: `translateX(${-wave}px) skewY(${wave * 0.25}deg)`,
-          },
-          clipB: {
-            opacity: p,
-            transform: `translateX(${wave}px) skewY(${-wave * 0.25}deg)`,
-          },
-        };
-      }
-      case "pageTurn":
-        return {
-          clipA: {
-            transform: `perspective(260px) rotateY(${p * 88}deg)`,
-            transformOrigin: "left center",
-            filter: `brightness(${1 - Math.sin(p * Math.PI) * 0.25})`,
-          },
-          clipB: {},
-        };
-      case "colorSplit": {
-        const split = Math.sin(p * Math.PI) * 10;
-        return {
-          clipA: {
-            opacity: 1 - p,
-            transform: `translateX(${-split}px)`,
-            filter: `hue-rotate(${-split * 3}deg)`,
-          },
-          clipB: {
-            opacity: p,
-            transform: `translateX(${split}px)`,
-            filter: `hue-rotate(${split * 3}deg)`,
-          },
-        };
-      }
-      default:
-        return { clipA: {}, clipB: {} };
-    }
-  };
-
-  const styles = getTransitionStyle();
-  const dipColor = type === "dipToWhite" ? "bg-white" : "bg-black";
-
-  return (
-    <div
-      data-transition-preview={type}
-      data-preview-progress={progress.toFixed(2)}
-      className="relative w-full h-8 rounded overflow-hidden bg-bg-1 mb-2"
-    >
-      <div
-        className="absolute inset-0 bg-primary/20"
-        style={{ ...styles.clipA, transition: "none" }}
-      />
-      <div
-        className="absolute inset-0 bg-green-500/30"
-        style={{ ...styles.clipB, transition: "none" }}
-      />
-      {(type === "dipToBlack" || type === "dipToWhite") && (
-        <div
-          className={`absolute inset-0 ${dipColor}`}
-          style={{
-            opacity: progress < 0.5 ? progress * 2 : (1 - progress) * 2,
-            transition: "none",
-          }}
-        />
-      )}
-    </div>
-  );
-};
-
-/**
- * Transition Type Card Component with Preview
- */
-const TransitionTypeCard: React.FC<{
-  typeInfo: TransitionTypeInfo;
-  isSelected: boolean;
-  onSelect: () => void;
-}> = ({ typeInfo, isSelected, onSelect }) => {
-  const [isHovered, setIsHovered] = React.useState(false);
-
-  return (
-    <ClickableCard
-      label={typeInfo.name}
-      onClick={onSelect}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-      className={`p-3 rounded-lg border transition-all text-left ${
-        isSelected
-          ? "bg-primary/20 border-primary"
-          : "bg-bg-2 border-border hover:border-text-secondary"
-      }`}
-    >
-      <TransitionPreview
-        type={typeInfo.type}
-        isPlaying={isHovered || isSelected}
-      />
-      <div className="flex items-center justify-between mb-1">
-        <Text
-          type="supporting"
-          className={`text-[10px] font-medium ${
-            isSelected ? "text-primary" : "text-fg"
-          }`}
-        >
-          {typeInfo.name}
-        </Text>
-        {isSelected && <Check size={12} className="text-primary" />}
-      </div>
-      <Text type="supporting" color="secondary" className="text-[9px]">
-        {typeInfo.description}
-      </Text>
-    </ClickableCard>
-  );
-};
 
 /**
  * TransitionInspector Props
@@ -476,10 +135,30 @@ export const TransitionInspector: React.FC<TransitionInspectorProps> = ({
   onTransitionUpdate,
   onTransitionRemove,
 }) => {
+  const project = useProjectStore((state) => state.project);
+  const actionExecutor = useProjectStore((state) => state.actionExecutor);
+  const canEdit = useCallback(() => {
+    const current = useProjectStore.getState();
+    return current.project.id === project.id && current.actionExecutor === actionExecutor &&
+      !current.project.timeline.tracks.some((item) => item.locked && (item.id === clipA.trackId || item.id === clipB?.trackId));
+  }, [project.id, actionExecutor, clipA.trackId, clipB?.trackId]);
+  const locked = project.timeline.tracks.some((item) => item.locked && (item.id === clipA.trackId || item.id === clipB?.trackId));
+  const mediaA = project.mediaLibrary.items.find(
+    (item) => item.id === clipA.mediaId,
+  );
+  const mediaB = clipB
+    ? project.mediaLibrary.items.find((item) => item.id === clipB.mediaId)
+    : undefined;
+  const track = project.timeline.tracks.find(
+    (item) => item.id === clipA.trackId,
+  );
+  const frameRate = project.settings.frameRate;
   const bridge = getTransitionBridge();
+  const alignmentId = useId();
+  const [applyingAll, setApplyingAll] = useState(false);
   const transitionTypes = useMemo(
     () => bridge.getAvailableTransitionTypes(),
-    [],
+    [bridge],
   );
 
   // Local state for creating new transitions
@@ -498,6 +177,8 @@ export const TransitionInspector: React.FC<TransitionInspectorProps> = ({
     setParams(transition?.params || bridge.getDefaultParams(nextType));
   }, [bridge, clipA.id, clipB?.id, edge, transition]);
 
+  const alignment = typeof params.alignment === "string" ? params.alignment : "center";
+
   // Validate transition
   const validation = useMemo(() => {
     if (!bridge.isInitialized()) {
@@ -512,16 +193,21 @@ export const TransitionInspector: React.FC<TransitionInspectorProps> = ({
         error: "A second clip is required for clip-to-clip transitions",
       };
     }
-    return bridge.validateTransition(clipA, clipB, duration);
-  }, [bridge, clipA, clipB, duration, edge]);
+    return bridge.validateTransition(clipA, clipB, duration, alignment);
+  }, [bridge, clipA, clipB, duration, edge, alignment]);
 
   // Handle type change
   const handleTypeChange = useCallback(
     (type: TransitionType) => {
+      if (!canEdit()) return;
       setSelectedType(type);
       const defaultParams = bridge.getDefaultParams(type);
       const nextParams = {
         ...defaultParams,
+        ...(typeof params.alignment === "string"
+          ? { alignment: params.alignment }
+          : {}),
+        ...(typeof params.curve === "string" ? { curve: params.curve } : {}),
         ...(typeof params.audioFade === "boolean"
           ? { audioFade: params.audioFade }
           : {}),
@@ -532,12 +218,21 @@ export const TransitionInspector: React.FC<TransitionInspectorProps> = ({
         onTransitionUpdate?.(transition.id, { type, params: nextParams });
       }
     },
-    [bridge, params.audioFade, transition, onTransitionUpdate],
+    [
+      canEdit,
+      bridge,
+      params.audioFade,
+      params.alignment,
+      params.curve,
+      transition,
+      onTransitionUpdate,
+    ],
   );
 
   // Handle duration change
   const handleDurationChange = useCallback(
     (newDuration: number) => {
+      if (!canEdit()) return;
       const clampedDuration = validation.maxDuration
         ? Math.min(newDuration, validation.maxDuration)
         : newDuration;
@@ -547,12 +242,13 @@ export const TransitionInspector: React.FC<TransitionInspectorProps> = ({
         onTransitionUpdate?.(transition.id, { duration: clampedDuration });
       }
     },
-    [transition, validation.maxDuration, onTransitionUpdate],
+    [canEdit, transition, validation.maxDuration, onTransitionUpdate],
   );
 
   // Handle param change
   const handleParamChange = useCallback(
     (key: string, value: unknown) => {
+      if (!canEdit()) return;
       const newParams = { ...params, [key]: value };
       setParams(newParams);
 
@@ -560,13 +256,20 @@ export const TransitionInspector: React.FC<TransitionInspectorProps> = ({
         onTransitionUpdate?.(transition.id, { params: newParams });
       }
     },
-    [params, transition, onTransitionUpdate],
+    [canEdit, params, transition, onTransitionUpdate],
   );
 
   // Handle create transition
   const handleCreate = useCallback(() => {
+    if (!canEdit()) return;
     const result = edge
-      ? bridge.createClipEdgeTransition(clipA, edge, selectedType, duration, params)
+      ? bridge.createClipEdgeTransition(
+          clipA,
+          edge,
+          selectedType,
+          duration,
+          params,
+        )
       : clipB
         ? bridge.createTransition(clipA, clipB, selectedType, duration, params)
         : {
@@ -590,16 +293,27 @@ export const TransitionInspector: React.FC<TransitionInspectorProps> = ({
         result.error || "Could not apply transition",
       );
     }
-  }, [bridge, clipA, clipB, edge, selectedType, duration, params, onTransitionCreate]);
+  }, [
+    canEdit,
+    bridge,
+    clipA,
+    clipB,
+    edge,
+    selectedType,
+    duration,
+    params,
+    onTransitionCreate,
+  ]);
 
   // Handle remove transition
   const handleRemove = useCallback(() => {
+    if (!canEdit()) return;
     if (transition) {
       bridge.removeTransition(transition.id);
       onTransitionRemove?.(transition.id);
       toast.success("Transition Removed");
     }
-  }, [transition, onTransitionRemove]);
+  }, [canEdit, bridge, transition, onTransitionRemove]);
 
   // Render type-specific parameters
   const renderTypeParams = () => {
@@ -694,7 +408,9 @@ export const TransitionInspector: React.FC<TransitionInspectorProps> = ({
           <>
             <DirectionSelector
               value={(params.direction as string) || "left"}
-              onChange={(direction) => handleParamChange("direction", direction)}
+              onChange={(direction) =>
+                handleParamChange("direction", direction)
+              }
             />
             <TransitionSlider
               label="Motion Blur"
@@ -755,7 +471,7 @@ export const TransitionInspector: React.FC<TransitionInspectorProps> = ({
         return (
           <TransitionSlider
             label="Hold Duration"
-            value={(params.holdDuration as number) || 0.1}
+            value={(params.holdDuration as number) ?? 0.1}
             onChange={(v) => handleParamChange("holdDuration", v)}
             min={0}
             max={1}
@@ -940,7 +656,9 @@ export const TransitionInspector: React.FC<TransitionInspectorProps> = ({
           <>
             <DirectionSelector
               value={(params.direction as string) || "left"}
-              onChange={(direction) => handleParamChange("direction", direction)}
+              onChange={(direction) =>
+                handleParamChange("direction", direction)
+              }
               options={["left", "right"]}
             />
             <TransitionSlider
@@ -986,124 +704,327 @@ export const TransitionInspector: React.FC<TransitionInspectorProps> = ({
   };
 
   const selectedTypeInfo = transitionTypes.find((t) => t.type === selectedType);
-  const fromLabel = edge === "in" ? "Background" : `${clipA.id.substring(0, 12)}...`;
-  const toLabel =
-    edge === "out"
-      ? "Background"
-      : `${(clipB ?? clipA).id.substring(0, 12)}...`;
-
+  const name =
+    selectedType === "crossfade"
+      ? "Cross dissolve"
+      : selectedType === "circleReveal"
+        ? "Iris"
+        : (selectedTypeInfo?.name ?? selectedType);
+  const cutTime =
+    edge === "in" ? clipA.startTime : clipA.startTime + clipA.duration;
+  const curve = typeof params.curve === "string" ? params.curve : "linear";
+  const curvePreview = EASING_CURVES[curve] ?? EASING_CURVES.linear;
+  const actualDurationMax = edge
+    ? (validation.maxDuration ?? clipA.duration)
+    : alignment === "start"
+      ? (clipB?.duration ?? clipA.duration)
+      : alignment === "end"
+        ? clipA.duration
+        : (validation.maxDuration ?? 5);
+  const applyToAllCuts = async () => {
+    if (applyingAll || !canEdit()) return;
+    const store = useProjectStore.getState();
+    const projectId = store.project.id;
+    const history = store.actionHistory;
+    setApplyingAll(true);
+    let count = 0;
+    history.beginGroup("Apply transitions to all cuts");
+    try {
+      tracks:
+      for (const track of store.project.timeline.tracks) {
+        if (track.locked || track.type !== "video") continue;
+        const clips = [...track.clips].sort((a, b) => a.startTime - b.startTime);
+        for (let i = 0; i < clips.length - 1; i++) {
+          if (!canEdit()) break tracks;
+          const a = clips[i],
+            b = clips[i + 1];
+          if (Math.abs(a.startTime + a.duration - b.startTime) > 0.001) continue;
+          const existing = store.getClipTransitionBetweenClips(a.id, b.id);
+          const max =
+            alignment === "start"
+              ? b.duration
+              : alignment === "end"
+                ? a.duration
+                : Math.min(a.duration, b.duration) * 2;
+          const next = {
+            type: selectedType,
+            duration: Math.min(duration, max),
+            params,
+          };
+          if (existing) {
+            if (await store.updateClipTransition(existing.id, next)) count++;
+          } else {
+            const created = bridge.createTransition(
+              a,
+              b,
+              next.type,
+              next.duration,
+              params,
+            );
+            const value = created.transitionId
+              ? bridge.getTransition(created.transitionId)
+              : null;
+            if (value && (await store.addClipTransition(value))) count++;
+          }
+        }
+      }
+    } catch (error) {
+      if (useProjectStore.getState().project.id === projectId)
+        toast.error("Could not apply all transitions", error instanceof Error ? error.message : "Try again, or undo the edits already applied.");
+      return;
+    } finally {
+      history.endGroup();
+      setApplyingAll(false);
+    }
+    if (useProjectStore.getState().project.id !== projectId) return;
+    if (count)
+      toast.success(
+        `Transition applied to ${count} cut${count === 1 ? "" : "s"}`,
+      );
+    else
+      toast.warning(
+        "No adjacent video cuts",
+        "Place two video clips next to each other on an unlocked track.",
+      );
+  };
   return (
-    <div className="space-y-4">
-      {/* Clip Info */}
-      <Card variant="muted" padding={2} className="flex items-center gap-2 border border-border">
-        <div className="flex-1 min-w-0 flex flex-col items-center gap-0.5 text-center">
-          <Text type="supporting" color="secondary" display="block" className="text-[9px]">
-            From
-          </Text>
-          <Text type="supporting" color="primary" display="block" maxLines={1} className="w-full truncate text-[10px]">
-            {fromLabel}
-          </Text>
+    <fieldset disabled={locked} className="workspace-transition-inspector m-0 min-w-0 border-0 p-0">
+      <div className="workspace-transition-summary">
+        <div
+          className="workspace-transition-pair"
+          role="img"
+          aria-label={`Transition clips: ${mediaA?.name ?? "A"} to ${mediaB?.name ?? (edge ? "project background" : "B")}`}
+        >
+          <div className="workspace-transition-frame">
+            {mediaA?.thumbnailUrl && <img src={mediaA.thumbnailUrl} alt="" />}
+            <span>A</span>
+          </div>
+          <div className="workspace-transition-frame">
+            {mediaB?.thumbnailUrl && <img src={mediaB.thumbnailUrl} alt="" />}
+            <span>B</span>
+          </div>
+          <div className="workspace-transition-blend" aria-hidden="true" />
         </div>
-        <ArrowRight size={14} className="text-fg-3" />
-        <div className="flex-1 min-w-0 flex flex-col items-center gap-0.5 text-center">
-          <Text type="supporting" color="secondary" display="block" className="text-[9px]">
-            To
-          </Text>
-          <Text type="supporting" color="primary" display="block" maxLines={1} className="w-full truncate text-[10px]">
-            {toLabel}
-          </Text>
-        </div>
-      </Card>
-
-      {/* Validation Warning */}
-      {validation.warning && (
-        <Card variant="muted" padding={2} className="border border-yellow-500/30 bg-yellow-500/10">
-          <Text type="supporting" className="text-[10px] text-yellow-500">
-            {validation.warning}
-          </Text>
-        </Card>
-      )}
-
-      {/* Transition Type Selector */}
-      <div className="space-y-2">
-        <Text type="supporting" color="secondary" className="text-[10px] font-medium">
-          Transition Type
-        </Text>
-        <div className="grid grid-cols-2 gap-2">
-          {transitionTypes.map((typeInfo) => (
-            <TransitionTypeCard
-              key={typeInfo.type}
-              typeInfo={typeInfo}
-              isSelected={selectedType === typeInfo.type}
-              onSelect={() => handleTypeChange(typeInfo.type)}
-            />
-          ))}
+        <div className="workspace-transition-summary-row">
+          <div>
+            <strong>{name}</strong>
+            <p>
+              {track ? getTrackBadge(project.timeline.tracks, track.id) : "Video"} ·{" "}
+              {edge ? `${edge === "in" ? "intro" : "outro"} at` : "cut at"}{" "}
+              {formatFrameTimecode(cutTime, frameRate)}
+            </p>
+          </div>
+          <Select
+            value={selectedType}
+            onValueChange={(value) => handleTypeChange(value as TransitionType)}
+          >
+            <SelectTrigger
+              aria-label="Replace transition"
+              className="workspace-transition-replace"
+              icon={<span aria-hidden="true">▾</span>}
+            >
+              <span>Replace</span>
+            </SelectTrigger>
+            <SelectContent>
+              {transitionTypes.map((info) => (
+                <SelectItem key={info.type} value={info.type}>
+                  {info.type === "crossfade" ? "Cross dissolve" : info.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </div>
-
-      {/* Duration Slider */}
-      <TransitionSlider
-        label="Duration"
-        value={duration}
-        onChange={handleDurationChange}
-        min={0.1}
-        max={validation.maxDuration || 5}
-        step={0.1}
-        unit="s"
-      />
-
-      <Toggle
-        label={edge ? "Fade clip audio" : "Smooth transition audio"}
-        value={(params.audioFade as boolean) ?? false}
-        onChange={(value) => handleParamChange("audioFade", value)}
-      />
-
-      {/* Type-specific Parameters */}
-      {selectedTypeInfo?.hasCustomParams && (
-        <div className="space-y-3 pt-2 border-t border-border">
-          <Text type="supporting" color="secondary" className="text-[10px] font-medium">
-            Parameters
-          </Text>
-          {renderTypeParams()}
+      <div className="workspace-transition-properties">
+        <TransitionDurationField
+          key={`${project.id}:${transition?.id ?? "new"}:${clipA.id}:${clipB?.id ?? edge}`}
+          value={duration}
+          frameRate={frameRate}
+          max={actualDurationMax}
+          onChange={handleDurationChange}
+        />
+        {!edge && (
+          <div className="workspace-transition-property">
+            <span>Alignment</span>
+            <RadioGroup
+              aria-label="Transition alignment"
+              className="workspace-transition-alignment"
+              orientation="horizontal"
+              value={alignment}
+              onValueChange={(value) => {
+                if (!canEdit()) return;
+                const nextMax =
+                  value === "start"
+                    ? (clipB?.duration ?? clipA.duration)
+                    : value === "end"
+                      ? clipA.duration
+                      : Math.min(
+                          clipA.duration,
+                          clipB?.duration ?? clipA.duration,
+                        ) * 2;
+                const nextDuration = Math.min(duration, nextMax);
+                const nextParams = { ...params, alignment: value };
+                setParams(nextParams);
+                setDuration(nextDuration);
+                if (transition)
+                  onTransitionUpdate?.(transition.id, {
+                    duration: nextDuration,
+                    params: nextParams,
+                  });
+              }}
+            >
+              {["start", "center", "end"].map(value => <div key={value} className="workspace-transition-alignment-choice">
+                <RadioGroupItem id={`${alignmentId}-${value}`} value={value} aria-label={value[0].toUpperCase() + value.slice(1)} />
+                <Label htmlFor={`${alignmentId}-${value}`}>{value[0].toUpperCase() + value.slice(1)}</Label>
+              </div>)}
+            </RadioGroup>
+          </div>
+        )}
+        <div className="workspace-transition-property is-easing">
+          <span>Easing</span>
+          <div className="workspace-transition-easing">
+            <Select
+              value={EASING_CURVES[curve] ? curve : "linear"}
+              onValueChange={(value) => handleParamChange("curve", value)}
+            >
+              <SelectTrigger aria-label="Transition easing" icon={<span className="workspace-transition-caret" aria-hidden="true">▾</span>}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="linear">Linear</SelectItem>
+                <SelectItem value="ease">Ease in-out</SelectItem>
+                <SelectItem value="ease-in">Ease in</SelectItem>
+                <SelectItem value="ease-out">Ease out</SelectItem>
+                <SelectItem value="ease-in-out">Quadratic in-out</SelectItem>
+              </SelectContent>
+            </Select>
+          <div
+            className="workspace-transition-curve"
+            aria-label={`${curvePreview.label} curve`}
+            role="img"
+          >
+            <svg
+              width="100%"
+              height="80"
+              viewBox="0 0 200 80"
+              preserveAspectRatio="none"
+              aria-hidden="true"
+            >
+              <path
+                d={curvePreview.path}
+                stroke="var(--accent)"
+                strokeWidth="2"
+                fill="none"
+              />
+              {curve === "ease" && <>
+                <path d="M10 70 L80 70 M190 10 L120 10" stroke="#3A3D44" strokeWidth="1" strokeDasharray="3 3" />
+                <circle cx="80" cy="70" r="3.5" fill="#E8E9EC" />
+                <circle cx="120" cy="10" r="3.5" fill="#E8E9EC" />
+              </>}
+            </svg>
+          </div>
+          </div>
         </div>
-      )}
-
-      {/* Action Buttons */}
-      <div className="flex gap-2 pt-2">
-        {transition ? (
-          <Button
-            label="Remove Transition"
-            icon={<X size={12} />}
-            variant="secondary"
-            size="sm"
-            onClick={handleRemove}
-            className="flex-1 py-2 bg-red-500/10 border border-red-500/30 rounded-lg text-[10px] text-red-400 hover:bg-red-500/20 transition-colors flex items-center justify-center gap-1"
-          />
-        ) : (
-          <Button
-            label="Apply Transition"
-            icon={<Check size={12} />}
-            variant={validation.valid ? "primary" : "secondary"}
-            size="sm"
-            onClick={handleCreate}
-            isDisabled={!validation.valid}
-            className={`flex-1 py-2 rounded-lg text-[10px] transition-colors flex items-center justify-center gap-1 ${
-              validation.valid
-                ? "bg-primary/10 border border-primary/30 text-primary hover:bg-primary/20"
-                : "bg-bg-2 border border-border text-fg-3 cursor-not-allowed"
-            }`}
-          />
+        <Toggle
+          label={edge ? "Fade clip audio" : "Also blend audio (crossfade)"}
+          value={(params.audioFade as boolean) ?? false}
+          onChange={(value) => handleParamChange("audioFade", value)}
+        />
+        {selectedTypeInfo?.hasCustomParams && (
+          <div className="workspace-transition-parameters">
+            {renderTypeParams()}
+          </div>
+        )}
+        {validation.warning && (
+          <p className="text-[11px] text-amber-400" role="status">
+            {validation.warning}
+          </p>
+        )}
+        {!validation.valid && validation.error && (
+          <p className="text-[11px] text-red-400" role="alert">
+            {validation.error}
+          </p>
         )}
       </div>
-
-      {/* Error Message */}
-      {!validation.valid && validation.error && (
-        <Text type="supporting" className="block text-center text-[10px] text-red-400">
-          {validation.error}
-        </Text>
-      )}
-    </div>
+      <div className="workspace-transition-actions">
+        <Button variant="secondary" disabled={applyingAll} onClick={() => void applyToAllCuts()}>
+          {applyingAll ? "Applying…" : "Apply to all cuts"}
+        </Button>
+        {transition ? (
+          <Button
+            variant="secondary"
+            className="text-red-400"
+            onClick={handleRemove}
+          >
+            Remove
+          </Button>
+        ) : (
+          <Button className="workspace-transition-create" disabled={!validation.valid} onClick={handleCreate}>
+            Apply transition
+          </Button>
+        )}
+      </div>
+    </fieldset>
   );
 };
 
-export default TransitionInspector;
+export function TransitionDurationField({
+  value,
+  frameRate,
+  max,
+  onChange,
+  label = "Duration",
+  ariaLabel = "Transition duration",
+  className = "",
+}: {
+  value: number;
+  frameRate: number;
+  max: number;
+  onChange: (value: number) => void;
+  label?: string;
+  ariaLabel?: string;
+  className?: string;
+}) {
+  const [draft, setDraft] = useState(formatFrameTimecode(value, frameRate));
+  const [editing, setEditing] = useState(false);
+  const cancelled = React.useRef(false);
+  useEffect(() => {
+    if (!editing) setDraft(formatFrameTimecode(value, frameRate));
+  }, [value, frameRate, editing]);
+  const commit = () => {
+    const parts = draft.split(":").map(Number);
+    const next =
+      parts.length === 4
+        ? parts[0] * 3600 + parts[1] * 60 + parts[2] + parts[3] / frameRate
+        : Number(draft);
+    if (Number.isFinite(next) && next > 0)
+      onChange(Math.max(1 / frameRate, Math.min(max, next)));
+    else setDraft(formatFrameTimecode(value, frameRate));
+  };
+  return (
+    <label className={`workspace-transition-property ${className}`}>
+      <span>{label}</span>
+      <Input
+        aria-label={ariaLabel}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onFocus={() => {
+          cancelled.current = false;
+          setEditing(true);
+        }}
+        onBlur={() => {
+          if (!cancelled.current) commit();
+          setEditing(false);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") e.currentTarget.blur();
+          if (e.key === "Escape") {
+            cancelled.current = true;
+            setDraft(formatFrameTimecode(value, frameRate));
+            e.currentTarget.blur();
+          }
+        }}
+      />
+    </label>
+  );
+}

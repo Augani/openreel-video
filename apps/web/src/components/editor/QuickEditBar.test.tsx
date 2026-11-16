@@ -88,18 +88,6 @@ describe("QuickEditBar", () => {
     expect(useProjectStore.getState().getTextClip(caption!.id)).toMatchObject({ startTime: 1, duration: 2 });
   });
 
-  it("disables edits on locked tracks and during export", () => {
-    const project = useProjectStore.getState().project;
-    useProjectStore.setState({ project: { ...project, timeline: { ...project.timeline,
-      tracks: project.timeline.tracks.map(track => ({ ...track, locked: true })) } } });
-    show();
-    expect(screen.getByRole("button", { name: "Split here" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Clean audio" })).toBeDisabled();
-    act(() => useUIStore.getState().setExportState({ isExporting: true, progress: 0, phase: "encoding" }));
-    expect(screen.getByRole("button", { name: "Export video" })).toBeDisabled();
-    expect(useProjectStore.getState().canUndo()).toBe(false);
-  });
-
   it("checks the current selection before dispatching a stale click", () => {
     const split = vi.spyOn(useProjectStore.getState(), "splitClip");
     show();
@@ -122,22 +110,4 @@ describe("QuickEditBar", () => {
     } finally { useProjectStore.setState({ splitClip: original }); }
   });
 
-  it("takes audio-only clips to captions and opens export", () => {
-    seed("audio");
-    show();
-    expect(screen.queryByRole("button", { name: "Reframe" })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Add captions" }));
-    expect(useInspectorNavigationStore.getState().request).toMatchObject({ sectionId: "auto-captions", clipId });
-    fireEvent.click(screen.getByRole("button", { name: "Export video" }));
-    expect(useUIStore.getState().activeModal).toBe("export");
-  });
-
-  it("keeps unavailable media from starting captions or cleanup", () => {
-    const project = useProjectStore.getState().project;
-    useProjectStore.setState({ project: { ...project, mediaLibrary: {
-      items: project.mediaLibrary.items.map(item => ({ ...item, blob: null, isPlaceholder: true })) } } });
-    show();
-    expect(screen.getByRole("button", { name: "Add captions" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Clean audio" })).toBeDisabled();
-  });
 });

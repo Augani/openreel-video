@@ -64,13 +64,6 @@ export interface CachedFrame {
   lastAccessed: number;
 }
 
-export interface VideoTrackRenderInfo {
-  trackId: string;
-  index: number;
-  hidden: boolean;
-  clips: VideoClipRenderInfo[];
-}
-
 export interface VideoClipRenderInfo {
   clipId: string;
   mediaId: string;

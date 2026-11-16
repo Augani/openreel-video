@@ -1,7 +1,7 @@
 import type { JSX } from "react";
 import { useEffect, useState } from "react";
-import { ToolcraftButton as Button } from "@openreel/ui";
-import { ToolcraftText as Text } from "@openreel/ui";
+import { Button } from "@openreel/ui";
+
 import type { OpenReelUpdaterStatus } from "../types/global";
 
 // Notify → (consented) download → install. Subscribes to main-process update
@@ -37,68 +37,56 @@ export function UpdateBanner(): JSX.Element | null {
     <div className={card} role="status" aria-live="polite">
       {status.state === "available" && (
         <>
-          <Text type="body" weight="bold" display="block" className="text-sm">
+          <span className="text-fg-2 font-bold block text-sm">
             Update {status.version} available
-          </Text>
-          <Text type="supporting" color="secondary" display="block" className="mt-1 text-xs">
+          </span>
+          <span className="text-fg-2 font-normal block mt-1 text-xs">
             A new version of OpenReel is ready to download.
-          </Text>
+          </span>
           <div className="mt-3 flex gap-2">
-            <Button
-              label="Download"
-              variant="primary"
-              size="sm"
-              onClick={() => void window.openreel?.updater.download()}
-            />
-            <Button
-              label="Later"
-              variant="ghost"
-              size="sm"
-              onClick={() => setDismissed(true)}
-            />
+            <Button onClick={() => void window.openreel?.updater.download()} type="button" aria-label="Download" className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] bg-accent text-accent-fg hover:bg-accent/90">
+              <span className="truncate">{"Download"}</span>
+            </Button>
+            <Button onClick={() => setDismissed(true)} type="button" aria-label="Later" className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] bg-transparent text-fg-2 hover:bg-bg-2 hover:text-fg">
+              <span className="truncate">{"Later"}</span>
+            </Button>
           </div>
         </>
       )}
 
       {status.state === "downloading" && (
         <>
-          <Text type="body" weight="bold" display="block" className="text-sm">
+          <span className="text-fg-2 font-bold block text-sm">
             Downloading update…
-          </Text>
+          </span>
           <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-border">
             <div
               className="h-full bg-accent transition-all"
               style={{ width: `${status.percent}%` }}
             />
           </div>
-          <Text type="supporting" color="secondary" display="block" className="mt-1 text-xs">
+          <span className="text-fg-2 font-normal block mt-1 text-xs">
             {status.percent}%
-          </Text>
+          </span>
         </>
       )}
 
       {status.state === "downloaded" && (
         <>
-          <Text type="body" weight="bold" display="block" className="text-sm">
+          <span className="text-fg-2 font-bold block text-sm">
             Update {status.version} ready
-          </Text>
-          <Text type="supporting" color="secondary" display="block" className="mt-1 text-xs">
+          </span>
+          <span className="text-fg-2 font-normal block mt-1 text-xs">
             Restart to install — you’ll be asked to save any unsaved changes
             first.
-          </Text>
+          </span>
           <div className="mt-3 flex gap-2">
-            <Button
-              label="Restart & Install"
-              variant="primary"
-              size="sm"
-              onClick={() => void window.openreel?.updater.install()}
-            />
-            <Button
-              label="Later"
-              variant="ghost"
-              size="sm"
-              onClick={() => setDismissed(true)}
-            />
+            <Button onClick={() => void window.openreel?.updater.install()} type="button" aria-label="Restart & Install" className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] bg-accent text-accent-fg hover:bg-accent/90">
+              <span className="truncate">{"Restart & Install"}</span>
+            </Button>
+            <Button onClick={() => setDismissed(true)} type="button" aria-label="Later" className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] bg-transparent text-fg-2 hover:bg-bg-2 hover:text-fg">
+              <span className="truncate">{"Later"}</span>
+            </Button>
           </div>
         </>
       )}

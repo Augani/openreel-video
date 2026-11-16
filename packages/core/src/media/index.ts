@@ -1,92 +1,99 @@
 // Engine
-export {
-  MediaBunnyEngine,
-  getMediaEngine,
-  initializeMediaEngine,
-  SUPPORTED_VIDEO_FORMATS,
-  SUPPORTED_AUDIO_FORMATS,
-  SUPPORTED_IMAGE_FORMATS,
-  isSupportedFormat,
-  inferMediaType,
-} from "./mediabunny-engine";
+export { getMediaEngine, initializeMediaEngine } from "./mediabunny-engine";
 
 // FFmpeg Fallback
-export {
-  FFmpegFallback,
-  getFFmpegFallback,
-  shouldUseProxy,
-  getRecommendedProxyPreset,
-  PROXY_PRESETS,
-  PROXY_THRESHOLDS,
-} from "./ffmpeg-fallback";
-export type { ProxySettings, TranscodeOptions, AudioProbeResult, AudioStreamInfo } from "./ffmpeg-fallback";
+export { FFmpegFallback, getFFmpegFallback } from "./ffmpeg-fallback";
 
 // Native media bridge (desktop) + shared audio-extract helper
 export {
-  getBridge,
-  materializeToTemp,
   nativeMediaAvailable,
   proxyViaNative,
-  transcodeViaNative,
-  extractAudioWavViaNative,
   probeAudioStreamCountViaNative,
 } from "./native-media-bridge";
-export type { NativeMediaBridge } from "./native-media-bridge";
 export { extractAudioWav } from "./extract-audio";
+export {
+  classifyProMedia,
+  isCameraRawName,
+  proMediaProxyNotice,
+  proMediaWebMessage,
+  PRO_MEDIA_PROXY_PREFIX,
+} from "./pro-media";
+export type { ProMediaInfo, ProMediaKind } from "./pro-media";
+export {
+  decodeAudioBufferStreaming,
+  type StreamingAudioDecodeResult,
+} from "./decode-audio-streaming";
 
 // Media Import Service
 export {
   MediaImportService,
-  getMediaImportService,
   initializeMediaImportService,
+  CODEC_UNSUPPORTED_WARNING,
 } from "./media-import-service";
-export type { MediaImportOptions } from "./media-import-service";
 
 // Waveform Generator
-export {
-  WaveformGenerator,
-  getWaveformGenerator,
-  createWaveformGenerator,
-  WAVEFORM_RESOLUTIONS,
-} from "./waveform-generator";
-export type {
-  WaveformGeneratorOptions,
-  MultiResolutionWaveform,
-} from "./waveform-generator";
+export { WaveformGenerator, getWaveformGenerator } from "./waveform-generator";
 
-// Waveform Renderer
-export {
-  WaveformRenderer,
-  createWaveformImage,
-  createClipWaveformThumbnail,
-} from "./waveform-renderer";
-export type {
-  WaveformStyle,
-  WaveformRenderOptions,
-  AmplitudeInfo,
-} from "./waveform-renderer";
 export type {
   ProcessedMedia,
   MediaTrackInfo,
-  ThumbnailResult,
-  VideoFrameResult,
   WaveformData,
-  ExportSettings,
   ExportProgress,
-  FrameCacheEntry,
-  WaveformCacheEntry,
-  MediaImportResult,
-  VideoCodec,
-  AudioCodec,
-  CodecSupport,
 } from "./types";
 
-export { QUALITY_PRESETS, AUDIO_QUALITY_PRESETS } from "./types";
-
+// Scene detection
 export {
-  decodeGif,
-  createGifFrameCache,
-  getGifFrameAtTime,
-  isAnimatedGif,
-} from "./gif-decoder";
-export type { GifFrame, DecodedGif, GifFrameCache } from "./gif-decoder";
+  detectScenes,
+  findCuts,
+  computeFrameSignature,
+  signatureDistance,
+  sensitivityToThresholds,
+  buildSceneRanges,
+  createAbortError,
+} from "./scene-detection";
+export type {
+  FrameLike,
+  FrameSampler,
+  SceneCut,
+  SceneRange,
+  SceneDetectionOptions,
+  SceneDetectionProgress,
+  SceneDetectionResult,
+  FrameSignature,
+} from "./scene-detection";
+
+// Seek anchors (low-res frame index for instant click-seek)
+export {
+  planAnchorTimes,
+  sampleSeekAnchors,
+  DEFAULT_MAX_ANCHORS,
+  DEFAULT_MIN_SPACING,
+} from "./seek-anchor-sampler";
+export type {
+  SeekAnchor,
+  SeekAnchorPlanOptions,
+  SampleSeekAnchorsOptions,
+  SampleSeekAnchorsResult,
+} from "./seek-anchor-sampler";
+
+// Native (desktop) decode for codecs WebCodecs cannot play
+export {
+  registerNativeFrameProvider,
+  hasNativeFrameProvider,
+  claimNativeSource,
+  probeFootageShape,
+  getNativeFrameCodes,
+  isNativeContainerName,
+  isNativeContainerFile,
+  NativeCanvasSink,
+  NativeExportFrameDecoder,
+} from "./native-frame-source";
+export type {
+  NativeFrameProvider,
+  FootageShapeProbe,
+  NativeSourceInfo,
+  NativeFrame,
+  NativeFrameRequest,
+  NativeFrameQuality,
+  ExportFrameDecoderLike,
+} from "./native-frame-source";

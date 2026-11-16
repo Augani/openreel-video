@@ -3,14 +3,14 @@ import type {
   MulticamEditDecisionList,
 } from "./automatic-edit";
 
-export type MulticamCutReviewStatus = "pending" | "accepted";
+type MulticamCutReviewStatus = "pending" | "accepted";
 
-export interface MulticamReviewedDecision extends MulticamEditDecision {
+interface MulticamReviewedDecision extends MulticamEditDecision {
   reviewId: string;
   status: MulticamCutReviewStatus;
 }
 
-export interface MulticamCutReview {
+interface MulticamCutReview {
   duration: number;
   segments: MulticamReviewedDecision[];
 }

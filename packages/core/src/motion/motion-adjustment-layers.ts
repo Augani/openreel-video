@@ -1,7 +1,7 @@
 import type { MotionAdjustmentLayer, MotionTransform } from "./types";
 import { DEFAULT_MOTION_TRANSFORM } from "./types";
 
-export interface CreateMotionAdjustmentLayerOptions {
+interface CreateMotionAdjustmentLayerOptions {
   readonly id?: string;
   readonly name?: string;
   readonly startTime?: number;

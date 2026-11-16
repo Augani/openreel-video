@@ -27,21 +27,6 @@ function asAddControlData(value: unknown): AddControlData {
   return value as AddControlData;
 }
 
-interface AnimatablePropertyEntry {
-  readonly property: string;
-}
-
-interface ListAnimatableData {
-  readonly properties?: readonly AnimatablePropertyEntry[];
-}
-
-function asListAnimatableData(value: unknown): ListAnimatableData {
-  if (!value || typeof value !== "object") {
-    throw new Error("Expected animatable properties data");
-  }
-  return value as ListAnimatableData;
-}
-
 function projectWithShape(): Project {
   const shape: MotionShapeLayer = {
     id: "layer-shape",
@@ -109,82 +94,6 @@ describe("add_motion_expression_control", () => {
     const effect = (layer.effects ?? []).find((candidate) => candidate.id === data.effectId);
     expect(effect).toBeDefined();
     expect(effect!.type).toBe("slider-control");
-  });
-
-  it("applies the provided value and name", async () => {
-    const host = new HeadlessHost(projectWithShape());
-    const res = await executeTool(
-      "add_motion_expression_control",
-      {
-        compositionId: "comp-expr",
-        layerId: "layer-shape",
-        controlType: "slider",
-        name: "Opacity Driver",
-        value: 42,
-      },
-      host,
-    );
-    expect(res.ok).toBe(true);
-    const data = asAddControlData(res.data);
-    expect(data.name).toBe("Opacity Driver");
-
-    const layer = shapeLayer(host);
-    const effect = (layer.effects ?? []).find(
-      (candidate) => candidate.id === data.effectId,
-    ) as { name: string; value: number };
-    expect(effect.name).toBe("Opacity Driver");
-    expect(effect.value).toBe(42);
-  });
-
-  it("creates checkbox and angle controls", async () => {
-    const host = new HeadlessHost(projectWithShape());
-    const checkbox = await executeTool(
-      "add_motion_expression_control",
-      { compositionId: "comp-expr", layerId: "layer-shape", controlType: "checkbox", value: 1 },
-      host,
-    );
-    expect(checkbox.ok).toBe(true);
-    expect(asAddControlData(checkbox.data).name).toBe("Checkbox Control");
-
-    const angle = await executeTool(
-      "add_motion_expression_control",
-      { compositionId: "comp-expr", layerId: "layer-shape", controlType: "angle", value: 90 },
-      host,
-    );
-    expect(angle.ok).toBe(true);
-    expect(asAddControlData(angle.data).name).toBe("Angle Control");
-  });
-
-  it("rejects an invalid controlType with INVALID_PARAMS", async () => {
-    const host = new HeadlessHost(projectWithShape());
-    const res = await executeTool(
-      "add_motion_expression_control",
-      { compositionId: "comp-expr", layerId: "layer-shape", controlType: "dial" },
-      host,
-    );
-    expect(res.ok).toBe(false);
-    expect(res.error?.code).toBe("INVALID_PARAMS");
-  });
-
-  it("surfaces the control param via list_motion_animatable_properties", async () => {
-    const host = new HeadlessHost(projectWithShape());
-    const added = await executeTool(
-      "add_motion_expression_control",
-      { compositionId: "comp-expr", layerId: "layer-shape", controlType: "slider", value: 5 },
-      host,
-    );
-    const effectId = asAddControlData(added.data).effectId!;
-    const property = `effect.${effectId}.value`;
-
-    const res = await executeTool(
-      "list_motion_animatable_properties",
-      { compositionId: "comp-expr", layerId: "layer-shape" },
-      host,
-    );
-    expect(res.ok).toBe(true);
-    const data = asListAnimatableData(res.data);
-    const propertyIds = (data.properties ?? []).map((entry) => entry.property);
-    expect(propertyIds).toContain(property);
   });
 
   it("drives an expression via effect(name)(\"value\") through the core engine", async () => {

@@ -2,7 +2,7 @@ import type { Effect, Transform } from "../types/timeline";
 import type { Renderer, RenderLayer } from "./renderer-factory";
 import type { BlendMode } from "./types";
 
-export interface GPUCompositeLayer {
+interface GPUCompositeLayer {
   id: string;
   texture: GPUTexture | ImageBitmap | HTMLCanvasElement | OffscreenCanvas;
   transform: Transform;
@@ -14,14 +14,14 @@ export interface GPUCompositeLayer {
   visible: boolean;
 }
 
-export interface CompositorConfig {
+interface CompositorConfig {
   width: number;
   height: number;
   backgroundColor: [number, number, number, number];
   antialias?: boolean;
 }
 
-export interface CompositorStats {
+interface CompositorStats {
   layersComposited: number;
   lastCompositeDuration: number;
   averageCompositeDuration: number;
@@ -333,47 +333,7 @@ export class GPUCompositor {
   }
 }
 
-export function createDefaultTransform(): Transform {
-  return {
-    position: { x: 0, y: 0 },
-    scale: { x: 1, y: 1 },
-    rotation: 0,
-    anchor: { x: 0.5, y: 0.5 },
-    opacity: 1,
-  };
-}
-
-export function createGPUCompositeLayer(
-  id: string,
-  texture: GPUTexture | ImageBitmap | HTMLCanvasElement | OffscreenCanvas,
-  options: Partial<Omit<GPUCompositeLayer, "id" | "texture">> = {},
-): GPUCompositeLayer {
-  return {
-    id,
-    texture,
-    transform: options.transform || createDefaultTransform(),
-    effects: options.effects || [],
-    opacity: options.opacity ?? 1,
-    borderRadius: options.borderRadius ?? 0,
-    blendMode: options.blendMode ?? "normal",
-    zIndex: options.zIndex ?? 0,
-    visible: options.visible ?? true,
-  };
-}
-
 let gpuCompositorInstance: GPUCompositor | null = null;
-
-export function getGPUCompositor(config?: CompositorConfig): GPUCompositor {
-  if (!gpuCompositorInstance && config) {
-    gpuCompositorInstance = new GPUCompositor(config);
-  }
-  if (!gpuCompositorInstance) {
-    throw new Error(
-      "GPUCompositor not initialized. Provide config on first call.",
-    );
-  }
-  return gpuCompositorInstance;
-}
 
 export function initializeGPUCompositor(
   config: CompositorConfig,
@@ -383,11 +343,4 @@ export function initializeGPUCompositor(
   }
   gpuCompositorInstance = new GPUCompositor(config);
   return gpuCompositorInstance;
-}
-
-export function disposeGPUCompositor(): void {
-  if (gpuCompositorInstance) {
-    gpuCompositorInstance.dispose();
-    gpuCompositorInstance = null;
-  }
 }

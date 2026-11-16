@@ -8,14 +8,14 @@ import { evaluateMotionPropertyValueAtTime } from "./motion-expressions";
 import { defaultMotionShaderParams, getMotionShaderDef } from "./shaders";
 import type { MotionComposition, MotionShapeLayer } from "./types";
 
-export interface MotionGradientLine {
+interface MotionGradientLine {
   readonly x0: number;
   readonly y0: number;
   readonly x1: number;
   readonly y1: number;
 }
 
-export interface MotionRadialGradientSpec {
+interface MotionRadialGradientSpec {
   readonly x0: number;
   readonly y0: number;
   readonly r0: number;
@@ -24,7 +24,7 @@ export interface MotionRadialGradientSpec {
   readonly r1: number;
 }
 
-export interface MotionNormalizedStroke {
+interface MotionNormalizedStroke {
   readonly color: string;
   readonly width: number;
   readonly opacity: number;
@@ -110,7 +110,7 @@ export function normalizeMotionStroke(
   };
 }
 
-export function isGradientFill(fill: FillStyle): boolean {
+function isGradientFill(fill: FillStyle): boolean {
   return fill.type === "gradient" && Boolean(fill.gradient);
 }
 

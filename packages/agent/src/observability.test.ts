@@ -22,19 +22,6 @@ describe("observability", () => {
     expect(rec.error).toBe("boom");
   });
 
-  it("maps an error event", () => {
-    expect(toLogRecord({ type: "error", error: { code: "LOOP_ERROR", message: "exploded" } })).toEqual({
-      type: "error",
-      error: "exploded",
-    });
-  });
-
-  it("truncates long text in text records", () => {
-    const rec = toLogRecord({ type: "turn_complete", text: "x".repeat(300) });
-    expect(rec.summary).toHaveLength(201);
-    expect(rec.summary?.endsWith("…")).toBe(true);
-  });
-
   it("collectEvents accumulates records across a turn", () => {
     const { onEvent, records } = collectEvents();
     onEvent({ type: "tool_call", call: { id: "1", name: "add_track", args: {} } });

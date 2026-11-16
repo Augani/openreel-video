@@ -7,6 +7,7 @@ import {
   isWhisperModelKey,
   type WhisperModelKey,
 } from "./whisper-models";
+import { pickOnnxThreads } from "./whisper-threads";
 
 const MODEL_HOST = "https://media.openreel.video/models/";
 
@@ -15,6 +16,19 @@ env.allowRemoteModels = true;
 env.remoteHost = MODEL_HOST;
 env.remotePathTemplate = "{model}/resolve/{revision}/";
 env.useBrowserCache = true;
+
+let threadsConfigured = false;
+/** Desktop-only multi-threaded ONNX wasm; the main thread tells us via `desktop`. */
+function configureThreads(desktop: boolean): void {
+  if (threadsConfigured) return;
+  threadsConfigured = true;
+  if (!desktop || !self.crossOriginIsolated) return;
+  const onnxWasm = env.backends.onnx.wasm;
+  if (onnxWasm) {
+    onnxWasm.numThreads = pickOnnxThreads(true, navigator.hardwareConcurrency, true);
+    onnxWasm.proxy = false;
+  }
+}
 
 interface WhisperOutput {
   text: string;
@@ -118,9 +132,11 @@ self.onmessage = async (
     audio?: Float32Array;
     language?: string;
     model?: WhisperModelKey;
+    desktop?: boolean;
   }>,
 ) => {
   const { requestId, type, audio, language } = event.data;
+  configureThreads(event.data.desktop === true);
   const modelKey = isWhisperModelKey(event.data.model)
     ? event.data.model
     : DEFAULT_WHISPER_MODEL;

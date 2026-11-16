@@ -1,825 +1,113 @@
-import React, { useState, useCallback, useMemo, useEffect } from "react";
-import {
-  Square,
-  Circle,
-  Pentagon,
-  Pen,
-  Layers,
-  Trash2,
-  Eye,
-  EyeOff,
-  ChevronDown,
-  ChevronRight,
-  Copy,
-  RefreshCw,
-  Plus,
-  Minus,
-  type LucideIcon,
-} from "@/icons/lucide-compat";
-import { ToolcraftButton as Button } from "@openreel/ui";
-import { ToolcraftCard as Card } from "@openreel/ui";
-import { ToolcraftClickableCard as ClickableCard } from "@openreel/ui";
-import { ToolcraftIconButton as IconButton } from "@openreel/ui";
-import { ToolcraftSelectControl as Selector } from "@openreel/ui";
-import { ToolcraftNumberInputControl as NumberInput } from "@openreel/ui";
-import { ToolcraftText as Text } from "@openreel/ui";
-import { PropertySlider } from "./shell/PropertySlider";
-import { useEngineStore } from "../../../stores/engine-store";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
+import { Button, Card, Collapsible, CollapsibleContent, CollapsibleTrigger, Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, ToggleGroup, ToggleGroupItem, cn } from "@openreel/ui";
+import { Square, Circle, Pentagon, Pen, Layers, Trash2, Eye, EyeOff, ChevronRight, Copy, RefreshCw, Plus, Minus, type LucideIcon } from "@/icons/lucide-compat";
+import type { Mask } from "@openreel/core";
+import { MASK_COMBINE_MODES, type MaskCombineMode } from "@openreel/core/video/mask-engine";
 import { useProjectStore } from "../../../stores/project-store";
-import type { BezierPath, Mask, MaskShape } from "@openreel/core";
-import { boundsPathFromTransform } from "@openreel/core";
+import { useTimelineStore } from "../../../stores/timeline-store";
+import { useUIStore } from "../../../stores/ui-store";
+import { toast } from "../../../stores/notification-store";
+import { createEditorMask, duplicateEditorMask, editClipMasks, maskSources, type EditorMaskKind } from "../../../services/clip-masks";
+import { PropertySlider } from "./shell/PropertySlider";
+import { MaskPathTools, MaskPenLauncher } from "./MaskPenControls";
+import { useNumericDraft } from "./shell/useNumericDraft";
 
-interface MaskSectionProps {
-  clipId: string;
-}
-
-type MaskShapeType = "rectangle" | "ellipse" | "polygon";
-
-const MASK_SHAPES: { id: MaskShapeType; name: string; icon: LucideIcon }[] = [
-  { id: "rectangle", name: "Rectangle", icon: Square },
-  { id: "ellipse", name: "Ellipse", icon: Circle },
-  { id: "polygon", name: "Polygon", icon: Pentagon },
+const SHAPES: Array<{ kind: EditorMaskKind; label: string; name: string; icon: LucideIcon }> = [
+  { kind: "rectangle", label: "Rectangle", name: "Rectangle", icon: Square },
+  { kind: "ellipse", label: "Ellipse", name: "Ellipse", icon: Circle },
+  { kind: "polygon", label: "Polygon", name: "Polygon", icon: Pentagon },
+  { kind: "drawn", label: "Custom", name: "Add custom path mask", icon: Pen },
+  { kind: "track-matte", label: "Track Matte", name: "Use another clip as a track matte", icon: Layers },
 ];
-
-interface MatteSourceOption {
-  id: string;
-  label: string;
+type EditMask = (update: (mask: Mask) => Mask) => void;
+function PathCoordinate({ label, value, onChange }: { label: string; value: number; onChange: (value: number) => void }) {
+  const percentage = Number((value * 100).toPrecision(12));
+  const input = useNumericDraft({ value: percentage, min: 0, max: 100, step: 1, live: false, onChange: value => onChange(value / 100) });
+  return <Input {...input} type="text" inputMode="decimal" role="spinbutton" aria-label={label} aria-valuenow={percentage} aria-valuemin={0} aria-valuemax={100}
+    className="h-7 min-w-0 rounded-md bg-bg-1 px-2 text-right font-mono text-[11px] md:text-[11px]" />;
+}
+function MatteFields({ mask, edit }: { mask: Mask; edit: EditMask }) {
+  const serialized = useProjectStore(useShallow(state => maskSources(state.project, mask.clipId).map(option => JSON.stringify(option))));
+  const options = useMemo(() => serialized.map(value => JSON.parse(value) as { id: string; label: string }), [serialized]);
+  const missing = Boolean(mask.sourceClipId && !options.some(option => option.id === mask.sourceClipId));
+  return <div className="space-y-2 rounded-md border border-primary/20 bg-primary/5 p-2">
+    <Label className="block text-[11px] text-fg-2">Matte source</Label>
+    <Select value={mask.sourceClipId || "unassigned"} disabled={!options.length} onValueChange={id => {
+      if (id === "unassigned" || !maskSources(useProjectStore.getState().project, mask.clipId).some(source => source.id === id)) return;
+      edit(current => ({ ...current, sourceClipId: id }));
+    }}><SelectTrigger aria-label="Matte source" className="h-8 min-w-0 bg-bg-1 px-2 text-[11px]"><SelectValue /></SelectTrigger><SelectContent>
+      <SelectItem value="unassigned" disabled>Pick a clip…</SelectItem>
+      {missing && <SelectItem value={mask.sourceClipId!} disabled>Missing clip</SelectItem>}
+      {options.map(option => <SelectItem key={option.id} value={option.id}>{option.label}</SelectItem>)}
+    </SelectContent></Select>
+    <div className="space-y-1.5"><Label className="block text-[11px] text-fg-2">Channel</Label><ToggleGroup type="single" aria-label="Matte channel" value={mask.matteSource ?? "bounds"} disabled={!mask.sourceClipId} onValueChange={value => {
+      if (value === "bounds" || value === "alpha" || value === "luminance") edit(current => ({ ...current, matteSource: value }));
+    }} className="grid grid-cols-3 gap-1">{(["bounds", "alpha", "luminance"] as const).map(channel => <ToggleGroupItem key={channel} value={channel} aria-label={channel} className="h-7 min-w-0 border border-border px-1 text-[10px] capitalize">{channel}</ToggleGroupItem>)}</ToggleGroup></div>
+    <p className="text-[10px] leading-4 text-fg-2">The chosen clip’s {mask.matteSource ?? "bounds"} drive the visible region of this clip. Animate the source clip’s transform to animate the mask.</p>
+  </div>;
+}
+function MaskItem({ mask, index, selected, expanded, select, toggle, edit, remove, duplicate }: {
+  mask: Mask; index: number; selected: boolean; expanded: boolean; select: () => void; toggle: (open: boolean) => void; edit: EditMask; remove: () => void; duplicate: () => void;
+}) {
+  const Icon = mask.type === "shape" ? Square : mask.type === "track-matte" ? Layers : Pen;
+  const title = mask.type === "shape" ? "Shape Mask" : mask.type === "track-matte" ? "Track Matte" : "Drawn Mask";
+  return <Collapsible open={expanded} onOpenChange={toggle} asChild><Card role="group" aria-label={`Mask ${index + 1}: ${title}`} onFocusCapture={select} onClickCapture={select}
+    className={cn("min-w-0 overflow-hidden rounded-md border bg-bg-2 p-0 shadow-none", selected ? "border-primary/60" : "border-border")}>
+    <div className="flex items-center gap-0.5 p-1">
+      <CollapsibleTrigger asChild><Button type="button" variant="ghost" aria-label={expanded ? "Collapse mask" : "Expand mask"} className="h-8 min-w-0 flex-1 justify-start gap-1.5 px-1.5 text-[11px]"><ChevronRight size={12} className={cn("shrink-0 transition-transform", expanded && "rotate-90")} aria-hidden /><Icon size={12} className="shrink-0 text-primary" aria-hidden /><span className="truncate">{title}</span></Button></CollapsibleTrigger>
+      <Button type="button" variant="ghost" size="icon-sm" aria-label={mask.inverted ? "Mask Inverted" : "Mask Normal"} aria-pressed={mask.inverted} title={mask.inverted ? "Mask Inverted" : "Mask Normal"} onClick={() => edit(current => ({ ...current, inverted: !current.inverted }))} className={cn("h-7 w-7", mask.inverted && "bg-amber-500/20 text-amber-400")}>{mask.inverted ? <EyeOff size={12} aria-hidden /> : <Eye size={12} aria-hidden />}</Button>
+      <Button type="button" variant="ghost" size="icon-sm" aria-label="Duplicate Mask" title="Duplicate Mask" onClick={duplicate} className="h-7 w-7"><Copy size={12} aria-hidden /></Button>
+      <Button type="button" variant="ghost" size="icon-sm" aria-label="Delete Mask" title="Delete Mask" onClick={remove} className="h-7 w-7 hover:text-red-400"><Trash2 size={12} aria-hidden /></Button>
+    </div>
+    <div inert={!expanded} aria-hidden={!expanded}><CollapsibleContent className="space-y-3 border-t border-border bg-bg-1/50 p-2 data-[state=closed]:hidden">
+      {mask.type === "drawn" && <div className="space-y-2 rounded-md border border-border bg-bg-1 p-2">
+        <div className="flex items-center justify-between gap-2"><Label className="text-[11px] text-fg-2">Path points</Label><Button type="button" variant="ghost" size="sm" aria-label="Add path point" onClick={() => edit(current => {
+          const last = current.path.points.at(-1) ?? { x: .5, y: .5 };
+          return { ...current, path: { ...current.path, points: [...current.path.points, { x: Math.min(1, last.x + .05), y: Math.min(1, last.y + .05) }] } };
+        })} className="h-7 gap-1 px-1.5 text-[10px]"><Plus size={12} aria-hidden />Add point</Button></div>
+        <div className="max-h-44 space-y-1.5 overflow-auto pr-0.5">{mask.path.points.map((point, pointIndex) => <div key={`${mask.id}:${pointIndex}`} className="grid grid-cols-[16px_minmax(0,1fr)_minmax(0,1fr)_24px] items-center gap-1">
+          <span className="text-[10px] text-fg-3">{pointIndex + 1}</span>
+          {(["x", "y"] as const).map(axis => <PathCoordinate key={axis} label={`Point ${pointIndex + 1} ${axis.toUpperCase()} percent`} value={point[axis]} onChange={value => edit(current => ({ ...current, path: { ...current.path, points: current.path.points.map((candidate, i) => i === pointIndex ? { ...candidate, [axis]: value } : candidate) } }))} />)}
+          <Button type="button" variant="ghost" size="icon-sm" aria-label={`Remove path point ${pointIndex + 1}`} disabled={mask.path.points.length <= 3} onClick={() => edit(current => current.path.points.length <= 3 ? current : ({ ...current, path: { ...current.path, points: current.path.points.filter((_, i) => i !== pointIndex) } }))} className="h-6 w-6"><Minus size={12} aria-hidden /></Button>
+        </div>)}</div><p className="text-[10px] leading-4 text-fg-2">X and Y are composition percentages. Adjust points for precise custom cutouts.</p>
+      </div>}
+      {mask.type === "track-matte" ? <MatteFields mask={mask} edit={edit} /> : <MaskPathTools mask={mask} />}
+      {index > 0 && <div className="space-y-1.5"><Label className="block text-[11px] text-fg-2">Combine with previous masks</Label><ToggleGroup type="single" aria-label="Mask combine mode" value={mask.combine ?? "intersect"} onValueChange={value => {
+        if ((MASK_COMBINE_MODES as readonly string[]).includes(value)) edit(current => ({ ...current, combine: value as MaskCombineMode }));
+      }} className="grid grid-cols-4 gap-1">{MASK_COMBINE_MODES.map(mode => <ToggleGroupItem key={mode} value={mode} aria-label={`Combine mode ${mode}`} className="h-7 min-w-0 border border-border px-1 text-[10px] capitalize">{mode}</ToggleGroupItem>)}</ToggleGroup></div>}
+      <PropertySlider label="Feathering" min={0} max={100} step={1} value={mask.feathering} onChange={value => edit(current => ({ ...current, feathering: value }))} formatValue={value => `${Math.round(value)}px`} />
+      <PropertySlider label="Expansion" min={-100} max={100} step={1} value={mask.expansion} onChange={value => edit(current => ({ ...current, expansion: value }))} formatValue={value => `${Math.round(value)}px`} />
+      <PropertySlider label="Opacity" min={0} max={100} step={1} value={mask.opacity * 100} onChange={value => edit(current => ({ ...current, opacity: value / 100 }))} formatValue={value => `${Math.round(value)}%`} />
+      <div className="flex items-center gap-2 border-t border-border pt-2"><Button type="button" variant="outline" size="sm" aria-pressed={mask.inverted} onClick={() => edit(current => ({ ...current, inverted: !current.inverted }))} className="h-7 flex-1 gap-1.5 text-[11px]">{mask.inverted ? <EyeOff size={12} aria-hidden /> : <Eye size={12} aria-hidden />}{mask.inverted ? "Inverted" : "Invert"}</Button><span className="text-[10px] text-fg-3">{mask.keyframes.length ? `${mask.keyframes.length} keyframes` : "No keyframes"}</span></div>
+    </CollapsibleContent></div>
+  </Card></Collapsible>;
 }
 
-const MaskItem: React.FC<{
-  mask: Mask;
-  isSelected: boolean;
-  isExpanded: boolean;
-  matteSourceOptions: MatteSourceOption[];
-  ownClipId: string;
-  onSelect: () => void;
-  onToggleExpand: () => void;
-  onDelete: () => void;
-  onDuplicate: () => void;
-  onUpdateFeathering: (value: number) => void;
-  onUpdateExpansion: (value: number) => void;
-  onUpdateOpacity: (value: number) => void;
-  onToggleInvert: () => void;
-  onUpdatePath: (path: BezierPath) => void;
-  onSetMatteSource: (
-    sourceClipId: string,
-    matteSource: "alpha" | "luminance" | "bounds",
-  ) => void;
-}> = ({
-  mask,
-  isSelected,
-  isExpanded,
-  matteSourceOptions,
-  ownClipId,
-  onSelect,
-  onToggleExpand,
-  onDelete,
-  onDuplicate,
-  onUpdateFeathering,
-  onUpdateExpansion,
-  onUpdateOpacity,
-  onToggleInvert,
-  onUpdatePath,
-  onSetMatteSource,
-}) => {
-  const maskTypeIcon =
-    mask.type === "shape"
-      ? Square
-      : mask.type === "track-matte"
-        ? Layers
-        : Pen;
-  const MaskIcon = maskTypeIcon;
-  const maskLabel =
-    mask.type === "shape"
-      ? "Shape Mask"
-      : mask.type === "track-matte"
-        ? "Track Matte"
-        : "Drawn Mask";
-  // Avoid self-referential mattes
-  const availableSources = matteSourceOptions.filter(
-    (opt) => opt.id !== ownClipId,
-  );
-
-  return (
-    <Card
-      variant={isSelected ? "green" : "muted"}
-      padding={0}
-      className={`overflow-hidden border transition-colors ${
-        isSelected ? "border-primary bg-primary/10" : "border-border"
-      }`}
-    >
-      <div
-        onClick={onSelect}
-        className="flex w-full cursor-pointer items-center gap-2 p-2 hover:bg-bg-2"
-        role="button"
-        tabIndex={0}
-        onKeyDown={(event) => {
-          if (event.key === "Enter" || event.key === " ") {
-            event.preventDefault();
-            onSelect();
-          }
-        }}
-      >
-        <IconButton
-          label={isExpanded ? "Collapse mask" : "Expand mask"}
-          onClick={(e) => {
-            e.stopPropagation();
-            onToggleExpand();
-          }}
-          variant="ghost"
-          size="sm"
-          icon={
-            isExpanded ? (
-              <ChevronDown size={12} className="text-fg-3" aria-hidden />
-            ) : (
-              <ChevronRight size={12} className="text-fg-3" aria-hidden />
-            )
-          }
-        />
-        <MaskIcon size={12} className="text-primary" />
-        <Text
-          type="supporting"
-          color="primary"
-          className="flex-1 text-left text-[10px] font-medium"
-        >
-          {maskLabel}
-        </Text>
-        <IconButton
-          label={mask.inverted ? "Mask Inverted" : "Mask Normal"}
-          onClick={(e) => {
-            e.stopPropagation();
-            onToggleInvert();
-          }}
-          variant="ghost"
-          size="sm"
-          icon={mask.inverted ? <EyeOff size={10} aria-hidden /> : <Eye size={10} aria-hidden />}
-          className={
-            mask.inverted
-              ? "bg-amber-500/20 text-amber-400"
-              : "text-fg-3 hover:text-fg"
-          }
-        />
-        <IconButton
-          label="Duplicate Mask"
-          onClick={(e) => {
-            e.stopPropagation();
-            onDuplicate();
-          }}
-          variant="ghost"
-          size="sm"
-          icon={<Copy size={10} aria-hidden />}
-          className="text-fg-3 hover:text-fg"
-        />
-        <IconButton
-          label="Delete Mask"
-          onClick={(e) => {
-            e.stopPropagation();
-            onDelete();
-          }}
-          variant="ghost"
-          size="sm"
-          icon={<Trash2 size={10} aria-hidden />}
-          className="text-fg-3 hover:text-red-400"
-        />
-      </div>
-
-      {isExpanded && (
-        <div className="p-2 space-y-3 border-t border-border bg-bg-2/50">
-          {mask.type === "drawn" && (
-            <div className="space-y-2 rounded border border-border bg-bg-1 p-2">
-              <div className="flex items-center justify-between gap-2">
-                <Text type="supporting" color="primary" className="text-[9.5px] font-medium">
-                  Path points
-                </Text>
-                <Button
-                  label="Add path point"
-                  onClick={() => {
-                    const last = mask.path.points.at(-1) ?? { x: 0.5, y: 0.5 };
-                    onUpdatePath({
-                      ...mask.path,
-                      points: [
-                        ...mask.path.points,
-                        {
-                          x: Math.min(1, last.x + 0.05),
-                          y: Math.min(1, last.y + 0.05),
-                        },
-                      ],
-                    });
-                  }}
-                  icon={<Plus size={10} aria-hidden />}
-                  variant="ghost"
-                  size="sm"
-                />
-              </div>
-              <div className="max-h-44 space-y-1.5 overflow-auto pr-0.5">
-                {mask.path.points.map((point, index) => (
-                  <div key={`${mask.id}-point-${index}`} className="grid grid-cols-[22px_1fr_1fr_24px] items-center gap-1">
-                    <Text type="supporting" color="secondary" className="text-[8.5px]">
-                      {index + 1}
-                    </Text>
-                    <NumberInput
-                      ariaLabel={`Point ${index + 1} X percent`}
-                      size="sm"
-                      value={point.x * 100}
-                      min={0}
-                      max={100}
-                      step={1}
-                      onChange={(value) => {
-                        const points = mask.path.points.map((candidate, pointIndex) =>
-                          pointIndex === index
-                            ? { ...candidate, x: value / 100 }
-                            : candidate,
-                        );
-                        onUpdatePath({ ...mask.path, points });
-                      }}
-                    />
-                    <NumberInput
-                      ariaLabel={`Point ${index + 1} Y percent`}
-                      size="sm"
-                      value={point.y * 100}
-                      min={0}
-                      max={100}
-                      step={1}
-                      onChange={(value) => {
-                        const points = mask.path.points.map((candidate, pointIndex) =>
-                          pointIndex === index
-                            ? { ...candidate, y: value / 100 }
-                            : candidate,
-                        );
-                        onUpdatePath({ ...mask.path, points });
-                      }}
-                    />
-                    <IconButton
-                      label={`Remove path point ${index + 1}`}
-                      onClick={() =>
-                        onUpdatePath({
-                          ...mask.path,
-                          points: mask.path.points.filter(
-                            (_, pointIndex) => pointIndex !== index,
-                          ),
-                        })
-                      }
-                      isDisabled={mask.path.points.length <= 3}
-                      variant="ghost"
-                      size="sm"
-                      icon={<Minus size={10} aria-hidden />}
-                    />
-                  </div>
-                ))}
-              </div>
-              <Text type="supporting" color="secondary" className="text-[8px] leading-tight">
-                X and Y are composition percentages. Adjust points for precise custom cutouts.
-              </Text>
-            </div>
-          )}
-          {mask.type === "track-matte" && (
-            <div className="space-y-2 p-2 bg-primary/5 border border-primary/20 rounded">
-              <div className="flex items-center gap-1.5">
-                <Layers size={11} className="text-primary" />
-                <Text type="supporting" color="primary" className="text-[9.5px] font-medium">
-                  Matte source
-                </Text>
-              </div>
-              <Selector
-                label="Matte source"
-                isLabelHidden
-                size="sm"
-                width="100%"
-                value={mask.sourceClipId ?? ""}
-                onChange={(v) =>
-                  onSetMatteSource(v, mask.matteSource ?? "bounds")
-                }
-                placeholder="Pick a clip..."
-                isDisabled={availableSources.length === 0}
-                options={availableSources.map((opt) => ({
-                  label: opt.label,
-                  value: opt.id,
-                }))}
-              />
-              <div className="flex items-center justify-between">
-                <Text type="supporting" color="secondary" className="text-[9px]">
-                  Channel
-                </Text>
-                <div className="flex gap-1">
-                  {(["bounds", "alpha", "luminance"] as const).map((m) => (
-                    <Button
-                      key={m}
-                      label={m}
-                      onClick={() =>
-                        onSetMatteSource(mask.sourceClipId ?? "", m)
-                      }
-                      isDisabled={!mask.sourceClipId}
-                      variant={(mask.matteSource ?? "bounds") === m ? "secondary" : "ghost"}
-                      size="sm"
-                      className={`border text-[9px] ${
-                        (mask.matteSource ?? "bounds") === m
-                          ? "bg-primary/20 border-primary text-primary"
-                          : "bg-bg-1 border-border text-fg-2 hover:border-primary/50"
-                      }`}
-                    />
-                  ))}
-                </div>
-              </div>
-              <Text type="supporting" color="secondary" className="text-[8.5px] leading-tight">
-                The chosen clip&apos;s {mask.matteSource ?? "bounds"}{" "}
-                drive the visible region of this clip. Animate the source
-                clip&apos;s transform to animate the mask.
-              </Text>
-            </div>
-          )}
-
-          <PropertySlider
-            label="Feathering"
-            min={0}
-            max={100}
-            step={1}
-            value={mask.feathering}
-            onChange={(value: number) => onUpdateFeathering(value)}
-            formatValue={(value) => `${Math.round(value)}px`}
-          />
-
-          <PropertySlider
-            label="Expansion"
-            min={-100}
-            max={100}
-            step={1}
-            value={mask.expansion}
-            onChange={(value: number) => onUpdateExpansion(value)}
-            formatValue={(value) => `${Math.round(value)}px`}
-          />
-
-          <PropertySlider
-            label="Opacity"
-            min={0}
-            max={100}
-            step={1}
-            value={mask.opacity * 100}
-            onChange={(value: number) => onUpdateOpacity(value / 100)}
-            formatValue={(value) => `${Math.round(value)}%`}
-          />
-
-          <div className="flex items-center gap-2 pt-2 border-t border-border">
-            <Button
-              label={mask.inverted ? "Inverted" : "Invert"}
-              onClick={onToggleInvert}
-              variant="secondary"
-              size="sm"
-              icon={mask.inverted ? <EyeOff size={10} aria-hidden /> : <Eye size={10} aria-hidden />}
-              className={`flex-1 justify-center ${
-                mask.inverted
-                  ? "bg-amber-500/20 text-amber-400"
-                  : "bg-bg-1 text-fg-2 hover:text-fg"
-              }`}
-            />
-            <Text type="supporting" color="secondary" className="text-[8px]">
-              {mask.keyframes.length > 0
-                ? `${mask.keyframes.length} keyframes`
-                : "No keyframes"}
-            </Text>
-          </div>
-        </div>
-      )}
-    </Card>
-  );
-};
-
-export const MaskSection: React.FC<MaskSectionProps> = ({ clipId }) => {
-  const getMaskEngine = useEngineStore((state) => state.getMaskEngine);
-  const project = useProjectStore((s) => s.project);
-  const getAllTextClips = useProjectStore((s) => s.getAllTextClips);
-  const [selectedMaskId, setSelectedMaskId] = useState<string | null>(null);
-  const [expandedMasks, setExpandedMasks] = useState<Set<string>>(new Set());
-  const [refreshKey, setRefreshKey] = useState(0);
-  const [maskEngine, setMaskEngine] =
-    useState<import("@openreel/core").MaskEngine | null>(null);
-
-  // Gather all clips on the timeline as potential matte sources.
-  // We collect from regular tracks (video/audio/image/graphics) and
-  // also the text clip pool. The audio tracks aren't visually useful
-  // as a matte source but we leave them in the list so the user isn't
-  // surprised by silent filtering — they can pick whatever they want.
-  const matteSourceOptions = useMemo(() => {
-    const opts: MatteSourceOption[] = [];
-    for (const track of project.timeline.tracks) {
-      for (const c of track.clips) {
-        const mediaName =
-          project.mediaLibrary.items.find((m) => m.id === c.mediaId)?.name ??
-          c.mediaId.slice(0, 8);
-        opts.push({
-          id: c.id,
-          label: `${track.name} • ${mediaName}`,
-        });
-      }
-    }
-    try {
-      for (const t of getAllTextClips()) {
-        opts.push({
-          id: t.id,
-          label: `Text • "${t.text.slice(0, 20)}${t.text.length > 20 ? "…" : ""}"`,
-        });
-      }
-    } catch {
-      /* getAllTextClips may not be available for some clip contexts */
-    }
-    return opts;
-  }, [project, getAllTextClips]);
-
-  useEffect(() => {
-    let cancelled = false;
-    const loadEngine = async () => {
-      const engine = await getMaskEngine();
-      if (!cancelled) {
-        setMaskEngine(engine);
-      }
-    };
-    loadEngine();
-    return () => {
-      cancelled = true;
-    };
-  }, [getMaskEngine]);
-
-  const masks = useMemo(() => {
-    if (!maskEngine) return [];
-    return maskEngine.getMasksForClip(clipId);
-  }, [maskEngine, clipId, refreshKey]);
-
-  // Keep track-matte mask paths in sync with their source clip's
-  // transform. We re-derive the path whenever the project changes —
-  // simple "bounds" mode only for now; alpha/luminance modes require
-  // a deeper render-pipeline integration that's tracked separately.
-  useEffect(() => {
-    if (!maskEngine) return;
-    const trackMattes = masks.filter((m) => m.type === "track-matte");
-    if (trackMattes.length === 0) return;
-    let didChange = false;
-    for (const mask of trackMattes) {
-      if (!mask.sourceClipId) continue;
-      // Find source clip's transform across regular and text clips.
-      let transform:
-        | { position: { x: number; y: number }; scale: { x: number; y: number } }
-        | null = null;
-      for (const track of project.timeline.tracks) {
-        const c = track.clips.find((cc) => cc.id === mask.sourceClipId);
-        if (c) {
-          transform = {
-            position: c.transform.position,
-            scale: c.transform.scale,
-          };
-          break;
-        }
-      }
-      if (!transform) {
-        try {
-          const texts = getAllTextClips();
-          const tc = texts.find((t) => t.id === mask.sourceClipId);
-          if (tc) {
-            transform = {
-              position: tc.transform.position,
-              scale: tc.transform.scale,
-            };
-          }
-        } catch {
-          /* ignore */
-        }
-      }
-      if (!transform) continue;
-      const nextPath = boundsPathFromTransform(transform);
-      const prev = mask.path;
-      // Cheap stringify-equality check — paths are tiny.
-      if (JSON.stringify(prev) !== JSON.stringify(nextPath)) {
-        maskEngine.updateMaskPath(mask.id, nextPath);
-        didChange = true;
-      }
-    }
-    if (didChange) {
-      // Don't tick the project modifiedAt here — this is a derived
-      // refresh, not a user edit. We only bump refreshKey locally so
-      // the inspector re-renders.
-      setRefreshKey((k) => k + 1);
-    }
-  }, [maskEngine, masks, project, getAllTextClips]);
-
-  const triggerRefresh = useCallback(() => {
-    setRefreshKey((k) => k + 1);
-    if (maskEngine) {
-      void useProjectStore.getState().executeAction({
-        type: "mask/setAll",
-        id: crypto.randomUUID(),
-        timestamp: Date.now(),
-        params: { masks: maskEngine.getAllMasks() },
-      });
-    }
-  }, [maskEngine]);
-
-  const handleAddShapeMask = useCallback(
-    (shapeType: MaskShapeType) => {
-      if (!maskEngine) return;
-
-      const shapes: Record<MaskShapeType, MaskShape> = {
-        rectangle: {
-          type: "rectangle",
-          x: 0.25,
-          y: 0.25,
-          width: 0.5,
-          height: 0.5,
-        },
-        ellipse: { type: "ellipse", cx: 0.5, cy: 0.5, rx: 0.25, ry: 0.25 },
-        polygon: {
-          type: "polygon",
-          points: [
-            { x: 0.5, y: 0.2 },
-            { x: 0.8, y: 0.5 },
-            { x: 0.5, y: 0.8 },
-            { x: 0.2, y: 0.5 },
-          ],
-        },
-      };
-
-      const mask = maskEngine.createShapeMask(clipId, shapes[shapeType]);
-      setSelectedMaskId(mask.id);
-      setExpandedMasks((prev) => new Set([...prev, mask.id]));
-      triggerRefresh();
-    },
-    [maskEngine, clipId, triggerRefresh],
-  );
-
-  const handleDeleteMask = useCallback(
-    (maskId: string) => {
-      if (!maskEngine) return;
-      maskEngine.deleteMask(maskId);
-      if (selectedMaskId === maskId) {
-        setSelectedMaskId(null);
-      }
-      setExpandedMasks((prev) => {
-        const next = new Set(prev);
-        next.delete(maskId);
-        return next;
-      });
-      triggerRefresh();
-    },
-    [maskEngine, selectedMaskId, triggerRefresh],
-  );
-
-  const handleDuplicateMask = useCallback(
-    (mask: Mask) => {
-      if (!maskEngine) return;
-      const newMask = maskEngine.duplicateMask(mask.id, clipId);
-      if (!newMask) return;
-      setSelectedMaskId(newMask.id);
-      setExpandedMasks((prev) => new Set([...prev, newMask.id]));
-      triggerRefresh();
-    },
-    [maskEngine, clipId, triggerRefresh],
-  );
-
-  const handleUpdateFeathering = useCallback(
-    (maskId: string, value: number) => {
-      if (!maskEngine) return;
-      maskEngine.setFeathering(maskId, value);
-      triggerRefresh();
-    },
-    [maskEngine, triggerRefresh],
-  );
-
-  const handleUpdateExpansion = useCallback(
-    (maskId: string, value: number) => {
-      if (!maskEngine) return;
-      maskEngine.setExpansion(maskId, value);
-      triggerRefresh();
-    },
-    [maskEngine, triggerRefresh],
-  );
-
-  const handleUpdateOpacity = useCallback(
-    (maskId: string, value: number) => {
-      if (!maskEngine) return;
-      maskEngine.setOpacity(maskId, value);
-      triggerRefresh();
-    },
-    [maskEngine, triggerRefresh],
-  );
-
-  const handleUpdatePath = useCallback(
-    (maskId: string, path: BezierPath) => {
-      if (!maskEngine || path.points.length < 3) return;
-      maskEngine.updateMaskPath(maskId, path);
-      triggerRefresh();
-    },
-    [maskEngine, triggerRefresh],
-  );
-
-  const handleAddDrawnMask = useCallback(() => {
-    if (!maskEngine) return;
-    const mask = maskEngine.createDrawnMask(clipId, {
-      closed: true,
-      points: [
-        { x: 0.5, y: 0.16 },
-        { x: 0.78, y: 0.28 },
-        { x: 0.84, y: 0.58 },
-        { x: 0.62, y: 0.82 },
-        { x: 0.28, y: 0.76 },
-        { x: 0.16, y: 0.42 },
-      ],
-    });
-    setSelectedMaskId(mask.id);
-    setExpandedMasks((prev) => new Set([...prev, mask.id]));
-    triggerRefresh();
-  }, [clipId, maskEngine, triggerRefresh]);
-
-  const handleToggleInvert = useCallback(
-    (maskId: string) => {
-      if (!maskEngine) return;
-      const mask = maskEngine.getMask(maskId);
-      if (mask) {
-        maskEngine.setInverted(maskId, !mask.inverted);
-        triggerRefresh();
-      }
-    },
-    [maskEngine, triggerRefresh],
-  );
-
-  const handleAddTrackMatte = useCallback(() => {
-    if (!maskEngine) return;
-    // Default to the first available source clip that isn't ourselves.
-    const firstAvailable = matteSourceOptions.find((o) => o.id !== clipId);
-    const mask = maskEngine.createTrackMatteMask(
-      clipId,
-      firstAvailable?.id ?? "",
-      "bounds",
-    );
-    setSelectedMaskId(mask.id);
-    setExpandedMasks((prev) => new Set([...prev, mask.id]));
-    triggerRefresh();
-  }, [maskEngine, clipId, matteSourceOptions, triggerRefresh]);
-
-  const handleSetMatteSource = useCallback(
-    (
-      maskId: string,
-      sourceClipId: string,
-      matteSource: "alpha" | "luminance" | "bounds",
-    ) => {
-      if (!maskEngine) return;
-      maskEngine.setMatteSource(maskId, sourceClipId, matteSource);
-      triggerRefresh();
-    },
-    [maskEngine, triggerRefresh],
-  );
-
-  const toggleMaskExpanded = (maskId: string) => {
-    setExpandedMasks((prev) => {
-      const next = new Set(prev);
-      if (next.has(maskId)) {
-        next.delete(maskId);
-      } else {
-        next.add(maskId);
-      }
-      return next;
-    });
+export function MaskSection({ clipId }: { clipId: string }) {
+  const projectId = useProjectStore(state => state.project.id), history = useProjectStore(state => state.actionHistory);
+  const masks = useProjectStore(useShallow(state => (state.project.masks ?? []).filter(mask => mask.clipId === clipId)));
+  const locked = useProjectStore(state => state.project.timeline.tracks.find(track => track.clips.some(clip => clip.id === clipId))?.locked ?? true);
+  const exporting = useUIStore(state => state.exportState.isExporting), applying = useUIStore(state => state.effectApplicationClipId !== null);
+  const busy = useTimelineStore(state => Boolean(state.playbackLockedReason));
+  const [selected, setSelected] = useState<string | null>(null), [expanded, setExpanded] = useState<Set<string>>(new Set());
+  useEffect(() => { setSelected(null); setExpanded(new Set()); }, [projectId, clipId, history]);
+  const scope = useMemo(() => ({ projectId, clipId, history }), [projectId, clipId, history]);
+  const commit = useCallback((update: Parameters<typeof editClipMasks>[1]) => editClipMasks(scope, update).catch(error => { toast.error("Mask edit failed", error instanceof Error ? error.message : "Try the change again."); return false; }), [scope]);
+  const reveal = (id: string) => { setSelected(id); setExpanded(current => new Set([...current, id])); };
+  const add = async (kind: EditorMaskKind) => {
+    const source = maskSources(useProjectStore.getState().project, clipId)[0]?.id ?? "", mask = createEditorMask(clipId, kind, source);
+    if (await commit(current => [...current, mask])) reveal(mask.id);
   };
-
-  const handleResetMasks = useCallback(() => {
-    if (!maskEngine) return;
-    for (const mask of masks) {
-      maskEngine.deleteMask(mask.id);
-    }
-    setSelectedMaskId(null);
-    setExpandedMasks(new Set());
-    triggerRefresh();
-  }, [maskEngine, masks, triggerRefresh]);
-
-  return (
-    <div className="space-y-3">
-      <Card
-        variant="green"
-        padding={2}
-        className="flex items-center gap-2 border border-primary/30 bg-primary/10"
-      >
-        <Square size={16} className="text-primary" />
-        <div className="flex flex-1 flex-col gap-0.5">
-          <Text type="supporting" color="primary" className="text-[11px] font-medium">
-            Masking
-          </Text>
-          <Text type="supporting" color="secondary" className="text-[9px]">
-            Control visible regions of clip
-          </Text>
-        </div>
-      </Card>
-
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <Text type="supporting" color="secondary" className="text-[10px] font-medium">
-            Add Mask Shape
-          </Text>
-        </div>
-        <div className="grid grid-cols-5 gap-1">
-          {MASK_SHAPES.map((shape) => {
-            const Icon = shape.icon;
-            return (
-              <ClickableCard
-                key={shape.id}
-                label={shape.name}
-                onClick={() => handleAddShapeMask(shape.id)}
-                padding={2}
-                variant="muted"
-                className="flex flex-col items-center gap-1 border border-transparent bg-bg-2 hover:border-primary/30 hover:bg-primary/20"
-              >
-                <Icon size={14} className="text-fg-2" />
-                <Text type="supporting" color="secondary" className="text-[8px]">
-                  {shape.name}
-                </Text>
-              </ClickableCard>
-            );
-          })}
-          <ClickableCard
-            label="Add custom path mask"
-            onClick={handleAddDrawnMask}
-            padding={2}
-            variant="muted"
-            className="flex flex-col items-center gap-1 border border-transparent bg-bg-2 hover:border-primary/30 hover:bg-primary/20"
-          >
-            <Pen size={14} className="text-fg-2" />
-            <Text type="supporting" color="secondary" className="text-[8px]">
-              Custom
-            </Text>
-          </ClickableCard>
-          <ClickableCard
-            label="Use another clip as a track matte"
-            onClick={handleAddTrackMatte}
-            padding={2}
-            variant="muted"
-            className="flex flex-col items-center gap-1 border border-transparent bg-bg-2 hover:border-primary/30 hover:bg-primary/20"
-          >
-            <Layers size={14} className="text-fg-2" />
-            <Text type="supporting" color="secondary" className="text-[8px]">
-              Track Matte
-            </Text>
-          </ClickableCard>
-        </div>
-      </div>
-
-      {masks.length > 0 ? (
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <Text type="supporting" color="secondary" className="text-[10px] font-medium">
-              Masks ({masks.length})
-            </Text>
-            <Button
-              label="Clear All"
-              onClick={handleResetMasks}
-              variant="ghost"
-              size="sm"
-              icon={<RefreshCw size={10} aria-hidden />}
-              className="text-red-400 hover:bg-red-400/10"
-            />
-          </div>
-
-          <div className="space-y-2">
-            {masks.map((mask) => (
-              <MaskItem
-                key={mask.id}
-                mask={mask}
-                isSelected={selectedMaskId === mask.id}
-                isExpanded={expandedMasks.has(mask.id)}
-                matteSourceOptions={matteSourceOptions}
-                ownClipId={clipId}
-                onSelect={() => setSelectedMaskId(mask.id)}
-                onToggleExpand={() => toggleMaskExpanded(mask.id)}
-                onDelete={() => handleDeleteMask(mask.id)}
-                onDuplicate={() => handleDuplicateMask(mask)}
-                onUpdateFeathering={(v) => handleUpdateFeathering(mask.id, v)}
-                onUpdateExpansion={(v) => handleUpdateExpansion(mask.id, v)}
-                onUpdateOpacity={(v) => handleUpdateOpacity(mask.id, v)}
-                onToggleInvert={() => handleToggleInvert(mask.id)}
-                onUpdatePath={(path) => handleUpdatePath(mask.id, path)}
-                onSetMatteSource={(srcId, channel) =>
-                  handleSetMatteSource(mask.id, srcId, channel)
-                }
-              />
-            ))}
-          </div>
-        </div>
-      ) : (
-        <div className="text-center py-4">
-          <Square
-            size={24}
-            className="mx-auto mb-2 text-fg-3 opacity-50"
-          />
-          <Text type="supporting" color="secondary" className="block text-[10px]">
-            No masks on this clip
-          </Text>
-          <Text type="supporting" color="secondary" className="mt-1 block text-[9px]">
-            Click a shape above to add a mask
-          </Text>
-        </div>
-      )}
-
-      <div className="pt-2 border-t border-border">
-        <Text type="supporting" color="secondary" className="text-center text-[9px]">
-          Masks control which parts of the clip are visible
-        </Text>
-      </div>
-    </div>
-  );
-};
-
-export default MaskSection;
+  return <fieldset disabled={locked || exporting || applying || busy} className="min-w-0 space-y-3 border-0 p-0">
+    <Card className="flex items-center gap-2 rounded-md border-primary/30 bg-primary/10 p-2 shadow-none"><Square size={16} className="shrink-0 text-primary" aria-hidden /><div><h4 className="text-[12px] font-medium">Masking</h4><p className="text-[11px] leading-4 text-fg-2">Control visible regions of clip</p></div></Card>
+    <div className="space-y-2"><Label className="block text-[11px] text-fg-2">Add Mask Shape</Label><div className="grid grid-cols-5 gap-1">{SHAPES.map(({ kind, label, name, icon: Icon }) => <Button key={kind} type="button" variant="outline" aria-label={name} onClick={() => { void add(kind); }} className="h-auto min-w-0 flex-col gap-1 whitespace-normal rounded-md bg-bg-2 px-1 py-2 text-[9px] leading-3 hover:border-primary/40"><Icon size={14} className="shrink-0 text-fg-2" aria-hidden /><span>{label}</span></Button>)}</div><MaskPenLauncher clipId={clipId} /></div>
+    {masks.length ? <div className="space-y-2"><div className="flex items-center justify-between gap-2"><span className="text-[11px] text-fg-2">Masks ({masks.length})</span><Button type="button" variant="ghost" size="sm" aria-label="Clear All" onClick={() => { void commit(() => []); }} className="h-7 gap-1 px-1.5 text-[10px] text-red-400"><RefreshCw size={12} aria-hidden />Clear All</Button></div>
+      {masks.map((mask, index) => <MaskItem key={`${projectId}:${mask.id}`} mask={mask} index={index} selected={selected === mask.id} expanded={expanded.has(mask.id)} select={() => setSelected(mask.id)} toggle={open => { if (open) setSelected(mask.id); setExpanded(current => { const next = new Set(current); if (open) next.add(mask.id); else next.delete(mask.id); return next; }); }}
+        edit={update => { void commit(current => current.map(candidate => candidate.id === mask.id ? update(candidate) : candidate)); }}
+        remove={() => { void commit(current => current.filter(candidate => candidate.id !== mask.id)); }}
+        duplicate={() => { let duplicateId = ""; void commit(current => { const original = current.find(candidate => candidate.id === mask.id); if (!original) return current; const copy = duplicateEditorMask(original); duplicateId = copy.id; return [...current, copy]; }).then(success => { if (success) reveal(duplicateId); }); }} />)}
+    </div> : <div className="py-4 text-center"><Square size={24} className="mx-auto mb-2 text-fg-3 opacity-50" aria-hidden /><p className="text-[11px] text-fg-2">No masks on this clip</p><p className="mt-1 text-[10px] text-fg-3">Click a shape above to add a mask</p></div>}
+    <p className="border-t border-border pt-2 text-[10px] leading-4 text-fg-2">Masks control which parts of the clip are visible</p>
+  </fieldset>;
+}

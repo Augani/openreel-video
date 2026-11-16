@@ -1,21 +1,21 @@
 import type { MotionParticleEmitter, MotionParticleLayer } from "./types";
 import { normalizeMotionParticleEmitter } from "./motion-particles";
 
-export type MotionParticlePresetId =
+type MotionParticlePresetId =
   | "sparks"
   | "confetti"
   | "snow"
   | "dust"
   | "ui-burst";
 
-export interface MotionParticlePreset {
+interface MotionParticlePreset {
   readonly id: MotionParticlePresetId;
   readonly name: string;
   readonly description: string;
   readonly emitter: MotionParticleEmitter;
 }
 
-export interface ApplyMotionParticlePresetOptions {
+interface ApplyMotionParticlePresetOptions {
   readonly intensity?: number;
 }
 

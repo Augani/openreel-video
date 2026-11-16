@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { loadEditorModule } from "../editor-loader";
 
 let preloadPromise: Promise<unknown> | null = null;
 
@@ -12,7 +13,7 @@ export function useEditorPreload(shouldPreload: boolean): void {
 
     const preload = () => {
       if (preloadPromise) return;
-      preloadPromise = import("../components/editor/EditorInterface").catch((error) => {
+      preloadPromise = loadEditorModule().catch((error) => {
         preloadPromise = null;
         console.warn("[Editor] Background preload failed:", error);
       });

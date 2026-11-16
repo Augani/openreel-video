@@ -26,26 +26,26 @@ import { getMotionParticleEmitterBounds } from "./motion-particles";
 
 const MASK_PATH_SNAP_TOLERANCE = 1 / 1000;
 
-export type MotionMaskPresetShape = Exclude<MotionMaskShape, "path">;
+type MotionMaskPresetShape = Exclude<MotionMaskShape, "path">;
 
-export interface MotionMaskPreset {
+interface MotionMaskPreset {
   readonly shape: MotionMaskPresetShape;
   readonly name: string;
   readonly description: string;
   readonly create: (id?: string) => MotionMask;
 }
 
-export interface MotionLayerVisualBounds {
+interface MotionLayerVisualBounds {
   readonly x: number;
   readonly y: number;
   readonly width: number;
   readonly height: number;
 }
 
-export const createMaskId = (): string =>
+const createMaskId = (): string =>
   `motion-mask-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 
-export const MOTION_MASK_PRESETS: readonly MotionMaskPreset[] = [
+const MOTION_MASK_PRESETS: readonly MotionMaskPreset[] = [
   {
     shape: "rectangle",
     name: "Rectangle Mask",
@@ -112,7 +112,7 @@ export const MOTION_MASK_PRESETS: readonly MotionMaskPreset[] = [
   },
 ];
 
-export const DEFAULT_MOTION_MASK_POLYGON_POINTS: readonly MotionVector2[] = [
+const DEFAULT_MOTION_MASK_POLYGON_POINTS: readonly MotionVector2[] = [
   { x: 0.5, y: 0 },
   { x: 1, y: 0.38 },
   { x: 0.82, y: 1 },
@@ -120,7 +120,7 @@ export const DEFAULT_MOTION_MASK_POLYGON_POINTS: readonly MotionVector2[] = [
   { x: 0, y: 0.38 },
 ];
 
-export function getMotionMaskPolygonPoints(
+function getMotionMaskPolygonPoints(
   mask: MotionMask,
 ): readonly MotionVector2[] {
   const points = mask.points;
@@ -330,9 +330,9 @@ export function addMotionLayerMask<T extends MotionLayer>(
   } as T;
 }
 
-export type MotionMaskStackPasteMode = "append" | "replace";
+type MotionMaskStackPasteMode = "append" | "replace";
 
-export interface MotionMaskStackTransferResult<T extends MotionLayer> {
+interface MotionMaskStackTransferResult<T extends MotionLayer> {
   readonly layer: T;
   readonly pastedMaskIds: readonly string[];
 }
@@ -482,7 +482,7 @@ export function reorderMotionLayerMask<T extends MotionLayer>(
   return { ...layer, masks } as T;
 }
 
-export function getEnabledMotionMasks(layer: MotionLayer): MotionMask[] {
+function getEnabledMotionMasks(layer: MotionLayer): MotionMask[] {
   return (layer.masks ?? []).filter((mask) => mask.enabled);
 }
 

@@ -1,3 +1,4 @@
+import { applyCaptionBurnIn } from "../captions/caption-export";
 import type { Project } from "../types/project";
 import type {
   VideoExportSettings,
@@ -9,22 +10,58 @@ import type {
   ExportResult,
   ExportStats,
   ExportError,
+  ExportVideoOptions,
 } from "./types";
 import {
   DEFAULT_VIDEO_SETTINGS,
   DEFAULT_AUDIO_SETTINGS,
   DEFAULT_IMAGE_SETTINGS,
   VIDEO_QUALITY_PRESETS,
+  effectiveRateControl,
 } from "./types";
 import { VideoEngine, getVideoEngine } from "../video/video-engine";
 import { AudioEngine, getAudioEngine } from "../audio/audio-engine";
+import { downmixSurroundToStereo, isSurroundLayout } from "../audio/surround";
+import { encodeMultichannelWav, isSurroundDelivery, resolveSequenceAudioSettings, surroundFormatProblem } from "./surround-export";
+import { audioBufferFromChunk, renderMixdownCached } from "../audio/mixdown-cache";
 import { titleEngine } from "../text/title-engine";
 import { graphicsEngine } from "../graphics/graphics-engine";
 import { UpscalingEngine, getUpscalingEngine } from "../video/upscaling";
 import { getMediaEngine } from "../media/mediabunny-engine";
+import { outputColorForExport } from "./color-output";
+import { hdrExportTargetFor } from "../video/hdr-frame";
 import { getWavEncoder } from "../wasm/wav";
-import type { EncoderBackend, EncoderBackendFactory } from "./encoder-backend";
+import type { EncoderBackend } from "./encoder-backend";
+import { getEncoderBackendFactory, setEncoderBackendFactory } from "./encoder-backend";
 import { WebCodecsBackend } from "./webcodecs-backend";
+import { encodeGif, gifPlaybackFps, validateGifFrameBudget, validateGifOptions, type GifFrame } from "./gif-encoder";
+import { MAX_SEQUENCE_BYTES, packImageSequence, sequenceFrameRange, validateSequenceRange, type SequenceImageFormat } from "./image-sequence";
+import { declineSmartRender, formatSmartRenderSummary, planSmartRender, type SmartRenderPlan, type SmartRenderSourceInfo } from "./smart-render";
+import { scanSourceForSmartRender } from "./smart-render-scan";
+import {
+  LoudnessNormalizer,
+  measureRenderedLoudness,
+  planNormalization,
+  type LoudnessSnapshot,
+} from "../audio/loudness";
+import {
+  activeLoudnessTarget,
+  audioBufferChannels,
+  buildLoudnessReport,
+  createAudioBufferFromChannels,
+  normalizeAudioBuffer,
+  type LoudnessExportReport,
+} from "./loudness-export";
+import { proxyExportReport } from "../media/proxy-workflow";
+import {
+  broadcastAudioTrackCount,
+  isBroadcastCodec,
+  layoutBroadcastChannels,
+  planBroadcastChannels,
+  wantsMonoTracks,
+  type BroadcastDeliverySettings,
+} from "./broadcast";
+import { isolateStem, planStems } from "./stem-export";
 import { resolveWebCodecsExportLimits } from "./webcodecs-limits";
 import { checkBrowserExportCapability, getVideoExportValidationError, getMissingExportMedia } from "./browser-capabilities";
 import {
@@ -32,7 +69,41 @@ import {
   trackHasAudioItems,
 } from "../timeline/timeline-items";
 
+// Encodes allowed in flight for backends that declare supportsPipelining.
+/**
+ * How long one frame may take to render before the export is declared stuck. A frame at a cut can
+ * need several decoders to seek into long-GOP sources (a 4K clip with 10 s keyframes means decoding
+ * a few hundred frames before the first picture), and a dense timeline needs one such seek per layer;
+ * measured on a 110-minute, 9-layer soak timeline under machine load a single frame took over 30 s.
+ * A decoder that is truly hung still fails the export, two minutes later.
+ */
+export const RENDER_FRAME_WATCHDOG_MS = 120_000;
+
+const EXPORT_PIPELINE_DEPTH = 3;
+
+/** Share of the progress bar owned by frame rendering; audio drain and muxing own the rest. */
+const RENDER_PROGRESS_SHARE = 0.97;
+/** Relative cost of stream-copying a frame versus rendering and encoding it. */
+const SMART_COPY_FRAME_COST = 0.03;
+
+export interface ExportEngineOptions {
+  /**
+   * Render with this VideoEngine instead of the editor's live singleton. A queued
+   * export passes its own so export mode, frame caches and the GPU compositor never
+   * touch the engine that drives the live preview.
+   */
+  videoEngine?: VideoEngine;
+  audioEngine?: AudioEngine;
+}
+
 export class ExportEngine {
+  constructor(private readonly options: ExportEngineOptions = {}) {}
+
+  /** True when this engine owns its video engine, so shared caches must be left alone. */
+  private get isolated(): boolean {
+    return this.options.videoEngine !== undefined;
+  }
+
   private static readonly AUDIO_EXPORT_CHUNK_DURATION_SECONDS = 15;
   private mediabunny: typeof import("mediabunny") | null = null;
   private initialized = false;
@@ -44,6 +115,7 @@ export class ExportEngine {
     startTime: number;
     framesRendered: number;
   } | null = null;
+  private loudnessReport: LoudnessExportReport | undefined;
   private exportWorker: Worker | null = null;
 
   async initialize(): Promise<void> {
@@ -57,8 +129,8 @@ export class ExportEngine {
     }
 
     try {
-      this.videoEngine = getVideoEngine();
-      this.audioEngine = getAudioEngine();
+      this.videoEngine = this.options.videoEngine ?? getVideoEngine();
+      this.audioEngine = this.options.audioEngine ?? getAudioEngine();
 
       if (!this.videoEngine.isInitialized()) {
         await this.videoEngine.initialize();
@@ -127,11 +199,19 @@ export class ExportEngine {
   }
 
   async *exportVideo(
-    project: Project,
+    sourceProject: Project,
     settings: Partial<VideoExportSettings> = {},
     writableStream?: FileSystemWritableFileStream,
+    exportOptions: ExportVideoOptions = {},
   ): AsyncGenerator<ExportProgress, ExportResult> {
     this.ensureInitialized();
+    // Only burned-in caption tracks are drawn into the picture; the backend still sees every cue
+    // (sourceProject) so embedded subtitle tracks carry the full text.
+    const project = applyCaptionBurnIn(sourceProject, settings.captions);
+    const burnInChanged = project !== sourceProject;
+    // Cached preview frames contain every caption, so they cannot be reused when some are excluded.
+    const cachedFrames = burnInChanged ? undefined : exportOptions.cachedFrames;
+    let cachedFrameCount = 0;
 
     if (!this.mediabunny) {
       const errorMessage = this.isWebCodecsSupported()
@@ -152,12 +232,23 @@ export class ExportEngine {
       },
     };
 
-    const backend = encoderBackendFactory
+    // A 5.1 sequence delivers six channels (AAC in MP4 / MOV) unless the export asks for stereo.
+    fullSettings.audioSettings = resolveSequenceAudioSettings(project, fullSettings.audioSettings);
+    const surroundProblem = isSurroundDelivery(fullSettings.audioSettings) ? surroundFormatProblem(fullSettings.format) : null;
+    if (surroundProblem) return { success: false, error: this.createError("INVALID_SETTINGS", surroundProblem, "preparing") };
+
+    const encoderBackendFactory = getEncoderBackendFactory();
+    const backend: EncoderBackend = encoderBackendFactory
       ? encoderBackendFactory(this.mediabunny)
       : new WebCodecsBackend(this.mediabunny!);
 
-    if (backend.normalizesProResToH264 && fullSettings.codec === "prores") {
-      return { success: false, error: this.createError("UNSUPPORTED_CODEC", "ProRes export requires the desktop encoder. Choose H.264 / MP4 for browser export.", "preparing") };
+    if (backend.normalizesProResToH264 && (fullSettings.codec === "prores" || fullSettings.codec === "dnxhr" || isBroadcastCodec(fullSettings.codec) || fullSettings.format === "mxf" || hasBroadcastOptions(fullSettings.broadcast))) {
+      return { success: false, error: this.createError("UNSUPPORTED_CODEC", "ProRes, DNxHR, XDCAM HD422, AVC-Intra, MXF, mono audio tracks and timecode tracks require the desktop encoder. Choose H.264 / MP4 for browser export.", "preparing") };
+    }
+    // The sequence's start timecode (10:00:00:00 for broadcast) is written into native MOV / MXF files unless the
+    // export dialog set another one.
+    if (!backend.normalizesProResToH264 && (fullSettings.format === "mov" || fullSettings.format === "mxf") && !fullSettings.broadcast?.startTimecode && project.settings.startTimecode) {
+      fullSettings.broadcast = { ...fullSettings.broadcast, startTimecode: project.settings.startTimecode };
     }
 
     const { timeline } = project;
@@ -211,10 +302,22 @@ export class ExportEngine {
     const abortController = new AbortController();
     this.abortController = abortController;
     this.currentExport = { startTime: Date.now(), framesRendered: 0 };
+    this.loudnessReport = undefined;
+    // Audio runs beside the video loop (see audioTask below). If it fails, that failure, not the
+    // CANCELLED it triggers in the video loop, is what the caller must see.
+    let audioFailure: unknown;
     const checkCancelled = () => {
+      if (audioFailure !== undefined) throw audioFailure;
       if (abortController.signal.aborted) throw this.createError("CANCELLED", "Export cancelled by user", "rendering");
     };
 
+    const phaseStart = performance.now();
+    let phaseMark = phaseStart;
+    const phase = (name: string): void => {
+      const now = performance.now();
+      console.debug(`[export-phase] ${name} +${(now - phaseMark).toFixed(0)}ms (t=${(now - phaseStart).toFixed(0)}ms)`);
+      phaseMark = now;
+    };
     try {
       yield this.createProgress("preparing", 0, totalFrames, 0, 0);
       checkCancelled();
@@ -223,21 +326,54 @@ export class ExportEngine {
         if (!capability.supported) throw this.createError("UNSUPPORTED_CODEC", capability.reason!, "preparing");
       }
       checkCancelled();
+      phase("capability");
       await this.initializeGPUForExport(fullSettings.width, fullSettings.height);
+      phase("gpu-init");
       checkCancelled();
+      let smartPlan = await this.planSmartRenderFor(project, fullSettings, backend, exportStart, totalFrames);
+      checkCancelled();
+      if (smartPlan?.eligible && backend.smartRender?.prepare) {
+        const prepared = await backend.smartRender.prepare(smartPlan, (mediaId) => project.mediaLibrary.items.find((item) => item.id === mediaId)?.blob ?? undefined);
+        smartPlan = "decline" in prepared ? declineSmartRender(smartPlan, prepared.decline) : prepared.plan;
+        checkCancelled();
+      }
+      phase("smart-plan");
+      const smartCopy = smartPlan?.eligible ? backend.smartRender : undefined;
+      if (smartCopy) smartCopy.enable(smartPlan ?? undefined);
       this.videoEngine?.resetExportState();
-      if (this.videoEngine) this.videoEngine.exportMode = true;
-      await backend.start(fullSettings, project, writableStream);
+      const hdrTarget = hdrExportTargetFor(project, fullSettings);
+      if (this.videoEngine) {
+        this.videoEngine.exportMode = true;
+        // ProRes 4444 with alpha: composite over transparency instead of black.
+        this.videoEngine.transparentBackground = exportWritesAlpha(fullSettings);
+        // Rec.2020 / HDR output: render the float image and encode it directly (no 8-bit read-back).
+        this.videoEngine.setHdrExportTarget?.(hdrTarget);
+      }
+      await backend.start(fullSettings, sourceProject, writableStream);
+      phase("backend-start");
       checkCancelled();
 
+      // Mixing and encoding the audio is independent of rendering frames, so it runs beside the
+      // video loop instead of in front of it: a long timeline used to sit at 0% for the whole
+      // mixdown (23 s for a minute of a 120-clip timeline) before the first frame. The muxer
+      // interleaves the two tracks as they arrive. Only the loop's own progress is reported.
+      let audioTask: Promise<void> | undefined;
       if (backend.audioBeforeVideo) {
-        try {
-          await this.encodeTimelineAudioToBackend(project, backend, fullSettings.audioSettings, exportStart, exportDuration);
-        } finally {
-          this.audioEngine?.clearCache();
-        }
-        await backend.closeAudio();
-        checkCancelled();
+        audioTask = (async () => {
+          try {
+            await this.encodeTimelineAudioToBackend(project, backend, fullSettings.audioSettings, exportStart, exportDuration, abortController.signal, fullSettings.broadcast);
+          } finally {
+            this.audioEngine?.clearCache();
+          }
+          await backend.closeAudio();
+          phase("audio");
+        })();
+        audioTask.catch((error: unknown) => {
+          const cancelled = typeof error === "object" && error !== null && "code" in error && (error as ExportError).code === "CANCELLED";
+          if (cancelled || abortController.signal.aborted) return;
+          audioFailure = error;
+          abortController.abort();
+        });
       }
 
       const mediaEngine = getMediaEngine();
@@ -261,24 +397,68 @@ export class ExportEngine {
                 mediaItem.blob,
                 fullSettings.width,
               );
-            } catch {}
+            } catch (error) {
+              console.warn("[ExportEngine] export decoder unavailable, frames will use the slow per-frame path:", error);
+            }
           }
         }
       }
 
+      phase("decoders");
       let renderMsTotal = 0;
-      for (let frame = 0; frame < totalFrames; frame++) {
+      const pipelined = backend.supportsPipelining === true;
+      const pipelineDepth = pipelined ? EXPORT_PIPELINE_DEPTH : 1;
+      const pendingEncodes: Promise<void>[] = [];
+      const segments: SmartRenderPlan["segments"] = smartCopy
+        ? smartPlan!.segments
+        : [{ kind: "encode", startFrame: 0, endFrame: totalFrames }];
+      let copiedFramesDone = 0;
+      let copiedRuns = 0;
+      const copiedFramesPlanned = smartCopy ? smartPlan!.copiedFrames : 0;
+      // A copied frame costs a few percent of an encoded one, so progress is
+      // weighted by work rather than by frame count (a 90%-copied export must
+      // not report 90% after the first second and then crawl).
+      const workTotal = totalFrames - copiedFramesPlanned + copiedFramesPlanned * SMART_COPY_FRAME_COST;
+      const renderProgress = (framesDone: number): number => {
+        const work = framesDone - copiedFramesDone + copiedFramesDone * SMART_COPY_FRAME_COST;
+        return Math.min(1, work / workTotal) * RENDER_PROGRESS_SHARE;
+      };
+      for (const segment of segments) {
+      if (segment.kind === "copy") {
+        checkCancelled();
+        const sourceBlob = project.mediaLibrary.items.find((item) => item.id === segment.mediaId)?.blob;
+        if (!sourceBlob) throw this.createError("FRAME_ENCODE_FAILED", "A smart-render source is no longer available.", "encoding");
+        const copied = await smartCopy!.copyRun(sourceBlob, segment.sourceStart, segment.sourceEnd, segment.startFrame / fullSettings.frameRate);
+        if (copied !== segment.endFrame - segment.startFrame) {
+          throw this.createError("FRAME_ENCODE_FAILED", `Smart render copied ${copied} of ${segment.endFrame - segment.startFrame} frames.`, "encoding");
+        }
+        copiedFramesDone += copied;
+        copiedRuns++;
+        this.currentExport!.framesRendered = segment.endFrame;
+        yield this.createProgress("rendering", renderProgress(segment.endFrame), totalFrames, segment.endFrame, backend.getBytesWritten());
+        continue;
+      }
+      smartCopy?.beginEncodeRun();
+      for (let frame = segment.startFrame; frame < segment.endFrame; frame++) {
         checkCancelled();
 
         const time = frame / fullSettings.frameRate;
         const renderStart = performance.now();
-        const rendered = await this.waitForVideoOperation(this.videoEngine!.renderFrame(
-          project,
-          exportStart + time,
-          fullSettings.width,
-          fullSettings.height,
-        ), abortController.signal, "rendering", (lateFrame) => lateFrame.image.close());
+        // A frame already in the preview render cache replaces a full re-render.
+        const cachedImage = cachedFrames && !fullSettings.upscaling?.enabled && !hdrTarget
+          ? await cachedFrames.takeFrame(exportStart + time)
+          : undefined;
+        if (cachedImage) cachedFrameCount++;
+        const rendered = cachedImage
+          ? { image: cachedImage }
+          : await this.waitForVideoOperation(this.videoEngine!.renderFrame(
+              project,
+              exportStart + time,
+              fullSettings.width,
+              fullSettings.height,
+            ), abortController.signal, "rendering", (lateFrame) => lateFrame.image.close(), RENDER_FRAME_WATCHDOG_MS);
         renderMsTotal += performance.now() - renderStart;
+        if (frame === segment.startFrame && segment.startFrame === 0) phase("first-frame-rendered");
         const shouldUpscale = this.shouldApplyUpscaling(project, fullSettings);
         let frameImage = rendered.image;
 
@@ -293,15 +473,27 @@ export class ExportEngine {
           frameImage = upscaled;
         }
 
-        await this.waitForVideoOperation(backend.addVideoFrame(
+        // Queue the encode so the next frame can render while this one is
+        // read back. The backend receives frames in call order; the queue is
+        // bounded and the oldest entry is awaited once it is full.
+        const pending = this.waitForVideoOperation(backend.addVideoFrame(
           frameImage,
           time,
           1 / fullSettings.frameRate,
-        ), abortController.signal, "encoding");
+        // A queued frame waits behind earlier ones, so scale the watchdog by
+        // pipeline depth rather than timing each frame from submission.
+        ), abortController.signal, "encoding", undefined, 30_000 * pipelineDepth);
+        // Failures surface when the entry is awaited; avoid an unhandled
+        // rejection while a later frame is still rendering.
+        pending.catch(() => undefined);
+        pendingEncodes.push(pending);
+        if (pendingEncodes.length >= pipelineDepth) {
+          await pendingEncodes.shift();
+        }
 
         this.currentExport!.framesRendered = frame + 1;
 
-        if (backend.needsFrameThrottling && (frame + 1) % 5 === 0) {
+        if (!pipelined && backend.needsFrameThrottling && (frame + 1) % 5 === 0) {
           // Yield to the browser without invalidating decoder state. Clearing
           // these caches during a sequential export forces fresh seeks and can
           // repeat source frames, which shows up as brief pauses in the file.
@@ -310,11 +502,17 @@ export class ExportEngine {
 
         yield this.createProgress(
           "rendering",
-          (frame + 1) / totalFrames,
+          renderProgress(frame + 1),
           totalFrames,
           frame + 1,
           backend.getBytesWritten(),
         );
+      }
+
+      while (pendingEncodes.length > 0) {
+        await pendingEncodes.shift();
+      }
+      await smartCopy?.endEncodeRun();
       }
 
       if (totalFrames > 0) {
@@ -323,9 +521,11 @@ export class ExportEngine {
         );
       }
 
-      if (!backend.audioBeforeVideo) {
+      if (audioTask) {
+        await audioTask;
+      } else {
         try {
-          await this.encodeTimelineAudioToBackend(project, backend, fullSettings.audioSettings, exportStart, exportDuration);
+          await this.encodeTimelineAudioToBackend(project, backend, fullSettings.audioSettings, exportStart, exportDuration, abortController.signal, fullSettings.broadcast);
         } finally {
           this.audioEngine?.clearCache();
         }
@@ -333,23 +533,34 @@ export class ExportEngine {
       }
 
       mediaEngine.disposeAllExportDecoders();
-      mediaEngine.clearFrameCache();
+      if (!this.isolated) mediaEngine.clearFrameCache();
       this.videoEngine?.clearVideoElementCache();
       this.videoEngine?.clearCache();
       if (this.videoEngine) {
         this.videoEngine.exportMode = false;
+        this.videoEngine.transparentBackground = false;
       }
 
       yield this.createProgress(
         "muxing",
-        0.98,
+        RENDER_PROGRESS_SHARE + 0.01,
         totalFrames,
         totalFrames,
         backend.getBytesWritten(),
       );
 
       checkCancelled();
-      await this.waitForVideoOperation(backend.finalize(), abortController.signal, "muxing");
+      // External encoders (native ffmpeg) may legitimately take minutes to drain
+      // buffered frames and rewrite the file, so only WebCodecs keeps the watchdog.
+      const externalEncoder =
+        backend.drivesExternalEncoder === true || backend.supportsPipelining === true;
+      await this.waitForVideoOperation(
+        backend.finalize(),
+        abortController.signal,
+        "muxing",
+        undefined,
+        externalEncoder ? null : undefined,
+      );
 
       yield this.createProgress(
         "complete",
@@ -361,9 +572,29 @@ export class ExportEngine {
 
       return {
         success: true,
-        stats: this.calculateStats(totalFrames, backend.getBytesWritten()),
+        stats: {
+          ...this.calculateStats(totalFrames, backend.getBytesWritten()),
+          ...(this.loudnessReport ? { loudness: this.loudnessReport } : {}),
+          ...(hdrTarget?.meter?.result() ? { hdrLightLevel: hdrTarget.meter.result()! } : {}),
+          sourceMedia: proxyExportReport(project),
+          ...(cachedFrames ? { framesFromCache: cachedFrameCount } : {}),
+          ...(backend.embeddedCaptions ? { embeddedCaptions: backend.embeddedCaptions } : {}),
+          ...(smartPlan ? { smartRender: {
+            active: copiedFramesDone > 0,
+            engine: backend.smartRender?.engine ?? "webcodecs",
+            copiedFrames: copiedFramesDone,
+            totalFrames,
+            copiedPercent: totalFrames > 0 ? (copiedFramesDone / totalFrames) * 100 : 0,
+            copiedRuns,
+            reasons: [...smartPlan.reasons],
+            summary: formatSmartRenderSummary(copiedFramesDone, totalFrames),
+          } } : {}),
+        },
       };
-    } catch (error) {
+    } catch (thrown) {
+      const error = audioFailure !== undefined ? audioFailure : thrown;
+      // Stop the audio task if the video side failed first.
+      abortController.abort();
       try { await backend.abort(); } catch { /* Preserve the original export failure. */ }
       try { await writableStream.abort(); } catch { /* It may already have been aborted by the backend. */ }
       if (error && typeof error === "object" && "code" in error) {
@@ -391,11 +622,48 @@ export class ExportEngine {
       this.videoEngine?.clearCache();
       if (this.videoEngine) {
         this.videoEngine.exportMode = false;
+        this.videoEngine.transparentBackground = false;
+        this.videoEngine.setHdrExportTarget?.(null);
       }
       try {
         getMediaEngine().disposeAllExportDecoders();
-        getMediaEngine().clearFrameCache();
+        if (!this.isolated) getMediaEngine().clearFrameCache();
       } catch {}
+    }
+  }
+
+  /**
+   * Smart-render plan for this export, or null when the backend cannot splice
+   * packets, the user turned it off, or the frames come from the preview cache.
+   */
+  private async planSmartRenderFor(
+    project: Project,
+    settings: VideoExportSettings,
+    backend: EncoderBackend,
+    exportStart: number,
+    totalFrames: number,
+  ): Promise<SmartRenderPlan | null> {
+    if (!backend.smartRender || settings.smartRender === false || !this.mediabunny) return null;
+    // Smart render joins stream-copied spans with a stereo audio pass; a mono-track or broadcast delivery is rendered in full.
+    if (isBroadcastCodec(settings.codec) || wantsMonoTracks(settings.broadcast) || settings.broadcast?.mxfPattern === "opatom") return null;
+    // Stream-copied source packets carry the source's colour, so a Rec.2020 / HDR export re-renders everything.
+    if (outputColorForExport(project, settings.hdr)) return null;
+    // Two-pass VBR analyses and re-encodes every frame, so it cannot share the stream-copied spans.
+    if (effectiveRateControl(settings) === "vbr2") return null;
+    const engine = backend.smartRender.engine ?? "webcodecs";
+    if (engine === "webcodecs" && settings.codec !== "h264") return null;
+    if (settings.format !== "mp4" && settings.format !== "mov") return null;
+    try {
+      const sources = new Map<string, SmartRenderSourceInfo>();
+      for (const item of project.mediaLibrary.items) {
+        if (item.type !== "video" || !item.blob) continue;
+        const info = await scanSourceForSmartRender(this.mediabunny, item.id, item.blob, engine);
+        if (info) sources.set(item.id, info);
+      }
+      return planSmartRender({ project, settings, sources, exportStart, totalFrames, engine });
+    } catch (error) {
+      console.warn("[export] smart render planning failed; encoding everything", error);
+      return null;
     }
   }
 
@@ -411,22 +679,23 @@ export class ExportEngine {
     signal: AbortSignal,
     phase: ExportProgress["phase"],
     disposeLateResult?: (result: T) => void,
+    timeoutMs: number | null = 30_000,
   ): Promise<T> {
     return new Promise((resolve, reject) => {
       let settled = false;
       const finish = (error?: ExportError) => {
         if (settled) return;
         settled = true;
-        clearTimeout(timer);
+        if (timer !== undefined) clearTimeout(timer);
         signal.removeEventListener("abort", cancel);
         if (error) reject(error);
       };
       const cancel = () => finish(this.createError("CANCELLED", "Export cancelled by user", phase));
-      const timer = setTimeout(() => finish(this.createError(
+      const timer = timeoutMs === null ? undefined : setTimeout(() => finish(this.createError(
         "FRAME_ENCODE_FAILED",
         "The video export stopped responding. Retry with a lower resolution or a different codec.",
         phase,
-      )), 30_000);
+      )), timeoutMs);
       signal.addEventListener("abort", cancel, { once: true });
       if (signal.aborted) cancel();
       operation.then((result) => {
@@ -450,10 +719,15 @@ export class ExportEngine {
   ): AsyncGenerator<ExportProgress, ExportResult> {
     this.ensureInitialized();
 
-    const fullSettings: AudioExportSettings = {
+    const requested: AudioExportSettings = {
       ...DEFAULT_AUDIO_SETTINGS,
       ...settings,
     };
+    // A 5.1 sequence exports a six-channel WAV; the other audio formats are stereo, so they get the downmix.
+    const fullSettings: AudioExportSettings = resolveSequenceAudioSettings(
+      project,
+      requested.format === "wav" ? requested : { ...requested, channelLayout: "stereo" },
+    );
 
     if (!this.mediabunny && fullSettings.format !== "wav") {
       return {
@@ -483,10 +757,11 @@ export class ExportEngine {
     if (this.currentExport) return { success: false, error: this.createError("INVALID_SETTINGS", "An export is already running. Wait for it to finish or cancel it before retrying.", "preparing") };
     this.abortController = new AbortController();
     this.currentExport = { startTime: Date.now(), framesRendered: 0 };
+    this.loudnessReport = undefined;
 
     try {
       yield this.createProgress("preparing", 0, 1, 0, 0);
-      const audioBuffer = await this.renderTimelineAudio(project, 0, undefined, fullSettings);
+      let audioBuffer = await this.renderTimelineAudio(project, 0, undefined, fullSettings);
       if (this.abortController?.signal.aborted) throw this.createError("CANCELLED", "Export cancelled by user", "rendering");
 
       if (!audioBuffer) {
@@ -495,6 +770,12 @@ export class ExportEngine {
           "No audio to export",
           "rendering",
         );
+      }
+      const loudnessTarget = activeLoudnessTarget(fullSettings.loudness);
+      if (loudnessTarget) {
+        const normalized = normalizeAudioBuffer(audioBuffer, loudnessTarget);
+        audioBuffer = normalized.buffer;
+        this.loudnessReport = normalized.report;
       }
 
       yield this.createProgress("encoding", 0.5, 1, 0, 0);
@@ -521,6 +802,8 @@ export class ExportEngine {
           averageSpeed: 1,
           fileSize: blob.size,
           averageBitrate: (blob.size * 8) / timelineDuration,
+          ...(this.loudnessReport ? { loudness: this.loudnessReport } : {}),
+          sourceMedia: proxyExportReport(project),
         },
       };
     } catch (error) {
@@ -625,90 +908,154 @@ export class ExportEngine {
     return this.exportFrame(project, 0, settings);
   }
 
+  /**
+   * Frame range (project frames, inclusive) as a zip of PNG/JPEG frames named by `namingPattern`.
+   * Delegates to {@link exportImageSequenceZip}; the result blob is the zip.
+   */
   async *exportImageSequence(
     project: Project,
     settings: Partial<SequenceExportSettings> = {},
   ): AsyncGenerator<ExportProgress, ExportResult> {
-    this.ensureInitialized();
-
-    const { timeline } = project;
     const frameRate = project.settings.frameRate;
-    const totalFrames = Math.ceil(timeline.duration * frameRate);
+    const range =
+      settings.startFrame !== undefined || settings.endFrame !== undefined
+        ? {
+            startTime: (settings.startFrame ?? 0) / frameRate,
+            endTime: ((settings.endFrame ?? Math.ceil(project.timeline.duration * frameRate) - 1) + 1) / frameRate,
+          }
+        : undefined;
+    return yield* this.exportImageSequenceZip(project, {
+      format: settings.format === "jpg" ? "jpg" : "png",
+      quality: settings.quality,
+      width: settings.width,
+      height: settings.height,
+      range,
+      pattern: settings.namingPattern,
+    });
+  }
 
-    const fullSettings: SequenceExportSettings = {
-      ...DEFAULT_IMAGE_SETTINGS,
-      width: project.settings.width,
-      height: project.settings.height,
-      startFrame: 0,
-      endFrame: totalFrames - 1,
-      namingPattern: "frame_{0000}",
-      ...settings,
-    };
+  /** Render one timeline frame onto an OffscreenCanvas of the given size. */
+  private async renderFrameCanvas(project: Project, time: number, width: number, height: number): Promise<OffscreenCanvas> {
+    const rendered = await this.videoEngine!.renderFrame(project, time, width, height);
+    const canvas = new OffscreenCanvas(width, height);
+    const ctx = canvas.getContext("2d");
+    if (ctx) ctx.drawImage(rendered.image, 0, 0, width, height);
+    rendered.image.close();
+    return canvas;
+  }
 
+  /**
+   * Image-sequence export: every frame of the range as a PNG or JPEG, numbered from the pattern
+   * (`frame_{0000}`), delivered as one zip. `range` is timeline seconds (Out exclusive); omit for everything.
+   */
+  async *exportImageSequenceZip(
+    project: Project,
+    options: {
+      format?: SequenceImageFormat;
+      quality?: number;
+      width?: number;
+      height?: number;
+      range?: { startTime: number; endTime: number };
+      pattern?: string;
+      startNumber?: number;
+    } = {},
+  ): AsyncGenerator<ExportProgress, ExportResult> {
+    this.ensureInitialized();
+    const frameRate = project.settings.frameRate;
+    const format = options.format ?? "png";
+    const width = options.width ?? project.settings.width;
+    const height = options.height ?? project.settings.height;
     this.abortController = new AbortController();
     this.currentExport = { startTime: Date.now(), framesRendered: 0 };
-
-    const framesToExport = fullSettings.endFrame - fullSettings.startFrame + 1;
-    const blobs: Blob[] = [];
-
+    this.loudnessReport = undefined;
     try {
-      yield this.createProgress("preparing", 0, framesToExport, 0, 0);
-
-      for (let i = 0; i < framesToExport; i++) {
-        if (this.abortController.signal.aborted) {
-          throw this.createError(
-            "CANCELLED",
-            "Export cancelled by user",
-            "rendering",
-          );
-        }
-
-        const frameNumber = fullSettings.startFrame + i;
-        const time = frameNumber / frameRate;
-
-        const result = await this.exportFrame(project, time, fullSettings);
-        if (result.success && result.blob) {
-          blobs.push(result.blob);
-        }
-
-        this.currentExport!.framesRendered = i + 1;
-
-        yield this.createProgress(
-          "rendering",
-          (i + 1) / framesToExport,
-          framesToExport,
-          i + 1,
-          blobs.reduce((sum, b) => sum + b.size, 0),
-        );
+      const range = sequenceFrameRange(project.timeline.duration, frameRate, options.range);
+      const invalid = validateSequenceRange(range);
+      if (invalid) throw this.createError("INVALID_SETTINGS", invalid, "preparing");
+      const total = range.endFrame - range.startFrame + 1;
+      const frames: Uint8Array[] = [];
+      let bytes = 0;
+      yield this.createProgress("preparing", 0, total, 0, 0);
+      for (let i = 0; i < total; i++) {
+        if (this.abortController.signal.aborted) throw this.createError("CANCELLED", "Export cancelled by user", "rendering");
+        const canvas = await this.renderFrameCanvas(project, (range.startFrame + i) / frameRate, width, height);
+        const blob = await canvas.convertToBlob({ type: this.getImageMimeType(format), quality: (options.quality ?? 92) / 100 });
+        const data = new Uint8Array(await blob.arrayBuffer());
+        frames.push(data);
+        bytes += data.byteLength;
+        if (bytes > MAX_SEQUENCE_BYTES) throw this.createError("INVALID_SETTINGS", "The image sequence is too large to build in memory; reduce its size, range or quality.", "rendering");
+        this.currentExport.framesRendered = i + 1;
+        yield this.createProgress("rendering", (i + 1) / total, total, i + 1, bytes);
       }
-
-      yield this.createProgress(
-        "complete",
-        1,
-        framesToExport,
-        framesToExport,
-        0,
-      );
-
-      const totalSize = blobs.reduce((sum, b) => sum + b.size, 0);
-
-      return {
-        success: true,
-        blob: blobs[0],
-        stats: this.calculateStats(framesToExport, totalSize),
-      };
+      yield this.createProgress("muxing", 1, total, total, bytes);
+      const zip = await packImageSequence(frames, {
+        pattern: options.pattern ?? "frame_{0000}",
+        format,
+        startFrame: range.startFrame,
+        startNumber: options.startNumber,
+      });
+      yield this.createProgress("complete", 1, total, total, zip.byteLength);
+      return { success: true, blob: new Blob([zip as BlobPart], { type: "application/zip" }), stats: this.calculateStats(total, zip.byteLength) };
     } catch (error) {
-      if (error && typeof error === "object" && "code" in error) {
-        return { success: false, error: error as ExportError };
+      if (error && typeof error === "object" && "code" in error) return { success: false, error: error as ExportError };
+      return { success: false, error: this.createError("FRAME_ENCODE_FAILED", error instanceof Error ? error.message : "Unknown error", "rendering") };
+    } finally {
+      this.abortController = null;
+      this.currentExport = null;
+    }
+  }
+
+  /**
+   * Animated GIF export: frames sampled at `fps` over the range, one global palette (`maxColors`),
+   * `loop` times (0 = forever). GIF holds at most 50 fps and 4096 px a side.
+   */
+  async *exportGif(
+    project: Project,
+    options: {
+      fps?: number;
+      width?: number;
+      height?: number;
+      maxColors?: number;
+      loop?: number | "none";
+      range?: { startTime: number; endTime: number };
+    } = {},
+  ): AsyncGenerator<ExportProgress, ExportResult> {
+    this.ensureInitialized();
+    // Frames are sampled at the rate the GIF really plays at (whole-centisecond delays), so duration stays true.
+    const fps = gifPlaybackFps(options.fps ?? Math.min(15, project.settings.frameRate));
+    const scale = Math.min(1, 640 / project.settings.width);
+    const width = options.width ?? Math.max(2, Math.round(project.settings.width * scale));
+    const height = options.height ?? Math.max(2, Math.round(project.settings.height * scale));
+    this.abortController = new AbortController();
+    this.currentExport = { startTime: Date.now(), framesRendered: 0 };
+    this.loudnessReport = undefined;
+    try {
+      const invalid = validateGifOptions({ width, height, fps, maxColors: options.maxColors, loop: options.loop });
+      if (invalid) throw this.createError("INVALID_SETTINGS", invalid, "preparing");
+      const duration = project.timeline.duration;
+      const start = options.range?.startTime ?? 0;
+      const end = Math.min(duration, options.range?.endTime ?? duration);
+      if (!(end > start)) throw this.createError("INVALID_SETTINGS", "There is nothing to export in that range.", "preparing");
+      const total = Math.max(1, Math.round((end - start) * fps));
+      const budget = validateGifFrameBudget(width, height, total);
+      if (budget) throw this.createError("INVALID_SETTINGS", budget, "preparing");
+      const frames: GifFrame[] = [];
+      yield this.createProgress("preparing", 0, total, 0, 0);
+      for (let i = 0; i < total; i++) {
+        if (this.abortController.signal.aborted) throw this.createError("CANCELLED", "Export cancelled by user", "rendering");
+        const canvas = await this.renderFrameCanvas(project, start + i / fps, width, height);
+        const image = canvas.getContext("2d")!.getImageData(0, 0, width, height);
+        frames.push({ data: image.data });
+        this.currentExport.framesRendered = i + 1;
+        yield this.createProgress("rendering", (i + 1) / total, total, i + 1, 0);
       }
-      return {
-        success: false,
-        error: this.createError(
-          "FRAME_ENCODE_FAILED",
-          error instanceof Error ? error.message : "Unknown error",
-          "rendering",
-        ),
-      };
+      yield this.createProgress("encoding", 1, total, total, 0);
+      const gif = encodeGif(frames, { width, height, fps, maxColors: options.maxColors, loop: options.loop });
+      yield this.createProgress("complete", 1, total, total, gif.byteLength);
+      return { success: true, blob: new Blob([gif as BlobPart], { type: "image/gif" }), stats: this.calculateStats(total, gif.byteLength) };
+    } catch (error) {
+      if (error && typeof error === "object" && "code" in error) return { success: false, error: error as ExportError };
+      return { success: false, error: this.createError("FRAME_ENCODE_FAILED", error instanceof Error ? error.message : "Unknown error", "encoding") };
     } finally {
       this.abortController = null;
       this.currentExport = null;
@@ -986,13 +1333,49 @@ export class ExportEngine {
     const renderProject = audioSettings && (project.settings.sampleRate !== audioSettings.sampleRate || project.settings.channels !== audioSettings.channels)
       ? { ...project, settings: { ...project.settings, sampleRate: audioSettings.sampleRate, channels: audioSettings.channels } }
       : project;
-    const rendered = await this.audioEngine!.renderAudio(
+    // Unchanged windows (second loudness pass, repeated exports, queued variants)
+    // come from the mixdown cache; its key covers every audio-relevant edit.
+    const mixed = await renderMixdownCached(
       renderProject,
       startTime,
       renderDuration,
+      async () => (await this.audioEngine!.renderAudio(renderProject, startTime, renderDuration)).buffer,
+      audioBufferFromChunk,
     );
+    // A 5.1 sequence exported as stereo: mixed in 5.1, then folded down (ITU-R BS.775).
+    if (audioSettings?.channels === 2 && isSurroundLayout(project.settings) && mixed.numberOfChannels === 6) {
+      return createAudioBufferFromChannels(downmixSurroundToStereo(audioBufferChannels(mixed)), mixed.sampleRate) ?? mixed;
+    }
+    return mixed;
+  }
 
-    return rendered.buffer;
+  /**
+   * Loudness of the mixdown for [rangeStart, rangeStart + rangeDuration), rendered
+   * through the same offline path (and 15 s chunking) the export encodes.
+   */
+  private async measureMixdownLoudness(
+    project: Project,
+    audioSettings: AudioExportSettings,
+    rangeStart: number,
+    rangeDuration: number,
+    signal: AbortSignal | undefined = this.abortController?.signal,
+  ): Promise<LoudnessSnapshot> {
+    return measureRenderedLoudness({
+      sampleRate: audioSettings.sampleRate,
+      channels: audioSettings.channels,
+      duration: rangeDuration,
+      chunkSeconds: ExportEngine.AUDIO_EXPORT_CHUNK_DURATION_SECONDS,
+      signal,
+      render: async (start, duration) => {
+        const buffer = await this.renderTimelineAudio(project, rangeStart + start, duration, audioSettings);
+        return buffer ? { sampleRate: buffer.sampleRate, channels: audioBufferChannels(buffer) } : null;
+      },
+    }).catch((error: unknown) => {
+      if (error instanceof DOMException && error.name === "AbortError") {
+        throw this.createError("CANCELLED", "Export cancelled by user", "encoding");
+      }
+      throw error;
+    });
   }
 
   private async encodeTimelineAudioToBackend(
@@ -1001,20 +1384,65 @@ export class ExportEngine {
     audioSettings: AudioExportSettings,
     rangeStart = 0,
     rangeDuration = this.calculateTimelineDuration(project.timeline),
+    // Captured by the caller: this task can outlive the export (this.abortController is nulled
+    // in its finally), and must still see its own export's abort, never a later export's.
+    signal: AbortSignal | undefined = this.abortController?.signal,
+    broadcast?: BroadcastDeliverySettings,
   ): Promise<void> {
     const timelineDuration = rangeDuration;
+    // Broadcast delivery: N mono tracks (stereo mix on 1-2, then stems or silence) instead of the stereo stream.
+    const trackCount = broadcastAudioTrackCount(broadcast);
+    const stemItems = trackCount > 2 && broadcast?.extraTracks === "stems" ? planStems(project, { mode: "audioType" }).slice(0, trackCount - 2) : [];
+    const channelPlan = trackCount > 0 ? planBroadcastChannels(trackCount, broadcast?.extraTracks, stemItems.length) : [];
+    const isolatedStems = stemItems.map((item) => isolateStem(project, item));
+    const renderStemChunk = async (stem: Project | undefined, start: number, duration: number): Promise<Float32Array[]> => {
+      if (!stem) return [new Float32Array(Math.max(1, Math.round(duration * audioSettings.sampleRate)))];
+      const stemProject = stem.settings.sampleRate === audioSettings.sampleRate && stem.settings.channels === audioSettings.channels
+        ? stem
+        : { ...stem, settings: { ...stem.settings, sampleRate: audioSettings.sampleRate, channels: audioSettings.channels } };
+      return audioBufferChannels((await this.audioEngine!.renderAudio(stemProject, start, duration)).buffer);
+    };
+    /** The chunk as the N-channel delivery buffer. */
+    const toBroadcastChannels = async (mix: Float32Array[], absStart: number, duration: number): Promise<Float32Array[]> => {
+      const frames = mix[0]?.length ?? 0;
+      const stems: Float32Array[][] = [];
+      for (const stem of isolatedStems) stems.push(await renderStemChunk(stem, absStart, duration));
+      return layoutBroadcastChannels(channelPlan, mix, stems, frames);
+    };
     if (timelineDuration <= 0) {
       return;
     }
 
     const chunkDuration = ExportEngine.AUDIO_EXPORT_CHUNK_DURATION_SECONDS;
 
+    // Pass 1 (loudness target only): measure the whole mixdown, then derive the
+    // static gain and whether the true-peak limiter is needed.
+    let normalizer: LoudnessNormalizer | undefined;
+    const loudnessTarget = activeLoudnessTarget(audioSettings.loudness);
+    if (loudnessTarget) {
+      const hasAudio = project.timeline.tracks.some(
+        (track) => !track.muted && trackHasAudioItems(project, track.id),
+      );
+      if (hasAudio) {
+        const measured = await this.measureMixdownLoudness(project, audioSettings, rangeStart, timelineDuration, signal);
+        const plan = planNormalization(measured, loudnessTarget);
+        normalizer = new LoudnessNormalizer(plan, loudnessTarget, audioSettings.sampleRate, audioSettings.channels);
+        this.loudnessReport = buildLoudnessReport(loudnessTarget, measured, plan, normalizer);
+      }
+    }
+
+    const emit = async (channels: Float32Array[], sampleRate: number): Promise<void> => {
+      const out = createAudioBufferFromChannels(channels, sampleRate);
+      if (out) await backend.addAudioBuffer(out);
+    };
+
+    let lastSampleRate: number = audioSettings.sampleRate;
     for (
       let startTime = 0;
       startTime < timelineDuration;
       startTime += chunkDuration
     ) {
-      if (this.abortController?.signal.aborted) {
+      if (signal?.aborted) {
         throw this.createError(
           "CANCELLED",
           "Export cancelled by user",
@@ -1037,11 +1465,34 @@ export class ExportEngine {
         continue;
       }
 
-      await backend.addAudioBuffer(audioBuffer);
+      if (normalizer) {
+        lastSampleRate = audioBuffer.sampleRate;
+        const processed = normalizer.process(audioBufferChannels(audioBuffer));
+        // Loudness applies to the stereo mix; the extra tracks of a broadcast layout are silent with it (validated).
+        await emit(trackCount > 0 ? layoutBroadcastChannels(channelPlan, processed, [], processed[0]?.length ?? 0) : processed, audioBuffer.sampleRate);
+      } else if (trackCount > 0) {
+        const delivery = createAudioBufferFromChannels(
+          await toBroadcastChannels(audioBufferChannels(audioBuffer), rangeStart + startTime, currentChunkDuration),
+          audioBuffer.sampleRate,
+        );
+        if (delivery) await backend.addAudioBuffer(delivery);
+      } else {
+        await backend.addAudioBuffer(audioBuffer);
+      }
 
       // Yield between chunks so the browser can reclaim the previous buffer
       // before the next long-running render starts.
       await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+
+    if (normalizer) {
+      // The look-ahead limiter holds back a few milliseconds; write them out.
+      const tail = normalizer.flush();
+      if (tail.length) await emit(trackCount > 0 ? layoutBroadcastChannels(channelPlan, tail, [], tail[0]?.length ?? 0) : tail, lastSampleRate);
+      // Reflect the final limiter reduction in the report.
+      if (this.loudnessReport) {
+        this.loudnessReport = { ...this.loudnessReport, maxGainReductionDb: normalizer.maxGainReductionDb };
+      }
     }
   }
 
@@ -1109,6 +1560,12 @@ export class ExportEngine {
     );
     const sampleRate = settings.sampleRate;
     const bitDepth = settings.bitDepth;
+
+    if (numberOfChannels > 2) {
+      // 5.1 WAV: WAVE_FORMAT_EXTENSIBLE with the L R C LFE Ls Rs speaker mask.
+      const channels = Array.from({ length: numberOfChannels }, (_, c) => buffer.getChannelData(c));
+      return new Blob([encodeMultichannelWav(channels, sampleRate, bitDepth).buffer as ArrayBuffer], { type: "audio/wav" });
+    }
 
     if (bitDepth === 32) {
       return this.encodeWav32Float(buffer, numberOfChannels, sampleRate);
@@ -1269,28 +1726,31 @@ export class ExportEngine {
         }
       }
     }
-    const textClips = titleEngine.getAllTextClips();
+    // Overlays live in project-wide engines: only those on THIS timeline's tracks count. Overlays of
+    // other sequences (or moved into a nest, on the nest's own clock) must not stretch the export.
+    const ownTrackIds = new Set(timeline.tracks.map((track) => track.id));
+    const textClips = titleEngine.getAllTextClips().filter((clip) => ownTrackIds.has(clip.trackId));
     for (const textClip of textClips) {
       const endTime = textClip.startTime + textClip.duration;
       if (endTime > maxEndTime) {
         maxEndTime = endTime;
       }
     }
-    const shapeClips = graphicsEngine.getAllShapeClips();
+    const shapeClips = graphicsEngine.getAllShapeClips().filter((clip) => ownTrackIds.has(clip.trackId));
     for (const shapeClip of shapeClips) {
       const endTime = shapeClip.startTime + shapeClip.duration;
       if (endTime > maxEndTime) {
         maxEndTime = endTime;
       }
     }
-    const svgClips = graphicsEngine.getAllSVGClips();
+    const svgClips = graphicsEngine.getAllSVGClips().filter((clip) => ownTrackIds.has(clip.trackId));
     for (const svgClip of svgClips) {
       const endTime = svgClip.startTime + svgClip.duration;
       if (endTime > maxEndTime) {
         maxEndTime = endTime;
       }
     }
-    const stickerClips = graphicsEngine.getAllStickerClips();
+    const stickerClips = graphicsEngine.getAllStickerClips().filter((clip) => ownTrackIds.has(clip.trackId));
     for (const stickerClip of stickerClips) {
       const endTime = stickerClip.startTime + stickerClip.duration;
       if (endTime > maxEndTime) {
@@ -1338,18 +1798,48 @@ export class ExportEngine {
   }
 }
 
-let encoderBackendFactory: EncoderBackendFactory | null = null;
+/** An export engine with its own VideoEngine and AudioEngine; `dispose()` releases all three. */
+export function createIsolatedExportEngine(options: ExportEngineOptions = {}): { engine: ExportEngine; dispose: () => Promise<void> } {
+  const videoEngine = options.videoEngine ?? new VideoEngine();
+  const audioEngine = options.audioEngine ?? new AudioEngine();
+  const engine = new ExportEngine({ videoEngine, audioEngine });
+  return {
+    engine,
+    dispose: async () => {
+      engine.dispose();
+      try { videoEngine.dispose(); } catch { /* best effort */ }
+      try { await audioEngine.dispose(); } catch { /* best effort */ }
+    },
+  };
+}
 
-export function setEncoderBackendFactory(
-  factory: EncoderBackendFactory | null,
-): void {
-  encoderBackendFactory = factory;
+export { setEncoderBackendFactory };
+
+/** ProRes 4444 / 4444 XQ with the alpha option on: the render keeps transparency and the file carries it. */
+export function exportWritesAlpha(settings: Pick<VideoExportSettings, "codec" | "proresProfile" | "alpha">): boolean {
+  return settings.codec === "prores" && settings.alpha === true && (settings.proresProfile === "4444" || settings.proresProfile === "4444xq");
+}
+
+/** Broadcast options only the ffmpeg sidecar can write: mono audio tracks, OP-Atom, interlaced flags, a timecode track. */
+export function hasBroadcastOptions(broadcast: BroadcastDeliverySettings | undefined): boolean {
+  return !!broadcast && (wantsMonoTracks(broadcast) || broadcast.mxfPattern === "opatom" || broadcast.scan === "interlaced-tff" || !!broadcast.startTimecode);
 }
 
 export function exportSettingsRequireNativeEncoder(
-  settings: Pick<VideoExportSettings, "codec" | "format"> & Partial<Pick<VideoExportSettings, "colorDepth" | "pixelFormat">>,
+  settings: Pick<VideoExportSettings, "codec" | "format"> & Partial<Pick<VideoExportSettings, "colorDepth" | "pixelFormat" | "broadcast">>,
 ): boolean {
-  return settings.codec === "prores" || (settings.colorDepth ?? 8) > 8 || Boolean(settings.pixelFormat && settings.pixelFormat !== "yuv420");
+  return settings.codec === "prores" || settings.codec === "dnxhr" || isBroadcastCodec(settings.codec) || hasBroadcastOptions(settings.broadcast) || settings.format === "mxf" || (settings.colorDepth ?? 8) > 8 || Boolean(settings.pixelFormat && settings.pixelFormat !== "yuv420");
+}
+
+/**
+ * Desktop routing: everything the browser encoders cannot do, plus HDR (PQ / HLG). The ffmpeg sidecar writes
+ * HEVC Main10 with mastering metadata on every machine, while WebCodecs Main10 depends on the GPU and driver.
+ * The web build keeps using exportSettingsRequireNativeEncoder, where HDR goes through WebCodecs when it can.
+ */
+export function desktopExportRequiresNativeEncoder(
+  settings: Pick<VideoExportSettings, "codec" | "format"> & Partial<Pick<VideoExportSettings, "colorDepth" | "pixelFormat" | "hdr" | "broadcast">>,
+): boolean {
+  return exportSettingsRequireNativeEncoder(settings) || settings.hdr === "pq" || settings.hdr === "hlg";
 }
 
 let exportEngineInstance: ExportEngine | null = null;
@@ -1359,12 +1849,6 @@ export function getExportEngine(): ExportEngine {
     exportEngineInstance = new ExportEngine();
   }
   return exportEngineInstance;
-}
-
-export async function initializeExportEngine(): Promise<ExportEngine> {
-  const engine = getExportEngine();
-  await engine.initialize();
-  return engine;
 }
 
 export function downloadBlob(blob: Blob, filename: string): void {

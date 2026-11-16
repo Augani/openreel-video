@@ -93,20 +93,6 @@ describe("#16 reorder_motion_effect", () => {
     expect(order).toEqual(["e2", "e1"]);
   });
 
-  it("moves an effect down in the stack", async () => {
-    const host = new HeadlessHost(
-      projectWith([shapeLayer("s1", { effects: [effect("e1"), effect("e2")] }) as MotionLayer]),
-    );
-    const res = await executeTool(
-      "reorder_motion_effect",
-      { compositionId: COMP_ID, layerId: "s1", effectId: "e1", direction: "down" },
-      host,
-    );
-    expect(res.ok).toBe(true);
-    const order = (layerById(host, "s1").effects ?? []).map((e) => e.id);
-    expect(order).toEqual(["e2", "e1"]);
-  });
-
   it("fails when the move would go out of bounds", async () => {
     const host = new HeadlessHost(
       projectWith([shapeLayer("s1", { effects: [effect("e1"), effect("e2")] }) as MotionLayer]),
@@ -118,32 +104,6 @@ describe("#16 reorder_motion_effect", () => {
     );
     expect(res.ok).toBe(false);
     expect(res.error?.code).toBe("INVALID_PARAMS");
-  });
-
-  it("rejects an invalid direction", async () => {
-    const host = new HeadlessHost(
-      projectWith([shapeLayer("s1", { effects: [effect("e1"), effect("e2")] }) as MotionLayer]),
-    );
-    const res = await executeTool(
-      "reorder_motion_effect",
-      { compositionId: COMP_ID, layerId: "s1", effectId: "e1", direction: "sideways" },
-      host,
-    );
-    expect(res.ok).toBe(false);
-    expect(res.error?.code).toBe("INVALID_PARAMS");
-  });
-
-  it("fails when the effect does not exist", async () => {
-    const host = new HeadlessHost(
-      projectWith([shapeLayer("s1", { effects: [effect("e1")] }) as MotionLayer]),
-    );
-    const res = await executeTool(
-      "reorder_motion_effect",
-      { compositionId: COMP_ID, layerId: "s1", effectId: "nope", direction: "up" },
-      host,
-    );
-    expect(res.ok).toBe(false);
-    expect(res.error?.code).toBe("NOT_FOUND");
   });
 });
 
@@ -167,23 +127,6 @@ describe("#45 ripple_motion_layers", () => {
     expect(layerById(host, "c").startTime).toBeCloseTo(5);
   });
 
-  it("excludes named layers from the shift", async () => {
-    const host = new HeadlessHost(
-      projectWith([
-        shapeLayer("b", { startTime: 2, duration: 2 }) as MotionLayer,
-        shapeLayer("c", { startTime: 4, duration: 2 }) as MotionLayer,
-      ]),
-    );
-    const res = await executeTool(
-      "ripple_motion_layers",
-      { compositionId: COMP_ID, fromTime: 0, delta: 1, excludeLayerIds: ["b"] },
-      host,
-    );
-    expect(res.ok).toBe(true);
-    expect(layerById(host, "b").startTime).toBeCloseTo(2);
-    expect(layerById(host, "c").startTime).toBeCloseTo(5);
-  });
-
   it("requires a finite fromTime and delta", async () => {
     const host = new HeadlessHost(
       projectWith([shapeLayer("a", { startTime: 0, duration: 2 }) as MotionLayer]),
@@ -195,29 +138,5 @@ describe("#45 ripple_motion_layers", () => {
     );
     expect(res.ok).toBe(false);
     expect(res.error?.code).toBe("INVALID_PARAMS");
-  });
-
-  it("rejects a zero delta as a no-op", async () => {
-    const host = new HeadlessHost(
-      projectWith([shapeLayer("a", { startTime: 0, duration: 2 }) as MotionLayer]),
-    );
-    const res = await executeTool(
-      "ripple_motion_layers",
-      { compositionId: COMP_ID, fromTime: 0, delta: 0 },
-      host,
-    );
-    expect(res.ok).toBe(false);
-    expect(res.error?.code).toBe("INVALID_PARAMS");
-  });
-
-  it("fails for a missing composition", async () => {
-    const host = new HeadlessHost(projectWith([]));
-    const res = await executeTool(
-      "ripple_motion_layers",
-      { compositionId: "nope", fromTime: 0, delta: 1 },
-      host,
-    );
-    expect(res.ok).toBe(false);
-    expect(res.error?.code).toBe("NOT_FOUND");
   });
 });

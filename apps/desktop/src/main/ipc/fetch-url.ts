@@ -2,7 +2,7 @@ import { net } from "electron";
 
 const DEFAULT_MAX_BYTES = 256 * 1024 * 1024;
 
-export interface FetchUrlResult {
+interface FetchUrlResult {
   readonly ok: boolean;
   readonly status: number;
   readonly statusText: string;

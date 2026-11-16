@@ -1,15 +1,12 @@
-import {
-  TransitionEngine,
-  createTransitionEngine,
-  type TransitionValidationResult,
-} from "@openreel/core";
+import type { TransitionEngine, TransitionValidationResult } from "@openreel/core";
+import { getLoadedEngineModules } from "../services/lazy-engines";
 import type { Transition, Clip, Track, TransitionEdge } from "@openreel/core";
 import type { TransitionType, TransitionParams } from "@openreel/core";
 
 /**
  * Result of a transition operation
  */
-export interface TransitionOperationResult {
+interface TransitionOperationResult {
   success: boolean;
   transitionId?: string;
   error?: string;
@@ -18,18 +15,9 @@ export interface TransitionOperationResult {
 }
 
 /**
- * Transition configuration for UI
- */
-export interface TransitionConfig {
-  type: TransitionType;
-  duration: number;
-  params: Record<string, unknown>;
-}
-
-/**
  * Available transition types with display info
  */
-export interface TransitionTypeInfo {
+interface TransitionTypeInfo {
   type: TransitionType;
   name: string;
   description: string;
@@ -65,7 +53,7 @@ const isSameTransitionPlacement = (
  * - 12.3: Update blend timing when duration is adjusted
  * - 12.4: Restore hard cut when transition is removed
  */
-export class TransitionBridge {
+class TransitionBridge {
   private transitionEngine: TransitionEngine | null = null;
   private initialized = false;
 
@@ -81,8 +69,15 @@ export class TransitionBridge {
       return;
     }
 
+    const engines = getLoadedEngineModules();
+    if (!engines) {
+      throw new Error(
+        "TransitionBridge initialization failed: engine modules are not loaded yet (await loadEngineModules() first)",
+      );
+    }
+
     try {
-      this.transitionEngine = createTransitionEngine(width, height);
+      this.transitionEngine = engines.createTransitionEngine(width, height);
       this.initialized = true;
     } catch (error) {
       const errorMessage =
@@ -383,12 +378,13 @@ export class TransitionBridge {
     clipA: Clip,
     clipB: Clip,
     duration: number,
+    alignment: unknown = "center",
   ): TransitionValidationResult {
     if (!this.initialized || !this.transitionEngine) {
       return { valid: false, error: "TransitionBridge not initialized" };
     }
 
-    return this.transitionEngine.validateTransition(clipA, clipB, duration);
+    return this.transitionEngine.validateTransition(clipA, clipB, duration, alignment);
   }
 
   validateClipEdgeTransition(

@@ -1,3 +1,4 @@
+import { Button as ShadcnButton } from "@openreel/ui";
 import type { ComponentPropsWithoutRef, JSX, ReactNode } from "react";
 import { isValidElement, useState } from "react";
 import ReactMarkdown, { defaultUrlTransform, type Components } from "react-markdown";
@@ -32,14 +33,14 @@ function CodeBlock({ children }: ComponentPropsWithoutRef<"pre">): JSX.Element {
       >
         {children}
       </pre>
-      <button
+      <ShadcnButton variant="ghost" size="sm"
         type="button"
         onClick={() => void copy()}
         aria-label={copied ? "Copied code" : "Copy code"}
-        className="absolute right-1.5 top-1.5 grid h-6 w-6 place-items-center rounded-md border border-border bg-bg-1/90 text-fg-muted opacity-0 shadow-sm transition hover:text-fg focus:opacity-100 group-hover/code:opacity-100"
+        className="absolute right-1.5 top-1.5 grid h-6 w-6 place-items-center rounded-md border p-0 [&_svg]:size-[11px] border-border bg-bg-1/90 text-fg-muted opacity-0 shadow-sm transition hover:text-fg focus:opacity-100 group-hover/code:opacity-100"
       >
         {copied ? <Check size={11} /> : <Copy size={11} />}
-      </button>
+      </ShadcnButton>
     </div>
   );
 }

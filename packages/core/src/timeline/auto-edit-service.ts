@@ -10,14 +10,14 @@ export interface AutoEditOptions {
   readonly sensitivity: number;
 }
 
-export const DEFAULT_AUTO_EDIT_OPTIONS: AutoEditOptions = {
+const DEFAULT_AUTO_EDIT_OPTIONS: AutoEditOptions = {
   cutMode: "beats",
   minClipDuration: 0.3,
   maxClipDuration: 10,
   sensitivity: 0.5,
 };
 
-export interface AutoEditCut {
+interface AutoEditCut {
   readonly sourceClipId: string;
   readonly inPoint: number;
   readonly outPoint: number;
@@ -31,7 +31,7 @@ export interface AutoEditResult {
   readonly beatCount: number;
 }
 
-export class AutoEditService {
+class AutoEditService {
   generateCuts(
     beatAnalysis: BeatAnalysisResult,
     sourceClips: Clip[],

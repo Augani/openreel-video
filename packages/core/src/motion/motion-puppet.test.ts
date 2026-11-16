@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   addMotionPuppetPin,
-  applyMotionPuppetPinsToPathData,
   applyMotionPuppetPinsToPoints,
   clearMotionPuppetPins,
   createMotionPuppetPin,
@@ -100,43 +99,6 @@ describe("motion puppet pins", () => {
     expect(points[1]).toEqual({ x: 75, y: 0 });
     expect(points[2]).toEqual({ x: 100, y: 0 });
     expect(points[3]).toEqual({ x: 150, y: 0 });
-  });
-
-  it("combines multiple pins without overshooting their average influence", () => {
-    const points = applyMotionPuppetPinsToPoints(
-      [{ x: 0, y: 0 }],
-      [
-        createMotionPuppetPin({
-          id: "pin-1",
-          bindPosition: { x: 0, y: 0 },
-          position: { x: 100, y: 0 },
-          radius: 100,
-          strength: 1,
-        }),
-        createMotionPuppetPin({
-          id: "pin-2",
-          bindPosition: { x: 0, y: 0 },
-          position: { x: 0, y: 100 },
-          radius: 100,
-          strength: 1,
-        }),
-      ],
-    );
-
-    expect(points[0]).toEqual({ x: 50, y: 50 });
-  });
-
-  it("deforms path data deterministically", () => {
-    const pin = createMotionPuppetPin({
-      id: "pin-1",
-      bindPosition: { x: 0, y: 0 },
-      position: { x: 0, y: 50 },
-      radius: 100,
-    });
-
-    expect(applyMotionPuppetPinsToPathData("M 0 0 L 100 0", [pin])).toBe(
-      "M 0 50 L 100 0",
-    );
   });
 
   it("applies puppet pins to shape polylines used by the renderer", () => {

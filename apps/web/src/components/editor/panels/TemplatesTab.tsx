@@ -1,197 +1,290 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
-import { Search, Layout, Clock } from "@/icons/lucide-compat";
-import { ToolcraftButton as Button } from "@openreel/ui";
-import { ToolcraftSelectableCard as SelectableCard } from "@openreel/ui";
-import { ToolcraftTextInputControl } from "@openreel/ui";
+import { useState, useEffect, useMemo, useRef } from "react";
+import { Search, Layout, Clock, Loader2 } from "@/icons/lucide-compat";
+import {
+  Button,
+  Input,
+  ToggleGroup,
+  ToggleGroupItem,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@openreel/ui";
 import { useEngineStore } from "../../../stores/engine-store";
-import { useProjectStore } from "../../../stores/project-store";
-import type {
-  TemplateSummary,
-  TemplateCategory,
+import {
+  TEMPLATE_CATEGORIES,
+  type Template,
+  type TemplateSummary,
+  type TemplateCategory,
+  type TemplateReplacements,
 } from "@openreel/core";
-import { TEMPLATE_CATEGORIES } from "@openreel/core";
+import { TemplateVariablesPanel } from "../inspector/TemplateVariablesPanel";
+import {
+  openTemplateProject,
+  resolveTemplateMedia,
+  templateEditorOwner,
+} from "../../../services/project-templates";
 
-export const TemplatesTab: React.FC = () => {
-  const getTemplateEngine = useEngineStore((s) => s.getTemplateEngine);
+export function TemplatesTab() {
+  const getTemplateEngine = useEngineStore((state) => state.getTemplateEngine);
   const [templates, setTemplates] = useState<TemplateSummary[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<
     "all" | TemplateCategory
   >("all");
   const [loading, setLoading] = useState(true);
-  const [applying, setApplying] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Template | null>(null);
+  const [values, setValues] = useState<TemplateReplacements>({});
+  const [applying, setApplying] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const selection = useRef(0);
+  const application = useRef<AbortController | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    const load = async () => {
-      const engine = await getTemplateEngine();
-      await engine.initialize();
-      const list = await engine.listTemplates();
-      if (!cancelled) {
-        setTemplates(list);
-        setLoading(false);
+    const requests = selection;
+    void (async () => {
+      try {
+        const engine = await getTemplateEngine();
+        await engine.initialize();
+        const list = await engine.listTemplates();
+        if (!cancelled) setTemplates(list);
+      } catch (reason) {
+        if (!cancelled)
+          setError(
+            reason instanceof Error
+              ? reason.message
+              : "Failed to load templates",
+          );
+      } finally {
+        if (!cancelled) setLoading(false);
       }
-    };
-    load();
+    })();
     return () => {
       cancelled = true;
+      requests.current++;
+      application.current?.abort();
     };
   }, [getTemplateEngine]);
 
   const filteredTemplates = useMemo(() => {
-    let result = templates;
-    if (selectedCategory !== "all") {
-      result = result.filter((t) => t.category === selectedCategory);
-    }
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      result = result.filter((t) => t.name.toLowerCase().includes(q));
-    }
-    return result;
+    const query = searchQuery.trim().toLowerCase();
+    return templates.filter(
+      (template) =>
+        (selectedCategory === "all" ||
+          template.category === selectedCategory) &&
+        (!query || template.name.toLowerCase().includes(query)),
+    );
   }, [templates, selectedCategory, searchQuery]);
 
-  const handleApplyTemplate = useCallback(
-    async (templateId: string) => {
-      const hasClips =
-        useProjectStore.getState().project.timeline.tracks.length > 0;
-      if (hasClips) {
-        const confirmed = window.confirm(
-          "Applying a template will replace your current project. Continue?",
+  async function choose(templateId: string) {
+    if (application.current) return;
+    const request = ++selection.current;
+    setError(null);
+    try {
+      const engine = await getTemplateEngine();
+      const template = await engine.loadTemplate(templateId);
+      if (request !== selection.current) return;
+      if (!template) throw new Error("Template not found");
+      setValues({});
+      setSelected(template);
+    } catch (reason) {
+      if (request === selection.current)
+        setError(
+          reason instanceof Error ? reason.message : "Failed to load template",
         );
-        if (!confirmed) return;
-      }
+    }
+  }
 
-      setApplying(templateId);
-      try {
-        const engine = await getTemplateEngine();
-        const template = await engine.loadTemplate(templateId);
-        if (!template) return;
-
-        const result = engine.applyTemplate(template, {});
-        useProjectStore.setState(() => ({
-          project: { ...result.project, modifiedAt: Date.now() },
-        }));
-      } finally {
-        setApplying(null);
-      }
-    },
-    [getTemplateEngine],
-  );
-
-  const formatDuration = (seconds: number): string => {
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.round(seconds % 60);
-    return mins > 0 ? `${mins}:${secs.toString().padStart(2, "0")}` : `${secs}s`;
-  };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-12 text-text-muted text-xs">
-        Loading templates...
-      </div>
-    );
+  async function apply() {
+    if (!selected || application.current) return;
+    const controller = new AbortController(),
+      owner = templateEditorOwner();
+    application.current = controller;
+    setApplying(true);
+    setError(null);
+    try {
+      const engine = await getTemplateEngine();
+      const replacements = await resolveTemplateMedia(
+        values,
+        owner,
+        controller.signal,
+      );
+      const result = engine.applyTemplate(selected, replacements);
+      if (result.missingPlaceholders.length)
+        throw new Error(
+          `Missing required: ${result.missingPlaceholders.join(", ")}`,
+        );
+      await openTemplateProject(result.project, owner, controller.signal);
+      if (!controller.signal.aborted) setSelected(null);
+    } catch (reason) {
+      if (!controller.signal.aborted)
+        setError(
+          reason instanceof Error ? reason.message : "Failed to apply template",
+        );
+    } finally {
+      if (application.current === controller) application.current = null;
+      if (!controller.signal.aborted) setApplying(false);
+    }
   }
 
   return (
-    <div className="px-5 py-4 space-y-3 flex-1 min-h-0 h-full overflow-y-auto bg-background-secondary">
+    <div className="flex-1 min-h-0 h-full space-y-3 overflow-y-auto bg-bg-1 px-5 py-4">
       <div className="relative">
         <Search
           size={14}
-          className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-muted"
+          aria-hidden
+          className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-fg-3"
         />
-        <ToolcraftTextInputControl
-          label="Search templates"
-          isLabelHidden
+        <Input
+          aria-label="Search templates"
           placeholder="Search templates..."
           value={searchQuery}
-          onChange={setSearchQuery}
-          className="w-full pl-8 pr-3 py-2 text-xs bg-background-secondary border border-border rounded-lg text-text-primary placeholder:text-text-muted focus:outline-none focus:border-primary/50"
+          onChange={(event) => setSearchQuery(event.target.value)}
+          className="h-9 w-full rounded-lg border-border bg-bg-2 pl-8 pr-3 text-xs text-fg"
         />
       </div>
-
-      <div className="flex gap-1.5 flex-wrap">
-        <SelectableCard
-          label="All"
-          isSelected={selectedCategory === "all"}
-          onChange={() => setSelectedCategory("all")}
-          onClick={() => setSelectedCategory("all")}
-          padding={1}
-          variant={selectedCategory === "all" ? "green" : "muted"}
-          className={`px-2.5 py-1 text-[10px] rounded-full border transition-colors ${
-            selectedCategory === "all"
-              ? "bg-primary/20 border-primary text-primary"
-              : "bg-background-tertiary border-border text-text-muted hover:border-primary/50"
-          }`}
-        >
-          All
-        </SelectableCard>
-        {TEMPLATE_CATEGORIES.slice(0, 6).map((cat) => (
-          <SelectableCard
-            key={cat.id}
-            label={cat.name}
-            isSelected={selectedCategory === cat.id}
-            onChange={() => setSelectedCategory(cat.id)}
-            onClick={() => setSelectedCategory(cat.id)}
-            padding={1}
-            variant={selectedCategory === cat.id ? "green" : "muted"}
-            className={`px-2.5 py-1 text-[10px] rounded-full border transition-colors ${
-              selectedCategory === cat.id
-                ? "bg-primary/20 border-primary text-primary"
-                : "bg-background-tertiary border-border text-text-muted hover:border-primary/50"
-            }`}
-          >
-            {cat.name}
-          </SelectableCard>
-        ))}
-      </div>
-
-      {filteredTemplates.length === 0 ? (
-        <div className="text-center py-8 text-text-muted text-xs">
-          No templates found
-        </div>
+      <ToggleGroup
+        type="single"
+        aria-label="Template category"
+        value={selectedCategory}
+        onValueChange={(value) => {
+          if (value) setSelectedCategory(value as typeof selectedCategory);
+        }}
+        className="flex flex-wrap justify-start gap-1.5"
+      >
+        {[{ id: "all", name: "All" }, ...TEMPLATE_CATEGORIES].map(
+          (category) => (
+            <ToggleGroupItem
+              key={category.id}
+              value={category.id}
+              aria-label={category.name}
+              className="h-7 rounded-full border border-border bg-bg-2 px-2.5 text-[10px] text-fg-3 data-[state=on]:border-primary data-[state=on]:bg-primary/20 data-[state=on]:text-primary"
+            >
+              {category.name}
+            </ToggleGroupItem>
+          ),
+        )}
+      </ToggleGroup>
+      {error && !selected && (
+        <p role="alert" className="text-xs text-red-400">
+          {error}
+        </p>
+      )}
+      {loading ? (
+        <p role="status" className="py-12 text-center text-xs text-fg-3">
+          Loading templates...
+        </p>
+      ) : !filteredTemplates.length ? (
+        <p className="py-8 text-center text-xs text-fg-3">No templates found</p>
       ) : (
         <div className="grid grid-cols-2 gap-2">
           {filteredTemplates.map((template) => (
             <Button
-              key={template.id}
-              label={template.name}
               variant="ghost"
-              onClick={() => handleApplyTemplate(template.id)}
-              isDisabled={applying !== null}
-              className="group relative flex flex-col p-3 bg-background-tertiary border border-border rounded-lg hover:border-primary/50 transition-all text-left disabled:opacity-50"
+              key={template.id}
+              onClick={() => void choose(template.id)}
+              disabled={applying}
+              type="button"
+              aria-label={template.name}
+              className="group relative flex h-auto min-w-0 flex-col items-start whitespace-normal rounded-lg border border-border bg-bg-2 p-3 text-left hover:border-primary/50"
             >
-              <div className="w-full aspect-video bg-background-secondary rounded mb-2 flex items-center justify-center">
+              <span className="mb-2 flex aspect-video w-full items-center justify-center overflow-hidden rounded bg-bg-1">
                 {template.thumbnailUrl ? (
                   <img
                     src={template.thumbnailUrl}
-                    alt={template.name}
-                    className="w-full h-full object-cover rounded"
+                    alt=""
+                    loading="lazy"
+                    className="h-full w-full object-cover"
                   />
                 ) : (
-                  <Layout size={20} className="text-text-muted" />
+                  <Layout size={20} aria-hidden className="text-fg-3" />
                 )}
-              </div>
-              <span className="text-[10px] font-medium text-text-primary truncate w-full">
+              </span>
+              <span className="w-full truncate text-[10px] font-medium text-fg">
                 {template.name}
               </span>
-              <div className="flex items-center gap-2 mt-1">
-                <span className="text-[9px] text-text-muted capitalize">
+              <span className="mt-1 flex flex-wrap items-center gap-2 text-[9px] text-fg-3">
+                <span className="capitalize">
                   {template.category.replace("-", " ")}
                 </span>
-                <span className="flex items-center gap-0.5 text-[9px] text-text-muted">
-                  <Clock size={8} />
-                  {formatDuration(template.duration)}
+                <span className="flex items-center gap-0.5">
+                  <Clock size={8} aria-hidden />
+                  {Math.floor(template.duration / 60) > 0
+                    ? `${Math.floor(template.duration / 60)}:${Math.floor(
+                        template.duration % 60,
+                      )
+                        .toString()
+                        .padStart(2, "0")}`
+                    : `${Math.round(template.duration)}s`}
                 </span>
-              </div>
-              {applying === template.id && (
-                <div className="absolute inset-0 bg-background-primary/80 rounded-lg flex items-center justify-center">
-                  <span className="text-[10px] text-primary">Applying...</span>
-                </div>
-              )}
+              </span>
             </Button>
           ))}
         </div>
       )}
+      <Dialog
+        open={selected !== null}
+        onOpenChange={(open) => {
+          if (!open && !application.current) {
+            selection.current++;
+            setSelected(null);
+            setError(null);
+          }
+        }}
+      >
+        <DialogContent
+          hideCloseButton={applying}
+          className="max-h-[85dvh] max-w-lg overflow-y-auto border-border bg-bg-1"
+          onEscapeKeyDown={(event) => {
+            if (applying) event.preventDefault();
+          }}
+          onInteractOutside={(event) => {
+            if (applying) event.preventDefault();
+          }}
+        >
+          <DialogHeader>
+            <DialogTitle>{selected?.name}</DialogTitle>
+            <DialogDescription>
+              Your current project will be saved in Recents before this template
+              opens as a new project.
+            </DialogDescription>
+          </DialogHeader>
+          {error && (
+            <p role="alert" className="text-xs text-red-400">
+              {error}
+            </p>
+          )}
+          <TemplateVariablesPanel
+            template={selected}
+            values={values}
+            onChange={setValues}
+            onApply={() => void apply()}
+            isApplying={applying}
+          />
+          <Button
+            variant="outline"
+            type="button"
+            disabled={applying}
+            onClick={() => {
+              setSelected(null);
+              setError(null);
+            }}
+          >
+            Cancel
+          </Button>
+          {applying && (
+            <span
+              role="status"
+              className="flex items-center gap-2 text-xs text-fg-3"
+            >
+              <Loader2 size={12} aria-hidden className="animate-spin" />
+              Saving and opening template...
+            </span>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
-};
+}

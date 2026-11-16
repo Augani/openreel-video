@@ -16,7 +16,7 @@ import { createMotionTextAnimator } from "./motion-text-animators";
 const uid = (prefix: string): string =>
   `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 
-export interface CreateMotionCompositionOptions {
+interface CreateMotionCompositionOptions {
   readonly name?: string;
   readonly width?: number;
   readonly height?: number;
@@ -25,7 +25,7 @@ export interface CreateMotionCompositionOptions {
   readonly backgroundColor?: string;
 }
 
-export interface InsertMotionInstanceOptions {
+interface InsertMotionInstanceOptions {
   readonly compositionId: string;
   readonly trackId?: string;
   readonly startTime?: number;
@@ -33,7 +33,7 @@ export interface InsertMotionInstanceOptions {
   readonly name?: string;
 }
 
-export class MotionEngine {
+class MotionEngine {
   createComposition(
     options: CreateMotionCompositionOptions = {},
   ): MotionComposition {

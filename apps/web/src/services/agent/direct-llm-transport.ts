@@ -1,7 +1,8 @@
 import { makeClientFromSend, withRetry, LLMHttpError, parseRetryAfterMs, type LLMClient } from "@openreel/agent";
+import { isOllamaEndpoint, OLLAMA_ORIGINS_HINT } from "../ai-models";
 import type { AIProvider } from "../../stores/ai-connection-store";
 
-export interface DirectConnection { provider: AIProvider; baseUrl: string; model: string; apiKey: string; signal?: AbortSignal }
+interface DirectConnection { provider: AIProvider; baseUrl: string; model: string; apiKey: string; signal?: AbortSignal }
 export function validateAIEndpoint(baseUrl: string): string {
   const url = new URL(baseUrl.trim());
   const local = ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
@@ -21,6 +22,7 @@ export function makeDirectBYOKClient(options: DirectConnection): LLMClient {
       res = await fetch(`${baseUrl}${provider === "anthropic" ? "/messages" : "/chat/completions"}`, { method: "POST", redirect: "error", credentials: "omit", headers: { "Content-Type": "application/json", ...(provider === "anthropic" ? { "x-api-key": options.apiKey, "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" } : options.apiKey ? { Authorization: `Bearer ${options.apiKey}` } : {}) }, body: JSON.stringify(body), signal: options.signal });
     } catch (error) {
       if (options.signal?.aborted) throw error;
+      if (isOllamaEndpoint(baseUrl)) throw new Error(OLLAMA_ORIGINS_HINT);
       throw new Error("The model endpoint could not be reached. Check its URL and browser CORS support. No proxy or security bypass is used.");
     }
     // Never include upstream response bodies: providers can echo credentials.

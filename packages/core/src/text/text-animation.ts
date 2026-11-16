@@ -7,6 +7,8 @@ import type {
   TextStyle,
 } from "./types";
 import { AnimationEngine } from "../video/animation-engine";
+import { calculateUnitAnimationState } from "./text-animation-presets";
+import { isTextAnimationEntry, resolveTextAnimationPhase } from "./text-animation-phase";
 
 export interface AnimatedTextState {
   readonly opacity: number;
@@ -34,11 +36,28 @@ export class TextAnimationEngine {
   }
 
   getAnimatedState(clip: TextClip, time: number): AnimatedTextState {
+    if (clip.animation?.out && clip.keyframes?.length) {
+      const base = this.applyKeyframeAnimation(clip, time);
+      return this.getAnimatedState({ ...clip, keyframes: [],
+        transform: { ...clip.transform, ...base.transform },
+      }, time);
+    }
+    if (clip.animation?.out) {
+      const entry = isTextAnimationEntry(clip.animation, time, clip.duration);
+      const resolved = resolveTextAnimationPhase(clip.animation, entry);
+      clip = { ...clip, animation: { ...resolved, out: undefined,
+        inDuration: entry ? clip.animation.inDuration : 0,
+        outDuration: entry ? 0 : clip.animation.outDuration,
+      } };
+    }
     const { animation, style, transform, text, keyframes } = clip;
 
     // First check for keyframe-based animations (entry/exit transitions)
     if (keyframes && keyframes.length > 0) {
-      return this.applyKeyframeAnimation(clip, time);
+      const state = this.applyKeyframeAnimation(clip, time);
+      return animation?.preset === "pop" && animation.unit === "word"
+        ? this.applyWordPop({ ...clip, transform: state.transform }, time)
+        : state;
     }
     if (!animation || animation.preset === "none") {
       return {
@@ -47,6 +66,9 @@ export class TextAnimationEngine {
         style,
         visibleText: text,
       };
+    }
+    if (animation.preset === "pop" && animation.unit === "word") {
+      return this.applyWordPop(clip, time);
     }
     const duration = clip.duration;
     const inDuration = animation.inDuration;
@@ -80,6 +102,63 @@ export class TextAnimationEngine {
       easedOutProgress,
       time,
     );
+  }
+
+  private applyWordPop(clip: TextClip, time: number): AnimatedTextState {
+    const animation = clip.animation!;
+    const tokens = clip.text.match(/\S+|\s+/g) ?? [];
+    const totalUnits = tokens.filter((token) => !/^\s+$/.test(token)).length;
+    const isIn =
+      animation.outDuration === 0 ||
+      time <= clip.duration - animation.outDuration;
+    const progress = isIn
+      ? animation.inDuration > 0
+        ? Math.min(1, Math.max(0, time / animation.inDuration))
+        : 1
+      : Math.min(
+          1,
+          (time - (clip.duration - animation.outDuration)) /
+            animation.outDuration,
+        );
+    let wordIndex = 0;
+    const characterStates: CharacterAnimationState[] = [];
+    for (const token of tokens) {
+      const word = !/^\s+$/.test(token);
+      const state = word
+        ? calculateUnitAnimationState({
+            unit: {
+              text: token,
+              index: wordIndex++,
+              totalUnits,
+              x: 0,
+              y: 0,
+              width: 0,
+              height: 0,
+            },
+            progress,
+            isIn,
+            animation,
+            totalDuration: clip.duration,
+          })
+        : null;
+      for (const char of token)
+        characterStates.push({
+          char,
+          index: characterStates.length,
+          opacity: state?.opacity ?? 1,
+          scale: state?.scale.x ?? 1,
+          rotation: state?.rotation ?? 0,
+          offsetX: state?.offsetX ?? 0,
+          offsetY: state?.offsetY ?? 0,
+        });
+    }
+    return {
+      opacity: clip.transform.opacity,
+      transform: clip.transform,
+      style: clip.style,
+      visibleText: clip.text,
+      characterStates,
+    };
   }
 
   private applyKeyframeAnimation(
@@ -130,6 +209,7 @@ export class TextAnimationEngine {
     }
 
     const animatedTransform: Transform = {
+      ...transform,
       position: { x: positionX, y: positionY },
       scale: { x: scaleX, y: scaleY },
       rotation,
@@ -269,7 +349,7 @@ export class TextAnimationEngine {
     const { style, transform, text } = clip;
     const startOpacity = params.fadeOpacity?.start ?? 0;
     const endOpacity = params.fadeOpacity?.end ?? 1;
-    let opacity = startOpacity + (endOpacity - startOpacity) * inProgress;
+    let opacity = (startOpacity + (endOpacity - startOpacity) * inProgress) * transform.opacity;
     opacity = opacity * (1 - outProgress);
 
     return {
@@ -386,13 +466,7 @@ export class TextAnimationEngine {
     inProgress: number,
     outProgress: number,
     params: TextAnimationParams,
-    preset:
-      | "rise"
-      | "drop"
-      | "elastic"
-      | "swing"
-      | "zoom-blur"
-      | "cascade",
+    preset: "rise" | "drop" | "elastic" | "swing" | "zoom-blur" | "cascade",
   ): AnimatedTextState {
     const { style, transform, text } = clip;
     const progress = Math.max(
@@ -456,10 +530,7 @@ export class TextAnimationEngine {
               text.length > 1 ? (index / (text.length - 1)) * 0.42 : 0;
             const local = Math.max(
               0,
-              Math.min(
-                1,
-                (progress - delay) / Math.max(0.01, 1 - delay),
-              ),
+              Math.min(1, (progress - delay) / Math.max(0.01, 1 - delay)),
             );
             const localEased = 1 - Math.pow(1 - local, 3);
             const direction = index % 2 === 0 ? -1 : 1;

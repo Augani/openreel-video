@@ -1,6 +1,7 @@
 import * as React from "react"
 
 import { cn } from "../lib/utils"
+import { Button } from "./button"
 
 export interface ToolcraftButtonProps
   extends Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, "disabled"> {
@@ -35,8 +36,8 @@ export const ToolcraftButton = React.forwardRef<HTMLElement, ToolcraftButtonProp
     },
     ref,
   ) => {
-    const Component = as ?? (props.href ? "a" : "button")
-    const isButton = Component === "button"
+    const Component = as ?? (props.href ? "a" : Button)
+    const isButton = Component === "button" || Component === Button
     const resolvedDisabled = disabled || isDisabled || isLoading
     const labelText = getReactNodeText(label).trim()
 

@@ -1,9 +1,9 @@
 import React, { useCallback, useMemo } from "react";
-import { ToolcraftButton as Button } from "@openreel/ui";
-import { ToolcraftClickableCard as ClickableCard } from "@openreel/ui";
-import { ToolcraftText as Text } from "@openreel/ui";
+import { Button, cn } from "@openreel/ui";
+
+
 import { RotateCcw, Target, Zap, Clock } from "@/icons/lucide-compat";
-import { MockSlider, MockToggle } from "./shell/InspectorControls";
+import { InlineSlider, InspectorToggle } from "./shell/InspectorControls";
 import { useProjectStore } from "../../../stores/project-store";
 import { useEngineStore } from "../../../stores/engine-store";
 import type { EmphasisAnimation, EmphasisAnimationType } from "@openreel/core";
@@ -142,13 +142,15 @@ const DEFAULT_EMPHASIS: EmphasisAnimation = {
 };
 
 const Slider: React.FC<{
+  ariaLabel: string;
   min: number;
   max: number;
   step?: number;
   value: number[];
   onValueChange: (value: number[]) => void;
-}> = ({ min, max, step = 1, value, onValueChange }) => (
-  <MockSlider
+}> = ({ ariaLabel, min, max, step = 1, value, onValueChange }) => (
+  <InlineSlider
+    ariaLabel={ariaLabel}
     min={min}
     max={max}
     step={step}
@@ -158,13 +160,10 @@ const Slider: React.FC<{
 );
 
 const ValueText: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <Text
-    type="supporting"
-    color="primary"
-    className="font-mono text-[10px] bg-bg-2 px-1.5 py-0.5 rounded border border-border"
+  <span className="text-fg font-normal font-mono text-[10px] bg-bg-2 px-1.5 py-0.5 rounded border border-border"
   >
     {children as any}
-  </Text>
+  </span>
 );
 
 export const EmphasisAnimationSection: React.FC<
@@ -281,46 +280,33 @@ export const EmphasisAnimationSection: React.FC<
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-2">
-        <Button
-          label="None"
-          variant={currentAnimation.type === "none" ? "primary" : "secondary"}
-          size="sm"
-          onClick={() => handleTypeChange("none")}
-          className={`py-2 rounded-lg text-[10px] font-medium transition-all ${
+        <Button onClick={() => handleTypeChange("none")} type="button" aria-label="None" className={cn("inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50", "h-7 px-2.5 text-[12px]", (currentAnimation.type === "none" ? "bg-accent text-accent-fg hover:bg-accent/90" : "border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg"), `py-2 rounded-lg text-[10px] font-medium transition-all ${
             currentAnimation.type === "none"
               ? "bg-primary text-white"
               : "bg-bg-2 border border-border text-fg-2 hover:text-fg"
-          }`}
-        />
-        <Button
-          label="Reset"
-          icon={<RotateCcw size={10} />}
-          variant="secondary"
-          size="sm"
-          onClick={handleReset}
-          className="py-2 rounded-lg text-[10px] font-medium bg-bg-2 border border-border text-fg-2 hover:text-fg transition-all flex items-center justify-center gap-1"
-        />
+          }`)}>
+          <span className="truncate">{"None"}</span>
+        </Button>
+        <Button onClick={handleReset} type="button" aria-label="Reset" className="min-w-0 outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 hover:bg-bg-3 py-2 rounded-lg text-[10px] font-medium bg-bg-2 border border-border text-fg-2 hover:text-fg transition-all flex items-center justify-center gap-1">
+          <span className="flex h-4 w-4 shrink-0 items-center justify-center">{<RotateCcw size={10} />}</span>
+          <span className="truncate">{"Reset"}</span>
+        </Button>
       </div>
 
       {EMPHASIS_ANIMATIONS.map((category) => (
         <div key={category.category}>
-          <Text type="supporting" color="secondary" className="mb-2 block text-[10px] font-medium">
+          <span className="text-fg-2 mb-2 block text-[10px] font-medium">
             {category.category}
-          </Text>
+          </span>
           <div className="grid grid-cols-2 gap-1.5">
             {category.animations.map((anim) => (
-              <ClickableCard
-                key={anim.type}
-                label={anim.label}
-                onClick={() => handleTypeChange(anim.type)}
-                className={`py-2 px-2 rounded-lg text-[10px] transition-all text-left ${
+              <Button variant="ghost" key={anim.type} onClick={() => handleTypeChange(anim.type)} type="button" aria-label={anim.label} className={cn("group/card block h-auto min-w-0 whitespace-normal rounded-[7px] border text-left transition-[background-color,border-color,box-shadow,transform] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50", "border-border bg-bg-1 hover:bg-bg-2", "p-3", `py-2 px-2 rounded-lg text-[10px] transition-all text-left ${
                   currentAnimation.type === anim.type
                     ? "bg-primary text-white"
                     : "bg-bg-2 border border-border text-fg-2 hover:text-fg hover:border-primary/50"
-                  }`}
-              >
+                  }`)}>
                 {anim.label}
-              </ClickableCard>
+              </Button>
             ))}
           </div>
         </div>
@@ -330,21 +316,22 @@ export const EmphasisAnimationSection: React.FC<
         <>
           <div className="pt-3 border-t border-border space-y-3">
             {selectedAnimation && (
-              <Text type="supporting" color="secondary" className="text-[10px] italic">
+              <span className="text-fg-2 font-normal text-[10px] italic">
                 {selectedAnimation.description}
-              </Text>
+              </span>
             )}
 
             <div className="space-y-1">
               <div className="flex items-center justify-between">
-                <Text type="supporting" color="secondary" className="text-[10px]">
+                <span className="text-fg-2 font-normal text-[10px]">
                   Speed
-                </Text>
+                </span>
                 <ValueText>
                   {currentAnimation.speed.toFixed(1)}x
                 </ValueText>
               </div>
               <Slider
+                ariaLabel="Speed"
                 min={0.1}
                 max={3}
                 step={0.1}
@@ -357,14 +344,15 @@ export const EmphasisAnimationSection: React.FC<
 
             <div className="space-y-1">
               <div className="flex items-center justify-between">
-                <Text type="supporting" color="secondary" className="text-[10px]">
+                <span className="text-fg-2 font-normal text-[10px]">
                   Intensity
-                </Text>
+                </span>
                 <ValueText>
                   {Math.round(currentAnimation.intensity * 100)}%
                 </ValueText>
               </div>
               <Slider
+                ariaLabel="Intensity"
                 min={0.1}
                 max={2}
                 step={0.1}
@@ -378,10 +366,10 @@ export const EmphasisAnimationSection: React.FC<
             </div>
 
             <div className="flex items-center justify-between">
-              <Text type="supporting" color="secondary" className="text-[10px]">
+              <span className="text-fg-2 font-normal text-[10px]">
                 Loop Animation
-              </Text>
-              <MockToggle
+              </span>
+              <InspectorToggle
                 ariaLabel="Loop Animation"
                 checked={currentAnimation.loop}
                 onChange={() =>
@@ -394,24 +382,25 @@ export const EmphasisAnimationSection: React.FC<
           <div className="pt-3 border-t border-border space-y-3">
             <div className="flex items-center gap-2 text-primary">
               <Clock size={12} />
-              <Text type="supporting" className="text-[10px] font-medium text-primary">
+              <span className="text-[10px] font-medium text-primary">
                 Timing
-              </Text>
-              <Text type="supporting" color="secondary" className="ml-auto text-[9px]">
+              </span>
+              <span className="text-fg-2 font-normal ml-auto text-[9px]">
                 Clip: {formatTime(clipDuration)}
-              </Text>
+              </span>
             </div>
 
             <div className="space-y-1">
               <div className="flex items-center justify-between">
-                <Text type="supporting" color="secondary" className="text-[10px]">
+                <span className="text-fg-2 font-normal text-[10px]">
                   Start Time
-                </Text>
+                </span>
                 <ValueText>
                   {formatTime(currentAnimation.startTime ?? 0)}
                 </ValueText>
               </div>
               <Slider
+                ariaLabel="Start Time"
                 min={0}
                 max={clipDuration}
                 step={0.1}
@@ -426,9 +415,9 @@ export const EmphasisAnimationSection: React.FC<
 
             <div className="space-y-1">
               <div className="flex items-center justify-between">
-                <Text type="supporting" color="secondary" className="text-[10px]">
+                <span className="text-fg-2 font-normal text-[10px]">
                   Duration
-                </Text>
+                </span>
                 <ValueText>
                   {currentAnimation.animationDuration
                     ? formatTime(currentAnimation.animationDuration)
@@ -436,6 +425,7 @@ export const EmphasisAnimationSection: React.FC<
                 </ValueText>
               </div>
               <Slider
+                ariaLabel="Duration"
                 min={0}
                 max={clipDuration - (currentAnimation.startTime ?? 0)}
                 step={0.1}
@@ -451,24 +441,20 @@ export const EmphasisAnimationSection: React.FC<
                 }}
               />
               <div className="flex justify-between text-[9px] text-fg-3">
-                <Text as="span" type="supporting" color="secondary">
+                <span className="text-[12px] leading-5 text-fg-2 font-normal">
                   0s
-                </Text>
-                <Button
-                  label="Reset to full clip"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() =>
+                </span>
+                <Button onClick={() =>
                     handleAnimationChange({
                       startTime: 0,
                       animationDuration: undefined,
                     })
-                  }
-                  className="text-primary hover:underline"
-                />
-                <Text as="span" type="supporting" color="secondary">
+                  } type="button" aria-label="Reset to full clip" className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] bg-transparent hover:bg-bg-2 hover:text-fg text-primary hover:underline">
+                  <span className="truncate">{"Reset to full clip"}</span>
+                </Button>
+                <span className="text-[12px] leading-5 text-fg-2 font-normal">
                   {formatTime(clipDuration - (currentAnimation.startTime ?? 0))}
-                </Text>
+                </span>
               </div>
             </div>
           </div>
@@ -477,21 +463,22 @@ export const EmphasisAnimationSection: React.FC<
             <div className="pt-3 border-t border-border space-y-3">
             <div className="flex items-center gap-2 text-primary">
               <Target size={12} />
-              <Text type="supporting" className="text-[10px] font-medium text-primary">
+              <span className="text-[10px] font-medium text-primary">
                 Focus Zoom Settings
-              </Text>
+              </span>
             </div>
 
             <div className="space-y-1">
               <div className="flex items-center justify-between">
-                  <Text type="supporting" color="secondary" className="text-[10px]">
+                  <span className="text-fg-2 font-normal text-[10px]">
                     Zoom Scale
-                  </Text>
+                  </span>
                   <ValueText>
                     {(currentAnimation.zoomScale || 1.5).toFixed(1)}x
                   </ValueText>
                 </div>
                 <Slider
+                  ariaLabel="Zoom Scale"
                   min={1.1}
                   max={3}
                   step={0.1}
@@ -506,14 +493,15 @@ export const EmphasisAnimationSection: React.FC<
 
               <div className="space-y-1">
                 <div className="flex items-center justify-between">
-                  <Text type="supporting" color="secondary" className="text-[10px]">
+                  <span className="text-fg-2 font-normal text-[10px]">
                     Hold Duration
-                  </Text>
+                  </span>
                   <ValueText>
                     {((currentAnimation.holdDuration || 0.3) * 100).toFixed(0)}%
                   </ValueText>
                 </div>
                 <Slider
+                  ariaLabel="Hold Duration"
                   min={0}
                   max={1}
                   step={0.05}
@@ -527,15 +515,16 @@ export const EmphasisAnimationSection: React.FC<
               </div>
 
               <div className="space-y-2">
-                <Text type="supporting" color="secondary" className="text-[10px]">
+                <span className="text-fg-2 font-normal text-[10px]">
                   Focus Point
-                </Text>
+                </span>
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-1">
-                    <Text type="supporting" color="secondary" className="text-[9px]">
+                    <span className="text-fg-2 font-normal text-[9px]">
                       X Position
-                    </Text>
+                    </span>
                     <Slider
+                      ariaLabel="Focus Point X"
                       min={0}
                       max={1}
                       step={0.05}
@@ -551,10 +540,11 @@ export const EmphasisAnimationSection: React.FC<
                     />
                   </div>
                   <div className="space-y-1">
-                    <Text type="supporting" color="secondary" className="text-[9px]">
+                    <span className="text-fg-2 font-normal text-[9px]">
                       Y Position
-                    </Text>
+                    </span>
                     <Slider
+                      ariaLabel="Focus Point Y"
                       min={0}
                       max={1}
                       step={0.05}
@@ -583,23 +573,18 @@ export const EmphasisAnimationSection: React.FC<
                     { x: 0.5, y: 1, label: "BC" },
                     { x: 1, y: 1, label: "BR" },
                   ].map((preset) => (
-                    <ClickableCard
-                      key={preset.label}
-                      label={`Focus ${preset.label}`}
-                      onClick={() =>
+                    <Button variant="ghost" key={preset.label} onClick={() =>
                         handleAnimationChange({
                           focusPoint: { x: preset.x, y: preset.y },
                         })
-                      }
-                      className={`py-1.5 rounded text-[9px] transition-all ${
+                      } type="button" aria-label={`Focus ${preset.label}`} className={cn("group/card block h-auto min-w-0 whitespace-normal rounded-[7px] border text-left transition-[background-color,border-color,box-shadow,transform] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50", "border-border bg-bg-1 hover:bg-bg-2", "p-3", `py-1.5 rounded text-[9px] transition-all ${
                         currentAnimation.focusPoint?.x === preset.x &&
                         currentAnimation.focusPoint?.y === preset.y
                           ? "bg-primary text-white"
                         : "bg-bg-2 border border-border text-fg-3 hover:text-fg"
-                      }`}
-                    >
+                      }`)}>
                       {preset.label}
-                    </ClickableCard>
+                    </Button>
                   ))}
                 </div>
               </div>
@@ -611,14 +596,13 @@ export const EmphasisAnimationSection: React.FC<
       <div className="pt-3 border-t border-border">
         <div className="flex items-center gap-2 text-fg-3">
           <Zap size={10} />
-          <Text type="supporting" color="secondary" className="text-[9px]">
+          <span className="text-fg-2 font-normal text-[9px]">
             Emphasis animations play while the clip is visible (not during
             entry/exit)
-          </Text>
+          </span>
         </div>
       </div>
     </div>
   );
 };
 
-export default EmphasisAnimationSection;

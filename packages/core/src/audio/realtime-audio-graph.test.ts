@@ -134,3 +134,71 @@ describe("RealtimeAudioGraph seek scheduling", () => {
     expect(sources).toHaveLength(1);
   });
 });
+
+describe("RealtimeAudioGraph routing", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.stubGlobal("window", { setInterval, clearInterval });
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  const track = (extra: Record<string, unknown> = {}) =>
+    ({ id: "track-1", type: "audio", name: "T", clips: [], transitions: [], locked: false, hidden: false, muted: false, solo: false, ...extra }) as never;
+  const priv = (graph: unknown) =>
+    graph as { masterGain: unknown; routing: { getBusInput(id: string): unknown } };
+  type MockNode = { connect: ReturnType<typeof vi.fn>; disconnect: ReturnType<typeof vi.fn> };
+
+  it("plays unrouted tracks into the master exactly as before", () => {
+    const { graph } = createAudioFixture();
+    graph.scheduleClip(clip());
+    const out = graph.getTrackOutputGain("track-1") as unknown as MockNode;
+    expect(out.connect).toHaveBeenCalledTimes(1);
+    expect(out.connect).toHaveBeenCalledWith(priv(graph).masterGain);
+    graph.dispose();
+  });
+
+  it("wires a track into its bus, the bus into the master, and rewires on a structural change", () => {
+    const { graph } = createAudioFixture();
+    graph.scheduleClip(clip());
+    const bus = { id: "dlg", name: "Dialogue", muted: false, solo: false };
+    graph.setRouting({ tracks: [track({ output: "dlg" })], audioBuses: [bus] });
+    const out = graph.getTrackOutputGain("track-1") as unknown as MockNode;
+    expect(out.disconnect).toHaveBeenCalled();
+    expect(out.connect).toHaveBeenLastCalledWith(priv(graph).routing.getBusInput("dlg"));
+    const fader = graph.getBusOutputGain("dlg") as unknown as MockNode;
+    expect(fader.connect).toHaveBeenCalledWith(priv(graph).masterGain);
+
+    graph.setRouting({ tracks: [track()] });
+    expect(out.connect).toHaveBeenLastCalledWith(priv(graph).masterGain);
+    expect(graph.getBusOutputGain("dlg")).toBeUndefined();
+    graph.dispose();
+  });
+
+  it("taps pre-fader sends after the pan and post-fader sends after the fader", () => {
+    const { graph } = createAudioFixture();
+    graph.scheduleClip(clip());
+    const bus = { id: "fx", name: "FX", muted: false, solo: false };
+    const send = { id: "s", busId: "fx", level: 0.5, preFader: true };
+    graph.setRouting({ tracks: [track({ sends: [send] })], audioBuses: [bus] });
+    const nodes = (graph as unknown as { trackNodes: Map<string, { panNode: MockNode; preFaderGate: unknown; outputGain: MockNode }> }).trackNodes.get("track-1")!;
+    expect(nodes.panNode.connect).toHaveBeenCalledWith(nodes.preFaderGate);
+    const before = nodes.outputGain.connect.mock.calls.length;
+    graph.setRouting({ tracks: [track({ sends: [{ ...send, preFader: false }] })], audioBuses: [bus] });
+    // post-fader: the fader now also feeds a send gain besides the main output
+    expect(nodes.outputGain.connect.mock.calls.length).toBeGreaterThanOrEqual(before + 2);
+    graph.dispose();
+  });
+
+  it("seeking works with and without routing", () => {
+    const { graph, state } = createAudioFixture();
+    state.position = 1;
+    expect(() => graph.seekTo(1)).not.toThrow();
+    graph.setRouting({ tracks: [track()], audioBuses: [{ id: "b", name: "B", muted: false, solo: false, automation: { volume: [{ time: 0, value: 1 }, { time: 2, value: 0.5 }] } }] });
+    expect(() => graph.seekTo(1)).not.toThrow();
+    graph.dispose();
+  });
+});

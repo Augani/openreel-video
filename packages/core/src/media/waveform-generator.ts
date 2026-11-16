@@ -2,18 +2,19 @@ import type { WaveformData, WaveformCacheEntry } from "./types";
 import type { WaveformRecord, IStorageEngine } from "../storage/types";
 import { MediaBunnyEngine, getMediaEngine } from "./mediabunny-engine";
 
-export interface WaveformGeneratorOptions {
+interface WaveformGeneratorOptions {
   samplesPerSecond?: number;
   enableCaching?: boolean;
+  signal?: AbortSignal;
 }
 
-export interface MultiResolutionWaveform {
+interface MultiResolutionWaveform {
   mediaId: string;
   duration: number;
   resolutions: Map<number, WaveformData>;
 }
 
-export const WAVEFORM_RESOLUTIONS = {
+const WAVEFORM_RESOLUTIONS = {
   OVERVIEW: 10,
   LOW: 50,
   MEDIUM: 100,
@@ -21,7 +22,9 @@ export const WAVEFORM_RESOLUTIONS = {
   MAX: 500,
 } as const;
 
-const DEFAULT_OPTIONS: Required<WaveformGeneratorOptions> = {
+const DEFAULT_OPTIONS: Required<
+  Pick<WaveformGeneratorOptions, "samplesPerSecond" | "enableCaching">
+> = {
   samplesPerSecond: WAVEFORM_RESOLUTIONS.MEDIUM,
   enableCaching: true,
 };
@@ -50,8 +53,10 @@ export class WaveformGenerator {
     options: WaveformGeneratorOptions = {},
   ): Promise<WaveformData> {
     const opts = { ...DEFAULT_OPTIONS, ...options };
+    opts.signal?.throwIfAborted();
     const memoryCached = this.memoryCache.get(mediaId);
     if (
+      opts.enableCaching &&
       memoryCached &&
       memoryCached.data.samplesPerSecond === opts.samplesPerSecond
     ) {
@@ -59,6 +64,7 @@ export class WaveformGenerator {
     }
     if (opts.enableCaching && this.storageEngine) {
       const cached = await this.loadFromCache(mediaId);
+      opts.signal?.throwIfAborted();
       if (cached && cached.samplesPerSecond === opts.samplesPerSecond) {
         this.updateMemoryCache(mediaId, cached);
         return cached;
@@ -67,13 +73,16 @@ export class WaveformGenerator {
     const waveformData = await this.mediaEngine.generateWaveform(
       file,
       opts.samplesPerSecond,
+      opts.signal,
     );
+    opts.signal?.throwIfAborted();
 
     // Cache the result
     if (opts.enableCaching) {
       await this.saveToCache(mediaId, waveformData);
+      opts.signal?.throwIfAborted();
+      this.updateMemoryCache(mediaId, waveformData);
     }
-    this.updateMemoryCache(mediaId, waveformData);
 
     return waveformData;
   }
@@ -340,11 +349,4 @@ export function getWaveformGenerator(): WaveformGenerator {
     waveformGeneratorInstance = new WaveformGenerator();
   }
   return waveformGeneratorInstance;
-}
-
-export function createWaveformGenerator(
-  mediaEngine?: MediaBunnyEngine,
-  storageEngine?: IStorageEngine | null,
-): WaveformGenerator {
-  return new WaveformGenerator(mediaEngine, storageEngine);
 }

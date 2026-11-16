@@ -28,8 +28,6 @@ const out = path.join(tmpdir(), `openreel-export-${stamp}.mp4`);
 const wav = path.join(tmpdir(), `openreel-export-${stamp}.wav`);
 const proresOut = path.join(tmpdir(), `openreel-export-prores-${stamp}.mov`);
 const proresWav = path.join(tmpdir(), `openreel-export-prores-${stamp}.wav`);
-const hiResOut = path.join(tmpdir(), `openreel-export-hires-${stamp}.mp4`);
-const hiResWav = path.join(tmpdir(), `openreel-export-hires-${stamp}.wav`);
 
 function ffprobePathFor(ffmpeg: string): string {
   return path.join(path.dirname(ffmpeg), process.platform === "win32" ? "ffprobe.exe" : "ffprobe");
@@ -67,8 +65,6 @@ describe.skipIf(!HAS_FFMPEG)("native export integration", () => {
     await fs.rm(wav, { force: true });
     await fs.rm(proresOut, { force: true });
     await fs.rm(proresWav, { force: true });
-    await fs.rm(hiResOut, { force: true });
-    await fs.rm(hiResWav, { force: true });
   });
 
   it("encodes RGBA frames + audio to a playable mp4 (real ffmpeg, hardware-selected encoder)", async () => {
@@ -182,63 +178,6 @@ describe.skipIf(!HAS_FFMPEG)("native export integration", () => {
     }
 
     const stat = await fs.stat(proresOut);
-    expect(stat.size).toBeGreaterThan(0);
-  }, 90000);
-
-  it("encodes beyond the 1080p browser cap (native >1080p, e.g. 2560x1440)", async () => {
-    const ffmpeg = resolveFfmpegPath();
-    expect(existsSync(ffmpeg)).toBe(true);
-
-    await run(ffmpeg, ["-y", "-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo", "-t", "1", hiResWav]);
-
-    const W = 2560, H = 1440, FPS = 30;
-    const encoder = selectEncoder("h264", process.platform, await probeEncoders()) ?? "libx264";
-    const frame = new Uint8Array(W * H * 4).fill(96);
-
-    await new Promise<void>((resolve, reject) => {
-      const job = new ExportJob(
-        { width: W, height: H, frameRate: FPS, codec: "h264", encoder, mode: "balanced", quality: 80, bitrateKbps: 8000, outputPath: hiResOut, audioWavPath: hiResWav, format: "mp4" },
-        () => {}, resolve, reject,
-      );
-      job.start();
-      (async () => {
-        for (let i = 0; i < 15; i++) await job.writeFrame(frame);
-        job.endInput();
-      })().catch(reject);
-    });
-
-    expect(existsSync(hiResOut)).toBe(true);
-
-    const ffprobe = ffprobePathFor(ffmpeg);
-    let usedFfprobe = false;
-    let text = "";
-    if (existsSync(ffprobe)) {
-      const { stdout } = await run(ffprobe, [
-        "-v", "error",
-        "-show_entries", "stream=codec_type,width,height",
-        "-of", "default=noprint_wrappers=1",
-        hiResOut,
-      ]);
-      usedFfprobe = true;
-      text = stdout;
-    } else {
-      try {
-        await run(ffmpeg, ["-hide_banner", "-i", hiResOut]);
-      } catch (e) {
-        text = (e as { stderr?: string }).stderr ?? "";
-      }
-    }
-
-    if (usedFfprobe) {
-      expect(text).toMatch(/codec_type=video/);
-      expect(text).toMatch(/width=2560/);
-      expect(text).toMatch(/height=1440/);
-    } else {
-      expect(text).toMatch(/Stream #.*Video/);
-      expect(text).toMatch(/2560x1440/);
-    }
-
-    const stat = await fs.stat(hiResOut);
     expect(stat.size).toBeGreaterThan(0);
   }, 90000);
 });

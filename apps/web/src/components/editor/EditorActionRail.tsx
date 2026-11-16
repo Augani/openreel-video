@@ -1,223 +1,105 @@
-import React from "react";
 import {
-  ToolcraftDropdownMenu as DropdownMenu,
-  ToolcraftIconButton as IconButton,
-  ToolcraftTooltip as Tooltip,
-} from "@openreel/ui";
-import { Icon } from "@/icons/Icon";
-import {
-  House,
-  Sun,
-  Moon,
-  SunMoon,
-  Settings,
-  Circle,
-  Play,
+  MessageSquare,
+  Film,
+  Music2,
+  Type,
+  Pencil,
+  PanelsTopLeft,
+  Shapes,
   Sparkles,
-  HelpCircle,
-  FileCode,
-  Command,
-} from "@/icons/lucide-compat";
-import { useProjectStore } from "../../stores/project-store";
-import { useUIStore } from "../../stores/ui-store";
-import { useThemeStore } from "../../stores/theme-store";
-import { useSettingsStore } from "../../stores/settings-store";
-import { useRouter } from "../../hooks/use-router";
+  BookText,
+  SlidersHorizontal,
+  Bookmark,
+  MessageCircle,
+  History,
+} from "lucide-react";
 import {
-  startTour,
-  ONBOARDING_KEY,
-  startMoGraphTour,
-  MOGRAPH_TOUR_KEY,
-} from "./tour";
+  Button,
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@openreel/ui";
+import { useUIStore } from "../../stores/ui-store";
+import {
+  useEditorWorkspaceStore,
+  type AssetSection,
+} from "../../stores/editor-workspace-store";
 
-const RailButton: React.FC<{
-  label: string;
-  icon: string;
-  onClick: () => void;
-  active?: boolean;
-}> = ({ label, icon, onClick, active = false }) => (
-  <Tooltip content={label} placement="end">
-    <IconButton
-      label={label}
-      icon={<Icon name={icon} size={16} ariaHidden />}
-      size="sm"
-      variant={active ? "secondary" : "ghost"}
-      onClick={onClick}
-    />
-  </Tooltip>
-);
+const tools = [
+  ["media", "Media", Film],
+  ["audio", "Audio", Music2],
+  ["text", "Text & captions", Type],
+  ["effects", "Effects", Pencil],
+  ["transitions", "Transitions", PanelsTopLeft],
+  ["graphics", "Graphics", Shapes],
+  ["ai", "AI Generate", Sparkles],
+  ["recipes", "Recipes", BookText],
+  ["markers", "Markers", Bookmark],
+  ["comments", "Comments", MessageCircle],
+  ["versions", "Versions", History],
+] as const;
 
-export const EditorActionRail: React.FC = () => {
-  const { undo, redo } = useProjectStore();
-  const {
-    openModal,
-    toggleKeyframeEditor,
-    keyframeEditorOpen,
-    panels,
-    togglePanel,
-    activeModal,
-  } = useUIStore();
-  const { mode: themeMode, toggleTheme } = useThemeStore();
-  const { openSettings } = useSettingsStore();
-  const { navigate } = useRouter();
-
-  const themeLabel =
-    themeMode === "auto"
-      ? "System"
-      : themeMode.charAt(0).toUpperCase() + themeMode.slice(1);
-  const nextThemeLabel =
-    themeMode === "light" ? "Dark" : themeMode === "dark" ? "System" : "Light";
-  const themeIcon =
-    themeMode === "light" ? (
-      <Sun size={16} aria-hidden />
-    ) : themeMode === "dark" ? (
-      <Moon size={16} aria-hidden />
-    ) : (
-      <SunMoon size={16} aria-hidden />
-    );
-  const themeActionLabel = `Theme: ${themeLabel}. Switch to ${nextThemeLabel}`;
-
-  return (
-    <nav
-      data-tour="toolbar"
-      aria-label="Editor tools"
-      className="flex w-12 shrink-0 flex-col items-center gap-1 border-r border-border bg-bg-1 py-3"
-    >
-      <Tooltip content="Back to home" placement="end">
-        <IconButton
-          label="Back to home"
-          icon={<House size={16} aria-hidden />}
-          size="sm"
+export function EditorActionRail() {
+  const section = useEditorWorkspaceStore((s) => s.section);
+  const setSection = useEditorWorkspaceStore((s) => s.setSection);
+  const chatVisible = useUIStore((s) => s.panels.agentChat?.visible ?? false);
+  const choose = (value: AssetSection) => {
+    setSection(value);
+    useUIStore.getState().setPanelVisible("agentChat", false);
+  };
+  const railButton = (
+    label: string,
+    active: boolean,
+    onClick: () => void,
+    icon: React.ReactNode,
+  ) => (
+    <Tooltip key={label}>
+      <TooltipTrigger asChild>
+        <Button
           variant="ghost"
-          onClick={() => navigate("welcome")}
-        />
-      </Tooltip>
-
-      <div className="my-1.5 h-px w-6 bg-border" />
-
-      <RailButton
-        label="Search tools, effects, or ask AI"
-        icon="magnifyingglass"
-        onClick={() => openModal("search")}
-      />
-      <RailButton
-        label="Undo"
-        icon="arrow.uturn.backward"
-        onClick={() => void undo()}
-      />
-      <RailButton
-        label="Redo"
-        icon="arrow.uturn.forward"
-        onClick={() => void redo()}
-      />
-
-      <div className="my-1.5 h-px w-6 bg-border" />
-
-      <RailButton
-        label="Action history"
-        icon="clock"
-        onClick={() => openModal("history")}
-        active={activeModal === "history"}
-      />
-      <RailButton
-        label="Keyframe editor"
-        icon="diamond"
-        onClick={toggleKeyframeEditor}
-        active={keyframeEditorOpen}
-      />
-      <RailButton
-        label="Audio mixer"
-        icon="music.note"
-        onClick={() => togglePanel("audioMixer")}
-        active={Boolean(panels.audioMixer?.visible)}
-      />
-      <RailButton
-        label="AI Editor chat"
-        icon="bubble.left.and.text.bubble.right"
-        onClick={() => togglePanel("agentChat")}
-        active={Boolean(panels.agentChat?.visible)}
-      />
-      <RailButton
-        label="Project JSON / Comments"
-        icon="curlybraces"
-        onClick={() => openModal("scriptView")}
-      />
-
-      <div className="flex-1" />
-
-      <Tooltip content={themeActionLabel} placement="end">
-        <IconButton
-          label={themeActionLabel}
-          icon={themeIcon}
-          size="sm"
-          variant="secondary"
-          onClick={toggleTheme}
-        />
-      </Tooltip>
-
-      <DropdownMenu
-        placement="end"
-        button={{
-          label: "More editor actions",
-          icon: <Icon name="star" size={16} ariaHidden />,
-          size: "sm",
-          variant: "ghost",
-          isIconOnly: true,
-        }}
-        hasChevron={false}
-        menuWidth={224}
-        items={[
-          {
-            label: "Settings & API keys",
-            icon: <Settings size={14} aria-hidden />,
-            onClick: () => openSettings(),
-          },
-          {
-            label: "Screen recorder",
-            icon: (
-              <Circle
-                size={14}
-                className="fill-current text-status-error"
-                aria-hidden
-              />
-            ),
-            onClick: () => openModal("recorder"),
-          },
-          { type: "divider" },
-          {
-            label: "Editor tour",
-            icon: <Play size={14} aria-hidden />,
-            onClick: () => {
-              localStorage.removeItem(ONBOARDING_KEY);
-              startTour();
-            },
-          },
-          {
-            label: "Animation & effects tour",
-            icon: <Sparkles size={14} className="text-accent" aria-hidden />,
-            onClick: () => {
-              localStorage.removeItem(MOGRAPH_TOUR_KEY);
-              startMoGraphTour();
-            },
-          },
-          { type: "divider" },
-          {
-            label: "Help & shortcuts (press ?)",
-            icon: <HelpCircle size={14} aria-hidden />,
-            isDisabled: true,
-          },
-          {
-            label: "Project JSON",
-            icon: <FileCode size={14} aria-hidden />,
-            isDisabled: true,
-          },
-          {
-            label: "Cmd+K to search",
-            icon: <Command size={14} aria-hidden />,
-            isDisabled: true,
-          },
-        ]}
-      />
-    </nav>
+          size="icon"
+          aria-label={label}
+          aria-pressed={active}
+          className={`workspace-rail-button ${active ? "is-active" : ""}`}
+          onClick={onClick}
+        >
+          {icon}
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent side="right">{label}</TooltipContent>
+    </Tooltip>
   );
-};
+  return (
+    <TooltipProvider delayDuration={350}>
+      <nav
+        data-tour="toolbar"
+        aria-label="Editor tools"
+        className="workspace-rail"
+      >
+        {railButton(
+          "AI Editor chat",
+          chatVisible,
+          () =>
+            useUIStore.getState().setPanelVisible("agentChat", !chatVisible),
+          <MessageSquare />,
+        )}
+        {tools.map(([value, label, Icon]) =>
+          railButton(
+            label,
+            !chatVisible && section === value,
+            () => choose(value),
+            <Icon />,
+          ),
+        )}
+        <div className="flex-1" />
+        {railButton(
+          "Project settings",
+          !chatVisible && section === "settings",
+          () => choose("settings"),
+          <SlidersHorizontal />,
+        )}
+      </nav>
+    </TooltipProvider>
+  );
+}

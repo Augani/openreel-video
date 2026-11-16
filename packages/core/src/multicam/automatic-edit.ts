@@ -10,7 +10,7 @@ export interface MulticamVadTrack {
   probabilities: Float32Array;
 }
 
-export interface MulticamAudioSource {
+interface MulticamAudioSource {
   angleId: string;
   samples: Float32Array;
   sampleRate: number;
@@ -35,7 +35,7 @@ export interface MulticamActivityMap {
   points: MulticamActivityPoint[];
 }
 
-export interface MulticamActivityOptions {
+interface MulticamActivityOptions {
   windowMs?: number;
   durationSeconds?: number;
   noiseFloorPercentile?: number;
@@ -88,7 +88,7 @@ export interface MulticamEditDecisionList {
   segments: MulticamEditDecision[];
 }
 
-export const DEFAULT_MULTICAM_ACTIVITY_OPTIONS: Required<
+const DEFAULT_MULTICAM_ACTIVITY_OPTIONS: Required<
   Omit<MulticamActivityOptions, "durationSeconds" | "bleedCalibration">
 > = {
   windowMs: 50,

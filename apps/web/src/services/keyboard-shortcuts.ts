@@ -1,3 +1,4 @@
+import { hasEditorFieldDraft } from "./editor-field-drafts";
 export type ShortcutCategory =
   | "playback"
   | "editing"
@@ -18,7 +19,7 @@ export interface ShortcutDefinition {
   enabled: boolean;
 }
 
-export interface ShortcutPreset {
+interface ShortcutPreset {
   id: string;
   name: string;
   description: string;
@@ -90,7 +91,8 @@ function isShiftedSymbol(key: string): boolean {
   return key.length === 1 && /[~!@#$%^&*()_+{}|:"<>?]/.test(key);
 }
 
-function hasShortcutFocus(event: KeyboardEvent): boolean {
+export function hasShortcutFocus(event: KeyboardEvent): boolean {
+  if (event.defaultPrevented || event.isComposing) return false;
   const target = event.composedPath()[0] ?? event.target;
   if (!(target instanceof Element)) return true;
   if (
@@ -150,6 +152,36 @@ const DEFAULT_SHORTCUTS: ShortcutDefinition[] = [
     defaultKey: "space",
     currentKey: "space",
     action: "playback.playPause",
+    enabled: true,
+  },
+  {
+    id: "playback.shuttleBack",
+    name: "Shuttle Back",
+    description: "Slow forward shuttle, or pause and step back one second. With an edit point selected: trim backward (Dynamic Trimming)",
+    category: "playback",
+    defaultKey: "j",
+    currentKey: "j",
+    action: "playback.shuttleBack",
+    enabled: true,
+  },
+  {
+    id: "playback.shuttleStop",
+    name: "Shuttle Stop",
+    description: "Pause playback and reset speed. With an edit point selected: commit the dynamic trim; hold with J or L to trim one frame",
+    category: "playback",
+    defaultKey: "k",
+    currentKey: "k",
+    action: "playback.shuttleStop",
+    enabled: true,
+  },
+  {
+    id: "playback.shuttleForward",
+    name: "Shuttle Forward",
+    description: "Play forward; press again to double speed (up to 4x). With an edit point selected: trim forward (Dynamic Trimming)",
+    category: "playback",
+    defaultKey: "l",
+    currentKey: "l",
+    action: "playback.shuttleForward",
     enabled: true,
   },
   {
@@ -255,7 +287,7 @@ const DEFAULT_SHORTCUTS: ShortcutDefinition[] = [
   {
     id: "playback.markLoopStart",
     name: "Mark Loop Start",
-    description: "Set the preview loop start at the playhead",
+    description: "Set the preview loop start, or import media into an empty sequence",
     category: "playback",
     defaultKey: "i",
     currentKey: "i",
@@ -270,6 +302,46 @@ const DEFAULT_SHORTCUTS: ShortcutDefinition[] = [
     defaultKey: "o",
     currentKey: "o",
     action: "playback.markLoopEnd",
+    enabled: true,
+  },
+  {
+    id: "playback.markClip",
+    name: "Mark Clip",
+    description: "Set In and Out to the clip under the playhead on the targeted tracks",
+    category: "playback",
+    defaultKey: "x",
+    currentKey: "x",
+    action: "playback.markClip",
+    enabled: true,
+  },
+  {
+    id: "playback.goToIn",
+    name: "Go to In",
+    description: "Move the playhead to the sequence In point",
+    category: "playback",
+    defaultKey: "shift+i",
+    currentKey: "shift+i",
+    action: "playback.goToIn",
+    enabled: true,
+  },
+  {
+    id: "playback.goToOut",
+    name: "Go to Out",
+    description: "Move the playhead to the sequence Out point",
+    category: "playback",
+    defaultKey: "shift+o",
+    currentKey: "shift+o",
+    action: "playback.goToOut",
+    enabled: true,
+  },
+  {
+    id: "playback.clearInOut",
+    name: "Clear In and Out",
+    description: "Remove the sequence In and Out points",
+    category: "playback",
+    defaultKey: "alt+x",
+    currentKey: "alt+x",
+    action: "playback.clearInOut",
     enabled: true,
   },
   {
@@ -393,6 +465,306 @@ const DEFAULT_SHORTCUTS: ShortcutDefinition[] = [
     enabled: true,
   },
   {
+    id: "editing.insert",
+    name: "Insert",
+    description: "Insert selected library media at playhead",
+    category: "editing",
+    defaultKey: ",",
+    currentKey: ",",
+    action: "editing.insert",
+    enabled: true,
+  },
+  {
+    id: "editing.overwrite",
+    name: "Overwrite",
+    description: "Overwrite with selected library media at playhead",
+    category: "editing",
+    defaultKey: ".",
+    currentKey: ".",
+    action: "editing.overwrite",
+    enabled: true,
+  },
+  {
+    id: "editing.lift",
+    name: "Lift",
+    description: "Remove the In/Out range, leaving a gap",
+    category: "editing",
+    defaultKey: ";",
+    currentKey: ";",
+    action: "editing.lift",
+    enabled: true,
+  },
+  {
+    id: "editing.extract",
+    name: "Extract",
+    description: "Remove the In/Out range and close the gap",
+    category: "editing",
+    defaultKey: "'",
+    currentKey: "'",
+    action: "editing.extract",
+    enabled: true,
+  },
+  {
+    id: "editing.trimEditLeftLarge",
+    name: "Trim Selected Edit Left (5 frames)",
+    description: "With an edit point selected, trim it five frames earlier (Ripple or Roll)",
+    category: "editing",
+    defaultKey: "<",
+    currentKey: "<",
+    action: "editing.trimEditLeftLarge",
+    enabled: true,
+  },
+  {
+    id: "editing.trimEditRightLarge",
+    name: "Trim Selected Edit Right (5 frames)",
+    description: "With an edit point selected, trim it five frames later (Ripple or Roll)",
+    category: "editing",
+    defaultKey: ">",
+    currentKey: ">",
+    action: "editing.trimEditRightLarge",
+    enabled: true,
+  },
+  {
+    id: "editing.nudgeLeft",
+    name: "Nudge Edit Left",
+    description: "Nudge the active tool's edit one frame left",
+    category: "editing",
+    defaultKey: "alt+arrowleft",
+    currentKey: "alt+arrowleft",
+    action: "editing.nudgeLeft",
+    enabled: true,
+  },
+  {
+    id: "editing.nudgeRight",
+    name: "Nudge Edit Right",
+    description: "Nudge the active tool's edit one frame right",
+    category: "editing",
+    defaultKey: "alt+arrowright",
+    currentKey: "alt+arrowright",
+    action: "editing.nudgeRight",
+    enabled: true,
+  },
+  {
+    id: "editing.nudgeLeftLarge",
+    name: "Nudge Edit Left (5 frames)",
+    description: "Nudge the active tool's edit five frames left",
+    category: "editing",
+    defaultKey: "alt+shift+arrowleft",
+    currentKey: "alt+shift+arrowleft",
+    action: "editing.nudgeLeftLarge",
+    enabled: true,
+  },
+  {
+    id: "editing.nudgeRightLarge",
+    name: "Nudge Edit Right (5 frames)",
+    description: "Nudge the active tool's edit five frames right",
+    category: "editing",
+    defaultKey: "alt+shift+arrowright",
+    currentKey: "alt+shift+arrowright",
+    action: "editing.nudgeRightLarge",
+    enabled: true,
+  },
+  {
+    id: "editing.nudgeSideLeft",
+    name: "Nudge Edit This Side Left",
+    description: "Nudge the selected clip's edit one frame left, ignoring its linked clips",
+    category: "editing",
+    defaultKey: "alt+,",
+    currentKey: "alt+,",
+    action: "editing.nudgeSideLeft",
+    enabled: true,
+  },
+  {
+    id: "editing.nudgeSideRight",
+    name: "Nudge Edit This Side Right",
+    description: "Nudge the selected clip's edit one frame right, ignoring its linked clips",
+    category: "editing",
+    defaultKey: "alt+.",
+    currentKey: "alt+.",
+    action: "editing.nudgeSideRight",
+    enabled: true,
+  },
+  {
+    id: "editing.nudgeSideLeftLarge",
+    name: "Nudge Edit This Side Left (5 frames)",
+    description: "Nudge the selected clip's edit five frames left, ignoring its linked clips",
+    category: "editing",
+    defaultKey: "alt+shift+,",
+    currentKey: "alt+shift+,",
+    action: "editing.nudgeSideLeftLarge",
+    enabled: true,
+  },
+  {
+    id: "editing.nudgeSideRightLarge",
+    name: "Nudge Edit This Side Right (5 frames)",
+    description: "Nudge the selected clip's edit five frames right, ignoring its linked clips",
+    category: "editing",
+    defaultKey: "alt+shift+.",
+    currentKey: "alt+shift+.",
+    action: "editing.nudgeSideRightLarge",
+    enabled: true,
+  },
+  {
+    id: "editing.extendEdit",
+    name: "Extend Edit",
+    description: "Extend the selected edit point to the playhead",
+    category: "editing",
+    defaultKey: "e",
+    currentKey: "e",
+    action: "editing.extendEdit",
+    enabled: true,
+  },
+  {
+    id: "editing.extendEditVideo",
+    name: "Extend Video Edit",
+    description: "Extend only the video side of the selected edit to the playhead",
+    category: "editing",
+    defaultKey: "shift+e",
+    currentKey: "shift+e",
+    action: "editing.extendEditVideo",
+    enabled: true,
+  },
+  {
+    id: "editing.extendEditAudio",
+    name: "Extend Audio Edit",
+    description: "Extend only the audio side of the selected edit to the playhead",
+    category: "editing",
+    defaultKey: "alt+e",
+    currentKey: "alt+e",
+    action: "editing.extendEditAudio",
+    enabled: true,
+  },
+  {
+    id: "editing.jCut",
+    name: "J-Cut",
+    description: "Make the audio lead the picture at the selected cut by the split-edit length",
+    category: "editing",
+    defaultKey: "alt+j",
+    currentKey: "alt+j",
+    action: "editing.jCut",
+    enabled: true,
+  },
+  {
+    id: "editing.lCut",
+    name: "L-Cut",
+    description: "Make the audio trail the picture at the selected cut by the split-edit length",
+    category: "editing",
+    defaultKey: "alt+l",
+    currentKey: "alt+l",
+    action: "editing.lCut",
+    enabled: true,
+  },
+  {
+    id: "editing.addEditAllTracks",
+    name: "Add Edit to All Tracks",
+    description: "Split every unlocked track at the playhead",
+    category: "editing",
+    defaultKey: "cmd+shift+k",
+    currentKey: "cmd+shift+k",
+    action: "editing.addEditAllTracks",
+    enabled: true,
+  },
+  {
+    id: "editing.addEdit",
+    name: "Add Edit",
+    description: "Split the targeted tracks (all unlocked tracks when none is targeted) at the playhead",
+    category: "editing",
+    defaultKey: "shift+k",
+    currentKey: "shift+k",
+    action: "editing.addEdit",
+    enabled: true,
+  },
+  {
+    id: "editing.addGainKeyframe",
+    name: "Add Gain Keyframe",
+    description: "Add a volume keyframe at the playhead on the selected audio clip",
+    category: "editing",
+    defaultKey: "alt+g",
+    currentKey: "alt+g",
+    action: "editing.addGainKeyframe",
+    enabled: true,
+  },
+  {
+    id: "editing.pasteInsert",
+    name: "Paste Insert",
+    description: "Paste copied clips at the playhead and ripple later content",
+    category: "editing",
+    defaultKey: "cmd+shift+v",
+    currentKey: "cmd+shift+v",
+    action: "editing.pasteInsert",
+    enabled: true,
+  },
+  {
+    id: "tracks.toggleTarget",
+    name: "Toggle Track Target",
+    description: "Target or untarget the selected track (V1/A1 style)",
+    category: "editing",
+    defaultKey: "shift+t",
+    currentKey: "shift+t",
+    action: "tracks.toggleTarget",
+    enabled: true,
+  },
+  {
+    id: "tracks.toggleSyncLock",
+    name: "Toggle Sync Lock",
+    description: "Turn Sync Lock on or off for the selected track",
+    category: "editing",
+    defaultKey: "shift+y",
+    currentKey: "shift+y",
+    action: "tracks.toggleSyncLock",
+    enabled: true,
+  },
+  {
+    id: "editing.matchFrame",
+    name: "Match Frame",
+    description: "Select the source of the clip under the playhead",
+    category: "editing",
+    defaultKey: "f",
+    currentKey: "f",
+    action: "editing.matchFrame",
+    enabled: true,
+  },
+  {
+    id: "linked.replace",
+    name: "Replace with Linked Composition",
+    description: "Move the selected text, shape and SVG clips into a live linked composition",
+    category: "editing",
+    defaultKey: "cmd+alt+l",
+    currentKey: "cmd+alt+l",
+    action: "linked.replace",
+    enabled: true,
+  },
+  {
+    id: "linked.open",
+    name: "Open Linked Composition",
+    description: "Edit the selected linked composition in its own window",
+    category: "editing",
+    defaultKey: "cmd+alt+o",
+    currentKey: "cmd+alt+o",
+    action: "linked.open",
+    enabled: true,
+  },
+  {
+    id: "linked.render",
+    name: "Render and Replace",
+    description: "Render the selected linked composition to a media clip",
+    category: "editing",
+    defaultKey: "cmd+alt+shift+r",
+    currentKey: "cmd+alt+shift+r",
+    action: "linked.render",
+    enabled: true,
+  },
+  {
+    id: "linked.restore",
+    name: "Restore Unrendered",
+    description: "Bring back the live layers of a rendered linked composition",
+    category: "editing",
+    defaultKey: "cmd+alt+shift+u",
+    currentKey: "cmd+alt+shift+u",
+    action: "linked.restore",
+    enabled: true,
+  },
+  {
     id: "selection.selectAll",
     name: "Select All",
     description: "Select all clips",
@@ -442,6 +814,17 @@ const DEFAULT_SHORTCUTS: ShortcutDefinition[] = [
     action: "timeline.zoomOut",
     enabled: true,
   },
+  {id:"timeline.selectionTool",name:"Selection Tool",description:"Select and move timeline clips",category:"timeline",defaultKey:"v",currentKey:"v",action:"timeline.selectionTool",enabled:true},
+  {id:"timeline.bladeTool",name:"Blade Tool",description:"Split a clip where you click",category:"timeline",defaultKey:"b",currentKey:"b",action:"timeline.bladeTool",enabled:true},
+  {id:"timeline.rippleTool",name:"Ripple Trim Tool",description:"Ripple trim clip edges and shift following items",category:"timeline",defaultKey:"r",currentKey:"r",action:"timeline.rippleTool",enabled:true},
+  {id:"timeline.slipTool",name:"Slip Tool",description:"Change the source window without moving the clip",category:"timeline",defaultKey:"y",currentKey:"y",action:"timeline.slipTool",enabled:true},
+  {id:"timeline.rollTool",name:"Rolling Edit Tool",description:"Drag the cut between two clips; one extends, the other trims",category:"timeline",defaultKey:"shift+n",currentKey:"shift+n",action:"timeline.rollTool",enabled:true},
+  {id:"timeline.slideTool",name:"Slide Tool",description:"Move a clip between its neighbours without changing total length",category:"timeline",defaultKey:"u",currentKey:"u",action:"timeline.slideTool",enabled:true},
+  {id:"timeline.stretchTool",name:"Rate Stretch Tool",description:"Drag a clip edge to change its speed and duration",category:"timeline",defaultKey:"shift+r",currentKey:"shift+r",action:"timeline.stretchTool",enabled:true},
+  {id:"timeline.trackSelectForwardTool",name:"Track Select Forward Tool",description:"Click a clip to select it and everything after it on every track (Shift: that track only)",category:"timeline",defaultKey:"a",currentKey:"a",action:"timeline.trackSelectForwardTool",enabled:true},
+  {id:"timeline.trackSelectBackwardTool",name:"Track Select Backward Tool",description:"Click a clip to select it and everything before it on every track (Shift: that track only)",category:"timeline",defaultKey:"shift+a",currentKey:"shift+a",action:"timeline.trackSelectBackwardTool",enabled:true},
+  {id:"timeline.handTool",name:"Hand Tool",description:"Drag to pan the timeline",category:"timeline",defaultKey:"h",currentKey:"h",action:"timeline.handTool",enabled:true},
+  {id:"timeline.zoomTool",name:"Zoom Tool",description:"Click to zoom in, Alt-click to zoom out, drag a range to zoom to fit it",category:"timeline",defaultKey:"z",currentKey:"z",action:"timeline.zoomTool",enabled:true},
   {
     id: "timeline.fitTimeline",
     name: "Fit Timeline",
@@ -450,6 +833,16 @@ const DEFAULT_SHORTCUTS: ShortcutDefinition[] = [
     defaultKey: "cmd+0",
     currentKey: "cmd+0",
     action: "timeline.fitTimeline",
+    enabled: true,
+  },
+  {
+    id: "sequence.renderInToOut",
+    name: "Render In to Out",
+    description: "Render the In/Out range (or the whole sequence) so effects play back in real time",
+    category: "timeline",
+    defaultKey: "enter",
+    currentKey: "enter",
+    action: "sequence.renderInToOut",
     enabled: true,
   },
   {
@@ -463,6 +856,46 @@ const DEFAULT_SHORTCUTS: ShortcutDefinition[] = [
     enabled: true,
   },
   {
+    id: "view.toggleScopes",
+    name: "Toggle Video Scopes",
+    description: "Show or hide the waveform, parade, vectorscope and histogram",
+    category: "view",
+    defaultKey: "shift+s",
+    currentKey: "shift+s",
+    action: "view.toggleScopes",
+    enabled: true,
+  },
+  {
+    id: "view.toggleProxies",
+    name: "Toggle Proxies",
+    description: "Switch preview, scrub and playback between proxies and full-resolution media",
+    category: "view",
+    defaultKey: "shift+p",
+    currentKey: "shift+p",
+    action: "view.toggleProxies",
+    enabled: true,
+  },
+  {
+    id: "view.toggleComparison",
+    name: "Toggle Comparison View",
+    description: "Compare the Program frame with an ungraded frame, a still or a pinned playhead position",
+    category: "view",
+    defaultKey: "shift+c",
+    currentKey: "shift+c",
+    action: "view.toggleComparison",
+    enabled: true,
+  },
+  {
+    id: "file.import",
+    name: "Import Media",
+    description: "Import video, audio or images",
+    category: "file",
+    defaultKey: "cmd+i",
+    currentKey: "cmd+i",
+    action: "file.import",
+    enabled: true,
+  },
+  {
     id: "file.save",
     name: "Save",
     description: "Save project",
@@ -470,6 +903,26 @@ const DEFAULT_SHORTCUTS: ShortcutDefinition[] = [
     defaultKey: "cmd+s",
     currentKey: "cmd+s",
     action: "file.save",
+    enabled: true,
+  },
+  {
+    id: "file.saveAs",
+    name: "Save As",
+    description: "Save the project to a new file",
+    category: "file",
+    defaultKey: "cmd+shift+s",
+    currentKey: "cmd+shift+s",
+    action: "file.saveAs",
+    enabled: true,
+  },
+  {
+    id: "collab.open",
+    name: "Collaborate",
+    description: "Start or join a live editing session",
+    category: "file",
+    defaultKey: "cmd+shift+j",
+    currentKey: "cmd+shift+j",
+    action: "collab.open",
     enabled: true,
   },
   {
@@ -502,8 +955,65 @@ const DEFAULT_SHORTCUTS: ShortcutDefinition[] = [
     action: "tools.addMarker",
     enabled: true,
   },
+  {
+    id: "tools.editMarker",
+    name: "Edit Marker",
+    description: "Edit the marker at the playhead (also M twice)",
+    category: "tools",
+    defaultKey: "alt+m",
+    currentKey: "alt+m",
+    action: "tools.editMarker",
+    enabled: true,
+  },
+  {
+    id: "tools.nextMarker",
+    name: "Go to Next Marker",
+    description: "Move the playhead to the next marker",
+    category: "tools",
+    defaultKey: "shift+arrowdown",
+    currentKey: "shift+arrowdown",
+    action: "tools.nextMarker",
+    enabled: true,
+  },
+  {
+    id: "tools.prevMarker",
+    name: "Go to Previous Marker",
+    description: "Move the playhead to the previous marker",
+    category: "tools",
+    defaultKey: "shift+arrowup",
+    currentKey: "shift+arrowup",
+    action: "tools.prevMarker",
+    enabled: true,
+  },
+  {
+    id: "tools.clearMarker",
+    name: "Clear Marker at Playhead",
+    description: "Delete the marker at the playhead",
+    category: "tools",
+    defaultKey: "cmd+alt+m",
+    currentKey: "cmd+alt+m",
+    action: "tools.clearMarker",
+    enabled: true,
+  },
+  {
+    id: "tools.clearAllMarkers",
+    name: "Clear All Markers",
+    description: "Delete every marker",
+    category: "tools",
+    defaultKey: "cmd+alt+shift+m",
+    currentKey: "cmd+alt+shift+m",
+    action: "tools.clearAllMarkers",
+    enabled: true,
+  },
 ];
 
+/*
+ * Preset audit (onboarding WP-D). Every binding below targets an action that already has a
+ * DEFAULT_SHORTCUTS entry and a registered handler in useKeyboardShortcuts. J/K/L shuttle, I/O marks,
+ * M markers, Q/W trims, ,/. insert-overwrite and ;/' lift-extract already match Premiere by default,
+ * so they are not repeated. Entries apply in order: a key is freed before another command takes it, and
+ * a command displaced by a preset is moved to Alt+<its default> (see computePresetBindings).
+ */
 const PRESETS: ShortcutPreset[] = [
   {
     id: "openreel",
@@ -531,6 +1041,14 @@ const PRESETS: ShortcutPreset[] = [
       "playback.frameBack": "arrowleft",
       "playback.frameForward": "arrowright",
       "editing.rippleDelete": "shift+delete",
+      "timeline.bladeTool": "c",
+      "timeline.rippleTool": "b",
+      "timeline.toggleSnap": "s",
+      "timeline.rollTool": "n",
+      "timeline.stretchTool": "r",
+      "timeline.zoomIn": "=",
+      "timeline.zoomOut": "-",
+      "timeline.fitTimeline": "\\",
     },
   },
   {
@@ -542,6 +1060,11 @@ const PRESETS: ShortcutPreset[] = [
       "playback.playPause": "space",
       "editing.trimStart": "[",
       "editing.trimEnd": "]",
+      "editing.insert": "w",
+      "editing.overwrite": "d",
+      "editing.addEditAllTracks": "cmd+shift+b",
+      "timeline.selectionTool": "a",
+      "timeline.fitTimeline": "shift+z",
     },
   },
   {
@@ -552,9 +1075,96 @@ const PRESETS: ShortcutPreset[] = [
       "editing.split": "cmd+\\",
       "playback.playPause": "space",
       "editing.rippleDelete": "shift+backspace",
+      "timeline.selectionTool": "a",
+      "timeline.trackSelectForwardTool": "y",
+      "timeline.fitTimeline": "shift+z",
     },
   },
 ];
+
+function eventMatchesCombo(e: KeyboardEvent, key: string): boolean {
+  const isMeta = e.metaKey || e.ctrlKey;
+  const combo = parseKeyCombo(key);
+  const eventKey = normalizeKey(e.key);
+  const keyMatches =
+    eventKey === combo.key || e.code.toLowerCase() === combo.key ||
+    (e.altKey && PHYSICAL_PUNCTUATION[e.code] === combo.key) ||
+    // Option+letter types a dead/accented character on macOS; match the key.
+    (e.altKey && /^[a-z]$/.test(combo.key) && e.code === `Key${combo.key.toUpperCase()}`) ||
+    (eventKey === "backspace" && combo.key === "delete");
+  const metaMatches = (combo.meta || combo.ctrl) === isMeta;
+  const shiftMatches = combo.shift === e.shiftKey ||
+    (!combo.shift && e.shiftKey && isShiftedSymbol(combo.key) && eventKey === combo.key);
+  return keyMatches && metaMatches && shiftMatches && combo.alt === e.altKey;
+}
+
+/** Palette bindings in preference order; the first one no editor command claims wins. */
+const SEARCH_PALETTE_KEYS = ["cmd+k", "cmd+shift+p", "cmd+/"] as const;
+
+export interface PresetDiffEntry {
+  id: string;
+  name: string;
+  category: ShortcutCategory;
+  /** Binding before the preset. */
+  from: string;
+  /** Binding after the preset ("" when the command ended up unassigned). */
+  to: string;
+  fromLabel: string;
+  toLabel: string;
+  /** True when the command was displaced by another command taking its key, not named by the preset. */
+  displaced: boolean;
+}
+
+export interface PresetDiff {
+  presetId: string;
+  presetName: string;
+  /** Number of commands whose binding differs from the OpenReel default. */
+  count: number;
+  changes: PresetDiffEntry[];
+  /** Binding the search palette uses under this preset. */
+  searchPaletteKey: string;
+  searchPaletteLabel: string;
+  /** True when the preset takes the search palette's default key (Premiere's Add Edit takes Cmd+K). */
+  searchPaletteMoved: boolean;
+}
+
+function resolveSearchPaletteKey(keys: Map<string, string>): string {
+  const claimed = (key: string) => {
+    for (const current of keys.values()) {
+      if (current && comboIdentity(current) === comboIdentity(key)) return true;
+    }
+    return false;
+  };
+  return SEARCH_PALETTE_KEYS.find((key) => !claimed(key)) ?? SEARCH_PALETTE_KEYS[SEARCH_PALETTE_KEYS.length - 1];
+}
+
+/**
+ * Pure simulation of applying `preset` on top of the default bindings (applyPreset resets first).
+ * Shared by applyPreset and presetDiff so the caption can never disagree with what is applied.
+ */
+function computePresetBindings(preset: ShortcutPreset): { keys: Map<string, string>; displaced: Set<string> } {
+  const keys = new Map<string, string>(DEFAULT_SHORTCUTS.map((s) => [s.id, s.defaultKey]));
+  const displaced = new Set<string>();
+  const conflictOf = (key: string, excludeId: string): string | null => {
+    for (const [id, current] of keys) {
+      if (id !== excludeId && comboIdentity(current) === comboIdentity(key)) return id;
+    }
+    return null;
+  };
+  for (const [id, key] of Object.entries(preset.shortcuts)) {
+    if (!keys.has(id)) continue;
+    const conflictId = conflictOf(key, id);
+    if (conflictId) {
+      const defaultKey = DEFAULT_SHORTCUTS.find((s) => s.id === conflictId)!.defaultKey;
+      const alternative = `alt+${defaultKey}`;
+      keys.set(conflictId, conflictOf(alternative, conflictId) ? "" : alternative);
+      displaced.add(conflictId);
+    }
+    keys.set(id, key);
+    displaced.delete(id);
+  }
+  return { keys, displaced };
+}
 
 class KeyboardShortcutsManager {
   private shortcuts: Map<string, ShortcutDefinition> = new Map();
@@ -628,46 +1238,85 @@ class KeyboardShortcutsManager {
   }
 
   private handleKeyDown = (e: KeyboardEvent): void => {
-    if (e.defaultPrevented || e.isComposing || e.keyCode === 229 || !hasShortcutFocus(e)) return;
+    if (e.defaultPrevented || e.isComposing || e.keyCode === 229) return;
+    const ownsFocus = hasShortcutFocus(e);
+    const target = e.composedPath()[0] ?? e.target;
+    // A closed shadcn Select retains button focus after applying its value.
+    // Save still belongs to the editor; typing/navigation remains with Select.
+    const closedSelect = target instanceof Element
+      && target.closest('button[role="combobox"][aria-expanded="false"]')
+      && !target.closest('[role="dialog"], [role="alertdialog"], [data-editor-shortcuts="off"]');
+    const numericField = hasEditorFieldDraft(target) && target instanceof Element
+      && !target.closest('[role="dialog"], [role="alertdialog"], [role="combobox"], [role="menu"], [data-editor-shortcuts="off"]');
+    if (!ownsFocus && !closedSelect && !numericField) return;
     if (document.querySelector('[aria-modal="true"]:not([data-state="closed"])')) return;
 
     const matchedShortcut = this.findMatchingShortcut(e);
+    if (!ownsFocus && matchedShortcut?.action !== "file.save" && matchedShortcut?.action !== "file.saveAs") return;
+    if (numericField && !ownsFocus && !(e.metaKey || e.ctrlKey)) return;
     if (matchedShortcut && this.handlers.get(matchedShortcut.action)?.size) {
       e.preventDefault();
       e.stopPropagation();
       // Holding a key may scrub/zoom continuously, but must not repeat edits,
       // toggle playback, add markers, or open dialogs repeatedly.
-      if (e.repeat && !/^(playback\.(frame|second|jump5|prevClip|nextClip)|timeline\.zoom)/.test(matchedShortcut.action)) return;
+      if (e.repeat && !/^(playback\.(frame|second|jump5|prevClip|nextClip)|timeline\.zoom|editing\.nudge)/.test(matchedShortcut.action)) return;
       this.executeAction(matchedShortcut.action, e);
     }
   };
 
   private findMatchingShortcut(e: KeyboardEvent): ShortcutDefinition | null {
-    const isMeta = e.metaKey || e.ctrlKey;
-
     for (const shortcut of this.shortcuts.values()) {
       if (!shortcut.enabled) continue;
 
-      const combo = parseKeyCombo(shortcut.currentKey);
-      const eventKey = normalizeKey(e.key);
-      const keyMatches =
-        eventKey === combo.key || e.code.toLowerCase() === combo.key ||
-        (e.altKey && PHYSICAL_PUNCTUATION[e.code] === combo.key) ||
-        (eventKey === "backspace" && combo.key === "delete");
-      const metaMatches = (combo.meta || combo.ctrl) === isMeta;
-      const shiftMatches = combo.shift === e.shiftKey ||
-        (!combo.shift && e.shiftKey && isShiftedSymbol(combo.key) && eventKey === combo.key);
-      const altMatches = combo.alt === e.altKey;
-
-      if (keyMatches && metaMatches && shiftMatches && altMatches) {
-        return shortcut;
-      }
+      if (eventMatchesCombo(e, shortcut.currentKey)) return shortcut;
     }
 
     return null;
   }
 
+  /**
+   * Binding for the global search palette. The active preset wins inside the
+   * editor: Cmd+K stays the palette unless a preset (Premiere's Add Edit)
+   * claims it, in which case the palette moves to the next free binding.
+   */
+  getSearchPaletteKey(): string {
+    return SEARCH_PALETTE_KEYS.find((key) => {
+      const claimant = this.findConflict(key);
+      return !claimant || !claimant.enabled || !claimant.currentKey;
+    }) ?? SEARCH_PALETTE_KEYS[SEARCH_PALETTE_KEYS.length - 1];
+  }
+
+  isSearchPaletteEvent(e: KeyboardEvent): boolean {
+    return eventMatchesCombo(e, this.getSearchPaletteKey());
+  }
+
+  formatSearchPaletteHint(): string {
+    return formatKeyComboDisplay(this.getSearchPaletteKey());
+  }
+
+  /** Invoke the same editing command from a menu or a keyboard shortcut. */
+  runCommand(action: string): void {
+    this.executeAction(action, new KeyboardEvent("keydown"));
+  }
+
+  private interceptor: ((action: string, e: KeyboardEvent) => boolean) | null = null;
+
+  /**
+   * Route shortcuts to a focused sub-editor (the Source monitor). The
+   * interceptor sees the resolved action id, so presets and custom bindings
+   * keep working; returning true consumes the action.
+   */
+  setActionInterceptor(
+    interceptor: ((action: string, e: KeyboardEvent) => boolean) | null,
+  ): () => void {
+    this.interceptor = interceptor;
+    return () => {
+      if (this.interceptor === interceptor) this.interceptor = null;
+    };
+  }
+
   private executeAction(action: string, e: KeyboardEvent): void {
+    if (this.interceptor?.(action, e)) return;
     const handlers = this.handlers.get(action);
     if (handlers) {
       handlers.forEach((handler) => handler(e));
@@ -743,6 +1392,11 @@ class KeyboardShortcutsManager {
     return PRESETS;
   }
 
+  /** What applying `presetId` would change versus the OpenReel defaults. Does not touch the live bindings. */
+  presetDiff(presetId: string): PresetDiff | null {
+    return buildPresetDiff(presetId);
+  }
+
   getActivePreset(): string {
     return this.activePreset;
   }
@@ -753,22 +1407,12 @@ class KeyboardShortcutsManager {
 
     this.resetAllShortcuts();
 
-    Object.entries(preset.shortcuts).forEach(([id, key]) => {
-      // A preset override takes precedence over the default binding it replaces.
-      // Relocate that command so both remain accessible (Final Cut uses [ / ]
-      // for trimming, while OpenReel uses those keys for clip navigation).
-      const conflict = this.findConflict(key, id);
-      if (conflict) {
-        const alternative = `alt+${conflict.defaultKey}`;
-        this.shortcuts.set(conflict.id, {
-          ...conflict,
-          currentKey: this.findConflict(alternative, conflict.id) ? "" : alternative,
-        });
-      }
+    // A preset override takes precedence over the default binding it replaces. The displaced command is
+    // relocated so both stay reachable (Final Cut uses [ / ] for trimming, OpenReel uses them for clip navigation).
+    const { keys } = computePresetBindings(preset);
+    keys.forEach((key, id) => {
       const shortcut = this.shortcuts.get(id);
-      if (shortcut) {
-        this.shortcuts.set(id, { ...shortcut, currentKey: key });
-      }
+      if (shortcut && shortcut.currentKey !== key) this.shortcuts.set(id, { ...shortcut, currentKey: key });
     });
 
     this.activePreset = presetId;
@@ -810,6 +1454,37 @@ class KeyboardShortcutsManager {
 }
 
 export const keyboardShortcuts = new KeyboardShortcutsManager();
+
+function buildPresetDiff(presetId: string): PresetDiff | null {
+  const preset = PRESETS.find((p) => p.id === presetId);
+  if (!preset) return null;
+  const { keys, displaced } = computePresetBindings(preset);
+  const changes: PresetDiffEntry[] = [];
+  for (const def of DEFAULT_SHORTCUTS) {
+    const to = keys.get(def.id) ?? def.defaultKey;
+    if (to === def.defaultKey) continue;
+    changes.push({
+      id: def.id,
+      name: def.name,
+      category: def.category,
+      from: def.defaultKey,
+      to,
+      fromLabel: formatKeyComboDisplay(def.defaultKey),
+      toLabel: to ? formatKeyComboDisplay(to) : "Unassigned",
+      displaced: displaced.has(def.id),
+    });
+  }
+  const searchPaletteKey = resolveSearchPaletteKey(keys);
+  return {
+    presetId: preset.id,
+    presetName: preset.name,
+    count: changes.length,
+    changes,
+    searchPaletteKey,
+    searchPaletteLabel: formatKeyComboDisplay(searchPaletteKey),
+    searchPaletteMoved: searchPaletteKey !== SEARCH_PALETTE_KEYS[0],
+  };
+}
 
 export function formatKeyComboDisplay(key: string): string {
   const combo = parseKeyCombo(key);

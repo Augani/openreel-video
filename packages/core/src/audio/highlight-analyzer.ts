@@ -4,7 +4,7 @@ export interface TranscriptWord {
   end: number;
 }
 
-export interface AudioSegmentMetrics {
+interface AudioSegmentMetrics {
   start: number;
   end: number;
   rmsDb: number;
@@ -13,7 +13,7 @@ export interface AudioSegmentMetrics {
   isSilence: boolean;
 }
 
-export interface HighlightAnalysisResult {
+interface HighlightAnalysisResult {
   segments: AudioSegmentMetrics[];
   duration: number;
 }

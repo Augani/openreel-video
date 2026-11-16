@@ -222,7 +222,7 @@ function buildUniforms(options: RenderOptions): Float32Array {
   return data;
 }
 
-export async function renderMeshWebGpu(
+async function renderMeshWebGpu(
   mesh: Mesh,
   options: RenderOptions,
 ): Promise<RenderedImage> {

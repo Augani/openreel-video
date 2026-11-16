@@ -132,25 +132,6 @@ fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
 }
 `;
 
-export interface LayerUniforms {
-  opacity: number;
-  // 12 bytes padding
-}
-
-export interface TransformUniforms {
-  matrix: Float32Array;
-  opacity: number; // 4 bytes
-  borderRadius: number; // 4 bytes
-  // 8 bytes padding
-}
-
-export interface BorderRadiusUniforms {
-  radius: number; // 4 bytes
-  width: number; // 4 bytes
-  height: number; // 4 bytes
-  // 4 bytes padding
-}
-
 export function createLayerUniformsBuffer(opacity: number): Float32Array {
   const buffer = new Float32Array(8); // 32 bytes aligned
   buffer[0] = opacity;
@@ -175,23 +156,6 @@ export function createTransformUniformsBuffer(
   buffer[21] = crop?.height ?? 1;
   // buffer[22-23] are padding
   return buffer;
-}
-
-export function createBorderRadiusUniformsBuffer(
-  radius: number,
-  width: number,
-  height: number,
-): Float32Array {
-  const buffer = new Float32Array(4); // 16 bytes aligned
-  buffer[0] = radius;
-  buffer[1] = width;
-  buffer[2] = height;
-  // buffer[3] is padding
-  return buffer;
-}
-
-export function createIdentityMatrix(): Float32Array {
-  return new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
 }
 
 export function createTransformMatrix(
@@ -248,48 +212,6 @@ export function createTransformMatrix(
   matrix[15] = 1;
 
   return matrix;
-}
-
-export function multiplyMatrices(
-  a: Float32Array,
-  b: Float32Array,
-): Float32Array {
-  const result = new Float32Array(16);
-
-  for (let col = 0; col < 4; col++) {
-    for (let row = 0; row < 4; row++) {
-      let sum = 0;
-      for (let k = 0; k < 4; k++) {
-        sum += a[row + k * 4] * b[k + col * 4];
-      }
-      result[row + col * 4] = sum;
-    }
-  }
-
-  return result;
-}
-
-export function calculateBorderRadiusAlpha(
-  x: number,
-  y: number,
-  radius: number,
-  smoothness: number = 0.01,
-): number {
-  const clampedRadius = Math.max(0, Math.min(0.5, radius));
-  const halfSize = 1.0;
-  const r = clampedRadius * 2.0;
-
-  // SDF for rounded rectangle
-  const qx = Math.abs(x) - halfSize + r;
-  const qy = Math.abs(y) - halfSize + r;
-  const dist =
-    Math.min(Math.max(qx, qy), 0) +
-    Math.sqrt(Math.max(qx, 0) ** 2 + Math.max(qy, 0) ** 2) -
-    r;
-
-  // Smoothstep for anti-aliasing
-  const t = Math.max(0, Math.min(1, (dist + smoothness) / (2 * smoothness)));
-  return 1 - t * t * (3 - 2 * t);
 }
 
 export const effectsComputeShaderSource = /* wgsl */ `
@@ -523,24 +445,6 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
  textureStore(outputTexture, coords, finalColor);
 }
 `;
-
-export interface EffectUniforms {
-  brightness: number; // 4 bytes
-  contrast: number; // 4 bytes
-  saturation: number; // 4 bytes
-  hue: number; // 4 bytes
-  temperature: number; // 4 bytes
-  tint: number; // 4 bytes
-  shadows: number; // 4 bytes
-  highlights: number; // 4 bytes
-}
-
-export interface BlurUniforms {
-  radius: number; // 4 bytes
-  sigma: number; // 4 bytes
-  directionX: number; // 4 bytes
-  directionY: number; // 4 bytes
-}
 
 export function createEffectUniformsBuffer(
   brightness: number = 0,

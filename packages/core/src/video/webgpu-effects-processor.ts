@@ -7,7 +7,7 @@ import {
   createDimensionsBuffer,
 } from "./shaders";
 
-export interface EffectParams {
+interface EffectParams {
   brightness: number;
   contrast: number;
   saturation: number;
@@ -18,12 +18,12 @@ export interface EffectParams {
   highlights: number;
 }
 
-export interface BlurParams {
+interface BlurParams {
   radius: number;
   sigma?: number;
 }
 
-export interface EffectsProcessorConfig {
+interface EffectsProcessorConfig {
   device: GPUDevice;
   width: number;
   height: number;

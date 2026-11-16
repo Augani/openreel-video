@@ -93,8 +93,6 @@ export interface BrushPoint {
   pressure: number;
 }
 
-export type RetouchingTool = "spotHeal" | "cloneStamp" | "redEyeRemoval";
-
 export interface CloneSource {
   x: number;
   y: number;

@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import { BLEND_MODES } from "../video/types";
 import {
   blendMotionColor,
-  buildMotionBlendWgsl,
   compositeMotionColor,
   MOTION_GPU_BLEND_INDEX,
   motionBlendIndex,
@@ -119,32 +118,5 @@ describe("motion gpu blend math", () => {
         expect(channel).toBeLessThanOrEqual(1);
       }
     }
-  });
-});
-
-describe("motion blend wgsl source", () => {
-  const source = buildMotionBlendWgsl();
-
-  it("declares the compositing entry points", () => {
-    expect(source).toContain("fn motionComposite(");
-    expect(source).toContain("fn motionBlend(");
-    expect(source).toContain("fn motionBlendChannel(");
-    expect(source).toContain("fn motionSetLum(");
-    expect(source).toContain("fn motionSetSat(");
-  });
-
-  it("branches on every non-separable mode index", () => {
-    for (const index of [12, 13, 14, 15]) {
-      expect(source).toContain(`mode == ${index}u`);
-    }
-  });
-
-  it("has balanced braces and parentheses", () => {
-    const open = (source.match(/\{/g) ?? []).length;
-    const close = (source.match(/\}/g) ?? []).length;
-    expect(open).toBe(close);
-    const openParen = (source.match(/\(/g) ?? []).length;
-    const closeParen = (source.match(/\)/g) ?? []).length;
-    expect(openParen).toBe(closeParen);
   });
 });

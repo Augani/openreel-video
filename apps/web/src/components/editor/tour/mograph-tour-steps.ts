@@ -1,4 +1,4 @@
-export interface MoGraphTourStep {
+interface MoGraphTourStep {
   id: string;
   target: string | null;
   title: string;

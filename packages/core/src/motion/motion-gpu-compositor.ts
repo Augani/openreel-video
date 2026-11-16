@@ -1,7 +1,7 @@
 import type { BlendMode } from "../video/types";
 import { buildMotionBlendWgsl, motionBlendIndex } from "./motion-gpu-blend";
 
-export type MotionGpuLayerImage = ImageBitmap | OffscreenCanvas | HTMLCanvasElement;
+type MotionGpuLayerImage = ImageBitmap | OffscreenCanvas | HTMLCanvasElement;
 
 export interface MotionGpuCompositeBackground {
   readonly r: number;
@@ -106,7 +106,7 @@ fn fs(in: VSOut) -> @location(0) vec4<f32> {
 `;
 }
 
-export function isMotionGpuCompositorSupported(): boolean {
+function isMotionGpuCompositorSupported(): boolean {
   return (
     typeof navigator !== "undefined" &&
     typeof (navigator as Navigator & { gpu?: unknown }).gpu !== "undefined" &&

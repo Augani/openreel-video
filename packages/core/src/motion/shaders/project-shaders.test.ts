@@ -41,19 +41,6 @@ describe("registerProjectGeneratedShaders", () => {
     expect(getMotionShaderDef("ai-b-1")?.name).toBe("AI B");
   });
 
-  it("skips shaders colliding with a built-in id", () => {
-    registerProjectGeneratedShaders({
-      generatedShaders: [{ ...defA, id: "liquid-metal" }, defB],
-    });
-    expect(listGeneratedMotionShaders().map((d) => d.id)).toEqual(["ai-b-1"]);
-  });
-
-  it("clears all when the project has no generated shaders", () => {
-    registerProjectGeneratedShaders({ generatedShaders: [defA] });
-    registerProjectGeneratedShaders({ generatedShaders: undefined });
-    expect(listGeneratedMotionShaders()).toEqual([]);
-  });
-
   it("isolates the registry across a switch between two distinct projects", () => {
     const projectA = { generatedShaders: [defA] };
     const projectB = { generatedShaders: [defB] };

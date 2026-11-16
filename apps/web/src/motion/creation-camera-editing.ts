@@ -17,7 +17,7 @@ export interface CreationCameraEditPatch {
   readonly active?: boolean;
 }
 
-export interface CreationCameraEditPlan {
+interface CreationCameraEditPlan {
   readonly scene: CreationScene;
   readonly camera: CreationCamera;
   readonly operations: readonly CreationOperation[];

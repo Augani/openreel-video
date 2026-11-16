@@ -1,28 +1,52 @@
 export {
-  type DeviceTier,
-  type CpuInfo,
-  type MemoryInfo,
-  type GpuInfo,
-  type DeviceCodecSupport,
-  type EncodingSupport,
   type BenchmarkResult,
   type DeviceProfile,
   type CodecRecommendation,
-  detectDeviceCapabilities,
   getDeviceProfile,
+  getRecommendedWorkerCount,
+  computeCacheBudget,
+  getRecommendedCacheBudget,
+  type CacheBudget,
+  type WorkerKind,
   getCodecRecommendations,
-  getResolutionRecommendations,
   saveBenchmarkResult,
-  clearBenchmarkCache,
   formatDeviceSummary,
 } from "./device-capabilities";
 
 export {
-  type ExportEstimateSettings,
   type TimeEstimate,
   type BenchmarkProgress,
   estimateExportTime,
-  compareCodecEstimates,
   runBenchmark,
   shouldRecommendBenchmark,
 } from "./export-estimator";
+
+export {
+  ByteBudgetCache,
+  type ByteBudgetCacheOptions,
+} from "./byte-budget-cache";
+
+export {
+  type MediaMemoryBudget,
+  computeMediaMemoryBudget,
+  getMediaMemoryBudget,
+  readDeviceMemoryBytes,
+  setMediaMemoryBudgetFromSystemMemory,
+  subscribeMediaMemoryBudget,
+} from "./media-memory-budget";
+
+export {
+  type MemoryPolicy,
+  type MemoryPressure,
+  type MemoryReading,
+  MemoryGovernor,
+  PRESSURE_THRESHOLDS,
+  computeGovernorLimit,
+  DECODER_BUDGET_SHARE,
+  DECODER_BYTES_PER_PIXEL,
+  estimateDecoderBytes,
+  getMemoryGovernor,
+  maxConcurrentDecoders,
+  nextPressure,
+  policyFor,
+} from "./memory-governor";

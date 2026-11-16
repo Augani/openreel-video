@@ -1,18 +1,11 @@
 import type { Action } from "../types/actions";
 
-export interface HistoryEntry {
+interface HistoryEntry {
   readonly action: Action;
   readonly inverseAction: Action | null;
   readonly timestamp: number;
   readonly description: string;
   readonly groupId?: string;
-}
-
-export interface ActionGroup {
-  id: string;
-  description: string;
-  actions: HistoryEntry[];
-  timestamp: number;
 }
 
 export interface HistorySnapshot {
@@ -26,6 +19,8 @@ const ACTION_DESCRIPTIONS: Record<
   string,
   (params: Record<string, unknown>) => string
 > = {
+  "timeline/toolEdit": (params) => typeof params.label === "string" ? params.label : "Edit clip timing",
+  "media/organize": (params) => typeof params.label === "string" ? params.label : "Organize media",
   "clip/add": () => "Add clip",
   "clip/remove": () => "Delete clip",
   "clip/move": () => "Move clip",
@@ -41,11 +36,17 @@ const ACTION_DESCRIPTIONS: Record<
   "track/duplicate": () => "Duplicate track",
   "track/remove": () => "Remove track",
   "track/rename": () => "Rename track",
+  "audioRack/set": (params) =>
+    params.target === "master" ? "Edit master audio rack" : "Edit track audio rack",
+  "trackAutomation/set": (params) => `Edit track ${params.lane} automation`,
+  "audioRouting/set": (params) => (typeof params.label === "string" && params.label ? params.label : "Edit audio routing"),
   "effect/add": (params) => `Add ${params.effectType} effect`,
   "effect/remove": () => "Remove effect",
   "effect/update": () => "Update effect",
   "effect/toggle": () => "Toggle effect",
   "effect/setStack": () => "Replace effect stack",
+  "effect/setStackState": () => "Update effects and keyframes",
+  "effectPreset/setAll": () => "Update effect presets",
   "transform/update": () => "Transform clip",
   "keyframe/add": (params) => `Add ${params.property} keyframe`,
   "keyframe/remove": () => "Remove keyframe",
@@ -59,7 +60,11 @@ const ACTION_DESCRIPTIONS: Record<
   "audio/addEffect": () => "Add audio effect",
   "audio/removeEffect": () => "Remove audio effect",
   "audio/updateEffect": () => "Update audio effect",
+  "audio/replaceEffect": () => "Update audio effect",
   "audio/toggleEffect": () => "Toggle audio effect",
+  "audio/setEssentialSound": (params) => (params.audioType ? `Set audio type: ${params.audioType}` : "Clear audio type"),
+  "audio/setSurroundPan": (params) => (params.pan ? "Set surround position" : "Reset surround position"),
+  "audio/setLiveDucking": (params) => (params.config ? "Duck under dialogue" : "Remove ducking"),
   "subtitle/add": () => "Add subtitle",
   "subtitle/remove": () => "Remove subtitle",
   "marker/add": () => "Add marker",
@@ -95,6 +100,7 @@ const AUTO_GROUPABLE_TYPES = new Set<string>([
   "effect/update",
   "audio/setVolume",
   "audio/setFade",
+  "audio/setSurroundPan",
   "audio/updateEffect",
   "transition/update",
   "clip/setBlendOpacity",
@@ -135,16 +141,24 @@ function getActionTargetId(action: Action): string | null {
   return null;
 }
 
+export interface AppliedActionEvent {
+  readonly kind: "edit" | "undo" | "redo";
+  readonly actions: readonly Action[];
+}
+
 export class ActionHistory {
   private undoStack: HistoryEntry[] = [];
   private redoStack: HistoryEntry[] = [];
   private maxHistorySize: number;
   private currentGroupId: string | null = null;
   private groupDepth = 0;
+  private groupSequence = 0;
   private snapshots: HistorySnapshot[] = [];
   private listeners: Set<() => void> = new Set();
   private lastActionTime: number = 0;
   private autoGroupWindow: number = 100;
+  private burstKey: string | null = null;
+  private openingBurst = false;
 
   constructor(maxHistorySize: number = 1000) {
     this.maxHistorySize = maxHistorySize;
@@ -159,10 +173,46 @@ export class ActionHistory {
     this.listeners.forEach((listener) => listener());
   }
 
-  push(action: Action, inverseAction: Action | null = null): void {
+  private appliedListeners = new Set<(event: AppliedActionEvent) => void>();
+
+  /**
+   * Observe every action this history's owner applied locally: edits (on push),
+   * undos and redos. Remote (collaborator) actions never reach it.
+   */
+  subscribeApplied(listener: (event: AppliedActionEvent) => void): () => void {
+    this.appliedListeners.add(listener);
+    return () => this.appliedListeners.delete(listener);
+  }
+
+  notifyApplied(event: AppliedActionEvent): void {
+    this.appliedListeners.forEach((listener) => listener(event));
+  }
+
+  /** Drop the entry (and its redo twin) for an action that was rolled back, e.g. rejected by a collaboration server. */
+  discard(actionId: string): boolean {
+    const before = this.undoStack.length + this.redoStack.length;
+    this.undoStack = this.undoStack.filter((e) => e.action.id !== actionId);
+    this.redoStack = this.redoStack.filter((e) => e.action.id !== actionId);
+    const changed = this.undoStack.length + this.redoStack.length !== before;
+    if (changed) this.notify();
+    return changed;
+  }
+
+  push(action: Action, inverseAction: Action | null = null, invocationGroupId?: string | null): void {
     const now = Date.now();
     const timeSinceLastAction = now - this.lastActionTime;
     this.lastActionTime = now;
+
+    // A coalescing burst (e.g. nudge keystrokes) only owns pushes carrying its
+    // own key; any other action closes it so it can never merge into the burst.
+    if (this.burstKey !== null) {
+      const burstGroup = this.currentGroupId;
+      const key = (action.params as Record<string, unknown> | undefined)?.burstKey;
+      if (key !== this.burstKey) {
+        this.endBurst();
+        if (invocationGroupId === burstGroup) invocationGroupId = null;
+      }
+    }
 
     const lastEntry =
       this.undoStack.length > 0
@@ -175,10 +225,11 @@ export class ActionHistory {
     // - The previous entry has the same type AND targets the same entity
     //   (same clipId, effectId, etc.), so two distinct operations don't
     //   collapse just because they happened back-to-back.
-    let groupId = this.currentGroupId;
+    let groupId = invocationGroupId === undefined ? this.currentGroupId : invocationGroupId;
     if (
       !groupId &&
       lastEntry &&
+      (!lastEntry.groupId || lastEntry.groupId.startsWith("auto-")) &&
       timeSinceLastAction < this.autoGroupWindow &&
       lastEntry.action.type === action.type &&
       AUTO_GROUPABLE_TYPES.has(action.type)
@@ -216,15 +267,46 @@ export class ActionHistory {
     }
 
     this.notify();
+    this.notifyApplied({ kind: "edit", actions: [action] });
   }
 
   beginGroup(_description?: string): string {
+    // A transaction opened while a coalescing burst is live gets its own group,
+    // so its first push is not detached from the rest of the transaction.
+    if (this.burstKey !== null && !this.openingBurst) this.endBurst();
     if (this.currentGroupId) {
       this.groupDepth += 1;
       return this.currentGroupId;
     }
-    this.currentGroupId = `group-${Date.now()}`;
+    this.currentGroupId = `group-${Date.now()}-${++this.groupSequence}`;
     this.groupDepth = 1;
+    return this.currentGroupId;
+  }
+
+  /** Open a group that only pushes tagged `params.burstKey === key` may join. */
+  beginBurst(key: string): void {
+    if (this.burstKey === key) return;
+    this.endBurst();
+    this.openingBurst = true;
+    try {
+      this.beginGroup(key);
+    } finally {
+      this.openingBurst = false;
+    }
+    this.burstKey = key;
+  }
+
+  hasBurst(key?: string): boolean {
+    return this.burstKey !== null && (key === undefined || this.burstKey === key);
+  }
+
+  endBurst(): void {
+    if (this.burstKey === null) return;
+    this.burstKey = null;
+    this.endGroup();
+  }
+
+  getCurrentGroupId(): string | null {
     return this.currentGroupId;
   }
 
@@ -243,6 +325,7 @@ export class ActionHistory {
   }
 
   undo(): Action | null {
+    this.endBurst();
     const entry = this.undoStack.pop();
     if (entry) {
       this.redoStack.push(entry);
@@ -275,6 +358,7 @@ export class ActionHistory {
   }
 
   redo(): Action | null {
+    this.endBurst();
     const entry = this.redoStack.pop();
     if (entry) {
       this.undoStack.push(entry);

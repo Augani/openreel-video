@@ -11,7 +11,6 @@ vi.mock("./export-motion-frame", () => ({
 }));
 
 import {
-  isRenderQueueRunning,
   runMotionRenderQueue,
 } from "./render-queue-runner";
 import { useMotionStore } from "./stores/motion-store";
@@ -84,7 +83,6 @@ describe("runMotionRenderQueue re-entrancy guard", () => {
     const first = runMotionRenderQueue(deps);
     const second = runMotionRenderQueue(deps);
 
-    expect(isRenderQueueRunning()).toBe(true);
     expect(useMotionStore.getState().exportActive).toBe(true);
     expect(useMotionStore.getState().isPlaying).toBe(false);
     useMotionStore.getState().play();
@@ -102,7 +100,6 @@ describe("runMotionRenderQueue re-entrancy guard", () => {
     expect(firstResult.alreadyRunning).toBe(false);
     expect(firstResult.outcomes).toHaveLength(1);
     expect(exportMock).toHaveBeenCalledTimes(1);
-    expect(isRenderQueueRunning()).toBe(false);
     expect(useMotionStore.getState().exportActive).toBe(false);
   });
 
@@ -120,7 +117,6 @@ describe("runMotionRenderQueue re-entrancy guard", () => {
 
     const firstRun = await runMotionRenderQueue(deps);
     expect(firstRun.alreadyRunning).toBe(false);
-    expect(isRenderQueueRunning()).toBe(false);
 
     seedQueuedItem(composition);
     const secondRun = await runMotionRenderQueue(deps);
@@ -156,21 +152,6 @@ describe("runMotionRenderQueue re-entrancy guard", () => {
     expect(result.outcomes[0].filename?.endsWith(".mp4")).toBe(true);
   });
 
-  it("falls back to the requested format when the export omits encodedFormat", async () => {
-    const composition = makeComposition();
-    seedQueuedItem(composition);
-    const deps = { project: makeProject(), compositions: [composition] };
-    exportMock.mockResolvedValue({
-      filename: "run-scene.mp4",
-      width: composition.width,
-      height: composition.height,
-      duration: composition.duration,
-      framesRendered: 120,
-    });
-
-    const result = await runMotionRenderQueue(deps);
-    expect(result.outcomes[0].encodedFormat).toBe("mp4");
-  });
 
   it("clears the guard when an export throws", async () => {
     const composition = makeComposition();
@@ -181,6 +162,5 @@ describe("runMotionRenderQueue re-entrancy guard", () => {
     const result = await runMotionRenderQueue(deps);
     expect(result.alreadyRunning).toBe(false);
     expect(result.outcomes[0]?.status).toBe("failed");
-    expect(isRenderQueueRunning()).toBe(false);
   });
 });

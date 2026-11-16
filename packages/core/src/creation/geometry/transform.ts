@@ -27,7 +27,7 @@ function multiplyMat3(a: Mat3, b: Mat3): Mat3 {
   ];
 }
 
-export function eulerDegreesToMat3(x: number, y: number, z: number): Mat3 {
+function eulerDegreesToMat3(x: number, y: number, z: number): Mat3 {
   const rx = degToRad(x);
   const ry = degToRad(y);
   const rz = degToRad(z);

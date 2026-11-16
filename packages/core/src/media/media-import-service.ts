@@ -1,4 +1,10 @@
 import { v4 as uuidv4 } from "uuid";
+import { claimNativeSource, isNativeContainerFile } from "./native-frame-source";
+import { classifyProMedia, proMediaProxyNotice, proMediaWebMessage } from "./pro-media";
+
+/** Import warning for a video the browser cannot decode (ProRes, DNxHD...); the UI shows it as a toast. */
+export const CODEC_UNSUPPORTED_WARNING =
+  "This browser cannot decode this video's codec (for example ProRes or DNxHD), so it can only play through a proxy. The OpenReel desktop app plays it directly.";
 import type { MediaItem, MediaMetadata } from "../types/project";
 import type {
   ProcessedMedia,
@@ -51,7 +57,8 @@ function presetFromSettings(settings?: Partial<ProxySettings>): "low" | "medium"
   return "medium";
 }
 
-export interface MediaImportOptions {
+interface MediaImportOptions {
+  onProgress?: (stage: string) => void;
   generateThumbnails?: boolean;
   thumbnailCount?: number;
   thumbnailWidth?: number;
@@ -62,6 +69,7 @@ export interface MediaImportOptions {
 }
 
 const DEFAULT_OPTIONS: Required<MediaImportOptions> = {
+  onProgress: () => {},
   generateThumbnails: true,
   thumbnailCount: 5,
   thumbnailWidth: 320,
@@ -70,6 +78,20 @@ const DEFAULT_OPTIONS: Required<MediaImportOptions> = {
   useFallback: true,
   quickMode: false,
 };
+
+/**
+ * Files above this size are not probed for extra audio tracks with ffmpeg.wasm: the probe writes the WHOLE
+ * file into WebAssembly memory (a transient ArrayBuffer plus the MEMFS copy), which for three 4K long-GOP
+ * sources was 1.7 GB of the import peak (memory-infra: partition_alloc/array_buffer). The count mediabunny
+ * already took from the container index (`getAudioTracks`) is used instead.
+ */
+export const FFMPEG_AUDIO_PROBE_MAX_BYTES = 64 * 1024 * 1024;
+
+/** Whether the second-opinion ffmpeg audio-stream probe is worth reading the file for. */
+export function shouldProbeAudioStreamsWithFfmpeg(audioTrackCount: number | undefined, fileSize: number): boolean {
+  if (audioTrackCount !== undefined && audioTrackCount > 1) return false;
+  return audioTrackCount === undefined || fileSize <= FFMPEG_AUDIO_PROBE_MAX_BYTES;
+}
 
 export class MediaImportService {
   private mediaEngine: MediaBunnyEngine;
@@ -100,16 +122,25 @@ export class MediaImportService {
   ): Promise<MediaImportResult> {
     const opts = { ...DEFAULT_OPTIONS, ...options };
     const warnings: string[] = [];
-    const validation = await this.validateFormat(file);
+    opts.onProgress?.("Reading file format");
+    // Desktop: an MXF (DNxHD/DNxHR, XDCAM, AVC-Intra...) has no browser demuxer; the sidecar reads it directly.
+    const nativeContainer = isNativeContainerFile(file) && (await claimNativeSource(file)) !== null;
+    const validation = nativeContainer ? { supported: true, format: file.type || "video/mxf" } : await this.validateFormat(file);
     if (!validation.supported) {
+      const proMessage = proMediaWebMessage(file);
       // Try FFmpeg fallback if enabled
       if (opts.useFallback) {
         try {
-          return await this.importWithFallback(file, opts);
+          const converted = await this.importWithFallback(file, opts);
+          const pro = classifyProMedia(file.name, file.type);
+          // The web build edits a converted proxy of pro media: say so, with what the desktop app does instead.
+          return pro && converted.success
+            ? { ...converted, warnings: [proMediaProxyNotice(pro.label), ...(converted.warnings ?? [])] }
+            : converted;
         } catch (fallbackError) {
           return {
             success: false,
-            error: validation.error || "Unsupported format",
+            error: proMessage ?? (validation.error || "Unsupported format"),
             warnings: [
               `FFmpeg fallback also failed: ${
                 fallbackError instanceof Error
@@ -123,13 +154,14 @@ export class MediaImportService {
 
       return {
         success: false,
-        error: validation.error || "Unsupported format",
+        error: proMessage ?? (validation.error || "Unsupported format"),
       };
     }
 
     try {
+      opts.onProgress?.("Reading media metadata");
       const metadata = await this.mediaEngine.extractMetadata(file);
-      const mediaType = inferMediaType(file.type);
+      const mediaType = inferMediaType(file.type) ?? (nativeContainer ? "video" : null);
 
       if (!mediaType) {
         return {
@@ -138,11 +170,9 @@ export class MediaImportService {
         };
       }
 
-      if (
-        metadata.hasAudio &&
-        (metadata.audioTrackCount === undefined || metadata.audioTrackCount <= 1)
-      ) {
+      if (metadata.hasAudio && shouldProbeAudioStreamsWithFfmpeg(metadata.audioTrackCount, file.size)) {
         try {
+          opts.onProgress?.("Checking audio tracks");
           const probeResult = await this.probeAudioStreamsCompat(file);
           if (probeResult.audioStreamCount > 1) {
             metadata.audioTrackCount = probeResult.audioStreamCount;
@@ -152,15 +182,27 @@ export class MediaImportService {
         }
       }
 
+      // Desktop: codecs WebCodecs cannot decode (ProRes...) are decoded by the ffmpeg sidecar on demand,
+      // so the file plays as imported: no warning, no browser-side transcode, no waiting for a proxy.
+      const nativeDecoded =
+        metadata.hasVideo &&
+        !(metadata.canDecodeVideo ?? metadata.canDecode) &&
+        (await claimNativeSource(file)) !== null;
+      if (nativeDecoded) {
+        metadata.canDecode = true;
+        metadata.canDecodeVideo = true;
+      }
+
       const needsTranscode =
-        !metadata.canDecode ||
-        (file.type === "video/quicktime" &&
-          !(await this.canBrowserPlay(file)));
+        !nativeDecoded &&
+        (!metadata.canDecode ||
+          (file.type === "video/quicktime" &&
+            !(await this.canBrowserPlay(file))));
 
       if (needsTranscode) {
         if (!metadata.canDecode) {
           warnings.push(
-            "Codec may not be fully supported. Playback might be limited.",
+            CODEC_UNSUPPORTED_WARNING,
           );
         }
 
@@ -182,6 +224,7 @@ export class MediaImportService {
       if (opts.generateThumbnails && !opts.quickMode) {
         if (mediaType === "video" && metadata.hasVideo) {
           try {
+            opts.onProgress?.("Creating video thumbnails");
             thumbnails = await this.mediaEngine.generateThumbnails(
               file,
               opts.thumbnailCount,
@@ -243,6 +286,7 @@ export class MediaImportService {
       let waveformData: WaveformData | null = null;
       if (opts.generateWaveform && metadata.hasAudio && !opts.quickMode) {
         try {
+          opts.onProgress?.("Creating audio waveform");
           waveformData = await this.mediaEngine.generateWaveform(
             file,
             opts.waveformSamplesPerSecond,
@@ -357,7 +401,7 @@ export class MediaImportService {
     const mediaType = inferMediaType(compatibleFile.type) || "video";
 
     // Probe original file for audio tracks since WebM transcode may lose them
-    if (metadata.audioTrackCount === undefined || metadata.audioTrackCount <= 1) {
+    if (shouldProbeAudioStreamsWithFfmpeg(metadata.audioTrackCount, file.size)) {
       try {
         const probeResult = await this.probeAudioStreamsCompat(file);
         if (probeResult.audioStreamCount > 1) {
@@ -447,6 +491,7 @@ export class MediaImportService {
       channels: processedMedia.metadata.channels,
       fileSize: processedMedia.metadata.fileSize,
       audioTrackCount: processedMedia.metadata.audioTrackCount,
+      ...(processedMedia.metadata.sourceColor ? { sourceColor: processedMedia.metadata.sourceColor } : {}),
     };
 
     return {
@@ -686,7 +731,7 @@ export class MediaImportService {
 }
 let importServiceInstance: MediaImportService | null = null;
 
-export function getMediaImportService(): MediaImportService {
+function getMediaImportService(): MediaImportService {
   if (!importServiceInstance) {
     importServiceInstance = new MediaImportService();
   }

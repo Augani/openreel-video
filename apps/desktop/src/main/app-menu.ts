@@ -1,6 +1,11 @@
 import { Menu, type MenuItemConstructorOptions, type BrowserWindow } from "electron";
+import { isNativeDialogOpen } from "./native-dialog-state";
 
-export interface MenuNode {
+const nativeEditSelectors = new Map([
+  ["selectAll", "selectAll:"], ["undo", "undo:"], ["redo", "redo:"],
+]);
+
+interface MenuNode {
   label: string;
   accelerator?: string;
   role?: string;
@@ -29,6 +34,7 @@ export function buildMenuTemplate(platform: string): MenuNode[] {
       { label: "New Project", accelerator: "CmdOrCtrl+N", actionId: "newProject" },
       { label: "Open…", accelerator: "CmdOrCtrl+O", actionId: "open" },
       { label: "Export…", accelerator: "CmdOrCtrl+E", actionId: "export" },
+      { label: "Collaborate…", accelerator: "Shift+CmdOrCtrl+J", actionId: "collaborate" },
     ],
   });
   template.push({
@@ -39,10 +45,15 @@ export function buildMenuTemplate(platform: string): MenuNode[] {
       { label: "Cut", role: "cut" },
       { label: "Copy", role: "copy" },
       { label: "Paste", role: "paste" },
+      { label: "Select All", accelerator: "CmdOrCtrl+A", actionId: "selectAll" },
       ...(!isMac
         ? [{ label: "Settings…", accelerator: "Ctrl+,", actionId: "settings" }]
         : []),
     ],
+  });
+  template.push({
+    label: "Effects",
+    submenu: [{ label: "Manage Plugins…", actionId: "managePlugins" }],
   });
   template.push({
     label: "View",
@@ -67,7 +78,9 @@ export function buildMenuTemplate(platform: string): MenuNode[] {
   template.push({
     label: "Help",
     submenu: [
-      { label: "OpenReel Help" },
+      { label: "Welcome & Setup…", actionId: "showWelcomeSetup" },
+      { label: "Learn OpenReel…", actionId: "openLessons" },
+      { label: "Connect an AI Agent…", actionId: "connectAgent" },
       { label: "Open Source Licenses", actionId: "openLicenses" },
     ],
   });
@@ -92,6 +105,12 @@ export function installApplicationMenu(platform: string, onAction: (id: string) 
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
 
-export function sendMenuAction(win: BrowserWindow | null, id: string): void {
+export function sendMenuAction(win: BrowserWindow | null, id: string, platform = process.platform): void {
+  const selector = nativeEditSelectors.get(id);
+  // A macOS chooser owns its text fields even when the editor is behind it.
+  if (platform === "darwin" && selector && isNativeDialogOpen()) {
+    Menu.sendActionToFirstResponder(selector);
+    return;
+  }
   if (win) win.webContents.send("openreel:menu:action", id);
 }

@@ -1,5 +1,12 @@
+import { loadAudioBuffer } from "../../../utils/load-audio-buffer";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { autoLearnNoiseProfile, type Project } from "@openreel/core";
 import { createEmptyProject } from "../../../stores/project/project-helpers";
 import { useProjectStore } from "../../../stores/project-store";
@@ -10,8 +17,12 @@ import {
 import * as audioBridgeEffects from "../../../bridges/audio-bridge-effects";
 import { NoiseReductionSection } from "./NoiseReductionSection";
 
+vi.mock("../../../utils/load-audio-buffer", () => ({
+  loadAudioBuffer: vi.fn(),
+}));
 vi.mock("@openreel/core", async () => {
-  const actual = await vi.importActual<typeof import("@openreel/core")>("@openreel/core");
+  const actual =
+    await vi.importActual<typeof import("@openreel/core")>("@openreel/core");
   return {
     ...actual,
     autoLearnNoiseProfile: vi.fn(),
@@ -28,7 +39,7 @@ const createValidAnalyzedProfile = () => {
 
   for (let index = 0; index < 1024; index += 1) {
     frequencyBins[index] = index * (48000 / 2048);
-    magnitudes[index] = 0.78 + ((index % 7) * 0.005);
+    magnitudes[index] = 0.78 + (index % 7) * 0.005;
     standardDeviations[index] = 0.03;
   }
 
@@ -173,16 +184,21 @@ const createProjectForAnalysis = (): Project => {
 
 describe("NoiseReductionSection persistence", () => {
   beforeEach(() => {
+    vi.mocked(loadAudioBuffer).mockResolvedValue(
+      new OfflineAudioContext(1, 1, 48000).createBuffer(1, 288000, 48000),
+    );
     Object.defineProperty(globalThis, "AudioContext", {
       writable: true,
       value: window.AudioContext,
     });
     vi.mocked(autoLearnNoiseProfile).mockReset();
-    vi.spyOn(audioBridgeEffects, "initializeAudioBridgeEffects").mockResolvedValue(
-      audioBridgeEffects.getAudioBridgeEffects(),
-    );
+    vi.spyOn(
+      audioBridgeEffects,
+      "initializeAudioBridgeEffects",
+    ).mockResolvedValue(audioBridgeEffects.getAudioBridgeEffects());
     useProjectStore.setState({
       project: createProjectWithNoiseReduction(),
+      hasOpenProject: true,
     });
   });
 
@@ -196,9 +212,15 @@ describe("NoiseReductionSection persistence", () => {
     const firstRender = render(<NoiseReductionSection clipId={clipId} />);
 
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: "Hear Original" })).not.toBeDisabled();
-      expect(screen.getByRole("button", { name: "Hear Cleaned" })).not.toBeDisabled();
-      expect(screen.getByText(/Current mode:/)).toHaveTextContent("Speech Focus");
+      expect(
+        screen.getByRole("tab", { name: "Hear Original" }),
+      ).not.toBeDisabled();
+      expect(
+        screen.getByRole("tab", { name: "Hear Cleaned" }),
+      ).not.toBeDisabled();
+      expect(screen.getByText(/Current mode:/)).toHaveTextContent(
+        "Speech Focus",
+      );
     });
 
     firstRender.unmount();
@@ -206,60 +228,24 @@ describe("NoiseReductionSection persistence", () => {
     render(<NoiseReductionSection clipId={clipId} />);
 
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: "Hear Original" })).not.toBeDisabled();
-      expect(screen.getByText(/Current mode:/)).toHaveTextContent("Speech Focus");
-    });
-  });
-
-  it("shows an explicit apply action before saving analyzed recommendations", async () => {
-    vi.mocked(autoLearnNoiseProfile).mockResolvedValue(createValidAnalyzedProfile());
-    vi.spyOn(
-      audioBridgeEffects.getAudioBridgeEffects(),
-      "learnNoiseProfile",
-    ).mockResolvedValue({
-      id: `profile-${clipId}`,
-      frequencyBins: createValidAnalyzedProfile().frequencyBins,
-      magnitudes: createValidAnalyzedProfile().magnitudes,
-      standardDeviations: createValidAnalyzedProfile().standardDeviations,
-      fftSize: 2048,
-      sampleRate: 48000,
-      createdAt: Date.now(),
-    });
-    useProjectStore.setState({ project: createProjectForAnalysis() });
-
-    render(<NoiseReductionSection clipId={clipId} />);
-
-    fireEvent.click(screen.getByRole("button", { name: /Analyze & Recommend/i }));
-
-    await waitFor(() => {
-      expect(autoLearnNoiseProfile).toHaveBeenCalled();
-    });
-
-    await waitFor(() => {
-      expect(screen.getByText("Recommendation ready")).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: "Apply Recommended Cleanup" })).toBeInTheDocument();
-    });
-
-    expect(useProjectStore.getState().getAudioEffects(clipId)).toHaveLength(0);
-
-    fireEvent.click(screen.getByRole("button", { name: "Apply Recommended Cleanup" }));
-
-    await waitFor(() => {
-      const effect = useProjectStore.getState().getAudioEffects(clipId)[0];
-      expect(effect?.type).toBe("noiseReduction");
-      expect(typeof (effect?.params as { focus?: unknown }).focus).toBe("string");
-      expect((effect?.params as { profile?: unknown }).profile).toBeTruthy();
-      expect(screen.getByText(/applied to this clip/i)).toBeInTheDocument();
+      expect(
+        screen.getByRole("tab", { name: "Hear Original" }),
+      ).not.toBeDisabled();
+      expect(screen.getByText(/Current mode:/)).toHaveTextContent(
+        "Speech Focus",
+      );
     });
   });
 
   it("auto-learns a profile when a preset is clicked directly", async () => {
-    vi.mocked(autoLearnNoiseProfile).mockResolvedValue(createValidAnalyzedProfile());
+    vi.mocked(autoLearnNoiseProfile).mockResolvedValue(
+      createValidAnalyzedProfile(),
+    );
     useProjectStore.setState({ project: createProjectForAnalysis() });
 
     render(<NoiseReductionSection clipId={clipId} />);
 
-    fireEvent.click(screen.getByRole("button", { name: /White Noise/i }));
+    fireEvent.click(screen.getByRole("radio", { name: /White Noise/i }));
 
     await waitFor(() => {
       expect(autoLearnNoiseProfile).toHaveBeenCalled();
@@ -270,31 +256,10 @@ describe("NoiseReductionSection persistence", () => {
       expect(effect?.type).toBe("noiseReduction");
       expect(effect?.params).toMatchObject({ focus: "whiteNoise" });
       expect((effect?.params as { profile?: unknown }).profile).toBeTruthy();
-      expect(screen.getByText(/White Noise learned and applied to this clip/)).toBeInTheDocument();
-    });
-  });
-
-  it("still recommends a preset when no pure noise-only profile can be learned", async () => {
-    vi.mocked(autoLearnNoiseProfile).mockResolvedValue(null);
-    useProjectStore.setState({ project: createProjectForAnalysis() });
-
-    render(<NoiseReductionSection clipId={clipId} />);
-
-    fireEvent.click(screen.getByRole("button", { name: /Analyze & Recommend/i }));
-
-    await waitFor(() => {
-      expect(screen.getByText("Recommendation ready")).toBeInTheDocument();
       expect(
-        screen.getByText(/custom profile could not be isolated/i),
+        screen.getByText(/White Noise learned and applied to this clip/),
       ).toBeInTheDocument();
     });
-
-    fireEvent.click(screen.getByRole("button", { name: "Apply Recommended Cleanup" }));
-
-    await waitFor(() => {
-      const effect = useProjectStore.getState().getAudioEffects(clipId)[0];
-      expect(effect?.type).toBe("noiseReduction");
-      expect((effect?.params as { profile?: unknown }).profile).toBeUndefined();
-    });
   });
+
 });

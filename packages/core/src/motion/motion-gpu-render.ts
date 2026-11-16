@@ -10,7 +10,7 @@ import {
 } from "./motion-renderer";
 import type { MotionComposition } from "./types";
 
-export interface MotionHighQualityRenderOptions {
+interface MotionHighQualityRenderOptions {
   readonly compositionLibrary?: readonly MotionComposition[];
   readonly assetResolver?: MotionRendererAssetResolver;
   readonly variableOverrides?: Record<string, string | number | boolean>;

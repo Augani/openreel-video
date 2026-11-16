@@ -17,13 +17,19 @@ import type {
 } from "./types";
 import {
   ProjectSerializer,
+  PROJECT_READER_VERSION,
+  CLIP_FRAGMENTS_CAPABILITY,
+  MULTI_SEQUENCE_MIN_READER_VERSION,
   SCHEMA_VERSION,
   normalizeMotionComposition,
   normalizeProjectCreationFields,
   normalizeProjectMotionFields,
+  normalizeProjectTextStyles,
+  normalizeProjectStoredFields,
 } from "./project-serializer";
 import { createCreationScene, createEmptyCreationState } from "../creation";
 import { UNIVERSAL_TRACKS_CAPABILITY } from "../timeline/timeline-items";
+import { DEFAULT_TEXT_STYLE, DEFAULT_TEXT_TRANSFORM } from "../text/types";
 
 const makeVideoLayer = (
   overrides: Partial<MotionVideoLayer> = {},
@@ -151,6 +157,37 @@ class MemoryStorageEngine implements IStorageEngine {
   close(): void {}
 }
 
+describe("fragment project compatibility", () => {
+  const clockedProject = () => makeProject({ textClips: [{
+    id: "caption", trackId: "titles", startTime: 0, duration: 2, text: "Retained material",
+    style: DEFAULT_TEXT_STYLE, transform: DEFAULT_TEXT_TRANSFORM,
+    keyframes: [{ id: "before-cut", time: -1, property: "opacity", value: 0, easing: "linear" }],
+  }] });
+  it("declares retained clocks in ordinary JSON files and stored saves without mutating the live project", async () => {
+    const storage = new MemoryStorageEngine(), serializer = new ProjectSerializer(storage), project = clockedProject();
+    const file = JSON.parse(serializer.exportToJson(project));
+    expect(file.version).toBe(SCHEMA_VERSION);
+    expect(file.minimumReaderVersion).toBe(PROJECT_READER_VERSION);
+    expect(file.capabilities).toContain(CLIP_FRAGMENTS_CAPABILITY);
+    expect(serializer.importFromJson(JSON.stringify(file)).textClips).toEqual(project.textClips);
+    await serializer.saveProject(project);
+    const restored = await serializer.loadProject(project.id);
+    expect(restored?.minimumReaderVersion).toBe(PROJECT_READER_VERSION);
+    expect(restored?.textClips).toEqual(project.textClips);
+    expect(project.minimumReaderVersion).toBeUndefined();
+    expect(project.capabilities).toBeUndefined();
+  });
+  it("keeps ordinary projects unchanged and preserves a higher declared reader minimum", async () => {
+    const storage = new MemoryStorageEngine(), serializer = new ProjectSerializer(storage);
+    expect(JSON.parse(serializer.exportToJson(makeProject())).minimumReaderVersion).toBeUndefined();
+    const future = makeProject({ ...clockedProject(), capabilities: [UNIVERSAL_TRACKS_CAPABILITY], minimumReaderVersion: "9.0.0" });
+    expect(JSON.parse(serializer.exportToJson(future)).minimumReaderVersion).toBe("9.0.0");
+    await serializer.saveProject(future);
+    await expect(serializer.loadProject(future.id)).rejects.toThrow(/reader 9\.0\.0/);
+    expect(() => serializer.importFromJson(JSON.stringify({ version: SCHEMA_VERSION, project: future }))).toThrow(/reader 9\.0\.0/);
+  });
+});
+
 describe("normalizeMotionComposition", () => {
   it("defaults audioClips to [] when missing", () => {
     const composition = makeComposition();
@@ -270,6 +307,31 @@ describe("normalizeProjectCreationFields", () => {
 });
 
 describe("ProjectSerializer round-trip", () => {
+  it("upgrades saved iris intent while preserving text material and manual animation", () => {
+    const serializer = new ProjectSerializer(new MemoryStorageEngine());
+    const manual = { id: "manual", property: "rotation", time: 1, value: 25, easing: "linear" as const };
+    const style = { ...DEFAULT_TEXT_STYLE, color: "rgba(30, 40, 50, 0.4)",
+      shader: { shaderId: "paper-mesh-gradient", params: { color1: "#ee44aa" } } };
+    const transform = { ...DEFAULT_TEXT_TRANSFORM, scale: { x: -0.8, y: 1.2 }, opacity: 0.4,
+      rotate3d: { x: 5, y: 10, z: 15 }, perspective: 600 };
+    const legacy = ["scale.x", "scale.y", "opacity"].flatMap((property) => [
+      { id: `kf-entry-iris-star-${property}-0`, property, time: 0, value: property === "opacity" ? 0.5 : 0, easing: "ease-out" as const },
+      { id: `kf-entry-iris-star-${property}-1`, property, time: 0.5, value: property === "scale.x" ? -0.8 : property === "scale.y" ? 1.2 : 0.4, easing: "ease-out" as const },
+    ]);
+    const project = makeProject({ textClips: [{ id: "title", text: "Keep my material", trackId: "titles",
+      startTime: 0, duration: 4, style, transform, keyframes: [manual, ...legacy] }] });
+    const imported = serializer.importFromJson(JSON.stringify({ version: SCHEMA_VERSION, project }));
+    const clip = imported.textClips![0];
+    expect(clip.style).toEqual(style);
+    expect(clip.transform).toEqual(transform);
+    expect(clip.keyframes).toEqual([manual,
+      expect.objectContaining({ property: "effect.iris-star", time: 0, value: 0, easing: "ease-out" }),
+      expect.objectContaining({ property: "effect.iris-star", time: 0.5, value: 1, easing: "ease-out" }),
+    ]);
+    expect(serializer.importFromJson(serializer.exportToJson(imported)).textClips).toEqual(imported.textClips);
+    expect(project.textClips![0].keyframes).toHaveLength(7);
+  });
+
   it("writes the universal-track reader requirement and preserves it", () => {
     const serializer = new ProjectSerializer(new MemoryStorageEngine());
     const project = makeProject({
@@ -306,6 +368,29 @@ describe("ProjectSerializer round-trip", () => {
     expect(serializer.validateProjectJson(json)).toMatchObject({
       valid: false,
     });
+  });
+
+  // The validator compared the file's minimum reader against the SCHEMA version (1.2.0), so any
+  // file declaring clip clocks (1.3.0) or multiple sequences (1.4.0) was rejected on package and
+  // script import even though the reader itself accepts them.
+  it("validates files that need the clip-clock or multi-sequence reader this build supports", () => {
+    const serializer = new ProjectSerializer(new MemoryStorageEngine());
+    for (const minimumReaderVersion of [PROJECT_READER_VERSION, MULTI_SEQUENCE_MIN_READER_VERSION]) {
+      const json = JSON.stringify({ version: SCHEMA_VERSION, minimumReaderVersion, project: makeProject() });
+      expect(serializer.validateProjectJson(json), minimumReaderVersion).toMatchObject({ valid: true });
+      expect(serializer.importFromJsonWithValidation(json).project).not.toBeNull();
+    }
+    const newer = JSON.stringify({ version: SCHEMA_VERSION, minimumReaderVersion: "1.5.0", project: makeProject() });
+    expect(serializer.validateProjectJson(newer)).toMatchObject({ valid: false });
+  });
+
+  it("does not flag a sequence nest or compound clip as pointing at a missing media item", () => {
+    const serializer = new ProjectSerializer(new MemoryStorageEngine());
+    const project = makeProject();
+    const nest = { id: "nest-1", mediaId: "compound:seq-2", trackId: "t1", startTime: 0, duration: 2, inPoint: 0, outPoint: 2, effects: [], audioEffects: [], transform: DEFAULT_TEXT_TRANSFORM, volume: 1, keyframes: [] };
+    const withNest = { ...project, timeline: { ...project.timeline, tracks: [{ id: "t1", type: "video", name: "V1", clips: [nest], transitions: [], locked: false, hidden: false, muted: false, solo: false }] } };
+    const json = JSON.stringify({ version: SCHEMA_VERSION, project: withNest });
+    expect(serializer.validateProjectJson(json)).toMatchObject({ valid: true, errors: [] });
   });
 
   it("preserves audioClips and video layers through export/import", () => {
@@ -400,3 +485,26 @@ describe("ProjectSerializer generatedShaders", () => {
     expect(imported.generatedShaders).toEqual([]);
   });
 });
+
+describe("normalizeProjectTextStyles", () => {
+  it("gives a text clip saved without a style the default style, seeded from legacy top-level fields", () => {
+    const project = {
+      textClips: [
+        { id: "a", trackId: "t", startTime: 0, duration: 1, text: "Legacy", fontFamily: "Roboto", fontSize: 64, color: "#ff0000" },
+        { id: "b", trackId: "t", startTime: 0, duration: 1, text: "Partial", style: { color: "#00ff00" } },
+      ],
+    } as unknown as Project;
+    const out = normalizeProjectTextStyles(project);
+    expect(out.textClips?.[0].style).toEqual({ ...DEFAULT_TEXT_STYLE, fontFamily: "Roboto", fontSize: 64, color: "#ff0000" });
+    expect(out.textClips?.[1].style).toEqual({ ...DEFAULT_TEXT_STYLE, color: "#00ff00" });
+  });
+
+  it("leaves complete styles untouched and runs as part of the stored-field normalization", () => {
+    const styled = { id: "c", trackId: "t", startTime: 0, duration: 1, text: "Ok", style: { ...DEFAULT_TEXT_STYLE, fontFamily: "Lora" }, transform: DEFAULT_TEXT_TRANSFORM };
+    const project = { textClips: [styled] } as unknown as Project;
+    expect(normalizeProjectTextStyles(project)).toBe(project);
+    const stored = normalizeProjectStoredFields(makeProject({ textClips: [{ id: "d", trackId: "t", startTime: 0, duration: 1, text: "x" }] } as unknown as Partial<Project>));
+    expect(stored.textClips?.[0].style?.fontWeight).toBe(DEFAULT_TEXT_STYLE.fontWeight);
+  });
+});
+

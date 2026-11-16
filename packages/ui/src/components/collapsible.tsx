@@ -46,12 +46,14 @@ Collapsible.displayName = "Collapsible"
 const CollapsibleTrigger = CollapsiblePrimitive.CollapsibleTrigger
 
 interface CollapsibleContentProps
-  extends Omit<React.ComponentPropsWithoutRef<typeof CollapsiblePrimitive.CollapsibleContent>, 'forceMount'> {}
+  extends Omit<React.ComponentPropsWithoutRef<typeof CollapsiblePrimitive.CollapsibleContent>, 'forceMount'> {
+  onAnimationComplete?: React.ComponentProps<typeof motion.div>["onAnimationComplete"]
+}
 
 const CollapsibleContent = React.forwardRef<
   React.ElementRef<typeof motion.div>,
   CollapsibleContentProps
->(({ className, children, ...props }, ref) => {
+>(({ className, children, onAnimationComplete, ...props }, ref) => {
   const { open } = React.useContext(CollapsibleContext)
 
   return (
@@ -60,6 +62,7 @@ const CollapsibleContent = React.forwardRef<
         <CollapsiblePrimitive.CollapsibleContent forceMount asChild {...props}>
           <motion.div
             ref={ref}
+            onAnimationComplete={onAnimationComplete}
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}

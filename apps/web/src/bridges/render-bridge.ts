@@ -11,12 +11,13 @@ import {
   getVideoEffectsEngine,
   TransitionEngine,
   createTransitionEngine,
+  getAnimatedVideoEffects,
 } from "@openreel/core";
 import { useEngineStore } from "../stores/engine-store";
 import { useProjectStore } from "../stores/project-store";
 import { useTimelineStore } from "../stores/timeline-store";
 
-export interface ColorAdjustments {
+interface ColorAdjustments {
   brightness?: number;
   contrast?: number;
   saturation?: number;
@@ -27,28 +28,28 @@ export interface ColorAdjustments {
   highlights?: number;
 }
 
-export interface RenderStats {
+interface RenderStats {
   lastRenderTime: number;
   avgRenderTime: number;
   framesRendered: number;
   renderErrors: number;
 }
 
-export interface FrameCacheConfig {
+interface FrameCacheConfig {
   maxFrames: number;
   maxSizeBytes: number;
   preloadAhead: number;
   preloadBehind: number;
 }
 
-export interface CachedFrameEntry {
+interface CachedFrameEntry {
   frame: RenderedFrame;
   key: string;
   sizeBytes: number;
   lastAccessed: number;
 }
 
-export interface FrameCacheStats {
+interface FrameCacheStats {
   entries: number;
   sizeBytes: number;
   hitRate: number;
@@ -164,8 +165,8 @@ export class RenderBridge {
    * @param time - Time in seconds to render
    * @returns The rendered frame or null if rendering failed
    */
-  async renderFrame(time: number): Promise<RenderedFrame | null> {
-    if (!this.initialized || !this.videoEngine) {
+  async renderFrame(time: number, canPresent: () => boolean = () => true): Promise<RenderedFrame | null> {
+    if (!this.initialized || !this.videoEngine || !canPresent()) {
       return null;
     }
 
@@ -182,6 +183,11 @@ export class RenderBridge {
         undefined,
         { realtime: true },
       );
+
+      if (!canPresent()) {
+        frame?.image.close();
+        return null;
+      }
 
       // Draw to canvas if available
       if (this.canvas && this.ctx && frame) {
@@ -318,19 +324,29 @@ export class RenderBridge {
    *
    * @param frame - The rendered frame to apply effects to
    * @param clipId - The clip ID to get effects from
+   * @param clipLocalTime - Seconds since the clip started. Defaults to the
+   *   timeline playhead minus the clip start. Time-driven effects (VHS /
+   *   glitch) and effect keyframes are sampled at this time, matching the
+   *   engine render path.
    * @returns Frame with effects applied
    */
   async applyClipEffects(
     frame: ImageBitmap,
     clipId: string,
+    clipLocalTime?: number,
   ): Promise<ImageBitmap> {
     const project = useProjectStore.getState().project;
 
     // Find the clip in the timeline
     for (const track of project.timeline.tracks) {
       const clip = track.clips.find((c) => c.id === clipId);
-      if (clip && clip.effects && clip.effects.length > 0) {
-        return this.applyEffects(frame, clip.effects);
+      if (clip && ((clip.effects?.length ?? 0) > 0 || (clip.keyframes?.length ?? 0) > 0)) {
+        const localTime =
+          clipLocalTime ??
+          Math.max(0, useTimelineStore.getState().playheadPosition - clip.startTime);
+        const effects = getAnimatedVideoEffects(clip, localTime);
+        if (effects.length === 0) return frame;
+        return this.applyEffects(frame, effects);
       }
     }
 

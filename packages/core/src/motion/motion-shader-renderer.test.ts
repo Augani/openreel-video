@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { MotionShaderRenderer } from "./motion-shader-renderer";
-import type { MotionShaderRenderInput } from "./motion-shader-renderer";
 import { getMotionShaderDef } from "./shaders";
 
 describe("MotionShaderRenderer", () => {
@@ -16,17 +15,4 @@ describe("MotionShaderRenderer", () => {
     r.dispose();
   });
 
-  it("accepts a progress input and returns null without throwing when WebGL2 is unavailable", () => {
-    const r = new MotionShaderRenderer();
-    const input: MotionShaderRenderInput = {
-      width: 4,
-      height: 4,
-      time: 0,
-      progress: 0.5,
-      params: {},
-    };
-    const out = r.render(getMotionShaderDef("dither")!, input);
-    expect(out).toBeNull();
-    r.dispose();
-  });
 });

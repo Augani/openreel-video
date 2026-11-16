@@ -16,7 +16,7 @@ export interface BeatSyncState {
   beatAnalysis: TimelineBeatAnalysis | null;
 }
 
-export interface BeatSyncOptions {
+interface BeatSyncOptions {
   snapToBeats: boolean;
   snapThreshold: number;
   autoZoomOnBeats: boolean;
@@ -25,7 +25,7 @@ export interface BeatSyncOptions {
   beatsPerCut: number;
 }
 
-export const DEFAULT_BEAT_SYNC_OPTIONS: BeatSyncOptions = {
+const DEFAULT_BEAT_SYNC_OPTIONS: BeatSyncOptions = {
   snapToBeats: true,
   snapThreshold: 0.1,
   autoZoomOnBeats: false,
@@ -357,13 +357,6 @@ class BeatSyncBridge {
 let beatSyncBridgeInstance: BeatSyncBridge | null = null;
 
 export function getBeatSyncBridge(): BeatSyncBridge {
-  if (!beatSyncBridgeInstance) {
-    beatSyncBridgeInstance = new BeatSyncBridge();
-  }
-  return beatSyncBridgeInstance;
-}
-
-export function initializeBeatSyncBridge(): BeatSyncBridge {
   if (!beatSyncBridgeInstance) {
     beatSyncBridgeInstance = new BeatSyncBridge();
   }

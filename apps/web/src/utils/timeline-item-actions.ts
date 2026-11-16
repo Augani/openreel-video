@@ -3,7 +3,7 @@ import type { ProjectState } from "../stores/project-store";
 import type { SelectionItem } from "../stores/ui-store";
 import { trimLinkedCaptions } from "./linked-caption-edit";
 
-export type TimelineItemKind =
+type TimelineItemKind =
   | "media"
   | "text"
   | "shape"
@@ -33,7 +33,7 @@ type TimelineActionStore = Pick<
   | "updateOverlayClipTiming"
 >;
 
-export interface TimelineItemRange {
+interface TimelineItemRange {
   id: string;
   trackId: string;
   startTime: number;
@@ -41,7 +41,7 @@ export interface TimelineItemRange {
   kind: TimelineItemKind;
 }
 
-export interface TimelineMarqueeBounds {
+interface TimelineMarqueeBounds {
   minTime: number;
   maxTime: number;
   minY: number;
@@ -184,20 +184,30 @@ export function getTimelineItemRanges(project: Project): TimelineItemRange[] {
   return items;
 }
 
+/**
+ * Evaluated by a store selector on every playhead tick, so it must not
+ * allocate per-clip range objects: bail out for an empty selection and scan
+ * the clip arrays directly otherwise.
+ */
 export function getSplittableTimelineItemIds(
   project: Project,
   selectedIds: readonly string[],
   time: number,
 ): string[] {
+  if (selectedIds.length === 0) return [];
   const selected = new Set(selectedIds);
-  return getTimelineItemRanges(project)
-    .filter(
-      (item) =>
-        selected.has(item.id) &&
-        time > item.startTime &&
-        time < item.startTime + item.duration,
-    )
-    .map((item) => item.id);
+  const result: string[] = [];
+  const visit = (clip: { id: string; startTime: number; duration: number }) => {
+    if (selected.has(clip.id) && time > clip.startTime && time < clip.startTime + clip.duration) {
+      result.push(clip.id);
+    }
+  };
+  for (const track of project.timeline.tracks) for (const clip of track.clips) visit(clip);
+  for (const clip of project.textClips ?? []) visit(clip);
+  for (const clip of project.shapeClips ?? []) visit(clip);
+  for (const clip of project.svgClips ?? []) visit(clip);
+  for (const clip of project.stickerClips ?? []) visit(clip);
+  return result;
 }
 
 export function getTimelineSelectionItems(project: Project): SelectionItem[] {
@@ -233,6 +243,7 @@ export function getTimelineMarqueeSelection(
   getTrackHeight: (
     trackId: string,
     trackType: Project["timeline"]["tracks"][number]["type"],
+    trackName?: string,
   ) => number,
 ): SelectionItem[] {
   const itemsByTrack = new Map<string, TimelineItemRange[]>();
@@ -245,7 +256,7 @@ export function getTimelineMarqueeSelection(
   const selected: SelectionItem[] = [];
   let currentY = 0;
   for (const track of project.timeline.tracks) {
-    const height = getTrackHeight(track.id, track.type);
+    const height = getTrackHeight(track.id, track.type, track.name);
     const trackOverlaps =
       bounds.minY < currentY + height && bounds.maxY > currentY;
     if (trackOverlaps) {

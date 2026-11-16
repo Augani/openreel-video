@@ -9,13 +9,13 @@ import type {
 } from "../stage-preview-mode";
 import { normalizeMotionStagePreviewSettings } from "../stage-preview-mode";
 
-export type MotionLeftTab =
+type MotionLeftTab =
   | "start"
   | "layers"
   | "assets"
   | "templates"
   | "creation";
-export type MotionRightTab =
+type MotionRightTab =
   | "properties"
   | "deform"
   | "presets"
@@ -27,7 +27,7 @@ export type MotionRightTab =
   | "variables"
   | "queue";
 
-export type MotionToolId =
+type MotionToolId =
   | "select"
   | "hand"
   | "zoom"
@@ -41,9 +41,9 @@ export type MotionToolId =
   | "character"
   | "add";
 
-export type MotionPreviewCameraView = "active" | "default";
+type MotionPreviewCameraView = "active" | "default";
 
-export type MotionTimelineColumnMode = "switches" | "modes";
+type MotionTimelineColumnMode = "switches" | "modes";
 
 export type MotionRenderQueueStatus =
   | "queued"
@@ -58,7 +58,7 @@ export type MotionRenderQueueFormat =
   | "mov-prores4444"
   | "png-sequence";
 
-export type MotionRenderQueueMoveDirection = "up" | "down";
+type MotionRenderQueueMoveDirection = "up" | "down";
 
 export interface MotionRenderQueueItem {
   readonly id: string;
@@ -80,7 +80,7 @@ export interface MotionRenderQueueItem {
   readonly cancelRequested?: boolean;
 }
 
-export interface AddMotionRenderQueueItemInput {
+interface AddMotionRenderQueueItemInput {
   readonly compositionId: string;
   readonly name: string;
   readonly width: number;
@@ -92,15 +92,15 @@ export interface AddMotionRenderQueueItemInput {
   readonly resolutionScale?: MotionExportResolutionScale;
 }
 
-export interface MotionLayerSelectionOptions {
+interface MotionLayerSelectionOptions {
   readonly additive?: boolean;
 }
 
-export interface MotionKeyframeSelectionOptions {
+interface MotionKeyframeSelectionOptions {
   readonly additive?: boolean;
 }
 
-export interface MotionRevealedProperties {
+interface MotionRevealedProperties {
   readonly layerId: string;
   readonly properties: readonly string[];
 }

@@ -6,13 +6,6 @@ export interface ElevenLabsModel {
   languages?: Array<{ language_id: string; name: string }>;
 }
 
-export interface Voice {
-  id: string;
-  name: string;
-  gender: "male" | "female";
-  language: string;
-}
-
 export interface ElevenLabsVoice {
   voice_id: string;
   name: string;

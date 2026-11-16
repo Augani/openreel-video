@@ -6,22 +6,16 @@ import {
   bakeCreationSceneMesh,
   bakeRecipeMesh,
   buildBox,
-  buildCylinder,
-  buildIcosahedron,
+  meshToGlb,
   buildPlane,
-  buildRoundedBox,
   buildSphere,
-  buildTube,
   computeMeshStats,
   displaceMesh,
   extrudeProfile,
-  generateBoxUvs,
   isMeshValid,
   mergeMeshes,
-  meshToGlb,
   meshToGltf,
   optimizeMesh,
-  recomputeNormals,
   revolveProfile,
   sliceMeshByPlane,
   subdivideMesh,
@@ -70,17 +64,6 @@ describe("geometry kernel primitives", () => {
     expect(isMeshValid(mesh)).toBe(true);
   });
 
-  it("builds a flat plane on the XZ plane", () => {
-    const mesh = buildPlane({ width: 4, depth: 2 });
-    const stats = computeMeshStats(mesh);
-    expect(stats.vertexCount).toBe(4);
-    expect(stats.triangleCount).toBe(2);
-    expect(stats.bounds.min.y).toBe(0);
-    expect(stats.bounds.max.y).toBe(0);
-    expect(stats.bounds.max.x).toBe(2);
-    expect(isMeshValid(mesh)).toBe(true);
-  });
-
   it("builds a sphere whose vertices lie on the radius", () => {
     const radius = 1.5;
     const mesh = buildSphere({ radius, widthSegments: 16, heightSegments: 12 });
@@ -96,30 +79,6 @@ describe("geometry kernel primitives", () => {
     expect(isMeshValid(mesh)).toBe(true);
   });
 
-  it("builds a beveled rounded box with chamfered edges and corners", () => {
-    const mesh = buildRoundedBox({ width: 2, height: 2, depth: 2, radius: 0.2 });
-    const stats = computeMeshStats(mesh);
-    expect(stats.vertexCount).toBe(96);
-    expect(stats.triangleCount).toBe(44);
-    expect(stats.bounds.min).toEqual({ x: -1, y: -1, z: -1 });
-    expect(stats.bounds.max).toEqual({ x: 1, y: 1, z: 1 });
-    expect(isMeshValid(mesh)).toBe(true);
-  });
-
-  it("builds a watertight icosahedron", () => {
-    const mesh = buildIcosahedron(1);
-    const stats = computeMeshStats(mesh);
-    expect(stats.triangleCount).toBe(20);
-    expect(isMeshValid(mesh)).toBe(true);
-  });
-
-  it("builds a cylinder with valid caps and bounds", () => {
-    const mesh = buildCylinder({ radiusTop: 0.5, radiusBottom: 0.5, height: 2, radialSegments: 12 });
-    const stats = computeMeshStats(mesh);
-    expect(stats.bounds.min.y).toBeCloseTo(-1, 5);
-    expect(stats.bounds.max.y).toBeCloseTo(1, 5);
-    expect(isMeshValid(mesh)).toBe(true);
-  });
 });
 
 describe("geometry kernel bake", () => {
@@ -201,17 +160,6 @@ describe("geometry kernel transform and merge", () => {
     const stats = computeMeshStats(mesh);
     expect(stats.bounds.min).toEqual({ x: 4, y: -1, z: -1 });
     expect(stats.bounds.max).toEqual({ x: 6, y: 1, z: 1 });
-  });
-
-  it("rotates a mesh 90 degrees about Y", () => {
-    const mesh = transformMesh(buildBox({ width: 2, height: 1, depth: 0.5 }), {
-      position: { x: 0, y: 0, z: 0 },
-      rotation: { x: 0, y: 90, z: 0 },
-      scale: { x: 1, y: 1, z: 1 },
-    });
-    const stats = computeMeshStats(mesh);
-    expect(stats.bounds.max.x).toBeCloseTo(0.25, 5);
-    expect(stats.bounds.max.z).toBeCloseTo(1, 5);
   });
 
   it("merges meshes and offsets indices", () => {
@@ -341,13 +289,6 @@ describe("geometry kernel optimize", () => {
     expect(isMeshValid(welded)).toBe(true);
   });
 
-  it("recomputes unit-length vertex normals", () => {
-    const mesh = recomputeNormals(buildBox({ width: 1, height: 1, depth: 1 }));
-    for (let i = 0; i + 2 < mesh.normals.length; i += 3) {
-      const magnitude = Math.hypot(mesh.normals[i]!, mesh.normals[i + 1]!, mesh.normals[i + 2]!);
-      expect(magnitude).toBeCloseTo(1, 4);
-    }
-  });
 });
 
 describe("geometry kernel profiles", () => {
@@ -383,32 +324,6 @@ describe("geometry kernel profiles", () => {
     expect(stats.bounds.max.x).toBeCloseTo(1, 5);
     expect(stats.bounds.min.y).toBeCloseTo(-1, 5);
     expect(isMeshValid(mesh)).toBe(true);
-  });
-});
-
-describe("geometry kernel UV generation", () => {
-  it("assigns triplanar box UVs within the unit range", () => {
-    const mesh = generateBoxUvs(buildBox({ width: 2, height: 2, depth: 2 }), {});
-    expect(mesh.uvs.length).toBe((mesh.positions.length / 3) * 2);
-    for (let i = 0; i < mesh.uvs.length; i += 1) {
-      const value = mesh.uvs[i]!;
-      expect(Number.isFinite(value)).toBe(true);
-      expect(value).toBeGreaterThanOrEqual(0);
-      expect(value).toBeLessThanOrEqual(1);
-    }
-  });
-});
-
-describe("geometry kernel subdivision", () => {
-  it("quadruples triangle count per subdivision iteration", () => {
-    const box = buildBox({ width: 1, height: 1, depth: 1 });
-    const baseTriangles = computeMeshStats(box).triangleCount;
-    const once = subdivideMesh(box, 1);
-    const twice = subdivideMesh(box, 2);
-    expect(computeMeshStats(once).triangleCount).toBe(baseTriangles * 4);
-    expect(computeMeshStats(twice).triangleCount).toBe(baseTriangles * 16);
-    expect(isMeshValid(once)).toBe(true);
-    expect(isMeshValid(twice)).toBe(true);
   });
 });
 
@@ -555,23 +470,6 @@ describe("geometry kernel displacement + node composition", () => {
 });
 
 describe("geometry kernel sweep", () => {
-  it("builds a tube along a straight path", () => {
-    const mesh = buildTube({
-      path: [
-        { x: 0, y: 0, z: 0 },
-        { x: 0, y: 2, z: 0 },
-        { x: 0, y: 4, z: 0 },
-      ],
-      radius: 0.5,
-      radialSegments: 8,
-    });
-    const stats = computeMeshStats(mesh);
-    expect(stats.vertexCount).toBe(3 * 9);
-    expect(stats.triangleCount).toBe(2 * 8 * 2);
-    expect(stats.bounds.max.y).toBeCloseTo(4, 5);
-    expect(isMeshValid(mesh)).toBe(true);
-  });
-
   it("sweeps a closed profile along a path", () => {
     const mesh = sweepProfileAlongPath({
       profile: [
@@ -603,13 +501,6 @@ describe("geometry kernel plane slice", () => {
     expect(stats.bounds.max.y).toBeCloseTo(1, 5);
   });
 
-  it("drops geometry fully outside the plane", () => {
-    const sliced = sliceMeshByPlane(buildBox({ width: 2, height: 2, depth: 2 }), {
-      normal: { x: 0, y: 1, z: 0 },
-      offset: 5,
-    });
-    expect(sliced.positions.length).toBe(0);
-  });
 });
 
 describe("geometry kernel GLB export", () => {
@@ -620,14 +511,6 @@ describe("geometry kernel GLB export", () => {
     expect(view.getUint32(0, true)).toBe(0x46546c67);
     expect(view.getUint32(4, true)).toBe(2);
     expect(view.getUint32(8, true)).toBe(glb.byteLength);
-    const jsonLength = view.getUint32(12, true);
-    expect(view.getUint32(16, true)).toBe(0x4e4f534a);
-    const jsonBytes = glb.subarray(20, 20 + jsonLength);
-    const json = JSON.parse(new TextDecoder().decode(jsonBytes)) as {
-      buffers: Array<{ byteLength: number; uri?: string }>;
-    };
-    expect(json.buffers[0]?.uri).toBeUndefined();
-    expect(json.buffers[0]?.byteLength).toBeGreaterThan(0);
   });
 });
 

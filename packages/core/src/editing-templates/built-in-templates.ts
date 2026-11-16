@@ -31,6 +31,92 @@ const shapeOverlay = (overlay: EditingTemplate["recipe"]["overlays"][number]): E
 
 export const BUILT_IN_EDITING_TEMPLATES: readonly EditingTemplate[] = [
   {
+    id: "overlay-progress-bar",
+    name: "Progress bar",
+    description: "An animated progress bar spanning the selected clip.",
+    category: "overlay",
+    thumbnailUrl: null,
+    previewUrl: null,
+    tags: ["progress", "timeline"],
+    supportedTargets: ["video", "image"],
+    controls: [
+      {
+        id: "barColor",
+        label: "Bar color",
+        type: "color",
+        defaultValue: "#2bd49a",
+      },
+    ],
+    recipe: {
+      effects: [],
+      audioEffects: [],
+      overlays: [
+        shapeOverlay({
+          type: "shape",
+          trackType: "graphics",
+          timing: full,
+          transform: transform(0, 0.99, 1, 1, 0, 0, 0.5),
+          keyframes: [
+            { time: 0, property: "scale.x", value: 0 },
+            { time: 1, property: "scale.x", value: 1 },
+          ],
+          content: {
+            shapeType: "rectangle",
+            width: 1920,
+            height: 12,
+            style: {
+              fill: { type: "solid", color: bind("barColor"), opacity: 1 },
+              stroke: { color: "#000000", width: 0, opacity: 0 },
+            },
+          },
+        }),
+      ],
+    },
+  },
+  {
+    id: "overlay-follow-callout",
+    name: "Follow callout",
+    description: "An editable follow label over your video.",
+    category: "social",
+    thumbnailUrl: null,
+    previewUrl: null,
+    tags: ["follow", "social", "callout"],
+    supportedTargets: ["video", "image"],
+    controls: [
+      { id: "label", label: "Label", type: "text", defaultValue: "Follow +" },
+      {
+        id: "labelColor",
+        label: "Background",
+        type: "color",
+        defaultValue: "#ec4c60",
+      },
+    ],
+    recipe: {
+      effects: [],
+      audioEffects: [],
+      overlays: [
+        textOverlay({
+          type: "text",
+          trackType: "text",
+          timing: full,
+          transform: transform(0.78, 0.82),
+          content: {
+            text: "{{label}}",
+            style: {
+              fontFamily: "Inter",
+              fontSize: 32,
+              fontWeight: 700,
+              color: "#ffffff",
+              backgroundColor: bind("labelColor"),
+              textAlign: "center",
+              verticalAlign: "middle",
+            },
+          },
+        }),
+      ],
+    },
+  },
+  {
     id: "cinema-letterbox",
     name: "Cinematic Letterbox",
     description: "Wide-screen bars with grain and vignette.",

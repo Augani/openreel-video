@@ -1,10 +1,29 @@
-import { contextBridge, ipcRenderer } from "electron";
+import { contextBridge, ipcRenderer, webUtils } from "electron";
 import { CHANNELS } from "../shared/channels";
 import type { McpBridgeRequest } from "../shared/mcp";
 
 contextBridge.exposeInMainWorld("openreel", {
   platform: "desktop",
   publicOrigin: "https://app.openreel.video",
+  // Synchronous so it is known before first render. Anything but `true` (including a failed call) is false.
+  automation: ((): boolean => {
+    try {
+      return ipcRenderer.sendSync(CHANNELS.onboardingAutomation) === true;
+    } catch {
+      return false;
+    }
+  })(),
+  onboarding: {
+    get: () => ipcRenderer.invoke(CHANNELS.onboardingGet, undefined),
+    set: (mirror: unknown) => ipcRenderer.invoke(CHANNELS.onboardingSet, mirror),
+  },
+  ollama: {
+    probe: () => ipcRenderer.invoke(CHANNELS.ollamaProbe, undefined),
+  },
+  samples: {
+    list: () => ipcRenderer.invoke(CHANNELS.samplesList, undefined),
+    get: (id: string) => ipcRenderer.invoke(CHANNELS.samplesGet, { id }),
+  },
   probeHardware: () => ipcRenderer.invoke(CHANNELS.probeHardware, undefined),
   onMenuAction: (cb: (id: string) => void) => {
     const handler = (_event: unknown, id: string) => cb(id);
@@ -16,7 +35,11 @@ contextBridge.exposeInMainWorld("openreel", {
     showOpenDialog: (opts: unknown) => ipcRenderer.invoke(CHANNELS.fsShowOpenDialog, opts),
     readFile: (p: string) => ipcRenderer.invoke(CHANNELS.fsReadFile, { path: p }),
     readFileBytes: (p: string) => ipcRenderer.invoke(CHANNELS.fsReadFileBytes, { path: p }),
-    tempFilePath: (ext: string) => ipcRenderer.invoke(CHANNELS.fsTempFilePath, { ext }),
+    tempFilePath: (ext: string, persist?: boolean) =>
+      ipcRenderer.invoke(CHANNELS.fsTempFilePath, { ext, persist }),
+    releaseTemp: (p: string) => ipcRenderer.invoke(CHANNELS.fsReleaseTemp, { path: p }),
+    lockProject: (p: string) => ipcRenderer.invoke(CHANNELS.fsLockProject, { path: p }),
+    unlockProject: (p: string) => ipcRenderer.invoke(CHANNELS.fsUnlockProject, { path: p }),
     writeFile: (p: string, data: string) => ipcRenderer.invoke(CHANNELS.fsWriteFile, { path: p, data }),
     openWrite: (p: string) => ipcRenderer.invoke(CHANNELS.fsOpenWrite, { path: p }),
     writeChunk: (handleId: string, data: ArrayBuffer | Uint8Array, position: number) =>
@@ -24,6 +47,46 @@ contextBridge.exposeInMainWorld("openreel", {
     closeWrite: (handleId: string) => ipcRenderer.invoke(CHANNELS.fsCloseWrite, { handleId }),
     abortWrite: (handleId: string) => ipcRenderer.invoke(CHANNELS.fsAbortWrite, { handleId }),
     revealInFolder: (p: string) => ipcRenderer.invoke(CHANNELS.fsRevealInFolder, { path: p }),
+    pickFiles: (opts?: unknown) => ipcRenderer.invoke(CHANNELS.fsPickFiles, opts),
+    pickProject: () => ipcRenderer.invoke(CHANNELS.fsPickProject, undefined),
+    // Absolute path of a File the user picked or dropped ("" for a File that is not on disk).
+    pathForFile: (file: File): string => {
+      try {
+        return webUtils.getPathForFile(file);
+      } catch {
+        return "";
+      }
+    },
+  },
+  ingest: {
+    resolveFolders: (args: unknown) => ipcRenderer.invoke(CHANNELS.ingestResolveFolders, args),
+    enqueueProxies: (args: unknown) => ipcRenderer.invoke(CHANNELS.ingestProxyEnqueue, args),
+    listProxyJobs: (projectId: string) => ipcRenderer.invoke(CHANNELS.ingestProxyList, { projectId }),
+    cancelProxyJobs: (ids: string[]) => ipcRenderer.invoke(CHANNELS.ingestProxyCancel, { ids }),
+    retryFailedProxyJobs: (projectId: string) => ipcRenderer.invoke(CHANNELS.ingestProxyRetryFailed, { projectId }),
+    ackProxyJobs: (ids: string[]) => ipcRenderer.invoke(CHANNELS.ingestProxyAck, { ids }),
+    setProxyConcurrency: (concurrency: number) => ipcRenderer.invoke(CHANNELS.ingestProxySetConcurrency, { concurrency }),
+    onProxyEvent: (cb: (event: unknown) => void) => {
+      const handler = (_event: unknown, payload: unknown) => cb(payload);
+      ipcRenderer.on(CHANNELS.ingestProxyEvent, handler);
+      return () => ipcRenderer.removeListener(CHANNELS.ingestProxyEvent, handler);
+    },
+    stat: (paths: string[]) => ipcRenderer.invoke(CHANNELS.ingestStat, { paths }),
+    readProxy: (path: string) => ipcRenderer.invoke(CHANNELS.ingestReadProxy, { path }),
+    copyToProject: (args: unknown) => ipcRenderer.invoke(CHANNELS.ingestCopyToProject, args),
+    onCopyProgress: (cb: (event: { requestId: string; progress: number }) => void) => {
+      const handler = (_event: unknown, payload: { requestId: string; progress: number }) => cb(payload);
+      ipcRenderer.on(CHANNELS.ingestCopyProgress, handler);
+      return () => ipcRenderer.removeListener(CHANNELS.ingestCopyProgress, handler);
+    },
+    pickFolder: (args?: unknown) => ipcRenderer.invoke(CHANNELS.ingestPickFolder, args ?? {}),
+    scanFolder: (args: unknown) => ipcRenderer.invoke(CHANNELS.ingestScanFolder, args),
+  },
+  plugins: {
+    list: () => ipcRenderer.invoke(CHANNELS.pluginsList),
+    put: (id: string, files: Record<string, string>) => ipcRenderer.invoke(CHANNELS.pluginsPut, { id, files }),
+    remove: (id: string) => ipcRenderer.invoke(CHANNELS.pluginsRemove, { id }),
+    revealFolder: () => ipcRenderer.invoke(CHANNELS.pluginsRevealFolder),
   },
   keychain: {
     get: (id: string) => ipcRenderer.invoke(CHANNELS.keychainGet, { id }),
@@ -50,6 +113,17 @@ contextBridge.exposeInMainWorld("openreel", {
       ipcRenderer.invoke(CHANNELS.exportWriteAudioChunk, { jobId, chunk, position }),
     finishAudio: (jobId: string) => ipcRenderer.invoke(CHANNELS.exportFinishAudio, { jobId }),
     cancel: (jobId: string) => ipcRenderer.invoke(CHANNELS.exportCancel, { jobId }),
+    probeSource: (path: string) => ipcRenderer.invoke(CHANNELS.exportProbeSource, { path }),
+    copyRun: (jobId: string, run: unknown) =>
+      ipcRenderer.invoke(CHANNELS.exportCopyRun, { jobId, ...(run as object) }),
+    // Absolute path of a File that came from disk (a picked or dropped file); "" for in-memory blobs.
+    pathForFile: (file: File): string => {
+      try {
+        return webUtils.getPathForFile(file);
+      } catch {
+        return "";
+      }
+    },
   },
   aurora: {
     renderPreview: (args: unknown) => ipcRenderer.invoke(CHANNELS.auroraRenderPreview, args),
@@ -95,7 +169,11 @@ contextBridge.exposeInMainWorld("openreel", {
     transcode: (args: unknown) => ipcRenderer.invoke(CHANNELS.mediaTranscode, args),
     extractAudioWav: (args: unknown) => ipcRenderer.invoke(CHANNELS.mediaExtractAudioWav, args),
     probeAudioStreams: (args: unknown) => ipcRenderer.invoke(CHANNELS.mediaProbeAudioStreams, args),
+    developRawStill: (args: unknown) => ipcRenderer.invoke(CHANNELS.mediaDevelopRawStill, args),
     fetchUrl: (args: unknown) => ipcRenderer.invoke(CHANNELS.mediaFetchUrl, args),
+    nativeProbe: (args: unknown) => ipcRenderer.invoke(CHANNELS.mediaNativeProbe, args),
+    nativeFrame: (args: unknown) => ipcRenderer.invoke(CHANNELS.mediaNativeFrame, args),
+    nativeStats: () => ipcRenderer.invoke(CHANNELS.mediaNativeStats, undefined),
   },
   rigging: {
     probeBackend: () => ipcRenderer.invoke(CHANNELS.riggingProbeBackend, undefined),
@@ -144,11 +222,32 @@ contextBridge.exposeInMainWorld("openreel", {
           );
       };
       ipcRenderer.on(CHANNELS.mcpRequest, listener);
+      // Main queues requests until a listener exists: IPC sent to a page that has not
+      // installed one yet is silently dropped, which turned early MCP calls into timeouts.
+      ipcRenderer.send(CHANNELS.mcpReady);
       return () => ipcRenderer.removeListener(CHANNELS.mcpRequest, listener);
     },
     getStatus: () => ipcRenderer.invoke(CHANNELS.mcpGetStatus, undefined),
     rotateToken: () => ipcRenderer.invoke(CHANNELS.mcpRotateToken, undefined),
     testConnection: () => ipcRenderer.invoke(CHANNELS.mcpTestConnection, undefined),
+    getClientStatus: () => ipcRenderer.invoke(CHANNELS.mcpGetClientStatus, undefined),
+    getPolicy: () => ipcRenderer.invoke(CHANNELS.mcpGetPolicy, undefined),
+    setPolicy: (policy: { allowedRoots: string[] }) => ipcRenderer.invoke(CHANNELS.mcpSetPolicy, policy),
+    // Path tools (WP-E): the allowed-roots check and the export placement run in main.
+    resolveFiles: (args: unknown) => ipcRenderer.invoke(CHANNELS.mcpFilesResolve, args),
+    placeOutput: (args: unknown) => ipcRenderer.invoke(CHANNELS.mcpFilesPlaceOutput, args),
+    getAppInfo: () => ipcRenderer.invoke(CHANNELS.mcpAppInfo, undefined),
+  },
+  // Linked composition windows: the editor opens them, and edits flow over IPC to the
+  // editor's stores. The main process only relays validated messages between the two.
+  linkedComp: {
+    open: (compositionId: string) => ipcRenderer.invoke(CHANNELS.linkedCompOpen, { compositionId }),
+    post: (message: unknown) => ipcRenderer.send(CHANNELS.linkedCompPost, message),
+    onMessage: (cb: (message: unknown) => void) => {
+      const handler = (_event: unknown, message: unknown) => cb(message);
+      ipcRenderer.on(CHANNELS.linkedCompMessage, handler);
+      return () => ipcRenderer.removeListener(CHANNELS.linkedCompMessage, handler);
+    },
   },
   lifecycle: {
     // The main process asks (on window close / quit) whether there are unsaved

@@ -43,6 +43,21 @@ describe("browser export preflight", () => {
     project.mediaLibrary.items[0] = { ...project.mediaLibrary.items[0], blob: new Blob(["original"]) };
     expect(getMissingExportMedia(project)).toEqual([]);
   });
+  it("follows a sequence nest into its own media instead of reporting the nest as missing media", () => {
+    const ready = { id: "ready", name: "Ready.mp4", type: "video", blob: new Blob(["original"]) };
+    const project = {
+      timeline: { tracks: [{ clips: [{ mediaId: "compound:seq-a", startTime: 0, duration: 2 }] }] },
+      compoundClips: [
+        { id: "seq-a", content: { tracks: [{ clips: [{ mediaId: "ready" }, { mediaId: "compound:seq-b" }] }] } },
+        { id: "seq-b", content: { clips: [{ mediaId: "gone" }, { mediaId: "compound:seq-a" }] } },
+      ],
+      mediaLibrary: { items: [ready, { id: "gone", name: "Gone.mp4", type: "video", blob: null }] },
+    } as unknown as Project;
+    // Nest -> nest -> media is followed (and a cycle does not loop forever).
+    expect(getMissingExportMedia(project)).toEqual(["Gone.mp4"]);
+    project.mediaLibrary.items[1] = { ...project.mediaLibrary.items[1], blob: new Blob(["x"]) };
+    expect(getMissingExportMedia(project)).toEqual([]);
+  });
   it("requires only originals overlapping the selected export section", () => {
     const project = { timeline: { tracks: [{ clips: [{ mediaId: "missing", startTime: 0, duration: 2 }, { mediaId: "ready", startTime: 2, duration: 2 }] }] }, mediaLibrary: { items: [{ id: "missing", name: "Missing.mp4", type: "video", blob: null }, { id: "ready", type: "video", blob: new Blob(["original"]) }] } } as unknown as Project;
     expect(getMissingExportMedia(project, { startTime: 2, endTime: 4 })).toEqual([]);

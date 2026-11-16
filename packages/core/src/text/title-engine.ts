@@ -9,11 +9,12 @@ import type {
   TextLineMetrics,
 } from "./types";
 import { DEFAULT_TEXT_STYLE, DEFAULT_TEXT_TRANSFORM } from "./types";
-import { textAnimationEngine } from "./text-animation";
+import { computeScrollAnchor, scrollProgress } from "./text-scroll";
+import { textAnimationEngine, type AnimatedTextState } from "./text-animation";
 import { MotionShaderRenderer } from "../motion/motion-shader-renderer";
 import { getMotionShaderDef } from "../motion/shaders";
 
-export interface CreateTextClipOptions {
+interface CreateTextClipOptions {
   id?: string;
   trackId: string;
   startTime: number;
@@ -25,7 +26,7 @@ export interface CreateTextClipOptions {
   metadata?: ClipMetadata;
 }
 
-export interface UpdateTextClipOptions {
+interface UpdateTextClipOptions {
   text?: string;
   style?: Partial<TextStyle>;
   transform?: Partial<Transform>;
@@ -221,6 +222,29 @@ export class TitleEngine {
     return updatedClip;
   }
 
+  getAnimatedTextState(clip: TextClip, time: number): AnimatedTextState {
+    const animatedState = textAnimationEngine.getAnimatedState(clip, time);
+    if (!clip.emphasisAnimation || clip.emphasisAnimation.type === "none") return animatedState;
+    const emphasis = this.applyEmphasisAnimation(clip.emphasisAnimation, time);
+    const transform = animatedState.transform;
+    return {
+      ...animatedState,
+      opacity: animatedState.opacity * emphasis.opacity,
+      transform: {
+        ...transform,
+        scale: {
+          x: transform.scale.x * emphasis.scale * emphasis.scaleX,
+          y: transform.scale.y * emphasis.scale * emphasis.scaleY,
+        },
+        position: {
+          x: transform.position.x + emphasis.offsetX,
+          y: transform.position.y + emphasis.offsetY,
+        },
+        rotation: transform.rotation + emphasis.rotation,
+      },
+    };
+  }
+
   renderText(
     clip: TextClip,
     width: number,
@@ -244,29 +268,8 @@ export class TitleEngine {
 
     ctx.clearRect(0, 0, width, height);
 
-    const animatedState = textAnimationEngine.getAnimatedState(clip, time);
-    let { opacity, transform, style, visibleText, characterStates } =
-      animatedState;
-
-    if (clip.emphasisAnimation && clip.emphasisAnimation.type !== "none") {
-      const emphasisState = this.applyEmphasisAnimation(
-        clip.emphasisAnimation,
-        time,
-      );
-      opacity = opacity * emphasisState.opacity;
-      transform = {
-        ...transform,
-        scale: {
-          x: transform.scale.x * emphasisState.scale * emphasisState.scaleX,
-          y: transform.scale.y * emphasisState.scale * emphasisState.scaleY,
-        },
-        position: {
-          x: transform.position.x + emphasisState.offsetX,
-          y: transform.position.y + emphasisState.offsetY,
-        },
-        rotation: transform.rotation + emphasisState.rotation,
-      };
-    }
+    const { opacity, transform, style, visibleText, characterStates } =
+      this.getAnimatedTextState(clip, time);
 
     if (opacity <= 0 || visibleText.length === 0) {
       return {
@@ -284,8 +287,35 @@ export class TitleEngine {
 
     ctx.save();
 
-    const posX = transform.position.x * width;
-    const posY = transform.position.y * height;
+    let posX = transform.position.x * width;
+    let posY = transform.position.y * height;
+
+    if (clip.scroll) {
+      // Roll / crawl: shared by preview and export (both render through here).
+      const sx = Math.abs(transform.scale.x * contentScale.x);
+      const sy = Math.abs(transform.scale.y * contentScale.y);
+      const blockHeight = metrics.lines.length
+        ? metrics.lines.length * style.fontSize * style.lineHeight
+        : style.fontSize * style.lineHeight;
+      const blockWidth = metrics.width + 20;
+      const vAlign = style.verticalAlign;
+      const hAlign = style.textAlign;
+      const anchor = computeScrollAnchor(
+        clip.scroll,
+        scrollProgress(time, clip.duration),
+        { x: posX, y: posY },
+        {
+          canvasWidth: width,
+          canvasHeight: height,
+          above: (vAlign === "top" ? 0 : vAlign === "bottom" ? blockHeight : blockHeight / 2) * sy,
+          below: (vAlign === "top" ? blockHeight : vAlign === "bottom" ? 0 : blockHeight / 2) * sy,
+          left: (hAlign === "left" ? 0 : hAlign === "right" ? blockWidth : blockWidth / 2) * sx,
+          right: (hAlign === "left" ? blockWidth : hAlign === "right" ? 0 : blockWidth / 2) * sx,
+        },
+      );
+      posX = anchor.x;
+      posY = anchor.y;
+    }
 
     ctx.translate(posX, posY);
     ctx.rotate((transform.rotation * Math.PI) / 180);
@@ -526,7 +556,7 @@ export class TitleEngine {
       ctx.shadowOffsetX = 0;
       ctx.shadowOffsetY = 0;
     }
-    if ("letterSpacing" in ctx && style.letterSpacing !== 0) {
+    if ("letterSpacing" in ctx) {
       (ctx as CanvasRenderingContext2D).letterSpacing =
         `${style.letterSpacing}px`;
     }

@@ -1,58 +1,120 @@
-import "./ai-workspace.css";
+import { TimelineImportDialog } from "./TimelineImportDialog";
+import { InterchangeExportReportDialog } from "./InterchangeExportReportDialog";
+import { InterchangeExportDialog } from "./InterchangeExportDialog";
+import "./reference-workspace.css";
 import React, { useEffect, useState, useRef, useCallback } from "react";
-import { ToolcraftText as Text, ToolcraftButton as Button } from "@openreel/ui";
+import { Button, Button as ShadcnButton, Dialog, DialogContent, DialogTitle, ScrollArea } from "@openreel/ui";
 
+import { ChangesPanel } from "./chat/ChangesPanel";
 import { Toolbar } from "./Toolbar";
 import { EditorActionRail } from "./EditorActionRail";
 import { AssetsPanel } from "./AssetsPanel";
 import { Preview } from "./Preview";
+import { SourceMonitor } from "./SourceMonitor";
+import { useSourceMonitorStore } from "../../stores/source-monitor-store";
 import { InspectorPanel } from "./InspectorPanel";
 import { Timeline } from "./Timeline";
-import { KeyframeEditorPanel } from "./KeyframeEditorPanel";
-import { AudioMixer } from "../audio-mixer";
 import { KeyboardShortcutsOverlay } from "./KeyboardShortcutsOverlay";
 import { PanelErrorBoundary } from "../ErrorBoundary";
 import { SpotlightTour, MoGraphTour } from "./tour";
 import { useProjectStore } from "../../stores/project-store";
 import { useUIStore } from "../../stores/ui-store";
+import {
+  useDockSize,
+  MIN_MEDIA_W, MAX_MEDIA_W, MIN_INSPECTOR_W, MAX_INSPECTOR_W, MIN_CHAT_W, MAX_CHAT_W, MIN_TIMELINE_VH, MAX_TIMELINE_VH,
+} from "../../stores/workspace-layout-store";
+import { WorkspaceSaveDialog } from "./WorkspaceSaveDialog";
+import { ProjectLockBanner } from "./ProjectLockBanner";
+import { MissingFontsBanner } from "./MissingFontsBanner";
+import { applyPendingWorkspace } from "../../services/workspace-apply";
+import { useTimelineStore } from "../../stores/timeline-store";
+import { copyKeyframeSet, pasteKeyframeSet } from "@openreel/core";
+import { useInspectorNavigationStore } from "../../stores/inspector-navigation-store";
 import { useKeyboardShortcuts } from "../../hooks/useKeyboardShortcuts";
 import { useEditorInitialization } from "../../hooks/useEditorInitialization";
 import { useCompactEditor } from "../../hooks/useCompactEditor";
+import { usePhoneEditor } from "../../hooks/usePhoneEditor";
+import { usePreviewProxyPreference } from "../../hooks/use-preview-proxy-preference";
+import { startProxyIngest } from "../../services/proxy-ingest";
+import { useMediaWaveforms } from "../../hooks/use-media-waveforms";
+import { startAudioRackSync } from "../../services/audio-rack-sync";
+import { startLinkedCompHost } from "../../services/linked-comp-host";
 import "./editor-responsive.css";
 
 const ChatPanel = React.lazy(() =>
   import("./chat/ChatPanel").then((module) => ({ default: module.ChatPanel })),
 );
+const MobileEditorTools = React.lazy(() => import("./mobile/MobileEditorTools").then(module => ({ default: module.MobileEditorTools })));
 
-// Timeline area (bottom band) is sized as a vh fraction so the
-// top workspace (media | stage | inspector) gets the rest. The grid
-// from the mockup is `1fr var(--tl-height)` rows — by default
-// timeline is 58vh which leaves the top row with ~38–42vh of stage.
-const DEFAULT_TIMELINE_VH = 42;
-const MIN_TIMELINE_VH = 22;
-const MAX_TIMELINE_VH = 70;
+const NO_SELECTED_ITEMS: never[] = [];
+
+/** Retry a dynamic import once (stale chunk hash, flaky network) before surfacing the error. */
+export const importWithRetry = <T,>(load: () => Promise<T>, delayMs = 400): Promise<T> =>
+  load().catch(
+    (): Promise<T> =>
+      new Promise<void>((resolve) => setTimeout(resolve, delayMs)).then(load),
+  );
+
+const loadKeyframeEditorPanel = () =>
+  importWithRetry(() => import("./KeyframeEditorPanel"));
+const loadAudioMixer = () => importWithRetry(() => import("../audio-mixer"));
+const loadMultiCameraDialog = () =>
+  importWithRetry(() => import("./MultiCameraDialog"));
+const loadMulticamMonitor = () => importWithRetry(() => import("./MulticamMonitor"));
+const loadMulticamSourceDialog = () => importWithRetry(() => import("./MulticamSourceDialog"));
+const MulticamMonitor = React.lazy(() =>
+  loadMulticamMonitor().then((module) => ({ default: module.MulticamMonitor })),
+);
+const MulticamSourceDialog = React.lazy(() =>
+  loadMulticamSourceDialog().then((module) => ({ default: module.MulticamSourceDialog })),
+);
+const KeyframeEditorPanel = React.lazy(() =>
+  loadKeyframeEditorPanel().then((module) => ({ default: module.KeyframeEditorPanel })),
+);
+const AudioMixer = React.lazy(() =>
+  loadAudioMixer().then((module) => ({ default: module.AudioMixer })),
+);
+const MultiCameraDialog = React.lazy(() =>
+  loadMultiCameraDialog().then((module) => ({ default: module.MultiCameraDialog })),
+);
+
+// Timeline area (bottom band) is sized as a vh fraction so the top workspace (media | stage |
+// inspector) gets the rest. Dock sizes and their limits live in the workspace layout store so
+// saved workspaces can apply them.
 // Compact mode: timeline takes most of the height, leaving a small preview.
 const COMPACT_TIMELINE_VH = 80;
 
-const DEFAULT_MEDIA_W = 460;
-const MIN_MEDIA_W = 320;
-const MAX_MEDIA_W = 640;
-
-const DEFAULT_INSPECTOR_W = 360;
-const MIN_INSPECTOR_W = 280;
-const MAX_INSPECTOR_W = 560;
-
-const DEFAULT_CHAT_W = 380;
-const MIN_CHAT_W = 320;
-const MAX_CHAT_W = 560;
+// The reference rail has 52 px of content plus its 1 px separator.
+const RAIL_WIDTH = 53;
 
 const MIN_STAGE_W = 380;
-const RESIZE_HANDLE = 10;
+const RESIZE_HANDLE = 1;
 
 type ResizeTarget = "timeline" | "media" | "inspector" | "chat";
 
 const clamp = (value: number, min: number, max: number): number => {
   return Math.min(Math.max(value, min), Math.max(min, max));
+};
+
+/** Warm the lazy panels once the editor is idle so first open has no network wait. */
+const useIdlePanelPrefetch = (enabled: boolean) => {
+  useEffect(() => {
+    if (!enabled) return;
+    const run = () => {
+      void loadKeyframeEditorPanel().catch(() => undefined);
+      void loadAudioMixer().catch(() => undefined);
+    };
+    const w = window as Window & {
+      requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
+      cancelIdleCallback?: (id: number) => void;
+    };
+    if (w.requestIdleCallback) {
+      const id = w.requestIdleCallback(run, { timeout: 4000 });
+      return () => w.cancelIdleCallback?.(id);
+    }
+    const id = window.setTimeout(run, 2000);
+    return () => window.clearTimeout(id);
+  }, [enabled]);
 };
 
 /**
@@ -85,6 +147,7 @@ const useAutoSave = () => {
  */
 export const EditorInterface: React.FC = () => {
   const compact = useCompactEditor();
+  const phone = usePhoneEditor();
   const [compactPanel, setCompactPanel] = useState<"timeline" | "media" | "inspector" | "chat">("timeline");
   const [hasOpenedChat, setHasOpenedChat] = useState(false);
   const { initialized, initializing, initError, initStatus, retry } =
@@ -93,10 +156,23 @@ export const EditorInterface: React.FC = () => {
   const { showShortcutsOverlay, setShowShortcutsOverlay } =
     useKeyboardShortcuts();
   useAutoSave();
+  // Onboarding Pro row: apply the workspace picked on the welcome screen, once.
+  useEffect(() => { applyPendingWorkspace(); }, []);
+  usePreviewProxyPreference();
+  useEffect(() => startProxyIngest(), []);
+  useMediaWaveforms(initialized);
+  useIdlePanelPrefetch(initialized);
 
+  const sourceTab = useSourceMonitorStore((state) => state.tab);
   const keyframeEditorOpen = useUIStore((state) => state.keyframeEditorOpen);
   const setKeyframeEditorOpen = useUIStore((state) => state.setKeyframeEditorOpen);
-  const selectedItems = useUIStore((state) => state.selectedItems);
+  // Selection only matters here while the keyframe editor is open (or as a boolean for the
+  // compact "edit selected" bar): subscribing to the raw array re-rendered the whole shell
+  // (toolbar, panels, preview host) on every click.
+  const selectedItems = useUIStore((state) => (state.keyframeEditorOpen ? state.selectedItems : NO_SELECTED_ITEMS));
+  const hasSelection = useUIStore((state) => state.selectedItems.length > 0);
+  const inspectorRequest = useInspectorNavigationStore(state => state.request);
+  const handledInspectorRequest = useRef(inspectorRequest);
   const panels = useUIStore((state) => state.panels);
   const setPanelVisible = useUIStore((state) => state.setPanelVisible);
   const timelineMaximized = useUIStore((state) => state.timelineMaximized);
@@ -119,60 +195,81 @@ export const EditorInterface: React.FC = () => {
     return null;
   }, [selectedItems, tracks]);
 
-  const handleUpdateKeyframe = React.useCallback(
+  const keyframePlayhead = useTimelineStore(state => keyframeEditorOpen ? state.playheadPosition : 0);
+  const keyframePlayheadTime = selectedClip
+    ? Math.min(Math.max(0, keyframePlayhead - selectedClip.startTime), selectedClip.duration)
+    : 0;
+  const keyframeProjectId = useProjectStore(state => state.project.id);
+  const keyframeExporting = useUIStore(state => state.exportState.isExporting);
+  const keyframeOperationLocked = useTimelineStore(state => Boolean(state.playbackLockedReason));
+  const keyframeTrackLocked = tracks.some(track => track.locked && track.clips.some(clip => clip.id === selectedClip?.id));
+  const getEditableKeyframeClip = React.useCallback((clipId: string) => {
+    const state = useProjectStore.getState();
+    if (state.project.id !== keyframeProjectId || useUIStore.getState().exportState.isExporting || useTimelineStore.getState().playbackLockedReason) return null;
+    const track = state.project.timeline.tracks.find(track => track.clips.some(clip => clip.id === clipId));
+    return track && !track.locked ? track.clips.find(clip => clip.id === clipId) ?? null : null;
+  }, [keyframeProjectId]);
+
+  const handleUpdateKeyframes = React.useCallback(
     (
-      keyframeId: string,
+      keyframeIds: string[],
       updates: Partial<import("@openreel/core").Keyframe>,
     ) => {
-      if (!selectedClip?.keyframes) return;
-      const keyframes = selectedClip.keyframes.map((kf) =>
-        kf.id === keyframeId ? { ...kf, ...updates } : kf,
-      );
-      updateClipKeyframes(selectedClip.id, keyframes);
+      const clip = selectedClip && getEditableKeyframeClip(selectedClip.id);
+      if (!clip?.keyframes) return;
+      const ids = new Set(keyframeIds);
+      let changed = false;
+      const keyframes = clip.keyframes.map(key => {
+        if (!ids.has(key.id) || !Object.entries(updates).some(([field, value]) => key[field as keyof typeof key] !== value)) return key;
+        changed = true;
+        const next: Record<string, unknown> = { ...key, ...updates };
+        // An explicit undefined (e.g. presets clearing Bezier handles) removes the field.
+        for (const [field, value] of Object.entries(updates)) if (value === undefined) delete next[field];
+        return next as unknown as import("@openreel/core").Keyframe;
+      });
+      if (changed) updateClipKeyframes(clip.id, keyframes);
     },
-    [selectedClip, updateClipKeyframes],
+    [selectedClip, getEditableKeyframeClip, updateClipKeyframes],
   );
 
-  const handleDeleteKeyframe = React.useCallback(
-    (keyframeId: string) => {
-      if (!selectedClip?.keyframes) return;
-      const keyframes = selectedClip.keyframes.filter(
-        (kf) => kf.id !== keyframeId,
-      );
-      updateClipKeyframes(selectedClip.id, keyframes);
-      setSelectedKeyframeIds((prev) => prev.filter((id) => id !== keyframeId));
+  const handleDeleteKeyframes = React.useCallback(
+    (keyframeIds: string[]) => {
+      const clip = selectedClip && getEditableKeyframeClip(selectedClip.id);
+      if (!clip?.keyframes) return;
+      const ids = new Set(keyframeIds);
+      const keyframes = clip.keyframes.filter(key => !ids.has(key.id));
+      if (keyframes.length === clip.keyframes.length) return;
+      updateClipKeyframes(clip.id, keyframes);
+      setSelectedKeyframeIds(prev => prev.filter(id => !ids.has(id)));
     },
-    [selectedClip, updateClipKeyframes],
+    [selectedClip, getEditableKeyframeClip, updateClipKeyframes],
   );
 
   const handleCopyKeyframes = React.useCallback(
     (keyframeIds: string[]) => {
       if (!selectedClip?.keyframes) return;
-      const toCopy = selectedClip.keyframes.filter((kf) =>
-        keyframeIds.includes(kf.id),
-      );
-      setCopiedKeyframes(toCopy);
+      const picked = selectedClip.keyframes.filter((kf) => keyframeIds.includes(kf.id));
+      // Stored with times rebased to the earliest copied key so paste can land at the playhead.
+      setCopiedKeyframes([...copyKeyframeSet(picked).keyframes]);
     },
     [selectedClip],
   );
 
   const handlePasteKeyframes = React.useCallback(
-    (clipId: string, time: number) => {
-      const targetClip = tracks
-        .flatMap((t) => t.clips)
-        .find((c) => c.id === clipId);
-      if (!targetClip) return;
-      const newKeyframes = copiedKeyframes.map((kf) => ({
-        ...kf,
-        id: `kf-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-        time: kf.time + time,
-      }));
-      updateClipKeyframes(clipId, [
-        ...(targetClip.keyframes || []),
-        ...newKeyframes,
-      ]);
+    (clipId: string, time: number, targetProperty?: string) => {
+      const targetClip = getEditableKeyframeClip(clipId);
+      if (!targetClip || !copiedKeyframes.length) return;
+      const copied = copyKeyframeSet(copiedKeyframes);
+      const merged = pasteKeyframeSet(targetClip.keyframes ?? [], copied, {
+        time,
+        targetProperty,
+        maxTime: targetClip.duration,
+        newId: () => `kf-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+      });
+      // One setAll action: the whole paste is a single undo step.
+      updateClipKeyframes(clipId, merged);
     },
-    [copiedKeyframes, tracks, updateClipKeyframes],
+    [copiedKeyframes, getEditableKeyframeClip, updateClipKeyframes],
   );
 
   const handleSelectKeyframe = React.useCallback(
@@ -190,23 +287,45 @@ export const EditorInterface: React.FC = () => {
     [],
   );
 
+  // Keep the live audio graph's per-track/master effect racks in sync with the project.
+  useEffect(() => startAudioRackSync(), []);
+  // Linked composition windows (web pop-up or desktop window) edit through this host.
+  useEffect(() => startLinkedCompHost(), []);
+
   // ── Layout state (resizable columns and timeline band) ──────────
   const rootRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!phone || !root) return;
+    const resize = () => { if (root.clientWidth > 0) root.style.setProperty("--phone-preview-height", `${Math.round(root.clientWidth * 9 / 16)}px`); };
+    resize();
+    const observer = new ResizeObserver(resize);
+    observer.observe(root);
+    return () => observer.disconnect();
+  }, [phone, initialized]);
   const resizeRef = useRef<ResizeTarget | null>(null);
-  const [mediaWidth, setMediaWidth] = useState(() => window.innerWidth < 1600 ? MIN_MEDIA_W : DEFAULT_MEDIA_W);
-  const [inspectorWidth, setInspectorWidth] = useState(() => window.innerWidth < 1600 ? MIN_INSPECTOR_W : DEFAULT_INSPECTOR_W);
-  const [chatWidth, setChatWidth] = useState(DEFAULT_CHAT_W);
-  const [timelineVh, setTimelineVh] = useState(DEFAULT_TIMELINE_VH);
+  const [mediaWidth, setMediaWidth] = useDockSize("mediaWidth");
+  const [inspectorWidth, setInspectorWidth] = useDockSize("inspectorWidth");
+  const [chatWidth, setChatWidth] = useDockSize("chatWidth");
+  const [timelineVh, setTimelineVh] = useDockSize("timelineVh");
 
   const chatVisible = panels.agentChat?.visible ?? false;
   useEffect(() => {
     if (chatVisible) {
       setHasOpenedChat(true);
-      if (compact) setCompactPanel("chat");
+      if (compact) setCompactPanel(phone ? "timeline" : "chat");
     }
-  }, [chatVisible, compact]);
+  }, [chatVisible, compact, phone]);
+  useEffect(() => {
+    if (handledInspectorRequest.current === inspectorRequest) return;
+    handledInspectorRequest.current = inspectorRequest;
+    if (compact && inspectorRequest && useUIStore.getState().selectedItems.some(item => item.id === inspectorRequest.clipId)) {
+      setPanelVisible("agentChat", false);
+      setCompactPanel("inspector");
+    }
+  }, [inspectorRequest, compact, setPanelVisible]);
   const openCompactPanel = (panel: typeof compactPanel) => {
-    setCompactPanel(panel);
+    setCompactPanel(phone && panel === "chat" ? "timeline" : panel);
     setPanelVisible("agentChat", panel === "chat");
     if (panel === "chat") setHasOpenedChat(true);
   };
@@ -243,22 +362,22 @@ export const EditorInterface: React.FC = () => {
       const rect = root.getBoundingClientRect();
       const chatOpen =
         useUIStore.getState().panels.agentChat?.visible ?? false;
-      const chatOffset = chatOpen ? chatRef.current + RESIZE_HANDLE : 0;
+      const leftWidth = chatOpen ? chatRef.current : mediaRef.current;
 
       if (target === "media") {
         const maxByStage =
-          rect.width - (chatOpen ? 0 : inspectorRef.current) - chatOffset - MIN_STAGE_W;
+          rect.width - RAIL_WIDTH - inspectorRef.current - 2 * RESIZE_HANDLE - MIN_STAGE_W;
         setMediaWidth(
-          clamp(e.clientX - rect.left, MIN_MEDIA_W, Math.min(MAX_MEDIA_W, maxByStage)),
+          clamp(e.clientX - rect.left - RAIL_WIDTH, MIN_MEDIA_W, Math.min(MAX_MEDIA_W, maxByStage)),
         );
         return;
       }
       if (target === "inspector") {
         const maxByStage =
-          rect.width - mediaRef.current - chatOffset - MIN_STAGE_W;
+          rect.width - RAIL_WIDTH - leftWidth - 2 * RESIZE_HANDLE - MIN_STAGE_W;
         setInspectorWidth(
           clamp(
-            rect.right - chatOffset - e.clientX,
+            rect.right - e.clientX,
             MIN_INSPECTOR_W,
             Math.min(MAX_INSPECTOR_W, maxByStage),
           ),
@@ -268,12 +387,12 @@ export const EditorInterface: React.FC = () => {
       if (target === "chat") {
         const maxByStage =
           rect.width -
-          mediaRef.current -
+          RAIL_WIDTH - inspectorRef.current -
           2 * RESIZE_HANDLE -
           MIN_STAGE_W;
         setChatWidth(
           clamp(
-            rect.right - e.clientX,
+            e.clientX - rect.left - RAIL_WIDTH,
             MIN_CHAT_W,
             Math.min(MAX_CHAT_W, maxByStage),
           ),
@@ -297,7 +416,7 @@ export const EditorInterface: React.FC = () => {
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
     };
-  }, []);
+  }, [setMediaWidth, setInspectorWidth, setChatWidth, setTimelineVh]);
 
   // Reflect resized panel sizes back into CSS variables so child styles
   // (timeline header padding, etc.) can react.
@@ -309,7 +428,7 @@ export const EditorInterface: React.FC = () => {
     r.style.setProperty("--inspector-w", `${inspectorWidth}px`);
     r.style.setProperty("--chat-w", `${chatWidth}px`);
     r.style.setProperty("--tl-height", `${tlVh}vh`);
-  }, [mediaWidth, inspectorWidth, chatWidth, timelineVh, timelineMaximized]);
+  }, [mediaWidth, inspectorWidth, chatWidth, timelineVh, timelineMaximized, initialized]);
 
   if (initializing || !initialized) {
     return (
@@ -317,15 +436,17 @@ export const EditorInterface: React.FC = () => {
         <div className="text-center">
           {initError ? (
             <div role="alert" className="max-w-md space-y-4 px-6">
-              <Text type="body" weight="bold">The editor couldn't start</Text>
-              <Text type="supporting" className="text-status-error text-xs">{initError}</Text>
-              <Button label="Try again" onClick={retry} variant="primary" />
+              <span className="text-[13px] leading-5 text-fg-2 font-bold">The editor couldn't start</span>
+              <span className="font-normal text-status-error text-xs">{initError}</span>
+              <Button onClick={retry} type="button" aria-label="Try again" className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 px-3 text-[12px] bg-accent text-accent-fg hover:bg-accent/90">
+                <span className="truncate">{"Try again"}</span>
+              </Button>
             </div>
           ) : (
             <div role="status">
               <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-              <Text type="supporting" color="primary" className="text-fg-2 text-sm">Initializing editor…</Text>
-              <Text type="supporting" color="secondary" className="text-fg-muted text-xs mt-2">{initStatus}</Text>
+              <span className="font-normal text-fg-2 text-sm">Initializing editor…</span>
+              <span className="font-normal text-fg-muted text-xs mt-2">{initStatus}</span>
             </div>
           )}
         </div>
@@ -341,38 +462,48 @@ export const EditorInterface: React.FC = () => {
     ? COMPACT_TIMELINE_VH
     : timelineVh;
   const gridStyle: React.CSSProperties = compact
-    ? { gridTemplateColumns: "minmax(0, 1fr)", gridTemplateRows: "minmax(220px, 48%) minmax(0, 1fr)", gridTemplateAreas: `'stage' '${compactPanel}'` }
-    : chatVisible
     ? {
-        gridTemplateColumns: `${mediaWidth}px ${RESIZE_HANDLE}px minmax(0, 1fr) ${RESIZE_HANDLE}px ${chatWidth}px`,
-        gridTemplateRows: `1fr ${RESIZE_HANDLE}px ${effectiveTimelineVh}vh`,
-        gridTemplateAreas:
-          "'media mh stage ch chat' 'th th th th th' 'timeline timeline timeline timeline timeline'",
+        gridTemplateColumns: "minmax(0, 1fr)",
+        gridTemplateRows: phone
+          ? `calc(var(--phone-preview-height, 219px) + 48px) ${compactPanel === "media" ? "48px " : ""}minmax(0, 1fr)`
+          : compactPanel === "media" ? "minmax(180px, 40%) 48px minmax(0, 1fr)" : "minmax(220px, 48%) minmax(0, 1fr)",
+        gridTemplateAreas: compactPanel === "media" ? "'stage' 'rail' 'media'" : `'stage' '${compactPanel}'`,
       }
     : {
-        gridTemplateColumns: `${mediaWidth}px ${RESIZE_HANDLE}px 1fr ${RESIZE_HANDLE}px ${inspectorWidth}px`,
-        gridTemplateRows: `1fr ${RESIZE_HANDLE}px ${effectiveTimelineVh}vh`,
-        gridTemplateAreas:
-          "'media mh stage ih inspector' 'th th th th th' 'timeline timeline timeline timeline timeline'",
+        gridTemplateColumns: `${RAIL_WIDTH}px ${chatVisible ? chatWidth : mediaWidth}px ${RESIZE_HANDLE}px minmax(0, 1fr) ${RESIZE_HANDLE}px ${inspectorWidth}px`,
+        gridTemplateRows: `minmax(0, 1fr) ${RESIZE_HANDLE}px ${effectiveTimelineVh}vh`,
+        gridTemplateAreas: chatVisible
+          ? "'rail chat mh stage ih inspector' 'th th th th th th' 'timeline timeline timeline timeline timeline timeline'"
+          : "'rail media mh stage ih inspector' 'th th th th th th' 'timeline timeline timeline timeline timeline timeline'",
       };
 
   return (
     <div
       ref={rootRef}
-      className={`editor-shell w-full h-full bg-bg text-fg overflow-hidden font-sans select-none relative z-20 flex flex-col ${compact ? "editor-compact" : ""}`}
+      data-compact-panel={compact ? compactPanel : undefined}
+      data-platform={phone ? /Android/i.test(navigator.userAgent) ? "android" : "ios" : undefined}
+      className={`editor-shell w-full h-full bg-bg text-fg overflow-hidden font-sans select-none relative z-20 flex flex-col ${compact ? "editor-compact" : ""} ${phone ? "editor-phone" : ""}`}
     >
       <Toolbar />
+      <ProjectLockBanner />
+      <MissingFontsBanner />
+
+      {phone && compactPanel !== "timeline" && <div className="mobile-panel-heading">
+        <ShadcnButton variant="ghost" onClick={() => openCompactPanel("timeline")}>Back to timeline</ShadcnButton>
+        <span>{compactPanel === "media" ? "Library" : compactPanel === "chat" ? "AI assist" : "Clip controls"}</span>
+      </div>}
 
       <div className="editor-body flex-1 min-h-0 flex">
-        <div className="editor-rail" hidden={compact && compactPanel !== "media"}><EditorActionRail /></div>
+
         <div
-          className={`editor-workspace flex-1 min-w-0 min-h-0 grid gap-0 bg-bg p-2.5 ${chatVisible && !compact ? "ai-workspace-grid" : ""}`}
+          className={`editor-workspace flex-1 min-w-0 min-h-0 grid gap-0 bg-bg ${chatVisible && !compact ? "ai-workspace-grid" : ""}`}
           style={gridStyle}
         >
+        <div className="editor-rail" style={{ gridArea: "rail" }} hidden={compact && compactPanel !== "media"}><EditorActionRail /></div>
         <div
           id="editor-panel-media"
-          hidden={compact && compactPanel !== "media"}
-          className="editor-panel bg-bg-1 min-w-0 min-h-0 overflow-hidden rounded-xl border border-border shadow-sm"
+          hidden={chatVisible || (compact && compactPanel !== "media")}
+          className="editor-panel bg-bg-1 min-w-0 min-h-0 overflow-hidden workspace-surface"
           style={{ gridArea: "media" }}
         >
           <PanelErrorBoundary name="Media">
@@ -384,27 +515,33 @@ export const EditorInterface: React.FC = () => {
           hidden={compact}
           className="editor-resizer grid place-items-center cursor-col-resize group/h"
           style={{ gridArea: "mh" }}
-          onMouseDown={beginResize("media")}
+          onMouseDown={beginResize(chatVisible ? "chat" : "media")}
           role="separator"
           aria-label="Resize media panel"
           aria-orientation="vertical"
-          aria-valuenow={mediaWidth}
+          aria-valuenow={chatVisible ? chatWidth : mediaWidth}
           tabIndex={0}
-          onKeyDown={(e) => { if (e.key === "ArrowLeft" || e.key === "ArrowRight") { e.preventDefault(); setMediaWidth((w) => clamp(w + (e.key === "ArrowRight" ? 20 : -20), MIN_MEDIA_W, MAX_MEDIA_W)); } }}
+          onKeyDown={(e) => { if (e.key === "ArrowLeft" || e.key === "ArrowRight") { e.preventDefault(); if (chatVisible) setChatWidth(w => clamp(w + (e.key === "ArrowRight" ? 20 : -20), MIN_CHAT_W, MAX_CHAT_W)); else setMediaWidth((w) => clamp(w + (e.key === "ArrowRight" ? 20 : -20), MIN_MEDIA_W, MAX_MEDIA_W)); } }}
         >
           <span className="h-10 w-1 rounded-full bg-transparent group-hover/h:bg-accent/40 transition-colors" />
         </div>
 
         <div
-          className="editor-stage bg-stage-bg min-w-0 min-h-0 overflow-hidden rounded-xl border border-border shadow-sm"
+          className="editor-stage relative bg-stage-bg min-w-0 min-h-0 overflow-hidden workspace-surface"
           style={{ gridArea: "stage" }}
         >
           <PanelErrorBoundary name="Stage">
             <Preview />
+            {sourceTab === "source" && <SourceMonitor />}
+            {sourceTab === "multicam" && (
+              <React.Suspense fallback={null}>
+                <MulticamMonitor />
+              </React.Suspense>
+            )}
           </PanelErrorBoundary>
         </div>
 
-        {!chatVisible && <><div
+        <><div
           hidden={compact}
           className="editor-resizer grid place-items-center cursor-col-resize group/h"
           style={{ gridArea: "ih" }}
@@ -416,18 +553,18 @@ export const EditorInterface: React.FC = () => {
         <div
           id="editor-panel-inspector"
           hidden={compact && compactPanel !== "inspector"}
-          className="editor-panel bg-bg-1 min-w-0 min-h-0 overflow-hidden rounded-xl border border-border shadow-sm"
+          className="editor-panel bg-bg-1 min-w-0 min-h-0 overflow-hidden workspace-surface"
           style={{ gridArea: "inspector" }}
         >
           <PanelErrorBoundary name="Inspector">
-            <InspectorPanel />
+            {chatVisible && !compact ? <ChangesPanel /> : <InspectorPanel />}
           </PanelErrorBoundary>
-        </div></>}
+        </div></>
 
         {(chatVisible || hasOpenedChat) && (
           <>
             <div
-              hidden={compact || !chatVisible}
+              hidden
               className="ai-chat-resizer editor-resizer grid place-items-center cursor-col-resize group/h"
               style={{ gridArea: "ch" }}
               onMouseDown={beginResize("chat")}
@@ -443,8 +580,8 @@ export const EditorInterface: React.FC = () => {
 
             <div
               id="editor-panel-chat"
-              hidden={!chatVisible || (compact && compactPanel !== "chat")}
-              className="editor-panel bg-bg-1 min-w-0 min-h-0 overflow-hidden rounded-xl border border-border shadow-sm"
+              hidden={phone || !chatVisible || (compact && compactPanel !== "chat")}
+              className="editor-panel bg-bg-1 min-w-0 min-h-0 overflow-hidden workspace-surface"
               style={{ gridArea: "chat" }}
             >
               <PanelErrorBoundary name="AI Editor">
@@ -476,46 +613,39 @@ export const EditorInterface: React.FC = () => {
         <div
           id="editor-panel-timeline"
           hidden={compact && compactPanel !== "timeline"}
-          className="editor-panel bg-tl-bg min-w-0 min-h-0 overflow-hidden flex flex-col rounded-xl border border-border shadow-sm"
+          className="editor-panel bg-tl-bg min-w-0 min-h-0 overflow-hidden flex flex-col workspace-surface"
           style={{ gridArea: "timeline" }}
         >
-          {panels.audioMixer?.visible && (
-            <div className="shrink-0 border-b border-border">
-              <PanelErrorBoundary name="Audio Mixer">
-                <AudioMixer
-                  visible
-                  onClose={() => setPanelVisible("audioMixer", false)}
-                />
-              </PanelErrorBoundary>
-            </div>
-          )}
-
-          {compact && selectedItems.length > 0 && (
-            <button type="button" onClick={() => openCompactPanel("inspector")} className="shrink-0 text-xs text-accent bg-accent/10">
+          {compact && !phone && hasSelection && (
+            <ShadcnButton variant="ghost" size="sm" type="button" onClick={() => openCompactPanel("inspector")} className="h-auto shrink-0 whitespace-normal rounded-none p-0 text-xs font-normal leading-[1.4] text-accent bg-accent/10">
               Edit selected clip · trim, captions, audio & effects
-            </button>
+            </ShadcnButton>
           )}
           <div className="flex-1 min-h-0 flex">
-            <div className="flex-1 min-w-0 min-h-0">
+            <div hidden={compact && keyframeEditorOpen} className="flex-1 min-w-0 min-h-0">
               <PanelErrorBoundary name="Timeline">
-                <Timeline />
+                <Timeline onOpenMedia={() => openCompactPanel("media")} />
               </PanelErrorBoundary>
             </div>
 
             {keyframeEditorOpen && (
-              <div className="shrink-0 min-w-0 border-l border-border">
+              <div className={compact ? "w-full shrink-0 min-w-0" : "w-[min(640px,100%)] shrink-0 min-w-0"}>
                 <PanelErrorBoundary name="Keyframe Editor">
+                  <React.Suspense fallback={<div className="grid h-full place-items-center text-xs text-fg-muted" role="status">Loading keyframes…</div>}>
                   <KeyframeEditorPanel
                     clip={selectedClip}
+                    playheadTime={keyframePlayheadTime}
                     onClose={() => setKeyframeEditorOpen(false)}
-                    onUpdateKeyframe={handleUpdateKeyframe}
-                    onDeleteKeyframe={handleDeleteKeyframe}
+                    disabled={keyframeExporting || keyframeOperationLocked || keyframeTrackLocked}
+                    onUpdateKeyframes={handleUpdateKeyframes}
+                    onDeleteKeyframes={handleDeleteKeyframes}
                     onCopyKeyframes={handleCopyKeyframes}
                     onPasteKeyframes={handlePasteKeyframes}
                     selectedKeyframeIds={selectedKeyframeIds}
                     onSelectKeyframe={handleSelectKeyframe}
                     copiedKeyframes={copiedKeyframes}
                   />
+                  </React.Suspense>
                 </PanelErrorBoundary>
               </div>
             )}
@@ -524,15 +654,16 @@ export const EditorInterface: React.FC = () => {
       </div>
       </div>
 
-      {compact && (
+      {phone && <React.Suspense fallback={<div style={{ height: 66, flexShrink: 0 }} role="status" aria-label="Loading mobile tools"/>}><MobileEditorTools onPanel={openCompactPanel}/></React.Suspense>}
+      {compact && !phone && (
         <nav aria-label="Editor workspace" className="editor-workspace-tabs">
           {([
             ["timeline", "Timeline"], ["media", "Media"], ["inspector", "Edit"], ["chat", "AI"],
           ] as const).map(([panel, label]) => (
-            <button key={panel} type="button" aria-controls={`editor-panel-${panel}`} aria-pressed={compactPanel === panel}
+            <ShadcnButton variant="ghost" size="sm" key={panel} type="button" aria-controls={`editor-panel-${panel}`} aria-pressed={compactPanel === panel}
               onClick={() => openCompactPanel(panel)} className={compactPanel === panel ? "text-accent bg-accent/10" : "text-fg-muted"}>
               {label}
-            </button>
+            </ShadcnButton>
           ))}
         </nav>
       )}
@@ -541,11 +672,35 @@ export const EditorInterface: React.FC = () => {
         isOpen={showShortcutsOverlay}
         onClose={() => setShowShortcutsOverlay(false)}
       />
+      <PanelErrorBoundary name="Multicam" silent>
+        <React.Suspense fallback={null}>
+          <MultiCameraDialog />
+        </React.Suspense>
+      </PanelErrorBoundary>
+      <PanelErrorBoundary name="Multicam source" silent>
+        <React.Suspense fallback={null}>
+          <MulticamSourceDialog />
+        </React.Suspense>
+      </PanelErrorBoundary>
+      <TimelineImportDialog />
+      <InterchangeExportReportDialog />
+      <InterchangeExportDialog />
+      <Dialog open={panels.audioMixer?.visible ?? false} onOpenChange={(open) => setPanelVisible("audioMixer", open)}>
+        <DialogContent hideCloseButton aria-describedby={undefined} className="w-[calc(100vw-32px)] max-w-3xl gap-0 overflow-hidden border-border bg-bg-1 p-0 text-fg">
+          <DialogTitle className="sr-only">Audio Mixer</DialogTitle>
+          <ScrollArea className="h-[min(760px,calc(100dvh-32px))]">
+            <PanelErrorBoundary name="Audio Mixer">
+              <React.Suspense fallback={<div className="grid h-40 place-items-center text-xs text-fg-muted" role="status">Loading mixer…</div>}>
+                <AudioMixer visible onClose={() => setPanelVisible("audioMixer", false)} />
+              </React.Suspense>
+            </PanelErrorBoundary>
+          </ScrollArea>
+        </DialogContent>
+      </Dialog>
 
+      <WorkspaceSaveDialog />
       <SpotlightTour />
       <MoGraphTour />
     </div>
   );
 };
-
-export default EditorInterface;

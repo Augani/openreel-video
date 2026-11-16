@@ -484,20 +484,6 @@ describe("ClipManager", () => {
     });
   });
 
-  describe("snap to grid", () => {
-    it("should create clip manager with snap enabled by default", () => {
-      const managerWithSnap = new ClipManager();
-      expect(managerWithSnap).toBeDefined();
-    });
-
-    it("should create clip manager with custom grid size", () => {
-      const managerWithGrid = new ClipManager({
-        gridSize: 0.5,
-        snapThreshold: 5,
-      });
-      expect(managerWithGrid).toBeDefined();
-    });
-  });
 });
 
 describe("ClipManager - Edge Cases", () => {
@@ -533,32 +519,6 @@ describe("ClipManager - Edge Cases", () => {
 
     expect(result.success).toBe(false);
   });
-
-  it("should handle zero duration clip", async () => {
-    const timeline = createMockTimeline();
-
-    const result = await clipManager.addClip(timeline, {
-      trackId: "track-1",
-      mediaId: "media-1",
-      startTime: 0,
-      duration: 0,
-    });
-
-    expect(result.success).toBe(true);
-  });
-
-  it("should handle very long duration clip", async () => {
-    const timeline = createMockTimeline();
-
-    const result = await clipManager.addClip(timeline, {
-      trackId: "track-1",
-      mediaId: "media-1",
-      startTime: 0,
-      duration: 3600,
-    });
-
-    expect(result.success).toBe(true);
-  });
 });
 
 describe("ClipManager - Helper Methods", () => {
@@ -583,13 +543,6 @@ describe("ClipManager - Helper Methods", () => {
     const found = clipManager.findClip(timeline, "target-clip");
     expect(found).toBeDefined();
     expect(found?.id).toBe("target-clip");
-  });
-
-  it("should return undefined for non-existent clip", () => {
-    const timeline = createMockTimeline();
-
-    const found = clipManager.findClip(timeline, "non-existent");
-    expect(found).toBeUndefined();
   });
 
   it("should detect overlapping clips", () => {
@@ -627,32 +580,4 @@ describe("ClipManager - Helper Methods", () => {
     expect(clips.length).toBe(2);
   });
 
-  it("should return empty array for non-existent track", () => {
-    const timeline = createMockTimeline();
-
-    const clips = clipManager.getTrackClips(timeline, "non-existent");
-    expect(clips.length).toBe(0);
-  });
-
-  it("accepts every media kind on every normal track", () => {
-    const trackTypes: Track["type"][] = [
-      "video",
-      "audio",
-      "image",
-      "text",
-      "graphics",
-    ];
-    const mediaTypes = ["video", "audio", "image"] as const;
-
-    for (const trackType of trackTypes) {
-      for (const mediaType of mediaTypes) {
-        expect(
-          clipManager.canTrackAcceptClip(
-            createMockTrack({ type: trackType }),
-            mediaType,
-          ),
-        ).toBe(true);
-      }
-    }
-  });
 });

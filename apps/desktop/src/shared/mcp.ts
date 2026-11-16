@@ -40,3 +40,9 @@ export interface McpBridgeResponse {
   result?: unknown;
   error?: string;
 }
+
+/**
+ * Marks a request as the app's own health probe or `--doctor`. The server answers it but does not
+ * count it as client activity, so a probe can never make a stale client look connected.
+ */
+export const MCP_PROBE_HEADER = "x-openreel-probe";

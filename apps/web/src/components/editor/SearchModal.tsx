@@ -1,39 +1,11 @@
-import React, {
-  useState,
-  useCallback,
-  useMemo,
-  useEffect,
-  useRef,
-} from "react";
-import {
-  Search,
-  X,
-  Video,
-  Music2,
-  Type,
-  Palette,
-  Wand2,
-  Layers,
-  Zap,
-  Square,
-  Move,
-  Focus,
-  Clock,
-  Eye,
-  Sliders,
-} from "@/icons/lucide-compat";
-import { ToolcraftSegmentedControl } from "@openreel/ui";
-import { ToolcraftCard as Card } from "@openreel/ui";
-import { ToolcraftClickableCard as ClickableCard } from "@openreel/ui";
-import { ToolcraftDialog as Dialog, ToolcraftDialogHeader as DialogHeader } from "@openreel/ui";
-import { ToolcraftEmptyState as EmptyState } from "@openreel/ui";
-import { ToolcraftIconButton as IconButton } from "@openreel/ui";
-import { ToolcraftKbd as Kbd } from "@openreel/ui";
-import { ToolcraftLayout as Layout, ToolcraftLayoutContent as LayoutContent, ToolcraftLayoutFooter as LayoutFooter } from "@openreel/ui";
-import { ToolcraftText as Text } from "@openreel/ui";
-import { ToolcraftTextInputControl } from "@openreel/ui";
+import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
+import { Search, X, Video, Music2, Type, Palette, Wand2, Layers, Zap, Square, Move, Focus, Clock, Eye, Sliders } from "@/icons/lucide-compat";
+import { Button, Card, Input, Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogClose, ToggleGroup, ToggleGroupItem, ScrollArea, cn } from "@openreel/ui";
 import { useUIStore } from "../../stores/ui-store";
 import { useProjectStore } from "../../stores/project-store";
+import { useInspectorNavigationStore } from "../../stores/inspector-navigation-store";
+import type { InspectorClipType } from "./inspector/clip-tabs.config";
 
 interface SearchItem {
   id: string;
@@ -43,8 +15,9 @@ interface SearchItem {
   icon: React.ElementType;
   description: string;
   sectionId: string;
-  clipTypes: Array<"video" | "audio" | "text" | "shape" | "image">;
+  clipTypes: readonly InspectorClipType[];
 }
+const VISUAL_CLIP_TYPES = ["video", "image", "text", "shape", "svg", "sticker"] as const;
 
 const SEARCHABLE_EFFECTS: SearchItem[] = [
   {
@@ -55,7 +28,7 @@ const SEARCHABLE_EFFECTS: SearchItem[] = [
     icon: Move,
     description: "Position, scale, and rotate the clip",
     sectionId: "transform",
-    clipTypes: ["video", "image", "text", "shape"],
+    clipTypes: VISUAL_CLIP_TYPES,
   },
   {
     id: "crop",
@@ -75,7 +48,7 @@ const SEARCHABLE_EFFECTS: SearchItem[] = [
     icon: Clock,
     description: "Control playback speed and time remapping",
     sectionId: "speed",
-    clipTypes: ["video", "audio"],
+    clipTypes: ["video", "image", "audio"],
   },
   {
     id: "video-effects",
@@ -93,7 +66,7 @@ const SEARCHABLE_EFFECTS: SearchItem[] = [
     icon: Sliders,
     description: "Color, blur, creative, shader, and stylize effects",
     sectionId: "video-effects",
-    clipTypes: ["video", "image", "text", "shape"],
+    clipTypes: VISUAL_CLIP_TYPES,
   },
   {
     id: "color-grading",
@@ -132,7 +105,17 @@ const SEARCHABLE_EFFECTS: SearchItem[] = [
     icon: Wand2,
     description: "AI-powered background removal",
     sectionId: "background-removal",
-    clipTypes: ["video", "image"],
+    clipTypes: ["video"],
+  },
+  {
+    id: "particle-effects",
+    name: "Particle Effects",
+    category: "Video",
+    keywords: ["particle", "confetti", "dust", "sparkle", "explosion", "snow", "fire"],
+    icon: Wand2,
+    description: "Add and customize particle presets",
+    sectionId: "particle-effects",
+    clipTypes: VISUAL_CLIP_TYPES,
   },
   {
     id: "masking",
@@ -172,7 +155,7 @@ const SEARCHABLE_EFFECTS: SearchItem[] = [
     icon: Layers,
     description: "Blend modes and opacity controls",
     sectionId: "blending",
-    clipTypes: ["video", "image"],
+    clipTypes: VISUAL_CLIP_TYPES,
   },
   {
     id: "transform-3d",
@@ -182,7 +165,7 @@ const SEARCHABLE_EFFECTS: SearchItem[] = [
     icon: Move,
     description: "3D rotation and perspective effects",
     sectionId: "transform-3d",
-    clipTypes: ["video", "image"],
+    clipTypes: VISUAL_CLIP_TYPES,
   },
   {
     id: "keyframes",
@@ -192,7 +175,7 @@ const SEARCHABLE_EFFECTS: SearchItem[] = [
     icon: Zap,
     description: "Animate properties over time",
     sectionId: "keyframes",
-    clipTypes: ["video", "image", "text", "shape"],
+    clipTypes: VISUAL_CLIP_TYPES,
   },
   {
     id: "transitions",
@@ -202,7 +185,7 @@ const SEARCHABLE_EFFECTS: SearchItem[] = [
     icon: Zap,
     description: "Clip-to-clip transitions",
     sectionId: "transitions",
-    clipTypes: ["video", "image"],
+    clipTypes: VISUAL_CLIP_TYPES,
   },
   {
     id: "motion-presets",
@@ -212,7 +195,7 @@ const SEARCHABLE_EFFECTS: SearchItem[] = [
     icon: Zap,
     description: "Pre-built motion animations",
     sectionId: "motion-presets",
-    clipTypes: ["video", "image"],
+    clipTypes: ["video", "image", "shape", "svg", "sticker"],
   },
   {
     id: "audio-effects",
@@ -259,7 +242,7 @@ const SEARCHABLE_EFFECTS: SearchItem[] = [
     keywords: ["text", "material", "shader", "paper", "glsl", "gradient", "dissolve"],
     icon: Wand2,
     description: "Browse live shader and Paper material previews for text",
-    sectionId: "text-properties",
+    sectionId: "text-materials",
     clipTypes: ["text"],
   },
   {
@@ -292,6 +275,13 @@ const SEARCHABLE_EFFECTS: SearchItem[] = [
     sectionId: "shape-properties",
     clipTypes: ["shape"],
   },
+  { id: "svg-properties", name: "SVG Properties", category: "Shapes", keywords: ["svg", "vector", "tint", "color", "entry", "exit"], icon: Square,
+    description: "SVG tint and independent entry/exit animations", sectionId: "svg-properties", clipTypes: ["svg"] },
+  { id: "motion-path", name: "Motion Path", category: "Animation", keywords: ["path", "curve", "bezier", "move", "motion"], icon: Move,
+    description: "Move visual clips along an editable path", sectionId: "motion-path", clipTypes: VISUAL_CLIP_TYPES },
+  { id: "emphasis-animation", name: "Emphasis Animation", category: "Animation", keywords: ["emphasis", "pulse", "shake", "bounce", "loop"], icon: Zap,
+    description: "Loop an emphasis animation on the selected clip", sectionId: "emphasis-animation", clipTypes: VISUAL_CLIP_TYPES },
+
 ];
 
 const CATEGORIES = [
@@ -302,328 +292,133 @@ const CATEGORIES = [
   { id: "animation", name: "Animation", icon: Zap },
 ];
 
-interface SearchModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-}
+interface SearchModalProps { isOpen: boolean; onClose: () => void }
 
-export const SearchModal: React.FC<SearchModalProps> = ({
-  isOpen,
-  onClose,
-}) => {
+export const SearchModal: React.FC<SearchModalProps> = ({ isOpen, onClose }) => {
   const [query, setQuery] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState("all");
-  const [selectedIndex, setSelectedIndex] = useState(0);
+  const [category, setCategory] = useState("all");
   const inputRef = useRef<HTMLInputElement>(null);
-  const listRef = useRef<HTMLDivElement>(null);
-
-  const { selectedItems, setPanelVisible } = useUIStore();
-  const project = useProjectStore((state) => state.project);
-
-  const selectedClipType = useMemo(() => {
-    const clipItem = selectedItems.find(
-      (item) =>
-        item.type === "clip" ||
-        item.type === "text-clip" ||
-        item.type === "shape-clip",
-    );
-    if (!clipItem) return null;
-    if (clipItem.type === "text-clip") return "text";
-    if (clipItem.type === "shape-clip") return "shape";
-    const track = project.timeline.tracks.find((candidate) =>
-      candidate.clips.some((clip) => clip.id === clipItem.id),
-    );
-    if (track?.type === "audio") return "audio";
-    const clip = track?.clips.find((candidate) => candidate.id === clipItem.id);
-    const media = clip
-      ? project.mediaLibrary.items.find((item) => item.id === clip.mediaId)
-      : undefined;
-    if (track?.type === "image" || media?.type === "image") return "image";
-    return "video";
-  }, [project.mediaLibrary.items, project.timeline.tracks, selectedItems]);
-
-  const filteredEffects = useMemo(() => {
-    let effects = SEARCHABLE_EFFECTS;
-
-    if (selectedClipType) {
-      effects = effects.filter((e) =>
-        e.clipTypes.includes(
-          selectedClipType as "video" | "audio" | "text" | "shape" | "image",
-        ),
-      );
-    }
-
-    if (selectedCategory !== "all") {
-      effects = effects.filter((e) =>
-        e.category.toLowerCase().includes(selectedCategory.toLowerCase()),
-      );
-    }
-
-    if (query.trim()) {
-      const searchTerms = query.toLowerCase().split(" ");
-      effects = effects.filter((e) => {
-        const searchText = [e.name, e.description, ...e.keywords, e.category]
-          .join(" ")
-          .toLowerCase();
-        return searchTerms.every((term) => searchText.includes(term));
-      });
-    }
-
-    return effects;
-  }, [query, selectedCategory, selectedClipType]);
-
-  const handleSelect = useCallback(
-    (effect: SearchItem) => {
-      setPanelVisible("inspector", true);
-
-      setTimeout(() => {
-        const sectionElement = document.querySelector(
-          `[data-section-id="${effect.sectionId}"]`,
-        );
-        if (sectionElement) {
-          sectionElement.scrollIntoView({ behavior: "smooth", block: "start" });
-
-          const header = sectionElement.querySelector<HTMLElement>(
-            '[data-slot="toolcraft-panel-section-header"]',
-          );
-          if (header?.getAttribute("aria-expanded") === "false") {
-            header.click();
-          }
-
-          sectionElement.classList.add(
-            "ring-2",
-            "ring-primary",
-            "ring-offset-2",
-          );
-          setTimeout(() => {
-            sectionElement.classList.remove(
-              "ring-2",
-              "ring-primary",
-              "ring-offset-2",
-            );
-          }, 2000);
-        }
-      }, 100);
-
-      onClose();
-    },
-    [onClose, setPanelVisible],
-  );
-
-  useEffect(() => {
-    if (isOpen && inputRef.current) {
-      inputRef.current.focus();
-    }
-  }, [isOpen]);
-
-  useEffect(() => {
-    setSelectedIndex(0);
-  }, [query, selectedCategory]);
-
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        onClose();
-      } else if (e.key === "ArrowDown") {
-        e.preventDefault();
-        setSelectedIndex((prev) =>
-          Math.min(prev + 1, filteredEffects.length - 1),
-        );
-      } else if (e.key === "ArrowUp") {
-        e.preventDefault();
-        setSelectedIndex((prev) => Math.max(prev - 1, 0));
-      } else if (e.key === "Enter" && filteredEffects[selectedIndex]) {
-        e.preventDefault();
-        handleSelect(filteredEffects[selectedIndex]);
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen, onClose, filteredEffects, selectedIndex, handleSelect]);
-
-  useEffect(() => {
-    if (listRef.current && filteredEffects[selectedIndex]) {
-      const selectedEl = listRef.current.children[selectedIndex] as HTMLElement;
-      if (selectedEl) {
-        selectedEl.scrollIntoView({ behavior: "smooth", block: "nearest" });
-      }
-    }
-  }, [selectedIndex, filteredEffects]);
-
-  if (!isOpen) return null;
-
-  return (
-    <Dialog
-      isOpen
-      onOpenChange={(open) => !open && onClose()}
-      width={672}
-      purpose="form"
-    >
-      <Layout
-        header={
-          <DialogHeader
-            title="Search Effects"
-            subtitle={
-              selectedClipType
-                ? `Find tools for the selected ${selectedClipType} clip.`
-                : "Find effects and tools across the inspector."
-            }
-            onOpenChange={(open) => !open && onClose()}
-            startContent={<Search size={18} className="text-primary" aria-hidden />}
-          />
-        }
-        content={
-          <LayoutContent>
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <div className="min-w-0 flex-1">
-                  <ToolcraftTextInputControl
-                    ref={inputRef}
-                    label="Search effects"
-                    isLabelHidden
-                    type="text"
-                    value={query}
-                    onChange={setQuery}
-                    placeholder={
-                      selectedClipType
-                        ? `Search effects for ${selectedClipType} clip...`
-                        : "Search all effects and tools..."
-                    }
-                    startIcon={<Search size={16} aria-hidden />}
-                    width="100%"
-                    hasAutoFocus
-                  />
-                </div>
-                {query && (
-                  <IconButton
-                    label="Clear search"
-                    onClick={() => setQuery("")}
-                    variant="ghost"
-                    size="sm"
-                    icon={<X size={14} aria-hidden />}
-                  />
-                )}
-                <Kbd keys="escape" />
-              </div>
-
-              <ToolcraftSegmentedControl
-                ariaLabel="Effect category"
-                value={selectedCategory}
-                onChange={setSelectedCategory}
-                options={CATEGORIES.map((cat) => {
-                  const CategoryIcon = cat.icon;
-                  return {
-                    value: cat.id,
-                    label: cat.name,
-                    icon: CategoryIcon ? (
-                      <CategoryIcon size={14} aria-hidden />
-                    ) : undefined,
-                  };
-                })}
-              />
-
-              <div ref={listRef} className="max-h-[50vh] overflow-y-auto">
-                {filteredEffects.length === 0 ? (
-                  <EmptyState
-                    title="No effects found"
-                    description="Try a different search term or category."
-                    icon={<Search size={32} className="text-text-muted opacity-50" aria-hidden />}
-                    isCompact
-                  />
-                ) : (
-                  <div className="space-y-2 py-1">
-                    {filteredEffects.map((effect, index) => {
-                      const Icon = effect.icon;
-                      const selected = index === selectedIndex;
-                      return (
-                        <ClickableCard
-                          key={effect.id}
-                          label={`Open ${effect.name}`}
-                          onClick={() => handleSelect(effect)}
-                          padding={3}
-                          variant={selected ? "green" : "default"}
-                          className={`border ${
-                            selected ? "border-primary" : "border-border"
-                          }`}
-                        >
-                          <div className="flex items-center gap-4 text-left">
-                            <div
-                              className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
-                                selected
-                                  ? "bg-primary text-white"
-                                  : "bg-background-tertiary text-text-secondary"
-                              }`}
-                            >
-                              <Icon size={16} aria-hidden />
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-center gap-2">
-                                <Text
-                                  type="label"
-                                  weight="bold"
-                                  color={selected ? "active" : "primary"}
-                                  maxLines={1}
-                                >
-                                  {effect.name}
-                                </Text>
-                                <Card variant="muted" padding={1} className="shrink-0">
-                                  <Text
-                                    type="supporting"
-                                    color="secondary"
-                                    className="text-[10px]"
-                                  >
-                                    {effect.category}
-                                  </Text>
-                                </Card>
-                              </div>
-                              <Text
-                                type="supporting"
-                                color="secondary"
-                                display="block"
-                                maxLines={1}
-                                className="mt-0.5"
-                              >
-                                {effect.description}
-                              </Text>
-                            </div>
-                            <Kbd keys="enter" />
-                          </div>
-                        </ClickableCard>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            </div>
-          </LayoutContent>
-        }
-        footer={
-          <LayoutFooter hasDivider>
-            <div className="flex items-center justify-between gap-3">
-              <Text type="supporting" color="secondary" className="text-[10px]">
-                {filteredEffects.length} effect
-                {filteredEffects.length !== 1 ? "s" : ""} available
-              </Text>
-              <div className="flex items-center gap-2">
-                <Kbd keys="up" />
-                <Kbd keys="down" />
-                <Text type="supporting" color="secondary" className="text-[10px]">
-                  Navigate
-                </Text>
-                <Kbd keys="enter" />
-                <Text type="supporting" color="secondary" className="text-[10px]">
-                  Select
-                </Text>
-              </div>
-            </div>
-          </LayoutFooter>
-        }
-      />
-    </Dialog>
-  );
+  const navigated = useRef(false);
+  const returnFocusRef = useRef<HTMLElement | null>(null);
+  return <Dialog open={isOpen} onOpenChange={open => { if (!open) onClose(); }}>
+    <DialogContent hideCloseButton className="flex max-h-[calc(100dvh-32px)] w-[calc(100vw-32px)] max-w-[672px] min-w-0 flex-col gap-0 overflow-hidden rounded-lg p-0 sm:max-w-[672px]"
+      onOpenAutoFocus={event => {
+        event.preventDefault();
+        returnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+        navigated.current = false;
+        inputRef.current?.focus();
+      }}
+      onCloseAutoFocus={event => {
+        event.preventDefault();
+        if (!navigated.current && returnFocusRef.current?.isConnected) returnFocusRef.current.focus({ preventScroll: true });
+      }}>
+      <SearchEffectsContent query={query} setQuery={setQuery} category={category} setCategory={setCategory}
+        inputRef={inputRef} onClose={onClose} onNavigate={() => { navigated.current = true; }} />
+    </DialogContent>
+  </Dialog>;
 };
 
-export default SearchModal;
+function SearchEffectsContent({ query, setQuery, category, setCategory, inputRef, onClose, onNavigate }: {
+  query: string; setQuery: (value: string) => void; category: string; setCategory: (value: string) => void;
+  inputRef: React.RefObject<HTMLInputElement | null>; onClose: () => void; onNavigate: () => void;
+}) {
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const listRef = useRef<HTMLDivElement>(null);
+  const listId = useId();
+  const { selectedItems, setPanelVisible } = useUIStore(useShallow(state => ({ selectedItems: state.selectedItems, setPanelVisible: state.setPanelVisible })));
+  const project = useProjectStore(state => state.project);
+  const owner = useRef(project.id);
+  const selected = selectedItems.find(item => item.type === "clip" || item.type === "text-clip" || item.type === "shape-clip");
+  const selectedClipType = useMemo<InspectorClipType | null>(() => {
+    if (!selected) return null;
+    const state = useProjectStore.getState();
+    if (project.textClips?.some(clip => clip.id === selected.id) || state.getTextClip(selected.id)) return "text";
+    if (project.svgClips?.some(clip => clip.id === selected.id) || state.getSVGClip(selected.id)) return "svg";
+    if (project.stickerClips?.some(clip => clip.id === selected.id) || state.getStickerClip(selected.id)) return "sticker";
+    if (project.shapeClips?.some(clip => clip.id === selected.id) || state.getShapeClip(selected.id)) return "shape";
+    if (selected.type === "text-clip") return "text";
+    if (selected.type === "shape-clip") return "shape";
+    const track = project.timeline.tracks.find(track => track.clips.some(clip => clip.id === selected.id));
+    const clip = track?.clips.find(clip => clip.id === selected.id);
+    const media = project.mediaLibrary.items.find(item => item.id === clip?.mediaId);
+    if (track?.type === "audio" || media?.type === "audio") return "audio";
+    if (track?.type === "image" || media?.type === "image") return "image";
+    return "video";
+  }, [project, selected]);
+  const filteredEffects = useMemo(() => {
+    const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    return SEARCHABLE_EFFECTS.filter(effect => (!selectedClipType || effect.clipTypes.includes(selectedClipType))
+      && (category === "all" || effect.category.toLowerCase().includes(category))
+      && terms.every(term => [effect.name, effect.description, ...effect.keywords, effect.category].join(" ").toLowerCase().includes(term)));
+  }, [query, category, selectedClipType]);
+  const activeIndex = Math.min(selectedIndex, Math.max(0, filteredEffects.length - 1));
+  useEffect(() => setSelectedIndex(0), [query, category, selected?.id, selectedClipType]);
+  useEffect(() => {
+    if (project.id !== owner.current) onClose();
+  }, [project.id, onClose]);
+  useEffect(() => {
+    const element = listRef.current?.querySelector<HTMLElement>(`[data-search-result="${activeIndex}"]`);
+    element?.scrollIntoView?.({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth", block: "nearest" });
+  }, [activeIndex, filteredEffects]);
+  const handleSelect = useCallback((effect: SearchItem) => {
+    if (useProjectStore.getState().project.id !== owner.current) return;
+    setPanelVisible("inspector", true);
+    const current = useUIStore.getState().selectedItems.find(item => item.type === "clip" || item.type === "text-clip" || item.type === "shape-clip");
+    if (current?.id !== selected?.id) return;
+    onNavigate();
+    if (current) useInspectorNavigationStore.getState().requestSection(effect.sectionId, current.id);
+    onClose();
+  }, [onClose, onNavigate, selected?.id, setPanelVisible]);
+
+  return <>
+    <DialogHeader className="relative shrink-0 border-b border-border p-4 pr-14 text-left">
+      <DialogTitle className="flex items-center gap-2 text-base"><Search size={18} className="text-primary" aria-hidden />Search Effects</DialogTitle>
+      <DialogDescription>{selectedClipType ? `Find tools for the selected ${selectedClipType} clip.` : "Find effects and tools across the inspector."}</DialogDescription>
+      <DialogClose asChild><Button variant="ghost" size="icon-sm" aria-label="Close dialog" className="absolute right-3 top-3"><X size={16} aria-hidden /></Button></DialogClose>
+    </DialogHeader>
+    <div className="min-w-0 shrink-0 space-y-3 p-4 pb-3">
+      <div className="flex min-w-0 items-center gap-2">
+        <div className="relative min-w-0 flex-1"><Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-fg-muted" aria-hidden />
+          <Input ref={inputRef} aria-label="Search effects" aria-controls={listId} type="text" value={query}
+            onChange={event => setQuery(event.target.value)} placeholder={selectedClipType ? `Search effects for ${selectedClipType} clip...` : "Search all effects and tools..."}
+            className="min-w-0 pl-9" onKeyDown={event => {
+              if (event.defaultPrevented || event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
+              if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+                event.preventDefault();
+                setSelectedIndex(Math.max(0, Math.min(filteredEffects.length - 1, activeIndex + (event.key === "ArrowDown" ? 1 : -1))));
+              } else if (event.key === "Enter" && filteredEffects[activeIndex]) {
+                event.preventDefault(); handleSelect(filteredEffects[activeIndex]);
+              }
+            }} />
+        </div>
+        {query && <Button variant="ghost" size="icon-sm" onClick={() => setQuery("")} aria-label="Clear search"><X size={14} aria-hidden /></Button>}
+        <kbd className="rounded border border-border bg-bg-2 px-1.5 font-mono text-[10px] text-fg-2">Esc</kbd>
+      </div>
+      <div className="min-w-0 overflow-x-auto pb-1">
+        <ToggleGroup type="single" value={category} aria-label="Effect category" className="min-w-max justify-start gap-1" onValueChange={value => { if (value) setCategory(value); }}>
+          {CATEGORIES.map(cat => { const Icon = cat.icon; return <ToggleGroupItem key={cat.id} value={cat.id} className="h-8 gap-1.5 px-2 text-xs">{Icon && <Icon size={14} aria-hidden />}{cat.name}</ToggleGroupItem>; })}
+        </ToggleGroup>
+      </div>
+    </div>
+    <ScrollArea className="min-h-0 flex-1 px-4" style={{ height: "min(380px, 50dvh)" }}>
+      <div ref={listRef} id={listId} role="list" aria-label="Search results" className="space-y-2 pb-3">
+        {filteredEffects.length === 0 ? <div role="status" className="space-y-2 py-10 text-center"><Search size={32} className="mx-auto text-fg-muted opacity-50" aria-hidden /><p className="text-sm font-semibold">No effects found</p><p className="text-xs text-fg-2">Try a different search term or category.</p></div>
+          : filteredEffects.map((effect, index) => { const Icon = effect.icon; const highlighted = activeIndex === index; return <div key={effect.id} role="listitem">
+            <Button variant="ghost" onClick={() => handleSelect(effect)} onFocus={() => setSelectedIndex(index)} type="button" data-search-result={index}
+              aria-label={`Open ${effect.name}`} aria-current={highlighted ? "true" : undefined}
+              className={cn("h-auto w-full min-w-0 justify-start whitespace-normal rounded-[7px] border p-3 text-left", highlighted ? "border-primary bg-bg-2" : "border-border bg-bg-1 hover:bg-bg-2")}>
+              <span className={cn("grid h-8 w-8 shrink-0 place-items-center rounded-lg", highlighted ? "bg-primary text-primary-foreground" : "bg-bg-2 text-fg-2")}><Icon size={16} aria-hidden /></span>
+              <span className="min-w-0 flex-1"><span className="flex min-w-0 items-center gap-2"><span className={cn("truncate text-xs font-bold", highlighted ? "text-accent" : "text-fg")}>{effect.name}</span>
+                <Card className="shrink-0 rounded border-0 bg-bg-2 px-1 py-0 text-[10px] font-normal text-fg-2 shadow-none">{effect.category}</Card></span>
+                <span className="mt-0.5 block truncate text-xs font-normal text-fg-2">{effect.description}</span></span>
+              <kbd className="shrink-0 rounded border border-border bg-bg-2 px-1 font-mono text-[10px] text-fg-2">Enter</kbd>
+            </Button>
+          </div>; })}
+      </div>
+    </ScrollArea>
+    <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-border px-4 py-3 text-[10px] text-fg-2">
+      <span>{filteredEffects.length} effect{filteredEffects.length !== 1 ? "s" : ""} available</span>
+      <span><kbd>↑</kbd> <kbd>↓</kbd> Navigate · <kbd>Enter</kbd> Select</span>
+    </div>
+  </>;
+}

@@ -67,7 +67,7 @@ describe("VideoEngine mask compositing", () => {
 
     const drawFrameToContext = vi.fn();
     const loadMasks = vi.fn();
-    const applyMask = vi.fn().mockResolvedValue({
+    const applyMasks = vi.fn().mockResolvedValue({
       image: masked,
       processingTime: 1,
       gpuAccelerated: false,
@@ -85,10 +85,10 @@ describe("VideoEngine mask compositing", () => {
         masks: readonly Mask[],
         time: number,
       ) => Promise<void>;
-      maskEngine: { loadMasks: typeof loadMasks; applyMask: typeof applyMask };
+      maskEngine: { loadMasks: typeof loadMasks; applyMasks: typeof applyMasks };
     };
     surface.drawFrameToContext = drawFrameToContext;
-    surface.maskEngine = { loadMasks, applyMask };
+    surface.maskEngine = { loadMasks, applyMasks };
     const drawImage = vi.fn();
 
     await surface.drawClipFrameToContext(
@@ -111,7 +111,7 @@ describe("VideoEngine mask compositing", () => {
       360,
     );
     expect(loadMasks).toHaveBeenCalledWith([mask]);
-    expect(applyMask).toHaveBeenCalledWith(initial, mask, 1.25);
+    expect(applyMasks).toHaveBeenCalledWith(initial, [mask], 1.25);
     expect(drawImage).toHaveBeenCalledWith(masked, 0, 0, 640, 360);
     expect(initial.close).toHaveBeenCalledOnce();
     expect(masked.close).toHaveBeenCalledOnce();

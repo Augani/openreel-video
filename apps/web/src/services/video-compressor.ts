@@ -6,18 +6,31 @@ import {
 
 export async function probeCompressionSource(
   file: File | Blob,
+  signal?: AbortSignal,
 ): Promise<CompressionSource | null> {
+  signal?.throwIfAborted();
   const engine = getMediaEngine();
   await engine.initialize();
+  signal?.throwIfAborted();
   const meta = await engine.extractMetadata(file);
-  if (!meta || !meta.hasVideo || meta.width <= 0 || meta.height <= 0) {
+  signal?.throwIfAborted();
+  if (
+    !meta ||
+    !meta.hasVideo ||
+    ![meta.width, meta.height, meta.duration].every(
+      (value) => Number.isFinite(value) && value > 0,
+    )
+  ) {
     return null;
   }
   return {
     durationSec: meta.duration,
     width: meta.width,
     height: meta.height,
-    frameRate: meta.frameRate > 0 ? meta.frameRate : undefined,
+    frameRate:
+      Number.isFinite(meta.frameRate) && meta.frameRate > 0
+        ? meta.frameRate
+        : undefined,
     hasAudio: meta.hasAudio,
   };
 }
@@ -28,9 +41,11 @@ export async function runCompression(
   onProgress?: (progress: number) => void,
   signal?: AbortSignal,
 ): Promise<Blob> {
+  signal?.throwIfAborted();
   const engine = getMediaEngine();
   await engine.initialize();
-  return engine.convertMedia(
+  signal?.throwIfAborted();
+  const result = await engine.convertMedia(
     file,
     {
       format: "mp4",
@@ -43,9 +58,15 @@ export async function runCompression(
       audioBitrate:
         plan.audioBitrateKbps > 0 ? plan.audioBitrateKbps * 1000 : undefined,
     },
-    onProgress ? (p) => onProgress(p.progress) : undefined,
+    onProgress
+      ? (p) => {
+          if (!signal?.aborted) onProgress(p.progress);
+        }
+      : undefined,
     signal,
   );
+  signal?.throwIfAborted();
+  return result;
 }
 
 export function formatBytes(bytes: number): string {

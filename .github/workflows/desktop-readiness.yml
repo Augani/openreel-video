@@ -1,0 +1,170 @@
+name: Desktop Readiness
+
+# The desktop app is Electron (apps/desktop: tsup main process + the web
+# renderer). The old Rust/Cargo jobs targeted a crate that was removed in
+# 8223bdd3, so they failed on every run.
+
+on:
+  pull_request:
+    paths:
+      - 'apps/desktop/**'
+      # The renderer half of the desktop features lives here: native export/smart render, the
+      # export engine and its planner, desktop ingest/proxies and the Electron bridge types.
+      - 'packages/core/src/export/**'
+      - 'apps/web/src/services/native-*.ts'
+      - 'apps/web/src/services/proxy-ingest*.ts'
+      - 'apps/web/src/types/global.d.ts'
+      - '.github/workflows/desktop-readiness.yml'
+  push:
+    branches: [feat/ios-app, main]
+    paths:
+      - 'apps/desktop/**'
+      # The renderer half of the desktop features lives here: native export/smart render, the
+      # export engine and its planner, desktop ingest/proxies and the Electron bridge types.
+      - 'packages/core/src/export/**'
+      - 'apps/web/src/services/native-*.ts'
+      - 'apps/web/src/services/proxy-ingest*.ts'
+      - 'apps/web/src/types/global.d.ts'
+      - '.github/workflows/desktop-readiness.yml'
+  workflow_dispatch:
+  schedule:
+    # Weekly, on macos-14 and macos-15: catches runner image / ffmpeg / Electron drift without a code change.
+    - cron: '41 4 * * 2'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify (${{ matrix.label }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            label: macOS
+          - os: ubuntu-latest
+            label: Linux
+          - os: windows-latest
+            label: Windows
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build WASM modules
+        run: pnpm build:wasm
+      - name: Typecheck desktop
+        run: pnpm --filter @openreel/desktop typecheck
+      - name: Test desktop
+        run: pnpm --filter @openreel/desktop test:run
+
+  # Real Electron + real ffmpeg. Everything here runs headless on a hosted macOS runner (they have a
+  # window server, so no xvfb) and needs no GPU: the editor falls back to Canvas2D and the suites
+  # only check files on disk, frame counts and ffprobe output, never GPU pixels.
+  #
+  # What runs, and what each one proves:
+  #   desktop vitest          smart-render / ingest / export integration on the real sidecar
+  #   test:electron           early MCP request through the main-process bridge
+  #   test:ingest-e2e         proxies, queue resume, relink, copy-to-project in the built app
+  #   export-check            native smart render in the built app (H.264, HEVC, ProRes, declines)
+  #   perf harness smoke      the built app cold-starts to an interactive editor (no budgets here)
+  suites:
+    name: Electron suites (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 75
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ${{ fromJSON((github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') && '["macos-14","macos-15"]' || '["macos-14"]') }}
+    env:
+      # The ingest / smart-render suites find ffmpeg and ffprobe here (Homebrew, arm64 runner prefix).
+      FFMPEG: /opt/homebrew/bin/ffmpeg
+      FFPROBE: /opt/homebrew/bin/ffprobe
+      # Fail instead of silently skipping every real-ffmpeg suite when the sidecar is missing.
+      OPENREEL_REQUIRE_SIDECAR: '1'
+      HOMEBREW_NO_AUTO_UPDATE: '1'
+      HOMEBREW_NO_INSTALL_CLEANUP: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build WASM modules
+        run: pnpm build:wasm
+
+      # ffprobe and a full-featured ffmpeg (libx265, ProRes, 10-bit) to generate fixtures and inspect outputs.
+      - name: Install ffmpeg and ffprobe
+        run: |
+          brew list ffmpeg >/dev/null 2>&1 || brew install ffmpeg
+          "$FFMPEG" -version | head -1
+          "$FFPROBE" -version | head -1
+
+      # The sidecar the app ships (pinned, digest-verified); the suites run against exactly this binary.
+      - name: Cache the ffmpeg sidecar
+        uses: actions/cache@v4
+        with:
+          path: apps/desktop/resources/bin
+          key: ffmpeg-sidecar-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('apps/desktop/resources/bin/MANIFEST.json', 'apps/desktop/scripts/fetch-ffmpeg.mjs') }}
+      - name: Fetch the ffmpeg sidecar
+        run: pnpm --filter @openreel/desktop fetch:ffmpeg
+
+      # VITE_OPENREEL_E2E exposes window.__openreelE2E, which the ingest e2e and export-check drive.
+      - name: Build the desktop app (renderer + main)
+        run: pnpm --filter @openreel/desktop build
+        env:
+          VITE_OPENREEL_E2E: '1'
+
+      - name: Typecheck desktop
+        run: pnpm --filter @openreel/desktop typecheck
+
+      - name: Desktop unit and real-ffmpeg integration tests
+        timeout-minutes: 15
+        run: pnpm --filter @openreel/desktop test:run
+
+      - name: Electron test (early MCP request)
+        timeout-minutes: 10
+        run: pnpm --filter @openreel/desktop test:electron
+
+      - name: Ingest e2e in real Electron
+        timeout-minutes: 15
+        run: pnpm --filter @openreel/desktop test:ingest-e2e
+
+      - name: Native smart render in real Electron (H.264, HEVC, ProRes, declines)
+        timeout-minutes: 20
+        working-directory: apps/desktop
+        # bash with pipefail: without it `| tee` hides export-check's non-zero exit and the step passes on failure.
+        shell: bash
+        run: node scripts/export-check.mjs --only smart,smart-hevc,smart-prores,smart-decline | tee "$RUNNER_TEMP/export-check.json"
+
+      - name: Perf harness smoke (cold start of the built app, no budgets)
+        timeout-minutes: 10
+        working-directory: apps/desktop
+        run: |
+          node scripts/perf-harness.mjs --only cold --cold-runs 1 --out "$RUNNER_TEMP/perf-smoke.json" --label ci-smoke
+          node -e "const r=require(process.env.RUNNER_TEMP+'/perf-smoke.json'); const m=r.scenarios?.cold?.median; if(!m||!(m.editorInteractiveFromSpawnMs>0)){console.error('perf smoke produced no cold-start numbers');process.exit(1)} console.log('cold start to interactive editor (ms):',m.editorInteractiveFromSpawnMs)"
+
+      - name: Upload logs and results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-suites-${{ matrix.os }}
+          path: |
+            ${{ runner.temp }}/export-check.json
+            ${{ runner.temp }}/perf-smoke.json
+          if-no-files-found: ignore
+          retention-days: 7

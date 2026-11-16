@@ -112,28 +112,6 @@ export const calculateSnap = (
   return { time: rawTime, snapped: false };
 };
 
-export const generateWaveformPath = (
-  waveformData: Float32Array | number[],
-  width: number,
-): string => {
-  if (!waveformData || waveformData.length === 0) {
-    return "M0,20 L100,20";
-  }
-
-  const samples = Array.from(waveformData);
-  const step = Math.max(1, Math.floor(samples.length / width));
-  const points: string[] = [];
-
-  for (let i = 0; i < width; i++) {
-    const sampleIndex = Math.min(i * step, samples.length - 1);
-    const value = Math.abs(samples[sampleIndex] || 0);
-    const y = 20 - value * 18;
-    points.push(`${i === 0 ? "M" : "L"}${i},${y}`);
-  }
-
-  return points.join(" ");
-};
-
 interface ClipWaveformBarOptions {
   barCount: number;
   startBar?: number;
@@ -301,28 +279,28 @@ export const getClipStyle = (trackType: string): ClipStyle => {
   switch (trackType) {
     case "video":
       return {
-        bg: "bg-[linear-gradient(160deg,#bcd3e8,#5d7a93)]",
+        bg: "bg-[var(--c-video)]",
         border: "border-transparent",
         text: "text-white",
         selectedText: "text-white",
       };
     case "audio":
       return {
-        bg: "bg-[#e6f4ea]",
-        border: "border-[#cfe8d6]",
-        text: "text-[#4a7a55]",
-        selectedText: "text-[#4a7a55]",
+        bg: "bg-[var(--c-audio)]",
+        border: "border-[#308e71]",
+        text: "text-[#c5eddf]",
+        selectedText: "text-[#c5eddf]",
       };
     case "image":
       return {
-        bg: "bg-[linear-gradient(160deg,#c3b1e8,#6a4aa0)]",
+        bg: "bg-[var(--c-text)]",
         border: "border-transparent",
         text: "text-white",
         selectedText: "text-white",
       };
     default:
       return {
-        bg: "bg-[linear-gradient(160deg,#cdd4e0,#8a93a8)]",
+        bg: "bg-[var(--c-text)]",
         border: "border-transparent",
         text: "text-white",
         selectedText: "text-white",

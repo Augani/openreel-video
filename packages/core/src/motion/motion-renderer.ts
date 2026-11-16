@@ -32,16 +32,11 @@ import {
 } from "./motion-camera";
 import type { BlendMode } from "../video/types";
 import { getMotionCanvasBlendMode } from "./motion-blend-modes";
-import {
-  MotionThreeRenderer,
-  sampleMotionObjectMeshFrame,
-  type MotionRenderQuality,
-} from "./motion-three-renderer";
+import type { MotionThreeRenderer } from "./motion-three-renderer";
+import { sampleMotionObjectMeshFrame } from "./motion-object-sampling";
+import type { MotionRenderQuality } from "./motion-render-quality";
 
-export {
-  DEFAULT_MOTION_RENDER_QUALITY,
-  type MotionRenderQuality,
-} from "./motion-three-renderer";
+export { type MotionRenderQuality } from "./motion-render-quality";
 import { getMotionBlurSamplePlanAtTime } from "./motion-blur";
 import {
   applyMotionPixelEffectsToBuffer,
@@ -214,7 +209,7 @@ export type MotionRenderableImage =
   | HTMLCanvasElement
   | HTMLImageElement;
 
-export interface MotionRootLayerImage {
+interface MotionRootLayerImage {
   readonly image: ImageBitmap;
   readonly blendMode: BlendMode;
   readonly layerId: string;
@@ -442,7 +437,7 @@ function measureGlyphVerticalMetrics(
   return { ascent, descent, contentHeight };
 }
 
-export interface MotionTextShaderPass {
+interface MotionTextShaderPass {
   readonly def: MotionShaderDef;
   readonly animator: MotionTextAnimator;
 }
@@ -482,6 +477,8 @@ export class MotionRenderer {
   private ctx: OffscreenCanvasRenderingContext2D | null = null;
   private deviceScale = 1;
   private threeRenderer: MotionThreeRenderer | null = null;
+  private threeRendererPromise: Promise<MotionThreeRenderer | null> | null = null;
+  private threeRendererGeneration = 0;
   private shaderRenderer: MotionShaderRenderer | null = null;
   private shaderFillFrameCache: Map<string, OffscreenCanvas> | null = null;
   private warnedShaderGlyphCaps = new Set<string>();
@@ -1182,6 +1179,27 @@ export class MotionRenderer {
     }
   }
 
+  private getThreeRenderer(): Promise<MotionThreeRenderer | null> {
+    if (this.threeRenderer) return Promise.resolve(this.threeRenderer);
+    if (!this.threeRendererPromise) {
+      const generation = this.threeRendererGeneration;
+      this.threeRendererPromise = import("./motion-three-renderer")
+        .then(({ MotionThreeRenderer }) => {
+          // A disposed preview/export must not allocate a late GPU context.
+          if (generation !== this.threeRendererGeneration) return null;
+          this.threeRenderer = new MotionThreeRenderer();
+          return this.threeRenderer;
+        })
+        .catch((error: unknown) => {
+          if (generation === this.threeRendererGeneration) {
+            this.threeRendererPromise = null;
+          }
+          throw error;
+        });
+    }
+    return this.threeRendererPromise;
+  }
+
   private async renderScene3D(
     ctx: OffscreenCanvasRenderingContext2D,
     composition: MotionComposition,
@@ -1190,6 +1208,7 @@ export class MotionRenderer {
     localTime: number,
     transform?: MotionTransform,
   ): Promise<void> {
+    const generation = this.threeRendererGeneration;
     const boundsW = layer.width ?? composition.width;
     const boundsH = layer.height ?? composition.height;
     const pixelW = Math.max(1, Math.round(boundsW * this.deviceScale));
@@ -1208,7 +1227,9 @@ export class MotionRenderer {
         });
         if (rendered) {
           try {
-            ctx.drawImage(rendered.image, -boundsW / 2, -boundsH / 2, boundsW, boundsH);
+            if (generation === this.threeRendererGeneration) {
+              ctx.drawImage(rendered.image, -boundsW / 2, -boundsH / 2, boundsW, boundsH);
+            }
           } finally {
             rendered.release?.();
           }
@@ -1219,10 +1240,9 @@ export class MotionRenderer {
       }
     }
 
-    if (!this.threeRenderer) {
-      this.threeRenderer = new MotionThreeRenderer();
-    }
-    if (!this.threeRenderer.isAvailable()) return;
+    if (generation !== this.threeRendererGeneration) return;
+    const threeRenderer = await this.getThreeRenderer();
+    if (!threeRenderer || generation !== this.threeRendererGeneration || !threeRenderer.isAvailable()) return;
 
     if (layer.objects && layer.objects.length > 0) {
       await this.renderScene3DMultiObject(
@@ -1235,6 +1255,8 @@ export class MotionRenderer {
         boundsH,
         pixelW,
         pixelH,
+        threeRenderer,
+        generation,
       );
       return;
     }
@@ -1257,7 +1279,8 @@ export class MotionRenderer {
     }
 
     const renderLayer = await this.resolveScene3DLayerModels(layer, options);
-    const rendered = await this.threeRenderer.render({
+    if (generation !== this.threeRendererGeneration) return;
+    const rendered = await threeRenderer.render({
       layer: renderLayer,
       rotation: { x: rot.x, y: rot.y, z: rot.z ?? 0 },
       cameraZoom,
@@ -1267,7 +1290,7 @@ export class MotionRenderer {
       timeSeconds: localTime,
       quality: options.quality,
     });
-    if (!rendered) return;
+    if (!rendered || generation !== this.threeRendererGeneration) return;
     ctx.drawImage(rendered, -boundsW / 2, -boundsH / 2, boundsW, boundsH);
   }
 
@@ -1281,6 +1304,8 @@ export class MotionRenderer {
     boundsH: number,
     pixelW: number,
     pixelH: number,
+    threeRenderer: MotionThreeRenderer,
+    generation: number,
   ): Promise<void> {
     const sample = (property: string, fallback: number): number =>
       evaluateMotionPropertyValueAtTime({
@@ -1370,7 +1395,8 @@ export class MotionRenderer {
       far: cam?.far,
     };
 
-    const rendered = await this.threeRenderer!.render({
+    if (generation !== this.threeRendererGeneration) return;
+    const rendered = await threeRenderer.render({
       layer,
       rotation: { x: 0, y: 0, z: 0 },
       width: pixelW,
@@ -1379,7 +1405,7 @@ export class MotionRenderer {
       scene: { objects, camera, room: layer.room },
       quality: options.quality,
     });
-    if (!rendered) return;
+    if (!rendered || generation !== this.threeRendererGeneration) return;
     ctx.drawImage(rendered, -boundsW / 2, -boundsH / 2, boundsW, boundsH);
   }
 
@@ -3156,6 +3182,10 @@ export class MotionRenderer {
   }
 
   dispose(): void {
+    this.threeRendererGeneration += 1;
+    this.threeRendererPromise = null;
+    this.threeRenderer?.dispose();
+    this.threeRenderer = null;
     if (this.shaderRenderer) {
       this.shaderRenderer.dispose();
       this.shaderRenderer = null;

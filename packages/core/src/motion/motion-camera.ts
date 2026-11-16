@@ -2,7 +2,7 @@ import type { MotionCamera, MotionComposition, MotionTransform } from "./types";
 import type { EasingType, Keyframe } from "../types/timeline";
 import { evaluateMotionPropertyValueAtTime } from "./motion-expressions";
 
-export const DEFAULT_MOTION_CAMERA_PERSPECTIVE = 1000;
+const DEFAULT_MOTION_CAMERA_PERSPECTIVE = 1000;
 export const MOTION_CAMERA_PROPERTY_IDS = [
   "camera.position.x",
   "camera.position.y",
@@ -17,7 +17,7 @@ export const MOTION_CAMERA_PROPERTY_IDS = [
 
 export type MotionCameraProperty = (typeof MOTION_CAMERA_PROPERTY_IDS)[number];
 
-export interface MotionCameraPropertyDescriptor {
+interface MotionCameraPropertyDescriptor {
   readonly property: MotionCameraProperty;
   readonly label: string;
   readonly min?: number;
@@ -26,7 +26,7 @@ export interface MotionCameraPropertyDescriptor {
   readonly unit?: string;
 }
 
-export interface UpsertMotionCameraKeyframeOptions {
+interface UpsertMotionCameraKeyframeOptions {
   readonly value?: number;
   readonly easing?: EasingType;
   readonly snapTolerance?: number;
@@ -38,7 +38,7 @@ const DEFAULT_SNAP_TOLERANCE = 1 / 1000;
 const createKeyframeId = (): string =>
   `motion-camera-kf-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 
-export const MOTION_CAMERA_PROPERTY_DESCRIPTORS: readonly MotionCameraPropertyDescriptor[] =
+const MOTION_CAMERA_PROPERTY_DESCRIPTORS: readonly MotionCameraPropertyDescriptor[] =
   [
     {
       property: "camera.position.x",
@@ -266,7 +266,7 @@ export function getMotionCameraPropertyDescriptor(
   );
 }
 
-export function getMotionCameraPropertyValue(
+function getMotionCameraPropertyValue(
   camera: MotionCamera,
   property: MotionCameraProperty,
 ): number {
@@ -395,15 +395,6 @@ export function buildMotionCameraDepthOfFieldCanvasFilter(
 ): string {
   const blur = getMotionCameraDepthOfFieldBlur(composition, transform, localTime);
   return blur > 0.001 ? `blur(${roundFilterValue(blur)}px)` : "none";
-}
-
-export function getMotionCameraPropertyKeyframes(
-  camera: MotionCamera,
-  property: MotionCameraProperty,
-): Keyframe[] {
-  return sanitizeCameraKeyframes(camera.keyframes ?? []).filter(
-    (keyframe) => keyframe.property === property,
-  );
 }
 
 export function findMotionCameraKeyframeAtTime(

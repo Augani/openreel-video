@@ -1,4 +1,4 @@
-export interface CaptionSearchOptions { matchCase?: boolean; wholeWords?: boolean }
+interface CaptionSearchOptions { matchCase?: boolean; wholeWords?: boolean }
 
 /** Literal search: punctuation and replacement dollar signs are never regex syntax. */
 export function createCaptionSearch(query: string, options: CaptionSearchOptions = {}) {

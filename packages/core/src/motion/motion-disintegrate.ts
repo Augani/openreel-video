@@ -2,7 +2,7 @@ import { applyMotionAnimationPreset } from "./motion-animation-presets";
 import { createMotionParticleLayer } from "./motion-particles";
 import type { MotionComposition, MotionLayer } from "./types";
 
-export interface DisintegrateMotionLayerResult {
+interface DisintegrateMotionLayerResult {
   readonly composition: MotionComposition;
   readonly particleLayerId: string;
 }

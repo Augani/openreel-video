@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { useEngineStore } from "../stores/engine-store";
 import { useProjectStore } from "../stores/project-store";
+import { loadEngineModules } from "../services/lazy-engines";
+import { initPluginRegistry } from "../services/plugin-service";
 import {
   initializePlaybackBridge,
   disposePlaybackBridge,
@@ -21,6 +23,14 @@ import {
   initializeTransitionBridge,
   disposeTransitionBridge,
 } from "../bridges/transition-bridge";
+
+function mark(name: string): void {
+  try {
+    performance.mark(`openreel:init:${name}`);
+  } catch {
+    // Marks are diagnostics only.
+  }
+}
 
 /**
  * Engine and bridge initialization hook
@@ -47,6 +57,9 @@ export const useEditorInitialization = () => {
 
     const initAll = async () => {
       try {
+        await loadEngineModules();
+        // Installed effect plugins load in the background; frames that use one re-render when they arrive.
+        void initPluginRegistry();
         const currentState = useEngineStore.getState();
         if (!currentState.initialized && !currentState.initializing) {
           setInitStatus("Initializing video engine...");
@@ -76,16 +89,20 @@ export const useEditorInitialization = () => {
           );
         }
 
+        mark("engine");
         setInitStatus("Initializing media bridge...");
         await initializeMediaBridge();
+        mark("media-bridge");
         if (!isMounted) return;
 
         setInitStatus("Initializing playback bridge...");
         await initializePlaybackBridge();
+        mark("playback-bridge");
         if (!isMounted) return;
 
         setInitStatus("Initializing render bridge...");
         await initializeRenderBridge();
+        mark("render-bridge");
         if (!isMounted) return;
 
         setInitStatus("Initializing effects bridge...");
@@ -99,6 +116,7 @@ export const useEditorInitialization = () => {
             effectsError,
           );
         }
+        mark("effects-bridge");
         if (!isMounted) return;
 
         setInitStatus("Initializing transition bridge...");
@@ -112,6 +130,11 @@ export const useEditorInitialization = () => {
         }
         if (!isMounted) return;
 
+        // Recovery can finish before processing bridges exist. Read the current
+        // project again after setup so saved effects, grades and transitions paint
+        // on the first frame, without needing an authoring edit to sync them.
+        useProjectStore.getState().syncProjectProcessing();
+        mark("ready");
         setBridgesReady(true);
       } catch (error) {
         console.error("Failed to initialize engines/bridges:", error);

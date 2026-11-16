@@ -518,11 +518,3 @@ export async function generateBackgroundBlob(
     );
   });
 }
-
-export function generateThumbnail(
-  preset: BackgroundPreset,
-  size: number = 80,
-): string {
-  const canvas = preset.generate(size, size);
-  return canvas.toDataURL("image/png");
-}

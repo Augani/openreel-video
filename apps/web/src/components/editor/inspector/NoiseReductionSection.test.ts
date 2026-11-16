@@ -8,7 +8,7 @@ import {
 import {
   buildRecommendationProfile,
   getRecommendationSampleRanges,
-} from "./NoiseReductionSection";
+} from "../../../services/noise-reduction-analysis";
 
 const createProfile = (
   frequencyBins: number[],

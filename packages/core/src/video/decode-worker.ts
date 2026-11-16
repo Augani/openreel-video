@@ -17,7 +17,7 @@ export interface DecodeResponse {
   error?: string;
 }
 
-export interface InitRequest {
+interface InitRequest {
   type: "init";
 }
 
@@ -27,7 +27,7 @@ export interface InitResponse {
   mediabunnyAvailable?: boolean;
 }
 
-export type WorkerRequest = DecodeRequest | InitRequest;
+type WorkerRequest = DecodeRequest | InitRequest;
 export type WorkerResponse = DecodeResponse | InitResponse;
 
 interface CachedResource {
@@ -171,25 +171,6 @@ async function decodeFrame(request: DecodeRequest): Promise<DecodeResponse> {
   }
 }
 
-export function clearCache(clipId?: string): void {
-  if (clipId) {
-    const cached = resourceCache.get(clipId);
-    if (cached) {
-      URL.revokeObjectURL(cached.blobUrl);
-      const input = cached.input as { [Symbol.dispose]?: () => void };
-      input[Symbol.dispose]?.();
-      resourceCache.delete(clipId);
-    }
-  } else {
-    for (const [, cached] of resourceCache) {
-      URL.revokeObjectURL(cached.blobUrl);
-      const input = cached.input as { [Symbol.dispose]?: () => void };
-      input[Symbol.dispose]?.();
-    }
-    resourceCache.clear();
-  }
-}
-
 const workerSelf = self as unknown as {
   onmessage: ((event: MessageEvent<WorkerRequest>) => void) | null;
   postMessage: (
@@ -220,7 +201,7 @@ workerSelf.onmessage = async (event: MessageEvent<WorkerRequest>) => {
   }
 };
 
-export const decodeWorkerCode = `
+const decodeWorkerCode = `
 const resourceCache = new Map();
 let workerId = 0;
 let mediabunnyModule = null;
@@ -371,7 +352,7 @@ self.onmessage = async (event) => {
 };
 `;
 
-export function createDecodeWorkerBlob(): Blob {
+function createDecodeWorkerBlob(): Blob {
   return new Blob([decodeWorkerCode], { type: "application/javascript" });
 }
 

@@ -1,6 +1,6 @@
 import type { AgentEvent } from "./types";
 
-export interface AgentLogRecord {
+interface AgentLogRecord {
   readonly type: AgentEvent["type"];
   readonly tool?: string;
   readonly ok?: boolean;
@@ -36,7 +36,7 @@ export function toLogRecord(event: AgentEvent): AgentLogRecord {
 }
 
 /** Adapts a structured-record sink into a loop onEvent handler. */
-export function createEventLogger(
+function createEventLogger(
   sink: (record: AgentLogRecord) => void,
 ): (event: AgentEvent) => void {
   return (event) => sink(toLogRecord(event));

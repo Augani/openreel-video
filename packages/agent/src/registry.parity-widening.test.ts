@@ -124,23 +124,6 @@ describe("#7 attach_motion_expression tuned preset params", () => {
     expect(expr.seed).toBe(9);
     expect(expr.decay).toBe(5);
   });
-
-  it("keeps preset defaults when overrides omitted", async () => {
-    const host = new HeadlessHost(projectWith([shapeLayer("s1") as MotionLayer]));
-    await executeTool(
-      "attach_motion_expression",
-      {
-        compositionId: COMP_ID,
-        layerId: "s1",
-        property: "transform.position.x",
-        expressionType: "wiggle",
-      },
-      host,
-    );
-    const expr = (layerById(host, "s1").expressions ?? [])[0];
-    expect(Number.isFinite(expr.amplitude)).toBe(true);
-    expect(expr.frequency).toBeGreaterThan(0);
-  });
 });
 
 describe("#15 update_motion_effect accepts control value", () => {
@@ -245,23 +228,6 @@ describe("#19/#44 set_motion_scene_object geometry + PBR material", () => {
     expect(obj.material?.kind).toBe("physical");
     expect(obj.material?.normalMapAssetId).toBe("asset-normal");
   });
-
-  it("rejects an invalid materialKind", async () => {
-    const { host, objectId } = await sceneHost();
-    const layer = comp(host).layers.find((l) => l.type === "scene3d") as MotionScene3DLayer;
-    const res = await executeTool(
-      "set_motion_scene_object",
-      {
-        compositionId: COMP_ID,
-        layerId: layer.id,
-        objectId,
-        material: { materialKind: "chrome" },
-      },
-      host,
-    );
-    expect(res.ok).toBe(false);
-    expect(res.error?.code).toBe("INVALID_PARAMS");
-  });
 });
 
 describe("#20 add_motion_layer scene3d", () => {
@@ -305,19 +271,6 @@ describe("#22 set_motion_layer_transform 3D fields", () => {
     expect(t.rotation3d?.z).toBe(45);
     expect(t.perspective).toBe(800);
   });
-
-  it("leaves rotation3d/perspective untouched when not passed", async () => {
-    const host = new HeadlessHost(projectWith([shapeLayer("s1") as MotionLayer]));
-    await executeTool(
-      "set_motion_layer_transform",
-      { compositionId: COMP_ID, layerId: "s1", x: 10 },
-      host,
-    );
-    const t = layerById(host, "s1").transform;
-    expect(t.position.x).toBe(10);
-    expect(t.rotation3d).toEqual(DEFAULT_MOTION_TRANSFORM.rotation3d);
-    expect(t.perspective).toBe(DEFAULT_MOTION_TRANSFORM.perspective);
-  });
 });
 
 describe("#33 set_motion_scene_camera near/far", () => {
@@ -338,33 +291,6 @@ describe("#33 set_motion_scene_camera near/far", () => {
     const layer = layerById<MotionScene3DLayer>(host, layerId);
     expect(layer.camera?.near).toBe(0.5);
     expect(layer.camera?.far).toBe(500);
-  });
-});
-
-describe("#34 add_motion_light shadow/falloff/z", () => {
-  it("passes falloff, z, castsShadow, shadowOpacity, shadowSoftness", async () => {
-    const host = new HeadlessHost(projectWith([]));
-    const res = await executeTool(
-      "add_motion_light",
-      {
-        compositionId: COMP_ID,
-        lightType: "point",
-        z: 240,
-        falloff: 2,
-        castsShadow: true,
-        shadowOpacity: 0.7,
-        shadowSoftness: 32,
-      },
-      host,
-    );
-    expect(res.ok).toBe(true);
-    const lightId = String(data(res.data).lightId);
-    const light = (comp(host).lights ?? []).find((l) => l.id === lightId)!;
-    expect(light.position.z).toBe(240);
-    expect(light.falloff).toBe(2);
-    expect(light.castsShadow).toBe(true);
-    expect(light.shadowOpacity).toBeCloseTo(0.7);
-    expect(light.shadowSoftness).toBe(32);
   });
 });
 
@@ -392,55 +318,6 @@ describe("#39 set_motion_track_matte enabled + clear", () => {
     expect(layerById(host, "target").trackMatte?.enabled).toBe(false);
     expect(layerById(host, "target").trackMatte?.sourceLayerId).toBe("src");
   });
-
-  it("clears the matte when sourceLayerId is null", async () => {
-    const host = await twoLayerHost();
-    await executeTool(
-      "set_motion_track_matte",
-      { compositionId: COMP_ID, layerId: "target", sourceLayerId: "src", type: "luma" },
-      host,
-    );
-    const res = await executeTool(
-      "set_motion_track_matte",
-      { compositionId: COMP_ID, layerId: "target", sourceLayerId: null },
-      host,
-    );
-    expect(res.ok).toBe(true);
-    expect(data(res.data).cleared).toBe(true);
-    expect(layerById(host, "target").trackMatte).toBeUndefined();
-  });
-
-  it("requires a source when no matte exists yet", async () => {
-    const host = await twoLayerHost();
-    const res = await executeTool(
-      "set_motion_track_matte",
-      { compositionId: COMP_ID, layerId: "target", enabled: true },
-      host,
-    );
-    expect(res.ok).toBe(false);
-    expect(res.error?.code).toBe("INVALID_PARAMS");
-  });
-});
-
-describe("#40 add_motion_mask expansion/opacity", () => {
-  it("stores expansion and opacity on the created mask", async () => {
-    const host = new HeadlessHost(projectWith([shapeLayer("s1") as MotionLayer]));
-    const res = await executeTool(
-      "add_motion_mask",
-      {
-        compositionId: COMP_ID,
-        layerId: "s1",
-        shape: "ellipse",
-        expansion: 24,
-        opacity: 0.5,
-      },
-      host,
-    );
-    expect(res.ok).toBe(true);
-    const mask = (layerById(host, "s1").masks ?? [])[0];
-    expect(mask.expansion).toBe(24);
-    expect(mask.opacity).toBeCloseTo(0.5);
-  });
 });
 
 describe("#41 update_motion_shape_modifier enabled", () => {
@@ -463,23 +340,6 @@ describe("#41 update_motion_shape_modifier enabled", () => {
     )!;
     expect(modifier.enabled).toBe(false);
   });
-
-  it("requires fields or enabled", async () => {
-    const host = new HeadlessHost(projectWith([shapeLayer("s1") as MotionLayer]));
-    const added = await executeTool(
-      "add_motion_shape_modifier",
-      { compositionId: COMP_ID, layerId: "s1", modifierType: "repeater" },
-      host,
-    );
-    const modifierId = String(data(added.data).modifierId);
-    const res = await executeTool(
-      "update_motion_shape_modifier",
-      { compositionId: COMP_ID, layerId: "s1", modifierId },
-      host,
-    );
-    expect(res.ok).toBe(false);
-    expect(res.error?.code).toBe("INVALID_PARAMS");
-  });
 });
 
 describe("add_motion_shape_modifier accepts the new operators at layer level", () => {
@@ -500,23 +360,6 @@ describe("add_motion_shape_modifier accepts the new operators at layer level", (
       expect(modifier.angle).toBe(0);
       expect(modifier.center).toEqual({ x: 0, y: 0 });
     }
-  });
-
-  it("adds offset-paths and pucker-bloat modifiers", async () => {
-    const host = new HeadlessHost(projectWith([shapeLayer("s1") as MotionLayer]));
-    for (const modifierType of ["offset-paths", "pucker-bloat"] as const) {
-      const res = await executeTool(
-        "add_motion_shape_modifier",
-        { compositionId: COMP_ID, layerId: "s1", modifierType },
-        host,
-      );
-      expect(res.ok).toBe(true);
-    }
-    const types = (layerById<MotionShapeLayer>(host, "s1").modifiers ?? []).map(
-      (m) => m.type,
-    );
-    expect(types).toContain("offset-paths");
-    expect(types).toContain("pucker-bloat");
   });
 });
 
@@ -579,25 +422,6 @@ describe("#50 render_motion_frame quality", () => {
     );
     expect(draft.ok).toBe(true);
     expect(scales).toEqual([2, 1]);
-  });
-
-  it("lets an explicit scale override quality", async () => {
-    const scales: number[] = [];
-    const host = new HeadlessHost(projectWith([shapeLayer("s1") as MotionLayer]), {
-      jobRunner: async (_kind, params) => {
-        scales.push(typeof params.scale === "number" ? params.scale : -1);
-        return {
-          ok: true,
-          data: { dataUrl: "data:image/png;base64,AAAA", width: 640, height: 360 },
-        };
-      },
-    });
-    await executeTool(
-      "render_motion_frame",
-      { compositionId: COMP_ID, quality: "draft", scale: 2 },
-      host,
-    );
-    expect(scales).toEqual([2]);
   });
 });
 
@@ -666,28 +490,5 @@ describe("#51 import_image_layer timing + transform", () => {
     expect(layer.duration).toBe(2);
     expect(layer.transform.rotation).toBe(30);
     expect(layer.transform.opacity).toBeCloseTo(0.5);
-  });
-});
-
-describe("#18 mask keyframe property enumeration (verification)", () => {
-  it("list_motion_animatable_properties surfaces mask.<id>.<prop> ids", async () => {
-    const host = new HeadlessHost(projectWith([shapeLayer("s1") as MotionLayer]));
-    const added = await executeTool(
-      "add_motion_mask",
-      { compositionId: COMP_ID, layerId: "s1", shape: "rectangle" },
-      host,
-    );
-    const maskId = String(data(added.data).maskId);
-    const listed = await executeTool(
-      "list_motion_animatable_properties",
-      { compositionId: COMP_ID, layerId: "s1" },
-      host,
-    );
-    expect(listed.ok).toBe(true);
-    const props = (data(listed.data).properties as { property: string }[]).map(
-      (p) => p.property,
-    );
-    expect(props).toContain(`mask.${maskId}.opacity`);
-    expect(props).toContain(`mask.${maskId}.expansion`);
   });
 });

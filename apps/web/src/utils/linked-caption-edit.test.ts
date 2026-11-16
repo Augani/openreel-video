@@ -44,6 +44,18 @@ function makeStore(): LinkedCaptionEditStore {
 }
 
 describe("linked caption edits", () => {
+  it.each(["left", "right"])("keeps root-linked captions on the overlapping %s split piece", side => {
+    const left = { ...source, duration: 4, metadata: { splitSourceClipId: source.id } };
+    const right = { ...source, id: "piece", startTime: 6, duration: 4, metadata: { splitSourceClipId: source.id } };
+    const store = makeStore();
+    store.project = { ...project, timeline: { ...project.timeline, tracks: project.timeline.tracks.map(track => ({ ...track, clips: track.id === source.trackId ? [left, right] : [] })) } };
+    store.getAllTextClips = () => [
+      { ...captions[0], metadata: { captionSourceClipId: source.id } },
+      { ...captions[1], metadata: { captionSourceClipId: source.id } },
+      { ...captions[1], id: "foreign", metadata: { captionSourceClipId: "unrelated" } },
+    ];
+    expect(getLinkedCaptions(store, side === "left" ? left : right).map(clip => clip.id)).toEqual([side === "left" ? "c1" : "c2"]);
+  });
   it("finds grouped overlapping captions and explicit source links", () => {
     expect(getLinkedCaptions(makeStore(), source).map((clip) => clip.id)).toEqual([
       "c1",

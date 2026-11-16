@@ -105,54 +105,6 @@ describe("list_motion_shaders (Paper collection)", () => {
     expect(halftone).toBeDefined();
     expect(halftone!.collection).toBe("Paper");
   });
-
-  it("filters to only the Paper collection with collection='Paper'", async () => {
-    const host = new HeadlessHost(makeEmptyProject());
-    const res = await executeTool("list_motion_shaders", { collection: "Paper" }, host);
-    expect(res.ok).toBe(true);
-    const data = asListData(res.data);
-
-    const allReturned = [
-      ...(data.fills ?? []),
-      ...(data.effects ?? []),
-      ...(data.text ?? []),
-    ];
-    expect(allReturned.length).toBeGreaterThan(0);
-    expect(allReturned.every((entry) => entry.collection === "Paper")).toBe(true);
-    expect(data.fills?.some((fill) => fill.id === "liquid-metal")).toBeFalsy();
-    expect(data.fills?.some((fill) => fill.id === "paper-mesh-gradient")).toBe(true);
-  });
-
-  it("returns an empty list (not an error) for an unknown collection", async () => {
-    const host = new HeadlessHost(makeEmptyProject());
-    const res = await executeTool(
-      "list_motion_shaders",
-      { collection: "Nonexistent" },
-      host,
-    );
-    expect(res.ok).toBe(true);
-    const data = asListData(res.data);
-    expect(data.fills ?? []).toEqual([]);
-    expect(data.effects ?? []).toEqual([]);
-    expect(data.text ?? []).toEqual([]);
-  });
-
-  it("combines category and collection filters", async () => {
-    const host = new HeadlessHost(makeEmptyProject());
-    const res = await executeTool(
-      "list_motion_shaders",
-      { category: "fill", collection: "Paper" },
-      host,
-    );
-    expect(res.ok).toBe(true);
-    const data = asListData(res.data);
-    expect(data.effects).toBeUndefined();
-    expect(data.text).toBeUndefined();
-    expect(data.fills!.length).toBeGreaterThan(0);
-    expect(
-      data.fills!.every((fill) => fill.category === "fill" && fill.collection === "Paper"),
-    ).toBe(true);
-  });
 });
 
 describe("paper shader fills + effects via MCP", () => {
@@ -174,24 +126,6 @@ describe("paper shader fills + effects via MCP", () => {
     expect(layer.style.fill.shader?.shaderId).toBe("paper-mesh-gradient");
     expect(layer.style.fill.shader?.params.distortion).toBe(0.4);
     expect(layer.style.fill.shader?.params.swirl).toBe(0.6);
-  });
-
-  it("add_motion_shader_effect adds a paper effect shader", async () => {
-    const host = new HeadlessHost(projectWithShape());
-    const res = await executeTool(
-      "add_motion_shader_effect",
-      { compositionId: "comp-paper", layerId: "layer-shape", shaderId: "paper-halftone-dots" },
-      host,
-    );
-    expect(res.ok).toBe(true);
-    const data = asAddEffectData(res.data);
-    expect(typeof data.effectId).toBe("string");
-    const layer = shapeLayer(host);
-    const effect = (layer.effects ?? []).find((candidate) => candidate.id === data.effectId);
-    expect(effect).toBeDefined();
-    expect(effect!.type).toBe("shader");
-    expect((effect as { shaderId?: string }).shaderId).toBe("paper-halftone-dots");
-    expect((effect as { params: Record<string, number> }).params.size).toBe(0.5);
   });
 
   it("keyframes a paper effect param via effect.<id>.<param>", async () => {

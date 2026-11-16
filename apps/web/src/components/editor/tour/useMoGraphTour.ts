@@ -35,14 +35,6 @@ export function startMoGraphTour() {
   setTourState({ isActive: true, currentStep: 0 });
 }
 
-export function stopMoGraphTour() {
-  setTourState({ isActive: false });
-}
-
-export function isMoGraphTourCompleted(): boolean {
-  return localStorage.getItem(MOGRAPH_TOUR_KEY) === "true";
-}
-
 export function useMoGraphTour() {
   const state = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
   const [targetRect, setTargetRect] = useState<DOMRect | null>(null);

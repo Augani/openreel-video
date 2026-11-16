@@ -5,7 +5,7 @@ import {
   type NoiseProfileData,
 } from "../../../bridges/audio-bridge-effects";
 
-export interface NoiseReductionPreset {
+interface NoiseReductionPreset {
   id: NoiseReductionFocus;
   label: string;
   description: string;

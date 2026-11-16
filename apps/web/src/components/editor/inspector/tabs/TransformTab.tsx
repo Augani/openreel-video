@@ -1,7 +1,9 @@
+import { Button as ShadcnButton, Input } from "@openreel/ui";
+import { PrimaryVideoProperties } from "../PrimaryVideoProperties";
 import React from "react";
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp } from "@/icons/lucide-compat";
-import { ToolcraftClickableCard as ClickableCard } from "@openreel/ui";
-import { ToolcraftText as Text } from "@openreel/ui";
+import { cn } from "@openreel/ui";
+
 import type { Clip, FitMode, Transform } from "@openreel/core";
 import {
   CropSection,
@@ -11,7 +13,7 @@ import {
 } from "../";
 import { InspectorSection } from "../shell/InspectorSection";
 import {
-  MockSlider,
+  InlineSlider,
   NumberField,
 } from "../shell/InspectorControls";
 
@@ -20,7 +22,7 @@ interface TransformTabClip {
   mediaId: string;
 }
 
-export interface TransformTabProps {
+interface TransformTabProps {
   clipId: string;
   clipType: string | null;
   selectedClip: TransformTabClip | null;
@@ -30,6 +32,7 @@ export interface TransformTabProps {
   canvasWidth: number;
   canvasHeight: number;
   handleTransformChange: (changes: Partial<Transform>) => void;
+  afterPrimary?: React.ReactNode;
 }
 
 const parseNumber = (raw: string, fallback: number): number => {
@@ -55,6 +58,7 @@ export const TransformTab: React.FC<TransformTabProps> = ({
   canvasWidth,
   canvasHeight,
   handleTransformChange,
+  afterPrimary,
 }) => {
   const usesNormalizedPosition =
     clipType === "text" ||
@@ -91,14 +95,14 @@ export const TransformTab: React.FC<TransformTabProps> = ({
     });
   };
 
-  return (
+  const advancedControls = (
     <>
       {showTransformControls && (
         <>
           <InspectorSection
-            title="Transform"
-            sectionId="transform"
-            defaultOpen
+            title={showVideoControls ? "Advanced transform" : "Transform"}
+            sectionId={showVideoControls ? "transform-advanced" : "transform"}
+            defaultOpen={!showVideoControls}
           >
             <div className="space-y-3">
               <NumberField
@@ -107,6 +111,7 @@ export const TransformTab: React.FC<TransformTabProps> = ({
                   {
                     axis: "X",
                     value: `${Math.round(displayedPosition.x)}`,
+                    numericValue: displayedPosition.x,
                     onChange: (next) =>
                       updateDisplayedPosition(
                         "x",
@@ -116,6 +121,7 @@ export const TransformTab: React.FC<TransformTabProps> = ({
                   {
                     axis: "Y",
                     value: `${Math.round(displayedPosition.y)}`,
+                    numericValue: displayedPosition.y,
                     onChange: (next) =>
                       updateDisplayedPosition(
                         "y",
@@ -135,16 +141,16 @@ export const TransformTab: React.FC<TransformTabProps> = ({
                     ["Nudge down 1 pixel", ArrowDown, 0, 1],
                     ["Nudge right 1 pixel", ArrowRight, 1, 0],
                   ] as const).map(([label, Icon, x, y]) => (
-                    <button
+                    <ShadcnButton variant="ghost" size="sm"
                       key={label}
                       type="button"
                       aria-label={label}
                       title={label}
                       onClick={() => nudgePosition(x, y)}
-                      className="flex h-7 items-center justify-center rounded-[6px] border border-border bg-bg-2 text-fg-muted transition-colors hover:border-accent/50 hover:text-accent"
+                      className="flex h-7 items-center justify-center rounded-[6px] border p-0 [&_svg]:size-[13px] border-border bg-bg-2 text-fg-muted transition-colors hover:border-accent/50 hover:text-accent"
                     >
                       <Icon size={13} aria-hidden />
-                    </button>
+                    </ShadcnButton>
                   ))}
                 </div>
               </div>
@@ -153,7 +159,8 @@ export const TransformTab: React.FC<TransformTabProps> = ({
                 <span className="w-[90px] flex-none text-[13px] font-medium text-fg-3">
                   Scale
                 </span>
-                <MockSlider
+                <InlineSlider
+                  ariaLabel="Scale"
                   className="flex-1"
                   value={transform.scale.x * 100}
                   min={0}
@@ -173,7 +180,8 @@ export const TransformTab: React.FC<TransformTabProps> = ({
                   Rotation
                 </span>
                 <div className="flex flex-1 items-center justify-between rounded-[7px] border border-border px-[10px] py-[7px] focus-within:border-accent">
-                  <input
+                  <Input
+                    aria-label="Advanced rotation"
                     type="text"
                     inputMode="decimal"
                     value={`${Math.round(transform.rotation)}°`}
@@ -185,12 +193,13 @@ export const TransformTab: React.FC<TransformTabProps> = ({
                         ),
                       })
                     }
-                    className="w-full min-w-0 bg-transparent text-[13px] font-medium text-fg-2 outline-none"
+                    className="h-auto w-full min-w-0 rounded-none border-0 bg-transparent px-0 py-0 text-[13px] font-medium leading-[inherit] text-fg-2 outline-none md:text-[13px]"
                   />
                   <div className="flex flex-none flex-col">
-                    <button
+                    <ShadcnButton variant="ghost" size="sm"
                       type="button"
                       aria-label="Increase rotation"
+                      className="h-auto w-auto rounded-none p-0 [&_svg]:size-[11px]"
                       onClick={() =>
                         handleTransformChange({
                           rotation: stepRotation(transform.rotation, 1),
@@ -208,10 +217,11 @@ export const TransformTab: React.FC<TransformTabProps> = ({
                       >
                         <path d="M8 15l4-4 4 4" />
                       </svg>
-                    </button>
-                    <button
+                    </ShadcnButton>
+                    <ShadcnButton variant="ghost" size="sm"
                       type="button"
                       aria-label="Decrease rotation"
+                      className="h-auto w-auto rounded-none p-0 [&_svg]:size-[11px]"
                       onClick={() =>
                         handleTransformChange({
                           rotation: stepRotation(transform.rotation, -1),
@@ -229,7 +239,7 @@ export const TransformTab: React.FC<TransformTabProps> = ({
                       >
                         <path d="M8 9l4 4 4-4" />
                       </svg>
-                    </button>
+                    </ShadcnButton>
                   </div>
                 </div>
               </div>
@@ -240,6 +250,7 @@ export const TransformTab: React.FC<TransformTabProps> = ({
                   {
                     axis: "X",
                     value: `${Math.round(transform.anchor.x * 100)}%`,
+                    numericValue: transform.anchor.x * 100,
                     onChange: (next) =>
                       handleTransformChange({
                         anchor: {
@@ -251,6 +262,7 @@ export const TransformTab: React.FC<TransformTabProps> = ({
                   {
                     axis: "Y",
                     value: `${Math.round(transform.anchor.y * 100)}%`,
+                    numericValue: transform.anchor.y * 100,
                     onChange: (next) =>
                       handleTransformChange({
                         anchor: {
@@ -268,7 +280,8 @@ export const TransformTab: React.FC<TransformTabProps> = ({
                 <span className="w-[90px] flex-none text-[13px] font-medium text-fg-3">
                   Opacity
                 </span>
-                <MockSlider
+                <InlineSlider
+                  ariaLabel="Opacity"
                   className="flex-1"
                   value={transform.opacity * 100}
                   min={0}
@@ -285,7 +298,8 @@ export const TransformTab: React.FC<TransformTabProps> = ({
                 <span className="w-[90px] flex-none text-[13px] font-medium text-fg-3">
                   Radius
                 </span>
-                <MockSlider
+                <InlineSlider
+                  ariaLabel="Radius"
                   className="flex-1"
                   value={transform.borderRadius || 0}
                   min={0}
@@ -300,13 +314,10 @@ export const TransformTab: React.FC<TransformTabProps> = ({
 
               {(clipType === "image" || clipType === "video") && (
                 <div className="space-y-2 border-t border-border pt-3">
-                  <Text
-                    type="supporting"
-                    color="secondary"
-                    className="text-[11px] text-fg-3"
+                  <span className="font-normal text-[11px] text-fg-3"
                   >
                     Fit Mode
-                  </Text>
+                  </span>
                   <div className="grid grid-cols-3 gap-1.5">
                     {(["contain", "cover", "stretch"] as FitMode[]).map(
                       (mode) => {
@@ -315,24 +326,19 @@ export const TransformTab: React.FC<TransformTabProps> = ({
                             ? "contain"
                             : transform.fitMode;
                         return (
-                          <ClickableCard
-                            key={mode}
-                            label={`Set fit mode to ${mode}`}
-                            onClick={() =>
+                          <ShadcnButton variant="ghost" key={mode} onClick={() =>
                               handleTransformChange({ fitMode: mode })
-                            }
-                            className={`py-2 rounded-lg text-[12px] font-medium text-center capitalize transition-colors ${
+                            } type="button" aria-label={`Set fit mode to ${mode}`} className={cn("group/card block h-auto min-w-0 whitespace-normal rounded-[7px] border text-left transition-[background-color,border-color,box-shadow,transform] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50", "border-border bg-bg-1 hover:bg-bg-2", "p-3", `py-2 rounded-lg text-[12px] font-medium text-center capitalize transition-colors ${
                               activeMode === mode
                                 ? "bg-accent text-accent-fg"
                                 : "bg-bg-2 border border-border text-fg-3 hover:text-fg"
-                            }`}
-                          >
+                            }`)}>
                             {mode === "contain"
                               ? "Fit"
                               : mode === "cover"
                                 ? "Fill"
                                 : mode}
-                          </ClickableCard>
+                          </ShadcnButton>
                         );
                       },
                     )}
@@ -382,9 +388,7 @@ export const TransformTab: React.FC<TransformTabProps> = ({
         clipType === "shape" ||
         clipType === "svg" ||
         clipType === "sticker") && (
-        <div className="mb-4" data-section-id="blending">
-          <BlendingSection clipId={clipId} />
-        </div>
+        <InspectorSection title="Advanced blending" sectionId="blending"><BlendingSection clipId={clipId} /></InspectorSection>
       )}
 
       {(clipType === "video" ||
@@ -403,4 +407,9 @@ export const TransformTab: React.FC<TransformTabProps> = ({
       )}
     </>
   );
+  return showVideoControls ? <>
+    <PrimaryVideoProperties clipId={clipId} transform={transform} onTransformChange={handleTransformChange} />
+    {afterPrimary}
+    <InspectorSection title="Crop & stabilize" sectionId="crop-stabilize" sectionIds={["transform-advanced","crop","alignment","blending","transform-3d"]}>{advancedControls}</InspectorSection>
+  </> : advancedControls;
 };

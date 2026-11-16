@@ -1,13 +1,13 @@
 import type { CornerRadii, GradientStop, ShadowStyle } from "../graphics/types";
 
-export interface MotionColorRgba {
+interface MotionColorRgba {
   readonly r: number;
   readonly g: number;
   readonly b: number;
   readonly a: number;
 }
 
-export interface MotionResolvedGradientStop {
+interface MotionResolvedGradientStop {
   readonly offset: number;
   readonly color: string;
 }
@@ -112,7 +112,7 @@ export function expandMotionShadowColor(shadow: ShadowStyle): string {
   return shadow.color || "rgba(0, 0, 0, 0.35)";
 }
 
-export interface MotionClampedCornerRadii {
+interface MotionClampedCornerRadii {
   readonly topLeft: number;
   readonly topRight: number;
   readonly bottomRight: number;

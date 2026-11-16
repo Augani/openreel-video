@@ -1,5 +1,6 @@
 import React, { useMemo, useCallback } from "react";
 import type { Keyframe, Clip } from "@openreel/core";
+import { describeEffectInstanceKeyframeProperty } from "@openreel/core/video/effect-instance-keyframes";
 import { KeyframeMarker } from "./KeyframeMarker";
 import { EasingCurve } from "./EasingCurve";
 
@@ -63,10 +64,10 @@ export const KeyframeTrack: React.FC<KeyframeTrackProps> = ({
         property,
         keyframes: keyframes.sort((a, b) => a.time - b.time),
         color: PROPERTY_COLORS[property] || PROPERTY_COLORS.default,
-        label: PROPERTY_LABELS[property] || property,
+        label: PROPERTY_LABELS[property] || describeEffectInstanceKeyframeProperty(clip.effects ?? [], property) || property,
       }))
       .sort((a, b) => a.label.localeCompare(b.label));
-  }, [clip.keyframes]);
+  }, [clip.keyframes, clip.effects]);
 
   const handleKeyframeMove = useCallback(
     (keyframeId: string, deltaPixels: number) => {
@@ -146,5 +147,3 @@ export const KeyframeTrack: React.FC<KeyframeTrackProps> = ({
     </div>
   );
 };
-
-export default KeyframeTrack;

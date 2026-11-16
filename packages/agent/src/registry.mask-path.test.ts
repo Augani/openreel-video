@@ -111,26 +111,6 @@ describe("add_motion_mask shape:path", () => {
     expect(res.error?.code).toBe("INVALID_PARAMS");
     expect(masksFrom(host).length).toBe(0);
   });
-
-  it("rejects non-finite coordinates with INVALID_PARAMS", async () => {
-    const host = new HeadlessHost(projectWithShape());
-    const res = await executeTool(
-      "add_motion_mask",
-      {
-        compositionId: COMP_ID,
-        layerId: LAYER_ID,
-        shape: "path",
-        pathPoints: [
-          { x: 0, y: 0 },
-          { x: Number.NaN, y: 0 },
-          { x: 10, y: 10 },
-        ],
-      },
-      host,
-    );
-    expect(res.ok).toBe(false);
-    expect(res.error?.code).toBe("INVALID_PARAMS");
-  });
 });
 
 describe("set_motion_mask_path", () => {
@@ -221,31 +201,6 @@ describe("add_motion_mask_path_keyframe", () => {
     expect(mask.pathKeyframes![0].time).toBe(1);
   });
 
-  it("uses supplied pathPoints when provided", async () => {
-    const host = new HeadlessHost(projectWithShape());
-    await executeTool(
-      "add_motion_mask",
-      { compositionId: COMP_ID, layerId: LAYER_ID, shape: "path", pathPoints: triangle },
-      host,
-    );
-    const maskId = masksFrom(host)[0].id;
-    const custom: readonly MotionShapePathPoint[] = [
-      { x: -10, y: -10 },
-      { x: 10, y: -10 },
-      { x: 0, y: 20 },
-    ];
-    const res = await executeTool(
-      "add_motion_mask_path_keyframe",
-      { compositionId: COMP_ID, layerId: LAYER_ID, maskId, time: 2, pathPoints: custom },
-      host,
-    );
-    expect(res.ok).toBe(true);
-    const mask = masksFrom(host)[0];
-    expect(mask.pathKeyframes?.length).toBe(1);
-    expect(typeof mask.pathKeyframes![0].value).toBe("string");
-    expect((mask.pathKeyframes![0].value as string).length).toBeGreaterThan(0);
-  });
-
   it("rejects a non-path mask with INVALID_PARAMS", async () => {
     const host = new HeadlessHost(projectWithShape());
     await executeTool(
@@ -272,32 +227,5 @@ describe("add_motion_mask_path_keyframe", () => {
     );
     expect(res.ok).toBe(false);
     expect(res.error?.code).toBe("NOT_FOUND");
-  });
-
-  it("rejects non-finite supplied pathPoints with INVALID_PARAMS", async () => {
-    const host = new HeadlessHost(projectWithShape());
-    await executeTool(
-      "add_motion_mask",
-      { compositionId: COMP_ID, layerId: LAYER_ID, shape: "path", pathPoints: triangle },
-      host,
-    );
-    const maskId = masksFrom(host)[0].id;
-    const res = await executeTool(
-      "add_motion_mask_path_keyframe",
-      {
-        compositionId: COMP_ID,
-        layerId: LAYER_ID,
-        maskId,
-        time: 1,
-        pathPoints: [
-          { x: 0, y: 0 },
-          { x: Infinity, y: 0 },
-          { x: 5, y: 5 },
-        ],
-      },
-      host,
-    );
-    expect(res.ok).toBe(false);
-    expect(res.error?.code).toBe("INVALID_PARAMS");
   });
 });

@@ -12,6 +12,8 @@ export * from "./text";
 export * from "./graphics";
 export * from "./photo";
 export * from "./editing-templates";
+export * from "./graphic-templates";
+export * from "./linked-comps";
 export * from "./template";
 export * from "./motion";
 export * from "./ai";
@@ -19,53 +21,76 @@ export * from "./animation";
 export * from "./effects";
 export * from "./device";
 export * from "./multicam";
+export * from "./render-cache";
+export * from "./plugins";
 export {
   ExportEngine,
   getExportEngine,
-  initializeExportEngine,
   downloadBlob,
   setEncoderBackendFactory,
   exportSettingsRequireNativeEncoder,
+  desktopExportRequiresNativeEncoder,
+  exportWritesAlpha,
+  hasBroadcastOptions,
+  createIsolatedExportEngine,
 } from "./export/export-engine";
-
-export type {
-  EncoderBackend,
-  EncoderBackendFactory,
-} from "./export/encoder-backend";
-
+export type { ExportEngineOptions } from "./export/export-engine";
+export * from "./export/color-output";
+export * from "./export/image-sequence";
 export {
-  WebCodecsBackend,
-  type WebCodecsBackendOptions,
-} from "./export/webcodecs-backend";
+  GIF_MAX_DIMENSION,
+  GIF_MAX_FRAMES,
+  GIF_MAX_RGBA_BYTES,
+  gifPlaybackFps,
+  validateGifFrameBudget,
+  validateGifOptions,
+} from "./export/gif-encoder";
+export * from "./export/broadcast";
+export * from "./color/source-color";
+export * from "./color/cube-lut";
+export * from "./color/lut-json";
+export * from "./color/looks";
+export * from "./color/input-transform";
+export * from "./color/hdr-working";
+export * from "./color/hdr-effects";
+export * from "./color/hdr-light-level";
+export { planHdrTransition, isHdrTransitionKind, type HdrTransitionStep, type HdrTransitionKind } from "./video/hdr-transition";
+export * from "./raw";
+export { GpuHdrCompositor, isGpuHdrAvailable } from "./video/hdr-gpu";
+export { hdrExportTargetFor, type HdrExportTarget } from "./video/hdr-frame";
+export * from "./export/smart-render";
+export { scanSourceForSmartRender } from "./export/smart-render-scan";
+export * from "./export/source-fingerprint";
+export * from "./export/progress-estimator";
 
-export {
-  resolveWebCodecsExportLimits,
-  type WebCodecsExportAdjustment,
-} from "./export/webcodecs-limits";
-export { checkBrowserExportCapability, getVideoExportValidationError, getMissingExportMedia, type BrowserExportCapability } from "./export/browser-capabilities";
+export type { EncoderBackend, SmartRenderMuxer } from "./export/encoder-backend";
+
+export { WebCodecsBackend } from "./export/webcodecs-backend";
+
+export { resolveWebCodecsExportLimits } from "./export/webcodecs-limits";
+export { checkBrowserExportCapability, getVideoExportValidationError } from "./export/browser-capabilities";
 
 export type {
   VideoExportSettings,
   AudioExportSettings,
-  ImageExportSettings,
-  SequenceExportSettings,
-  ExportProgress as VideoExportProgressInfo,
   ExportPreset,
   ExportResult,
-  ExportStats,
-  ExportError,
-  ExportErrorCode,
-  UpscalingSettings,
   UpscaleQuality,
+  ExportFrameSource,
+  ExportVideoOptions,
+  ExportStats,
+  SmartRenderReport,
 } from "./export/types";
+
+export * from "./export/export-queue";
+export * from "./export/stem-export";
+export * from "./export/zip";
+export { cloneProjectSnapshot } from "./export/project-snapshot";
 
 export {
   DEFAULT_VIDEO_SETTINGS,
-  DEFAULT_AUDIO_SETTINGS,
-  DEFAULT_IMAGE_SETTINGS,
-  VIDEO_QUALITY_PRESETS,
-  CODEC_MAP,
-  DEFAULT_UPSCALING_SETTINGS,
+  effectiveRateControl,
+  twoPassAvailability,
 } from "./export/types";
 
 export type {
@@ -73,7 +98,6 @@ export type {
   CompressionTarget,
   CompressionSource,
   CompressionPlan,
-  SizePreset,
 } from "./export/compression";
 
 export {
@@ -82,3 +106,215 @@ export {
   compressionPlanToExportSettings,
   COMPRESSION_SIZE_PRESETS,
 } from "./export/compression";
+
+export { toRuntimeVideoEffectParams } from "./video/effect-parameter-units";
+
+export { prepareTimelineToolEdit, applyTimelineToolEdits, validateTimelineToolEdits, invertTimelineToolEdits } from "./editing/timeline-tool-edit";
+export type { TimelineToolMode, TimelineToolPlan, TimelineToolPreview } from "./editing/timeline-tool-edit";
+export { planToolNudge, chooseNudgeEdge, NUDGE_FRAMES, NUDGE_FRAMES_LARGE } from "./editing/timeline-tool-nudge";
+export {
+  defaultEditPointKind,
+  findEditPointNeighbor,
+  findGapAt,
+  isEditPointValid,
+  isGapValid,
+  markClipRange,
+  planDeleteGap,
+  planEditPointTrim,
+  toggleEditPointKind,
+  type EditPointEdge,
+  type EditPointKind,
+  type EditPointRef,
+  type TimelineGap,
+} from "./editing/edit-point";
+export {
+  DEFAULT_SPLIT_EDIT_FRAMES,
+  findLinkedPartners,
+  planEdgeMoves,
+  planExtendEdit,
+  planSplitEdit,
+  prepareEdgeMove,
+  sideOfTrack,
+  splitEditOffsets,
+} from "./editing/split-edit";
+export type {
+  AppliedEdgeMove,
+  EdgeMove,
+  EdgeMovePlan,
+  EdgeName,
+  PreparedEdgeMove,
+  SplitEditKind,
+  TimelineSide,
+} from "./editing/split-edit";
+
+export { prepareClipSplit } from "./editing/clip-fragments";
+export { planTrackSelect, type TrackSelectItem, type TrackSelectKind, type TrackSelectOptions } from "./editing/track-select";
+export { zoomAtPoint, zoomToRange, type ViewState, type ZoomLimits } from "./editing/timeline-view";
+export { planRippleDelete, planCloseGap, planCloseGapBeforeClip, planRemoveGaps, planSilenceCut } from "./editing/ripple-delete";
+export { planClipDropResolution, clipDropOptionsFromModifiers, snapshotClipOrigins, type ClipDropMode, type ClipDropOptions, type ClipOrigin } from "./editing/clip-drop";
+export { planRippleTrimToPlayhead, type RippleTrimToPlayheadOptions } from "./editing/ripple-trim-playhead";
+export {
+  isSyncLocked,
+  syncFollowerTrackIds,
+  findSyncBlocker,
+  assertRangeEmptyOnTracks,
+  SyncLockBlockedError,
+} from "./editing/sync-lock";
+export {
+  planAddEditToAllTracks,
+  planAddEdit,
+  planLift,
+  planExtract,
+  planInsert,
+  planOverwrite,
+  createMediaClip,
+  findTopmostVisualClipAt,
+  clipSourceTimeAt,
+} from "./editing/premiere-edits";
+export {
+  createSourceClip,
+  planSourceEdit,
+  resolveThreePointEdit,
+  sourceDropError,
+  sourceTargetKind,
+} from "./editing/source-edit";
+export type {
+  ResolvedSourceEdit,
+  SourceComponent,
+  SourceEditPlan,
+  SourceEditRequest,
+  ThreePointInput,
+  ThreePointRule,
+} from "./editing/source-edit";
+export * from "./media/bins";
+export * from "./media/interpretation";
+export * from "./media/smart-bins";
+export * from "./media/proxy-workflow";
+export * from "./media/desktop-ingest";
+export type { MediaItemPatch, ClipLabelPatch, MediaOrganizeParams } from "./actions/handlers/media-organize";
+export { buildBenchProject } from "./perf/bench-project";
+export type { BenchProjectOptions } from "./perf/bench-project";
+export type { ClipPlacement, NewTrackPlacement } from "./editing/premiere-edits";
+export {
+  canTargetTrack,
+  chooseTrackForMedia,
+  createEmptyTrack,
+  findMainTrack,
+  resolveSourceTracks,
+} from "./editing/track-targeting";
+export type {
+  SourcePatch,
+  SourceTrackResolution,
+  TargetMediaKind,
+  TrackChoice,
+  TrackTargetingInput,
+} from "./editing/track-targeting";
+
+export {
+  parseCaptions,
+  exportCaptions,
+  exportSrt,
+  exportVtt,
+  exportTtml,
+  listCaptionTracks,
+  formatVttTime,
+  formatSrtTime,
+  CAPTION_EXPORT_FORMATS,
+  CAPTION_FORMAT_INFO,
+  exportCaptionFile,
+  parseCaptionBytes,
+} from "./captions/caption-formats";
+export type {
+  CaptionExportFormat,
+  CaptionExportOptions,
+  CaptionFile,
+  CaptionImportOptions,
+  CaptionParseResult,
+  CaptionTrackSummary,
+} from "./captions/caption-formats";
+export { encodeScc, exportScc, parseScc, isSccContent } from "./captions/scc";
+export type { CaptionFormatIssue, SccExportResult, SccOptions, SccParseOptions, SccParseResult } from "./captions/scc";
+export { encodeStl, exportStl, parseStl, isStlContent } from "./captions/ebu-stl";
+export type { StlExportResult, StlHeader, StlOptions, StlParseOptions, StlParseResult } from "./captions/ebu-stl";
+export { checkCaptions, visibleRows, DEFAULT_CAPTION_QC } from "./captions/caption-qc";
+export type { CaptionQcCode, CaptionQcIssue, CaptionQcOptions, CaptionQcReport } from "./captions/caption-qc";
+export {
+  framesToTimecode,
+  timecodeToFrames,
+  resolveCaptionFrameRate,
+} from "./captions/caption-timecode";
+export type { CaptionFrameRate } from "./captions/caption-timecode";
+export {
+  applyCaptionBurnIn,
+  burnedInSubtitles,
+  captionsChangeBurnIn,
+  planEmbeddedCaptions,
+  planSidecarFiles,
+  subtitlesForRange,
+  trackExportSettings,
+  iso6392,
+} from "./captions/caption-export";
+export type {
+  CaptionExportSettings,
+  CaptionTrackExportSettings,
+  EmbeddedCaptionKind,
+  EmbeddedCaptionMode,
+  EmbeddedCaptionPayload,
+  EmbeddedCaptionPlan,
+  SidecarFile,
+} from "./captions/caption-export";
+export {
+  buildTranscript,
+  wordRange,
+  wordIndexAt,
+  searchTranscript,
+  findFillerWords,
+  findPauses,
+  mergeTimeRanges,
+  listSpeakers,
+  renameSpeaker,
+  assignSpeaker,
+  parseTranscriptJson,
+  DEFAULT_FILLER_PHRASES,
+} from "./captions/transcript";
+export type {
+  Transcript,
+  TranscriptWord,
+  TranscriptSentence,
+  TranscriptMatch,
+  FillerMatch,
+  PauseMatch,
+  TimeRange,
+} from "./captions/transcript";
+export {
+  planTranscriptCut,
+  cutDuration,
+  registerTranscriptionProvider,
+  getTranscriptionProviders,
+} from "./captions/transcript-edit";
+export type { TranscriptionProvider, TranscriptionRequest } from "./captions/transcript-edit";
+export * from "./review/review-comments";
+export { nextMarker, prevMarker, markersInRange, markerAt, sortMarkers } from "./editing/marker-nav";
+export type { MarkerNavOptions } from "./editing/marker-nav";
+export {
+  chaptersText,
+  markersCsv,
+  markersEdlLocs,
+  parseEdlLocs,
+  formatChapterTime,
+  markerColorFromName,
+  markerFrameRate,
+  nearestMarkerColorName,
+  CSV_COLUMNS,
+  MIN_CHAPTERS,
+  MIN_CHAPTER_SECONDS,
+} from "./interchange/marker-export";
+export type {
+  Chapter,
+  ChaptersResult,
+  ChaptersOptions,
+  MarkersCsvOptions,
+  EdlLocOptions,
+  ParsedLoc,
+} from "./interchange/marker-export";
+export * from "./export/surround-export";

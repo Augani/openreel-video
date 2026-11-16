@@ -5,6 +5,7 @@ import type {
 } from "../../../../packages/core/src/creation/index";
 
 export { CHANNELS } from "./channels";
+export * from "./onboarding";
 
 export const hardwareInfoSchema = z.object({
   cpu: z.object({
@@ -47,8 +48,20 @@ export const transcodeArgsSchema = z.object({
 export const extractAudioArgsSchema = z.object({
   srcPath: z.string(),
   streamIndex: z.number().int().nonnegative().optional(),
+  /** Output channel count (a 5.1 sequence asks for the source's own channels, up to 6). Default 2. */
+  channels: z.number().int().min(1).max(8).optional(),
 });
 export const probeAudioArgsSchema = z.object({ srcPath: z.string() });
+export const developRawStillArgsSchema = z.object({ srcPath: z.string().min(1) });
+export const nativeProbeArgsSchema = z.object({ path: z.string().min(1) });
+export const nativeFrameArgsSchema = z.object({
+  path: z.string().min(1),
+  time: z.number().finite(),
+  width: z.number().int().positive().optional(),
+  quality: z.enum(["preview", "full"]).default("preview"),
+  /** 16 returns little-endian rgba64 code values (HDR working mode). Absent: 8-bit rgba. */
+  bitDepth: z.union([z.literal(8), z.literal(16)]).optional(),
+});
 export const fetchUrlArgsSchema = z.object({
   url: z.string().url(),
   maxBytes: z.number().int().positive().optional(),
@@ -67,7 +80,7 @@ export const riggingBackendProbeSchema = z.object({
 });
 export type RiggingBackendProbe = z.infer<typeof riggingBackendProbeSchema>;
 
-export const riggingWarningSchema = z.object({
+const riggingWarningSchema = z.object({
   code: z.string(),
   severity: z.enum(["info", "warning", "error"]),
   message: z.string(),
@@ -198,7 +211,7 @@ export interface AuroraSequenceRenderArgs {
   readonly quality?: "preview" | "final";
 }
 
-export const auroraSequenceRenderArgsSchema = z.object({
+const auroraSequenceRenderArgsSchema = z.object({
   scene: z.unknown(),
   assets: z.array(z.unknown()),
   width: z.number().int().positive().max(8192),
@@ -224,16 +237,6 @@ export const auroraSequenceSessionStartResultSchema = z.object({
 export type AuroraSequenceSessionStartResult = z.infer<
   typeof auroraSequenceSessionStartResultSchema
 >;
-
-export interface AuroraSequenceFrameResult {
-  readonly backend: "native" | "cpu";
-  readonly rgba: Uint8Array;
-  readonly width: number;
-  readonly height: number;
-  readonly coveredPixels: number;
-  readonly shadowedPixels: number;
-  readonly renderMs: number;
-}
 
 export const auroraSequenceFrameResultSchema = z.object({
   backend: z.enum(["native", "cpu"]),
@@ -271,15 +274,85 @@ export type AuroraSequenceSessionEvent = z.infer<
   typeof auroraSequenceSessionEventSchema
 >;
 
+const linkedCompId = z.string().min(1).max(200);
+export const linkedCompOpenArgsSchema = z.object({ compositionId: linkedCompId });
+/**
+ * Messages relayed between the editor window and a linked-composition window. The
+ * template is validated by the receiving renderer (it owns the template schema);
+ * main only checks the envelope and relays it.
+ */
+export const linkedCompMessageSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("hello"), compositionId: linkedCompId }),
+  z.object({ type: z.literal("closed"), compositionId: linkedCompId }),
+  z.object({ type: z.literal("gone"), compositionId: linkedCompId }),
+  z.object({
+    type: z.literal("edit"),
+    compositionId: linkedCompId,
+    baseRevision: z.number().finite(),
+    label: z.string().max(200),
+    template: z.record(z.unknown()),
+  }),
+  z.object({
+    type: z.literal("state"),
+    compositionId: linkedCompId,
+    name: z.string().max(500),
+    revision: z.number().finite(),
+    template: z.record(z.unknown()),
+    rejected: z.string().max(1000).optional(),
+  }),
+]);
+export type LinkedCompMessage = z.infer<typeof linkedCompMessageSchema>;
+/** Largest relayed message (a template embeds its images as data: URLs). */
+export const LINKED_COMP_MAX_MESSAGE_BYTES = 16_000_000;
+
 export const windowControlArgsSchema = z.object({
   action: z.enum(["minimize", "toggleMaximize", "close"]),
 });
 
-export const audioStreamInfoSchema = z.object({
-  index: z.number().int(),
-  codec: z.string(),
-  channels: z.number().int(),
-  sampleRate: z.number().int(),
-  language: z.string().optional(),
+const ingestConfigSchema = z
+  .object({
+    proxyProfile: z.object({ codec: z.enum(["prores-proxy", "h264"]), size: z.enum(["half", "quarter", "720p", "1080p"]) }).optional(),
+    proxyFolder: z.string().min(1).optional(),
+    mediaFolder: z.string().min(1).optional(),
+    concurrency: z.union([z.literal(1), z.literal(2)]).optional(),
+  })
+  .nullish();
+
+const ingestProjectSchema = z.object({
+  projectId: z.string().min(1).max(200),
+  /** Absolute path of the saved project file; absent for a project that was never saved. */
+  projectPath: z.string().min(1).nullish(),
+  config: ingestConfigSchema,
 });
-export type AudioStreamInfo = z.infer<typeof audioStreamInfoSchema>;
+
+export const ingestResolveFoldersArgsSchema = ingestProjectSchema;
+export const ingestProxyEnqueueArgsSchema = ingestProjectSchema.extend({
+  items: z
+    .array(
+      z.object({
+        mediaId: z.string().min(1),
+        name: z.string().min(1),
+        srcPath: z.string().min(1),
+        profile: z.object({ codec: z.enum(["prores-proxy", "h264"]), size: z.enum(["half", "quarter", "720p", "1080p"]) }),
+        previewTwin: z.boolean(),
+      }),
+    )
+    .min(1)
+    .max(500),
+  force: z.boolean().optional(),
+});
+export const ingestProxyListArgsSchema = z.object({ projectId: z.string().min(1) });
+export const ingestProxyIdsArgsSchema = z.object({ ids: z.array(z.string().min(1)).max(1000) });
+export const ingestProxySetConcurrencyArgsSchema = z.object({ concurrency: z.number().int().min(1).max(2) });
+export const ingestStatArgsSchema = z.object({ paths: z.array(z.string().min(1)).max(2000) });
+export const ingestReadProxyArgsSchema = z.object({ path: z.string().min(1) });
+export const ingestCopyToProjectArgsSchema = ingestProjectSchema.extend({
+  requestId: z.string().min(1).max(100),
+  srcPath: z.string().min(1),
+});
+export const ingestPickFolderArgsSchema = z.object({ title: z.string().max(200).optional(), defaultPath: z.string().optional() });
+export const ingestScanFolderArgsSchema = z.object({
+  root: z.string().min(1),
+  names: z.array(z.string().min(1)).min(1).max(5000),
+  mode: z.enum(["media", "proxy"]),
+});

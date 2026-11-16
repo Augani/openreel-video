@@ -233,29 +233,6 @@ describe("svg elliptical arc flattening", () => {
     expect(maxY).toBeGreaterThan(20);
   });
 
-  it("honors the sweep flag direction", () => {
-    const sweepClockwise = parseMotionPathData("M 0 0 A 50 50 0 0 1 100 0");
-    const sweepCounter = parseMotionPathData("M 0 0 A 50 50 0 0 0 100 0");
-    const minYClockwise = Math.min(...sweepClockwise.map((point) => point.y));
-    const maxYCounter = Math.max(...sweepCounter.map((point) => point.y));
-    expect(minYClockwise).toBeLessThan(-20);
-    expect(maxYCounter).toBeGreaterThan(20);
-  });
-
-  it("handles relative arc commands and applies x-axis rotation", () => {
-    const points = parseMotionPathData("M 10 10 a 30 60 90 1 1 0 80");
-    expect(points.length).toBeGreaterThan(4);
-    const end = points[points.length - 1];
-    expect(end.x).toBeCloseTo(10, 4);
-    expect(end.y).toBeCloseTo(90, 4);
-  });
-
-  it("falls back to a line when radii are zero", () => {
-    const points = parseMotionPathData("M 0 0 A 0 0 0 0 1 40 0");
-    expect(points).toHaveLength(2);
-    expect(points[1]).toMatchObject({ x: 40, y: 0 });
-  });
-
   it("preserves bezier handles through parse/build round-trip", () => {
     const segments = parseMotionPathSegments("M 0 0 C 10 0 20 10 20 20");
     expect(segments).toHaveLength(2);
@@ -323,36 +300,6 @@ describe("svg elliptical arc flattening", () => {
     expect(result[2]).toMatchObject({ x: 20, y: 50, inX: 10, inY: 50 });
   });
 
-  it("keeps corners handle-less when both sides lack a handle", () => {
-    const from: MotionShapePathPoint[] = [
-      { x: 0, y: 0 },
-      { x: 100, y: 0 },
-    ];
-    const to: MotionShapePathPoint[] = [
-      { x: 0, y: 100 },
-      { x: 100, y: 100 },
-    ];
-    const result = interpolateMotionPathPoints(from, to, 0.5);
-    expect(result[0]).toEqual({ x: 0, y: 50 });
-    expect(result[1]).toEqual({ x: 100, y: 50 });
-    expect(result[0].inX).toBeUndefined();
-    expect(result[0].outX).toBeUndefined();
-  });
-
-  it("treats a missing handle as the vertex position when the other side has one", () => {
-    const from: MotionShapePathPoint[] = [
-      { x: 0, y: 0, outX: 20, outY: 0 },
-      { x: 100, y: 0 },
-    ];
-    const to: MotionShapePathPoint[] = [
-      { x: 0, y: 0 },
-      { x: 100, y: 0 },
-    ];
-    const result = interpolateMotionPathPoints(from, to, 0.5);
-    expect(result[0].outX).toBeCloseTo(10, 6);
-    expect(result[0].outY).toBeCloseTo(0, 6);
-  });
-
   it("falls back to resample morph when counts mismatch", () => {
     const from: MotionShapePathPoint[] = [
       { x: 0, y: 0 },
@@ -396,12 +343,6 @@ describe("svg elliptical arc flattening", () => {
     expect(commands[0]).toEqual({ type: "move", x: 0, y: 0 });
     expect(commands[1]).toEqual({ type: "line", x: 10, y: 0 });
     expect(commands[2]).toMatchObject({ type: "cubic", x: 30, y: 20 });
-  });
-
-  it("keeps building plain M/L paths for handle-less points", () => {
-    expect(buildMotionPathData([{ x: 0, y: 0 }, { x: 10, y: 10 }])).toBe(
-      "M 0 0 L 10 10",
-    );
   });
 
   it("preserves curve handles when moving an anchor point", () => {

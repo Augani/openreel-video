@@ -1,16 +1,10 @@
 import React, { useCallback, useState, useMemo } from "react";
-import { ToolcraftButton as Button } from "@openreel/ui";
-import { ToolcraftClickableCard as ClickableCard } from "@openreel/ui";
-import { ToolcraftText as Text } from "@openreel/ui";
+import { Button } from "@openreel/ui";
+import { cn } from "@openreel/ui";
+
 import { PropertySlider } from "./shell/PropertySlider";
 import { RotateCcw } from "@/icons/lucide-compat";
 import type { HSLValues } from "@openreel/core";
-
-export const DEFAULT_HSL_VALUES: HSLValues = {
-  hue: [0, 0, 0, 0, 0, 0, 0, 0],
-  saturation: [0, 0, 0, 0, 0, 0, 0, 0],
-  luminance: [0, 0, 0, 0, 0, 0, 0, 0],
-};
 
 const COLOR_RANGES = [
   { key: "reds", label: "R", fullLabel: "Reds", color: "#ef4444", index: 0 },
@@ -70,22 +64,17 @@ const ColorTab: React.FC<{
   isActive: boolean;
   onClick: () => void;
 }> = ({ color, isActive, onClick }) => (
-  <ClickableCard
-    label={color.fullLabel}
-    onClick={onClick}
-    className={`flex-1 py-1.5 text-[9px] font-medium rounded transition-all ${
-      isActive
-        ? "bg-bg-2 text-fg shadow-sm"
-        : "text-fg-3 hover:text-fg-2"
-    }`}
-    style={{
+  <Button variant="ghost" onClick={onClick} style={{
       borderBottom: isActive
         ? `2px solid ${color.color}`
         : "2px solid transparent",
-    }}
-  >
+    }} type="button" aria-label={color.fullLabel} className={cn("group/card block h-auto min-w-0 whitespace-normal rounded-[7px] border text-left transition-[background-color,border-color,box-shadow,transform] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50", "border-border bg-bg-1 hover:bg-bg-2", "p-3", `flex-1 py-1.5 text-[9px] font-medium rounded transition-all ${
+      isActive
+        ? "bg-bg-2 text-fg shadow-sm"
+        : "text-fg-3 hover:text-fg-2"
+    }`)}>
     {color.label}
-  </ClickableCard>
+  </Button>
 );
 
 /**
@@ -195,14 +184,10 @@ export const HSLControls: React.FC<HSLControlsProps> = ({
       {/* Reset All Button */}
       {onReset && (
         <div className="flex justify-end">
-          <Button
-            label="Reset All"
-            icon={<RotateCcw size={10} />}
-            variant="ghost"
-            size="sm"
-            onClick={onReset}
-            className="flex items-center gap-1 px-2 py-1 text-[10px] text-fg-3 hover:text-fg transition-colors"
-          />
+          <Button onClick={onReset} type="button" aria-label="Reset All" className="min-w-0 justify-center rounded-[7px] font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 bg-transparent hover:bg-bg-2 flex items-center gap-1 px-2 py-1 text-[10px] text-fg-3 hover:text-fg transition-colors">
+            <span className="flex h-4 w-4 shrink-0 items-center justify-center">{<RotateCcw size={10} />}</span>
+            <span className="truncate">{"Reset All"}</span>
+          </Button>
         </div>
       )}
 
@@ -225,18 +210,14 @@ export const HSLControls: React.FC<HSLControlsProps> = ({
             className="w-3 h-3 rounded-full"
             style={{ backgroundColor: activeColor.color }}
           />
-          <Text type="supporting" color="primary" className="text-[11px] font-medium">
+          <span className="text-fg text-[11px] font-medium">
             {activeColor.fullLabel}
-          </Text>
+          </span>
         </div>
         {hasAdjustments && (
-          <Button
-            label="Reset"
-            variant="ghost"
-            size="sm"
-            onClick={handleResetColor}
-            className="text-[9px] text-fg-3 hover:text-fg-2 transition-colors"
-          />
+          <Button onClick={handleResetColor} type="button" aria-label="Reset" className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 bg-transparent hover:bg-bg-2 text-[9px] text-fg-3 hover:text-fg-2 transition-colors">
+            <span className="truncate">{"Reset"}</span>
+          </Button>
         )}
       </div>
 
@@ -296,4 +277,3 @@ export const HSLControls: React.FC<HSLControlsProps> = ({
   );
 };
 
-export default HSLControls;

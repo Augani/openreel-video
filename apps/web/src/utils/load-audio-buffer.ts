@@ -1,10 +1,10 @@
-export interface AudioLoadProgress {
+interface AudioLoadProgress {
   stage: "extracting" | "decoding";
   progress: number;
   message: string;
 }
 
-export interface LoadAudioBufferOptions {
+interface LoadAudioBufferOptions {
   audioTrackIndex?: number;
   onProgress?: (progress: AudioLoadProgress) => void;
 }

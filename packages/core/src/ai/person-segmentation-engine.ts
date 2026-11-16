@@ -18,7 +18,7 @@ export interface SegmentationResult {
   referenceHeight: number;
 }
 
-export interface PersonMaskOptions {
+interface PersonMaskOptions {
   /** Timeline/content time. Used for deterministic sampling and seek resets. */
   timestampMs?: number;
   /** Keeps unrelated clips and render pipelines from sharing temporal history. */
@@ -446,11 +446,4 @@ let instance: PersonSegmentationEngine | null = null;
 export function getPersonSegmentationEngine(): PersonSegmentationEngine {
   if (!instance) instance = new PersonSegmentationEngine();
   return instance;
-}
-
-export function disposePersonSegmentationEngine(): void {
-  if (instance) {
-    instance.dispose();
-    instance = null;
-  }
 }

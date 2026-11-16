@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE xmeml>
+<xmeml version="5">
+  <sequence id="sequence-1">
+    <name>Premiere Sample</name>
+    <duration>120</duration>
+    <rate><timebase>24</timebase><ntsc>TRUE</ntsc></rate>
+    <timecode>
+      <rate><timebase>24</timebase><ntsc>TRUE</ntsc></rate>
+      <string>00:00:00:00</string>
+      <frame>0</frame>
+      <displayformat>NDF</displayformat>
+    </timecode>
+    <marker><name>Cue</name><comment>note</comment><in>12</in><out>-1</out></marker>
+    <media>
+      <video>
+        <format><samplecharacteristics>
+          <rate><timebase>24</timebase><ntsc>TRUE</ntsc></rate>
+          <width>1920</width><height>1080</height>
+        </samplecharacteristics></format>
+        <track>
+          <clipitem id="clipitem-1">
+            <name>shot_a.mov</name>
+            <enabled>TRUE</enabled>
+            <duration>240</duration>
+            <rate><timebase>24</timebase><ntsc>TRUE</ntsc></rate>
+            <start>0</start>
+            <end>-1</end>
+            <in>10</in>
+            <out>58</out>
+            <file id="file-1">
+              <name>shot_a.mov</name>
+              <pathurl>file://localhost/Volumes/Media/shot_a.mov</pathurl>
+              <rate><timebase>24</timebase><ntsc>TRUE</ntsc></rate>
+              <duration>240</duration>
+              <media>
+                <video><samplecharacteristics><width>1920</width><height>1080</height></samplecharacteristics></video>
+                <audio><channelcount>2</channelcount></audio>
+              </media>
+            </file>
+            <link><linkclipref>clipitem-1</linkclipref><mediatype>video</mediatype><trackindex>1</trackindex><clipindex>1</clipindex></link>
+            <link><linkclipref>clipitem-3</linkclipref><mediatype>audio</mediatype><trackindex>1</trackindex><clipindex>1</clipindex></link>
+          </clipitem>
+          <transitionitem>
+            <start>42</start>
+            <end>54</end>
+            <alignment>center</alignment>
+            <effect><name>Cross Dissolve</name><effectid>Cross Dissolve</effectid><effecttype>transition</effecttype></effect>
+          </transitionitem>
+          <clipitem id="clipitem-2">
+            <name>shot_b.mov</name>
+            <enabled>TRUE</enabled>
+            <duration>240</duration>
+            <rate><timebase>24</timebase><ntsc>TRUE</ntsc></rate>
+            <start>-1</start>
+            <end>120</end>
+            <in>0</in>
+            <out>36</out>
+            <file id="file-2">
+              <name>shot_b.mov</name>
+              <pathurl>file://localhost/Volumes/Media/shot_b.mov</pathurl>
+              <rate><timebase>24</timebase><ntsc>TRUE</ntsc></rate>
+              <duration>240</duration>
+              <media><video><samplecharacteristics><width>1920</width><height>1080</height></samplecharacteristics></video></media>
+            </file>
+            <filter><effect>
+              <name>Time Remap</name><effectid>timeremap</effectid>
+              <parameter><parameterid>speed</parameterid><name>speed</name><value>50</value></parameter>
+              <parameter><parameterid>reverse</parameterid><name>reverse</name><value>FALSE</value></parameter>
+            </effect></filter>
+          </clipitem>
+          <enabled>TRUE</enabled>
+          <locked>FALSE</locked>
+        </track>
+      </video>
+      <audio>
+        <track>
+          <clipitem id="clipitem-3">
+            <name>shot_a.mov</name>
+            <enabled>TRUE</enabled>
+            <rate><timebase>24</timebase><ntsc>TRUE</ntsc></rate>
+            <start>0</start>
+            <end>48</end>
+            <in>10</in>
+            <out>58</out>
+            <file id="file-1"/>
+            <filter><effect>
+              <name>Audio Levels</name><effectid>audiolevels</effectid>
+              <parameter><parameterid>level</parameterid><name>Level</name><value>0.7</value></parameter>
+            </effect></filter>
+            <link><linkclipref>clipitem-1</linkclipref><mediatype>video</mediatype><trackindex>1</trackindex><clipindex>1</clipindex></link>
+            <link><linkclipref>clipitem-3</linkclipref><mediatype>audio</mediatype><trackindex>1</trackindex><clipindex>1</clipindex></link>
+          </clipitem>
+          <enabled>TRUE</enabled>
+          <locked>FALSE</locked>
+        </track>
+      </audio>
+    </media>
+  </sequence>
+</xmeml>

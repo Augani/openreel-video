@@ -1,3 +1,4 @@
+import { parseSourceColor, type SourceColorSpace } from "../color/source-color";
 import type {
   MediaTrackInfo,
   ThumbnailResult,
@@ -7,6 +8,15 @@ import type {
   VideoFrameResult,
   FrameCacheEntry,
 } from "./types";
+import { extractAudioWav } from "./extract-audio";
+import {
+  claimNativeSource,
+  isNativeContainerFile,
+  NativeCanvasSink,
+  NativeExportFrameDecoder,
+  type ExportFrameDecoderLike,
+  type NativeSourceInfo,
+} from "./native-frame-source";
 
 import type {
   InputVideoTrack,
@@ -15,14 +25,14 @@ import type {
   WrappedCanvas,
 } from "mediabunny";
 
-export const SUPPORTED_VIDEO_FORMATS = [
+const SUPPORTED_VIDEO_FORMATS = [
   "video/mp4",
   "video/webm",
   "video/quicktime",
   "video/x-matroska",
 ];
 
-export const SUPPORTED_AUDIO_FORMATS = [
+const SUPPORTED_AUDIO_FORMATS = [
   "audio/mpeg",
   "audio/mp3",
   "audio/wav",
@@ -32,7 +42,7 @@ export const SUPPORTED_AUDIO_FORMATS = [
   "audio/webm",
 ];
 
-export const SUPPORTED_IMAGE_FORMATS = [
+const SUPPORTED_IMAGE_FORMATS = [
   "image/jpeg",
   "image/png",
   "image/webp",
@@ -67,20 +77,43 @@ type MediaBunnyInput = {
   [Symbol.dispose]?: () => void;
 };
 
+/** One forward-only decode position inside a source (its own sink, so canvas pools never collide). */
+interface ExportCursor {
+  sink: InstanceType<typeof import("mediabunny").CanvasSink>;
+  iterator: AsyncIterator<WrappedCanvas> | null;
+  currentFrame: WrappedCanvas | null;
+  nextFrame: WrappedCanvas | null;
+  done: boolean;
+  lastUsed: number;
+}
+
+/**
+ * Sequential frame source for export. Export asks for ever-increasing timestamps, so decoding is one
+ * forward iterator. A feature timeline routinely shows the SAME source at two or more places at once
+ * (stacked B-roll, split screens, a nest re-using a clip, multicam angles cut from one file); with a
+ * single iterator every layer's request looked like "time moved backwards" and restarted decoding at
+ * the previous keyframe, which on 4K long-GOP media is hundreds of frames per layer per output frame
+ * (measured 8 s/frame on the 110-minute soak timeline). Each distinct playhead gets its own cursor,
+ * up to MAX_CURSORS; a request continues the nearest cursor that is behind it.
+ */
 export class ExportFrameDecoder {
+  /** Decode positions kept per source. Each one is a hardware decoder, so keep it small. */
+  static readonly MAX_CURSORS = 4;
+  /** Decoding forward this far is cheaper than a keyframe seek elsewhere (seconds of source). */
+  static readonly FORWARD_WINDOW_S = 4;
+
   private input: MediaBunnyInput | null = null;
-  private sink: InstanceType<typeof import("mediabunny").CanvasSink> | null = null;
+  private videoTrack: unknown = null;
+  private sinkOptions: Record<string, unknown> = {};
+  private cursors: ExportCursor[] = [];
   private mediabunny: typeof import("mediabunny");
   private file: File | Blob;
   private width?: number;
   private initialized = false;
   private reusableCanvas: OffscreenCanvas | null = null;
   private reusableCtx: OffscreenCanvasRenderingContext2D | null = null;
-  private canvasIterator: AsyncIterator<WrappedCanvas> | null = null;
-  private currentFrame: WrappedCanvas | null = null;
-  private nextFrame: WrappedCanvas | null = null;
-  private iteratorDone = false;
   private decodeTail: Promise<void> = Promise.resolve();
+  private tick = 0;
 
   constructor(mediabunny: typeof import("mediabunny"), file: File | Blob, width?: number) {
     this.mediabunny = mediabunny;
@@ -88,10 +121,15 @@ export class ExportFrameDecoder {
     this.width = width;
   }
 
+  /** Number of live decode positions (diagnostics and tests). */
+  get cursorCount(): number {
+    return this.cursors.length;
+  }
+
   async initialize(): Promise<boolean> {
     if (this.initialized) return true;
 
-    const { Input, ALL_FORMATS, BlobSource, CanvasSink } = this.mediabunny;
+    const { Input, ALL_FORMATS, BlobSource } = this.mediabunny;
 
     this.input = new Input({
       source: new BlobSource(this.file),
@@ -117,8 +155,8 @@ export class ExportFrameDecoder {
       sinkOptions.height = Math.round(this.width * aspectRatio);
       sinkOptions.fit = "contain";
     }
-
-    this.sink = new CanvasSink(videoTrack, sinkOptions);
+    this.videoTrack = videoTrack;
+    this.sinkOptions = sinkOptions;
     this.initialized = true;
     return true;
   }
@@ -132,44 +170,75 @@ export class ExportFrameDecoder {
     return framePromise;
   }
 
-  private async getSequentialFrame(timestamp: number): Promise<OffscreenCanvas | null> {
-    if (!this.sink) return null;
+  private createCursor(): ExportCursor {
+    const { CanvasSink } = this.mediabunny;
+    const sink = new CanvasSink(this.videoTrack as never, this.sinkOptions) as ExportCursor["sink"];
+    const cursor: ExportCursor = { sink, iterator: null, currentFrame: null, nextFrame: null, done: false, lastUsed: 0 };
+    this.cursors.push(cursor);
+    return cursor;
+  }
 
-    // Start a new sequential decode for the first request or whenever the
-    // timeline moves backwards (reverse playback, a loop, or a later clip
-    // reusing the same media from an earlier in-point).
-    if (!this.canvasIterator || (this.currentFrame && timestamp < this.currentFrame.timestamp - 1e-8)) {
-      await this.resetCanvasIterator(timestamp);
+  /** The cursor is at or behind `timestamp` and close enough that decoding forward beats a new seek. */
+  private serves(c: ExportCursor, timestamp: number): boolean {
+    if (!c.iterator || !c.currentFrame) return false;
+    const gap = timestamp - c.currentFrame.timestamp;
+    if (gap < -1e-8) return false;
+    // A sparse stream (screen recording, freeze): the next frame is already past `timestamp`, so the
+    // current one is the answer however old it is.
+    return gap <= ExportFrameDecoder.FORWARD_WINDOW_S || (c.nextFrame !== null && c.nextFrame.timestamp > timestamp);
+  }
+
+  /** The cursor to continue for `timestamp`, or a fresh/recycled one when none is close behind it. */
+  private pickCursor(timestamp: number): ExportCursor {
+    let best: ExportCursor | null = null;
+    for (const c of this.cursors) {
+      if (!this.serves(c, timestamp)) continue;
+      if (!best || c.currentFrame!.timestamp > best.currentFrame!.timestamp) best = c;
+    }
+    if (best) return best;
+    if (this.cursors.length < ExportFrameDecoder.MAX_CURSORS) return this.createCursor();
+    return this.cursors.reduce((oldest, c) => (c.lastUsed < oldest.lastUsed ? c : oldest));
+  }
+
+  private async getSequentialFrame(timestamp: number): Promise<OffscreenCanvas | null> {
+    if (!this.initialized) return null;
+
+    const cursor = this.pickCursor(timestamp);
+    cursor.lastUsed = ++this.tick;
+    // A new sequential decode for the first request, or when no live cursor is close behind this time
+    // (a later clip reusing the media from an earlier in-point, reverse playback, a loop).
+    if (!this.serves(cursor, timestamp)) {
+      await this.resetCursor(cursor, timestamp);
     }
 
-    if (!this.currentFrame) return null;
+    if (!cursor.currentFrame) return null;
 
     // Keep one decoded frame of lookahead so selection exactly matches
     // CanvasSink.getCanvas(): the last source frame starting at or before the
     // requested timestamp. CanvasSink's two-canvas pool keeps both frames
     // stable while we copy the selected one below.
     while (true) {
-      if (!this.nextFrame && !this.iteratorDone) {
-        const next = await this.canvasIterator!.next();
+      if (!cursor.nextFrame && !cursor.done) {
+        const next = await cursor.iterator!.next();
         if (next.done) {
-          this.iteratorDone = true;
+          cursor.done = true;
         } else {
-          this.nextFrame = next.value;
+          cursor.nextFrame = next.value;
         }
       }
 
-      if (this.nextFrame && this.nextFrame.timestamp <= timestamp + 1e-8) {
-        this.currentFrame = this.nextFrame;
-        this.nextFrame = null;
+      if (cursor.nextFrame && cursor.nextFrame.timestamp <= timestamp + 1e-8) {
+        cursor.currentFrame = cursor.nextFrame;
+        cursor.nextFrame = null;
         continue;
       }
       break;
     }
 
-    if (this.currentFrame.timestamp > timestamp + 1e-8) return null;
+    if (cursor.currentFrame.timestamp > timestamp + 1e-8) return null;
 
-    const w = this.currentFrame.canvas.width;
-    const h = this.currentFrame.canvas.height;
+    const w = cursor.currentFrame.canvas.width;
+    const h = cursor.currentFrame.canvas.height;
 
     if (!this.reusableCanvas || this.reusableCanvas.width !== w || this.reusableCanvas.height !== h) {
       this.reusableCanvas = new OffscreenCanvas(w, h);
@@ -177,36 +246,33 @@ export class ExportFrameDecoder {
     }
 
     this.reusableCtx!.clearRect(0, 0, w, h);
-    this.reusableCtx!.drawImage(this.currentFrame.canvas, 0, 0);
+    this.reusableCtx!.drawImage(cursor.currentFrame.canvas, 0, 0);
     return this.reusableCanvas;
   }
 
-  private async resetCanvasIterator(timestamp: number): Promise<void> {
-    await this.canvasIterator?.return?.();
-    this.currentFrame = null;
-    this.nextFrame = null;
-    this.iteratorDone = false;
-    this.canvasIterator = this.sink!.canvases(timestamp)[Symbol.asyncIterator]();
+  private async resetCursor(cursor: ExportCursor, timestamp: number): Promise<void> {
+    await cursor.iterator?.return?.();
+    cursor.currentFrame = null;
+    cursor.nextFrame = null;
+    cursor.done = false;
+    cursor.iterator = cursor.sink.canvases(timestamp)[Symbol.asyncIterator]();
 
-    const first = await this.canvasIterator.next();
+    const first = await cursor.iterator.next();
     if (first.done) {
-      this.iteratorDone = true;
+      cursor.done = true;
       return;
     }
-    this.currentFrame = first.value;
+    cursor.currentFrame = first.value;
   }
 
   dispose(): void {
-    void this.canvasIterator?.return?.();
+    for (const c of this.cursors) void c.iterator?.return?.();
+    this.cursors = [];
     if (this.input) {
       this.input[Symbol.dispose]?.();
       this.input = null;
     }
-    this.sink = null;
-    this.canvasIterator = null;
-    this.currentFrame = null;
-    this.nextFrame = null;
-    this.iteratorDone = false;
+    this.videoTrack = null;
     this.decodeTail = Promise.resolve();
     this.reusableCanvas = null;
     this.reusableCtx = null;
@@ -219,7 +285,7 @@ export class MediaBunnyEngine {
   private mediabunny: typeof import("mediabunny") | null = null;
   private frameCache: Map<string, FrameCacheEntry> = new Map();
   private readonly MAX_CACHE_SIZE = 5;
-  private exportDecoders: Map<string, ExportFrameDecoder> = new Map();
+  private exportDecoders: Map<string, ExportFrameDecoderLike> = new Map();
 
   async initialize(): Promise<void> {
     if (this.initialized) return;
@@ -252,12 +318,23 @@ export class MediaBunnyEngine {
     return this.frameCache.size;
   }
 
-  async createExportDecoder(mediaId: string, file: File | Blob, width?: number): Promise<ExportFrameDecoder | null> {
-    this.ensureInitialized();
+  async createExportDecoder(mediaId: string, file: File | Blob, width?: number): Promise<ExportFrameDecoderLike | null> {
+    // Callers that never imported media in this page (a queued export retried from its snapshot on a
+    // fresh page) reach here with an engine nobody initialized. Throwing sent every frame down the
+    // per-frame getFrameAtTime path, which restarts a decoder at the previous keyframe each time.
+    await this.initialize();
 
     const existing = this.exportDecoders.get(mediaId);
     if (existing) {
       return existing;
+    }
+
+    // Codecs WebCodecs cannot decode (ProRes...) go to the desktop's native decoder, at full quality.
+    const native = await claimNativeSource(file);
+    if (native) {
+      const nativeDecoder = new NativeExportFrameDecoder(native, width);
+      this.exportDecoders.set(mediaId, nativeDecoder);
+      return nativeDecoder;
     }
 
     const decoder = new ExportFrameDecoder(this.mediabunny!, file, width);
@@ -270,7 +347,7 @@ export class MediaBunnyEngine {
     return decoder;
   }
 
-  getExportDecoder(mediaId: string): ExportFrameDecoder | null {
+  getExportDecoder(mediaId: string): ExportFrameDecoderLike | null {
     return this.exportDecoders.get(mediaId) || null;
   }
 
@@ -293,6 +370,49 @@ export class MediaBunnyEngine {
     if (!this.mediabunny) {
       throw new Error("MediaBunny not initialized. Call initialize() first.");
     }
+  }
+
+  /** Peaks of an MXF's first audio track, read through the sidecar (mediabunny cannot open the wrapper). */
+  private async nativeContainerWaveform(file: File | Blob, samplesPerSecond: number, signal?: AbortSignal): Promise<WaveformData> {
+    const wav = await (await extractAudioWav(file, 0, { channels: 1 })).arrayBuffer();
+    signal?.throwIfAborted();
+    const view = new DataView(wav);
+    let offset = 12;
+    let dataStart = -1;
+    let dataLength = 0;
+    let sampleRate = 48000;
+    while (offset + 8 <= view.byteLength) {
+      const id = String.fromCharCode(view.getUint8(offset), view.getUint8(offset + 1), view.getUint8(offset + 2), view.getUint8(offset + 3));
+      const size = view.getUint32(offset + 4, true);
+      if (id === "fmt ") sampleRate = view.getUint32(offset + 12, true);
+      if (id === "data") {
+        dataStart = offset + 8;
+        dataLength = Math.min(size, view.byteLength - dataStart);
+        break;
+      }
+      offset += 8 + size + (size % 2);
+    }
+    if (dataStart < 0) throw new Error("No audio data in the extracted track");
+    // The sidecar writes mono 32-bit float PCM.
+    const samples = new Float32Array(wav.slice(dataStart, dataStart + Math.floor(dataLength / 4) * 4));
+    const perBucket = Math.max(1, Math.floor(sampleRate / samplesPerSecond));
+    const buckets = Math.ceil(samples.length / perBucket);
+    const peaks = new Float32Array(buckets);
+    const rms = new Float32Array(buckets);
+    for (let b = 0; b < buckets; b++) {
+      let peak = 0;
+      let sum = 0;
+      const from = b * perBucket;
+      const to = Math.min(samples.length, from + perBucket);
+      for (let i = from; i < to; i++) {
+        const abs = Math.abs(samples[i]);
+        if (abs > peak) peak = abs;
+        sum += samples[i] * samples[i];
+      }
+      peaks[b] = peak;
+      rms[b] = Math.sqrt(sum / Math.max(1, to - from));
+    }
+    return { peaks, rms, sampleRate: samplesPerSecond, duration: samples.length / sampleRate, samplesPerSecond };
   }
 
   async createInput(file: File | Blob): Promise<MediaBunnyInput> {
@@ -394,7 +514,35 @@ export class MediaBunnyEngine {
     }
   }
 
+  /** What the desktop probe says about a pro wrapper (MXF) mediabunny has no demuxer for, or null off the desktop. */
+  private async nativeContainerMetadata(file: File | Blob): Promise<MediaTrackInfo | null> {
+    if (!isNativeContainerFile(file)) return null;
+    const native = await claimNativeSource(file);
+    if (!native) return null;
+    const audio = native.audio;
+    return {
+      duration: native.duration,
+      width: native.width,
+      height: native.height,
+      frameRate: native.frameRate,
+      codec: native.codec,
+      sampleRate: audio?.sampleRate ?? 0,
+      channels: audio?.channels ?? 0,
+      fileSize: file.size,
+      mimeType: file.type || "video/mxf",
+      hasVideo: true,
+      hasAudio: Boolean(audio && audio.trackCount > 0),
+      rotation: native.rotation ?? 0,
+      // Decoded by the sidecar on demand, exactly like ProRes.
+      canDecode: true,
+      canDecodeVideo: true,
+      audioTrackCount: audio?.trackCount ?? 0,
+    };
+  }
+
   async extractMetadata(file: File | Blob): Promise<MediaTrackInfo> {
+    const nativeContainer = await this.nativeContainerMetadata(file);
+    if (nativeContainer) return nativeContainer;
     // Special handling for images - MediaBunny doesn't process static images well
     const fileType = file instanceof File ? file.type : "";
     if (fileType.startsWith("image/")) {
@@ -417,8 +565,14 @@ export class MediaBunnyEngine {
       let rotation = 0;
       let canDecodeVideo = false;
       let videoBitrate = 0;
+      let sourceColor: SourceColorSpace | undefined;
 
       if (videoTrack) {
+        try {
+          sourceColor = parseSourceColor(await videoTrack.getColorSpace()) ?? undefined;
+        } catch {
+          sourceColor = undefined;
+        }
         width = videoTrack.displayWidth;
         height = videoTrack.displayHeight;
         rotation = videoTrack.rotation || 0;
@@ -472,6 +626,7 @@ export class MediaBunnyEngine {
         canDecodeVideo,
         videoBitrate,
         audioTrackCount,
+        ...(sourceColor ? { sourceColor } : {}),
       };
     } finally {
       input[Symbol.dispose]?.();
@@ -484,6 +639,10 @@ export class MediaBunnyEngine {
     width: number = 320,
   ): Promise<ThumbnailResult[]> {
     this.ensureInitialized();
+    const native = await claimNativeSource(file);
+    if (native) {
+      return this.nativeThumbnails(native, count, width);
+    }
     const { CanvasSink } = this.mediabunny!;
     const input = await this.createInput(file);
 
@@ -554,6 +713,28 @@ export class MediaBunnyEngine {
     }
   }
 
+  private async nativeThumbnails(
+    native: NativeSourceInfo,
+    count: number,
+    width: number,
+    span: number = native.duration,
+  ): Promise<ThumbnailResult[]> {
+    const sink = new NativeCanvasSink(native, { width, quality: "preview" });
+    const last = Math.max(0, span - 1 / Math.max(1, native.frameRate));
+    const thumbnails: ThumbnailResult[] = [];
+    for (let i = 0; i < count; i++) {
+      const time = count === 1 ? 0 : (i / (count - 1)) * last;
+      const frame = await sink.getCanvas(time);
+      if (!frame) continue;
+      let dataUrl: string | undefined;
+      try {
+        dataUrl = URL.createObjectURL(await frame.canvas.convertToBlob({ type: "image/jpeg", quality: 0.7 }));
+      } catch {}
+      thumbnails.push({ timestamp: frame.timestamp, canvas: frame.canvas, dataUrl });
+    }
+    return thumbnails;
+  }
+
   async generateFilmstripThumbnails(
     file: File | Blob,
     duration: number,
@@ -561,6 +742,10 @@ export class MediaBunnyEngine {
     interval: number = 1,
   ): Promise<ThumbnailResult[]> {
     this.ensureInitialized();
+    const nativeSource = await claimNativeSource(file);
+    if (nativeSource) {
+      return this.nativeThumbnails(nativeSource, Math.max(1, Math.ceil(duration / interval)), thumbnailWidth, duration);
+    }
     const { CanvasSink } = this.mediabunny!;
     const input = await this.createInput(file);
 
@@ -633,6 +818,19 @@ export class MediaBunnyEngine {
     width?: number,
   ): Promise<VideoFrameResult | null> {
     this.ensureInitialized();
+    const native = await claimNativeSource(file);
+    if (native) {
+      const nativeFrame = await new NativeCanvasSink(native, { width, quality: "full" }).getCanvas(timestamp);
+      return nativeFrame
+        ? {
+            timestamp: nativeFrame.timestamp,
+            duration: nativeFrame.duration,
+            canvas: nativeFrame.canvas,
+            width: nativeFrame.canvas.width,
+            height: nativeFrame.canvas.height,
+          }
+        : null;
+    }
     const { CanvasSink } = this.mediabunny!;
     const fileName = "name" in file ? file.name : "blob";
     const cacheKey = `${fileName}-${file.size}-${timestamp}-${width || "auto"}`;
@@ -724,18 +922,25 @@ export class MediaBunnyEngine {
   async generateWaveform(
     file: File | Blob,
     samplesPerSecond: number = 100,
+    signal?: AbortSignal,
   ): Promise<WaveformData> {
+    signal?.throwIfAborted();
     this.ensureInitialized();
+    if (isNativeContainerFile(file) && (await claimNativeSource(file))) {
+      return this.nativeContainerWaveform(file, samplesPerSecond, signal);
+    }
     const { AudioSampleSink } = this.mediabunny!;
     const input = await this.createInput(file);
 
     try {
+      signal?.throwIfAborted();
       const audioTrack = await input.getPrimaryAudioTrack();
       if (!audioTrack) {
         throw new Error("No audio track found");
       }
 
       const canDecode = await audioTrack.canDecode();
+      signal?.throwIfAborted();
       if (!canDecode) {
         throw new Error("Cannot decode audio track");
       }
@@ -752,6 +957,10 @@ export class MediaBunnyEngine {
       );
 
       for await (const sample of sink.samplesAtTimestamps(timestamps)) {
+        if (signal?.aborted) {
+          sample?.close();
+          signal.throwIfAborted();
+        }
         if (!sample) {
           peaks.push(0);
           rms.push(0);

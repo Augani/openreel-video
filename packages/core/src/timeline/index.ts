@@ -1,34 +1,8 @@
-export {
-  TrackManager,
-  createTrack,
-  cloneTrack,
-  getTrackClips,
-  canAcceptMediaType,
-  type TrackManagerOptions,
-  type CreateTrackParams,
-  type TrackOperationResult,
-} from "./track-manager";
+export { ClipManager } from "./clip-manager";
 
 export {
-  ClipManager,
-  createClip,
-  cloneClip,
-  getClipEndTime,
-  clipsOverlap,
-  getGapBetweenClips,
-  type ClipManagerOptions,
-  type AddClipParams,
-  type MoveClipParams,
-  type ClipOperationResult,
-  type SnapResult,
-} from "./clip-manager";
-
-export {
-  AutoEditService,
   getAutoEditService,
-  DEFAULT_AUTO_EDIT_OPTIONS,
   type AutoEditOptions,
-  type AutoEditCut,
   type AutoEditResult,
   type CutMode,
 } from "./auto-edit-service";
@@ -36,41 +10,58 @@ export {
 export {
   NestedSequenceEngine,
   getNestedSequenceEngine,
-  resetNestedSequenceEngine,
   type CompoundClip,
-  type CompoundClipContent,
   type CompoundClipInstance,
-  type CreateCompoundClipOptions,
-  type FlattenResult,
 } from "./nested-sequence-engine";
 
 export { calculateProjectDuration } from "./project-duration";
 
 export {
-  UNIVERSAL_TRACKS_CAPABILITY,
-  UNIVERSAL_TRACKS_MIN_READER_VERSION,
   getTimelineItems,
   getTrackItems,
   resolveTimelineItem,
-  getTimelineItemCapabilities,
   getMediaItemCapabilities,
+  getCompoundClipId,
+  createTimelineClipCapabilityResolver,
+  getProjectClipCapabilities,
   getVisibleTrackRenderOrder,
   trackHasVisualItems,
   trackHasAudioItems,
-  isStandardTrack,
-  projectUsesUniversalTracks,
   withUniversalTracksCapability,
   type TimelineItemKind,
-  type TimelineItemCapabilities,
   type ResolvedTimelineItem,
-  type TimelineTrackRenderEntry,
 } from "./timeline-items";
 
+export { resolveTimelinePlacement } from "./timeline-placement";
+
 export {
-  isTimelineIntervalClear,
-  resolveTimelinePlacement,
-  timelineIntervalsOverlap,
-  type TimelinePlacementPolicy,
-  type TimelinePlacementRequest,
-  type TimelinePlacementResult,
-} from "./timeline-placement";
+  MAIN_SEQUENCE_ID,
+  activateSequence,
+  closeSequenceTab,
+  countSequenceInstances,
+  createSequence,
+  createSequenceFromMedia,
+  cycleMessage,
+  deleteSequence,
+  descendantSequenceIds,
+  duplicateSequence,
+  ensureSequences,
+  getSequence,
+  insertSequenceAsNest,
+  isNestClip,
+  listSequences,
+  moveSequencesToBin,
+  nestClips,
+  nestedSequenceIds,
+  projectForSequence,
+  renameSequence,
+  reorderOpenSequences,
+  sequenceContentDuration,
+  sequenceForNestClip,
+  setSequenceRange,
+  syncActiveSequence,
+  withNestProjection,
+  wouldCreateSequenceCycle,
+  type NewSequenceOptions,
+  type SequenceEditResult,
+} from "./sequences";

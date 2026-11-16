@@ -19,16 +19,7 @@ import type {
   Transform3D,
 } from "@openreel/core/creation/index";
 
-export interface RecoverableScene3DLayerSummary {
-  readonly compositionId: string;
-  readonly compositionName: string;
-  readonly layerId: string;
-  readonly layerName: string;
-  readonly objectCount: number;
-  readonly duration: number;
-}
-
-export interface MotionScene3DRecoveryPlan {
+interface MotionScene3DRecoveryPlan {
   readonly scene: CreationScene;
   readonly assets: readonly CreationAssetRecipe[];
   readonly operations: readonly CreationOperation[];
@@ -45,29 +36,6 @@ interface DraftEntry {
 interface RecoveryDraft {
   readonly scene: CreationScene;
   readonly assets: readonly CreationAssetRecipe[];
-}
-
-export function findRecoverableScene3DLayers(
-  creation: CreationProjectState | undefined,
-  motionCompositions: readonly MotionComposition[],
-): readonly RecoverableScene3DLayerSummary[] {
-  const summaries: RecoverableScene3DLayerSummary[] = [];
-  for (const composition of motionCompositions) {
-    for (const layer of composition.layers) {
-      if (layer.type !== "scene3d") continue;
-      if (!layer.objects || layer.objects.length === 0) continue;
-      if (hasCreationBinding(creation, composition.id, layer.id)) continue;
-      summaries.push({
-        compositionId: composition.id,
-        compositionName: composition.name,
-        layerId: layer.id,
-        layerName: layer.name,
-        objectCount: layer.objects.length,
-        duration: layer.duration,
-      });
-    }
-  }
-  return summaries;
 }
 
 export function planRecoverMotionScene3DLayer(

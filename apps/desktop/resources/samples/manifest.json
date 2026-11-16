@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "clips": [
+    {
+      "id": "practice-aurora",
+      "name": "Aurora drift",
+      "kind": "video",
+      "file": "practice-aurora.mp4",
+      "mimeType": "video/mp4",
+      "width": 1280,
+      "height": 720,
+      "license": "CC0-1.0 (original, generated with ffmpeg lavfi sources)",
+      "sizeBytes": 215019,
+      "durationSec": 6
+    },
+    {
+      "id": "practice-fractal",
+      "name": "Fractal zoom",
+      "kind": "video",
+      "file": "practice-fractal.mp4",
+      "mimeType": "video/mp4",
+      "width": 1280,
+      "height": 720,
+      "license": "CC0-1.0 (original, generated with ffmpeg lavfi sources)",
+      "sizeBytes": 3187128,
+      "durationSec": 6
+    },
+    {
+      "id": "practice-cells",
+      "name": "Living cells",
+      "kind": "video",
+      "file": "practice-cells.mp4",
+      "mimeType": "video/mp4",
+      "width": 1280,
+      "height": 720,
+      "license": "CC0-1.0 (original, generated with ffmpeg lavfi sources)",
+      "sizeBytes": 1453333,
+      "durationSec": 6
+    },
+    {
+      "id": "practice-music",
+      "name": "Practice beat",
+      "kind": "audio",
+      "file": "practice-music.mp3",
+      "mimeType": "audio/mpeg",
+      "license": "CC0-1.0 (original, generated with ffmpeg lavfi sources)",
+      "sizeBytes": 240789,
+      "durationSec": 20
+    }
+  ]
+}

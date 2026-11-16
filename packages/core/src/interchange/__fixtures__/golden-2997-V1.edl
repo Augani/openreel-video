@@ -1,0 +1,21 @@
+TITLE: Interchange Test
+FCM: NON-DROP FRAME
+
+001  INTERVIE V     C        00:00:01:00 00:00:02:20 01:00:00:00 01:00:01:20
+* TO CLIP NAME: interview.mp4
+
+002  INTERVIE V     C        00:00:02:20 00:00:02:20 01:00:01:20 01:00:01:20
+* FROM CLIP NAME: interview.mp4
+002  BROLLCLI V     D   020  00:00:02:20 00:00:06:00 01:00:01:20 01:00:03:10
+M2   BROLLCLI  059.9                00:00:03:10
+* TO CLIP NAME: broll clip.mov
+
+003  INTERVIE V     C        00:00:00:00 00:00:01:20 01:00:03:10 01:00:05:00
+* TO CLIP NAME: interview.mp4
+
+004  BROLLCLI V     C        00:00:07:14 00:00:06:20 01:00:05:00 01:00:05:24
+M2   BROLLCLI -030.0                00:00:07:14
+* TO CLIP NAME: broll clip.mov
+
+* LOC: 01:00:01:00 BLUE     Intro
+* LOC: 01:00:04:05 BLUE     Beat & Drop <b>

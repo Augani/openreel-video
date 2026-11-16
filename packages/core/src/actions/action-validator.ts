@@ -1,3 +1,4 @@
+import { mediaTrimBounds } from "../media/bins";
 import type {
   Action,
   ValidationResult,
@@ -16,7 +17,7 @@ import type {
   MarkerAction,
 } from "../types/actions";
 import type { Project, Timeline, Track, Clip } from "../types";
-import { EASING_TYPES } from "../types/timeline";
+import { AUDIO_TYPES, EASING_TYPES, MARKER_KINDS, REVIEW_STATUSES } from "../types/timeline";
 import { TRANSITION_TYPES } from "../types/effects";
 import { getActionHandler } from "./registry";
 
@@ -141,6 +142,17 @@ export class ActionValidator {
             message: "Params must be an object",
             path: "params",
           });
+        } else if (action.type === "project/updateSettings") {
+          const { pixelAspectRatio, fieldOrder } = action.params as { pixelAspectRatio?: unknown; fieldOrder?: unknown };
+          if (
+            pixelAspectRatio !== undefined &&
+            !(typeof pixelAspectRatio === "number" && Number.isFinite(pixelAspectRatio) && pixelAspectRatio >= 0.25 && pixelAspectRatio <= 4)
+          ) {
+            errors.push({ code: "INVALID_PARAMS", message: "Sequence pixel aspect ratio must be between 0.25 and 4", path: "params.pixelAspectRatio" });
+          }
+          if (fieldOrder !== undefined && fieldOrder !== "progressive" && fieldOrder !== "upper" && fieldOrder !== "lower") {
+            errors.push({ code: "INVALID_PARAMS", message: "Sequence field order must be progressive, upper or lower", path: "params.fieldOrder" });
+          }
         }
         break;
 
@@ -299,6 +311,7 @@ export class ActionValidator {
 
       case "track/remove":
       case "track/lock":
+      case "track/setSyncLock":
       case "track/hide":
       case "track/mute":
       case "track/solo":
@@ -329,6 +342,16 @@ export class ActionValidator {
             code: "INVALID_PARAMS",
             message: "Locked parameter must be a boolean",
             path: "params.locked",
+          });
+        }
+        if (
+          action.type === "track/setSyncLock" &&
+          typeof action.params.syncLock !== "boolean"
+        ) {
+          errors.push({
+            code: "INVALID_PARAMS",
+            message: "syncLock parameter must be a boolean",
+            path: "params.syncLock",
           });
         }
         if (
@@ -454,6 +477,7 @@ export class ActionValidator {
             path: "params.time",
           });
         }
+        errors.push(...this.validateMarkerFields(action.params, "params"));
         break;
 
       case "marker/remove":
@@ -479,9 +503,103 @@ export class ActionValidator {
             });
           }
         }
+        if (action.type === "marker/update") {
+          const updates = action.params.updates ?? {};
+          if (
+            updates.time !== undefined &&
+            (typeof updates.time !== "number" ||
+              !Number.isFinite(updates.time) ||
+              updates.time < 0)
+          ) {
+            errors.push({
+              code: "INVALID_PARAMS",
+              message: "Marker time must be a non-negative number",
+              path: "params.updates.time",
+            });
+          }
+          errors.push(...this.validateMarkerFields(updates, "params.updates"));
+        }
         break;
     }
 
+    return errors;
+  }
+
+  private validateMarkerFields(
+    fields: {
+      duration?: unknown;
+      comment?: unknown;
+      kind?: unknown;
+      author?: unknown;
+      status?: unknown;
+      replies?: unknown;
+    },
+    path: string,
+  ): ValidationError[] {
+    const errors: ValidationError[] = [];
+    if (
+      fields.duration !== undefined &&
+      (typeof fields.duration !== "number" ||
+        !Number.isFinite(fields.duration) ||
+        fields.duration < 0)
+    ) {
+      errors.push({
+        code: "INVALID_PARAMS",
+        message: "Marker duration must be a non-negative number",
+        path: `${path}.duration`,
+      });
+    }
+    if (fields.comment !== undefined && typeof fields.comment !== "string") {
+      errors.push({
+        code: "INVALID_PARAMS",
+        message: "Marker comment must be a string",
+        path: `${path}.comment`,
+      });
+    }
+    if (
+      fields.kind !== undefined &&
+      !(MARKER_KINDS as readonly unknown[]).includes(fields.kind)
+    ) {
+      errors.push({
+        code: "INVALID_PARAMS",
+        message: `Marker kind must be one of ${MARKER_KINDS.join(", ")}`,
+        path: `${path}.kind`,
+      });
+    }
+    if (fields.author !== undefined && typeof fields.author !== "string") {
+      errors.push({
+        code: "INVALID_PARAMS",
+        message: "Marker author must be a string",
+        path: `${path}.author`,
+      });
+    }
+    if (
+      fields.status !== undefined &&
+      !(REVIEW_STATUSES as readonly unknown[]).includes(fields.status)
+    ) {
+      errors.push({
+        code: "INVALID_PARAMS",
+        message: `Marker status must be one of ${REVIEW_STATUSES.join(", ")}`,
+        path: `${path}.status`,
+      });
+    }
+    if (
+      fields.replies !== undefined &&
+      (!Array.isArray(fields.replies) ||
+        fields.replies.some(
+          (r) =>
+            !r ||
+            typeof r !== "object" ||
+            typeof (r as { text?: unknown }).text !== "string" ||
+            typeof (r as { author?: unknown }).author !== "string",
+        ))
+    ) {
+      errors.push({
+        code: "INVALID_PARAMS",
+        message: "Marker replies must be a list of { author, text } entries",
+        path: `${path}.replies`,
+      });
+    }
     return errors;
   }
 
@@ -705,6 +823,23 @@ export class ActionValidator {
             message: "Out-point must be greater than in-point",
             path: "params",
           });
+        }
+        {
+          // Restricted subclips keep trims inside their source window.
+          const trimmed = typeof action.params.clipId === "string" ? this.findClip(timeline, action.params.clipId) : undefined;
+          const bounds = trimmed
+            ? mediaTrimBounds(project.mediaLibrary.items.find((item) => item.id === trimmed.mediaId))
+            : null;
+          if (bounds) {
+            const nextIn = typeof action.params.inPoint === "number" ? action.params.inPoint : trimmed!.inPoint;
+            const nextOut = typeof action.params.outPoint === "number" ? action.params.outPoint : trimmed!.outPoint;
+            if (nextIn < bounds.min - 1e-6 || nextOut > bounds.max + 1e-6)
+              errors.push({
+                code: "INVALID_TIME_RANGE",
+                message: "This subclip restricts trims to its boundaries",
+                path: "params",
+              });
+          }
         }
         break;
 
@@ -1241,7 +1376,7 @@ export class ActionValidator {
       case "audio/setFade":
         if (
           action.params.fadeIn !== undefined &&
-          (typeof action.params.fadeIn !== "number" || action.params.fadeIn < 0)
+          (typeof action.params.fadeIn !== "number" || !Number.isFinite(action.params.fadeIn) || action.params.fadeIn < 0)
         ) {
           errors.push({
             code: "INVALID_PARAMS",
@@ -1252,7 +1387,7 @@ export class ActionValidator {
 
         if (
           action.params.fadeOut !== undefined &&
-          (typeof action.params.fadeOut !== "number" ||
+          (typeof action.params.fadeOut !== "number" || !Number.isFinite(action.params.fadeOut) ||
             action.params.fadeOut < 0)
         ) {
           errors.push({
@@ -1263,15 +1398,53 @@ export class ActionValidator {
         }
         break;
 
-      case "audio/addAutomation":
-        if (!Array.isArray(action.params.points)) {
+      case "audio/restoreFade": {
+        const fade = action.params.fade;
+        if (fade === null) break;
+        const origin = fade?.origin;
+        if (!fade || typeof fade !== "object" ||
+            !Number.isFinite(fade.fadeIn) || fade.fadeIn < 0 ||
+            !Number.isFinite(fade.fadeOut) || fade.fadeOut < 0 ||
+            (origin !== undefined && (!origin || typeof origin !== "object" ||
+              !Number.isFinite(origin.offset) || !Number.isFinite(origin.duration) || origin.duration <= 0 ||
+              (origin.out !== undefined && (!origin.out || !Number.isFinite(origin.out.offset) || !Number.isFinite(origin.out.duration) || origin.out.duration <= 0)) ||
+              (origin.fadeIn !== undefined && typeof origin.fadeIn !== "boolean") ||
+              (origin.fadeOut !== undefined && typeof origin.fadeOut !== "boolean")))) {
+          errors.push({ code: "INVALID_PARAMS", message: "The restored fade has invalid timing.", path: "params.fade" });
+        }
+        break;
+      }
+
+      case "audio/addAutomation": {
+        const points = action.params.points as unknown;
+        if (points === null) break;
+        if (!Array.isArray(points)) {
           errors.push({
             code: "INVALID_PARAMS",
             message: "Automation points must be an array",
             path: "params.points",
           });
+        } else if (
+          points.some(
+            (point: { time?: unknown; value?: unknown } | null) =>
+              !point ||
+              typeof point.time !== "number" ||
+              !Number.isFinite(point.time) ||
+              point.time < 0 ||
+              typeof point.value !== "number" ||
+              !Number.isFinite(point.value) ||
+              point.value < 0,
+          )
+        ) {
+          errors.push({
+            code: "INVALID_PARAMS",
+            message:
+              "Automation points need a finite time and value of 0 or more",
+            path: "params.points",
+          });
         }
         break;
+      }
 
       case "audio/addEffect": {
         const effect = action.params.effect as
@@ -1288,6 +1461,42 @@ export class ActionValidator {
             message: "A valid effect object with an id and type is required",
             path: "params.effect",
           });
+        }
+        break;
+      }
+
+      case "audio/replaceEffect": {
+        const { effectId, effect } = action.params;
+        if (!(clip.audioEffects ?? []).some((item) => item.id === effectId)) {
+          errors.push({ code: "EFFECT_NOT_FOUND", message: "Audio effect not found on clip", path: "params.effectId" });
+        }
+        if (!effect || effect.id !== effectId || typeof effect.type !== "string" || !effect.type
+          || typeof effect.enabled !== "boolean" || !effect.params || typeof effect.params !== "object" || Array.isArray(effect.params)) {
+          errors.push({ code: "INVALID_PARAMS", message: "A complete effect with the same identity is required", path: "params.effect" });
+        }
+        break;
+      }
+
+      case "audio/setLiveDucking": {
+        const { config } = action.params;
+        if (config !== null) {
+          const numbers = [config?.amountDb, config?.attackMs, config?.releaseMs, config?.holdMs];
+          if (typeof config !== "object" || typeof config.enabled !== "boolean" || numbers.some((n) => typeof n !== "number" || !Number.isFinite(n))) {
+            errors.push({ code: "INVALID_PARAMS", message: "Live ducking needs enabled, amountDb, attackMs, releaseMs and holdMs", path: "params.config" });
+          } else if (config.amountDb <= 0 || config.attackMs < 0 || config.releaseMs < 0 || config.holdMs < 0) {
+            errors.push({ code: "INVALID_PARAMS", message: "Ducking amount must be positive and times cannot be negative", path: "params.config" });
+          }
+        }
+        break;
+      }
+
+      case "audio/setEssentialSound": {
+        const { audioType, state } = action.params;
+        if (audioType !== null && !AUDIO_TYPES.includes(audioType)) {
+          errors.push({ code: "INVALID_PARAMS", message: "Audio type must be dialogue, music, sfx, ambience or null", path: "params.audioType" });
+        }
+        if (state !== null && (typeof state !== "object" || !state?.options)) {
+          errors.push({ code: "INVALID_PARAMS", message: "Essential Sound state needs its options", path: "params.state" });
         }
         break;
       }

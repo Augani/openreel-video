@@ -129,3 +129,39 @@ describe("MCP HTTP server", () => {
     expect(json.map((r) => r.id).sort()).toEqual([1, 2]);
   });
 });
+
+describe("MCP HTTP server client tracking hooks", () => {
+  it("reports initialize clientInfo and authenticated activity, but not unauthenticated calls", async () => {
+    const inits: Array<{ name: string; version?: string }> = [];
+    let activity = 0;
+    const tracked = await startHttpServer({
+      getToken: () => "t",
+      provider,
+      serverInfo: { name: "openreel", version: "test" },
+      port: 0,
+      onInitialize: (info) => inits.push(info),
+      onActivity: () => {
+        activity += 1;
+      },
+    });
+    const url = `http://127.0.0.1:${tracked.port}/mcp`;
+    const post = (body: unknown, token?: string) =>
+      fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify(body),
+      });
+    try {
+      await post({ jsonrpc: "2.0", id: 1, method: "initialize", params: { clientInfo: { name: "cursor", version: "0.9" } } });
+      expect(inits).toEqual([]);
+      expect(activity).toBe(0);
+      await post({ jsonrpc: "2.0", id: 1, method: "initialize", params: { clientInfo: { name: "cursor", version: "0.9" } } }, "t");
+      await post({ jsonrpc: "2.0", id: 2, method: "tools/list" }, "t");
+      expect(inits).toHaveLength(1);
+      expect(inits[0]).toMatchObject({ name: "cursor", version: "0.9" });
+      expect(activity).toBe(2);
+    } finally {
+      await new Promise<void>((resolve) => tracked.server.close(() => resolve()));
+    }
+  });
+});

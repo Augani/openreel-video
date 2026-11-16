@@ -1,0 +1,66 @@
+# Colour management
+
+## Source colour detection and "Interpret footage"
+Each media item stores detected colour tags (primaries, transfer, matrix) read from container metadata (mediabunny in the browser, ffprobe on desktop). Media info shows them; Project panel > Interpret footage overrides them with a preset (Rec.709, sRGB, Rec.2020, Display P3, HDR10 PQ, HLG). The override is an undoable action. Code: `packages/core/src/color/source-color.ts`.
+
+## Input transform
+`packages/core/src/color/input-transform.ts`: code values to linear (1.0 = 203 nit SDR white), source primaries to BT.709 (3x3 in linear light), highlight exponential shoulder (knee 0.85, C1-continuous, hue-preserving) for HDR sources, gamut clip, sRGB OETF. Rec.709/sRGB SDR sources get no transform, so SDR projects are byte-identical. The same function runs in the preview (`clip-input-transform.ts`) and in export.
+
+## Scene-referred HDR working mode
+Code: `packages/core/src/color/hdr-working.ts` (math and the Float32 CPU reference), `video/hdr-gpu.ts` (WebGL2 RGBA16F implementation), `video/hdr-frame.ts` (eligibility, export target), `VideoEngine.composeFrame`.
+
+When it is on: the project's Working color space is Rec.2020 (Preview options), or an HDR export (PQ / HLG) is running. A Rec.709 project with an SDR export never enters it: `composeFrame` takes the unchanged 8-bit path and the compositor is never created (checked in `apps/web/e2e/hdr-float.spec.ts`).
+
+Pipeline, per frame:
+1. Working space is scene-linear BT.2020, 1.0 = 203 nit, unbounded (PQ 10 000 nit = 49.3). Eligible video / image clips enter through their input transform WITHOUT the tone map: code values -> linear (sRGB / PQ / HLG / linear), source primaries -> BT.2020. On desktop, natively decoded footage (ProRes, DNxHD, MXF...) is decoded to `rgba64le` (`bitDepth: 16` on `openreel:media:nativeFrame`), so PQ / HLG code values arrive exactly; 8-bit sources and stills are read as sRGB at graphics white.
+2. Effects, then grading, on the clip. Effects (blur, sharpen, glow, below) run first on the clip's own frame in scene-linear float. Grading runs in a PQ-encoded copy of the working space (0..1 spans 0..10 000 nit): white balance, Basic Correction (exposure is a linear gain of 2^(2 x exposure); the other sliders use the tone curve), colour wheels, hue curves, Curves, LUT, HSL bands, vignette. Result back to linear. Always in Premiere order, whatever the clip's `pipelineVersion`.
+3. Compositing is "over" in linear light in half float: a ping-pong pair of `RGBA16F` textures (no float-blend extension needed). Layers are resampled bilinearly in linear light with the Canvas2D geometry (translate, rotate, scale, anchor, crop, fit, opacity).
+4. Everything not listed under "What is float" below (text, shapes, stickers, motion graphics, other transitions, subtitles, particles, the background, and any clip that has masks, background removal, stabilisation, border radius, an effect other than blur / sharpen / glow) still renders on the 8-bit canvas. After each track that canvas is merged into the float image at graphics white (sRGB-decoded, placed at graphics white, 203 nit unless the project sets another) and cleared, so track order is preserved. Frames with adjustment layers or text-behind-subject use the classic path as a whole.
+5. Output transform at the end. Preview: tone-mapped SDR view (BT.2020 -> BT.709, the same exponential highlight shoulder as the input transform, sRGB), so the monitor shows highlights rolled off. HDR export: PQ or HLG encode of the float image straight to 10-bit YCbCr planes (`takeHdrPayload`); the 8-bit read-back is skipped. SDR export of a Rec.2020 project: shoulder + BT.709 transfer in BT.2020 primaries, 8-bit.
+6. If WebGL2 with `EXT_color_buffer_float` is missing, or a GPU frame fails, the identical Float32 CPU reference is used (about 1 s per 1080p frame).
+
+SDR white in the SDR view and SDR exports of Rec.2020 projects sits at about 97 % (code ~247), because the shoulder needs headroom for highlights above it. A Rec.709 project is unaffected.
+
+Cost of the float path (1080p, Apple GPU through Chrome/ANGLE Metal, `apps/web/e2e/hdr-float.spec.ts`, 20-run average): graded 16-bit layer + overlay + SDR view 9.8 ms; the same with an 8-bit canvas source 6.2 ms; with the PQ-encode read-back for export 22.9 ms; the existing 8-bit fused grading pass for one graded clip, 4.1 ms; CPU reference 998 ms. Playback of a Rec.2020 project therefore pays roughly 2 to 5 ms more per graded layer than an SDR project, plus 16 MB of upload per 1080p native 16-bit frame.
+
+### What is float and what is still 8-bit (wave 18)
+
+Float (scene-linear BT.2020, half float on the GPU, Float32 in the CPU reference), per clip, in a Rec.2020 / HDR-export project:
+
+| Feature | How it runs in float |
+|---|---|
+| Lumetri basic, curves, wheels, hue curves, white balance | PQ working encoding, as before |
+| LUT | Trilinear 3D lookup in float. The table sees the picture in its declared space, chosen per LUT in the Color tab (LUT colour space): Display sRGB (default; the working light encoded with the sRGB curve, 1.0 = SDR white), Scene linear (1.0 = SDR white), or PQ. Signal above 1.0 in an sRGB / linear LUT bypasses the table and is added back on its output, so a grade does not clip the highlights it cannot address. Intensity mixes in that space. |
+| HSL (the eight hue bands of the Color tab) | rgb -> HSL -> band offsets -> rgb on the PQ working encoding |
+| Vignette (grade) | Source-frame coordinates (before crop and transform). Negative darkens by a gain on the PQ working encoding; positive lifts towards graphics white (never above the pixel's own value). |
+| Blur, sharpen, glow effects | See "Effects" below |
+| Crossfade, dip to black, dip to white | See "Transitions" below |
+| Opacity | "over" in linear light, as before |
+| Titles, shapes, stickers, subtitles, motion graphics | Rendered 8-bit, composited at graphics white (below) |
+
+Still 8-bit (they render on the canvas and enter at graphics white; highlights above SDR white of such a clip are tone-mapped): every effect other than blur, sharpen and glow (including the vignette effect, the HSL Secondary effect with its matte, chroma key, the pro effects), masks, background removal, stabilisation, border radius, 3D / perspective transforms, emphasis animations, frame-interpolated slow motion, every transition except crossfade and the two dips, compound clips, frames with active adjustment layers or text-behind-subject (the whole frame), the preview's 8-bit overlays. Per-clip blend modes are not rendered by the engine in either path (only adjustment layers use them), so there is nothing to port.
+
+Effects. They run on the clip's frame at its source resolution, before the grade and the transform (the order of the 8-bit stack), on scene-linear floats, so a 1000 nit highlight blurs into its neighbours at 1000 nits and is not clipped first. Blur is a separable Gaussian with sigma = radius px (the same convention as the Canvas `blur()`), taps clamped to the frame edge, on premultiplied colour so transparent edges do not bleed black; the half kernel is capped at 64 taps (sigma above about 21 loses a sliver of tail). Sharpen is the 8-bit 4-neighbour kernel on the PQ working encoding. Glow adds the Gaussian-blurred frame after the 8-bit effect's bright-pass (brightness 1.25, contrast 1.5 about mid grey, on the extended sRGB encoding of the light) with a screen that is exact up to SDR white and adds light above it. On the GPU every pass is a fragment shader on RGBA16F textures; `color/hdr-effects.ts` is the reference.
+
+Transitions. Crossfade and dips are planned as float draws (`video/hdr-transition.ts`): crossfade is the outgoing clip at full strength with the incoming one over it at the eased progress, i.e. exactly B x p + A x (1 - p) in linear light with alpha 1 (the 8-bit engine draws both at partial alpha, which dims the middle over transparency). A dip fades the outgoing clip into a flat colour, holds it, and fades the incoming one up; dip to white lands at graphics white. Differences from the 8-bit transition engine: the float path draws each clip with its own transform and effects (the 8-bit engine letterboxes both frames to the canvas and ignores the transform), and both clips must be float-eligible, otherwise the transition renders as before on the 8-bit canvas.
+
+Graphics white. Project setting (Preview options > HDR graphics white, enabled in Rec.2020 projects; undoable through `project/updateSettings`): 100, 150, 203 (default, ITU-R BT.2408), 300 or 400 nits, stored as `settings.graphicsWhiteNits` (80 to 1000). It is where the white of every 8-bit overlay is placed (titles, shapes, stickers, subtitles, motion graphics, particles, and clips still on the 8-bit path) and where the dip-to-white colour lands. SDR video and still-image clips drawn through the float path are not scaled by it (their sRGB white stays at 203 nit = 1.0).
+
+Verification. CPU: `packages/core/src/color/hdr-float-effects.test.ts` (LUT in three spaces, HSL, vignette, blur energy conservation, sharpen, glow, transition plans, graphics white, a PQ export of a blurred crossfade whose 10-bit luma codes stay above SDR white, light-level meter), `hdr-working.test.ts`, `hdr-frame.test.ts`. Real ffmpeg: `apps/desktop/test/hdr-scene-referred-integration.test.ts` (third case: a PQ ramp goes through blur and a 50 % crossfade into a 1000 nit flat, libx265 Main10, decoded codes match the expected mix within 10 codes and reach ~1000 nits). Browser (GPU vs CPU parity of every new stage, VideoEngine routing, SDR byte identity against hashes from commit 971b5a8b via `SDR_BASELINE_HASHES`): `apps/web/e2e/hdr-float-effects.spec.ts`. NOT RUN when this was written: the heavy-run lock was unavailable, so the new GLSL (LUT 3D texture, HSL, vignette, effect passes, solid layer) has only been compiled offline with glslangValidator, never executed on a GPU, and the SDR byte comparison has not been made; run the spec in the gpu project (twice for the SDR comparison: once on 971b5a8b with `SDR_HASH_OUT`, once here with `SDR_BASELINE_HASHES`) before relying on either.
+
+### Measured MaxCLL / MaxFALL
+
+PQ exports in HDR working mode measure MaxCLL (largest R, G or B of any pixel of any frame) and MaxFALL (largest frame average of max(R, G, B)) from the PQ-encoded frames as they are sent to the encoder (`color/hdr-light-level.ts`, one table lookup per pixel). The result is returned as `ExportStats.hdrLightLevel` (whole nits) and shown in the "Export finished" notice. HLG exports are not measured (MaxCLL is a PQ / HDR10 field). The stream itself still declares 1000,400: libx265 writes the content light level SEI with the first headers, before any frame has been rendered, and `max-cll=0,0` writes zeros rather than a computed value (checked with ffmpeg and ffprobe), so the measured numbers are reported beside the file, not written into it.
+
+## Desktop 10-bit HDR export
+Export dialog > Color / HDR on desktop: HDR10 (PQ) and HLG as HEVC Main10 (libx265 or hevc_videotoolbox) in MP4/MOV, ProRes 4444 XQ in MOV. In HDR working mode the renderer sends 10-bit planes encoded from the float image (`apps/web/src/services/native-ffmpeg-backend.ts`); otherwise it converts the 8-bit canvas. Streams are tagged pix_fmt yuv420p10le, bt2020, smpte2084 / arib-std-b67, with mastering display (1000 / 0.0001 nit) and content light level (declared 1000 / 400; the measured values of the render are reported separately, see Measured MaxCLL / MaxFALL) metadata.
+Proof that highlights above SDR white survive: `apps/desktop/test/hdr-scene-referred-integration.test.ts` (real ffmpeg: a PQ ramp to 1000 nit goes decode -> float pipeline -> libx265 Main10 -> decode, and the 10-bit luma codes match the source up to code ~722 while SDR white is code ~573; the classic path peaks at <= 575) and `apps/desktop/test/hdr-export-electron.test.ts` (real Electron: HDR10 export of an HLG ProRes clip reaches luma code 665).
+
+## Hue curves keyframes
+Hue Curves editor animates each control point's output value with keyframes (`useHueCurveKeyframes.ts`); values are sampled per frame in preview and export (`animated-color-grading.ts`).
+
+## Verification
+Unit: `packages/core/src/color/*.test.ts`, `apps/desktop/test/color-output-args.test.ts`, `hdr-export-integration.test.ts`. Electron e2e: `pnpm --filter @openreel/desktop test:hdr-e2e` under the heavy-run lock (see known-limitations for its status).
+
+## Camera RAW input
+Camera RAW stills (DNG) are developed by OpenReel (`packages/core/src/raw/`, see `docs/raw.md`) into an sRGB-encoded 8-bit image in the primaries of the item's RAW output colour space (sRGB/Rec.709, Display P3 or Rec.2020). `inputSpaceForItem` returns that space for RAW items whatever the decode path, so the input transform above converts P3 / Rec.2020 RAW to the working image in preview and export; sRGB output has no transform. The scene-linear Float32 development (`developRawLinear`) is not yet fed into the Rec.2020 HDR working mode.

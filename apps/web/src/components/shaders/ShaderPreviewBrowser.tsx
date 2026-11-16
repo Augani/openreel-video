@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type JSX } from "react";
+import { Button, Input } from "@openreel/ui";
 import {
   defaultMotionShaderParams,
   type MotionShaderDef,
@@ -20,6 +21,11 @@ function shaderAccessibleName(
 }
 
 let sharedPreviewRenderer: MotionShaderRenderer | null = null;
+// Definitions are immutable registry entries; custom definitions can be collected.
+const previewCache = new WeakMap<
+  MotionShaderDef,
+  Map<string, HTMLCanvasElement>
+>();
 
 function previewRenderer(): MotionShaderRenderer {
   sharedPreviewRenderer ??= new MotionShaderRenderer();
@@ -97,28 +103,89 @@ function ShaderPreviewCanvas({
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext("2d");
     if (!canvas || !ctx) return;
-    try {
-      const input = makePreviewInput(canvas.width, canvas.height, sample);
-      const result = previewRenderer().render(def, {
-        width: canvas.width,
-        height: canvas.height,
-        time: 0.72,
-        progress: 0.65,
-        params: defaultMotionShaderParams(def),
-        inputCanvas: input,
-      });
-      if (!result) return;
-
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(result, 0, 0, canvas.width, canvas.height);
-      if (sample !== "effect" && def.category !== "text") {
-        ctx.globalCompositeOperation = "destination-in";
-        ctx.drawImage(input, 0, 0, canvas.width, canvas.height);
+    canvas.dataset.previewState = "pending";
+    delete canvas.dataset.previewSource;
+    let disposed = false;
+    let scheduled = false;
+    let idleId: number | undefined;
+    let frameId: number | undefined;
+    const draw = () => {
+      if (disposed) return;
+      const key = `${sample}:${canvas.width}x${canvas.height}`;
+      const cached = previewCache.get(def)?.get(key);
+      if (cached) {
+        ctx.drawImage(cached, 0, 0);
+        canvas.dataset.previewState = "ready";
+        canvas.dataset.previewSource = "cache";
+        return;
+      }
+      try {
+        const input = makePreviewInput(canvas.width, canvas.height, sample);
+        const result = previewRenderer().render(def, {
+          width: canvas.width,
+          height: canvas.height,
+          time: 0.72,
+          progress: 0.65,
+          params: defaultMotionShaderParams(def),
+          inputCanvas: input,
+        });
+        if (!result) {
+          canvas.dataset.previewState = "fallback";
+          return;
+        }
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(result, 0, 0, canvas.width, canvas.height);
+        if (sample !== "effect" && def.category !== "text") {
+          ctx.globalCompositeOperation = "destination-in";
+          ctx.drawImage(input, 0, 0, canvas.width, canvas.height);
+          ctx.globalCompositeOperation = "source-over";
+        }
+        // Keep the painted thumbnail, not the renderer's shared mutable surface.
+        const copy = document.createElement("canvas");
+        copy.width = canvas.width;
+        copy.height = canvas.height;
+        const copyCtx = copy.getContext("2d");
+        if (copyCtx) {
+          copyCtx.drawImage(canvas, 0, 0);
+          const entries = previewCache.get(def) ?? new Map();
+          entries.set(key, copy);
+          previewCache.set(def, entries);
+        }
+        canvas.dataset.previewState = "ready";
+        canvas.dataset.previewSource = "render";
+      } catch {
+        canvas.dataset.previewState = "fallback";
+        // The CSS fallback remains visible when canvas APIs are unavailable.
+      } finally {
         ctx.globalCompositeOperation = "source-over";
       }
-    } catch {
-      // The CSS fallback remains visible when canvas APIs are unavailable.
+    };
+    const schedule = () => {
+      if (scheduled || disposed) return;
+      scheduled = true;
+      if (typeof window.requestIdleCallback === "function")
+        idleId = window.requestIdleCallback(draw, { timeout: 250 });
+      else frameId = window.requestAnimationFrame(draw);
+    };
+    let observer: IntersectionObserver | undefined;
+    if (typeof IntersectionObserver === "undefined") draw();
+    else {
+      observer = new IntersectionObserver(
+        (entries) => {
+          if (!entries.some((entry) => entry.isIntersecting)) return;
+          observer?.disconnect();
+          schedule();
+        },
+        { rootMargin: "120px" },
+      );
+      observer.observe(canvas);
     }
+    return () => {
+      disposed = true;
+      observer?.disconnect();
+      if (idleId !== undefined) window.cancelIdleCallback(idleId);
+      if (frameId !== undefined) window.cancelAnimationFrame(frameId);
+    };
   }, [def, sample]);
 
   return (
@@ -151,7 +218,9 @@ export function ShaderPreviewBrowser({
   const collections = useMemo(
     () => [
       "All",
-      ...Array.from(new Set(defs.map((def) => def.collection ?? "Built-in"))).sort(),
+      ...Array.from(
+        new Set(defs.map((def) => def.collection ?? "Built-in")),
+      ).sort(),
     ],
     [defs],
   );
@@ -170,7 +239,8 @@ export function ShaderPreviewBrowser({
   }, [collection, defs, query]);
   const duplicateNames = useMemo(() => {
     const counts = new Map<string, number>();
-    for (const def of defs) counts.set(def.name, (counts.get(def.name) ?? 0) + 1);
+    for (const def of defs)
+      counts.set(def.name, (counts.get(def.name) ?? 0) + 1);
     return new Set(
       Array.from(counts.entries())
         .filter(([, count]) => count > 1)
@@ -186,13 +256,15 @@ export function ShaderPreviewBrowser({
           {visibleDefs.length}/{defs.length}
         </span>
       </div>
-      <input
+      <Input
         type="search"
         value={query}
         onChange={(event) => setQuery(event.target.value)}
-        placeholder={sample === "effect" ? "Search effects" : "Search materials"}
+        placeholder={
+          sample === "effect" ? "Search effects" : "Search materials"
+        }
         aria-label={`Search ${label.toLowerCase()}`}
-        className="h-8 w-full rounded-[7px] border border-border bg-bg-2 px-2.5 text-xs text-fg outline-none transition-colors placeholder:text-fg-4 focus:border-accent"
+        className="h-8 w-full rounded-[7px] border border-border bg-bg-2 px-2.5 py-0 text-xs text-fg outline-none transition-colors placeholder:text-fg-4 focus:border-accent md:text-xs"
       />
       {collections.length > 2 ? (
         <div
@@ -201,11 +273,15 @@ export function ShaderPreviewBrowser({
           aria-label={`${label} collections`}
         >
           {collections.map((entry) => {
-            const count = entry === "All"
-              ? defs.length
-              : defs.filter((def) => (def.collection ?? "Built-in") === entry).length;
+            const count =
+              entry === "All"
+                ? defs.length
+                : defs.filter((def) => (def.collection ?? "Built-in") === entry)
+                    .length;
             return (
-              <button
+              <Button
+                variant="ghost"
+                size="sm"
                 key={entry}
                 type="button"
                 aria-pressed={collection === entry}
@@ -217,7 +293,7 @@ export function ShaderPreviewBrowser({
                 }`}
               >
                 {entry} · {count}
-              </button>
+              </Button>
             );
           })}
         </div>
@@ -226,13 +302,15 @@ export function ShaderPreviewBrowser({
         {visibleDefs.map((def) => {
           const selected = def.id === selectedId;
           return (
-            <button
+            <Button
+              variant="ghost"
+              size="sm"
               key={def.id}
               type="button"
               aria-label={shaderAccessibleName(def, duplicateNames, sample)}
               aria-pressed={selectedId === undefined ? undefined : selected}
               onClick={() => onSelect(def.id)}
-              className={`min-w-0 rounded-[9px] border p-1.5 text-left transition-colors ${
+              className={`block h-auto w-full min-w-0 whitespace-normal rounded-[9px] border p-1.5 text-left text-[length:inherit] font-normal leading-[inherit] transition-colors ${
                 selected
                   ? "border-accent bg-accent/10"
                   : "border-border bg-bg-2 hover:border-accent/50 hover:bg-bg-3"
@@ -245,7 +323,7 @@ export function ShaderPreviewBrowser({
               <span className="block truncate text-[9px] text-fg-4">
                 {def.collection ?? "Built-in"} · {def.category}
               </span>
-            </button>
+            </Button>
           );
         })}
       </div>

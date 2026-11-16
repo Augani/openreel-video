@@ -4,6 +4,9 @@ import type { TextClip } from "../text/types";
 import {
   UNIVERSAL_TRACKS_CAPABILITY,
   getMediaItemCapabilities,
+  createTimelineClipCapabilityResolver,
+  getCompoundClipId,
+  getProjectClipCapabilities,
   getTimelineItemCapabilities,
   getTimelineItems,
   getTrackItems,
@@ -213,5 +216,85 @@ describe("universal timeline item model", () => {
     expect(once.capabilities).toContain(UNIVERSAL_TRACKS_CAPABILITY);
     expect(once.minimumReaderVersion).toBe("1.2.0");
     expect(twice).toBe(once);
+  });
+});
+
+
+describe("compound source capabilities", () => {
+  const definition = (id: string, clips: Clip[]): NonNullable<Project["compoundClips"]>[number] => ({
+    id, name: id, color: "#888", createdAt: 0, modifiedAt: 0,
+    content: { clips, tracks: [{ ...track, clips }], duration: 2 },
+  });
+  it("resolves audio and visual descendants without requiring a proxy media asset", () => {
+    const definitions = [definition("audio", [clip("a", "audio")]), definition("visual", [clip("v", "still")]),
+      definition("both", [clip("nested-a", "compound:audio"), clip("nested-v", "compound:visual")])];
+    const library = { items: [...project.mediaLibrary.items, media("still", "image", false, false)] };
+    const resolve = createTimelineClipCapabilityResolver(library, definitions);
+    expect(resolve(clip("p", "compound:audio"))).toEqual({ audio: true, visual: false });
+    expect(resolve(clip("p", "compound:visual"))).toEqual({ audio: false, visual: true });
+    expect(resolve(clip("p", "compound:both"))).toEqual({ audio: true, visual: true });
+    const owned = { ...project, mediaLibrary: library, compoundClips: definitions, timeline: { ...project.timeline, tracks: [{ ...track, clips: [clip("p", "compound:both")] }] } };
+    expect(trackHasAudioItems(owned, track.id)).toBe(true);
+    expect(trackHasVisualItems(owned, track.id)).toBe(true);
+  });
+  it("supports metadata and legacy ids and gives metadata precedence", () => {
+    expect(getCompoundClipId(clip("p", "compound:legacy"))).toBe("legacy");
+    const proxy = { ...clip("p", "compound:legacy"), metadata: { compoundClipId: "audio" } };
+    expect(getCompoundClipId(proxy)).toBe("audio");
+    expect(createTimelineClipCapabilityResolver(project.mediaLibrary, [definition("audio", [clip("a", "audio")])])(proxy)).toEqual({ audio: true, visual: false });
+  });
+  it("bounds cyclic/missing definitions and preserves valid siblings from each root path", () => {
+    const resolve = createTimelineClipCapabilityResolver(project.mediaLibrary, [
+      definition("one", [clip("cycle-two", "compound:two"), clip("a", "audio")]),
+      definition("two", [clip("cycle-one", "compound:one")]),
+    ]);
+    expect(resolve(clip("missing", "compound:missing"))).toEqual({ audio: false, visual: false });
+    expect(resolve(clip("one", "compound:one"))).toEqual({ audio: true, visual: false });
+    expect(resolve(clip("two", "compound:two"))).toEqual({ audio: true, visual: false });
+  });
+  it("invalidates the per-project index on a recorded mutable revision", () => {
+    const owned = { ...project, mediaLibrary: { items: [media("changed", "audio", false, true)] }, compoundClips: [definition("audio", [clip("a", "changed")])] };
+    const proxy = clip("p", "compound:audio");
+    expect(getProjectClipCapabilities(owned, proxy).audio).toBe(true);
+    owned.mediaLibrary.items[0] = { ...owned.mediaLibrary.items[0], metadata: { ...owned.mediaLibrary.items[0].metadata, hasAudio: false } };
+    owned.modifiedAt++;
+    expect(getProjectClipCapabilities(owned, proxy)).toEqual({ audio: false, visual: false });
+  });
+});
+
+describe("per-track item lookup", () => {
+  const other: Track = { ...track, id: "other", name: "Other", clips: [clip("other-clip", "audio", "other")] };
+  const multi: Project = {
+    ...project,
+    timeline: { ...project.timeline, tracks: [track, other] },
+    textClips: [textClip, { ...textClip, id: "other-text", trackId: "other", startTime: 1 }],
+  };
+
+  it("getTrackItems matches filtering the whole timeline by track", () => {
+    for (const id of ["mixed", "other", "ghost"]) {
+      const viaAll = getTimelineItems(multi).filter((item) => item.trackId === id);
+      expect(getTrackItems(multi, id).map((i) => [i.id, i.kind, i.startTime])).toEqual(viaAll.map((i) => [i.id, i.kind, i.startTime]));
+    }
+    expect(getTrackItems(multi, "other").map((i) => i.id)).toEqual(["other-clip", "other-text"]);
+  });
+
+  it("resolves media through the index and survives in-place library edits", () => {
+    const library = [media("video", "video", true, true), media("audio", "audio", false, true)];
+    const live: Project = { ...multi, mediaLibrary: { items: library } };
+    const mediaOf = (project: Project, id: string) => {
+      const item = getTrackItems(project, "mixed").find((i) => i.id === id);
+      return item?.kind === "media" ? item.mediaItem : undefined;
+    };
+    expect(mediaOf(live, "video-clip")).toBe(library[0]);
+    // In-place replacement keeps the same array and length: the stale entry must not be returned.
+    const replaced = media("video", "image", true, false);
+    library[0] = replaced;
+    expect(mediaOf(live, "video-clip")).toBe(replaced);
+    // Items appended later are found; removed items resolve to undefined.
+    library.push(media("late", "video", true, true));
+    const withLate: Project = { ...live, timeline: { ...live.timeline, tracks: [{ ...track, clips: [clip("c-late", "late")] }] } };
+    expect(mediaOf(withLate, "c-late")?.id).toBe("late");
+    library.splice(0, 2);
+    expect(mediaOf(live, "video-clip")).toBeUndefined();
   });
 });

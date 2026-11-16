@@ -18,7 +18,8 @@
   "scripts": {
     "test": "vitest",
     "test:run": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "docs:capabilities": "tsx src/gen-docs-cli.ts"
   },
   "devDependencies": {
     "typescript": "^5.4.5",

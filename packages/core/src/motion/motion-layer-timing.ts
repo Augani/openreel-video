@@ -1,31 +1,31 @@
 import type { MotionComposition, MotionLayer } from "./types";
 import { removeMotionLayers } from "./motion-layer-commands";
 
-export interface MotionLayerTimingOptions {
+interface MotionLayerTimingOptions {
   readonly compositionDuration?: number;
   readonly frameRate?: number;
   readonly minDuration?: number;
 }
 
-export interface SequenceMotionLayersOptions extends MotionLayerTimingOptions {
+interface SequenceMotionLayersOptions extends MotionLayerTimingOptions {
   readonly layerIds: readonly string[];
   readonly startTime?: number;
   readonly gap?: number;
 }
 
-export interface StaggerMotionLayersOptions extends MotionLayerTimingOptions {
+interface StaggerMotionLayersOptions extends MotionLayerTimingOptions {
   readonly layerIds: readonly string[];
   readonly startTime?: number;
   readonly offset?: number;
 }
 
-export interface AlignMotionLayersToTimeOptions extends MotionLayerTimingOptions {
+interface AlignMotionLayersToTimeOptions extends MotionLayerTimingOptions {
   readonly layerIds: readonly string[];
   readonly time: number;
   readonly edge: "in" | "out";
 }
 
-export interface FitMotionLayersToRangeOptions extends MotionLayerTimingOptions {
+interface FitMotionLayersToRangeOptions extends MotionLayerTimingOptions {
   readonly layerIds: readonly string[];
   readonly startTime: number;
   readonly endTime: number;
@@ -236,7 +236,7 @@ export function fitMotionLayersToRange(
   };
 }
 
-export interface SplitMotionLayerOptions extends MotionLayerTimingOptions {
+interface SplitMotionLayerOptions extends MotionLayerTimingOptions {
   readonly idFactory?: () => string;
   readonly keyframeIdFactory?: () => string;
   readonly nameSuffix?: string;
@@ -303,7 +303,7 @@ export function splitMotionLayerAtTime(
   return { ...composition, layers, modifiedAt: Date.now() };
 }
 
-export interface RippleMotionLayersOptions extends MotionLayerTimingOptions {
+interface RippleMotionLayersOptions extends MotionLayerTimingOptions {
   readonly fromTime: number;
   readonly deltaSeconds: number;
   readonly excludeLayerIds?: readonly string[];
@@ -337,7 +337,7 @@ export function rippleMotionLayers(
   return { ...composition, layers, modifiedAt: Date.now() };
 }
 
-export interface RippleDeleteMotionLayerOptions extends MotionLayerTimingOptions {
+interface RippleDeleteMotionLayerOptions extends MotionLayerTimingOptions {
   readonly includeLocked?: boolean;
 }
 

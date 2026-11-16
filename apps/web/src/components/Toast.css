@@ -1,0 +1,14 @@
+.app-toast-viewport { top: 16px; right: 16px; width: min(384px, calc(100vw - 32px)); }
+body:has(.editor-shell) .app-toast-viewport { top: 56px; }
+body:has(.editor-compact) .app-toast-viewport { top: 60px; }
+body:has(.editor-phone) .app-toast-viewport { top: calc(env(safe-area-inset-top, 0px) + 64px); }
+.app-toast-progress > div {
+  background: currentColor; transform-origin: left; transition: none;
+  animation: app-toast-countdown var(--toast-duration) linear forwards;
+}
+@keyframes app-toast-countdown { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+@media (max-width: 600px) {
+  .app-toast-viewport { right: 12px; width: calc(100vw - 24px); }
+  .app-toast [aria-label="Dismiss notification"] { min-width: 44px; min-height: 44px; }
+}
+@media (prefers-reduced-motion: reduce) { .app-toast { animation: none; } }

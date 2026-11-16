@@ -19,21 +19,21 @@ import { evaluateMotionPropertyValueAtTime } from "./motion-expressions";
 
 export const MOTION_COMPOSITION_TIME_PROPERTY = "composition.time";
 
-export interface PrecomposeMotionLayersOptions {
+interface PrecomposeMotionLayersOptions {
   readonly name?: string;
   readonly compositionId?: string;
   readonly layerId?: string;
   readonly now?: number;
 }
 
-export interface PrecomposeMotionLayersResult {
+interface PrecomposeMotionLayersResult {
   readonly hostComposition: MotionComposition;
   readonly nestedComposition: MotionComposition;
   readonly precompLayerId: string;
   readonly movedLayerIds: string[];
 }
 
-export interface EnableMotionCompositionTimeRemapOptions {
+interface EnableMotionCompositionTimeRemapOptions {
   readonly sourceDuration?: number;
   readonly idFactory?: (time: number, value: number, index: number) => string;
 }

@@ -31,12 +31,35 @@ function setTourState(updates: Partial<TourState>) {
   emitChange();
 }
 
-export function startTour() {
-  setTourState({ isActive: true, currentStep: 0 });
+function readTourCompleted(): boolean {
+  try {
+    return localStorage.getItem(ONBOARDING_KEY) !== null;
+  } catch {
+    // Storage blocked: do not nag, the tour stays reachable from Help.
+    return true;
+  }
 }
 
-export function stopTour() {
-  setTourState({ isActive: false });
+function writeTourCompleted(): void {
+  try {
+    localStorage.setItem(ONBOARDING_KEY, "true");
+  } catch {
+    // Storage blocked or full: the tour simply may show again next launch.
+  }
+}
+
+/**
+ * The desktop app never auto-starts the passive tour (first-run onboarding replaces it and an
+ * auto-started overlay would steal Esc/Enter from agent and e2e sessions). It stays available from
+ * Help > Editor tour. The web build keeps auto-starting it for first-time visitors.
+ */
+export function shouldAutoStartTour(): boolean {
+  if (typeof window !== "undefined" && window.openreel?.platform === "desktop") return false;
+  return !readTourCompleted();
+}
+
+export function startTour() {
+  setTourState({ isActive: true, currentStep: 0 });
 }
 
 export function useTour() {
@@ -83,7 +106,7 @@ export function useTour() {
 
   const next = useCallback(() => {
     if (isLastStep) {
-      localStorage.setItem(ONBOARDING_KEY, "true");
+      writeTourCompleted();
       setTourState({ isActive: false });
     } else {
       setTourState({ currentStep: state.currentStep + 1 });
@@ -97,7 +120,7 @@ export function useTour() {
   }, [isFirstStep, state.currentStep]);
 
   const skip = useCallback(() => {
-    localStorage.setItem(ONBOARDING_KEY, "true");
+    writeTourCompleted();
     setTourState({ isActive: false });
   }, []);
 
@@ -108,8 +131,7 @@ export function useTour() {
   }, []);
 
   useEffect(() => {
-    const completed = localStorage.getItem(ONBOARDING_KEY);
-    if (!completed) {
+    if (shouldAutoStartTour()) {
       const timer = setTimeout(() => {
         start();
       }, 500);

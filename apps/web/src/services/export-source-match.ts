@@ -1,4 +1,4 @@
-import type { MediaItem, Project } from "@openreel/core";
+import { interpretedDisplaySize, type MediaItem, type Project } from "@openreel/core";
 
 export interface SourceExportMatch {
   width: number;
@@ -42,11 +42,10 @@ function pickSourceVideo(project: Project): MediaItem | null {
   // Prefer the video whose pixel dimensions already match the project canvas
   // (usually the primary clip the project was sized to); otherwise fall back to
   // the first imported video.
-  const matchingCanvas = videos.find(
-    (video) =>
-      video.metadata.width === project.settings.width &&
-      video.metadata.height === project.settings.height,
-  );
+  const matchingCanvas = videos.find((video) => {
+    const display = interpretedDisplaySize(video);
+    return display.width === project.settings.width && display.height === project.settings.height;
+  });
   return matchingCanvas ?? videos[0];
 }
 
@@ -58,8 +57,7 @@ export function deriveSourceExportMatch(
   const source = pickSourceVideo(project);
   if (!source) return null;
 
-  const width = source.metadata.width;
-  const height = source.metadata.height;
+  const { width, height } = interpretedDisplaySize(source);
   const frameRate = snapFrameRate(source.metadata.frameRate ?? 0);
 
   return {

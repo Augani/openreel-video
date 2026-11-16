@@ -1,5 +1,6 @@
 import type { JSX } from "react";
-import React, { useCallback, useState, useMemo } from "react";
+import { generateKeyframes, detectCurrentTransitions, type TransitionPreset, type ClipLike, type ClipType } from "../../../services/clip-entry-exit-animation";
+import React, { useCallback, useState, useMemo, useEffect, useId } from "react";
 import {
   ArrowRight,
   ArrowLeft,
@@ -17,50 +18,16 @@ import {
 } from "@/icons/lucide-compat";
 import type {
   Clip as TimelineClip,
-  Keyframe,
   EasingType,
-  Transform,
-  GraphicClip,
   Transition,
   TransitionEdge,
 } from "@openreel/core";
 import { getMediaItemCapabilities } from "@openreel/core";
 import { useProjectStore } from "../../../stores/project-store";
-import { useEngineStore } from "../../../stores/engine-store";
 import { toast } from "../../../stores/notification-store";
 import { TransitionInspector } from "./TransitionInspector";
-import { ToolcraftButton as Button } from "@openreel/ui";
-import { ToolcraftCard as Card } from "@openreel/ui";
-import { ToolcraftClickableCard as ClickableCard } from "@openreel/ui";
-import { ToolcraftNumberInputControl } from "@openreel/ui";
-import { ToolcraftSelectControl as Selector } from "@openreel/ui";
-import { ToolcraftText as Text } from "@openreel/ui";
-
-type MutableGraphicClip = {
-  -readonly [K in keyof GraphicClip]: GraphicClip[K];
-};
-
-type TransitionPreset =
-  | "none"
-  | "fade"
-  | "slide-left"
-  | "slide-right"
-  | "slide-up"
-  | "slide-down"
-  | "zoom-in"
-  | "zoom-out"
-  | "rotate"
-  | "blur"
-  | "iris-circle"
-  | "iris-rectangle"
-  | "iris-diamond"
-  | "iris-star";
-
-interface TransitionConfig {
-  preset: TransitionPreset;
-  duration: number;
-  easing: EasingType;
-}
+import { Button, Card, Input, Label, Select, SelectTrigger, SelectValue, SelectContent, SelectItem, ToggleGroup, ToggleGroupItem, cn } from "@openreel/ui";
+import { useNumericDraft } from "./shell/useNumericDraft";
 
 const PRESETS: {
   id: TransitionPreset;
@@ -94,20 +61,6 @@ interface ClipTransitionSectionProps {
   clipId: string;
 }
 
-interface ClipLike {
-  id: string;
-  duration: number;
-  transform: Transform;
-  keyframes?: Keyframe[];
-}
-
-type ClipType = "regular" | "text";
-
-interface CanvasDimensions {
-  width: number;
-  height: number;
-}
-
 interface AdjacentTransitionConfig {
   key: "incoming" | "outgoing";
   title: string;
@@ -125,791 +78,54 @@ interface EdgeTransitionConfig {
   transition?: Transition;
 }
 
-function calculateSlideOffsets(
-  baseTransform: Transform,
-  _canvas: CanvasDimensions,
-): { left: number; right: number; up: number; down: number } {
-  const posX = baseTransform.position.x;
-  const posY = baseTransform.position.y;
-  const buffer = 0.1;
-
-  return {
-    left: posX + 0.5 + buffer,
-    right: 1 - posX + 0.5 + buffer,
-    up: posY + 0.5 + buffer,
-    down: 1 - posY + 0.5 + buffer,
-  };
-}
-
-function generateKeyframes(
-  clip: ClipLike,
-  entryConfig: TransitionConfig,
-  exitConfig: TransitionConfig,
-  _clipType: ClipType,
-  canvas: CanvasDimensions,
-): Keyframe[] {
-  const keyframes: Keyframe[] = [];
-  const baseTransform = clip.transform;
-  const duration = clip.duration;
-
-  const entryEnd = entryConfig.duration;
-  const exitStart = duration - exitConfig.duration;
-
-  const offsets = calculateSlideOffsets(baseTransform, canvas);
-
-  if (entryConfig.preset !== "none") {
-    switch (entryConfig.preset) {
-      case "fade":
-        keyframes.push(
-          {
-            id: `kf-entry-opacity-0`,
-            time: 0,
-            property: "opacity",
-            value: 0,
-            easing: entryConfig.easing,
-          },
-          {
-            id: `kf-entry-opacity-1`,
-            time: entryEnd,
-            property: "opacity",
-            value: baseTransform.opacity,
-            easing: entryConfig.easing,
-          },
-        );
-        break;
-      case "slide-left":
-        keyframes.push(
-          {
-            id: `kf-entry-pos-0`,
-            time: 0,
-            property: "position.x",
-            value: baseTransform.position.x - offsets.left,
-            easing: entryConfig.easing,
-          },
-          {
-            id: `kf-entry-pos-1`,
-            time: entryEnd,
-            property: "position.x",
-            value: baseTransform.position.x,
-            easing: entryConfig.easing,
-          },
-        );
-        break;
-      case "slide-right":
-        keyframes.push(
-          {
-            id: `kf-entry-pos-0`,
-            time: 0,
-            property: "position.x",
-            value: baseTransform.position.x + offsets.right,
-            easing: entryConfig.easing,
-          },
-          {
-            id: `kf-entry-pos-1`,
-            time: entryEnd,
-            property: "position.x",
-            value: baseTransform.position.x,
-            easing: entryConfig.easing,
-          },
-        );
-        break;
-      case "slide-up":
-        keyframes.push(
-          {
-            id: `kf-entry-pos-0`,
-            time: 0,
-            property: "position.y",
-            value: baseTransform.position.y - offsets.up,
-            easing: entryConfig.easing,
-          },
-          {
-            id: `kf-entry-pos-1`,
-            time: entryEnd,
-            property: "position.y",
-            value: baseTransform.position.y,
-            easing: entryConfig.easing,
-          },
-        );
-        break;
-      case "slide-down":
-        keyframes.push(
-          {
-            id: `kf-entry-pos-0`,
-            time: 0,
-            property: "position.y",
-            value: baseTransform.position.y + offsets.down,
-            easing: entryConfig.easing,
-          },
-          {
-            id: `kf-entry-pos-1`,
-            time: entryEnd,
-            property: "position.y",
-            value: baseTransform.position.y,
-            easing: entryConfig.easing,
-          },
-        );
-        break;
-      case "zoom-in":
-        keyframes.push(
-          {
-            id: `kf-entry-scale-0`,
-            time: 0,
-            property: "scale.x",
-            value: 0.3,
-            easing: entryConfig.easing,
-          },
-          {
-            id: `kf-entry-scale-1`,
-            time: 0,
-            property: "scale.y",
-            value: 0.3,
-            easing: entryConfig.easing,
-          },
-          {
-            id: `kf-entry-scale-2`,
-            time: entryEnd,
-            property: "scale.x",
-            value: baseTransform.scale.x,
-            easing: entryConfig.easing,
-          },
-          {
-            id: `kf-entry-scale-3`,
-            time: entryEnd,
-            property: "scale.y",
-            value: baseTransform.scale.y,
-            easing: entryConfig.easing,
-          },
-          {
-            id: `kf-entry-opacity-0`,
-            time: 0,
-            property: "opacity",
-            value: 0,
-            easing: entryConfig.easing,
-          },
-          {
-            id: `kf-entry-opacity-1`,
-            time: entryEnd,
-            property: "opacity",
-            value: baseTransform.opacity,
-            easing: entryConfig.easing,
-          },
-        );
-        break;
-      case "zoom-out":
-        keyframes.push(
-          {
-            id: `kf-entry-scale-0`,
-            time: 0,
-            property: "scale.x",
-            value: 1.8,
-            easing: entryConfig.easing,
-          },
-          {
-            id: `kf-entry-scale-1`,
-            time: 0,
-            property: "scale.y",
-            value: 1.8,
-            easing: entryConfig.easing,
-          },
-          {
-            id: `kf-entry-scale-2`,
-            time: entryEnd,
-            property: "scale.x",
-            value: baseTransform.scale.x,
-            easing: entryConfig.easing,
-          },
-          {
-            id: `kf-entry-scale-3`,
-            time: entryEnd,
-            property: "scale.y",
-            value: baseTransform.scale.y,
-            easing: entryConfig.easing,
-          },
-          {
-            id: `kf-entry-opacity-0`,
-            time: 0,
-            property: "opacity",
-            value: 0,
-            easing: entryConfig.easing,
-          },
-          {
-            id: `kf-entry-opacity-1`,
-            time: entryEnd,
-            property: "opacity",
-            value: baseTransform.opacity,
-            easing: entryConfig.easing,
-          },
-        );
-        break;
-      case "rotate":
-        keyframes.push(
-          {
-            id: `kf-entry-rot-0`,
-            time: 0,
-            property: "rotation",
-            value: baseTransform.rotation - 90,
-            easing: entryConfig.easing,
-          },
-          {
-            id: `kf-entry-rot-1`,
-            time: entryEnd,
-            property: "rotation",
-            value: baseTransform.rotation,
-            easing: entryConfig.easing,
-          },
-          {
-            id: `kf-entry-scale-0`,
-            time: 0,
-            property: "scale.x",
-            value: 0.5,
-            easing: entryConfig.easing,
-          },
-          {
-            id: `kf-entry-scale-1`,
-            time: 0,
-            property: "scale.y",
-            value: 0.5,
-            easing: entryConfig.easing,
-          },
-          {
-            id: `kf-entry-scale-2`,
-            time: entryEnd,
-            property: "scale.x",
-            value: baseTransform.scale.x,
-            easing: entryConfig.easing,
-          },
-          {
-            id: `kf-entry-scale-3`,
-            time: entryEnd,
-            property: "scale.y",
-            value: baseTransform.scale.y,
-            easing: entryConfig.easing,
-          },
-          {
-            id: `kf-entry-opacity-0`,
-            time: 0,
-            property: "opacity",
-            value: 0,
-            easing: entryConfig.easing,
-          },
-          {
-            id: `kf-entry-opacity-1`,
-            time: entryEnd,
-            property: "opacity",
-            value: baseTransform.opacity,
-            easing: entryConfig.easing,
-          },
-        );
-        break;
-      case "blur":
-        keyframes.push(
-          {
-            id: `kf-entry-blur-0`,
-            time: 0,
-            property: "blur",
-            value: 30,
-            easing: entryConfig.easing,
-          },
-          {
-            id: `kf-entry-blur-1`,
-            time: entryEnd,
-            property: "blur",
-            value: 0,
-            easing: entryConfig.easing,
-          },
-          {
-            id: `kf-entry-opacity-0`,
-            time: 0,
-            property: "opacity",
-            value: 0,
-            easing: entryConfig.easing,
-          },
-          {
-            id: `kf-entry-opacity-1`,
-            time: entryEnd,
-            property: "opacity",
-            value: baseTransform.opacity,
-            easing: entryConfig.easing,
-          },
-        );
-        break;
-      case "iris-circle":
-      case "iris-rectangle":
-      case "iris-diamond":
-      case "iris-star":
-        keyframes.push(
-          {
-            id: `kf-entry-scale-0`,
-            time: 0,
-            property: "scale.x",
-            value: 0,
-            easing: entryConfig.easing,
-          },
-          {
-            id: `kf-entry-scale-1`,
-            time: 0,
-            property: "scale.y",
-            value: 0,
-            easing: entryConfig.easing,
-          },
-          {
-            id: `kf-entry-scale-2`,
-            time: entryEnd,
-            property: "scale.x",
-            value: baseTransform.scale.x,
-            easing: entryConfig.easing,
-          },
-          {
-            id: `kf-entry-scale-3`,
-            time: entryEnd,
-            property: "scale.y",
-            value: baseTransform.scale.y,
-            easing: entryConfig.easing,
-          },
-          {
-            id: `kf-entry-opacity-0`,
-            time: 0,
-            property: "opacity",
-            value: 0.5,
-            easing: entryConfig.easing,
-          },
-          {
-            id: `kf-entry-opacity-1`,
-            time: entryEnd,
-            property: "opacity",
-            value: baseTransform.opacity,
-            easing: entryConfig.easing,
-          },
-        );
-        break;
-    }
-  }
-
-  if (exitConfig.preset !== "none") {
-    switch (exitConfig.preset) {
-      case "fade":
-        keyframes.push(
-          {
-            id: `kf-exit-opacity-0`,
-            time: exitStart,
-            property: "opacity",
-            value: baseTransform.opacity,
-            easing: exitConfig.easing,
-          },
-          {
-            id: `kf-exit-opacity-1`,
-            time: duration,
-            property: "opacity",
-            value: 0,
-            easing: exitConfig.easing,
-          },
-        );
-        break;
-      case "slide-left":
-        keyframes.push(
-          {
-            id: `kf-exit-pos-0`,
-            time: exitStart,
-            property: "position.x",
-            value: baseTransform.position.x,
-            easing: exitConfig.easing,
-          },
-          {
-            id: `kf-exit-pos-1`,
-            time: duration,
-            property: "position.x",
-            value: baseTransform.position.x - offsets.left,
-            easing: exitConfig.easing,
-          },
-        );
-        break;
-      case "slide-right":
-        keyframes.push(
-          {
-            id: `kf-exit-pos-0`,
-            time: exitStart,
-            property: "position.x",
-            value: baseTransform.position.x,
-            easing: exitConfig.easing,
-          },
-          {
-            id: `kf-exit-pos-1`,
-            time: duration,
-            property: "position.x",
-            value: baseTransform.position.x + offsets.right,
-            easing: exitConfig.easing,
-          },
-        );
-        break;
-      case "slide-up":
-        keyframes.push(
-          {
-            id: `kf-exit-pos-0`,
-            time: exitStart,
-            property: "position.y",
-            value: baseTransform.position.y,
-            easing: exitConfig.easing,
-          },
-          {
-            id: `kf-exit-pos-1`,
-            time: duration,
-            property: "position.y",
-            value: baseTransform.position.y - offsets.up,
-            easing: exitConfig.easing,
-          },
-        );
-        break;
-      case "slide-down":
-        keyframes.push(
-          {
-            id: `kf-exit-pos-0`,
-            time: exitStart,
-            property: "position.y",
-            value: baseTransform.position.y,
-            easing: exitConfig.easing,
-          },
-          {
-            id: `kf-exit-pos-1`,
-            time: duration,
-            property: "position.y",
-            value: baseTransform.position.y + offsets.down,
-            easing: exitConfig.easing,
-          },
-        );
-        break;
-      case "zoom-in":
-        keyframes.push(
-          {
-            id: `kf-exit-scale-0`,
-            time: exitStart,
-            property: "scale.x",
-            value: baseTransform.scale.x,
-            easing: exitConfig.easing,
-          },
-          {
-            id: `kf-exit-scale-1`,
-            time: exitStart,
-            property: "scale.y",
-            value: baseTransform.scale.y,
-            easing: exitConfig.easing,
-          },
-          {
-            id: `kf-exit-scale-2`,
-            time: duration,
-            property: "scale.x",
-            value: 1.8,
-            easing: exitConfig.easing,
-          },
-          {
-            id: `kf-exit-scale-3`,
-            time: duration,
-            property: "scale.y",
-            value: 1.8,
-            easing: exitConfig.easing,
-          },
-          {
-            id: `kf-exit-opacity-0`,
-            time: exitStart,
-            property: "opacity",
-            value: baseTransform.opacity,
-            easing: exitConfig.easing,
-          },
-          {
-            id: `kf-exit-opacity-1`,
-            time: duration,
-            property: "opacity",
-            value: 0,
-            easing: exitConfig.easing,
-          },
-        );
-        break;
-      case "zoom-out":
-        keyframes.push(
-          {
-            id: `kf-exit-scale-0`,
-            time: exitStart,
-            property: "scale.x",
-            value: baseTransform.scale.x,
-            easing: exitConfig.easing,
-          },
-          {
-            id: `kf-exit-scale-1`,
-            time: exitStart,
-            property: "scale.y",
-            value: baseTransform.scale.y,
-            easing: exitConfig.easing,
-          },
-          {
-            id: `kf-exit-scale-2`,
-            time: duration,
-            property: "scale.x",
-            value: 0.3,
-            easing: exitConfig.easing,
-          },
-          {
-            id: `kf-exit-scale-3`,
-            time: duration,
-            property: "scale.y",
-            value: 0.3,
-            easing: exitConfig.easing,
-          },
-          {
-            id: `kf-exit-opacity-0`,
-            time: exitStart,
-            property: "opacity",
-            value: baseTransform.opacity,
-            easing: exitConfig.easing,
-          },
-          {
-            id: `kf-exit-opacity-1`,
-            time: duration,
-            property: "opacity",
-            value: 0,
-            easing: exitConfig.easing,
-          },
-        );
-        break;
-      case "rotate":
-        keyframes.push(
-          {
-            id: `kf-exit-rot-0`,
-            time: exitStart,
-            property: "rotation",
-            value: baseTransform.rotation,
-            easing: exitConfig.easing,
-          },
-          {
-            id: `kf-exit-rot-1`,
-            time: duration,
-            property: "rotation",
-            value: baseTransform.rotation + 90,
-            easing: exitConfig.easing,
-          },
-          {
-            id: `kf-exit-scale-0`,
-            time: exitStart,
-            property: "scale.x",
-            value: baseTransform.scale.x,
-            easing: exitConfig.easing,
-          },
-          {
-            id: `kf-exit-scale-1`,
-            time: exitStart,
-            property: "scale.y",
-            value: baseTransform.scale.y,
-            easing: exitConfig.easing,
-          },
-          {
-            id: `kf-exit-scale-2`,
-            time: duration,
-            property: "scale.x",
-            value: 0.5,
-            easing: exitConfig.easing,
-          },
-          {
-            id: `kf-exit-scale-3`,
-            time: duration,
-            property: "scale.y",
-            value: 0.5,
-            easing: exitConfig.easing,
-          },
-          {
-            id: `kf-exit-opacity-0`,
-            time: exitStart,
-            property: "opacity",
-            value: baseTransform.opacity,
-            easing: exitConfig.easing,
-          },
-          {
-            id: `kf-exit-opacity-1`,
-            time: duration,
-            property: "opacity",
-            value: 0,
-            easing: exitConfig.easing,
-          },
-        );
-        break;
-      case "blur":
-        keyframes.push(
-          {
-            id: `kf-exit-blur-0`,
-            time: exitStart,
-            property: "blur",
-            value: 0,
-            easing: exitConfig.easing,
-          },
-          {
-            id: `kf-exit-blur-1`,
-            time: duration,
-            property: "blur",
-            value: 30,
-            easing: exitConfig.easing,
-          },
-          {
-            id: `kf-exit-opacity-0`,
-            time: exitStart,
-            property: "opacity",
-            value: baseTransform.opacity,
-            easing: exitConfig.easing,
-          },
-          {
-            id: `kf-exit-opacity-1`,
-            time: duration,
-            property: "opacity",
-            value: 0,
-            easing: exitConfig.easing,
-          },
-        );
-        break;
-      case "iris-circle":
-      case "iris-rectangle":
-      case "iris-diamond":
-      case "iris-star":
-        keyframes.push(
-          {
-            id: `kf-exit-scale-0`,
-            time: exitStart,
-            property: "scale.x",
-            value: baseTransform.scale.x,
-            easing: exitConfig.easing,
-          },
-          {
-            id: `kf-exit-scale-1`,
-            time: exitStart,
-            property: "scale.y",
-            value: baseTransform.scale.y,
-            easing: exitConfig.easing,
-          },
-          {
-            id: `kf-exit-scale-2`,
-            time: duration,
-            property: "scale.x",
-            value: 0,
-            easing: exitConfig.easing,
-          },
-          {
-            id: `kf-exit-scale-3`,
-            time: duration,
-            property: "scale.y",
-            value: 0,
-            easing: exitConfig.easing,
-          },
-          {
-            id: `kf-exit-opacity-0`,
-            time: exitStart,
-            property: "opacity",
-            value: baseTransform.opacity,
-            easing: exitConfig.easing,
-          },
-          {
-            id: `kf-exit-opacity-1`,
-            time: duration,
-            property: "opacity",
-            value: 0.5,
-            easing: exitConfig.easing,
-          },
-        );
-        break;
-    }
-  }
-
-  return keyframes;
-}
-
-function detectCurrentTransitions(clip: ClipLike): {
-  entry: TransitionConfig;
-  exit: TransitionConfig;
-} {
-  const entry: TransitionConfig = {
-    preset: "none",
-    duration: 0.5,
-    easing: "ease-out",
-  };
-  const exit: TransitionConfig = {
-    preset: "none",
-    duration: 0.5,
-    easing: "ease-in",
-  };
-
-  const keyframes = clip.keyframes || [];
-  const entryKfs = keyframes.filter((kf) => kf.id.startsWith("kf-entry-"));
-  const exitKfs = keyframes.filter((kf) => kf.id.startsWith("kf-exit-"));
-
-  if (entryKfs.length > 0) {
-    const opacityKf = entryKfs.find((kf) => kf.property === "opacity");
-    const posXKf = entryKfs.find((kf) => kf.property === "position.x");
-    const posYKf = entryKfs.find((kf) => kf.property === "position.y");
-    const scaleKf = entryKfs.find((kf) => kf.property === "scale.x");
-    const rotKf = entryKfs.find((kf) => kf.property === "rotation");
-    const blurKf = entryKfs.find((kf) => kf.property === "blur");
-
-    if (blurKf) entry.preset = "blur";
-    else if (rotKf) entry.preset = "rotate";
-    else if (scaleKf && Number(scaleKf.value) === 0)
-      entry.preset = "iris-circle";
-    else if (scaleKf && Number(scaleKf.value) < 1) entry.preset = "zoom-in";
-    else if (scaleKf && Number(scaleKf.value) > 1) entry.preset = "zoom-out";
-    else if (posXKf && Number(posXKf.value) < clip.transform.position.x)
-      entry.preset = "slide-left";
-    else if (posXKf && Number(posXKf.value) > clip.transform.position.x)
-      entry.preset = "slide-right";
-    else if (posYKf && Number(posYKf.value) < clip.transform.position.y)
-      entry.preset = "slide-up";
-    else if (posYKf && Number(posYKf.value) > clip.transform.position.y)
-      entry.preset = "slide-down";
-    else if (opacityKf) entry.preset = "fade";
-
-    const maxTime = Math.max(...entryKfs.map((kf) => kf.time));
-    if (maxTime > 0) entry.duration = maxTime;
-    const firstKf = entryKfs[0];
-    if (firstKf) entry.easing = firstKf.easing;
-  }
-
-  if (exitKfs.length > 0) {
-    const opacityKf = exitKfs.find(
-      (kf) => kf.property === "opacity" && kf.time === clip.duration,
-    );
-    const posXKf = exitKfs.find(
-      (kf) => kf.property === "position.x" && kf.time === clip.duration,
-    );
-    const posYKf = exitKfs.find(
-      (kf) => kf.property === "position.y" && kf.time === clip.duration,
-    );
-    const scaleKf = exitKfs.find(
-      (kf) => kf.property === "scale.x" && kf.time === clip.duration,
-    );
-    const rotKf = exitKfs.find(
-      (kf) => kf.property === "rotation" && kf.time === clip.duration,
-    );
-    const blurKf = exitKfs.find(
-      (kf) => kf.property === "blur" && kf.time === clip.duration,
-    );
-
-    if (blurKf) exit.preset = "blur";
-    else if (rotKf) exit.preset = "rotate";
-    else if (scaleKf && Number(scaleKf.value) === 0)
-      exit.preset = "iris-circle";
-    else if (scaleKf && Number(scaleKf.value) > 1) exit.preset = "zoom-in";
-    else if (scaleKf && Number(scaleKf.value) < 1) exit.preset = "zoom-out";
-    else if (posXKf && Number(posXKf.value) < clip.transform.position.x)
-      exit.preset = "slide-left";
-    else if (posXKf && Number(posXKf.value) > clip.transform.position.x)
-      exit.preset = "slide-right";
-    else if (posYKf && Number(posYKf.value) < clip.transform.position.y)
-      exit.preset = "slide-up";
-    else if (posYKf && Number(posYKf.value) > clip.transform.position.y)
-      exit.preset = "slide-down";
-    else if (opacityKf) exit.preset = "fade";
-
-    const minTime = Math.min(
-      ...exitKfs.filter((kf) => kf.id.includes("-0")).map((kf) => kf.time),
-    );
-    if (minTime < clip.duration) exit.duration = clip.duration - minTime;
-    const firstKf = exitKfs[0];
-    if (firstKf) exit.easing = firstKf.easing;
-  }
-
-  return { entry, exit };
+function AnimationPhaseControls({ side, preset, duration, easing, maxDuration, disabled, onPreset, onDuration, onEasing }: {
+  side: "entry" | "exit";
+  preset: TransitionPreset;
+  duration: number;
+  easing: EasingType;
+  maxDuration: number;
+  disabled: boolean;
+  onPreset: (value: TransitionPreset) => void;
+  onDuration: (value: number) => void;
+  onEasing: (value: EasingType) => void;
+}) {
+  const durationId = useId();
+  const easingId = useId();
+  const title = side === "entry" ? "Entry" : "Exit";
+  const input = useNumericDraft({ value: duration, onChange: onDuration,
+    min: Math.min(0.1, maxDuration), max: maxDuration,
+    step: Math.min(0.1, maxDuration) || 0.1,
+    format: (value) => String(Number(value.toPrecision(12))) });
+  const easings = EASINGS.some((item) => item.id === easing) ? EASINGS : [...EASINGS, { id: easing, label: easing }];
+  return <div className="min-w-0 space-y-2">
+    <h3 className="text-[11px] font-medium text-fg-2">{title} Animation</h3>
+    <ToggleGroup type="single" value={preset} onValueChange={(value) => { if (value) onPreset(value as TransitionPreset); }}
+      disabled={disabled} aria-label={`${title} animation preset`} className="grid grid-cols-3 gap-1" variant="outline" size="sm">
+      {PRESETS.map((item) => <ToggleGroupItem key={item.id} value={item.id} aria-label={`Set ${side} animation to ${item.label}`}
+        className={cn("h-auto min-h-7 min-w-0 gap-1 whitespace-normal rounded-[6px] p-1.5 text-[10px] font-normal",
+          preset === item.id ? "border-primary bg-primary text-white data-[state=on]:bg-primary data-[state=on]:text-white" : "border-border bg-bg-2 text-fg-2 hover:bg-bg-3")}>
+        {item.icon}<span>{item.label}</span>
+      </ToggleGroupItem>)}
+    </ToggleGroup>
+    {preset !== "none" && <div className="grid min-w-0 grid-cols-2 gap-2">
+      <div className="min-w-0 space-y-1">
+        <Label htmlFor={durationId} className="text-[11px] font-normal text-fg-2">Duration</Label>
+        <div className="relative min-w-0">
+          <Input {...input} id={durationId} aria-label={`${title} animation duration`} type="number" inputMode="decimal"
+            disabled={disabled} min={Math.min(0.1, maxDuration)} max={maxDuration} step={Math.min(0.1, maxDuration) || 0.1}
+            className="h-7 w-full min-w-0 rounded-[6px] border-border bg-bg-1 pl-2 pr-6 text-[12px] font-mono md:text-[12px]" />
+          <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[11px] text-fg-muted">s</span>
+        </div>
+      </div>
+      <div className="min-w-0 space-y-1">
+        <Label htmlFor={easingId} className="text-[11px] font-normal text-fg-2">Easing</Label>
+        <Select value={easing} onValueChange={(value) => onEasing(value as EasingType)} disabled={disabled}>
+          <SelectTrigger id={easingId} aria-label={`${title} animation easing`} className="h-7 w-full min-w-0 rounded-[6px] border-border bg-bg-1 px-2 text-[12px]"><SelectValue /></SelectTrigger>
+          <SelectContent>{easings.map((item) => <SelectItem key={item.id} value={item.id}>{item.label}</SelectItem>)}</SelectContent>
+        </Select>
+      </div>
+    </div>}
+  </div>;
 }
 
 export const ClipTransitionSection: React.FC<ClipTransitionSectionProps> = ({
@@ -918,7 +134,8 @@ export const ClipTransitionSection: React.FC<ClipTransitionSectionProps> = ({
   const {
     project,
     updateClipKeyframes,
-    updateTextClipKeyframes,
+    updateOverlayClipTiming,
+    actionExecutor,
     getTextClip,
     getShapeClip,
     getSVGClip,
@@ -927,90 +144,44 @@ export const ClipTransitionSection: React.FC<ClipTransitionSectionProps> = ({
     updateClipTransition,
     removeClipTransition,
   } = useProjectStore();
-  const getTitleEngine = useEngineStore((state) => state.getTitleEngine);
-  const getGraphicsEngine = useEngineStore((state) => state.getGraphicsEngine);
   const { settings } = project;
 
+  const mediaById = useMemo(() => new Map(project.mediaLibrary.items.map((item) => [item.id, item])), [project.mediaLibrary.items]);
   const timelineClipContext = useMemo(() => {
-    for (const track of project.timeline.tracks) {
-      const sortedClips = track.clips
-        .filter((clip) =>
-          getMediaItemCapabilities(
-            project.mediaLibrary.items.find(
-              (item) => item.id === clip.mediaId,
-            ),
-          ).visual,
-        )
-        .sort((clipA, clipB) => {
-          if (clipA.startTime !== clipB.startTime) {
-            return clipA.startTime - clipB.startTime;
-          }
-
-          return clipA.id.localeCompare(clipB.id);
-        });
-      const clipIndex = sortedClips.findIndex((candidate) => candidate.id === clipId);
-
-      if (clipIndex === -1) {
-        continue;
-      }
-
-      const currentClip = sortedClips[clipIndex];
-      const previousClip = clipIndex > 0 ? sortedClips[clipIndex - 1] : undefined;
-      const nextClip =
-        clipIndex < sortedClips.length - 1 ? sortedClips[clipIndex + 1] : undefined;
-
-      return {
-        currentClip,
-        previousClip,
-        nextClip,
-        introTransition: track.transitions.find(
-          (transition) =>
-            transition.clipAId === currentClip.id &&
-            !transition.clipBId &&
-            (transition.edge ?? "out") === "in",
-        ),
-        outroTransition: track.transitions.find(
-          (transition) =>
-            transition.clipAId === currentClip.id &&
-            !transition.clipBId &&
-            (transition.edge ?? "out") === "out",
-        ),
-        incomingTransition: previousClip
-          ? track.transitions.find(
-              (transition) =>
-                transition.clipAId === previousClip.id &&
-                transition.clipBId === currentClip.id,
-            )
-          : undefined,
-        outgoingTransition: nextClip
-          ? track.transitions.find(
-              (transition) =>
-                transition.clipAId === currentClip.id &&
-                transition.clipBId === nextClip.id,
-            )
-          : undefined,
-      };
-    }
-
-    return null;
-  }, [project.timeline.tracks, project.mediaLibrary.items, clipId]);
+    const track = project.timeline.tracks.find((candidate) => candidate.clips.some((item) => item.id === clipId));
+    if (!track) return null;
+    const sortedClips = track.clips.filter((item) => getMediaItemCapabilities(mediaById.get(item.mediaId)).visual)
+      .sort((a, b) => a.startTime - b.startTime || a.id.localeCompare(b.id));
+    const clipIndex = sortedClips.findIndex((item) => item.id === clipId);
+    if (clipIndex === -1) return null;
+    const currentClip = sortedClips[clipIndex];
+    const previousClip = sortedClips[clipIndex - 1];
+    const nextClip = sortedClips[clipIndex + 1];
+    return {
+      currentClip, previousClip, nextClip,
+      introTransition: track.transitions.find((item) => item.clipAId === clipId && !item.clipBId && (item.edge ?? "out") === "in"),
+      outroTransition: track.transitions.find((item) => item.clipAId === clipId && !item.clipBId && (item.edge ?? "out") === "out"),
+      incomingTransition: previousClip ? track.transitions.find((item) => item.clipAId === previousClip.id && item.clipBId === clipId) : undefined,
+      outgoingTransition: nextClip ? track.transitions.find((item) => item.clipAId === clipId && item.clipBId === nextClip.id) : undefined,
+    };
+  }, [project.timeline.tracks, mediaById, clipId]);
 
   const clip = useMemo(() => {
     const regularClip = timelineClipContext?.currentClip;
     if (regularClip)
       return { type: "regular" as const, data: regularClip as ClipLike };
 
-    const textClip = getTextClip(clipId);
+    const textClip = project.textClips?.find((item) => item.id === clipId) ?? getTextClip(clipId);
     if (textClip) return { type: "text" as const, data: textClip as ClipLike };
 
-    const shapeClip = getShapeClip(clipId);
+    const shapeClip = project.shapeClips?.find((item) => item.id === clipId) ?? getShapeClip(clipId);
     if (shapeClip)
       return { type: "shape" as const, data: shapeClip as ClipLike };
 
-    const svgClip = getSVGClip(clipId);
+    const svgClip = project.svgClips?.find((item) => item.id === clipId) ?? getSVGClip(clipId);
     if (svgClip) return { type: "svg" as const, data: svgClip as ClipLike };
 
-    const stickerClip = getStickerClip(clipId);
+    const stickerClip = project.stickerClips?.find((item) => item.id === clipId) ?? getStickerClip(clipId);
     if (stickerClip)
       return { type: "sticker" as const, data: stickerClip as ClipLike };
 
@@ -1022,8 +193,10 @@ export const ClipTransitionSection: React.FC<ClipTransitionSectionProps> = ({
     getShapeClip,
     getSVGClip,
     getStickerClip,
-    getTitleEngine,
-    project.modifiedAt,
+    project.textClips,
+    project.shapeClips,
+    project.svgClips,
+    project.stickerClips,
   ]);
 
   const adjacentTransitions = useMemo<AdjacentTransitionConfig[]>(() => {
@@ -1102,20 +275,12 @@ export const ClipTransitionSection: React.FC<ClipTransitionSectionProps> = ({
     [removeClipTransition],
   );
 
-  const detected = clip
-    ? detectCurrentTransitions(clip.data)
-    : {
-        entry: {
-          preset: "none" as TransitionPreset,
-          duration: 0.5,
-          easing: "ease-out" as EasingType,
-        },
-        exit: {
-          preset: "none" as TransitionPreset,
-          duration: 0.5,
-          easing: "ease-in" as EasingType,
-        },
-      };
+  const locked = project.timeline.tracks.find((track) => track.id === clip?.data.trackId)?.locked ?? false;
+  const clipData = clip?.data;
+  const detected = useMemo(() => clipData ? detectCurrentTransitions(clipData) : {
+    entry: { preset: "none" as TransitionPreset, duration: 0.5, easing: "ease-out" as EasingType },
+    exit: { preset: "none" as TransitionPreset, duration: 0.5, easing: "ease-in" as EasingType },
+  }, [clipData]);
 
   const [entryPreset, setEntryPreset] = useState<TransitionPreset>(
     detected.entry.preset,
@@ -1133,20 +298,33 @@ export const ClipTransitionSection: React.FC<ClipTransitionSectionProps> = ({
     detected.exit.easing,
   );
 
-  const applyTransitions = useCallback(() => {
-    if (!clip) {
-      return;
-    }
+  useEffect(() => {
+    setEntryPreset(detected.entry.preset);
+    setEntryDuration(detected.entry.duration);
+    setEntryEasing(detected.entry.easing);
+    setExitPreset(detected.exit.preset);
+    setExitDuration(detected.exit.duration);
+    setExitEasing(detected.exit.easing);
+  }, [detected, clipId, project.id, actionExecutor]);
 
-    const existingKeyframes = (clip.data.keyframes || []).filter(
+  const applyTransitions = useCallback(() => {
+    const current = useProjectStore.getState();
+    if (!clip || current.project.id !== project.id || current.actionExecutor !== actionExecutor) return;
+    const currentClip = clip.type === "regular" ? current.getClip(clipId) :
+      clip.type === "text" ? current.getTextClip(clipId) :
+      clip.type === "shape" ? current.getShapeClip(clipId) :
+      clip.type === "svg" ? current.getSVGClip(clipId) : current.getStickerClip(clipId);
+    if (!currentClip || currentClip.duration <= 0 || current.project.timeline.tracks.find((track) => track.id === currentClip.trackId)?.locked) return;
+
+    const existingKeyframes = (currentClip.keyframes || []).filter(
       (kf) => !kf.id.startsWith("kf-entry-") && !kf.id.startsWith("kf-exit-"),
     );
 
     const canvas = { width: settings.width, height: settings.height };
     const clipTypeForKeyframes: ClipType =
-      clip.type === "regular" || clip.type === "text" ? clip.type : "regular";
+      clip.type === "regular" || clip.type === "text" ? clip.type : "graphic";
     const newKeyframes = generateKeyframes(
-      clip.data,
+      currentClip,
       { preset: entryPreset, duration: entryDuration, easing: entryEasing },
       { preset: exitPreset, duration: exitDuration, easing: exitEasing },
       clipTypeForKeyframes,
@@ -1155,31 +333,11 @@ export const ClipTransitionSection: React.FC<ClipTransitionSectionProps> = ({
 
     const allKeyframes = [...existingKeyframes, ...newKeyframes];
 
-    if (clip.type === "text") {
-      updateTextClipKeyframes(clipId, allKeyframes);
-    } else if (
-      clip.type === "shape" ||
-      clip.type === "svg" ||
-      clip.type === "sticker"
-    ) {
-      const graphicsEngine = getGraphicsEngine();
-      if (graphicsEngine) {
-        const graphicsClip =
-          clip.type === "shape"
-            ? graphicsEngine.getShapeClip(clipId)
-            : clip.type === "svg"
-              ? graphicsEngine.getSVGClip(clipId)
-              : graphicsEngine.getStickerClip(clipId);
-
-        if (graphicsClip) {
-          (graphicsClip as MutableGraphicClip).keyframes = allKeyframes;
-          useProjectStore.setState((state) => ({
-            project: { ...state.project, modifiedAt: Date.now() },
-          }));
-        }
-      }
-    } else {
-      updateClipKeyframes(clipId, allKeyframes);
+    const updated = clip.type === "regular" ? updateClipKeyframes(clipId, allKeyframes) :
+      updateOverlayClipTiming(clipId, { keyframes: allKeyframes });
+    if (!updated) {
+      toast.error("Animation could not be applied");
+      return;
     }
 
     const parts: string[] = [];
@@ -1204,179 +362,47 @@ export const ClipTransitionSection: React.FC<ClipTransitionSectionProps> = ({
     exitDuration,
     exitEasing,
     updateClipKeyframes,
-    updateTextClipKeyframes,
+    updateOverlayClipTiming,
+    actionExecutor,
     settings,
+    project.id,
   ]);
 
   if (!clip) return null;
 
   return (
-    <div className="space-y-4">
-      {/* Entry Transition */}
-      <div className="space-y-2">
-        <Text
-          type="supporting"
-          color="secondary"
-          className="text-[10px] font-medium uppercase tracking-wider"
-        >
-          Entry Animation
-        </Text>
-        <div className="grid grid-cols-3 gap-1">
-          {PRESETS.map((preset) => (
-            <ClickableCard
-              key={`entry-${preset.id}`}
-              label={`Set entry animation to ${preset.label}`}
-              onClick={() => setEntryPreset(preset.id)}
-              padding={2}
-              variant={entryPreset === preset.id ? "green" : "muted"}
-              className={`flex items-center justify-center gap-1 border ${
-                entryPreset === preset.id
-                  ? "border-primary bg-primary text-white font-medium"
-                  : "bg-bg-2 border border-border text-fg-2 hover:text-fg hover:border-text-muted"
-              }`}
-            >
-              {preset.icon}
-              <Text
-                type="supporting"
-                color="inherit"
-                className="text-[9px]"
-              >
-                {preset.label}
-              </Text>
-            </ClickableCard>
-          ))}
-        </div>
-        {entryPreset !== "none" && (
-          <div className="flex gap-2 mt-2">
-            <ToolcraftNumberInputControl
-              label="Duration"
-              size="sm"
-              width="100%"
-              step={0.1}
-              min={0.1}
-              max={clip.data.duration / 2}
-              value={entryDuration}
-              onChange={(value) => setEntryDuration(value || 0.5)}
-              units="s"
-            />
-            <Selector
-              label="Easing"
-              size="sm"
-              width="100%"
-              value={entryEasing}
-              onChange={(value) => setEntryEasing(value as EasingType)}
-              options={EASINGS.map((e) => ({
-                label: e.label,
-                value: e.id,
-              }))}
-            />
-          </div>
-        )}
-      </div>
-
-      {/* Exit Transition */}
-      <div className="space-y-2">
-        <Text
-          type="supporting"
-          color="secondary"
-          className="text-[10px] font-medium uppercase tracking-wider"
-        >
-          Exit Animation
-        </Text>
-        <div className="grid grid-cols-3 gap-1">
-          {PRESETS.map((preset) => (
-            <ClickableCard
-              key={`exit-${preset.id}`}
-              label={`Set exit animation to ${preset.label}`}
-              onClick={() => setExitPreset(preset.id)}
-              padding={2}
-              variant={exitPreset === preset.id ? "green" : "muted"}
-              className={`flex items-center justify-center gap-1 border ${
-                exitPreset === preset.id
-                  ? "border-primary bg-primary text-white font-medium"
-                  : "bg-bg-2 border border-border text-fg-2 hover:text-fg hover:border-text-muted"
-              }`}
-            >
-              {preset.icon}
-              <Text
-                type="supporting"
-                color="inherit"
-                className="text-[9px]"
-              >
-                {preset.label}
-              </Text>
-            </ClickableCard>
-          ))}
-        </div>
-        {exitPreset !== "none" && (
-          <div className="flex gap-2 mt-2">
-            <ToolcraftNumberInputControl
-              label="Duration"
-              size="sm"
-              width="100%"
-              step={0.1}
-              min={0.1}
-              max={clip.data.duration / 2}
-              value={exitDuration}
-              onChange={(value) => setExitDuration(value || 0.5)}
-              units="s"
-            />
-            <Selector
-              label="Easing"
-              size="sm"
-              width="100%"
-              value={exitEasing}
-              onChange={(value) => setExitEasing(value as EasingType)}
-              options={EASINGS.map((e) => ({
-                label: e.label,
-                value: e.id,
-              }))}
-            />
-          </div>
-        )}
-      </div>
+    <fieldset disabled={locked} className="m-0 min-w-0 space-y-4 border-0 p-0">
+      <AnimationPhaseControls key={`${project.id}-${clipId}-entry`} side="entry" preset={entryPreset} duration={entryDuration}
+        easing={entryEasing} maxDuration={clip.data.duration / 2} disabled={locked || clip.data.duration <= 0}
+        onPreset={setEntryPreset} onDuration={setEntryDuration} onEasing={setEntryEasing} />
+      <AnimationPhaseControls key={`${project.id}-${clipId}-exit`} side="exit" preset={exitPreset} duration={exitDuration}
+        easing={exitEasing} maxDuration={clip.data.duration / 2} disabled={locked || clip.data.duration <= 0}
+        onPreset={setExitPreset} onDuration={setExitDuration} onEasing={setExitEasing} />
 
       {/* Apply Button */}
-      <Button
-        label="Apply Entry/Exit Animations"
-        onClick={applyTransitions}
-        variant="primary"
-        size="sm"
-        className="w-full justify-center"
-      />
+      <Button disabled={locked || clip.data.duration <= 0} onClick={applyTransitions} type="button" aria-label="Apply Entry/Exit Animations" className="inline-flex min-w-0 items-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] bg-accent text-accent-fg hover:bg-accent/90 w-full justify-center">
+        <span className="truncate">{"Apply Entry/Exit Animations"}</span>
+      </Button>
 
       <div className="space-y-3 border-t border-border pt-3">
-        <Text
-          type="supporting"
-          color="secondary"
-          className="text-[10px] font-medium uppercase tracking-wider"
+        <span className="block text-fg-2 text-[10px] font-medium uppercase tracking-wider"
         >
           Single-Clip Transitions
-        </Text>
+        </span>
 
         {edgeTransitions.length > 0 ? (
           edgeTransitions.map((edgeTransition) => (
-            <Card
-              key={edgeTransition.key}
-              variant="muted"
-              padding={3}
-              className="space-y-2 border border-border bg-bg-1"
+            <Card key={edgeTransition.key} className="min-w-0 rounded-[7px] shadow-none text-fg p-3 space-y-2 border border-border bg-bg-1"
             >
               <div className="space-y-1">
-                <Text
-                  type="supporting"
-                  color="primary"
-                  className="text-[10px] font-medium"
+                <span className="text-fg text-[10px] font-medium"
                 >
                   {edgeTransition.title}
-                </Text>
-                <Text
-                  type="supporting"
-                  color="secondary"
-                  className="text-[9px]"
+                </span>
+                <span className="block text-fg-2 font-normal text-[9px]"
                 >
                   {edgeTransition.description}
-                </Text>
+                </span>
               </div>
 
               {timelineClipContext && (
@@ -1392,45 +418,32 @@ export const ClipTransitionSection: React.FC<ClipTransitionSectionProps> = ({
             </Card>
           ))
         ) : (
-          <Text type="supporting" color="secondary" className="text-[10px]">
+          <span className="block text-fg-2 font-normal text-[10px]">
             Single-clip transitions are available for video and image clips.
-          </Text>
+          </span>
         )}
       </div>
 
       <div className="space-y-3 border-t border-border pt-3">
-        <Text
-          type="supporting"
-          color="secondary"
-          className="text-[10px] font-medium uppercase tracking-wider"
+        <span className="block text-fg-2 text-[10px] font-medium uppercase tracking-wider"
         >
           Clip-to-Clip Transitions
-        </Text>
+        </span>
 
         {timelineClipContext ? (
           adjacentTransitions.length > 0 ? (
             adjacentTransitions.map((adjacentTransition) => (
-              <Card
-                key={adjacentTransition.key}
-                variant="muted"
-                padding={3}
-                className="space-y-2 border border-border bg-bg-1"
+              <Card key={adjacentTransition.key} className="min-w-0 rounded-[7px] shadow-none text-fg p-3 space-y-2 border border-border bg-bg-1"
               >
                 <div className="space-y-1">
-                  <Text
-                    type="supporting"
-                    color="primary"
-                    className="text-[10px] font-medium"
+                  <span className="text-fg text-[10px] font-medium"
                   >
                     {adjacentTransition.title}
-                  </Text>
-                  <Text
-                    type="supporting"
-                    color="secondary"
-                    className="text-[9px]"
+                  </span>
+                  <span className="block text-fg-2 font-normal text-[9px]"
                   >
                     {adjacentTransition.description}
-                  </Text>
+                  </span>
                 </div>
 
                 <TransitionInspector
@@ -1444,18 +457,17 @@ export const ClipTransitionSection: React.FC<ClipTransitionSectionProps> = ({
               </Card>
             ))
           ) : (
-            <Text type="supporting" color="secondary" className="text-[10px]">
+            <span className="block text-fg-2 font-normal text-[10px]">
               No adjacent clips are available on this track.
-            </Text>
+            </span>
           )
         ) : (
-          <Text type="supporting" color="secondary" className="text-[10px]">
+          <span className="block text-fg-2 font-normal text-[10px]">
             Clip-to-clip transitions are available for timeline media clips.
-          </Text>
+          </span>
         )}
       </div>
-    </div>
+    </fieldset>
   );
 };
 
-export default ClipTransitionSection;

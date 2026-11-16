@@ -1,12 +1,6 @@
-import React, { useState, useCallback } from "react";
-import { Lock, Eye, EyeOff, ShieldCheck, AlertTriangle } from "@/icons/lucide-compat";
-import { ToolcraftButton as Button } from "@openreel/ui";
-import { ToolcraftCard as Card } from "@openreel/ui";
-import { ToolcraftDialog as Dialog, ToolcraftDialogHeader as DialogHeader } from "@openreel/ui";
-import { ToolcraftIconButton as IconButton } from "@openreel/ui";
-import { ToolcraftLayout as Layout, ToolcraftLayoutContent as LayoutContent, ToolcraftLayoutFooter as LayoutFooter } from "@openreel/ui";
-import { ToolcraftText as Text } from "@openreel/ui";
-import { ToolcraftTextInputControl } from "@openreel/ui";
+import { useCallback, useEffect, useId, useRef, useState, type FormEvent } from "react";
+import { Lock, Eye, EyeOff, ShieldCheck, AlertTriangle, X } from "@/icons/lucide-compat";
+import { Alert, AlertDescription, Button, Card, Dialog, DialogClose, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, Input, Label } from "@openreel/ui";
 
 interface MasterPasswordDialogProps {
   isOpen: boolean;
@@ -14,264 +8,61 @@ interface MasterPasswordDialogProps {
   mode: "setup" | "unlock" | "change";
   onSubmit: (password: string, newPassword?: string) => Promise<boolean>;
 }
-
-export const MasterPasswordDialog: React.FC<MasterPasswordDialogProps> = ({
-  isOpen,
-  onClose,
-  mode,
-  onSubmit,
-}) => {
-  const [password, setPassword] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [showNewPassword, setShowNewPassword] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-
-  const resetForm = useCallback(() => {
-    setPassword("");
-    setNewPassword("");
-    setConfirmPassword("");
-    setShowPassword(false);
-    setShowNewPassword(false);
-    setError(null);
-    setLoading(false);
-  }, []);
-
-  const handleClose = useCallback(() => {
-    resetForm();
-    onClose();
-  }, [onClose, resetForm]);
-
-  const handleSubmit = useCallback(async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-
-    if (mode === "setup") {
-      if (password.length < 8) {
-        setError("Password must be at least 8 characters");
-        return;
-      }
-      if (password !== confirmPassword) {
-        setError("Passwords do not match");
-        return;
-      }
-    }
-
-    if (mode === "change") {
-      if (newPassword.length < 8) {
-        setError("New password must be at least 8 characters");
-        return;
-      }
-      if (newPassword !== confirmPassword) {
-        setError("New passwords do not match");
-        return;
-      }
-    }
-
-    setLoading(true);
-    try {
-      const success = await onSubmit(
-        password,
-        mode === "change" ? newPassword : undefined,
-      );
-      if (success) {
-        resetForm();
-      } else {
-        setError(
-          mode === "unlock"
-            ? "Incorrect password"
-            : "Operation failed. Check your current password.",
-        );
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "An error occurred");
-    } finally {
-      setLoading(false);
-    }
-  }, [mode, password, newPassword, confirmPassword, onSubmit, resetForm]);
-
-  const titles = {
-    setup: "Set Master Password",
-    unlock: "Unlock Settings",
-    change: "Change Master Password",
-  };
-
-  const descriptions = {
-    setup: "Create a master password to encrypt your API keys. This password is never stored — only a verification hash is kept.",
-    unlock: "Enter your master password to access encrypted API keys.",
-    change: "Change your master password. All stored keys will be re-encrypted.",
-  };
-
-  return (
-    <Dialog
-      isOpen={isOpen}
-      onOpenChange={(open) => !open && handleClose()}
-      width={448}
-      purpose="form"
-    >
-      <Layout
-        header={
-          <DialogHeader
-            title={titles[mode]}
-            subtitle={descriptions[mode]}
-            onOpenChange={(open) => !open && handleClose()}
-            startContent={<Lock size={18} className="text-primary" aria-hidden />}
-          />
-        }
-        content={
-          <LayoutContent>
-        <form id="master-password-form" onSubmit={handleSubmit} className="space-y-4">
-          {mode === "change" && (
-            <div className="space-y-2">
-              <div className="relative">
-                <ToolcraftTextInputControl
-                  label="Current Password"
-                  type={showPassword ? "text" : "password"}
-                  value={password}
-                  onChange={setPassword}
-                  placeholder="Enter current password"
-                  hasAutoFocus
-                  width="100%"
-                  className="pr-10"
-                />
-                <IconButton
-                  label={showPassword ? "Hide password" : "Show password"}
-                  onClick={() => setShowPassword(!showPassword)}
-                  variant="ghost"
-                  size="sm"
-                  icon={showPassword ? <EyeOff size={16} aria-hidden /> : <Eye size={16} aria-hidden />}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-primary"
-                />
-              </div>
-            </div>
-          )}
-
-          {(mode === "setup" || mode === "unlock") && (
-            <div className="space-y-2">
-              <div className="relative">
-                <ToolcraftTextInputControl
-                  label={mode === "setup" ? "Password" : "Master Password"}
-                  type={showPassword ? "text" : "password"}
-                  value={password}
-                  onChange={setPassword}
-                  placeholder={
-                    mode === "setup"
-                      ? "Min. 8 characters"
-                      : "Enter master password"
-                  }
-                  hasAutoFocus
-                  width="100%"
-                  className="pr-10"
-                />
-                <IconButton
-                  label={showPassword ? "Hide password" : "Show password"}
-                  onClick={() => setShowPassword(!showPassword)}
-                  variant="ghost"
-                  size="sm"
-                  icon={showPassword ? <EyeOff size={16} aria-hidden /> : <Eye size={16} aria-hidden />}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-primary"
-                />
-              </div>
-            </div>
-          )}
-
-          {(mode === "setup" || mode === "change") && (
-            <>
-              <div className="space-y-2">
-                <div className="relative">
-                  <ToolcraftTextInputControl
-                    label={mode === "change" ? "New Password" : "Confirm Password"}
-                    type={showNewPassword ? "text" : "password"}
-                    value={mode === "change" ? newPassword : confirmPassword}
-                    onChange={(value) =>
-                      mode === "change"
-                        ? setNewPassword(value)
-                        : setConfirmPassword(value)
-                    }
-                    placeholder={
-                      mode === "change"
-                        ? "Min. 8 characters"
-                        : "Repeat password"
-                    }
-                    width="100%"
-                    className="pr-10"
-                  />
-                  <IconButton
-                    label={showNewPassword ? "Hide password" : "Show password"}
-                    onClick={() => setShowNewPassword(!showNewPassword)}
-                    variant="ghost"
-                    size="sm"
-                    icon={showNewPassword ? <EyeOff size={16} aria-hidden /> : <Eye size={16} aria-hidden />}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-primary"
-                  />
-                </div>
-              </div>
-
-              {mode === "change" && (
-                <div className="space-y-2">
-                  <ToolcraftTextInputControl
-                    label="Confirm New Password"
-                    type={showNewPassword ? "text" : "password"}
-                    value={confirmPassword}
-                    onChange={setConfirmPassword}
-                    placeholder="Repeat new password"
-                    width="100%"
-                  />
-                </div>
-              )}
-            </>
-          )}
-
-          {error && (
-            <Card variant="red" padding={2} className="flex items-center gap-2 bg-error/10 text-sm text-error">
-              <AlertTriangle size={14} />
-              {error}
-            </Card>
-          )}
-
-          {mode === "setup" && (
-            <Card variant="muted" padding={2} className="flex items-start gap-2 bg-background-secondary">
-              <ShieldCheck size={14} className="mt-0.5 shrink-0 text-primary" />
-              <Text type="supporting" color="secondary" className="text-xs">
-                Your password is used to derive an encryption key via PBKDF2
-                (100k iterations). API keys are encrypted with AES-256-GCM.
-                If you forget this password, stored keys cannot be recovered.
-              </Text>
-            </Card>
-          )}
-        </form>
-          </LayoutContent>
-        }
-        footer={
-          <LayoutFooter hasDivider>
-            <div className="flex justify-end gap-2">
-              <Button
-                label="Cancel"
-                variant="secondary"
-                onClick={handleClose}
-                isDisabled={loading}
-              />
-              <Button
-                label={
-                  loading
-                    ? "Processing..."
-                    : mode === "setup"
-                      ? "Set Password"
-                      : mode === "unlock"
-                        ? "Unlock"
-                        : "Change Password"
-                }
-                type="submit"
-                form="master-password-form"
-                isDisabled={loading}
-                variant="primary"
-              />
-            </div>
-          </LayoutFooter>
-        }
-      />
-    </Dialog>
-  );
+const TITLES = { setup: "Set Master Password", unlock: "Unlock Settings", change: "Change Master Password" };
+const DESCRIPTIONS = {
+  setup: "Create a master password to encrypt your API keys. This password is never stored — only a verification hash is kept.",
+  unlock: "Enter your master password to access encrypted API keys.",
+  change: "Change your master password. All stored keys will be re-encrypted.",
 };
+function PasswordField({ label, value, onChange, visible, onToggle, disabled, placeholder, autoComplete }: {
+  label: string; value: string; onChange: (value: string) => void; visible: boolean; onToggle?: () => void; disabled: boolean; placeholder: string; autoComplete: string;
+}) {
+  const id = useId();
+  return <div className="space-y-1.5"><Label htmlFor={id} className="text-xs text-fg-2">{label}</Label><div className="relative">
+    <Input id={id} type={visible ? "text" : "password"} value={value} onChange={event => onChange(event.target.value)} placeholder={placeholder} disabled={disabled} autoComplete={autoComplete} className="h-8 rounded-md bg-bg-2 pr-10 text-xs md:text-xs" />
+    {onToggle && <Button variant="ghost" size="icon-sm" type="button" disabled={disabled} onClick={onToggle} aria-label={`${visible ? "Hide" : "Show"} ${label.toLowerCase()}`} className="absolute right-1 top-1/2 h-6 w-6 -translate-y-1/2">{visible ? <EyeOff size={14} aria-hidden /> : <Eye size={14} aria-hidden />}</Button>}
+  </div></div>;
+}
+
+export function MasterPasswordDialog({ isOpen, onClose, mode, onSubmit }: MasterPasswordDialogProps) {
+  const [password, setPassword] = useState(""), [newPassword, setNewPassword] = useState(""), [confirmation, setConfirmation] = useState("");
+  const [showPassword, setShowPassword] = useState(false), [showNewPassword, setShowNewPassword] = useState(false);
+  const [error, setError] = useState<string | null>(null), [loading, setLoading] = useState(false);
+  const lifecycle = useRef({ active: false }), inFlight = useRef(false), opener = useRef<HTMLElement | null>(null);
+  const formId = useId();
+  const form = useRef<HTMLFormElement>(null);
+  const reset = useCallback(() => { setPassword(""); setNewPassword(""); setConfirmation(""); setShowPassword(false); setShowNewPassword(false); setError(null); setLoading(false); inFlight.current = false; }, []);
+  useEffect(() => { const owner = { active: true }; lifecycle.current = owner; reset(); return () => { owner.active = false; }; }, [isOpen, mode, reset]);
+  const close = () => { if (inFlight.current) return; reset(); onClose(); };
+  const submit = async (event: FormEvent) => {
+    event.preventDefault(); if (inFlight.current) return; setError(null);
+    if (mode === "setup" && password.length < 8) { setError("Password must be at least 8 characters"); return; }
+    if (mode === "setup" && password !== confirmation) { setError("Passwords do not match"); return; }
+    if (mode === "change" && newPassword.length < 8) { setError("New password must be at least 8 characters"); return; }
+    if (mode === "change" && newPassword !== confirmation) { setError("New passwords do not match"); return; }
+    const owner = lifecycle.current; const current = () => owner.active && lifecycle.current === owner; inFlight.current = true; setLoading(true);
+    try {
+      const success = await onSubmit(password, mode === "change" ? newPassword : undefined);
+      if (!current()) return;
+      if (success) reset(); else setError(mode === "unlock" ? "Incorrect password" : "Operation failed. Check your current password.");
+    } catch (failure) { if (current()) setError(failure instanceof Error ? failure.message : "An error occurred"); }
+    finally { if (current()) { inFlight.current = false; setLoading(false); } }
+  };
+  return <Dialog open={isOpen} onOpenChange={open => { if (!open) close(); }}>
+    <DialogContent hideCloseButton className="flex max-h-[calc(100dvh-24px)] w-[calc(100vw-24px)] max-w-[448px] flex-col gap-0 overflow-y-auto rounded-xl border-border bg-bg-1 p-0"
+      onOpenAutoFocus={event => { opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; event.preventDefault(); form.current?.querySelector<HTMLInputElement>("input")?.focus({ preventScroll: true }); }}
+      onCloseAutoFocus={event => { event.preventDefault(); if (opener.current?.isConnected) opener.current.focus({ preventScroll: true }); }}
+      onEscapeKeyDown={event => { if (inFlight.current) event.preventDefault(); }} onInteractOutside={event => { if (inFlight.current) event.preventDefault(); }}>
+      <DialogHeader className="border-b border-border px-5 py-4 pr-12 text-left"><DialogTitle className="flex items-center gap-2 text-sm"><Lock size={18} className="text-primary" aria-hidden />{TITLES[mode]}</DialogTitle><DialogDescription className="text-xs leading-5 text-fg-2">{DESCRIPTIONS[mode]}</DialogDescription></DialogHeader>
+      <DialogClose asChild><Button type="button" variant="ghost" size="icon-sm" disabled={loading} aria-label="Close" className="absolute right-3 top-3"><X size={14} aria-hidden /></Button></DialogClose>
+      <form ref={form} id={formId} onSubmit={submit} className="space-y-4 px-5 py-4">
+        <PasswordField label={mode === "change" ? "Current Password" : mode === "setup" ? "Password" : "Master Password"} value={password} onChange={setPassword} visible={showPassword} onToggle={() => setShowPassword(value => !value)} disabled={loading} placeholder={mode === "setup" ? "Min. 8 characters" : mode === "change" ? "Enter current password" : "Enter master password"} autoComplete={mode === "setup" ? "new-password" : "current-password"} />
+        {mode !== "unlock" && <PasswordField label={mode === "change" ? "New Password" : "Confirm Password"} value={mode === "change" ? newPassword : confirmation} onChange={mode === "change" ? setNewPassword : setConfirmation} visible={showNewPassword} onToggle={() => setShowNewPassword(value => !value)} disabled={loading} placeholder={mode === "change" ? "Min. 8 characters" : "Repeat password"} autoComplete="new-password" />}
+        {mode === "change" && <PasswordField label="Confirm New Password" value={confirmation} onChange={setConfirmation} visible={showNewPassword} disabled={loading} placeholder="Repeat new password" autoComplete="new-password" />}
+        {error && <Alert variant="destructive"><AlertTriangle size={14} aria-hidden /><AlertDescription>{error}</AlertDescription></Alert>}
+        {mode === "setup" && <Card className="flex items-start gap-2 rounded-md bg-bg-2 p-3 shadow-none"><ShieldCheck size={14} className="mt-0.5 shrink-0 text-primary" aria-hidden /><p className="text-[11px] leading-5 text-fg-2">Your password is used to derive an encryption key via PBKDF2 (100k iterations). API keys are encrypted with AES-256-GCM. If you forget this password, stored keys cannot be recovered.</p></Card>}
+      </form>
+      <DialogFooter className="flex-row justify-end gap-2 border-t border-border px-5 py-3 sm:space-x-0"><Button type="button" variant="outline" onClick={close} disabled={loading} className="h-8 text-xs">Cancel</Button><Button type="submit" form={formId} disabled={loading} className="h-8 text-xs">{loading ? "Processing..." : mode === "setup" ? "Set Password" : mode === "unlock" ? "Unlock" : "Change Password"}</Button></DialogFooter>
+    </DialogContent>
+  </Dialog>;
+}

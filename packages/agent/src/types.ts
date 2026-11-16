@@ -43,6 +43,8 @@ export interface ToolCall {
 export interface ToolError {
   readonly code: string;
   readonly message: string;
+  /** What to do next, e.g. "call create_project first". Set by the path / app-state / export tools. */
+  readonly hint?: string;
   /** A rejected preflight that did not mutate the draft and may be corrected. */
   readonly recoverable?: boolean;
   /** The failed tool call to reference explicitly in a corrected retry. */
@@ -62,11 +64,6 @@ export interface ToolResult {
   readonly error?: ToolError;
   /** Rendered image the model can SEE (e.g. render_motion_frame). */
   readonly image?: ToolResultImage;
-}
-
-export interface AgentMessage {
-  readonly role: "system" | "user" | "assistant";
-  readonly content: string;
 }
 
 export type AgentEvent =

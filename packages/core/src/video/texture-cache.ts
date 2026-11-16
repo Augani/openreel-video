@@ -1,4 +1,4 @@
-export interface CachedTexture {
+interface CachedTexture {
   texture: GPUTexture;
   lastUsed: number;
   size: number;
@@ -6,7 +6,7 @@ export interface CachedTexture {
   frameTime: number;
 }
 
-export interface TextureCacheConfig {
+interface TextureCacheConfig {
   maxSize?: number;
   onEvict?: (entry: CachedTexture) => void;
 }

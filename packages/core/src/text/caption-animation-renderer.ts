@@ -11,7 +11,7 @@ export interface WordSegment {
   readonly color?: string;
 }
 
-export interface AnimatedCaptionFrame {
+interface AnimatedCaptionFrame {
   readonly segments: WordSegment[];
   readonly visible: boolean;
 }

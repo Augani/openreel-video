@@ -7,7 +7,7 @@
  * Flow:
  *   1. Upload source image via uploadFileStream → get fileUrl
  *   2. createTask(model, input) → taskId
- *   3. pollTask(taskId) → result image URL
+ *   3. pollTaskOnce(taskId) → result image URL
  *
  * Docs: https://docs.kie.ai/market/common/get-task-detail
  */
@@ -18,21 +18,28 @@ import { KieAIError } from "./types";
 // ─── Model identifiers ────────────────────────────────────────────────────────
 
 export const IMAGE_MODELS = {
-  SEEDREAM:     "seedream/5-lite-image-to-image",
-  Z_IMAGE:      "z-image",
+  SEEDREAM: "seedream/5-lite-image-to-image",
+  Z_IMAGE: "z-image",
   NANO_BANANA2: "nano-banana-2",
-  FLUX2:        "flux-2/pro-image-to-image",
-  GROK:         "grok-imagine/image-to-image",
-  QWEN:         "qwen/image-to-image",
+  FLUX2: "flux-2/pro-image-to-image",
+  GROK: "grok-imagine/image-to-image",
+  QWEN: "qwen/image-to-image",
 } as const;
 
-export type ImageModelId = typeof IMAGE_MODELS[keyof typeof IMAGE_MODELS];
+export type ImageModelId = (typeof IMAGE_MODELS)[keyof typeof IMAGE_MODELS];
 
 // ─── Per-model input types ────────────────────────────────────────────────────
 
 export type AspectRatio =
-  | "1:1" | "4:3" | "3:4" | "16:9" | "9:16"
-  | "2:3" | "3:2" | "21:9" | "auto";
+  | "1:1"
+  | "4:3"
+  | "3:4"
+  | "16:9"
+  | "9:16"
+  | "2:3"
+  | "3:2"
+  | "21:9"
+  | "auto";
 
 export interface SeedreamInput {
   prompt: string;
@@ -89,7 +96,7 @@ export interface QwenInput {
   enable_safety_checker?: boolean;
 }
 
-export type ImageModelInput =
+type ImageModelInput =
   | SeedreamInput
   | ZImageInput
   | NanoBanana2Input
@@ -99,14 +106,22 @@ export type ImageModelInput =
 
 // ─── Task lifecycle ───────────────────────────────────────────────────────────
 
-export type TaskState = "waiting" | "queuing" | "generating" | "success" | "fail";
+export type TaskState =
+  | "waiting"
+  | "queuing"
+  | "generating"
+  | "success"
+  | "fail";
 
 export interface TaskRecord {
   taskId: string;
   model: string;
   state: TaskState;
   /** API returns this as a JSON string — getResultUrl handles parsing */
-  resultJson: string | { resultUrls?: string[]; resultObject?: unknown } | null;
+  resultJson:
+    | string
+    | { resultUrls?: string[]; resultObject?: unknown; [key: string]: unknown }
+    | null;
   failCode?: number;
   failMsg?: string;
   costTime?: number;
@@ -132,56 +147,19 @@ export async function createImageTask(
 
 // ─── Poll task ────────────────────────────────────────────────────────────────
 
-const POLL_INTERVALS = [2000, 2000, 3000, 3000, 5000]; // ms, last value repeats
-
-/**
- * Poll the task until it reaches `success` or `fail`.
- * Calls `onProgress` with the latest record on each poll.
- *
- * @param signal  - AbortSignal to cancel polling
- */
-export async function pollTask(
-  taskId: string,
-  onProgress?: (record: TaskRecord) => void,
-  signal?: AbortSignal,
-): Promise<TaskRecord> {
-  let attempt = 0;
-
-  while (!signal?.aborted) {
-    const record = await kieaiGet<TaskRecord>(
-      "/api/v1/jobs/recordInfo",
-      { taskId },
-      KIEAI_API_BASE_URL,
-    );
-
-    onProgress?.(record);
-
-    if (record.state === "success") return record;
-    if (record.state === "fail") {
-      throw new KieAIError(record.failCode ?? 500, record.failMsg ?? "Generation failed");
-    }
-
-    // Wait before next poll
-    const delay = POLL_INTERVALS[Math.min(attempt, POLL_INTERVALS.length - 1)];
-    attempt++;
-    await new Promise<void>((res, rej) => {
-      const t = setTimeout(res, delay);
-      signal?.addEventListener("abort", () => { clearTimeout(t); rej(new DOMException("Aborted", "AbortError")); }, { once: true });
-    });
-  }
-
-  throw new DOMException("Polling cancelled", "AbortError");
-}
-
 /**
  * Single poll — returns the latest TaskRecord without looping.
  * Use this in background polling hooks that manage their own interval.
  */
-export async function pollTaskOnce(taskId: string): Promise<TaskRecord> {
+export async function pollTaskOnce(
+  taskId: string,
+  signal?: AbortSignal,
+): Promise<TaskRecord> {
   return kieaiGet<TaskRecord>(
     "/api/v1/jobs/recordInfo",
     { taskId },
     KIEAI_API_BASE_URL,
+    signal,
   );
 }
 
@@ -213,13 +191,24 @@ export function getResultUrl(record: TaskRecord): string {
   ];
 
   for (const candidate of candidates) {
-    if (Array.isArray(candidate) && typeof candidate[0] === "string" && candidate[0]) {
+    if (
+      Array.isArray(candidate) &&
+      typeof candidate[0] === "string" &&
+      candidate[0]
+    ) {
       return candidate[0];
     }
   }
 
   // Single-string fields
-  const stringFields = ["resultUrl", "result_url", "url", "image_url", "output", "imageUrl"];
+  const stringFields = [
+    "resultUrl",
+    "result_url",
+    "url",
+    "image_url",
+    "output",
+    "imageUrl",
+  ];
   for (const field of stringFields) {
     const val = rj?.[field];
     if (typeof val === "string" && val) return val;
@@ -230,11 +219,16 @@ export function getResultUrl(record: TaskRecord): string {
     const nested = rj?.[wrapper] as Record<string, unknown> | undefined;
     if (nested && typeof nested === "object") {
       for (const field of ["url", "image_url", "imageUrl", "resultUrl"]) {
-        if (typeof nested[field] === "string" && nested[field]) return nested[field] as string;
+        if (typeof nested[field] === "string" && nested[field])
+          return nested[field] as string;
       }
-      if (Array.isArray(nested.urls) && typeof nested.urls[0] === "string") return nested.urls[0];
+      if (Array.isArray(nested.urls) && typeof nested.urls[0] === "string")
+        return nested.urls[0];
     }
   }
 
-  throw new KieAIError(500, "No result URL in completed task — check console for raw record");
+  throw new KieAIError(
+    500,
+    "No result URL in completed task — check console for raw record",
+  );
 }

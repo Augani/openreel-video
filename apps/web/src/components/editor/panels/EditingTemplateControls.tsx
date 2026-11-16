@@ -1,9 +1,21 @@
+import { PropertySlider } from "../inspector/shell/PropertySlider";
+import {
+  Select as ShadcnSelect,
+  SelectTrigger as ShadcnSelectTrigger,
+  SelectContent as ShadcnSelectContent,
+  SelectValue as ShadcnSelectValue,
+  SelectItem as ShadcnSelectItem,
+  Switch as ShadcnSwitch,
+  Input as ShadcnInput,
+  cn as uiCn,
+} from "@openreel/ui";
+
 import React from "react";
-import { ToolcraftSwitchControl } from "@openreel/ui";
-import { ToolcraftSelectControl as Selector } from "@openreel/ui";
-import { ToolcraftSliderControl } from "@openreel/ui";
-import { ToolcraftText as Text } from "@openreel/ui";
-import { ToolcraftTextInputControl } from "@openreel/ui";
+
+
+
+
+
 import type { EditingTemplate, EditingTemplatePrimitive } from "@openreel/core";
 
 export const getEditingTemplateDefaultControlValues = (
@@ -65,25 +77,22 @@ export const EditingTemplateControls: React.FC<EditingTemplateControlsProps> = (
           return (
             <div key={control.id} className="space-y-2">
               <div className="flex items-center justify-between gap-3">
-                <Text type="label" weight="bold" display="block" className="text-[11px]">
+                <span className="text-fg-2 font-bold block text-[11px]">
                   {control.label}
-                </Text>
+                </span>
                 <span className="rounded-full bg-background-tertiary px-2 py-0.5 text-[10px] text-text-secondary">
                   {value}
                 </span>
               </div>
-              <ToolcraftSliderControl
-                label={control.label}
-                isLabelHidden
-                min={control.min ?? 0}
-                max={control.max ?? 100}
-                step={control.step ?? 1}
-                value={Number(value)}
-                isDisabled={disabled}
-                onChange={(nextValue: number) => onChange(control.id, nextValue)}
-                valueDisplay="none"
-                className="w-full disabled:cursor-not-allowed disabled:opacity-60"
-              />
+              <PropertySlider ariaLabel={control.label}
+value={Number(value)}
+min={control.min ?? 0}
+max={control.max ?? 100}
+step={control.step ?? 1}
+onChange={(nextValue: number) => onChange(control.id, nextValue)}
+isDisabled={disabled}
+showValueLabel={false}
+className="w-full disabled:cursor-not-allowed disabled:opacity-60" />
             </div>
           );
         }
@@ -91,15 +100,15 @@ export const EditingTemplateControls: React.FC<EditingTemplateControlsProps> = (
         if (control.type === "toggle") {
           return (
             <div key={control.id} className="flex items-center justify-between gap-3">
-              <Text type="label" weight="bold" display="block" className="text-[11px]">
+              <span className="text-fg-2 font-bold block text-[11px]">
                 {control.label}
-              </Text>
-              <ToolcraftSwitchControl
-                ariaLabel={control.label}
+              </span>
+              <ShadcnSwitch
+                aria-label={control.label}
                 checked={Boolean(value)}
                 disabled={disabled}
                 onCheckedChange={(nextValue) => onChange(control.id, nextValue)}
-                showLabel={false}
+                className="workspace-switch flex-none"
               />
             </div>
           );
@@ -114,27 +123,48 @@ export const EditingTemplateControls: React.FC<EditingTemplateControlsProps> = (
 
           return (
             <div key={control.id} className="space-y-2">
-              <Text type="label" weight="bold" display="block" className="text-[11px]">
+              <span className="text-fg-2 font-bold block text-[11px]">
                 {control.label}
-              </Text>
-              <Selector
-                label={control.label}
-                isLabelHidden
-                width="100%"
-                value={`${selectedIndex}`}
-                isDisabled={disabled}
-                options={options.map((option, index) => ({
-                  value: `${index}`,
-                  label: option.label,
-                }))}
-                onChange={(nextValue) => {
+              </span>
+              <ShadcnSelect
+                value={`${selectedIndex}` || "__openreel_empty_option__"}
+                disabled={disabled}
+                onValueChange={(selection) => {
+                  const nextValue =
+                    selection === "__openreel_empty_option__" ? "" : selection;
                   const option = options[Number(nextValue)];
                   if (option) {
                     onChange(control.id, option.value);
                   }
                 }}
-                className="h-10 w-full rounded-xl border border-border bg-background-tertiary px-3 text-xs text-text-primary focus:border-primary/50 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
-              />
+              >
+                <ShadcnSelectTrigger
+                  aria-label={control.label}
+                  className={uiCn(
+                    "flex h-8 w-full min-w-0 rounded-[7px] border border-border bg-bg-1 px-2.5 py-1.5 text-[13px] font-medium text-fg-2 outline-none transition-colors focus:border-accent disabled:cursor-not-allowed disabled:opacity-50",
+                    "h-10 w-full rounded-xl border border-border bg-background-tertiary px-3 text-xs text-text-primary focus:border-primary/50 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60",
+                    undefined,
+                  )}
+                >
+                  <ShadcnSelectValue placeholder={undefined} />
+                </ShadcnSelectTrigger>
+                <ShadcnSelectContent>
+                  {options
+                    .map((option, index) => ({
+                      value: `${index}`,
+                      label: option.label,
+                    }))
+                    .map((option) => (
+                      <ShadcnSelectItem
+                        key={option.value}
+                        value={option.value || "__openreel_empty_option__"}
+                        disabled={"disabled" in option && option.disabled === true}
+                      >
+                        {option.label}
+                      </ShadcnSelectItem>
+                    ))}
+                </ShadcnSelectContent>
+              </ShadcnSelect>
             </div>
           );
         }
@@ -142,22 +172,27 @@ export const EditingTemplateControls: React.FC<EditingTemplateControlsProps> = (
         if (control.type === "color") {
           return (
             <div key={control.id} className="space-y-2">
-              <Text type="label" weight="bold" display="block" className="text-[11px]">
+              <span className="text-fg-2 font-bold block text-[11px]">
                 {control.label}
-              </Text>
+              </span>
               <div className="flex items-center gap-3">
                 <span
                   className="h-10 w-12 rounded-lg border border-border"
                   style={{ backgroundColor: String(value) }}
                   aria-hidden
                 />
-                <ToolcraftTextInputControl
-                  label={control.label}
-                  isLabelHidden
+                <ShadcnInput
                   value={String(value)}
-                  isDisabled={disabled}
-                  onChange={(nextValue) => onChange(control.id, nextValue)}
-                  className="h-10 flex-1 rounded-xl border border-border bg-background-tertiary px-3 text-xs text-text-primary placeholder:text-text-muted focus:border-primary/50 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+                  aria-label={control.label}
+                  onChange={(event) => {
+                    const nextValue = event.currentTarget.value;
+                    return onChange(control.id, nextValue);
+                  }}
+                  disabled={disabled}
+                  className={uiCn(
+                    "flex h-8 w-full min-w-0 rounded-[7px] border border-border bg-bg-1 px-2.5 py-1.5 text-[13px] font-medium text-fg-2 outline-none transition-colors placeholder:text-fg-muted focus:border-accent disabled:cursor-not-allowed disabled:opacity-50 md:text-[13px]",
+                    "h-10 flex-1 rounded-xl border border-border bg-background-tertiary px-3 text-xs text-text-primary placeholder:text-text-muted focus:border-primary/50 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 md:text-xs",
+                  )}
                 />
               </div>
             </div>
@@ -166,16 +201,21 @@ export const EditingTemplateControls: React.FC<EditingTemplateControlsProps> = (
 
         return (
           <div key={control.id} className="space-y-2">
-            <Text type="label" weight="bold" display="block" className="text-[11px]">
+            <span className="text-fg-2 font-bold block text-[11px]">
               {control.label}
-            </Text>
-            <ToolcraftTextInputControl
-              label={control.label}
-              isLabelHidden
+            </span>
+            <ShadcnInput
               value={String(value)}
-              isDisabled={disabled}
-              onChange={(nextValue) => onChange(control.id, nextValue)}
-              className="h-10 w-full rounded-xl border border-border bg-background-tertiary px-3 text-xs text-text-primary placeholder:text-text-muted focus:border-primary/50 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+              aria-label={control.label}
+              onChange={(event) => {
+                const nextValue = event.currentTarget.value;
+                return onChange(control.id, nextValue);
+              }}
+              disabled={disabled}
+              className={uiCn(
+                "flex h-8 w-full min-w-0 rounded-[7px] border border-border bg-bg-1 px-2.5 py-1.5 text-[13px] font-medium text-fg-2 outline-none transition-colors placeholder:text-fg-muted focus:border-accent disabled:cursor-not-allowed disabled:opacity-50 md:text-[13px]",
+                "h-10 w-full rounded-xl border border-border bg-background-tertiary px-3 text-xs text-text-primary placeholder:text-text-muted focus:border-primary/50 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 md:text-xs",
+              )}
             />
           </div>
         );

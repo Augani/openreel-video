@@ -1,7 +1,7 @@
 import type { MotionBlurSettings, MotionComposition, MotionLayer } from "./types";
 import { DEFAULT_MOTION_BLUR_SETTINGS } from "./types";
 
-export interface MotionBlurSamplePlan {
+interface MotionBlurSamplePlan {
   readonly enabled: boolean;
   readonly sampleTimes: readonly number[];
   readonly weight: number;
@@ -41,31 +41,6 @@ export function getMotionBlurSampleTimes(
 
   const step = exposureDuration / (samples - 1);
   return Array.from({ length: samples }, (_, index) => startTime + step * index);
-}
-
-export function getMotionLayerBlurSamplePlan(
-  composition: MotionComposition,
-  layer: MotionLayer,
-): MotionBlurSamplePlan {
-  const settings = normalizeMotionBlurSettings(composition.motionBlur);
-  if (!settings.enabled || !layer.motionBlur) {
-    return {
-      enabled: false,
-      sampleTimes: [],
-      weight: 1,
-    };
-  }
-
-  const sampleTimes = getMotionBlurSampleTimes(
-    0,
-    composition.frameRate,
-    settings,
-  );
-  return {
-    enabled: sampleTimes.length > 1,
-    sampleTimes,
-    weight: sampleTimes.length > 0 ? 1 / sampleTimes.length : 1,
-  };
 }
 
 export function getMotionBlurSamplePlanAtTime(

@@ -1,5 +1,6 @@
+import { assertCanWriteProject, trackProjectFile } from "./project-lock";
 import type { Project, ProjectSettings } from "@openreel/core";
-import { normalizeProjectStoredFields } from "@openreel/core";
+import { loadEngineModules } from "./lazy-engines";
 import { v4 as uuidv4 } from "uuid";
 
 interface FilePickerAcceptType {
@@ -34,6 +35,11 @@ interface FileHandleWithPermissions extends FileSystemFileHandle {
 type NativeFileRef = { kind: "native"; path: string };
 type ProjectFileRef = FileSystemFileHandle | NativeFileRef;
 
+export interface PickedProjectFile {
+  project: Project;
+  fileHandle: ProjectFileRef | null;
+}
+
 function isDesktopFs(): boolean {
   return typeof window !== "undefined" && !!window.openreel?.fs;
 }
@@ -52,7 +58,7 @@ const PROJECTS_STORE = "projects";
 const RECENT_STORE = "recent";
 const MAX_RECENT_PROJECTS = 10;
 
-export interface RecentProject {
+interface RecentProject {
   id: string;
   name: string;
   lastOpened: number;
@@ -62,7 +68,7 @@ export interface RecentProject {
   trackCount?: number;
 }
 
-export interface ProjectTemplate {
+interface ProjectTemplate {
   id: string;
   name: string;
   description: string;
@@ -182,9 +188,18 @@ type EventCallback = (data?: unknown) => void;
 class ProjectManager {
   private db: IDBDatabase | null = null;
   private listeners: Map<ProjectManagerEvent, Set<EventCallback>> = new Map();
-  private currentFileHandle: ProjectFileRef | null = null;
+  private fileHandleRef: ProjectFileRef | null = null;
+  /** The file the open project is saved to. Desktop files are locked while they are open (see project-lock). */
+  private get currentFileHandle(): ProjectFileRef | null {
+    return this.fileHandleRef;
+  }
+  private set currentFileHandle(next: ProjectFileRef | null) {
+    this.fileHandleRef = next;
+    trackProjectFile(isNativeRef(next) ? next.path : null);
+  }
+  private fileSession = 0;
 
-  private parseProjectContent(content: string): Project {
+  async parseProjectContent(content: string): Promise<Project> {
     const trimmed = content.trim();
     if (!trimmed) {
       throw new Error("Project file is empty");
@@ -214,11 +229,23 @@ class ProjectManager {
       throw new Error("Invalid project file: missing project id or name");
     }
 
-    return normalizeProjectStoredFields(rawProject);
+    const { normalizeProjectStoredFields } = await loadEngineModules();
+    const project = normalizeProjectStoredFields(rawProject);
+    if (!Array.isArray(project.mediaLibrary?.items)) return project;
+    // JSON cannot retain a Blob or a live file handle. Legacy saves contain
+    // truthy {} values here, which otherwise hide the existing relink controls.
+    return { ...project, mediaLibrary: { ...project.mediaLibrary,
+      items: project.mediaLibrary.items.map(item => ({ ...item, blob: null, fileHandle: null, isPlaceholder: true })),
+    } };
   }
 
   async initialize(): Promise<void> {
     this.db = await this.openDatabase();
+  }
+
+  /** Open the database once. A project saved or opened without the start screen (MCP path tools) may be the first to need it. */
+  async ensureInitialized(): Promise<void> {
+    if (!this.db) await this.initialize();
   }
 
   private openDatabase(): Promise<IDBDatabase> {
@@ -303,37 +330,33 @@ class ProjectManager {
       },
     };
 
-    this.currentFileHandle = null;
+    this.releaseCurrentFileHandle();
     this.emit("projectOpened", { project });
     return project;
   }
 
-  async saveProject(project: Project): Promise<boolean> {
+  async saveProject(project: Project, resolveProject?: () => Project | Promise<Project>): Promise<boolean> {
     if (this.currentFileHandle) {
-      return this.saveToFileHandle(project, this.currentFileHandle);
+      await this.saveToFileHandle(project, this.currentFileHandle, resolveProject);
+      return true;
     }
-    return this.saveProjectAs(project);
+    return this.saveProjectAs(project, resolveProject);
   }
 
-  async saveProjectAs(project: Project): Promise<boolean> {
+  async saveProjectAs(project: Project, resolveProject?: () => Project | Promise<Project>): Promise<boolean> {
+    const session = this.fileSession;
     if (isDesktopFs()) {
       const filePath = await window.openreel!.fs.showSaveDialog({
         defaultPath: `${project.name}.oreel`,
         filters: [{ name: "OpenReel Project", extensions: ["oreel", "json"] }],
       });
       if (!filePath) return false;
-      await window.openreel!.fs.writeFile(
-        filePath,
-        JSON.stringify(project, null, 2),
-      );
-      this.currentFileHandle = { kind: "native", path: filePath };
-      await this.addToRecent(project, this.currentFileHandle);
-      this.emit("projectSaved", { project });
+      await this.saveNativeProjectAs(filePath, project, resolveProject, session);
       return true;
     }
 
     if (!("showSaveFilePicker" in window)) {
-      return this.downloadProject(project);
+      return this.downloadProject(resolveProject ? await resolveProject() : project);
     }
 
     let handle: FileSystemFileHandle;
@@ -356,31 +379,61 @@ class ProjectManager {
         "[ProjectManager] showSaveFilePicker unavailable; falling back to download",
         error,
       );
-      return this.downloadProject(project);
+      return this.downloadProject(resolveProject ? await resolveProject() : project);
     }
 
     // Picker cancellation returns false. A selected file that fails to write
     // must reject so callers can distinguish failure and report it to the user.
-    await this.saveToFileHandle(project, handle);
-    this.currentFileHandle = handle;
-    await this.addToRecent(project, handle);
+    const snapshot = await this.saveToFileHandle(project, handle, resolveProject);
+    if (session === this.fileSession) this.currentFileHandle = handle;
+    await this.addToRecent(snapshot, handle);
     return true;
+  }
+
+  /** Write the project to `filePath` (desktop, no dialog) and make that file the save target. */
+  async saveProjectToPath(
+    filePath: string,
+    project: Project,
+    resolveProject?: () => Project | Promise<Project>,
+  ): Promise<Project> {
+    return this.saveNativeProjectAs(filePath, project, resolveProject, this.fileSession);
+  }
+
+  private async saveNativeProjectAs(
+    filePath: string,
+    project: Project,
+    resolveProject: (() => Project | Promise<Project>) | undefined,
+    session: number,
+  ): Promise<Project> {
+    await assertCanWriteProject(filePath);
+    const snapshot = resolveProject ? await resolveProject() : project;
+    await window.openreel!.fs.writeFile(filePath, JSON.stringify(snapshot, null, 2));
+    const handle: NativeFileRef = { kind: "native", path: filePath };
+    if (session === this.fileSession) this.currentFileHandle = handle;
+    await this.addToRecent(snapshot, handle);
+    this.emit("projectSaved", { project: snapshot });
+    return snapshot;
   }
 
   private async saveToFileHandle(
     project: Project,
     handle: ProjectFileRef,
-  ): Promise<boolean> {
-    const data = JSON.stringify(project, null, 2);
+    resolveProject?: () => Project | Promise<Project>,
+  ): Promise<Project> {
+    const data = resolveProject ? undefined : JSON.stringify(project, null, 2);
     if (isNativeRef(handle)) {
-      await window.openreel!.fs.writeFile(handle.path, data);
-      this.emit("projectSaved", { project });
-      return true;
+      await assertCanWriteProject(handle.path);
+      const snapshot = resolveProject ? await resolveProject() : project;
+      await window.openreel!.fs.writeFile(handle.path, data ?? JSON.stringify(snapshot, null, 2));
+      this.emit("projectSaved", { project: snapshot });
+      return snapshot;
     }
 
     const writable = await handle.createWritable();
+    let snapshot = project;
     try {
-      await writable.write(data);
+      if (resolveProject) snapshot = await resolveProject();
+      await writable.write(data ?? JSON.stringify(snapshot, null, 2));
       await writable.close();
     } catch (error) {
       // Release the stream/lock and discard partial data when writing fails.
@@ -388,8 +441,8 @@ class ProjectManager {
       throw error;
     }
 
-    this.emit("projectSaved", { project });
-    return true;
+    this.emit("projectSaved", { project: snapshot });
+    return snapshot;
   }
 
   private downloadProject(project: Project): boolean {
@@ -413,26 +466,24 @@ class ProjectManager {
   }
 
   async openProject(): Promise<Project | null> {
+    const picked = await this.pickProjectFile();
+    if (!picked) return null;
+    this.activatePickedProject(picked);
+    return picked.project;
+  }
+
+  /** Read the chosen file without changing the active project's save target. */
+  async pickProjectFile(): Promise<PickedProjectFile | null> {
     if (isDesktopFs()) {
       const filePath = await window.openreel!.fs.showOpenDialog({
         filters: [{ name: "OpenReel Project", extensions: ["oreel", "json"] }],
       });
       if (!filePath) return null;
       const content = await window.openreel!.fs.readFile(filePath);
-      let project: Project;
-      try {
-        project = this.parseProjectContent(content);
-      } catch (error) {
-        console.error("[ProjectManager] Open (native) failed:", error);
-        return null;
-      }
-      this.currentFileHandle = { kind: "native", path: filePath };
-      await this.addToRecent(project, this.currentFileHandle);
-      this.emit("projectOpened", { project });
-      return project;
+      return { project: await this.parseProjectContent(content), fileHandle: { kind: "native", path: filePath } };
     }
 
-    if ("showOpenFilePicker" in window) {
+    if (typeof (window as WindowWithFilePicker).showOpenFilePicker === "function") {
       try {
         const win = window as WindowWithFilePicker;
         const [handle] = await win.showOpenFilePicker!({
@@ -447,50 +498,58 @@ class ProjectManager {
 
         const file = await handle.getFile();
         const content = await file.text();
-        const project = this.parseProjectContent(content);
+        const project = await this.parseProjectContent(content);
 
-        this.currentFileHandle = handle;
-        await this.addToRecent(project, handle);
-        this.emit("projectOpened", { project });
-
-        return project;
+        return { project, fileHandle: handle };
       } catch (error) {
         if ((error as Error).name === "AbortError") {
           return null;
         }
-        console.error("[ProjectManager] Open failed:", error);
-        return null;
+        throw error;
       }
     }
 
-    return this.openProjectViaInput();
+    return this.pickProjectViaInput();
   }
 
-  private openProjectViaInput(): Promise<Project | null> {
-    return new Promise((resolve) => {
+  activatePickedProject(picked: PickedProjectFile): void {
+    this.fileSession++;
+    this.currentFileHandle = picked.fileHandle;
+    this.emit("projectOpened", { project: picked.project });
+    void this.addToRecent(picked.project, picked.fileHandle ?? undefined).catch((error) => {
+      console.warn("[ProjectManager] Could not update recent projects:", error);
+    });
+  }
+
+  private pickProjectViaInput(): Promise<PickedProjectFile | null> {
+    return new Promise((resolve, reject) => {
       const input = document.createElement("input");
       input.type = "file";
       input.accept = ".oreel,.json";
+      input.hidden = true;
+      const cleanup = () => { input.onchange = null; input.oncancel = null; input.remove(); };
+      input.oncancel = () => { cleanup(); resolve(null); };
 
       input.onchange = async () => {
         const file = input.files?.[0];
         if (!file) {
+          cleanup();
           resolve(null);
           return;
         }
 
         try {
           const content = await file.text();
-          const project = this.parseProjectContent(content);
-          await this.addToRecent(project);
-          this.emit("projectOpened", { project });
-          resolve(project);
+          const project = await this.parseProjectContent(content);
+          cleanup();
+          resolve({ project, fileHandle: null });
         } catch (error) {
-          console.error("[ProjectManager] Parse failed:", error);
-          resolve(null);
+          cleanup();
+          reject(error);
         }
       };
 
+      document.body.appendChild(input);
       input.click();
     });
   }
@@ -504,7 +563,8 @@ class ProjectManager {
           const content = await window.openreel!.fs.readFile(
             recentProject.fileHandle.path,
           );
-          const project = this.parseProjectContent(content);
+          const project = await this.parseProjectContent(content);
+          this.fileSession++;
           this.currentFileHandle = recentProject.fileHandle;
           await this.updateRecentTimestamp(recentProject.id);
           this.emit("projectOpened", { project });
@@ -528,8 +588,9 @@ class ProjectManager {
 
         const file = await handle.getFile();
         const content = await file.text();
-        const project = this.parseProjectContent(content);
+        const project = await this.parseProjectContent(content);
 
+        this.fileSession++;
         this.currentFileHandle = handle;
         await this.updateRecentTimestamp(recentProject.id);
         this.emit("projectOpened", { project });
@@ -556,6 +617,7 @@ class ProjectManager {
       request.onsuccess = () => {
         const project = request.result as Project | undefined;
         if (project) {
+          this.releaseCurrentFileHandle();
           this.emit("projectOpened", { project });
         }
         resolve(project || null);
@@ -705,8 +767,15 @@ class ProjectManager {
     return this.currentFileHandle;
   }
 
+  /** Desktop path of the file the open project is saved to (null in the browser or before the first save). */
+  getCurrentProjectPath(): string | null {
+    const handle = this.fileHandleRef;
+    return isNativeRef(handle) ? handle.path : null;
+  }
+
   /** Imported independent copies must not overwrite a previously opened file. */
   releaseCurrentFileHandle(): void {
+    this.fileSession++;
     this.currentFileHandle = null;
   }
 
@@ -738,7 +807,3 @@ class ProjectManager {
 }
 
 export const projectManager = new ProjectManager();
-
-export async function initializeProjectManager(): Promise<void> {
-  await projectManager.initialize();
-}

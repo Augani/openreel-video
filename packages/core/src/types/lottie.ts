@@ -29,7 +29,7 @@ export interface LottieMarker {
 
 export type LottieAsset = LottieImageAsset | LottiePrecompAsset;
 
-export interface LottieImageAsset {
+interface LottieImageAsset {
   id: string;
   w: number;
   h: number;
@@ -38,7 +38,7 @@ export interface LottieImageAsset {
   e?: number;
 }
 
-export interface LottiePrecompAsset {
+interface LottiePrecompAsset {
   id: string;
   nm: string;
   layers: LottieLayer[];
@@ -52,7 +52,7 @@ export type LottieLayer =
   | LottieShapeLayer
   | LottieTextLayer;
 
-export interface BaseLottieLayer {
+interface BaseLottieLayer {
   ddd: number;
   ind: number;
   ty: number;
@@ -146,7 +146,7 @@ export interface LottieBezier {
   y: number | number[];
 }
 
-export interface LottieMask {
+interface LottieMask {
   inv: boolean;
   mode: "a" | "s" | "i" | "f" | "d" | "l" | "n";
   pt: LottieAnimatedProperty;
@@ -167,7 +167,7 @@ export type LottieShape =
   | LottieTransformShape
   | LottieTrimShape;
 
-export interface BaseLottieShape {
+interface BaseLottieShape {
   ty: string;
   nm: string;
   hd?: boolean;
@@ -226,7 +226,7 @@ export interface LottieStrokeShape extends BaseLottieShape {
   d?: LottieStrokeDash[];
 }
 
-export interface LottieStrokeDash {
+interface LottieStrokeDash {
   n: "o" | "d" | "g";
   v: LottieAnimatedProperty;
 }
@@ -281,7 +281,7 @@ export interface LottieGradientStrokeShape extends BaseLottieShape {
   o?: LottieAnimatedProperty;
 }
 
-export interface LottieGradientColors {
+interface LottieGradientColors {
   p: number;
   k: LottieAnimatedProperty;
 }
@@ -293,11 +293,11 @@ export interface LottieTextData {
   a: LottieTextAnimator[];
 }
 
-export interface LottieTextDocument {
+interface LottieTextDocument {
   k: LottieTextDocumentKeyframe[];
 }
 
-export interface LottieTextDocumentKeyframe {
+interface LottieTextDocumentKeyframe {
   s: {
     s: number;
     f: string;
@@ -315,25 +315,25 @@ export interface LottieTextDocumentKeyframe {
   t: number;
 }
 
-export interface LottieTextMoreOptions {
+interface LottieTextMoreOptions {
   a?: LottieAnimatedProperty;
   p?: LottieAnimatedProperty;
   r?: LottieAnimatedProperty;
   sw?: LottieAnimatedProperty;
 }
 
-export interface LottieTextAlignmentOptions {
+interface LottieTextAlignmentOptions {
   g: number;
   a: LottieAnimatedProperty;
 }
 
-export interface LottieTextAnimator {
+interface LottieTextAnimator {
   nm: string;
   a: LottieTextAnimatorProperties;
   s?: LottieTextSelector;
 }
 
-export interface LottieTextAnimatorProperties {
+interface LottieTextAnimatorProperties {
   p?: LottieAnimatedProperty;
   a?: LottieAnimatedProperty;
   s?: LottieAnimatedProperty;
@@ -348,7 +348,7 @@ export interface LottieTextAnimatorProperties {
   t?: LottieAnimatedProperty;
 }
 
-export interface LottieTextSelector {
+interface LottieTextSelector {
   t: number;
   xe?: LottieAnimatedProperty;
   ne?: LottieAnimatedProperty;
@@ -362,59 +362,3 @@ export interface LottieTextSelector {
   rn?: number;
   sm?: LottieAnimatedProperty;
 }
-
-export type LottieFeature =
-  | "shapes"
-  | "text"
-  | "images"
-  | "masks"
-  | "effects"
-  | "expressions"
-  | "3d"
-  | "audio"
-  | "video"
-  | "gradients"
-  | "trim-paths"
-  | "repeaters"
-  | "time-remap";
-
-export interface LottieCompatibilityResult {
-  compatible: boolean;
-  warnings: LottieCompatibilityWarning[];
-  errors: LottieCompatibilityError[];
-  unsupportedFeatures: LottieFeature[];
-  score: number;
-}
-
-export interface LottieCompatibilityWarning {
-  feature: LottieFeature;
-  message: string;
-  layerId?: string;
-  layerName?: string;
-}
-
-export interface LottieCompatibilityError {
-  feature: LottieFeature;
-  message: string;
-  layerId?: string;
-  layerName?: string;
-  fatal: boolean;
-}
-
-export interface LottieExportOptions {
-  embedAssets: boolean;
-  includeMarkers: boolean;
-  minify: boolean;
-  precision: number;
-  optimizeKeyframes: boolean;
-  stripHiddenLayers: boolean;
-}
-
-export const DEFAULT_LOTTIE_EXPORT_OPTIONS: LottieExportOptions = {
-  embedAssets: false,
-  includeMarkers: true,
-  minify: false,
-  precision: 3,
-  optimizeKeyframes: true,
-  stripHiddenLayers: true,
-};

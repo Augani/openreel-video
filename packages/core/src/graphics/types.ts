@@ -26,7 +26,11 @@ export interface ShapeClip extends GraphicClip {
   readonly type: "shape";
   readonly shapeType: ShapeType;
   readonly style: ShapeStyle;
-  readonly points?: Point2D[]; // For polygon/path shapes
+  readonly points?: Point2D[]; // For polygon/path shapes (normalized 0..1)
+  /** SVG path data (M L H V C S Q T A Z) for "path" shapes; wins over `points`. */
+  readonly pathData?: string;
+  /** Close the path. Point lists default to open; `Z` in pathData always closes. */
+  readonly closed?: boolean;
 }
 
 export interface SVGClip extends GraphicClip {
@@ -113,25 +117,6 @@ export interface EmphasisAnimation {
   readonly startTime?: number;
   readonly animationDuration?: number;
 }
-
-export const DEFAULT_EMPHASIS_ANIMATION: EmphasisAnimation = {
-  type: "none",
-  speed: 1,
-  intensity: 1,
-  loop: true,
-};
-
-export const DEFAULT_SVG_COLOR_STYLE: SVGColorStyle = {
-  colorMode: "none",
-  tintColor: "#ffffff",
-  tintOpacity: 1,
-};
-
-export const DEFAULT_GRAPHIC_ANIMATION: GraphicAnimation = {
-  type: "none",
-  duration: 0.5,
-  easing: "ease-out",
-};
 
 export interface StickerClip extends GraphicClip {
   readonly type: "sticker" | "emoji";
@@ -320,6 +305,8 @@ export interface CreateShapeParams {
   readonly style?: Partial<ShapeStyle>;
   readonly arrowProps?: ArrowProperties;
   readonly points?: Point2D[];
+  readonly pathData?: string;
+  readonly closed?: boolean;
   readonly metadata?: ClipMetadata;
 }
 

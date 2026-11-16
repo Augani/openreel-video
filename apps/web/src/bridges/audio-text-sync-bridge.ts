@@ -438,11 +438,4 @@ export function getBeatSyncBridge(): BeatSyncBridge {
   return bridgeInstance;
 }
 
-export function disposeBeatSyncBridge(): void {
-  if (bridgeInstance) {
-    bridgeInstance.dispose();
-    bridgeInstance = null;
-  }
-}
-
 export { DEFAULT_BEAT_SYNC_CONFIG, type BeatSyncConfig, type ClipTiming, type BeatAnalysisResult };

@@ -4,8 +4,12 @@ import {
   type EasingName,
 } from "../animation/easing-functions";
 import { AnimationEngine, type BezierControlPoints } from "./animation-engine";
+import {
+  solveBezierEase,
+  DEFAULT_BEZIER_HANDLES,
+} from "../animation/keyframe-bezier";
 
-export type EasingPreset =
+type EasingPreset =
   | "linear"
   | "ease-in"
   | "ease-out"
@@ -14,38 +18,38 @@ export type EasingPreset =
   | "elastic"
   | "spring";
 
-export interface BezierCurve {
+interface BezierCurve {
   type: "bezier";
   controlPoints: [number, number, number, number]; // [x1, y1, x2, y2]
 }
 
-export interface ExtendedKeyframe extends Keyframe {
+interface ExtendedKeyframe extends Keyframe {
   bezierHandles?: {
     in: { x: number; y: number };
     out: { x: number; y: number };
   };
 }
 
-export interface MotionPathPoint {
+interface MotionPathPoint {
   time: number;
   x: number;
   y: number;
 }
 
-export interface MotionPath {
+interface MotionPath {
   clipId: string;
   points: MotionPathPoint[];
   visible: boolean;
 }
 
-export interface KeyframeClipboard {
+interface KeyframeClipboard {
   keyframes: ExtendedKeyframe[];
   sourceClipId: string;
   sourceProperty: string;
   copiedAt: number;
 }
 
-export interface KeyframeInterpolationResult {
+interface KeyframeInterpolationResult {
   value: unknown;
   keyframeA: ExtendedKeyframe | null;
   keyframeB: ExtendedKeyframe | null;
@@ -234,10 +238,15 @@ export class KeyframeEngine {
     });
   }
 
+  /** Eased progress for the segment leaving `keyframe` (the single source of truth for graph, preview and export). */
+  easeSegment(t: number, keyframe: Keyframe): number {
+    return this.applyEasing(t, keyframe);
+  }
+
   private applyEasing(t: number, keyframe: ExtendedKeyframe): number {
     const clampedT = Math.max(0, Math.min(1, t));
     if (keyframe.bezierHandles && keyframe.easing === "bezier") {
-      return this.animationEngine.cubicBezier(
+      return solveBezierEase(
         clampedT,
         keyframe.bezierHandles.in.x,
         keyframe.bezierHandles.in.y,
@@ -256,7 +265,13 @@ export class KeyframeEngine {
         return this.easeInOut(clampedT);
       case "bezier":
         // Default bezier if no handles specified
-        return this.animationEngine.cubicBezier(clampedT, 0.25, 0.1, 0.25, 1.0);
+        return solveBezierEase(
+          clampedT,
+          DEFAULT_BEZIER_HANDLES.in.x,
+          DEFAULT_BEZIER_HANDLES.in.y,
+          DEFAULT_BEZIER_HANDLES.out.x,
+          DEFAULT_BEZIER_HANDLES.out.y,
+        );
       default:
         if (isNamedEasing(keyframe.easing)) {
           return EASING_FUNCTIONS[keyframe.easing](clampedT);

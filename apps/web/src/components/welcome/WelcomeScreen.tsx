@@ -1,4 +1,12 @@
-import { useState, useCallback, useEffect, lazy, Suspense } from "react";
+import {
+  useState,
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  lazy,
+  Suspense,
+} from "react";
 import {
   Clock,
   Layers,
@@ -8,25 +16,48 @@ import {
   Square,
   FolderOpen,
 } from "@/icons/lucide-compat";
-import { ToolcraftSwitchControl } from "@openreel/ui";
-import { ToolcraftButton as Button } from "@openreel/ui";
-import { ToolcraftClickableCard as ClickableCard } from "@openreel/ui";
-import { ToolcraftText as Text } from "@openreel/ui";
+import { Switch, Label } from "@openreel/ui";
+import { Button } from "@openreel/ui";
+import { cn } from "@openreel/ui";
+
 import { useProjectStore } from "../../stores/project-store";
+import { createEditorProject } from "../../services/project-creation";
 import { useUIStore } from "../../stores/ui-store";
 import { SOCIAL_MEDIA_PRESETS, type SocialMediaCategory } from "@openreel/core";
 import { useRouter } from "../../hooks/use-router";
 import { useEditorPreload } from "../../hooks/useEditorPreload";
 import { useAnalytics, AnalyticsEvents } from "../../hooks/useAnalytics";
+import { usePhoneEditor } from "../../hooks/usePhoneEditor";
+import { useOnboardingStore } from "../../stores/onboarding-store";
+import { PathBand } from "../onboarding/shell/PathBand";
+import { isDesktopRuntime, useOnboardingGate } from "../onboarding/shell/useOnboardingGate";
+import { withUserProjectCreation } from "../onboarding/shell/project-intent";
+
+const isDesktop =
+  typeof window !== "undefined" && window.openreel?.platform === "desktop";
+
+const MobileProjectHome = lazy(() =>
+  import("./MobileProjectHome").then((module) => ({
+    default: module.MobileProjectHome,
+  })),
+);
 
 const TemplateGallery = lazy(() =>
-  import("./TemplateGallery").then((module) => ({ default: module.TemplateGallery })),
+  import("./TemplateGallery").then((module) => ({
+    default: module.TemplateGallery,
+  })),
 );
 const RecentProjects = lazy(() =>
-  import("./RecentProjects").then((module) => ({ default: module.RecentProjects })),
+  import("./RecentProjects").then((module) => ({
+    default: module.RecentProjects,
+  })),
 );
 
-const LoadingView = () => <div role="status" className="p-6 text-center text-text-secondary">Loading…</div>;
+const LoadingView = () => (
+  <div role="status" className="p-6 text-center text-text-secondary">
+    Loading…
+  </div>
+);
 
 interface FormatOption {
   id: string;
@@ -144,37 +175,79 @@ interface WelcomeScreenProps {
 }
 
 export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ initialTab }) => {
+  const skipId = useId();
+  const phone = usePhoneEditor();
   const setSkipWelcomeScreen = useUIStore(
     (state) => state.setSkipWelcomeScreen,
   );
   const skipWelcomeScreen = useUIStore((state) => state.skipWelcomeScreen);
-  const createNewProject = useProjectStore((state) => state.createNewProject);
   const { navigate } = useRouter();
   const { track } = useAnalytics();
+  const gate = useOnboardingGate();
+  const bandOpen = useOnboardingStore((state) => state.bandOpen === true);
+  // Any other deliberate choice on the welcome screen retires the first-run band.
+  const dismissBand = useCallback(() => {
+    if (isDesktopRuntime()) useOnboardingStore.getState().skip("user");
+  }, []);
 
   const [viewMode, setViewMode] = useState<ViewMode>(initialTab ?? "home");
-  const [hoveredFormat, setHoveredFormat] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false),
+    [creationError, setCreationError] = useState<string | null>(null);
+  const creation = useRef<AbortController | null>(null);
+  useEffect(() => () => creation.current?.abort(), []);
 
   useEditorPreload(true);
 
   const handleCreateProject = useCallback(
-    (option: FormatOption) => {
+    async (option: FormatOption) => {
+      if (creation.current) return;
+      const controller = new AbortController();
+      creation.current = controller;
+      setCreating(true);
+      setCreationError(null);
       const preset = SOCIAL_MEDIA_PRESETS[option.preset];
-      createNewProject(`New ${option.label} Video`, {
-        width: preset.width,
-        height: preset.height,
-        frameRate: preset.frameRate,
-      });
-      track(AnalyticsEvents.PROJECT_CREATED, {
-        preset: option.preset,
-        width: preset.width,
-        height: preset.height,
-        frameRate: preset.frameRate ?? 30,
-        source: "quick_start",
-      });
-      navigate("editor");
+      try {
+        const created = await withUserProjectCreation(() =>
+          createEditorProject({
+            name: `New ${option.label} Video`,
+            settings: {
+              width: preset.width,
+              height: preset.height,
+              frameRate: preset.frameRate,
+            },
+            signal: controller.signal,
+          }),
+        );
+        if (useProjectStore.getState().project.id !== created.id) return;
+        // The format is already chosen: keep EmptyProjectStart from asking again (spec 3.4).
+        // Choosing a format is the strongest "I know what I want" signal: retire the band, but only now
+        // that a project exists (a failed or aborted creation keeps onboarding).
+        if (isDesktopRuntime()) {
+          const onboarding = useOnboardingStore.getState();
+          onboarding.skip("format");
+          onboarding.markFormatChosen(created.id);
+        }
+        track(AnalyticsEvents.PROJECT_CREATED, {
+          preset: option.preset,
+          width: preset.width,
+          height: preset.height,
+          frameRate: preset.frameRate ?? 30,
+          source: "quick_start",
+        });
+        navigate("editor");
+      } catch (reason) {
+        if (!controller.signal.aborted)
+          setCreationError(
+            reason instanceof Error
+              ? reason.message
+              : "Could not create project. Try again.",
+          );
+      } finally {
+        if (creation.current === controller) creation.current = null;
+        if (!controller.signal.aborted) setCreating(false);
+      }
     },
-    [createNewProject, navigate, track],
+    [navigate, track],
   );
 
   const handleTemplateApplied = useCallback(() => {
@@ -186,13 +259,22 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ initialTab }) => {
   }, [navigate]);
 
   useEffect(() => {
-    if (skipWelcomeScreen) {
+    if (skipWelcomeScreen && !initialTab && !bandOpen) {
       navigate("editor");
     }
-  }, [skipWelcomeScreen, navigate]);
+  }, [skipWelcomeScreen, initialTab, navigate, bandOpen]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (
+        phone ||
+        e.defaultPrevented ||
+        (e.target instanceof Element &&
+          e.target.closest(
+            "input, textarea, select, [contenteditable], [role=dialog], [role=menu], [role=listbox]",
+          ))
+      )
+        return;
       if (e.key === "Escape") {
         if (viewMode !== "home") {
           setViewMode("home");
@@ -203,20 +285,33 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ initialTab }) => {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [navigate, viewMode]);
+  }, [navigate, viewMode, phone]);
+
+  if (phone)
+    return (
+      <Suspense fallback={<LoadingView />}>
+        <MobileProjectHome initialTab={initialTab} />
+      </Suspense>
+    );
 
   if (viewMode === "templates") {
     return (
       <div className="fixed inset-0 z-50 bg-background flex flex-col">
         <header className="flex items-center justify-between px-6 py-4 border-b border-border">
           <Button
-            label="Back"
-            variant="ghost"
-            size="sm"
-            icon={<ArrowRight className="rotate-180" size={16} aria-hidden />}
             onClick={() => setViewMode("home")}
-          />
-          <Text type="label" color="primary" weight="medium" className="text-sm text-text-primary">Templates</Text>
+            type="button"
+            aria-label="Back"
+            className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] bg-transparent text-fg-2 hover:bg-bg-2 hover:text-fg"
+          >
+            <span className="flex h-4 w-4 shrink-0 items-center justify-center">
+              {<ArrowRight className="rotate-180" size={16} aria-hidden />}
+            </span>
+            <span className="truncate">{"Back"}</span>
+          </Button>
+          <span className="font-medium text-sm text-text-primary">
+            Templates
+          </span>
           <div className="w-16" />
         </header>
         <div className="flex-1 overflow-y-auto p-6">
@@ -233,15 +328,19 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ initialTab }) => {
       <div className="fixed inset-0 z-50 bg-background flex flex-col">
         <header className="flex items-center justify-between px-6 py-4 border-b border-border">
           <Button
-            label="Back"
-            variant="ghost"
-            size="sm"
-            icon={<ArrowRight className="rotate-180" size={16} aria-hidden />}
             onClick={() => setViewMode("home")}
-          />
-          <Text type="label" color="primary" weight="medium" className="text-sm text-text-primary">
+            type="button"
+            aria-label="Back"
+            className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] bg-transparent text-fg-2 hover:bg-bg-2 hover:text-fg"
+          >
+            <span className="flex h-4 w-4 shrink-0 items-center justify-center">
+              {<ArrowRight className="rotate-180" size={16} aria-hidden />}
+            </span>
+            <span className="truncate">{"Back"}</span>
+          </Button>
+          <span className="font-medium text-sm text-text-primary">
             Recent Projects
-          </Text>
+          </span>
           <div className="w-16" />
         </header>
         <div className="flex-1 overflow-y-auto p-6">
@@ -253,151 +352,233 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ initialTab }) => {
     );
   }
 
+  // First-run mode (the path band is showing) compacts the page so the band, the format cards and the
+  // footer all fit the 1024x700 minimum window without scrolling (spec 2.1 "Fit").
+  const compact = gate.showBand;
   return (
     <div className="fixed inset-0 z-50 bg-background overflow-hidden">
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(34,197,94,0.05),transparent_60%)]" />
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_right,rgba(34,197,94,0.03),transparent_50%)]" />
 
-      <div className="relative h-full flex flex-col items-center justify-center px-6">
-        <div className="w-full max-w-3xl">
-          <div className="flex flex-col items-center text-center mb-12">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-12 h-12 text-primary">
-                <OpenReelLogo className="w-full h-full" />
+      <div data-testid="welcome-scroller" className="relative h-full overflow-y-auto">
+        <div className="flex min-h-full flex-col items-center px-6 py-4">
+          <div className="my-auto w-full max-w-3xl">
+            <div
+              className={cn(
+                "flex flex-col items-center text-center",
+                compact ? "mb-3" : "mb-12",
+              )}
+            >
+              <div className={cn("flex items-center gap-3", compact ? "mb-2" : "mb-6")}>
+                <div className={cn("text-primary", compact ? "w-10 h-10" : "w-12 h-12")}>
+                  <OpenReelLogo className="w-full h-full" />
+                </div>
+                <span className="font-semibold text-xl text-text-primary tracking-tight">
+                  Open Reel Video
+                </span>
               </div>
-              <Text type="body" color="primary" weight="semibold" className="text-xl text-text-primary tracking-tight">
-                Open Reel Video
-              </Text>
+
+              <span
+                className={cn(
+                  "font-bold text-text-primary tracking-tight",
+                  compact ? "text-3xl mb-1" : "text-4xl sm:text-5xl mb-3",
+                )}
+              >
+                From idea to export.
+              </span>
+              <span
+                className={cn(
+                  "font-normal text-text-secondary",
+                  compact ? "text-base" : "text-xl mb-8",
+                )}
+              >
+                {isDesktop ? "On your desktop." : "In your browser."}
+              </span>
+              {!compact && (
+                <span className="font-normal text-base text-text-muted max-w-md">
+                  Pick a format and start creating. You can change this anytime.
+                </span>
+              )}
             </div>
 
-            <Text type="body" color="primary" weight="bold" className="text-4xl sm:text-5xl text-text-primary tracking-tight mb-3">
-              From idea to export.
-            </Text>
-            <Text type="supporting" color="secondary" className="text-xl text-text-secondary mb-8">
-              In your browser.
-            </Text>
-            <Text type="supporting" color="secondary" className="text-base text-text-muted max-w-md">
-              Pick a format and start creating. You can change this anytime.
-            </Text>
-          </div>
+            <PathBand />
 
-          <div className="grid grid-cols-3 gap-4 mb-10">
-            {FORMAT_OPTIONS.map((option) => {
-              const Icon = option.icon;
-              const isHovered = hoveredFormat === option.id;
+            {compact && (
+              <p className="mb-2 text-xs font-medium uppercase tracking-wide text-fg-3">
+                Or just pick a format and start
+              </p>
+            )}
+            <div className={cn("grid grid-cols-3", compact ? "gap-3 mb-4" : "gap-4 mb-10")}>
+              {FORMAT_OPTIONS.map((option) => {
+                const Icon = option.icon;
 
-              return (
-                <ClickableCard
-                  key={option.id}
-                  label={`Create ${option.label} project`}
-                  onClick={() => handleCreateProject(option)}
-                  onMouseEnter={() => setHoveredFormat(option.id)}
-                  onMouseLeave={() => setHoveredFormat(null)}
-                  padding={6}
-                  variant="muted"
-                  className={`
-                    group relative flex flex-col items-center p-6 rounded-2xl
-                    bg-background-secondary border border-border
-                    hover:border-primary/40 hover:bg-background-tertiary
-                    transition-all duration-200
-                    ${isHovered ? "scale-[1.02] shadow-lg shadow-primary/5" : ""}
-                  `}
-                >
-                  <div
-                    className={`
-                    absolute inset-0 rounded-2xl bg-gradient-to-br ${option.gradient}
-                    opacity-0 group-hover:opacity-100 transition-opacity duration-300
-                  `}
-                  />
-
-                  <div className="relative z-10 flex flex-col items-center">
+                return (
+                  <Button
+                    variant="ghost"
+                    key={option.id}
+                    onClick={() => handleCreateProject(option)}
+                    type="button"
+                    aria-label={`Create ${option.label} project`}
+                    disabled={creating}
+                    className={cn(
+                      "group relative flex h-auto min-w-0 flex-col items-center whitespace-normal rounded-2xl border border-border bg-bg-1 text-left",
+                      "transition-[background-color,border-color,box-shadow] duration-200 motion-reduce:transition-none",
+                      "hover:border-accent/40 hover:bg-bg-2 hover:shadow-glow",
+                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                      "disabled:cursor-not-allowed disabled:opacity-50",
+                      compact ? "p-4" : "p-6",
+                    )}
+                  >
                     <div
-                      className={`
-                      w-16 h-16 mb-4 rounded-xl flex items-center justify-center
-                      bg-background-tertiary group-hover:bg-primary/10
-                      transition-colors duration-200
-                    `}
-                    >
-                      <Icon
-                        size={28}
-                        className="text-text-muted group-hover:text-primary transition-colors"
-                      />
+                      className={`absolute inset-0 rounded-2xl bg-gradient-to-br ${option.gradient} opacity-0 group-hover:opacity-100 transition-opacity duration-300 motion-reduce:transition-none`}
+                    />
+
+                    <div className="relative z-10 flex flex-col items-center">
+                      <div
+                        className={cn(
+                          "flex items-center justify-center rounded-xl bg-bg-2 transition-colors duration-200 group-hover:bg-accent-soft motion-reduce:transition-none",
+                          compact ? "w-10 h-10 mb-2" : "w-16 h-16 mb-4",
+                        )}
+                      >
+                        <Icon
+                          size={compact ? 20 : 28}
+                          className="text-fg-3 transition-colors group-hover:text-accent"
+                        />
+                      </div>
+
+                      <span
+                        className={cn(
+                          "font-semibold text-fg",
+                          compact ? "text-base mb-0.5" : "text-lg mb-1",
+                        )}
+                      >
+                        {option.label}
+                      </span>
+                      <span
+                        className={cn(
+                          "font-normal text-fg-3",
+                          compact ? "text-xs mb-2" : "text-sm mb-3",
+                        )}
+                      >
+                        {option.description}
+                      </span>
+                      <span className="text-xs font-mono text-fg-3/80 bg-bg-2 px-2 py-1 rounded">
+                        {option.dimensions}
+                      </span>
                     </div>
 
-                    <Text type="body" color="primary" weight="semibold" className="text-lg text-text-primary mb-1">
-                      {option.label}
-                    </Text>
-                    <Text type="supporting" color="secondary" className="text-sm text-text-muted mb-3">
-                      {option.description}
-                    </Text>
-                    <span className="text-xs font-mono text-text-muted/70 bg-background-tertiary px-2 py-1 rounded">
-                      {option.dimensions}
-                    </span>
-                  </div>
+                    {!compact && (
+                      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1 text-sm font-medium text-accent opacity-0 group-hover:opacity-100 translate-y-2 group-hover:translate-y-0 transition-all duration-200 motion-reduce:transition-none">
+                        Start creating
+                        <ArrowRight size={14} />
+                      </div>
+                    )}
+                  </Button>
+                );
+              })}
+            </div>
 
-                  <div
-                    className={`
-                    absolute bottom-4 left-1/2 -translate-x-1/2
-                    flex items-center gap-1 text-sm font-medium text-primary
-                    opacity-0 group-hover:opacity-100 translate-y-2 group-hover:translate-y-0
-                    transition-all duration-200
-                  `}
-                  >
-                    Start creating
-                    <ArrowRight size={14} />
-                  </div>
-                </ClickableCard>
-              );
-            })}
+            {creating && (
+              <p role="status" className="mb-4 text-center text-xs text-fg-3">
+                Saving current work and creating project...
+              </p>
+            )}
+            {creationError && (
+              <p role="alert" className="mb-4 text-center text-xs text-red-400">
+                {creationError}
+              </p>
+            )}
+            <div className="flex items-center justify-center gap-3">
+              <Button
+                onClick={() => {
+                  dismissBand();
+                  setViewMode("templates");
+                }}
+                type="button"
+                aria-label="Browse templates"
+                disabled={creating}
+                className="inline-flex min-w-0 items-center justify-center gap-1.5 font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 px-3 text-[12px] border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg rounded-xl"
+              >
+                <span className="flex h-4 w-4 shrink-0 items-center justify-center">
+                  {<Layers size={16} aria-hidden />}
+                </span>
+                <span className="truncate">{"Browse templates"}</span>
+              </Button>
+              <Button
+                onClick={() => {
+                  dismissBand();
+                  setViewMode("recent");
+                }}
+                type="button"
+                aria-label="Recent projects"
+                disabled={creating}
+                className="inline-flex min-w-0 items-center justify-center gap-1.5 font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 px-3 text-[12px] border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg rounded-xl"
+              >
+                <span className="flex h-4 w-4 shrink-0 items-center justify-center">
+                  {<Clock size={16} aria-hidden />}
+                </span>
+                <span className="truncate">{"Recent projects"}</span>
+              </Button>
+              <Button
+                onClick={() => {
+                  dismissBand();
+                  navigate("editor");
+                }}
+                type="button"
+                aria-label="Open editor"
+                disabled={creating}
+                className="inline-flex min-w-0 items-center justify-center gap-1.5 font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 px-3 text-[12px] border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg rounded-xl"
+              >
+                <span className="flex h-4 w-4 shrink-0 items-center justify-center">
+                  {<FolderOpen size={16} aria-hidden />}
+                </span>
+                <span className="truncate">{"Open editor"}</span>
+              </Button>
+            </div>
           </div>
 
-          <div className="flex items-center justify-center gap-3">
-            <Button
-              label="Browse templates"
-              variant="secondary"
-              icon={<Layers size={16} aria-hidden />}
-              onClick={() => setViewMode("templates")}
-              className="rounded-xl"
-            />
-            <Button
-              label="Recent projects"
-              variant="secondary"
-              icon={<Clock size={16} aria-hidden />}
-              onClick={() => setViewMode("recent")}
-              className="rounded-xl"
-            />
-            <Button
-              label="Open editor"
-              variant="secondary"
-              icon={<FolderOpen size={16} aria-hidden />}
-              onClick={() => navigate("editor")}
-              className="rounded-xl"
-            />
+          <div className="mt-3 flex shrink-0 items-center gap-4">
+            <div className="flex items-center gap-2">
+              <Switch
+                id={skipId}
+                disabled={creating}
+                checked={skipWelcomeScreen}
+                onCheckedChange={setSkipWelcomeScreen}
+              />
+              <Label htmlFor={skipId} className="text-xs text-fg-3">
+                Skip on startup
+              </Label>
+            </div>
+
+            {gate.enabled && !gate.showBand && (
+              <>
+                <span className="text-text-muted/30">·</span>
+                <button
+                  type="button"
+                  onClick={() => useOnboardingStore.getState().reopenBand()}
+                  className="rounded text-xs text-fg-3 outline-none transition-colors hover:text-fg focus-visible:ring-2 focus-visible:ring-accent motion-reduce:transition-none"
+                >
+                  Setup
+                </button>
+              </>
+            )}
+
+            {!compact && (
+              <>
+                <span className="text-text-muted/30">·</span>
+
+                <span className="font-normal text-xs text-text-muted/60">
+                  Press{" "}
+                  <kbd className="px-1.5 py-0.5 bg-background-tertiary border border-border rounded text-text-muted font-mono text-[10px]">
+                    Esc
+                  </kbd>{" "}
+                  to skip
+                </span>
+              </>
+            )}
           </div>
-        </div>
-
-        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-4">
-          <div className="flex items-center gap-2">
-            <ToolcraftSwitchControl
-              label="Skip on startup"
-              checked={skipWelcomeScreen}
-              onCheckedChange={setSkipWelcomeScreen}
-            />
-          </div>
-
-          <span className="text-text-muted/30">·</span>
-
-          <Text type="supporting" color="secondary" className="text-xs text-text-muted/60">
-            Press{" "}
-            <kbd className="px-1.5 py-0.5 bg-background-tertiary border border-border rounded text-text-muted font-mono text-[10px]">
-              Esc
-            </kbd>{" "}
-            to skip
-          </Text>
         </div>
       </div>
     </div>
   );
 };
-
-export default WelcomeScreen;

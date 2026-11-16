@@ -35,7 +35,7 @@ describe("drawFrameWithMasks", () => {
   it("uses the direct renderer when the clip has no masks", async () => {
     const drawFrame = vi.fn();
     const loadMasks = vi.fn();
-    const applyMask = vi.fn();
+    const applyMasks = vi.fn();
     const ctx = { drawImage: vi.fn() } as unknown as CanvasRenderingContext2D;
 
     await drawFrameWithMasks(
@@ -46,7 +46,7 @@ describe("drawFrameWithMasks", () => {
         canvasWidth: 640,
         canvasHeight: 360,
         masks: [],
-        maskEngine: { loadMasks, applyMask },
+        maskEngine: { loadMasks, applyMasks },
         time: 1.5,
       },
       { drawFrame },
@@ -54,22 +54,23 @@ describe("drawFrameWithMasks", () => {
 
     expect(drawFrame).toHaveBeenCalledOnce();
     expect(loadMasks).not.toHaveBeenCalled();
-    expect(applyMask).not.toHaveBeenCalled();
+    expect(applyMasks).not.toHaveBeenCalled();
   });
 
-  it("renders an isolated layer and applies every mask in sequence", async () => {
+  it("renders an isolated layer and applies all masks once via applyMasks (honouring combine modes)", async () => {
     const drawFrame = vi.fn();
     const drawImage = vi.fn();
     const layerCtx = { drawImage: vi.fn() };
     const initial = bitmap("initial");
-    const first = bitmap("first");
     const second = bitmap("second");
-    const masks = [mask("mask-a"), mask("mask-b")];
+    const masks = [
+      mask("mask-a"),
+      { ...mask("mask-b"), combine: "subtract" as const },
+    ];
     const loadMasks = vi.fn();
-    const applyMask = vi
+    const applyMasks = vi
       .fn()
-      .mockResolvedValueOnce({ image: first, processingTime: 1, gpuAccelerated: false })
-      .mockResolvedValueOnce({ image: second, processingTime: 1, gpuAccelerated: false });
+      .mockResolvedValue({ image: second, processingTime: 1, gpuAccelerated: false });
 
     await drawFrameWithMasks(
       {
@@ -79,7 +80,7 @@ describe("drawFrameWithMasks", () => {
         canvasWidth: 640,
         canvasHeight: 360,
         masks,
-        maskEngine: { loadMasks, applyMask },
+        maskEngine: { loadMasks, applyMasks },
         time: 2.25,
       },
       {
@@ -92,11 +93,10 @@ describe("drawFrameWithMasks", () => {
 
     expect(drawFrame).toHaveBeenCalledOnce();
     expect(loadMasks).toHaveBeenCalledWith(masks);
-    expect(applyMask).toHaveBeenNthCalledWith(1, initial, masks[0], 2.25);
-    expect(applyMask).toHaveBeenNthCalledWith(2, first, masks[1], 2.25);
+    expect(applyMasks).toHaveBeenCalledOnce();
+    expect(applyMasks).toHaveBeenCalledWith(initial, masks, 2.25);
     expect(drawImage).toHaveBeenCalledWith(second, 0, 0, 640, 360);
     expect(initial.close).toHaveBeenCalledOnce();
-    expect(first.close).toHaveBeenCalledOnce();
     expect(second.close).toHaveBeenCalledOnce();
   });
 });

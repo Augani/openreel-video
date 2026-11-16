@@ -1,7 +1,12 @@
 import type { TransitionType, TransitionParams } from "../types/effects";
-import type { Transition, Clip, Track, TransitionEdge } from "../types/timeline";
+import type {
+  Transition,
+  Clip,
+  Track,
+  TransitionEdge,
+} from "../types/timeline";
 
-export interface TransitionRenderResult {
+interface TransitionRenderResult {
   frame: ImageBitmap;
   processingTime: number;
   gpuAccelerated: boolean;
@@ -14,13 +19,69 @@ export interface TransitionValidationResult {
   warning?: string;
 }
 
-export interface TransitionEngineConfig {
+interface TransitionEngineConfig {
   width: number;
   height: number;
   useGPU?: boolean;
 }
 
 type EasingFunction = (t: number) => number;
+
+/** Read transition defaults without initializing a renderer or allocating canvases. */
+export function getDefaultTransitionParams(type: TransitionType): Record<string, unknown> {
+  switch (type) {
+    case "crossfade":
+      return { curve: "ease" };
+    case "dipToBlack":
+      return { holdDuration: 0.1 };
+    case "dipToWhite":
+      return { holdDuration: 0.1 };
+    case "wipe":
+      return { direction: "left", softness: 0 };
+    case "slide":
+      return { direction: "left", pushOut: false };
+    case "zoom":
+      return { scale: 2, center: { x: 0.5, y: 0.5 } };
+    case "push":
+      return { direction: "left" };
+    case "circleReveal":
+      return { center: { x: 0.5, y: 0.5 } };
+    case "blur":
+      return { intensity: 1 };
+    case "whipPan":
+      return { direction: "left", blurIntensity: 1 };
+    case "radialWipe":
+      return { startAngle: -90, clockwise: true };
+    case "pixelate":
+      return { maxPixelSize: 48 };
+    case "glitch":
+      return { intensity: 0.08, slices: 12 };
+    case "blinds":
+      return { count: 8, direction: "vertical" };
+    case "diamondReveal":
+      return { center: { x: 0.5, y: 0.5 } };
+    case "spin":
+      return { rotations: 1 };
+    case "flip":
+      return { axis: "horizontal" };
+    case "splitReveal":
+      return { orientation: "horizontal" };
+    case "flash":
+      return { intensity: 1 };
+    case "filmBurn":
+      return { intensity: 1, warmth: 0.75 };
+    case "mosaic":
+      return { tiles: 8, randomness: 0.85 };
+    case "ripple":
+      return { amplitude: 0.04, waves: 3 };
+    case "pageTurn":
+      return { direction: "left", shadow: 0.55 };
+    case "colorSplit":
+      return { maxOffset: 18, angle: 0 };
+    default:
+      return {};
+  }
+}
 
 export class TransitionEngine {
   private canvas: OffscreenCanvas | null = null;
@@ -107,7 +168,11 @@ export class TransitionEngine {
 
     let scratch = slot === "A" ? this.scratchA : this.scratchB;
     let scratchCtx = slot === "A" ? this.scratchACtx : this.scratchBCtx;
-    if (!scratch || scratch.width !== this.width || scratch.height !== this.height) {
+    if (
+      !scratch ||
+      scratch.width !== this.width ||
+      scratch.height !== this.height
+    ) {
       scratch = new OffscreenCanvas(this.width, this.height);
       scratchCtx = scratch.getContext("2d");
       if (slot === "A") {
@@ -537,11 +602,7 @@ export class TransitionEngine {
     const featherSize = Math.max(1, length * softness * 0.25);
     const slices = 20;
 
-    const drawRegion = (
-      start: number,
-      end: number,
-      alpha: number,
-    ): void => {
+    const drawRegion = (start: number, end: number, alpha: number): void => {
       const clampedStart = Math.max(0, Math.min(length, start));
       const clampedEnd = Math.max(0, Math.min(length, end));
       if (clampedEnd <= clampedStart || alpha <= 0) return;
@@ -563,7 +624,8 @@ export class TransitionEngine {
       drawRegion(0, featherStart, 1);
       for (let index = 0; index < slices; index += 1) {
         const start = featherStart + (edge - featherStart) * (index / slices);
-        const end = featherStart + (edge - featherStart) * ((index + 1) / slices);
+        const end =
+          featherStart + (edge - featherStart) * ((index + 1) / slices);
         drawRegion(start, end, 1 - (index + 0.5) / slices);
       }
       return;
@@ -841,9 +903,8 @@ export class TransitionEngine {
       const sliceHeight = Math.max(1, nextY - y);
       const wave = Math.sin(index * 12.9898 + progress * 31.7);
       const offset = wave * strength;
-      const source = (index + Math.floor(progress * 10)) % 2 === 0
-        ? outgoing
-        : incoming;
+      const source =
+        (index + Math.floor(progress * 10)) % 2 === 0 ? outgoing : incoming;
       ctx.drawImage(source, 0, y, w, sliceHeight, offset, y, w, sliceHeight);
     }
     ctx.globalAlpha = 1;
@@ -892,8 +953,7 @@ export class TransitionEngine {
     const cx = w * Math.max(0, Math.min(1, center.x));
     const cy = h * Math.max(0, Math.min(1, center.y));
     const radius =
-      Math.max(cx + cy, w - cx + cy, cx + h - cy, w - cx + h - cy) *
-      progress;
+      Math.max(cx + cy, w - cx + cy, cx + h - cy, w - cx + h - cy) * progress;
     ctx.drawImage(outgoing, 0, 0, w, h);
     ctx.save();
     ctx.beginPath();
@@ -932,13 +992,13 @@ export class TransitionEngine {
       ctx.drawImage(source, 0, 0, this.width, this.height);
       ctx.restore();
     };
-    draw(outgoing, 1 - progress, Math.max(0.05, 1 - progress * 0.75), turn * progress);
     draw(
-      incoming,
-      progress,
-      0.25 + progress * 0.75,
-      turn * (progress - 1),
+      outgoing,
+      1 - progress,
+      Math.max(0.05, 1 - progress * 0.75),
+      turn * progress,
     );
+    draw(incoming, progress, 0.25 + progress * 0.75, turn * (progress - 1));
   }
 
   private async renderFlip(
@@ -953,9 +1013,18 @@ export class TransitionEngine {
     const phase = firstHalf ? 1 - progress * 2 : (progress - 0.5) * 2;
     ctx.save();
     ctx.translate(this.width / 2, this.height / 2);
-    ctx.scale(horizontal ? Math.max(0.001, phase) : 1, horizontal ? 1 : Math.max(0.001, phase));
+    ctx.scale(
+      horizontal ? Math.max(0.001, phase) : 1,
+      horizontal ? 1 : Math.max(0.001, phase),
+    );
     ctx.translate(-this.width / 2, -this.height / 2);
-    ctx.drawImage(firstHalf ? outgoing : incoming, 0, 0, this.width, this.height);
+    ctx.drawImage(
+      firstHalf ? outgoing : incoming,
+      0,
+      0,
+      this.width,
+      this.height,
+    );
     ctx.restore();
   }
 
@@ -995,7 +1064,10 @@ export class TransitionEngine {
     const ctx = this.getContext();
     ctx.save();
     ctx.fillStyle = "white";
-    ctx.globalAlpha = Math.min(1, Math.max(0, intensity) * Math.sin(progress * Math.PI));
+    ctx.globalAlpha = Math.min(
+      1,
+      Math.max(0, intensity) * Math.sin(progress * Math.PI),
+    );
     ctx.fillRect(0, 0, this.width, this.height);
     ctx.restore();
   }
@@ -1053,9 +1125,10 @@ export class TransitionEngine {
       for (let column = 0; column < columns; column += 1) {
         const order =
           (row * columns + column) / Math.max(1, rows * columns - 1);
-        const random = Math.abs(
-          Math.sin((column + 1) * 12.9898 + (row + 1) * 78.233) * 43758.5453,
-        ) % 1;
+        const random =
+          Math.abs(
+            Math.sin((column + 1) * 12.9898 + (row + 1) * 78.233) * 43758.5453,
+          ) % 1;
         const threshold = order * (1 - randomMix) + random * randomMix;
         if (progress < threshold) continue;
         const x = column * tileWidth;
@@ -1166,15 +1239,8 @@ export class TransitionEngine {
     ctx.save();
     ctx.fillStyle = "black";
     ctx.globalAlpha =
-      Math.max(0, Math.min(1, shadow)) *
-      Math.sin(progress * Math.PI) *
-      0.65;
-    ctx.fillRect(
-      turnLeft ? foldX - shadowWidth : foldX,
-      0,
-      shadowWidth,
-      h,
-    );
+      Math.max(0, Math.min(1, shadow)) * Math.sin(progress * Math.PI) * 0.65;
+    ctx.fillRect(turnLeft ? foldX - shadowWidth : foldX, 0, shadowWidth, h);
     ctx.restore();
   }
 
@@ -1207,6 +1273,11 @@ export class TransitionEngine {
     ctx.globalAlpha = 1;
   }
 
+  /** The transition's progress after its easing curve (what the renderers blend with). */
+  easedProgress(transition: Transition, progress: number): number {
+    return this.applyEasing(Math.max(0, Math.min(1, progress)), transition.params.curve as string);
+  }
+
   private applyEasing(progress: number, curve?: string): number {
     const easingFunctions: Record<string, EasingFunction> = {
       linear: (t) => t,
@@ -1224,6 +1295,7 @@ export class TransitionEngine {
     clipA: Clip,
     clipB: Clip,
     duration: number,
+    alignment: unknown = "center",
   ): TransitionValidationResult {
     const clipAEnd = clipA.startTime + clipA.duration;
     const gap = Math.abs(clipB.startTime - clipAEnd);
@@ -1247,7 +1319,12 @@ export class TransitionEngine {
     // We can't validate source-media handles without media metadata, so we
     // bound by the visible ranges and let the decoder clamp to edge frames
     // when the transition extends past a clip's range.
-    const maxDuration = Math.min(clipA.duration, clipB.duration) * 2;
+    const maxDuration =
+      alignment === "start"
+        ? clipB.duration
+        : alignment === "end"
+          ? clipA.duration
+          : Math.min(clipA.duration, clipB.duration) * 2;
 
     if (duration > maxDuration) {
       return {
@@ -1342,9 +1419,16 @@ export class TransitionEngine {
     clipB: Clip,
     type: TransitionType,
     duration: number,
-    params?: Partial<TransitionParams[typeof type]>,
+    params?: Partial<TransitionParams[typeof type]> & {
+      alignment?: "start" | "center" | "end";
+    },
   ): Transition | null {
-    const validation = this.validateTransition(clipA, clipB, duration);
+    const validation = this.validateTransition(
+      clipA,
+      clipB,
+      duration,
+      (params as Record<string, unknown> | undefined)?.alignment,
+    );
     if (!validation.valid && !validation.warning) {
       return null;
     }
@@ -1395,58 +1479,7 @@ export class TransitionEngine {
   }
 
   getDefaultParams(type: TransitionType): Record<string, unknown> {
-    switch (type) {
-      case "crossfade":
-        return { curve: "ease" };
-      case "dipToBlack":
-        return { holdDuration: 0.1 };
-      case "dipToWhite":
-        return { holdDuration: 0.1 };
-      case "wipe":
-        return { direction: "left", softness: 0 };
-      case "slide":
-        return { direction: "left", pushOut: false };
-      case "zoom":
-        return { scale: 2, center: { x: 0.5, y: 0.5 } };
-      case "push":
-        return { direction: "left" };
-      case "circleReveal":
-        return { center: { x: 0.5, y: 0.5 } };
-      case "blur":
-        return { intensity: 1 };
-      case "whipPan":
-        return { direction: "left", blurIntensity: 1 };
-      case "radialWipe":
-        return { startAngle: -90, clockwise: true };
-      case "pixelate":
-        return { maxPixelSize: 48 };
-      case "glitch":
-        return { intensity: 0.08, slices: 12 };
-      case "blinds":
-        return { count: 8, direction: "vertical" };
-      case "diamondReveal":
-        return { center: { x: 0.5, y: 0.5 } };
-      case "spin":
-        return { rotations: 1 };
-      case "flip":
-        return { axis: "horizontal" };
-      case "splitReveal":
-        return { orientation: "horizontal" };
-      case "flash":
-        return { intensity: 1 };
-      case "filmBurn":
-        return { intensity: 1, warmth: 0.75 };
-      case "mosaic":
-        return { tiles: 8, randomness: 0.85 };
-      case "ripple":
-        return { amplitude: 0.04, waves: 3 };
-      case "pageTurn":
-        return { direction: "left", shadow: 0.55 };
-      case "colorSplit":
-        return { maxOffset: 18, angle: 0 };
-      default:
-        return {};
-    }
+    return getDefaultTransitionParams(type);
   }
 
   updateTransitionDuration(
@@ -1455,7 +1488,12 @@ export class TransitionEngine {
     clipB: Clip,
     newDuration: number,
   ): Transition {
-    const validation = this.validateTransition(clipA, clipB, newDuration);
+    const validation = this.validateTransition(
+      clipA,
+      clipB,
+      newDuration,
+      transition.params.alignment,
+    );
     const actualDuration = validation.maxDuration
       ? Math.min(newDuration, validation.maxDuration)
       : newDuration;
@@ -1523,7 +1561,12 @@ export class TransitionEngine {
       };
     }
 
-    const start = clipEnd - duration / 2;
+    const start =
+      transition.params.alignment === "start"
+        ? clipEnd
+        : transition.params.alignment === "end"
+          ? clipEnd - duration
+          : clipEnd - duration / 2;
     return {
       start,
       end: start + duration,

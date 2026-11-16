@@ -1,4 +1,4 @@
-export function installLocalStorageMock(): void {
+function installLocalStorageMock(): void {
   if (typeof window.localStorage?.setItem === "function") return;
 
   const store = new Map<string, string>();

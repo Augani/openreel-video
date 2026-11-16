@@ -1,18 +1,29 @@
 import { createServer, type Server, type IncomingMessage, type ServerResponse } from "node:http";
 import { timingSafeEqual } from "node:crypto";
-import { handleMcpMessage, type McpToolProvider, type ServerInfo, type JsonRpcMessage } from "./core";
+import { MCP_PROBE_HEADER } from "../../shared/mcp";
+import {
+  handleMcpMessage,
+  type McpMessageHooks,
+  type McpToolProvider,
+  type ServerInfo,
+  type JsonRpcMessage,
+} from "./core";
 
 const MAX_BODY_BYTES = 4 * 1024 * 1024;
 
 class BodyTooLargeError extends Error {}
 
-export interface HttpServerOptions {
+interface HttpServerOptions {
   /** Read live so a rotated token takes effect without restarting the server. */
   readonly getToken: () => string;
   readonly provider: McpToolProvider;
   readonly serverInfo: ServerInfo;
   readonly host?: string;
   readonly port?: number;
+  /** Called for each `initialize` handshake (client tracker). */
+  readonly onInitialize?: McpMessageHooks["onInitialize"];
+  /** Called for each authenticated request, before it is handled. */
+  readonly onActivity?: () => void;
 }
 
 export interface RunningHttpServer {
@@ -67,15 +78,16 @@ async function handleRpcPayload(
   raw: string,
   provider: McpToolProvider,
   serverInfo: ServerInfo,
+  hooks: McpMessageHooks,
 ): Promise<unknown> {
   const parsed = JSON.parse(raw) as JsonRpcMessage | JsonRpcMessage[];
   if (Array.isArray(parsed)) {
     const responses = await Promise.all(
-      parsed.map((m) => handleMcpMessage(m, provider, serverInfo)),
+      parsed.map((m) => handleMcpMessage(m, provider, serverInfo, hooks)),
     );
     return responses.filter((r) => r !== null);
   }
-  return handleMcpMessage(parsed, provider, serverInfo);
+  return handleMcpMessage(parsed, provider, serverInfo, hooks);
 }
 
 export function startHttpServer(
@@ -92,6 +104,8 @@ export function startHttpServer(
         sendJson(res, 401, { error: "Unauthorized" });
         return;
       }
+      const isProbe = req.headers[MCP_PROBE_HEADER] === "1";
+      if (!isProbe) options.onActivity?.();
       try {
         const body = await readBody(req);
         if (!body) {
@@ -102,6 +116,7 @@ export function startHttpServer(
           body,
           options.provider,
           options.serverInfo,
+          { onInitialize: isProbe ? undefined : options.onInitialize },
         );
         if (response === null || (Array.isArray(response) && response.length === 0)) {
           res.writeHead(202).end();

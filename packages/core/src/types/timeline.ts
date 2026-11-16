@@ -18,6 +18,82 @@ export interface Timeline {
    */
   readonly backgroundFillMode?: "color" | "blur";
   readonly layoutBackgroundColor?: string;
+  /** Master-bus effect rack, fader and trim applied after every track mixes. */
+  readonly masterAudioRack?: AudioRack;
+  /**
+   * Submix buses of this sequence (Audio Track Mixer). Absent on old projects:
+   * every track then plays straight into the master, exactly as before.
+   */
+  readonly audioBuses?: AudioBus[];
+}
+
+export type AudioBusRole = "general" | "dialogue" | "music" | "effects";
+
+/**
+ * A submix bus. Tracks (and other buses) route their output into it; it has
+ * its own effect rack (rack.effects), fader (rack.volume) and pan (rack.pan),
+ * mute/solo and optional volume automation, then plays into `output`
+ * (another bus id; absent = master). Buses live beside `tracks` rather than in
+ * them so clip containers, sync lock and track targeting never see them.
+ */
+export interface AudioBus {
+  readonly id: string;
+  readonly name: string;
+  readonly role?: AudioBusRole;
+  readonly color?: string;
+  readonly rack?: AudioRack;
+  readonly muted: boolean;
+  readonly solo: boolean;
+  /** Bus id this bus plays into; absent = master. */
+  readonly output?: string;
+  /** Fader automation in timeline seconds (linear gain 0..4), replaces rack.volume while it plays. */
+  readonly automation?: { readonly volume?: AutomationPoint[] };
+}
+
+/** A track-to-bus send. Pre-fader sends ignore the track fader; both respect mute/solo. */
+export interface AudioSend {
+  readonly id: string;
+  readonly busId: string;
+  /** Linear send level 0..4 (1 = 0 dB). */
+  readonly level: number;
+  readonly preFader: boolean;
+  readonly muted?: boolean;
+  /** Send-level automation in timeline seconds (linear 0..4). */
+  readonly automation?: AutomationPoint[];
+}
+
+export type AudioRackEffectType =
+  | "gain"
+  | "eq"
+  | "compressor"
+  | "limiter"
+  | "reverb"
+  | "delay"
+  | "noiseReduction"
+  | "deHum"
+  | "deClick"
+  | "deClip"
+  | "deEss"
+  | "deReverb"
+  | "gate"
+  | "brickwallLimiter"
+  | "lowPass";
+
+/** One slot of a track/master effect rack. Bypass keeps the slot and its params. */
+export interface AudioRackEffect {
+  readonly id: string;
+  readonly type: AudioRackEffectType;
+  readonly params: Record<string, number | string | boolean>;
+  readonly bypassed: boolean;
+}
+
+/** Ordered rack (max 5 slots) plus the bus fader and pan it feeds. */
+export interface AudioRack {
+  readonly effects: AudioRackEffect[];
+  /** Linear bus volume 0..4 (1 = 0 dB). Defaults to 1. */
+  readonly volume?: number;
+  /** Track pan -1..1. Defaults to 0. Unused on the master bus. */
+  readonly pan?: number;
 }
 
 export interface TimelineBeatMarker {
@@ -32,6 +108,11 @@ export interface TimelineBeatAnalysis {
   readonly confidence: number;
   readonly sourceClipId?: string;
   readonly analyzedAt: number;
+}
+
+export interface TrackAutomation {
+  readonly volume?: AutomationPoint[];
+  readonly pan?: AutomationPoint[];
 }
 
 export interface Track {
@@ -55,11 +136,31 @@ export interface Track {
   readonly clips: Clip[];
   readonly transitions: Transition[];
   readonly locked: boolean;
+  /**
+   * Premiere-style Sync Lock. Ripple-type edits (ripple delete, ripple trim,
+   * Insert, Extract, paste-insert, close gap) keep this track in sync with the
+   * edit by shifting its clips by the same amount. Absent means ON, so older
+   * projects behave as before; only an explicit `false` opts a track out.
+   */
+  readonly syncLock?: boolean;
   readonly hidden: boolean;
   readonly muted: boolean;
   readonly solo: boolean;
   /** Tracks with the same id move and trim their related items together. */
   readonly groupId?: string;
+  /** Premiere-style per-track effect rack (Audio Track Mixer). Absent on old projects. */
+  readonly audioRack?: AudioRack;
+  /** Output assignment: a bus id, or absent for the master. */
+  readonly output?: string;
+  /**
+   * Fader / pan automation lanes in timeline seconds. volume is linear gain 0..4 and
+   * replaces the rack fader while it plays; pan is -1..1 and replaces the rack pan.
+   */
+  readonly automation?: TrackAutomation;
+  /** Aux sends to buses (in addition to the main output). */
+  readonly sends?: AudioSend[];
+  /** 5.1 sequences: the default surround position of this track's clips. Absent = front centre. */
+  readonly surroundPan?: import("../audio/surround").SurroundPan;
 }
 
 export interface EditingTemplateApplicationSource {
@@ -79,7 +180,79 @@ export interface AppliedEditingTemplate {
   readonly controlValues?: Record<string, unknown>;
 }
 
+/** What a clip is, for the Essential Sound panel. */
+export type AudioType = "dialogue" | "music" | "sfx" | "ambience";
+
+export const AUDIO_TYPES: readonly AudioType[] = ["dialogue", "music", "sfx", "ambience"];
+
+/** The independently toggleable blocks the Essential Sound panel applies. */
+export type EssentialSoundBlock = "loudness" | "repair" | "clarity" | "ducking";
+
+export interface EssentialSoundOptions {
+  readonly loudness: boolean;
+  readonly repair: boolean;
+  readonly clarity: boolean;
+  readonly ducking: boolean;
+  /** Repair: broadband noise reduction (dialogue only). */
+  readonly reduceNoise: boolean;
+  /** Repair: low-frequency rumble removal (dialogue only). */
+  readonly reduceRumble: boolean;
+  /** 0..1 strength of the clarity EQ preset. */
+  readonly clarityAmount: number;
+  /** How far ducked clips fall under dialogue, in dB (positive). */
+  readonly duckAmountDb: number;
+  /** Attack and release of the duck, in milliseconds. */
+  readonly duckFadeMs: number;
+  /** LUFS that Dialogue is matched to; Music sits 7 LU under it. */
+  readonly dialogueTargetLufs: number;
+}
+
+/**
+ * What the Essential Sound panel remembers about a clip so that switching a
+ * block off, or Clear, puts back exactly what the panel replaced.
+ */
+export interface EssentialSoundState {
+  readonly options: EssentialSoundOptions;
+  readonly loudness?: {
+    readonly targetLufs: number;
+    /** Absent when the clip was silent or could not be measured. */
+    readonly beforeLufs?: number;
+    readonly afterLufs?: number;
+    readonly clamped: boolean;
+    readonly previousVolume: number;
+    /** Absent when the clip had no volume automation before the panel. */
+    readonly previousVolumeLane?: AutomationPoint[];
+    /** Volume and lane as the panel left them; if they differ the user edited them. */
+    readonly appliedVolume: number;
+    readonly appliedVolumeLane?: AutomationPoint[];
+  };
+  readonly ducking?: {
+    /** True when the duck is live (metadata.liveDucking); absent for ducks baked to keyframes by older versions. */
+    readonly live?: boolean;
+    readonly previousVolumeLane?: AutomationPoint[];
+    readonly appliedVolumeLane?: AutomationPoint[];
+  };
+}
+
+/**
+ * Live ducking: the clip dips under Dialogue clips, computed from where those
+ * clips are at render time (see audio/live-ducking.ts), never baked to keyframes.
+ */
+export interface LiveDuckingConfig {
+  readonly enabled: boolean;
+  /** How far the clip falls while dialogue plays, in dB (positive). */
+  readonly amountDb: number;
+  /** Ramp down, ending where the dialogue starts. */
+  readonly attackMs: number;
+  /** Ramp back up, starting where the dialogue ends. */
+  readonly releaseMs: number;
+  /** Dialogue gaps shorter than this keep the duck down. */
+  readonly holdMs: number;
+}
+
 export interface ClipMetadata {
+  readonly essentialSound?: EssentialSoundState;
+  readonly liveDucking?: LiveDuckingConfig;
   readonly templateSource?: EditingTemplateApplicationSource;
   readonly appliedTemplates?: AppliedEditingTemplate[];
   readonly templateManaged?: boolean;
@@ -88,7 +261,18 @@ export interface ClipMetadata {
 }
 
 export interface EffectMetadata {
+  /** Added by the Essential Sound panel; `sig` is the params signature as applied. */
+  readonly essentialSound?: {
+    readonly block: EssentialSoundBlock;
+    readonly key: string;
+    readonly sig: string;
+  };
   readonly templateSource?: EditingTemplateApplicationSource;
+  readonly filterPreset?: {
+    readonly presetId: string;
+    readonly applicationId: string;
+    readonly index: number;
+  };
   readonly [key: string]: unknown;
 }
 
@@ -115,6 +299,22 @@ export interface FreezeFrame {
   readonly duration: number;
 }
 
+export interface ClipFade {
+  readonly fadeIn: number;
+  readonly fadeOut: number;
+  /** The original clip clock retained by an internal cut. Editing one edge
+   * anchors that edge locally while retaining the other edge's clock. */
+  readonly origin?: {
+    readonly offset: number;
+    readonly duration: number;
+    /** False anchors an explicitly edited edge to the current piece. */
+    readonly fadeIn?: boolean;
+    readonly fadeOut?: boolean;
+    /** A retained out edge can have a different clock after the in edge was edited. */
+    readonly out?: { readonly offset: number; readonly duration: number };
+  };
+}
+
 export interface Clip {
   readonly id: string;
   readonly mediaId: string;
@@ -130,7 +330,9 @@ export interface Clip {
   readonly blendOpacity?: number;
   readonly colorGrading?: import("../video/color-grading-engine").ClipColorGrading;
   readonly volume: number;
-  readonly fade?: { fadeIn: number; fadeOut: number };
+  /** 5.1 sequences: this clip's surround position; absent = the track's. */
+  readonly surroundPan?: import("../audio/surround").SurroundPan;
+  readonly fade?: ClipFade;
   readonly automation?: {
     volume?: AutomationPoint[];
     pan?: AutomationPoint[];
@@ -153,9 +355,16 @@ export interface Clip {
   readonly speedKeyframes?: SpeedKeyframe[];
   readonly freezeFrames?: FreezeFrame[];
   readonly pitchCorrection?: boolean;
+  /**
+   * Essential Sound tag. When absent the type is inferred from the parent
+   * track's `role` (see resolveAudioType in audio/essential-sound.ts).
+   */
+  readonly audioType?: AudioType;
   /** Zero-based index of the audio track within the source media file to use for this clip.
    * Undefined or 0 means the primary/first audio track. */
   readonly audioTrackIndex?: number;
+  /** Timeline label colour; when unset the clip shows its media's label. */
+  readonly label?: import("./project").MediaLabelId | null;
   readonly metadata?: ClipMetadata;
 }
 
@@ -262,11 +471,41 @@ export const EASING_TYPES = [
 
 export type EasingType = (typeof EASING_TYPES)[number];
 
+export const MARKER_KINDS = ["comment", "chapter", "segmentation", "web"] as const;
+export type MarkerKind = (typeof MARKER_KINDS)[number];
+
+export const REVIEW_STATUSES = ["open", "resolved"] as const;
+export type ReviewStatus = (typeof REVIEW_STATUSES)[number];
+
+/** One reply in a review comment's thread. */
+export interface ReviewReply {
+  readonly id: string;
+  readonly author: string;
+  readonly text: string;
+  /** Epoch milliseconds. */
+  readonly createdAt: number;
+}
+
 export interface Marker {
   readonly id: string;
   readonly time: number;
   readonly label: string;
   readonly color: string;
+  /** Seconds. 0 or absent means a point marker; > 0 is a range marker. */
+  readonly duration?: number;
+  readonly comment?: string;
+  /** Marker type; absent means "comment". */
+  readonly kind?: MarkerKind;
+  /**
+   * Review fields. A marker with an `author` or a `status` is a review
+   * comment: it appears in the Comments panel, can be resolved and replied to.
+   * Plain markers leave all of these absent.
+   */
+  readonly author?: string;
+  readonly status?: ReviewStatus;
+  readonly replies?: readonly ReviewReply[];
+  /** Epoch milliseconds the comment was written. */
+  readonly createdAt?: number;
 }
 
 export type TransitionEdge = "in" | "out";
@@ -303,6 +542,33 @@ export interface Subtitle {
   readonly style?: SubtitleStyle;
   readonly words?: SubtitleWord[];
   readonly animationStyle?: CaptionAnimationStyle;
+  /** Who is speaking (shown in the transcript, exported as a WebVTT voice tag). */
+  readonly speaker?: string;
+  /** BCP-47 language of the text. Captions without one belong to the default track. */
+  readonly language?: string;
+  /**
+   * The caption track this cue belongs to (one track per language/version).
+   * Cues without an id are on the default track.
+   */
+  readonly captionTrackId?: string;
+  /** WebVTT cue settings (line / position / size / align). Overrides `style.position` when set. */
+  readonly cueSettings?: CueSettings;
+}
+
+/**
+ * WebVTT cue settings for horizontal text (vertical writing is not modelled).
+ * `line` is a line number (snap to lines, negative counts from the bottom) or,
+ * with `snapToLines: false`, a percentage of the frame height. `position` and
+ * `size` are percentages of the frame width.
+ */
+export interface CueSettings {
+  readonly line?: number;
+  readonly snapToLines?: boolean;
+  readonly lineAlign?: "start" | "center" | "end";
+  readonly position?: number;
+  readonly positionAlign?: "line-left" | "center" | "line-right";
+  readonly size?: number;
+  readonly align?: "start" | "center" | "end" | "left" | "right";
 }
 
 export interface SubtitleStyle {
@@ -313,6 +579,19 @@ export interface SubtitleStyle {
   readonly position: "top" | "center" | "bottom";
   readonly highlightColor?: string;
   readonly upcomingColor?: string;
+  readonly strokeColor?: string;
+  readonly strokeWidth?: number;
+  readonly shadowColor?: string;
+  readonly shadowBlur?: number;
+  readonly shadowOffsetX?: number;
+  readonly shadowOffsetY?: number;
+  /** Horizontal padding of the background box in px (default 10). */
+  readonly boxPaddingX?: number;
+  /** Vertical padding of the background box in px (default 0). */
+  readonly boxPaddingY?: number;
+  readonly boxRadius?: number;
+  /** Title/action-safe margin as a fraction of the frame (0..0.25). Unset keeps the legacy 2x font size margin. */
+  readonly safeMargin?: number;
 }
 
 export interface AutomationPoint {

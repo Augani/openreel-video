@@ -2,6 +2,8 @@ let size: i32 = 0;
 let cosTable: Float32Array | null = null;
 let sinTable: Float32Array | null = null;
 let reverseTable: Uint32Array | null = null;
+let inverseReal: Float32Array | null = null;
+let inverseImag: Float32Array | null = null;
 
 export function init(fftSize: i32): void {
   if (fftSize <= 0 || (fftSize & (fftSize - 1)) !== 0) {
@@ -34,6 +36,8 @@ export function init(fftSize: i32): void {
   cosTable = cosTab;
   sinTable = sinTab;
   reverseTable = revTab;
+  inverseReal = new Float32Array(size);
+  inverseImag = new Float32Array(size);
 }
 
 export function getSize(): i32 {
@@ -90,8 +94,9 @@ export function inverse(real: Float32Array, imag: Float32Array, output: Float32A
   const cosTab = cosTable!;
   const sinTab = sinTable!;
   const n = size;
-  const outReal = new Float32Array(n);
-  const outImag = new Float32Array(n);
+  if (!inverseReal || !inverseImag) return;
+  const outReal = inverseReal!;
+  const outImag = inverseImag!;
 
   for (let i = 0; i < n; i++) {
     const rev = unchecked(revTable[i]);

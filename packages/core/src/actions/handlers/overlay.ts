@@ -66,25 +66,33 @@ export function makeOverlayHandlers(
     type: `${prefix}/update`,
     validate(action: Action, project: Project): ValidationResult {
       const clipId = (action.params as { clipId?: string }).clipId;
+      const unset = (action.params as { unset?: unknown }).unset;
+      if (unset !== undefined && (!Array.isArray(unset) || unset.some((key) => typeof key !== "string" || key === "id"))) {
+        return err(`${prefix}/update has invalid fields to unset`);
+      }
       return getOverlays(project, field).some((c) => c.id === clipId)
         ? ok()
         : err(`${prefix} clip not found: ${String(clipId)}`);
     },
     apply(action: Action, project: Project): void {
-      const { clipId, updates } = action.params as {
+      const { clipId, updates, unset = [] } = action.params as {
         clipId: string;
         updates: Record<string, unknown>;
+        unset?: string[];
       };
       setOverlays(
         project,
         field,
-        getOverlays(project, field).map((c) =>
-          c.id === clipId ? { ...c, ...updates } : c,
-        ),
+        getOverlays(project, field).map((c) => {
+          if (c.id !== clipId) return c;
+          const updated = { ...c, ...updates };
+          for (const key of unset) delete updated[key];
+          return updated;
+        }),
       );
     },
     invert(action: Action, projectBefore: Project): Action | null {
-      const clipId = (action.params as { clipId: string }).clipId;
+      const { clipId, updates } = action.params as { clipId: string; updates: Record<string, unknown> };
       const prior = getOverlays(projectBefore, field).find(
         (c) => c.id === clipId,
       );
@@ -93,7 +101,11 @@ export function makeOverlayHandlers(
         type: `${prefix}/update`,
         id: `inverse-${action.id}`,
         timestamp: Date.now(),
-        params: { clipId, updates: { ...prior } },
+        params: {
+          clipId,
+          updates: { ...prior },
+          unset: Object.keys(updates ?? {}).filter((key) => !Object.prototype.hasOwnProperty.call(prior, key)),
+        },
       };
     },
   };

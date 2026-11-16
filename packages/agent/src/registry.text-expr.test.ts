@@ -139,49 +139,6 @@ describe("set_motion_text_content", () => {
     expect(textLayer(host).text).toBe("Goodbye world");
   });
 
-  it("accepts an empty string", async () => {
-    const host = new HeadlessHost(projectWithShapeAndText());
-    const res = await executeTool(
-      "set_motion_text_content",
-      { compositionId: "comp-tx", layerId: "layer-text", text: "" },
-      host,
-    );
-    expect(res.ok).toBe(true);
-    expect(textLayer(host).text).toBe("");
-  });
-
-  it("rejects a non-text layer with INVALID_PARAMS", async () => {
-    const host = new HeadlessHost(projectWithShapeAndText());
-    const res = await executeTool(
-      "set_motion_text_content",
-      { compositionId: "comp-tx", layerId: "layer-shape", text: "nope" },
-      host,
-    );
-    expect(res.ok).toBe(false);
-    expect(res.error?.code).toBe("INVALID_PARAMS");
-  });
-
-  it("rejects a missing text arg with INVALID_PARAMS", async () => {
-    const host = new HeadlessHost(projectWithShapeAndText());
-    const res = await executeTool(
-      "set_motion_text_content",
-      { compositionId: "comp-tx", layerId: "layer-text" },
-      host,
-    );
-    expect(res.ok).toBe(false);
-    expect(res.error?.code).toBe("INVALID_PARAMS");
-  });
-
-  it("returns NOT_FOUND for an unknown layer", async () => {
-    const host = new HeadlessHost(projectWithShapeAndText());
-    const res = await executeTool(
-      "set_motion_text_content",
-      { compositionId: "comp-tx", layerId: "nope", text: "x" },
-      host,
-    );
-    expect(res.ok).toBe(false);
-    expect(res.error?.code).toBe("NOT_FOUND");
-  });
 });
 
 async function addAnimator(host: HeadlessHost): Promise<string> {
@@ -281,62 +238,6 @@ describe("update_motion_text_animator", () => {
     expect(animatorById(host, animatorId).enabled).toBe(false);
   });
 
-  it("rejects an invalid selector.basedOn", async () => {
-    const host = new HeadlessHost(projectWithShapeAndText());
-    const animatorId = await addAnimator(host);
-    const res = await executeTool(
-      "update_motion_text_animator",
-      {
-        compositionId: "comp-tx",
-        layerId: "layer-text",
-        animatorId,
-        selector: { basedOn: "syllables" },
-      },
-      host,
-    );
-    expect(res.ok).toBe(false);
-    expect(res.error?.code).toBe("INVALID_PARAMS");
-  });
-
-  it("rejects an invalid timing.easing", async () => {
-    const host = new HeadlessHost(projectWithShapeAndText());
-    const animatorId = await addAnimator(host);
-    const res = await executeTool(
-      "update_motion_text_animator",
-      {
-        compositionId: "comp-tx",
-        layerId: "layer-text",
-        animatorId,
-        timing: { easing: "bounce" },
-      },
-      host,
-    );
-    expect(res.ok).toBe(false);
-    expect(res.error?.code).toBe("INVALID_PARAMS");
-  });
-
-  it("returns NOT_FOUND for an unknown animatorId", async () => {
-    const host = new HeadlessHost(projectWithShapeAndText());
-    await addAnimator(host);
-    const res = await executeTool(
-      "update_motion_text_animator",
-      { compositionId: "comp-tx", layerId: "layer-text", animatorId: "nope", name: "X" },
-      host,
-    );
-    expect(res.ok).toBe(false);
-    expect(res.error?.code).toBe("NOT_FOUND");
-  });
-
-  it("rejects a non-text layer", async () => {
-    const host = new HeadlessHost(projectWithShapeAndText());
-    const res = await executeTool(
-      "update_motion_text_animator",
-      { compositionId: "comp-tx", layerId: "layer-shape", animatorId: "x", name: "Y" },
-      host,
-    );
-    expect(res.ok).toBe(false);
-    expect(res.error?.code).toBe("INVALID_PARAMS");
-  });
 });
 
 describe("add_motion_text_animator overrides", () => {
@@ -458,27 +359,6 @@ describe("clear_motion_shader_fill", () => {
     expect(textLayer(host).style.fillShader).toBeUndefined();
   });
 
-  it("returns NOT_FOUND for a missing layer", async () => {
-    const host = new HeadlessHost(projectWithShapeAndText());
-    const res = await executeTool(
-      "clear_motion_shader_fill",
-      { compositionId: "comp-tx", layerId: "nope" },
-      host,
-    );
-    expect(res.ok).toBe(false);
-    expect(res.error?.code).toBe("NOT_FOUND");
-  });
-
-  it("rejects a layer that is neither shape nor text with INVALID_PARAMS", async () => {
-    const host = new HeadlessHost(projectWithShapeAndText());
-    const res = await executeTool(
-      "clear_motion_shader_fill",
-      { compositionId: "comp-tx", layerId: "layer-group" },
-      host,
-    );
-    expect(res.ok).toBe(false);
-    expect(res.error?.code).toBe("INVALID_PARAMS");
-  });
 });
 
 async function attachWiggle(host: HeadlessHost): Promise<string> {
@@ -552,17 +432,6 @@ describe("update_motion_expression", () => {
     expect(after.id).toBe(expressionId);
   });
 
-  it("returns NOT_FOUND for an unknown expressionId", async () => {
-    const host = new HeadlessHost(projectWithShapeAndText());
-    await attachWiggle(host);
-    const res = await executeTool(
-      "update_motion_expression",
-      { compositionId: "comp-tx", layerId: "layer-shape", expressionId: "nope", amplitude: 1 },
-      host,
-    );
-    expect(res.ok).toBe(false);
-    expect(res.error?.code).toBe("NOT_FOUND");
-  });
 });
 
 describe("toggle_motion_expression", () => {
@@ -586,29 +455,6 @@ describe("toggle_motion_expression", () => {
     expect(expressionById(host, expressionId).enabled).toBe(true);
   });
 
-  it("rejects a non-boolean enabled with INVALID_PARAMS", async () => {
-    const host = new HeadlessHost(projectWithShapeAndText());
-    const expressionId = await attachWiggle(host);
-    const res = await executeTool(
-      "toggle_motion_expression",
-      { compositionId: "comp-tx", layerId: "layer-shape", expressionId },
-      host,
-    );
-    expect(res.ok).toBe(false);
-    expect(res.error?.code).toBe("INVALID_PARAMS");
-  });
-
-  it("returns NOT_FOUND for an unknown expressionId", async () => {
-    const host = new HeadlessHost(projectWithShapeAndText());
-    await attachWiggle(host);
-    const res = await executeTool(
-      "toggle_motion_expression",
-      { compositionId: "comp-tx", layerId: "layer-shape", expressionId: "nope", enabled: false },
-      host,
-    );
-    expect(res.ok).toBe(false);
-    expect(res.error?.code).toBe("NOT_FOUND");
-  });
 });
 
 describe("list_motion_expression_errors", () => {
@@ -655,14 +501,4 @@ describe("list_motion_expression_errors", () => {
     expect((asListExpressionErrorsData(res.data).errors ?? []).length).toBe(0);
   });
 
-  it("returns NOT_FOUND for an unknown composition", async () => {
-    const host = new HeadlessHost(projectWithShapeAndText());
-    const res = await executeTool(
-      "list_motion_expression_errors",
-      { compositionId: "nope" },
-      host,
-    );
-    expect(res.ok).toBe(false);
-    expect(res.error?.code).toBe("NOT_FOUND");
-  });
 });

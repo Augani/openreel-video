@@ -1,21 +1,30 @@
 import { MessageChannelMain, type WebContents, type MessagePortMain } from "electron";
-import path from "node:path";
-import os from "node:os";
-import { promises as fs } from "node:fs";
+import { promises as fs, rmSync } from "node:fs";
 import type { FileHandle } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
-import { ExportJob, type ExportArgs } from "../sidecar/export-job";
+import { ExportJob, type CaptionInput, type ExportArgs } from "../sidecar/export-job";
+import { assertLocalSourcePath } from "../sidecar/probe-source";
+import { verifySourceForCopy, type FingerprintCache } from "../sidecar/source-guard";
+import { SmartExportSession, type SmartStreamMatch } from "../sidecar/smart-export";
 import { CfrWriter } from "../sidecar/cfr";
-import { selectEncoder, probeEncoders } from "../sidecar/encoder-probe";
-import type { ExportCodec, EncodeMode } from "../sidecar/encode-args";
+import { selectEncoder, getVerifiedEncoders, isHardwareEncoder } from "../sidecar/encoder-probe";
+import { join } from "node:path";
+import { appTempDir, newTempPathReady, releaseTemp, releaseTempSync } from "../temp-dir";
+import { acquirePowerHold, releasePowerHold, releaseAllPowerHolds } from "../power";
+import { isBroadcastExportCodec, isProres4444, type BroadcastScan, type DnxhrProfile, type ExportCodec, type EncodeMode } from "../sidecar/encode-args";
+import { isNativeColorOutput, type NativeColorOutput } from "../sidecar/color-output-args";
 
-export interface ExportStartArgs {
+interface ExportStartArgs {
   width: number;
   height: number;
   frameRate: number;
   codec: string;
   format: string;
   bitrateKbps: number;
+  /** One-pass VBR: `bitrateKbps` is the average, this the peak cap. */
+  maxBitrateKbps?: number;
+  /** "vbr2": two-pass VBR (H.264 / HEVC through libx264 / libx265, no colour-managed output). */
+  rateControl?: "quality" | "vbr" | "vbr2";
   outputPath: string;
   totalFrames: number;
   audioSampleRate: number;
@@ -23,30 +32,180 @@ export interface ExportStartArgs {
   encodeMode?: "fast" | "balanced" | "smallest";
   quality?: number;
   proresProfile?: "proxy" | "lt" | "standard" | "hq" | "4444" | "4444xq";
+  dnxhrProfile?: DnxhrProfile;
+  /** ProRes 4444 / 4444 XQ: write the alpha channel (the renderer is exporting over a transparent background). */
+  alpha?: boolean;
+  keyframeInterval?: number;
+  audioBitrateKbps?: number;
+  /** Broadcast delivery: interlaced (1080i) flags for XDCAM HD422 / AVC-Intra 100. */
+  scan?: BroadcastScan;
+  /** MXF wrapper: "op1a" (default) or "opatom" (one file per essence track). */
+  mxfPattern?: "op1a" | "opatom";
+  /** The audio is this many mono tracks (the renderer sends an N-channel WAV). */
+  audioTrackCount?: number;
+  /** File start timecode, HH:MM:SS:FF (`;` before the frames for drop frame). */
+  startTimecode?: string;
+  /**
+   * Colour-managed export (Rec.2020 / HDR10 / HLG): frames arrive as raw planar
+   * YCbCr already converted to this space instead of RGBA, and the stream is tagged with it.
+   */
+  color?: NativeColorOutput;
+  captions?: Array<{ kind: "mov_text" | "cea608"; data: string; language?: string }>;
+  /**
+   * Native smart render: the renderer stream-copies untouched spans of the
+   * sources (copyExportRun) and sends frames only for the re-encoded spans;
+   * `match` is what those spans must reproduce to join the copied ones.
+   */
+  smartRender?: { match: SmartStreamMatch };
 }
 
-const MAX_INITIAL_CREDITS = 10;
-const MAX_IN_FLIGHT_FRAME_BYTES = 128 * 1024 * 1024;
+// 288 MB admits 8 frames at 4K (33 MB each) and 2 at 8K (133 MB each).
+const MAX_INITIAL_CREDITS = 16;
+const MAX_IN_FLIGHT_FRAME_BYTES = 288 * 1024 * 1024;
+
+// Frames are kept (up to this many bytes) so a failed hardware encode can be
+// replayed into a software encoder. Past the budget the replay is dropped.
+const MAX_REPLAY_BYTES = 128 * 1024 * 1024;
+
+const SOFTWARE_FALLBACK: Record<ExportCodec, string | undefined> = {
+  h264: "libx264",
+  hevc: "libx265",
+  h265: "libx265",
+  av1: "libsvtav1",
+  vp9: "libvpx-vp9",
+  prores: "prores_ks",
+  dnxhr: "dnxhd",
+  xdcamhd422: undefined,
+  avcintra100: undefined,
+};
+
+/** Software encoder to retry with after `encoder` failed, or null when there is none to try. */
+export function softwareFallbackEncoder(
+  codec: ExportCodec,
+  encoder: string,
+  available: string[],
+): string | null {
+  if (!isHardwareEncoder(encoder)) return null;
+  const sw = SOFTWARE_FALLBACK[codec];
+  return sw && available.includes(sw) ? sw : null;
+}
+
+export function hardwareFailureMessage(encoder: string, message: string): string {
+  return `${message}\nThe hardware encoder ${encoder} failed on this system. Set the encode mode to "smallest" to export with the software encoder instead.`;
+}
+
+/**
+ * True when ffmpeg's stderr points at the output file or disk rather than the
+ * encoder, so neither a software retry nor the hardware-encoder hint applies.
+ */
+export function isOutputIoFailure(message: string, outputPath: string): boolean {
+  if (/ENOSPC|No space left|Permission denied|Read-only file system|Disk quota exceeded/i.test(message)) {
+    return true;
+  }
+  return message.split(/\r?\n/).some(
+    (line) =>
+      /No such file or directory|Invalid argument/i.test(line) &&
+      ((outputPath !== "" && line.includes(outputPath)) ||
+        /opening output|writing (trailer|header)|av_interleaved_write_frame|muxer/i.test(line)),
+  );
+}
 
 interface JobEntry {
   job: ExportJob | null;
+  encoders: string[];
+  replay: Uint8Array[] | null;
+  replayBytes: number;
+  /** True once the renderer's "finish" has been delivered to the current job. */
+  finishDelivered: boolean;
+  retried: boolean;
+  cancelled: boolean;
   cfr: CfrWriter | null;
   port: MessagePortMain;
   exportArgs: ExportArgs;
   audioWavPath: string;
+  audioHandle: FileHandle | null;
   started: boolean;
   audioQueue: Promise<void>;
   queue: Promise<void>;
+  /** Temp subtitle files muxed into the output; released with the job. */
+  captionPaths: string[];
+  /** Present for a smart-render job: runs are joined here instead of piping into one ffmpeg. */
+  smart: SmartExportSession | null;
+  smartVideoPath: string | null;
+  /** The open re-encoded run: frames of it go through this CFR writer, timestamps relative to `baseTs`. */
+  smartRun: { cfr: CfrWriter; baseTs: number } | null;
+  /** Full-content hashes of the copy sources already verified in this job (keyed by path, size and mtime). */
+  sourceFingerprints: FingerprintCache;
 }
 
 const jobs = new Map<string, JobEntry>();
 
-export function initialFrameCredits(args: Pick<ExportArgs, "width" | "height">): number {
+function initialFrameCredits(args: Pick<ExportArgs, "width" | "height">): number {
   const frameBytes = Math.max(1, args.width * args.height * 4);
   return Math.max(
     1,
     Math.min(MAX_INITIAL_CREDITS, Math.floor(MAX_IN_FLIGHT_FRAME_BYTES / frameBytes)),
   );
+}
+
+/**
+ * Encoder for a colour-managed export. HDR needs a 10-bit encoder: libx265
+ * (which writes the HDR10 mastering-display and content-light SEI) is preferred
+ * over hevc_videotoolbox (10-bit, but no mastering metadata from the command
+ * line); ProRes goes through prores_ks. Throws a message for the export dialog
+ * when the build has none.
+ */
+export function selectColorEncoder(
+  codec: ExportCodec,
+  color: NativeColorOutput,
+  encoders: string[],
+  platform: NodeJS.Platform,
+  mode: EncodeMode,
+): string {
+  const hdr = color.transfer !== "bt709";
+  if (codec === "prores") {
+    if (!encoders.includes("prores_ks")) throw new Error("This ffmpeg build has no prores_ks encoder, which Rec.2020 / HDR ProRes needs.");
+    return "prores_ks";
+  }
+  if (codec === "hevc") {
+    if (hdr) {
+      if (encoders.includes("libx265")) return "libx265";
+      if (encoders.includes("hevc_videotoolbox")) return "hevc_videotoolbox";
+      throw new Error("This ffmpeg build has no 10-bit HEVC encoder (libx265 or hevc_videotoolbox), which HDR export needs.");
+    }
+    return selectEncoder("hevc", platform, encoders, mode) ?? "libx265";
+  }
+  if (hdr) throw new Error("HDR export needs H.265 (HEVC Main10) or ProRes 4444 XQ.");
+  return selectEncoder(codec, platform, encoders, mode) ?? "libx264";
+}
+
+const TIMECODE_RE = /^\d{2}:\d{2}:\d{2}[:;]\d{2,3}$/;
+
+/** Broadcast delivery fields of a start request, validated (they come from the renderer). */
+export function broadcastExportFields(args: ExportStartArgs): Pick<ExportArgs, "scan" | "mxfPattern" | "audioTrackCount" | "startTimecode"> {
+  const out: Pick<ExportArgs, "scan" | "mxfPattern" | "audioTrackCount" | "startTimecode"> = {};
+  if (args.scan !== undefined) {
+    if (args.scan !== "progressive" && args.scan !== "interlaced-tff") throw new Error("Invalid scan type.");
+    out.scan = args.scan;
+  }
+  if (args.mxfPattern !== undefined) {
+    if (args.mxfPattern !== "op1a" && args.mxfPattern !== "opatom") throw new Error("Invalid MXF operational pattern.");
+    if (args.mxfPattern === "opatom") {
+      if (args.format !== "mxf") throw new Error("MXF OP-Atom needs the MXF format.");
+      out.mxfPattern = "opatom";
+    }
+  }
+  if (args.audioTrackCount !== undefined) {
+    if (!Number.isInteger(args.audioTrackCount) || args.audioTrackCount < 1 || args.audioTrackCount > 64) throw new Error("Invalid audio track count.");
+    if (args.format !== "mxf" && args.format !== "mov") throw new Error("Mono audio tracks are written in MXF or MOV.");
+    if (args.audioChannels !== args.audioTrackCount) throw new Error("The audio must carry one channel per mono track.");
+    out.audioTrackCount = args.audioTrackCount;
+  }
+  if (args.startTimecode !== undefined) {
+    if (!TIMECODE_RE.test(args.startTimecode)) throw new Error(`Invalid start timecode "${args.startTimecode}".`);
+    if (args.format === "mxf" || args.format === "mov") out.startTimecode = args.startTimecode;
+  }
+  return out;
 }
 
 export function resolveExportArgs(
@@ -56,9 +215,43 @@ export function resolveExportArgs(
   audioWavPath: string,
 ): ExportArgs {
   const mode: EncodeMode = args.encodeMode ?? "balanced";
-  const encoder = selectEncoder(args.codec, platform, encoders, mode) ?? "libx264";
+  // encode-args emits no -vaapi_device/hwupload, so VAAPI encoders cannot run.
+  // VideoToolbox's ProRes encoder writes 4:2:2 only: 4444 (with or without alpha) goes to prores_ks.
+  const needs4444 = args.codec === "prores" && isProres4444(args.proresProfile);
+  const usable = encoders.filter((name) => !name.endsWith("_vaapi") && !(needs4444 && name === "prores_videotoolbox"));
   const codec = (args.codec === "h265" ? "hevc" : args.codec) as ExportCodec;
+  if (args.color !== undefined && !isNativeColorOutput(args.color)) throw new Error("Invalid colour output settings.");
+  const color = args.color;
+  if (isBroadcastExportCodec(codec)) {
+    if (color) throw new Error("XDCAM HD422 and AVC-Intra 100 are Rec.709 deliveries; set the sequence colour space to Rec.709.");
+    if (args.format !== "mxf" && args.format !== "mov") throw new Error("XDCAM HD422 and AVC-Intra 100 are delivered in MXF or MOV.");
+  }
+  const broadcastEncoder = codec === "xdcamhd422" ? "mpeg2video" : codec === "avcintra100" ? "libx264" : null;
+  if (broadcastEncoder && !usable.includes(broadcastEncoder)) {
+    throw new Error(
+      broadcastEncoder === "libx264"
+        ? "This ffmpeg build has no libx264 encoder, which AVC-Intra 100 needs. The shipped OpenReel ffmpeg includes it; a custom OPENREEL_FFMPEG_PATH build must be GPL with libx264."
+        : "This ffmpeg build has no mpeg2video encoder, which XDCAM HD422 needs.",
+    );
+  }
+  const twoPass = args.rateControl === "vbr2";
+  if (twoPass) {
+    if (codec !== "h264" && codec !== "hevc") throw new Error("Two-pass VBR is available for H.264 and H.265 only.");
+    if (color) throw new Error("Two-pass VBR is not available with Rec.2020 / HDR output; use one-pass VBR or constant quality.");
+    if (!(args.bitrateKbps > 0)) throw new Error("Two-pass VBR needs a target bitrate.");
+    if (args.smartRender) throw new Error("Two-pass VBR re-encodes the whole timeline, so it cannot be combined with smart render.");
+  }
+  // Hardware encoders have no two-pass mode: it always runs on the software encoder.
+  const twoPassEncoder = codec === "hevc" ? "libx265" : "libx264";
+  if (twoPass && !usable.includes(twoPassEncoder)) {
+    throw new Error(`Two-pass VBR needs the ${twoPassEncoder} encoder, which this ffmpeg build does not include.`);
+  }
+  const encoder = twoPass ? twoPassEncoder : (broadcastEncoder ?? (color
+    ? selectColorEncoder(codec, color, usable, platform, mode)
+    : (selectEncoder(args.codec, platform, usable, mode) ?? "libx264")));
+  const hdrProres = !!color && codec === "prores" && color.transfer !== "bt709";
   return {
+    ...(color ? { color } : {}),
     width: args.width,
     height: args.height,
     frameRate: args.frameRate,
@@ -67,29 +260,108 @@ export function resolveExportArgs(
     mode,
     quality: args.quality ?? 80,
     bitrateKbps: args.bitrateKbps,
+    ...(args.rateControl === "vbr" || args.rateControl === "vbr2" ? { rateControl: args.rateControl } : {}),
+    totalFrames: args.totalFrames,
+    ...((args.rateControl === "vbr" || args.rateControl === "vbr2") && args.maxBitrateKbps && args.maxBitrateKbps > 0 ? { maxBitrateKbps: args.maxBitrateKbps } : {}),
     outputPath: args.outputPath,
     audioWavPath,
     format: args.format,
-    proresProfile: args.proresProfile,
+    // HDR ProRes is 4444 XQ (4:4:4, 12-bit class): the 422 profiles cannot carry the converted frames.
+    proresProfile: hdrProres && args.proresProfile !== "4444" ? "4444xq" : args.proresProfile,
+    dnxhrProfile: args.dnxhrProfile,
+    alpha: needs4444 && args.alpha === true,
+    keyframeInterval: args.keyframeInterval,
+    audioBitrateKbps: args.audioBitrateKbps,
+    ...broadcastExportFields(args),
   };
+}
+
+/**
+ * Estimated size of the lossless FFV1 RGBA intermediate a two-pass export keeps between its passes.
+ * Raw RGBA is w*h*4 per frame; FFV1 typically halves that, so half is the planning figure (noisy
+ * footage can exceed it, which is why this only refuses when even the typical size cannot fit).
+ */
+export function twoPassScratchBytes(width: number, height: number, totalFrames: number): number {
+  return Math.ceil(width * height * 4 * Math.max(1, totalFrames) * 0.5);
+}
+
+/** Fail early, with a plain message, when the temp volume cannot hold the two-pass intermediate. */
+async function assertTwoPassScratchSpace(args: ExportStartArgs): Promise<void> {
+  const needed = twoPassScratchBytes(args.width, args.height, args.totalFrames);
+  let free: number;
+  try {
+    const stats = await fs.statfs(appTempDir());
+    free = Number(stats.bavail) * Number(stats.bsize);
+  } catch {
+    return; // free space unknown: let the export try
+  }
+  if (free < needed) {
+    const gb = (bytes: number): string => (bytes / 1024 ** 3).toFixed(1);
+    throw new Error(
+      `Two-pass VBR needs about ${gb(needed)} GB of temporary disk space for its intermediate video, but only ${gb(free)} GB is free. Free some space, shorten the range, or use one-pass VBR.`,
+    );
+  }
 }
 
 export async function startExport(wc: WebContents, args: ExportStartArgs): Promise<{ jobId: string }> {
   const jobId = randomUUID();
-  const encoders = await probeEncoders();
-  const audioWavPath = path.join(os.tmpdir(), `openreel-${jobId}.wav`);
+  if (args.rateControl === "vbr2") await assertTwoPassScratchSpace(args);
+  // Verified, not merely listed: a listed hardware encoder can still fail to start
+  // (and encode-args forbids software fallback inside videotoolbox).
+  const encoders = await getVerifiedEncoders();
+  const audioWavPath = await newTempPathReady(`openreel-export-${jobId}`, "wav");
   const exportArgs = resolveExportArgs(args, process.platform, encoders, audioWavPath);
+  const captionPaths: string[] = [];
+  if (args.captions?.length) {
+    const inputs: CaptionInput[] = [];
+    for (const [index, caption] of args.captions.entries()) {
+      const path = await newTempPathReady(`openreel-captions-${jobId}-${index}`, caption.kind === "cea608" ? "scc" : "srt");
+      await fs.writeFile(path, caption.data, "utf8");
+      captionPaths.push(path);
+      inputs.push({ path, kind: caption.kind, language: caption.language });
+    }
+    exportArgs.captionInputs = inputs;
+  }
+
+  let smart: SmartExportSession | null = null;
+  let smartVideoPath: string | null = null;
+  if (args.smartRender) {
+    smartVideoPath = await newTempPathReady(`openreel-smart-${jobId}`, "ts");
+    smart = new SmartExportSession({
+      args: exportArgs,
+      match: args.smartRender.match,
+      videoPath: smartVideoPath,
+      totalFrames: args.totalFrames,
+    });
+  }
+
+  if (exportArgs.rateControl === "vbr2") {
+    // Pass-1 statistics and the lossless intermediate live here; ExportJob and the cancel / cleanup paths remove it.
+    exportArgs.passDir = await fs.mkdtemp(join(appTempDir(), `openreel-2pass-${jobId}-`));
+  }
 
   const { port1, port2 } = new MessageChannelMain();
   const entry: JobEntry = {
     job: null,
+    encoders,
+    replay: [],
+    replayBytes: 0,
+    finishDelivered: false,
+    retried: false,
+    cancelled: false,
     cfr: null,
     port: port1,
     exportArgs,
     audioWavPath,
+    audioHandle: null,
     started: false,
     audioQueue: Promise.resolve(),
     queue: Promise.resolve(),
+    captionPaths,
+    smart,
+    smartVideoPath,
+    smartRun: null,
+    sourceFingerprints: new Map(),
   };
 
   // The renderer streams frames concurrently (credit window), but CfrWriter is
@@ -104,6 +376,10 @@ export async function startExport(wc: WebContents, args: ExportStartArgs): Promi
       | { type?: string; ts?: number; buffer?: ArrayBuffer }
       | null;
     if (!msg || typeof msg.type !== "string") return;
+    if (entry.smart) {
+      handleSmartMessage(jobId, entry, msg);
+      return;
+    }
     if (msg.type === "frame" && msg.buffer) {
       const buffer = msg.buffer;
       const ts = msg.ts ?? 0;
@@ -121,6 +397,7 @@ export async function startExport(wc: WebContents, args: ExportStartArgs): Promi
         });
     } else if (msg.type === "finish") {
       entry.queue = entry.queue.then(() => {
+        entry.finishDelivered = true;
         entry.job?.endInput();
       });
     }
@@ -129,6 +406,10 @@ export async function startExport(wc: WebContents, args: ExportStartArgs): Promi
 
   wc.postMessage("openreel:export-port", { jobId }, [port2]);
   jobs.set(jobId, entry);
+  // A reload, crash or close of the owning renderer orphans the job: stop it.
+  acquirePowerHold(jobId, wc, () => {
+    void cancelExport({ jobId });
+  });
   return { jobId };
 }
 
@@ -153,7 +434,7 @@ export async function writeAudioChunk(args: {
   if (entry.started) throw new Error(`audio already finalized for export job ${args.jobId}`);
 
   entry.audioQueue = entry.audioQueue.then(() =>
-    writeFileChunk(entry.audioWavPath, args.chunk, args.position),
+    writeAudioChunkToEntry(entry, args.chunk, args.position),
   );
   await entry.audioQueue;
 }
@@ -162,77 +443,316 @@ export async function finishAudio(args: { jobId: string }): Promise<void> {
   const entry = jobs.get(args.jobId);
   if (!entry) throw new Error(`unknown export job ${args.jobId}`);
   await entry.audioQueue;
+  await closeAudioHandle(entry);
   startNativeExportJob(args.jobId, entry);
 }
 
-async function writeFileChunk(
-  filePath: string,
+// One handle stays open across chunks; it is closed before ffmpeg reads the
+// file (finishAudio) and on cancel/cleanup.
+async function writeAudioChunkToEntry(
+  entry: JobEntry,
   chunk: ArrayBuffer,
   position: number,
 ): Promise<void> {
-  let handle: FileHandle | null = null;
-  try {
-    handle = await fs.open(filePath, "r+");
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-    handle = await fs.open(filePath, "w+");
+  if (!entry.audioHandle) {
+    try {
+      entry.audioHandle = await fs.open(entry.audioWavPath, "r+");
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+      entry.audioHandle = await fs.open(entry.audioWavPath, "w+");
+    }
   }
+  await entry.audioHandle.write(Buffer.from(chunk), 0, chunk.byteLength, position);
+}
+
+async function closeAudioHandle(entry: JobEntry): Promise<void> {
+  const handle = entry.audioHandle;
+  entry.audioHandle = null;
+  if (!handle) return;
   try {
-    await handle.write(Buffer.from(chunk), 0, chunk.byteLength, position);
-  } finally {
     await handle.close();
+  } catch {
+    /* best-effort close */
   }
 }
 
-function startNativeExportJob(jobId: string, entry: JobEntry): void {
-  if (entry.started) return;
-  entry.job = new ExportJob(
+/** Remove a two-pass job's statistics / intermediate directory (idempotent; the job removes it too). */
+function removePassDir(entry: JobEntry): void {
+  const dir = entry.exportArgs.passDir;
+  if (dir) void fs.rm(dir, { recursive: true, force: true }).catch(() => {});
+}
+
+function discardAudio(entry: JobEntry): void {
+  removePassDir(entry);
+  void entry.audioQueue
+    .catch(() => {})
+    .then(() => closeAudioHandle(entry))
+    .then(() => releaseTemp(entry.audioWavPath))
+    .then(() => Promise.all(entry.captionPaths.map((path) => releaseTemp(path))))
+    .catch(() => {});
+}
+
+function createJob(jobId: string, entry: JobEntry): ExportJob {
+  const job = new ExportJob(
     entry.exportArgs,
     (frame) => entry.port.postMessage({ type: "progress", frame }),
     () => {
       entry.port.postMessage({ type: "done" });
       cleanupJob(jobId);
     },
-    (msg) => {
-      entry.port.postMessage({ type: "error", message: msg });
-      cleanupJob(jobId);
-    },
+    (msg) => handleJobError(jobId, entry, job, msg),
   );
+  entry.job = job;
+  return job;
+}
+
+function recordReplayFrame(entry: JobEntry, frame: Uint8Array): void {
+  if (!entry.replay) return;
+  const last = entry.replay[entry.replay.length - 1];
+  // CfrWriter repeats the same buffer to fill gaps; only count it once.
+  if (last !== frame) entry.replayBytes += frame.byteLength;
+  if (entry.replayBytes > MAX_REPLAY_BYTES) {
+    entry.replay = null;
+    return;
+  }
+  entry.replay.push(frame);
+}
+
+function handleJobError(jobId: string, entry: JobEntry, failed: ExportJob, msg: string): void {
+  if (entry.cancelled || jobs.get(jobId) !== entry || entry.job !== failed) return;
+  const { encoder, codec, outputPath } = entry.exportArgs;
+  const hardwareFailure = isHardwareEncoder(encoder) && !isOutputIoFailure(msg, outputPath);
+  const software =
+    entry.retried || !hardwareFailure ? null : softwareFallbackEncoder(codec, encoder, entry.encoders);
+  if (software && entry.replay) {
+    entry.retried = true;
+    console.warn(`[export] ${encoder} failed, retrying with ${software}: ${msg}`);
+    // Run on the frame queue: every frame already received is replayed first and
+    // later frames wait for the new job, so ordering is preserved.
+    entry.queue = entry.queue.then(() => retryWithSoftware(jobId, entry, software));
+    return;
+  }
+  entry.port.postMessage({
+    type: "error",
+    message: hardwareFailure ? hardwareFailureMessage(encoder, msg) : msg,
+  });
+  cleanupJob(jobId);
+}
+
+async function retryWithSoftware(jobId: string, entry: JobEntry, software: string): Promise<void> {
+  const replay = entry.replay;
+  entry.replay = null;
+  if (entry.cancelled || jobs.get(jobId) !== entry || !replay) return;
+  entry.exportArgs = { ...entry.exportArgs, encoder: software };
+  const job = createJob(jobId, entry);
+  job.start();
+  for (const frame of replay) {
+    if (jobs.get(jobId) !== entry || entry.job !== job) return;
+    await job.writeFrame(frame);
+  }
+  if (entry.finishDelivered) job.endInput();
+}
+
+/** Port messages of a smart-render job: re-encoded runs arrive as frames between "endRun"s, "finish" joins everything. */
+function handleSmartMessage(
+  jobId: string,
+  entry: JobEntry,
+  msg: { type?: string; ts?: number; buffer?: ArrayBuffer },
+): void {
+  const smart = entry.smart;
+  if (!smart) return;
+  const fail = (err: unknown): void => {
+    if (entry.cancelled) return;
+    const message = err instanceof Error ? err.message : String(err);
+    const { encoder } = entry.exportArgs;
+    entry.port.postMessage({
+      type: "error",
+      message: isHardwareEncoder(encoder) && !isOutputIoFailure(message, entry.exportArgs.outputPath)
+        ? hardwareFailureMessage(encoder, message)
+        : message,
+    });
+    cancelSmartJob(jobId, entry);
+  };
+  if (msg.type === "frame" && msg.buffer) {
+    const buffer = msg.buffer;
+    const ts = msg.ts ?? 0;
+    entry.queue = entry.queue
+      .then(async () => {
+        if (entry.cancelled) return;
+        if (!entry.smartRun) {
+          const fps = entry.exportArgs.frameRate;
+          const startFrame = Math.round(ts * fps);
+          await smart.beginEncodeRun(startFrame);
+          entry.smartRun = { cfr: new CfrWriter(fps, (frame) => smart.writeFrame(frame)), baseTs: startFrame / fps };
+        }
+        await entry.smartRun.cfr.push(new Uint8Array(buffer), ts - entry.smartRun.baseTs);
+        entry.port.postMessage({ type: "credit", credits: 1 });
+      })
+      .catch(fail);
+  } else if (msg.type === "endRun") {
+    entry.queue = entry.queue
+      .then(async () => {
+        if (entry.cancelled) return;
+        entry.smartRun = null;
+        const frames = await smart.endEncodeRun();
+        entry.port.postMessage({ type: "runDone", frames });
+      })
+      .catch(fail);
+  } else if (msg.type === "finish") {
+    entry.queue = entry.queue
+      .then(async () => {
+        if (entry.cancelled) return;
+        entry.finishDelivered = true;
+        const { outputPath, audioWavPath, audioBitrateKbps, format, captionInputs, startTimecode } = entry.exportArgs;
+        await smart.assemble(
+          { audioWavPath, outputPath, audioCodec: "aac", audioBitrateKbps, format, captionInputs, startTimecode },
+          (frame) => entry.port.postMessage({ type: "progress", frame }),
+        );
+        entry.port.postMessage({ type: "done" });
+        cleanupJob(jobId);
+      })
+      .catch(fail);
+  }
+}
+
+/** Stop a smart-render job: kill its ffmpeg, drop the temp video, forget the job. */
+function cancelSmartJob(jobId: string, entry: JobEntry): void {
+  markCancelled(entry);
+  entry.smart?.cancel();
+  cleanupJob(jobId);
+}
+
+/**
+ * Stream-copy `frames` packets of a source (starting at the key frame at
+ * `sourceStart`) onto the video of a smart-render job. The renderer calls this
+ * between re-encoded runs, strictly in timeline order.
+ */
+export async function copyExportRun(args: {
+  jobId: string;
+  sourcePath: string;
+  sourceStart: number;
+  outputStartFrame: number;
+  frames: number;
+  /** Byte size of the media item; a different size on disk means the file was replaced since import. */
+  sourceSize?: number;
+  /** Last-modified time and head/tail hash of the Blob the plan was made from (see source-guard.ts). */
+  sourceMtimeMs?: number;
+  sourceContentHash?: string;
+}): Promise<{ frames: number }> {
+  const entry = jobs.get(args.jobId);
+  if (!entry?.smart) throw new Error(`export job ${args.jobId} is not a smart-render job`);
+  assertLocalSourcePath(args.sourcePath);
+  try {
+    const expected =
+      args.sourceSize !== undefined && args.sourceContentHash !== undefined
+        ? { size: args.sourceSize, mtimeMs: args.sourceMtimeMs, contentHash: args.sourceContentHash }
+        : undefined;
+    if (!expected && args.sourceSize !== undefined) {
+      const stat = await fs.stat(args.sourcePath);
+      if (stat.size !== args.sourceSize) throw new Error(`size changed (${args.sourceSize} bytes in the project, ${stat.size} on disk)`);
+    }
+    const mismatch = await verifySourceForCopy(
+      args.sourcePath,
+      expected,
+      { sourceStart: args.sourceStart, frameRate: entry.exportArgs.frameRate },
+      entry.sourceFingerprints,
+    );
+    if (mismatch) throw new Error(mismatch);
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    throw new Error(`SOURCE_CHANGED: ${args.sourcePath}: ${reason}`);
+  }
+  try {
+    const frames = await entry.smart.copyRun({
+      sourcePath: args.sourcePath,
+      sourceStart: args.sourceStart,
+      outputStartFrame: args.outputStartFrame,
+      frames: args.frames,
+      frameRate: entry.exportArgs.frameRate,
+    });
+    return { frames };
+  } catch (error) {
+    if (!entry.cancelled) cancelSmartJob(args.jobId, entry);
+    throw error;
+  }
+}
+
+function startNativeExportJob(jobId: string, entry: JobEntry): void {
+  if (entry.started) return;
+  if (entry.smart) {
+    entry.started = true;
+    entry.port.postMessage({ type: "credit", credits: initialFrameCredits(entry.exportArgs) });
+    return;
+  }
+  const job = createJob(jobId, entry);
   entry.cfr = new CfrWriter(entry.exportArgs.frameRate, async (f) => {
     await entry.job!.writeFrame(f);
+    recordReplayFrame(entry, f);
   });
-  entry.job.start();
+  job.start();
   entry.started = true;
   entry.port.postMessage({ type: "credit", credits: initialFrameCredits(entry.exportArgs) });
 }
 
 export function cancelAllExports(): void {
   for (const [, entry] of jobs) {
+    markCancelled(entry);
     try {
       entry.job?.cancel();
     } catch {
       /* best-effort kill on quit */
     }
-    void fs.rm(entry.audioWavPath, { force: true }).catch(() => {});
+    entry.smart?.cancel();
+    if (entry.smartVideoPath) releaseTempSync(entry.smartVideoPath);
+    // Synchronous so it completes inside will-quit.
+    try {
+      void entry.audioHandle?.close().catch(() => {});
+    } catch {
+      /* best-effort close */
+    }
+    releaseTempSync(entry.audioWavPath);
+    for (const path of entry.captionPaths) releaseTempSync(path);
+    if (entry.exportArgs.passDir) rmSync(entry.exportArgs.passDir, { recursive: true, force: true });
   }
   jobs.clear();
+  releaseAllPowerHolds();
+}
+
+/** Flag the entry before killing ffmpeg so the resulting close/error never triggers a retry or error report. */
+function markCancelled(entry: JobEntry): void {
+  entry.cancelled = true;
+  entry.retried = true;
+  entry.replay = null;
 }
 
 function cleanupJob(jobId: string): void {
   const entry = jobs.get(jobId);
   if (!entry) return;
-  void fs.rm(entry.audioWavPath, { force: true }).catch(() => {});
+  discardAudio(entry);
+  if (entry.smartVideoPath) void releaseTemp(entry.smartVideoPath).catch(() => {});
   jobs.delete(jobId);
+  releasePowerHold(jobId);
 }
 
 export async function cancelExport(args: { jobId: string }): Promise<void> {
   const entry = jobs.get(args.jobId);
   if (!entry) return;
-  entry.job?.cancel();
+  markCancelled(entry);
   try {
-    await fs.rm(entry.audioWavPath, { force: true });
-  } catch {
-    /* best-effort temp cleanup */
+    entry.job?.cancel();
+    entry.smart?.cancel();
+    if (entry.smartVideoPath) await releaseTemp(entry.smartVideoPath).catch(() => false);
+    await entry.audioQueue.catch(() => {});
+    await closeAudioHandle(entry);
+    if (entry.exportArgs.passDir) await fs.rm(entry.exportArgs.passDir, { recursive: true, force: true }).catch(() => {});
+    try {
+      await releaseTemp(entry.audioWavPath);
+      await Promise.all(entry.captionPaths.map((path) => releaseTemp(path)));
+    } catch {
+      /* best-effort temp cleanup */
+    }
+  } finally {
+    jobs.delete(args.jobId);
+    releasePowerHold(args.jobId);
   }
-  jobs.delete(args.jobId);
 }

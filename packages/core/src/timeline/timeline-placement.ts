@@ -1,9 +1,13 @@
 import type { Project } from "../types";
 import { getTrackItems, isStandardTrack } from "./timeline-items";
 
-export type TimelinePlacementPolicy = "gap" | "stack-above";
+/**
+ * "overlap" keeps the item on the requested track even when occupied, for
+ * interactions that resolve the overlap themselves afterwards (clip drag drop).
+ */
+type TimelinePlacementPolicy = "gap" | "stack-above" | "overlap";
 
-export interface TimelinePlacementRequest {
+interface TimelinePlacementRequest {
   readonly targetTrackId: string;
   readonly startTime: number;
   readonly duration: number;
@@ -12,7 +16,7 @@ export interface TimelinePlacementRequest {
   readonly newTrackId?: string;
 }
 
-export type TimelinePlacementResult =
+type TimelinePlacementResult =
   | {
       readonly ok: true;
       readonly trackId: string;
@@ -26,7 +30,7 @@ export type TimelinePlacementResult =
 
 const PLACEMENT_EPSILON = 0.0001;
 
-export function timelineIntervalsOverlap(
+function timelineIntervalsOverlap(
   leftStart: number,
   leftDuration: number,
   rightStart: number,
@@ -40,7 +44,7 @@ export function timelineIntervalsOverlap(
   );
 }
 
-export function isTimelineIntervalClear(
+function isTimelineIntervalClear(
   project: Project,
   trackId: string,
   startTime: number,
@@ -76,6 +80,10 @@ export function resolveTimelinePlacement(
   }
 
   const startTime = Math.max(0, request.startTime);
+  if (request.policy === "overlap") {
+    if (target.locked) return { ok: false, reason: "track-locked" };
+    return { ok: true, trackId: target.id, startTime };
+  }
   if (
     !target.locked &&
     isTimelineIntervalClear(

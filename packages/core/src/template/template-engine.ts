@@ -10,16 +10,28 @@ import type {
   TemplateSummary,
 } from "../types/template";
 import type { Project, MediaItem } from "../types/project";
-import type { Clip, Subtitle, Timeline } from "../types/timeline";
+import type { Clip, Subtitle } from "../types/timeline";
 import type {
   ScriptableTemplate,
   ExtendedPlaceholder,
-  PlaceholderTarget,
   ScriptableTemplateReplacements,
   TemplateValidationError,
   TemplateApplicationResult,
   ExtendedPlaceholderConstraints,
 } from "../types/scriptable-template";
+import {
+  captureTemplateProjectContent,
+  copySavedTemplate,
+  restoreTemplateProjectContent,
+  materializeTemplateText,
+} from "./template-project-content";
+
+import {
+  indexTemplateTargets,
+  applyIndexedTemplateTarget,
+  removeLegacyTemplateFlags,
+  refreshTemplateTargets,
+} from "./template-targets";
 
 const TEMPLATE_DB_NAME = "openreel-templates";
 const TEMPLATE_STORE_NAME = "templates";
@@ -1100,12 +1112,14 @@ export const BUILTIN_TEMPLATES: Template[] = [
 
 export class TemplateEngine {
   private db: IDBDatabase | null = null;
+  private opening: Promise<void> | null = null;
   private templates: Map<string, Template> = new Map();
 
   async initialize(): Promise<void> {
     if (this.db) return;
+    if (this.opening) return this.opening;
 
-    return new Promise((resolve, reject) => {
+    this.opening = new Promise<void>((resolve, reject) => {
       const request = indexedDB.open(TEMPLATE_DB_NAME, TEMPLATE_DB_VERSION);
 
       request.onerror = () => reject(request.error);
@@ -1124,11 +1138,16 @@ export class TemplateEngine {
         }
       };
     });
+    try {
+      await this.opening;
+    } finally {
+      this.opening = null;
+    }
   }
 
   private loadBuiltinTemplates(): void {
     for (const template of BUILTIN_TEMPLATES) {
-      this.templates.set(template.id, template);
+      this.templates.set(template.id, copySavedTemplate(template));
     }
   }
 
@@ -1145,7 +1164,7 @@ export class TemplateEngine {
     const templateId = `template-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 
     const templateTimeline = this.convertToTemplateTimeline(
-      project.timeline,
+      structuredClone(project.timeline),
       options.placeholders,
     );
 
@@ -1158,11 +1177,12 @@ export class TemplateEngine {
       previewUrl: null,
       createdAt: Date.now(),
       modifiedAt: Date.now(),
-      settings: project.settings,
+      settings: structuredClone(project.settings),
       timeline: templateTimeline,
-      placeholders: options.placeholders,
-      tags: options.tags || [],
-      version: "1.0.0",
+      projectContent: captureTemplateProjectContent(project),
+      placeholders: structuredClone(options.placeholders),
+      tags: [...(options.tags || [])],
+      version: "1.1.0",
     };
   }
 
@@ -1207,13 +1227,14 @@ export class TemplateEngine {
   }
 
   applyTemplate(
-    template: Template,
+    savedTemplate: Template,
     replacements: TemplateReplacements,
   ): {
     project: Project;
     missingPlaceholders: string[];
     textClips: Array<{ id: string; text: string; placeholderId: string }>;
   } {
+    const template = copySavedTemplate(savedTemplate);
     const missingPlaceholders: string[] = [];
     const textClips: Array<{
       id: string;
@@ -1229,7 +1250,14 @@ export class TemplateEngine {
           value: placeholder.defaultValue,
         };
       }
-      if (placeholder.required && !effectiveReplacements[placeholder.id]) {
+      const replacement = effectiveReplacements[placeholder.id];
+      if (
+        placeholder.required &&
+        (!replacement ||
+          (!replacement.mediaBlob &&
+            (typeof replacement.value !== "string" ||
+              !replacement.value.trim())))
+      ) {
         missingPlaceholders.push(placeholder.label);
       }
     }
@@ -1240,6 +1268,7 @@ export class TemplateEngine {
       effectiveReplacements,
       template.placeholders,
     );
+    const content = restoreTemplateProjectContent(template, mediaItems);
 
     const tracks = template.timeline.tracks.map((track) => {
       const clips = track.clips.map((clip) => {
@@ -1253,8 +1282,8 @@ export class TemplateEngine {
           );
           if (placeholder?.type === "text") {
             const textValue =
-              effectiveReplacements[clip.placeholderId]?.value ||
-              placeholder.defaultValue ||
+              effectiveReplacements[clip.placeholderId]?.value ??
+              placeholder.defaultValue ??
               "Text";
             textClips.push({
               id: clip.id,
@@ -1269,12 +1298,13 @@ export class TemplateEngine {
     });
 
     const project: Project = {
+      ...content,
       id: projectId,
       name: `${template.name} - Copy`,
       createdAt: Date.now(),
       modifiedAt: Date.now(),
       settings: template.settings,
-      mediaLibrary: { items: mediaItems },
+      mediaLibrary: content.mediaLibrary,
       timeline: {
         ...template.timeline,
         tracks,
@@ -1284,7 +1314,15 @@ export class TemplateEngine {
       },
     };
 
-    return { project, missingPlaceholders, textClips };
+    return {
+      project: materializeTemplateText(
+        project,
+        textClips,
+        template.placeholders,
+      ),
+      missingPlaceholders,
+      textClips,
+    };
   }
 
   private createMediaFromReplacements(
@@ -1295,29 +1333,43 @@ export class TemplateEngine {
 
     for (const placeholder of placeholders) {
       const replacement = replacements[placeholder.id];
-      if (
-        replacement &&
-        replacement.type === "media" &&
-        replacement.mediaBlob
-      ) {
+      if (replacement && replacement.type === "media") {
+        const blob =
+          replacement.mediaBlob instanceof Blob &&
+          replacement.mediaBlob.size > 0
+            ? replacement.mediaBlob
+            : null;
+        const media = replacement.media;
         items.push({
           id: placeholder.id,
-          name: replacement.value,
-          type: "image",
+          name: media?.name || replacement.value || placeholder.label,
+          type:
+            media?.type ??
+            (blob?.type.startsWith("video/")
+              ? "video"
+              : blob?.type.startsWith("audio/")
+                ? "audio"
+                : "image"),
           fileHandle: null,
-          blob: replacement.mediaBlob,
-          metadata: {
-            duration: 0,
-            width: 1920,
-            height: 1080,
-            frameRate: 30,
-            codec: "",
-            sampleRate: 0,
-            channels: 0,
-            fileSize: replacement.mediaBlob.size,
-          },
+          blob,
+          metadata: media
+            ? {
+                ...structuredClone(media.metadata),
+                fileSize: blob?.size ?? media.metadata.fileSize,
+              }
+            : {
+                duration: 0,
+                width: 1920,
+                height: 1080,
+                frameRate: 30,
+                codec: "",
+                sampleRate: 0,
+                channels: 0,
+                fileSize: blob?.size ?? 0,
+              },
           thumbnailUrl: null,
           waveformData: null,
+          isPlaceholder: !blob,
         });
       }
     }
@@ -1330,17 +1382,29 @@ export class TemplateEngine {
     replacements: TemplateReplacements,
   ): Clip {
     if (!clip.isPlaceholder || !clip.placeholderId) {
-      const { isPlaceholder, placeholderId, ...clipData } = clip;
+      const {
+        isPlaceholder: _isPlaceholder,
+        placeholderId: _placeholderId,
+        ...clipData
+      } = clip;
       return clipData as Clip;
     }
 
     const replacement = replacements[clip.placeholderId];
     if (!replacement) {
-      const { isPlaceholder, placeholderId, ...clipData } = clip;
+      const {
+        isPlaceholder: _isPlaceholder,
+        placeholderId: _placeholderId,
+        ...clipData
+      } = clip;
       return clipData as Clip;
     }
 
-    const { isPlaceholder, placeholderId, ...clipData } = clip;
+    const {
+      isPlaceholder: _isPlaceholder,
+      placeholderId: _placeholderId,
+      ...clipData
+    } = clip;
     const preserveMediaId =
       clip.mediaId.startsWith("text-") ||
       clip.mediaId.startsWith("shape-") ||
@@ -1356,17 +1420,32 @@ export class TemplateEngine {
     replacements: TemplateReplacements,
   ): Subtitle {
     if (!subtitle.isPlaceholder || !subtitle.placeholderId) {
-      const { isPlaceholder, placeholderId, ...subData } = subtitle;
+      const {
+        isPlaceholder: _isPlaceholder,
+        placeholderId: _placeholderId,
+        ...subData
+      } = subtitle;
       return subData as Subtitle;
     }
 
     const replacement = replacements[subtitle.placeholderId];
-    if (!replacement || replacement.type !== "text") {
-      const { isPlaceholder, placeholderId, ...subData } = subtitle;
+    if (
+      !replacement ||
+      (replacement.type !== "text" && replacement.type !== "subtitle")
+    ) {
+      const {
+        isPlaceholder: _isPlaceholder,
+        placeholderId: _placeholderId,
+        ...subData
+      } = subtitle;
       return subData as Subtitle;
     }
 
-    const { isPlaceholder, placeholderId, ...subData } = subtitle;
+    const {
+      isPlaceholder: _isPlaceholder,
+      placeholderId: _placeholderId,
+      ...subData
+    } = subtitle;
     return {
       ...subData,
       text: replacement.value,
@@ -1378,6 +1457,14 @@ export class TemplateEngine {
     path: string,
   ): { parent: Record<string, unknown>; key: string; value: unknown } | null {
     const parts = path.split(".");
+    if (
+      !path ||
+      parts.some(
+        (part) =>
+          !part || /^(?:__proto__|constructor|prototype)(?:\[|$)/.test(part),
+      )
+    )
+      return null;
     let current: Record<string, unknown> = obj;
 
     for (let i = 0; i < parts.length - 1; i++) {
@@ -1406,6 +1493,8 @@ export class TemplateEngine {
       const arr = current[arrayName];
       if (!Array.isArray(arr)) return null;
       const index = parseInt(indexStr, 10);
+      if (!Number.isSafeInteger(index) || index < 0 || index > arr.length)
+        return null;
       return {
         parent: current,
         key: arrayName,
@@ -1451,7 +1540,9 @@ export class TemplateEngine {
   ): TemplateValidationError | null {
     if (
       placeholder.required &&
-      (value === undefined || value === null || value === "")
+      (value === undefined ||
+        value === null ||
+        (typeof value === "string" && !value.trim()))
     ) {
       return {
         placeholderId: placeholder.id,
@@ -1476,7 +1567,10 @@ export class TemplateEngine {
             type: "invalid",
           };
         }
-        if (constraints?.maxLength && value.length > constraints.maxLength) {
+        if (
+          constraints?.maxLength !== undefined &&
+          value.length > constraints.maxLength
+        ) {
           return {
             placeholderId: placeholder.id,
             message: `${placeholder.label} exceeds maximum length of ${constraints.maxLength}`,
@@ -1484,7 +1578,16 @@ export class TemplateEngine {
           };
         }
         if (constraints?.pattern) {
-          const regex = new RegExp(constraints.pattern);
+          let regex: RegExp;
+          try {
+            regex = new RegExp(constraints.pattern);
+          } catch {
+            return {
+              placeholderId: placeholder.id,
+              message: `${placeholder.label} has an invalid pattern constraint`,
+              type: "constraint",
+            };
+          }
           if (!regex.test(value)) {
             return {
               placeholderId: placeholder.id,
@@ -1496,10 +1599,10 @@ export class TemplateEngine {
         break;
 
       case "number":
-        if (typeof value !== "number") {
+        if (typeof value !== "number" || !Number.isFinite(value)) {
           return {
             placeholderId: placeholder.id,
-            message: `${placeholder.label} must be a number`,
+            message: `${placeholder.label} must be a finite number`,
             type: "invalid",
           };
         }
@@ -1554,11 +1657,24 @@ export class TemplateEngine {
       };
     }
 
+    const allowed =
+      placeholder.type === "font"
+        ? constraints?.allowedFonts
+        : placeholder.type === "animation"
+          ? constraints?.allowedAnimations
+          : undefined;
+    if (allowed && !allowed.includes(String(value)))
+      return {
+        placeholderId: placeholder.id,
+        message: `${placeholder.label} must be one of: ${allowed.join(", ")}`,
+        type: "constraint",
+      };
+
     return null;
   }
 
   applyScriptableTemplate(
-    template: ScriptableTemplate,
+    savedTemplate: ScriptableTemplate,
     replacements: ScriptableTemplateReplacements,
   ): {
     project: Project;
@@ -1573,6 +1689,7 @@ export class TemplateEngine {
       transform: unknown;
     }>;
   } {
+    const template = copySavedTemplate(savedTemplate);
     const errors: TemplateValidationError[] = [];
     const warnings: string[] = [];
     const textClips: Array<{
@@ -1608,95 +1725,89 @@ export class TemplateEngine {
 
     const projectId = `project-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 
-    const timelineClone = JSON.parse(
-      JSON.stringify(template.timeline),
-    ) as Timeline;
+    const timelineClone = structuredClone(template.timeline);
+    const mediaItems = this.createMediaFromScriptableReplacements(
+      effectiveReplacements,
+      template.placeholders,
+    );
+    const content = restoreTemplateProjectContent(template, mediaItems);
+
+    const targetIndex = indexTemplateTargets(timelineClone, content);
 
     for (const placeholder of template.placeholders) {
       const replacement = effectiveReplacements[placeholder.id];
       if (!replacement) continue;
 
       for (const target of placeholder.targets) {
-        this.applyPlaceholderToTarget(
-          timelineClone,
-          target,
-          replacement.value,
-          placeholder,
-          warnings,
+        warnings.push(
+          ...applyIndexedTemplateTarget(
+            targetIndex,
+            target,
+            replacement.value,
+            placeholder,
+            (subject, path, value) =>
+              this.setPropertyByPath(subject, path, value),
+          ),
         );
       }
 
+      refreshTemplateTargets(targetIndex);
       if (placeholder.type === "text") {
-        let foundTextClip = false;
+        const matches = new Map<string, Record<string, unknown>>();
         for (const target of placeholder.targets) {
-          if (target.clipId) {
-            for (const track of timelineClone.tracks) {
-              const clip = track.clips.find((c) => c.id === target.clipId);
-              if (clip) {
-                textClips.push({
-                  id: clip.id,
-                  text: String(
-                    replacement.value ?? placeholder.defaultValue ?? "",
-                  ),
-                  placeholderId: placeholder.id,
-                  trackId: track.id,
-                  startTime: clip.startTime,
-                  duration: clip.duration,
-                  transform: clip.transform,
-                });
-                foundTextClip = true;
-                break;
-              }
-            }
-          }
+          if (!target.clipId) continue;
+          const match = targetIndex.clips.get(target.clipId)?.[0];
+          if (match) matches.set(target.clipId, match);
         }
-
-        if (!foundTextClip) {
-          for (const track of timelineClone.tracks) {
-            for (const clip of track.clips) {
-              const clipAny = clip as any;
-              if (
-                clipAny.isPlaceholder &&
-                clipAny.placeholderId === placeholder.id
-              ) {
-                textClips.push({
-                  id: clip.id,
-                  text: String(
-                    replacement.value ?? placeholder.defaultValue ?? "",
-                  ),
-                  placeholderId: placeholder.id,
-                  trackId: track.id,
-                  startTime: clip.startTime,
-                  duration: clip.duration,
-                  transform: clip.transform,
-                });
-                foundTextClip = true;
-                break;
-              }
-            }
-            if (foundTextClip) break;
-          }
+        if (!matches.size)
+          for (const clip of targetIndex.legacy.get(placeholder.id) ?? [])
+            matches.set(String(clip.id), clip);
+        for (const [id, subject] of matches) {
+          const clip = subject as unknown as Pick<
+            Clip,
+            "trackId" | "startTime" | "duration" | "transform"
+          >;
+          textClips.push({
+            id,
+            text: String(replacement.value ?? placeholder.defaultValue ?? ""),
+            placeholderId: placeholder.id,
+            trackId: clip.trackId,
+            startTime: clip.startTime,
+            duration: clip.duration,
+            transform: clip.transform,
+          });
         }
+      } else if (placeholder.type === "subtitle") {
+        for (const caption of targetIndex.legacySubtitles.get(placeholder.id) ??
+          [])
+          caption.text = String(
+            replacement.value ?? placeholder.defaultValue ?? "",
+          );
+      } else if (placeholder.type === "media" || placeholder.type === "audio") {
+        for (const clip of targetIndex.legacy.get(placeholder.id) ?? [])
+          clip.mediaId = placeholder.id;
       }
     }
-
-    const mediaItems = this.createMediaFromScriptableReplacements(
-      effectiveReplacements,
-      template.placeholders,
-    );
+    removeLegacyTemplateFlags(targetIndex);
 
     const project: Project = {
+      ...content,
       id: projectId,
       name: `${template.name} - Copy`,
       createdAt: Date.now(),
       modifiedAt: Date.now(),
       settings: template.settings,
-      mediaLibrary: { items: mediaItems },
+      mediaLibrary: content.mediaLibrary,
       timeline: timelineClone,
     };
 
     return {
-      project,
+      project: materializeTemplateText(
+        project,
+        textClips,
+        template.placeholders,
+        true,
+      ),
       result: {
         success: errors.length === 0,
         errors,
@@ -1704,64 +1815,6 @@ export class TemplateEngine {
       },
       textClips,
     };
-  }
-
-  private applyPlaceholderToTarget(
-    timeline: Timeline,
-    target: PlaceholderTarget,
-    value: unknown,
-    placeholder: ExtendedPlaceholder,
-    warnings: string[],
-  ): void {
-    if (target.clipId) {
-      for (const track of timeline.tracks) {
-        const clip = track.clips.find((c) => c.id === target.clipId);
-        if (clip) {
-          const clipObj = clip as unknown as Record<string, unknown>;
-          if (!this.setPropertyByPath(clipObj, target.property, value)) {
-            warnings.push(
-              `Failed to set ${target.property} on clip ${target.clipId}`,
-            );
-          }
-          return;
-        }
-      }
-      warnings.push(
-        `Clip ${target.clipId} not found for placeholder ${placeholder.id}`,
-      );
-    } else if (target.trackId) {
-      const track = timeline.tracks.find((t) => t.id === target.trackId);
-      if (track) {
-        const trackObj = track as unknown as Record<string, unknown>;
-        if (!this.setPropertyByPath(trackObj, target.property, value)) {
-          warnings.push(
-            `Failed to set ${target.property} on track ${target.trackId}`,
-          );
-        }
-      } else {
-        warnings.push(
-          `Track ${target.trackId} not found for placeholder ${placeholder.id}`,
-        );
-      }
-    } else if (target.effectId) {
-      for (const track of timeline.tracks) {
-        for (const clip of track.clips) {
-          const effect = clip.effects.find((e) => e.id === target.effectId);
-          if (effect) {
-            const effectObj = effect as unknown as Record<string, unknown>;
-            if (!this.setPropertyByPath(effectObj, target.property, value)) {
-              warnings.push(
-                `Failed to set ${target.property} on effect ${target.effectId}`,
-              );
-            }
-            return;
-          }
-        }
-      }
-      warnings.push(
-        `Effect ${target.effectId} not found for placeholder ${placeholder.id}`,
-      );
-    }
   }
 
   private createMediaFromScriptableReplacements(
@@ -1774,29 +1827,47 @@ export class TemplateEngine {
       const replacement = replacements[placeholder.id];
       if (
         replacement &&
-        replacement.type === "media" &&
-        replacement.mediaBlob
+        (replacement.type === "media" || replacement.type === "audio")
       ) {
-        const blob = replacement.mediaBlob;
+        const blob =
+          replacement.mediaBlob instanceof Blob &&
+          replacement.mediaBlob.size > 0
+            ? replacement.mediaBlob
+            : null;
+        const media = replacement.media;
         const value = replacement.value;
         items.push({
           id: placeholder.id,
-          name: typeof value === "string" ? value : placeholder.label,
-          type: "image",
+          name:
+            media?.name ||
+            (typeof value === "string" ? value : placeholder.label),
+          type:
+            media?.type ??
+            (replacement.type === "audio" || blob?.type.startsWith("audio/")
+              ? "audio"
+              : blob?.type.startsWith("video/")
+                ? "video"
+                : "image"),
           fileHandle: null,
           blob,
-          metadata: {
-            duration: 0,
-            width: 1920,
-            height: 1080,
-            frameRate: 30,
-            codec: "",
-            sampleRate: 0,
-            channels: 0,
-            fileSize: blob.size,
-          },
+          metadata: media
+            ? {
+                ...structuredClone(media.metadata),
+                fileSize: blob?.size ?? media.metadata.fileSize,
+              }
+            : {
+                duration: 0,
+                width: 1920,
+                height: 1080,
+                frameRate: 30,
+                codec: "",
+                sampleRate: 0,
+                channels: 0,
+                fileSize: blob?.size ?? 0,
+              },
           thumbnailUrl: null,
           waveformData: null,
+          isPlaceholder: !blob,
         });
       }
     }
@@ -1804,28 +1875,65 @@ export class TemplateEngine {
     return items;
   }
 
-  async saveTemplate(template: Template): Promise<void> {
+  async saveTemplate(
+    template: Template,
+    options: { signal?: AbortSignal } = {},
+  ): Promise<void> {
+    const signal = options.signal;
+    signal?.throwIfAborted();
     if (!this.db) await this.initialize();
+    signal?.throwIfAborted();
+    const saved = copySavedTemplate(template);
 
     return new Promise((resolve, reject) => {
       const transaction = this.db!.transaction(
         [TEMPLATE_STORE_NAME],
         "readwrite",
       );
-      const store = transaction.objectStore(TEMPLATE_STORE_NAME);
-      const request = store.put(template);
-
-      request.onerror = () => reject(request.error);
-      request.onsuccess = () => {
-        this.templates.set(template.id, template);
-        resolve();
+      let settled = false;
+      const cancel = () => {
+        try {
+          transaction.abort();
+        } catch {
+          /* Already completed. */
+        }
       };
+      const finish = (committed: boolean, error?: unknown) => {
+        if (settled) return;
+        settled = true;
+        signal?.removeEventListener("abort", cancel);
+        if (committed) {
+          this.templates.set(saved.id, saved);
+          resolve();
+        } else reject(error);
+      };
+      transaction.oncomplete = () => finish(true);
+      transaction.onerror = () =>
+        finish(
+          false,
+          transaction.error ?? new Error("Could not save template"),
+        );
+      transaction.onabort = () =>
+        finish(
+          false,
+          transaction.error ??
+            signal?.reason ??
+            new DOMException("Template save cancelled", "AbortError"),
+        );
+      signal?.addEventListener("abort", cancel, { once: true });
+      try {
+        transaction.objectStore(TEMPLATE_STORE_NAME).put(saved);
+      } catch (error) {
+        cancel();
+        finish(false, error);
+      }
     });
   }
 
   async loadTemplate(id: string): Promise<Template | null> {
     if (this.templates.has(id)) {
-      return this.templates.get(id) || null;
+      const template = this.templates.get(id);
+      return template ? copySavedTemplate(template) : null;
     }
 
     if (!this.db) await this.initialize();
@@ -1842,9 +1950,9 @@ export class TemplateEngine {
       request.onsuccess = () => {
         const template = request.result as Template | undefined;
         if (template) {
-          this.templates.set(template.id, template);
+          this.templates.set(template.id, copySavedTemplate(template));
         }
-        resolve(template || null);
+        resolve(template ? copySavedTemplate(template) : null);
       };
     });
   }
@@ -1865,7 +1973,12 @@ export class TemplateEngine {
       const request = store.delete(id);
 
       request.onerror = () => reject(request.error);
-      request.onsuccess = () => {
+      transaction.onabort = () =>
+        reject(
+          transaction.error ?? new Error("Template deletion was cancelled"),
+        );
+      transaction.onerror = () => reject(transaction.error);
+      transaction.oncomplete = () => {
         this.templates.delete(id);
         resolve();
       };
@@ -1881,13 +1994,23 @@ export class TemplateEngine {
         "readonly",
       );
       const store = transaction.objectStore(TEMPLATE_STORE_NAME);
-      const request = store.getAll();
-
+      // Saved templates may contain large originals. Only keep one record live
+      // while constructing the lightweight catalog, rather than cloning all media.
+      const request = store.openCursor();
+      const customTemplates: TemplateSummary[] = [];
+      transaction.onabort = () =>
+        reject(
+          transaction.error ?? new Error("Template listing was cancelled"),
+        );
       request.onerror = () => reject(request.error);
       request.onsuccess = () => {
-        const customTemplates = (request.result as Template[]).map(
-          this.toSummary,
-        );
+        const cursor = request.result;
+        if (cursor) {
+          customTemplates.push(this.toSummary(cursor.value as Template));
+          cursor.continue();
+        }
+      };
+      transaction.oncomplete = () => {
         const builtinSummaries = BUILTIN_TEMPLATES.map(this.toSummary);
         resolve([...builtinSummaries, ...customTemplates]);
       };
@@ -1898,7 +2021,7 @@ export class TemplateEngine {
     const result: Template[] = [];
     for (const template of this.templates.values()) {
       if (template.category === category) {
-        result.push(template);
+        result.push(copySavedTemplate(template));
       }
     }
     return result;
@@ -1918,7 +2041,7 @@ export class TemplateEngine {
       );
 
       if (matchesName || matchesDescription || matchesTags) {
-        result.push(template);
+        result.push(copySavedTemplate(template));
       }
     }
 
@@ -1937,14 +2060,10 @@ export class TemplateEngine {
   }
 
   getBuiltinTemplates(): Template[] {
-    return [...BUILTIN_TEMPLATES];
+    return BUILTIN_TEMPLATES.map(copySavedTemplate);
   }
 
   getAllTemplates(): Template[] {
-    return Array.from(this.templates.values());
+    return Array.from(this.templates.values(), copySavedTemplate);
   }
-}
-
-export function createTemplateEngine(): TemplateEngine {
-  return new TemplateEngine();
 }

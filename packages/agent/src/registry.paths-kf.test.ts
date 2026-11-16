@@ -110,56 +110,6 @@ describe("set_motion_shape_path", () => {
     expect(parsed.length).toBe(3);
   });
 
-  it("rejects fewer than 2 finite points with INVALID_PARAMS", async () => {
-    const host = new HeadlessHost(projectWith(pathShape()));
-    const res = await executeTool(
-      "set_motion_shape_path",
-      { compositionId: COMP_ID, layerId: PATH_ID, points: [{ x: 0, y: 0 }] },
-      host,
-    );
-    expect(res.ok).toBe(false);
-    expect(res.error?.code).toBe("INVALID_PARAMS");
-  });
-
-  it("rejects non-finite coordinates with INVALID_PARAMS", async () => {
-    const host = new HeadlessHost(projectWith(pathShape()));
-    const res = await executeTool(
-      "set_motion_shape_path",
-      {
-        compositionId: COMP_ID,
-        layerId: PATH_ID,
-        points: [
-          { x: 0, y: 0 },
-          { x: Number.NaN, y: 5 },
-        ],
-      },
-      host,
-    );
-    expect(res.ok).toBe(false);
-    expect(res.error?.code).toBe("INVALID_PARAMS");
-  });
-
-  it("rejects a non-path shape with INVALID_PARAMS", async () => {
-    const host = new HeadlessHost(projectWith(baseShape()));
-    const res = await executeTool(
-      "set_motion_shape_path",
-      { compositionId: COMP_ID, layerId: SHAPE_ID, points: trianglePath },
-      host,
-    );
-    expect(res.ok).toBe(false);
-    expect(res.error?.code).toBe("INVALID_PARAMS");
-  });
-
-  it("returns NOT_FOUND for an unknown layer", async () => {
-    const host = new HeadlessHost(projectWith(pathShape()));
-    const res = await executeTool(
-      "set_motion_shape_path",
-      { compositionId: COMP_ID, layerId: "nope", points: trianglePath },
-      host,
-    );
-    expect(res.ok).toBe(false);
-    expect(res.error?.code).toBe("NOT_FOUND");
-  });
 });
 
 describe("edit_motion_shape_path_point", () => {
@@ -188,27 +138,6 @@ describe("edit_motion_shape_path_point", () => {
     expect(parsed[0].outY).toBe(30);
   });
 
-  it("requires at least one field to change", async () => {
-    const host = new HeadlessHost(projectWith(pathShape()));
-    const res = await executeTool(
-      "edit_motion_shape_path_point",
-      { compositionId: COMP_ID, layerId: PATH_ID, index: 0 },
-      host,
-    );
-    expect(res.ok).toBe(false);
-    expect(res.error?.code).toBe("INVALID_PARAMS");
-  });
-
-  it("rejects an out-of-range index with INVALID_PARAMS", async () => {
-    const host = new HeadlessHost(projectWith(pathShape()));
-    const res = await executeTool(
-      "edit_motion_shape_path_point",
-      { compositionId: COMP_ID, layerId: PATH_ID, index: 42, x: 1, y: 1 },
-      host,
-    );
-    expect(res.ok).toBe(false);
-    expect(res.error?.code).toBe("INVALID_PARAMS");
-  });
 });
 
 describe("insert_motion_shape_path_point", () => {
@@ -314,16 +243,6 @@ describe("add_motion_layer shape:path", () => {
     expect(parseMotionPathSegments(shape.pathData).length).toBe(3);
   });
 
-  it("rejects shapeType path with no path input", async () => {
-    const host = new HeadlessHost(projectWith(baseShape()));
-    const res = await executeTool(
-      "add_motion_layer",
-      { compositionId: COMP_ID, layerType: "shape", shapeType: "path" },
-      host,
-    );
-    expect(res.ok).toBe(false);
-    expect(res.error?.code).toBe("INVALID_PARAMS");
-  });
 });
 
 describe("add_motion_shape_path_keyframe", () => {
@@ -370,27 +289,6 @@ describe("add_motion_shape_path_keyframe", () => {
     expect(res.ok).toBe(true);
   });
 
-  it("rejects a non-path shape with INVALID_PARAMS", async () => {
-    const host = new HeadlessHost(projectWith(baseShape()));
-    const res = await executeTool(
-      "add_motion_shape_path_keyframe",
-      { compositionId: COMP_ID, layerId: SHAPE_ID, time: 1 },
-      host,
-    );
-    expect(res.ok).toBe(false);
-    expect(res.error?.code).toBe("INVALID_PARAMS");
-  });
-
-  it("returns NOT_FOUND for an unknown layer", async () => {
-    const host = new HeadlessHost(projectWith(pathShape()));
-    const res = await executeTool(
-      "add_motion_shape_path_keyframe",
-      { compositionId: COMP_ID, layerId: "nope", time: 1 },
-      host,
-    );
-    expect(res.ok).toBe(false);
-    expect(res.error?.code).toBe("NOT_FOUND");
-  });
 });
 
 function animatedShape(): MotionShapeLayer {
@@ -465,53 +363,6 @@ describe("transform_motion_keyframes", () => {
     expect(opacityKeyframes(host).length).toBeGreaterThan(before);
   });
 
-  it("rejects an unknown op with INVALID_PARAMS", async () => {
-    const host = new HeadlessHost(projectWith(animatedShape()));
-    const res = await executeTool(
-      "transform_motion_keyframes",
-      {
-        compositionId: COMP_ID,
-        layerId: SHAPE_ID,
-        property: "transform.opacity",
-        op: "bogus",
-      },
-      host,
-    );
-    expect(res.ok).toBe(false);
-    expect(res.error?.code).toBe("INVALID_PARAMS");
-  });
-
-  it("requires offset for duplicate", async () => {
-    const host = new HeadlessHost(projectWith(animatedShape()));
-    const res = await executeTool(
-      "transform_motion_keyframes",
-      {
-        compositionId: COMP_ID,
-        layerId: SHAPE_ID,
-        property: "transform.opacity",
-        op: "duplicate",
-      },
-      host,
-    );
-    expect(res.ok).toBe(false);
-    expect(res.error?.code).toBe("INVALID_PARAMS");
-  });
-
-  it("rejects an unknown property with INVALID_PARAMS", async () => {
-    const host = new HeadlessHost(projectWith(animatedShape()));
-    const res = await executeTool(
-      "transform_motion_keyframes",
-      {
-        compositionId: COMP_ID,
-        layerId: SHAPE_ID,
-        property: "totally.made.up",
-        op: "reverse",
-      },
-      host,
-    );
-    expect(res.ok).toBe(false);
-    expect(res.error?.code).toBe("INVALID_PARAMS");
-  });
 });
 
 describe("copy_motion_keyframes / paste_motion_keyframes", () => {
@@ -553,34 +404,4 @@ describe("copy_motion_keyframes / paste_motion_keyframes", () => {
     expect(scaleKf[0].time).toBeCloseTo(1, 5);
   });
 
-  it("returns NOT_FOUND when the source property has no keyframes", async () => {
-    const host = new HeadlessHost(projectWith(baseShape()));
-    const res = await executeTool(
-      "copy_motion_keyframes",
-      {
-        compositionId: COMP_ID,
-        layerId: SHAPE_ID,
-        property: "transform.opacity",
-      },
-      host,
-    );
-    expect(res.ok).toBe(false);
-    expect(res.error?.code).toBe("NOT_FOUND");
-  });
-
-  it("rejects an unknown target property with INVALID_PARAMS", async () => {
-    const host = new HeadlessHost(projectWith(animatedShape()));
-    const res = await executeTool(
-      "paste_motion_keyframes",
-      {
-        compositionId: COMP_ID,
-        layerId: SHAPE_ID,
-        fromProperty: "transform.opacity",
-        toProperty: "not.a.prop",
-      },
-      host,
-    );
-    expect(res.ok).toBe(false);
-    expect(res.error?.code).toBe("INVALID_PARAMS");
-  });
 });

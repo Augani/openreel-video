@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 
-export interface ServiceWorkerStatus {
+interface ServiceWorkerStatus {
   supported: boolean;
   registered: boolean;
   active: boolean;
@@ -8,7 +8,7 @@ export interface ServiceWorkerStatus {
   updateAvailable: boolean;
 }
 
-export interface CacheStatus {
+interface CacheStatus {
   cacheNames: string[];
   totalEntries: number;
   version: string;
@@ -292,7 +292,7 @@ class ServiceWorkerManager {
 }
 
 // Singleton instance
-export const serviceWorkerManager = new ServiceWorkerManager();
+const serviceWorkerManager = new ServiceWorkerManager();
 
 /**
  * Register service worker on app startup
@@ -307,11 +307,4 @@ export async function registerServiceWorker(): Promise<ServiceWorkerRegistration
   }
 
   return serviceWorkerManager.register();
-}
-
-/**
- * Check if AI features are available (requires online)
- */
-export function isAIAvailable(): boolean {
-  return serviceWorkerManager.getOnlineStatus();
 }

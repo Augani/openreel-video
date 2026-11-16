@@ -2,7 +2,7 @@ import type { Mask, MaskEngine } from "@openreel/core";
 import { drawFrameWithTransform } from "./canvas-renderers";
 import type { ClipTransform } from "./types";
 
-type MaskEngineSurface = Pick<MaskEngine, "applyMask" | "loadMasks">;
+type MaskEngineSurface = Pick<MaskEngine, "applyMasks" | "loadMasks">;
 type FrameSource = Parameters<typeof drawFrameWithTransform>[1];
 
 interface MaskedFrameRendererDependencies {
@@ -11,7 +11,7 @@ interface MaskedFrameRendererDependencies {
   drawFrame?: typeof drawFrameWithTransform;
 }
 
-export interface DrawFrameWithMasksOptions {
+interface DrawFrameWithMasksOptions {
   ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
   frame: FrameSource;
   transform: ClipTransform;
@@ -65,15 +65,13 @@ export async function drawFrameWithMasks(
   options.maskEngine.loadMasks([...options.masks]);
   let renderedLayer = await createBitmap(layerCanvas);
   try {
-    for (const mask of options.masks) {
-      const result = await options.maskEngine.applyMask(
-        renderedLayer,
-        mask,
-        options.time,
-      );
-      renderedLayer.close();
-      renderedLayer = result.image;
-    }
+    const result = await options.maskEngine.applyMasks(
+      renderedLayer,
+      options.masks,
+      options.time,
+    );
+    renderedLayer.close();
+    renderedLayer = result.image;
     options.ctx.drawImage(
       renderedLayer,
       0,

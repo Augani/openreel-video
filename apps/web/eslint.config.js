@@ -29,6 +29,11 @@ export default [
         OffscreenCanvasRenderingContext2D: "readonly",
         React: "readonly",
         JSX: "readonly",
+        ParentNode: "readonly",
+        BlobPart: "readonly",
+        IDBTransactionMode: "readonly",
+        BufferSource: "readonly",
+        KeyboardEventInit: "readonly",
       },
     },
     plugins: {

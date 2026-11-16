@@ -14,7 +14,7 @@ import {
   DEFAULT_LAYER_OPACITY,
 } from "./types";
 
-export interface PhotoEngineConfig {
+interface PhotoEngineConfig {
   width?: number;
   height?: number;
 }
@@ -456,10 +456,5 @@ export function getPhotoEngine(): PhotoEngine {
   if (!photoEngineInstance) {
     photoEngineInstance = new PhotoEngine();
   }
-  return photoEngineInstance;
-}
-
-export function initializePhotoEngine(config: PhotoEngineConfig): PhotoEngine {
-  photoEngineInstance = new PhotoEngine(config);
   return photoEngineInstance;
 }

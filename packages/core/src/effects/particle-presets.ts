@@ -302,12 +302,8 @@ export const PARTICLE_PRESETS: ParticlePreset[] = [
   },
 ];
 
-export function getParticlePresetById(id: string): ParticlePreset | undefined {
+function getParticlePresetById(id: string): ParticlePreset | undefined {
   return PARTICLE_PRESETS.find((p) => p.id === id);
-}
-
-export function getParticlePresetsByType(type: ParticleEffectType): ParticlePreset[] {
-  return PARTICLE_PRESETS.filter((p) => p.type === type);
 }
 
 export function createEffectFromPreset(
@@ -326,7 +322,7 @@ export function createEffectFromPreset(
     type: preset.type,
     startTime,
     duration,
-    config: { ...preset.config },
+    config: structuredClone(preset.config),
     enabled: true,
   };
 }

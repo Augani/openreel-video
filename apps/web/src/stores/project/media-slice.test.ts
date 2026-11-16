@@ -70,6 +70,39 @@ function originalMedia(): MediaItem {
 }
 
 describe("Media slice asynchronous imports", () => {
+  it("owns saved stock credits independently of the mutable search result", async () => {
+    bridge.importFile.mockResolvedValue(decodedAudio());
+    const store = createMediaStore();
+    const stockSource = { provider: "wikimedia-commons" as const, id: "commons-1", title: "Ocean", creator: "Creator", pageUrl: "https://commons.wikimedia.org/wiki/File:Ocean.webm", license: "CC BY 4.0" };
+    const imported = await store.getState().importMedia(new File(["a"], "Ocean.webm"), undefined, { stockSource });
+    stockSource.creator = "Changed search result";
+    expect(imported.success).toBe(true);
+    expect(JSON.parse(JSON.stringify(store.getState().project)).mediaLibrary.items[0].metadata.stockSource.creator).toBe("Creator");
+    expect(saveMediaBlob).toHaveBeenCalledWith(store.getState().project.id, imported.actionId, expect.any(File), expect.objectContaining({ stockSource: expect.objectContaining({ creator: "Creator" }) }));
+  });
+  it.each(["abort", "ownership"])("does not publish or persist cancelled decoding (%s)", async reason => {
+    const decoding = deferred<ReturnType<typeof decodedAudio>>(); bridge.importFile.mockReturnValue(decoding.promise);
+    const store = createMediaStore(); const before = store.getState().project;
+    const controller = new AbortController(); let current = true;
+    const pending = store.getState().importMedia(new File(["a"], "Ocean.webm"), undefined, undefined, { signal: controller.signal, isCurrent: () => current });
+    if (reason === "abort") controller.abort(); else current = false;
+    decoding.resolve(decodedAudio()); expect((await pending).success).toBe(false);
+    expect(store.getState().project).toBe(before); expect(saveMediaBlob).not.toHaveBeenCalled();
+  });
+  it("does no decoding for an already cancelled import", async () => {
+    const store = createMediaStore(), controller = new AbortController(); controller.abort();
+    expect((await store.getState().importMedia(new File(["a"], "Ocean.webm"), undefined, undefined, { signal: controller.signal })).success).toBe(false);
+    expect(bridge.importFile).not.toHaveBeenCalled();
+  });
+  it("persists sound-library provenance independently of the imported file name", async () => {
+    bridge.importFile.mockResolvedValue(decodedAudio());
+    const store = createMediaStore();
+    const imported = await store.getState().importMedia(new File(["a"], "renamed.wav"), undefined, { soundLibraryId: "music-cinematic-bed" });
+    expect(imported.success).toBe(true);
+    expect(store.getState().project.mediaLibrary.items[0].metadata.soundLibraryId).toBe("music-cinematic-bed");
+    expect(JSON.parse(JSON.stringify(store.getState().project)).mediaLibrary.items[0].metadata.soundLibraryId).toBe("music-cinematic-bed");
+    expect(saveMediaBlob).toHaveBeenCalledWith(store.getState().project.id, imported.actionId, expect.any(File), expect.objectContaining({ soundLibraryId: "music-cinematic-bed" }));
+  });
   beforeEach(() => {
     vi.clearAllMocks();
     bridge.importFile.mockReset();
@@ -149,6 +182,26 @@ describe("Media slice asynchronous imports", () => {
     );
   });
 
+  it("reconnecting offline media keeps its bin, label, proxy and copy provenance and records the path", async () => {
+    bridge.importFile.mockResolvedValueOnce(decodedAudio());
+    const initial = createEmptyProject("Reconnect");
+    const proxy = { storage: "path", path: "/p/x_half_proxy.mov", status: "ready" } as unknown as MediaItem["proxy"];
+    const copiedFrom = { path: "/orig/a.wav", sha256: "ab", copiedAt: 1 };
+    initial.mediaLibrary.items.push({ ...originalMedia(), isPlaceholder: true, binId: "bin-1", label: "rose", comment: "keep", proxy, copiedFrom });
+    const store = createMediaStore(initial);
+    const result = await store.getState().replaceMediaAsset("existing-media", new File(["x"], "relinked.wav"), undefined, { restorePlaceholder: true, sourcePath: "/found/relinked.wav" });
+    expect(result.success).toBe(true);
+    expect(store.getState().project.mediaLibrary.items[0]).toMatchObject({
+      isPlaceholder: false,
+      binId: "bin-1",
+      label: "rose",
+      comment: "keep",
+      proxy,
+      copiedFrom,
+      sourceFile: { path: "/found/relinked.wav" },
+    });
+  });
+
   it("does not resurrect media removed while a replacement decodes", async () => {
     const decoding = deferred<ReturnType<typeof decodedAudio>>();
     bridge.importFile.mockReturnValueOnce(decoding.promise);
@@ -189,6 +242,39 @@ describe("Media slice asynchronous imports", () => {
 
     expect(store.getState().project.mediaLibrary.items[0].name).toBe("newer.wav");
     expect(saveMediaBlob).toHaveBeenCalledOnce();
+  });
+
+  it("does not let an automatic restore supersede a manual replacement already decoding", async () => {
+    const decoding=deferred<ReturnType<typeof decodedAudio>>();
+    bridge.importFile.mockReturnValueOnce(decoding.promise);
+    const initial=createEmptyProject("Relink");initial.mediaLibrary.items.push(originalMedia());
+    const store=createMediaStore(initial);
+    const manual=store.getState().replaceMediaAsset("existing-media",new File(["new"],"Manual.wav"));
+    const automatic=await store.getState().replaceMediaAsset("existing-media",new File(["old"],"Saved.wav"),undefined,{restorePlaceholder:true});
+    expect(automatic.success).toBe(false);expect(bridge.importFile).toHaveBeenCalledOnce();
+    decoding.resolve(decodedAudio());expect((await manual).success).toBe(true);
+    expect(store.getState().project.mediaLibrary.items[0].name).toBe("Manual.wav");
+  });
+
+  it("rejects pending replacement after the same project ID is loaded into a new editing session", async () => {
+    const decoding=deferred<ReturnType<typeof decodedAudio>>();bridge.importFile.mockReturnValueOnce(decoding.promise);
+    const initial=createEmptyProject("Relink");initial.mediaLibrary.items.push(originalMedia());
+    const store=createMediaStore(initial);
+    const replacing=store.getState().replaceMediaAsset("existing-media",new File(["new"],"Late.wav"));
+    store.setState({actionExecutor:{} as ProjectState["actionExecutor"],project:{...initial}});
+    decoding.resolve(decodedAudio());expect((await replacing).success).toBe(false);
+    expect(store.getState().project.mediaLibrary.items[0].isPlaceholder).toBe(true);
+    expect(saveMediaBlob).not.toHaveBeenCalled();
+  });
+
+  it("does not cancel source replacement for a waveform-only metadata update", async () => {
+    const decoding=deferred<ReturnType<typeof decodedAudio>>();bridge.importFile.mockReturnValueOnce(decoding.promise);
+    const initial=createEmptyProject("Relink");initial.mediaLibrary.items.push(originalMedia());
+    const store=createMediaStore(initial);
+    const replacing=store.getState().replaceMediaAsset("existing-media",new File(["new"],"Replacement.wav"));
+    store.setState({project:{...initial,mediaLibrary:{...initial.mediaLibrary,items:[{...initial.mediaLibrary.items[0],waveformData:new Float32Array([.2,.4])}]}}});
+    decoding.resolve(decodedAudio());expect((await replacing).success).toBe(true);
+    expect(store.getState().project.mediaLibrary.items[0].name).toBe("Replacement.wav");
   });
 
   it("warns when media is usable but cannot survive a reload", async () => {

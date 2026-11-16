@@ -57,28 +57,28 @@ export interface TranscriptionSegment {
   readonly confidence: number;
 }
 
-export interface TranscriptionResult {
+interface TranscriptionResult {
   readonly success: boolean;
   readonly segments: TranscriptionSegment[];
   readonly error?: string;
   readonly language?: string;
 }
 
-export interface SpeechToTextOptions {
+interface SpeechToTextOptions {
   readonly language: string;
   readonly continuous: boolean;
   readonly interimResults: boolean;
   readonly maxAlternatives: number;
 }
 
-export type TranscriptionStatus =
+type TranscriptionStatus =
   | "idle"
   | "preparing"
   | "transcribing"
   | "completed"
   | "error";
 
-export interface TranscriptionProgress {
+interface TranscriptionProgress {
   readonly status: TranscriptionStatus;
   readonly progress: number;
   readonly currentTime: number;
@@ -443,7 +443,3 @@ export class SpeechToTextEngine {
     this.segmentCallback = null;
   }
 }
-
-export const createSpeechToTextEngine = (): SpeechToTextEngine => {
-  return new SpeechToTextEngine();
-};

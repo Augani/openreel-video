@@ -26,14 +26,6 @@ export interface RecordingOptions {
   };
 }
 
-export interface RecordingState {
-  status: RecordingStatus;
-  duration: number;
-  error?: string;
-  screenStream?: MediaStream;
-  webcamStream?: MediaStream;
-}
-
 export interface RecordingResult {
   screenBlob: Blob;
   webcamBlob?: Blob;
@@ -418,12 +410,6 @@ export class ScreenRecorderService {
 }
 
 export const screenRecorderService = new ScreenRecorderService();
-
-export function getFileExtension(mimeType: string): string {
-  if (mimeType.includes("mp4")) return "mp4";
-  if (mimeType.includes("webm")) return "webm";
-  return "webm";
-}
 
 export function formatDuration(ms: number): string {
   const totalSeconds = Math.floor(ms / 1000);

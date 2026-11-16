@@ -32,7 +32,7 @@ export interface SyncProgress {
   readonly message: string;
 }
 
-export type SyncProgressCallback = (progress: SyncProgress) => void;
+type SyncProgressCallback = (progress: SyncProgress) => void;
 
 export interface ClipInfo {
   readonly id: string;
@@ -244,10 +244,6 @@ export function getBeatSyncEngine(): BeatSyncEngine {
     beatSyncEngineInstance = new BeatSyncEngine();
   }
   return beatSyncEngineInstance;
-}
-
-export function disposeBeatSyncEngine(): void {
-  beatSyncEngineInstance = null;
 }
 
 export { type BeatAnalysisResult };

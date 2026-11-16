@@ -1,6 +1,14 @@
 import {
-  textAnimationEngine,
   titleEngine,
+  getAnimatedVideoEffects,
+  hasAnimatedVideoEffects,
+  hasAnimatedColorGrading,
+  getAnimatedColorGrading,
+  isRenderableVideoEffect,
+  applyIrisMaskToContext,
+  isIrisShape,
+  type VideoEffectSource,
+  type Effect,
   type TextClip,
   type ShapeClip,
   type SVGClip,
@@ -15,20 +23,69 @@ import {
   isNeutralColorGrading,
   type TransitionEdge,
   resolveCanvasFitDimensions,
+  planSvgRaster,
+  padSvgForRaster,
+  SVG_RASTER_PAD,
   type Clip,
+  applyInputTransformToBitmap,
+  drawShapePathCentered,
 } from "@openreel/core";
-import * as THREE from "three";
+import type { SubtitleStyle } from "@openreel/core";
+import {
+  DEFAULT_CAPTION_FONT_SIZE,
+  drawCaption,
+  drawCaptionText,
+  fillCaptionBox,
+  layoutCaption,
+} from "@openreel/core/captions/caption-layout";
+import type * as THREE from "three";
 
 type GraphicClipUnion = ShapeClip | SVGClip | StickerClip;
 import { getEffectsBridge } from "../../../bridges/effects-bridge";
+import { isColorBypassed, withPreviewOverrides } from "./program-frame-control";
+import { inputTransformForClip } from "./clip-input-transform";
 import { getTransitionBridge } from "../../../bridges/transition-bridge";
 import type { ClipTransform } from "./types";
 import { DEFAULT_TRANSFORM } from "./types";
-import { ThreeJSLayerRenderer } from "./threejs-layer-renderer";
+import type { ThreeJSLayerRenderer } from "./threejs-layer-renderer";
 
 let lastEffectsLogTime = 0;
 let threeJSRenderer: ThreeJSLayerRenderer | null = null;
+let threeJSModule: Promise<typeof import("./threejs-layer-renderer")> | null = null;
+let threeJSGeneration = 0;
+let irisFallbackCanvas: OffscreenCanvas | null = null;
 const animationEngine = new AnimationEngine();
+
+async function getThreeJSRenderer(
+  width: number,
+  height: number,
+): Promise<ThreeJSLayerRenderer | null> {
+  const generation = threeJSGeneration;
+  if (!threeJSRenderer) {
+    threeJSModule ??= import("./threejs-layer-renderer").catch((error: unknown) => {
+      threeJSModule = null;
+      throw error;
+    });
+    const { ThreeJSLayerRenderer } = await threeJSModule;
+    if (generation !== threeJSGeneration) return null;
+    if (!threeJSRenderer) {
+      threeJSRenderer = new ThreeJSLayerRenderer(width, height);
+      threeJSRenderer.setFontReadyCallback(() => imageLoadCallback?.());
+    }
+  }
+  if (threeJSRenderer.canvas.width !== width || threeJSRenderer.canvas.height !== height) {
+    threeJSRenderer.resize(width, height);
+  }
+  return threeJSRenderer;
+}
+
+export function disposePreview3DRenderer(): void {
+  threeJSGeneration += 1;
+  threeJSRenderer?.dispose();
+  threeJSRenderer = null;
+  // The same preview host owns the optional cold-start 2D surface.
+  irisFallbackCanvas = null;
+}
 
 interface EmphasisState {
   opacity: number;
@@ -548,41 +605,10 @@ export const renderTextClipToCanvas = (
   canvasWidth: number,
   canvasHeight: number,
   time: number,
-): void => {
+): void | Promise<void> => {
   const clipLocalTime = time - textClip.startTime;
-  const animatedState = textAnimationEngine.getAnimatedState(
-    textClip,
-    clipLocalTime,
-  );
-  let { opacity, transform } = animatedState;
-  const { style, visibleText } = animatedState;
-
-  if (opacity <= 0 || visibleText.length === 0) {
-    return;
-  }
-
-  if (
-    textClip.emphasisAnimation &&
-    textClip.emphasisAnimation.type !== "none"
-  ) {
-    const emphasisState = applyEmphasisAnimation(
-      textClip.emphasisAnimation,
-      clipLocalTime,
-    );
-    opacity = opacity * emphasisState.opacity;
-    transform = {
-      ...transform,
-      scale: {
-        x: transform.scale.x * emphasisState.scale * emphasisState.scaleX,
-        y: transform.scale.y * emphasisState.scale * emphasisState.scaleY,
-      },
-      position: {
-        x: transform.position.x + emphasisState.offsetX,
-        y: transform.position.y + emphasisState.offsetY,
-      },
-      rotation: transform.rotation + emphasisState.rotation,
-    };
-  }
+  const { opacity, transform, style, visibleText } = titleEngine.getAnimatedTextState(textClip, clipLocalTime);
+  if (opacity <= 0 || visibleText.length === 0) return;
 
   // 3D transforms, 3D extrusion, or blend modes require THREE.js
   // rendering since Canvas 2D can't support them. This ensures proper
@@ -595,20 +621,6 @@ export const renderTextClipToCanvas = (
   const has3DText = textClip.text3d?.enabled === true;
 
   if (has3DTransforms || hasBlendMode || has3DText) {
-    // Lazy-initialize THREE.js renderer (reused for all 3D text rendering)
-    if (!threeJSRenderer) {
-      threeJSRenderer = new ThreeJSLayerRenderer(canvasWidth, canvasHeight);
-    }
-
-    if (
-      threeJSRenderer.canvas.width !== canvasWidth ||
-      threeJSRenderer.canvas.height !== canvasHeight
-    ) {
-      threeJSRenderer.resize(canvasWidth, canvasHeight);
-    }
-
-    threeJSRenderer.clear();
-
     const animatedTextClip: TextClip = {
       ...textClip,
       text: visibleText,
@@ -619,17 +631,15 @@ export const renderTextClipToCanvas = (
       },
     };
 
-    const mesh = threeJSRenderer.renderTextClip(
-      animatedTextClip,
-      canvasWidth,
-      canvasHeight,
-    );
-    if (mesh) {
-      threeJSRenderer.getScene().add(mesh);
-      const threeCanvas = threeJSRenderer.render();
-      ctx.drawImage(threeCanvas, 0, 0);
-    }
-    return;
+    return getThreeJSRenderer(canvasWidth, canvasHeight).then((renderer) => {
+      if (!renderer || renderer !== threeJSRenderer) return;
+      renderer.clear();
+      const mesh = renderer.renderTextClip(animatedTextClip, canvasWidth, canvasHeight);
+      if (mesh) {
+        renderer.getScene().add(mesh);
+        ctx.drawImage(renderer.render(), 0, 0);
+      }
+    });
   }
 
   // Use the same title renderer as export. Keeping one 2D text path is
@@ -674,46 +684,6 @@ export const setImageLoadCallback = (callback: (() => void) | null): void => {
   imageLoadCallback = callback;
 };
 
-const wrapSVGWithTransparentPadding = (
-  svgContent: string,
-  width: number,
-  height: number,
-  padding: number,
-  viewBox?: { minX: number; minY: number; width: number; height: number },
-): string => {
-  if (padding <= 0) {
-    return svgContent;
-  }
-
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(svgContent, "image/svg+xml");
-  const svgEl = doc.querySelector("svg");
-
-  if (!svgEl) {
-    return svgContent;
-  }
-
-  const vbMinX = viewBox?.minX ?? 0;
-  const vbMinY = viewBox?.minY ?? 0;
-  const vbWidth = viewBox?.width ?? width;
-  const vbHeight = viewBox?.height ?? height;
-
-  const padX = (padding / width) * vbWidth;
-  const padY = (padding / height) * vbHeight;
-
-  const paddedWidth = width + padding * 2;
-  const paddedHeight = height + padding * 2;
-
-  svgEl.setAttribute("width", String(paddedWidth));
-  svgEl.setAttribute("height", String(paddedHeight));
-  svgEl.setAttribute(
-    "viewBox",
-    `${vbMinX - padX} ${vbMinY - padY} ${vbWidth + padX * 2} ${vbHeight + padY * 2}`,
-  );
-  svgEl.setAttribute("overflow", "visible");
-
-  return new XMLSerializer().serializeToString(svgEl);
-};
 
 
 const renderStickerClip = (
@@ -812,8 +782,10 @@ const renderSVGClip = (
 
   ctx.save();
 
-  const posX = Math.round(transform.position.x * canvasWidth);
-  const posY = Math.round(transform.position.y * canvasHeight);
+  // Sub-pixel exact (no pixel snapping): the export compositor draws at the exact position, so
+  // snapping here shifted thin strokes by up to half a pixel against the export.
+  const posX = transform.position.x * canvasWidth;
+  const posY = transform.position.y * canvasHeight;
 
   let animationScale = { x: transform.scale.x, y: transform.scale.y };
   let animationOpacity = transform.opacity;
@@ -1095,8 +1067,8 @@ const renderSVGClip = (
   }
 
   ctx.translate(
-    posX + Math.round(animationTranslateX),
-    posY + Math.round(animationTranslateY),
+    posX + animationTranslateX,
+    posY + animationTranslateY,
   );
   ctx.rotate((transform.rotation * Math.PI) / 180);
   ctx.scale(animationScale.x, animationScale.y);
@@ -1104,36 +1076,16 @@ const renderSVGClip = (
 
   const svgWidth = viewBox?.width || 200;
   const svgHeight = viewBox?.height || 200;
-  const svgAspect = svgWidth / svgHeight;
-  const maxScale = Math.max(
-    Math.abs(animationScale.x),
-    Math.abs(animationScale.y),
-    1,
-  );
-  const scaleBucket = Math.ceil(maxScale * 2) / 2;
-
-  let renderWidth: number;
-  let renderHeight: number;
-  if (svgAspect > 1) {
-    renderWidth = Math.ceil(canvasWidth * scaleBucket);
-    renderHeight = Math.ceil(renderWidth / svgAspect);
-  } else {
-    renderHeight = Math.ceil(canvasHeight * scaleBucket);
-    renderWidth = Math.ceil(renderHeight * svgAspect);
-  }
-
-  const svgPad = 16;
-  const paddedWidth = renderWidth + svgPad * 2;
-  const paddedHeight = renderHeight + svgPad * 2;
+  // One plan shared with the export compositor (graphics-engine): same raster scale, same margin.
+  const plan = planSvgRaster(viewBox, canvasWidth, canvasHeight, animationScale.x, animationScale.y);
+  const { renderWidth, renderHeight, paddedWidth, paddedHeight } = plan;
   const cacheKey = `${svgClip.id}_${renderWidth}x${renderHeight}`;
   let img = svgImageCache.get(cacheKey);
 
   if (!img) {
-    const scaledContent = wrapSVGWithTransparentPadding(
+    const scaledContent = padSvgForRaster(
       svgContent,
-      renderWidth,
-      renderHeight,
-      svgPad,
+      plan,
       viewBox ? { minX: viewBox.minX, minY: viewBox.minY, width: svgWidth, height: svgHeight } : undefined,
     );
 
@@ -1155,9 +1107,9 @@ const renderSVGClip = (
   }
 
   if (img.complete && img.naturalWidth > 0) {
-    const drawWidth = renderWidth / scaleBucket;
-    const drawHeight = renderHeight / scaleBucket;
-    const padDraw = svgPad / scaleBucket;
+    const { drawWidth, drawHeight, padDraw } = plan;
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
 
     const needsTempCanvas =
       (colorStyle && colorStyle.colorMode && colorStyle.colorMode !== "none") ||
@@ -1208,7 +1160,7 @@ const renderSVGClip = (
           tempCtx.lineWidth = Math.max(renderWidth, renderHeight);
           tempCtx.setLineDash([dashLength]);
           tempCtx.lineDashOffset = offset;
-          tempCtx.strokeRect(svgPad, svgPad, renderWidth, renderHeight);
+          tempCtx.strokeRect(SVG_RASTER_PAD, SVG_RASTER_PAD, renderWidth, renderHeight);
           tempCtx.setLineDash([]);
         }
 
@@ -1335,6 +1287,10 @@ const renderShapeOnly = (
       ctx.lineTo(halfSize, 0);
       break;
     }
+    case "path": {
+      drawShapePathCentered(ctx, shapeClip, shapeSize);
+      break;
+    }
     default: {
       ctx.rect(-halfSize, -halfSize, shapeSize, shapeSize);
     }
@@ -1357,7 +1313,7 @@ export const renderShapeClipToCanvas = (
   canvasWidth: number,
   canvasHeight: number,
   time: number,
-): void => {
+): void | Promise<void> => {
   const clipLocalTime = time - clip.startTime;
 
   let baseTransform = clip.transform;
@@ -1405,49 +1361,37 @@ export const renderShapeClipToCanvas = (
     (transformedClip as ShapeClip).shapeType.startsWith("mesh-");
 
   if (has3DTransforms || hasBlendMode || isShape3D) {
-    if (!threeJSRenderer) {
-      threeJSRenderer = new ThreeJSLayerRenderer(canvasWidth, canvasHeight);
-    }
-
-    if (
-      threeJSRenderer.canvas.width !== canvasWidth ||
-      threeJSRenderer.canvas.height !== canvasHeight
-    ) {
-      threeJSRenderer.resize(canvasWidth, canvasHeight);
-    }
-
-    threeJSRenderer.clear();
-
-    let mesh: THREE.Mesh | THREE.Group | null = null;
-    if (transformedClip.type === "svg") {
-      mesh = threeJSRenderer.renderSVGClip(
-        transformedClip as SVGClip,
-        canvasWidth,
-        canvasHeight,
-      );
-    } else if (
-      transformedClip.type === "sticker" ||
-      transformedClip.type === "emoji"
-    ) {
-      mesh = threeJSRenderer.renderStickerClip(
-        transformedClip as StickerClip,
-        canvasWidth,
-        canvasHeight,
-      );
-    } else {
-      mesh = threeJSRenderer.renderShapeClip(
-        transformedClip as ShapeClip,
-        canvasWidth,
-        canvasHeight,
-      );
-    }
-
-    if (mesh) {
-      threeJSRenderer.getScene().add(mesh);
-      const threeCanvas = threeJSRenderer.render();
-      ctx.drawImage(threeCanvas, 0, 0);
-    }
-    return;
+    return getThreeJSRenderer(canvasWidth, canvasHeight).then((renderer) => {
+      if (!renderer || renderer !== threeJSRenderer) return;
+      renderer.clear();
+      let mesh: THREE.Mesh | THREE.Group | null = null;
+      if (transformedClip.type === "svg") {
+        mesh = renderer.renderSVGClip(
+          transformedClip as SVGClip,
+          canvasWidth,
+          canvasHeight,
+        );
+      } else if (
+        transformedClip.type === "sticker" ||
+        transformedClip.type === "emoji"
+      ) {
+        mesh = renderer.renderStickerClip(
+          transformedClip as StickerClip,
+          canvasWidth,
+          canvasHeight,
+        );
+      } else {
+        mesh = renderer.renderShapeClip(
+          transformedClip as ShapeClip,
+          canvasWidth,
+          canvasHeight,
+        );
+      }
+      if (mesh) {
+        renderer.getScene().add(mesh);
+        ctx.drawImage(renderer.render(), 0, 0);
+      }
+    });
   }
 
   if (transformedClip.type === "svg") {
@@ -1515,55 +1459,8 @@ const renderStaticSubtitle = (
   canvasWidth: number,
   canvasHeight: number,
 ): void => {
-  const { text, style } = subtitle;
-
-  ctx.save();
-
-  const fontSize = style?.fontSize || 24;
-  const fontFamily = style?.fontFamily || "Inter";
-  const color = style?.color || "#ffffff";
-  const backgroundColor = style?.backgroundColor || "rgba(0, 0, 0, 0.7)";
-  const position = style?.position || "bottom";
-
-  ctx.font = `bold ${fontSize}px "${fontFamily}"`;
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-
-  const lines = text.split("\n");
-  const lineHeight = fontSize * 1.3;
-  const totalHeight = lines.length * lineHeight;
-
-  let baseY: number;
-  if (position === "top") {
-    baseY = fontSize * 2;
-  } else if (position === "center") {
-    baseY = canvasHeight / 2 - totalHeight / 2;
-  } else {
-    baseY = canvasHeight - fontSize * 2 - totalHeight;
-  }
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i].trim();
-    if (line.length === 0) continue;
-
-    const y = baseY + i * lineHeight + lineHeight / 2;
-    const metrics = ctx.measureText(line);
-    const bgWidth = metrics.width + 20;
-    const bgHeight = lineHeight;
-
-    ctx.fillStyle = backgroundColor;
-    ctx.fillRect(
-      canvasWidth / 2 - bgWidth / 2,
-      y - bgHeight / 2,
-      bgWidth,
-      bgHeight,
-    );
-
-    ctx.fillStyle = color;
-    ctx.fillText(line, canvasWidth / 2, y);
-  }
-
-  ctx.restore();
+  // Same drawing path as the export renderer.
+  drawCaption(ctx, subtitle, canvasWidth, canvasHeight);
 };
 
 const renderAnimatedSubtitle = (
@@ -1581,67 +1478,51 @@ const renderAnimatedSubtitle = (
 
   ctx.save();
 
-  const style = subtitle.style;
-  const fontSize = style?.fontSize || 24;
-  const fontFamily = style?.fontFamily || "Inter";
-  const baseColor = style?.color || "#ffffff";
-  const backgroundColor = style?.backgroundColor || "rgba(0, 0, 0, 0.7)";
-  const position = style?.position || "bottom";
+  const style: Partial<SubtitleStyle> = subtitle.style ?? {};
+  const fontSize = style.fontSize || DEFAULT_CAPTION_FONT_SIZE;
+  const fontFamily = style.fontFamily || "Inter";
+  const baseColor = style.color || "#ffffff";
 
   ctx.font = `bold ${fontSize}px "${fontFamily}"`;
   ctx.textBaseline = "middle";
+  ctx.textAlign = "left";
 
-  const lineHeight = fontSize * 1.3;
-
-  let baseY: number;
-  if (position === "top") {
-    baseY = fontSize * 2 + lineHeight / 2;
-  } else if (position === "center") {
-    baseY = canvasHeight / 2;
-  } else {
-    baseY = canvasHeight - fontSize * 2 - lineHeight / 2;
-  }
-
-  const totalText = frame.segments.map((s) => s.text).join(" ");
-  const totalWidth = ctx.measureText(totalText).width;
-  const bgWidth = totalWidth + 30;
-  const bgHeight = lineHeight + 10;
-
-  ctx.fillStyle = backgroundColor;
-  ctx.fillRect(
-    canvasWidth / 2 - bgWidth / 2,
-    baseY - bgHeight / 2,
-    bgWidth,
-    bgHeight,
+  // Same layout as the export renderer (placement, wrapping, safe margin, cue
+  // settings); only the per-word animation is drawn here.
+  const layout = layoutCaption(
+    subtitle,
+    canvasWidth,
+    canvasHeight,
+    (t) => ctx.measureText(t).width,
+    frame.segments.map((s) => s.text).join(" "),
   );
+  layout.boxes.forEach((box) => fillCaptionBox(ctx, box, style));
 
-  let xOffset = canvasWidth / 2 - totalWidth / 2;
+  let segmentIndex = 0;
+  for (const line of layout.lines) {
+    let xOffset = line.x;
+    const wordCount = line.text.split(" ").length;
+    const lineSegments = frame.segments.slice(segmentIndex, segmentIndex + wordCount);
+    segmentIndex += wordCount;
+    for (const segment of lineSegments) {
+      const segmentWidth = ctx.measureText(segment.text + " ").width;
 
-  for (const segment of frame.segments) {
-    const segmentWidth = ctx.measureText(segment.text + " ").width;
+      ctx.save();
+      ctx.globalAlpha = segment.opacity;
 
-    ctx.save();
-    ctx.globalAlpha = segment.opacity;
+      const centerX = xOffset + ctx.measureText(segment.text).width / 2;
+      const centerY = line.y + segment.offsetY;
 
-    const centerX = xOffset + ctx.measureText(segment.text).width / 2;
-    const centerY = baseY + segment.offsetY;
+      ctx.translate(centerX, centerY);
+      ctx.scale(segment.scale, segment.scale);
+      ctx.translate(-centerX, -centerY);
 
-    ctx.translate(centerX, centerY);
-    ctx.scale(segment.scale, segment.scale);
-    ctx.translate(-centerX, -centerY);
+      const segmentColor = getSegmentColor(segment, baseColor, style.highlightColor);
+      drawCaptionText(ctx, segment.text, xOffset, centerY, segmentColor, style);
 
-    const segmentColor = getSegmentColor(
-      segment,
-      baseColor,
-      style?.highlightColor,
-    );
-    ctx.fillStyle = segmentColor;
-    ctx.textAlign = "left";
-    ctx.fillText(segment.text, xOffset, baseY + segment.offsetY);
-
-    ctx.restore();
-
-    xOffset += segmentWidth;
+      ctx.restore();
+      xOffset += segmentWidth;
+    }
   }
 
   ctx.restore();
@@ -1766,12 +1647,49 @@ export const drawFrameWithTransform = (
   ctx.restore();
 };
 
+export interface PreviewEffectFrame {
+  clip: VideoEffectSource & { startTime: number };
+  time: number;
+}
+
+/**
+ * Source colour management first (it is colour interpretation, not a grade, so
+ * the ungraded comparison keeps it), then effects and grading. Plain SDR
+ * footage has no transform and takes the original path untouched.
+ */
 export const applyEffectsToFrame = async (
   clipId: string,
   frame: ImageBitmap,
+  effectFrame?: PreviewEffectFrame,
 ): Promise<ImageBitmap> => {
+  const transform = inputTransformForClip(clipId);
+  if (!transform) return applyEffectsToFrameGraded(clipId, frame, effectFrame);
+  let interpreted: ImageBitmap;
   try {
-    let processedFrame = frame;
+    interpreted = await applyInputTransformToBitmap(frame, transform);
+  } catch {
+    return applyEffectsToFrameGraded(clipId, frame, effectFrame);
+  }
+  const graded = await applyEffectsToFrameGraded(clipId, interpreted, effectFrame);
+  if (graded !== interpreted) interpreted.close();
+  return graded;
+};
+
+const applyEffectsToFrameGraded = async (
+  clipId: string,
+  frame: ImageBitmap,
+  effectFrame?: PreviewEffectFrame,
+): Promise<ImageBitmap> => {
+  // The ungraded comparison reference renders the picture without effects or grading.
+  if (isColorBypassed()) return frame;
+  let processedFrame = frame;
+  const adopt = (next: ImageBitmap | null | undefined) => {
+    if (!next || next === processedFrame || next === frame) return;
+    if (next.width <= 0 || next.height <= 0) { next.close(); return; }
+    if (processedFrame !== frame) processedFrame.close();
+    processedFrame = next;
+  };
+  try {
 
     const bgEngine = getBackgroundRemovalEngine();
     if (bgEngine && bgEngine.isInitialized()) {
@@ -1784,20 +1702,33 @@ export const applyEffectsToFrame = async (
             processedFrame.width,
             processedFrame.height,
           );
-          if (bgResult && bgResult.width > 0 && bgResult.height > 0) {
-            processedFrame = bgResult;
-          }
+          adopt(bgResult);
         } catch {}
       }
     }
 
     const effectsBridge = getEffectsBridge();
+    const animated = effectFrame && hasAnimatedVideoEffects(effectFrame.clip)
+      ? getAnimatedVideoEffects(effectFrame.clip, effectFrame.time - effectFrame.clip.startTime)
+      : null;
     const isInit = effectsBridge.isInitialized();
     if (!isInit) {
+      const irisEffects = animated?.filter(effect => effect.type === "mask" && isIrisShape(effect.params.irisShape)) ?? [];
+      if (irisEffects.length) {
+        const { width, height } = processedFrame;
+        if (!irisFallbackCanvas || irisFallbackCanvas.width !== width || irisFallbackCanvas.height !== height) irisFallbackCanvas = new OffscreenCanvas(width, height);
+        const maskCtx = irisFallbackCanvas.getContext("2d");
+        if (maskCtx) {
+          maskCtx.clearRect(0, 0, width, height);
+          maskCtx.drawImage(processedFrame, 0, 0);
+          for (const effect of irisEffects) applyIrisMaskToContext(maskCtx, effect.params, width, height);
+          adopt(await createImageBitmap(irisFallbackCanvas));
+        }
+      }
       return processedFrame;
     }
-
-    const effects = effectsBridge.getEffects(clipId);
+    irisFallbackCanvas = null;
+    const effects = animated ?? effectsBridge.getEffects(clipId);
     const colorGrading = effectsBridge.getColorGrading(clipId);
 
     const now = Date.now();
@@ -1805,44 +1736,40 @@ export const applyEffectsToFrame = async (
       lastEffectsLogTime = now;
     }
 
-    const enabledEffects = effects.filter((e) => e.enabled);
+    const enabledEffects = effects
+      .map((effect) => withPreviewOverrides(effectsBridge, effect))
+      .filter(isRenderableVideoEffect);
     if (enabledEffects.length > 0) {
       try {
-        const effectsResult = await effectsBridge.processEffects(
-          clipId,
-          processedFrame,
-        );
-        if (
-          effectsResult.image &&
-          effectsResult.image.width > 0 &&
-          effectsResult.image.height > 0
-        ) {
-          processedFrame = effectsResult.image;
-        }
+        const effectsResult = animated
+          ? { image: await effectsBridge.processEffectList(processedFrame, animated) }
+          : await effectsBridge.processEffects(clipId, processedFrame);
+        adopt(effectsResult.image);
       } catch {}
     }
 
+    const sampledGrading = effectFrame && hasAnimatedColorGrading(effectFrame.clip)
+      ? getAnimatedColorGrading({ keyframes: effectFrame.clip.keyframes, colorGrading }, effectFrame.time - effectFrame.clip.startTime)
+      : undefined;
+    const sampled = sampledGrading
+      ? { tone: sampledGrading.tone, vignette: sampledGrading.vignette, temperature: sampledGrading.temperature, tint: sampledGrading.tint, hueCurves: sampledGrading.hueCurves }
+      : undefined;
     if (
-      Object.keys(colorGrading).length > 0 &&
-      !isNeutralColorGrading(colorGrading)
+      Object.keys(colorGrading).length > 0 || sampled
     ) {
+      const effective = { ...colorGrading, ...sampled };
+      if (isNeutralColorGrading(effective)) return processedFrame;
       try {
-        const colorGradingResult = await effectsBridge.processColorGrading(
-          clipId,
-          processedFrame,
-        );
-        if (
-          colorGradingResult.image &&
-          colorGradingResult.image.width > 0 &&
-          colorGradingResult.image.height > 0
-        ) {
-          processedFrame = colorGradingResult.image;
-        }
+        const colorGradingResult = sampled
+          ? await effectsBridge.processColorGrading(clipId, processedFrame, sampled)
+          : await effectsBridge.processColorGrading(clipId, processedFrame);
+        adopt(colorGradingResult.image);
       } catch {}
     }
 
     return processedFrame;
   } catch {
+    if (processedFrame !== frame) processedFrame.close();
     return frame;
   }
 };
@@ -1850,7 +1777,13 @@ export const applyEffectsToFrame = async (
 export const applyEffectsToFrameCanvas = async (
   clipId: string,
   frame: ImageBitmap,
+  effectFrame?: PreviewEffectFrame,
 ): Promise<OffscreenCanvas | null> => {
+  // Sampled stacks use the bitmap path; the cached canvas bridge holds static parameters.
+  if (effectFrame && hasAnimatedVideoEffects(effectFrame.clip)) return null;
+  // Footage that needs an input transform takes the bitmap path, which applies it first.
+  if (inputTransformForClip(clipId)) return null;
+  if (isColorBypassed()) return null;
   const bgEngine = getBackgroundRemovalEngine();
   if (
     bgEngine &&
@@ -1918,13 +1851,15 @@ export const applyEffectsToFrameCanvas = async (
   }
 };
 
-export interface TransitionRenderInfo {
+interface TransitionRenderInfo {
   clipA: {
     id: string;
     startTime: number;
     duration: number;
     mediaId: string;
     inPoint?: number;
+    effects?: Effect[];
+    keyframes?: Keyframe[];
   };
   clipB: {
     id: string;
@@ -1932,6 +1867,8 @@ export interface TransitionRenderInfo {
     duration: number;
     mediaId: string;
     inPoint?: number;
+    effects?: Effect[];
+    keyframes?: Keyframe[];
   } | null;
   edge?: TransitionEdge;
   transitionId: string;
@@ -1989,6 +1926,8 @@ export const getTransitionAtTime = (
               duration: clipA.duration,
               mediaId: clipA.mediaId,
               inPoint: clipA.inPoint,
+              effects: clipA.effects,
+              keyframes: clipA.keyframes,
             },
             clipB: clipB
               ? {
@@ -1997,6 +1936,8 @@ export const getTransitionAtTime = (
                   duration: clipB.duration,
                   mediaId: clipB.mediaId,
                   inPoint: clipB.inPoint,
+                  effects: clipB.effects,
+                  keyframes: clipB.keyframes,
                 }
               : null,
             edge: transition.edge,

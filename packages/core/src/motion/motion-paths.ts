@@ -6,7 +6,7 @@ import {
   upsertMotionLayerKeyframe,
 } from "./motion-keyframes";
 
-export interface MotionPositionPathPoint {
+interface MotionPositionPathPoint {
   readonly time: number;
   readonly x: number;
   readonly y: number;

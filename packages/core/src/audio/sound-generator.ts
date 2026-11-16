@@ -1,6 +1,6 @@
 import type { SoundItem, MusicGenre, MoodTag } from "../types/sound-library";
 
-export interface GeneratedSound {
+interface GeneratedSound {
   item: SoundItem;
   blob: Blob;
   dataUrl: string;
@@ -183,7 +183,7 @@ const SCALES = {
   dorian: [0, 2, 3, 5, 7, 9, 10],
 };
 
-export class SoundGenerator {
+class SoundGenerator {
   private cache: Map<string, GeneratedSound> = new Map();
 
   private noteToFreq(note: string): number {

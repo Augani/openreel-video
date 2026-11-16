@@ -5,7 +5,7 @@ import {
 } from "./motion-shape-path";
 import type { MotionPuppetPin, MotionShapeLayer, MotionVector2 } from "./types";
 
-export interface CreateMotionPuppetPinInput {
+interface CreateMotionPuppetPinInput {
   readonly id?: string;
   readonly name?: string;
   readonly bindPosition?: MotionVector2;
@@ -82,7 +82,7 @@ export function clearMotionPuppetPins<T extends MotionShapeLayer>(layer: T): T {
   } as T;
 }
 
-export function normalizeMotionPuppetPins(
+function normalizeMotionPuppetPins(
   pins: readonly MotionPuppetPin[] | undefined,
 ): MotionPuppetPin[] {
   return (pins ?? []).map(normalizeMotionPuppetPin);

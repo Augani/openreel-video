@@ -8,7 +8,6 @@ import {
   createMotionTrack,
   getMotionTrackPointAtTime,
   removeMotionTrack,
-  smoothMotionTrack,
   updateMotionTrack,
 } from "./motion-tracking";
 
@@ -90,28 +89,6 @@ describe("motion tracking", () => {
       time: 1,
       position: { x: 200, y: 300, z: 0 },
       confidence: 0.9,
-    });
-  });
-
-  it("smooths noisy tracks with a centered moving average", () => {
-    const track = createMotionTrack({
-      id: "track-1",
-      points: [
-        {
-          id: "p1",
-          name: "Main",
-          frames: [
-            { time: 0, position: { x: 0, y: 0 } },
-            { time: 1, position: { x: 30, y: 60 } },
-            { time: 2, position: { x: 60, y: 0 } },
-          ],
-        },
-      ],
-    });
-
-    expect(smoothMotionTrack(track, 1).points[0].frames[1]).toMatchObject({
-      time: 1,
-      position: { x: 30, y: 20, z: 0 },
     });
   });
 

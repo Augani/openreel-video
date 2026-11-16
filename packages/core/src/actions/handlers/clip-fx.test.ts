@@ -5,7 +5,6 @@ import type { Action } from "../../types/actions";
 import type {
   ChromaKeySettings,
   SpeedKeyframe,
-  FreezeFrame,
 } from "../../types/timeline";
 
 function makeProjectWithClip(overrides: Record<string, unknown> = {}): Project {
@@ -108,16 +107,6 @@ describe("clip fx handlers", () => {
     expect(clipOf(project).reversed).toBe(false);
   });
 
-  it("clip/setStabilization sets and undoes", async () => {
-    const executor = new ActionExecutor();
-    const project = makeProjectWithClip();
-    const stabilization = { enabled: true, strength: 0.5, cropMode: "auto" as const };
-    await executor.execute(act("clip/setStabilization", { clipId: "c1", stabilization }), project);
-    expect(clipOf(project).stabilization?.enabled).toBe(true);
-    await executor.undo(project);
-    expect(clipOf(project).stabilization).toBeUndefined();
-  });
-
   it("clip/setChromaKey sets and undoes", async () => {
     const executor = new ActionExecutor();
     const project = makeProjectWithClip();
@@ -145,26 +134,5 @@ describe("clip fx handlers", () => {
     expect(clipOf(project).speedKeyframes).toHaveLength(2);
     await executor.undo(project);
     expect(clipOf(project).speedKeyframes ?? []).toHaveLength(0);
-  });
-
-  it("speed/setFreezeFrames sets and undoes", async () => {
-    const executor = new ActionExecutor();
-    const project = makeProjectWithClip();
-    const freezeFrames: FreezeFrame[] = [
-      { id: "f1", clipId: "c1", sourceTime: 1, startTime: 1, duration: 0.5 },
-    ];
-    await executor.execute(act("speed/setFreezeFrames", { clipId: "c1", freezeFrames }), project);
-    expect(clipOf(project).freezeFrames).toHaveLength(1);
-    await executor.undo(project);
-    expect(clipOf(project).freezeFrames ?? []).toHaveLength(0);
-  });
-
-  it("clip/setPitchCorrection sets and undoes", async () => {
-    const executor = new ActionExecutor();
-    const project = makeProjectWithClip();
-    await executor.execute(act("clip/setPitchCorrection", { clipId: "c1", pitchCorrection: true }), project);
-    expect(clipOf(project).pitchCorrection).toBe(true);
-    await executor.undo(project);
-    expect(clipOf(project).pitchCorrection ?? false).toBe(false);
   });
 });

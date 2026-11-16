@@ -29,7 +29,7 @@ export const DEFAULT_BACKGROUND_SETTINGS: BackgroundRemovalSettings = {
 
 type ProgressCallback = (progress: number, message: string) => void;
 
-export class BackgroundRemovalEngine {
+class BackgroundRemovalEngine {
   private canvas: OffscreenCanvas | null = null;
   private ctx: OffscreenCanvasRenderingContext2D | null = null;
   private maskCanvas: OffscreenCanvas | null = null;
@@ -515,11 +515,4 @@ export function initializeBackgroundRemovalEngine(): BackgroundRemovalEngine {
     backgroundRemovalEngineInstance = new BackgroundRemovalEngine();
   }
   return backgroundRemovalEngineInstance;
-}
-
-export function disposeBackgroundRemovalEngine(): void {
-  if (backgroundRemovalEngineInstance) {
-    backgroundRemovalEngineInstance.dispose();
-    backgroundRemovalEngineInstance = null;
-  }
 }

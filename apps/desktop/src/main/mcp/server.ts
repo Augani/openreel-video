@@ -1,14 +1,15 @@
 import { app } from "electron";
 import { randomBytes } from "node:crypto";
-import { mkdirSync, writeFileSync, rmSync, chmodSync } from "node:fs";
+import { mkdirSync, writeFileSync, renameSync, rmSync, chmodSync } from "node:fs";
 import { request as httpRequest } from "node:http";
 import path from "node:path";
 import { startHttpServer, type RunningHttpServer } from "./http-server";
 import { installRendererBridge, teardownRendererBridge } from "./renderer-bridge";
 import type { McpToolProvider, ServerInfo } from "./core";
-import { endpointFilePath, MCP_PROTOCOL_PATH, type McpEndpoint } from "../../shared/mcp";
+import { recordActivity, recordInitialize, recordStartError } from "./client-tracker";
+import { endpointFilePath, MCP_PROBE_HEADER, MCP_PROTOCOL_PATH, type McpEndpoint } from "../../shared/mcp";
 
-export interface McpStatus {
+interface McpStatus {
   readonly running: boolean;
   readonly url: string;
   readonly port: number;
@@ -51,13 +52,15 @@ function endpointUrl(port: number): string {
 function writeEndpointFile(endpoint: McpEndpoint): void {
   const file = endpointFilePath();
   mkdirSync(path.dirname(file), { recursive: true });
-  writeFileSync(file, JSON.stringify(endpoint, null, 2), { mode: 0o600 });
-  // mode in writeFileSync only applies on create; enforce 0600 if it pre-existed.
+  // Atomic: a reader (the stdio shim) sees either the old or the new file, never a truncated one.
+  const tmp = `${file}.${process.pid}.tmp`;
+  writeFileSync(tmp, JSON.stringify(endpoint, null, 2), { mode: 0o600 });
   try {
-    chmodSync(file, 0o600);
+    chmodSync(tmp, 0o600);
   } catch {
     // best-effort
   }
+  renameSync(tmp, file);
 }
 
 function removeEndpointFile(): void {
@@ -72,18 +75,29 @@ export async function startMcpServer(): Promise<void> {
   if (state) return;
   const tokenHolder = { value: generateToken() };
   const provider = installRendererBridge();
-  const running = await startHttpServer({
-    getToken: () => tokenHolder.value,
-    provider,
-    serverInfo: serverInfo(),
-    port: Number(process.env.OPENREEL_MCP_PORT ?? 0),
-  });
-  state = { running, tokenHolder, provider };
-  writeEndpointFile({
-    url: endpointUrl(running.port),
-    port: running.port,
-    token: tokenHolder.value,
-  });
+  let running: RunningHttpServer;
+  try {
+    running = await startHttpServer({
+      getToken: () => tokenHolder.value,
+      provider,
+      serverInfo: serverInfo(),
+      port: Number(process.env.OPENREEL_MCP_PORT ?? 0),
+      onInitialize: (info) => recordInitialize(info),
+      onActivity: recordActivity,
+    });
+    state = { running, tokenHolder, provider };
+    writeEndpointFile({
+      url: endpointUrl(running.port),
+      port: running.port,
+      token: tokenHolder.value,
+    });
+  } catch (error) {
+    // Shown in Settings > MCP, not only in the crash log.
+    recordStartError(error instanceof Error ? error.message : String(error));
+    teardownRendererBridge();
+    throw error;
+  }
+  recordStartError(null);
 }
 
 export async function stopMcpServer(): Promise<void> {
@@ -135,6 +149,7 @@ function loopbackRpc(
           "Content-Type": "application/json",
           "Content-Length": Buffer.byteLength(body),
           Authorization: `Bearer ${token}`,
+          [MCP_PROBE_HEADER]: "1",
         },
       },
       (res) => {

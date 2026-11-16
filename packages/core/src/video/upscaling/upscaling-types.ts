@@ -23,20 +23,3 @@ export interface TexturePoolEntry {
   height: number;
   lastUsed: number;
 }
-
-export interface UpscalingPipelines {
-  lanczosH: GPUComputePipeline;
-  lanczosV: GPUComputePipeline;
-  edgeDetect: GPUComputePipeline;
-  edgeDirected: GPUComputePipeline;
-  sharpen: GPUComputePipeline;
-}
-
-export interface UpscalingUniforms {
-  srcWidth: number;
-  srcHeight: number;
-  dstWidth: number;
-  dstHeight: number;
-  sharpening: number;
-  padding: number[];
-}

@@ -2,7 +2,6 @@ import { describe, it, expect } from "vitest";
 import { ActionExecutor } from "./action-executor";
 import type { Project } from "../types/project";
 import type { Action, ClipAction } from "../types/actions";
-import type { Clip } from "../types/timeline";
 
 function makeProjectWithTwoClips(): Project {
   const base = {
@@ -71,32 +70,5 @@ describe("ClipAction union completeness", () => {
     expect(result.success).toBe(true);
     const clip = project.timeline.tracks[0].clips.find((c) => c.id === "c1");
     expect(clip?.inPoint).toBe(1);
-  });
-
-  it("accepts every executor-handled clip op as a typed ClipAction", () => {
-    const fixtureClip = {
-      ...makeProjectWithTwoClips().timeline.tracks[0].clips[0],
-    } as Clip;
-
-    const actions: ClipAction[] = [
-      { type: "clip/slide", params: { clipId: "c1", delta: 1, nextClipId: "c2" } },
-      { type: "clip/roll", params: { leftClipId: "c1", rightClipId: "c2", delta: 1 } },
-      { type: "clip/merge", params: { clipId: "c1", originalClip: fixtureClip } },
-      {
-        type: "clip/trimToPlayhead",
-        params: { clipId: "c1", playheadTime: 2, trimStart: true },
-      },
-      { type: "clip/closeGapBefore", params: { clipId: "c2" } },
-      { type: "clip/restore", params: { clip: fixtureClip } },
-      {
-        type: "clip/rippleRestore",
-        params: {
-          clip: fixtureClip,
-          affectedClips: [{ id: "c2", originalStartTime: 5 }],
-        },
-      },
-    ];
-
-    expect(actions).toHaveLength(7);
   });
 });

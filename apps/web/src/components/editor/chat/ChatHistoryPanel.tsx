@@ -1,6 +1,5 @@
+import { Button } from "@openreel/ui";
 import type { JSX, MouseEvent } from "react";
-import { ToolcraftButton as Button } from "@openreel/ui";
-import { ToolcraftIconButton as IconButton } from "@openreel/ui";
 import { MessageSquareText, Plus, Trash2 } from "@/icons/lucide-compat";
 import { useChatHistoryStore } from "../../../stores/chat-history-store";
 import { useChatStore } from "../../../stores/chat-store";
@@ -43,7 +42,7 @@ export function ChatHistoryPanel({
   };
 
   return (
-    <div className="absolute inset-x-2 top-11 z-30 overflow-hidden rounded-xl border border-border bg-bg-1 shadow-xl">
+    <div className="workspace-chat-history absolute inset-x-2 top-11 z-30 overflow-hidden rounded-xl border border-border bg-bg-1 shadow-xl">
       <div className="flex items-center justify-between border-b border-border px-3 py-2.5">
         <div>
           <div className="text-[12px] font-semibold text-fg">Conversations</div>
@@ -52,9 +51,12 @@ export function ChatHistoryPanel({
           </div>
         </div>
         <Button
-          label="New chat"
+          type="button"
+          aria-label="New chat"
+          title="New chat"
           size="sm"
           variant="secondary"
+          className="h-7 rounded-[7px] border border-border bg-bg-2 px-2.5 text-[12px] font-semibold text-fg-2 hover:bg-bg-3 hover:text-fg"
           onClick={() => {
             newChat();
             onClose();
@@ -90,17 +92,21 @@ export function ChatHistoryPanel({
                       : "text-fg-2 hover:bg-hover hover:text-fg"
                   }`}
                 >
-                  <button
+                  <Button variant="ghost" size="sm"
                     type="button"
                     onClick={() => {
                       openConversation(conversation.id);
                       onClose();
                     }}
-                    className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                    className="flex h-auto min-w-0 flex-1 items-center justify-start gap-2 whitespace-normal p-0 text-left text-[length:inherit] font-normal leading-[inherit] [&_svg]:size-[13px]"
                   >
                     <MessageSquareText
                       size={13}
-                      className={active ? "shrink-0 text-accent" : "shrink-0 text-fg-muted"}
+                      className={
+                        active
+                          ? "shrink-0 text-accent"
+                          : "shrink-0 text-fg-muted"
+                      }
                       aria-hidden
                     />
                     <span className="min-w-0 flex-1">
@@ -108,18 +114,26 @@ export function ChatHistoryPanel({
                         {conversation.title}
                       </span>
                       <span className="mt-0.5 block text-[9px] text-fg-muted">
-                        {conversation.messages.filter((message) => message.role === "user").length} requests · {formatUpdatedAt(conversation.updatedAt)}
+                        {
+                          conversation.messages.filter(
+                            (message) => message.role === "user",
+                          ).length
+                        }{" "}
+                        requests · {formatUpdatedAt(conversation.updatedAt)}
                       </span>
                     </span>
-                  </button>
-                  <IconButton
-                    label={`Delete ${conversation.title}`}
-                    icon={<Trash2 size={12} aria-hidden />}
-                    size="sm"
+                  </Button>
+                  <Button
+                    type="button"
+                    aria-label={`Delete ${conversation.title}`}
+                    title={`Delete ${conversation.title}`}
+                    size="icon-sm"
                     variant="ghost"
-                    onClick={(event) => removeConversation(event, conversation.id)}
-                    className="shrink-0 text-fg-muted opacity-0 transition-opacity hover:text-status-error focus:opacity-100 group-hover:opacity-100"
-                  />
+                    onClick={(event) =>
+                      removeConversation(event, conversation.id)
+                    }
+                    className="h-7 w-7 shrink-0 p-0 text-fg-muted opacity-0 transition-opacity hover:text-status-error focus:opacity-100 group-hover:opacity-100"
+                  ><Trash2 size={12} aria-hidden /></Button>
                 </div>
               );
             })}

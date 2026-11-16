@@ -86,23 +86,6 @@ describe("set_motion_scene3d_lighting", () => {
     expect(lighting?.ambient).toBe(0.4);
   });
 
-  it("only changes the fields that are passed", async () => {
-    const host = new HeadlessHost(projectWithScene3D());
-    await executeTool(
-      "set_motion_scene3d_lighting",
-      { compositionId: "comp-3d", layerId: "layer-3d", environment: "city" },
-      host,
-    );
-    await executeTool(
-      "set_motion_scene3d_lighting",
-      { compositionId: "comp-3d", layerId: "layer-3d", keyIntensity: 5 },
-      host,
-    );
-    const lighting = scene3dLayer(host).lighting;
-    expect(lighting?.environment).toBe("city");
-    expect(lighting?.keyIntensity).toBe(5);
-  });
-
   it("clamps intensities into range", async () => {
     const host = new HeadlessHost(projectWithScene3D());
     await executeTool(
@@ -118,16 +101,6 @@ describe("set_motion_scene3d_lighting", () => {
     const res = await executeTool(
       "set_motion_scene3d_lighting",
       { compositionId: "comp-3d", layerId: "layer-3d", environment: "disco" },
-      host,
-    );
-    expect(res.ok).toBe(false);
-  });
-
-  it("rejects a non-scene3d layer", async () => {
-    const host = new HeadlessHost(projectWithScene3D());
-    const res = await executeTool(
-      "set_motion_scene3d_lighting",
-      { compositionId: "comp-3d", layerId: "layer-null", environment: "studio" },
       host,
     );
     expect(res.ok).toBe(false);

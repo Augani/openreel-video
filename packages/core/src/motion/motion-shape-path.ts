@@ -13,7 +13,7 @@ export interface MotionShapePathPoint {
   readonly inY?: number;
 }
 
-export type MotionPathDrawCommand =
+type MotionPathDrawCommand =
   | { readonly type: "move"; readonly x: number; readonly y: number }
   | { readonly type: "line"; readonly x: number; readonly y: number }
   | {
@@ -26,14 +26,14 @@ export type MotionPathDrawCommand =
       readonly y: number;
     };
 
-export interface MotionPathBounds {
+interface MotionPathBounds {
   readonly x: number;
   readonly y: number;
   readonly width: number;
   readonly height: number;
 }
 
-export interface CenteredMotionPath {
+interface CenteredMotionPath {
   readonly pathData: string;
   readonly width: number;
   readonly height: number;
@@ -75,16 +75,16 @@ const CURVE_SAMPLES = 16;
 const DEFAULT_MORPH_POINT_COUNT = 96;
 const DEFAULT_SNAP_TOLERANCE = 1 / 1000;
 
-export const MOTION_SHAPE_PATH_DATA_PROPERTY = "shape.pathData";
+const MOTION_SHAPE_PATH_DATA_PROPERTY = "shape.pathData";
 
-export interface MotionShapePathKeyframeOptions {
+interface MotionShapePathKeyframeOptions {
   readonly pathData?: string;
   readonly easing?: EasingType;
   readonly snapTolerance?: number;
   readonly idFactory?: () => string;
 }
 
-export interface SetMotionShapePathPointsOptions
+interface SetMotionShapePathPointsOptions
   extends Omit<MotionShapePathKeyframeOptions, "pathData"> {
   readonly localTime?: number;
   readonly keyframe?: boolean;
@@ -418,7 +418,7 @@ function segmentHasCurve(
   );
 }
 
-export function getMotionShapePathKeyframes(
+function getMotionShapePathKeyframes(
   layer: MotionShapeLayer,
 ): Keyframe[] {
   return layer.keyframes
@@ -431,7 +431,7 @@ export function getMotionShapePathKeyframes(
     .sort((a, b) => a.time - b.time);
 }
 
-export function findMotionShapePathKeyframeAtTime(
+function findMotionShapePathKeyframeAtTime(
   layer: MotionShapeLayer,
   time: number,
   snapTolerance = DEFAULT_SNAP_TOLERANCE,
@@ -713,7 +713,7 @@ function lerpMotionPathPoint(
   return result;
 }
 
-export function resampleMotionPathPoints(
+function resampleMotionPathPoints(
   points: readonly MotionShapePathPoint[],
   count: number,
 ): MotionShapePathPoint[] {
@@ -855,7 +855,7 @@ function transformMotionPathPoint(
   return result;
 }
 
-export function isClosedPath(points: readonly MotionShapePathPoint[]): boolean {
+function isClosedPath(points: readonly MotionShapePathPoint[]): boolean {
   if (points.length < 2) return false;
   const first = points[0];
   const last = points[points.length - 1];

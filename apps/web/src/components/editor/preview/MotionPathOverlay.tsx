@@ -302,5 +302,3 @@ function cubicBezierPoint(
       t3 * p1.y,
   };
 }
-
-export default MotionPathOverlay;

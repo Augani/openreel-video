@@ -4,14 +4,5 @@ export { Playhead } from "./Playhead";
 export { TimeRuler } from "./TimeRuler";
 export { TrackHeader } from "./TrackHeader";
 export { TrackLane } from "./TrackLane";
-export { ClipComponent } from "./ClipComponent";
-export { TextClipComponent } from "./TextClipComponent";
-export { ShapeClipComponent } from "./ShapeClipComponent";
 export { BeatMarkerOverlay } from "./BeatMarkerOverlay";
 export { MarkerIndicator } from "./MarkerIndicator";
-export { TransitionHandle } from "./TransitionHandle";
-export {
-  resolveTransitionHandles,
-  TRANSITION_ADJACENCY_TOLERANCE,
-} from "./transition-handles";
-export type { ResolvedTransitionHandle } from "./transition-handles";

@@ -1,5 +1,3 @@
-import type { MotionComposition } from "./types";
-
 export type MotionTemplateCategory =
   | "ads"
   | "app-ui-demos"
@@ -15,15 +13,4 @@ export interface MotionTemplateVariable {
   readonly label: string;
   readonly type: "text" | "color" | "media" | "number" | "boolean";
   readonly defaultValue: string | number | boolean;
-}
-
-export interface MotionTemplate {
-  readonly id: string;
-  readonly name: string;
-  readonly category: MotionTemplateCategory;
-  readonly description: string;
-  readonly thumbnailUrl?: string | null;
-  readonly previewUrl?: string | null;
-  readonly variables: MotionTemplateVariable[];
-  readonly composition: MotionComposition;
 }

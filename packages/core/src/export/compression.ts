@@ -24,7 +24,7 @@ export interface CompressionPlan {
   container: "mp4";
 }
 
-export interface SizePreset {
+interface SizePreset {
   id: string;
   label: string;
   bytes: number;

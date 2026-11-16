@@ -1,11 +1,5 @@
 import { v4 as uuidv4 } from "uuid";
 import type { MediaItem } from "@openreel/core";
-import {
-  extractAudioWav,
-  getFFmpegFallback,
-  nativeMediaAvailable,
-  probeAudioStreamCountViaNative,
-} from "@openreel/core/media";
 import { getMediaBridge, initializeMediaBridge } from "../bridges/media-bridge";
 
 /** Materialize each recorded stream as its own audio-only media source. */
@@ -13,6 +7,13 @@ export async function extractAudioTracks(media: MediaItem): Promise<MediaItem[]>
   if (!media.blob) {
     throw new Error("Relink the original video before separating its audio.");
   }
+
+  const {
+    extractAudioWav,
+    getFFmpegFallback,
+    nativeMediaAvailable,
+    probeAudioStreamCountViaNative,
+  } = await import("@openreel/core/media");
 
   let count = media.metadata.audioTrackCount ?? 1;
   if (count <= 1) {

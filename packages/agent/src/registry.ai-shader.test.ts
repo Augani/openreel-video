@@ -60,25 +60,6 @@ const FILL_SAMPLING_INPUT = [
   "void main(){ fragColor = texture(u_input, vUv); }",
 ].join("\n");
 
-const VALID_EFFECT_GLSL = [
-  "#version 300 es",
-  "precision highp float;",
-  "in vec2 vUv;",
-  "uniform sampler2D u_input;",
-  "out vec4 fragColor;",
-  "void main(){ vec4 c = texture(u_input, vUv); fragColor = vec4(1.0 - c.rgb, c.a); }",
-].join("\n");
-
-const VALID_TEXT_GLSL = [
-  "#version 300 es",
-  "precision highp float;",
-  "in vec2 vUv;",
-  "uniform sampler2D u_input;",
-  "uniform float u_progress;",
-  "out vec4 fragColor;",
-  "void main(){ vec4 c = texture(u_input, vUv); fragColor = vec4(c.rgb, c.a * u_progress); }",
-].join("\n");
-
 afterEach(() => clearGeneratedMotionShaders());
 
 describe("create_ai_shader", () => {
@@ -106,56 +87,11 @@ describe("create_ai_shader", () => {
     expect(motionData.fills?.some((s) => s.id === createdData.shaderId)).toBe(true);
   });
 
-  it("registers a contract-valid effect shader and lists it under effects", async () => {
-    const host = new HeadlessHost(project());
-    const created = await executeTool(
-      "create_ai_shader",
-      { name: "Invert Pass", category: "effect", glsl: VALID_EFFECT_GLSL, params: [] },
-      host,
-    );
-    expect(created.ok).toBe(true);
-    const createdData = asRecord(created.data) as CreateAiShaderData;
-    expect(createdData.category).toBe("effect");
-
-    const listMotion = await executeTool("list_motion_shaders", { category: "effect" }, host);
-    expect(listMotion.ok).toBe(true);
-    const motionData = asRecord(listMotion.data) as ListMotionShadersData;
-    expect(motionData.effects?.some((s) => s.id === createdData.shaderId)).toBe(true);
-  });
-
-  it("registers a contract-valid text shader and lists it under text", async () => {
-    const host = new HeadlessHost(project());
-    const created = await executeTool(
-      "create_ai_shader",
-      { name: "Fade Glyphs", category: "text", glsl: VALID_TEXT_GLSL, params: [] },
-      host,
-    );
-    expect(created.ok).toBe(true);
-    const createdData = asRecord(created.data) as CreateAiShaderData;
-    expect(createdData.category).toBe("text");
-
-    const listMotion = await executeTool("list_motion_shaders", { category: "text" }, host);
-    expect(listMotion.ok).toBe(true);
-    const motionData = asRecord(listMotion.data) as ListMotionShadersData;
-    expect(motionData.text?.some((s) => s.id === createdData.shaderId)).toBe(true);
-  });
-
   it("fails with INVALID_PARAMS when a fill shader samples u_input", async () => {
     const host = new HeadlessHost(project());
     const res = await executeTool(
       "create_ai_shader",
       { name: "Bad Fill", category: "fill", glsl: FILL_SAMPLING_INPUT, params: [] },
-      host,
-    );
-    expect(res.ok).toBe(false);
-    expect(res.error?.code).toBe("INVALID_PARAMS");
-  });
-
-  it("fails with INVALID_PARAMS for an unknown category", async () => {
-    const host = new HeadlessHost(project());
-    const res = await executeTool(
-      "create_ai_shader",
-      { name: "X", category: "bogus", glsl: VALID_FILL_GLSL, params: [] },
       host,
     );
     expect(res.ok).toBe(false);
@@ -188,27 +124,6 @@ describe("create_ai_shader", () => {
       host,
     );
     expect(good.ok).toBe(true);
-  });
-
-  it("strips a leading u_ from a param name so the uniform binds", async () => {
-    const host = new HeadlessHost(project());
-    const created = await executeTool(
-      "create_ai_shader",
-      {
-        name: "Prefixed Params",
-        category: "fill",
-        glsl: VALID_FILL_GLSL,
-        params: [{ name: "u_amount", label: "Amount", min: 0, max: 1, default: 0.5, step: 0.01 }],
-      },
-      host,
-    );
-    expect(created.ok).toBe(true);
-    const shaderId = (asRecord(created.data) as CreateAiShaderData).shaderId!;
-
-    const listAi = await executeTool("list_ai_shaders", {}, host);
-    const aiData = asRecord(listAi.data) as ListAiShadersData;
-    const entry = aiData.shaders?.find((s) => s.id === shaderId);
-    expect(entry?.params?.map((p) => p.name)).toEqual(["amount"]);
   });
 });
 

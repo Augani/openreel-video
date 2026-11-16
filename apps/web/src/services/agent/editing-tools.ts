@@ -1,6 +1,9 @@
 import { executeTool, getTool, type EditingHost, type ToolResult } from "@openreel/agent";
 import { editObject as obj, editArray as arr, editEnum as en, editId as id, editString as str, editNumber as num, editTime as time, editBoolean as bool, validateEditJSON, type EditSchema } from "@openreel/core/editing/safe-json";
-import { transformSchema, textStyleSchema, numericParams, presetSchema, audioParamsSchema, AUDIO_EDIT_PARAM_SCHEMAS, keyframeSchema, settingsSchema, PORTABLE_VIDEO_EFFECTS, VIDEO_EDIT_PARAM_SCHEMAS, transitionParamsSchema, type EditPreset } from "@openreel/core/editing/portable-project";
+import { transformSchema, textStyleSchema, numericParams, presetSchema, audioParamsSchema, AUDIO_EDIT_PARAM_SCHEMAS, keyframeSchema, settingsSchema, PORTABLE_VIDEO_EFFECTS, VIDEO_EDIT_PARAM_SCHEMAS, transitionParamsSchema, normalizeEditPreset, type EditPreset } from "@openreel/core/editing/portable-project";
+import { toRuntimeVideoEffectParams, toNormalizedVideoEffectParams } from "@openreel/core/video/effect-parameter-units";
+import { withProEffectDefaults } from "@openreel/core/video/pro-effects";
+import type { Effect } from "@openreel/core/types/timeline";
 import { TRANSITION_TYPES, AUDIO_EFFECT_TYPES } from "@openreel/core/types/effects";
 import { useTimelineStore } from "../../stores/timeline-store";
 import { EditingSession } from "./editing-session";
@@ -11,13 +14,13 @@ const clipId = { clipId: id };
 // still validates against the selected effect's schema before any mutation.
 const videoEffectParams = obj(Object.fromEntries(
   Object.values(VIDEO_EDIT_PARAM_SCHEMAS).flatMap((schema) =>
-    Object.keys(schema.properties ?? {}).map((key) => [key, num()]),
+    Object.entries(schema.properties ?? {}).map(([key, value]) => [key, value.type === "number" ? num() : value]),
   ),
 ));
 const videoEffectGuide = Object.entries(VIDEO_EDIT_PARAM_SCHEMAS).map(([type, schema]) =>
-  `${type}: ${Object.entries(schema.properties ?? {}).map(([key, range]) => `${key} (${range.minimum}..${range.maximum})`).join(", ")}`,
+  `${type}: ${Object.entries(schema.properties ?? {}).map(([key, range]) => `${key} (${range.enum ? range.enum.join(" | ") : range.type === "boolean" ? "boolean" : `${range.minimum}..${range.maximum}`})`).join(", ")}`,
 ).join("; ");
-export const EDIT_TOOL_SCHEMAS: Record<string, EditSchema> = {
+const EDIT_TOOL_SCHEMAS: Record<string, EditSchema> = {
   get_editor_state: obj({}), list_media: obj({}), list_tracks: obj({}), get_capabilities: obj({}),
   list_clips: obj({ trackIndex: num(0, 99), fromSec: time, toSec: time, offset: num(0, 2000), limit: num(1, 100) }),
   get_clip: obj(clipId, ["clipId"]),
@@ -75,8 +78,9 @@ const SPECIAL_DESCRIPTIONS: Record<string, string> = {
   add_track: "Create a timeline track of the requested media type. Returns trackId for add_clip. Reuse an appropriate unlocked track from list_tracks when possible.",
   add_clip: "Place imported media on a timeline track. Use mediaId from list_media and trackId from list_tracks/add_track. startTime is the timeline position in seconds. Optional inPoint/outPoint select the source range in seconds (defaults: 0/full source duration). Returns clipId, trackId and timing for subsequent edits. Adding media to the library alone does not put it on the timeline.",
   split_clip: "Split a timeline clip at an absolute timeline time strictly inside its startTime..startTime+duration. Returns clipIds in timeline order; the left part retains the original ID. To edit library media, first use add_clip and its returned clipId.",
-  add_video_effect: `Add a supported video effect to a timeline clip. Returns effectId. Use only the parameters for the chosen effectType: ${videoEffectGuide}. Vignette strength is amount, not intensity. Omit params to use engine defaults.`,
-  update_video_effect: `Update an existing effect using clipId and effectId from add_video_effect/get_clip. Use get_clip to identify its type, then use only that type's parameters: ${videoEffectGuide}. Vignette strength is amount, not intensity.`,
+  get_clip: "Inspect a timeline clip by stable clipId. Effect parameters use the same normalized units as add_video_effect and update_video_effect: brightness value and sharpen/vignette/grain amount 0.18 means 18%.",
+  add_video_effect: `Add a supported video effect to a timeline clip. Returns effectId. Use only the parameters for the chosen effectType: ${videoEffectGuide}. Brightness value and sharpen/vignette/grain amount use normalized units: 0.18 means 18%. Vignette strength is amount, not intensity. Omit params to use engine defaults.`,
+  update_video_effect: `Update an existing effect using clipId and effectId from add_video_effect/get_clip. Use get_clip to identify its type, then use only that type's parameters: ${videoEffectGuide}. Brightness value and sharpen/vignette/grain amount use normalized units: 0.18 means 18%. Vignette strength is amount, not intensity. Omitted parameters retain their current values.`,
   inspect_media: "Inspect an uploaded asset's decoded media type, duration, dimensions, audio metadata and local availability by stable mediaId.",
   list_text_clips: "List all text overlays including stable element IDs, content, timing, style and transform.",
   inspect_preview: "Inspect the current committed preview at the current playhead. Returns its frame image and time; pending draft edits are not displayed until the turn commits.",
@@ -113,11 +117,24 @@ async function applyCreatedElement(host: EditingHost, name: string, type: string
     : { ok: false, summary: `${name} failed`, error: { code: result.error?.code ?? "INVALID_EDIT", message: result.error?.message ?? "Invalid edit" } };
 }
 
+async function addWorkspaceVideoEffect(args: Record<string, unknown>, host: EditingHost, metadata?: Effect["metadata"], enabled = true): Promise<ToolResult> {
+  validateEditJSON(args.params ?? {}, VIDEO_EDIT_PARAM_SCHEMAS[String(args.effectType)]);
+  // Pro effects stored with {} resolve to neutral (a no-op): seed the UI defaults, explicit params win.
+  args = { ...args, params: withProEffectDefaults(String(args.effectType), (args.params ?? undefined) as Record<string, unknown> | undefined) ?? args.params };
+  const effectId = `effect-${crypto.randomUUID()}`;
+  return applyCreatedElement(host, "add_video_effect", "effect/add", {
+    ...args, effectId, enabled,
+    params: toRuntimeVideoEffectParams(String(args.effectType), (args.params ?? {}) as Record<string, unknown>),
+    ...(metadata ? { metadata } : {}),
+  }, { effectId, clipId: args.clipId, effectType: args.effectType });
+}
+
 export async function executeEditingTool(name: string, args: Record<string, unknown>, host: EditingHost): Promise<ToolResult> {
   try {
     const schema = EDIT_TOOL_SCHEMAS[name];
     if (!schema) throw new Error(`Unsupported workspace tool: ${name}`);
     args = normalizeVideoEffectArgs(name, args, host);
+    if (name === "apply_edit_preset") args = { ...args, preset: normalizeEditPreset(args.preset) };
     validateEditJSON(args, schema);
     if (name === "get_transition_options") {
       const pairs = getTransitionOptions(host.getProject(), args.clipId as string | undefined);
@@ -157,19 +174,18 @@ export async function executeEditingTool(name: string, args: Record<string, unkn
       return await applyCreatedElement(host, name, "clip/add", { ...args, ...timing, clipId }, { clipId, trackId: args.trackId, mediaId: args.mediaId, startTime: args.startTime, ...timing });
     }
     if (name === "add_video_effect") {
-      validateEditJSON(args.params ?? {}, VIDEO_EDIT_PARAM_SCHEMAS[String(args.effectType)]);
-      const effectId = `effect-${crypto.randomUUID()}`;
-      return await applyCreatedElement(host, name, "effect/add", { ...args, effectId }, { effectId, clipId: args.clipId, effectType: args.effectType });
+      return await addWorkspaceVideoEffect(args, host);
     }
     if (name === "update_video_effect") {
       const effect = host.getProject().timeline.tracks.flatMap((t) => t.clips).find((c) => c.id === args.clipId)?.effects.find((e) => e.id === args.effectId);
       if (!effect || !VIDEO_EDIT_PARAM_SCHEMAS[effect.type]) throw new Error("Effect is missing or unsupported in this workspace");
       validateEditJSON(args.params, VIDEO_EDIT_PARAM_SCHEMAS[effect.type]);
+      args = { ...args, params: toRuntimeVideoEffectParams(effect.type, args.params as Record<string, unknown>) };
     }
     if (name === "add_transition") {
       return await addEditingTransition(args, host);
     }
-    if (name === "get_capabilities") return { ok: true, summary: "Local AI workspace capabilities", data: { tools: Object.keys(EDIT_TOOL_SCHEMAS), effects: PORTABLE_VIDEO_EFFECTS, videoEffectParams: VIDEO_EDIT_PARAM_SCHEMAS, transitions: TRANSITION_TYPES, audioEffects: AUDIO_EFFECT_TYPES, limitations: "Numeric built-in effects only; no scripts, remote assets, shaders or AI media generation. open_export opens local export settings." } };
+    if (name === "get_capabilities") return { ok: true, summary: "Local AI workspace capabilities", data: { tools: Object.keys(EDIT_TOOL_SCHEMAS), effects: PORTABLE_VIDEO_EFFECTS, videoEffectParams: VIDEO_EDIT_PARAM_SCHEMAS, transitions: TRANSITION_TYPES, audioEffects: AUDIO_EFFECT_TYPES, limitations: "Numeric built-in effects only; no scripts, remote assets, shaders or AI media generation. This chat cannot create or import media, transcribe speech into captions, remove silence, detect scenes, sync to a beat or reframe video; supplied subtitle text, trims, splits, text overlays, transitions, volume and fades are supported. open_export opens local export settings." } };
     if (name === "list_text_clips") return { ok: true, summary: "Text overlays", data: host.getProject().textClips ?? [] };
     if (name === "inspect_media") {
       const media = host.getProject().mediaLibrary.items.find((m) => m.id === args.mediaId);
@@ -201,14 +217,13 @@ export async function executeEditingTool(name: string, args: Record<string, unkn
     }
     if (name === "apply_edit_preset") {
       const preset = args.preset as EditPreset;
+      const applications = new Map<string, string>();
       for (const effect of preset.effects) {
-        const result = await executeEditingTool("add_video_effect", { clipId: args.clipId, effectType: effect.type, params: effect.params }, host);
+        const source = effect.metadata?.filterPreset;
+        if (source && !applications.has(source.applicationId)) applications.set(source.applicationId, crypto.randomUUID());
+        const metadata = source ? { filterPreset: { ...source, applicationId: applications.get(source.applicationId)! } } : undefined;
+        const result = await addWorkspaceVideoEffect({ clipId: args.clipId, effectType: effect.type, params: effect.params }, host, metadata, effect.enabled);
         if (!result.ok) return result;
-        if (!effect.enabled) {
-          const effectId = host.getProject().timeline.tracks.flatMap((t) => t.clips).find((c) => c.id === args.clipId)?.effects.at(-1)?.id;
-          const toggled = await executeEditingTool("toggle_video_effect", { clipId: args.clipId, effectId, enabled: false }, host);
-          if (!toggled.ok) return toggled;
-        }
       }
       if (preset.transition) {
         if (!args.nextClipId) throw new Error("A transition preset requires nextClipId");
@@ -227,6 +242,13 @@ export async function executeEditingTool(name: string, args: Record<string, unkn
       const clips = host.getProject().timeline.tracks.find((item) => item.id === track?.id)?.clips
         .filter((clip) => clip.id === args.clipId || !before.has(clip.id)).sort((a, b) => a.startTime - b.startTime) ?? [];
       return { ...result, data: { ...(result.data as object), clipIds: clips.map((clip) => clip.id), trackId: track?.id } };
+    }
+    if (name === "get_clip") {
+      const result = await executeTool(name, args, host);
+      const clip = host.getProject().timeline.tracks.flatMap(track => track.clips).find(item => item.id === args.clipId);
+      return result.ok && clip ? { ...result, data: { ...(result.data as object), effects: clip.effects.map(effect => ({
+        ...effect, params: toNormalizedVideoEffectParams(effect.type, effect.params),
+      })) } } : result;
     }
     // Stable IDs only: tools cannot silently resolve an index to a different element.
     return await executeTool(name, args, host);

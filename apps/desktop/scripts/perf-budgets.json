@@ -1,0 +1,139 @@
+{
+  "_comment": "Budgets for scripts/perf-budget.mjs. Keys are dotted paths into the harness JSON `scenarios`; each budget is checked against the MEDIAN of the metric across runs. Wall-clock budgets (bench.*, cold*.*) are set for an otherwise idle machine; the trace* budgets are renderer main-thread CPU time from a Chromium trace (see PERF.md, 'Load-robust metrics') and stay meaningful on a busy machine, so they are the ones to trust when the two disagree. w10: perf-budget.mjs records the machine load of every harness run and judges the wall-clock budgets (bench.*, cold*.*) only at load <= 2.5; trace* budgets are CPU time and are always judged (their numbers are printed with the load they were taken at). w19: seekClick/scrub4k/playback/playback4k/importN budgets added; every budget with kind \"cpu\" is judged at any load, the rest (including the latency and dropped-frame ones) only at load <= 2.5, and the run's last line says WALL-CLOCK NOT VERIFIED when any was skipped. Budgets marked PROVISIONAL or 'NO baseline' in their note are set from docs/soak-report.md / PERF.md figures taken on other fixtures and must be re-baselined on an idle machine.",
+  "budgets": {
+    "bench.selectClip.medianMs": {
+      "max": 25,
+      "note": "pointerdown -> first paint after a clip selection, 400-clip project"
+    },
+    "bench.selectClip.p95Ms": {
+      "max": 35
+    },
+    "bench.dragClip120px.rafP95Ms": {
+      "max": 30,
+      "note": "frame time while dragging one clip 120 px on the 400-clip project"
+    },
+    "bench.dragClip120px.rafMaxMs": {
+      "max": 60,
+      "note": "worst single frame (drag activation)"
+    },
+    "bench.dragClip120px.framesOver50ms": {
+      "max": 1
+    },
+    "coldAfter3sDwell.median.clickToEditorInteractiveMs": {
+      "max": 280,
+      "note": "welcome screen visible 3 s, click New project -> program canvas + ruler (Playwright wall clock)"
+    },
+    "cold.median.editorInteractiveFromSpawnMs": {
+      "max": 1200,
+      "note": "process spawn -> editor interactive when clicking the instant the welcome screen shows. 48 idle-machine runs: median 1087, p25 1073, p75 1148 (see PERF.md, Cold start analysis); 1100 sat 1% above the median and flapped"
+    },
+    "traceCold.median.startupCpuMs": {
+      "max": 200,
+      "note": "renderer main-thread CPU, navigation start -> welcome visible. 6 interleaved pairs at load ~6: base 167, w8 152; ~30% headroom for load"
+    },
+    "traceCold.median.startupCompileCpuMs": {
+      "max": 55,
+      "note": "v8 compile of the chunks needed for the welcome screen (the entry chunk dominates)"
+    },
+    "traceCold.median.startupEvalCpuMs": {
+      "max": 75,
+      "note": "module evaluation (outermost v8.evaluateModule) before the welcome screen"
+    },
+    "traceCold.median.startupLongTasks": {
+      "max": 2,
+      "note": "main-thread tasks > 50 ms before the welcome screen"
+    },
+    "traceDwell.median.enterCpuMs": {
+      "max": 170,
+      "note": "renderer main-thread CPU, click on a format -> Program canvas + ruler present, editor chunk already warm (3 s dwell)"
+    },
+    "traceDwell.median.enterLongTasks": {
+      "max": 2,
+      "note": "main-thread tasks > 50 ms inside the enter-editor window"
+    },
+    "traceCold.median.totalCpuMs": {
+      "max": 600,
+      "note": "renderer main-thread CPU, navigation start -> editor interactive (clicking as soon as the welcome screen shows)"
+    },
+    "traceCold.median.totalCompileCpuMs": {
+      "max": 120,
+      "note": "all v8 compile on that path"
+    },
+    "traceCold.median.totalChunksCompiled": {
+      "max": 58,
+      "note": "distinct chunks compiled before the editor is interactive (37 on the w7 base, 59-61 after the w9 lazy engines, 49 after w10: the ~20 one-icon chunks are one `icons` chunk and the desktop shell is modulepreloaded; 46 on w17, 55 with desktop onboarding: the onboarding sheets share chat-store, api-endpoints, SettingsDialog, useTour, workspace-apply and ConnectSnippets with the editor, so Rollup splits them out of EditorInterface. Same code, compile CPU unchanged; see totalChunkNames in the trace output). Each chunk is also a request through the app:// protocol handler; totalCompileCpuMs and totalCpuMs are the cost guards, this still catches a new eager import"
+    },
+    "memory4k.peakTotalMB": {
+      "max": 3072,
+      "kind": "mem",
+      "note": "peak resident memory (workingSetSize summed over every Electron process) while three back-to-back 4K H.264 clips play end to end through two clip changes. The 4K soak (docs/soak-report.md) peaked at 5.6 GB renderer / 6.6 GB total with whole-file audio buffers, an unbounded decoder fan-out and full-resolution playback canvases; target < 3 GB. A memory budget, not wall clock: judged at any load"
+    },
+    "memory4k.playback.framesOver50ms": {
+      "max": 5,
+      "kind": "mem",
+      "note": "frames over 50 ms during that 4K playback: the memory work must not cost smoothness"
+    },
+    "traceCached.median.totalCompileCpuMs": {
+      "max": 50,
+      "note": "v8 compile CPU on a REPEAT launch (profile with a primed code cache, scenario traceCached). 19-22 ms measured at load ~60 vs ~219 ms on a fresh profile; over 50 means the renderer code cache stopped being used (scheme privilege, cache headers, v8CacheOptions)"
+    },
+    "traceCached.median.startupCompileCpuMs": {
+      "max": 15,
+      "note": "compile CPU before the welcome screen on a repeat launch; 3-6 ms measured vs ~40 ms on a fresh profile"
+    },
+    "traceCached.median.totalCacheProduceCpuMs": {
+      "max": 5,
+      "note": "a repeat launch must not re-produce code cache (0 measured; ~73 ms on a fresh profile)"
+    },
+    "bench.seekClick.latency.p50Ms": {
+      "max": 300,
+      "note": "w19: click on the ruler -> Program label shows the target time, 400-clip project. Baseline: docs/soak-report.md feature-timeline scrub p50 216 ms (886 seeks), +~40% headroom. PROVISIONAL: the soak ran a different project; re-baseline on the first idle-machine run"
+    },
+    "bench.seekClick.latency.p95Ms": {
+      "max": 800,
+      "note": "baseline: soak feature-timeline p95 596 ms (max 1049), +~35%"
+    },
+    "bench.seekClick.latency.timeouts": {
+      "max": 1,
+      "note": "seeks that never showed the target frame within 4 s (not part of the percentiles, so they get their own budget)"
+    },
+    "scrub4k.latency.p50Ms": {
+      "max": 450,
+      "note": "w19: click-seek on one 4K long-GOP H.264 clip (10 s keyframes), proxies off. Baseline: docs/soak-report.md 'Scrubbing 4K long-GOP originals is 351 ms p50 / 549 ms p95', +~28%. PROVISIONAL until measured by this harness on an idle machine"
+    },
+    "scrub4k.latency.p95Ms": {
+      "max": 800,
+      "note": "baseline 549 ms p95 (soak-report); the layered 4K cases in docs/known-limitations.md reach 800-1150 ms, so this single-clip budget leaves room but not for the layered case"
+    },
+    "scrub4k.latency.timeouts": {
+      "max": 1
+    },
+    "scrub4k.cpuMsPerSeek": {
+      "max": 550,
+      "kind": "cpu",
+      "note": "CPU analogue (all Electron processes' CPU time per seek, load-robust). Baseline: PERF.md 'Playback / scrub cost', 4K proxies off, scrub 6 s / 24 seeks = 5.4-7.3 % of the machine = 65-88 % of a core = 162-219 ms per seek; ~2.5x headroom for the 1.3-2x CPU inflation under contention. That baseline used a 12 s clip with ~8 s GOPs; this scenario seeks a 30 s clip with 10 s GOPs, so replace with 2x the first idle-machine median. Electron percentCPUUsage reads a share of ALL cores (measured: one busy core = 8.3 on 12 cores), so the PERF.md 'Playback / scrub cost' table, taken with it, is x12 here."
+    },
+    "playback.analysis.droppedFramesPct": {
+      "max": 8,
+      "note": "w19: distinct 1080p frames NOT presented in 10 s of playback of a 30 fps clip. Baseline: docs/soak-report.md playback 0.963x real time over 149 runs = ~3.7 % of frames lost, so 8 % is ~2x. A frame count, but it depends on the machine keeping up, so wall kind"
+    },
+    "playback.cpuPctOfCore": {
+      "max": 125,
+      "kind": "cpu",
+      "note": "CPU analogue of the above: all Electron processes, % of one core (cumulativeCPUUsage) over 10 s of 1080p playback. Nearest baseline: PERF.md playback 8 s with the 1080p proxy 3.7-5.2 % of the machine = 44-62 % of a core; ~2x. Electron percentCPUUsage reads a share of ALL cores (measured: one busy core = 8.3 on 12 cores), so the PERF.md 'Playback / scrub cost' table, taken with it, is x12 here."
+    },
+    "playback4k.analysis.droppedFramesPct": {
+      "max": 10,
+      "note": "w19: same measure on a 4K long-GOP clip. NO distinct-frame baseline exists: memory4k's 4K runs had 3-6 rAF frames over 50 ms in ~32 s (docs/known-limitations.md), which bounds visible stalls under ~1 % but not lost video frames. 10 % is a smoke guard; replace with 2x the first idle-machine median"
+    },
+    "playback4k.cpuPctOfCore": {
+      "max": 180,
+      "kind": "cpu",
+      "note": "CPU analogue: PERF.md 4K playback 8 s, proxies off, 6.3-7.6 % of the machine = 76-91 % of a core; ~2x. Electron percentCPUUsage reads a share of ALL cores (measured: one busy core = 8.3 on 12 cores), so the PERF.md 'Playback / scrub cost' table, taken with it, is x12 here."
+    },
+    "importN.perClipThumbnailMs": {
+      "max": 1500,
+      "note": "w19: 8 distinct 3 s 1080p clips imported at once; time until the LAST thumbnail shows, divided by the clip count. NO small-clip baseline exists: the only import number is docs/soak-report.md 'six web sources (2.15 GB) in 11.1 s' = ~1.85 s per large source, so 1.5 s/clip for 3 s clips is a loose ceiling, a smoke guard until the first idle-machine run. importN.cpuMsPerClip is recorded but not budgeted for the same reason"
+    }
+  }
+}

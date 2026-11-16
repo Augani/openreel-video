@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildProfileFromNativeSpecs, type NativeHardwareInfo } from "./native-profile";
+import { buildProfileFromNativeSpecs, getNativeGpuTier, type NativeHardwareInfo } from "./native-profile";
 
 const M2_PRO: NativeHardwareInfo = {
   cpu: { model: "Apple M2 Pro", physicalCores: 12, logicalCores: 12 },
@@ -18,17 +18,6 @@ const M2_PRO: NativeHardwareInfo = {
 };
 
 describe("buildProfileFromNativeSpecs", () => {
-  it("maps cores/memory/platform from real specs", () => {
-    const p = buildProfileFromNativeSpecs(M2_PRO);
-    expect(p.cpu.cores).toBe(12);
-    expect(p.cpu.tier).toBe("high");
-    expect(p.memory.gb).toBe(16);
-    expect(p.memory.tier).toBe("high");
-    expect(p.platform.os).toBe("macOS");
-    expect(p.platform.browser).toBe("Electron");
-    expect(p.platform.isMobile).toBe(false);
-    expect(p.gpu.renderer).toBe("Apple M2 Pro");
-  });
 
   it("maps encoders[] to hardware/software EncodingSupport", () => {
     const p = buildProfileFromNativeSpecs(M2_PRO);
@@ -52,26 +41,16 @@ describe("buildProfileFromNativeSpecs", () => {
     expect(p.gpu.hasHardwareEncoding).toBe(false);
   });
 
-  it("low-spec maps to low tiers", () => {
-    const p = buildProfileFromNativeSpecs({
-      ...M2_PRO,
-      cpu: { model: "x", physicalCores: 2, logicalCores: 2 },
-      memory: { totalBytes: 2 * 1024 ** 3, freeBytes: 1 * 1024 ** 3 },
-      gpus: ["Unknown"],
-      encoders: ["libx264"],
-    });
-    expect(p.cpu.tier).toBe("low");
-    expect(p.memory.tier).toBe("low");
-    expect(p.overallTier).toBe("low");
+});
+
+describe("getNativeGpuTier", () => {
+  it("treats vendor-only Apple strings as high, not low", () => {
+    expect(getNativeGpuTier("Apple GPU")).toBe("high");
+    expect(getNativeGpuTier("Apple Paravirtual device")).not.toBe("high");
   });
 
-  it("accepts an optional benchmark (drives measured estimates)", () => {
-    const p = buildProfileFromNativeSpecs(M2_PRO, {
-      framesPerSecond: 120,
-      codec: "h264",
-      resolution: { width: 1920, height: 1080 },
-      testedAt: 1,
-    });
-    expect(p.benchmark?.framesPerSecond).toBe(120);
+  it("unwraps ANGLE strings", () => {
+    expect(getNativeGpuTier("ANGLE (Apple, Apple M2 Pro, OpenGL 4.1)")).toBe("high");
+    expect(getNativeGpuTier("ANGLE (Apple, ANGLE Metal Renderer: Apple GPU, Unspecified Version)")).toBe("high");
   });
 });

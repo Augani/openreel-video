@@ -8,18 +8,20 @@ interface SpeedTabClip {
   mediaId: string;
 }
 
-export interface SpeedTabProps {
+interface SpeedTabProps {
   showVideoControls: boolean;
+  showSpeedControls?: boolean;
   selectedClip: SpeedTabClip | null;
 }
 
 export const SpeedTab: React.FC<SpeedTabProps> = ({
   showVideoControls,
+  showSpeedControls = showVideoControls,
   selectedClip,
 }) => {
   return (
     <>
-      {showVideoControls &&
+      {showSpeedControls &&
         selectedClip &&
         !selectedClip.mediaId.startsWith("text-") &&
         !selectedClip.mediaId.startsWith("shape-") &&

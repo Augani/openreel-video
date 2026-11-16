@@ -38,9 +38,13 @@ export interface ParticleConfig {
 
 export interface ParticleEffect {
   id: string;
+  /** Stable sampling identity retained when a clip creates another piece. */
+  seedId?: string;
   clipId: string;
   type: ParticleEffectType;
   startTime: number;
+  /** Clip start when authored; keeps this effect attached after a clip move. */
+  clipStartTime?: number;
   duration: number;
   config: ParticleConfig;
   enabled: boolean;

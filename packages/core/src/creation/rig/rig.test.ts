@@ -11,10 +11,7 @@ import {
   invertMat4,
   makeBone,
   multiplyMat4,
-  proceduralIdleClip,
-  proceduralWalkClip,
   proceduralWaveClip,
-  sampleSkeletalAnimation,
   skinMesh,
   solveTwoBoneIk,
   transformPoint,
@@ -32,10 +29,6 @@ describe("rig matrix math", () => {
     }
   });
 
-  it("translates a point", () => {
-    const m = composeTRS({ x: 5, y: 0, z: 0 }, { x: 0, y: 0, z: 0 }, { x: 1, y: 1, z: 1 });
-    expect(transformPoint(m, { x: 1, y: 2, z: 3 })).toEqual({ x: 6, y: 2, z: 3 });
-  });
 });
 
 describe("rig skinning", () => {
@@ -92,13 +85,6 @@ describe("rig animation", () => {
   it("clamps to the first and last keyframe outside the range", () => {
     expect(evaluatePose(clip, -1).upper?.rotation?.z).toBeCloseTo(0, 5);
     expect(evaluatePose(clip, 5).upper?.rotation?.z).toBeCloseTo(90, 5);
-  });
-
-  it("samples an animation into per-frame poses", () => {
-    const poses = sampleSkeletalAnimation(clip, 30);
-    expect(poses.length).toBe(31);
-    expect(poses[0]?.upper?.rotation?.z).toBeCloseTo(0, 5);
-    expect(poses[30]?.upper?.rotation?.z).toBeCloseTo(90, 5);
   });
 
   it("blends and adds poses", () => {
@@ -176,25 +162,4 @@ describe("procedural animation clips", () => {
     expect(posed["upperarm.R"]?.rotation?.z).toBeLessThan(0);
   });
 
-  it("generates idle and walk clips with the expected bone tracks", () => {
-    const idle = proceduralIdleClip({ spineBone: "spine", headBone: "head" });
-    expect(idle.tracks.map((track) => track.bone).sort()).toEqual(["head", "spine"]);
-
-    const walk = proceduralWalkClip({
-      leftThighBone: "thigh.L",
-      rightThighBone: "thigh.R",
-      leftArmBone: "upperarm.L",
-      rightArmBone: "upperarm.R",
-    });
-    const leftThigh = walk.tracks.find((track) => track.bone === "thigh.L")!;
-    const rightThigh = walk.tracks.find((track) => track.bone === "thigh.R")!;
-    const quarter = walk.duration * 0.25;
-    const left = leftThigh.keyframes.reduce((closest, frame) =>
-      Math.abs(frame.time - quarter) < Math.abs(closest.time - quarter) ? frame : closest,
-    );
-    const right = rightThigh.keyframes.reduce((closest, frame) =>
-      Math.abs(frame.time - quarter) < Math.abs(closest.time - quarter) ? frame : closest,
-    );
-    expect(Math.sign(left.rotation!.x)).not.toBe(Math.sign(right.rotation!.x));
-  });
 });

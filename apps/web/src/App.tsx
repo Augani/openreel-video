@@ -1,26 +1,53 @@
-import { useEffect, useCallback, useRef, useState, lazy, Suspense } from "react";
+import {
+  useEffect,
+  useCallback,
+  useRef,
+  useState,
+  lazy,
+  Suspense,
+} from "react";
 import { ToastContainer } from "./components/Toast";
 import { MobileBlocker } from "./components/MobileBlocker";
 import { WelcomeScreen } from "./components/welcome";
 import { RecoveryDialog } from "./components/welcome/RecoveryDialog";
 import { useUIStore } from "./stores/ui-store";
 import { useProjectStore } from "./stores/project-store";
+import { useOnboardingStore } from "./stores/onboarding-store";
+import { isDesktopRuntime } from "./components/onboarding/shell/useOnboardingGate";
 import { useRouter } from "./hooks/use-router";
+import { useCollabInvite } from "./hooks/useCollabInvite";
 import { useProjectRecovery } from "./hooks/useProjectRecovery";
 import { useKieAIPoller } from "./hooks/useKieAIPoller";
 import { SOCIAL_MEDIA_PRESETS, type SocialMediaCategory } from "@openreel/core";
-import { ToolcraftText as Text } from "@openreel/ui";
 
-const EditorInterface = lazy(() =>
-  import("./components/editor/EditorInterface").then((m) => ({
-    default: m.EditorInterface,
-  }))
+import { getLoadedEditor, loadEditorModule } from "./editor-loader";
+import { keyboardShortcuts } from "./services/keyboard-shortcuts";
+import { createEditorProject } from "./services/project-creation";
+import { toast } from "./stores/notification-store";
+import { useSceneDetectionDialogStore } from "./stores/scene-detection-dialog-store";
+
+const LazyEditorInterface = lazy(() =>
+  loadEditorModule().then((m) => ({ default: m.EditorInterface })),
 );
+/** Renders synchronously when the chunk is already loaded (see editor-loader). */
+const EditorInterface: React.FC = () => {
+  const Loaded = getLoadedEditor();
+  return Loaded ? <Loaded /> : <LazyEditorInterface />;
+};
 const ScriptViewDialog = lazy(() =>
-  import("./components/editor/ScriptViewDialog").then((m) => ({ default: m.ScriptViewDialog })),
+  import("./components/editor/ScriptViewDialog").then((m) => ({
+    default: m.ScriptViewDialog,
+  })),
+);
+const SceneDetectionDialog = lazy(() =>
+  import("./components/editor/SceneDetectionDialog").then((m) => ({
+    default: m.SceneDetectionDialog,
+  })),
 );
 const SearchModal = lazy(() =>
-  import("./components/editor/SearchModal").then((m) => ({ default: m.SearchModal })),
+  import("./components/editor/SearchModal").then((m) => ({
+    default: m.SearchModal,
+  })),
 );
 const SharePage = lazy(() =>
   import("./pages/SharePage").then((m) => ({ default: m.SharePage })),
@@ -28,7 +55,7 @@ const SharePage = lazy(() =>
 const LoadingSpinner: React.FC<{ message: string }> = ({ message }) => (
   <div className="h-screen w-screen bg-background flex flex-col items-center justify-center">
     <div className="w-10 h-10 border-2 border-primary border-t-transparent rounded-full animate-spin mb-3" />
-    <Text type="supporting" color="secondary" className="text-sm text-text-secondary">{message}</Text>
+    <span className="font-normal text-sm text-text-secondary">{message}</span>
   </div>
 );
 
@@ -45,17 +72,33 @@ function App() {
   const closeModal = useUIStore((state) => state.closeModal);
   const skipWelcomeScreen = useUIStore((state) => state.skipWelcomeScreen);
   const openSearchModal = useUIStore((state) => state.openModal);
+  const sceneDetectionClipId = useSceneDetectionDialogStore((state) => state.clipId);
   const [hasOpenedScriptView, setHasOpenedScriptView] = useState(false);
   const [isRecovering, setIsRecovering] = useState(false);
   const createNewProject = useProjectStore((state) => state.createNewProject);
   const hasOpenProject = useProjectStore((state) => state.hasOpenProject);
-  const { isChecking, showDialog, availableSaves, recover, dismiss, clearAll } = useProjectRecovery();
+  const { isChecking, showDialog, availableSaves, recover, dismiss, clearAll } =
+    useProjectRecovery();
 
   const { route, params, navigate, parsedDimensions, fps } = useRouter();
-  const hasHandledInitialRoute = useRef(false);
+  const hasHandledNewRoute = useRef(false);
+  const handledNewKey = useRef<string | null>(null);
+  const newRequestId = useRef(0);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
   useKieAIPoller();
+  useCollabInvite();
+  // Help > "Welcome & Setup" re-opens the welcome screen even when it is skipped on startup.
+  const onboardingBandOpen = useOnboardingStore((state) => state.bandOpen === true);
   const showWelcome =
-    ["welcome", "templates", "recent"].includes(route) && !skipWelcomeScreen;
+    route === "templates" ||
+    route === "recent" ||
+    (route === "welcome" && (!skipWelcomeScreen || onboardingBandOpen));
   const isSharePage = route === "share" && params.shareId;
 
   useEffect(() => {
@@ -63,10 +106,26 @@ function App() {
   }, [activeModal]);
 
   useEffect(() => {
-    if (hasHandledInitialRoute.current || isChecking || showDialog || isRecovering) return;
+    if (route !== "new") {
+      hasHandledNewRoute.current = false;
+      handledNewKey.current = null;
+      newRequestId.current++;
+      return;
+    }
+    const key = JSON.stringify(params);
+    if (
+      (hasHandledNewRoute.current && handledNewKey.current === key) ||
+      isChecking ||
+      showDialog ||
+      isRecovering
+    )
+      return;
 
     if (route === "new") {
-      hasHandledInitialRoute.current = true;
+      hasHandledNewRoute.current = true;
+      handledNewKey.current = key;
+      const request = ++newRequestId.current;
+      const requestedHash = window.location.hash;
 
       let projectName = "New Project";
       let width = 1920;
@@ -79,7 +138,7 @@ function App() {
         if (preset) {
           width = preset.width;
           height = preset.height;
-          frameRate = params.fps ? fps : (preset.frameRate || fps);
+          frameRate = params.fps ? fps : preset.frameRate || fps;
           projectName = `New ${presetKey.charAt(0).toUpperCase() + presetKey.slice(1).replace(/-/g, " ")} Project`;
         }
       } else if (parsedDimensions) {
@@ -90,7 +149,7 @@ function App() {
         const matchingPreset = PRESET_DIMENSIONS[dimensionKey];
         if (matchingPreset) {
           const preset = SOCIAL_MEDIA_PRESETS[matchingPreset];
-          frameRate = params.fps ? fps : (preset.frameRate || fps);
+          frameRate = params.fps ? fps : preset.frameRate || fps;
         }
 
         const aspectRatio = width / height;
@@ -103,12 +162,43 @@ function App() {
         }
       }
 
-      createNewProject(projectName, { width, height, frameRate });
-      navigate("editor");
-    } else if (route === "editor" && skipWelcomeScreen) {
-      hasHandledInitialRoute.current = true;
-    } else if (["welcome", "templates", "recent"].includes(route)) {
-      hasHandledInitialRoute.current = true;
+      void (async () => {
+        try {
+          await createEditorProject({
+            name: projectName,
+            settings: { width, height, frameRate },
+            isCurrent: () =>
+              mounted.current &&
+              request === newRequestId.current &&
+              window.location.hash === requestedHash,
+          });
+          if (
+            !mounted.current ||
+            request !== newRequestId.current ||
+            window.location.hash !== requestedHash
+          )
+            return;
+          // The New project flow finished: retire onboarding now, not before it could be cancelled.
+          if (isDesktopRuntime()) useOnboardingStore.getState().skip("user");
+          navigate("editor");
+        } catch (error) {
+          if (
+            !mounted.current ||
+            request !== newRequestId.current ||
+            window.location.hash !== requestedHash
+          )
+            return;
+          toast.error(
+            "Could not create project",
+            error instanceof Error
+              ? error.message
+              : "Your current project is still open. Please try again.",
+          );
+          navigate(
+            useProjectStore.getState().hasOpenProject ? "editor" : "welcome",
+          );
+        }
+      })();
     }
   }, [
     route,
@@ -117,7 +207,6 @@ function App() {
     fps,
     createNewProject,
     navigate,
-    skipWelcomeScreen,
     isChecking,
     showDialog,
     isRecovering,
@@ -126,16 +215,40 @@ function App() {
   useEffect(() => {
     // Recovery owns the choice until it settles. A bare editor URL still needs
     // a real project for autosave and preview-proxy lifecycle subscriptions.
-    if (showWelcome || isSharePage || route === "new" || isChecking || showDialog || isRecovering || hasOpenProject) return;
+    if (
+      showWelcome ||
+      isSharePage ||
+      route === "new" ||
+      isChecking ||
+      showDialog ||
+      isRecovering ||
+      hasOpenProject
+    )
+      return;
     createNewProject("New Project");
-  }, [showWelcome, isSharePage, route, isChecking, showDialog, isRecovering, hasOpenProject, createNewProject]);
+  }, [
+    showWelcome,
+    isSharePage,
+    route,
+    isChecking,
+    showDialog,
+    isRecovering,
+    hasOpenProject,
+    createNewProject,
+  ]);
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
-      if (e.key === "Escape" && route !== "editor") {
+      if (e.defaultPrevented) return;
+      const controlOwnsEscape =
+        e.target instanceof Element &&
+        e.target.closest(
+          "input, textarea, select, [contenteditable], [role=dialog], [role=menu], [role=listbox]",
+        );
+      if (e.key === "Escape" && route !== "editor" && !controlOwnsEscape) {
         navigate("editor");
       }
-      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+      if (keyboardShortcuts.isSearchPaletteEvent(e)) {
         e.preventDefault();
         openSearchModal("search");
       }
@@ -159,13 +272,23 @@ function App() {
     <div className="h-screen h-[100dvh] w-screen bg-background text-text-primary overflow-hidden">
       <MobileBlocker />
       {isSharePage ? (
-        <Suspense fallback={<LoadingSpinner message="Loading shared video..." />}>
+        <Suspense
+          fallback={<LoadingSpinner message="Loading shared video..." />}
+        >
           <SharePage shareId={params.shareId!} />
         </Suspense>
       ) : showWelcome ? (
         <WelcomeScreen initialTab={initialTab} />
-      ) : !hasOpenProject || route === "new" ? (
-        <LoadingSpinner message={isChecking ? "Checking for saved projects..." : showDialog ? "Choose a saved project or start fresh..." : "Opening project..."} />
+      ) : !hasOpenProject ? (
+        <LoadingSpinner
+          message={
+            isChecking
+              ? "Checking for saved projects..."
+              : showDialog
+                ? "Choose a saved project or start fresh..."
+                : "Opening project..."
+          }
+        />
       ) : (
         <Suspense fallback={<LoadingSpinner message="Loading editor..." />}>
           <EditorInterface />
@@ -173,24 +296,36 @@ function App() {
       )}
       <ToastContainer />
       <Suspense fallback={null}>
-        {(hasOpenedScriptView || activeModal === "scriptView") && <ScriptViewDialog isOpen={activeModal === "scriptView"} onClose={closeModal} />}
-        {activeModal === "search" && <SearchModal isOpen onClose={closeModal} />}
+        {(hasOpenedScriptView || activeModal === "scriptView") && (
+          <ScriptViewDialog
+            isOpen={activeModal === "scriptView"}
+            onClose={closeModal}
+          />
+        )}
+        {hasOpenProject && sceneDetectionClipId !== null && (
+          <SceneDetectionDialog />
+        )}
+        {activeModal === "search" && (
+          <SearchModal isOpen onClose={closeModal} />
+        )}
       </Suspense>
       {showDialog && availableSaves.length > 0 && (
         <RecoveryDialog
           saves={availableSaves}
           onRecover={async (saveId) => {
             // Loading a snapshot updates the store before the hash navigation
-            // settles. Claim the initial route first so /new cannot replace it.
-            const previouslyHandled = hasHandledInitialRoute.current;
-            hasHandledInitialRoute.current = true;
+            // settles. Claim this /new visit so it cannot replace the snapshot.
+            hasHandledNewRoute.current = true;
+            handledNewKey.current = JSON.stringify(params);
+            newRequestId.current++;
             setIsRecovering(true);
             let success = false;
             try {
               success = await recover(saveId);
               if (success) navigate("editor");
+              return success;
             } finally {
-              if (!success) hasHandledInitialRoute.current = previouslyHandled;
+              if (!success) hasHandledNewRoute.current = false;
               setIsRecovering(false);
             }
           }}

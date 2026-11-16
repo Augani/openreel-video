@@ -1,10 +1,11 @@
+import { trackIdAtOffset } from "./track-hit-test";
 import { useTimelineTouchGesture, listenTimelineGesture } from "./touch-gestures";
 import { TimelineTouchMoveHandle } from "./TimelineTouchMoveHandle";
 import React, { useRef, useState, useEffect, useCallback } from "react";
-import { ToolcraftContextMenu as ContextMenu } from "@openreel/ui";
-import { Type } from "@/icons/lucide-compat";
+import { flushSync } from "react-dom";
+import { ContextMenu, ContextMenuTrigger } from "@openreel/ui";
 import type { TextClip, Track } from "@openreel/core";
-import { useGraphicsClipContextMenuItems } from "./GraphicsClipContextMenu";
+import { GraphicsClipContextMenu } from "./GraphicsClipContextMenu";
 import { calculateSnap } from "./utils";
 import { useProjectStore } from "../../../stores/project-store";
 import { useTimelineStore } from "../../../stores/timeline-store";
@@ -23,10 +24,12 @@ interface TextClipComponentProps {
   ) => void | Promise<void>;
   allTracks: Track[];
   trackHeights: Map<string, number>;
+  rowHeights?: Map<string, number>;
   timelineRef: React.RefObject<HTMLDivElement | null>;
+  trackTopInset?: number;
 }
 
-export const TextClipComponent: React.FC<TextClipComponentProps> = ({
+const TextClipComponentImpl: React.FC<TextClipComponentProps> = ({
   textClip,
   pixelsPerSecond,
   isSelected,
@@ -35,7 +38,9 @@ export const TextClipComponent: React.FC<TextClipComponentProps> = ({
   onMoveClip,
   allTracks,
   trackHeights,
+  rowHeights,
   timelineRef,
+  trackTopInset = 0,
 }) => {
   const clipRef = useRef<HTMLDivElement>(null);
   const touchGesture = useTimelineTouchGesture();
@@ -44,6 +49,7 @@ export const TextClipComponent: React.FC<TextClipComponentProps> = ({
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState(0);
   const historyGroupOpenRef = useRef(false);
+  const moveGestureRef = useRef({ x: 0, y: 0, moved: false });
   const pendingDropRef = useRef<{ time: number; targetTrackId?: string }>({
     time: textClip.startTime,
   });
@@ -85,7 +91,10 @@ export const TextClipComponent: React.FC<TextClipComponentProps> = ({
     const clickX = e.clientX - rect.left;
     const clipStartX = textClip.startTime * pixelsPerSecond;
     setDragOffset(clickX - clipStartX);
-    setIsDragging(true);
+    moveGestureRef.current = { x: e.clientX, y: e.clientY, moved: false };
+    pendingDropRef.current = { time: textClip.startTime };
+    // Native input may deliver the entire gesture before React's next paint.
+    flushSync(() => setIsDragging(true));
     beginTimingGesture("Move text clip");
 
     onSelect(textClip.id, e.shiftKey || e.metaKey || e.ctrlKey);
@@ -102,6 +111,9 @@ export const TextClipComponent: React.FC<TextClipComponentProps> = ({
     if (!isDragging || !onMoveClip) return;
 
     const handleMouseMove = (e: MouseEvent) => {
+      const gesture = moveGestureRef.current;
+      if (!gesture.moved && Math.hypot(e.clientX - gesture.x, e.clientY - gesture.y) < 3) return;
+      gesture.moved = true;
       const rect = clipRef.current?.parentElement?.getBoundingClientRect();
       if (!rect) return;
 
@@ -122,24 +134,21 @@ export const TextClipComponent: React.FC<TextClipComponentProps> = ({
       const scrollTop = timelineRef.current?.scrollTop ?? 0;
       let targetTrackId: string | undefined;
       if (timelineRect) {
-        const mouseY = e.clientY - timelineRect.top + scrollTop;
-        let cumulativeY = 0;
-        for (const track of allTracks) {
-          const height = trackHeights.get(track.id) ?? 48;
-          if (mouseY >= cumulativeY && mouseY < cumulativeY + height) {
-            if (!track.locked && track.id !== textClip.trackId) {
-              targetTrackId = track.id;
-            }
-            break;
-          }
-          cumulativeY += height;
-        }
+        const mouseY = e.clientY - timelineRect.top + scrollTop - trackTopInset;
+        const hit = trackIdAtOffset(allTracks, rowHeights ?? trackHeights, mouseY);
+        const hovered = allTracks.find((track) => track.id === hit);
+        if (hovered && !hovered.locked && hovered.id !== textClip.trackId) targetTrackId = hovered.id;
       }
       pendingDropRef.current = { time: snapResult.time, targetTrackId };
       onMoveClip(textClip.id, snapResult.time);
     };
 
     const handleMouseUp = async () => {
+      if (!moveGestureRef.current.moved) {
+        setIsDragging(false);
+        endTimingGesture();
+        return;
+      }
       const pending = pendingDropRef.current;
       await onMoveClip(
         textClip.id,
@@ -170,8 +179,10 @@ export const TextClipComponent: React.FC<TextClipComponentProps> = ({
     snapSettings,
     endTimingGesture,
     timelineRef,
+    trackTopInset,
     allTracks,
     trackHeights,
+    rowHeights,
   ]);
 
   const handleTrimStart = (e: React.MouseEvent, edge: "left" | "right") => {
@@ -231,13 +242,11 @@ export const TextClipComponent: React.FC<TextClipComponentProps> = ({
   }, [isTrimming, textClip.id, pixelsPerSecond, onTrim, endTimingGesture, touchGesture.pointerId]);
 
   const isInteracting = isDragging || isTrimming;
-  const contextMenuItems = useGraphicsClipContextMenuItems({
-    clip: textClip,
-    clipType: "text",
-  });
+  const [contextMenuOpen, setContextMenuOpen] = useState(false);
 
   return (
-    <ContextMenu items={contextMenuItems} menuWidth={200} size="sm">
+    <ContextMenu onOpenChange={setContextMenuOpen}>
+      <ContextMenuTrigger asChild>
         <div
           ref={clipRef}
           role="button"
@@ -247,6 +256,9 @@ export const TextClipComponent: React.FC<TextClipComponentProps> = ({
           data-locked={locked}
           onClick={handleClick}
           data-timeline-clip
+          data-timeline-item-id={textClip.id}
+          data-clip-kind="text"
+          data-timeline-interacting={Boolean(isInteracting)}
           onPointerDown={touchGesture.bodyPointerDown}
           onMouseDown={handleMouseDown}
           onKeyDown={(event) => {
@@ -255,16 +267,18 @@ export const TextClipComponent: React.FC<TextClipComponentProps> = ({
             event.stopPropagation();
             onSelect(textClip.id, event.shiftKey || event.metaKey || event.ctrlKey);
           }}
-          className={`absolute top-1 bottom-1 rounded-lg overflow-hidden cursor-grab group ${
+          className={`absolute top-1 bottom-1 rounded-[4px] overflow-hidden cursor-grab group ${
             isDragging ? "cursor-grabbing opacity-75" : ""
           } ${
             isSelected
-              ? "ring-2 ring-amber-400 border-amber-400 z-10"
-              : "border-amber-500/30 hover:border-amber-500/60 hover:brightness-110"
-          } bg-amber-500/20 border`}
+              ? "ring-1 ring-accent border-accent z-10"
+              : "border-purple-400/50 hover:border-purple-300/70 hover:brightness-110"
+          } border`}
           style={{
+            backgroundColor: "var(--c-text)",
             transform: `translateX(${left}px)`,
-            width: `${Math.max(width, 40)}px`,
+            width: `max(1px, calc(${Math.max(width, 40)}px - var(--timeline-clip-inset, 0px) * 2))`,
+            marginLeft: "var(--timeline-clip-inset, 0px)",
             willChange: isInteracting ? 'transform, width' : 'auto',
             transition: isInteracting ? 'none' : 'opacity 150ms, box-shadow 150ms',
           }}
@@ -275,35 +289,35 @@ export const TextClipComponent: React.FC<TextClipComponentProps> = ({
             aria-label="Trim start"
             onPointerDown={(event) => touchGesture.start(event, (e) => handleTrimStart(e, "left"))}
             className={`absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize z-20 flex items-center justify-center transition-opacity ${
-              isSelected ? "opacity-100 bg-amber-400" : "opacity-0 group-hover:opacity-100 hover:bg-amber-400/50"
+              isSelected ? "opacity-100 bg-accent" : "opacity-0 group-hover:opacity-100 hover:bg-accent/50"
             }`}
             style={{ borderRadius: "6px 0 0 6px" }}
             onMouseDown={(e) => handleTrimStart(e, "left")}
           >
-            {isSelected && <div className="w-0.5 h-3 bg-amber-900/60 rounded-full" />}
+            {isSelected && <div className="w-0.5 h-3 bg-accent-fg/60 rounded-full" />}
           </div>
           <div
             data-timeline-trim="right"
             aria-label="Trim end"
             onPointerDown={(event) => touchGesture.start(event, (e) => handleTrimStart(e, "right"))}
             className={`absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize z-20 flex items-center justify-center transition-opacity ${
-              isSelected ? "opacity-100 bg-amber-400" : "opacity-0 group-hover:opacity-100 hover:bg-amber-400/50"
+              isSelected ? "opacity-100 bg-accent" : "opacity-0 group-hover:opacity-100 hover:bg-accent/50"
             }`}
             style={{ borderRadius: "0 6px 6px 0" }}
             onMouseDown={(e) => handleTrimStart(e, "right")}
           >
-            {isSelected && <div className="w-0.5 h-3 bg-amber-900/60 rounded-full" />}
+            {isSelected && <div className="w-0.5 h-3 bg-accent-fg/60 rounded-full" />}
           </div>
-          <div className="w-full h-full flex items-center gap-1 px-3">
-            <Type size={12} className="text-fg-2 flex-shrink-0" />
+          <div className="workspace-timeline-text-label w-full h-full flex items-center gap-1 px-3">
             <span className="text-[10px] font-semibold text-fg truncate">
               {textClip.text || "Text"}
             </span>
           </div>
-          {isSelected && (
-            <div className="absolute inset-0 border-2 border-amber-400 rounded-lg pointer-events-none" />
-          )}
         </div>
+      </ContextMenuTrigger>
+      {contextMenuOpen && <GraphicsClipContextMenu clip={textClip} clipType="text" />}
     </ContextMenu>
   );
 };
+
+export const TextClipComponent = React.memo(TextClipComponentImpl);

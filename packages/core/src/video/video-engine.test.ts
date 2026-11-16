@@ -189,3 +189,35 @@ describe("VideoEngine motion asset resolver", () => {
     expect(image.close).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("VideoEngine LUT normalisation", () => {
+  it("keeps floatData, curve1d and space so float precision reaches the renderer", async () => {
+    vi.stubGlobal("self", {
+      onmessage: null,
+      postMessage: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    });
+    const { VideoEngine } = await import("./video-engine");
+    const engine = new VideoEngine() as unknown as {
+      normalizeClipLut(lut: unknown): {
+        floatData?: Float32Array;
+        curve1d?: { data: Float32Array };
+        space?: string;
+      };
+    };
+    const out = engine.normalizeClipLut({
+      data: [0, 0, 0, 1, 1, 1],
+      floatData: [-0.5, 0.001, 2],
+      curve1d: { size: 2, domainMin: [0, 0, 0], domainMax: [1, 1, 1], data: [0, 0, 0, 1, 1, 1] },
+      size: 2,
+      intensity: 1,
+      space: "linear",
+    });
+    expect(out.floatData).toBeInstanceOf(Float32Array);
+    expect(out.floatData?.[0]).toBeCloseTo(-0.5);
+    expect(out.curve1d?.data).toBeInstanceOf(Float32Array);
+    expect(out.space).toBe("linear");
+    vi.unstubAllGlobals();
+  });
+});

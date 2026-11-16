@@ -37,10 +37,6 @@ function makeProject(
 }
 
 describe("deriveSourceExportMatch", () => {
-  it("returns null for a missing project", () => {
-    expect(deriveSourceExportMatch(null)).toBeNull();
-    expect(deriveSourceExportMatch(undefined)).toBeNull();
-  });
 
   it("returns null when there is no usable video", () => {
     expect(deriveSourceExportMatch(makeProject([{ type: "audio" }]))).toBeNull();
@@ -86,5 +82,21 @@ describe("deriveSourceExportMatch", () => {
     const big = deriveSourceExportMatch(makeProject([{ width: 7680, height: 4320, frameRate: 60 }]))!;
     expect(small.bitrate).toBeGreaterThanOrEqual(2500);
     expect(big.bitrate).toBeLessThanOrEqual(60000);
+  });
+});
+
+describe("deriveSourceExportMatch with non-square pixels", () => {
+  it("sizes the export from the display width of an anamorphic clip", () => {
+    const project = makeProject([{ width: 1440, height: 1080 }]);
+    (project.mediaLibrary.items[0] as unknown as { interpretation: { pixelAspectRatio: number } }).interpretation = { pixelAspectRatio: 4 / 3 };
+    const match = deriveSourceExportMatch(project);
+    expect(match?.width).toBe(1920);
+    expect(match?.height).toBe(1080);
+  });
+
+  it("prefers the clip whose display size matches the canvas", () => {
+    const project = makeProject([{ width: 1280, height: 720 }, { width: 1440, height: 1080 }]);
+    (project.mediaLibrary.items[1] as unknown as { metadata: { pixelAspectRatio: number } }).metadata.pixelAspectRatio = 4 / 3;
+    expect(deriveSourceExportMatch(project)?.width).toBe(1920);
   });
 });

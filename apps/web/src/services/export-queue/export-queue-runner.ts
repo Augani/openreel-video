@@ -1,0 +1,242 @@
+import {
+  createIsolatedExportEngine,
+  describeExportSource,
+  desktopExportRequiresNativeEncoder,
+  planInvalidation,
+  setEncoderBackendFactory,
+  WebCodecsBackend,
+  type ExportEngine,
+  type ExportFrameSource,
+  type ExportJob,
+  type ExportJobOutput,
+  type ExportJobSmartRender,
+  type Project,
+  type VideoExportSettings,
+} from "@openreel/core";
+import { ensureProjectFonts } from "../project-fonts";
+import { useProjectStore } from "../../stores/project-store";
+import { useTimelineStore } from "../../stores/timeline-store";
+import { mimeForExt, extForFormat } from "../export-runner";
+import { NativeFFmpegBackend } from "../native-ffmpeg-backend";
+import { renderCacheService } from "../render-cache-service";
+import { createBrowserOutputSink } from "./export-queue-storage";
+
+export interface RunJobResult {
+  readonly output: ExportJobOutput;
+  readonly framesFromCache: number;
+  readonly cacheFramesAvailable: boolean;
+  /** Present when smart rendering planned this export (copied or not). */
+  readonly smartRender?: ExportJobSmartRender;
+  /** The export report's statement of which media was read (always full resolution). */
+  readonly sourceMedia?: string;
+}
+
+/** The engine of the job that is encoding right now, so Cancel can reach it. */
+let activeJobEngine: ExportEngine | null = null;
+export const cancelRunningExportJob = (): void => {
+  activeJobEngine?.cancel();
+};
+
+export class ExportJobCancelled extends Error {
+  constructor() {
+    super("Export cancelled");
+    this.name = "ExportJobCancelled";
+  }
+}
+
+const isDesktop = (): boolean => typeof window !== "undefined" && window.openreel?.platform === "desktop";
+
+const NOOP_WRITABLE = {
+  async seek() {},
+  async write() {},
+  async close() {},
+  async abort() {},
+  async truncate() {},
+} as unknown as FileSystemWritableFileStream;
+
+export function createDiskWritable(path: string): Promise<FileSystemWritableFileStream> {
+  const fs = window.openreel!.fs;
+  return fs.openWrite(path).then((handleId) => {
+    let cursor = 0;
+    return {
+      async seek(position: number) { cursor = position; },
+      async write(data: unknown) {
+        let bytes: ArrayBuffer | Uint8Array;
+        if (data instanceof ArrayBuffer || data instanceof Uint8Array) bytes = data;
+        else if (ArrayBuffer.isView(data)) bytes = new Uint8Array(data.buffer as ArrayBuffer, data.byteOffset, data.byteLength);
+        else return;
+        await fs.writeChunk(handleId, bytes, cursor);
+        cursor += bytes.byteLength;
+      },
+      async close() { await fs.closeWrite(handleId); },
+      async abort() { await fs.abortWrite(handleId); },
+      async truncate() {},
+    } as unknown as FileSystemWritableFileStream;
+  });
+}
+
+const webCodecsFactoryFor = (settings: VideoExportSettings, clamp: boolean) => {
+  const videoCodec = settings.codec === "h265" ? "hevc" : "avc";
+  return (mediabunny: unknown) =>
+    mediabunny
+      ? new WebCodecsBackend(mediabunny as ConstructorParameters<typeof WebCodecsBackend>[0], {
+          hardwareAcceleration: "prefer-hardware",
+          videoCodecs: [videoCodec],
+          clampResolution: clamp,
+        })
+      : new NativeFFmpegBackend(() => (window as { __openreelExportPath?: string }).__openreelExportPath ?? "");
+};
+
+/** Let input, paint and timers run between frames so the editor stays usable during a job. */
+const yieldToMain = (): Promise<void> => {
+  const scheduler = (globalThis as { scheduler?: { yield?: () => Promise<void> } }).scheduler;
+  return typeof scheduler?.yield === "function"
+    ? scheduler.yield()
+    : new Promise<void>((resolve) => setTimeout(resolve, 0));
+};
+
+export interface RunJobHooks {
+  onProgress(progress01: number, phase: string): void;
+  isCancelled(): boolean;
+}
+
+/**
+ * Encode one queued job from its project snapshot. The editor's live project is
+ * never read here, which is what makes a queued job immune to later edits.
+ */
+export async function runExportJob(job: ExportJob, project: Project, hooks: RunJobHooks): Promise<RunJobResult> {
+  // A queued job renders with its own video/audio engines. The live preview's
+  // engines are never put in export mode, never have their caches cleared, and
+  // never see the job's frames.
+  const isolated = createIsolatedExportEngine();
+  activeJobEngine = isolated.engine;
+  try {
+    return await runExportJobWith(isolated.engine, job, project, hooks);
+  } finally {
+    // Owned here so an early failure (engine init, fonts, output sink) cannot leak the engines.
+    if (activeJobEngine === isolated.engine) activeJobEngine = null;
+    await isolated.dispose();
+  }
+}
+
+async function runExportJobWith(engine: ExportEngine, job: ExportJob, project: Project, hooks: RunJobHooks): Promise<RunJobResult> {
+  const settings: VideoExportSettings = { ...job.settings, ...(job.range ? { range: job.range } : {}) };
+  const ext = extForFormat(settings.format, settings.codec);
+  const desktop = isDesktop();
+  const checkCancelled = () => {
+    if (hooks.isCancelled()) throw new ExportJobCancelled();
+  };
+
+  await engine.initialize();
+  checkCancelled();
+  await ensureProjectFonts(project);
+  checkCancelled();
+
+  // Effects, transitions and overlays render through engines that follow the
+  // live project. If the snapshot differs visually from it, point them at the
+  // snapshot for this run and restore the live project afterwards.
+  const liveProject = useProjectStore.getState().getFullProject();
+  const plan = planInvalidation(project, liveProject);
+  const swapProcessing = plan.all || plan.ranges.length > 0;
+  // The global overlay/effect/transition engines are shared with the live
+  // preview. While they point at the snapshot, live playback and edits would
+  // render and edit the wrong state, so the editor is locked until they are restored.
+  let lockedPlayback = false;
+  const source = job.usePreviews ? renderCacheService.createExportFrameSource(project, settings) : null;
+  const frameSource: ExportFrameSource | undefined = source ?? undefined;
+
+  let writable: FileSystemWritableFileStream;
+  let finish: () => Promise<ExportJobOutput>;
+  let discard: () => Promise<void>;
+  let restoreFactory: (() => void) | null = null;
+
+  if (desktop) {
+    const fs = window.openreel!.fs;
+    const path = await fs.tempFilePath(ext, true);
+    const native = desktopExportRequiresNativeEncoder(settings) || settings.encodeMode === "smallest" || settings.codec === "av1";
+    (window as { __openreelExportPath?: string }).__openreelExportPath = path;
+    if (native) {
+      setEncoderBackendFactory(() => new NativeFFmpegBackend(() => path));
+      writable = NOOP_WRITABLE;
+    } else {
+      setEncoderBackendFactory(webCodecsFactoryFor(settings, false));
+      writable = await createDiskWritable(path);
+    }
+    restoreFactory = () => setEncoderBackendFactory(() => new NativeFFmpegBackend(() => path));
+    finish = async () => ({ filename: job.outputName, bytes: 0, storage: "disk", path });
+    discard = async () => {
+      await fs.releaseTemp?.(path).catch(() => undefined);
+    };
+  } else {
+    const sink = await createBrowserOutputSink(job.id, ext, mimeForExt(ext));
+    writable = sink.writable;
+    finish = async () => ({ filename: job.outputName, bytes: await sink.finish(), storage: "browser" });
+    discard = () => sink.discard();
+  }
+
+  let generator: ReturnType<typeof engine.exportVideo> | undefined;
+  try {
+    checkCancelled();
+    if (swapProcessing) {
+      useTimelineStore.getState().pause?.();
+      useTimelineStore.getState().lockPlayback("Rendering a queued export");
+      lockedPlayback = true;
+      useProjectStore.getState().syncRenderProcessingFrom(project);
+    }
+    generator = engine.exportVideo(project, settings, writable, frameSource ? { cachedFrames: frameSource } : {});
+    let framesFromCache = 0;
+    let smartRender: RunJobResult["smartRender"];
+    let sourceMedia: string | undefined;
+    for (;;) {
+      const step = await generator.next();
+      if (hooks.isCancelled()) {
+        engine.cancel();
+        throw new ExportJobCancelled();
+      }
+      if (step.done) {
+        const result = step.value;
+        if (!result.success) {
+          if (result.error?.code === "CANCELLED") throw new ExportJobCancelled();
+          throw new Error(result.error?.message || "Export failed");
+        }
+        framesFromCache = result.stats?.framesFromCache ?? 0;
+        const report = result.stats?.smartRender;
+        if (report) {
+          smartRender = {
+            copiedPercent: report.copiedPercent,
+            summary: report.summary,
+            ...(report.engine ? { engine: report.engine } : {}),
+            copiedFrames: report.copiedFrames,
+            totalFrames: report.totalFrames,
+            copiedRuns: report.copiedRuns,
+            reasons: report.reasons,
+          };
+        }
+        sourceMedia = result.stats?.sourceMedia ? describeExportSource(result.stats.sourceMedia, typeof window !== "undefined" && window.openreel?.platform === "desktop") || result.stats.sourceMedia.message : undefined;
+        break;
+      }
+      hooks.onProgress(step.value.progress, step.value.phase);
+      await yieldToMain();
+    }
+    const output = await finish();
+    return { output, framesFromCache, cacheFramesAvailable: Boolean(frameSource), ...(smartRender ? { smartRender } : {}), ...(sourceMedia ? { sourceMedia } : {}) };
+  } catch (error) {
+    await writable.abort().catch(() => undefined);
+    await discard();
+    throw error;
+  } finally {
+    try {
+      await generator?.return({ success: false });
+    } catch {
+      /* keep the original outcome */
+    }
+    restoreFactory?.();
+    if (swapProcessing) {
+      try {
+        useProjectStore.getState().syncRenderProcessingFrom(useProjectStore.getState().getFullProject());
+      } finally {
+        if (lockedPlayback) useTimelineStore.getState().unlockPlayback();
+      }
+    }
+  }
+}

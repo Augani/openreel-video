@@ -4,7 +4,7 @@ import { useEngineStore } from "../stores/engine-store";
 import { useProjectStore } from "../stores/project-store";
 import { resolvePlaybackLoop, resolvePlaybackStart, type PlaybackLoopRange } from "../utils/playback-loop";
 
-export interface TrackAudibility {
+interface TrackAudibility {
   trackId: string;
   isAudible: boolean;
   isMuted: boolean;

@@ -1,4 +1,4 @@
-// Match the font families and weights previously requested by index.html.
+// Bundled and on-demand families available to the editor.
 export const GOOGLE_FONT_SPECS: Readonly<Record<string, string>> = {
   "Abril Fatface": "Abril Fatface",
   "Alfa Slab One": "Alfa Slab One",
@@ -17,6 +17,7 @@ export const GOOGLE_FONT_SPECS: Readonly<Record<string, string>> = {
   "DM Sans": "DM Sans:wght@400;500;700",
   "DM Serif Display": "DM Serif Display",
   "Fredoka One": "Fredoka One",
+  "Fraunces": "Fraunces:wght@600",
   "Geist": "Geist:wght@400;500;600;700;800",
   "Geist Mono": "Geist Mono:wght@400;500;600",
   "Great Vibes": "Great Vibes",

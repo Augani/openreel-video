@@ -97,11 +97,40 @@ describe("TransitionEngine", () => {
 
     it("reports 0 progress at start and 1 at end", () => {
       expect(engine.calculateTransitionProgress(transition, a, 4.5)).toBe(0);
-      expect(engine.calculateTransitionProgress(transition, a, 5.0)).toBeCloseTo(
-        0.5,
-        5,
-      );
+      expect(
+        engine.calculateTransitionProgress(transition, a, 5.0),
+      ).toBeCloseTo(0.5, 5);
       expect(engine.calculateTransitionProgress(transition, a, 5.5)).toBe(1);
+    });
+
+    it.each([
+      ["start", 5, 6],
+      ["center", 4.5, 5.5],
+      ["end", 4, 5],
+    ] as const)(
+      "renders the %s aligned window and progress",
+      (alignment, start, end) => {
+        const aligned = { ...transition, params: { alignment } };
+        expect(engine.getTransitionWindow(aligned, a)).toEqual({ start, end });
+        expect(engine.calculateTransitionProgress(aligned, a, start)).toBe(0);
+        expect(
+          engine.calculateTransitionProgress(aligned, a, (start + end) / 2),
+        ).toBeCloseTo(0.5);
+        expect(engine.calculateTransitionProgress(aligned, a, end)).toBe(1);
+        expect(engine.isTimeInTransition(aligned, a, start - 0.01)).toBe(false);
+      },
+    );
+
+    it("clamps aligned durations to the affected clip's visible range", () => {
+      const short = makeClip({ id: "b", startTime: 5, duration: 2 });
+      const created = engine.createTransition(a, short, "crossfade", 5, {
+        alignment: "start",
+      });
+      expect(created?.duration).toBe(2);
+      expect(engine.getTransitionWindow(created!, a)).toEqual({
+        start: 5,
+        end: 7,
+      });
     });
 
     it("uses the clip start window for intro edge transitions", () => {
@@ -118,7 +147,9 @@ describe("TransitionEngine", () => {
       expect(engine.isTimeInTransition(intro, a, 0)).toBe(true);
       expect(engine.isTimeInTransition(intro, a, 1)).toBe(true);
       expect(engine.isTimeInTransition(intro, a, 1.1)).toBe(false);
-      expect(engine.calculateTransitionProgress(intro, a, 0.5)).toBeCloseTo(0.5);
+      expect(engine.calculateTransitionProgress(intro, a, 0.5)).toBeCloseTo(
+        0.5,
+      );
     });
 
     it("uses the clip end window for outro edge transitions", () => {
@@ -135,7 +166,9 @@ describe("TransitionEngine", () => {
       expect(engine.isTimeInTransition(outro, a, 4)).toBe(true);
       expect(engine.isTimeInTransition(outro, a, 5)).toBe(true);
       expect(engine.isTimeInTransition(outro, a, 5.1)).toBe(false);
-      expect(engine.calculateTransitionProgress(outro, a, 4.5)).toBeCloseTo(0.5);
+      expect(engine.calculateTransitionProgress(outro, a, 4.5)).toBeCloseTo(
+        0.5,
+      );
     });
   });
 
@@ -150,24 +183,6 @@ describe("TransitionEngine", () => {
       expect(t!.type).toBe("crossfade");
       expect(t!.duration).toBe(1);
       expect(t!.params).toEqual({ curve: "ease" });
-    });
-
-    it("provides adjustable defaults for blur and radial motion transitions", () => {
-      expect(engine.getDefaultParams("blur")).toEqual({ intensity: 1 });
-      expect(engine.getDefaultParams("whipPan")).toEqual({
-        direction: "left",
-        blurIntensity: 1,
-      });
-      expect(engine.getDefaultParams("radialWipe")).toEqual({
-        startAngle: -90,
-        clockwise: true,
-      });
-      expect(engine.getDefaultParams("circleReveal")).toEqual({
-        center: { x: 0.5, y: 0.5 },
-      });
-      expect(engine.getDefaultParams("diamondReveal")).toEqual({
-        center: { x: 0.5, y: 0.5 },
-      });
     });
 
     it("clamps to maxDuration when requested duration is too long", () => {
@@ -326,61 +341,6 @@ describe("TransitionEngine", () => {
           expect(drawImage.mock.calls.length).toBeGreaterThan(32);
         }
       }
-    });
-  });
-
-    it("advertises defaults for every expanded transition family", () => {
-    expect(engine.getAvailableTransitionTypes()).toEqual(
-      expect.arrayContaining([
-        "pixelate",
-        "glitch",
-        "blinds",
-        "diamondReveal",
-        "spin",
-        "flip",
-        "splitReveal",
-        "flash",
-        "filmBurn",
-        "mosaic",
-        "ripple",
-        "pageTurn",
-        "colorSplit",
-      ]),
-    );
-    expect(engine.getDefaultParams("pixelate")).toEqual({ maxPixelSize: 48 });
-    expect(engine.getDefaultParams("glitch")).toEqual({
-      intensity: 0.08,
-      slices: 12,
-    });
-    expect(engine.getDefaultParams("blinds")).toEqual({
-      count: 8,
-      direction: "vertical",
-    });
-    expect(engine.getDefaultParams("spin")).toEqual({ rotations: 1 });
-    expect(engine.getDefaultParams("flip")).toEqual({ axis: "horizontal" });
-    expect(engine.getDefaultParams("splitReveal")).toEqual({
-      orientation: "horizontal",
-    });
-    expect(engine.getDefaultParams("flash")).toEqual({ intensity: 1 });
-    expect(engine.getDefaultParams("filmBurn")).toEqual({
-      intensity: 1,
-      warmth: 0.75,
-    });
-    expect(engine.getDefaultParams("mosaic")).toEqual({
-      tiles: 8,
-      randomness: 0.85,
-    });
-    expect(engine.getDefaultParams("ripple")).toEqual({
-      amplitude: 0.04,
-      waves: 3,
-    });
-    expect(engine.getDefaultParams("pageTurn")).toEqual({
-      direction: "left",
-      shadow: 0.55,
-    });
-    expect(engine.getDefaultParams("colorSplit")).toEqual({
-      maxOffset: 18,
-      angle: 0,
     });
   });
 

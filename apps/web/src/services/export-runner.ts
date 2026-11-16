@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ensureProjectFonts } from "./project-fonts";
+import { toast } from "../stores/notification-store";
+import { createExportFrameSource, getUseExportPreviews } from "./export-queue/export-queue-activity";
 import {
+  describeExportSource,
   getExportEngine,
   type VideoExportSettings,
   type AudioExportSettings,
@@ -16,13 +19,14 @@ export interface ExportRunnerState {
   complete: boolean;
 }
 
-export type ExportContainer = "mp4" | "webm" | "mov" | "wav";
+type ExportContainer = "mp4" | "webm" | "mov" | "mxf" | "wav";
 export type ExportDeliveryMode = "download" | "file";
 
 const MIME_BY_EXT: Record<string, string> = {
   mp4: "video/mp4",
   webm: "video/webm",
   mov: "video/quicktime",
+  mxf: "application/mxf",
   wav: "audio/wav",
 };
 
@@ -31,6 +35,7 @@ export function mimeForExt(ext: string): string {
 }
 
 export function extForFormat(format: string, codec?: string): ExportContainer {
+  if (format === "mxf") return "mxf";
   if (codec === "prores") return "mov";
   if (format === "mov") return "mov";
   if (format === "webm") return "webm";
@@ -40,7 +45,7 @@ export function extForFormat(format: string, codec?: string): ExportContainer {
 
 const ILLEGAL_FILENAME_CHARS = /[<>:"/\\|?*]/g;
 
-export function sanitizeFilenameBase(name: string): string {
+function sanitizeFilenameBase(name: string): string {
   const withoutControls = Array.from(name, (ch) =>
     ch.charCodeAt(0) < 0x20 ? " " : ch,
   ).join("");
@@ -118,7 +123,7 @@ export async function runAudioExportToWritable(
   }
 }
 
-export function progressPhaseLabel(phase: string): string {
+function progressPhaseLabel(phase: string): string {
   return phase === "complete" ? "Complete!" : `${phase}...`;
 }
 
@@ -412,7 +417,7 @@ interface ExportRunnerOptions {
   onExported?: (settings: Partial<VideoExportSettings>) => void;
 }
 
-export interface UseExportRunner {
+interface UseExportRunner {
   state: ExportRunnerState;
   runExport: (
     videoSettings: Partial<VideoExportSettings>,
@@ -529,7 +534,16 @@ export function useExportRunner(options: ExportRunnerOptions): UseExportRunner {
         checkCurrent();
         await ensureProjectFonts(project);
         checkCurrent();
-        generator = engine.exportVideo(project, videoSettings, writableStream);
+        // "Use previews": frames already in the render cache replace re-rendering.
+        const cachedFrames = getUseExportPreviews()
+          ? createExportFrameSource(project, {
+              width: videoSettings.width ?? 1920,
+              height: videoSettings.height ?? 1080,
+              frameRate: videoSettings.frameRate ?? 30,
+              upscaling: videoSettings.upscaling,
+            })
+          : null;
+        generator = engine.exportVideo(project, videoSettings, writableStream, cachedFrames ? { cachedFrames } : {});
         let finalResult: ExportResult | undefined;
 
         while (true) {
@@ -547,6 +561,12 @@ export function useExportRunner(options: ExportRunnerOptions): UseExportRunner {
         }
 
         if (finalResult?.success) {
+          const smartRender = finalResult.stats?.smartRender;
+          const sourceMedia = finalResult.stats?.sourceMedia;
+          const lightLevel = finalResult.stats?.hdrLightLevel;
+          const lightNote = lightLevel ? `Measured from the rendered frames: MaxCLL ${lightLevel.maxCll} nits, MaxFALL ${lightLevel.maxFall} nits.` : "";
+          const note = [smartRender?.summary, sourceMedia ? describeExportSource(sourceMedia, window.openreel?.platform === "desktop") : "", lightNote].filter(Boolean).join(" ");
+          if (note) toast.info("Export finished", note);
           activeWritable.current = null;
           setState((prev) => ({ ...prev, isExporting: false, progress: 100, complete: true, phase: "Saved!" }));
           onExported?.(videoSettings);

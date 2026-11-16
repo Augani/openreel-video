@@ -4,8 +4,9 @@ import type {
   WorkerResponse,
 } from "./decode-worker";
 import { createDecodeWorkerUrl } from "./decode-worker";
+import { getRecommendedWorkerCount } from "../device/device-capabilities";
 
-export interface FrameDecodeRequest {
+interface FrameDecodeRequest {
   clipId: string;
   blob: Blob;
   time: number;
@@ -13,7 +14,7 @@ export interface FrameDecodeRequest {
   height: number;
 }
 
-export interface FrameDecodeResult {
+interface FrameDecodeResult {
   clipId: string;
   bitmap: ImageBitmap | null;
   time: number;
@@ -37,7 +38,7 @@ interface WorkerState {
   mediabunnyAvailable: boolean;
 }
 
-export interface ParallelDecoderStats {
+interface ParallelDecoderStats {
   workerCount: number;
   totalDecodes: number;
   averageDecodeTime: number;
@@ -90,7 +91,17 @@ export class ParallelFrameDecoder {
       workerPromises.push(this.createWorker(i));
     }
 
-    this.workers = await Promise.all(workerPromises);
+    // Hardware decoder sessions are limited, so tolerate some workers failing.
+    const results = await Promise.allSettled(workerPromises);
+    this.workers = results
+      .filter((r): r is PromiseFulfilledResult<WorkerState> => r.status === "fulfilled")
+      .map((r) => r.value);
+    if (this.workers.length === 0) {
+      const failed = results.find((r) => r.status === "rejected");
+      throw failed && failed.status === "rejected"
+        ? failed.reason
+        : new Error("No decode workers could be created");
+    }
     this.mediabunnyAvailable = this.workers.some((w) => w.mediabunnyAvailable);
     this.initialized = true;
   }
@@ -112,7 +123,17 @@ export class ParallelFrameDecoder {
         mediabunnyAvailable: false,
       };
 
+      let ready = false;
+      // A worker that never became ready is unusable: terminate it and free its blob URL.
+      const abandon = () => {
+        worker.terminate();
+        URL.revokeObjectURL(workerUrl);
+        const at = this.workerUrls.indexOf(workerUrl);
+        if (at !== -1) this.workerUrls.splice(at, 1);
+      };
+
       const initTimeout = setTimeout(() => {
+        abandon();
         reject(new Error(`Worker ${index} initialization timed out`));
       }, 10000);
 
@@ -121,6 +142,7 @@ export class ParallelFrameDecoder {
 
         if (response.type === "ready") {
           clearTimeout(initTimeout);
+          ready = true;
           state.workerId = response.workerId;
           state.mediabunnyAvailable = response.mediabunnyAvailable ?? false;
           if (state.mediabunnyAvailable) {
@@ -138,6 +160,7 @@ export class ParallelFrameDecoder {
       worker.onerror = (error) => {
         console.error(`[ParallelFrameDecoder] Worker ${index} error:`, error);
         clearTimeout(initTimeout);
+        if (!ready) abandon();
         reject(error);
       };
 
@@ -421,26 +444,8 @@ let parallelDecoderInstance: ParallelFrameDecoder | null = null;
 
 export function getParallelFrameDecoder(): ParallelFrameDecoder {
   if (!parallelDecoderInstance) {
-    const workerCount = Math.min(4, navigator.hardwareConcurrency || 4);
+    const workerCount = getRecommendedWorkerCount("decode");
     parallelDecoderInstance = new ParallelFrameDecoder(workerCount);
   }
   return parallelDecoderInstance;
-}
-
-export async function initializeParallelDecoder(
-  workerCount?: number,
-): Promise<ParallelFrameDecoder> {
-  if (parallelDecoderInstance) {
-    parallelDecoderInstance.dispose();
-  }
-  parallelDecoderInstance = new ParallelFrameDecoder(workerCount);
-  await parallelDecoderInstance.initialize();
-  return parallelDecoderInstance;
-}
-
-export function disposeParallelDecoder(): void {
-  if (parallelDecoderInstance) {
-    parallelDecoderInstance.dispose();
-    parallelDecoderInstance = null;
-  }
 }

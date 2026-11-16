@@ -1,3 +1,4 @@
+import { Input as ShadcnInput, Button, cn } from "@openreel/ui";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   CheckCircle2,
@@ -6,10 +7,10 @@ import {
   Sparkles,
   Wand2,
 } from "@/icons/lucide-compat";
-import { ToolcraftButton as Button } from "@openreel/ui";
-import { ToolcraftSelectableCard as SelectableCard } from "@openreel/ui";
-import { ToolcraftText as Text } from "@openreel/ui";
-import { ToolcraftTextInputControl } from "@openreel/ui";
+
+
+
+
 import {
   EDITING_TEMPLATE_CATEGORIES,
   type EditingTemplate,
@@ -200,12 +201,12 @@ export const RecipesTab: React.FC = () => {
           <Sparkles size={24} />
         </div>
         <div>
-          <Text type="body" weight="bold" display="block" className="text-sm">
+          <span className="text-fg-2 font-bold block text-sm">
             Select a clip first
-          </Text>
-          <Text type="supporting" color="secondary" display="block" className="mt-1.5 max-w-[240px] text-xs leading-relaxed mx-auto">
+          </span>
+          <span className="text-fg-2 font-normal block mt-1.5 max-w-[240px] text-xs leading-relaxed mx-auto">
             Choose a video or image in the timeline to apply clip-scoped recipes, looks, and caption treatments.
-          </Text>
+          </span>
         </div>
       </div>
     );
@@ -220,63 +221,48 @@ export const RecipesTab: React.FC = () => {
             {selectedTargetType === 'video' ? <span className="text-primary/70 text-[10px]">VIDEO</span> : <span className="text-primary/70 text-[10px]">IMAGE</span>}
           </div>
           <div className="flex-1 min-w-0">
-            <Text type="body" weight="bold" display="block" className="truncate text-xs">
+            <span className="text-fg-2 font-bold block truncate text-xs">
               {selectedMedia?.name || 'Selected Clip'}
-            </Text>
-            <Text type="supporting" color="secondary" display="block" className="mt-0.5 text-[10px]">
+            </span>
+            <span className="text-fg-2 font-normal block mt-0.5 text-[10px]">
               {selectedClip.duration.toFixed(1)}s • {appliedTemplates.length} recipes applied
-            </Text>
+            </span>
           </div>
         </div>
 
         {/* Search */}
         <div className="relative">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
-          <ToolcraftTextInputControl
-            label="Search recipes"
-            isLabelHidden
+          <ShadcnInput
             value={searchQuery}
-            onChange={setSearchQuery}
             placeholder="Search recipes..."
-            className="w-full h-9 pl-9 pr-3 rounded-lg border border-border bg-background-tertiary text-xs text-text-primary placeholder:text-text-muted outline-none focus:border-primary/50 transition-colors"
+            aria-label={"Search recipes"}
+            onChange={(event) => setSearchQuery(event.currentTarget.value)}
+            className={cn(
+              "flex h-8 w-full min-w-0 rounded-[7px] border border-border bg-bg-1 px-2.5 py-1.5 text-[13px] font-medium text-fg-2 outline-none transition-colors placeholder:text-fg-muted focus:border-accent disabled:cursor-not-allowed disabled:opacity-50 md:text-[13px]",
+              "w-full h-9 pl-9 pr-3 rounded-lg border border-border bg-background-tertiary text-xs text-text-primary placeholder:text-text-muted outline-none focus:border-primary/50 transition-colors md:text-xs",
+            )}
           />
         </div>
       </div>
 
       <div className="px-4 py-3 border-b border-border/50 bg-background-secondary">
         <div className="flex flex-wrap gap-1.5">
-          <SelectableCard
-            label="ALL"
-            isSelected={selectedCategory === "all"}
-            onChange={() => setSelectedCategory("all")}
-            onClick={() => setSelectedCategory("all")}
-            padding={1}
-            variant={selectedCategory === "all" ? "green" : "muted"}
-            className={`px-3 py-1.5 text-[10px] font-bold rounded-full transition-colors ${
+          <Button variant="ghost" type="button" aria-label="ALL" onClick={() => setSelectedCategory("all")} role="checkbox" aria-checked={selectedCategory === "all"} data-selected={(selectedCategory === "all") ? "true" : undefined} className={cn("group/card block h-auto min-w-0 whitespace-normal rounded-[7px] border text-left transition-[background-color,border-color,box-shadow,transform] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50", (selectedCategory === "all" ? "border-status-success/25 bg-status-success/10 text-fg hover:bg-status-success/15" : "border-transparent bg-bg-2 text-fg hover:bg-bg-3"), (selectedCategory === "all") && "border-accent bg-selected shadow-[0_0_0_1px_var(--accent)]", "p-1", `px-3 py-1.5 text-[10px] font-bold rounded-full transition-colors ${
               selectedCategory === "all"
                 ? "bg-text-primary text-black"
                 : "bg-background-tertiary text-text-muted hover:text-text-primary hover:bg-background-elevated border border-border/50"
-            }`}
-          >
+            }`)}>
             ALL
-          </SelectableCard>
+          </Button>
           {EDITING_TEMPLATE_CATEGORIES.map((category) => (
-            <SelectableCard
-              key={category.id}
-              label={category.name}
-              isSelected={selectedCategory === category.id}
-              onChange={() => setSelectedCategory(category.id)}
-              onClick={() => setSelectedCategory(category.id)}
-              padding={1}
-              variant={selectedCategory === category.id ? "green" : "muted"}
-              className={`px-3 py-1.5 text-[10px] font-bold rounded-full uppercase transition-colors ${
+            <Button variant="ghost" key={category.id} type="button" aria-label={category.name} onClick={() => setSelectedCategory(category.id)} role="checkbox" aria-checked={selectedCategory === category.id} data-selected={(selectedCategory === category.id) ? "true" : undefined} className={cn("group/card block h-auto min-w-0 whitespace-normal rounded-[7px] border text-left transition-[background-color,border-color,box-shadow,transform] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50", (selectedCategory === category.id ? "border-status-success/25 bg-status-success/10 text-fg hover:bg-status-success/15" : "border-transparent bg-bg-2 text-fg hover:bg-bg-3"), (selectedCategory === category.id) && "border-accent bg-selected shadow-[0_0_0_1px_var(--accent)]", "p-1", `px-3 py-1.5 text-[10px] font-bold rounded-full uppercase transition-colors ${
                 selectedCategory === category.id
                   ? "bg-text-primary text-black"
                   : "bg-background-tertiary text-text-muted hover:text-text-primary hover:bg-background-elevated border border-border/50"
-              }`}
-            >
+              }`)}>
               {category.name}
-            </SelectableCard>
+            </Button>
           ))}
         </div>
       </div>
@@ -284,12 +270,12 @@ export const RecipesTab: React.FC = () => {
       <div className="flex-1 p-4 space-y-3">
         {filteredTemplates.length === 0 ? (
           <div className="py-12 text-center">
-            <Text type="body" color="secondary" weight="bold" display="block" className="text-sm">
+            <span className="text-fg-2 font-bold block text-sm">
               No recipes match
-            </Text>
-            <Text type="supporting" color="secondary" display="block" className="mt-2 text-xs">
+            </span>
+            <span className="text-fg-2 font-normal block mt-2 text-xs">
               Try a different search or category.
-            </Text>
+            </span>
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-3">
@@ -317,9 +303,9 @@ export const RecipesTab: React.FC = () => {
                       <div className="flex-1 min-w-0 flex flex-col justify-between">
                         <div>
                           <div className="flex items-center justify-between gap-2">
-                            <Text type="body" weight="bold" display="block" className="truncate text-xs leading-tight">
+                            <span className="text-fg-2 font-bold block truncate text-xs leading-tight">
                               {template.name}
-                            </Text>
+                            </span>
                             {appliedCount > 0 && (
                               <span className="shrink-0 flex items-center gap-1 rounded bg-primary/10 px-1.5 py-0.5 text-[9px] font-bold text-primary ring-1 ring-primary/20">
                                 <CheckCircle2 size={10} />
@@ -327,9 +313,9 @@ export const RecipesTab: React.FC = () => {
                               </span>
                             )}
                           </div>
-                          <Text type="supporting" color="secondary" display="block" className="mt-0.5 line-clamp-2 text-[10px] leading-relaxed">
+                          <span className="text-fg-2 font-normal mt-0.5 line-clamp-2 text-[10px] leading-relaxed">
                             {template.description}
-                          </Text>
+                          </span>
                         </div>
                         
                         <div className="flex items-center justify-between mt-2.5">
@@ -338,25 +324,18 @@ export const RecipesTab: React.FC = () => {
                           </span>
                           <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
                             {template.controls && template.controls.length > 0 && (
-                              <Button
-                                label="Edit recipe controls"
-                                variant="ghost"
-                                icon={<SlidersHorizontal size={10} />}
-                                onClick={() => handleExpand(template)}
-                                className={`h-6 px-2 text-[10px] font-medium rounded transition-colors flex items-center gap-1.5 ${
+                              <Button onClick={() => handleExpand(template)} type="button" aria-label="Edit recipe controls" className={cn("inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50", "h-8 px-3 text-[12px]", "bg-transparent text-fg-2 hover:bg-bg-2 hover:text-fg", `h-6 px-2 text-[10px] font-medium rounded transition-colors flex items-center gap-1.5 ${
                                   isExpanded
                                     ? "bg-primary/20 text-primary border border-primary/30"
                                     : "bg-background-secondary border border-border hover:text-text-primary text-text-secondary"
-                                  }`}
-                              />
+                                  }`)}>
+                                <span className="flex h-4 w-4 shrink-0 items-center justify-center">{<SlidersHorizontal size={10} />}</span>
+                                <span className="truncate">{"Edit recipe controls"}</span>
+                              </Button>
                             )}
-                            <Button
-                              label={applyingTemplateId === template.id ? "Applying" : "Apply"}
-                              variant="primary"
-                              onClick={() => void handleApply(template)}
-                              isDisabled={applyingTemplateId !== null}
-                              className="h-6 px-3 bg-primary text-black text-[10px] font-bold rounded transition-colors hover:bg-primary/80 disabled:opacity-50"
-                            />
+                            <Button onClick={() => void handleApply(template)} type="button" aria-label={(applyingTemplateId === template.id ? "Applying" : "Apply").trim() || undefined} disabled={(applyingTemplateId !== null)} className="inline-flex min-w-0 items-center justify-center gap-1.5 outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none h-6 px-3 bg-primary text-black text-[10px] font-bold rounded transition-colors hover:bg-primary/80 disabled:opacity-50">
+                              <span className="truncate">{applyingTemplateId === template.id ? "Applying" : "Apply"}</span>
+                            </Button>
                           </div>
                         </div>
                       </div>

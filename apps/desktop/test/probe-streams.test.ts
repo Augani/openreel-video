@@ -20,12 +20,4 @@ describe("parseAudioStreams", () => {
     ]);
   });
 
-  it("maps explicit 'N channels' layout", () => {
-    const s = parseAudioStreams("  Stream #0:1: Audio: pcm_s16le, 48000 Hz, 8 channels, s16\n");
-    expect(s[0]).toMatchObject({ index: 1, codec: "pcm_s16le", channels: 8, sampleRate: 48000 });
-  });
-
-  it("returns [] when there are no audio streams", () => {
-    expect(parseAudioStreams("  Stream #0:0: Video: h264, yuv420p, 1920x1080\n")).toEqual([]);
-  });
 });

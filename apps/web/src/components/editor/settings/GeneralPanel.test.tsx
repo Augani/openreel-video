@@ -28,16 +28,15 @@ describe("GeneralPanel project frame rate", () => {
     });
   });
 
-  it("changes the project editing timebase to 60 fps", () => {
+  it("changes the project editing timebase to 60 fps", async () => {
     render(<GeneralPanel />);
 
     const selector = screen.getByRole("combobox", {
       name: "Editing frame rate",
     });
-    expect(selector).toHaveValue("30");
-    expect(screen.getByRole("option", { name: "60 fps" })).toBeTruthy();
-
-    fireEvent.change(selector, { target: { value: "60" } });
+    expect(selector).toHaveTextContent("30 fps");
+    fireEvent.keyDown(selector, { key: "ArrowDown" });
+    fireEvent.click(await screen.findByRole("option", { name: "60 fps" }));
 
     expect(updateSettings).toHaveBeenCalledWith({ frameRate: 60 });
   });

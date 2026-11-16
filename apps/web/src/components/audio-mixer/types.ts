@@ -1,3 +1,6 @@
+import type { AudioRack, AudioSend, SurroundPan } from "@openreel/core";
+import type { StereoSignalLevels } from "../../services/audio-mixer-meter";
+
 /**
  * Channel strip state for a single audio track
  */
@@ -9,18 +12,13 @@ export interface ChannelStripState {
   readonly pan: number; // -1 (left) to 1 (right)
   readonly muted: boolean;
   readonly solo: boolean;
-  readonly peakLevel: number; // 0-1 for meter display
-  readonly rmsLevel: number; // 0-1 for meter display
-}
-
-/**
- * Audio mixer state
- */
-export interface AudioMixerState {
-  readonly channels: ChannelStripState[];
-  readonly masterVolume: number;
-  readonly masterPeakLevel: number;
-  readonly masterRmsLevel: number;
+  readonly levels: StereoSignalLevels;
+  readonly rack?: AudioRack;
+  /** Output assignment: a bus id, absent = master. */
+  readonly output?: string;
+  readonly sends?: readonly AudioSend[];
+  /** 5.1 sequences: the track's surround position (default front centre). */
+  readonly surroundPan?: SurroundPan;
 }
 
 /**
@@ -31,16 +29,6 @@ export interface AudioMixerState {
 export function volumeToDb(volume: number): number {
   if (volume <= 0) return -Infinity;
   return 20 * Math.log10(volume);
-}
-
-/**
- * dB to volume conversion
- * @param db - dB value
- * @returns Linear volume (0-4)
- */
-export function dbToVolume(db: number): number {
-  if (db === -Infinity) return 0;
-  return Math.pow(10, db / 20);
 }
 
 /**

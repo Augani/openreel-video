@@ -48,19 +48,6 @@ export interface WaveformRecord {
   readonly sampleRate: number;
 }
 
-/** Keyed by "${name}:${size}" — allows restoring assets by filename+size across sessions */
-export interface FileHandleRecord {
-  readonly key: string; // "${name}:${size}"
-  readonly handle: FileSystemFileHandle;
-}
-
-/** Keyed by projectId — stores the last folder the user relinked from, per project */
-export interface DirHandleRecord {
-  readonly key: string; // projectId
-  readonly handle: FileSystemDirectoryHandle;
-  readonly folderName: string;
-}
-
 export interface StorageUsage {
   readonly used: number;
   readonly quota: number;

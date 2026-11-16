@@ -15,6 +15,10 @@ export class SoundLibraryEngine {
   private audioContext: AudioContext | null = null;
   private previewSource: AudioBufferSourceNode | null = null;
   private previewGain: GainNode | null = null;
+  private previewRequest = 0;
+  private previewClock: { soundId: string; startedAt: number; duration: number; offset: number; paused: boolean } | null = null;
+  private previewBuffer: AudioBuffer | null = null;
+  private previewEnded: (() => void) | undefined;
   private initialized = false;
   private initPromise: Promise<void> | null = null;
 
@@ -712,52 +716,116 @@ export class SoundLibraryEngine {
     return this.sounds.get(id) || null;
   }
 
-  async previewSound(sound: SoundItem): Promise<void> {
+  async previewSound(sound: SoundItem, onEnded?: () => void): Promise<void> {
     this.stopPreview();
+    const request = ++this.previewRequest;
 
-    if (!sound.previewUrl) {
-      return;
-    }
+    if (!sound.previewUrl) throw new Error("No sound preview is available.");
 
     try {
       if (!this.audioContext) {
         this.audioContext = new AudioContext();
       }
 
+      if (this.audioContext.state === "suspended")
+        await this.audioContext.resume();
       const response = await fetch(sound.previewUrl);
+      if (!response.ok) throw new Error("Sound preview could not be loaded.");
       const arrayBuffer = await response.arrayBuffer();
       const audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
 
-      this.previewSource = this.audioContext.createBufferSource();
-      this.previewSource.buffer = audioBuffer;
-
-      this.previewGain = this.audioContext.createGain();
-      this.previewGain.gain.value = 0.7;
-
-      this.previewSource.connect(this.previewGain);
-      this.previewGain.connect(this.audioContext.destination);
-
-      this.previewSource.start();
+      if (request !== this.previewRequest) return;
+      this.startPreviewBuffer(sound.id, audioBuffer, 0, request, onEnded);
     } catch (error) {
+      if (request === this.previewRequest) this.stopPreview();
       console.error("[SoundLibrary] Preview failed:", error);
+      throw error;
     }
   }
 
-  stopPreview(): void {
-    if (this.previewSource) {
-      try {
-        this.previewSource.stop();
-      } catch {
-        // Already stopped
+  private startPreviewBuffer(soundId: string, buffer: AudioBuffer, offset: number, request: number, onEnded?: () => void): void {
+    const context = this.audioContext!;
+    const source = context.createBufferSource();
+    this.previewSource = source;
+    source.buffer = buffer;
+    source.onended = () => {
+      if (request === this.previewRequest && this.previewSource === source) {
+        this.stopPreview();
+        onEnded?.();
       }
+    };
+    this.previewGain = context.createGain();
+    this.previewGain.gain.value = 0.7;
+    source.connect(this.previewGain);
+    this.previewGain.connect(context.destination);
+    source.start(0, offset);
+    this.previewBuffer = buffer;
+    this.previewEnded = onEnded;
+    this.previewClock = { soundId, startedAt: context.currentTime, duration: buffer.duration, offset, paused: false };
+  }
+
+  private releasePreviewNodes(): void {
+    if (this.previewSource) {
+      this.previewSource.onended = null;
+      try { this.previewSource.stop(); } catch { /* Already ended. */ }
       this.previewSource.disconnect();
       this.previewSource = null;
     }
-
     if (this.previewGain) {
       this.previewGain.disconnect();
       this.previewGain = null;
     }
+  }
+
+  stopPreview(): void {
+    this.previewRequest++;
+    this.previewClock = null;
+    this.previewBuffer = null;
+    this.previewEnded = undefined;
+    this.releasePreviewNodes();
+  }
+
+  pausePreview(soundId: string): boolean {
+    const clock = this.previewClock;
+    if (!clock || clock.soundId !== soundId || clock.paused || !this.audioContext) return false;
+    const offset = Math.min(clock.duration, clock.offset + Math.max(0, this.audioContext.currentTime - clock.startedAt));
+    if (offset >= clock.duration) {
+      const ended = this.previewEnded;
+      this.stopPreview();
+      ended?.();
+      return false;
+    }
+    this.previewRequest++;
+    this.releasePreviewNodes();
+    this.previewClock = { ...clock, offset, paused: true };
+    return true;
+  }
+
+  async resumePreview(soundId: string): Promise<boolean> {
+    const clock = this.previewClock;
+    if (!clock || clock.soundId !== soundId || !this.audioContext || !this.previewBuffer) return false;
+    if (!clock.paused) return Boolean(this.previewSource);
+    const request = this.previewRequest;
+    if (this.audioContext.state === "suspended") await this.audioContext.resume();
+    if (request !== this.previewRequest) return false;
+    const current = this.previewClock;
+    if (!current || current.soundId !== soundId || !this.previewBuffer) return false;
+    if (!current.paused) return Boolean(this.previewSource);
+    try {
+      this.startPreviewBuffer(soundId, this.previewBuffer, current.offset, request, this.previewEnded);
+      return true;
+    } catch (error) {
+      if (request === this.previewRequest) this.releasePreviewNodes();
+      throw error;
+    }
+  }
+
+  /** Offset survives pause; elapsed time comes only from the running audio clock. */
+  getPreviewProgress(soundId: string): number {
+    const clock = this.previewClock;
+    if (!clock || clock.soundId !== soundId || !this.audioContext || clock.duration <= 0) return 0;
+    const elapsed = clock.paused ? 0 : Math.max(0, this.audioContext.currentTime - clock.startedAt);
+    return Math.min(1, Math.max(0, (clock.offset + elapsed) / clock.duration));
   }
 
   async analyzeAudio(audioBuffer: AudioBuffer): Promise<SoundAnalysis> {
@@ -889,8 +957,4 @@ export class SoundLibraryEngine {
     }
     this.sounds.clear();
   }
-}
-
-export function createSoundLibraryEngine(): SoundLibraryEngine {
-  return new SoundLibraryEngine();
 }

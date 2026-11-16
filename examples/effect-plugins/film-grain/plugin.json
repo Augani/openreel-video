@@ -1,0 +1,18 @@
+{
+  "apiVersion": 1,
+  "id": "film-grain",
+  "name": "Film Grain Pro",
+  "version": "1.0.0",
+  "category": "Stylize",
+  "author": "OpenReel",
+  "description": "Animated luminance or colour film grain with a midtone-weighted response.",
+  "timeDriven": true,
+  "parameters": [
+    { "key": "amount", "label": "Amount", "type": "float", "min": 0, "max": 1, "step": 0.01, "default": 0.35 },
+    { "key": "size", "label": "Grain size", "type": "float", "min": 1, "max": 6, "step": 0.1, "default": 1.5, "unit": "px" },
+    { "key": "midtones", "label": "Midtone weighting", "type": "float", "min": 0, "max": 1, "step": 0.01, "default": 0.6 },
+    { "key": "colored", "label": "Coloured grain", "type": "bool", "default": false }
+  ],
+  "shader": { "file": "shader.wgsl" },
+  "cpu": { "file": "cpu.js" }
+}

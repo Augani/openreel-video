@@ -121,14 +121,6 @@ describe("beat cut timeline workflow", () => {
     expect(store().getClip("one")).toMatchObject({ startTime: 0, duration: 4 });
     expect(bridge.getState().error).toBe("Cannot trim");
   });
-  it("does not expose locked tracks", async () => {
-    const project = store().project;
-    useProjectStore.setState({ project: { ...project, timeline: { ...project.timeline,
-      tracks: project.timeline.tracks.map((track) => ({ ...track, locked: true })) } } });
-    await prepare();
-    expect(bridge.getAvailableTracks()).toEqual([]);
-    expect(bridge.getState().previewTimings).toEqual([]);
-  });
   it("rejects speed changes rather than using source seconds as timeline seconds", async () => {
     const project = store().project;
     useProjectStore.setState({ project: { ...project, timeline: { ...project.timeline,

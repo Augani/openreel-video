@@ -1,5 +1,4 @@
 import type { RenderedFrame } from "../video/types";
-import type { RenderedAudio } from "../audio/types";
 
 export type PlaybackState = "stopped" | "playing" | "paused" | "seeking";
 
@@ -45,12 +44,6 @@ export interface PlaybackEvent {
 
 export type PlaybackEventListener = (event: PlaybackEvent) => void;
 
-export interface ScrubRequest {
-  readonly time: number;
-  readonly requestedAt: number;
-  readonly priority: number;
-}
-
 export interface PlaybackStats {
   readonly currentTime: number;
   readonly duration: number;
@@ -67,10 +60,4 @@ export interface FrameRenderResult {
   readonly renderTime: number;
   readonly fromCache: boolean;
   readonly timedOut: boolean;
-}
-
-export interface AudioRenderResult {
-  readonly audio: RenderedAudio | null;
-  readonly renderTime: number;
-  readonly success: boolean;
 }

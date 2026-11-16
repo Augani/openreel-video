@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { createDispatcher, type BridgeRequest } from "./dispatcher";
+import { McpBridgeError, createDispatcher, type BridgeRequest } from "./dispatcher";
 
 function makeDispatcher() {
   const sent: BridgeRequest[] = [];
@@ -41,13 +41,6 @@ describe("createDispatcher", () => {
     await expect(b).resolves.toBe("B");
   });
 
-  it("ignores responses for unknown callIds", () => {
-    const { dispatcher } = makeDispatcher();
-    expect(() =>
-      dispatcher.handleResponse({ callId: "nope", ok: true, result: 1 }),
-    ).not.toThrow();
-  });
-
   it("times out a request that never gets a response", async () => {
     vi.useFakeTimers();
     try {
@@ -81,5 +74,30 @@ describe("createDispatcher", () => {
     await expect(a).rejects.toThrow("shutting down");
     await expect(b).rejects.toThrow("shutting down");
     expect(dispatcher.pendingCount).toBe(0);
+  });
+
+  it("rejects timeouts with a TIMEOUT code and notifies onExpire", async () => {
+    vi.useFakeTimers();
+    try {
+      const expired: string[] = [];
+      const dispatcher = createDispatcher({ send: () => undefined, genId: () => "c1", onExpire: (id) => expired.push(id) });
+      const pending = dispatcher.request("callTool", { name: "x" }, 1_000);
+      const assertion = expect(pending).rejects.toMatchObject({ code: "TIMEOUT" });
+      await vi.advanceTimersByTimeAsync(1_000);
+      await assertion;
+      expect(expired).toEqual(["c1"]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("tags renderer errors and shutdown rejections with codes", async () => {
+    const { dispatcher } = makeDispatcher();
+    const a = dispatcher.request("callTool", { name: "a" });
+    dispatcher.handleResponse({ callId: "call-1", ok: false, error: "bad" });
+    await expect(a).rejects.toBeInstanceOf(McpBridgeError);
+    const b = dispatcher.request("callTool", { name: "b" });
+    dispatcher.rejectAll("bye");
+    await expect(b).rejects.toMatchObject({ code: "UNAVAILABLE" });
   });
 });

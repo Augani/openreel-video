@@ -40,13 +40,13 @@ const createWorkspaceStorage = (): PersistStorage<TimelineWorkspace> | undefined
 
 export const ZOOM_PRESETS = {
   MIN: 10,
-  DEFAULT: 50,
+  DEFAULT: 30,
   MAX: 500,
 } as const;
 
 export type PlaybackState = "stopped" | "playing" | "paused";
 
-export interface TimelineState {
+interface TimelineState {
   playheadPosition: number;
   playbackState: PlaybackState;
   playbackLockedReason: string | null;
@@ -58,6 +58,12 @@ export interface TimelineState {
   viewportHeight: number;
   trackHeight: number;
   trackHeights: Record<string, number>;
+  /** Tracks whose audio clips show the on-clip gain rubber band (header "Show Clip Keyframes"). */
+  gainLineTracks: Record<string, boolean>;
+  /** Tracks whose fader / pan automation lanes are expanded under the track. */
+  automationLaneTracks: Record<string, boolean>;
+  setAutomationLanesVisible: (trackId: string, visible: boolean) => void;
+  setGainLineVisible: (trackId: string, visible: boolean) => void;
   loopEnabled: boolean;
   loopStart: number;
   loopEnd: number;
@@ -92,7 +98,7 @@ export interface TimelineState {
   setViewportDimensions: (width: number, height: number) => void;
   setTrackHeight: (height: number) => void;
   setTrackHeightById: (trackId: string, height: number) => void;
-  getTrackHeight: (trackId: string, trackType?: string) => number;
+  getTrackHeight: (trackId: string, trackType?: string, trackName?: string) => number;
   setLoopEnabled: (enabled: boolean) => void;
   setLoopRange: (start: number, end: number) => void;
   clearLoopRange: () => void;
@@ -126,6 +132,12 @@ export const useTimelineStore = create<TimelineState>()(
     viewportHeight: 400,
     trackHeight: 62,
     trackHeights: {},
+    gainLineTracks: {},
+    automationLaneTracks: {},
+    setAutomationLanesVisible: (trackId: string, visible: boolean) =>
+      set((state) => ({ automationLaneTracks: { ...state.automationLaneTracks, [trackId]: visible } })),
+    setGainLineVisible: (trackId: string, visible: boolean) =>
+      set((state) => ({ gainLineTracks: { ...state.gainLineTracks, [trackId]: visible } })),
 
     loopEnabled: false,
     loopStart: 0,
@@ -321,11 +333,12 @@ export const useTimelineStore = create<TimelineState>()(
       }));
     },
 
-    getTrackHeight: (trackId: string, _trackType?: string) => {
+    getTrackHeight: (trackId: string, trackType?: string, trackName?: string) => {
       const { trackHeights, trackHeight } = get();
       const override = trackHeights[trackId];
       if (override !== undefined) return override;
-      return trackHeight;
+      const base = trackType === "text" || trackType === "graphics" ? 34 : trackType === "audio" ? 50 : trackName === "B-roll" ? 42 : trackType === "video" || trackType === "image" ? 60 : 62;
+      return Math.round(base * trackHeight / 62);
     },
 
     setLoopEnabled: (enabled: boolean) => {

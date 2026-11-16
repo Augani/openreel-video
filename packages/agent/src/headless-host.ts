@@ -6,7 +6,7 @@ import type { Action, ActionResult } from "@openreel/core/types/actions";
 import type { Project } from "@openreel/core/types/project";
 import type { EditingHost, JobKind, JobResult, JobRunner, TxnHandle } from "./host";
 
-export interface HeadlessHostOptions {
+interface HeadlessHostOptions {
   readonly history?: ActionHistory;
   readonly jobRunner?: JobRunner;
 }

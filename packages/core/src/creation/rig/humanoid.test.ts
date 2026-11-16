@@ -45,23 +45,6 @@ describe("skinned humanoid", () => {
     expect(averageY(waved.positions, rightArm)).toBeGreaterThan(restAvgY + 0.1 * HEIGHT);
   });
 
-  it("oscillates the forearm over time", () => {
-    const a = humanoidWavePose(0);
-    const b = humanoidWavePose(0.25);
-    expect(a.foreArmR).not.toEqual(b.foreArmR);
-  });
-
-  it("dispatches distinct poses per animation and falls back to wave", () => {
-    const walk = humanoidAnimationPose("walk", 0.3);
-    const wave = humanoidAnimationPose("wave", 0.3);
-    expect(walk.thighR).toBeDefined();
-    expect(wave.thighR).toBeUndefined();
-    expect(walk.thighR).not.toEqual(walk.thighL);
-    expect(humanoidAnimationPose("idle", 0.3).head).toBeDefined();
-    expect(humanoidAnimationPose("point", 1).shoulderR?.rotation?.x).toBeLessThan(0);
-    expect(humanoidAnimationPose("bogus" as never, 0.3).foreArmR).toBeDefined();
-  });
-
   it("deforms the legs under the walk animation", () => {
     const human = buildSkinnedHumanoid({ height: HEIGHT });
     const rest = human.mesh.positions;

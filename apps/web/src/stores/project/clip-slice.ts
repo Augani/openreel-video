@@ -1,7 +1,11 @@
 import { cloneProjectForEdit } from "./clone-project-for-edit";
 import { v4 as uuidv4 } from "uuid";
 import type { StoreApi } from "zustand";
-import type { Action, ActionResult } from "@openreel/core";
+import { ActionHistory, type Action, type ActionResult } from "@openreel/core";
+import { LazyActionExecutor } from "../../services/lazy-action-executor";
+import { useUIStore } from "../ui-store";
+import { useTimelineStore } from "../timeline-store";
+import { planCloseGapBeforeClip, planRippleDelete, prepareClipSplit } from "@openreel/core";
 import type { ProjectState } from "../project-store";
 import { calculateTimelineDuration } from "./index";
 import { extractAudioTracks } from "../../services/separate-audio";
@@ -10,7 +14,7 @@ import { saveMediaBlob, deleteMediaBlob } from "../../services/media-storage";
 type Get = StoreApi<ProjectState>["getState"];
 type Set = StoreApi<ProjectState>["setState"];
 
-export type ClipSlice = Pick<
+type ClipSlice = Pick<
   ProjectState,
   | "addClip"
   | "addClipToNewTrack"
@@ -22,6 +26,7 @@ export type ClipSlice = Pick<
   | "trimClip"
   | "splitClip"
   | "rippleDeleteClip"
+  | "rippleDeleteClips"
   | "slipClip"
   | "slideClip"
   | "rollEdit"
@@ -49,55 +54,54 @@ export function createClipSlice(set: Set, get: Get): ClipSlice {
     },
 
     addClipToNewTrack: async (mediaId: string, startTime?: number) => {
-      const { project, addTrack, getMediaItem } = get();
-      const mediaItem = getMediaItem(mediaId);
-      if (!mediaItem) {
-        return {
-          success: false,
-          error: {
-            code: "MEDIA_NOT_FOUND" as const,
-            message: "Media item not found",
-          },
-        };
+      const { project, actionExecutor } = get();
+      const blocked = () => useUIStore.getState().exportState.isExporting || Boolean(useTimelineStore.getState().playbackLockedReason);
+      const failure = (message: string): ActionResult => ({ success: false, error: { code: "INVALID_PARAMS", message } });
+      if (blocked()) return failure("Wait for the current operation before adding a clip.");
+      const mediaItem = project.mediaLibrary.items.find(item => item.id === mediaId);
+      if (!mediaItem) return { success: false, error: { code: "MEDIA_NOT_FOUND", message: "Media item not found" } };
+      const sourceType = mediaItem.type;
+      const sourceDuration = mediaItem.metadata.duration;
+      const clipStartTime = startTime ?? calculateTimelineDuration(project);
+      if (!Number.isFinite(clipStartTime) || clipStartTime < 0) return failure("Clip start time must be finite and non-negative.");
+      const trackType = sourceType === "audio" ? "audio" : sourceType === "image" ? "image" : "video";
+      const createdTrackId = `track-${uuidv4()}`;
+      const history = actionExecutor.getHistory();
+      // Membership belongs to this invocation, including an enclosing recipe.
+      // Preparing the edit must never open or close another command's group.
+      const groupId = history.getCurrentGroupId() ?? `placement-${uuidv4()}`;
+      const owns = () => get().project.id === project.id && get().actionExecutor === actionExecutor && !blocked();
+      const changed = () => failure("The project or source changed while the clip was being prepared. Try again.");
+      // Both core actions only modify their new track. Existing tracks, source
+      // Blobs, handles, waveforms and overlay data remain shared read-only data.
+      const draft = { ...project, timeline: { ...project.timeline, tracks: [...project.timeline.tracks] } };
+      const prepared = new LazyActionExecutor(new ActionHistory());
+      const actions: Action[] = [
+        { type: "track/add", id: uuidv4(), timestamp: Date.now(), params: { trackType, trackId: createdTrackId } },
+        { type: "clip/add", id: uuidv4(), timestamp: Date.now(), params: { clipId: uuidv4(), trackId: createdTrackId, mediaId, startTime: clipStartTime } },
+      ];
+      let result: ActionResult = { success: true };
+      for (const action of actions) {
+        result = await prepared.execute(action, draft);
+        if (!result.success) return result;
+        if (!owns()) return changed();
       }
-
-      let trackType: "video" | "audio" | "image" | "text" | "graphics";
-      if (mediaItem.type === "video") trackType = "video";
-      else if (mediaItem.type === "audio") trackType = "audio";
-      else if (mediaItem.type === "image") trackType = "image";
-      else trackType = "video";
-
-      const clipStartTime =
-        startTime !== undefined ? startTime : calculateTimelineDuration(project);
-
-      const trackResult = await addTrack(trackType);
-      if (!trackResult.success) return trackResult;
-
-      const { project: updatedProject, actionExecutor: exec } = get();
-      const newTrack = updatedProject.timeline.tracks.find(
-        (t) => t.clips.length === 0 && t.type === trackType,
-      );
-      if (!newTrack) {
-        return {
-          success: false,
-          error: {
-            code: "TRACK_NOT_FOUND" as const,
-            message: "Could not find newly created track",
-          },
-        };
+      const current = get().project;
+      const source = current.mediaLibrary.items.find(item => item.id === mediaId);
+      if (!source || source.type !== sourceType || !Object.is(source.metadata.duration, sourceDuration)) return changed();
+      if (current.timeline.tracks.some(track => track.id === createdTrackId)) return changed();
+      const newTrack = draft.timeline.tracks.find(track => track.id === createdTrackId)!;
+      const prefix = trackType === "audio" ? "Audio" : trackType === "image" ? "Image" : "Video";
+      const name = `${prefix} ${current.timeline.tracks.filter(track => track.type === trackType).length + 1}`;
+      const tracks = [...current.timeline.tracks, { ...newTrack, name }];
+      const next = { ...current, timeline: { ...current.timeline, tracks }, modifiedAt: Date.now() };
+      // Record the already validated pair synchronously, then publish once.
+      // Merge into the latest project so intervening edits are preserved.
+      for (const entry of prepared.getHistory().getHistoryEntries()) {
+        const forward = entry.action.type === "track/add" ? { ...entry.action, params: { ...entry.action.params, name } } : entry.action;
+        history.push(forward, entry.inverseAction, groupId);
       }
-
-      const projectCopy = cloneProjectForEdit(updatedProject);
-      const action: Action = {
-        type: "clip/add",
-        id: uuidv4(),
-        timestamp: Date.now(),
-        params: { trackId: newTrack.id, mediaId, startTime: clipStartTime },
-      };
-      const result = await exec.execute(action, projectCopy);
-      if (result.success) {
-        set({ project: { ...projectCopy, modifiedAt: Date.now() } });
-      }
+      set({ project: { ...next, timeline: { ...next.timeline, duration: calculateTimelineDuration(next) } } });
       return result;
     },
 
@@ -135,7 +139,10 @@ export function createClipSlice(set: Set, get: Get): ClipSlice {
         };
       }
       if (project.timeline.tracks.some((track) => track.clips.some(
-        (clip) => clip.metadata?.separatedFromClipId === clipId,
+        (clip) => (clip.metadata?.separatedFromClipId === clipId ||
+          clip.metadata?.separatedFromClipId === (sourceClip.metadata?.splitSourceClipId ?? clipId)) &&
+          Math.abs(clip.startTime - sourceClip.startTime) < 0.01 &&
+          Math.abs(clip.inPoint - sourceClip.inPoint) < 0.01,
       ))) {
         return {
           success: false,
@@ -208,7 +215,7 @@ export function createClipSlice(set: Set, get: Get): ClipSlice {
                   // Each extracted file contains exactly one audio stream.
                   audioTrackIndex: 0,
                   effects: [], keyframes: [],
-                  metadata: { separatedFromClipId: clipId, sourceAudioTrackIndex: index },
+                  metadata: { separatedFromClipId: videoClip.metadata?.splitSourceClipId ?? clipId, sourceAudioTrackIndex: index },
                 },
               },
             }, projectCopy);
@@ -271,16 +278,13 @@ export function createClipSlice(set: Set, get: Get): ClipSlice {
     },
 
     closeGapBeforeClip: async (clipId: string) => {
-      const { project, actionExecutor } = get();
-      const action: Action = {
-        type: "clip/closeGapBefore",
-        id: uuidv4(),
-        timestamp: Date.now(),
-        params: { clipId },
-      };
-      const result = await actionExecutor.execute(action, project);
-      if (result.success) set({ project: { ...project } });
-      return result;
+      // A ripple-type edit: sync-locked tracks close the same gap (or block it).
+      try {
+        const state = get();
+        return state.commitTimelineToolEdit(planCloseGapBeforeClip(state.getFullProject(), clipId, uuidv4()));
+      } catch (error) {
+        return { success: false, error: { code: "INVALID_PARAMS", message: error instanceof Error ? error.message : "The gap could not be closed." } };
+      }
     },
 
     moveClips: async (moves) => {
@@ -333,29 +337,25 @@ export function createClipSlice(set: Set, get: Get): ClipSlice {
     },
 
     splitClip: async (clipId: string, time: number) => {
-      const { project, actionExecutor } = get();
-      const action: Action = {
-        type: "clip/split",
-        id: uuidv4(),
-        timestamp: Date.now(),
-        params: { clipId, time },
-      };
-      const result = await actionExecutor.execute(action, project);
-      if (result.success) set({ project: { ...project } });
-      return result;
+      try {
+        const state = get();
+        return state.commitTimelineToolEdit(prepareClipSplit(state.getFullProject(), clipId, time, uuidv4()));
+      } catch (error) {
+        return { success: false, error: { code: "INVALID_PARAMS", message: error instanceof Error ? error.message : "The clip could not be split." } };
+      }
     },
 
-    rippleDeleteClip: async (clipId: string) => {
-      const { project, actionExecutor } = get();
-      const action: Action = {
-        type: "clip/rippleDelete",
-        id: uuidv4(),
-        timestamp: Date.now(),
-        params: { clipId },
-      };
-      const result = await actionExecutor.execute(action, project);
-      if (result.success) set({ project: { ...project } });
-      return result;
+    rippleDeleteClip: async (clipId: string) => get().rippleDeleteClips([clipId]),
+
+    rippleDeleteClips: async (clipIds: readonly string[]) => {
+      try {
+        const state = get();
+        return state.commitTimelineToolEdit(
+          planRippleDelete(state.getFullProject(), clipIds, uuidv4()),
+        );
+      } catch (error) {
+        return { success: false, error: { code: "INVALID_PARAMS", message: error instanceof Error ? error.message : "The clips could not be deleted." } };
+      }
     },
 
     slipClip: async (clipId: string, delta: number) => {
@@ -367,7 +367,9 @@ export function createClipSlice(set: Set, get: Get): ClipSlice {
         params: { clipId, delta },
       };
       const result = await actionExecutor.execute(action, project);
-      if (result.success) set({ project: { ...project } });
+      const current = get();
+      if (current.project.id !== project.id || current.actionExecutor !== actionExecutor) return { success: false, error: { code: "INVALID_PARAMS", message: "The project changed before the slip finished." } };
+      if (result.success) set({ project: { ...current.project } });
       return result;
     },
 

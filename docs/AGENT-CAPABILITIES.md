@@ -2,7 +2,7 @@
 
 # OpenReel Agent — Capability Reference
 
-The agent exposes **303 tools** spanning read/observe, project, track, clip, transform, effect, color, speed, audio, subtitle, keyframe, transition, marker, text and graphics domains — plus `execute_action` and `batch_actions` escape hatches for any capability without a dedicated tool.
+The agent exposes **452 tools** spanning read/observe, project, track, clip, transform, effect, color, speed, audio, subtitle, keyframe, transition, marker, text and graphics domains — plus `execute_action` and `batch_actions` escape hatches for any capability without a dedicated tool.
 
 ## Tools
 
@@ -33,6 +33,13 @@ The agent exposes **303 tools** spanning read/observe, project, track, clip, tra
 - **render_creation_scene_image** (read-only) — Render a persisted creation scene to a real image with the built-in deterministic CPU renderer: bakes the scene mesh, projects it through the scene camera, and returns coverage stats plus (by default) a PNG data URI. mode='raster' (default) z-buffers and Lambert-shades; mode='raytrace' casts primary rays with optional hard shadows for a final-quality preview. This is the CPU render/preview fallback (§7.12) — independent of the WebGPU/scene3d renderer — useful for headless previews and visual-regression checks.
 - **list_motion_animatable_properties** (read-only) — List the animatable properties of a motion layer (Transform always; Shape/Particle/Precomp by type; plus this layer's masks, effects, shape modifiers, and puppet pins), each with its current value at a time and every existing keyframe (id, time, value, easing, whether it has graph-editor bezier handles). Use this to discover keyframe ids before move/remove/re-ease, and to drive a graph-editor workflow.
 - **get_motion_composition** (read-only) — Full detail for one Motion Creator composition: every layer with its id, type, transform, keyframes, and type-specific fields, plus variables, markers, beat markers, camera, and lights. Use this to recover auto-generated layer ids before animating or editing.
+- **open_in_source_monitor** (read-only) — Load a library media item into the Source monitor (the Source tab beside Program), optionally parked at `time` seconds. Does not edit the project. Live editor only.
+- **set_source_in_out** (read-only) — Set or clear the Source monitor In and/or Out marks of a media item (seconds, or inFrame/outFrame). Pass null to clear a mark. Marks persist per media item and are used by insert_from_source / overwrite_from_source. Not a timeline edit (no undo step). Live editor only.
+- **match_frame** (read-only) — Find the source media and source timecode shown at a timeline time: of clipId, or of the topmost visible video clip at `time`. Returns mediaId, source time and timecode so the same frame can be located in the library and used for insert_media/overwrite_media sourceIn. Also selects the source media in the library (as the UI does). Does not edit the project.
+- **list_proxies** (read-only) — Report the proxy state of every video: none | ready | building | failed | missing-proxy (link exists but the proxy bytes are gone) | missing-full (the full-resolution media is offline), its proxy resolution, build progress, whether Toggle Proxies is on and the project's ingest preset. Read-only.
+- **list_effect_params** (read-only) — List the animatable numeric parameters of one effect instance on a clip (key, label, min, max, step, current value) with their instance keyframes (time, value, easing). Use the keys with set_effect_param_keyframe.
+- **list_effect_presets** (read-only) — List the project's saved effect presets (id, name, timing mode, effect types, keyframe count).
+- **export_effect_presets** (read-only) — Return saved effect presets as JSON text (all, or only presetIds) in the portable OpenReel preset file format, for sharing or backup. Import with import_effect_presets.
 
 ## motion
 - **rig_humanoid_model** (expensive) — Run the desktop Blender rigging backend to create or repair a humanoid armature for a GLB/glTF model and export a rigged GLB. Use inspect_3d_model first to confirm meshes/armature/animations. Provide modelUrl directly, or resolve an existing model with compositionId+layerId(+objectId), sceneId+creationObjectId, or assetId. outputPath is optional; when omitted the desktop backend writes a temporary GLB and returns outputUrl/outputPath. overwriteExisting=true replaces an existing armature; false preserves one when present.
@@ -225,15 +232,30 @@ The agent exposes **303 tools** spanning read/observe, project, track, clip, tra
 - **set_model_animation** — Bind a GLB/glTF animation clip to a model inside a scene3d layer so Motion Creator renders the rigged model over time instead of as a static pose. Use clipName or clipIndex to choose a clip; omit both to use the first clip. timeOffset shifts the clip start, playbackRate changes speed, and animationLoop=false clamps on the final frame. For multi-object scenes pass objectId; for a legacy single-model scene3d layer omit objectId.
 - **animate_scene_object** — Keyframe one object inside a scene3d layer in TRUE 3D over time — shake, spin, lift, open. `position`, `rotation` (degrees), `scale` are arrays of { time, x, y, z, easing }; `opacity` and `lidAngle` (open-box) are arrays of { time, value, easing }. Times in seconds. Re-calling replaces that object's keyframes for the channels you pass. When the layer is bound to an editable creation scene, this also mirrors position/rotation/scale/opacity tracks into creation animation state for recovery and later editing. Example lift: position [{time:1.4,x:0,y:0,z:0},{time:2.4,x:0,y:5,z:0}] + rotation spin [{time:1.4,x:0,y:0,z:0},{time:6,x:0,y:720,z:0}].
 - **animate_motion_layers** — Apply an animation preset to MANY layers at once with a per-layer stagger — e.g. 'stagger all the cards in with a slide-up'. presetId is one of fade-in, fade-out, slide-up-in, slide-left-in, scale-pop, rotate-in, pulse, float-loop, stroke-draw-on, stroke-pop, gradient-sweep, corner-bloom (see get_capabilities motion.animationPresets). Optional: startTime, duration, stagger (seconds added per layer in layerIds order), distance, intensity. Layers that don't support a shape-only preset are skipped.
+- **track_motion** (expensive) — Follow a target through a video or image clip (Inspector > Motion Tracking > Start Tracking). clipId is the SOURCE clip; region {x,y,width,height} is the target in SOURCE pixels at anchorFrame (omit for the central half of the frame). Without anchorFrame the whole clip is tracked forward from frame 0. With anchorFrame (clip-local frame at project fps) set direction forward or backward to track from that frame; merge:true keeps the rest of an existing path (re-track part of it). The tracker measures per-frame confidence, re-finds the target against its reference appearance after drift, predicts through occlusion with its last velocity (those frames are reported as lost), and resumes when the target returns. Returns frames, lostFrames, lowConfidence runs, manualFrames and frames/s. Stored on the clip as ONE undo step; anything already attached follows the new path. Use attach_track to make a clip, text, shape, sticker or svg follow it.
+- **attach_track** — Make a clip, text, shape, sticker or svg follow a tracked path (Inspector > Motion Tracking > Apply Tracking). clipId is the tracked SOURCE clip (run track_motion first); targetId is what should move. mode follow (default) moves the target by the path's movement; pin places it on the tracked point plus offset {x,y} in project pixels. applyScale / applyRotation (default true) also follow the target's size and turn; smoothing 0..10 averages the path. Writes position/scale/rotation keyframes on the target as ONE undo step, and re-running it updates the same attachment.
+- **correct_track_point** — Set the tracked point at one frame by hand (Inspector > Motion Tracking > Set point). clipId is the tracked source clip, frame is clip-local at project fps, x and y are SOURCE pixels. The point becomes full confidence and is no longer counted as lost; anything attached follows. ONE undo step. Use get_motion_track to find low-confidence frames first.
+- **get_motion_track** (read-only) — Summarise the saved motion track of a source clip: frame range, how many frames are low confidence, the runs of hidden or weak frames (candidates for track_motion with anchorFrame + merge, or correct_track_point), hand-set frames and the first and last point. Returns null data when the clip has no valid track (never tracked, or its source changed).
 
 ## project
 - **create_project** — Create a new blank project and make it active. Call this first when starting from scratch. Defaults to 1920x1080 at 30fps.
-- **list_projects** (read-only) — List saved projects (id + name + modifiedAt). Use an id with open_project.
+- **list_projects** (read-only) — List saved projects (id + name + modifiedAt). Use an id with open_project. Recent project files on disk also appear with their `path`: open those with open_project_file.
 - **open_project** — Open a saved project by id and make it active.
 - **save_project** — Persist the active project so it can be reopened later.
-- **update_project_settings** — Update resolution/fps/etc.
+- **update_project_settings** — Update resolution/fps/etc. pixelAspectRatio (0.25-4, 1 = square) is the sequence pixel aspect: clips are squeezed by it so they keep their display shape. fieldOrder (progressive, upper, lower) is the sequence field order; a Bob deinterlace of interlaced footage keeps the field that matches it.
 - **rename_project** — Rename the project.
 - **set_canvas_background** — Set background fill mode/color.
+- **import_timeline_xml** (destructive) — Import a Final Cut Pro XML (xmeml, from Premiere/Resolve/FCP7), FCPXML, OpenTimelineIO (.otio JSON) or CMX3600 EDL sequence passed as `xml` text (the OTIO JSON or EDL text goes in the same argument). An EDL carries no frame rate: pass `frameRate` (default 24, or 29.97 for drop frame); each clip keeps its reel and source timecodes in metadata.edl, and reels are relinked to bin media by reel name (the media embedded start timecode decides the in-point; when several files share a reel name the source timecode picks one). Media is relinked to the media bin by filename; files not in the bin become offline placeholders and are listed in `unmatched`. mode "replace" (default) swaps video/audio tracks and markers (text/graphics tracks stay); "append" adds the imported tracks. Nested sequences (xmeml clipitem sequences, otio stacks, fcpxml compound clips) become project sequences with nest clips, and xmeml multiclips become multicam sources with their angles. One undo step. Pass dryRun:true to only report what would be imported.
+- **list_sequences** (read-only) — List the project's sequences (timelines) with id, name, canvas settings, duration, which one is active (the one every other tool edits), which have an open tab, and how many times each is nested in other sequences.
+- **create_sequence** — Create a new sequence and open it (it becomes the active timeline). Give "name" and optional "width", "height", "fps", "sampleRate" (default: the current sequence's settings), or "fromMediaId" to match a media item's size and frame rate with that clip placed at 0 (New Sequence From Clip). Pass "activate": false to leave the current sequence open. One undo step.
+- **open_sequence** — Open a sequence (id or name) in its own tab and make it the active timeline: every later edit, preview and export acts on it. Use to edit inside a nest ("clipId" of a nest clip also works). Undoing steps back to the previously open sequence.
+- **nest_clips** — Nest the given items (clip ids from list_clips on the active sequence; text/shape/sticker/SVG overlay and adjustment-layer ids also work) into a new sequence and replace them with one nest clip over the same span (Premiere's "Nest..."). Linked audio, transitions between the nested clips, masks, keyframes, effects, and the captions and markers inside the span travel with them. Optional "name". Editing inside the nest later updates every instance. Refused when a selected track is locked or the nest would overlap other clips. One undo step.
+- **open_project_file** (destructive) — Open a saved project file (.oreel, .openreel or .json) by absolute path and make it the active project, replacing whatever is open now (the current project is saved first, so nothing is lost). The path must be inside the allowed folders (Settings > MCP; get_app_state lists them). Offline media shows as relinkable; use import_media_from_path to bring files back. Destructive to the open project's session state: requires confirmation.
+- **save_project_as** — Write the active project to a project file at an absolute path (.oreel or .openreel) and make that file the project's save target, so later saves update it. The path must be inside the allowed folders (Settings > MCP). An existing file is not replaced unless overwrite:true. Requires an open project. Unlike save_project (which only keeps the app's autosave), this produces a file you can hand back or reopen with open_project_file.
+- **import_timeline_from_path** (destructive) — Import a timeline file by absolute path: Final Cut Pro XML (xmeml, from Premiere / Resolve / FCP7), FCPXML, OpenTimelineIO (.otio) or AAF. format "auto" (default) detects it; naming a format that does not match the file is an error. EDL files cannot be imported (export xmeml, FCPXML or OTIO instead). Media is relinked to the media bin by filename (import_media_from_path first); files not in the bin become offline placeholders listed in `unmatched`. mode "replace" (default) swaps video/audio tracks and markers, "append" adds the imported tracks. dryRun:true only reports. The path must be inside the allowed folders. One undo step. Replaces the timeline in replace mode: requires confirmation.
+- **get_app_state** (read-only) — Report what OpenReel is doing right now, without needing its window: appVersion, platform, route (welcome|editor|...), windows {editor, count}, projectOpen and projectId, onboarding {status unseen|in-progress|done|skipped, path, skippedBy}, ai {configured, provider}, and mcp {toolCount, autoAllow, allowedRoots, protocolVersion}. mcp.allowedRoots are the folders the path tools (import_media_from_path, open_project_file, save_project_as, export outputPath) may read and write. Call this first in a session; it works with no project open. Read-only.
+- **dismiss_onboarding** — Dismiss OpenReel's first-run onboarding (the welcome path chooser and any open setup sheet) so it never covers the UI during an agent session. Idempotent: calling it again, or after the user finished onboarding, changes nothing. It does not touch any project and is never required before other tools. Lesson and AI-setup progress is kept.
+- **get_project_fonts** (read-only) — List every font family used by text clips, motion-graphics text layers and caption styles, with where it is used and how it travels when the project is packaged (Collect Files). status is one of: embedded (user font copied into the package; license fsType installable/editable), embedded-readonly (fsType preview&print: embedded for preview/export, not for editing), restricted (fsType forbids embedding; not copied, install it on the other machine), unknown-license (font file license unreadable, e.g. WOFF2 uploads, or file data unavailable; not copied: re-upload as TTF/OTF/WOFF to embed), web (catalog font recorded by family + url, not copied), bundled (ships with OpenReel), system (installed OS font; cannot be embedded). Read-only; works only in the live OpenReel app.
 
 ## track
 - **add_track** — Add a track (video|audio|image|text|graphics).
@@ -242,31 +264,80 @@ The agent exposes **303 tools** spanning read/observe, project, track, clip, tra
 - **rename_track** — Rename a track.
 - **reorder_track** — Move a track to a new stacking position (0 = top of the timeline / front-most).
 - **lock_track** — Lock/unlock a track.
+- **set_track_sync_lock** — Turn a track's Sync Lock on or off (default on). Ripple-type edits (ripple delete, ripple trim, insert, extract, paste-insert, close gap) keep sync-locked tracks in sync by shifting them with the edit, or are blocked (naming the track) when the removed range is not empty there; tracks with Sync Lock off are never touched by edits to other tracks. One undo step.
 - **hide_track** — Show/hide a track.
 - **mute_track** — Mute/unmute a track.
 - **solo_track** — Solo/unsolo a track.
-- **consolidate_track** — Close gaps on a track.
+- **consolidate_track** — Remove Gaps: close every empty stretch on a track. Sync Lock: every other unlocked sync-locked track must be empty over each closed gap and shifts with it; otherwise the edit is blocked and the error names the track. Locked tracks are never changed. One undo step.
+- **delete_gap** — Ripple-delete the empty gap on a track that contains `time` (seconds, or timeFrame in frames): later clips move earlier to close it. Space after the last clip is not a gap. Sync Lock: every other unlocked sync-locked track must be empty over the gap and shifts with it; otherwise the edit is blocked and the error names the track. Locked tracks block it. One undo step.
+- **set_track_target** — Turn a track's target toggle (the V1/A1 buttons) on or off. Targeted tracks are what Extract, Lift, Add Edit, Paste, Match Frame and insert/overwrite use when no trackId is given. Editor state, not part of the project (no undo step). Live editor only.
+- **set_source_patch** — Patch a Source monitor component to a timeline track: kind video|audio, trackId of a video/image track (video) or an audio track (audio), or null to clear (auto). insert_from_source / overwrite_from_source then place the source's video and audio on the patched tracks (two linked clips when both are patched to different tracks). Editor state, not part of the project (no undo step). Live editor only.
+- **add_track_audio_effect** — Add an effect to a track's (or the master bus's) audio effect rack. Racks hold up to 5 effects processed in order, in live playback and in export. effectType: gain|eq|compressor|limiter|reverb|delay|noiseReduction|deHum|deClick|deClip|deEss|deReverb|gate|brickwallLimiter|lowPass. Optional params (omitted ones use defaults; gain: gainDb -24..24 dB; eq: lowGain -24..24 dB, midGain -24..24 dB, midFreq 200..8000 Hz, midQ 0.1..10, highGain -24..24 dB; compressor: threshold -60..0 dB, ratio 1..20 :1, attack 0.001..1 s, release 0.01..3 s, knee 0..40 dB, makeupGain 0..24 dB; limiter: ceiling -24..0 dB, release 0.01..1 s; reverb: roomSize 0..1, damping 0..1, wetLevel 0..1, dryLevel 0..1; delay: time 0..2 s, feedback 0..0.95, wetLevel 0..1; noiseReduction: threshold -60..0 dB, reduction 0..1, attack 0..100 ms, release 0..500 ms; deHum: frequency 40..70 Hz, harmonics 1..8, q 5..100, depth 0..1; deClick: sensitivity 0..1, maxWidth 2..48 smp; deClip: threshold -24..0 dBFS, maxRun 4..120 smp; deEss: frequency 2500..12000 Hz, bandwidthQ 0.3..6, threshold -60..0 dB, ratio 1..20 :1, attack 0.0002..0.05 s, release 0.005..0.5 s, listen 0..1; deReverb: amount 0..1, rt60 0.1..3 s, floor -40..0 dB; gate: threshold -80..0 dB, range -80..0 dB, attack 0.0002..0.2 s, hold 0..1 s, release 0.01..2 s; brickwallLimiter: ceiling -24..0 dBTP, release 0.01..1 s; lowPass: frequency 100..20000 Hz, slope 12..48 dB/oct), position (0-based slot, default end) and bypassed. Returns the new effectId. One undo step.
+- **set_track_audio_effect_param** — Edit one effect in a track/master audio rack: any of params (object of numeric parameters, clamped to range; gain: gainDb -24..24 dB; eq: lowGain -24..24 dB, midGain -24..24 dB, midFreq 200..8000 Hz, midQ 0.1..10, highGain -24..24 dB; compressor: threshold -60..0 dB, ratio 1..20 :1, attack 0.001..1 s, release 0.01..3 s, knee 0..40 dB, makeupGain 0..24 dB; limiter: ceiling -24..0 dB, release 0.01..1 s; reverb: roomSize 0..1, damping 0..1, wetLevel 0..1, dryLevel 0..1; delay: time 0..2 s, feedback 0..0.95, wetLevel 0..1; noiseReduction: threshold -60..0 dB, reduction 0..1, attack 0..100 ms, release 0..500 ms; deHum: frequency 40..70 Hz, harmonics 1..8, q 5..100, depth 0..1; deClick: sensitivity 0..1, maxWidth 2..48 smp; deClip: threshold -24..0 dBFS, maxRun 4..120 smp; deEss: frequency 2500..12000 Hz, bandwidthQ 0.3..6, threshold -60..0 dB, ratio 1..20 :1, attack 0.0002..0.05 s, release 0.005..0.5 s, listen 0..1; deReverb: amount 0..1, rt60 0.1..3 s, floor -40..0 dB; gate: threshold -80..0 dB, range -80..0 dB, attack 0.0002..0.2 s, hold 0..1 s, release 0.01..2 s; brickwallLimiter: ceiling -24..0 dBTP, release 0.01..1 s; lowPass: frequency 100..20000 Hz, slope 12..48 dB/oct), bypassed and position (new 0-based slot: reorders the rack). Also sets the bus fader/pan of that track: volume (linear 0..4, 1 = 0 dB) and pan (-1..1; tracks only) when effectId is omitted. One undo step.
+- **remove_track_audio_effect** — Remove one effect from a track's (or the master bus's) audio effect rack by effectId. One undo step.
 
 ## media
 - **import_media_from_url** — Download an image, video, or audio file from a public http(s) URL (e.g. a free stock library) and add it to the media library. Returns the mediaId to use with add_clip. Requires an open project.
 - **delete_media** (destructive) — Delete a media library item.
 - **rename_media** — Rename a media item.
+- **list_bins** (read-only) — List the Project panel's bins (nested folders) with their ids, paths, label colours and item counts, plus how many media items sit at the project root.
+- **create_bin** — Create a bin (folder) in the media library, optionally inside another bin ("parent": id or name) and optionally filling it with existing media ("mediaIds") like "New bin from selection". One undo step.
+- **move_to_bin** — Move media items (and/or whole bins) into a bin, or back to the project root ("bin": "root" or omitted). Bins cannot be moved into themselves. One undo step.
+- **rename_bin** — Rename a bin. One undo step.
+- **delete_bin** (destructive) — Delete a bin together with its nested bins, every media item inside, and the timeline clips that use that media. Pass confirm:true to proceed; without it the tool only reports what would be deleted. One undo step restores everything.
+- **set_label** — Set the label colour of media items, timeline clips and/or bins. Label colour id or name: violet, iris, caribbean, lavender, cerulean, forest, rose, mango, purple, blue, teal, magenta, tan, green, brown, yellow; "none" clears it. For clips "inherit" goes back to following the media's label. Labels show as colour chips in the Project panel and as clip colour on the timeline. One undo step.
+- **set_media_log** — Edit the Project panel logging columns on media items: "scene", "shot", "take" (free text, "" clears), "goodTake" (boolean flag), plus "comment" and "description" (the log note). Applies to every id in mediaIds. One undo step.
+- **find_media** (read-only) — Search the media library across every Project panel column (name, label, type, codec, comment, description, scene, shot, take, good take, ...). Every space-separated term must match; "scene:12" / "good:yes" / "take:2" limit a term to one column. "column" limits the whole search to one column (name, label, type, duration, frameRate, resolution, codec, audio, fileSize, startTimecode, importedAt, usage, comment, description, scene, shot, take, goodTake).
+- **list_smart_bins** (read-only) — List the saved searches (smart bins) with their query, column and the live number of matching media items.
+- **create_smart_bin** — Save a search as a smart bin: a bin with no media of its own whose contents are the library items matching "query" (optionally limited to one "column"), recomputed live whenever metadata changes. One undo step.
+- **delete_smart_bin** — Delete a smart bin by id or name. Only the saved search is removed; no media is deleted. One undo step.
+- **make_subclip** — Create a subclip: a media-bin item that references a window (inPoint..outPoint, seconds or frames) of an existing video/audio item and is used like any media (drag, insert, overwrite). "restrictTrims": true keeps later trims on its clips inside the window. Omitting inPoint/outPoint uses the Source monitor marks for that media. One undo step.
+- **interpret_footage** — Override how video media is read. frameRate conforms the footage to that rate (a 30 fps file read as 24 fps plays at 0.8x and runs 25% longer); clips already on the timeline are retimed (speed and duration, later clips on the same track ripple to follow; pass retimeClips:false to change only the media item) and clips placed afterwards use it. pixelAspectRatio (0.25-4; 1.3333 for HDV 1440x1080, 0.9091 for DV NTSC) stretches the frame to its display width in preview, the Program monitor, scopes and export, so fit/fill math uses the display size. fieldOrder (progressive, upper, lower) marks interlaced footage, which preview and export deinterlace with the deinterlace mode (none, blend (default), bob). The file's own pixel aspect / field order are auto-detected when the importer can read them and show in list_media. Fields you give are merged into the item's existing interpretation (others are kept); clear:true goes back to what the file says. One undo step.
+- **import_media_from_path** (expensive) — Import local video, audio, image and camera RAW files into the media library by absolute path. `paths` takes files and/or folders (folders import their media files; recursive:true includes subfolders). Every path is checked against the allowed folders (Settings > MCP; get_app_state lists them): symlinks are resolved, so a link that leaves an allowed folder is refused. Optional: copyToProject (desktop: also copy into the project's Media folder, originals untouched), ingestPreset none|proxies|copy for this import, createProxies (build preview proxies), bin (bin id or name to file the items in). Returns data.imported[{mediaId, path, name, kind video|audio|image|raw, durationSec, width, height, frameRate, codec}] and data.skipped[{path, code NOT_FOUND|OUTSIDE_ALLOWED_ROOTS|UNSUPPORTED_TYPE|UNREADABLE, message}]; use a mediaId with add_clip. Requires an open project (create_project first). Can take a while for big folders.
+- **create_proxies** (expensive) — Queue background builds of low-resolution H.264 proxies for video media (Project panel > Proxies > Create proxies). mediaIds picks items (default: every video without a proxy); quality is low (up to 540p), medium (720p, default) or high (1080p); force rebuilds an existing proxy. Jobs run one at a time in the background with progress in the Project panel and survive a reload; each finished proxy is linked to its media as one undo step. Proxies only change what preview, scrub and playback decode: transforms, masks, effects and text are resolution independent, and exports ALWAYS read the full-resolution media. Returns queued ids and skipped items with reasons; poll list_proxies for status.
+- **attach_proxies** — Attach existing proxy files that are already imported into the project to their full-resolution media (Project panel > Proxies > Attach proxies). Pass pairs [{mediaId, proxyMediaId}], or omit pairs to match by file name (extension and _proxy / -proxy suffixes ignored). Each proxy is validated against the original: it must decode, keep the aspect ratio, match the duration within 0.25 s / 1 % and the frame rate within 0.5 fps; mismatches are reported and skipped. All accepted proxies are linked as ONE undo step. The proxy media items stay in the library (delete them separately if unwanted). Exports still use full resolution.
+- **toggle_proxies** — Toggle Proxies (Program monitor button, Shift+P): on = preview, scrub and playback decode proxies where they exist; off = they decode the full-resolution media. Pass on=true/false to set it explicitly, or omit to flip it. Not an edit: no undo step. Export is unaffected and always uses full resolution.
+- **set_ingest_preset** — Set the project's ingest preset: none (default) or proxies (build proxies in the background for every video imported from now on). On the desktop app copy is also available: copy imported media into the project's Media folder (checksum-verified, originals never deleted). One undo step. Existing media is not touched; use create_proxies / copy_media_to_project for that.
+- **set_proxy_format** — Desktop app only. Set the project's native proxy settings (Project panel > Proxies): codec prores-proxy (ProRes 422 Proxy .mov) or h264 (.mp4), size half | quarter | 720p | 1080p (a fixed height never upscales), jobs at once 1-2, the Proxies folder and Media folder (absolute, or relative to the project file's folder; default Proxies/ and Media/ beside the project), and proxiesWithCopy (also build proxies when the copy preset ingests media). Only the fields you pass change. One undo step. Affects proxies built from now on; use create_proxies with force to rebuild.
+- **retry_failed_proxies** (expensive) — Desktop app only (Project panel > Proxies > Retry failed). Re-queue every proxy build that failed in this project. Returns how many were retried; poll list_proxies for status.
+- **copy_media_to_project** (expensive) — Desktop app only. Copy media files into the project's Media folder and point the project at the copies. Every copy is verified by SHA-256 (the copy is re-read and compared) and the originals are never modified or deleted. mediaIds picks items (default: every online item not yet copied). The whole batch is ONE undo step for the reference change (undo re-points to the originals; the copied files stay on disk). The project must be saved first so its Media folder has a home.
+- **relink_media** (expensive) — Desktop app only (Project panel: Reconnect full resolution / Find proxies). Search a folder (recursively, hidden folders skipped) for offline media (kind full, default) or missing proxies (kind proxy) and relink every match by file name + duration (0.25 s / 1 %) + frame rate. A media item that two files fit equally well is reported as ambiguous and left alone. Returns linked, ambiguous, notFound and failed items.
 
 ## clip
 - **add_clip** — Add a media clip to a track at a time.
 - **remove_clip** (destructive) — Remove a clip.
 - **move_clip** — Move a clip to a new start time / track.
-- **trim_clip** — Set a clip's in/out points (seconds).
-- **split_clip** — Split a clip at a time.
-- **ripple_delete_clip** (destructive) — Delete a clip and close the gap.
+- **trim_clip** — Trim an existing main-timeline clip by setting either or both source-media inPoint/outPoint values in seconds. Read the current values with get_clip first.
+- **split_clip** — Split an existing main-timeline clip at an absolute timeline time in seconds. The time must fall strictly inside the clip's startTime..startTime+duration range.
 - **slip_clip** — Slip a clip's source by delta.
 - **slide_clip** — Slide a clip by delta.
 - **roll_edit** — Roll the edit point between two clips.
 - **trim_to_playhead** — Trim a clip's start/end to a time.
-- **close_gap** — Close the gap before a clip.
+- **close_gap** — Close the gap before a clip. Sync Lock: every other unlocked sync-locked track must be empty over the gap and shifts with it; otherwise the edit is blocked. One undo step.
+- **ripple_delete_clip** (destructive) — Delete a clip (or clipIds) and close the gap. Linked clips (separated audio/video) are deleted with it when the editor's linked selection is on (linkedClipIds overrides). Sync Lock: every other unlocked sync-locked track loses the same range and shifts earlier with it if that range is empty there; otherwise the edit is blocked and the error names the track (turn its Sync Lock off with set_track_sync_lock, or move its content). Tracks with Sync Lock off are untouched. One undo step.
+- **track_select_clips** (read-only) — Premiere's Track Select Forward/Backward: the clip with clipId plus every clip and overlay item after it (direction "forward", default) or before it ("backward") on all unlocked tracks, or only on its own track with trackOnly. Items on locked tracks are never included. Read-only; pass the returned ids to ripple_delete_clip, delete or move tools to act on the whole range as one undo step.
+- **trim_edit_point** — Trim-mode nudge of one edit point by whole frames, like selecting it in the timeline and pressing , or . (1 frame) or Shift , / . (5). clipId + edge ("left" = the clip start, "right" = its end) name the edit point; frames > 0 moves the edge later in time, < 0 earlier. kind "roll" moves the cut between two touching clips (total length unchanged), "ripple" trims the one edge and pulls everything after it along; the default is roll at a cut and ripple at a free edge, and roll on a free edge falls back to ripple. Sync Lock, linked clips (pass linkedClipIds to override), locked tracks and source handles apply exactly as for the Ripple and Roll tools; the move is clamped to the handles and the applied frames are returned. One undo step.
+- **add_edit** — Premiere-style Add Edit: split every clip under a timeline time on trackIds (default: the targeted tracks, else every unlocked track). One undo step. Give `time` seconds or `timeFrame`.
+- **insert_from_source** — Premiere-style Insert (ripples later content) from the Source monitor using three-point editing. The source range is the media's In/Out marks (set_source_in_out; or pass sourceIn/sourceOut; unmarked = whole media). Placement: at `at` (default 0), or at the sequence In when sequenceIn/sequenceOut are given: source In-only fits the range (Out derived), source Out-only back-times, source In+Out with only sequenceOut ends at it; with all four marks the source range wins at sequenceIn. component: both (default) | video (muted) | audio. One undo step. Returns the rule applied.
+- **overwrite_from_source** (destructive) — Premiere-style Overwrite (replaces what it covers) from the Source monitor using three-point editing. The source range is the media's In/Out marks (set_source_in_out; or pass sourceIn/sourceOut; unmarked = whole media). Placement: at `at` (default 0), or at the sequence In when sequenceIn/sequenceOut are given: source In-only fits the range (Out derived), source Out-only back-times, source In+Out with only sequenceOut ends at it; with all four marks the source range wins at sequenceIn. component: both (default) | video (muted) | audio. One undo step. Returns the rule applied.
+- **roll_trim** — Roll the cut between a clip and its neighbour: one clip gets longer by exactly as much as the other gets shorter, so total duration and everything else stay put. Uses the clip's source handles; clamped to them. One undo step. Positive moves later in time. Give delta in seconds or deltaFrame in project frames (snapped to the frame grid and clamped to the available source handles; the applied value is returned). Linked clips (separated audio/video) are edited together automatically when the editor's linked selection is on; pass linkedClipIds ([] for none) to override (they must share this clip's timing).
+- **slide_trim** — Slide a clip along the timeline between its two neighbours without changing its own content or the overall duration: the previous clip's out and the next clip's in move with it. Needs an adjacent clip on both sides. One undo step. Positive moves later in time. Give delta in seconds or deltaFrame in project frames (snapped to the frame grid and clamped to the available source handles; the applied value is returned). Linked clips (separated audio/video) are edited together automatically when the editor's linked selection is on; pass linkedClipIds ([] for none) to override (they must share this clip's timing).
+- **rate_stretch** — Rate Stretch: change a clip's length by dragging one edge so its playback speed changes to fill the new length (source range unchanged); never ripples. Returns the new speed. Not available on clips with speed ramps, images or generated media. One undo step. Positive moves later in time. Give delta in seconds or deltaFrame in project frames (snapped to the frame grid and clamped to the available source handles; the applied value is returned). Linked clips (separated audio/video) are edited together automatically when the editor's linked selection is on; pass linkedClipIds ([] for none) to override (they must share this clip's timing).
+- **make_split_edit** — Offset a linked clip pair's edit points like Premiere's J-cut and L-cut. kind "l" = L-cut: the audio cut falls `frames` AFTER the picture cut (audio trails over the next shot); kind "j" = J-cut: the audio cut falls `frames` BEFORE it (audio leads into the shot). Give a clip at the cut (video or audio) and which edge is the cut (default: the edge a neighbouring clip touches). Only the audio side moves (side "video" moves the picture instead); at a cut between two clips that track rolls across it, at a clip end it trims/extends. The linked pair stays linked. The offset is measured from the other side's cut, so repeating the call is a no-op. Clamped to the available source handles, gaps, locked tracks and one-frame minimum; the applied value and the limit hit are returned. Default 12 frames. One undo step.
+- **extend_edit** — Premiere's Extend Edit: move the edit point (the head or tail) of the given clips to a timeline time, on the picture, the sound or both (side). At a cut between two clips it rolls the cut; at a clip end it trims or extends into free space. Linked partners of the given clips are included. Each clip is clamped independently by its own source handles, so the sides can land at different times; the applied value per clip is returned. Give `time` seconds or `timeFrame`. One undo step.
+- **insert_media** — Premiere-style Insert: place library media at a timeline time on the main track (V1/A1 unless trackId is given), splitting what is underneath and rippling every unlocked track later by the clip length. One undo step. Give `at` seconds or `atFrame`. Optional sourceIn/sourceOut select the source range.
+- **overwrite_media** (destructive) — Premiere-style Overwrite: place library media at a timeline time on the main track (V1/A1 unless trackId is given), replacing whatever it covers on that track without moving anything else. One undo step. Give `at` seconds or `atFrame`. Optional sourceIn/sourceOut select the source range.
+- **lift_range** (destructive) — Premiere-style Lift: remove everything inside [start, end] on the unlocked tracks (or only trackIds), leaving a gap. Clips straddling the range are split. One undo step. Give start/end in seconds or startFrame/endFrame.
+- **extract_range** (destructive) — Premiere-style Extract: remove everything inside [start, end] on trackIds (default: the targeted tracks, else every unlocked sync-locked track) and close the gap by rippling later content earlier. Clips straddling the range are split. With explicit/targeted tracks, every other unlocked sync-locked track must be empty in the range (it then shifts too); otherwise the edit is blocked and the error names the track. One undo step. Give start/end in seconds or startFrame/endFrame.
+- **add_edit_all_tracks** — Split every clip under a timeline time on all unlocked tracks at once (Premiere's Add Edit to All Tracks). One undo step. Give `time` seconds or `timeFrame`.
+- **detect_scenes** (read-only, expensive) — Scene edit detection: analyse a video clip's footage for hard cuts and return them (source and timeline times, score). Does not edit anything; follow with apply_scene_cuts using the returned analysisId. sensitivity 0..1 (default 0.5; higher finds more cuts), minSceneLength in seconds (default 1). Needs the live editor with the source media loaded; reversed clips are unsupported.
+- **apply_scene_cuts** — Apply the cuts from detect_scenes as one undo step: splitClip splits the clip (and its linked clips) at every cut, addMarkers drops a timeline marker at each. At least one must be true. Clips with speed ramps or freeze frames can only get markers.
+- **transcript_cut_range** (destructive) — Ripple-cut a time range [start, end] (seconds, as read from get_caption_transcript) out of the sequence the way deleting that text in the Transcript panel does: every unlocked sync-locked track is cut and closed together (linked picture and sound stay in sync), markers and captions ripple, one undo step. Fails (nothing changes) if a linked partner sits on a locked or not sync-locked track.
+- **remove_filler_words** (destructive) — Find filler words in the transcript (default list: um, umm, uh, uhh, uhm, er, erm, hmm, like, you know; override with fillers) and ripple-cut each one out, all as ONE undo step. Pass preview:true to only list what would be removed (text, start, end) without editing. Same sync-lock and linked-clip rules as transcript_cut_range.
+- **remove_pauses** (destructive) — Ripple-cut pauses longer than minDuration seconds between spoken words, leaving `keep` seconds (default 0.2) of breathing room at each, all as ONE undo step. preview:true lists them without editing.
 
 ## speed
-- **set_clip_speed** — Set clip playback speed (recomputes duration).
+- **set_clip_speed** — Set an existing main-timeline clip's playback-speed multiplier (for example 0.5 = half speed, 2 = double speed); recomputes its duration. Use get_capabilities speed.range for limits.
 - **set_clip_reverse** — Toggle clip reverse.
 - **set_clip_pitch_correction** — Toggle pitch correction on speed changes.
 - **set_speed_ramp** — Set speed keyframes / freeze frames / pitch.
@@ -274,28 +345,63 @@ The agent exposes **303 tools** spanning read/observe, project, track, clip, tra
 - **set_clip_chroma_key** — Set green-screen / chroma-key settings.
 
 ## transform
-- **set_clip_transform** — Set position/scale/rotation/opacity/crop/fitMode.
+- **set_clip_transform** — Update an existing main-timeline clip's static transform. position is a pixel offset from canvas center; scale uses 1 = 100%; rotation is degrees; opacity is 0..1. Partial nested updates are safely merged, so {scale:{x:1.2,y:1.2}} performs a 120% zoom without resetting position.
 - **set_clip_blend_mode** — Set a clip's blend mode.
 - **set_clip_blend_opacity** — Set a clip's blend opacity (0..1).
 
 ## effect
-- **add_video_effect** — Add a video effect to a clip. Standard effectType values include brightness, contrast, saturation, blur, sharpen, vignette, grain, temperature, tint, shadow, glow, motion-blur, radial-blur, chromatic-aberration. Set effectType to 'shader' to run a GPU shader effect from the Motion shader library (only category 'effect' shaders, e.g. the Paper Design catalog like paper-halftone-dots or paper-liquid-metal — use list_motion_shaders with category 'effect' to discover ids); for shader effects, params MUST include a valid shaderId plus optional numeric params (name/value pairs from the shader's params) and an optional numeric time. Shader effects no-op gracefully when WebGL2 is unavailable.
+- **add_video_effect** — Add a video effect to a clip. Standard effectType values include brightness, contrast, saturation, blur, sharpen, vignette, grain, temperature, tint, shadow, glow, motion-blur, radial-blur, chromatic-aberration. Pro effect types (params validated against their ranges; omitted params take the same defaults as adding the effect in the editor UI): mosaic (size 1..200); posterize (levels 2..256); mirror (mode none|horizontal|vertical|quad, center 0..100); lens-distortion (amount -100..100, zoom 10..400, compensate boolean); directional-blur (angle 0..360, length 0..200); find-edges (amount 0..100, invert boolean); emboss (amount 0..100, angle 0..360, relief 0..10); exposure (exposure -5..5, offset -0.5..0.5, gamma 0.2..3); threshold (level 0..255, mix 0..100); halftone (dotSize 2..100, angle 0..360, amount 0..100, invert boolean); vhs-glitch (scanlines 0..100, rgbSplit 0..100, jitter 0..200, noise 0..100, time 0..3600, seed 0..9999); unsharp-mask (amount 0..500, radius 0.1..50, threshold 0..255); gaussian-blur (blurX 0..100, blurY 0..100); crop (left 0..100, top 0..100, right 0..100, bottom 0..100, feather 0..100); vibrance (vibrance -100..100, saturation -100..100); skew (skewX -60..60, skewY -60..60); hsl-secondary (hueMin 0..360, hueMax 0..360, hueSoft 0..180, satMin 0..100, satMax 0..100, satSoft 0..100, lumMin 0..100, lumMax 0..100, lumSoft 0..100, denoise 0..100, blur 0..20, invert boolean, temperature -100..100, tint -100..100, contrast -100..100, sharpen 0..100, saturation -100..100, wheelX -1..1, wheelY -1..1, maskShape none|ellipse|rectangle, maskX 0..100, maskY 0..100, maskW 0..100, maskH 0..100, maskFeather 0..200, maskInvert boolean); camera-blur (radius 0..60); channel-blur (red 0..60, green 0..60, blue 0..60, alpha 0..60); tilt-shift (blur 0..40, angle 0..360, center 0..100, focus 0..100, falloff 1..100); luma-key (mode none|darker|brighter, threshold 0..100, softness 0..100); color-key (keyR 0..255, keyG 0..255, keyB 0..255, tolerance 0..100, softness 0..100, invert boolean); alpha-adjust (opacity 0..100, ignore boolean, invert boolean, matte boolean); leave-color (keyR 0..255, keyG 0..255, keyB 0..255, amount 0..100, tolerance 0..100, softness 0..100); change-to-color (fromR 0..255, fromG 0..255, fromB 0..255, toR 0..255, toG 0..255, toB 0..255, tolerance 0..100, softness 0..100); solarize (threshold 0..100); levels (inBlack 0..254, inWhite 1..255, gamma 0.1..10, outBlack 0..255, outWhite 0..255); channel-mixer (rr -200..200, rg -200..200, rb -200..200, gr -200..200, gg -200..200, gb -200..200, br -200..200, bg -200..200, bb -200..200, mono boolean); tint-map (blackR 0..255, blackG 0..255, blackB 0..255, whiteR 0..255, whiteG 0..255, whiteB 0..255, amount 0..100); spherize (amount -100..100, radius 1..200, centerX 0..100, centerY 0..100); twirl (angle -720..720, radius 1..200, centerX 0..100, centerY 0..100); ripple (amplitude 0..200, wavelength 4..1000, angle 0..360, phase 0..360, speed -10..10, time 0..3600); turbulent-displace (amount 0..300, size 4..1000, complexity 1..4, evolution 0..1000, seed 0..9999); offset (shiftX -100..100, shiftY -100..100, edge wrap|clamp|transparent); corner-pin (x0 -100..200, y0 -100..200, x1 -100..200, y1 -100..200, x2 -100..200, y2 -100..200, x3 -100..200, y3 -100..200); polar-coordinates (mode rect-to-polar|polar-to-rect, amount 0..100); replicate (count 1..16); color-emboss (amount 0..100, angle 0..360, relief 0..10); noise (amount 0..100, size 1..32, mono boolean, time 0..3600, seed 0..9999); bevel-alpha (thickness 1..50, angle 0..360, intensity 0..100); four-color-gradient (c1R 0..255, c1G 0..255, c1B 0..255, c2R 0..255, c2G 0..255, c2B 0..255, c3R 0..255, c3G 0..255, c3B 0..255, c4R 0..255, c4G 0..255, c4B 0..255, opacity 0..100, blend normal|multiply|screen|add); lens-flare (centerX 0..100, centerY 0..100, brightness 0..200, size 1..200); strobe-light (flashR 0..255, flashG 0..255, flashB 0..255, opacity 0..100, period 0.05..10, duration 0..10, phase -10..10, blend normal|add, time 0..3600); grid (size 4..500, border 1..50, lineR 0..255, lineG 0..255, lineB 0..255, opacity 0..100). Prefer the pro type where one supersedes a legacy effect (gaussian-blur over blur, mosaic over shader pixelate, mirror over shader mirror, lens-distortion over shader fisheye, posterize over shader posterize, vhs-glitch over shader vhs); the legacy types still render in existing projects. Omitted legacy params also take the editor's visible defaults. Pro effect params can be keyframed with add_keyframe property fx:<effectId>:<param> (effectId from get_clip or list_effect_params). Set effectType to 'shader' to run a GPU shader effect from the Motion shader library (only category 'effect' shaders, e.g. the Paper Design catalog like paper-halftone-dots or paper-liquid-metal — use list_motion_shaders with category 'effect' to discover ids); for shader effects, params MUST include a valid shaderId plus optional numeric params (name/value pairs from the shader's params) and an optional numeric time. Shader effects no-op gracefully when WebGL2 is unavailable.
 - **remove_video_effect** — Remove a clip's video effect.
-- **update_video_effect** — Update a video effect's params.
+- **update_video_effect** — Update a video effect's params. Pro effect params (see list_pro_effects) are range-checked.
 - **toggle_video_effect** — Enable/disable a video effect.
 - **set_effect_order** — Set the full effect order for a clip.
+- **list_pro_effects** (read-only) — List the pro video effects (blurs, keys, colour tools, distortions, stylize and generator effects: e.g. camera-blur, tilt-shift, luma-key, color-key, spherize, twirl, corner-pin, lens-flare, strobe-light; pass effectType to filter and see every type) with each parameter's range, default and neutral (no-op) value. Add one with add_video_effect {effectType, params}; omitted params take the defaults. Read-only.
+- **set_clip_mask_path** — Create or edit a free-form Bezier mask on a clip (the same data the Program-monitor pen tool draws). points are in composition space 0..1 (x right, y down), at least 3; each may carry absolute handleIn / handleOut {x,y} (a point with no handles is a sharp corner). Omit maskId to add a new closed 'drawn' mask; pass maskId to edit one. With timeSeconds the path is written as a path keyframe at that timeline time (all keyframes of one mask must keep the same point count and the mask then interpolates between them); otherwise it replaces the static path. Optional feathering (0..100), expansion (-100..100), opacity (0..1), inverted. Optional combine (add|subtract|intersect|difference, default intersect) sets how this mask combines with the masks listed before it on the clip; the first mask ignores it. One undo step.
+- **duplicate_video_effect** — Duplicate an effect instance on a clip, inserted right after the original, together with its parameter keyframes (the copy animates independently from then on). Returns the new effectId. One undo step.
+- **save_effect_preset** — Save effects of a clip (all of them, or only effectIds) with their parameter keyframes as a named preset in the project. timing 'relative' (default) stores keyframe times as a fraction of the clip duration so the animation stretches to the clip it is applied to; 'absolute' keeps seconds. Returns presetId. One undo step.
+- **apply_effect_preset** — Apply a saved effect preset to a clip: its effects are added as fresh independent instances with their keyframes (relative presets are scaled to this clip's duration). mode 'append' (default) adds to the stack, 'replace' replaces the clip's effect stack. Returns the new effectIds. One undo step.
+- **delete_effect_preset** (destructive) — Delete a saved effect preset (clips that already used it keep their effects). One undo step.
+- **import_effect_presets** — Import effect presets from JSON text produced by export_effect_presets (or a single preset object). The file is validated strictly; presets are added to the project library and never overwrite existing ones. Returns the new presetIds. One undo step.
 
 ## color
 - **set_color_grading** — Set a clip's color grading (wheels/curves/lut/hsl/temp/tint).
+- **open_scopes** — Open the Scopes panel (waveform = luma, parade = RGB parade, yc = luma + chroma, vectorscope, hls = hue/saturation polar plot, histogram) and optionally pick the kind. scale ire|pq|hlg sets the waveform level axis (nits for HDR footage); falseColor true/false toggles the IRE-band exposure overlay on the Program monitor (preview only, never exported). Use get_scope_stats to read the numbers. Live editor only.
+- **close_scopes** — Close the Scopes panel. Live editor only.
+- **get_scope_stats** (read-only) — Read what the scopes show as numbers for the current program frame (the preview as rendered, effects and grade included): luma min/max/average/median and 1st/99th percentile, black and white clipping percent (overall and per RGB channel), average/max saturation, dominant hue (degrees, name, share), colour cast (vectorscope Cb/Cr) and plain-language warnings. Use it for colour QA before and after grading. Seeks the playhead first when `time` is given. Works whether or not the panel is open. Live editor only.
+- **add_hsl_secondary** — Add a Lumetri-style HSL Secondary to a clip: a qualifier (hueMin/hueMax/hueSoft in degrees, satMin/satMax/satSoft and lumMin/lumMax/lumSoft in percent, denoise 0-100, blur 0-20 px, invert) keys a matte, and the correction (temperature, tint, contrast, sharpen, saturation -100..100, wheelX/wheelY -1..1) applies only inside it. Optional maskShape none|ellipse|rectangle with maskX/maskY/maskW/maskH (percent), maskFeather (px), maskInvert limits the matte. Pass `sample` {r,g,b} (0-255) to key around a colour like the eyedropper. A clip can carry several secondaries (applied in stack order). Params are the hsl-secondary pro-effect params (see list_pro_effects); omitted params are neutral (saturation 0). One undo step. Returns effectId; refine with set_secondary_qualifier; keyframe with add_keyframe property fx:<effectId>:<param> using the returned effectId (e.g. fx:<effectId>:saturation), which animates that secondary independently of any others.
+- **set_secondary_qualifier** — Change the qualifier / matte settings of an HSL secondary: explicit fields (hueMin, hueMax, hueSoft, satMin, satMax, satSoft, lumMin, lumMax, lumSoft, denoise, blur, invert) and/or eyedropper `sample` {r,g,b} (0-255) with mode set (default: a new range around the colour), add (widen the key to include it) or subtract (narrow the key to drop it); explicit fields win over the sample. Reads the secondary's current range first, so add/subtract compose. One undo step.
+- **grab_still** — Grab the graded Program frame (at `time` seconds, default the playhead) as a still and make it the comparison reference. Stills live in the editor session only (not in the project). Use toggle_comparison to show it against the current frame. Live editor only.
+- **toggle_comparison** — Show or hide the Program monitor comparison view (preview only; never affects export or scopes). With no arguments it toggles. mode: off | side (side by side) | split-v (draggable vertical wipe) | split-h (horizontal wipe); reference: bypass (the ungraded frame), still (stillId from grab_still) or playhead (a frame pinned at refTime seconds); split 0..1 positions the wipe. Live editor only.
+- **list_color_library** (read-only) — List the user's saved looks (named full Lumetri grades) and imported LUTs. These live outside the project, so they are reusable across projects. Read-only.
+- **save_look** — Save a clip's complete Lumetri grade (wheels, curves, hue curves, HSL, tone, white balance, vignette, creative LUT and Input LUT) as a named look in the user's library. Fails when the clip has no grade. Does not change the project.
+- **apply_look** — Apply a saved look (by id or name) to one or more clips (clipIds), replacing their whole grade with the look's. One undo step for all clips.
+- **delete_look** (destructive) — Delete a saved look from the user's library (by id or name). Clips already graded with it keep their grade.
+- **save_clip_lut_to_library** — Store the LUT currently applied to a clip (slot creative, the default, or input) in the user's LUT library under `name`, so it can be reused on other clips and projects. Does not change the project.
+- **apply_library_lut** — Apply a LUT from the library (by id or name) to one or more clips. slot "creative" (default) is the look LUT after the grade; slot "input" is the Input LUT applied to the source before the whole grade (e.g. camera log to Rec.709). Optional intensity 0..1. One undo step.
+- **remove_clip_lut** — Remove the creative or Input LUT (slot) from one or more clips. One undo step.
+- **export_lut_cube** — Export the LUT applied to a clip (slot creative, the default, or input) as an Adobe/Resolve .cube file. The intensity is baked in unless bakeIntensity is false. Live editor only (it downloads the file).
 
 ## audio
 - **set_clip_volume** — Set a clip's volume (0..1+).
 - **set_clip_fade** — Set audio fade in/out seconds.
 - **add_audio_automation** — Add audio automation points.
-- **add_audio_effect** — Add an audio effect to a clip.
+- **add_audio_effect** — Add an audio effect to an existing main-timeline clip. Pass effectType (gain|pan|eq|compressor|reverb|delay|noiseReduction|fadeIn|fadeOut) and optional params; the effect id is generated automatically. A complete legacy effect object is also accepted.
 - **remove_audio_effect** — Remove an audio effect.
 - **update_audio_effect** — Update an audio effect's params.
 - **toggle_audio_effect** — Enable/disable an audio effect.
+- **set_track_automation** — Replace one automation lane of an audio track: lane "volume" (linear gain 0..4, 1 = 0 dB) or "pan" (-1 left .. 1 right), points [{time (timeline seconds), value}]. The lane replaces the track fader / pan while it plays, in preview and in export. An empty array clears the lane. Read the current lanes from the track's automation field. One undo step.
+- **create_bus** — Add a submix bus to the Audio Track Mixer. Tracks route into it with set_track_output (or send to it with add_send); it has its own effect rack/fader (set_track_audio_effect_param with target = the bus id), mute/solo and automation, then plays into the master or another bus (output; loops are refused). role: general|dialogue|music|effects. With preset "stems" it instead creates the Dialogue / Music / FX buses and routes tracks by role/name. Returns busId. One undo step.
+- **update_bus** — Edit a bus: name, role, muted, solo, output (another bus id or "master"; loops are refused) and/or volume automation points [{time (timeline s), value (linear gain 0..4)}] (empty array clears). Fader and effects use set_track_audio_effect_param / add_track_audio_effect with target = the bus id. One undo step.
+- **remove_bus** (destructive) — Delete a bus. Tracks and buses that played into it are re-routed to its own output (or master) and sends to it are removed, all in one undo step.
+- **set_track_output** — Assign a track's main output to a bus (busId) or back to the master (busId omitted or "master"). Sends are separate (add_send). One undo step.
+- **add_send** — Add an aux send from a track to a bus. level is linear 0..4 (1 = 0 dB, default 1). preFader true taps before the track fader (ignores it), false (default) after it. Both respect track mute/solo. At most 6 sends per track, one per bus. Returns sendId. One undo step.
+- **set_send_level** — Edit one send (trackId + sendId): level (linear 0..4), preFader, muted and/or automation points [{time (timeline s), value (linear 0..4)}] that replace the level while they play (empty array clears). removeSend true deletes the send. One undo step.
+- **export_stems** (read-only, expensive) — Export each bus (or the busIds given) as its own WAV stem in one go. A stem is the bus's post-fader output (its rack, fader, automation and everything routed or sent into it) over the whole timeline, before the master rack, so stems line up and re-sum. bitDepth 16 or 24 (default 24). Needs the live editor; the files are handed to the user (downloads). Read-only for the project.
+- **measure_loudness** (read-only, expensive) — Measure real loudness per ITU-R BS.1770-4 / EBU R128: integrated LUFS (gated), loudness range (LU, EBU Tech 3342), true peak (dBTP, 4x oversampled) and sample peak. scope "timeline" (default) renders the whole mix offline exactly as an export would (optional startTime/endTime in seconds); scope "clip" measures one clip (clipId) as it currently sounds, in isolation; scope "bus" measures one bus's stem (busId: its post-fader output including everything routed or sent into it). Read-only. Silence reports integratedLufs null.
+- **normalize_clip_loudness** (expensive) — Measure a clip's integrated loudness (BS.1770-4) and set its clip gain so it lands on targetLufs (default -14; common targets: -14 streaming, -16 podcast/social, -23 EBU R128 broadcast). Clip gain is capped at +12 dB; the result says when the cap stopped it and where the true peak ends up. One undo step. Clips with volume automation have that automation scaled instead.
+- **get_audio_latency_report** (read-only) — Report the processing latency of lookahead/FFT audio effects (compressor, limiter, DeClick, DeClip, DeReverb and the zero-latency repair effects) and what the project's mixer adds. data.effects lists each effect's latency in samples and ms; data.tracks lists each track's rack latency and the compensation delay the graph inserts so parallel tracks and buses stay aligned; data.totalLatencyMs is how late the whole mix leaves the graph before offline renders and the realtime scheduler compensate it. Compensation is automatic, so a click stays on the same sample as the picture; this is for diagnosing and explaining. Read-only.
+- **analyze_audio_issues** (read-only, expensive) — Analyze a clip's audio (as it sounds before any repair effects) for mains hum (50/60 Hz and harmonics), clipping, clicks and harsh sibilance. Returns data.report (hum {present, frequency, prominenceDb, harmonics}, clipping {present, runs, clippedSamples, peak}, clicks {present, count, perMinute}, sibilance {present, centerHz, thresholdDb, fraction}, peakDb) and data.suggestions: the repair effects (type + params + reason) that would address what was found. Read-only; needs the live editor's audio decoder. Use add_audio_repair to apply.
+- **add_audio_repair** — Add repair effects to a clip as ONE undo step. auto:true (the default when no fixes are given) analyzes the clip and adds only what it found (hum, clipping, clicks, sibilance), with the suggested settings. fixes: explicit effect types to add (deHum | deClick | deClip | deEss | deReverb | gate | brickwallLimiter | lowPass) with their default or given params (params: {deHum: {frequency: 50, harmonics: 4}, deEss: {threshold: -28}}; ranges in get_capabilities / the effect definitions: deHum frequency 40-70 Hz, harmonics 1-8, q 5-100, depth 0-1; deClick sensitivity 0-1, maxWidth 2-48 samples; deClip threshold -24..0 dBFS, maxRun 4-120; deEss frequency 2500-12000 Hz, threshold -60..0 dB, ratio 1-20, listen 0/1; deReverb amount 0-1, rt60 0.1-3 s, floor -40..0 dB; gate threshold -80..0 dB, range -80..0 dB, hold 0-1 s; brickwallLimiter ceiling -24..0 dBTP, release 0.01-1 s (5 ms lookahead, true-peak safe); lowPass frequency 100-20000 Hz, slope 12-48 dB/oct). A repair effect already on the clip is updated instead of duplicated. DeReverb is experimental (reduces the late tail only, adds ~21 ms latency). The same effects can sit on a track/bus rack via set_track_audio_rack. Returns data.added with each effect id, type, params and reason.
 
 ## subtitle
 - **add_subtitle** — Add a subtitle (text, start, end seconds).
@@ -303,15 +409,24 @@ The agent exposes **303 tools** spanning read/observe, project, track, clip, tra
 - **update_subtitle** — Update a subtitle's text and/or timing (text, startTime, endTime seconds).
 - **import_srt** — Import subtitles from SRT content.
 - **set_subtitle_style** — Set the global subtitle style.
+- **get_caption_transcript** (read-only) — Read the caption transcript: words with start/end seconds and speakers, plus sentences (word index ranges) and the caption tracks. Words of cues without word timings carry estimated:true. Optional captionTrackId ("" = default track), speaker filter, and limit/offset over words (default 400). Read-only; use it to pick the times for transcript_cut_range.
+- **export_captions** (read-only) — Render the project's captions as a file: format srt, vtt (WebVTT with <v Speaker> voice tags), ttml (TTML/IMSC1), scc (Scenarist CEA-608: pop-on, odd-parity byte pairs, EOC on the cue start frame, 32-column rows, <i>/<u> as mid-row codes) or stl (EBU-STL, binary: returned as data.contentBase64). One caption track per call (captionTrackId, "" = default; omit for every cue). includeSpeakers prefixes SRT cues with "Name: ". SCC/STL options: frameRate (SCC default 29.97 drop-frame, STL default 25), dropFrame (SCC), offsetSeconds (programme start, e.g. 3600), title (STL). SCC/STL return data.issues, the validation report (wrapped lines, rows dropped, characters substituted, captions delayed because the 608 channel was busy). embedded: "subtitle" or "cea608" instead returns data.embedded, the subtitle track a video export would embed (webvtt/mov_text/c608 payload text and warnings) for context mp4|mov (container) and desktop:true|false; pass those to queue_export captions to embed. Read-only.
+- **caption_qc** (read-only) — Quality-check the captions: reading speed (characters/second and words/minute), rows per cue, characters per row, minimum/maximum duration, gaps shorter than minGapFrames frames and overlaps. Defaults: maxCps 17, maxWpm 180, maxLines 2, maxCharsPerLine 42, minDuration 0.833s, maxDuration 7s, minGapFrames 2, frameRate = the project's. One caption track via captionTrackId ("" = default). Returns data.issues (code, severity, cueId, cueIndex, time in seconds to jump to, message, value, limit), data.counts, data.averageCps, data.worstCps. Read-only: fix problems with the caption edit tools.
+- **import_captions** — Add captions from SRT, WebVTT (speakers from <v Name> tags), SCC (Scenarist CEA-608: pop-on, paint-on and roll-up RU2/3/4 on CC1; frameRate default 29.97, drop-frame detected from the timecode separator), a word-timed transcript JSON ({segments:[{start,end,speaker?,words:[{word,start,end}]}]}) given as content, or an EBU-STL file given as contentBase64. For SCC/STL, offsetSeconds is subtracted from every time (the file's programme start) and styleTags:"keep" keeps <i>/<u> for italic/underlined runs. Optional captionTrackId and language put them on their own caption track (e.g. a translation). SCC/STL decoding notes come back in data.issues. One undo step.
+- **rename_speaker** — Rename a speaker on every caption (renaming onto an existing speaker merges them; an empty `to` clears the label). One undo step.
+- **set_caption_style** — Style caption cues as ONE undo step. Targets subtitleIds, else every cue of captionTrackId, else all cues. `style` merges into each cue's style: fontFamily, fontSize, color, backgroundColor, position (top|center|bottom), highlightColor, strokeColor, strokeWidth, shadowColor, shadowBlur, shadowOffsetX, shadowOffsetY, boxPaddingX, boxPaddingY, boxRadius, safeMargin (0..0.25 of the frame; keeps captions inside the safe area). `cueSettings` merges WebVTT settings (line, snapToLines, lineAlign, position, positionAlign, size, align) and is written into VTT export; SRT cannot carry them. cueSettings:null clears them.
+- **save_caption_style** — Save a caption look (style plus cue settings) under a name. Pass { name, subtitleId } to copy a cue's look, or { name, style, cueSettings? }. Saving an existing name overwrites it.
 
 ## keyframe
-- **add_keyframe** — Add a keyframe for a clip property.
-- **remove_keyframe** — Remove a keyframe.
-- **set_clip_keyframes** — Replace all keyframes on a clip.
+- **add_keyframe** — Animate an existing main-timeline clip by adding a property keyframe at clip-local time in seconds. Supported transform properties are opacity, position.x/y, scale.x/y, and rotation; effect parameters are keyed by effect INSTANCE as fx:<effectId>:<param> (effectId from get_clip / list_effect_params; two copies of an effect animate independently). Legacy type-keyed ids (effect.brightness/contrast/saturation/temperature/blur, effect.<proEffectType>.<param>) are still accepted only when the clip has exactly one effect of that type (it is rewritten onto that instance); no such effect, or several instances, is rejected, so prefer the fx id. Add at least two keyframes for interpolation.
+- **remove_keyframe** — Remove a keyframe. Effect keyframes are keyed fx:<effectId>:<param>; legacy type-keyed ids resolve to the single matching effect and are rejected when the clip has several of that type (use the fx id).
+- **set_clip_keyframes** — Replace all animation keyframes on an existing main-timeline clip. Times are clip-local seconds. Each item needs property, time, and value; id and easing default automatically.
+- **set_effect_param_keyframe** — Add or update a keyframe on one numeric parameter of one effect INSTANCE at a clip-local time in seconds (the inspector stopwatch). Keyframes belong to the instance, so two copies of the same effect animate independently. Works for every classic video effect; see list_effect_params for the keys. A keyframe already at that time is updated. One undo step.
+- **remove_effect_param_keyframe** (destructive) — Remove the keyframe of an effect instance parameter at a clip-local time (seconds), or every keyframe of that parameter when time is omitted (stopwatch off; the parameter keeps its stored value). One undo step.
 
 ## transition
-- **add_transition** — Add a transition between two clips.
-- **update_transition** — Update a transition.
+- **add_transition** — Add a rendered transition between two adjacent existing clips on the same main-timeline track. Use list_clips for ordered clip ids and get_capabilities transitionTypes for values such as whipPan, zoom, push, glitch, or flash.
+- **update_transition** — Update an existing main-timeline transition's type and/or duration.
 - **remove_transition** — Remove a transition.
 
 ## marker
@@ -323,9 +438,14 @@ The agent exposes **303 tools** spanning read/observe, project, track, clip, tra
 - **create_text_clip** — Create a text overlay that renders immediately. Pass { clip: { text, startTime, duration, style?, trackId? } }. A text track is created automatically if needed.
 - **update_text_clip** — Update a text overlay clip's content/style/animation/transform. Pass { clipId, updates: { text?, style?, animation?, transform? } }. Renders immediately.
 - **remove_text_clip** (destructive) — Remove a text overlay clip. Engine-aware so the preview and export stop rendering it.
+- **set_text_scroll** — Make a text clip roll (vertical credits) or crawl (horizontal ticker) across the frame over its whole duration. Pass { clipId, scroll: { mode: "roll"|"crawl", direction?: roll up|down, crawl left|right, startOffscreen?: true, endOffscreen?: true } } or scroll:null to stop scrolling. With startOffscreen the text enters fully outside the frame, with endOffscreen it leaves fully outside; a side that is not off-screen rests at the clip's position. Rendered the same in preview and export (2D text only: 3D-extruded or 3D-rotated titles ignore it).
+- **list_saved_styles** (read-only) — List the saved text styles and caption styles stored on the project (id, name).
+- **save_text_style** — Save a text clip's look under a name so it can be applied to other text clips. Pass { name, clipId } (copies that clip's style and scroll) or { name, style } with a TextStyle object. Saving an existing name overwrites it.
+- **apply_saved_style** — Apply a saved style (id or name) to text clips ({ kind: "text", styleId, clipIds }) or caption cues ({ kind: "caption", styleId, subtitleIds }) as ONE undo step. Use list_saved_styles to see what exists.
+- **delete_saved_style** (destructive) — Delete a saved text or caption style by id or name. Clips that already use it keep their look.
 
 ## graphics
-- **create_shape_clip** — Create a graphic/shape overlay that renders above the video and image tracks (e.g. a full-frame black scrim). Pass { clip: { shapeType?, startTime, duration, color?, opacity?, fullFrame?, trackId? } }.
+- **create_shape_clip** — Create a graphic/shape overlay that renders above the video and image tracks (e.g. a full-frame black scrim). Pass { clip: { shapeType?, startTime, duration, color?, opacity?, fullFrame?, trackId?, pathData?, points?, closed? } }. For shapeType path supply pathData (SVG path string) or points ([{x,y}] normalized 0..1) and optional closed.
 - **update_shape_clip** — Update a shape overlay's color/opacity/style/transform/fullFrame. Pass { clipId, updates: { color?, opacity?, style?, transform?, fullFrame? } }. Renders immediately.
 - **remove_shape_clip** (destructive) — Remove a shape overlay clip. Engine-aware so the preview and export stop rendering it.
 - **create_sticker_clip** — Create a sticker/emoji overlay that renders above the video tracks. Pass { clip: { emoji?, imageUrl?, name?, startTime, duration, trackId? } }. A graphics track is created automatically if needed.
@@ -334,6 +454,11 @@ The agent exposes **303 tools** spanning read/observe, project, track, clip, tra
 - **create_svg_clip** — Create an SVG/vector graphic overlay from raw SVG markup. Pass { clip: { svg, startTime, duration, trackId? } }. A graphics track is created automatically if needed.
 - **update_svg_clip** — Update an SVG overlay's fields (transform, color style, etc.). Pass { clipId, updates }.
 - **remove_svg_clip** (destructive) — Remove a svg overlay clip. Engine-aware so the preview and export stop rendering it.
+- **list_graphic_templates** (read-only) — List Essential Graphics templates (built-in lower thirds, titles, callouts, end cards, plus the user's saved ones) with their exposed controls (id, label, type, default, range), the protected intro/outro length and layers, and the graphics already placed on the active timeline. Filter with "category" (lower-third, title, callout, end-card, custom). Use the control ids with insert_graphic_template and set_template_parameter.
+- **insert_graphic_template** — Place an Essential Graphics template on the active timeline as ONE graphic (its layers are grouped). "templateId" is an id or name from list_graphic_templates. "startTime" (seconds, default 0) and optional "duration" (default: the template length; never shorter than its intro+outro). "values" sets exposed controls by id, e.g. {"name":"Alex Morgan","accent":"#ff6600","showTitle":false}. Optional "trackId"; otherwise a free graphics track is reused or created above the video. Returns the graphic id for set_template_parameter. One undo step.
+- **set_template_parameter** — Change exposed controls of a placed graphic. "graphicId" comes from insert_graphic_template / list_graphic_templates. Give either "parameterId" + "value" or "values" ({id: value, ...}) to set several at once in one undo step. Text controls take strings, color controls #hex / rgba(), slider/number controls numbers (clamped to the range), checkbox controls true/false (shows or hides a layer), position controls {"x":960,"y":540} in 1920x1080 design pixels.
+- **save_graphic_template** — Save a placed graphic (with its current control values as the new defaults, its edited layers and controls) as a reusable template in the user's library, listed by list_graphic_templates under category "custom". "graphicId" is the placed graphic, "name" the new template name. Does not change the project (no undo step). The user can export it as a .openreel-template file from the Inspector.
+- **set_sequence_frame_size** — Change the active sequence frame size ("width", "height" in pixels). By default ("scaleGraphics" true) every graphic template, text, shape and SVG clip of the sequence is rescaled so it keeps its proportion to the frame (a 1080p title stays inside a 640x360 frame); pass "scaleGraphics": false to change only the canvas. One undo step. Use update_project_settings for fps/sample rate.
 
 ## raw
 - **execute_action** (destructive) — Escape hatch: dispatch any underlying editor action by type + params. Use get_capabilities and the action catalog for valid types.
@@ -345,8 +470,34 @@ The agent exposes **303 tools** spanning read/observe, project, track, clip, tra
 - **run_motion_render_queue** (expensive) — Render every queued (or previously failed) item in the motion render queue sequentially and return per-item outcomes (data.outcomes: itemId, status, encodedFormat, filename, error). Items whose cancel was requested are skipped as 'canceled'. Expensive — requires confirmation.
 - **list_motion_render_queue** (read-only) — List the current motion render queue items (data.items with itemId, compositionId, format, status, progress, and any range/resolutionScale/filename/error).
 - **cancel_motion_render_item** — Cancel a queued or in-progress motion render queue item by itemId. A queued item is canceled immediately; a rendering item stops at the next frame boundary. Returns whether the item was found.
-- **export_video** (expensive) — Render the whole project to a local video file (format: mp4|webm|mov, default mp4) and return its local result metadata. Expensive — requires confirmation.
-- **export_audio** (expensive) — Render the project audio to a local file (format: mp3|wav|aac|flac|ogg, default wav) and return its local result metadata. Expensive — requires confirmation.
+- **export_video** (expensive) — Render the whole project to a video file and wait for it (use queue_export for long or queued jobs). With no options it writes a standard MP4 (H.264). Call get_export_options first for anything else: format (mp4|mov|webm|mxf), codec, bitDepth (8|10), hdr (sdr|pq|hlg), width, height, frameRate, bitrateKbps, audioChannels (mono|stereo|5.1), timecode, presetId. outputPath (absolute, inside the allowed folders; see get_app_state mcp.allowedRoots) puts the file there, overwrite:true replaces an existing one; without it the file stays in the app's export folder and data.path says where. targetLufs (-40..-5) normalizes loudness with a true-peak ceiling (truePeakCeilingDb, default -1). An unsupported combination returns UNSUPPORTED with a hint listing valid alternatives. Result data: path, filename, bytes, sizeBytes, sha256, format, contentType. Expensive: requires confirmation.
+- **export_audio** (expensive) — Render the project audio to a local file (format: mp3|wav|aac|flac|ogg, default wav) and return its local result metadata. Optional targetLufs (-40..-5) normalizes the mix to that integrated loudness with a true-peak ceiling (truePeakCeilingDb, default -1). Expensive — requires confirmation.
+- **export_timeline_xml** (read-only) — Serialize the video/audio timeline for another editor and return the file text. format "xmeml" (default) = Final Cut Pro 7 XML v5 that Premiere Pro and DaVinci Resolve import; "fcpxml" = Final Cut Pro X FCPXML 1.10; "edl" = CMX3600, one file per video track; "otio" = OpenTimelineIO JSON (Resolve, Avid, Premiere plugins; also carries sync lock and track targeting). Clips, tracks, speed, opacity, volume, cross dissolves and markers are included. Pass "sequence" (id or name, see list_sequences) to export ANY sequence, open or not; it defaults to the active one. Nested sequences stay nested in xmeml (nested sequence), otio (stacks) and fcpxml (compound clips / ref-clip); edl gets them flattened, with a report entry. Multicam cuts are written as multiclip (xmeml) or mc-clip (fcpxml) with every angle; otio and edl flatten them to the active angle, with a report entry. Everything dropped or approximated (effects, speed ramps, text clips, sync lock where the format has no field...) is listed per clip in `report.items`, never silently; `report.notes` says AAF is available only from File > Export timeline in the editor (it is a binary file, so this text tool does not return it; see docs/interchange.md). Read-only.
+- **render_in_to_out** (expensive) — Render the timeline's In/Out range (or the whole sequence when none is marked) into the preview render cache so effects, transitions and grades play back at full frame rate. Optional rangeStart/rangeEnd (seconds, start<end) render that span instead. Frames already cached are skipped. Returns data.status (completed|canceled|failed), framesRendered, framesSkipped, elapsedMs and the codec. Not an edit: no undo step. Expensive — requires confirmation.
+- **delete_render_files** — Delete every cached preview render (Sequence > Delete render files). Playback of those segments goes back to live rendering. Cancels a running render first. Returns data.removedFrames. The project is unchanged: no undo step.
+- **get_render_status** (read-only) — Report the render-status bar: data.segments lists timeline stretches as cached (green: plays from the render cache), light (yellow: needs a render but likely plays in real time) or heavy (red: effects-heavy, unlikely to play in real time); plain media is omitted. Also data.cachedRanges (seconds), frameCount, bytes and whether a render is running. Read-only.
+- **get_export_options** (read-only) — List what export_video and queue_export can do on this machine, from the same sources as the Export dialog: formats[{id, container, codecs, bitDepths, hdr[sdr|pq|hlg], available, reason?, codecOptions, unavailableCodecs}], presets[{id, label, kind, format, codec, width, height, frameRate, bitrateKbps}] (pass an id as presetId), resolutions, frameRates, audioLayouts (mono|stereo|5.1), hdr {supported, reason?} and timecode {supported}. Call this before exporting anything but a plain MP4: an unsupported combination is refused with UNSUPPORTED and a hint that lists the valid alternatives. Read-only.
+- **queue_export** (expensive) — Add a video export to the export queue (Export dialog > Add to queue) and, unless start=false, start the queue. The job captures the project as it is now: later edits do not change it. Give a quick preset id (mp4 | 4k | 1080p-high | 1080p-60) or explicit format (mp4|webm|mov), codec, width, height, frameRate and bitrate (kbps); anything omitted comes from the project. Optional rangeStart/rangeEnd (seconds, start<end) export only that span; filename overrides the output name; sequenceId renders that sequence instead of the active one (see list_sequences); usePreviews (default true) reuses frames from the preview render cache when it matches the export size and frame rate; smartRender (default true) stream-copies untouched, GOP-aligned runs of H.264 sources (also HEVC on desktop's native encoder) when codec, size and frame rate match the source and re-encodes everything else (finished jobs report 'Smart render: N% copied' in data.jobs[].smartRender, with reasons when less was copied). captions: [{captionTrackId ("" = default), burnIn (default true: draw the track into the picture), embedded: none|subtitle|cea608}] sets per-track caption delivery - "subtitle" embeds a subtitle track (WebVTT in browser MP4, tx3g mov_text in desktop MP4/MOV) and "cea608" embeds CEA-608 as a c608 track in desktop MOV (MP4 falls back to tx3g); a track with burnIn false is left out of the picture (smart render may then stream-copy under it). Jobs run one at a time. Also takes the export_video options: presetId (any id from get_export_options), codec incl. prores/dnxhr/xdcamhd422/avcintra100, format mxf, bitDepth, hdr (sdr|pq|hlg), audioChannels, timecode, targetLufs and outputPath (absolute, inside the allowed folders; overwrite:true replaces a file): when the job completes the file is placed there and list_export_jobs reports outputPath, outputBytes and sha256. An unsupported combination returns UNSUPPORTED with a hint. Returns data.jobId; poll list_export_jobs. Not an edit: no undo step. Expensive - requires confirmation.
+- **list_export_jobs** (read-only) — List the export queue: data.jobs with id, outputName, sequenceName, presetLabel, status (queued|running|completed|failed|cancelled|interrupted), progress (0..1), elapsedMs, etaMs, range, usePreviews, framesFromCache, smartRender ({copiedPercent, summary, reasons} once finished), error and outputPath (desktop). Read-only.
+- **cancel_export_job** — Cancel a queued or running export job by jobId (from queue_export / list_export_jobs). A queued job is dropped from the line; a running job stops at the next frame. Finished jobs are left as they are. Not an edit: no undo step.
+- **export_image_sequence** (expensive) — Render frames of the project as numbered PNG or JPEG files delivered as one zip and wait for it. format png (default, lossless) | jpg, quality 1-100 (jpg only), width/height (default the project's), rangeStart/rangeEnd (timeline seconds, end exclusive; default the whole timeline) and pattern (file name with a zero-padded counter, e.g. 'frame_{0000}' -> frame_0042.png; default frame_{0000}), startNumber (added to the project frame index; default 0). One file per project frame, at most 5000 frames and about 1 GB: use a range for longer timelines. Result data: path, filename, bytes, frames, format. Not an edit: no undo step. Expensive: requires confirmation.
+- **export_gif** (expensive) — Render the project (or a span) as an animated GIF and wait for it. fps 1-50 (default 15; GIF delays are whole centiseconds, so the real rate is 100/round(100/fps), e.g. 15 -> 14.29, and frames are sampled at that rate so the duration stays true), width/height (default the project's size scaled to at most 640 wide), maxColors 2-256 (one global palette, default 256), loop 0 = forever (default) | n = n plays | 'none' = play once, rangeStart/rangeEnd (timeline seconds, end exclusive). Limits: 4096 px a side, 1500 frames and about 768 MB of frame pixels. Result data: path, filename, bytes, frames. Not an edit: no undo step. Expensive: requires confirmation.
+- **queue_stems_export** (expensive) — Add a stems job to the export queue (Export queue panel > Stems) and, unless start=false, start the queue. The job snapshots the project now; when it runs it renders each selected bus (busIds; default every bus that carries audio) as its own WAV through the export mixdown, all full-length and sample-aligned so they re-sum in a DAW, and bundles them in one zip. bitDepth 16 or 24 (default 24); filename overrides the zip name. Returns data.jobId; poll list_export_jobs, where a finished stems job lists data.jobs[].stems (one entry per WAV with fileName, bytes, durationSec). Not an edit: no undo step. Expensive - requires confirmation.
+
+## multicam
+- **get_project_manifest** (read-only) — Return the exact openreel-multicam/v1 manifest for a camera group, including participants, camera subjects, sync reference, and hard constraints.
+- **get_activity_map** (read-only) — Read the reusable .orma speech activity map for an optional millisecond range. Large maps are deterministically sampled to at most 2,000 points.
+- **get_transcript** (read-only) — Read optional per-participant local Whisper transcript segments from the separate .orma artifact.
+- **set_edit_policy** (destructive) — Re-plan the automatic multicam edit from cached analysis. All values are schema-validated and manifest shot constraints remain hard bounds.
+- **annotate_segment** — Attach a concise planning note to a bounded multicam time range without modifying cached analysis.
+- **get_edit_summary** (read-only) — Summarize shots, layouts, pending cut review, annotations, and top deterministic social candidates.
+- **override_cut** (destructive) — Accept, reject, nudge by at most 2 seconds, or assign a valid manifest camera to one generated cut.
+- **preview_frame** (read-only, expensive) — Render a frame at a bounded millisecond time for visual inspection of the current multicam edit.
+- **list_multicam_sources** (read-only) — List the project's multi-camera sources (synced angles, numbered 1-9 like the number keys) and the multicam clips of the active sequence that use them, with each clip's active angle.
+- **create_multicam** (expensive) — Create a synced multi-camera source from 2 to 9 video media items ("mediaIds", the first is the sync reference; angle numbers follow the order) and, by default, place it on the timeline at "startTime" (seconds, default 0) as one multicam clip showing angle 1. "syncMethod": "audio" (default: cross-correlates the cameras' audio, accurate to well under a frame; needs a host that can decode audio, or pass "offsets"), "timecode" (pass "timecodes": start timecode seconds per media), "in-points" (pass "inPoints": In time in each media), "markers" (pass "markers": a marker time in each media), or "manual" (pass "offsets": shared-time seconds at which each media's time 0 plays). "audio": {"mode":"follow"} (default: audio follows the video angle) or {"mode":"fixed","angle":N}. Pass "place": false to only create the source. One undo step. Then use switch_angle / record_multicam_cuts / flatten_multicam.
+- **switch_angle** — Switch a multicam clip to another angle, keeping every frame in sync. Identify the clip by "clipId" or by "atTime" (timeline seconds: the multicam clip on screen then). "angle" is the 1-based angle number (the number key), id or name. Refused when the angle has no footage for that span. One undo step.
+- **record_multicam_cuts** — Cut a multicam clip between angles in one pass, like pressing the number keys during playback: "cuts" is a list of {time (timeline seconds), angle (1-based number, id or name)}; each angle runs until the next cut, the last until "endTime". Splits the multicam clips where a cut lands inside them. One undo step for the whole pass.
+- **flatten_multicam** (destructive) — Flatten multicam clips to their active angle: every cut becomes a plain clip of that angle (same frames, same audio), no longer linked to the multicam source. Optional "sourceId" or "clipIds" limit what is flattened. One undo step.
 
 ## Capability manifest (enums + parameter ranges)
 
@@ -396,6 +547,14 @@ The agent exposes **303 tools** spanning read/observe, project, track, clip, tra
     "reverb",
     "delay",
     "noiseReduction",
+    "deHum",
+    "deClick",
+    "deClip",
+    "deEss",
+    "deReverb",
+    "gate",
+    "brickwallLimiter",
+    "lowPass",
     "fadeIn",
     "fadeOut"
   ],
@@ -2054,6 +2213,2261 @@ The agent exposes **303 tools** spanning read/observe, project, track, clip, tra
       "area",
       "spot"
     ]
+  },
+  "proEffects": [
+    {
+      "type": "mosaic",
+      "label": "Mosaic",
+      "category": "Stylize",
+      "supersedes": [
+        "shader:pixelate"
+      ],
+      "params": [
+        {
+          "key": "size",
+          "kind": "number",
+          "min": 1,
+          "max": 200,
+          "step": 1,
+          "default": 12,
+          "neutral": 1
+        }
+      ]
+    },
+    {
+      "type": "posterize",
+      "label": "Posterize",
+      "category": "Stylize",
+      "supersedes": [
+        "shader:posterize"
+      ],
+      "params": [
+        {
+          "key": "levels",
+          "kind": "number",
+          "min": 2,
+          "max": 256,
+          "step": 1,
+          "default": 6,
+          "neutral": 256
+        }
+      ]
+    },
+    {
+      "type": "mirror",
+      "label": "Mirror",
+      "category": "Creative",
+      "supersedes": [
+        "shader:mirror"
+      ],
+      "params": [
+        {
+          "key": "mode",
+          "kind": "select",
+          "default": "horizontal",
+          "neutral": "none",
+          "options": [
+            "none",
+            "horizontal",
+            "vertical",
+            "quad"
+          ]
+        },
+        {
+          "key": "center",
+          "kind": "number",
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "default": 50,
+          "neutral": 50
+        }
+      ]
+    },
+    {
+      "type": "lens-distortion",
+      "label": "Lens Distortion",
+      "category": "Creative",
+      "supersedes": [
+        "shader:fisheye"
+      ],
+      "params": [
+        {
+          "key": "amount",
+          "kind": "number",
+          "min": -100,
+          "max": 100,
+          "step": 1,
+          "default": 40,
+          "neutral": 0
+        },
+        {
+          "key": "zoom",
+          "kind": "number",
+          "min": 10,
+          "max": 400,
+          "step": 1,
+          "default": 100,
+          "neutral": 100
+        },
+        {
+          "key": "compensate",
+          "kind": "toggle",
+          "default": true,
+          "neutral": true
+        }
+      ]
+    },
+    {
+      "type": "directional-blur",
+      "label": "Directional Blur",
+      "category": "Blur",
+      "params": [
+        {
+          "key": "angle",
+          "kind": "number",
+          "min": 0,
+          "max": 360,
+          "step": 1,
+          "default": 0,
+          "neutral": 0
+        },
+        {
+          "key": "length",
+          "kind": "number",
+          "min": 0,
+          "max": 200,
+          "step": 1,
+          "default": 20,
+          "neutral": 0
+        }
+      ]
+    },
+    {
+      "type": "find-edges",
+      "label": "Find Edges",
+      "category": "Stylize",
+      "params": [
+        {
+          "key": "amount",
+          "kind": "number",
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "default": 100,
+          "neutral": 0
+        },
+        {
+          "key": "invert",
+          "kind": "toggle",
+          "default": false,
+          "neutral": false
+        }
+      ]
+    },
+    {
+      "type": "emboss",
+      "label": "Emboss",
+      "category": "Stylize",
+      "params": [
+        {
+          "key": "amount",
+          "kind": "number",
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "default": 100,
+          "neutral": 0
+        },
+        {
+          "key": "angle",
+          "kind": "number",
+          "min": 0,
+          "max": 360,
+          "step": 1,
+          "default": 135,
+          "neutral": 135
+        },
+        {
+          "key": "relief",
+          "kind": "number",
+          "min": 0,
+          "max": 10,
+          "step": 0.1,
+          "default": 1,
+          "neutral": 1
+        }
+      ]
+    },
+    {
+      "type": "exposure",
+      "label": "Exposure",
+      "category": "Color",
+      "params": [
+        {
+          "key": "exposure",
+          "kind": "number",
+          "min": -5,
+          "max": 5,
+          "step": 0.05,
+          "default": 0.5,
+          "neutral": 0
+        },
+        {
+          "key": "offset",
+          "kind": "number",
+          "min": -0.5,
+          "max": 0.5,
+          "step": 0.01,
+          "default": 0,
+          "neutral": 0
+        },
+        {
+          "key": "gamma",
+          "kind": "number",
+          "min": 0.2,
+          "max": 3,
+          "step": 0.01,
+          "default": 1,
+          "neutral": 1
+        }
+      ]
+    },
+    {
+      "type": "threshold",
+      "label": "Threshold",
+      "category": "Stylize",
+      "params": [
+        {
+          "key": "level",
+          "kind": "number",
+          "min": 0,
+          "max": 255,
+          "step": 1,
+          "default": 128,
+          "neutral": 128
+        },
+        {
+          "key": "mix",
+          "kind": "number",
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "default": 100,
+          "neutral": 0
+        }
+      ]
+    },
+    {
+      "type": "halftone",
+      "label": "Halftone",
+      "category": "Stylize",
+      "params": [
+        {
+          "key": "dotSize",
+          "kind": "number",
+          "min": 2,
+          "max": 100,
+          "step": 1,
+          "default": 8,
+          "neutral": 8
+        },
+        {
+          "key": "angle",
+          "kind": "number",
+          "min": 0,
+          "max": 360,
+          "step": 1,
+          "default": 45,
+          "neutral": 45
+        },
+        {
+          "key": "amount",
+          "kind": "number",
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "default": 100,
+          "neutral": 0
+        },
+        {
+          "key": "invert",
+          "kind": "toggle",
+          "default": false,
+          "neutral": false
+        }
+      ]
+    },
+    {
+      "type": "vhs-glitch",
+      "label": "VHS / Glitch",
+      "category": "Stylize",
+      "supersedes": [
+        "shader:vhs"
+      ],
+      "params": [
+        {
+          "key": "scanlines",
+          "kind": "number",
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "default": 35,
+          "neutral": 0
+        },
+        {
+          "key": "rgbSplit",
+          "kind": "number",
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "default": 4,
+          "neutral": 0
+        },
+        {
+          "key": "jitter",
+          "kind": "number",
+          "min": 0,
+          "max": 200,
+          "step": 1,
+          "default": 6,
+          "neutral": 0
+        },
+        {
+          "key": "noise",
+          "kind": "number",
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "default": 10,
+          "neutral": 0
+        },
+        {
+          "key": "time",
+          "kind": "number",
+          "min": 0,
+          "max": 3600,
+          "step": 0.1,
+          "default": 0,
+          "neutral": 0
+        },
+        {
+          "key": "seed",
+          "kind": "number",
+          "min": 0,
+          "max": 9999,
+          "step": 1,
+          "default": 1,
+          "neutral": 1
+        }
+      ]
+    },
+    {
+      "type": "unsharp-mask",
+      "label": "Unsharp Mask",
+      "category": "Creative",
+      "params": [
+        {
+          "key": "amount",
+          "kind": "number",
+          "min": 0,
+          "max": 500,
+          "step": 1,
+          "default": 100,
+          "neutral": 0
+        },
+        {
+          "key": "radius",
+          "kind": "number",
+          "min": 0.1,
+          "max": 50,
+          "step": 0.1,
+          "default": 2,
+          "neutral": 2
+        },
+        {
+          "key": "threshold",
+          "kind": "number",
+          "min": 0,
+          "max": 255,
+          "step": 1,
+          "default": 0,
+          "neutral": 0
+        }
+      ]
+    },
+    {
+      "type": "gaussian-blur",
+      "label": "Gaussian Blur (H/V)",
+      "category": "Blur",
+      "supersedes": [
+        "blur"
+      ],
+      "params": [
+        {
+          "key": "blurX",
+          "kind": "number",
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "default": 10,
+          "neutral": 0
+        },
+        {
+          "key": "blurY",
+          "kind": "number",
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "default": 10,
+          "neutral": 0
+        }
+      ]
+    },
+    {
+      "type": "crop",
+      "label": "Crop (Feather)",
+      "category": "Creative",
+      "params": [
+        {
+          "key": "left",
+          "kind": "number",
+          "min": 0,
+          "max": 100,
+          "step": 0.5,
+          "default": 10,
+          "neutral": 0
+        },
+        {
+          "key": "top",
+          "kind": "number",
+          "min": 0,
+          "max": 100,
+          "step": 0.5,
+          "default": 10,
+          "neutral": 0
+        },
+        {
+          "key": "right",
+          "kind": "number",
+          "min": 0,
+          "max": 100,
+          "step": 0.5,
+          "default": 10,
+          "neutral": 0
+        },
+        {
+          "key": "bottom",
+          "kind": "number",
+          "min": 0,
+          "max": 100,
+          "step": 0.5,
+          "default": 10,
+          "neutral": 0
+        },
+        {
+          "key": "feather",
+          "kind": "number",
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "default": 12,
+          "neutral": 0
+        }
+      ]
+    },
+    {
+      "type": "vibrance",
+      "label": "Vibrance",
+      "category": "Color",
+      "params": [
+        {
+          "key": "vibrance",
+          "kind": "number",
+          "min": -100,
+          "max": 100,
+          "step": 1,
+          "default": 50,
+          "neutral": 0
+        },
+        {
+          "key": "saturation",
+          "kind": "number",
+          "min": -100,
+          "max": 100,
+          "step": 1,
+          "default": 0,
+          "neutral": 0
+        }
+      ]
+    },
+    {
+      "type": "skew",
+      "label": "Skew",
+      "category": "Creative",
+      "params": [
+        {
+          "key": "skewX",
+          "kind": "number",
+          "min": -60,
+          "max": 60,
+          "step": 1,
+          "default": 20,
+          "neutral": 0
+        },
+        {
+          "key": "skewY",
+          "kind": "number",
+          "min": -60,
+          "max": 60,
+          "step": 1,
+          "default": 0,
+          "neutral": 0
+        }
+      ]
+    },
+    {
+      "type": "hsl-secondary",
+      "label": "HSL Secondary",
+      "category": "Color",
+      "params": [
+        {
+          "key": "hueMin",
+          "kind": "number",
+          "min": 0,
+          "max": 360,
+          "step": 1,
+          "default": 0,
+          "neutral": 0
+        },
+        {
+          "key": "hueMax",
+          "kind": "number",
+          "min": 0,
+          "max": 360,
+          "step": 1,
+          "default": 360,
+          "neutral": 360
+        },
+        {
+          "key": "hueSoft",
+          "kind": "number",
+          "min": 0,
+          "max": 180,
+          "step": 1,
+          "default": 10,
+          "neutral": 10
+        },
+        {
+          "key": "satMin",
+          "kind": "number",
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "default": 0,
+          "neutral": 0
+        },
+        {
+          "key": "satMax",
+          "kind": "number",
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "default": 100,
+          "neutral": 100
+        },
+        {
+          "key": "satSoft",
+          "kind": "number",
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "default": 10,
+          "neutral": 10
+        },
+        {
+          "key": "lumMin",
+          "kind": "number",
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "default": 0,
+          "neutral": 0
+        },
+        {
+          "key": "lumMax",
+          "kind": "number",
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "default": 100,
+          "neutral": 100
+        },
+        {
+          "key": "lumSoft",
+          "kind": "number",
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "default": 10,
+          "neutral": 10
+        },
+        {
+          "key": "denoise",
+          "kind": "number",
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "default": 0,
+          "neutral": 0
+        },
+        {
+          "key": "blur",
+          "kind": "number",
+          "min": 0,
+          "max": 20,
+          "step": 0.5,
+          "default": 0,
+          "neutral": 0
+        },
+        {
+          "key": "invert",
+          "kind": "toggle",
+          "default": false,
+          "neutral": false
+        },
+        {
+          "key": "temperature",
+          "kind": "number",
+          "min": -100,
+          "max": 100,
+          "step": 1,
+          "default": 0,
+          "neutral": 0
+        },
+        {
+          "key": "tint",
+          "kind": "number",
+          "min": -100,
+          "max": 100,
+          "step": 1,
+          "default": 0,
+          "neutral": 0
+        },
+        {
+          "key": "contrast",
+          "kind": "number",
+          "min": -100,
+          "max": 100,
+          "step": 1,
+          "default": 0,
+          "neutral": 0
+        },
+        {
+          "key": "sharpen",
+          "kind": "number",
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "default": 0,
+          "neutral": 0
+        },
+        {
+          "key": "saturation",
+          "kind": "number",
+          "min": -100,
+          "max": 100,
+          "step": 1,
+          "default": -50,
+          "neutral": 0
+        },
+        {
+          "key": "wheelX",
+          "kind": "number",
+          "min": -1,
+          "max": 1,
+          "step": 0.01,
+          "default": 0,
+          "neutral": 0
+        },
+        {
+          "key": "wheelY",
+          "kind": "number",
+          "min": -1,
+          "max": 1,
+          "step": 0.01,
+          "default": 0,
+          "neutral": 0
+        },
+        {
+          "key": "maskShape",
+          "kind": "select",
+          "default": "none",
+          "neutral": "none",
+          "options": [
+            "none",
+            "ellipse",
+            "rectangle"
+          ]
+        },
+        {
+          "key": "maskX",
+          "kind": "number",
+          "min": 0,
+          "max": 100,
+          "step": 0.5,
+          "default": 50,
+          "neutral": 50
+        },
+        {
+          "key": "maskY",
+          "kind": "number",
+          "min": 0,
+          "max": 100,
+          "step": 0.5,
+          "default": 50,
+          "neutral": 50
+        },
+        {
+          "key": "maskW",
+          "kind": "number",
+          "min": 0,
+          "max": 100,
+          "step": 0.5,
+          "default": 50,
+          "neutral": 50
+        },
+        {
+          "key": "maskH",
+          "kind": "number",
+          "min": 0,
+          "max": 100,
+          "step": 0.5,
+          "default": 50,
+          "neutral": 50
+        },
+        {
+          "key": "maskFeather",
+          "kind": "number",
+          "min": 0,
+          "max": 200,
+          "step": 1,
+          "default": 0,
+          "neutral": 0
+        },
+        {
+          "key": "maskInvert",
+          "kind": "toggle",
+          "default": false,
+          "neutral": false
+        }
+      ]
+    },
+    {
+      "type": "camera-blur",
+      "label": "Camera Blur",
+      "category": "Blur",
+      "params": [
+        {
+          "key": "radius",
+          "kind": "number",
+          "min": 0,
+          "max": 60,
+          "step": 0.5,
+          "default": 12,
+          "neutral": 0
+        }
+      ]
+    },
+    {
+      "type": "channel-blur",
+      "label": "Channel Blur",
+      "category": "Blur",
+      "params": [
+        {
+          "key": "red",
+          "kind": "number",
+          "min": 0,
+          "max": 60,
+          "step": 0.5,
+          "default": 10,
+          "neutral": 0
+        },
+        {
+          "key": "green",
+          "kind": "number",
+          "min": 0,
+          "max": 60,
+          "step": 0.5,
+          "default": 0,
+          "neutral": 0
+        },
+        {
+          "key": "blue",
+          "kind": "number",
+          "min": 0,
+          "max": 60,
+          "step": 0.5,
+          "default": 0,
+          "neutral": 0
+        },
+        {
+          "key": "alpha",
+          "kind": "number",
+          "min": 0,
+          "max": 60,
+          "step": 0.5,
+          "default": 0,
+          "neutral": 0
+        }
+      ]
+    },
+    {
+      "type": "tilt-shift",
+      "label": "Tilt-Shift Blur",
+      "category": "Blur",
+      "params": [
+        {
+          "key": "blur",
+          "kind": "number",
+          "min": 0,
+          "max": 40,
+          "step": 0.5,
+          "default": 14,
+          "neutral": 0
+        },
+        {
+          "key": "angle",
+          "kind": "number",
+          "min": 0,
+          "max": 360,
+          "step": 1,
+          "default": 0,
+          "neutral": 0
+        },
+        {
+          "key": "center",
+          "kind": "number",
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "default": 50,
+          "neutral": 50
+        },
+        {
+          "key": "focus",
+          "kind": "number",
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "default": 20,
+          "neutral": 20
+        },
+        {
+          "key": "falloff",
+          "kind": "number",
+          "min": 1,
+          "max": 100,
+          "step": 1,
+          "default": 30,
+          "neutral": 30
+        }
+      ]
+    },
+    {
+      "type": "luma-key",
+      "label": "Luma Key",
+      "category": "Keying",
+      "params": [
+        {
+          "key": "mode",
+          "kind": "select",
+          "default": "darker",
+          "neutral": "none",
+          "options": [
+            "none",
+            "darker",
+            "brighter"
+          ]
+        },
+        {
+          "key": "threshold",
+          "kind": "number",
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "default": 20,
+          "neutral": 0
+        },
+        {
+          "key": "softness",
+          "kind": "number",
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "default": 10,
+          "neutral": 0
+        }
+      ]
+    },
+    {
+      "type": "color-key",
+      "label": "Color Key",
+      "category": "Keying",
+      "params": [
+        {
+          "key": "keyR",
+          "kind": "number",
+          "min": 0,
+          "max": 255,
+          "step": 1,
+          "default": 0,
+          "neutral": 0
+        },
+        {
+          "key": "keyG",
+          "kind": "number",
+          "min": 0,
+          "max": 255,
+          "step": 1,
+          "default": 255,
+          "neutral": 255
+        },
+        {
+          "key": "keyB",
+          "kind": "number",
+          "min": 0,
+          "max": 255,
+          "step": 1,
+          "default": 0,
+          "neutral": 0
+        },
+        {
+          "key": "tolerance",
+          "kind": "number",
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "default": 40,
+          "neutral": 0
+        },
+        {
+          "key": "softness",
+          "kind": "number",
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "default": 10,
+          "neutral": 0
+        },
+        {
+          "key": "invert",
+          "kind": "toggle",
+          "default": false,
+          "neutral": false
+        }
+      ]
+    },
+    {
+      "type": "alpha-adjust",
+      "label": "Alpha Adjust",
+      "category": "Keying",
+      "params": [
+        {
+          "key": "opacity",
+          "kind": "number",
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "default": 60,
+          "neutral": 100
+        },
+        {
+          "key": "ignore",
+          "kind": "toggle",
+          "default": false,
+          "neutral": false
+        },
+        {
+          "key": "invert",
+          "kind": "toggle",
+          "default": false,
+          "neutral": false
+        },
+        {
+          "key": "matte",
+          "kind": "toggle",
+          "default": false,
+          "neutral": false
+        }
+      ]
+    },
+    {
+      "type": "leave-color",
+      "label": "Leave Color",
+      "category": "Color",
+      "params": [
+        {
+          "key": "keyR",
+          "kind": "number",
+          "min": 0,
+          "max": 255,
+          "step": 1,
+          "default": 255,
+          "neutral": 255
+        },
+        {
+          "key": "keyG",
+          "kind": "number",
+          "min": 0,
+          "max": 255,
+          "step": 1,
+          "default": 0,
+          "neutral": 0
+        },
+        {
+          "key": "keyB",
+          "kind": "number",
+          "min": 0,
+          "max": 255,
+          "step": 1,
+          "default": 0,
+          "neutral": 0
+        },
+        {
+          "key": "amount",
+          "kind": "number",
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "default": 100,
+          "neutral": 0
+        },
+        {
+          "key": "tolerance",
+          "kind": "number",
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "default": 30,
+          "neutral": 30
+        },
+        {
+          "key": "softness",
+          "kind": "number",
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "default": 20,
+          "neutral": 20
+        }
+      ]
+    },
+    {
+      "type": "change-to-color",
+      "label": "Change to Color",
+      "category": "Color",
+      "params": [
+        {
+          "key": "fromR",
+          "kind": "number",
+          "min": 0,
+          "max": 255,
+          "step": 1,
+          "default": 0,
+          "neutral": 0
+        },
+        {
+          "key": "fromG",
+          "kind": "number",
+          "min": 0,
+          "max": 255,
+          "step": 1,
+          "default": 200,
+          "neutral": 200
+        },
+        {
+          "key": "fromB",
+          "kind": "number",
+          "min": 0,
+          "max": 255,
+          "step": 1,
+          "default": 0,
+          "neutral": 0
+        },
+        {
+          "key": "toR",
+          "kind": "number",
+          "min": 0,
+          "max": 255,
+          "step": 1,
+          "default": 255,
+          "neutral": 0
+        },
+        {
+          "key": "toG",
+          "kind": "number",
+          "min": 0,
+          "max": 255,
+          "step": 1,
+          "default": 0,
+          "neutral": 200
+        },
+        {
+          "key": "toB",
+          "kind": "number",
+          "min": 0,
+          "max": 255,
+          "step": 1,
+          "default": 160,
+          "neutral": 0
+        },
+        {
+          "key": "tolerance",
+          "kind": "number",
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "default": 45,
+          "neutral": 0
+        },
+        {
+          "key": "softness",
+          "kind": "number",
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "default": 25,
+          "neutral": 0
+        }
+      ]
+    },
+    {
+      "type": "solarize",
+      "label": "Solarize",
+      "category": "Color",
+      "params": [
+        {
+          "key": "threshold",
+          "kind": "number",
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "default": 50,
+          "neutral": 100
+        }
+      ]
+    },
+    {
+      "type": "levels",
+      "label": "Levels",
+      "category": "Color",
+      "params": [
+        {
+          "key": "inBlack",
+          "kind": "number",
+          "min": 0,
+          "max": 254,
+          "step": 1,
+          "default": 24,
+          "neutral": 0
+        },
+        {
+          "key": "inWhite",
+          "kind": "number",
+          "min": 1,
+          "max": 255,
+          "step": 1,
+          "default": 225,
+          "neutral": 255
+        },
+        {
+          "key": "gamma",
+          "kind": "number",
+          "min": 0.1,
+          "max": 10,
+          "step": 0.01,
+          "default": 1.15,
+          "neutral": 1
+        },
+        {
+          "key": "outBlack",
+          "kind": "number",
+          "min": 0,
+          "max": 255,
+          "step": 1,
+          "default": 0,
+          "neutral": 0
+        },
+        {
+          "key": "outWhite",
+          "kind": "number",
+          "min": 0,
+          "max": 255,
+          "step": 1,
+          "default": 255,
+          "neutral": 255
+        }
+      ]
+    },
+    {
+      "type": "channel-mixer",
+      "label": "Channel Mixer",
+      "category": "Color",
+      "params": [
+        {
+          "key": "rr",
+          "kind": "number",
+          "min": -200,
+          "max": 200,
+          "step": 1,
+          "default": 50,
+          "neutral": 100
+        },
+        {
+          "key": "rg",
+          "kind": "number",
+          "min": -200,
+          "max": 200,
+          "step": 1,
+          "default": 0,
+          "neutral": 0
+        },
+        {
+          "key": "rb",
+          "kind": "number",
+          "min": -200,
+          "max": 200,
+          "step": 1,
+          "default": 50,
+          "neutral": 0
+        },
+        {
+          "key": "gr",
+          "kind": "number",
+          "min": -200,
+          "max": 200,
+          "step": 1,
+          "default": 0,
+          "neutral": 0
+        },
+        {
+          "key": "gg",
+          "kind": "number",
+          "min": -200,
+          "max": 200,
+          "step": 1,
+          "default": 100,
+          "neutral": 100
+        },
+        {
+          "key": "gb",
+          "kind": "number",
+          "min": -200,
+          "max": 200,
+          "step": 1,
+          "default": 0,
+          "neutral": 0
+        },
+        {
+          "key": "br",
+          "kind": "number",
+          "min": -200,
+          "max": 200,
+          "step": 1,
+          "default": 50,
+          "neutral": 0
+        },
+        {
+          "key": "bg",
+          "kind": "number",
+          "min": -200,
+          "max": 200,
+          "step": 1,
+          "default": 0,
+          "neutral": 0
+        },
+        {
+          "key": "bb",
+          "kind": "number",
+          "min": -200,
+          "max": 200,
+          "step": 1,
+          "default": 50,
+          "neutral": 100
+        },
+        {
+          "key": "mono",
+          "kind": "toggle",
+          "default": false,
+          "neutral": false
+        }
+      ]
+    },
+    {
+      "type": "tint-map",
+      "label": "Tint (Map Black/White)",
+      "category": "Color",
+      "params": [
+        {
+          "key": "blackR",
+          "kind": "number",
+          "min": 0,
+          "max": 255,
+          "step": 1,
+          "default": 10,
+          "neutral": 0
+        },
+        {
+          "key": "blackG",
+          "kind": "number",
+          "min": 0,
+          "max": 255,
+          "step": 1,
+          "default": 20,
+          "neutral": 0
+        },
+        {
+          "key": "blackB",
+          "kind": "number",
+          "min": 0,
+          "max": 255,
+          "step": 1,
+          "default": 60,
+          "neutral": 0
+        },
+        {
+          "key": "whiteR",
+          "kind": "number",
+          "min": 0,
+          "max": 255,
+          "step": 1,
+          "default": 255,
+          "neutral": 255
+        },
+        {
+          "key": "whiteG",
+          "kind": "number",
+          "min": 0,
+          "max": 255,
+          "step": 1,
+          "default": 230,
+          "neutral": 255
+        },
+        {
+          "key": "whiteB",
+          "kind": "number",
+          "min": 0,
+          "max": 255,
+          "step": 1,
+          "default": 190,
+          "neutral": 255
+        },
+        {
+          "key": "amount",
+          "kind": "number",
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "default": 100,
+          "neutral": 0
+        }
+      ]
+    },
+    {
+      "type": "spherize",
+      "label": "Spherize",
+      "category": "Distort",
+      "params": [
+        {
+          "key": "amount",
+          "kind": "number",
+          "min": -100,
+          "max": 100,
+          "step": 1,
+          "default": 60,
+          "neutral": 0
+        },
+        {
+          "key": "radius",
+          "kind": "number",
+          "min": 1,
+          "max": 200,
+          "step": 1,
+          "default": 100,
+          "neutral": 100
+        },
+        {
+          "key": "centerX",
+          "kind": "number",
+          "min": 0,
+          "max": 100,
+          "step": 0.5,
+          "default": 50,
+          "neutral": 50
+        },
+        {
+          "key": "centerY",
+          "kind": "number",
+          "min": 0,
+          "max": 100,
+          "step": 0.5,
+          "default": 50,
+          "neutral": 50
+        }
+      ]
+    },
+    {
+      "type": "twirl",
+      "label": "Twirl",
+      "category": "Distort",
+      "params": [
+        {
+          "key": "angle",
+          "kind": "number",
+          "min": -720,
+          "max": 720,
+          "step": 1,
+          "default": 120,
+          "neutral": 0
+        },
+        {
+          "key": "radius",
+          "kind": "number",
+          "min": 1,
+          "max": 200,
+          "step": 1,
+          "default": 80,
+          "neutral": 80
+        },
+        {
+          "key": "centerX",
+          "kind": "number",
+          "min": 0,
+          "max": 100,
+          "step": 0.5,
+          "default": 50,
+          "neutral": 50
+        },
+        {
+          "key": "centerY",
+          "kind": "number",
+          "min": 0,
+          "max": 100,
+          "step": 0.5,
+          "default": 50,
+          "neutral": 50
+        }
+      ]
+    },
+    {
+      "type": "ripple",
+      "label": "Wave Ripple",
+      "category": "Distort",
+      "params": [
+        {
+          "key": "amplitude",
+          "kind": "number",
+          "min": 0,
+          "max": 200,
+          "step": 0.5,
+          "default": 15,
+          "neutral": 0
+        },
+        {
+          "key": "wavelength",
+          "kind": "number",
+          "min": 4,
+          "max": 1000,
+          "step": 1,
+          "default": 80,
+          "neutral": 80
+        },
+        {
+          "key": "angle",
+          "kind": "number",
+          "min": 0,
+          "max": 360,
+          "step": 1,
+          "default": 0,
+          "neutral": 0
+        },
+        {
+          "key": "phase",
+          "kind": "number",
+          "min": 0,
+          "max": 360,
+          "step": 1,
+          "default": 0,
+          "neutral": 0
+        },
+        {
+          "key": "speed",
+          "kind": "number",
+          "min": -10,
+          "max": 10,
+          "step": 0.1,
+          "default": 0,
+          "neutral": 0
+        },
+        {
+          "key": "time",
+          "kind": "number",
+          "min": 0,
+          "max": 3600,
+          "step": 0.1,
+          "default": 0,
+          "neutral": 0
+        }
+      ]
+    },
+    {
+      "type": "turbulent-displace",
+      "label": "Turbulent Displace",
+      "category": "Distort",
+      "params": [
+        {
+          "key": "amount",
+          "kind": "number",
+          "min": 0,
+          "max": 300,
+          "step": 0.5,
+          "default": 40,
+          "neutral": 0
+        },
+        {
+          "key": "size",
+          "kind": "number",
+          "min": 4,
+          "max": 1000,
+          "step": 1,
+          "default": 120,
+          "neutral": 120
+        },
+        {
+          "key": "complexity",
+          "kind": "number",
+          "min": 1,
+          "max": 4,
+          "step": 1,
+          "default": 2,
+          "neutral": 2
+        },
+        {
+          "key": "evolution",
+          "kind": "number",
+          "min": 0,
+          "max": 1000,
+          "step": 0.1,
+          "default": 0,
+          "neutral": 0
+        },
+        {
+          "key": "seed",
+          "kind": "number",
+          "min": 0,
+          "max": 9999,
+          "step": 1,
+          "default": 1,
+          "neutral": 1
+        }
+      ]
+    },
+    {
+      "type": "offset",
+      "label": "Offset",
+      "category": "Distort",
+      "params": [
+        {
+          "key": "shiftX",
+          "kind": "number",
+          "min": -100,
+          "max": 100,
+          "step": 0.5,
+          "default": 20,
+          "neutral": 0
+        },
+        {
+          "key": "shiftY",
+          "kind": "number",
+          "min": -100,
+          "max": 100,
+          "step": 0.5,
+          "default": 0,
+          "neutral": 0
+        },
+        {
+          "key": "edge",
+          "kind": "select",
+          "default": "wrap",
+          "neutral": "wrap",
+          "options": [
+            "wrap",
+            "clamp",
+            "transparent"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "corner-pin",
+      "label": "Corner Pin",
+      "category": "Distort",
+      "params": [
+        {
+          "key": "x0",
+          "kind": "number",
+          "min": -100,
+          "max": 200,
+          "step": 0.5,
+          "default": 10,
+          "neutral": 0
+        },
+        {
+          "key": "y0",
+          "kind": "number",
+          "min": -100,
+          "max": 200,
+          "step": 0.5,
+          "default": 8,
+          "neutral": 0
+        },
+        {
+          "key": "x1",
+          "kind": "number",
+          "min": -100,
+          "max": 200,
+          "step": 0.5,
+          "default": 92,
+          "neutral": 100
+        },
+        {
+          "key": "y1",
+          "kind": "number",
+          "min": -100,
+          "max": 200,
+          "step": 0.5,
+          "default": 0,
+          "neutral": 0
+        },
+        {
+          "key": "x2",
+          "kind": "number",
+          "min": -100,
+          "max": 200,
+          "step": 0.5,
+          "default": 100,
+          "neutral": 100
+        },
+        {
+          "key": "y2",
+          "kind": "number",
+          "min": -100,
+          "max": 200,
+          "step": 0.5,
+          "default": 100,
+          "neutral": 100
+        },
+        {
+          "key": "x3",
+          "kind": "number",
+          "min": -100,
+          "max": 200,
+          "step": 0.5,
+          "default": 0,
+          "neutral": 0
+        },
+        {
+          "key": "y3",
+          "kind": "number",
+          "min": -100,
+          "max": 200,
+          "step": 0.5,
+          "default": 92,
+          "neutral": 100
+        }
+      ]
+    },
+    {
+      "type": "polar-coordinates",
+      "label": "Polar Coordinates",
+      "category": "Distort",
+      "params": [
+        {
+          "key": "mode",
+          "kind": "select",
+          "default": "rect-to-polar",
+          "neutral": "rect-to-polar",
+          "options": [
+            "rect-to-polar",
+            "polar-to-rect"
+          ]
+        },
+        {
+          "key": "amount",
+          "kind": "number",
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "default": 100,
+          "neutral": 0
+        }
+      ]
+    },
+    {
+      "type": "replicate",
+      "label": "Replicate",
+      "category": "Distort",
+      "params": [
+        {
+          "key": "count",
+          "kind": "number",
+          "min": 1,
+          "max": 16,
+          "step": 1,
+          "default": 2,
+          "neutral": 1
+        }
+      ]
+    },
+    {
+      "type": "color-emboss",
+      "label": "Color Emboss",
+      "category": "Stylize",
+      "params": [
+        {
+          "key": "amount",
+          "kind": "number",
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "default": 100,
+          "neutral": 0
+        },
+        {
+          "key": "angle",
+          "kind": "number",
+          "min": 0,
+          "max": 360,
+          "step": 1,
+          "default": 135,
+          "neutral": 135
+        },
+        {
+          "key": "relief",
+          "kind": "number",
+          "min": 0,
+          "max": 10,
+          "step": 0.1,
+          "default": 1,
+          "neutral": 1
+        }
+      ]
+    },
+    {
+      "type": "noise",
+      "label": "Noise",
+      "category": "Stylize",
+      "params": [
+        {
+          "key": "amount",
+          "kind": "number",
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "default": 25,
+          "neutral": 0
+        },
+        {
+          "key": "size",
+          "kind": "number",
+          "min": 1,
+          "max": 32,
+          "step": 1,
+          "default": 1,
+          "neutral": 1
+        },
+        {
+          "key": "mono",
+          "kind": "toggle",
+          "default": false,
+          "neutral": false
+        },
+        {
+          "key": "time",
+          "kind": "number",
+          "min": 0,
+          "max": 3600,
+          "step": 0.1,
+          "default": 0,
+          "neutral": 0
+        },
+        {
+          "key": "seed",
+          "kind": "number",
+          "min": 0,
+          "max": 9999,
+          "step": 1,
+          "default": 1,
+          "neutral": 1
+        }
+      ]
+    },
+    {
+      "type": "bevel-alpha",
+      "label": "Bevel Alpha",
+      "category": "Stylize",
+      "params": [
+        {
+          "key": "thickness",
+          "kind": "number",
+          "min": 1,
+          "max": 50,
+          "step": 1,
+          "default": 12,
+          "neutral": 12
+        },
+        {
+          "key": "angle",
+          "kind": "number",
+          "min": 0,
+          "max": 360,
+          "step": 1,
+          "default": 135,
+          "neutral": 135
+        },
+        {
+          "key": "intensity",
+          "kind": "number",
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "default": 70,
+          "neutral": 0
+        }
+      ]
+    },
+    {
+      "type": "four-color-gradient",
+      "label": "4-Color Gradient",
+      "category": "Generate",
+      "params": [
+        {
+          "key": "c1R",
+          "kind": "number",
+          "min": 0,
+          "max": 255,
+          "step": 1,
+          "default": 255,
+          "neutral": 255
+        },
+        {
+          "key": "c1G",
+          "kind": "number",
+          "min": 0,
+          "max": 255,
+          "step": 1,
+          "default": 60,
+          "neutral": 60
+        },
+        {
+          "key": "c1B",
+          "kind": "number",
+          "min": 0,
+          "max": 255,
+          "step": 1,
+          "default": 90,
+          "neutral": 90
+        },
+        {
+          "key": "c2R",
+          "kind": "number",
+          "min": 0,
+          "max": 255,
+          "step": 1,
+          "default": 255,
+          "neutral": 255
+        },
+        {
+          "key": "c2G",
+          "kind": "number",
+          "min": 0,
+          "max": 255,
+          "step": 1,
+          "default": 200,
+          "neutral": 200
+        },
+        {
+          "key": "c2B",
+          "kind": "number",
+          "min": 0,
+          "max": 255,
+          "step": 1,
+          "default": 40,
+          "neutral": 40
+        },
+        {
+          "key": "c3R",
+          "kind": "number",
+          "min": 0,
+          "max": 255,
+          "step": 1,
+          "default": 40,
+          "neutral": 40
+        },
+        {
+          "key": "c3G",
+          "kind": "number",
+          "min": 0,
+          "max": 255,
+          "step": 1,
+          "default": 120,
+          "neutral": 120
+        },
+        {
+          "key": "c3B",
+          "kind": "number",
+          "min": 0,
+          "max": 255,
+          "step": 1,
+          "default": 255,
+          "neutral": 255
+        },
+        {
+          "key": "c4R",
+          "kind": "number",
+          "min": 0,
+          "max": 255,
+          "step": 1,
+          "default": 120,
+          "neutral": 120
+        },
+        {
+          "key": "c4G",
+          "kind": "number",
+          "min": 0,
+          "max": 255,
+          "step": 1,
+          "default": 40,
+          "neutral": 40
+        },
+        {
+          "key": "c4B",
+          "kind": "number",
+          "min": 0,
+          "max": 255,
+          "step": 1,
+          "default": 200,
+          "neutral": 200
+        },
+        {
+          "key": "opacity",
+          "kind": "number",
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "default": 50,
+          "neutral": 0
+        },
+        {
+          "key": "blend",
+          "kind": "select",
+          "default": "normal",
+          "neutral": "normal",
+          "options": [
+            "normal",
+            "multiply",
+            "screen",
+            "add"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "lens-flare",
+      "label": "Lens Flare",
+      "category": "Generate",
+      "params": [
+        {
+          "key": "centerX",
+          "kind": "number",
+          "min": 0,
+          "max": 100,
+          "step": 0.5,
+          "default": 70,
+          "neutral": 70
+        },
+        {
+          "key": "centerY",
+          "kind": "number",
+          "min": 0,
+          "max": 100,
+          "step": 0.5,
+          "default": 30,
+          "neutral": 30
+        },
+        {
+          "key": "brightness",
+          "kind": "number",
+          "min": 0,
+          "max": 200,
+          "step": 1,
+          "default": 100,
+          "neutral": 0
+        },
+        {
+          "key": "size",
+          "kind": "number",
+          "min": 1,
+          "max": 200,
+          "step": 1,
+          "default": 100,
+          "neutral": 100
+        }
+      ]
+    },
+    {
+      "type": "strobe-light",
+      "label": "Strobe Light",
+      "category": "Generate",
+      "params": [
+        {
+          "key": "flashR",
+          "kind": "number",
+          "min": 0,
+          "max": 255,
+          "step": 1,
+          "default": 255,
+          "neutral": 255
+        },
+        {
+          "key": "flashG",
+          "kind": "number",
+          "min": 0,
+          "max": 255,
+          "step": 1,
+          "default": 255,
+          "neutral": 255
+        },
+        {
+          "key": "flashB",
+          "kind": "number",
+          "min": 0,
+          "max": 255,
+          "step": 1,
+          "default": 255,
+          "neutral": 255
+        },
+        {
+          "key": "opacity",
+          "kind": "number",
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "default": 80,
+          "neutral": 0
+        },
+        {
+          "key": "period",
+          "kind": "number",
+          "min": 0.05,
+          "max": 10,
+          "step": 0.05,
+          "default": 0.5,
+          "neutral": 0.5
+        },
+        {
+          "key": "duration",
+          "kind": "number",
+          "min": 0,
+          "max": 10,
+          "step": 0.01,
+          "default": 0.1,
+          "neutral": 0.1
+        },
+        {
+          "key": "phase",
+          "kind": "number",
+          "min": -10,
+          "max": 10,
+          "step": 0.01,
+          "default": 0.05,
+          "neutral": 0.05
+        },
+        {
+          "key": "blend",
+          "kind": "select",
+          "default": "normal",
+          "neutral": "normal",
+          "options": [
+            "normal",
+            "add"
+          ]
+        },
+        {
+          "key": "time",
+          "kind": "number",
+          "min": 0,
+          "max": 3600,
+          "step": 0.1,
+          "default": 0,
+          "neutral": 0
+        }
+      ]
+    },
+    {
+      "type": "grid",
+      "label": "Grid",
+      "category": "Generate",
+      "params": [
+        {
+          "key": "size",
+          "kind": "number",
+          "min": 4,
+          "max": 500,
+          "step": 1,
+          "default": 64,
+          "neutral": 64
+        },
+        {
+          "key": "border",
+          "kind": "number",
+          "min": 1,
+          "max": 50,
+          "step": 1,
+          "default": 2,
+          "neutral": 2
+        },
+        {
+          "key": "lineR",
+          "kind": "number",
+          "min": 0,
+          "max": 255,
+          "step": 1,
+          "default": 255,
+          "neutral": 255
+        },
+        {
+          "key": "lineG",
+          "kind": "number",
+          "min": 0,
+          "max": 255,
+          "step": 1,
+          "default": 255,
+          "neutral": 255
+        },
+        {
+          "key": "lineB",
+          "kind": "number",
+          "min": 0,
+          "max": 255,
+          "step": 1,
+          "default": 255,
+          "neutral": 255
+        },
+        {
+          "key": "opacity",
+          "kind": "number",
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "default": 60,
+          "neutral": 0
+        }
+      ]
+    }
+  ],
+  "premiere": {
+    "trimTools": [
+      {
+        "tool": "roll_trim",
+        "mode": "roll",
+        "edges": [
+          "left",
+          "right"
+        ]
+      },
+      {
+        "tool": "slide_trim",
+        "mode": "slide",
+        "edges": []
+      },
+      {
+        "tool": "rate_stretch",
+        "mode": "stretch",
+        "edges": [
+          "left",
+          "right"
+        ]
+      }
+    ],
+    "rangeEdits": [
+      "insert_media",
+      "overwrite_media",
+      "lift_range",
+      "extract_range",
+      "add_edit_all_tracks",
+      "add_edit",
+      "ripple_delete_clip",
+      "set_track_sync_lock",
+      "set_track_target",
+      "set_source_patch",
+      "match_frame",
+      "make_split_edit",
+      "extend_edit",
+      "trim_edit_point",
+      "delete_gap"
+    ],
+    "sceneDetection": {
+      "sensitivity": {
+        "min": 0,
+        "max": 1,
+        "step": 0.05,
+        "default": 0.5
+      },
+      "minSceneLengthSeconds": {
+        "min": 0,
+        "max": 60,
+        "step": 0.1,
+        "default": 1
+      },
+      "tools": [
+        "detect_scenes",
+        "apply_scene_cuts"
+      ]
+    },
+    "scopes": {
+      "kinds": [
+        "waveform",
+        "parade",
+        "vectorscope",
+        "histogram"
+      ],
+      "tools": [
+        "open_scopes",
+        "close_scopes",
+        "get_scope_stats"
+      ],
+      "statistics": [
+        "luma.min",
+        "luma.max",
+        "luma.average",
+        "luma.median",
+        "luma.p1",
+        "luma.p99",
+        "luma.blackClipPct",
+        "luma.whiteClipPct",
+        "red|green|blue.{min,max,average,blackClipPct,whiteClipPct}",
+        "saturation.average",
+        "saturation.max",
+        "dominantHue.{degrees,name,share}",
+        "cast.{cb,cr}",
+        "skinToneOffsetDegrees",
+        "warnings"
+      ],
+      "blackClipLevel": 2,
+      "whiteClipLevel": 253
+    }
   }
 }
 ```

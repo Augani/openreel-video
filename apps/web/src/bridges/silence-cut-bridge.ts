@@ -1,4 +1,4 @@
-import { getAudioEngine } from "@openreel/core";
+import { getAudioEngine, planSilenceCut } from "@openreel/core";
 import { useProjectStore } from "../stores/project-store";
 
 export interface SilenceSettings {
@@ -27,7 +27,7 @@ export const DEFAULT_SILENCE_SETTINGS: SilenceSettings = {
   paddingAfter: 0.1,
 };
 
-export type SilenceProgressCallback = (
+type SilenceProgressCallback = (
   progress: number,
   message: string,
 ) => void;
@@ -133,111 +133,23 @@ export class SilenceCutBridge {
     }
 
     const store = useProjectStore.getState();
-    const initialClip = store.getClip(clipId);
-
-    if (!initialClip) {
-      return { success: false, error: "Clip not found" };
-    }
-
-    const clipStartTime = initialClip.startTime;
-    const sortedRegions = [...silentRegions].sort((a, b) => b.start - a.start);
-
-    onProgress?.(0, "Preparing cuts...");
-
-    const actionHistory = store.actionHistory;
-    actionHistory.beginGroup("Cut silence");
-
+    if (!store.getClip(clipId)) return { success: false, error: "Clip not found" };
     try {
-      for (let i = 0; i < sortedRegions.length; i++) {
-        const region = sortedRegions[i];
-        const progress = Math.round(((i + 1) / sortedRegions.length) * 100);
-        onProgress?.(progress, `Cutting section ${i + 1}/${sortedRegions.length}`);
-
-        const absoluteStart = clipStartTime + region.start;
-        const absoluteEnd = clipStartTime + region.end;
-
-        const currentClip = this.findClipContainingTime(absoluteStart);
-        if (!currentClip) {
-          continue;
-        }
-
-        const clipRelativeEnd = absoluteEnd - currentClip.startTime;
-
-        if (clipRelativeEnd < currentClip.duration) {
-          const splitResult = await store.splitClip(
-            currentClip.id,
-            clipRelativeEnd,
-          );
-          if (!splitResult.success) {
-            continue;
-          }
-        }
-
-        const clipAfterFirstSplit = this.findClipContainingTime(absoluteStart);
-        if (!clipAfterFirstSplit) {
-          continue;
-        }
-
-        const newRelativeStart = absoluteStart - clipAfterFirstSplit.startTime;
-
-        if (newRelativeStart > 0) {
-          const splitResult = await store.splitClip(
-            clipAfterFirstSplit.id,
-            newRelativeStart,
-          );
-          if (!splitResult.success) {
-            continue;
-          }
-        }
-
-        const silentClip = this.findClipInTimeRange(
-          absoluteStart,
-          absoluteEnd,
-        );
-        if (silentClip) {
-          await store.rippleDeleteClip(silentClip.id);
-        }
-      }
-
+      onProgress?.(0, "Preparing cuts...");
+      // One sync-lock aware plan (the same ripple-delete planner as a manual
+      // ripple delete) and one undo step.
+      const plan = planSilenceCut(store.getFullProject(), clipId, silentRegions, crypto.randomUUID());
+      const result = store.commitTimelineToolEdit(plan);
+      if (!result.success)
+        return { success: false, error: result.error?.message ?? "Could not cut silence." };
       onProgress?.(100, "Complete");
       return { success: true };
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Unknown error occurred";
-      return { success: false, error: message };
-    } finally {
-      actionHistory.endGroup();
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error occurred",
+      };
     }
-  }
-
-  private findClipContainingTime(time: number) {
-    const store = useProjectStore.getState();
-    const { project } = store;
-
-    for (const track of project.timeline.tracks) {
-      for (const clip of track.clips) {
-        const clipEnd = clip.startTime + clip.duration;
-        if (time >= clip.startTime && time < clipEnd) {
-          return clip;
-        }
-      }
-    }
-    return null;
-  }
-
-  private findClipInTimeRange(start: number, end: number) {
-    const store = useProjectStore.getState();
-    const { project } = store;
-
-    for (const track of project.timeline.tracks) {
-      for (const clip of track.clips) {
-        const clipMidpoint = clip.startTime + clip.duration / 2;
-        if (clipMidpoint >= start && clipMidpoint < end) {
-          return clip;
-        }
-      }
-    }
-    return null;
   }
 
   dispose(): void {
@@ -255,11 +167,4 @@ export function getSilenceCutBridge(): SilenceCutBridge {
     bridgeInstance = new SilenceCutBridge();
   }
   return bridgeInstance;
-}
-
-export function disposeSilenceCutBridge(): void {
-  if (bridgeInstance) {
-    bridgeInstance.dispose();
-    bridgeInstance = null;
-  }
 }

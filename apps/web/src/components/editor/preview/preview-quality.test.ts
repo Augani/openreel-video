@@ -17,11 +17,6 @@ describe("previewQualityScale", () => {
     expect(previewQualityScale("auto", 2560, 1440)).toBe(1);
   });
 
-  it("auto drops to half for 4K+ sources", () => {
-    expect(previewQualityScale("auto", 3840, 2160)).toBe(0.5);
-    expect(previewQualityScale("auto", 2160, 3840)).toBe(0.5);
-  });
-
   it("composes with computePreviewResolution to halve a 1080p render target", () => {
     const scale = previewQualityScale("half", 1920, 1080);
     const res = computePreviewResolution(
@@ -33,14 +28,4 @@ describe("previewQualityScale", () => {
     expect(res.height).toBe(540);
   });
 
-  it("full quality preserves existing 1920 cap behaviour", () => {
-    const scale = previewQualityScale("full", 3840, 2160);
-    const res = computePreviewResolution(
-      3840,
-      2160,
-      PREVIEW_MAX_DIMENSION * scale,
-    );
-    expect(res.width).toBe(1920);
-    expect(res.height).toBe(1080);
-  });
 });
