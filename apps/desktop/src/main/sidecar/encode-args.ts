@@ -192,8 +192,24 @@ export function xdcamHd422Args(plan: Pick<EncodePlan, "frameRate" | "scan">): st
     "-g", String(xdcamGopLength(plan.frameRate)), "-bf", "2",
     "-intra_vlc", "1", "-non_linear_quant", "1", "-dc", "10", "-qmax", "8",
     "-mpv_flags", "+strict_gop", "-sc_threshold", "1000000000",
-    ...(interlaced ? ["-flags", "+ildct+ilme", "-top", "1"] : []),
+    // Top-field-first is stamped on the frames by `setfield=tff` (see `withTopFieldFirst`): the `-top` output
+    // option was removed in FFmpeg 9 and `-field_order` is overridden by the frame properties.
+    ...(interlaced ? ["-flags", "+ildct+ilme"] : []),
   ];
+}
+
+/**
+ * Marks every frame as top-field-first interlaced by appending `setfield=tff` to the `-vf` chain in `args`
+ * (adding one when absent). The ffmpeg CLI derives the MPEG-2 encoder's field order from the frame flags, and
+ * this works the same on FFmpeg 7.x and 9.x (the old `-top 1` is an error on 9).
+ */
+export function withTopFieldFirst(args: string[], plan: Pick<EncodePlan, "codec" | "scan">): string[] {
+  if (plan.codec !== "xdcamhd422" || plan.scan !== "interlaced-tff") return args;
+  const i = args.indexOf("-vf");
+  if (i < 0 || i + 1 >= args.length) return [...args, "-vf", "setfield=tff"];
+  const out = [...args];
+  out[i + 1] = `${out[i + 1]},setfield=tff`;
+  return out;
 }
 
 /**

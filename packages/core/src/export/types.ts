@@ -348,3 +348,8 @@ export function twoPassAvailability(
   if (workingColorSpace === "rec2020") return { available: false, reason: "not available with a Rec.2020 sequence (colour-managed output)" };
   return { available: true };
 }
+
+/** ProRes 4444 / 4444 XQ with the alpha option on: the render keeps transparency and the file carries it. */
+export function exportWritesAlpha(settings: Pick<VideoExportSettings, "codec" | "proresProfile" | "alpha">): boolean {
+  return settings.codec === "prores" && settings.alpha === true && (settings.proresProfile === "4444" || settings.proresProfile === "4444xq");
+}

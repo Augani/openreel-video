@@ -140,7 +140,7 @@ describe("new-project links", () => {
     const create = vi.spyOn(useProjectStore.getState(), "createNewProject");
     const view = render(<App />);
     expect(create).not.toHaveBeenCalled(); expect(view.queryByText("Editor")).toBeNull();
-    fireEvent.click(view.getByRole("button", { name: "Start Fresh" })); view.rerender(<App />);
+    fireEvent.click(await view.findByRole("button", { name: "Start Fresh" })); view.rerender(<App />);
     await waitFor(() => expect(useProjectStore.getState().hasOpenProject).toBe(true));
     expect(create).toHaveBeenCalledOnce();
     expect(recovery.clearAll).not.toHaveBeenCalled();
@@ -157,7 +157,7 @@ describe("new-project links", () => {
     recovery.isChecking = false; recovery.showDialog = true; recovery.availableSaves = [savedProject];
     view.rerender(<App />);
     expect(create).not.toHaveBeenCalled();
-    fireEvent.click(view.getByRole("button", { name: "Start Fresh" })); view.rerender(<App />);
+    fireEvent.click(await view.findByRole("button", { name: "Start Fresh" })); view.rerender(<App />);
     await waitFor(() => expect(create).toHaveBeenCalledOnce());
     expect(useProjectStore.getState().project.settings).toMatchObject({ width: 1080, height: 1920, frameRate: 24 });
     expect(await view.findByText("Editor")).toBeInTheDocument();
@@ -174,7 +174,7 @@ describe("new-project links", () => {
     });
     const create = vi.spyOn(useProjectStore.getState(), "createNewProject");
     const view = render(<App />);
-    await act(async () => { fireEvent.click(view.getByRole("button", { name: "Recover Project" })); });
+    await act(async () => { fireEvent.click(await view.findByRole("button", { name: "Recover Project" })); });
     expect(await view.findByText("Editor")).toBeInTheDocument();
     expect(useProjectStore.getState().project).toBe(restored);
     expect(create).not.toHaveBeenCalled();
@@ -207,9 +207,9 @@ describe("new-project links", () => {
     recovery.showDialog = true; recovery.availableSaves = [savedProject];
     const create = vi.spyOn(useProjectStore.getState(), "createNewProject");
     const view = render(<App />);
-    await act(async () => { fireEvent.click(view.getByRole("button", { name: "Recover Project" })); });
+    await act(async () => { fireEvent.click(await view.findByRole("button", { name: "Recover Project" })); });
     expect(create).not.toHaveBeenCalled();
-    fireEvent.click(view.getByRole("button", { name: "Start Fresh" })); view.rerender(<App />);
+    fireEvent.click(await view.findByRole("button", { name: "Start Fresh" })); view.rerender(<App />);
     await waitFor(() => expect(create).toHaveBeenCalledOnce());
     expect(useProjectStore.getState().project.settings).toMatchObject({ width: 1080, height: 1080, frameRate: 60 });
     expect(recovery.clearAll).not.toHaveBeenCalled();

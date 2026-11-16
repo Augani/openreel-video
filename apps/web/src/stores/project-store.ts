@@ -1,6 +1,5 @@
 import { lutToJson, lutFromJson, applySequenceSettings, applyTimelineToolEdits, reconcileMulticamAudio, validateTimelineToolEdits, invertTimelineToolEdits, type TimelineToolPlan } from "@openreel/core";
 import { cloneProjectForEdit } from "./project/clone-project-for-edit";
-import { cloneEffectInstanceKeyframes, rekeyKeyframesToEffectInstance } from "@openreel/core/video/effect-instance-keyframes";
 import { create } from "zustand";
 import { useTimelineStore } from "./timeline-store";
 import { useUIStore } from "./ui-store";
@@ -1244,7 +1243,7 @@ export const useProjectStore = create<ProjectState>()(
           buildEditingTemplateKeyframes(
             `template-keyframe-${applicationId}-video-${index + 1}`,
             // Key onto the instance just added so existing instance keyframes on the clip never override the template.
-            rekeyKeyframesToEffectInstance(addedEffects[index]!, effect.keyframes),
+            requireEngineModules().rekeyKeyframesToEffectInstance(addedEffects[index]!, effect.keyframes),
           ),
         ),
         ...resolvedTemplate.audioEffects.flatMap((effect, index) =>
@@ -3893,7 +3892,7 @@ export const useProjectStore = create<ProjectState>()(
           .flatMap((track) => track.clips)
           .find((clip) => clip.id === clipId);
         const copiedKeyframes = owner
-          ? cloneEffectInstanceKeyframes(owner.keyframes, sourceEffectId, effectId, () => `keyframe-${uuidv4()}`)
+          ? requireEngineModules().cloneEffectInstanceKeyframes(owner.keyframes, sourceEffectId, effectId, () => `keyframe-${uuidv4()}`)
           : [];
         if (owner && copiedKeyframes.length > 0) {
           // Animated source: the copy and its keyframes land in ONE undo step.

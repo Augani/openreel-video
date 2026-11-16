@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { SOAK, SOAK_MEDIA_DIR, browserProcessMemory, browserRendererPids, rendererFootprint, installProbes, pct, startMemoryInfra, writeOut, type InfraTop } from "./soak-lib";
 import { scrub } from "./session";
 import { importInput, openEditor } from "../helpers";
+import { E2E_FFMPEG } from "../env";
 
 /**
  * The 4K long-GOP memory reproduction and gate (docs/known-limitations.md, Memory).
@@ -84,7 +85,7 @@ test("4K layered long-GOP: scrub, play and toggle proxies under the memory gate"
   const names: string[] = [];
   sources.forEach((s, i) => {
     const out = join(dir, `lg4k-${i}.mp4`);
-    execFileSync("/opt/homebrew/bin/ffmpeg", ["-v", "error", "-y", "-ss", String(SECONDS >= 300 ? 0 : s.start), "-i", join(SOAK_MEDIA_DIR, s.src), "-t", String(SECONDS), "-c", "copy", out]);
+    execFileSync(E2E_FFMPEG, ["-v", "error", "-y", "-ss", String(SECONDS >= 300 ? 0 : s.start), "-i", join(SOAK_MEDIA_DIR, s.src), "-t", String(SECONDS), "-c", "copy", out]);
     names.push(out);
   });
 

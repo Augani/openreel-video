@@ -11,9 +11,8 @@ import { EditorHeaderIcon } from "./EditorHeaderIcon";
 import { EditorExportControl } from "./EditorExportControl";
 import { getQuickExportPresets, type QuickExportPresetId } from "../../services/quick-export-presets";
 import { WorkspaceSaveStatus } from "./WorkspaceSaveStatus";
-import { ProjectPackageDialog } from "./ProjectPackageDialog";
 import { EditorMenuBar } from "./EditorMenuBar";
-import React, { useCallback, useState, useEffect, useMemo, useRef } from "react";
+import React, { lazy, Suspense, useCallback, useState, useEffect, useMemo, useRef } from "react";
 import { X } from "@/icons/lucide-compat";
 import { useProjectStore } from "../../stores/project-store";
 import { useUIStore } from "../../stores/ui-store";
@@ -23,14 +22,12 @@ import {
   trackHasAudioItems,
   type VideoExportSettings,
 } from "@openreel/core";
-import { ExportDialog } from "./ExportDialog";
 import { ExportQueueButton, ExportQueuePanel } from "./ExportQueuePanel";
 import { addDialogExportToQueue, isExportQueueBusy } from "../../stores/export-queue-store";
 import { getUseExportPreviews } from "../../services/export-queue/export-queue-activity";
 import { CompressDialog } from "./CompressDialog";
 import { deriveSourceExportMatch } from "../../services/export-source-match";
 import { useExportRunner, extForFormat, exportFilename, type ExportDeliveryMode } from "../../services/export-runner";
-import { ScreenRecorder } from "./ScreenRecorder";
 import { HistoryPanel } from "./inspector/HistoryPanel";
 import { ProjectSwitcher } from "./ProjectSwitcher";
 import { CollaborationDialog } from "./CollaborationDialog";
@@ -39,6 +36,11 @@ import { connectionOf, useCollabStore } from "../../services/collab/collab-store
 import { SettingsDialog } from "./settings/SettingsDialog";
 import { toast } from "../../stores/notification-store";
 import { useAnalytics, AnalyticsEvents } from "../../hooks/useAnalytics";
+
+// Dialogs that only open on demand stay out of the editor chunk (bundle-budgets.json).
+const ExportDialog = lazy(() => import("./ExportDialog").then((m) => ({ default: m.ExportDialog })));
+const ScreenRecorder = lazy(() => import("./ScreenRecorder").then((m) => ({ default: m.ScreenRecorder })));
+const ProjectPackageDialog = lazy(() => import("./ProjectPackageDialog").then((m) => ({ default: m.ProjectPackageDialog })));
 
 
 export const Toolbar: React.FC = () => {
@@ -324,6 +326,7 @@ export const Toolbar: React.FC = () => {
         isOpen={isCompressOpen}
         onClose={() => setIsCompressOpen(false)}
       />
+      <Suspense fallback={null}>
       <ExportDialog
         isOpen={isExportDialogOpen}
         onClose={closeModal}
@@ -337,18 +340,25 @@ export const Toolbar: React.FC = () => {
         hasAudio={projectHasAudio}
         markedRange={loopEnd > loopStart && exportProject === project ? { startTime: loopStart, endTime: loopEnd } : null}
       />
+      </Suspense>
 
       <ExportQueuePanel />
 
-      <ScreenRecorder
-        isOpen={activeModal === "recorder"}
-        onClose={closeModal}
-        onRecordingComplete={handleRecordingComplete}
-      />
+      <Suspense fallback={null}>
+        <ScreenRecorder
+          isOpen={activeModal === "recorder"}
+          onClose={closeModal}
+          onRecordingComplete={handleRecordingComplete}
+        />
+      </Suspense>
 
       <SettingsDialog />
       <CollaborationDialog />
-      {isShareOpen && <ProjectPackageDialog onClose={() => setIsShareOpen(false)} />}
+      {isShareOpen && (
+        <Suspense fallback={null}>
+          <ProjectPackageDialog onClose={() => setIsShareOpen(false)} />
+        </Suspense>
+      )}
 
       {activeModal === "history" && (
         <>

@@ -17,7 +17,7 @@ import { existsSync, mkdirSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-const FFMPEG = process.env.FFMPEG ?? "/opt/homebrew/bin/ffmpeg";
+const FFMPEG = process.env.OPENREEL_FFMPEG ?? process.env.FFMPEG ?? "ffmpeg";
 export const MEDIA_DIR = process.argv[2] ?? process.env.SOAK_MEDIA_DIR ?? join(tmpdir(), "openreel-soak-media");
 const SCALE = Number(process.env.SOAK_MEDIA_SCALE ?? 1);
 const ONLY = process.env.SOAK_MEDIA_ONLY?.split(",").filter(Boolean);

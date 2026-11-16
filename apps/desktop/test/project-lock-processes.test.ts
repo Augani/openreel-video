@@ -18,6 +18,8 @@ let dir: string;
 let project: string;
 let lockModule = "";
 let moduleDir = "";
+// Spawning a node child (and loading the lock module in it) is slow on Windows CI runners.
+const SPAWN_TIMEOUT_MS = 30_000;
 const spawned: ChildProcessWithoutNullStreams[] = [];
 
 beforeAll(() => {
@@ -60,6 +62,9 @@ function lines(proc: ChildProcessWithoutNullStreams): { next(): Promise<string> 
 function startChild(owner: string): { proc: ChildProcessWithoutNullStreams; out: ReturnType<typeof lines> } {
   const proc = spawn(process.execPath, [child, project, owner, lockModule], { stdio: ["pipe", "pipe", "pipe"] });
   spawned.push(proc);
+  // A child that dies before printing would otherwise leave the test waiting for its timeout.
+  proc.stderr.setEncoding("utf8");
+  proc.stderr.on("data", (chunk: string) => process.stderr.write(`[lock child ${owner}] ${chunk}`));
   return { proc, out: lines(proc) };
 }
 
@@ -82,7 +87,7 @@ describe("project lock across processes", () => {
     expect(existsSync(lockPathFor(project))).toBe(false);
     expect((await mine.acquire(project, "parent:1")).status).toBe("acquired");
     await mine.releaseOwner("parent:1");
-  });
+  }, SPAWN_TIMEOUT_MS);
 
   it("takes over the lock of an instance that crashed", async () => {
     const crashing = startChild("child:1");
@@ -95,12 +100,12 @@ describe("project lock across processes", () => {
     const mine = new ProjectLocks({ instanceId: "parent" });
     expect((await mine.acquire(project, "parent:1")).status).toBe("acquired");
     await mine.releaseOwner("parent:1");
-  });
+  }, SPAWN_TIMEOUT_MS);
 
   it("only one of two instances that open at the same moment gets the project", async () => {
     const a = startChild("a:1");
     const b = startChild("b:1");
     const results = [JSON.parse(await a.out.next()), JSON.parse(await b.out.next())] as LockResult[];
     expect(results.map((r) => r.status).sort()).toEqual(["acquired", "held"]);
-  });
+  }, SPAWN_TIMEOUT_MS);
 });

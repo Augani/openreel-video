@@ -83,18 +83,22 @@ describe("buildProxyArgs", () => {
 
 describe("resolveIngestFolders", () => {
   it("puts Proxies and Media beside the saved project", () => {
-    const f = resolveIngestFolders({ projectPath: "/work/film/cut.oreel", projectId: "p", userDataDir: "/ud" });
-    expect(f).toEqual({ projectDir: "/work/film", proxyDir: "/work/film/Proxies", mediaDir: "/work/film/Media", projectSaved: true });
+    // Expectations are built with path.resolve/join: on Windows "/work/film" resolves to "<drive>:\\work\\film".
+    const dir = path.resolve("/work/film");
+    const f = resolveIngestFolders({ projectPath: path.join(dir, "cut.oreel"), projectId: "p", userDataDir: path.resolve("/ud") });
+    expect(f).toEqual({ projectDir: dir, proxyDir: path.join(dir, "Proxies"), mediaDir: path.join(dir, "Media"), projectSaved: true });
   });
   it("honours absolute and project-relative overrides", () => {
-    const f = resolveIngestFolders({ projectPath: "/work/film/cut.oreel", projectId: "p", userDataDir: "/ud", config: { proxyFolder: "/fast/ssd/prx", mediaFolder: "Footage/Copies" } });
-    expect(f.proxyDir).toBe("/fast/ssd/prx");
-    expect(f.mediaDir).toBe("/work/film/Footage/Copies");
+    const dir = path.resolve("/work/film");
+    const fast = path.resolve("/fast/ssd/prx");
+    const f = resolveIngestFolders({ projectPath: path.join(dir, "cut.oreel"), projectId: "p", userDataDir: path.resolve("/ud"), config: { proxyFolder: fast, mediaFolder: "Footage/Copies" } });
+    expect(f.proxyDir).toBe(fast);
+    expect(f.mediaDir).toBe(path.join(dir, "Footage", "Copies"));
   });
   it("falls back to the app data folder for an unsaved project", () => {
-    const f = resolveIngestFolders({ projectId: "my/proj:1", userDataDir: "/ud" });
+    const f = resolveIngestFolders({ projectId: "my/proj:1", userDataDir: path.resolve("/ud") });
     expect(f.projectSaved).toBe(false);
-    expect(f.proxyDir).toBe("/ud/Ingest/my_proj_1/Proxies");
+    expect(f.proxyDir).toBe(path.join(path.resolve("/ud"), "Ingest", "my_proj_1", "Proxies"));
   });
   it("recognises only this app's proxy file names for read-back", () => {
     expect(isOwnProxyFileName(desktopProxyFileName({ id: "abc", name: "x.mov" }, { codec: "prores-proxy", size: "half" }))).toBe(true);
@@ -188,7 +192,7 @@ describe("scanFolderForMedia", () => {
     };
     const media = await scanFolderForMedia({ root, names: ["clip1.mov", "Clip2.mp4"], mode: "media", probe });
     expect(media.candidates.map((c) => c.name).sort()).toEqual(["Clip1.MOV", "clip2.mp4"]);
-    expect(probed.sort()).toEqual(["a/Clip1.MOV", "a/b/clip2.mp4"]);
+    expect(probed.sort()).toEqual([path.join("a", "Clip1.MOV"), path.join("a", "b", "clip2.mp4")]);
     expect(media.candidates[0]).toMatchObject({ duration: 4, frameRate: 25, width: 640 });
     const proxies = await scanFolderForMedia({ root, names: ["Clip1.mov"], mode: "proxy", probe });
     expect(proxies.candidates.map((c) => c.name).sort()).toEqual(["Clip1.MOV", "Clip1_proxy.mp4"]);

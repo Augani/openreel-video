@@ -64,7 +64,7 @@ describe("shared header export and retained quick presets", () => {
     render(<Toolbar />);
     expect(screen.queryByRole("button", { name: "Export options" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Export" }));
-    expect(screen.getByRole("dialog")).toHaveTextContent("Export settings");
+    expect(await screen.findByRole("dialog")).toHaveTextContent("Export settings");
     act(() => useUIStore.getState().closeModal());
     await openQuickMenu();
     expect(await screen.findByText("Entire timeline")).toBeInTheDocument();

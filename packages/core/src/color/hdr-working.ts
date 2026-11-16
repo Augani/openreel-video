@@ -72,7 +72,7 @@ function mul3(a: Matrix3, b: Matrix3): Matrix3 {
   return out as unknown as Matrix3;
 }
 
-export const P3_TO_BT2020: Matrix3 = mul3(BT709_TO_BT2020, P3_TO_BT709);
+export const P3_TO_BT2020: Matrix3 = /* @__PURE__ */ mul3(BT709_TO_BT2020, P3_TO_BT709);
 
 /** True when the project's frames should be composed in float. SDR Rec.709 projects with no HDR output never are. */
 export function isHdrWorkingMode(
@@ -456,7 +456,7 @@ export function sampleLut3d(lut: HdrLutSpec, r: number, g: number, b: number): [
 }
 
 /** PQ working signal of SDR white: a positive vignette lifts towards it, not towards 10 000 nits. */
-export const PQ_WORKING_WHITE = pqEncodeNits(PQ_SDR_WHITE_NITS);
+export const PQ_WORKING_WHITE = /* @__PURE__ */ pqEncodeNits(PQ_SDR_WHITE_NITS);
 
 /** One pixel (scene-linear BT.2020) through the grade. The CPU reference of the GLSL grade stage. */
 export function gradeHdrPixel(r: number, g: number, b: number, spec: HdrGradeSpec, pos?: HdrGradePosition): [number, number, number] {
@@ -1012,19 +1012,5 @@ export function hdrFrameToYuv(frame: HdrFrame, spec: OutputColorSpec, chroma: "4
 
 // -- float payload carried beside a rendered bitmap ----------------------------------------------------------
 
-/** What the export backends take from a rendered frame instead of reading 8 bits back from its bitmap. */
-export interface HdrPayload {
-  readonly yuv: YuvFrame;
-  readonly spec: OutputColorSpec;
-}
-
-const payloads = new WeakMap<object, HdrPayload>();
-
-export function attachHdrPayload(bitmap: object, payload: HdrPayload): void {
-  payloads.set(bitmap, payload);
-}
-
-/** The float-derived planes rendered with this bitmap, if the frame went through the HDR path. */
-export function takeHdrPayload(bitmap: object): HdrPayload | undefined {
-  return payloads.get(bitmap);
-}
+// Payload store lives in ./hdr-payload so the export backends can read it without loading this module.
+export { attachHdrPayload, takeHdrPayload, type HdrPayload } from "./hdr-payload";

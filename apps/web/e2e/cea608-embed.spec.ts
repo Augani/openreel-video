@@ -4,6 +4,7 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { openEditor, settle } from "./helpers";
+import { E2E_FFMPEG, E2E_FFPROBE } from "./env";
 
 /**
  * CEA-608 captions inside the H.264 stream, in real Chrome: File > Embed CEA-608 captions...
@@ -13,8 +14,8 @@ import { openEditor, settle } from "./helpers";
  * text at the cue times from the video stream itself (no subtitle track involved).
  */
 
-const FFMPEG = "/opt/homebrew/bin/ffmpeg";
-const FFPROBE = "/opt/homebrew/bin/ffprobe";
+const FFMPEG = E2E_FFMPEG;
+const FFPROBE = E2E_FFPROBE;
 const workDir = mkdtempSync(join(tmpdir(), "openreel-cea608-"));
 
 const TRANSCRIPT = {

@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { lazy, Suspense, useState, useCallback } from "react";
 import {
   Mic,
   Subtitles,
@@ -19,9 +19,10 @@ import { TextToSpeechPanel } from "./inspector/TextToSpeechPanel";
 import { FilterPresetsPanel } from "./inspector/FilterPresetsPanel";
 import { MusicLibraryPanel } from "./inspector/MusicLibraryPanel";
 import { TemplatesBrowserPanel } from "./inspector/TemplatesBrowserPanel";
-import { MultiCameraPanel } from "./inspector/MultiCameraPanel";
 import { useTtsAudioStore } from "../../stores/tts-store";
 import { toast } from "../../stores/notification-store";
+
+const MultiCameraPanel = lazy(() => import("./inspector/MultiCameraPanel"));
 
 type FeatureId = "templates" | "captions" | "tts" | "filters" | "music" | "multicam" | null;
 
@@ -128,7 +129,11 @@ export const AIGenTab: React.FC = () => {
       case "music":
         return <MusicLibraryPanel />;
       case "multicam":
-        return <MultiCameraPanel />;
+        return (
+          <Suspense fallback={null}>
+            <MultiCameraPanel />
+          </Suspense>
+        );
       default:
         return null;
     }

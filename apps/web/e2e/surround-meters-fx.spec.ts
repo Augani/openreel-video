@@ -352,6 +352,15 @@ test("5.1 clip compressor in the export mix: six channels survive and the gain r
 const here = dirname(fileURLToPath(import.meta.url));
 const BASELINE = join(here, "fixtures", "stereo-mix-baseline.json");
 
+/**
+ * The fixture was rendered on macOS, where the same Chromium build reproduces it bit-for-bit
+ * (max diff 0), so macOS keeps the strict bound. Chromium's offline compressor / reverb / delay DSP uses
+ * different SIMD and libm paths on Linux and lands ~7e-4 away at a 0.89 peak (about -62 dB; observed on
+ * GitHub's ubuntu runner). That is float noise through nonlinear stages; a real change to the stereo path
+ * (a fold, a gain or routing change) moves samples by 1e-2 or more, so 2e-3 on Linux still catches it.
+ */
+const STEREO_BASELINE_EPS = process.platform === "darwin" ? 1e-5 : 2e-3;
+
 async function buildStereoScene(page: Page) {
   await openEditor(page);
   await muteLane(page, "Main", true);
@@ -431,5 +440,5 @@ test("stereo sequence mix is sample-identical to the fixture rendered before the
     }
   }
   console.log(`[stereo-baseline] max |diff| vs the pre-change render: ${worst.toExponential(2)} (frame ${worstAt}, peak ${peak.toFixed(4)})`);
-  expect(worst, "stereo mix drifted from the pre-change render").toBeLessThan(1e-5);
+  expect(worst, `stereo mix drifted from the pre-change render (max |diff| ${worst.toExponential(2)}, limit ${STEREO_BASELINE_EPS.toExponential(0)})`).toBeLessThan(STEREO_BASELINE_EPS);
 });

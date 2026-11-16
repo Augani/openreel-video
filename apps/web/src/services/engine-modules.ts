@@ -60,3 +60,8 @@ export {
   getBuiltInEditingTemplate,
   getBuiltInEditingTemplates,
 } from "@openreel/core";
+// Both pull the pro-effect spec tables, so they ship with the engines rather than the startup entry.
+export {
+  cloneEffectInstanceKeyframes,
+  rekeyKeyframesToEffectInstance,
+} from "@openreel/core/video/effect-instance-keyframes";

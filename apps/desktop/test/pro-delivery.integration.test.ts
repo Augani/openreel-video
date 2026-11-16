@@ -176,7 +176,7 @@ d("MXF ingest: probe and native decode of broadcast sources", () => {
     sh([...src, ...sines, "-map", "0:v", "-map", "1:a", "-map", "2:a", "-c:v", "dnxhd", "-profile:v", "dnxhr_hq", "-pix_fmt", "yuv422p", ...tags, "-c:a", "pcm_s24le", "-f", "mxf", files.dnxhr.file]);
     // XDCAM HD422: MPEG-2 4:2:2 intra-frame-ish long GOP, interlaced, 50 Mb/s.
     files.xdcam = { file: path.join(work, "cam-xdcam.mxf"), codec: "mpeg2video", interlaced: true, audio: 2 };
-    sh([...src, ...sines, "-map", "0:v", "-map", "1:a", "-map", "2:a", "-c:v", "mpeg2video", "-pix_fmt", "yuv422p", "-b:v", "50M", "-minrate", "50M", "-maxrate", "50M", "-bufsize", "17M", "-flags", "+ildct+ilme", "-top", "1", ...tags, "-c:a", "pcm_s24le", "-f", "mxf", files.xdcam.file]);
+    sh([...src, ...sines, "-map", "0:v", "-map", "1:a", "-map", "2:a", "-vf", "setfield=tff", "-c:v", "mpeg2video", "-pix_fmt", "yuv422p", "-b:v", "50M", "-minrate", "50M", "-maxrate", "50M", "-bufsize", "17M", "-flags", "+ildct+ilme", ...tags, "-c:a", "pcm_s24le", "-f", "mxf", files.xdcam.file]);
     // AVC-Intra style: all-intra H.264 High 4:2:2 10-bit (WebCodecs knows H.264, but not this MXF wrapper).
     files.avci = { file: path.join(work, "cam-avci.mxf"), codec: "h264", interlaced: false, audio: 2 };
     sh([...src, ...sines, "-map", "0:v", "-map", "1:a", "-map", "2:a", "-c:v", "libx264", "-profile:v", "high422", "-pix_fmt", "yuv422p10le", "-x264-params", "keyint=1:intra-refresh=0", ...tags, "-c:a", "pcm_s24le", "-f", "mxf", files.avci.file]);

@@ -6,6 +6,7 @@ import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { SOAK, SOAK_MEDIA_DIR } from "./soak-lib";
 import { importInput, openEditor } from "../helpers";
+import { E2E_FFMPEG } from "../env";
 
 /**
  * Smoke check that seeking repaints the Program monitor. The fixture clip (three scenes) is placed on the
@@ -25,7 +26,7 @@ test("seeking repaints the Program monitor", async ({ page }) => {
     const src = join(SOAK_MEDIA_DIR, "uhd-h264-longgop.mp4");
     test.skip(!existsSync(src), "missing soak media");
     const clip = join(mkdtempSync(join(tmpdir(), "openreel-smoke-")), "smoke4k.mp4");
-    execFileSync("/opt/homebrew/bin/ffmpeg", ["-v", "error", "-y", "-ss", "30", "-i", src, "-t", "30", "-c", "copy", clip]);
+    execFileSync(E2E_FFMPEG, ["-v", "error", "-y", "-ss", "30", "-i", src, "-t", "30", "-c", "copy", clip]);
     await importInput(page).setInputFiles(clip);
     await page.getByLabel("Select media smoke4k.mp4").waitFor({ timeout: 60_000 });
     await page.evaluate(async () => {

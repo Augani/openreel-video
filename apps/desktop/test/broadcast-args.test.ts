@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("electron", () => ({ app: { isPackaged: false } }));
 
 import { buildFfmpegArgs, exportOutputPaths, monoSplitFilter, monoTrackCount, opAtomOutputs, type ExportArgs } from "../src/main/sidecar/export-job";
-import { avcIntra100Args, pixelFormatForPlan, videoEncodeArgs, xdcamGopLength, xdcamHd422Args } from "../src/main/sidecar/encode-args";
+import { avcIntra100Args, pixelFormatForPlan, videoEncodeArgs, withTopFieldFirst, xdcamGopLength, xdcamHd422Args } from "../src/main/sidecar/encode-args";
 import { buildAssembleArgs } from "../src/main/sidecar/smart-export";
 import { parseFfmpegProbe } from "../src/main/ingest/probe-media";
 import { broadcastExportFields, resolveExportArgs } from "../src/main/ipc/export";
@@ -32,7 +32,10 @@ describe("XDCAM HD422 / AVC-Intra 100 encoder arguments", () => {
   it("XDCAM interlaced adds interlaced DCT / motion estimation and top field first", () => {
     const a = xdcamHd422Args({ frameRate: 25, scan: "interlaced-tff" });
     expect(after(a, "-flags")).toBe("+ildct+ilme");
-    expect(after(a, "-top")).toBe("1");
+    expect(a).not.toContain("-top");
+    const vf = (args: string[]) => args[args.indexOf("-vf") + 1];
+    expect(vf(withTopFieldFirst(["-vf", "scale=out_range=tv"], { codec: "xdcamhd422", scan: "interlaced-tff" }))).toBe("scale=out_range=tv,setfield=tff");
+    expect(withTopFieldFirst(["-vf", "x"], { codec: "xdcamhd422", scan: "progressive" })).toEqual(["-vf", "x"]);
   });
 
   it("GOP is 15 frames in the 29.97 family and 12 otherwise; the dialog's keyframe interval does not override it", () => {

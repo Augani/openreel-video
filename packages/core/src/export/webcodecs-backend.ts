@@ -5,7 +5,7 @@ import {
   toVideoColorSpace,
   type OutputColorSpec,
 } from "./color-output";
-import { takeHdrPayload } from "../color/hdr-working";
+import { takeHdrPayload } from "../color/hdr-payload";
 import { CODEC_MAP, type VideoExportSettings, type AudioExportSettings, type ExportError } from "./types";
 import type { Project } from "../types/project";
 import type { EncoderBackend, SmartRenderMuxer } from "./encoder-backend";

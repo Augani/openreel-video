@@ -3,6 +3,7 @@ import { mkdirSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, type Page } from "@playwright/test";
+import { E2E_FFMPEG } from "./env";
 import { clipsOf, importInput, readState, settle } from "./helpers";
 
 /**
@@ -11,7 +12,7 @@ import { clipsOf, importInput, readState, settle } from "./helpers";
  * formulas, so every pixel assertion compares against the TRUE target position, not against another
  * tracker output.
  */
-const FFMPEG = "/opt/homebrew/bin/ffmpeg";
+const FFMPEG = E2E_FFMPEG;
 export const SIZE = { width: 640, height: 360 };
 export const SPRITE = 96;
 export const FRAMES = 120;

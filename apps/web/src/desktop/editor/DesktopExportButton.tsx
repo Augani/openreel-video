@@ -1,10 +1,9 @@
 import type { JSX } from "react";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import type { VideoExportSettings } from "@openreel/core";
 import { desktopExportRequiresNativeEncoder, setEncoderBackendFactory, WebCodecsBackend } from "@openreel/core";
 import { useUIStore } from "../../stores/ui-store";
 import { useProjectStore } from "../../stores/project-store";
-import { ExportDialog } from "../../components/editor/ExportDialog";
 import { addDialogExportToQueue, isExportQueueBusy } from "../../stores/export-queue-store";
 import { getUseExportPreviews } from "../../services/export-queue/export-queue-activity";
 import { deriveSourceExportMatch } from "../../services/export-source-match";
@@ -17,6 +16,8 @@ import { NativeFFmpegBackend } from "../../services/native-ffmpeg-backend";
 import { EditorExportControl } from "../../components/editor/EditorExportControl";
 import { getQuickExportPresets, type QuickVideoExportSettings } from "../../services/quick-export-presets";
 import { useTimelineStore } from "../../stores/timeline-store";
+
+const ExportDialog = lazy(() => import("../../components/editor/ExportDialog").then((m) => ({ default: m.ExportDialog })));
 
 const NO_DRAG = { WebkitAppRegion: "no-drag" } as React.CSSProperties;
 
@@ -198,6 +199,7 @@ export function DesktopExportButton({ compact = false }: { compact?: boolean } =
       <EditorExportControl state={state} disabled={false} compact={compact}
         style={NO_DRAG} onOpen={() => setIsDialogOpen(true)} onCancel={cancel} onDismissError={resetError} />
 
+      <Suspense fallback={null}>
       <ExportDialog
         isOpen={isDialogOpen}
         onClose={() => setIsDialogOpen(false)}
@@ -214,6 +216,7 @@ export function DesktopExportButton({ compact = false }: { compact?: boolean } =
             : null
         }
       />
+      </Suspense>
     </>
   );
 }

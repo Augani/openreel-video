@@ -3,6 +3,7 @@ import { execFileSync } from "node:child_process";
 import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { E2E_FFMPEG } from "./env";
 import { FRAME, clickClip, press, readState, redo, seek, settle, undo } from "./helpers";
 import {
   CAMERAS,
@@ -441,7 +442,7 @@ export async function audioLockError(page: Page): Promise<number> {
 
 /** Decode a media file's audio to mono float samples at 48 kHz with ffmpeg. */
 function decodeMono(file: string): Float32Array {
-  const raw = execFileSync("/opt/homebrew/bin/ffmpeg", ["-v", "error", "-i", file, "-vn", "-ac", "1", "-ar", "48000", "-f", "f32le", "-"], { maxBuffer: 1 << 28 });
+  const raw = execFileSync(E2E_FFMPEG, ["-v", "error", "-i", file, "-vn", "-ac", "1", "-ar", "48000", "-f", "f32le", "-"], { maxBuffer: 1 << 28 });
   return new Float32Array(raw.buffer.slice(raw.byteOffset, raw.byteOffset + raw.byteLength));
 }
 

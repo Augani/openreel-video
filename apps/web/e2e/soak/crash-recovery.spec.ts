@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { SOAK, installProbes, readManifest, writeOut } from "./soak-lib";
 import { buildFeatureTimeline, importSources } from "./build-timeline";
+import { E2E_FFPROBE } from "../env";
 import { readAutosaveRecords, stateDigest } from "./session";
 
 /**
@@ -15,7 +16,7 @@ import { readAutosaveRecords, stateDigest } from "./session";
  */
 test.skip(!SOAK, "set OPENREEL_SOAK=1 (pnpm --filter @openreel/web test:soak)");
 
-const FFPROBE = "/opt/homebrew/bin/ffprobe";
+const FFPROBE = E2E_FFPROBE;
 const workDir = mkdtempSync(join(tmpdir(), "openreel-soak-recovery-"));
 
 const INIT = () => {

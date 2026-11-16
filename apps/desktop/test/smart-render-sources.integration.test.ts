@@ -19,6 +19,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolveFfmpegPath } from "../src/main/sidecar/ffmpeg-path";
+import { buildSmokeTestArgs } from "../src/main/sidecar/encoder-probe";
 import { probeSource } from "../src/main/sidecar/probe-source";
 import { SmartExportSession } from "../src/main/sidecar/smart-export";
 import { CONTENT_HASH_CHUNK_BYTES as DESKTOP_CHUNK, CONTENT_HASH_HEADER as DESKTOP_HEADER, MTIME_TOLERANCE_MS as DESKTOP_MTIME_TOLERANCE, fingerprintFile, hashFileContent, keyFrameIndexMismatch, verifySourceForCopy, type FingerprintCache } from "../src/main/sidecar/source-guard";
@@ -45,6 +46,17 @@ function run(args: string[]): void {
 }
 function encoders(): string {
   return execFileSync(ffmpeg, ["-hide_banner", "-encoders"], { encoding: "utf8" });
+}
+/** Capability probe: the encoder is listed AND really encodes a frame here (hardware encoders are absent in CI VMs). */
+function canEncode(encoder: string): boolean {
+  if (!available || !encoders().includes(encoder)) return false;
+  try {
+    execFileSync(ffmpeg, buildSmokeTestArgs(encoder), { stdio: "ignore", timeout: 15_000 });
+    return true;
+  } catch {
+    console.warn(`[smart-render-sources] ${encoder} cannot encode on this machine; its test is skipped`);
+    return false;
+  }
 }
 function rgbaFrames(src: string, from: number, to: number): Uint8Array[] {
   const out = execFileSync(
@@ -102,8 +114,7 @@ describe.skipIf(!available)("ProRes source copy (real ffmpeg)", () => {
     return { src, out };
   }
 
-  it.each([["prores_ks"], ["prores_videotoolbox"]])("joins copied and re-encoded ProRes runs frame-accurately (%s)", async (encoder) => {
-    if (!encoders().includes(encoder)) return;
+  for (const encoder of ["prores_ks", "prores_videotoolbox"]) it.skipIf(!canEncode(encoder))(`joins copied and re-encoded ProRes runs frame-accurately (${encoder})`, async () => {
     const { src, out } = await joinProRes(encoder, encoder);
 
     const packets = probeVideoPackets(ffprobe, out);

@@ -36,6 +36,12 @@ jobs:
       - name: Install xmllint
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libxml2-utils
 
+      # The CEA-608 SEI embedding tests build real H.264 MP4/MOV files with
+      # ffmpeg and verify the result with ffprobe. They FAIL (never skip) when
+      # ffmpeg is missing, so install it explicitly.
+      - name: Install ffmpeg
+        run: sudo apt-get install -y --no-install-recommends ffmpeg
+
       - name: Run TypeScript type checking
         run: pnpm typecheck
 

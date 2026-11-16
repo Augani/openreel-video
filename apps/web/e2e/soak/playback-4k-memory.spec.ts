@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { SOAK, SOAK_MEDIA_DIR, browserProcessMemory, browserRendererPids, rendererFootprint, installProbes, startMemoryInfra, writeOut } from "./soak-lib";
 import { playFor } from "./session";
 import { importInput, openEditor } from "../helpers";
+import { E2E_FFMPEG } from "../env";
 
 /**
  * Peak memory while playing back-to-back 4K long-GOP clips from several different sources (the case
@@ -45,7 +46,7 @@ test("4K multi-source playback stays under the memory budget", async ({ page, br
       symlinkSync(sources[i], out);
     } else {
       const start = 20 + i * 70; // distinct GOPs per cut
-      execFileSync("/opt/homebrew/bin/ffmpeg", ["-v", "error", "-y", "-ss", String(start), "-i", sources[i % 2], "-t", String(CLIP_SECONDS + 4), "-c", "copy", out]);
+      execFileSync(E2E_FFMPEG, ["-v", "error", "-y", "-ss", String(start), "-i", sources[i % 2], "-t", String(CLIP_SECONDS + 4), "-c", "copy", out]);
     }
     clips.push(out);
   }

@@ -9,7 +9,6 @@ import {
 import { ToastContainer } from "./components/Toast";
 import { MobileBlocker } from "./components/MobileBlocker";
 import { WelcomeScreen } from "./components/welcome";
-import { RecoveryDialog } from "./components/welcome/RecoveryDialog";
 import { useUIStore } from "./stores/ui-store";
 import { useProjectStore } from "./stores/project-store";
 import { useOnboardingStore } from "./stores/onboarding-store";
@@ -34,6 +33,12 @@ const EditorInterface: React.FC = () => {
   const Loaded = getLoadedEditor();
   return Loaded ? <Loaded /> : <LazyEditorInterface />;
 };
+// Only shown when crash-recovery saves exist; pulls Collapsible (framer-motion), so keep it off the startup entry.
+const RecoveryDialog = lazy(() =>
+  import("./components/welcome/RecoveryDialog").then((m) => ({
+    default: m.RecoveryDialog,
+  })),
+);
 const ScriptViewDialog = lazy(() =>
   import("./components/editor/ScriptViewDialog").then((m) => ({
     default: m.ScriptViewDialog,
@@ -310,28 +315,30 @@ function App() {
         )}
       </Suspense>
       {showDialog && availableSaves.length > 0 && (
-        <RecoveryDialog
-          saves={availableSaves}
-          onRecover={async (saveId) => {
-            // Loading a snapshot updates the store before the hash navigation
-            // settles. Claim this /new visit so it cannot replace the snapshot.
-            hasHandledNewRoute.current = true;
-            handledNewKey.current = JSON.stringify(params);
-            newRequestId.current++;
-            setIsRecovering(true);
-            let success = false;
-            try {
-              success = await recover(saveId);
-              if (success) navigate("editor");
-              return success;
-            } finally {
-              if (!success) hasHandledNewRoute.current = false;
-              setIsRecovering(false);
-            }
-          }}
-          onDismiss={dismiss}
-          onClearAll={clearAll}
-        />
+        <Suspense fallback={null}>
+          <RecoveryDialog
+            saves={availableSaves}
+            onRecover={async (saveId) => {
+              // Loading a snapshot updates the store before the hash navigation
+              // settles. Claim this /new visit so it cannot replace the snapshot.
+              hasHandledNewRoute.current = true;
+              handledNewKey.current = JSON.stringify(params);
+              newRequestId.current++;
+              setIsRecovering(true);
+              let success = false;
+              try {
+                success = await recover(saveId);
+                if (success) navigate("editor");
+                return success;
+              } finally {
+                if (!success) hasHandledNewRoute.current = false;
+                setIsRecovering(false);
+              }
+            }}
+            onDismiss={dismiss}
+            onClearAll={clearAll}
+          />
+        </Suspense>
       )}
     </div>
   );

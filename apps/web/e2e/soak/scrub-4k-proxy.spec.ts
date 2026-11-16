@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { SOAK, SOAK_MEDIA_DIR, installProbes, pct, writeOut } from "./soak-lib";
 import { scrub } from "./session";
 import { importInput, openEditor } from "../helpers";
+import { E2E_FFMPEG } from "../env";
 
 /**
  * Scrub latency on a long-GOP 4K H.264 source, with and without proxies (Toggle Proxies, Shift+P).
@@ -18,7 +19,7 @@ test("4K long-GOP scrub latency: original vs proxy", async ({ page }) => {
   test.setTimeout(40 * 60_000);
   const dir = mkdtempSync(join(tmpdir(), "openreel-soak-4k-"));
   const clip = join(dir, "uhd-longgop-4min.mp4");
-  execFileSync("/opt/homebrew/bin/ffmpeg", ["-v", "error", "-y", "-i", join(SOAK_MEDIA_DIR, "uhd-h264-longgop.mp4"), "-t", "240", "-c", "copy", clip]);
+  execFileSync(E2E_FFMPEG, ["-v", "error", "-y", "-i", join(SOAK_MEDIA_DIR, "uhd-h264-longgop.mp4"), "-t", "240", "-c", "copy", clip]);
   await page.addInitScript(installProbes);
   // openEditor imports the small fixture clip: the Proxies section is part of the populated media list.
   await openEditor(page);

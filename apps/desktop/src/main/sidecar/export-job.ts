@@ -3,7 +3,7 @@ import { rm } from "node:fs/promises";
 import { join } from "node:path";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { resolveFfmpegPath } from "./ffmpeg-path";
-import { isBroadcastExportCodec, supportsTwoPass, videoEncodeArgs, type BroadcastScan, type DnxhrProfile, type EncodeMode, type ExportCodec } from "./encode-args";
+import { isBroadcastExportCodec, supportsTwoPass, videoEncodeArgs, withTopFieldFirst, type BroadcastScan, type DnxhrProfile, type EncodeMode, type ExportCodec } from "./encode-args";
 import { colorFilterArgs, colorTagArgs, rawInputPixelFormat, type NativeColorOutput } from "./color-output-args";
 
 export interface ExportArgs {
@@ -179,7 +179,7 @@ function buildOpAtomArgs(a: ExportArgs): string[] {
     "-filter_complex", monoSplitFilter(audioTracks),
     "-progress", "pipe:2",
     "-map", "0:v:0",
-    ...(a.color ? colorFilterArgs(a.color) : COLOR_PIPELINE_ARGS),
+    ...withTopFieldFirst(a.color ? colorFilterArgs(a.color) : [...COLOR_PIPELINE_ARGS], planOf(a)),
     ...videoEncodeArgs(planOf(a)),
     ...(a.color ? colorTagArgs(a.color) : []),
     ...timecodeArgs(a),
@@ -244,7 +244,7 @@ export function buildPass1Args(a: ExportArgs): string[] {
     // The analysis encode must be output stream 0: ffmpeg names the statistics file <prefix>-<stream index>.log,
     // and pass 2 (one output stream) reads <prefix>-0.log.
     "-map", "0:v:0",
-    ...(a.color ? colorFilterArgs(a.color) : COLOR_PIPELINE_ARGS),
+    ...withTopFieldFirst(a.color ? colorFilterArgs(a.color) : [...COLOR_PIPELINE_ARGS], planOf(a)),
     ...videoEncodeArgs({ ...planOf(a), pass: { stage: 1, logPrefix: passLogPrefix(a) } }),
     ...(a.color ? colorTagArgs(a.color) : []),
     "-an", "-f", "null", "-",
@@ -281,7 +281,7 @@ export function buildFfmpegArgs(a: ExportArgs, stage: "single" | "pass2" = "sing
     ...monoInputs,
     ...captions.outputs,
     ...monoMaps,
-    ...(a.color ? colorFilterArgs(a.color) : COLOR_PIPELINE_ARGS),
+    ...withTopFieldFirst(a.color ? colorFilterArgs(a.color) : [...COLOR_PIPELINE_ARGS], planOf(a)),
     ...videoEncodeArgs(pass2 ? { ...planOf(a), pass: { stage: 2, logPrefix: passLogPrefix(a) } } : planOf(a)),
     ...(a.color ? colorTagArgs(a.color) : []),
     "-c:a", audioCodecFor(a),

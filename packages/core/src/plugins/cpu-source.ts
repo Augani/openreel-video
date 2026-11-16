@@ -92,6 +92,9 @@ export const CPU_SANDBOX_BOOTSTRAP = `
     "setImmediate", "queueMicrotask", "performance", "crypto", "fs", "module", "exports"];
   var lockDown = function () {
     for (var i = 0; i < DENY.length; i++) {
+      // Delete first: on Node 22 redefining the lazy Request/Response/Headers/FormData/WebSocket accessors
+      // in place loads undici, whose llhttp WebAssembly instantiation then runs after WebAssembly is denied.
+      try { delete g[DENY[i]]; } catch (e0) {}
       try { Object.defineProperty(g, DENY[i], { value: undefined, writable: false, configurable: false }); } catch (e) {
         try { delete g[DENY[i]]; } catch (e2) {}
       }

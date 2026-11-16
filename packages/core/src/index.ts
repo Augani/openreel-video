@@ -56,7 +56,7 @@ export * from "./color/hdr-effects";
 export * from "./color/hdr-light-level";
 export { planHdrTransition, isHdrTransitionKind, type HdrTransitionStep, type HdrTransitionKind } from "./video/hdr-transition";
 export * from "./raw";
-export { GpuHdrCompositor, isGpuHdrAvailable } from "./video/hdr-gpu";
+// GpuHdrCompositor / isGpuHdrAvailable: import from "@openreel/core/video/hdr-gpu". Its shader templates call .toFixed() at module scope, which Rollup keeps, so a barrel re-export would pull the module into the startup entry.
 export { hdrExportTargetFor, type HdrExportTarget } from "./video/hdr-frame";
 export * from "./export/smart-render";
 export { scanSourceForSmartRender } from "./export/smart-render-scan";
