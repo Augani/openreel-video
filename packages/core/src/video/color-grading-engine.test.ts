@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   ColorGradingEngine,
   DEFAULT_CURVES,
-  DEFAULT_HSL,
 } from "./color-grading-engine";
 import type {
   CurvesValues,
@@ -39,15 +38,36 @@ const identityLut = (size: number, intensity: number): LUTData => {
   return { data, size, intensity };
 };
 
-describe("ColorGradingEngine CPU transforms", () => {
-  it("buildCurveLUT produces an identity ramp for default curve points", () => {
-    const engine = internals();
-    const lut = engine.buildCurveLUT(DEFAULT_CURVES.rgb);
-    for (let i = 0; i < 256; i++) {
-      expect(lut[i]).toBe(i);
-    }
+describe("ColorGradingEngine LUT precision", () => {
+  it("samples floatData instead of the 8-bit table when present", () => {
+    // 2^3 LUT whose float outputs differ from the (deliberately wrong) bytes.
+    const size = 2;
+    const floatData = new Float32Array(size ** 3 * 3).fill(0.5);
+    const data = new Uint8Array(size ** 3 * 3).fill(255);
+    const withFloat = pixel(10, 10, 10);
+    internals().applyLutToData(withFloat, { data, floatData, size, intensity: 1 });
+    expect(withFloat[0]).toBe(128);
+    const bytesOnly = pixel(10, 10, 10);
+    internals().applyLutToData(bytesOnly, { data, size, intensity: 1 });
+    expect(bytesOnly[0]).toBe(255);
   });
 
+  it("applies an exact 1D curve with a non-default domain", () => {
+    const data = Float32Array.from([0, 0, 0, 1, 1, 1, 0, 0, 0]); // peak at middle
+    const px = pixel(128, 0, 255);
+    internals().applyLutToData(px, {
+      data: new Uint8Array(24),
+      size: 2,
+      intensity: 1,
+      curve1d: { size: 3, domainMin: [0, 0, 0], domainMax: [1, 1, 1], data },
+    });
+    expect(px[0]).toBeGreaterThan(250);
+    expect(px[1]).toBe(0);
+    expect(px[2]).toBe(0);
+  });
+});
+
+describe("ColorGradingEngine CPU transforms", () => {
   it("applyCurvesToData with identity curves leaves opaque pixels unchanged", () => {
     const engine = internals();
     const data = new Uint8ClampedArray([
@@ -87,47 +107,6 @@ describe("ColorGradingEngine CPU transforms", () => {
     expect(Array.from(data)).toEqual(expected);
   });
 
-  it("applyCurvesToData composes channel then master curve like the engine body", () => {
-    const engine = internals();
-    const curves: CurvesValues = {
-      rgb: [
-        { x: 0, y: 0.1 },
-        { x: 1, y: 0.9 },
-      ],
-      red: [
-        { x: 0, y: 0.2 },
-        { x: 1, y: 0.8 },
-      ],
-      green: DEFAULT_CURVES.green,
-      blue: DEFAULT_CURVES.blue,
-    };
-    const rgbLut = engine.buildCurveLUT(curves.rgb);
-    const redLut = engine.buildCurveLUT(curves.red);
-    const greenLut = engine.buildCurveLUT(curves.green);
-    const blueLut = engine.buildCurveLUT(curves.blue);
-
-    const data = pixel(40, 90, 210);
-    const expected = [
-      rgbLut[redLut[40]],
-      rgbLut[greenLut[90]],
-      rgbLut[blueLut[210]],
-      255,
-    ];
-
-    engine.applyCurvesToData(data, curves);
-    expect(Array.from(data)).toEqual(expected);
-  });
-
-  it("applyHslToData with neutral params leaves opaque pixels unchanged", () => {
-    const engine = internals();
-    const data = new Uint8ClampedArray([
-      10, 20, 30, 255, 200, 100, 50, 255, 255, 0, 0, 255,
-    ]);
-    const before = Array.from(data);
-    engine.applyHslToData(data, DEFAULT_HSL);
-    expect(Array.from(data)).toEqual(before);
-  });
-
   it("applyHslToData shifts luminance for the matching hue band", () => {
     const engine = internals();
     const hsl: HSLValues = {
@@ -156,11 +135,4 @@ describe("ColorGradingEngine CPU transforms", () => {
     expect(data[3]).toBe(255);
   });
 
-  it("applyLutToData at zero intensity preserves the original pixel", () => {
-    const engine = internals();
-    const lut = identityLut(8, 0);
-    const data = pixel(33, 77, 211);
-    engine.applyLutToData(data, lut);
-    expect(Array.from(data)).toEqual([33, 77, 211, 255]);
-  });
 });

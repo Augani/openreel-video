@@ -1,191 +1,270 @@
-/**
- * useKieAIPoller
- *
- * Background poller for KieAI generation tasks.
- *
- * - First poll: 5 s after task creation
- * - Subsequent polls: 30 s (image) / 2 min (video)
- * - Up to MAX_POLL_RETRIES consecutive errors before giving up
- * - On exhaustion: marks task as failed; UI shows a manual retry button
- * - On API success: downloads result, replaces placeholder, removes task
- * - Task is ALWAYS removed on API success/fail — never left stuck
- * - Tasks older than 3 days are auto-expired
- */
-
-import { useEffect, useRef, useCallback } from "react";
+/** Poll accepted work only while its originating project is open. */
+import type { MediaItem } from "@openreel/core";
+import { useEffect, useMemo } from "react";
 import { useProjectStore } from "../stores/project-store";
-import { useKieAIStore, MAX_POLL_RETRIES } from "../stores/kieai-store";
+import {
+  useKieAIStore,
+  MAX_POLL_RETRIES,
+  type PendingKieAITask,
+} from "../stores/kieai-store";
 import { pollTaskOnce, getResultUrl } from "../services/kieai/image-generation";
+import { attachPendingKieAIPlaceholder } from "../services/kieai/image-task-registration";
 import { KieAIError } from "../services/kieai/types";
-
-const FIRST_POLL_DELAY_MS = 5_000;
-const POLL_INTERVAL_IMAGE_MS = 30_000;
-const POLL_INTERVAL_VIDEO_MS = 120_000;
-
-/** Tasks older than 3 days are expired (KieAI cleans up server-side too) */
+const FIRST_POLL_DELAY_MS = 5000;
+const POLL_INTERVAL_IMAGE_MS = 30000;
+const POLL_INTERVAL_VIDEO_MS = 120000;
 const TASK_MAX_AGE_MS = 3 * 24 * 60 * 60 * 1000;
-
-/** Allowed result URL host for SSRF protection */
 const ALLOWED_RESULT_HOSTS = new Set([
   "tempfile.aiquickdraw.com",
   "cdn.kie.ai",
 ]);
-
 function isAllowedResultUrl(url: string): boolean {
   try {
-    const parsed = new URL(url);
-    return ALLOWED_RESULT_HOSTS.has(parsed.hostname);
+    return ALLOWED_RESULT_HOSTS.has(new URL(url).hostname);
   } catch {
     return false;
   }
 }
-
 export function useKieAIPoller() {
-  const tasks            = useKieAIStore((s) => s.tasks);
-  const removeTask       = useKieAIStore((s) => s.removeTask);
-  const incrementRetry   = useKieAIStore((s) => s.incrementRetry);
-  const markFailed       = useKieAIStore((s) => s.markFailed);
-  const projectId        = useProjectStore((s) => s.project?.id);
-  const replacePlaceholder = useProjectStore((s) => s.replacePlaceholderMedia);
-  const setKieAIItemState  = useProjectStore((s) => s.setKieAIItemState);
-
-  const timersRef   = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
-  const inFlightRef = useRef<Set<string>>(new Set());
-
-  // Use refs for callbacks to avoid stale closures in recursive setTimeout
-  const replacePlaceholderRef = useRef(replacePlaceholder);
-  replacePlaceholderRef.current = replacePlaceholder;
-  const setKieAIItemStateRef = useRef(setKieAIItemState);
-  setKieAIItemStateRef.current = setKieAIItemState;
-
-  const handleExpiredTask = useCallback((taskId: string, mediaId: string) => {
-    markFailed(taskId);
-    setKieAIItemStateRef.current(mediaId, false, true);
-  }, [markFailed]);
-
+  const tasks = useKieAIStore((state) => state.tasks);
+  const projectId = useProjectStore((state) => state.project.id);
+  const executor = useProjectStore((state) => state.actionExecutor);
+  const hasOpenProject = useProjectStore((state) => state.hasOpenProject);
+  const selectManagedMedia = useMemo(() => {
+    let previous: readonly MediaItem[] | undefined;
+    let previousProject = "";
+    let signature = "";
+    return (state: ReturnType<typeof useProjectStore.getState>) => {
+      if (
+        state.project.mediaLibrary.items !== previous ||
+        state.project.id !== previousProject
+      ) {
+        previous = state.project.mediaLibrary.items;
+        previousProject = state.project.id;
+        const ids = new Set(
+          tasks
+            .filter((task) => task.projectId === state.project.id)
+            .map((task) => task.mediaId),
+        );
+        signature = ids.size
+          ? previous
+              .filter((item) => ids.has(item.id))
+              .map(
+                (item) =>
+                  `${item.id}:${item.kieaiTaskId ?? ""}:${Boolean(item.isPending)}:${Boolean(item.isPlaceholder)}:${Boolean(item.kieaiError)}:${item.blob === null}`,
+              )
+              .join("|")
+          : "";
+      }
+      return signature;
+    };
+  }, [tasks]);
+  const managedMedia = useProjectStore(selectManagedMedia);
+  const scope = useMemo(
+    () => ({
+      projectId,
+      executor,
+      hasOpenProject,
+      active: false,
+      timers: new Map<string, ReturnType<typeof setTimeout>>(),
+      inFlight: new Map<string, AbortController>(),
+      seen: new Set<string>(),
+      replacing: new Set<string>(),
+    }),
+    [projectId, executor, hasOpenProject],
+  );
   useEffect(() => {
-    const activeTasks = tasks.filter(
-      (t) => t.projectId === projectId && !t.failed,
+    scope.active = true;
+    return () => {
+      scope.active = false;
+      for (const timer of scope.timers.values()) clearTimeout(timer);
+      scope.timers.clear();
+      for (const controller of scope.inFlight.values()) controller.abort();
+      scope.inFlight.clear();
+    };
+  }, [scope]);
+  useEffect(() => {
+    const active = tasks.filter(
+      (task) => hasOpenProject && task.projectId === projectId,
     );
-
-    // Start a polling loop for each new active task
-    for (const task of activeTasks) {
-      if (timersRef.current.has(task.taskId)) continue;
-      if (inFlightRef.current.has(task.taskId)) continue;
-
-      // Expire tasks older than 3 days
-      if (Date.now() - task.createdAt > TASK_MAX_AGE_MS) {
-        handleExpiredTask(task.taskId, task.mediaId);
+    const activeIds = new Set<string>();
+    const sameProject = () => {
+      const current = useProjectStore.getState();
+      return (
+        scope.active &&
+        current.hasOpenProject &&
+        current.project.id === scope.projectId &&
+        current.actionExecutor === scope.executor
+      );
+    };
+    const ownsTask = (task: PendingKieAITask) =>
+      sameProject() &&
+      useKieAIStore
+        .getState()
+        .tasks.some(
+          (current) =>
+            current.taskId === task.taskId &&
+            current.mediaId === task.mediaId &&
+            current.projectId === task.projectId &&
+            current.createdAt === task.createdAt &&
+            !current.failed &&
+            !current.detached,
+        );
+    const ownsPlaceholder = (task: PendingKieAITask) =>
+      useProjectStore
+        .getState()
+        .project.mediaLibrary.items.some(
+          (item) =>
+            item.id === task.mediaId &&
+            item.kieaiTaskId === task.taskId &&
+            (item.isPlaceholder || item.isPending || item.kieaiError) &&
+            item.blob === null,
+        );
+    const fail = (task: PendingKieAITask) => {
+      if (!ownsTask(task)) return;
+      useKieAIStore.getState().markFailed(task.taskId);
+      if (ownsPlaceholder(task))
+        useProjectStore.getState().setKieAIItemState(task.mediaId, false, true);
+    };
+    for (const task of active) {
+      if (scope.replacing.has(task.taskId)) {
+        activeIds.add(task.taskId);
         continue;
       }
-
+      const item = useProjectStore
+        .getState()
+        .project.mediaLibrary.items.find((item) => item.id === task.mediaId);
+      if (ownsPlaceholder(task)) {
+        scope.seen.add(task.taskId);
+        if (task.detached || !task.restorePlaceholder || task.needsPlaceholder)
+          useKieAIStore
+            .getState()
+            .markPlaceholderAttached(task.taskId, item?.thumbnailUrl);
+      } else if (task.detached || scope.seen.has(task.taskId) || item) {
+        if (!task.detached)
+          useKieAIStore.getState().setTaskDetached(task.taskId, true);
+        continue;
+      } else if (task.needsPlaceholder || task.restorePlaceholder) {
+        if (!attachPendingKieAIPlaceholder(task)) continue;
+        scope.seen.add(task.taskId);
+      }
+      if (task.failed) continue;
+      activeIds.add(task.taskId);
+      if (scope.timers.has(task.taskId) || scope.inFlight.has(task.taskId))
+        continue;
+      if (Date.now() - task.createdAt > TASK_MAX_AGE_MS) {
+        fail(task);
+        continue;
+      }
       const interval =
         task.type === "video" ? POLL_INTERVAL_VIDEO_MS : POLL_INTERVAL_IMAGE_MS;
-
-      const elapsed  = Date.now() - task.createdAt;
-      const firstDelay = elapsed < FIRST_POLL_DELAY_MS
-        ? FIRST_POLL_DELAY_MS - elapsed
-        : Math.max(0, interval - (elapsed % interval));
-
+      const schedule = (delay: number) => {
+        if (ownsTask(task))
+          scope.timers.set(
+            task.taskId,
+            setTimeout(() => {
+              void doPoll();
+            }, delay),
+          );
+      };
       const doPoll = async () => {
-        timersRef.current.delete(task.taskId);
-        if (inFlightRef.current.has(task.taskId)) return;
-        inFlightRef.current.add(task.taskId);
-
+        scope.timers.delete(task.taskId);
+        if (!ownsTask(task) || scope.inFlight.has(task.taskId)) return;
+        // Removing or replacing a pending media item is an explicit local choice.
+        if (!ownsPlaceholder(task)) {
+          useKieAIStore.getState().setTaskDetached(task.taskId, true);
+          return;
+        }
+        const controller = new AbortController();
+        scope.inFlight.set(task.taskId, controller);
         try {
-          const record = await pollTaskOnce(task.taskId);
-
-          if (record.state === "success") {
-            // API says done — remove on success, mark failed on download error (retryable)
-            try {
-              const url = getResultUrl(record);
-
-              if (!isAllowedResultUrl(url)) {
-                throw new KieAIError(403, `Result URL host not allowed: ${url}`);
-              }
-
-              const res = await fetch(url);
-              if (!res.ok) {
-                throw new KieAIError(res.status, `Download failed: HTTP ${res.status}`);
-              }
-
-              const blob = await res.blob();
-              if (blob.size === 0) {
-                throw new KieAIError(500, "Downloaded result is empty");
-              }
-
-              await replacePlaceholderRef.current(task.mediaId, blob, task.suggestedName);
-              removeTask(task.taskId);
-            } catch (downloadErr) {
-              console.error(`[KieAIPoller] download failed for ${task.taskId}:`, downloadErr);
-              markFailed(task.taskId);
-              setKieAIItemStateRef.current(task.mediaId, false, true);
-            }
-
-          } else if (record.state === "fail") {
-            console.warn(`[KieAIPoller] task ${task.taskId} failed: ${record.failMsg}`);
-            setKieAIItemStateRef.current(task.mediaId, false, true);
-            markFailed(task.taskId);
-
-          } else {
-            // Still generating — schedule next poll
-            const t = setTimeout(doPoll, interval);
-            timersRef.current.set(task.taskId, t);
-          }
-        } catch (err) {
-          // Auth error — give up immediately, don't count as a retry
-          if (err instanceof KieAIError && err.code === 401) {
-            console.warn("[KieAIPoller] auth error — stopping poll for", task.taskId);
-            markFailed(task.taskId);
-            setKieAIItemStateRef.current(task.mediaId, false, true);
+          const record = await pollTaskOnce(task.taskId, controller.signal);
+          if (!ownsTask(task) || controller.signal.aborted) return;
+          if (!ownsPlaceholder(task)) {
+            useKieAIStore.getState().setTaskDetached(task.taskId, true);
             return;
           }
-
-          // Network / transient error — increment retry counter
-          incrementRetry(task.taskId);
-
-          // Re-read current task state from the store (retries may have just incremented)
-          const currentTask = useKieAIStore
-            .getState()
-            .tasks.find((t) => t.taskId === task.taskId);
-
-          const currentRetries = currentTask ? currentTask.retries : MAX_POLL_RETRIES;
-
-          if (currentRetries >= MAX_POLL_RETRIES) {
-            console.warn(
-              `[KieAIPoller] ${task.taskId} exhausted ${MAX_POLL_RETRIES} retries — marking failed`,
-            );
-            markFailed(task.taskId);
-            setKieAIItemStateRef.current(task.mediaId, false, true);
+          if (record.state === "success") {
+            try {
+              const url = getResultUrl(record);
+              if (!isAllowedResultUrl(url))
+                throw new KieAIError(403, "Result URL host not allowed");
+              const response = await fetch(url, { signal: controller.signal });
+              if (!ownsTask(task) || controller.signal.aborted) return;
+              if (!response.ok)
+                throw new KieAIError(
+                  response.status,
+                  `Download failed: HTTP ${response.status}`,
+                );
+              const blob = await response.blob();
+              if (!ownsTask(task) || controller.signal.aborted) return;
+              if (!blob.size)
+                throw new KieAIError(500, "Downloaded result is empty");
+              if (!ownsPlaceholder(task)) {
+                useKieAIStore.getState().setTaskDetached(task.taskId, true);
+                return;
+              }
+              scope.replacing.add(task.taskId);
+              const applied = await useProjectStore
+                .getState()
+                .replacePlaceholderMedia(
+                  task.mediaId,
+                  blob,
+                  task.suggestedName,
+                );
+              if (ownsTask(task)) {
+                if (applied === false)
+                  useKieAIStore.getState().setTaskDetached(task.taskId, true);
+                else useKieAIStore.getState().removeTask(task.taskId);
+              }
+            } catch {
+              if (!controller.signal.aborted && ownsTask(task)) fail(task);
+            }
+          } else if (record.state === "fail") {
+            fail(task);
           } else {
-            const t = setTimeout(doPoll, interval);
-            timersRef.current.set(task.taskId, t);
+            useKieAIStore.getState().resetRetry(task.taskId);
+            schedule(interval);
           }
+        } catch (error) {
+          if (!ownsTask(task) || controller.signal.aborted) return;
+          if (error instanceof KieAIError && error.code === 401) {
+            fail(task);
+            return;
+          }
+          useKieAIStore.getState().incrementRetry(task.taskId);
+          const current = useKieAIStore
+            .getState()
+            .tasks.find((item) => item.taskId === task.taskId);
+          if (!current || current.retries >= MAX_POLL_RETRIES) fail(task);
+          else schedule(interval);
         } finally {
-          inFlightRef.current.delete(task.taskId);
+          scope.replacing.delete(task.taskId);
+          if (scope.inFlight.get(task.taskId) === controller)
+            scope.inFlight.delete(task.taskId);
         }
       };
-
-      const t = setTimeout(doPoll, firstDelay);
-      timersRef.current.set(task.taskId, t);
+      const elapsed = Date.now() - task.createdAt;
+      schedule(
+        elapsed < FIRST_POLL_DELAY_MS
+          ? FIRST_POLL_DELAY_MS - elapsed
+          : Math.max(0, interval - (elapsed % interval)),
+      );
     }
-
-    // Cancel timers for tasks removed from the active list
-    for (const [taskId, timer] of timersRef.current) {
-      const stillActive = activeTasks.some((t) => t.taskId === taskId);
-      if (!stillActive) {
+    const retainedIds = new Set(active.map((task) => task.taskId));
+    for (const id of scope.seen)
+      if (!retainedIds.has(id)) scope.seen.delete(id);
+    for (const [id, timer] of scope.timers) {
+      if (!activeIds.has(id)) {
         clearTimeout(timer);
-        timersRef.current.delete(taskId);
+        scope.timers.delete(id);
       }
     }
-  }, [tasks, projectId, removeTask, incrementRetry, markFailed, handleExpiredTask]);
-
-  // Cleanup on unmount
-  useEffect(() => {
-    const timers = timersRef.current;
-    return () => {
-      for (const timer of timers.values()) clearTimeout(timer);
-      timers.clear();
-    };
-  }, []);
+    for (const [id, controller] of scope.inFlight) {
+      if (!activeIds.has(id)) {
+        controller.abort();
+        scope.inFlight.delete(id);
+      }
+    }
+  }, [tasks, projectId, hasOpenProject, scope, managedMedia]);
 }

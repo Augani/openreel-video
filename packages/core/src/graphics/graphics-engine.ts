@@ -27,6 +27,9 @@ import {
   type MotionShaderCanvas,
 } from "../motion/motion-shader-renderer";
 import { getMotionShaderDef } from "../motion/shaders";
+import { padSvgForRaster, planSvgRaster } from "./svg-raster";
+import { overlayBlendAlpha } from "./blend-opacity";
+import { drawShapePathCentered } from "./shape-path";
 
 interface AnimatedGraphicState {
   transform: Transform;
@@ -104,6 +107,9 @@ export class GraphicsEngine {
       transform: { ...DEFAULT_GRAPHIC_TRANSFORM },
       keyframes: [],
       points: params.points,
+      ...(params.pathData !== undefined ? { pathData: params.pathData } : {}),
+      ...(params.closed !== undefined ? { closed: params.closed } : {}),
+      ...(params.extent ? { extent: params.extent } : {}),
       metadata: params.metadata,
     };
 
@@ -458,7 +464,7 @@ export class GraphicsEngine {
 
     switch (graphic.type) {
       case "shape":
-        this.renderShape(ctx, graphic as ShapeClip, width, height, time);
+        this.renderShape(ctx, graphic as ShapeClip, width, height, time, animatedState.transform.anchor);
         break;
       case "svg":
         await this.renderSVG(
@@ -484,11 +490,22 @@ export class GraphicsEngine {
     width: number,
     height: number,
     time: number,
+    anchor?: { x: number; y: number },
   ): void {
     const { style, shapeType } = shape;
+    // applyTransform set the clip's animated opacity (incl. blend opacity); fill and stroke opacity multiply it.
+    const baseAlpha = ctx.globalAlpha;
     const baseSize = Math.min(width, height);
     const shapeSize = baseSize * 0.15;
     const halfSize = shapeSize / 2;
+    const box =
+      shape.extent &&
+      (shapeType === "rectangle" || shapeType === "circle" || shapeType === "ellipse" || shapeType === "line")
+        ? {
+            w: (shape.extent.width * baseSize) / 1080,
+            h: (shape.extent.height * baseSize) / 1080,
+          }
+        : null;
 
     ctx.save();
 
@@ -503,13 +520,29 @@ export class GraphicsEngine {
 
     switch (shapeType) {
       case "rectangle":
-        this.drawRectangle(ctx, 0, 0, shapeSize, shapeSize, style.cornerRadius);
+        if (box) {
+          const cx = (0.5 - (anchor?.x ?? 0.5)) * box.w;
+          const cy = (0.5 - (anchor?.y ?? 0.5)) * box.h;
+          this.drawRectangle(ctx, cx, cy, box.w, box.h, style.cornerRadius);
+        } else {
+          this.drawRectangle(ctx, 0, 0, shapeSize, shapeSize, style.cornerRadius);
+        }
         break;
       case "circle":
-        this.drawCircle(ctx, 0, 0, halfSize);
-        break;
       case "ellipse":
-        this.drawEllipse(ctx, 0, 0, halfSize, halfSize);
+        if (box) {
+          this.drawEllipse(
+            ctx,
+            (0.5 - (anchor?.x ?? 0.5)) * box.w,
+            (0.5 - (anchor?.y ?? 0.5)) * box.h,
+            box.w / 2,
+            box.h / 2,
+          );
+        } else if (shapeType === "circle") {
+          this.drawCircle(ctx, 0, 0, halfSize);
+        } else {
+          this.drawEllipse(ctx, 0, 0, halfSize, halfSize);
+        }
         break;
       case "triangle":
         this.drawTriangle(ctx, 0, 0, shapeSize, shapeSize);
@@ -518,7 +551,13 @@ export class GraphicsEngine {
         this.drawArrow(ctx, 0, 0, shapeSize, shapeSize);
         break;
       case "line":
-        this.drawLine(ctx, -halfSize, 0, halfSize, 0);
+        if (box) {
+          const cx = (0.5 - (anchor?.x ?? 0.5)) * box.w;
+          const cy = (0.5 - (anchor?.y ?? 0.5)) * box.h;
+          this.drawLine(ctx, cx - box.w / 2, cy, cx + box.w / 2, cy);
+        } else {
+          this.drawLine(ctx, -halfSize, 0, halfSize, 0);
+        }
         break;
       case "star":
         this.drawStar(
@@ -535,6 +574,9 @@ export class GraphicsEngine {
           this.drawPolygonCentered(ctx, shape.points, shapeSize);
         }
         break;
+      case "path":
+        this.drawPathShape(ctx, shape, shapeSize);
+        break;
     }
 
     if (style.fill.type !== "none") {
@@ -547,7 +589,7 @@ export class GraphicsEngine {
         );
         if (shaderCanvas) {
           ctx.save();
-          ctx.globalAlpha = style.fill.opacity;
+          ctx.globalAlpha = baseAlpha * style.fill.opacity;
           ctx.clip();
           ctx.drawImage(
             shaderCanvas,
@@ -558,12 +600,12 @@ export class GraphicsEngine {
           );
           ctx.restore();
         } else {
-          ctx.globalAlpha = style.fill.opacity;
+          ctx.globalAlpha = baseAlpha * style.fill.opacity;
           ctx.fillStyle = style.fill.color || "#000000";
           ctx.fill();
         }
       } else {
-        ctx.globalAlpha = style.fill.opacity;
+        ctx.globalAlpha = baseAlpha * style.fill.opacity;
         if (style.fill.type === "gradient" && style.fill.gradient) {
           ctx.fillStyle = this.createGradient(
             ctx,
@@ -579,7 +621,7 @@ export class GraphicsEngine {
     }
 
     if (style.stroke.width > 0) {
-      ctx.globalAlpha = style.stroke.opacity;
+      ctx.globalAlpha = baseAlpha * style.stroke.opacity;
       ctx.strokeStyle = style.stroke.color;
       ctx.lineWidth = style.stroke.width;
       ctx.lineCap = style.stroke.lineCap || "butt";
@@ -616,38 +658,13 @@ export class GraphicsEngine {
   }
 
   /**
-   * Renders SVG with aspect ratio preservation (letterboxing).
-   * Algorithm: Compare aspect ratios to determine orientation (portrait/landscape mismatch).
-   * Scale to fit canvas while maintaining aspect ratio, then center.
+   * Renders SVG centred on the clip origin. The rasterisation plan (raster scale,
+   * transparent margin) is shared with the editor preview (see ./svg-raster) so a
+   * thin stroke lands on the same pixels in preview and export.
    *
    * Note: SVG must be converted to image blob first due to canvas limitations with direct SVG rendering.
    * URL.createObjectURL is revoked in finally to prevent memory leaks.
    */
-  private getAnimatedSVGSourceInset(
-    animatedState: AnimatedGraphicState,
-    width: number,
-    height: number,
-  ): number {
-    const transformIsAnimating =
-      Math.abs(animatedState.scale - 1) > 0.001 ||
-      Math.abs((animatedState.scaleX ?? 1) - 1) > 0.001 ||
-      Math.abs((animatedState.scaleY ?? 1) - 1) > 0.001 ||
-      Math.abs(animatedState.offsetX) > 0.001 ||
-      Math.abs(animatedState.offsetY) > 0.001 ||
-      Math.abs(animatedState.rotation) > 0.001;
-
-    if (!transformIsAnimating || width <= 2 || height <= 2) {
-      return 0;
-    }
-
-    const desiredInset = Math.max(
-      2,
-      Math.ceil(Math.min(width, height) * 0.0125),
-    );
-    const maxInset = Math.floor((Math.min(width, height) - 1) / 2);
-    return Math.min(16, desiredInset, maxInset);
-  }
-
   private async renderSVG(
     ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
     svg: SVGClip,
@@ -655,33 +672,14 @@ export class GraphicsEngine {
     height: number,
     animatedState: AnimatedGraphicState,
   ): Promise<void> {
-    const svgAspect = svg.viewBox.width / svg.viewBox.height;
-    const scaleX = animatedState.transform.scale.x;
-    const scaleY = animatedState.transform.scale.y;
-    const maxScale = Math.max(Math.abs(scaleX), Math.abs(scaleY), 1);
-    const rasterScale = Math.ceil(maxScale * 2) / 2;
-
-    let renderWidth: number;
-    let renderHeight: number;
-    if (svgAspect > 1) {
-      renderWidth = Math.ceil(width * rasterScale);
-      renderHeight = Math.ceil(renderWidth / svgAspect);
-    } else {
-      renderHeight = Math.ceil(height * rasterScale);
-      renderWidth = Math.ceil(renderHeight * svgAspect);
-    }
-
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(svg.svgContent, "image/svg+xml");
-    const svgElement = doc.querySelector("svg");
-    if (svgElement) {
-      svgElement.setAttribute("width", String(renderWidth));
-      svgElement.setAttribute("height", String(renderHeight));
-    }
-    const serializer = new XMLSerializer();
-    const scaledSvgContent = svgElement
-      ? serializer.serializeToString(svgElement)
-      : svg.svgContent;
+    const plan = planSvgRaster(
+      svg.viewBox,
+      width,
+      height,
+      animatedState.transform.scale.x,
+      animatedState.transform.scale.y,
+    );
+    const scaledSvgContent = padSvgForRaster(svg.svgContent, plan, svg.viewBox);
 
     const blob = new Blob([scaledSvgContent], { type: "image/svg+xml" });
     const url = URL.createObjectURL(blob);
@@ -692,20 +690,14 @@ export class GraphicsEngine {
       if (animatedState.blur > 0) {
         ctx.filter = `blur(${animatedState.blur}px)`;
       }
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
 
-      const drawWidth = renderWidth / rasterScale;
-      const drawHeight = renderHeight / rasterScale;
-      const sourceInset = this.getAnimatedSVGSourceInset(
-        animatedState,
-        renderWidth,
-        renderHeight,
-      );
-      const sourceWidth = Math.max(1, renderWidth - sourceInset * 2);
-      const sourceHeight = Math.max(1, renderHeight - sourceInset * 2);
-      const drawX = -drawWidth / 2 + sourceInset / rasterScale;
-      const drawY = -drawHeight / 2 + sourceInset / rasterScale;
-      const sourceDrawWidth = sourceWidth / rasterScale;
-      const sourceDrawHeight = sourceHeight / rasterScale;
+      const { paddedWidth, paddedHeight, drawWidth, drawHeight, padDraw } = plan;
+      const destX = -(drawWidth / 2 + padDraw);
+      const destY = -(drawHeight / 2 + padDraw);
+      const destWidth = drawWidth + padDraw * 2;
+      const destHeight = drawHeight + padDraw * 2;
 
       if (
         svg.colorStyle &&
@@ -713,50 +705,20 @@ export class GraphicsEngine {
         (svg.colorStyle.colorMode === "tint" ||
           svg.colorStyle.colorMode === "replace")
       ) {
-        const tempCanvas = new OffscreenCanvas(renderWidth, renderHeight);
+        const tempCanvas = new OffscreenCanvas(paddedWidth, paddedHeight);
         const tempCtx = tempCanvas.getContext("2d");
         if (tempCtx) {
-          tempCtx.drawImage(img, 0, 0, renderWidth, renderHeight);
+          tempCtx.drawImage(img, 0, 0, paddedWidth, paddedHeight);
           tempCtx.globalCompositeOperation = "source-in";
           tempCtx.fillStyle = svg.colorStyle.tintColor || "#ffffff";
           tempCtx.globalAlpha = svg.colorStyle.tintOpacity ?? 1;
-          tempCtx.fillRect(0, 0, renderWidth, renderHeight);
-          ctx.drawImage(
-            tempCanvas,
-            sourceInset,
-            sourceInset,
-            sourceWidth,
-            sourceHeight,
-            drawX,
-            drawY,
-            sourceDrawWidth,
-            sourceDrawHeight,
-          );
+          tempCtx.fillRect(0, 0, paddedWidth, paddedHeight);
+          ctx.drawImage(tempCanvas, destX, destY, destWidth, destHeight);
         } else {
-          ctx.drawImage(
-            img,
-            sourceInset,
-            sourceInset,
-            sourceWidth,
-            sourceHeight,
-            drawX,
-            drawY,
-            sourceDrawWidth,
-            sourceDrawHeight,
-          );
+          ctx.drawImage(img, destX, destY, destWidth, destHeight);
         }
       } else {
-        ctx.drawImage(
-          img,
-          sourceInset,
-          sourceInset,
-          sourceWidth,
-          sourceHeight,
-          drawX,
-          drawY,
-          sourceDrawWidth,
-          sourceDrawHeight,
-        );
+        ctx.drawImage(img, destX, destY, destWidth, destHeight);
       }
 
       ctx.filter = "none";
@@ -905,6 +867,18 @@ export class GraphicsEngine {
     ctx.closePath();
   }
 
+  /**
+   * Draw SVG path data or a point list. Path data is fit uniformly into the
+   * shape box and centered; point lists use normalized 0..1 coordinates.
+   */
+  private drawPathShape(
+    ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+    shape: ShapeClip,
+    size: number,
+  ): void {
+    drawShapePathCentered(ctx, shape, size);
+  }
+
   private drawPolygonCentered(
     ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
     points: Point2D[],
@@ -1041,6 +1015,7 @@ export class GraphicsEngine {
       rotation += emphasisState.rotation;
       opacity *= emphasisState.opacity;
     }
+    opacity *= overlayBlendAlpha(graphic);
 
     return {
       transform: {

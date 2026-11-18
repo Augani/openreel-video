@@ -1,7 +1,20 @@
 import type { JSX } from "react";
-import { useState } from "react";
-import { ToolcraftButton as Button } from "@openreel/ui";
-import { ChevronRight, Loader2, Check, X, Ban, Wrench } from "@/icons/lucide-compat";
+import { memo, useState } from "react";
+import {
+  Button,
+  Collapsible,
+  CollapsibleTrigger,
+  CollapsibleContent,
+} from "@openreel/ui";
+import {
+  ChevronRight,
+  Loader2,
+  Check,
+  X,
+  Ban,
+  Wrench,
+  Undo2,
+} from "@/icons/lucide-compat";
 import type { ToolCallView } from "../../../stores/chat-store";
 
 const STATUS_META: Record<
@@ -40,87 +53,88 @@ const STATUS_META: Record<
   },
 };
 
-function previewArgs(args: Record<string, unknown>): string {
-  const entries = Object.entries(args ?? {});
-  if (entries.length === 0) return "";
-  return entries
-    .map(([k, v]) => {
-      const raw =
-        typeof v === "string" ? v : JSON.stringify(v);
-      const value = raw.length > 40 ? `${raw.slice(0, 40)}…` : raw;
-      return `${k}: ${value}`;
-    })
-    .join(", ");
+function ToolCallDetails({ call }: { call: ToolCallView }): JSX.Element {
+  return <>
+    <div className="font-mono text-fg-muted">{call.name}</div>
+    {Object.keys(call.args ?? {}).length > 0 && (
+      <div>
+        <div className="mb-0.5 text-[9px] uppercase tracking-wide text-fg-muted">Arguments</div>
+        <pre className="overflow-x-auto whitespace-pre-wrap break-words rounded bg-bg-2 p-1.5 font-mono text-[10px] text-fg-2">
+          {JSON.stringify(call.args, null, 2)}
+        </pre>
+      </div>
+    )}
+    {call.result && (
+      <div>
+        <div className="mb-0.5 text-[9px] uppercase tracking-wide text-fg-muted">Result</div>
+        <div className={call.result.ok || call.status === "corrected" ? "text-fg-2" : call.status === "retrying" ? "text-status-warning" : "text-status-error"}>
+          {call.result.summary}
+          {call.result.error && !call.result.ok ? ` — ${call.result.error.message}` : ""}
+        </div>
+        {call.result.data !== undefined && (
+          <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap rounded bg-bg-2 p-1.5 text-[10px]">
+            {JSON.stringify(call.result.data, null, 2)}
+          </pre>
+        )}
+      </div>
+    )}
+  </>;
 }
 
-export function ToolCallCard({ call }: { call: ToolCallView }): JSX.Element {
+export const ToolCallCard = memo(function ToolCallCard({ call, undone = false }: { call: ToolCallView; undone?: boolean }): JSX.Element {
   const [open, setOpen] = useState(false);
-  const meta = STATUS_META[call.status];
+  const meta = undone ? { icon: <Undo2 size={12}/>, tint: "text-fg-muted", label: "Undone" } : STATUS_META[call.status];
   const hasDetail =
     Object.keys(call.args ?? {}).length > 0 || call.result !== undefined;
+  const readableName = call.name
+    .replaceAll("_", " ")
+    .replace(/^\w/, (letter) => letter.toUpperCase());
+  const label = call.result?.summary || readableName;
 
   return (
-    <div className="rounded-md border border-border bg-bg-1/60 text-[11px]">
-      <Button
-        label={`${call.name} ${meta.label}`}
-        variant="ghost"
-        isDisabled={!hasDetail}
-        onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center gap-1.5 px-2 py-1.5 text-left disabled:cursor-default"
-      >
-        {hasDetail ? (
-          <ChevronRight
-            size={12}
-            className={`shrink-0 text-fg-muted transition-transform ${open ? "rotate-90" : ""}`}
-          />
-        ) : (
-          <Wrench size={12} className="shrink-0 text-fg-muted" />
-        )}
-        <span className="font-mono text-fg">{call.name}</span>
-        <span className={`ml-auto flex items-center gap-1 ${meta.tint}`}>
-          {meta.icon}
-          <span className="text-[10px]">{meta.label}</span>
-        </span>
-      </Button>
+    <Collapsible
+      open={open}
+      onOpenChange={setOpen}
+      className="workspace-tool-call rounded-md border border-border bg-bg-1/60 text-[11px]"
+    >
+      <CollapsibleTrigger asChild disabled={!hasDetail}>
+        <Button
+          type="button"
+          aria-label={`${label} ${meta.label}`}
+          variant="ghost"
+          disabled={!hasDetail}
+          className="workspace-tool-call-trigger group flex h-auto w-full min-w-0 items-center gap-1.5 px-2 py-1.5 text-left text-[11px] disabled:cursor-default"
+        >
+          <span className={`flex shrink-0 ${meta.tint}`} aria-hidden="true">
+            {meta.icon}
+          </span>
+          <span className="min-w-0 truncate text-fg">{label}</span>
+          {(undone || call.status !== "done") && (
+            <span className={`ml-auto text-[10px] ${meta.tint}`}>
+              {meta.label}
+            </span>
+          )}
+          {hasDetail && (
+            <ChevronRight
+              size={12}
+              aria-hidden="true"
+              className={`ml-auto shrink-0 text-fg-muted opacity-0 transition group-hover:opacity-100 group-focus-visible:opacity-100 ${open ? "rotate-90 opacity-100" : ""}`}
+            />
+          )}
+        </Button>
+      </CollapsibleTrigger>
 
-      {open && hasDetail && (
-        <div className="space-y-1.5 border-t border-border px-2 py-1.5">
-          {Object.keys(call.args ?? {}).length > 0 && (
-            <div>
-              <div className="mb-0.5 text-[9px] uppercase tracking-wide text-fg-muted">
-                Arguments
-              </div>
-              <pre className="overflow-x-auto whitespace-pre-wrap break-words rounded bg-bg-2 p-1.5 font-mono text-[10px] text-fg-2">
-                {JSON.stringify(call.args, null, 2)}
-              </pre>
-            </div>
-          )}
-          {call.result && (
-            <div>
-              <div className="mb-0.5 text-[9px] uppercase tracking-wide text-fg-muted">
-                Result
-              </div>
-              <div
-                className={
-                  call.result.ok || call.status === "corrected" ? "text-fg-2" : call.status === "retrying" ? "text-status-warning" : "text-status-error"
-                }
-              >
-                {call.result.summary}
-                {call.result.error && !call.result.ok
-                  ? ` — ${call.result.error.message}`
-                  : ""}
-              </div>
-              {call.result.data !== undefined && <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap rounded bg-bg-2 p-1.5 text-[10px]">{JSON.stringify(call.result.data, null, 2)}</pre>}
-            </div>
-          )}
-        </div>
+      {hasDetail && (
+        <CollapsibleContent className="space-y-1.5 border-t border-border px-2 py-1.5">
+          <ToolCallDetails call={call} />
+        </CollapsibleContent>
       )}
 
-      {!open && Object.keys(call.args ?? {}).length > 0 && (
-        <div className="truncate px-2 pb-1.5 font-mono text-[10px] text-fg-muted">
-          {previewArgs(call.args)}
-        </div>
+      {!open && call.result?.error && !call.result.ok && (
+        <p className="px-2 pb-1.5 text-status-error">
+          {call.result.error.message}
+        </p>
       )}
-    </div>
+    </Collapsible>
   );
-}
+});

@@ -1,16 +1,19 @@
 import React from "react";
 import { Zap, Loader2, Upload } from "@/icons/lucide-compat";
-import { ToolcraftButton as Button } from "@openreel/ui";
-import { ToolcraftCard as Card } from "@openreel/ui";
-import { ToolcraftText as Text } from "@openreel/ui";
+import { Button, cn } from "@openreel/ui";
+import { Card } from "@openreel/ui";
+
+import { Input } from "@openreel/ui";
 import { AutoReframeSection } from "../";
 import { AutoCaptionPanel } from "../AutoCaptionPanel";
 import { CaptionEditorPanel } from "../CaptionEditorPanel";
 import { AutoEditPanel } from "../../panels/AutoEditPanel";
 import { HighlightExtractorPanel } from "../../panels/HighlightExtractorPanel";
 import { InspectorSection } from "../shell/InspectorSection";
+import { useSceneDetectionDialogStore } from "../../../../stores/scene-detection-dialog-store";
+import { Film } from "@/icons/lucide-compat";
 
-export interface AiTabProps {
+interface AiTabProps {
   clipId: string;
   clipType: string | null;
   showVideoControls: boolean;
@@ -61,7 +64,7 @@ export const AiTab: React.FC<AiTabProps> = ({
                 clipId={clipId}
                 maxWordsPerLine={captionWordsPerLine}
               />
-              <input
+              <Input
                 ref={srtInputRef}
                 type="file"
                 aria-label="Import SRT or VTT file"
@@ -69,14 +72,10 @@ export const AiTab: React.FC<AiTabProps> = ({
                 onChange={(event) => { void handleSRTImport(event); }}
                 className="hidden"
               />
-              <Button
-                label="Import SRT / VTT as Text"
-                onClick={() => srtInputRef.current?.click()}
-                variant="secondary"
-                size="sm"
-                icon={<Upload size={13} aria-hidden />}
-                className="w-full justify-center"
-              />
+              <Button onClick={() => srtInputRef.current?.click()} type="button" aria-label="Import SRT / VTT as Text" className="inline-flex min-w-0 items-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg w-full justify-center">
+                <span className="flex h-4 w-4 shrink-0 items-center justify-center">{<Upload size={13} aria-hidden />}</span>
+                <span className="truncate">{"Import SRT / VTT as Text"}</span>
+              </Button>
             </div>
           </InspectorSection>
         </>
@@ -105,6 +104,29 @@ export const AiTab: React.FC<AiTabProps> = ({
         </InspectorSection>
       )}
 
+      {clipType === "video" && (
+        <InspectorSection
+          title="Scene Edit Detection"
+          sectionId="scene-edit-detection"
+          defaultOpen={false}
+        >
+          <div className="space-y-2">
+            <p className="text-[11px] text-fg-3">
+              Find hard cuts in this clip, then split it or add markers.
+            </p>
+            <Button
+              type="button"
+              aria-label="Detect Scene Edits"
+              onClick={() => useSceneDetectionDialogStore.getState().open(clipId)}
+              className="inline-flex h-7 w-full min-w-0 items-center justify-center gap-1.5 rounded-[7px] border border-border bg-bg-2 px-2.5 text-[12px] font-semibold text-fg-2 outline-none transition-colors hover:bg-bg-3 hover:text-fg focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <Film size={13} aria-hidden />
+              <span className="truncate">Detect Scene Edits…</span>
+            </Button>
+          </div>
+        </InspectorSection>
+      )}
+
       {showAudioEffects && (
         <InspectorSection
           title="Beat-Synced Auto-Edit"
@@ -126,68 +148,52 @@ export const AiTab: React.FC<AiTabProps> = ({
       )}
 
       {(showVideoControls || showAudioEffects || showVideoEffects) && (
-        <Card
-          variant="green"
-          padding={4}
-          className="relative overflow-hidden border border-primary/30 bg-primary/5"
+        <Card className="min-w-0 rounded-[7px] shadow-none text-fg p-4 relative overflow-hidden border border-primary/30 bg-primary/5"
         >
           <div className="flex items-center gap-2 text-primary mb-3">
             <Zap size={14} />
-            <Text type="supporting" color="active" className="text-xs font-bold">
+            <span className="text-accent text-xs font-bold">
               Quick Actions
-            </Text>
+            </span>
           </div>
           <div className="space-y-2">
             {showVideoControls && (
-              <Button
-                label="Remove Background"
-                onClick={handleRemoveBackground}
-                isDisabled={isApplyingSelectedClipEffect}
-                variant="secondary"
-                size="sm"
-                className={`w-full justify-center ${
+              <Button onClick={handleRemoveBackground} type="button" aria-label="Remove Background" disabled={(isApplyingSelectedClipEffect)} className={cn("inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50", "h-7 px-2.5 text-[12px]", "border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg", `w-full justify-center ${
                   isApplyingSelectedClipEffect
                     ? "bg-bg-2 border-border text-fg-3"
                     : "bg-bg-2 hover:bg-primary hover:text-white border-border hover:border-primary"
-                }`}
-              />
+                }`)}>
+                <span className="truncate">{"Remove Background"}</span>
+              </Button>
             )}
             {showAudioEffects && (
-              <Button
-                label={
-                  isEnhancingAudio
+              <Button onClick={handleEnhanceAudio} type="button" aria-label={(isEnhancingAudio
                     ? "Cleaning up..."
                     : audioEnhanced
                       ? "Noise Reduced"
-                      : "Quick Dialogue Cleanup"
-                }
-                onClick={handleEnhanceAudio}
-                isDisabled={isEnhancingAudio || isApplyingSelectedClipEffect}
-                variant="secondary"
-                size="sm"
-                icon={isEnhancingAudio ? <Loader2 size={12} className="animate-spin" aria-hidden /> : undefined}
-                className={`w-full justify-center ${
+                      : "Quick Dialogue Cleanup").trim() || undefined} disabled={(isEnhancingAudio || isApplyingSelectedClipEffect)} className={cn("inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50", "h-7 px-2.5 text-[12px]", "border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg", `w-full justify-center ${
                   audioEnhanced
                     ? "bg-green-500/20 border-green-500 text-green-400"
                     : isEnhancingAudio || isApplyingSelectedClipEffect
                       ? "bg-bg-2 border-border text-fg-3"
                       : "bg-bg-2 hover:bg-primary hover:text-white border-border hover:border-primary"
-                }`}
-              />
+                }`)}>
+                {(isEnhancingAudio ? <Loader2 size={12} className="animate-spin" aria-hidden /> : undefined) ? <span className="flex h-4 w-4 shrink-0 items-center justify-center">{isEnhancingAudio ? <Loader2 size={12} className="animate-spin" aria-hidden /> : undefined}</span> : null}
+                <span className="truncate">{isEnhancingAudio
+                    ? "Cleaning up..."
+                    : audioEnhanced
+                      ? "Noise Reduced"
+                      : "Quick Dialogue Cleanup"}</span>
+              </Button>
             )}
             {showVideoEffects && (
-              <Button
-                label={isApplyingSelectedClipEffect ? "Applying..." : "Auto-Color"}
-                onClick={handleAutoColor}
-                isDisabled={isApplyingSelectedClipEffect}
-                variant="secondary"
-                size="sm"
-                className={`w-full justify-center ${
+              <Button onClick={handleAutoColor} type="button" aria-label={(isApplyingSelectedClipEffect ? "Applying..." : "Auto-Color").trim() || undefined} disabled={(isApplyingSelectedClipEffect)} className={cn("inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50", "h-7 px-2.5 text-[12px]", "border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg", `w-full justify-center ${
                   isApplyingSelectedClipEffect
                     ? "bg-bg-2 border-border text-fg-3"
                     : "bg-bg-2 hover:bg-primary hover:text-white border-border hover:border-primary"
-                }`}
-              />
+                }`)}>
+                <span className="truncate">{isApplyingSelectedClipEffect ? "Applying..." : "Auto-Color"}</span>
+              </Button>
             )}
           </div>
         </Card>

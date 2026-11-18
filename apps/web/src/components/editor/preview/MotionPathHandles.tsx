@@ -254,5 +254,3 @@ export const MotionPathHandles: React.FC<MotionPathHandlesProps> = ({
     </g>
   );
 };
-
-export default MotionPathHandles;

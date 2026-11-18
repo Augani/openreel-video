@@ -1,10 +1,11 @@
+import { cn } from "@openreel/ui";
 import React, { useCallback, useEffect, useState } from "react";
-import { ToolcraftCard as Card } from "@openreel/ui";
-import { ToolcraftIconButton as IconButton } from "@openreel/ui";
-import { ToolcraftText as Text } from "@openreel/ui";
-import { ChevronDown, Volume2 } from "@/icons/lucide-compat";
+import { Card } from "@openreel/ui";
+import { Button } from "@openreel/ui";
+
+import { ChevronDown } from "@/icons/lucide-compat";
 import { PropertySlider } from "./shell/PropertySlider";
-import { MockSlider, MockToggle } from "./shell/InspectorControls";
+import { InlineSlider, InspectorToggle } from "./shell/InspectorControls";
 import {
   getAudioBridgeEffects,
   initializeAudioBridgeEffects,
@@ -26,34 +27,24 @@ const SubSection: React.FC<{
   const [isOpen, setIsOpen] = useState(defaultOpen);
 
   return (
-    <Card
-      variant="muted"
-      padding={0}
-      className={`border overflow-hidden ${
+    <Card className={cn("min-w-0 rounded-[7px] border shadow-none", "border-transparent bg-bg-2 text-fg", "p-0", `border overflow-hidden ${
         enabled ? "border-border" : "border-border/50 opacity-60"
-      }`}
+      }`)}
     >
       <div className="flex items-center gap-2 p-2 bg-bg-2">
-        <IconButton
-          label={`${isOpen ? "Collapse" : "Expand"} ${title}`}
-          icon={
-            <ChevronDown
+        <Button variant="ghost" size="icon-sm" onClick={() => setIsOpen(!isOpen)} type="button" aria-label={`${isOpen ? "Collapse" : "Expand"} ${title}`} title={`${isOpen ? "Collapse" : "Expand"} ${title}`} className="justify-center rounded-[7px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 w-7 bg-transparent text-fg-muted hover:bg-bg-2 hover:text-fg flex-1 flex items-center gap-1">
+          {<ChevronDown
               size={12}
               className={`transition-transform ${
                 isOpen ? "" : "-rotate-90"
               } text-fg-3`}
-            />
-          }
-          variant="ghost"
-          size="sm"
-          onClick={() => setIsOpen(!isOpen)}
-          className="flex-1 flex items-center gap-1"
-        />
-        <Text type="supporting" color="primary" className="flex-1 text-[10px] font-medium">
+            />}
+        </Button>
+        <span className="text-fg flex-1 text-[10px] font-medium">
             {title}
-        </Text>
+        </span>
         {onToggle && (
-          <MockToggle
+          <InspectorToggle
             ariaLabel={`${title} enabled`}
             checked={enabled}
             onChange={onToggle}
@@ -72,7 +63,8 @@ const EQBand: React.FC<{
 }> = ({ frequency, gain, onChange }) => (
   <div className="flex flex-col items-center gap-1">
     <div className="flex w-[56px] items-center">
-      <MockSlider
+      <InlineSlider
+        ariaLabel={`EQ ${frequency} gain`}
         min={-12}
         max={12}
         step={1}
@@ -80,13 +72,13 @@ const EQBand: React.FC<{
         onChange={onChange}
       />
     </div>
-    <Text type="supporting" color="secondary" className="text-[8px]">
+    <span className="text-fg-2 font-normal text-[8px]">
       {frequency}
-    </Text>
-    <Text type="supporting" color="secondary" className="font-mono text-[8px]">
+    </span>
+    <span className="text-fg-2 font-normal font-mono text-[8px]">
       {gain > 0 ? "+" : ""}
       {gain}
-    </Text>
+    </span>
   </div>
 );
 
@@ -405,13 +397,6 @@ export const AudioEffectsSection: React.FC<AudioEffectsSectionProps> = ({
 
   return (
     <div className="space-y-3">
-      <Card variant="muted" padding={2} className="flex items-center gap-2">
-        <Volume2 size={14} className="text-fg-2" />
-        <Text type="supporting" color="secondary" className="text-[10px]">
-          Audio clip: {clipId.substring(0, 8)}...
-        </Text>
-      </Card>
-
       <SubSection
         title="Equalizer"
         enabled={eqEnabled}
@@ -542,4 +527,3 @@ export const AudioEffectsSection: React.FC<AudioEffectsSectionProps> = ({
   );
 };
 
-export default AudioEffectsSection;

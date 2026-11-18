@@ -1,10 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
-  MotionHighQualityRenderer,
   compositionRequiresCanvas2dCompositing,
   parseMotionBackgroundColor,
 } from "./motion-gpu-render";
-import { MotionGpuCompositor } from "./motion-gpu-compositor";
 import { DEFAULT_MOTION_TRANSFORM, type MotionComposition, type MotionLayer } from "./types";
 
 const shapeLayer = (overrides: Partial<MotionLayer> = {}): MotionLayer =>
@@ -93,17 +91,5 @@ describe("compositionRequiresCanvas2dCompositing", () => {
     expect(
       compositionRequiresCanvas2dCompositing(composition([shapeLayer(), matted])),
     ).toBe(true);
-  });
-});
-
-describe("MotionHighQualityRenderer GPU gating", () => {
-  it("reports GPU unsupported in the node test environment", () => {
-    expect(MotionGpuCompositor.isSupported()).toBe(false);
-  });
-
-  it("never selects the GPU path without WebGPU support", () => {
-    const renderer = new MotionHighQualityRenderer();
-    expect(renderer.canUseGpu(composition([shapeLayer()]), true)).toBe(false);
-    expect(renderer.canUseGpu(composition([shapeLayer()]), false)).toBe(false);
   });
 });

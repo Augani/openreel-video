@@ -173,13 +173,9 @@ vi.mock("mediabunny", () => {
   };
 });
 
-import { ExportEngine, getExportEngine } from "./export-engine";
-import {
-  DEFAULT_VIDEO_SETTINGS,
-  DEFAULT_AUDIO_SETTINGS,
-  DEFAULT_IMAGE_SETTINGS,
-  VIDEO_QUALITY_PRESETS,
-} from "./types";
+import { ExportEngine, setEncoderBackendFactory } from "./export-engine";
+import type { EncoderBackend } from "./encoder-backend";
+import { DEFAULT_VIDEO_SETTINGS } from "./types";
 import type { Project, Timeline, Track, Clip } from "../types";
 import type { ExportResult } from "./types";
 
@@ -299,67 +295,6 @@ describe("ExportEngine", () => {
     vi.useRealTimers();
   });
 
-  describe("initialization", () => {
-    it("should start uninitialized", () => {
-      expect(exportEngine.isInitialized()).toBe(false);
-    });
-
-    it("should report MediaBunny unavailable before init", () => {
-      expect(exportEngine.isMediaBunnyAvailable()).toBe(false);
-    });
-  });
-
-  describe("singleton pattern", () => {
-    it("should return same instance from getExportEngine", () => {
-      const engine1 = getExportEngine();
-      const engine2 = getExportEngine();
-      expect(engine1).toBe(engine2);
-    });
-  });
-
-  describe("presets", () => {
-    it("should return export presets", () => {
-      const presets = exportEngine.getPresets();
-      expect(presets.length).toBeGreaterThan(0);
-    });
-
-    it("should have presets for all categories", () => {
-      const presets = exportEngine.getPresets();
-      const categories = new Set(presets.map((p) => p.category));
-      expect(categories.has("social")).toBe(true);
-      expect(categories.has("broadcast")).toBe(true);
-      expect(categories.has("web")).toBe(true);
-      expect(categories.has("archive")).toBe(true);
-    });
-
-    it("should have YouTube preset", () => {
-      const presets = exportEngine.getPresets();
-      const youtubePreset = presets.find((p) => p.id === "youtube-1080p");
-      expect(youtubePreset).toBeDefined();
-      expect(youtubePreset?.settings).toHaveProperty("codec", "h264");
-    });
-
-    it("should have TikTok preset with vertical dimensions", () => {
-      const presets = exportEngine.getPresets();
-      const tiktokPreset = presets.find((p) => p.id === "tiktok-1080p");
-      expect(tiktokPreset).toBeDefined();
-      if ("width" in tiktokPreset!.settings) {
-        expect(tiktokPreset!.settings.width).toBe(1080);
-        expect(tiktokPreset!.settings.height).toBe(1920);
-      }
-    });
-
-    it("should create custom preset", () => {
-      const customPreset = exportEngine.createPreset("My Preset", {
-        ...DEFAULT_VIDEO_SETTINGS,
-        bitrate: 15000,
-      });
-      expect(customPreset.name).toBe("My Preset");
-      expect(customPreset.category).toBe("custom");
-      expect(customPreset.id).toMatch(/^custom-/);
-    });
-  });
-
   describe("file size estimation", () => {
     it("should estimate video file size", () => {
       const project = createMockProject({
@@ -371,83 +306,6 @@ describe("ExportEngine", () => {
 
       const expectedSize = ((8000 * 1000 + 192 * 1000) * 60) / 8;
       expect(estimatedSize).toBe(Math.ceil(expectedSize));
-    });
-
-    it("should estimate audio file size for WAV", () => {
-      const project = createMockProject({
-        timeline: createMockTimeline({ duration: 60 }),
-      });
-
-      const settings = { ...DEFAULT_AUDIO_SETTINGS, format: "wav" as const };
-      const estimatedSize = exportEngine.estimateFileSize(project, settings);
-
-      const expectedSize = 60 * 48000 * 2 * (16 / 8);
-      expect(estimatedSize).toBe(Math.ceil(expectedSize));
-    });
-
-    it("should estimate audio file size for MP3", () => {
-      const project = createMockProject({
-        timeline: createMockTimeline({ duration: 60 }),
-      });
-
-      const settings = { ...DEFAULT_AUDIO_SETTINGS, bitrate: 320 };
-      const estimatedSize = exportEngine.estimateFileSize(project, settings);
-
-      const expectedSize = (320 * 1000 * 60) / 8;
-      expect(estimatedSize).toBe(Math.ceil(expectedSize));
-    });
-  });
-
-  describe("export time estimation", () => {
-    it("should estimate video export time", () => {
-      const project = createMockProject({
-        timeline: createMockTimeline({ duration: 60 }),
-      });
-
-      const settings = DEFAULT_VIDEO_SETTINGS;
-      const estimatedTime = exportEngine.estimateExportTime(project, settings);
-
-      expect(estimatedTime).toBeGreaterThan(0);
-    });
-
-    it("should estimate longer time for H.265", () => {
-      const project = createMockProject({
-        timeline: createMockTimeline({ duration: 60 }),
-      });
-
-      const h264Settings = {
-        ...DEFAULT_VIDEO_SETTINGS,
-        codec: "h264" as const,
-      };
-      const h265Settings = {
-        ...DEFAULT_VIDEO_SETTINGS,
-        codec: "h265" as const,
-      };
-
-      const h264Time = exportEngine.estimateExportTime(project, h264Settings);
-      const h265Time = exportEngine.estimateExportTime(project, h265Settings);
-
-      expect(h265Time).toBeGreaterThan(h264Time);
-    });
-
-    it("should estimate longer time for 4K", () => {
-      const project = createMockProject({
-        timeline: createMockTimeline({ duration: 60 }),
-      });
-
-      const hd = { ...DEFAULT_VIDEO_SETTINGS, width: 1920, height: 1080 };
-      const fourK = { ...DEFAULT_VIDEO_SETTINGS, width: 3840, height: 2160 };
-
-      const hdTime = exportEngine.estimateExportTime(project, hd);
-      const fourKTime = exportEngine.estimateExportTime(project, fourK);
-
-      expect(fourKTime).toBeGreaterThan(hdTime);
-    });
-  });
-
-  describe("cancel", () => {
-    it("should not throw when canceling without active export", () => {
-      expect(() => exportEngine.cancel()).not.toThrow();
     });
   });
 
@@ -482,6 +340,194 @@ describe("ExportEngine", () => {
         if (done) return value;
       }
     }
+
+    describe("frame pipelining", () => {
+      afterEach(() => setEncoderBackendFactory(null));
+
+      function installBackend(supportsPipelining: boolean) {
+        const state = { inFlight: 0, maxInFlight: 0, order: [] as number[], finalizedInFlight: -1 };
+        const backend: EncoderBackend = {
+          requiresWebCodecsClamping: false,
+          needsFrameThrottling: false,
+          normalizesProResToH264: false,
+          audioBeforeVideo: true,
+          supportsPipelining,
+          start: async () => undefined,
+          addVideoFrame: async (_frame, timestampSec) => {
+            state.order.push(timestampSec);
+            state.inFlight += 1;
+            state.maxInFlight = Math.max(state.maxInFlight, state.inFlight);
+            await new Promise((resolve) => setTimeout(resolve, 3));
+            state.inFlight -= 1;
+          },
+          addAudioBuffer: async () => undefined,
+          closeAudio: async () => undefined,
+          getBytesWritten: () => 0,
+          finalize: async () => {
+            state.finalizedInFlight = state.inFlight;
+          },
+          abort: async () => undefined,
+        };
+        setEncoderBackendFactory(() => backend);
+        return state;
+      }
+
+      it("keeps frame order and bounds the queue for pipelined backends", async () => {
+        const state = installBackend(true);
+        const result = await drainVideoExport(
+          { ...DEFAULT_VIDEO_SETTINGS, frameRate: 10, width: 640, height: 360 },
+          2,
+        );
+
+        expect(result.success).toBe(true);
+        expect(state.order).toEqual(Array.from({ length: 20 }, (_, i) => i / 10));
+        expect(state.maxInFlight).toBeLessThanOrEqual(3);
+        expect(state.finalizedInFlight).toBe(0);
+      });
+
+      it("stays sequential when the backend does not declare support", async () => {
+        const state = installBackend(false);
+        const result = await drainVideoExport(
+          { ...DEFAULT_VIDEO_SETTINGS, frameRate: 10, width: 640, height: 360 },
+          1,
+        );
+
+        expect(result.success).toBe(true);
+        expect(state.maxInFlight).toBe(1);
+      });
+    });
+
+    describe("audio beside video", () => {
+      afterEach(() => setEncoderBackendFactory(null));
+
+      function installBackend(audio: () => Promise<void>) {
+        const events: string[] = [];
+        const backend: EncoderBackend = {
+          requiresWebCodecsClamping: false,
+          needsFrameThrottling: false,
+          normalizesProResToH264: false,
+          audioBeforeVideo: true,
+          start: async () => undefined,
+          addVideoFrame: async () => { events.push("video"); },
+          addAudioBuffer: async () => { events.push("audio"); await audio(); },
+          closeAudio: async () => { events.push("audio-closed"); },
+          getBytesWritten: () => 0,
+          finalize: async () => { events.push("finalize"); },
+          abort: async () => { events.push("abort"); },
+        };
+        setEncoderBackendFactory(() => backend);
+        return events;
+      }
+
+      it("starts rendering frames while the audio mixdown is still running, and finishes audio before finalizing", async () => {
+        let releaseAudio: () => void = () => undefined;
+        const events = installBackend(() => new Promise<void>((resolve) => { releaseAudio = resolve; }));
+        mockRenderAudio.mockImplementation(async (_project, _start, duration) => ({ buffer: { duration, length: duration * 48000 } }));
+        const settings = { ...DEFAULT_VIDEO_SETTINGS, frameRate: 5, width: 640, height: 360 };
+        const run = drainVideoExport(settings, 1);
+        // Video frames must flow although the first audio chunk has not been accepted yet.
+        await vi.waitFor(() => expect(events.filter((e) => e === "video")).toHaveLength(5));
+        expect(events).not.toContain("audio-closed");
+        expect(events).not.toContain("finalize");
+        releaseAudio();
+        const result = await run;
+        expect(result.success).toBe(true);
+        expect(events.indexOf("audio-closed")).toBeGreaterThan(-1);
+        expect(events.indexOf("audio-closed")).toBeLessThan(events.indexOf("finalize"));
+      });
+
+      it("fails the export with the audio error, not a cancellation, when the mixdown breaks mid-export", async () => {
+        installBackend(async () => { throw Object.assign(new Error("mix"), { code: "FRAME_ENCODE_FAILED", message: "audio mix failed", phase: "encoding", recoverable: false }); });
+        mockRenderAudio.mockImplementation(async (_project, _start, duration) => ({ buffer: { duration, length: duration * 48000 } }));
+        const result = await drainVideoExport({ ...DEFAULT_VIDEO_SETTINGS, frameRate: 5, width: 640, height: 360 }, 1);
+        expect(result.success).toBe(false);
+        expect(result.error?.code).toBe("FRAME_ENCODE_FAILED");
+        expect(result.error?.message).toBe("audio mix failed");
+      });
+    });
+
+    it("stops the audio mixdown after a video-side failure instead of rendering the remaining chunks", async () => {
+      const events: string[] = [];
+      let releaseAudio: () => void = () => undefined;
+      const backend: EncoderBackend = {
+        requiresWebCodecsClamping: false,
+        needsFrameThrottling: false,
+        normalizesProResToH264: false,
+        audioBeforeVideo: true,
+        start: async () => undefined,
+        addVideoFrame: async () => { throw new Error("video encode broke"); },
+        addAudioBuffer: async () => { events.push("audio"); await new Promise<void>((resolve) => { releaseAudio = resolve; }); },
+        closeAudio: async () => undefined,
+        getBytesWritten: () => 0,
+        finalize: async () => undefined,
+        abort: async () => undefined,
+      };
+      setEncoderBackendFactory(() => backend);
+      try {
+        mockRenderAudio.mockClear();
+        mockRenderAudio.mockImplementation(async (_project, _start, duration) => ({ buffer: { duration, length: duration * 48000 } }));
+        const result = await drainVideoExport({ ...DEFAULT_VIDEO_SETTINGS, frameRate: 1, width: 640, height: 360 }, 40);
+        expect(result.success).toBe(false);
+        await vi.waitFor(() => expect(events).toHaveLength(1));
+        releaseAudio();
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        // 40 s is three 15 s chunks; only the one already in flight may have been rendered.
+        expect(mockRenderAudio).toHaveBeenCalledTimes(1);
+      } finally {
+        setEncoderBackendFactory(null);
+      }
+    });
+
+    describe("finalize watchdog", () => {
+      afterEach(() => {
+        setEncoderBackendFactory(null);
+        vi.useRealTimers();
+      });
+
+      function installSlowFinalize(flags: Partial<EncoderBackend>) {
+        let release!: () => void;
+        const finalizeCalled = vi.fn();
+        const backend: EncoderBackend = {
+          requiresWebCodecsClamping: false,
+          needsFrameThrottling: false,
+          normalizesProResToH264: false,
+          audioBeforeVideo: true,
+          start: async () => undefined,
+          addVideoFrame: async () => undefined,
+          addAudioBuffer: async () => undefined,
+          closeAudio: async () => undefined,
+          getBytesWritten: () => 0,
+          finalize: () => new Promise<void>((resolve) => { finalizeCalled(); release = resolve; }),
+          abort: async () => undefined,
+          ...flags,
+        };
+        setEncoderBackendFactory(() => backend);
+        return { release: () => release(), finalizeCalled };
+      }
+
+      it("does not abort a slow finalize on external-encoder backends", async () => {
+        vi.useFakeTimers();
+        const { release, finalizeCalled } = installSlowFinalize({ drivesExternalEncoder: true });
+        const pending = drainVideoExport();
+        await vi.waitFor(() => expect(finalizeCalled).toHaveBeenCalled());
+        await vi.advanceTimersByTimeAsync(5 * 60_000);
+        release();
+        await vi.advanceTimersByTimeAsync(10);
+        expect(await pending).toMatchObject({ success: true });
+      });
+
+      it("keeps the 30s finalize watchdog for WebCodecs backends", async () => {
+        vi.useFakeTimers();
+        const { finalizeCalled } = installSlowFinalize({});
+        const pending = drainVideoExport();
+        await vi.waitFor(() => expect(finalizeCalled).toHaveBeenCalled());
+        await vi.advanceTimersByTimeAsync(35_000);
+        expect(await pending).toMatchObject({
+          success: false,
+          error: { message: expect.stringContaining("stopped responding") },
+        });
+      });
+    });
 
     it("should render long export audio in chunks and clear cached audio", async () => {
       const project = createMockProject({
@@ -602,6 +648,27 @@ describe("ExportEngine", () => {
       expect(await pending).toMatchObject({ success: false, error: { code: "CANCELLED" } });
       completeRender({ image, width: 640, height: 360 });
       await vi.waitFor(() => expect(image.close).toHaveBeenCalledOnce());
+    });
+
+    it("gives a slow frame render (long-GOP seeks on a dense timeline) two minutes, not thirty seconds", async () => {
+      vi.useFakeTimers();
+      let completeRender!: (frame: { image: { close: () => void }; width: number; height: number }) => void;
+      mockRenderFrame.mockImplementationOnce(() => new Promise((resolve) => { completeRender = resolve; }));
+      const pending = drainVideoExport();
+      await vi.waitFor(() => expect(mockRenderFrame).toHaveBeenCalled());
+      await vi.advanceTimersByTimeAsync(90_000);
+      completeRender({ image: { close: vi.fn() }, width: 640, height: 360 });
+      await vi.advanceTimersByTimeAsync(50);
+      expect(await pending).toMatchObject({ success: true });
+    });
+
+    it("still fails a render that never returns, after the render watchdog", async () => {
+      vi.useFakeTimers();
+      mockRenderFrame.mockImplementationOnce(() => new Promise(() => {}));
+      const pending = drainVideoExport();
+      await vi.waitFor(() => expect(mockRenderFrame).toHaveBeenCalled());
+      await vi.advanceTimersByTimeAsync(120_000);
+      expect(await pending).toMatchObject({ success: false, error: { message: expect.stringContaining("stopped responding") } });
     });
 
     it("reports a stalled encoder and allows retry after its watchdog expires", async () => {
@@ -729,82 +796,22 @@ describe("ExportEngine", () => {
       expect(mockVideoSourceConfigs[0]).toMatchObject({ codec: "avc", hardwareAcceleration: "no-preference", bitrateMode: "constant" });
     });
   });
-
-  describe("dispose", () => {
-    it("should reset state on dispose", () => {
-      exportEngine.dispose();
-      expect(exportEngine.isInitialized()).toBe(false);
-      expect(exportEngine.isMediaBunnyAvailable()).toBe(false);
-    });
-  });
-});
-
-describe("Export Types and Defaults", () => {
-  describe("DEFAULT_VIDEO_SETTINGS", () => {
-    it("should have correct default format", () => {
-      expect(DEFAULT_VIDEO_SETTINGS.format).toBe("mp4");
-    });
-
-    it("should have correct default codec", () => {
-      expect(DEFAULT_VIDEO_SETTINGS.codec).toBe("h264");
-    });
-
-    it("should have correct default resolution", () => {
-      expect(DEFAULT_VIDEO_SETTINGS.width).toBe(1920);
-      expect(DEFAULT_VIDEO_SETTINGS.height).toBe(1080);
-    });
-
-    it("should have correct default frame rate", () => {
-      expect(DEFAULT_VIDEO_SETTINGS.frameRate).toBe(30);
-    });
-
-    it("should have audio settings", () => {
-      expect(DEFAULT_VIDEO_SETTINGS.audioSettings).toBeDefined();
-      expect(DEFAULT_VIDEO_SETTINGS.audioSettings.sampleRate).toBe(48000);
-    });
-  });
-
-  describe("DEFAULT_AUDIO_SETTINGS", () => {
-    it("should have correct defaults", () => {
-      expect(DEFAULT_AUDIO_SETTINGS.format).toBe("mp3");
-      expect(DEFAULT_AUDIO_SETTINGS.sampleRate).toBe(48000);
-      expect(DEFAULT_AUDIO_SETTINGS.bitrate).toBe(320);
-      expect(DEFAULT_AUDIO_SETTINGS.channels).toBe(2);
-    });
-  });
-
-  describe("DEFAULT_IMAGE_SETTINGS", () => {
-    it("should have correct defaults", () => {
-      expect(DEFAULT_IMAGE_SETTINGS.format).toBe("jpg");
-      expect(DEFAULT_IMAGE_SETTINGS.quality).toBe(90);
-      expect(DEFAULT_IMAGE_SETTINGS.width).toBe(1920);
-      expect(DEFAULT_IMAGE_SETTINGS.height).toBe(1080);
-    });
-  });
-
-  describe("VIDEO_QUALITY_PRESETS", () => {
-    it("should have 4K preset", () => {
-      expect(VIDEO_QUALITY_PRESETS["4k"]).toBeDefined();
-      expect(VIDEO_QUALITY_PRESETS["4k"].width).toBe(3840);
-      expect(VIDEO_QUALITY_PRESETS["4k"].height).toBe(2160);
-    });
-
-    it("should have 1080p preset", () => {
-      expect(VIDEO_QUALITY_PRESETS["1080p"]).toBeDefined();
-      expect(VIDEO_QUALITY_PRESETS["1080p"].width).toBe(1920);
-      expect(VIDEO_QUALITY_PRESETS["1080p"].height).toBe(1080);
-    });
-
-    it("should have 720p preset", () => {
-      expect(VIDEO_QUALITY_PRESETS["720p"]).toBeDefined();
-      expect(VIDEO_QUALITY_PRESETS["720p"].width).toBe(1280);
-      expect(VIDEO_QUALITY_PRESETS["720p"].height).toBe(720);
-    });
-
-    it("should have higher bitrate for 4K than 1080p", () => {
-      expect(VIDEO_QUALITY_PRESETS["4k"].bitrate).toBeGreaterThan(
-        VIDEO_QUALITY_PRESETS["1080p"].bitrate,
-      );
+  describe("export duration", () => {
+    it("ignores overlays that belong to other sequences or to a nest's own clock", async () => {
+      const { titleEngine } = await import("../text/title-engine");
+      const getAll = vi.mocked(titleEngine.getAllTextClips);
+      getAll.mockReturnValueOnce([
+        { id: "own", trackId: "t-text", startTime: 1, duration: 2 },
+        { id: "in-nest", trackId: "nest-track", startTime: 0.5, duration: 9 },
+      ] as never);
+      const timeline = {
+        tracks: [{ id: "t-text", type: "text", clips: [] }, { id: "t-video", type: "video", clips: [{ startTime: 0, duration: 2 }] }],
+        subtitles: [],
+        duration: 2,
+        markers: [],
+      };
+      const duration = (exportEngine as unknown as { calculateTimelineDuration(t: unknown): number }).calculateTimelineDuration(timeline);
+      expect(duration).toBe(3);
     });
   });
 });

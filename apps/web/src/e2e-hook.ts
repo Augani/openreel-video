@@ -1,0 +1,233 @@
+import { useProjectStore } from "./stores/project-store";
+import { getActiveEffectPreviewEngine } from "./components/editor/panels/effect-previews/active-engine";
+import { previewGpuStats } from "./components/editor/panels/effect-previews/effect-renderer";
+import { getProgramRenderer } from "./components/editor/preview/device-loss";
+import type { Renderer } from "@openreel/core";
+import { useInspectorNavigationStore } from "./stores/inspector-navigation-store";
+import { useTimelineStore } from "./stores/timeline-store";
+import { useEditorWorkspaceStore } from "./stores/editor-workspace-store";
+import { useUIStore } from "./stores/ui-store";
+import { useChatStore } from "./stores/chat-store";
+import { useAIConnectionStore } from "./stores/ai-connection-store";
+import { useSourceMonitorStore } from "./stores/source-monitor-store";
+import { useProjectPanelStore } from "./stores/project-panel-store";
+import { useMulticamStore } from "./stores/multicam-monitor-store";
+import * as multicamController from "./services/multicam-controller";
+import { nestSelectedClips, openSequence } from "./services/sequence-commands";
+import { getPlaybackEvents, getPlaybackStalls } from "./components/editor/preview/playback-watchdog";
+import { getMemoryGovernor, ProjectSerializer, RealtimeAudioGraph, effectLatencySamples, getAudioEffectsEngine, planTimelineDelayCompensation, ensureRepairWorklet, processChannels, analyzeAudioIssues, getRepairMeter, AudioRackBus, createRackEffect, getAudioEngine, getExportEngine, getRealtimeAudioGraph, getVideoEngine, measureLoudness } from "@openreel/core";
+import { useLoudnessStore } from "./stores/loudness-store";
+import { renderCacheService } from "./services/render-cache-service";
+import { useExportQueueStore } from "./stores/export-queue-store";
+import { openEditorProject } from "./services/project-replacement";
+import { projectManager } from "./services/project-manager";
+import { useProjectLockStore, retryProjectLock } from "./services/project-lock";
+import { autoSaveManager } from "./services/auto-save";
+import { useEngineStore } from "./stores/engine-store";
+import { analyzeTimelineLoudness } from "./services/loudness";
+import { deleteMediaBlob } from "./services/media-storage";
+import { proxyRecordId } from "@openreel/core";
+import { previewProxyCache } from "./stores/preview-proxy-store";
+import { useProxyIngestStore, startProxyIngest } from "./services/proxy-ingest";
+import { getNativeDecodeSamples, clearNativeDecodeSamples } from "./services/native-decode";
+import * as desktopIngest from "./services/desktop-ingest";
+import { editClipSpeed } from "./services/clip-speed-edit";
+import {
+  getMixdownCache,
+  isolateBusStem,
+  planAddBus,
+  planAddSend,
+  planRemoveBus,
+  planRemoveSend,
+  planSetBusAutomation,
+  planSetBusOutput,
+  planSetSend,
+  planSetTrackOutput,
+  planStemsPreset,
+  planUpdateBus,
+  applyProEffect,
+  proEffectGpuUniforms,
+  computeSecondaryMatte,
+  matteCoverage,
+  secondaryUniforms,
+} from "@openreel/core";
+import { MotionShaderRenderer } from "@openreel/core/motion/motion-shader-renderer";
+import * as proEffectsModule from "@openreel/core/video/pro-effects";
+import * as proEffectShadersModule from "@openreel/core/video/pro-effect-shaders";
+import * as proEffectsExtraModule from "@openreel/core/video/pro-effects-extra";
+import * as motionShaderRendererModule from "@openreel/core/motion/motion-shader-renderer";
+import * as maskPathModule from "@openreel/core/video/mask-path";
+import * as canvas2dFallbackRendererModule from "@openreel/core/video/canvas2d-fallback-renderer";
+import * as colorGradingEngineModule from "@openreel/core/video/color-grading-engine";
+import * as hueCurvesModule from "@openreel/core/video/hue-curves";
+import * as lumetriPipelineModule from "@openreel/core/video/lumetri-pipeline";
+import * as hdrWorkingModule from "@openreel/core/color/hdr-working";
+import * as hdrGpuModule from "@openreel/core/video/hdr-gpu";
+import * as colorOutputModule from "@openreel/core/export/color-output";
+import { PRO_EFFECT_SHADER_DEFS } from "@openreel/core/video/pro-effect-shaders";
+import { computeScopeStats } from "@openreel/core/video/scope-stats";
+import { useColorMonitorStore } from "./stores/color-monitor-store";
+import { usePluginManagerStore } from "./stores/plugin-manager-store";
+import { initPluginRegistry, installPluginFromFiles } from "./services/plugin-service";
+import { analyzeBusLoudnessNow, previewStemPlan, renderProjectStems } from "./services/audio-stems";
+import * as graphicCommands from "./services/graphic-commands";
+import * as sequenceCommands from "./services/sequence-commands";
+import { useGraphicTemplatesStore } from "./stores/graphic-templates-store";
+import { getBuiltInGraphicTemplate, parseGraphicTemplatePackage, serializeGraphicTemplate, fingerprintBlob, computeFingerprint, fingerprintMismatch } from "@openreel/core";
+import { getPluginHost, getPluginRegistry } from "@openreel/core";
+import { useOnboardingStore } from "./stores/onboarding-store";
+import { startLessons } from "./components/onboarding/learn/lesson-mount";
+import { useLessonSession } from "./components/onboarding/learn/lesson-session";
+
+/**
+ * Handle on the live stores for the Playwright suite (apps/web/e2e). Only
+ * installed when the dev server starts with VITE_OPENREEL_E2E=1, so normal
+ * and production bundles never expose it.
+ */
+/**
+ * Mounts the lazy AI onboarding sheet into its own root, so the AI path can be driven end to end
+ * without the onboarding host (the welcome band) being present.
+ */
+async function mountAiOnboardingSheet(): Promise<void> {
+  const [{ createRoot }, { createElement }, sheet] = await Promise.all([
+    import("react-dom/client"),
+    import("react"),
+    import("./components/onboarding/ai"),
+  ]);
+  const host = document.createElement("div");
+  host.id = "e2e-ai-onboarding-host";
+  document.body.appendChild(host);
+  const root = createRoot(host);
+  const close = (): void => {
+    root.unmount();
+    host.remove();
+  };
+  root.render(createElement(sheet.default, { onClose: close }));
+}
+
+export function installE2EHook(): void {
+  (window as unknown as { __openreelE2E?: unknown }).__openreelE2E = {
+    project: useProjectStore,
+    /** AI onboarding path (WP-B): the chat and connection stores plus a stand-alone sheet mount. */
+    chat: useChatStore,
+    aiConnection: useAIConnectionStore,
+    onboardingAi: { mount: mountAiOnboardingSheet },
+    timeline: useTimelineStore,
+    /** Effects panel live previews: the mounted preview engine (stats, cache, source) or null. */
+    effectPreviews: getActiveEffectPreviewEngine,
+    /** Preview GPU budget: shared lanes / shader renderers / live engine-owned WebGL contexts (created, released, live). */
+    previewGpu: previewGpuStats,
+    /** Program monitor GPU: renderer type, and a forced device loss (optionally with recovery made to fail) for the recovery e2e. */
+    program: {
+      rendererType: () => getProgramRenderer()?.type ?? null,
+      loseDevice: (options?: { failRecovery?: boolean }): boolean => {
+        const renderer = getProgramRenderer() as (Renderer & { getDevice?: () => { destroy(): void } | null }) | null;
+        const device = renderer?.getDevice?.();
+        if (!renderer || !device) return false;
+        if (options?.failRecovery) renderer.recreateDevice = async () => false;
+        device.destroy();
+        return true;
+      },
+    },
+    /** Inspector previews: opens an inspector section (motion-presets, text-animation, emphasis-animation, particle-effects, video-effects). */
+    inspectorNav: useInspectorNavigationStore,
+    workspace: useEditorWorkspaceStore,
+    ui: useUIStore,
+    source: useSourceMonitorStore,
+    multicam: useMulticamStore,
+    multicamController,
+    speed: { editClipSpeed },
+    // Memory governor state for the 4K memory gate (apps/web/e2e/soak/memory-4k-layered.spec.ts).
+    playbackStalls: () => [...getPlaybackStalls()],
+    playbackEvents: () => [...getPlaybackEvents()],
+    memoryGovernor: () => ({ ...getMemoryGovernor().reading, policy: getMemoryGovernor().policy }),
+    /** Opens a decoder of `bytes` in the governor, as the preview does per source; returns its release. */
+    registerMemoryDecoder: (id: string, bytes: number) => getMemoryGovernor().registerDecoder(id, bytes),
+    forceMemoryPressure: (level: "normal" | "elevated" | "critical" | null) => getMemoryGovernor().force(level),
+    audioClock: () => {
+      const ctx = getRealtimeAudioGraph().getAudioContext();
+      return { time: ctx.currentTime, state: ctx.state };
+    },
+    sequence: { nestSelectedClips, openSequence },
+    audio: { RealtimeAudioGraph, effectLatencySamples, getAudioEffectsEngine, planTimelineDelayCompensation, AudioRackBus, createRackEffect, getAudioEngine, getRealtimeAudioGraph, getExportEngine, measureLoudness, ensureRepairWorklet, processChannels, analyzeAudioIssues, getRepairMeter },
+    loudness: useLoudnessStore,
+    projectPanel: useProjectPanelStore,
+    /** Proxy workflow: `cache.decodes[mediaId].source` says which file the preview decoder was given. */
+    proxy: { cache: previewProxyCache, ingest: useProxyIngestStore, startProxyIngest, desktop: { ...desktopIngest, store: desktopIngest.useDesktopIngestStore }, deleteProxyBytes: (mediaId: string) => deleteMediaBlob(proxyRecordId(mediaId)) },
+    /** Desktop native decode (ProRes...): IPC round trips of every frame request since the last clear. */
+    nativeDecode: { samples: getNativeDecodeSamples, clear: clearNativeDecodeSamples },
+    /** Desktop project files: the Open flow (native dialog), the file the project is tied to, and its lock. */
+    projectFile: { openEditorProject, projectManager, lock: useProjectLockStore, retryProjectLock },
+    renderCache: renderCacheService,
+    exportQueue: useExportQueueStore,
+    /** Changed-source guard: the full-content fingerprint the renderer sends to the desktop copy path. */
+    sourceFingerprint: { fingerprintBlob, computeFingerprint, fingerprintMismatch },
+    autoSave: autoSaveManager,
+    /** Learn path (desktop onboarding): lesson stores and the real Learn sheet, opened through the host. */
+    learn: {
+      onboarding: useOnboardingStore,
+      session: useLessonSession,
+      startLessons,
+      /** Opens the real sheet through the onboarding host (DesktopApp mounts it), exactly like the Help menu. */
+      openSheet: (sheet: "learn" | "lessons") => useOnboardingStore.getState().showSheet(sheet),
+    },
+    mixdownCache: getMixdownCache(),
+    engine: useEngineStore,
+    video: { getVideoEngine },
+    analyzeTimelineLoudness,
+    routing: {
+      planAddBus,
+      planAddSend,
+      planRemoveBus,
+      planRemoveSend,
+      planSetBusAutomation,
+      planSetBusOutput,
+      planSetSend,
+      planSetTrackOutput,
+      planStemsPreset,
+      planUpdateBus,
+      isolateBusStem,
+    },
+    stems: { analyzeBusLoudnessNow, previewStemPlan, renderProjectStems },
+    colorMonitor: useColorMonitorStore,
+    secondary: {
+      PRO_EFFECT_SHADER_DEFS,
+      applyProEffect,
+      proEffectGpuUniforms,
+      computeSecondaryMatte,
+      matteCoverage,
+      secondaryUniforms,
+      MotionShaderRenderer,
+      computeScopeStats,
+    },
+    ProjectSerializer,
+    /** Effect plugins: the shared registry/host the renderer uses, the manager dialog state and install entry points. */
+    plugins: { registry: getPluginRegistry(), host: getPluginHost(), manager: usePluginManagerStore, init: initPluginRegistry, installFromFiles: installPluginFromFiles },
+    /**
+     * Core modules the pixel-parity specs drive directly. Exposed here (not via
+     * dev-server /@fs URLs) so the same specs run against a production bundle.
+     */
+    core: {
+      proEffects: proEffectsModule,
+      proEffectShaders: proEffectShadersModule,
+      proEffectsExtra: proEffectsExtraModule,
+      motionShaderRenderer: motionShaderRendererModule,
+      maskPath: maskPathModule,
+      canvas2dFallbackRenderer: canvas2dFallbackRendererModule,
+      colorGradingEngine: colorGradingEngineModule,
+      hueCurves: hueCurvesModule,
+      lumetriPipeline: lumetriPipelineModule,
+      hdrWorking: hdrWorkingModule,
+      hdrGpu: hdrGpuModule,
+      colorOutput: colorOutputModule,
+    },
+    sequences: sequenceCommands,
+    graphics: {
+      ...graphicCommands,
+      templates: useGraphicTemplatesStore,
+      getBuiltInGraphicTemplate,
+      parseGraphicTemplatePackage,
+      serializeGraphicTemplate,
+    },
+  };
+}

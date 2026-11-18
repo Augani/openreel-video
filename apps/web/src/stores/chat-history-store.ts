@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { ChatMessage, TokenUsage } from "./chat-store";
 
-export interface SavedChatConversation {
+interface SavedChatConversation {
   readonly id: string;
   readonly projectId: string;
   readonly title: string;

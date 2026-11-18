@@ -1,6 +1,7 @@
 import type { Project } from "@openreel/core";
+import { getProjectPreview, type ProjectPreview } from "./project-preview-cache";
 
-export interface AutoSaveConfig {
+interface AutoSaveConfig {
   interval: number;
   maxSlots: number;
   enabled: boolean;
@@ -14,6 +15,7 @@ export interface AutoSaveMetadata {
   timestamp: number;
   slot: number;
   isRecovery: boolean;
+  preview?: ProjectPreview;
 }
 
 interface AutoSaveRecord {
@@ -23,6 +25,7 @@ interface AutoSaveRecord {
   timestamp: number;
   slot: number;
   data: string;
+  preview?: ProjectPreview;
 }
 
 const DEFAULT_CONFIG: AutoSaveConfig = {
@@ -268,6 +271,10 @@ export class AutoSaveManager {
         if (data !== this.lastSavedData) {
           await this.save(project, data);
           this.lastSavedData = data;
+        } else {
+          // Runtime media updates can mark an unchanged authoring snapshot
+          // dirty. Tell the UI it is already persisted without rotating a slot.
+          this.emit("saved", { projectId: project.id, unchanged: true });
         }
 
         // Edits arriving while IndexedDB commits must be saved in a subsequent
@@ -294,6 +301,10 @@ export class AutoSaveManager {
       timestamp: Date.now(),
       slot: this.currentSlot,
       data,
+      preview: getProjectPreview(project.id, project.modifiedAt) ?? {
+        duration: project.timeline.duration,
+        modifiedAt: project.modifiedAt,
+      },
     };
 
     await this.saveRecord(record);
@@ -341,25 +352,6 @@ export class AutoSaveManager {
     });
   }
 
-  private async deleteRecord(id: string): Promise<void> {
-    const tx = await this.createTransaction("readwrite");
-    return new Promise((resolve, reject) => {
-      if (!this.db) {
-        reject(new Error("Database not initialized"));
-        return;
-      }
-
-      const store = tx.objectStore(AUTO_SAVE_STORE);
-      const request = store.delete(id);
-
-      tx.oncomplete = () => resolve();
-      tx.onabort = () => reject(tx.error ?? new Error("Auto-save delete aborted"));
-      tx.onerror = () => reject(tx.error ?? new Error("Auto-save delete failed"));
-      request.onerror = () =>
-        reject(new Error(`Failed to delete: ${request.error?.message}`));
-    });
-  }
-
   private async getAllSaves(): Promise<AutoSaveRecord[]> {
     const tx = await this.createTransaction("readonly");
     return new Promise((resolve, reject) => {
@@ -399,6 +391,7 @@ export class AutoSaveManager {
           timestamp: s.timestamp,
           slot: s.slot,
           isRecovery: true,
+          ...(s.preview ? { preview: s.preview } : {}),
         }));
 
       if (metadata.length > 0) {
@@ -460,12 +453,20 @@ export class AutoSaveManager {
   async clearProjectSaves(projectId: string): Promise<void> {
     if (!this.db) return;
 
-    const allSaves = await this.getAllSaves();
-    const projectSaves = allSaves.filter((s) => s.projectId === projectId);
-
-    for (const save of projectSaves) {
-      await this.deleteRecord(save.id);
-    }
+    // Keys-only index scan in one transaction: reading every record would
+    // copy each project's full JSON snapshot just to learn its id.
+    const tx = await this.createTransaction("readwrite");
+    await new Promise<void>((resolve, reject) => {
+      const store = tx.objectStore(AUTO_SAVE_STORE);
+      const keys = store.index("projectId").getAllKeys(projectId);
+      keys.onsuccess = () => {
+        for (const id of keys.result) store.delete(id);
+      };
+      keys.onerror = () => reject(keys.error ?? new Error("Failed to list auto-saves"));
+      tx.oncomplete = () => resolve();
+      tx.onabort = () => reject(tx.error ?? new Error("Auto-save clear aborted"));
+      tx.onerror = () => reject(tx.error ?? new Error("Auto-save clear failed"));
+    });
   }
 
   async clearAllSaves(): Promise<void> {
@@ -552,24 +553,8 @@ export async function initializeAutoSave(): Promise<void> {
   await autoSaveManager.initialize();
 }
 
-export function startAutoSave(getProject: () => Project): void {
-  autoSaveManager.start(getProject);
-}
-
-export function stopAutoSave(): void {
-  autoSaveManager.stop();
-}
-
-export function markProjectDirty(): void {
-  autoSaveManager.markDirty();
-}
-
 export async function checkForRecovery(
   projectId?: string,
 ): Promise<AutoSaveMetadata[]> {
   return autoSaveManager.checkForRecovery(projectId);
-}
-
-export async function recoverProject(saveId: string): Promise<Project | null> {
-  return autoSaveManager.recover(saveId);
 }

@@ -17,6 +17,7 @@
 		"wrangler": "^3.101.0"
 	},
 	"dependencies": {
+		"@openreel/collab": "workspace:*",
 		"@openreel/fxpkg": "workspace:*",
 		"hono": "^4.11.4",
 		"jose": "^6.2.3",

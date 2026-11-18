@@ -56,4 +56,17 @@ describe("motionEngine", () => {
     });
     expect(nextProject.timeline.duration).toBe(6);
   });
+
+  it("mirrors a 0..1 instance opacity on the clip's 0-100 Blend Opacity scale", () => {
+    const composition = motionEngine.createStarterComposition({ name: "Lower Third", duration: 4 });
+    const withComposition = motionEngine.upsertComposition(createProject(), composition);
+    const opaque = motionEngine.createInstance(composition, {});
+    const faded = { ...motionEngine.createInstance(composition, {}), opacity: 0.35 };
+    const first = motionEngine.insertInstance(withComposition, opaque);
+    const second = motionEngine.insertInstance(first, faded);
+    const [clipA, clipB] = second.timeline.tracks[0].clips;
+    // 1 was stored as 1 (a 1% blend opacity the inspector then showed).
+    expect(clipA.blendOpacity).toBe(100);
+    expect(clipB.blendOpacity).toBe(35);
+  });
 });

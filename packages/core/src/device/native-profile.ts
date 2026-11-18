@@ -4,6 +4,7 @@ import {
   getGpuTier,
   calculateOverallTier,
   type DeviceProfile,
+  type DeviceTier,
   type EncodingSupport,
   type DeviceCodecSupport,
   type BenchmarkResult,
@@ -51,6 +52,24 @@ function encodersToSupport(encoders: string[]): EncodingSupport {
   };
 }
 
+// Native GPU strings differ from WebGL renderer strings: they can be vendor-only
+// ("Apple GPU") or ANGLE wrappers ("ANGLE (Apple, Apple M2 Pro, OpenGL 4.1)").
+// Known strings keep the shared scoring; only unknown Apple parts are handled here.
+export function getNativeGpuTier(renderer: string): DeviceTier {
+  const normalized = renderer
+    .replace(/^ANGLE\s*\(/i, "")
+    .replace(/\)\s*$/, "")
+    .split(",")
+    .map((part) => part.trim())
+    .filter((part) => !/^(opengl|direct3d|d3d|vulkan|metal)\b/i.test(part) && part !== "")
+    .join(" ")
+    .replace(/\s+/g, " ");
+  const tier = getGpuTier(normalized);
+  // Every Apple Silicon GPU is at least mid; an unrecognised Apple string is treated as high.
+  if (tier === "low" && /\bapple (gpu|m\d)/i.test(normalized)) return "high";
+  return tier;
+}
+
 function osLabel(platform: NativeHardwareInfo["platform"]): string {
   if (platform === "darwin") return "macOS";
   if (platform === "win32") return "Windows";
@@ -72,7 +91,7 @@ export function buildProfileFromNativeSpecs(
   const gpu: GpuInfo = {
     vendor: renderer.split(/\s+/)[0] || "Unknown",
     renderer,
-    tier: getGpuTier(renderer),
+    tier: getNativeGpuTier(renderer),
     hasHardwareEncoding: encoding.h264.hardware || encoding.h265.hardware,
   };
 

@@ -28,6 +28,7 @@ export class WebGPURenderer implements Renderer {
   private layers: RenderLayer[] = [];
   private isDeviceLost = false;
   private deviceRecreationInProgress = false;
+  private recreation: Promise<boolean> | null = null;
   private isDestroyed = false;
   private _config: RendererConfig;
 
@@ -201,6 +202,11 @@ export class WebGPURenderer implements Renderer {
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       await new Promise((resolve) => setTimeout(resolve, delayMs));
       if (this.isDestroyed) {
+        this.deviceRecreationInProgress = false;
+        return;
+      }
+      // The owner's own recovery already brought a device back while this retry waited.
+      if (!this.isDeviceLost && this.device) {
         this.deviceRecreationInProgress = false;
         return;
       }
@@ -730,6 +736,7 @@ export class WebGPURenderer implements Renderer {
       layer.transform.anchor,
       this.width,
       this.height,
+      layer.pixelAspect,
     );
     const uniformData = createTransformUniformsBuffer(
       matrix,
@@ -788,6 +795,7 @@ export class WebGPURenderer implements Renderer {
       layer.transform.anchor,
       this.width,
       this.height,
+      layer.pixelAspect,
     );
     const normalizedRadius = Math.min(layer.borderRadius / 100, 0.5);
     const uniformData = new Float32Array(20);
@@ -954,10 +962,29 @@ export class WebGPURenderer implements Renderer {
     this.deviceLostCallbacks.push(callback);
   }
 
-  async recreateDevice(): Promise<boolean> {
-    this.isDeviceLost = false;
-    this.destroy();
-    return this.initialize();
+  /**
+   * Rebuilds the device. Concurrent callers (the owner's loss handler and this renderer's own retry loop) share ONE
+   * recreation: two overlapping destroy()/initialize() runs used to tear each other's fresh device down, which ended in
+   * "No GPU adapter available" and a permanently black monitor.
+   */
+  recreateDevice(): Promise<boolean> {
+    if (this.recreation) return this.recreation;
+    const run = (async (): Promise<boolean> => {
+      this.isDeviceLost = false;
+      // destroy() drops the owner's loss callbacks; they belong to the renderer's owner, not to one device, so a SECOND
+      // loss must still reach it (it used to find nobody listening and leave the monitor black).
+      const callbacks = this.deviceLostCallbacks;
+      this.destroy();
+      this.deviceLostCallbacks = callbacks;
+      const ok = await this.initialize();
+      // Still lost: the retry loop (or the owner's fallback) takes it from here.
+      if (!ok) this.isDeviceLost = true;
+      return ok;
+    })();
+    this.recreation = run.finally(() => {
+      this.recreation = null;
+    });
+    return this.recreation;
   }
 
   resize(width: number, height: number): void {

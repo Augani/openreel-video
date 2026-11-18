@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { subscribeWithSelector, persist } from "zustand/middleware";
 import { onSessionLock } from "../services/secure-storage";
 
-export interface ServiceConfig {
+interface ServiceConfig {
   readonly id: string;
   readonly label: string;
   readonly description: string;
@@ -56,7 +56,7 @@ function isLlmProvider(value: unknown): value is LlmProvider {
   return value === "openai-compatible" || value === "anthropic-compatible";
 }
 
-export interface SettingsState {
+interface SettingsState {
   // General preferences
   autoSave: boolean;
   autoSaveInterval: number;

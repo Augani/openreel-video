@@ -6,7 +6,6 @@ import {
   loadNativeAddon,
   type NativeCreationModule,
 } from "./index";
-import { instantiateCreationWasm, loadWasmBackend } from "./wasm";
 
 describe("creation bindings", () => {
   it("falls back to the CPU backend when no native module is present", () => {
@@ -62,18 +61,6 @@ describe("creation bindings", () => {
     expect(native.vertexCount).toBe(cpu.vertexCount);
     expect(native.triangleCount).toBe(cpu.triangleCount);
     expect(native.bounds).toEqual(cpu.bounds);
-  });
-
-  it("instantiates and runs the WASM proof-of-concept module", async () => {
-    const wasm = await instantiateCreationWasm();
-    expect(wasm.box_vertex_count()).toBe(24);
-
-    const backend = await loadWasmBackend();
-    expect(backend?.kind).toBe("wasm");
-    const stats = backend?.bakeBox(2, 2, 2);
-    const cpu = cpuCreationBackend().bakeBox(2, 2, 2);
-    expect(stats?.vertexCount).toBe(cpu.vertexCount);
-    expect(stats?.bounds).toEqual(cpu.bounds);
   });
 
   it("honors preferCpu even when a native module is injected", () => {

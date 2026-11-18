@@ -1,9 +1,9 @@
-export interface CanvasSnapCandidate {
+interface CanvasSnapCandidate {
   readonly value: number;
   readonly guide: number;
 }
 
-export interface CanvasSnapResult {
+interface CanvasSnapResult {
   readonly x: number;
   readonly y: number;
   readonly guideX: number | null;

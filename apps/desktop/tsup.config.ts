@@ -20,5 +20,9 @@ export default defineConfig({
   external: ["electron"],
   noExternal: ["electron-updater", "zod"],
   clean: true,
+  minify: true,
+  // Keep function/class names so crash stacks and Function.name stay useful.
+  keepNames: true,
+  // Maps are excluded from the packaged app by electron-builder.yml.
   sourcemap: true,
 });

@@ -1,17 +1,31 @@
 import React, {
-  useState,
+  memo,
   useCallback,
-  useMemo,
   useEffect,
+  useMemo,
   useRef,
+  useState,
 } from "react";
-import { ToolcraftButton as Button } from "@openreel/ui";
-import { ToolcraftCard as Card } from "@openreel/ui";
-import { ToolcraftClickableCard as ClickableCard } from "@openreel/ui";
-import { ToolcraftSliderControl } from "@openreel/ui";
-import { ToolcraftText as Text } from "@openreel/ui";
 import {
-  Play,
+  EffectLivePreview,
+  EffectPreviewProvider,
+  useLivePreviewActivity,
+} from "../panels/effect-previews/EffectLivePreview";
+import { motionPreviewDef, type MotionPreviewTarget } from "../panels/effect-previews/kind-defs";
+import {
+  Badge,
+  Button,
+  Card,
+  Input,
+  Label,
+  Slider,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+  cn,
+} from "@openreel/ui";
+import {
   ArrowRight,
   ArrowLeft,
   Zap,
@@ -20,296 +34,89 @@ import {
 } from "@/icons/lucide-compat";
 import { useProjectStore } from "../../../stores/project-store";
 import { useUIStore } from "../../../stores/ui-store";
-import { useEngineStore } from "../../../stores/engine-store";
+import { useTimelineStore } from "../../../stores/timeline-store";
 import { toast } from "../../../stores/notification-store";
 import {
   getPresetLibrary,
   type MotionPreset,
   type PresetCategory,
 } from "../../../services/motion-presets";
-import type {
-  Keyframe,
-  EasingType,
-  Transform,
-  GraphicClip,
-} from "@openreel/core";
-import { v4 as uuid } from "uuid";
+import {
+  applyMotionPreset,
+  boundedMotionPresetDuration,
+  MOTION_PRESET_PREFIX,
+  removeMotionPresetCategory,
+  resolveMotionPresetTarget,
+  type MotionPresetScope,
+  type MotionPresetTarget,
+} from "../../../services/motion-preset-application";
 
-type MutableGraphicClip = {
-  -readonly [K in keyof GraphicClip]: GraphicClip[K];
-};
-
-const CATEGORY_CONFIG: {
-  id: PresetCategory;
-  name: string;
-  icon: React.ElementType;
-}[] = [
+const CATEGORY_CONFIG = [
   { id: "entrance", name: "In", icon: ArrowRight },
   { id: "exit", name: "Out", icon: ArrowLeft },
   { id: "emphasis", name: "Emphasis", icon: Zap },
   { id: "transition", name: "Transition", icon: RefreshCw },
-];
+] as const;
 
-function easingToType(easing: string): EasingType {
-  const mappings: Record<string, EasingType> = {
-    linear: "linear",
-    ease: "ease-in-out",
-    "ease-in": "ease-in",
-    "ease-out": "ease-out",
-    "ease-in-out": "ease-in-out",
-    "ease-in-cubic": "ease-in",
-    "ease-out-cubic": "ease-out",
-    "ease-in-out-cubic": "ease-in-out",
-    "ease-out-back": "ease-out",
-    "ease-in-back": "ease-in",
-  };
-  return mappings[easing] || "ease-in-out";
-}
-
-interface CanvasDimensions {
-  width: number;
-  height: number;
-}
-
-function generateKeyframesFromPreset(
-  preset: MotionPreset,
-  clipDuration: number,
-  baseTransform: Transform,
-  category: PresetCategory,
-  customDuration?: number,
-  canvas?: CanvasDimensions,
-): Keyframe[] {
-  const keyframes: Keyframe[] = [];
-  const presetDuration = customDuration || preset.duration;
-  const prefix =
-    category === "entrance"
-      ? "motion-in"
-      : category === "exit"
-        ? "motion-out"
-        : "motion-emphasis";
-
-  let timeOffset = 0;
-  if (category === "exit") {
-    timeOffset = clipDuration - presetDuration;
-  } else if (category === "emphasis") {
-    timeOffset = (clipDuration - presetDuration) / 2;
-  }
-
-  const timeScale = customDuration ? customDuration / preset.duration : 1;
-  const canvasWidth = canvas?.width || 1920;
-  const canvasHeight = canvas?.height || 1080;
-
-  for (const track of preset.tracks) {
-    for (let i = 0; i < track.keyframes.length; i++) {
-      const kf = track.keyframes[i];
-      const time = Math.min(clipDuration, timeOffset + kf.time * timeScale);
-      const easing = easingToType(kf.easing || "ease-out");
-      let value = kf.value;
-
-      if (track.relative) {
-        switch (track.property) {
-          case "position.x": {
-            if (kf.value !== 0) {
-              const direction = kf.value > 0 ? 1 : -1;
-              const minOffset = canvasWidth + 100;
-              value = baseTransform.position.x + direction * minOffset;
-            } else {
-              value = baseTransform.position.x;
-            }
-            break;
-          }
-          case "position.y": {
-            if (kf.value !== 0) {
-              const direction = kf.value > 0 ? 1 : -1;
-              const minOffset = canvasHeight + 100;
-              value = baseTransform.position.y + direction * minOffset;
-            } else {
-              value = baseTransform.position.y;
-            }
-            break;
-          }
-          case "rotation":
-            value = baseTransform.rotation + kf.value;
-            break;
-        }
-      } else if (track.property === "opacity" && kf.value === 1) {
-        value = baseTransform.opacity;
-      } else if (
-        (track.property === "scale.x" || track.property === "scale") &&
-        kf.value === 1
-      ) {
-        value = baseTransform.scale.x;
-      } else if (track.property === "scale.y" && kf.value === 1) {
-        value = baseTransform.scale.y;
-      }
-
-      keyframes.push({
-        id: `${prefix}-${track.property}-${i}-${uuid().slice(0, 4)}`,
-        time,
-        property: track.property as Keyframe["property"],
-        value,
-        easing,
-      });
-    }
-  }
-
-  return keyframes;
-}
-
-function buildPreviewCSSKeyframes(preset: MotionPreset): globalThis.Keyframe[] {
-  const keyframes: globalThis.Keyframe[] = [];
-  const steps = 10;
-
-  for (let i = 0; i <= steps; i++) {
-    const progress = i / steps;
-    const time = progress * preset.duration;
-
-    let opacity = 1;
-    let translateX = 0;
-    let translateY = 0;
-    let scaleX = 1;
-    let scaleY = 1;
-    let rotation = 0;
-
-    for (const track of preset.tracks) {
-      let value = 0;
-      const keyframesBefore = track.keyframes.filter((kf) => kf.time <= time);
-      const keyframesAfter = track.keyframes.filter((kf) => kf.time > time);
-
-      if (keyframesBefore.length > 0 && keyframesAfter.length > 0) {
-        const before = keyframesBefore[keyframesBefore.length - 1];
-        const after = keyframesAfter[0];
-        const localProgress = (time - before.time) / (after.time - before.time);
-        value = before.value + (after.value - before.value) * localProgress;
-      } else if (keyframesBefore.length > 0) {
-        value = keyframesBefore[keyframesBefore.length - 1].value;
-      } else if (keyframesAfter.length > 0) {
-        value = keyframesAfter[0].value;
-      }
-
-      switch (track.property) {
-        case "opacity":
-          opacity = value;
-          break;
-        case "position.x":
-          translateX = value * 0.3;
-          break;
-        case "position.y":
-          translateY = value * 0.3;
-          break;
-        case "scale":
-        case "scale.x":
-          scaleX = value;
-          break;
-        case "scale.y":
-          scaleY = value;
-          break;
-        case "rotation":
-          rotation = value;
-          break;
-      }
-    }
-
-    keyframes.push({
-      opacity,
-      transform: `translate(${translateX}px, ${translateY}px) scale(${scaleX}, ${scaleY}) rotate(${rotation}deg)`,
-      offset: progress,
-    });
-  }
-
-  return keyframes;
-}
-
-interface PresetCardProps {
-  preset: MotionPreset;
-  duration: number;
-  isApplied: boolean;
-  onApply: () => void;
-}
-
-const PresetCard: React.FC<PresetCardProps> = ({
+const PresetCard = memo(function PresetCard({
   preset,
   duration,
+  target,
   isApplied,
+  disabled,
   onApply,
-}) => {
-  const [isHovered, setIsHovered] = useState(false);
-  const previewRef = useRef<HTMLDivElement>(null);
-  const animationRef = useRef<Animation | null>(null);
-
-  useEffect(() => {
-    if (!isHovered || !previewRef.current) {
-      if (animationRef.current) {
-        animationRef.current.cancel();
-        animationRef.current = null;
-      }
-      return;
-    }
-
-    const element = previewRef.current;
-    const keyframes = buildPreviewCSSKeyframes(preset);
-
-    animationRef.current = element.animate(keyframes, {
-      duration: duration * 1000,
-      iterations: Infinity,
-      easing: "ease-in-out",
-    });
-
-    return () => {
-      animationRef.current?.cancel();
-    };
-  }, [duration, isHovered, preset]);
-
-  return (
-    <ClickableCard
-      label={`Apply ${preset.name}`}
-      onClick={onApply}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-      className={`relative w-full rounded-lg border transition-all overflow-hidden ${
-        isApplied
-          ? "border-primary bg-primary/10"
-          : "border-border bg-bg-2 hover:border-primary/50"
-      }`}
-    >
-      <div className="relative h-20 bg-gradient-to-br from-background-secondary to-background-tertiary flex items-center justify-center overflow-hidden">
-        <div
-          ref={previewRef}
-          className="w-10 h-10 rounded bg-primary/80 flex items-center justify-center"
-        >
-          <Play size={16} className="text-white" />
-        </div>
-        {isApplied && (
-          <div className="absolute top-2 right-2">
-            <Check size={14} className="text-primary" />
-          </div>
-        )}
-        {isHovered && !isApplied && (
-          <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-            <Text type="supporting" className="text-[10px] text-white font-medium px-2 py-1 bg-primary rounded">
-              Apply
-            </Text>
-          </div>
-        )}
-      </div>
-      <div className="p-2 text-left">
-        <Text type="supporting" color="primary" className="block truncate text-[10px] font-medium">
-          {preset.name}
-        </Text>
-        <Text type="supporting" color="secondary" className="text-[8px]">
-          {duration}s
-        </Text>
-      </div>
-    </ClickableCard>
-  );
-};
-
-interface ClipLike {
-  id: string;
+}: {
+  preset: MotionPreset;
   duration: number;
-  transform: Transform;
-  keyframes?: Keyframe[];
-}
+  target: MotionPreviewTarget;
+  isApplied: boolean;
+  disabled: boolean;
+  onApply: (preset: MotionPreset) => void;
+}) {
+  const { active, handlers } = useLivePreviewActivity();
+  const def = useMemo(() => motionPreviewDef(preset, duration, target), [preset, duration, target]);
+  return (
+    <Button
+      variant="ghost"
+      type="button"
+      disabled={disabled}
+      aria-label={`Apply ${preset.name}`}
+      aria-pressed={isApplied}
+      onClick={() => onApply(preset)}
+      {...handlers}
+      className={cn(
+        "group/card relative block h-auto min-w-0 overflow-hidden whitespace-normal rounded-[7px] border bg-bg-2 p-0 text-left hover:border-primary/50",
+        isApplied ? "border-primary bg-primary/10" : "border-border",
+      )}
+    >
+      <div
+        data-motion-preview={preset.id}
+        className="relative aspect-video overflow-hidden bg-bg-3"
+      >
+        <EffectLivePreview def={def} active={active} />
+        {isApplied ? (
+          <Check
+            size={14}
+            aria-hidden
+            className="absolute right-2 top-2 text-primary"
+          />
+        ) : (
+          <span className="pointer-events-none absolute bottom-1 right-1 rounded bg-primary px-1.5 py-0.5 text-[9px] font-medium text-white opacity-0 group-hover/card:opacity-100">
+            Apply
+          </span>
+        )}
+      </div>
+      <div className="p-2">
+        <span className="block truncate text-[10px] font-medium text-fg">
+          {preset.name}
+        </span>
+        <span className="text-[8px] font-normal text-fg-2">
+          {Number(duration.toFixed(2))}s
+        </span>
+      </div>
+    </Button>
+  );
+});
 
 interface MotionPresetsPanelProps {
   clipId?: string;
@@ -318,446 +125,412 @@ interface MotionPresetsPanelProps {
 export const MotionPresetsPanel: React.FC<MotionPresetsPanelProps> = ({
   clipId,
 }) => {
-  const selectedClipIds = useUIStore((state) => state.getSelectedClipIds());
-  const project = useProjectStore((state) => state.project);
-  const updateClipKeyframes = useProjectStore(
-    (state) => state.updateClipKeyframes,
+  const selectedId = useUIStore((state) =>
+    clipId ? undefined : state.getSelectedClipIds()[0],
   );
-  const updateTextClipKeyframes = useProjectStore(
-    (state) => state.updateTextClipKeyframes,
+  const targetId = clipId || selectedId;
+  const clip = useProjectStore(
+    useCallback(
+      (state) =>
+        targetId
+          ? (resolveMotionPresetTarget(state.project, targetId)?.data ?? null)
+          : null,
+      [targetId],
+    ),
   );
-  const getTextClip = useProjectStore((state) => state.getTextClip);
-  const getShapeClip = useProjectStore((state) => state.getShapeClip);
-  const getSVGClip = useProjectStore((state) => state.getSVGClip);
-  const getStickerClip = useProjectStore((state) => state.getStickerClip);
-  const getGraphicsEngine = useEngineStore((state) => state.getGraphicsEngine);
-
-  const [selectedCategory, setSelectedCategory] =
-    useState<PresetCategory>("entrance");
-  const [customDurations, setCustomDurations] = useState<
-    Partial<Record<PresetCategory, number>>
-  >({});
-  const [lastAppliedPresetId, setLastAppliedPresetId] = useState<string | null>(
-    null,
-  );
-  const durationApplyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
-    null,
-  );
-
-  const targetClipId = clipId || selectedClipIds[0];
-  const presetLibrary = useMemo(() => getPresetLibrary(), []);
-  const presets = useMemo(
-    () => presetLibrary[selectedCategory] ?? [],
-    [presetLibrary, selectedCategory],
-  );
-
-  useEffect(
-    () => () => {
-      if (durationApplyTimerRef.current) {
-        clearTimeout(durationApplyTimerRef.current);
-      }
-    },
-    [],
-  );
-
-  const clip = useMemo((): { type: string; data: ClipLike } | null => {
-    if (!targetClipId) return null;
-
-    const regularClip = project.timeline.tracks
-      .flatMap((t) => t.clips)
-      .find((c) => c.id === targetClipId);
-    if (regularClip) return { type: "regular", data: regularClip as ClipLike };
-
-    const textClip =
-      project.textClips?.find((candidate) => candidate.id === targetClipId) ??
-      getTextClip(targetClipId);
-    if (textClip) return { type: "text", data: textClip as ClipLike };
-
-    const shapeClip =
-      project.shapeClips?.find((candidate) => candidate.id === targetClipId) ??
-      getShapeClip(targetClipId);
-    if (shapeClip) return { type: "shape", data: shapeClip as ClipLike };
-
-    const svgClip =
-      project.svgClips?.find((candidate) => candidate.id === targetClipId) ??
-      getSVGClip(targetClipId);
-    if (svgClip) return { type: "svg", data: svgClip as ClipLike };
-
-    const stickerClip =
-      project.stickerClips?.find(
-        (candidate) => candidate.id === targetClipId,
-      ) ?? getStickerClip(targetClipId);
-    if (stickerClip) return { type: "sticker", data: stickerClip as ClipLike };
-
-    return null;
-  }, [
-    targetClipId,
-    project.timeline.tracks,
-    project.textClips,
-    project.shapeClips,
-    project.svgClips,
-    project.stickerClips,
-    getTextClip,
-    getShapeClip,
-    getSVGClip,
-    getStickerClip,
-  ]);
-
-  const detectAppliedPresets = useCallback(() => {
-    if (!clip) return { entrance: null, exit: null, emphasis: null };
-
-    const keyframes = clip.data.keyframes || [];
-    const hasIn = keyframes.some((kf) => kf.id.startsWith("motion-in-"));
-    const hasOut = keyframes.some((kf) => kf.id.startsWith("motion-out-"));
-    const hasEmphasis = keyframes.some((kf) =>
-      kf.id.startsWith("motion-emphasis-"),
-    );
-
-    return {
-      entrance: hasIn ? "applied" : null,
-      exit: hasOut ? "applied" : null,
-      emphasis: hasEmphasis ? "applied" : null,
-    };
-  }, [clip]);
-
-  const appliedState = detectAppliedPresets();
-
-  const handleApplyPreset = useCallback(
-    (preset: MotionPreset, durationOverride?: number) => {
-      if (!clip || !targetClipId) return;
-
-      const prefix =
-        preset.category === "entrance"
-          ? "motion-in-"
-          : preset.category === "exit"
-            ? "motion-out-"
-            : "motion-emphasis-";
-
-      const existingKeyframes = (clip.data.keyframes || []).filter(
-        (kf) => !kf.id.startsWith(prefix),
-      );
-
-      const baseTransform = clip.data.transform || {
-        position: { x: 0, y: 0 },
-        scale: { x: 1, y: 1 },
-        rotation: 0,
-        opacity: 1,
-        anchor: { x: 0.5, y: 0.5 },
-      };
-
-      const customDuration = Math.min(
-        clip.data.duration,
-        Math.max(
-          0.05,
-          durationOverride ??
-            customDurations[preset.category] ??
-            preset.duration,
+  const projectId = useProjectStore((state) => state.project.id);
+  const executor = useProjectStore((state) => state.actionExecutor);
+  const hasOpenProject = useProjectStore((state) => state.hasOpenProject);
+  const locked = useProjectStore(
+    useCallback(
+      (state) =>
+        !state.project.timeline.tracks.some(
+          (track) => track.id === clip?.trackId && !track.locked,
         ),
-      );
-      const canvas = {
-        width: project.settings.width,
-        height: project.settings.height,
-      };
-      const newKeyframes = generateKeyframesFromPreset(
-        preset,
-        clip.data.duration,
-        baseTransform,
-        preset.category,
-        customDuration,
-        canvas,
-      );
-
-      const allKeyframes = [...existingKeyframes, ...newKeyframes];
-
-      if (clip.type === "text") {
-        updateTextClipKeyframes(targetClipId, allKeyframes);
-      } else if (
-        clip.type === "shape" ||
-        clip.type === "svg" ||
-        clip.type === "sticker"
-      ) {
-        const graphicsEngine = getGraphicsEngine();
-        if (graphicsEngine) {
-          const graphicsClip =
-            clip.type === "shape"
-              ? graphicsEngine.getShapeClip(targetClipId)
-              : clip.type === "svg"
-                ? graphicsEngine.getSVGClip(targetClipId)
-                : graphicsEngine.getStickerClip(targetClipId);
-
-          if (graphicsClip) {
-            (graphicsClip as MutableGraphicClip).keyframes = allKeyframes;
-            useProjectStore.setState((state) => ({
-              project: { ...state.project, modifiedAt: Date.now() },
-            }));
-          }
-        }
-      } else {
-        updateClipKeyframes(targetClipId, allKeyframes);
-      }
-
-      toast.success("Motion Preset Applied", `${preset.name} added to clip`);
-    },
-    [
-      clip,
-      targetClipId,
-      customDurations,
-      updateClipKeyframes,
-      updateTextClipKeyframes,
-      getGraphicsEngine,
-      project.settings,
-    ],
+      [clip?.trackId],
+    ),
   );
-
-  const handlePresetClick = useCallback(
-    (preset: MotionPreset) => {
-      setLastAppliedPresetId(preset.id);
-      handleApplyPreset(preset);
-    },
-    [handleApplyPreset],
+  const exporting = useUIStore((state) => state.exportState.isExporting);
+  const processing = useUIStore(
+    (state) => state.effectApplicationClipId !== null,
   );
-
-  const handleDurationChange = useCallback(
-    (duration: number) => {
-      setCustomDurations((current) => ({
-        ...current,
-        [selectedCategory]: duration,
-      }));
-
-      const appliedPreset = presets.find(
-        (preset) => preset.id === lastAppliedPresetId,
-      );
-      if (!appliedPreset) return;
-
-      if (durationApplyTimerRef.current) {
-        clearTimeout(durationApplyTimerRef.current);
-      }
-      durationApplyTimerRef.current = setTimeout(() => {
-        durationApplyTimerRef.current = null;
-        handleApplyPreset(appliedPreset, duration);
-      }, 160);
-    },
-    [handleApplyPreset, lastAppliedPresetId, presets, selectedCategory],
+  const playbackLocked = useTimelineStore(
+    (state) => !!state.playbackLockedReason,
   );
-
-  const handleRemovePresets = useCallback(
-    (category: PresetCategory) => {
-      if (!clip || !targetClipId) return;
-
-      if (durationApplyTimerRef.current) {
-        clearTimeout(durationApplyTimerRef.current);
-        durationApplyTimerRef.current = null;
-      }
-      setLastAppliedPresetId((current) =>
-        current &&
-        (presetLibrary[category] ?? []).some((preset) => preset.id === current)
-          ? null
-          : current,
-      );
-
-      const prefix =
-        category === "entrance"
-          ? "motion-in-"
-          : category === "exit"
-            ? "motion-out-"
-            : "motion-emphasis-";
-
-      const filteredKeyframes = (clip.data.keyframes || []).filter(
-        (kf) => !kf.id.startsWith(prefix),
-      );
-
-      if (clip.type === "text") {
-        updateTextClipKeyframes(targetClipId, filteredKeyframes);
-      } else if (
-        clip.type === "shape" ||
-        clip.type === "svg" ||
-        clip.type === "sticker"
-      ) {
-        const graphicsEngine = getGraphicsEngine();
-        if (graphicsEngine) {
-          const graphicsClip =
-            clip.type === "shape"
-              ? graphicsEngine.getShapeClip(targetClipId)
-              : clip.type === "svg"
-                ? graphicsEngine.getSVGClip(targetClipId)
-                : graphicsEngine.getStickerClip(targetClipId);
-
-          if (graphicsClip) {
-            (graphicsClip as MutableGraphicClip).keyframes = filteredKeyframes;
-            useProjectStore.setState((state) => ({
-              project: { ...state.project, modifiedAt: Date.now() },
-            }));
-          }
-        }
-      } else {
-        updateClipKeyframes(targetClipId, filteredKeyframes);
-      }
-
-      toast.info("Preset Removed");
-    },
-    [
-      clip,
-      targetClipId,
-      updateClipKeyframes,
-      updateTextClipKeyframes,
-      getGraphicsEngine,
-      presetLibrary,
-    ],
+  const session = useMemo(
+    () => ({
+      key: crypto.randomUUID(),
+      scope: { projectId, executor, clipId: targetId ?? "" },
+    }),
+    [projectId, executor, targetId],
   );
-
-  if (!targetClipId) {
+  if (!targetId || !clip)
     return (
       <div className="p-4 text-center">
-        <Zap size={24} className="mx-auto mb-2 text-fg-3" />
-        <Text type="supporting" color="secondary" className="text-[10px]">
-          Select a clip to apply motion presets
-        </Text>
+        <Zap size={24} aria-hidden className="mx-auto mb-2 text-fg-3" />
+        <span className="text-[10px] font-normal text-fg-2">
+          {targetId
+            ? "Clip not found"
+            : "Select a clip to apply motion presets"}
+        </span>
       </div>
     );
-  }
-
-  if (!clip) {
-    return (
-      <div className="p-4 text-center">
-        <Zap size={24} className="mx-auto mb-2 text-fg-3" />
-        <Text type="supporting" color="secondary" className="text-[10px]">
-          Clip not found
-        </Text>
-      </div>
-    );
-  }
-
-  const maxPresetDuration = Math.max(0.05, clip.data.duration);
-  const defaultCategoryDuration = Math.min(
-    maxPresetDuration,
-    presets[0]?.duration ?? 0.5,
-  );
-  const selectedDuration = Math.min(
-    maxPresetDuration,
-    customDurations[selectedCategory] ?? defaultCategoryDuration,
-  );
-
   return (
-    <div className="space-y-4">
-      {(appliedState.entrance ||
-        appliedState.exit ||
-        appliedState.emphasis) && (
-        <Card variant="muted" padding={2} className="space-y-1 border border-border">
-          <Text type="supporting" color="secondary" className="text-[10px] font-medium">
-            Applied Animations
-          </Text>
-          <div className="flex flex-wrap gap-1 mt-1">
-            {appliedState.entrance && (
-              <Button
-                label="Entry x"
-                icon={<ArrowRight size={10} />}
-                variant="ghost"
-                size="sm"
-                onClick={() => handleRemovePresets("entrance")}
-                className="flex items-center gap-1 px-2 py-1 bg-green-500/20 text-green-400 rounded text-[9px] hover:bg-green-500/30"
-              />
-            )}
-            {appliedState.exit && (
-              <Button
-                label="Exit x"
-                icon={<ArrowLeft size={10} />}
-                variant="ghost"
-                size="sm"
-                onClick={() => handleRemovePresets("exit")}
-                className="flex items-center gap-1 px-2 py-1 bg-red-500/20 text-red-400 rounded text-[9px] hover:bg-red-500/30"
-              />
-            )}
-            {appliedState.emphasis && (
-              <Button
-                label="Emphasis x"
-                icon={<Zap size={10} />}
-                variant="ghost"
-                size="sm"
-                onClick={() => handleRemovePresets("emphasis")}
-                className="flex items-center gap-1 px-2 py-1 bg-yellow-500/20 text-yellow-400 rounded text-[9px] hover:bg-yellow-500/30"
-              />
-            )}
-          </div>
-        </Card>
-      )}
-
-      <div className="flex gap-1">
-        {CATEGORY_CONFIG.map((category) => {
-          const Icon = category.icon;
-          const isApplied =
-            (category.id === "entrance" && appliedState.entrance) ||
-            (category.id === "exit" && appliedState.exit) ||
-            (category.id === "emphasis" && appliedState.emphasis) ||
-            (category.id === "transition" && appliedState.emphasis);
-
-          return (
-            <Button
-              key={category.id}
-              label={category.name}
-              icon={<Icon size={12} />}
-              variant={selectedCategory === category.id ? "primary" : "secondary"}
-              size="sm"
-              onClick={() => setSelectedCategory(category.id)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] whitespace-nowrap transition-colors relative ${
-                selectedCategory === category.id
-                  ? "bg-primary text-white font-medium"
-                  : "bg-bg-2 text-fg-2 hover:text-fg"
-              }`}
-            >
-              {isApplied && (
-                <div className="absolute -top-1 -right-1 w-2 h-2 bg-green-500 rounded-full" />
-              )}
-            </Button>
-          );
-        })}
-      </div>
-
-      <Card variant="muted" padding={2} className="space-y-2 border border-border">
-        <ToolcraftSliderControl
-          ariaLabel="Motion preset duration"
-          label="Duration"
-          value={selectedDuration}
-          min={0.05}
-          max={maxPresetDuration}
-          step={0.05}
-          unit="s"
-          defaultValue={defaultCategoryDuration}
-          onChange={handleDurationChange}
-        />
-        <Text type="supporting" color="secondary" className="text-[9px]">
-          Sets how long {selectedCategory} presets run. The last applied preset
-          updates after you stop dragging.
-        </Text>
-      </Card>
-
-      <div className="grid grid-cols-3 gap-2 max-h-72 overflow-y-auto">
-        {presets.map((preset) => {
-          const categoryKey =
-            preset.category === "entrance"
-              ? "entrance"
-              : preset.category === "exit"
-                ? "exit"
-                : "emphasis";
-
-          return (
-            <PresetCard
-              key={preset.id}
-              preset={preset}
-              duration={
-                customDurations[preset.category] ?? preset.duration
-              }
-              isApplied={!!appliedState[categoryKey]}
-              onApply={() => handlePresetClick(preset)}
-            />
-          );
-        })}
-      </div>
-
-      <Text type="supporting" color="secondary" className="text-center text-[9px]">
-        {presets.length} presets in {selectedCategory}
-      </Text>
-    </div>
+    <MotionPresetControls
+      key={session.key}
+      scope={session.scope}
+      clip={clip}
+      disabled={
+        !hasOpenProject ||
+        locked ||
+        exporting ||
+        processing ||
+        playbackLocked ||
+        !Number.isFinite(clip.duration) ||
+        clip.duration <= 0
+      }
+    />
   );
 };
 
-export default MotionPresetsPanel;
+function MotionPresetControls({
+  scope,
+  clip,
+  disabled,
+}: {
+  scope: MotionPresetScope;
+  clip: MotionPresetTarget;
+  disabled: boolean;
+}) {
+  const library = useMemo(() => getPresetLibrary(), []);
+  // The clip the presets would be applied to, and the canvas their slide offsets are measured against: what "apply" uses.
+  const targetKind = useProjectStore(
+    (state) => resolveMotionPresetTarget(state.project, scope.clipId)?.kind ?? "regular",
+  );
+  const canvasWidth = useProjectStore((state) => state.project.settings.width);
+  const canvasHeight = useProjectStore((state) => state.project.settings.height);
+  const previewTarget = useMemo<MotionPreviewTarget>(
+    () => ({
+      transform: clip.transform,
+      clipDuration: clip.duration,
+      kind: targetKind,
+      canvas: { width: Math.max(1, canvasWidth), height: Math.max(1, canvasHeight) },
+    }),
+    [clip.transform, clip.duration, targetKind, canvasWidth, canvasHeight],
+  );
+  const [category, setCategory] = useState<PresetCategory>("entrance");
+  const [durations, setDurations] = useState<
+    Partial<Record<PresetCategory, number>>
+  >({});
+  const [lastApplied, setLastApplied] = useState<
+    Partial<Record<PresetCategory, string>>
+  >({});
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+  const clipRef = useRef(clip);
+  clipRef.current = clip;
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mounted = useRef(true);
+  const pending = useRef<{
+    preset: MotionPreset;
+    duration: number;
+    target: MotionPresetTarget;
+  } | null>(null);
+  const presets = useMemo(() => library[category] ?? [], [library, category]);
+  const defaultDuration = boundedMotionPresetDuration(
+    undefined,
+    presets[0]?.duration ?? 0.5,
+    clip.duration,
+  );
+  const duration = boundedMotionPresetDuration(
+    durations[category],
+    defaultDuration,
+    clip.duration,
+  );
+  const maximum = Number.isFinite(clip.duration)
+    ? Math.max(0, clip.duration)
+    : 0;
+  const minimum = Math.min(0.05, maximum);
+  const applied = useMemo(
+    () =>
+      Object.fromEntries(
+        CATEGORY_CONFIG.map((item) => [
+          item.id,
+          (clip.keyframes ?? []).some((key) =>
+            key.id.startsWith(MOTION_PRESET_PREFIX[item.id]),
+          ),
+        ]),
+      ) as Record<PresetCategory, boolean>,
+    [clip.keyframes],
+  );
+  const cancelPending = useCallback(() => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = null;
+    pending.current = null;
+  }, []);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      cancelPending();
+    };
+  }, [cancelPending]);
+  useEffect(() => {
+    if (disabled) cancelPending();
+  }, [cancelPending, disabled]);
+  useEffect(() => {
+    if (editing) {
+      inputRef.current?.focus();
+      inputRef.current?.select();
+    }
+  }, [editing]);
+  const flush = useCallback(() => {
+    const next = pending.current;
+    cancelPending();
+    if (
+      !mounted.current ||
+      !next ||
+      disabled ||
+      clipRef.current !== next.target
+    )
+      return;
+    applyMotionPreset(scope, next.preset, next.duration);
+  }, [cancelPending, disabled, scope]);
+  const changeDuration = useCallback(
+    (value: number, commit = false) => {
+      if (!mounted.current || disabled) return;
+      const next = boundedMotionPresetDuration(
+        value,
+        defaultDuration,
+        clip.duration,
+      );
+      setDurations((current) => ({ ...current, [category]: next }));
+      cancelPending();
+      const preset = presets.find((item) => item.id === lastApplied[category]);
+      if (!preset || !applied[category]) return;
+      pending.current = { preset, duration: next, target: clip };
+      if (commit) flush();
+      else timer.current = setTimeout(flush, 160);
+    },
+    [
+      disabled,
+      defaultDuration,
+      clip,
+      category,
+      cancelPending,
+      presets,
+      lastApplied,
+      applied,
+      flush,
+    ],
+  );
+  const apply = useCallback(
+    (preset: MotionPreset) => {
+      cancelPending();
+      if (
+        !mounted.current ||
+        disabled ||
+        !applyMotionPreset(scope, preset, durations[preset.category])
+      )
+        return;
+      setLastApplied((current) => ({
+        ...current,
+        [preset.category]: preset.id,
+      }));
+      toast.success("Motion Preset Applied", `${preset.name} added to clip`);
+    },
+    [cancelPending, disabled, scope, durations],
+  );
+  const remove = (selected: PresetCategory) => {
+    cancelPending();
+    if (
+      !mounted.current ||
+      disabled ||
+      !removeMotionPresetCategory(scope, selected)
+    )
+      return;
+    setLastApplied((current) => ({ ...current, [selected]: undefined }));
+    toast.info("Preset Removed");
+  };
+  const commitDraft = () => {
+    const match = draft.trim().match(/^([+-]?(?:\d+(?:\.\d*)?|\.\d+))\s*s?$/i);
+    if (match && Number.isFinite(Number(match[1])))
+      changeDuration(
+        Number(
+          (
+            minimum +
+            Math.round((Number(match[1]) - minimum) / 0.05) * 0.05
+          ).toFixed(6),
+        ),
+        true,
+      );
+    setEditing(false);
+  };
+  return (
+    <EffectPreviewProvider>
+    <div className="space-y-4">
+      {CATEGORY_CONFIG.some((item) => applied[item.id]) && (
+        <Card className="space-y-1 rounded-[7px] border-border bg-bg-2 p-2 shadow-none">
+          <span className="text-[10px] font-medium text-fg-2">
+            Applied Animations
+          </span>
+          <div className="flex flex-wrap gap-1">
+            {CATEGORY_CONFIG.filter((item) => applied[item.id]).map((item) => (
+              <Button
+                key={item.id}
+                type="button"
+                variant="secondary"
+                size="sm"
+                disabled={disabled}
+                aria-label={`Remove ${item.id} presets`}
+                onClick={() => remove(item.id)}
+                className="h-6 gap-1 px-2 text-[9px]"
+              >
+                <item.icon size={10} aria-hidden />
+                {item.name} ×
+              </Button>
+            ))}
+          </div>
+        </Card>
+      )}
+      <Tabs
+        value={category}
+        onValueChange={(value) => {
+          if (!CATEGORY_CONFIG.some((item) => item.id === value)) return;
+          cancelPending();
+          setEditing(false);
+          setCategory(value as PresetCategory);
+        }}
+      >
+        <TabsList
+          aria-label="Motion preset categories"
+          className="grid h-8 w-full grid-cols-4 gap-0 p-0.5"
+        >
+          {CATEGORY_CONFIG.map((item) => (
+            <TabsTrigger
+              key={item.id}
+              value={item.id}
+              className="relative min-w-0 gap-1 px-1 text-[10px]"
+            >
+              <item.icon size={11} aria-hidden />
+              <span>{item.name}</span>
+              {applied[item.id] && <span className="sr-only"> applied</span>}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+        <Card className="mt-3 space-y-2 rounded-[7px] border-border bg-bg-2 p-2 shadow-none">
+          <div className="flex items-center justify-between gap-3">
+            <Label
+              htmlFor="motion-preset-duration"
+              className="text-[11px] font-medium text-text-secondary"
+            >
+              Duration
+            </Label>
+            <span
+              className="inline-grid h-5 min-w-[4ch] place-items-center"
+              onDoubleClick={() => {
+                if (!disabled) {
+                  cancelPending();
+                  setEditing(false);
+                  changeDuration(defaultDuration, true);
+                }
+              }}
+            >
+              {editing ? (
+                <Input
+                  ref={inputRef}
+                  value={draft}
+                  disabled={disabled}
+                  aria-label="Motion preset duration value"
+                  onChange={(event) => setDraft(event.target.value)}
+                  onBlur={commitDraft}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      commitDraft();
+                    } else if (event.key === "Escape") {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      setEditing(false);
+                    } else if (
+                      event.key === "ArrowUp" ||
+                      event.key === "ArrowDown"
+                    ) {
+                      event.preventDefault();
+                      const value = Number.parseFloat(draft);
+                      setDraft(
+                        `${boundedMotionPresetDuration((Number.isFinite(value) ? value : duration) + (event.key === "ArrowUp" ? 0.05 : -0.05), defaultDuration, clip.duration).toFixed(2)}s`,
+                      );
+                    }
+                  }}
+                  className="h-5 w-14 min-w-0 px-1 py-0 text-right font-mono text-[11px] md:text-[11px]"
+                />
+              ) : (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  disabled={disabled}
+                  aria-label="Edit Motion preset duration value"
+                  title="Click to edit, double-click to reset"
+                  onClick={() => {
+                    setDraft(`${Number(duration.toFixed(2))}s`);
+                    setEditing(true);
+                  }}
+                  className="h-5 min-w-[4ch] justify-end rounded px-1 py-0 font-mono text-[11px] font-normal text-text-muted"
+                >
+                  {Number(duration.toFixed(2))}s
+                </Button>
+              )}
+            </span>
+          </div>
+          <Slider
+            id="motion-preset-duration"
+            aria-label="Motion preset duration"
+            aria-valuetext={`${Number(duration.toFixed(2))} seconds`}
+            value={[duration]}
+            min={minimum}
+            max={maximum}
+            step={0.05}
+            disabled={disabled}
+            onValueChange={([value]) => changeDuration(value)}
+            onValueCommit={([value]) => changeDuration(value, true)}
+            className="h-2"
+          />
+          <span className="text-[9px] font-normal text-fg-2">
+            Sets how long {category} presets run. The last applied preset
+            updates after you stop dragging.
+          </span>
+        </Card>
+        <TabsContent value={category} className="mt-3 space-y-3">
+          <div className="grid max-h-80 grid-cols-2 gap-2 overflow-y-auto">
+            {presets.map((preset) => (
+              <PresetCard
+                key={preset.id}
+                preset={preset}
+                duration={boundedMotionPresetDuration(
+                  durations[preset.category],
+                  preset.duration,
+                  clip.duration,
+                )}
+                target={previewTarget}
+                isApplied={
+                  applied[preset.category] &&
+                  lastApplied[preset.category] === preset.id
+                }
+                disabled={disabled}
+                onApply={apply}
+              />
+            ))}
+          </div>
+          <Badge variant="secondary" className="text-[9px] font-normal">
+            {presets.length} presets in {category}
+          </Badge>
+        </TabsContent>
+      </Tabs>
+    </div>
+    </EffectPreviewProvider>
+  );
+}
+

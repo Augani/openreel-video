@@ -1,0 +1,321 @@
+<!--
+  FCPXML 1.10 document type definition used to validate OpenReel's FCPXML export.
+
+  PROVENANCE (read this): Apple publishes the authoritative DTD inside the Final Cut
+  Pro application bundle (Contents/Frameworks/Interchange.framework/.../FCPXMLv1_10.dtd)
+  and on developer.apple.com's FCPXML reference. Neither could be obtained offline in
+  the environment this file was written in (no Final Cut Pro install, no network
+  installs). This file is therefore NOT Apple's verbatim DTD: it is a much more complete
+  DTD written from Apple's documented FCPXML element reference, reproducing the
+  element/attribute structure of the 1.10 schema: the library/event/project/sequence/spine
+  hierarchy, the clip family (asset-clip, clip, ref-clip, mc-clip, sync-clip, audition,
+  title, video, audio, gap), the timing and intrinsic parameter groups with their fixed
+  order, anchored (connected) items, markers, filters, transitions, captions and the
+  resource types. Attribute enumerations and required attributes follow the reference.
+  Where the reference is silent the model is deliberately permissive (CDATA), never
+  stricter than Apple's. Time-value syntax (rational "n/ds") cannot be expressed in a DTD
+  and is checked separately by the test suite.
+
+  If you have Apple's DTD, drop it in as fcpxml-1.10.dtd; the tests use whatever is here.
+-->
+
+<!-- Parameter entities shared across the model -->
+<!ENTITY % anchor_item "audio | video | clip | title | caption | mc-clip | ref-clip | sync-clip | asset-clip | audition | spine | gap">
+<!ENTITY % marker_item "marker | chapter-marker | rating | keyword | analysis-marker">
+<!ENTITY % filter_item "filter-video | filter-video-mask | filter-audio">
+<!ENTITY % timing_params "timeMap?">
+<!ENTITY % intrinsic_params_video "adjust-crop?, adjust-corners?, adjust-conform?, adjust-transform?, adjust-blend?, adjust-stabilization?, adjust-rollingShutter?, adjust-360-transform?, adjust-reorient?, adjust-orientation?, adjust-cinematic?">
+<!ENTITY % intrinsic_params_audio "adjust-loudness?, adjust-noiseReduction?, adjust-humReduction?, adjust-EQ?, adjust-matchEQ?, adjust-volume?, adjust-panner?">
+<!ENTITY % intrinsic_params "%intrinsic_params_video;, adjust-colorConform?, %intrinsic_params_audio;">
+<!ENTITY % clip_attrs "
+  lane CDATA #IMPLIED
+  offset CDATA #IMPLIED
+  name CDATA #IMPLIED
+  start CDATA #IMPLIED
+  duration CDATA #REQUIRED
+  enabled (0 | 1) #IMPLIED
+  modDate CDATA #IMPLIED
+  tcStart CDATA #IMPLIED
+  tcFormat (DF | NDF) #IMPLIED
+  audioStart CDATA #IMPLIED
+  audioDuration CDATA #IMPLIED">
+<!ENTITY % audio_rate_values "(32k | 44.1k | 48k | 88.2k | 96k | 176.4k | 192k)">
+
+<!-- ROOT -->
+<!ELEMENT fcpxml (import-options?, resources?, (library | event+ | (%anchor_item; | project | collection-folder | keyword-collection | smart-collection)+)?)>
+<!ATTLIST fcpxml version (1.10) #REQUIRED>
+
+<!ELEMENT import-options (option*)>
+<!ELEMENT option EMPTY>
+<!ATTLIST option key CDATA #REQUIRED value CDATA #REQUIRED>
+
+<!-- RESOURCES -->
+<!ELEMENT resources (asset | effect | format | media | locator | object-tracker | font-face)*>
+
+<!ELEMENT format (#PCDATA)>
+<!ATTLIST format
+  id ID #REQUIRED
+  name CDATA #IMPLIED
+  frameDuration CDATA #IMPLIED
+  fieldOrder CDATA #IMPLIED
+  width CDATA #IMPLIED
+  height CDATA #IMPLIED
+  paspH CDATA #IMPLIED
+  paspV CDATA #IMPLIED
+  colorSpace CDATA #IMPLIED
+  projection (none | equirectangular | fisheye | cubic) #IMPLIED
+  stereoscopic CDATA #IMPLIED>
+
+<!ELEMENT asset (media-rep*, metadata?)>
+<!ATTLIST asset
+  id ID #REQUIRED
+  name CDATA #IMPLIED
+  uid CDATA #IMPLIED
+  src CDATA #IMPLIED
+  start CDATA #IMPLIED
+  duration CDATA #IMPLIED
+  hasVideo (0 | 1) #IMPLIED
+  format IDREF #IMPLIED
+  hasAudio (0 | 1) #IMPLIED
+  videoSources CDATA #IMPLIED
+  audioSources CDATA #IMPLIED
+  audioChannels CDATA #IMPLIED
+  audioRate CDATA #IMPLIED
+  customLUTOverride CDATA #IMPLIED
+  colorSpaceOverride CDATA #IMPLIED
+  auxVideoFlags CDATA #IMPLIED>
+
+<!ELEMENT media-rep (#PCDATA)>
+<!ATTLIST media-rep
+  kind (original-media | proxy-media) #REQUIRED
+  sig CDATA #IMPLIED
+  src CDATA #REQUIRED>
+
+<!ELEMENT effect (param*)>
+<!ATTLIST effect
+  id ID #REQUIRED
+  name CDATA #IMPLIED
+  uid CDATA #REQUIRED
+  src CDATA #IMPLIED>
+
+<!ELEMENT font-face EMPTY>
+<!ATTLIST font-face id ID #REQUIRED name CDATA #IMPLIED src CDATA #IMPLIED>
+
+<!ELEMENT media (multicam | sequence)>
+<!ATTLIST media id ID #REQUIRED name CDATA #IMPLIED uid CDATA #IMPLIED projectRef IDREF #IMPLIED modDate CDATA #IMPLIED>
+
+<!ELEMENT multicam (mc-angle+)>
+<!ATTLIST multicam format IDREF #REQUIRED tcStart CDATA #IMPLIED tcFormat (DF | NDF) #IMPLIED renderColorSpace CDATA #IMPLIED>
+<!ELEMENT mc-angle (%anchor_item; | %marker_item;)*>
+<!ATTLIST mc-angle name CDATA #REQUIRED angleID CDATA #REQUIRED>
+
+<!ELEMENT locator (metadata?)>
+<!ATTLIST locator id ID #REQUIRED url CDATA #REQUIRED>
+<!ELEMENT object-tracker (tracking-shape+)>
+<!ATTLIST object-tracker id ID #REQUIRED>
+<!ELEMENT tracking-shape EMPTY>
+<!ATTLIST tracking-shape id ID #IMPLIED name CDATA #IMPLIED offsetRotation CDATA #IMPLIED>
+
+<!-- LIBRARY / EVENT / PROJECT / SEQUENCE -->
+<!ELEMENT library (event*, smart-collection*)>
+<!ATTLIST library location CDATA #IMPLIED colorProcessing (standard | wide | wide-hdr) #IMPLIED>
+
+<!ELEMENT event (%anchor_item; | project | collection-folder | keyword-collection | smart-collection)*>
+<!ATTLIST event name CDATA #REQUIRED uid CDATA #IMPLIED>
+
+<!ELEMENT project (sequence, metadata?)>
+<!ATTLIST project name CDATA #REQUIRED id ID #IMPLIED uid CDATA #IMPLIED modDate CDATA #IMPLIED>
+
+<!ELEMENT sequence (note?, spine, metadata?)>
+<!ATTLIST sequence
+  format IDREF #REQUIRED
+  duration CDATA #IMPLIED
+  tcStart CDATA #IMPLIED
+  tcFormat (DF | NDF) #IMPLIED
+  audioLayout (mono | stereo | surround) #IMPLIED
+  audioRate %audio_rate_values; #IMPLIED
+  renderColorSpace CDATA #IMPLIED
+  keywords CDATA #IMPLIED>
+
+<!ELEMENT spine (%anchor_item; | transition)*>
+<!ATTLIST spine name CDATA #IMPLIED lane CDATA #IMPLIED offset CDATA #IMPLIED format IDREF #IMPLIED>
+
+<!-- CLIPS -->
+<!ELEMENT asset-clip (note?, %timing_params;, %intrinsic_params;, (%anchor_item; | %marker_item; | audio-channel-source | %filter_item; | metadata)*)>
+<!ATTLIST asset-clip
+  ref IDREF #REQUIRED
+  %clip_attrs;
+  format IDREF #IMPLIED
+  audioRole CDATA #IMPLIED
+  videoRole CDATA #IMPLIED
+  srcEnable (all | audio | video) #IMPLIED>
+
+<!ELEMENT clip (note?, %timing_params;, %intrinsic_params;, (spine | %anchor_item; | %marker_item; | audio-channel-source | %filter_item; | metadata)*)>
+<!ATTLIST clip %clip_attrs; format IDREF #IMPLIED>
+
+<!ELEMENT ref-clip (note?, %timing_params;, %intrinsic_params;, (%anchor_item; | %marker_item; | audio-role-source | %filter_item; | metadata)*)>
+<!ATTLIST ref-clip ref IDREF #REQUIRED %clip_attrs; srcEnable (all | audio | video) #IMPLIED useAudioSubroles (0 | 1) #IMPLIED>
+
+<!ELEMENT mc-clip (note?, %timing_params;, %intrinsic_params;, (mc-source+ | %anchor_item; | %marker_item; | %filter_item; | metadata)*)>
+<!ATTLIST mc-clip ref IDREF #REQUIRED %clip_attrs; srcEnable (all | audio | video) #IMPLIED>
+<!ELEMENT mc-source EMPTY>
+<!ATTLIST mc-source angleID CDATA #REQUIRED srcEnable (all | audio | video | none) #IMPLIED>
+
+<!ELEMENT sync-clip (note?, %timing_params;, %intrinsic_params;, (spine | %anchor_item; | %marker_item; | sync-source | %filter_item; | metadata)*)>
+<!ATTLIST sync-clip %clip_attrs; format IDREF #IMPLIED syncID CDATA #IMPLIED>
+<!ELEMENT sync-source (audio-role-source*)>
+<!ATTLIST sync-source sourceID (storyline | connected) #REQUIRED>
+
+<!ELEMENT audition (%anchor_item;)+>
+<!ATTLIST audition lane CDATA #IMPLIED offset CDATA #IMPLIED modDate CDATA #IMPLIED>
+
+<!ELEMENT gap (note?, %timing_params;, (%anchor_item; | %marker_item; | %filter_item;)*)>
+<!ATTLIST gap name CDATA #IMPLIED offset CDATA #IMPLIED start CDATA #IMPLIED duration CDATA #REQUIRED enabled (0 | 1) #IMPLIED>
+
+<!ELEMENT title (note?, %timing_params;, param*, text*, text-style-def*, %intrinsic_params;, (%anchor_item; | %marker_item; | %filter_item; | metadata)*)>
+<!ATTLIST title ref IDREF #REQUIRED %clip_attrs; role CDATA #IMPLIED>
+<!ELEMENT text (#PCDATA | text-style)*>
+<!ATTLIST text display CDATA #IMPLIED roll-up-height CDATA #IMPLIED position CDATA #IMPLIED placement CDATA #IMPLIED alignment CDATA #IMPLIED>
+<!ELEMENT text-style (#PCDATA)>
+<!ATTLIST text-style ref IDREF #IMPLIED font CDATA #IMPLIED fontSize CDATA #IMPLIED fontFace CDATA #IMPLIED fontColor CDATA #IMPLIED bold CDATA #IMPLIED italic CDATA #IMPLIED>
+<!ELEMENT text-style-def (text-style+)>
+<!ATTLIST text-style-def id ID #REQUIRED name CDATA #IMPLIED>
+
+<!ELEMENT caption (note?, text+, text-style-def*, (%marker_item;)*)>
+<!ATTLIST caption %clip_attrs; role CDATA #REQUIRED>
+
+<!ELEMENT video (note?, %timing_params;, %intrinsic_params_video;, (param | %anchor_item; | %marker_item; | %filter_item; | metadata)*)>
+<!ATTLIST video ref IDREF #REQUIRED %clip_attrs; role CDATA #IMPLIED srcID CDATA #IMPLIED>
+
+<!ELEMENT audio (note?, %timing_params;, %intrinsic_params_audio;, (%anchor_item; | %marker_item; | audio-channel-source | %filter_item; | metadata)*)>
+<!ATTLIST audio ref IDREF #REQUIRED %clip_attrs; role CDATA #IMPLIED srcCh CDATA #IMPLIED outCh CDATA #IMPLIED srcID CDATA #IMPLIED>
+
+<!ELEMENT audio-channel-source (adjust-volume?, adjust-panner?, (%filter_item;)*)>
+<!ATTLIST audio-channel-source srcCh CDATA #REQUIRED outCh CDATA #IMPLIED role CDATA #IMPLIED enabled (0 | 1) #IMPLIED>
+<!ELEMENT audio-role-source ((%filter_item;)*)>
+<!ATTLIST audio-role-source role CDATA #REQUIRED active (0 | 1) #IMPLIED>
+
+<!-- TRANSITIONS -->
+<!ELEMENT transition (%filter_item;)*>
+<!ATTLIST transition name CDATA #IMPLIED offset CDATA #REQUIRED duration CDATA #REQUIRED start CDATA #IMPLIED>
+
+<!-- TIME MAP -->
+<!ELEMENT timeMap (timept+)>
+<!ATTLIST timeMap frameSampling (floor | nearest-neighbor | frame-blending | optical-flow-classic | optical-flow | optical-flow-frc) #IMPLIED preservesPitch (0 | 1) #IMPLIED>
+<!ELEMENT timept EMPTY>
+<!ATTLIST timept time CDATA #REQUIRED value CDATA #REQUIRED interp (smooth2 | linear | smooth) #IMPLIED inTime CDATA #IMPLIED outTime CDATA #IMPLIED>
+
+<!-- INTRINSIC PARAMETERS -->
+<!ELEMENT adjust-crop (crop-rect | trim-rect | pan-rect)*>
+<!ATTLIST adjust-crop mode (trim | crop | pan) #REQUIRED enabled (0 | 1) #IMPLIED>
+<!ELEMENT crop-rect EMPTY>
+<!ATTLIST crop-rect left CDATA #IMPLIED top CDATA #IMPLIED right CDATA #IMPLIED bottom CDATA #IMPLIED>
+<!ELEMENT trim-rect EMPTY>
+<!ATTLIST trim-rect left CDATA #IMPLIED top CDATA #IMPLIED right CDATA #IMPLIED bottom CDATA #IMPLIED>
+<!ELEMENT pan-rect EMPTY>
+<!ATTLIST pan-rect left CDATA #IMPLIED top CDATA #IMPLIED right CDATA #IMPLIED bottom CDATA #IMPLIED>
+<!ELEMENT adjust-corners (param*)>
+<!ATTLIST adjust-corners enabled (0 | 1) #IMPLIED botLeft CDATA #IMPLIED topLeft CDATA #IMPLIED topRight CDATA #IMPLIED botRight CDATA #IMPLIED>
+<!ELEMENT adjust-conform EMPTY>
+<!ATTLIST adjust-conform type (fit | fill | none) #IMPLIED>
+<!ELEMENT adjust-transform (param*)>
+<!ATTLIST adjust-transform enabled (0 | 1) #IMPLIED position CDATA #IMPLIED anchor CDATA #IMPLIED scale CDATA #IMPLIED rotation CDATA #IMPLIED>
+<!ELEMENT adjust-blend (param*)>
+<!ATTLIST adjust-blend amount CDATA #IMPLIED mode CDATA #IMPLIED>
+<!ELEMENT adjust-stabilization EMPTY>
+<!ATTLIST adjust-stabilization enabled (0 | 1) #IMPLIED type (automatic | inertiaCam | smoothCam) #IMPLIED>
+<!ELEMENT adjust-rollingShutter EMPTY>
+<!ATTLIST adjust-rollingShutter enabled (0 | 1) #IMPLIED amount CDATA #IMPLIED>
+<!ELEMENT adjust-360-transform (param*)>
+<!ATTLIST adjust-360-transform enabled (0 | 1) #IMPLIED coordinates (spherical | cartesian) #IMPLIED>
+<!ELEMENT adjust-reorient (param*)>
+<!ATTLIST adjust-reorient enabled (0 | 1) #IMPLIED>
+<!ELEMENT adjust-orientation (param*)>
+<!ATTLIST adjust-orientation enabled (0 | 1) #IMPLIED>
+<!ELEMENT adjust-cinematic (param*)>
+<!ATTLIST adjust-cinematic enabled (0 | 1) #IMPLIED>
+<!ELEMENT adjust-colorConform EMPTY>
+<!ATTLIST adjust-colorConform enabled (0 | 1) #IMPLIED autoOrManual (automatic | manual) #IMPLIED conformType (conformNone | conformNTSC | conformPAL | conformHD | conformHDWide) #IMPLIED peakNitsOfPQSource CDATA #IMPLIED peakNitsOfSDRToPQSource CDATA #IMPLIED>
+<!ELEMENT adjust-volume (param*)>
+<!ATTLIST adjust-volume amount CDATA #IMPLIED>
+<!ELEMENT adjust-loudness EMPTY>
+<!ATTLIST adjust-loudness amount CDATA #REQUIRED uniformity CDATA #REQUIRED>
+<!ELEMENT adjust-noiseReduction EMPTY>
+<!ATTLIST adjust-noiseReduction enabled (0 | 1) #IMPLIED amount CDATA #REQUIRED>
+<!ELEMENT adjust-humReduction EMPTY>
+<!ATTLIST adjust-humReduction enabled (0 | 1) #IMPLIED frequency (50 | 60) #REQUIRED>
+<!ELEMENT adjust-EQ (param*)>
+<!ATTLIST adjust-EQ mode (flat | voice_enhance | music_enhance | loudness | hum_reduction | bass_boost | bass_reduce | treble_boost | treble_reduce) #REQUIRED>
+<!ELEMENT adjust-matchEQ (data)>
+<!ATTLIST adjust-matchEQ enabled (0 | 1) #IMPLIED>
+<!ELEMENT adjust-panner (param*)>
+<!ATTLIST adjust-panner mode CDATA #REQUIRED amount CDATA #IMPLIED original_decoded_mix CDATA #IMPLIED ambient_direct_mix CDATA #IMPLIED surround_width CDATA #IMPLIED left_right_mix CDATA #IMPLIED front_back_mix CDATA #IMPLIED lfe_balance CDATA #IMPLIED rotation CDATA #IMPLIED stereo_spread CDATA #IMPLIED attenuate_collapse_mix CDATA #IMPLIED center_balance CDATA #IMPLIED>
+
+<!-- KEYFRAMED PARAMETERS -->
+<!ELEMENT param (fadeIn | fadeOut | keyframeAnimation | param)*>
+<!ATTLIST param name CDATA #REQUIRED key CDATA #IMPLIED value CDATA #IMPLIED enabled (0 | 1) #IMPLIED auxValue CDATA #IMPLIED>
+<!ELEMENT fadeIn EMPTY>
+<!ATTLIST fadeIn type (linear | easeIn | easeOut | easeInOut) #REQUIRED duration CDATA #REQUIRED>
+<!ELEMENT fadeOut EMPTY>
+<!ATTLIST fadeOut type (linear | easeIn | easeOut | easeInOut) #REQUIRED duration CDATA #REQUIRED>
+<!ELEMENT keyframeAnimation (keyframe+)>
+<!ELEMENT keyframe EMPTY>
+<!ATTLIST keyframe time CDATA #REQUIRED value CDATA #REQUIRED interp (linear | easeIn | easeOut | ease) #IMPLIED curve (linear | smooth) #IMPLIED>
+
+<!-- FILTERS -->
+<!ELEMENT filter-video (param*, data*)>
+<!ATTLIST filter-video ref IDREF #REQUIRED name CDATA #IMPLIED enabled (0 | 1) #IMPLIED srcID CDATA #IMPLIED>
+<!ELEMENT filter-video-mask (mask-shape | mask-isolation | param)*>
+<!ATTLIST filter-video-mask enabled (0 | 1) #IMPLIED invert (0 | 1) #IMPLIED>
+<!ELEMENT mask-shape (param*)>
+<!ATTLIST mask-shape name CDATA #IMPLIED>
+<!ELEMENT mask-isolation (param*)>
+<!ATTLIST mask-isolation name CDATA #IMPLIED>
+<!ELEMENT filter-audio (param*, data*)>
+<!ATTLIST filter-audio ref IDREF #REQUIRED name CDATA #IMPLIED enabled (0 | 1) #IMPLIED srcID CDATA #IMPLIED>
+<!ELEMENT data (#PCDATA)>
+<!ATTLIST data key CDATA #IMPLIED>
+
+<!-- MARKERS / METADATA / COLLECTIONS -->
+<!ELEMENT marker (#PCDATA)>
+<!ATTLIST marker start CDATA #REQUIRED duration CDATA #IMPLIED value CDATA #REQUIRED completed (0 | 1) #IMPLIED note CDATA #IMPLIED>
+<!ELEMENT chapter-marker EMPTY>
+<!ATTLIST chapter-marker start CDATA #REQUIRED duration CDATA #IMPLIED value CDATA #REQUIRED note CDATA #IMPLIED posterOffset CDATA #IMPLIED>
+<!ELEMENT analysis-marker (shot-type | stabilization-type)*>
+<!ATTLIST analysis-marker start CDATA #REQUIRED duration CDATA #IMPLIED>
+<!ELEMENT shot-type EMPTY>
+<!ATTLIST shot-type value CDATA #REQUIRED>
+<!ELEMENT stabilization-type EMPTY>
+<!ATTLIST stabilization-type value CDATA #REQUIRED>
+<!ELEMENT rating EMPTY>
+<!ATTLIST rating start CDATA #IMPLIED duration CDATA #IMPLIED value (favorite | rejected) #REQUIRED note CDATA #IMPLIED>
+<!ELEMENT keyword EMPTY>
+<!ATTLIST keyword start CDATA #IMPLIED duration CDATA #IMPLIED value CDATA #REQUIRED note CDATA #IMPLIED>
+<!ELEMENT note (#PCDATA)>
+<!ELEMENT metadata (md*)>
+<!ELEMENT md (string*)>
+<!ATTLIST md key CDATA #REQUIRED value CDATA #IMPLIED displayName CDATA #IMPLIED type CDATA #IMPLIED editable (0 | 1) #IMPLIED>
+<!ELEMENT string EMPTY>
+<!ATTLIST string value CDATA #REQUIRED>
+<!ELEMENT collection-folder (collection-folder | keyword-collection | smart-collection)*>
+<!ATTLIST collection-folder name CDATA #REQUIRED>
+<!ELEMENT keyword-collection EMPTY>
+<!ATTLIST keyword-collection name CDATA #REQUIRED>
+<!ELEMENT smart-collection (match-clip | match-media | match-ratings | match-text | match-usage | match-representation | match-markers | match-analysis-type)+>
+<!ATTLIST smart-collection name CDATA #REQUIRED match (any | all) #REQUIRED>
+<!ELEMENT match-clip EMPTY>
+<!ATTLIST match-clip rule (is | isNot) #REQUIRED type (audioOnly | videoOnly | audioWithVideo | stills | favorites | synchronized | project | compound | multicam | transitions | titles) #REQUIRED>
+<!ELEMENT match-media EMPTY>
+<!ATTLIST match-media rule (is | isNot) #REQUIRED type (videoWithAudio | videoOnly | audioOnly | stills) #REQUIRED>
+<!ELEMENT match-ratings EMPTY>
+<!ATTLIST match-ratings value (favorites | rejected) #REQUIRED>
+<!ELEMENT match-text EMPTY>
+<!ATTLIST match-text rule (includes | doesNotInclude | is | isNot | beginsWith | endsWith) #REQUIRED scope (all | notes | names | markers | metadata) #IMPLIED value CDATA #REQUIRED>
+<!ELEMENT match-usage EMPTY>
+<!ATTLIST match-usage rule (used | unused) #REQUIRED>
+<!ELEMENT match-representation EMPTY>
+<!ATTLIST match-representation rule (is | isNot) #REQUIRED type (original | proxy | optimized) #REQUIRED>
+<!ELEMENT match-markers EMPTY>
+<!ATTLIST match-markers rule (isIncomplete | isCompleted | isToDo | isChapter) #REQUIRED>
+<!ELEMENT match-analysis-type EMPTY>
+<!ATTLIST match-analysis-type rule (is | isNot) #REQUIRED value CDATA #REQUIRED>

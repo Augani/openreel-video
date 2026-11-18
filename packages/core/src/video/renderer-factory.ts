@@ -16,6 +16,8 @@ export interface RenderLayer {
   effects: Effect[];
   opacity: number;
   borderRadius: number;
+  /** Sequence pixel aspect ratio the layer transform is laid out in (display space, then squeezed). Default 1. */
+  pixelAspect?: number;
 }
 
 export interface Renderer {
@@ -46,7 +48,7 @@ export function isWebGPUSupported(): boolean {
   return "gpu" in navigator && navigator.gpu !== undefined;
 }
 
-export function getBestRendererType(preferred?: RendererType): RendererType {
+function getBestRendererType(preferred?: RendererType): RendererType {
   if (preferred === "canvas2d") {
     return "canvas2d";
   }
@@ -62,6 +64,7 @@ export class RendererFactory {
   private static instance: RendererFactory | null = null;
   private currentRenderer: Renderer | null = null;
   private config: RendererConfig | null = null;
+  private creationRevision = 0;
 
   private constructor() {}
 
@@ -81,33 +84,42 @@ export class RendererFactory {
   }
 
   async createRenderer(config: RendererConfig): Promise<Renderer> {
+    const revision = ++this.creationRevision;
     this.config = config;
 
     // Try WebGPU first
-    if (isWebGPUSupported()) {
+    if (getBestRendererType(config.preferredRenderer) === "webgpu") {
+      let attempted: Renderer | null = null;
       try {
         const { WebGPURenderer } = await import("./webgpu-renderer-impl");
         const renderer = new WebGPURenderer(config);
+        attempted = renderer;
         const initialized = await renderer.initialize();
 
         if (initialized) {
-          this.currentRenderer = renderer;
+          if (revision === this.creationRevision)
+            this.currentRenderer = renderer;
 
           return renderer;
         }
 
+        renderer.destroy();
+        attempted = null;
+
         console.warn("[RendererFactory] WebGPU init failed, using Canvas2D");
       } catch (error) {
+        attempted?.destroy();
         console.warn("[RendererFactory] WebGPU error, using Canvas2D:", error);
       }
     }
 
     // Fallback to Canvas2D
-    const { Canvas2DFallbackRenderer } =
-      await import("./canvas2d-fallback-renderer");
+    const { Canvas2DFallbackRenderer } = await import(
+      "./canvas2d-fallback-renderer"
+    );
     const renderer = new Canvas2DFallbackRenderer(config);
     await renderer.initialize();
-    this.currentRenderer = renderer;
+    if (revision === this.creationRevision) this.currentRenderer = renderer;
 
     return renderer;
   }
@@ -117,6 +129,7 @@ export class RendererFactory {
   }
 
   destroyRenderer(): void {
+    this.creationRevision++;
     if (this.currentRenderer) {
       this.currentRenderer.destroy();
       this.currentRenderer = null;
@@ -134,10 +147,4 @@ export class RendererFactory {
 
 export function getRendererFactory(): RendererFactory {
   return RendererFactory.getInstance();
-}
-
-export async function createRenderer(
-  config: RendererConfig,
-): Promise<Renderer> {
-  return RendererFactory.getInstance().createRenderer(config);
 }

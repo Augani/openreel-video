@@ -2,6 +2,8 @@ import type { ProjectSettings } from "./project";
 import type { Timeline } from "./timeline";
 import type {
   TemplateCategory,
+  TemplateProjectContent,
+  PlaceholderReplacement,
   TemplatePlaceholder,
   PlaceholderConstraints,
 } from "./template";
@@ -88,7 +90,7 @@ export type SocialMediaCategory =
   | "slideshow"
   | "custom";
 
-export interface SocialMediaPreset {
+interface SocialMediaPreset {
   readonly width: number;
   readonly height: number;
   readonly frameRate?: number;
@@ -235,6 +237,7 @@ export interface ScriptableTemplate {
   readonly modifiedAt: number;
   readonly settings: ProjectSettings;
   readonly timeline: Timeline;
+  readonly projectContent?: TemplateProjectContent;
   readonly placeholders: ExtendedPlaceholder[];
   readonly scenes?: TemplateScene[];
   readonly tags: string[];
@@ -248,6 +251,7 @@ export interface ExtendedPlaceholderReplacement {
   readonly type: ExtendedPlaceholderType;
   readonly value: unknown;
   readonly mediaBlob?: Blob;
+  readonly media?: PlaceholderReplacement["media"];
 }
 
 export interface ScriptableTemplateReplacements {
@@ -266,14 +270,6 @@ export interface TemplateApplicationResult {
   readonly warnings: string[];
 }
 
-export interface PlaceholderGroup {
-  readonly id: string;
-  readonly label: string;
-  readonly description?: string;
-  readonly placeholderIds: string[];
-  readonly collapsed?: boolean;
-}
-
 export function isExtendedPlaceholder(
   placeholder: TemplatePlaceholder | ExtendedPlaceholder,
 ): placeholder is ExtendedPlaceholder {
@@ -281,35 +277,6 @@ export function isExtendedPlaceholder(
     "targets" in placeholder &&
     Array.isArray((placeholder as ExtendedPlaceholder).targets)
   );
-}
-
-export function convertLegacyPlaceholder(
-  placeholder: TemplatePlaceholder,
-): ExtendedPlaceholder {
-  return {
-    id: placeholder.id,
-    type: placeholder.type,
-    label: placeholder.label,
-    description: placeholder.description,
-    required: placeholder.required,
-    defaultValue: placeholder.defaultValue,
-    targets: [],
-    constraints: placeholder.constraints,
-    uiHints: {
-      inputType:
-        placeholder.type === "media"
-          ? "media-picker"
-          : placeholder.type === "text"
-            ? "textarea"
-            : "text",
-    },
-  };
-}
-
-export function getPresetForCategory(
-  category: SocialMediaCategory,
-): SocialMediaPreset {
-  return SOCIAL_MEDIA_PRESETS[category] || SOCIAL_MEDIA_PRESETS.custom;
 }
 
 export function createProjectSettingsFromPreset(

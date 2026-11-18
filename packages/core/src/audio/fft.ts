@@ -196,15 +196,3 @@ export class FFT {
     return windowed;
   }
 }
-
-let cachedFFT: FFT | null = null;
-let cachedFFTSize = 0;
-
-export function getFFT(size: number): FFT {
-  if (cachedFFT && cachedFFTSize === size) {
-    return cachedFFT;
-  }
-  cachedFFT = new FFT(size);
-  cachedFFTSize = size;
-  return cachedFFT;
-}

@@ -5,6 +5,7 @@ import {
   serializeProjectForAutoSave,
 } from "./auto-save";
 import { createEmptyProject } from "../stores/project/project-helpers";
+import { cacheProjectPreview } from "./project-preview-cache";
 
 const project = (name: string): Project => ({
   ...createEmptyProject(name),
@@ -14,6 +15,39 @@ const project = (name: string): Project => ({
 describe("AutoSaveManager", () => {
   afterEach(() => {
     vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it("saves a real composed thumbnail without changing the authoring snapshot", async () => {
+    vi.useFakeTimers();
+    const manager = new AutoSaveManager();
+    const saveRecord = vi.fn().mockResolvedValue(undefined);
+    const internals = manager as unknown as {db: unknown; saveRecord: typeof saveRecord};
+    internals.db = {}; internals.saveRecord = saveRecord;
+    const latest = {...project("Preview"), id: "preview-project", modifiedAt: 9876};
+    const canvas = document.createElement("canvas"); canvas.width = 1920; canvas.height = 1080;
+    vi.spyOn(HTMLCanvasElement.prototype, "toDataURL").mockReturnValue("data:image/jpeg;base64,composed");
+    cacheProjectPreview(latest, 41, canvas);
+    vi.runAllTimers();
+    await manager.forceSave(latest);
+    expect(saveRecord.mock.calls[0][0].preview).toEqual({duration: 41, modifiedAt: 9876, thumbnailUrl: "data:image/jpeg;base64,composed"});
+    expect(JSON.parse(saveRecord.mock.calls[0][0].data)).toEqual(JSON.parse(serializeProjectForAutoSave(latest)));
+    await manager.forceSave({...latest, modifiedAt: 9877});
+    expect(saveRecord.mock.calls[1][0].preview).not.toHaveProperty("thumbnailUrl");
+  });
+
+  it("returns optional preview metadata and keeps legacy snapshots readable without parsing project data", async () => {
+    const manager = new AutoSaveManager();
+    const preview = {duration: 41, modifiedAt: 3, thumbnailUrl: "data:image/jpeg;base64,frame"};
+    const internals = manager as unknown as {db: unknown; getAllSaves: () => Promise<unknown[]>};
+    internals.db = {};
+    internals.getAllSaves = async () => [
+      {id: "old", projectId: "legacy", projectName: "Legacy", timestamp: 1, slot: 0, data: "not parsed for the list"},
+      {id: "new", projectId: "current", projectName: "Current", timestamp: 2, slot: 0, data: "not parsed for the list", preview},
+    ];
+    const records = await manager.checkForRecovery();
+    expect(records[0]).toEqual({id: "new", projectId: "current", projectName: "Current", timestamp: 2, slot: 0, isRecovery: true, preview});
+    expect(records[1]).not.toHaveProperty("preview");
   });
 
   it("reopens a closing database before starting the next transaction", async () => {
@@ -28,6 +62,27 @@ describe("AutoSaveManager", () => {
     expect(closed.transaction).toHaveBeenCalledOnce();
     expect(reopened.transaction).toHaveBeenCalledOnce();
     expect(initialize).toHaveBeenCalledTimes(2);
+  });
+
+  it("clears a project's saves from a keys-only index scan without reading records", async () => {
+    const manager = new AutoSaveManager();
+    const deleted: string[] = [];
+    const getAll = vi.fn();
+    const keysRequest: { result: string[]; onsuccess?: () => void } = { result: ["p-slot-0", "p-slot-1"] };
+    const tx: { oncomplete?: () => void } = {};
+    const store = {
+      getAll,
+      delete: (id: string) => { deleted.push(id); },
+      index: vi.fn(() => ({ getAllKeys: vi.fn(() => { queueMicrotask(() => { keysRequest.onsuccess?.(); tx.oncomplete?.(); }); return keysRequest; }) })),
+    };
+    Object.assign(tx, { objectStore: () => store });
+    const internals = manager as unknown as { db: unknown; createTransaction: () => Promise<unknown> };
+    internals.db = {};
+    internals.createTransaction = async () => tx;
+    await manager.clearProjectSaves("p");
+    expect(deleted).toEqual(["p-slot-0", "p-slot-1"]);
+    expect(store.index).toHaveBeenCalledWith("projectId");
+    expect(getAll).not.toHaveBeenCalled();
   });
 
   it("does not reconnect or retry quota errors", async () => {
@@ -67,6 +122,22 @@ describe("AutoSaveManager", () => {
 
     expect(save).toHaveBeenCalledTimes(2);
     expect(save.mock.calls[1][0].name).toBe("Renamed");
+  });
+
+  it("settles the save indicator when a dirty notification contains already persisted content", async () => {
+    const manager = new AutoSaveManager();
+    const saveRecord = vi.fn().mockResolvedValue(undefined);
+    const internals = manager as unknown as { db: unknown; saveRecord: typeof saveRecord };
+    internals.db = {}; internals.saveRecord = saveRecord;
+    const latest = project("Persisted project");
+    await manager.forceSave(latest);
+    const saved = vi.fn();
+    manager.on("saved", saved);
+    manager.markDirty({ ...latest });
+    await manager.forceSave({ ...latest });
+    expect(saveRecord).toHaveBeenCalledTimes(1);
+    expect(saved).toHaveBeenCalledWith({ projectId: latest.id, unchanged: true });
+    expect(manager.hasUnsavedChanges(latest)).toBe(false);
   });
 
   it("serializes concurrent saves and retains edits arriving during a write", async () => {

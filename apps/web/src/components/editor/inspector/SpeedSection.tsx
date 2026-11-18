@@ -1,19 +1,16 @@
-import React, { useState, useEffect } from "react";
-import { ToolcraftButton as Button } from "@openreel/ui";
-import { ToolcraftCard as Card } from "@openreel/ui";
-import { ToolcraftClickableCard as ClickableCard } from "@openreel/ui";
-import { ToolcraftSelectControl as Selector } from "@openreel/ui";
-import { ToolcraftText as Text } from "@openreel/ui";
-import { ToolcraftTextInputControl } from "@openreel/ui";
+import React, { useRef, useState } from "react";
+import { Button, Card, Input, Label, Select, SelectTrigger, SelectValue, SelectContent, SelectItem, cn } from "@openreel/ui";
 import { RotateCcw, Sparkles } from "@/icons/lucide-compat";
-import type { Clip } from "@openreel/core";
-import { getMediaItemCapabilities, getSpeedEngine } from "@openreel/core";
+import { SPEED_MIN, SPEED_MAX, type Clip } from "@openreel/core";
 import { useProjectStore } from "../../../stores/project-store";
-import { MockToggle } from "./shell/InspectorControls";
-
-interface SpeedSectionProps {
-  clip: Clip;
-}
+import { useUIStore } from "../../../stores/ui-store";
+import { useTimelineStore } from "../../../stores/timeline-store";
+import { editClipSpeed, linkedSpeedClipIds, type ClipSpeedChange } from "../../../services/clip-speed-edit";
+import { useNumericDraft } from "./shell/useNumericDraft";
+import { formatSpeed } from "../../../utils/format-speed";
+import { InspectorToggle } from "./shell/InspectorControls";
+import { trackEditorDraftWrite } from "../../../services/editor-field-drafts";
+import { toast } from "../../../stores/notification-store";
 
 const SPEED_PRESETS = [
   { label: "0.25×", value: 0.25 },
@@ -27,274 +24,94 @@ const SPEED_PRESETS = [
   { label: "5×", value: 5 },
 ];
 
-export const SpeedSection: React.FC<SpeedSectionProps> = ({ clip }) => {
-  const speedEngine = getSpeedEngine();
-  const { project } = useProjectStore();
-
-  const [currentSpeed, setCurrentSpeed] = useState(
-    speedEngine.getClipSpeed(clip.id) || 1,
-  );
-  const [isReversed, setIsReversed] = useState(() => {
-    const speedData = speedEngine.getClipSpeedData(clip.id);
-    return speedData?.reverse || false;
-  });
-
-  const [customSpeed, setCustomSpeed] = useState<string>(
-    currentSpeed.toString(),
-  );
-  const [affectAudio, setAffectAudio] = useState(true);
-
-  useEffect(() => {
-    setCustomSpeed(currentSpeed.toString());
-  }, [currentSpeed]);
-
-  const hasAudio = () => {
-    return project.timeline.tracks.some((track) =>
-      track.clips.some(
-        (audioClip) =>
-          audioClip.id !== clip.id &&
-          audioClip.mediaId === clip.mediaId &&
-          getMediaItemCapabilities(
-            project.mediaLibrary.items.find(
-              (item) => item.id === audioClip.mediaId,
-            ),
-          ).audio,
-      ),
-    );
-  };
-
-  const linkedAudioClip = () => {
-    if (!affectAudio) return undefined;
-    for (const track of project.timeline.tracks) {
-      const audioClip = track.clips.find(
-        (candidate) =>
-          candidate.id !== clip.id &&
-          candidate.mediaId === clip.mediaId &&
-          getMediaItemCapabilities(
-            project.mediaLibrary.items.find(
-              (item) => item.id === candidate.mediaId,
-            ),
-          ).audio,
-      );
-      if (audioClip) return audioClip;
-    }
-    return undefined;
-  };
-
-  const updateClipDuration = (speed: number) => {
-    const store = useProjectStore.getState();
-    void store.executeAction({
-      type: "clip/setSpeed",
-      id: crypto.randomUUID(),
-      timestamp: Date.now(),
-      params: { clipId: clip.id, speed },
-    });
-    const audioClip = linkedAudioClip();
-    if (audioClip) {
-      void store.executeAction({
-        type: "clip/setSpeed",
-        id: crypto.randomUUID(),
-        timestamp: Date.now(),
-        params: { clipId: audioClip.id, speed },
-      });
-      speedEngine.setClipSpeed(audioClip.id, speed, audioClip.duration);
-    }
-  };
-
-  const updateClipReverse = (reversed: boolean) => {
-    const store = useProjectStore.getState();
-    void store.executeAction({
-      type: "clip/setReverse",
-      id: crypto.randomUUID(),
-      timestamp: Date.now(),
-      params: { clipId: clip.id, reversed },
-    });
-    const audioClip = linkedAudioClip();
-    if (audioClip) {
-      void store.executeAction({
-        type: "clip/setReverse",
-        id: crypto.randomUUID(),
-        timestamp: Date.now(),
-        params: { clipId: audioClip.id, reversed },
-      });
-      speedEngine.setReverse(audioClip.id, reversed, audioClip.duration);
-    }
-  };
-
-  const handleSpeedPreset = (speed: number) => {
-    speedEngine.setClipSpeed(clip.id, speed, clip.duration);
-    updateClipDuration(speed);
-    setCurrentSpeed(speed);
-  };
-
-  const handleCustomSpeed = () => {
-    const speed = parseFloat(customSpeed);
-    if (!isNaN(speed) && speed >= 0.1 && speed <= 100) {
-      speedEngine.setClipSpeed(clip.id, speed, clip.duration);
-      updateClipDuration(speed);
-      setCurrentSpeed(speed);
-    }
-  };
-
-  const handleToggleReverse = () => {
-    const newReversed = !isReversed;
-    speedEngine.setReverse(clip.id, newReversed, clip.duration);
-    updateClipReverse(newReversed);
-    setIsReversed(newReversed);
-  };
-
-  return (
-    <div className="space-y-3">
-      <div className="grid grid-cols-3 gap-2">
-        {SPEED_PRESETS.map((preset) => (
-          <ClickableCard
-            key={preset.value}
-            label={`Set speed to ${preset.label}`}
-            onClick={() => handleSpeedPreset(preset.value)}
-            className={`px-3 py-2 text-xs font-medium rounded-lg transition-all ${
-              currentSpeed === preset.value
-                ? "bg-primary text-white shadow-lg shadow-primary/20"
-                : "bg-bg-2 hover:bg-bg-elev text-fg-2 hover:text-fg border border-border"
-            }`}
-          >
-            {preset.label}
-          </ClickableCard>
-        ))}
-      </div>
-
-      <div className="space-y-2">
-        <div className="flex gap-2">
-          <ToolcraftTextInputControl
-            label="Custom Speed"
-            value={customSpeed}
-            onChange={setCustomSpeed}
-            onBlur={handleCustomSpeed}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                handleCustomSpeed();
-              }
-            }}
-            placeholder="1.0"
-            width="100%"
-          />
-          <Text type="supporting" color="secondary" className="flex items-center text-xs">
-            ×
-          </Text>
-        </div>
-        <Text type="supporting" color="secondary" className="text-xs">
-          Range: 0.1× (slowest) to 100× (fastest)
-        </Text>
-      </div>
-
-      {hasAudio() && (
-        <Card
-          variant="muted"
-          padding={3}
-          className="flex items-center justify-between border border-border"
-        >
-          <Text type="supporting" color="secondary" className="text-xs">
-            Apply speed to audio
-          </Text>
-          <MockToggle
-            checked={affectAudio}
-            onChange={setAffectAudio}
-            ariaLabel="Apply speed to audio"
-          />
-        </Card>
-      )}
-
-      <Button
-        label={isReversed ? "Reversed" : "Reverse Clip"}
-        icon={<RotateCcw size={14} />}
-        variant={isReversed ? "primary" : "secondary"}
-        size="sm"
-        onClick={handleToggleReverse}
-        className="w-full justify-center"
-      />
-
-      {currentSpeed < 1 && (
-        <Card variant="muted" padding={3} className="space-y-2 border border-border">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Sparkles size={14} className="text-primary" />
-              <Text type="supporting" color="secondary" className="text-xs">
-                Smooth Slow Motion
-              </Text>
-            </div>
-            <MockToggle
-              ariaLabel="Smooth Slow Motion"
-              checked={clip.smoothSlowMo ?? false}
-              onChange={(checked) => {
-                const tracks = project.timeline.tracks.map((track) => {
-                  const clipIndex = track.clips.findIndex((c) => c.id === clip.id);
-                  if (clipIndex === -1) return track;
-                  const updatedClip = { ...track.clips[clipIndex], smoothSlowMo: checked };
-                  const newClips = [...track.clips];
-                  newClips[clipIndex] = updatedClip;
-                  return { ...track, clips: newClips };
-                });
-                useProjectStore.setState({
-                  project: {
-                    ...project,
-                    timeline: { ...project.timeline, tracks },
-                    modifiedAt: Date.now(),
-                  },
-                });
-              }}
-            />
-          </div>
-          {clip.smoothSlowMo && (
-            <div className="space-y-1">
-              <Selector
-                label="Quality"
-                size="sm"
-                width="100%"
-                value={clip.interpolationQuality ?? "medium"}
-                options={[
-                  { label: "Low (faster)", value: "low" },
-                  { label: "Medium", value: "medium" },
-                  { label: "High (slower)", value: "high" },
-                ]}
-                onChange={(value) => {
-                  const tracks = project.timeline.tracks.map((track) => {
-                    const clipIndex = track.clips.findIndex((c) => c.id === clip.id);
-                    if (clipIndex === -1) return track;
-                    const updatedClip = {
-                      ...track.clips[clipIndex],
-                      interpolationQuality: value as "low" | "medium" | "high",
-                    };
-                    const newClips = [...track.clips];
-                    newClips[clipIndex] = updatedClip;
-                    return { ...track, clips: newClips };
-                  });
-                  useProjectStore.setState({
-                    project: {
-                      ...project,
-                      timeline: { ...project.timeline, tracks },
-                      modifiedAt: Date.now(),
-                    },
-                  });
-                }}
-              />
-              <Text type="supporting" color="secondary" className="text-[10px]">
-                Uses optical flow to generate smooth in-between frames
-              </Text>
-            </div>
-          )}
-        </Card>
-      )}
-
-      {(currentSpeed !== 1 || isReversed) && (
-        <Card variant="muted" padding={3} className="border border-border">
-          <Text type="supporting" color="secondary" className="mb-1 block text-xs">
-            Current Settings
-          </Text>
-          <Text type="body" color="primary" className="block text-sm">
-            Speed: {currentSpeed}× {isReversed && "• Reversed"}
-            {clip.smoothSlowMo && " • Smooth"}
-          </Text>
-        </Card>
-      )}
-    </div>
-  );
+export const SpeedSection: React.FC<{ clip: Pick<Clip, "id"> }> = ({ clip }) => {
+  const project = useProjectStore(state => state.project);
+  const current = project.timeline.tracks.flatMap(track => track.clips).find(item => item.id === clip.id);
+  if (!current) return <p className="text-xs text-fg-2">No media clip selected</p>;
+  return <SpeedControls key={`${project.id}:${clip.id}`} clip={current} projectId={project.id} />;
 };
+
+function SpeedControls({ clip, projectId }: { clip: Clip; projectId: string }) {
+  const [affectAudio, setAffectAudio] = useState(true);
+  const queue = useRef(Promise.resolve());
+  const exporting = useUIStore(state => state.exportState.isExporting);
+  const operationLocked = useTimelineStore(state => Boolean(state.playbackLockedReason));
+  const locked = useProjectStore(state => !state.project.timeline.tracks.some(track => track.id === clip.trackId && !track.locked));
+  const currentSpeed = clip.speed ?? 1;
+  const isReversed = clip.reversed ?? false;
+  const disabled = exporting || operationLocked || locked;
+  const hasAudio = linkedSpeedClipIds(clip.id).length > 1;
+  const enqueue = (change: ClipSpeedChange | ((current: Clip) => ClipSpeedChange)) => {
+    const audio = affectAudio;
+    const owner = useProjectStore.getState().actionHistory;
+    queue.current = queue.current.catch(() => {}).then(async () => {
+      if (useProjectStore.getState().actionHistory !== owner) return;
+      const current = useProjectStore.getState().getClip(clip.id);
+      if (!current) return;
+      const changes = typeof change === "function" ? change(current) : change;
+      const applied = await editClipSpeed(projectId, clip.id, changes, audio);
+      if (!applied && useProjectStore.getState().actionHistory === owner) {
+        const latest = useProjectStore.getState().getClip(clip.id);
+        if (latest && Object.entries(changes).some(([key, value]) => {
+          const actual = key === "speed" ? latest.speed ?? 1 : key === "reversed" ? latest.reversed ?? false
+            : key === "smoothSlowMo" ? latest.smoothSlowMo ?? false : latest.interpolationQuality ?? "medium";
+          return actual !== value;
+        })) throw new Error("The speed edit could not be applied. Unlock the clip and finish processing before retrying.");
+      }
+    });
+    trackEditorDraftWrite(queue.current, { projectId, history: owner });
+    void queue.current.catch(error => toast.error("Speed edit failed", error instanceof Error ? error.message : "Try the change again."));
+    return queue.current;
+  };
+  const custom = useNumericDraft({ value: currentSpeed, onChange: speed => enqueue({ speed }),
+    min: SPEED_MIN, max: SPEED_MAX, step: .1, live: false, format: formatSpeed });
+  return <fieldset disabled={disabled} className="min-w-0 space-y-3 border-0 p-0">
+    <div className="grid grid-cols-3 gap-2">
+      {SPEED_PRESETS.map(preset => <Button key={preset.value} type="button" variant="outline"
+        aria-label={`Set speed to ${preset.label}`} aria-pressed={currentSpeed === preset.value}
+        onClick={() => enqueue({ speed: preset.value })}
+        className={cn("h-[30px] rounded-[6px] px-2 text-xs font-medium", currentSpeed === preset.value && "border-accent bg-accent text-accent-fg")}>
+        {preset.label}
+      </Button>)}
+    </div>
+    <div className="space-y-2">
+      <Label className="flex min-w-0 items-center justify-between gap-3 text-xs font-normal text-fg-2">
+        <span>Custom Speed</span>
+        <span className="flex h-[30px] w-[120px] min-w-0 items-center gap-1 rounded-[6px] border border-border bg-bg-1 px-2 focus-within:border-accent">
+          <Input {...custom} aria-label="Custom Speed" type="text" inputMode="decimal"
+            className="h-5 min-w-0 border-0 bg-transparent p-0 text-right font-mono text-[11px] shadow-none focus-visible:ring-0" />
+          <span className="text-fg-3">×</span>
+        </span>
+      </Label>
+      <p className="text-[11px] text-fg-3">Range: {SPEED_MIN}× (slowest) to {SPEED_MAX}× (fastest)</p>
+    </div>
+    {hasAudio && <Card className="flex min-w-0 items-center justify-between rounded-[7px] border-border bg-bg-2 p-3 shadow-none">
+      <span className="text-xs text-fg-2">Apply speed to audio</span>
+      <InspectorToggle checked={affectAudio} onChange={setAffectAudio} ariaLabel="Apply speed to audio" isDisabled={disabled} />
+    </Card>}
+    <Button type="button" variant={isReversed ? "default" : "outline"} aria-label={isReversed ? "Reversed" : "Reverse Clip"}
+      aria-pressed={isReversed} className="h-[30px] w-full rounded-[6px] text-xs"
+      onClick={() => enqueue(current => ({ reversed: !current.reversed }))}><RotateCcw size={14} aria-hidden />{isReversed ? "Reversed" : "Reverse Clip"}</Button>
+    {currentSpeed < 1 && <Card className="min-w-0 space-y-2 rounded-[7px] border-border bg-bg-2 p-3 shadow-none">
+      <div className="flex items-center justify-between gap-2">
+        <span className="flex items-center gap-2 text-xs text-fg-2"><Sparkles size={14} aria-hidden />Smooth Slow Motion</span>
+        <InspectorToggle ariaLabel="Smooth Slow Motion" checked={clip.smoothSlowMo ?? false}
+          onChange={smoothSlowMo => enqueue({ smoothSlowMo })} isDisabled={disabled} />
+      </div>
+      {clip.smoothSlowMo && <div className="space-y-1.5">
+        <Label className="block space-y-1.5 text-xs font-normal text-fg-2"><span>Quality</span>
+          <Select value={clip.interpolationQuality ?? "medium"} disabled={disabled}
+            onValueChange={value => { if (value === "low" || value === "medium" || value === "high") enqueue({ interpolationQuality: value }); }}>
+            <SelectTrigger aria-label="Quality" className="h-[30px] text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="low">Low (faster)</SelectItem><SelectItem value="medium">Medium</SelectItem><SelectItem value="high">High (slower)</SelectItem></SelectContent>
+          </Select>
+        </Label>
+        <p className="text-[10px] text-fg-3">Uses optical flow to generate smooth in-between frames</p>
+      </div>}
+    </Card>}
+    {(currentSpeed !== 1 || isReversed) && <Card className="min-w-0 rounded-[7px] border-border bg-bg-2 p-3 shadow-none">
+      <p className="mb-1 text-xs text-fg-2">Current Settings</p>
+      <p className="text-sm text-fg">Speed: {formatSpeed(currentSpeed)}× {isReversed && "• Reversed"}{clip.smoothSlowMo && " • Smooth"}</p>
+    </Card>}
+  </fieldset>;
+}

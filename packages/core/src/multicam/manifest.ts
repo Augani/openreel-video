@@ -55,7 +55,7 @@ export interface MulticamManifest {
   constraints: MulticamManifestConstraints;
 }
 
-export interface MulticamManifestValidation {
+interface MulticamManifestValidation {
   valid: boolean;
   errors: string[];
 }

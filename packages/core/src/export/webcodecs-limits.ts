@@ -1,6 +1,6 @@
 import type { VideoExportSettings } from "./types";
 
-export interface WebCodecsExportAdjustment {
+interface WebCodecsExportAdjustment {
   settings: VideoExportSettings;
   wasAdjusted: boolean;
   resolutionAdjusted: boolean;

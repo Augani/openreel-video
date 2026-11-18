@@ -1,4 +1,4 @@
-export const DEFAULT_EDITING_FRAME_RATE = 30;
+const DEFAULT_EDITING_FRAME_RATE = 30;
 
 export const EDITING_FRAME_RATE_OPTIONS: ReadonlyArray<{
   value: number;

@@ -11,8 +11,18 @@ function timedEnd(item: TimedItem): number {
 /** Returns the last authored frame across every editor timeline surface. */
 export function calculateProjectDuration(project: Project): number {
   let maxEnd = 0;
-  const include = (items: readonly TimedItem[] | undefined): void => {
-    for (const item of items ?? []) maxEnd = Math.max(maxEnd, timedEnd(item));
+  // With several sequences the overlay and nest-instance collections are shared
+  // by all of them: only the items that belong to the live timeline count.
+  const scoped = (project.sequences?.length ?? 0) > 1;
+  const trackIds = new Set(project.timeline.tracks.map((track) => track.id));
+  const clipIds = new Set(project.timeline.tracks.flatMap((track) => track.clips.map((clip) => clip.id)));
+  const include = (items: readonly (TimedItem & { readonly trackId?: string; readonly id?: string })[] | undefined, by: "track" | "clip" = "track"): void => {
+    for (const item of items ?? []) {
+      if (scoped) {
+        if (by === "clip" ? !clipIds.has(item.id ?? "") : item.trackId !== undefined && !trackIds.has(item.trackId)) continue;
+      }
+      maxEnd = Math.max(maxEnd, timedEnd(item));
+    }
   };
 
   for (const track of project.timeline.tracks) include(track.clips);
@@ -21,7 +31,7 @@ export function calculateProjectDuration(project: Project): number {
   include(project.svgClips);
   include(project.stickerClips);
   include(project.adjustmentLayers);
-  include(project.nestedInstances);
+  include(project.nestedInstances, "clip");
   include(project.motionInstances);
 
   for (const subtitle of project.timeline.subtitles ?? []) {

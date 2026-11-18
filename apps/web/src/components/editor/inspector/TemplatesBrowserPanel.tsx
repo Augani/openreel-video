@@ -1,4 +1,13 @@
-import React, { useState, useCallback, useMemo, useEffect } from "react";
+import { TemplateThumb } from "../../welcome/TemplateThumb";
+import React, {
+  lazy,
+  Suspense,
+  useState,
+  useCallback,
+  useMemo,
+  useEffect,
+  useRef,
+} from "react";
 import {
   FolderOpen,
   Video,
@@ -17,11 +26,9 @@ import {
   ChevronLeft,
   Settings2,
 } from "@/icons/lucide-compat";
-import { ToolcraftButton as Button } from "@openreel/ui";
-import { ToolcraftSelectableCard as SelectableCard } from "@openreel/ui";
-import { ToolcraftText as Text } from "@openreel/ui";
+import { Button, Card, ToggleGroup, ToggleGroupItem } from "@openreel/ui";
+
 import { useEngineStore } from "../../../stores/engine-store";
-import { useProjectStore } from "../../../stores/project-store";
 import {
   TEMPLATE_CATEGORIES,
   type TemplateCategory,
@@ -30,8 +37,14 @@ import {
   type TemplateReplacements,
 } from "@openreel/core";
 import { templateCloudService } from "../../../services/template-cloud-service";
-import { SaveTemplateDialog } from "../SaveTemplateDialog";
+// The save dialog is only fetched when it is first opened.
+const SaveTemplateDialog = lazy(() => import("../SaveTemplateDialog").then((m) => ({ default: m.SaveTemplateDialog })));
 import { TemplateVariablesPanel } from "./TemplateVariablesPanel";
+import {
+  openTemplateProject,
+  resolveTemplateMedia,
+  templateEditorOwner,
+} from "../../../services/project-templates";
 
 const CATEGORY_ICONS: Record<string, React.ElementType> = {
   "social-media": Share,
@@ -51,6 +64,7 @@ interface TemplateCardProps {
   isSelected: boolean;
   onSelect: () => void;
   onApply: () => void;
+  isApplying?: boolean;
 }
 
 const TemplateCard: React.FC<TemplateCardProps> = ({
@@ -58,67 +72,85 @@ const TemplateCard: React.FC<TemplateCardProps> = ({
   isSelected,
   onSelect,
   onApply,
+  isApplying = false,
 }) => {
-  const Icon = CATEGORY_ICONS[template.category] || FolderOpen;
 
   return (
-    <div
-      onClick={onSelect}
+    <Card
       className={`relative p-3 rounded-lg border cursor-pointer transition-all w-full max-w-full box-border ${
         isSelected
           ? "border-primary bg-primary/10 ring-1 ring-primary"
           : "border-border bg-bg-2 hover:border-primary/50"
       }`}
     >
-      <div className="flex items-start gap-3 w-full">
-        <div
-          className={`w-10 h-10 shrink-0 rounded-lg flex items-center justify-center ${
-            isSelected ? "bg-primary text-white" : "bg-bg-1"
-          }`}
-        >
-          <Icon size={18} />
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-[11px] font-medium text-fg truncate">
-              {template.name}
-            </span>
-            {template.id.startsWith("builtin-") && (
-              <span className="px-1.5 py-0.5 text-[8px] bg-status-info/20 text-status-info rounded shrink-0">
-                Built-in
-              </span>
-            )}
-            {template.source === "cloud" && (
-              <span className="px-1.5 py-0.5 text-[8px] bg-primary/20 text-primary rounded flex items-center gap-1 shrink-0">
-                <Cloud size={8} />
-                Cloud
-              </span>
-            )}
+      <Button
+        variant="ghost"
+        type="button"
+        aria-label={`Select ${template.name} template`}
+        aria-pressed={isSelected}
+        disabled={isApplying}
+        onClick={onSelect}
+        className="h-auto w-full justify-start whitespace-normal p-0 text-left hover:bg-transparent"
+      >
+        <div className="flex items-start gap-3 w-full">
+          <div
+            className={`aspect-video w-[72px] shrink-0 overflow-hidden rounded-md border ${
+              isSelected ? "border-primary" : "border-border"
+            }`}
+          >
+            <TemplateThumb template={template} />
           </div>
-          <div className="flex items-center gap-3 mt-1">
-            <div className="flex items-center gap-1 text-[9px] text-fg-3">
-              <Layers size={10} />
-              <span>{template.placeholderCount} placeholders</span>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[11px] font-medium text-fg truncate">
+                {template.name}
+              </span>
+              {template.id.startsWith("builtin-") && (
+                <span className="px-1.5 py-0.5 text-[8px] bg-status-info/20 text-status-info rounded shrink-0">
+                  Built-in
+                </span>
+              )}
+              {template.source === "cloud" && (
+                <span className="px-1.5 py-0.5 text-[8px] bg-primary/20 text-primary rounded flex items-center gap-1 shrink-0">
+                  <Cloud size={8} />
+                  Cloud
+                </span>
+              )}
             </div>
-            <div className="flex items-center gap-1 text-[9px] text-fg-3">
-              <Clock size={10} />
-              <span>{template.duration}s</span>
+            <div className="flex items-center gap-3 mt-1">
+              <div className="flex items-center gap-1 text-[9px] text-fg-3">
+                <Layers size={10} />
+                <span>{template.placeholderCount} placeholders</span>
+              </div>
+              <div className="flex items-center gap-1 text-[9px] text-fg-3">
+                <Clock size={10} />
+                <span>{template.duration}s</span>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      </Button>
       {isSelected && (
         <Button
-          label="Use This Template"
-          variant="primary"
           onClick={(e) => {
             e.stopPropagation();
             onApply();
           }}
-          className="mt-3 w-full py-1.5 text-[10px] font-medium bg-primary text-white rounded-md hover:bg-primary/90 transition-colors"
-        />
+          type="button"
+          aria-label="Use This Template"
+          disabled={isApplying}
+          className="inline-flex min-w-0 items-center justify-center gap-1.5 outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 px-3 mt-3 w-full py-1.5 text-[10px] font-medium bg-primary text-white rounded-md hover:bg-primary/90 transition-colors"
+        >
+          {isApplying ? (
+            <span
+              aria-hidden
+              className="h-3.5 w-3.5 shrink-0 animate-spin rounded-full border-2 border-current border-r-transparent opacity-80"
+            />
+          ) : null}
+          <span className="truncate">{"Use This Template"}</span>
+        </Button>
       )}
-    </div>
+    </Card>
   );
 };
 
@@ -130,8 +162,6 @@ export const TemplatesBrowserPanel: React.FC<TemplatesBrowserPanelProps> = ({
   onTemplateApplied,
 }) => {
   const getTemplateEngine = useEngineStore((state) => state.getTemplateEngine);
-  const getTitleEngine = useEngineStore((state) => state.getTitleEngine);
-  const loadProject = useProjectStore((state) => state.loadProject);
 
   const [selectedCategory, setSelectedCategory] = useState<
     TemplateCategory | "all"
@@ -142,15 +172,30 @@ export const TemplatesBrowserPanel: React.FC<TemplatesBrowserPanelProps> = ({
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(
     null,
   );
+  const [refresh, setRefresh] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  const [isApplying, setIsApplying] = useState(false);
+  const applying = useRef(false);
+  const application = useRef<AbortController | null>(null);
+  const selectionRequest = useRef(0);
+  useEffect(
+    () => () => {
+      application.current?.abort();
+      selectionRequest.current++;
+    },
+    [],
+  );
   const [applyError, setApplyError] = useState<string | null>(null);
   const [isSaveDialogOpen, setIsSaveDialogOpen] = useState(false);
+  // One dialog instance per opening, kept mounted while it closes so its exit animation plays.
+  const [saveDialogSession, setSaveDialogSession] = useState(0);
   const [loadedTemplate, setLoadedTemplate] = useState<Template | null>(null);
   const [placeholderValues, setPlaceholderValues] =
     useState<TemplateReplacements>({});
   const [showVariablesPanel, setShowVariablesPanel] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
     const loadTemplates = async () => {
       setIsLoading(true);
 
@@ -158,7 +203,13 @@ export const TemplatesBrowserPanel: React.FC<TemplatesBrowserPanelProps> = ({
         const templateEngine = await getTemplateEngine();
         await templateEngine.initialize();
         const localTemplates = await templateEngine.listTemplates();
+        if (cancelled) return;
+        setTemplates(
+          localTemplates.map((t) => ({ ...t, source: "local" as const })),
+        );
+        setIsLoading(false);
         const cloudTemplates = await templateCloudService.listTemplates();
+        if (cancelled) return;
 
         const combined = [
           ...localTemplates.map((t) => ({ ...t, source: "local" as const })),
@@ -171,14 +222,20 @@ export const TemplatesBrowserPanel: React.FC<TemplatesBrowserPanelProps> = ({
 
         setTemplates(unique);
       } catch (error) {
-        console.error("Failed to load templates:", error);
+        if (!cancelled)
+          setApplyError(
+            error instanceof Error ? error.message : "Failed to load templates",
+          );
       } finally {
-        setIsLoading(false);
+        if (!cancelled) setIsLoading(false);
       }
     };
 
     loadTemplates();
-  }, [getTemplateEngine]);
+    return () => {
+      cancelled = true;
+    };
+  }, [getTemplateEngine, refresh]);
 
   const filteredTemplates = useMemo(() => {
     if (selectedCategory === "all") {
@@ -189,47 +246,54 @@ export const TemplatesBrowserPanel: React.FC<TemplatesBrowserPanelProps> = ({
 
   const handleSelectTemplate = useCallback(
     async (templateId: string) => {
+      if (applying.current) return;
+      const request = ++selectionRequest.current;
+      setLoadedTemplate(null);
       setSelectedTemplateId(templateId);
       setApplyError(null);
 
-      const templateEngine = await getTemplateEngine();
-
-      const selectedTemplate = templates.find((t) => t.id === templateId);
-      let template = await templateEngine.loadTemplate(templateId);
-
-      if (!template && selectedTemplate?.source === "cloud") {
-        template = await templateCloudService.getTemplate(templateId);
-      }
-
-      if (template) {
+      try {
+        const templateEngine = await getTemplateEngine();
+        const selectedTemplate = templates.find((t) => t.id === templateId);
+        let template = await templateEngine.loadTemplate(templateId);
+        if (!template && selectedTemplate?.source === "cloud")
+          template = await templateCloudService.getTemplate(templateId);
+        if (request !== selectionRequest.current) return;
+        if (!template) throw new Error("Template not found");
         setLoadedTemplate(template);
         setPlaceholderValues({});
-        if (template.placeholders.length > 0) {
-          setShowVariablesPanel(true);
-        } else {
-          setShowVariablesPanel(false);
-        }
+        setShowVariablesPanel(template.placeholders.length > 0);
+      } catch (error) {
+        if (request === selectionRequest.current)
+          setApplyError(
+            error instanceof Error ? error.message : "Failed to load template",
+          );
       }
     },
     [getTemplateEngine, templates],
   );
 
   const handleBackToTemplates = useCallback(() => {
+    if (applying.current) return;
+    selectionRequest.current++;
     setShowVariablesPanel(false);
     setLoadedTemplate(null);
     setPlaceholderValues({});
   }, []);
 
   const handleApplyTemplate = useCallback(async () => {
-    if (!selectedTemplateId) return;
-
-    const templateEngine = await getTemplateEngine();
-    const titleEngine = getTitleEngine();
-
+    if (!selectedTemplateId || applying.current) return;
+    const owner = templateEditorOwner();
+    const controller = new AbortController();
+    application.current = controller;
+    applying.current = true;
+    setIsApplying(true);
     setApplyError(null);
 
     try {
-      let template = loadedTemplate;
+      const templateEngine = await getTemplateEngine();
+      let template =
+        loadedTemplate?.id === selectedTemplateId ? loadedTemplate : null;
 
       if (!template) {
         const selectedTemplate = templates.find(
@@ -247,71 +311,36 @@ export const TemplatesBrowserPanel: React.FC<TemplatesBrowserPanelProps> = ({
         return;
       }
 
-      const { project, missingPlaceholders, textClips } =
-        templateEngine.applyTemplate(template, placeholderValues);
-
-      if (missingPlaceholders.length > 0) {
-        setApplyError(`Missing required: ${missingPlaceholders.join(", ")}`);
-      }
-
-      loadProject(project);
-
-      if (titleEngine && textClips.length > 0) {
-        for (const textClip of textClips) {
-          const placeholder = template.placeholders.find(
-            (p) => p.id === textClip.placeholderId,
-          );
-          const trackName = placeholder?.label || "Text";
-
-          const track = project.timeline.tracks.find((t) =>
-            t.clips.some((c) => c.id === textClip.id),
-          );
-          const clip = track?.clips.find((c) => c.id === textClip.id);
-
-          if (track && clip) {
-            titleEngine.createTextClip({
-              id: textClip.id,
-              trackId: track.id,
-              text: textClip.text,
-              startTime: clip.startTime,
-              duration: clip.duration,
-              style: {
-                fontFamily: "Inter",
-                fontSize: trackName.toLowerCase().includes("title") ? 32 : 48,
-                fontWeight: 600,
-                fontStyle: "normal",
-                color: "#ffffff",
-                textAlign: "center",
-                verticalAlign: "middle",
-                letterSpacing: 0,
-                lineHeight: 1.2,
-              },
-              transform: clip.transform,
-              animation: {
-                preset: "fade",
-                params: { easing: "ease-out" },
-                inDuration: 0.5,
-                outDuration: 0.3,
-              },
-            });
-          }
-        }
-      }
+      const values = await resolveTemplateMedia(
+        placeholderValues,
+        owner,
+        controller.signal,
+      );
+      const { project, missingPlaceholders } = templateEngine.applyTemplate(
+        template,
+        values,
+      );
+      if (missingPlaceholders.length > 0)
+        throw new Error(`Missing required: ${missingPlaceholders.join(", ")}`);
+      await openTemplateProject(project, owner, controller.signal);
+      if (controller.signal.aborted) return;
 
       setShowVariablesPanel(false);
       setLoadedTemplate(null);
       setPlaceholderValues({});
       onTemplateApplied?.();
     } catch (error) {
-      setApplyError(
-        error instanceof Error ? error.message : "Failed to apply template",
-      );
+      if (!controller.signal.aborted)
+        setApplyError(
+          error instanceof Error ? error.message : "Failed to apply template",
+        );
+    } finally {
+      applying.current = false;
+      if (!controller.signal.aborted) setIsApplying(false);
     }
   }, [
     selectedTemplateId,
     getTemplateEngine,
-    getTitleEngine,
-    loadProject,
     onTemplateApplied,
     loadedTemplate,
     placeholderValues,
@@ -330,12 +359,17 @@ export const TemplatesBrowserPanel: React.FC<TemplatesBrowserPanelProps> = ({
     return (
       <div className="space-y-4 w-full min-w-0 max-w-full">
         <Button
-          label="Back to Templates"
-          variant="ghost"
-          icon={<ChevronLeft size={12} />}
           onClick={handleBackToTemplates}
-          className="flex items-center gap-1.5 text-[10px] text-fg-3 hover:text-fg transition-colors"
-        />
+          type="button"
+          disabled={isApplying}
+          aria-label="Back to Templates"
+          className="min-w-0 justify-center rounded-[7px] font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 px-3 bg-transparent hover:bg-bg-2 flex items-center gap-1.5 text-[10px] text-fg-3 hover:text-fg transition-colors"
+        >
+          <span className="flex h-4 w-4 shrink-0 items-center justify-center">
+            {<ChevronLeft size={12} />}
+          </span>
+          <span className="truncate">{"Back to Templates"}</span>
+        </Button>
 
         <div className="flex items-center gap-2 p-2 bg-primary/10 rounded-lg border border-primary/30">
           <Settings2 size={16} className="text-primary" />
@@ -343,17 +377,20 @@ export const TemplatesBrowserPanel: React.FC<TemplatesBrowserPanelProps> = ({
             <span className="text-[11px] font-medium text-fg">
               {loadedTemplate.name}
             </span>
-            <Text type="supporting" color="secondary" display="block" className="text-[9px]">
+            <span className="text-fg-2 font-normal block text-[9px]">
               Configure template variables
-            </Text>
+            </span>
           </div>
         </div>
 
         {applyError && (
-          <div className="p-2 bg-red-500/10 border border-red-500/30 rounded-lg">
-            <Text type="supporting" display="block" className="text-[10px] text-red-400">
+          <div
+            role="alert"
+            className="p-2 bg-red-500/10 border border-red-500/30 rounded-lg"
+          >
+            <span className="font-normal block text-[10px] text-red-400">
               {applyError}
-            </Text>
+            </span>
           </div>
         )}
 
@@ -362,6 +399,7 @@ export const TemplatesBrowserPanel: React.FC<TemplatesBrowserPanelProps> = ({
           values={placeholderValues}
           onChange={setPlaceholderValues}
           onApply={handleApplyTemplate}
+          isApplying={isApplying}
         />
       </div>
     );
@@ -372,60 +410,48 @@ export const TemplatesBrowserPanel: React.FC<TemplatesBrowserPanelProps> = ({
       <div className="flex items-center gap-2 p-2 bg-primary/10 rounded-lg border border-primary/30">
         <FolderOpen size={16} className="text-primary shrink-0" />
         <div className="min-w-0 flex-1">
-          <span className="text-[11px] font-medium text-fg">
-            Templates
-          </span>
-          <Text type="supporting" color="secondary" display="block" className="text-[9px]">
+          <span className="text-[11px] font-medium text-fg">Templates</span>
+          <span className="text-fg-2 font-normal block text-[9px]">
             Start with a pre-made project
-          </Text>
+          </span>
         </div>
       </div>
 
-      <div className="flex gap-1 overflow-x-auto pb-1 -mx-1 px-1">
-        <SelectableCard
-          label="All"
-          isSelected={selectedCategory === "all"}
-          onChange={() => setSelectedCategory("all")}
-          onClick={() => setSelectedCategory("all")}
-          padding={2}
-          variant={selectedCategory === "all" ? "green" : "muted"}
-          className={`shrink-0 px-3 py-1.5 rounded-lg text-[10px] whitespace-nowrap transition-colors ${
-            selectedCategory === "all"
-              ? "bg-primary text-white font-medium"
-              : "bg-bg-2 text-fg-2 hover:text-fg"
-          }`}
-        >
-          All
-        </SelectableCard>
-        {TEMPLATE_CATEGORIES.map((category) => {
-          const Icon = CATEGORY_ICONS[category.id] || FolderOpen;
-          return (
-            <SelectableCard
-              key={category.id}
-              label={category.name}
-              isSelected={selectedCategory === category.id}
-              onChange={() => setSelectedCategory(category.id)}
-              onClick={() => setSelectedCategory(category.id)}
-              padding={2}
-              variant={selectedCategory === category.id ? "green" : "muted"}
-              className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] whitespace-nowrap transition-colors ${
-                selectedCategory === category.id
-                  ? "bg-primary text-white font-medium"
-                  : "bg-bg-2 text-fg-2 hover:text-fg"
-              }`}
-            >
-              <Icon size={12} />
-              {category.name}
-            </SelectableCard>
-          );
-        })}
-      </div>
+      <ToggleGroup
+        type="single"
+        aria-label="Template category"
+        value={selectedCategory}
+        onValueChange={(value) => {
+          if (value) setSelectedCategory(value as typeof selectedCategory);
+        }}
+        className="justify-start gap-1 overflow-x-auto pb-1 -mx-1 px-1"
+      >
+        {[{ id: "all", name: "All" }, ...TEMPLATE_CATEGORIES].map(
+          (category) => {
+            const Icon = CATEGORY_ICONS[category.id];
+            return (
+              <ToggleGroupItem
+                key={category.id}
+                value={category.id}
+                aria-label={category.name}
+                className="h-8 shrink-0 gap-1.5 whitespace-nowrap rounded-lg bg-bg-2 px-3 text-[10px] text-fg-2 data-[state=on]:bg-primary data-[state=on]:text-white"
+              >
+                {Icon && <Icon size={12} aria-hidden />}
+                {category.name}
+              </ToggleGroupItem>
+            );
+          },
+        )}
+      </ToggleGroup>
 
       {applyError && (
-        <div className="p-2 bg-red-500/10 border border-red-500/30 rounded-lg">
-          <Text type="supporting" display="block" className="text-[10px] text-red-400">
+        <div
+          role="alert"
+          className="p-2 bg-red-500/10 border border-red-500/30 rounded-lg"
+        >
+          <span className="font-normal block text-[10px] text-red-400">
             {applyError}
-          </Text>
+          </span>
         </div>
       )}
 
@@ -436,9 +462,9 @@ export const TemplatesBrowserPanel: React.FC<TemplatesBrowserPanelProps> = ({
               size={24}
               className="mx-auto mb-2 text-fg-3 opacity-50"
             />
-            <Text type="supporting" color="secondary" display="block" className="text-[10px]">
+            <span className="text-fg-2 font-normal block text-[10px]">
               No templates in this category
-            </Text>
+            </span>
           </div>
         ) : (
           filteredTemplates.map((template) => (
@@ -448,6 +474,7 @@ export const TemplatesBrowserPanel: React.FC<TemplatesBrowserPanelProps> = ({
               isSelected={selectedTemplateId === template.id}
               onSelect={() => handleSelectTemplate(template.id)}
               onApply={handleApplyTemplate}
+              isApplying={isApplying}
             />
           ))
         )}
@@ -455,58 +482,38 @@ export const TemplatesBrowserPanel: React.FC<TemplatesBrowserPanelProps> = ({
 
       <div className="pt-2 border-t border-border">
         <Button
-          label="Save Current Project as Template"
-          variant="ghost"
-          icon={<Plus size={12} />}
-          onClick={() => setIsSaveDialogOpen(true)}
-          className="w-full flex items-center justify-center gap-2 py-2 text-[10px] text-fg-2 hover:text-fg bg-bg-2 rounded-lg transition-colors"
-        />
+          onClick={() => {
+            setSaveDialogSession((value) => value + 1);
+            setIsSaveDialogOpen(true);
+          }}
+          type="button"
+          aria-label="Save Current Project as Template"
+          disabled={isApplying}
+          className="min-w-0 font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 px-3 hover:bg-bg-2 w-full flex items-center justify-center gap-2 py-2 text-[10px] text-fg-2 hover:text-fg bg-bg-2 rounded-lg transition-colors"
+        >
+          <span className="flex h-4 w-4 shrink-0 items-center justify-center">
+            {<Plus size={12} />}
+          </span>
+          <span className="truncate">{"Save Current Project as Template"}</span>
+        </Button>
       </div>
 
-      <Text type="supporting" color="secondary" display="block" className="text-center text-[9px]">
+      <span className="text-fg-2 font-normal block text-center text-[9px]">
         {templates.length} templates available
-      </Text>
+      </span>
 
-      <SaveTemplateDialog
-        isOpen={isSaveDialogOpen}
-        onClose={() => {
-          setIsSaveDialogOpen(false);
-          const loadTemplates = async () => {
-            setIsLoading(true);
-
-            try {
-              const templateEngine = await getTemplateEngine();
-              await templateEngine.initialize();
-              const localTemplates = await templateEngine.listTemplates();
-              const cloudTemplates = await templateCloudService.listTemplates();
-
-              const combined = [
-                ...localTemplates.map((t) => ({
-                  ...t,
-                  source: "local" as const,
-                })),
-                ...cloudTemplates.map((t) => ({
-                  ...t,
-                  source: "cloud" as const,
-                })),
-              ];
-
-              const unique = Array.from(
-                new Map(combined.map((t) => [t.id, t])).values(),
-              );
-
-              setTemplates(unique);
-            } catch (error) {
-              console.error("Failed to load templates:", error);
-            } finally {
-              setIsLoading(false);
-            }
-          };
-          loadTemplates();
-        }}
-      />
+      {saveDialogSession > 0 && (
+        <Suspense fallback={null}>
+          <SaveTemplateDialog
+            key={saveDialogSession}
+            isOpen={isSaveDialogOpen}
+            onClose={() => {
+              setIsSaveDialogOpen(false);
+              setRefresh((value) => value + 1);
+            }}
+          />
+        </Suspense>
+      )}
     </div>
   );
 };
-
-export default TemplatesBrowserPanel;

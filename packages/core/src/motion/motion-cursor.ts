@@ -11,7 +11,7 @@ const CURSOR_DATA_URI = `data:image/svg+xml;utf8,${encodeURIComponent(CURSOR_SVG
 const CURSOR_ASSET_ID = "motion-cursor-pointer";
 const CURSOR_SIZE = 40;
 
-export interface CursorClickResult {
+interface CursorClickResult {
   readonly composition: MotionComposition;
   readonly cursorLayerId: string;
 }

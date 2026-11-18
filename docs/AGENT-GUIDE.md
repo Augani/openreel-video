@@ -8,8 +8,10 @@ three surfaces:
   Cline) to the running desktop app.
 - **Headless runner** — edit a stored project from a server/CLI with no app open.
 
-All three drive the same [capability set](./AGENT-CAPABILITIES.md) (228 tools +
-`execute_action`/`batch_actions` escape hatches), so an agent can perform the
+All three drive the same [capability set](./AGENT-CAPABILITIES.md) (the tool
+count in that generated reference is always current; the MCP panel and the
+`tools/list` response report it live), plus the
+`execute_action`/`batch_actions` escape hatches, so an agent can perform the
 full set of project-backed edits the web editor exposes: import media, build the
 timeline, trim, crop, transform, color-grade, mix audio, add
 text/shapes/subtitles, keyframe, manage transitions, build Motion Creator
@@ -17,14 +19,14 @@ compositions and editable 3D scenes, and export the result.
 
 ## Bring Your Own Key (web & desktop chat)
 
-1. Open **Settings → API Keys**. In the browser, create a master password and
-   unlock the session; the password is not stored.
-2. Add an **OpenAI** or **Anthropic** API key. Browser keys are encrypted locally
-   with AES-256-GCM; desktop keys use the operating system keychain. OpenReel
-   does not persist keys on its servers. In the hosted web build, the key is
-   forwarded through the same-origin API proxy for that request; in local
-   development the browser calls the provider directly; on desktop the native
-   process reads the key from its secure store.
+1. Open **Settings → AI** and pick a provider (**OpenAI**, **Anthropic** or an
+   OpenAI-compatible endpoint), a model, and paste your API key.
+2. The chat reads the connection from the in-app AI connection store. The key is
+   kept in memory for the current session only: it is not written to disk, and you
+   re-enter it after restarting the app. OpenReel does not store keys on its
+   servers. Requests go **directly from the app to the provider** (or to your
+   endpoint) using HTTPS, or HTTP on localhost; there is no OpenReel proxy in the
+   path, on web or on desktop.
 3. Open or create a project, then open the **AI Editor** panel (the robot icon
    in the toolbar).
 4. Use the AI settings button in the panel header to pick a provider and model.
@@ -45,12 +47,11 @@ local runtime that implements the OpenAI Chat Completions tool-calling format.
 3. If authentication is required, add the optional **OpenAI-compatible** key in
    **Settings → API Keys**. Keyless endpoints work without secure-storage setup.
 
-Compatible requests go directly from the browser to the configured endpoint;
-they are never relayed through OpenReel's hosted proxy. The endpoint must allow
-CORS for the OpenReel origin. Use the desktop app for local HTTP endpoints or
-servers that do not expose browser CORS headers—the native process performs the
-request there. URL credentials and query strings are rejected; store bearer
-credentials in the encrypted API-key field instead.
+Requests go directly from the renderer to the configured endpoint and are never
+relayed through an OpenReel proxy. Because the renderer makes the call, the
+endpoint must allow CORS for the OpenReel origin. HTTP is accepted only for
+localhost. URL credentials, query strings and fragments are rejected; put bearer
+credentials in the API-key field instead.
 
 The selected model must support the standard `tools` and `tool_calls` fields.
 A text-only OpenAI-compatible model can chat, but cannot control the editor.
@@ -72,10 +73,8 @@ also keep tools used earlier in the conversation available.
 
 ### Troubleshooting
 
-- **“Unlock secure storage”** — open **Settings → API Keys** and unlock with the
-  master password created on this browser.
-- **“No API key configured”** — add a key for the provider currently selected in
-  the AI settings popover. OpenAI and Anthropic keys are separate.
+- **“No API key configured”** — enter a key for the provider currently selected in
+  the AI settings. The key is session-only, so it is empty after a restart.
 - **401 / authentication error** — replace the stored key and confirm it belongs
   to the selected provider.
 - **Model not found / unavailable** — choose a listed model, or enter the exact
@@ -88,25 +87,20 @@ also keep tools used earlier in the conversation available.
 ## Connecting external agents (desktop MCP)
 
 The desktop app runs a local Model Context Protocol server so external clients
-can drive your open project.
+can drive your open project, with or without a visible editor window.
 
-1. Open **Settings → MCP** (desktop only).
-2. The panel shows the loopback URL and a bearer token (rotate it any time).
-3. Copy the client config snippet into your MCP client. It points at the bundled
-   `openreel-mcp` stdio shim, which bridges your client to the running app:
+The short version: open **Settings → MCP**, copy the snippet for your client, and
+restart the client. The panel shows a live tool count and flips from "Waiting for
+a client…" to "Connected: <client>" once an agent connects.
 
-   ```json
-   {
-     "mcpServers": {
-       "openreel": { "command": "node", "args": ["<path to openreel-mcp>"] }
-     }
-   }
-   ```
+Full per-client setup (Claude Code, Claude Desktop, Cursor, Cline, direct HTTP),
+the allowed-folders policy, the `--doctor` check and troubleshooting are in
+[MCP-SETUP.md](./MCP-SETUP.md).
 
-4. By default, destructive/expensive tool calls over MCP are refused with a
-   "confirmation required" notice. Enable **Trusted local — auto-allow** to let
-   trusted local clients run them.
-5. Use **Test connection** to verify the server is reachable.
+By default, destructive or expensive tool calls over MCP run without a prompt
+(**Allow agents to delete and export without asking** is on). Turn it off in
+**Settings → MCP** to have those calls refused with `CONFIRMATION_REQUIRED` until
+you re-enable it.
 
 The HTTP transport binds to `127.0.0.1` only and rejects any request without the
 bearer token.
@@ -120,7 +114,7 @@ useful for batch edits, "apply this recipe to N projects", and scheduled jobs.
 openreel-agent \
   --project ./reel.json \
   --prompt "Add a title that says Welcome for the first 3 seconds" \
-  --provider anthropic --model claude-sonnet-5 \
+  --provider anthropic --model claude-sonnet-5-5 \
   --out ./reel.edited.json
 ```
 

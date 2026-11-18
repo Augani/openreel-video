@@ -1,6 +1,6 @@
 export type WhisperModelKey = "accurate" | "fast";
 
-export interface WhisperModelDefinition {
+interface WhisperModelDefinition {
   readonly id: string;
   readonly label: string;
   readonly shortLabel: string;

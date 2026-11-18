@@ -1,23 +1,31 @@
 import React from "react";
+import { useTimelineStore } from "../../../stores/timeline-store";
 
 interface PlayheadProps {
-  position: number;
+  position?: number;
   pixelsPerSecond: number;
   scrollX: number;
   headerOffset: number;
+  phone?: boolean;
+  phoneHeight?: number;
 }
 
 // Mockup playhead: thin accent vertical line with a downward triangle at the
 // top. Color comes from --accent so it tracks the active theme.
 export const Playhead: React.FC<PlayheadProps> = ({
-  position,
+  position: suppliedPosition,
   pixelsPerSecond,
   scrollX,
   headerOffset,
+  phone = false,
+  phoneHeight = 166,
 }) => {
+  const position = useTimelineStore(state => suppliedPosition ?? (phone ? 0 : state.playheadPosition));
   const pixelPosition = position * pixelsPerSecond - scrollX;
 
   if (pixelPosition < 0) return null;
+
+  if (phone) return <div className="mobile-timeline-playhead" aria-hidden="true" style={{ height: phoneHeight }}><span /></div>;
 
   return (
     <div
@@ -36,7 +44,7 @@ export const Playhead: React.FC<PlayheadProps> = ({
           left: -7,
           width: 15,
           height: 13,
-          background: "#1d1d1f",
+          background: "var(--accent)",
           borderRadius: "3px 3px 0 0",
           clipPath: "polygon(0 0,100% 0,100% 65%,50% 100%,0 65%)",
         }}
@@ -48,8 +56,8 @@ export const Playhead: React.FC<PlayheadProps> = ({
           top: 0,
           bottom: 0,
           left: 0,
-          width: "1px",
-          background: "#1d1d1f",
+          width: "2px",
+          background: "var(--accent)",
         }}
       />
     </div>

@@ -1,7 +1,8 @@
 import React, { useState, useCallback } from "react";
-import { ToolcraftButton as Button } from "@openreel/ui";
-import { ToolcraftCard as Card } from "@openreel/ui";
-import { ToolcraftText as Text } from "@openreel/ui";
+import { Button, cn } from "@openreel/ui";
+import { Card } from "@openreel/ui";
+
+import { Progress } from "@openreel/ui";
 import { PropertySlider } from "./shell/PropertySlider";
 import { Scissors, Search, Loader2 } from "@/icons/lucide-compat";
 import { useProjectStore } from "../../../stores/project-store";
@@ -15,6 +16,15 @@ import { toast } from "../../../stores/notification-store";
 
 interface AutoCutSilenceSectionProps {
   clipId: string;
+  initialSettings?: Partial<SilenceSettings>;
+  onActivity?: (activity: SilenceActivity) => void;
+}
+
+export interface SilenceActivity {
+  stage: 2 | 3 | 4;
+  status: "running" | "ready" | "done" | "error";
+  progress: number;
+  message: string;
 }
 
 const SilenceSlider: React.FC<{
@@ -43,11 +53,14 @@ const SilenceSlider: React.FC<{
 
 export const AutoCutSilenceSection: React.FC<AutoCutSilenceSectionProps> = ({
   clipId,
+  initialSettings,
+  onActivity,
 }) => {
   const { getClip, getMediaItem } = useProjectStore();
-  const [settings, setSettings] = useState<SilenceSettings>(
-    DEFAULT_SILENCE_SETTINGS,
-  );
+  const [settings, setSettings] = useState<SilenceSettings>({
+    ...DEFAULT_SILENCE_SETTINGS,
+    ...initialSettings,
+  });
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isCutting, setIsCutting] = useState(false);
   const [analysisResult, setAnalysisResult] =
@@ -70,15 +83,35 @@ export const AutoCutSilenceSection: React.FC<AutoCutSilenceSectionProps> = ({
     setIsAnalyzing(true);
     setProgress(0);
     setProgressMessage("Initializing...");
+    onActivity?.({
+      stage: 2,
+      status: "running",
+      progress: 0,
+      message: "Analyzing dialogue",
+    });
 
     try {
       const bridge = getSilenceCutBridge();
       const result = await bridge.analyzeClip(clipId, settings, (prog, msg) => {
         setProgress(prog);
         setProgressMessage(msg);
+        onActivity?.({
+          stage: 2,
+          status: "running",
+          progress: prog,
+          message: msg,
+        });
       });
 
       setAnalysisResult(result);
+      onActivity?.({
+        stage: 3,
+        status: "ready",
+        progress: 100,
+        message: result.silentRegions.length
+          ? "Review the proposed cuts"
+          : "No pauses found",
+      });
 
       if (result.silentRegions.length === 0) {
         toast.info(
@@ -87,6 +120,12 @@ export const AutoCutSilenceSection: React.FC<AutoCutSilenceSectionProps> = ({
         );
       }
     } catch (error) {
+      onActivity?.({
+        stage: 2,
+        status: "error",
+        progress: 0,
+        message: "Analysis failed",
+      });
       console.error("Silence analysis failed:", error);
       toast.error(
         "Analysis Failed",
@@ -95,7 +134,7 @@ export const AutoCutSilenceSection: React.FC<AutoCutSilenceSectionProps> = ({
     } finally {
       setIsAnalyzing(false);
     }
-  }, [clipId, settings]);
+  }, [clipId, settings, onActivity]);
 
   const handleCutSilence = useCallback(async () => {
     if (!analysisResult || analysisResult.silentRegions.length === 0) return;
@@ -103,6 +142,12 @@ export const AutoCutSilenceSection: React.FC<AutoCutSilenceSectionProps> = ({
     setIsCutting(true);
     setProgress(0);
     setProgressMessage("Preparing...");
+    onActivity?.({
+      stage: 4,
+      status: "running",
+      progress: 0,
+      message: "Applying cuts",
+    });
 
     try {
       const bridge = getSilenceCutBridge();
@@ -112,19 +157,43 @@ export const AutoCutSilenceSection: React.FC<AutoCutSilenceSectionProps> = ({
         (prog, msg) => {
           setProgress(prog);
           setProgressMessage(msg);
+          onActivity?.({
+            stage: 4,
+            status: "running",
+            progress: prog,
+            message: msg,
+          });
         },
       );
 
       if (result.success) {
+        onActivity?.({
+          stage: 4,
+          status: "done",
+          progress: 100,
+          message: "Silence removed",
+        });
         toast.success(
           "Silence Removed",
           `Removed ${analysisResult.silentRegions.length} silent section${analysisResult.silentRegions.length > 1 ? "s" : ""}`,
         );
         setAnalysisResult(null);
       } else {
+        onActivity?.({
+          stage: 4,
+          status: "error",
+          progress: 0,
+          message: result.error ?? "Cut failed",
+        });
         toast.error("Cut Failed", result.error ?? "Unknown error");
       }
     } catch (error) {
+      onActivity?.({
+        stage: 4,
+        status: "error",
+        progress: 0,
+        message: "Cut failed",
+      });
       console.error("Cut silence failed:", error);
       toast.error(
         "Cut Failed",
@@ -133,7 +202,7 @@ export const AutoCutSilenceSection: React.FC<AutoCutSilenceSectionProps> = ({
     } finally {
       setIsCutting(false);
     }
-  }, [clipId, analysisResult]);
+  }, [clipId, analysisResult, onActivity]);
 
   if (!hasAudio) {
     return null;
@@ -188,20 +257,20 @@ export const AutoCutSilenceSection: React.FC<AutoCutSilenceSectionProps> = ({
         </div>
 
         {analysisResult && (
-          <Card variant="muted" padding={3}>
+          <Card className="min-w-0 rounded-[7px] border shadow-none border-transparent bg-bg-2 text-fg p-3">
             <div className="flex items-center justify-between mb-1">
-              <Text type="supporting" color="secondary">
+              <span className="text-[12px] leading-5 text-fg-2 font-normal">
                 Silent Sections Found
-              </Text>
-              <Text type="body" color="primary" weight="bold">
+              </span>
+              <span className="text-[13px] leading-5 text-fg font-bold">
                 {analysisResult.silentRegions.length}
-              </Text>
+              </span>
             </div>
             <div className="flex items-center justify-between">
-              <Text type="supporting" color="secondary">
+              <span className="text-[12px] leading-5 text-fg-2 font-normal">
                 Total Silence
-              </Text>
-              <Text type="supporting" color="primary">
+              </span>
+              <span className="text-[12px] leading-5 text-fg font-normal">
                 {analysisResult.totalSilenceDuration.toFixed(1)}s of{" "}
                 {analysisResult.clipDuration.toFixed(1)}s (
                 {Math.round(
@@ -210,7 +279,7 @@ export const AutoCutSilenceSection: React.FC<AutoCutSilenceSectionProps> = ({
                     100,
                 )}
                 %)
-              </Text>
+              </span>
             </div>
           </Card>
         )}
@@ -218,72 +287,65 @@ export const AutoCutSilenceSection: React.FC<AutoCutSilenceSectionProps> = ({
         {(isAnalyzing || isCutting) && (
           <div className="space-y-1">
             <div className="flex items-center justify-between">
-              <Text type="supporting" color="secondary" className="text-[9px]">
+              <span className="text-fg-2 font-normal text-[9px]">
                 {progressMessage}
-              </Text>
-              <Text type="supporting" color="secondary" className="text-[9px]">
+              </span>
+              <span className="text-fg-2 font-normal text-[9px]">
                 {progress}%
-              </Text>
+              </span>
             </div>
-            <div className="h-1 bg-bg-1 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-primary transition-all duration-300"
-                style={{ width: `${progress}%` }}
-              />
-            </div>
+            <Progress
+              aria-label={isCutting ? "Silence cutting progress" : "Silence analysis progress"}
+              value={progress}
+              className="h-1 rounded-full bg-bg-1 [&>div]:bg-primary"
+            />
           </div>
         )}
 
         <div className="flex gap-2">
-          <Button
-            label={isAnalyzing ? "Analyzing..." : analysisResult ? "Re-analyze" : "Analyze"}
-            size="sm"
-            variant={analysisResult ? "secondary" : "primary"}
-            icon={
-              isAnalyzing ? (
-                <Loader2 size={14} className="animate-spin" aria-hidden />
-              ) : (
-                <Search size={14} aria-hidden />
-              )
-            }
-            onClick={handleAnalyze}
-            isDisabled={isAnalyzing || isCutting}
-            className={`flex-1 py-2 rounded text-[11px] font-medium transition-colors flex items-center justify-center gap-2 ${
+          <Button onClick={handleAnalyze} type="button" aria-label={(isAnalyzing
+                ? "Analyzing..."
+                : analysisResult
+                  ? "Re-analyze"
+                  : "Analyze").trim() || undefined} disabled={(isAnalyzing || isCutting)} className={cn("inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50", "h-7 px-2.5 text-[12px]", (analysisResult ? "border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg" : "bg-accent text-accent-fg hover:bg-accent/90"), `flex-1 py-2 rounded text-[11px] font-medium transition-colors flex items-center justify-center gap-2 ${
               analysisResult
                 ? "bg-bg-1 hover:bg-background-primary border border-border text-fg"
                 : "bg-primary hover:bg-primary-hover disabled:bg-primary/50 text-white"
-            }`}
-          />
+            }`)}>
+            <span className="flex h-4 w-4 shrink-0 items-center justify-center">{isAnalyzing ? (
+                <Loader2 size={14} className="animate-spin" aria-hidden />
+              ) : (
+                <Search size={14} aria-hidden />
+              )}</span>
+            <span className="truncate">{isAnalyzing
+                ? "Analyzing..."
+                : analysisResult
+                  ? "Re-analyze"
+                  : "Analyze"}</span>
+          </Button>
 
           {analysisResult && analysisResult.silentRegions.length > 0 && (
-            <Button
-              label={
-                isCutting
+            <Button onClick={handleCutSilence} type="button" aria-label={(isCutting
                   ? "Cutting..."
-                  : `Cut ${analysisResult.silentRegions.length}`
-              }
-              size="sm"
-              variant="primary"
-              icon={
-                isCutting ? (
+                  : `Cut ${analysisResult.silentRegions.length}`).trim() || undefined} disabled={(isCutting)} className="min-w-0 outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 flex-1 py-2 bg-primary hover:bg-primary-hover disabled:bg-primary/50 text-white rounded text-[11px] font-medium transition-colors flex items-center justify-center gap-2">
+              <span className="flex h-4 w-4 shrink-0 items-center justify-center">{isCutting ? (
                   <Loader2 size={14} className="animate-spin" aria-hidden />
                 ) : (
                   <Scissors size={14} aria-hidden />
-                )
-              }
-              onClick={handleCutSilence}
-              isDisabled={isCutting}
-              className="flex-1 py-2 bg-primary hover:bg-primary-hover disabled:bg-primary/50 text-white rounded text-[11px] font-medium transition-colors flex items-center justify-center gap-2"
-            />
+                )}</span>
+              <span className="truncate">{isCutting
+                  ? "Cutting..."
+                  : `Cut ${analysisResult.silentRegions.length}`}</span>
+            </Button>
           )}
         </div>
 
-        <Text type="supporting" color="secondary" className="text-center text-[9px]">
+        <span className="text-fg-2 font-normal text-center text-[9px]"
+        >
           Tip: Use Ctrl+Z to undo all cuts at once
-        </Text>
+        </span>
       </div>
     </div>
   );
 };
 
-export default AutoCutSilenceSection;

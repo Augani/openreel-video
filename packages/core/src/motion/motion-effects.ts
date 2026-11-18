@@ -45,7 +45,7 @@ import {
   type MotionPixelBuffer,
 } from "./motion-pixel-effects";
 
-export interface MotionEffectPreset {
+interface MotionEffectPreset {
   readonly type: MotionEffectType;
   readonly name: string;
   readonly description: string;
@@ -85,7 +85,7 @@ export type MotionEffectParameterName =
   | MotionEffectNumericParameter
   | (string & { readonly __shaderParam?: never });
 
-export interface MotionEffectParameterDescriptor {
+interface MotionEffectParameterDescriptor {
   readonly param: MotionEffectParameterName;
   readonly label: string;
   readonly min: number;
@@ -192,7 +192,7 @@ const EFFECT_PARAMETER_DESCRIPTORS: Record<
   ],
 };
 
-export const MOTION_EFFECT_PRESETS: readonly MotionEffectPreset[] = [
+const MOTION_EFFECT_PRESETS: readonly MotionEffectPreset[] = [
   {
     type: "blur",
     name: "Gaussian Blur",
@@ -525,9 +525,9 @@ export function removeMotionLayerEffect<T extends MotionLayer>(
   } as T;
 }
 
-export type MotionEffectStackPasteMode = "append" | "replace";
+type MotionEffectStackPasteMode = "append" | "replace";
 
-export interface MotionEffectStackTransferResult<T extends MotionLayer> {
+interface MotionEffectStackTransferResult<T extends MotionLayer> {
   readonly layer: T;
   readonly pastedEffectIds: readonly string[];
 }
@@ -746,7 +746,7 @@ export function isMotionPixelEffect(type: MotionEffectType): boolean {
   return MOTION_PIXEL_EFFECT_TYPES.has(type);
 }
 
-export function layerHasMotionPixelEffects(layer: MotionLayer): boolean {
+function layerHasMotionPixelEffects(layer: MotionLayer): boolean {
   return (layer.effects ?? []).some(
     (effect) => effect.enabled && isMotionPixelEffect(effect.type),
   );
@@ -782,10 +782,6 @@ export function getMotionBackdropBlurRadius(
     }
   }
   return radius;
-}
-
-export function layerHasMotionBackdropBlur(layer: MotionLayer): boolean {
-  return getMotionBackdropBlurRadius(layer.effects) > 0;
 }
 
 export function applyMotionPixelEffectsToBuffer(
@@ -1125,7 +1121,7 @@ export function setMotionEffectParameterValue<T extends MotionEffect>(
   }
 }
 
-export function evaluateMotionEffectAtTime<T extends MotionEffect>(
+function evaluateMotionEffectAtTime<T extends MotionEffect>(
   effect: T,
   keyframes: readonly Keyframe[],
   localTime: number,
@@ -1214,40 +1210,6 @@ export function buildMotionCssDropShadow(
       return [];
     });
   return shadows.length > 0 ? shadows.join(", ") : undefined;
-}
-
-export function getPrimaryMotionShadow(
-  effects: readonly MotionEffect[] | undefined,
-):
-  | {
-      readonly color: string;
-      readonly blur: number;
-      readonly offsetX: number;
-      readonly offsetY: number;
-    }
-  | undefined {
-  const shadow = [...(effects ?? [])].reverse().find(
-    (effect) =>
-      effect.enabled && (effect.type === "drop-shadow" || effect.type === "glow"),
-  );
-  if (!shadow) return undefined;
-  if (shadow.type === "drop-shadow") {
-    return {
-      color: toRgba(shadow.color, shadow.opacity),
-      blur: shadow.blur,
-      offsetX: shadow.offsetX,
-      offsetY: shadow.offsetY,
-    };
-  }
-  if (shadow.type !== "glow") {
-    return undefined;
-  }
-  return {
-    color: toRgba(shadow.color, shadow.intensity),
-    blur: shadow.radius,
-    offsetX: 0,
-    offsetY: 0,
-  };
 }
 
 function getFilterParts(

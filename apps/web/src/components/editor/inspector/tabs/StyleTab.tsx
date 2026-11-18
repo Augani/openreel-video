@@ -1,8 +1,9 @@
+import { PrimaryTextProperties } from "../PrimaryTextProperties";
 import React from "react";
 import { TextSection, ShapeSection, SVGSection } from "../";
 import { InspectorSection } from "../shell/InspectorSection";
 
-export interface StyleTabProps {
+interface StyleTabProps {
   clipId: string;
   showTextSection: boolean;
   showShapeSection: boolean;
@@ -18,17 +19,15 @@ export const StyleTab: React.FC<StyleTabProps> = ({
   return (
     <>
       {showTextSection && (
-        <InspectorSection title="Text Properties" sectionId="text-properties">
-          <TextSection clipId={clipId} />
-        </InspectorSection>
+        <><PrimaryTextProperties clipId={clipId}/><InspectorSection title="Advanced text properties" sectionId="text-properties" sectionIds={["text-materials"]}><TextSection clipId={clipId}/></InspectorSection></>
       )}
       {showShapeSection && (
-        <InspectorSection title="Shape Properties" sectionId="shape-properties">
+        <InspectorSection title="Shape Properties" sectionId="shape-properties" defaultOpen>
           <ShapeSection clipId={clipId} />
         </InspectorSection>
       )}
       {showSVGSection && (
-        <InspectorSection title="SVG Properties">
+        <InspectorSection title="SVG Properties" sectionId="svg-properties" defaultOpen>
           <SVGSection clipId={clipId} />
         </InspectorSection>
       )}

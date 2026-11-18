@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import type { MotionComposition, Project } from "@openreel/core";
 import type { CreationProjectState, CreationScene } from "@openreel/core/creation/index";
 import {
-  findRecoverableScene3DLayers,
   planRecoverMotionScene3DLayer,
 } from "./creation-recovery";
 
@@ -99,21 +98,6 @@ function boundCreation(scene: CreationScene): CreationProjectState {
 }
 
 describe("creation scene3d recovery", () => {
-  it("finds render-only multi-object scene3d layers", () => {
-    const recoverable = findRecoverableScene3DLayers(undefined, [composition()]);
-
-    expect(recoverable).toEqual([
-      {
-        compositionId: "comp-moon",
-        compositionName: "Moon Scene",
-        layerId: "layer-astronaut",
-        layerName: "Astronaut Render",
-        objectCount: 2,
-        duration: 5,
-      },
-    ]);
-  });
-
   it("plans creation assets, scene objects, and render bindings from a scene3d layer", () => {
     const plan = planRecoverMotionScene3DLayer(
       project(),
@@ -173,7 +157,6 @@ describe("creation scene3d recovery", () => {
     if ("error" in plan) throw new Error(plan.error);
 
     const creation = boundCreation(plan.scene);
-    expect(findRecoverableScene3DLayers(creation, [composition()])).toHaveLength(0);
     expect(
       planRecoverMotionScene3DLayer(
         project(creation),

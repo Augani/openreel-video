@@ -19,7 +19,7 @@ const PBKDF2_ITERATIONS = 100_000;
 const SALT_LENGTH = 16;
 const IV_LENGTH = 12;
 
-export interface SecureRecord {
+interface SecureRecord {
   readonly id: string;
   readonly label: string;
   readonly encryptedData: ArrayBuffer;
@@ -244,7 +244,7 @@ export async function setupMasterPassword(password: string): Promise<void> {
  * Unlock the session with the master password.
  * Verifies the password against the stored verification token.
  */
-export function getUnlockBackoffMs(): number {
+function getUnlockBackoffMs(): number {
   if (failedAttempts === 0) return 0;
   const now = Date.now();
   return Math.max(0, lockedUntil - now);
@@ -544,25 +544,6 @@ export async function listSecrets(): Promise<Array<{ id: string; label: string; 
     createdAt: r.createdAt,
     updatedAt: r.updatedAt,
   }));
-}
-
-/**
- * Completely reset all secure storage (master password + all secrets).
- * Use with caution — this is irreversible.
- */
-export async function resetSecureStorage(): Promise<void> {
-  lockSession();
-
-  if (dbInstance) {
-    dbInstance.close();
-    dbInstance = null;
-  }
-
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.deleteDatabase(SECURE_DB_NAME);
-    request.onsuccess = () => resolve();
-    request.onerror = () => reject(new Error("Failed to reset secure storage"));
-  });
 }
 
 // Lock session and close database when tab is closing

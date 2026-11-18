@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest";
 import { ActionExecutor } from "./action-executor";
-import { CAPABILITY_MANIFEST } from "../capabilities/manifest";
 import type { Project } from "../types/project";
 import type { Action } from "../types/actions";
 
@@ -116,10 +115,5 @@ describe("headless core editing (Node environment)", () => {
     expect(undo1.success).toBe(true);
     const redo1 = await executor.redo(project);
     expect(redo1.success).toBe(true);
-  });
-
-  it("exposes the capability manifest headlessly", () => {
-    expect(CAPABILITY_MANIFEST.blendModes).toContain("screen");
-    expect(CAPABILITY_MANIFEST.transitionTypes.length).toBeGreaterThan(0);
   });
 });

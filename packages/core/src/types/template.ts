@@ -1,4 +1,4 @@
-import type { ProjectSettings } from "./project";
+import type { Project, ProjectSettings, MediaItem } from "./project";
 import type { Timeline, Track, Clip, Subtitle } from "./timeline";
 
 export interface Template {
@@ -12,11 +12,18 @@ export interface Template {
   readonly modifiedAt: number;
   readonly settings: ProjectSettings;
   readonly timeline: TemplateTimeline;
+  /** Saved project content beyond the timeline; absent on legacy templates. */
+  readonly projectContent?: TemplateProjectContent;
   readonly placeholders: TemplatePlaceholder[];
   readonly tags: string[];
   readonly author?: string;
   readonly version: string;
 }
+
+export type TemplateProjectContent = Omit<
+  Project,
+  "id" | "name" | "createdAt" | "modifiedAt" | "settings" | "timeline"
+>;
 
 export type TemplateCategory =
   | "social-media"
@@ -31,12 +38,16 @@ export type TemplateCategory =
   | "motion"
   | "custom";
 
-export interface TemplateTimeline extends Omit<
-  Timeline,
-  "tracks" | "subtitles"
-> {
+export interface TemplateTimeline
+  extends Omit<Timeline, "tracks" | "subtitles"> {
   readonly tracks: TemplateTrack[];
   readonly subtitles: TemplateSubtitle[];
+  /** Earlier save dialogs stored graphics here without applying them. */
+  readonly graphics?: {
+    readonly shapes: NonNullable<Project["shapeClips"]>;
+    readonly svgs: NonNullable<Project["svgClips"]>;
+    readonly stickers: NonNullable<Project["stickerClips"]>;
+  };
 }
 
 export interface TemplateTrack extends Omit<Track, "clips"> {
@@ -81,6 +92,7 @@ export interface PlaceholderReplacement {
   readonly type: PlaceholderType;
   readonly value: string;
   readonly mediaBlob?: Blob;
+  readonly media?: Pick<MediaItem, "name" | "type" | "metadata">;
 }
 
 export interface TemplateSummary {

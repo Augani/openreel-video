@@ -16,7 +16,7 @@ import type { KieAIResponse } from "./types";
 export const KIEAI_BASE_URL = "https://kieai.redpandaai.co";
 /** Generation API base (api.kie.ai) */
 export const KIEAI_API_BASE_URL = "https://api.kie.ai";
-export const KIEAI_SECRET_ID = "kie-ai";
+const KIEAI_SECRET_ID = "kie-ai";
 
 async function getApiKey(): Promise<string> {
   const key = await getSecret(KIEAI_SECRET_ID);
@@ -64,20 +64,26 @@ export async function kieaiGet<TData>(
   path: string,
   params: Record<string, string>,
   baseUrl = KIEAI_API_BASE_URL,
+  signal?: AbortSignal,
 ): Promise<TData> {
+  signal?.throwIfAborted();
   const apiKey = await getApiKey();
+  signal?.throwIfAborted();
   const url = new URL(`${baseUrl}${path}`);
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
 
   const res = await fetch(url.toString(), {
+    signal,
     headers: { Authorization: `Bearer ${apiKey}` },
   });
 
+  signal?.throwIfAborted();
   if (!res.ok) {
     throw new KieAIError(res.status, `HTTP ${res.status}: ${res.statusText}`);
   }
 
   const json = (await res.json()) as KieAIResponse<TData>;
+  signal?.throwIfAborted();
   if (json.code !== 200) {
     throw new KieAIError(json.code, json.msg);
   }
@@ -88,8 +94,11 @@ export async function kieaiGet<TData>(
 export async function kieaiPostForm<TData>(
   path: string,
   form: FormData,
+  signal?: AbortSignal,
 ): Promise<TData> {
+  signal?.throwIfAborted();
   const apiKey = await getApiKey();
+  signal?.throwIfAborted();
 
   const res = await fetch(`${KIEAI_BASE_URL}${path}`, {
     method: "POST",
@@ -98,14 +107,17 @@ export async function kieaiPostForm<TData>(
       Authorization: `Bearer ${apiKey}`,
     },
     body: form,
+    signal,
   });
 
+  signal?.throwIfAborted();
   if (!res.ok) {
     throw new KieAIError(res.status, `HTTP ${res.status}: ${res.statusText}`);
   }
 
   const json = (await res.json()) as KieAIResponse<TData>;
 
+  signal?.throwIfAborted();
   if (json.code !== 200) {
     throw new KieAIError(json.code, json.msg);
   }

@@ -1,9 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
   qualityToCrf,
-  hardwareTargetKbps,
-  containerForCodec,
-  pixelFormatForCodec,
   videoEncodeArgs,
   type EncodePlan,
 } from "../src/main/sidecar/encode-args";
@@ -16,21 +13,6 @@ describe("qualityToCrf", () => {
     expect(qualityToCrf("svtav1", 50)).toBeGreaterThan(qualityToCrf("svtav1", 100));
     expect(qualityToCrf("x264", 0)).toBe(qualityToCrf("x264", 50)); // clamp low
     expect(qualityToCrf("x264", 200)).toBe(qualityToCrf("x264", 100)); // clamp high
-  });
-});
-
-describe("containerForCodec", () => {
-  it("forces mov for prores, mp4 otherwise", () => {
-    expect(containerForCodec("prores")).toBe("mov");
-    expect(containerForCodec("h264")).toBe("mp4");
-    expect(containerForCodec("hevc")).toBe("mp4");
-  });
-});
-
-describe("pixelFormatForCodec", () => {
-  it("uses 10-bit 422 for prores, 420 otherwise", () => {
-    expect(pixelFormatForCodec("prores")).toBe("yuv422p10le");
-    expect(pixelFormatForCodec("h264")).toBe("yuv420p");
   });
 });
 
@@ -47,28 +29,6 @@ describe("videoEncodeArgs", () => {
     expect(args[args.indexOf("-pix_fmt") + 1]).toBe("yuv420p");
   });
 
-  it("software balanced uses a faster preset than smallest", () => {
-    const plan: EncodePlan = { codec: "h264", encoder: "libx264", mode: "balanced", ...base };
-    const args = videoEncodeArgs(plan);
-    expect(args[args.indexOf("-preset") + 1]).toBe("fast");
-  });
-
-  it("software fast uses an export-speed preset", () => {
-    const plan: EncodePlan = { codec: "h264", encoder: "libx264", mode: "fast", ...base };
-    const args = videoEncodeArgs(plan);
-    expect(args[args.indexOf("-preset") + 1]).toBe("veryfast");
-  });
-
-  it("svt-av1 presets track export mode", () => {
-    const fast = videoEncodeArgs({ codec: "av1", encoder: "libsvtav1", mode: "fast", ...base });
-    const balanced = videoEncodeArgs({ codec: "av1", encoder: "libsvtav1", mode: "balanced", ...base });
-    const smallest = videoEncodeArgs({ codec: "av1", encoder: "libsvtav1", mode: "smallest", ...base });
-
-    expect(fast[fast.indexOf("-preset") + 1]).toBe("8");
-    expect(balanced[balanced.indexOf("-preset") + 1]).toBe("6");
-    expect(smallest[smallest.indexOf("-preset") + 1]).toBe("5");
-  });
-
   it("hardware balanced uses capped VBR derived from resolution/quality", () => {
     const plan: EncodePlan = { codec: "hevc", encoder: "hevc_videotoolbox", mode: "balanced", ...base };
     const args = videoEncodeArgs(plan);
@@ -81,12 +41,6 @@ describe("videoEncodeArgs", () => {
     expect(args).not.toContain("-crf");
   });
 
-  it("hevc target is smaller than h264 target at the same settings", () => {
-    const h264 = hardwareTargetKbps({ codec: "h264", mode: "balanced", ...base });
-    const hevc = hardwareTargetKbps({ codec: "hevc", mode: "balanced", ...base });
-    expect(hevc).toBeLessThan(h264);
-  });
-
   it("prores uses profile, no crf/bitrate, 10-bit 422", () => {
     const plan: EncodePlan = { codec: "prores", encoder: "prores_videotoolbox", mode: "fast", proresProfile: "hq", ...base };
     const args = videoEncodeArgs(plan);
@@ -95,5 +49,12 @@ describe("videoEncodeArgs", () => {
     expect(args).not.toContain("-crf");
     expect(args).not.toContain("-b:v");
     expect(args[args.indexOf("-pix_fmt") + 1]).toBe("yuv422p10le");
+  });
+
+  it("lets VideoToolbox fall back to software above 4K", () => {
+    const plan = (width: number, height: number): EncodePlan =>
+      ({ ...base, width, height, codec: "h264", encoder: "h264_videotoolbox", mode: "balanced" });
+    expect(videoEncodeArgs(plan(3840, 2160))).toContain("-allow_sw");
+    expect(videoEncodeArgs(plan(7680, 4320))).not.toContain("-allow_sw");
   });
 });

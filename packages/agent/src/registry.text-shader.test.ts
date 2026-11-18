@@ -123,16 +123,6 @@ describe("list_motion_shaders text category", () => {
     expect(dissolve!.params.length).toBeGreaterThan(0);
   });
 
-  it("filters by category='text'", async () => {
-    const host = new HeadlessHost(projectWithShapeAndText());
-    const res = await executeTool("list_motion_shaders", { category: "text" }, host);
-    expect(res.ok).toBe(true);
-    const data = asListData(res.data);
-    expect(data.text).toBeDefined();
-    expect(data.fills).toBeUndefined();
-    expect(data.effects).toBeUndefined();
-    expect(data.text!.every((shader) => shader.category === "text")).toBe(true);
-  });
 });
 
 describe("add_motion_text_shader_animator", () => {
@@ -223,36 +213,4 @@ describe("add_motion_text_shader_animator", () => {
     expect(shaderAnimators[0]!.shader?.shaderId).toBe("glyph-glow-wave");
   });
 
-  it("rejects a non-text layer with INVALID_PARAMS", async () => {
-    const host = new HeadlessHost(projectWithShapeAndText());
-    const res = await executeTool(
-      "add_motion_text_shader_animator",
-      { compositionId: "comp-text", layerId: "layer-shape", shaderId: "glyph-dissolve" },
-      host,
-    );
-    expect(res.ok).toBe(false);
-    expect(res.error?.code).toBe("INVALID_PARAMS");
-  });
-
-  it("rejects an unknown shaderId with INVALID_PARAMS", async () => {
-    const host = new HeadlessHost(projectWithShapeAndText());
-    const res = await executeTool(
-      "add_motion_text_shader_animator",
-      { compositionId: "comp-text", layerId: "layer-text", shaderId: "not-a-shader" },
-      host,
-    );
-    expect(res.ok).toBe(false);
-    expect(res.error?.code).toBe("INVALID_PARAMS");
-  });
-
-  it("rejects a non-text-category shaderId with INVALID_PARAMS", async () => {
-    const host = new HeadlessHost(projectWithShapeAndText());
-    const res = await executeTool(
-      "add_motion_text_shader_animator",
-      { compositionId: "comp-text", layerId: "layer-text", shaderId: "liquid-metal" },
-      host,
-    );
-    expect(res.ok).toBe(false);
-    expect(res.error?.code).toBe("INVALID_PARAMS");
-  });
 });

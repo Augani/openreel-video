@@ -1,31 +1,37 @@
-import type { AutomationPoint, Clip, Effect, Timeline, Track } from "../types/timeline";
+import type {
+  AutomationPoint,
+  Clip,
+  Effect,
+  Timeline,
+  Track,
+} from "../types/timeline";
+
+import { applyLiveDuckingToLane } from "./live-ducking";
 
 type TimelineWithTracks = Pick<Timeline, "tracks">;
 
 const LINK_TOLERANCE_SECONDS = 0.01;
 
-const getClipAudioTrackIndex = (clip: Clip): number => clip.audioTrackIndex ?? 0;
+const getClipAudioTrackIndex = (clip: Clip): number => {
+  const sourceTrackIndex = clip.metadata?.sourceAudioTrackIndex;
+  return typeof sourceTrackIndex === "number" &&
+    Number.isFinite(sourceTrackIndex)
+    ? sourceTrackIndex
+    : (clip.audioTrackIndex ?? 0);
+};
 
 const isAlignedLinkedClip = (clip: Clip, candidate: Clip): boolean =>
   candidate.id !== clip.id &&
-  candidate.mediaId === clip.mediaId &&
+  (candidate.mediaId === clip.mediaId ||
+    candidate.metadata?.separatedFromClipId === clip.id ||
+    clip.metadata?.separatedFromClipId === candidate.id ||
+    candidate.metadata?.separatedFromClipId ===
+      (clip.metadata?.splitSourceClipId ?? clip.id) ||
+    clip.metadata?.separatedFromClipId ===
+      (candidate.metadata?.splitSourceClipId ?? candidate.id)) &&
   getClipAudioTrackIndex(candidate) === getClipAudioTrackIndex(clip) &&
   Math.abs(candidate.startTime - clip.startTime) < LINK_TOLERANCE_SECONDS &&
   Math.abs(candidate.inPoint - clip.inPoint) < LINK_TOLERANCE_SECONDS;
-
-export const findClipTrack = (
-  timeline: TimelineWithTracks,
-  clipId: string,
-): { clip: Clip; track: Track } | null => {
-  for (const track of timeline.tracks) {
-    const clip = track.clips.find((candidate) => candidate.id === clipId);
-    if (clip) {
-      return { clip, track };
-    }
-  }
-
-  return null;
-};
 
 export const getLinkedAudioClips = (
   clip: Clip,
@@ -64,7 +70,8 @@ export const resolveClipAudioEffects = (
   return linkedClip?.clip.audioEffects ?? [];
 };
 
-export const resolveClipVolumeAutomation = (
+/** The clip's stored volume lane (or its linked clip's), without live ducking. */
+export const resolveClipBaseVolumeAutomation = (
   clip: Clip,
   timeline: TimelineWithTracks,
 ): AutomationPoint[] => {
@@ -79,6 +86,54 @@ export const resolveClipVolumeAutomation = (
 
   return linkedClip?.clip.automation?.volume ?? [];
 };
+
+/** The clip's pan lane (-1 left .. 1 right), or its linked clip's. */
+export const resolveClipPanAutomation = (
+  clip: Clip,
+  timeline: TimelineWithTracks,
+): AutomationPoint[] => {
+  const direct = clip.automation?.pan ?? [];
+  if (direct.length > 0) return direct;
+  const linked = getLinkedAudioClips(clip, timeline).find(
+    (entry) => (entry.clip.automation?.pan?.length ?? 0) > 0,
+  );
+  return linked?.clip.automation?.pan ?? [];
+};
+
+/** Maintain-audio-pitch flag (default on): the clip's own, else its linked clip's. */
+export const resolveClipPitchCorrection = (
+  clip: Clip,
+  timeline: TimelineWithTracks,
+): boolean => {
+  if (clip.pitchCorrection !== undefined) return clip.pitchCorrection;
+  const linked = getLinkedAudioClips(clip, timeline).find(
+    (entry) => entry.clip.pitchCorrection !== undefined,
+  );
+  return linked?.clip.pitchCorrection ?? true;
+};
+
+/**
+ * Pan lane and maintain-pitch flag for a clip, with linked-clip fallback. Every preview schedule
+ * builder and the export path use this so they cannot drift apart.
+ */
+export const resolveClipPlaybackAudioParams = (
+  clip: Clip,
+  timeline: TimelineWithTracks,
+): { panAutomation: AutomationPoint[]; pitchCorrection: boolean } => ({
+  panAutomation: resolveClipPanAutomation(clip, timeline),
+  pitchCorrection: resolveClipPitchCorrection(clip, timeline),
+});
+
+/** The volume lane that is actually heard: the stored lane with live ducking under dialogue applied. */
+export const resolveClipVolumeAutomation = (
+  clip: Clip,
+  timeline: TimelineWithTracks,
+): AutomationPoint[] =>
+  applyLiveDuckingToLane(
+    clip,
+    timeline,
+    resolveClipBaseVolumeAutomation(clip, timeline),
+  );
 
 export const resolveAudibleAudioTarget = (
   clip: Clip,

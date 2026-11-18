@@ -1,5 +1,5 @@
 import { ONE_VEC3, ZERO_VEC3, type Transform3D } from "../schema/common";
-import { composeTRS, identityMat4, invertMat4, multiplyMat4, type Mat4 } from "./mat4";
+import { composeTRS, invertMat4, multiplyMat4, type Mat4 } from "./mat4";
 
 export interface Bone {
   readonly name: string;
@@ -63,6 +63,3 @@ export function makeBone(
   };
 }
 
-export function identitySkinMatrix(): Mat4 {
-  return identityMat4();
-}

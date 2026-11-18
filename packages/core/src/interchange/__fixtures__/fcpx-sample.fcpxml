@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE fcpxml>
+<fcpxml version="1.10">
+  <resources>
+    <format id="r1" name="FFVideoFormat1080p25" frameDuration="1/25s" width="1920" height="1080"/>
+    <asset id="r2" name="a_cam.mov" start="0s" duration="60s" hasVideo="1" hasAudio="1" format="r1" audioChannels="2" audioRate="48000">
+      <media-rep kind="original-media" src="file:///Volumes/Media/a_cam.mov"/>
+    </asset>
+    <asset id="r3" name="b_roll.mov" start="0s" duration="60s" hasVideo="1" format="r1">
+      <media-rep kind="original-media" src="file:///Volumes/Media/b_roll.mov"/>
+    </asset>
+    <effect id="r4" name="Cross Dissolve" uid="FxPlug:4731E73A-8DAC-4113-9A30-AE85B1761265"/>
+  </resources>
+  <library>
+    <event name="Ev">
+      <project name="FCPX Sample">
+        <sequence format="r1" duration="200/25s" tcStart="0s" tcFormat="NDF" audioLayout="stereo" audioRate="48k">
+          <spine>
+            <asset-clip ref="r2" offset="0s" name="a_cam" start="0s" duration="4s">
+              <adjust-volume amount="-6dB"/>
+              <asset-clip ref="r3" lane="1" offset="2s" name="b_roll" start="0s" duration="2s">
+                <adjust-blend amount="0.4"/>
+              </asset-clip>
+              <marker start="1s" duration="1/25s" value="Hello"/>
+            </asset-clip>
+            <transition name="Cross Dissolve" offset="94/25s" duration="12/25s">
+              <filter-video ref="r4" name="Cross Dissolve"/>
+            </transition>
+            <asset-clip ref="r3" offset="4s" name="b_roll fast" start="4s" duration="4s">
+              <timeMap>
+                <timept time="0s" value="4s" interp="linear"/>
+                <timept time="4s" value="12s" interp="linear"/>
+              </timeMap>
+            </asset-clip>
+          </spine>
+        </sequence>
+      </project>
+    </event>
+  </library>
+</fcpxml>

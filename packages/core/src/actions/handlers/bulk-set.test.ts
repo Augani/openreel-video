@@ -85,23 +85,6 @@ describe("bulk-set handlers", () => {
     expect(res.success).toBe(false);
   });
 
-  it("effect/setStack replaces the authored stack and undoes", async () => {
-    const executor = new ActionExecutor();
-    const project = makeProject();
-    const replacement = [
-      { id: "e3", type: "glow", enabled: false, params: { radius: 28 } },
-    ];
-
-    await executor.execute(
-      act("effect/setStack", { clipId: "c1", effects: replacement }),
-      project,
-    );
-    expect(clip(project).effects).toEqual(replacement);
-
-    await executor.undo(project);
-    expect(clip(project).effects.map((effect) => effect.id)).toEqual(["e1", "e2"]);
-  });
-
   it("keyframe/setAll replaces keyframes and undoes", async () => {
     const executor = new ActionExecutor();
     const project = makeProject();

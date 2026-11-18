@@ -22,7 +22,7 @@ export const MOTION_LIGHT_PROPERTY_IDS = [
 
 export type MotionLightProperty = (typeof MOTION_LIGHT_PROPERTY_IDS)[number];
 
-export interface MotionLightPropertyDescriptor {
+interface MotionLightPropertyDescriptor {
   readonly property: MotionLightProperty;
   readonly label: string;
   readonly min?: number;
@@ -31,7 +31,7 @@ export interface MotionLightPropertyDescriptor {
   readonly unit?: string;
 }
 
-export interface CreateMotionLightOptions {
+interface CreateMotionLightOptions {
   readonly id?: string;
   readonly name?: string;
   readonly enabled?: boolean;
@@ -47,21 +47,21 @@ export interface CreateMotionLightOptions {
   readonly keyframes?: readonly Keyframe[];
 }
 
-export interface UpsertMotionLightKeyframeOptions {
+interface UpsertMotionLightKeyframeOptions {
   readonly value?: number;
   readonly easing?: EasingType;
   readonly snapTolerance?: number;
   readonly idFactory?: () => string;
 }
 
-export interface MotionLightingShadow {
+interface MotionLightingShadow {
   readonly color: string;
   readonly blur: number;
   readonly offsetX: number;
   readonly offsetY: number;
 }
 
-export interface MotionLightingSample {
+interface MotionLightingSample {
   readonly brightness: number;
   readonly shadow?: MotionLightingShadow;
 }
@@ -75,7 +75,7 @@ const createLightId = (): string =>
 const createKeyframeId = (): string =>
   `motion-light-kf-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 
-export const MOTION_LIGHT_PROPERTY_DESCRIPTORS: readonly MotionLightPropertyDescriptor[] =
+const MOTION_LIGHT_PROPERTY_DESCRIPTORS: readonly MotionLightPropertyDescriptor[] =
   [
     { property: "light.intensity", label: "Intensity", min: 0, max: 10, step: 0.05 },
     {
@@ -357,7 +357,7 @@ export function getMotionLightPropertyDescriptor(
   );
 }
 
-export function getMotionLightPropertyValue(
+function getMotionLightPropertyValue(
   light: MotionLight,
   property: MotionLightProperty,
 ): number {
@@ -408,15 +408,6 @@ export function setMotionLightPropertyValue(
     case "light.shadowSoftness":
       return { ...light, shadowSoftness: clamp(value, 0, 400) };
   }
-}
-
-export function getMotionLightPropertyKeyframes(
-  light: MotionLight,
-  property: MotionLightProperty,
-): Keyframe[] {
-  return sanitizeLightKeyframes(light.keyframes ?? []).filter(
-    (keyframe) => keyframe.property === property,
-  );
 }
 
 export function findMotionLightKeyframeAtTime(
@@ -472,18 +463,6 @@ export function upsertMotionLightKeyframe(
   return {
     ...light,
     keyframes: nextKeyframes.sort((a, b) => a.time - b.time),
-  };
-}
-
-export function removeMotionLightKeyframe(
-  light: MotionLight,
-  keyframeId: string,
-): MotionLight {
-  return {
-    ...light,
-    keyframes: sanitizeLightKeyframes(light.keyframes ?? []).filter(
-      (keyframe) => keyframe.id !== keyframeId,
-    ),
   };
 }
 

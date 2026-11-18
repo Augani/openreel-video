@@ -1,6 +1,6 @@
 import { getKeyStore } from "./keychain";
 
-export type CloudService =
+type CloudService =
   | "elevenlabs"
   | "openai"
   | "anthropic"
@@ -14,7 +14,7 @@ interface ServiceConfig {
 
 // Mirror of apps/web/src/services/api-proxy.ts DIRECT_CONFIG. apps/desktop cannot import apps/web,
 // so this is a deliberate duplication — keep it in sync if the web config changes.
-export const DIRECT_CONFIG: Record<
+const DIRECT_CONFIG: Record<
   Exclude<CloudService, "openai-compatible" | "anthropic-compatible">,
   ServiceConfig
 > = {
@@ -32,7 +32,7 @@ export const DIRECT_CONFIG: Record<
   },
 };
 
-export interface UpstreamRequest {
+interface UpstreamRequest {
   url: string;
   method: string;
   headers: Record<string, string>;
@@ -119,7 +119,7 @@ export function buildUpstreamRequest(
   };
 }
 
-export interface CloudFetchResult {
+interface CloudFetchResult {
   status: number;
   statusText: string;
   headers: Record<string, string>;

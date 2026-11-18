@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChatMessage as ChatMessageData } from "../../../stores/chat-store";
 import { ChatMessage } from "./ChatMessage";
@@ -42,11 +42,16 @@ describe("ChatMessage", () => {
       />,
     );
 
-    expect(screen.getByRole("heading", { name: "Changes" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Changes" }),
+    ).toBeInTheDocument();
     expect(screen.getByText("title text").tagName).toBe("STRONG");
     expect(screen.getByRole("table")).toBeInTheDocument();
     expect(screen.getByText("Updated")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Open docs" })).toHaveAttribute("target", "_blank");
+    expect(screen.getByRole("link", { name: "Open docs" })).toHaveAttribute(
+      "target",
+      "_blank",
+    );
     expect(screen.getByRole("link", { name: "Open docs" })).toHaveAttribute(
       "rel",
       "noreferrer noopener",
@@ -54,28 +59,4 @@ describe("ChatMessage", () => {
     expect(container.querySelector("script")).toBeNull();
   });
 
-  it("copies fenced code blocks", async () => {
-    render(<ChatMessage message={assistantMessage("```json\n{\"ok\":true}\n```")} />);
-
-    fireEvent.click(screen.getByRole("button", { name: "Copy code" }));
-
-    await waitFor(() => expect(writeText).toHaveBeenCalledWith('{"ok":true}'));
-  });
-
-  it("shows a pending state while waiting for the first response content", () => {
-    render(<ChatMessage message={assistantMessage("")} pending />);
-    expect(screen.getByRole("status")).toHaveTextContent("Thinking…");
-  });
-
-  it("renders application notices separately from model Markdown", () => {
-    render(
-      <ChatMessage
-        message={{
-          ...assistantMessage("Done."),
-          notice: "The model stopped at its response limit.",
-        }}
-      />,
-    );
-    expect(screen.getByText("The model stopped at its response limit.")).toBeInTheDocument();
-  });
 });

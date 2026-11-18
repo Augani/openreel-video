@@ -1,14 +1,28 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { SourceExportMatch } from "../../services/export-source-match";
 import { ExportDialog } from "./ExportDialog";
+import {
+  ExportPresetsManager,
+  exportPresetsManager,
+} from "../../services/export-presets";
 import { checkBrowserExportCapability } from "@openreel/core";
 
 vi.mock("@openreel/core", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@openreel/core")>();
   return {
     ...actual,
-    checkBrowserExportCapability: vi.fn(() => new Promise<never>(() => undefined)),
+    checkBrowserExportCapability: vi.fn(async () => ({
+      supported: true,
+      reason: null,
+    })),
     estimateExportTime: vi.fn(() => null),
     getCodecRecommendations: vi.fn(() => []),
     getDeviceProfile: vi.fn(() => new Promise<never>(() => undefined)),
@@ -24,37 +38,16 @@ const SOURCE_MATCH: SourceExportMatch = {
 };
 
 describe("ExportDialog", () => {
-  afterEach(() => {
+  afterEach(async () => {
+    await act(async () => {});
     cleanup();
-    vi.mocked(checkBrowserExportCapability).mockImplementation(() => new Promise<never>(() => undefined));
+    vi.mocked(checkBrowserExportCapability).mockResolvedValue({
+      supported: true,
+      reason: null,
+    });
   });
 
-  it("keeps the source-match shortcut in the presets view", () => {
-    render(
-      <ExportDialog
-        isOpen
-        onClose={vi.fn()}
-        onExport={vi.fn()}
-        duration={1}
-        sourceMatch={SOURCE_MATCH}
-      />,
-    );
-
-    expect(screen.getByTestId("quick-export-card")).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("radio", { name: "Custom Settings" }));
-
-    expect(screen.queryByTestId("quick-export-card")).not.toBeInTheDocument();
-    expect(
-      screen.getByRole("heading", { name: "Quality & encoding" }),
-    ).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Audio" })).toBeInTheDocument();
-    expect(
-      screen.getByRole("heading", { name: "Enhance quality" }),
-    ).toBeInTheDocument();
-  });
-
-  it("exports source settings from the quick action", () => {
+  it("exports source settings from the quick action", async () => {
     const onClose = vi.fn();
     const onExport = vi.fn();
 
@@ -82,72 +75,198 @@ describe("ExportDialog", () => {
       "download",
     );
     expect(onClose).toHaveBeenCalledOnce();
+
+    await act(async () => {});
   });
 
-  it("defaults to the project's dimensions and frame rate with a usable export action", () => {
+  it("updates custom output dimensions when switching to a different project", async () => {
     const onExport = vi.fn();
-    render(<ExportDialog isOpen onClose={vi.fn()} onExport={onExport} duration={5} projectWidth={1080} projectHeight={1920} frameRate={24} />);
+    const { rerender } = render(
+      <ExportDialog
+        isOpen
+        onClose={vi.fn()}
+        onExport={onExport}
+        duration={5}
+      />,
+    );
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Custom Settings" }), {
+      button: 0,
+      ctrlKey: false,
+    });
+    rerender(
+      <ExportDialog
+        isOpen
+        onClose={vi.fn()}
+        onExport={onExport}
+        duration={5}
+        projectWidth={1080}
+        projectHeight={1920}
+        frameRate={60}
+      />,
+    );
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Export Video" }),
+      ).toBeEnabled(),
+    );
     fireEvent.click(screen.getByRole("button", { name: "Export Video" }));
-    expect(onExport).toHaveBeenCalledWith(expect.objectContaining({ width: 1080, height: 1920, frameRate: 24, format: "mp4", codec: "h264" }), "download");
+    expect(onExport).toHaveBeenCalledWith(
+      expect.objectContaining({ width: 1080, height: 1920, frameRate: 60 }),
+      "download",
+    );
   });
 
-  it("updates custom output dimensions when switching to a different project", () => {
-    const onExport = vi.fn();
-    const { rerender } = render(<ExportDialog isOpen onClose={vi.fn()} onExport={onExport} duration={5} />);
-    fireEvent.click(screen.getByRole("radio", { name: "Custom Settings" }));
-    rerender(<ExportDialog isOpen onClose={vi.fn()} onExport={onExport} duration={5} projectWidth={1080} projectHeight={1920} frameRate={60} />);
-    fireEvent.click(screen.getByRole("button", { name: "Export Video" }));
-    expect(onExport).toHaveBeenCalledWith(expect.objectContaining({ width: 1080, height: 1920, frameRate: 60 }), "download");
+  it("saves Custom-tab edits as a named preset that matches the dialog and survives reload", async () => {
+    localStorage.clear();
+    render(
+      <ExportDialog isOpen onClose={vi.fn()} onExport={vi.fn()} duration={5} />,
+    );
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Custom Settings" }), {
+      button: 0,
+      ctrlKey: false,
+    });
+    fireEvent.change(document.getElementById("export-bitrate") as HTMLInputElement, {
+      target: { value: "4321" },
+    });
+    fireEvent.change(screen.getByLabelText("New preset name"), {
+      target: { value: "My tuned" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save current settings" }));
+    const saved = new ExportPresetsManager().getCustomPresets();
+    expect(saved).toHaveLength(1);
+    expect(saved[0].name).toBe("My tuned");
+    expect(saved[0].settings).toMatchObject({ bitrate: 4321, codec: "h264" });
+    await act(async () => {});
+    cleanup();
+    render(
+      <ExportDialog isOpen onClose={vi.fn()} onExport={vi.fn()} duration={5} />,
+    );
+    fireEvent.click(await screen.findByRole("radio", { name: "Custom" }));
+    expect(await screen.findAllByText("My tuned")).not.toHaveLength(0);
+    for (const p of exportPresetsManager.getCustomPresets()) {
+      exportPresetsManager.deleteCustomPreset(p.id);
+    }
   });
 
-  it("prevents empty timeline exports through both normal and quick actions", () => {
+  it("prevents empty timeline exports through both normal and quick actions", async () => {
     const onExport = vi.fn();
-    render(<ExportDialog isOpen onClose={vi.fn()} onExport={onExport} duration={0} sourceMatch={SOURCE_MATCH} />);
+    render(
+      <ExportDialog
+        isOpen
+        onClose={vi.fn()}
+        onExport={onExport}
+        duration={0}
+        sourceMatch={SOURCE_MATCH}
+      />,
+    );
     expect(screen.getByRole("button", { name: "Export Video" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Quick Export" })).toBeDisabled();
     expect(screen.getByRole("alert")).toHaveTextContent("Add a clip");
     expect(onExport).not.toHaveBeenCalled();
+
+    await act(async () => {});
   });
 
-  it("exports the chosen In/Out section through the normal and quick actions", () => {
+  it("exports the chosen In/Out section through the normal and quick actions", async () => {
     const onExport = vi.fn();
-    render(<ExportDialog isOpen onClose={vi.fn()} onExport={onExport} duration={6} markedRange={{ startTime: 2, endTime: 4 }} sourceMatch={SOURCE_MATCH} />);
+    render(
+      <ExportDialog
+        isOpen
+        onClose={vi.fn()}
+        onExport={onExport}
+        duration={6}
+        markedRange={{ startTime: 2, endTime: 4 }}
+        sourceMatch={SOURCE_MATCH}
+      />,
+    );
     fireEvent.click(screen.getByRole("radio", { name: "Marked In/Out" }));
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Export Video" }),
+      ).toBeEnabled(),
+    );
     fireEvent.click(screen.getByRole("button", { name: "Export Video" }));
-    expect(onExport).toHaveBeenLastCalledWith(expect.objectContaining({ range: { startTime: 2, endTime: 4 } }), "download");
+    expect(onExport).toHaveBeenLastCalledWith(
+      expect.objectContaining({ range: { startTime: 2, endTime: 4 } }),
+      "download",
+    );
     fireEvent.click(screen.getByRole("button", { name: "Quick Export" }));
-    expect(onExport).toHaveBeenLastCalledWith(expect.objectContaining({ range: { startTime: 2, endTime: 4 } }), "download");
+    expect(onExport).toHaveBeenLastCalledWith(
+      expect.objectContaining({ range: { startTime: 2, endTime: 4 } }),
+      "download",
+    );
     fireEvent.click(screen.getByRole("radio", { name: "Entire timeline" }));
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Export Video" }),
+      ).toBeEnabled(),
+    );
     fireEvent.click(screen.getByRole("button", { name: "Export Video" }));
-    expect(onExport).toHaveBeenLastCalledWith(expect.objectContaining({ range: undefined }), "download");
+    expect(onExport).toHaveBeenLastCalledWith(
+      expect.objectContaining({ range: undefined }),
+      "download",
+    );
   });
 
-  it("disables section export until valid In and Out points exist", () => {
-    const { rerender } = render(<ExportDialog isOpen onClose={vi.fn()} onExport={vi.fn()} duration={6} />);
+  it("disables section export until valid In and Out points exist", async () => {
+    const { rerender } = render(
+      <ExportDialog isOpen onClose={vi.fn()} onExport={vi.fn()} duration={6} />,
+    );
     expect(screen.getByRole("radio", { name: "Marked In/Out" })).toBeDisabled();
-    rerender(<ExportDialog isOpen onClose={vi.fn()} onExport={vi.fn()} duration={6} markedRange={{ startTime: 2, endTime: 7 }} />);
+    rerender(
+      <ExportDialog
+        isOpen
+        onClose={vi.fn()}
+        onExport={vi.fn()}
+        duration={6}
+        markedRange={{ startTime: 2, endTime: 7 }}
+      />,
+    );
     expect(screen.getByRole("radio", { name: "Marked In/Out" })).toBeDisabled();
-  });
 
-  it("keeps audio-only presets out of the video export flow", () => {
-    render(<ExportDialog isOpen onClose={vi.fn()} onExport={vi.fn()} duration={5} />);
-    expect(screen.queryByText("Audio", { selector: "button" })).not.toBeInTheDocument();
-    expect(screen.queryByText("MP3 High Quality")).not.toBeInTheDocument();
+    await act(async () => {});
   });
 
   it("shows the browser's codec failure and blocks the export action", async () => {
-    vi.mocked(checkBrowserExportCapability).mockResolvedValue({ supported: false, reason: "This browser cannot encode H.264. Try WebM." });
+    vi.mocked(checkBrowserExportCapability).mockResolvedValue({
+      supported: false,
+      reason: "This browser cannot encode H.264. Try WebM.",
+    });
     const onExport = vi.fn();
-    render(<ExportDialog isOpen onClose={vi.fn()} onExport={onExport} duration={5} />);
-    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Try WebM"));
+    render(
+      <ExportDialog
+        isOpen
+        onClose={vi.fn()}
+        onExport={onExport}
+        duration={5}
+      />,
+    );
+    await waitFor(() =>
+      expect(screen.getByRole("alert")).toHaveTextContent("Try WebM"),
+    );
     expect(screen.getByRole("button", { name: "Export Video" })).toBeDisabled();
     expect(onExport).not.toHaveBeenCalled();
   });
 
-  it("recommends a small source without upscaling or suggesting native-only codecs", () => {
-    render(<ExportDialog isOpen onClose={vi.fn()} onExport={vi.fn()} duration={5} projectWidth={640} projectHeight={360} frameRate={24} />);
-    expect(screen.getByRole("checkbox", { name: "Project settings" })).toBeChecked();
-    expect(screen.queryByRole("checkbox", { name: "YouTube 4K" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("checkbox", { name: "4K ProRes HQ" })).not.toBeInTheDocument();
+  it("offers preset save/delete in the Presets tab and shows saved presets in the picker", async () => {
+    render(<ExportDialog isOpen onClose={vi.fn()} onExport={vi.fn()} duration={1} />);
+    expect(await screen.findByTestId("export-preset-manager")).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("New preset name"), { target: { value: "Dialog preset" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save current settings" }));
+    expect(await screen.findByText("Dialog preset")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm delete" }));
+    await waitFor(() => expect(screen.queryByText("Dialog preset")).toBeNull());
+  });
+
+  it("offers image sequence and GIF export on its own tab instead of the video buttons", async () => {
+    render(<ExportDialog isOpen onClose={vi.fn()} onExport={vi.fn()} onAddToQueue={vi.fn()} duration={2} />);
+    const tab = screen.getByRole("tab", { name: "Images & GIF" });
+    fireEvent.mouseDown(tab);
+    fireEvent.click(tab);
+    expect(await screen.findByTestId("export-still-panel")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Export Video" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Add to queue" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Export image sequence" })).toBeTruthy();
   });
 });

@@ -1,10 +1,10 @@
 import type { AutomationPoint } from "../types/timeline";
 import { clampVolume } from "./volume-automation";
 
-const sanitizePoints = (
+export const sanitizeVolumeAutomationPoints = (
   points: readonly AutomationPoint[] | undefined,
-): AutomationPoint[] =>
-  (points ?? [])
+): AutomationPoint[] => {
+  const sorted = (points ?? [])
     .filter(
       (point) =>
         Number.isFinite(point.time) &&
@@ -16,6 +16,10 @@ const sanitizePoints = (
       value: clampVolume(point.value),
     }))
     .sort((left, right) => left.time - right.time);
+  // WebAudio schedules the last value at coincident times. Seeking and
+  // fragment boundaries must resolve that same value rather than the first.
+  return sorted.filter((point, index) => sorted[index + 1]?.time !== point.time);
+};
 
 const getAutomationValueAtTime = (
   points: readonly AutomationPoint[],
@@ -26,20 +30,16 @@ const getAutomationValueAtTime = (
     return baseVolume;
   }
 
-  let previous: AutomationPoint | null = null;
+  let previous: AutomationPoint = { time: 0, value: baseVolume };
 
   for (const point of points) {
-    if (Math.abs(point.time - time) <= 0.0001) {
+    if (point.time === time) {
       return point.value;
     }
 
     if (point.time > time) {
-      if (!previous) {
-        return baseVolume;
-      }
-
       const span = point.time - previous.time;
-      if (span <= 0.0001) {
+      if (span <= 0) {
         return point.value;
       }
 
@@ -52,7 +52,7 @@ const getAutomationValueAtTime = (
     previous = point;
   }
 
-  return previous ? previous.value : baseVolume;
+  return previous.value;
 };
 
 export const getVolumeAutomationPointsForRange = (
@@ -61,7 +61,7 @@ export const getVolumeAutomationPointsForRange = (
   clipDuration: number,
   baseVolume: number,
 ): AutomationPoint[] => {
-  const sanitizedPoints = sanitizePoints(points);
+  const sanitizedPoints = sanitizeVolumeAutomationPoints(points);
   const clampedBaseVolume = clampVolume(baseVolume);
 
   if (clipDuration <= 0 || sanitizedPoints.length === 0) {
@@ -105,7 +105,7 @@ export const getVolumeAutomationPointsForRange = (
 
   for (const point of result) {
     const lastPoint = deduped[deduped.length - 1];
-    if (lastPoint && Math.abs(lastPoint.time - point.time) <= 0.0001) {
+    if (lastPoint && lastPoint.time === point.time) {
       deduped[deduped.length - 1] = point;
       continue;
     }

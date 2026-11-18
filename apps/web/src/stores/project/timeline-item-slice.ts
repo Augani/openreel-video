@@ -1,4 +1,5 @@
 import { cloneProjectForEdit } from "./clone-project-for-edit";
+import { dragPlacementPolicy } from "./drag-placement";
 import { v4 as uuidv4 } from "uuid";
 import type { StoreApi } from "zustand";
 import type { Action, ActionResult } from "@openreel/core";
@@ -8,12 +9,13 @@ import {
   withUniversalTracksCapability,
 } from "@openreel/core";
 import type { ProjectState } from "../project-store";
+import { mediaDisplayDuration } from "@openreel/core";
 import type { ProjectStoreHelpers } from "./store-helpers";
 
 type Get = StoreApi<ProjectState>["getState"];
 type Set = StoreApi<ProjectState>["setState"];
 
-export type TimelineItemSlice = Pick<
+type TimelineItemSlice = Pick<
   ProjectState,
   "placeMediaClip" | "moveTimelineItem"
 >;
@@ -62,8 +64,8 @@ export function createTimelineItemSlice(
       );
       if (!mediaItem) return failure("INVALID_PARAMS", "Media item not found");
 
-      const duration =
-        mediaItem.metadata.duration > 0 ? mediaItem.metadata.duration : 5;
+      const mediaLength = mediaDisplayDuration(mediaItem);
+      const duration = mediaLength > 0 ? mediaLength : 5;
       const newTrackId = uuidv4();
       const placement = targetTrackId
         ? resolveTimelinePlacement(project, {
@@ -138,7 +140,7 @@ export function createTimelineItemSlice(
         targetTrackId: requestedTrackId,
         startTime,
         duration: resolved.duration,
-        policy: targetTrackId ? "stack-above" : "gap",
+        policy: targetTrackId ? dragPlacementPolicy() : "gap",
         excludeItemIds: [itemId],
         newTrackId: uuidv4(),
       });

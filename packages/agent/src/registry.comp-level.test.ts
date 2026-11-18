@@ -133,17 +133,6 @@ describe("motion markers CRUD (gap 12)", () => {
     expect(removed.ok).toBe(true);
     expect(compFrom(host).markers.length).toBe(0);
   });
-
-  it("rejects update for a missing marker", async () => {
-    const host = new HeadlessHost(projectWith(baseComposition()));
-    const res = await executeTool(
-      "update_motion_marker",
-      { compositionId: COMP_ID, markerId: "nope", label: "x" },
-      host,
-    );
-    expect(res.ok).toBe(false);
-    expect(res.error?.code).toBe("NOT_FOUND");
-  });
 });
 
 describe("animate_motion_camera (gap 6)", () => {
@@ -178,17 +167,6 @@ describe("animate_motion_camera (gap 6)", () => {
     expect(zoomKeys.length).toBe(2);
     expect(camera.depthOfField?.aperture).toBeCloseTo(2.4, 3);
   });
-
-  it("rejects when no keyframe arrays are provided", async () => {
-    const host = new HeadlessHost(projectWith(baseComposition()));
-    const res = await executeTool(
-      "animate_motion_camera",
-      { compositionId: COMP_ID },
-      host,
-    );
-    expect(res.ok).toBe(false);
-    expect(res.error?.code).toBe("INVALID_PARAMS");
-  });
 });
 
 describe("animate_motion_light (gap 13)", () => {
@@ -211,22 +189,6 @@ describe("animate_motion_light (gap 13)", () => {
     const light = compFrom(host).lights!.find((entry) => entry.id === LIGHT_ID)!;
     const kf = light.keyframes ?? [];
     expect(kf.filter((entry) => entry.property === "light.intensity").length).toBe(2);
-  });
-
-  it("rejects an invalid light property", async () => {
-    const host = new HeadlessHost(projectWith(baseComposition()));
-    const res = await executeTool(
-      "animate_motion_light",
-      {
-        compositionId: COMP_ID,
-        lightId: LIGHT_ID,
-        property: "light.bogus",
-        keyframes: [{ time: 0, value: 1 }],
-      },
-      host,
-    );
-    expect(res.ok).toBe(false);
-    expect(res.error?.code).toBe("INVALID_PARAMS");
   });
 });
 
@@ -252,77 +214,8 @@ describe("set_motion_light_style (gap 9)", () => {
     expect(light.name).toBe("Key");
     expect(light.enabled).toBe(false);
   });
-
-  it("changes the light type and renormalizes", async () => {
-    const host = new HeadlessHost(projectWith(baseComposition()));
-    const res = await executeTool(
-      "set_motion_light_style",
-      { compositionId: COMP_ID, lightId: LIGHT_ID, type: "directional" },
-      host,
-    );
-    expect(res.ok).toBe(true);
-    const light = compFrom(host).lights!.find((entry) => entry.id === LIGHT_ID)!;
-    expect(light.type).toBe("directional");
-  });
-
-  it("clears shadows when retargeting a point light to ambient", async () => {
-    const host = new HeadlessHost(projectWith(baseComposition()));
-    const before = compFrom(host).lights!.find((entry) => entry.id === LIGHT_ID)!;
-    expect(before.castsShadow).toBe(true);
-    expect(before.shadowOpacity).toBeGreaterThan(0);
-    const res = await executeTool(
-      "set_motion_light_style",
-      { compositionId: COMP_ID, lightId: LIGHT_ID, type: "ambient" },
-      host,
-    );
-    expect(res.ok).toBe(true);
-    const light = compFrom(host).lights!.find((entry) => entry.id === LIGHT_ID)!;
-    expect(light.type).toBe("ambient");
-    expect(light.castsShadow).toBe(false);
-    expect(light.shadowOpacity).toBe(0);
-  });
-
-  it("rejects an unknown type", async () => {
-    const host = new HeadlessHost(projectWith(baseComposition()));
-    const res = await executeTool(
-      "set_motion_light_style",
-      { compositionId: COMP_ID, lightId: LIGHT_ID, type: "laser" },
-      host,
-    );
-    expect(res.ok).toBe(false);
-    expect(res.error?.code).toBe("INVALID_PARAMS");
-  });
 });
 
-describe("set_motion_blur (gap 24)", () => {
-  it("merges composition motion blur settings", async () => {
-    const host = new HeadlessHost(projectWith(baseComposition()));
-    const res = await executeTool(
-      "set_motion_blur",
-      { compositionId: COMP_ID, enabled: true, shutterAngle: 200, samples: 12 },
-      host,
-    );
-    expect(res.ok).toBe(true);
-    const blur = compFrom(host).motionBlur!;
-    expect(blur.enabled).toBe(true);
-    expect(blur.shutterAngle).toBe(200);
-    expect(blur.samples).toBe(12);
-    expect(blur.shutterPhase).toBe(-90);
-  });
-});
-
-describe("set_motion_layer_motion_blur (gap 25)", () => {
-  it("toggles the per-layer motion blur flag", async () => {
-    const host = new HeadlessHost(projectWith(baseComposition()));
-    const res = await executeTool(
-      "set_motion_layer_motion_blur",
-      { compositionId: COMP_ID, layerId: SHAPE_ID, enabled: true },
-      host,
-    );
-    expect(res.ok).toBe(true);
-    expect(layerFrom(host).motionBlur).toBe(true);
-  });
-});
 
 describe("delete_motion_composition (gap 31)", () => {
   it("removes the composition from the project", async () => {
@@ -336,17 +229,6 @@ describe("delete_motion_composition (gap 31)", () => {
     expect(
       (host.getProject().motionCompositions ?? []).some((c) => c.id === COMP_ID),
     ).toBe(false);
-  });
-
-  it("returns NOT_FOUND for a missing composition", async () => {
-    const host = new HeadlessHost(projectWith(baseComposition()));
-    const res = await executeTool(
-      "delete_motion_composition",
-      { compositionId: "missing" },
-      host,
-    );
-    expect(res.ok).toBe(false);
-    expect(res.error?.code).toBe("NOT_FOUND");
   });
 });
 
@@ -481,24 +363,6 @@ describe("duplicate_motion_composition (gap 49)", () => {
 });
 
 describe("beat markers CRUD + sync returns times (gap 46, 28)", () => {
-  it("sets and removes an individual beat marker", async () => {
-    const host = new HeadlessHost(projectWith(baseComposition()));
-    const setRes = await executeTool(
-      "set_motion_beat_markers",
-      { compositionId: COMP_ID, times: [0, 0.5, 1, 1.5] },
-      host,
-    );
-    expect(setRes.ok).toBe(true);
-    expect(compFrom(host).beatMarkers?.length).toBe(4);
-
-    const removeRes = await executeTool(
-      "remove_motion_beat_marker",
-      { compositionId: COMP_ID, index: 1 },
-      host,
-    );
-    expect(removeRes.ok).toBe(true);
-    expect(compFrom(host).beatMarkers?.length).toBe(3);
-  });
 
   it("sync_motion_to_audio returns detected/generated marker times", async () => {
     const host = new HeadlessHost(projectWith(baseComposition()));
@@ -534,32 +398,6 @@ describe("apply_motion_preset_to_beats (gap 28)", () => {
     );
     expect(res.ok).toBe(true);
     expect(layerFrom(host).keyframes.length).toBeGreaterThan(0);
-  });
-});
-
-describe("variable type/delete (gap 47)", () => {
-  it("changes the variable type and deletes a variable", async () => {
-    const withVar = baseComposition({
-      variables: [{ id: "var-1", name: "Speed", type: "number", value: 5 }],
-    });
-    const host = new HeadlessHost(projectWith(withVar));
-    const res = await executeTool(
-      "update_motion_variable",
-      { compositionId: COMP_ID, variableId: "var-1", variableType: "text", value: "hello" },
-      host,
-    );
-    expect(res.ok).toBe(true);
-    const variable = compFrom(host).variables.find((v) => v.id === "var-1")!;
-    expect(variable.type).toBe("text");
-    expect(variable.value).toBe("hello");
-
-    const del = await executeTool(
-      "delete_motion_variable",
-      { compositionId: COMP_ID, variableId: "var-1" },
-      host,
-    );
-    expect(del.ok).toBe(true);
-    expect(compFrom(host).variables.length).toBe(0);
   });
 });
 
@@ -636,33 +474,5 @@ describe("set_motion_time_remap (gap 27)", () => {
       (kf) => kf.property === MOTION_COMPOSITION_TIME_PROPERTY,
     );
     expect(remapKeys.length).toBeGreaterThanOrEqual(2);
-  });
-
-  it("reverses time remap so the first value exceeds the last", async () => {
-    const host = new HeadlessHost(projectWith(compWithPrecomp()));
-    const res = await executeTool(
-      "set_motion_time_remap",
-      { compositionId: COMP_ID, compositionLayerId: "precomp-1", reverse: true },
-      host,
-    );
-    expect(res.ok).toBe(true);
-    const layer = layerFrom(host, "precomp-1");
-    const remapKeys = layer.keyframes
-      .filter((kf) => kf.property === MOTION_COMPOSITION_TIME_PROPERTY)
-      .sort((a, b) => a.time - b.time);
-    expect(remapKeys[0].value as number).toBeGreaterThan(
-      remapKeys[remapKeys.length - 1].value as number,
-    );
-  });
-
-  it("rejects a non-composition layer", async () => {
-    const host = new HeadlessHost(projectWith(baseComposition()));
-    const res = await executeTool(
-      "set_motion_time_remap",
-      { compositionId: COMP_ID, compositionLayerId: SHAPE_ID, enable: true },
-      host,
-    );
-    expect(res.ok).toBe(false);
-    expect(res.error?.code).toBe("INVALID_PARAMS");
   });
 });

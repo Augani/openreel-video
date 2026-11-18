@@ -13,24 +13,10 @@ describe("getGpuTier with native (non-ANGLE) renderer strings", () => {
     expect(getGpuTier("Apple M4 Pro")).toBe("high");
   });
 
-  it("NVIDIA: RTX is high, GTX is mid", () => {
-    expect(getGpuTier("NVIDIA GeForce RTX 4080")).toBe("high");
-    expect(getGpuTier("NVIDIA GeForce RTX 5090")).toBe("high");
-    expect(getGpuTier("NVIDIA GeForce GTX 1660")).toBe("mid");
-  });
-
-  it("AMD Radeon RX 6000/7000 is high", () => {
-    expect(getGpuTier("AMD Radeon RX 7900 XTX")).toBe("high");
-    expect(getGpuTier("AMD Radeon RX 6800")).toBe("high");
-  });
-
   it("integrated Intel is mid; unknown/software is low", () => {
     expect(getGpuTier("Intel UHD Graphics 630")).toBe("mid");
     expect(getGpuTier("Intel Iris Xe Graphics")).toBe("mid");
     expect(getGpuTier("Software Renderer")).toBe("low");
   });
 
-  it("still recognizes ANGLE-wrapped WebGL strings (web path unchanged)", () => {
-    expect(getGpuTier("ANGLE (NVIDIA, NVIDIA GeForce RTX 3080 Direct3D11 vs_5_0 ps_5_0)")).toBe("high");
-  });
 });

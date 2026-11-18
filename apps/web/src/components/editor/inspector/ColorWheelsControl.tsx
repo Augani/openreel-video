@@ -1,18 +1,9 @@
 import React, { useCallback, useRef, useMemo } from "react";
-import { ToolcraftButton as Button } from "@openreel/ui";
-import { ToolcraftText as Text } from "@openreel/ui";
+import { Button } from "@openreel/ui";
+
 import { RotateCcw } from "@/icons/lucide-compat";
 import { PropertySlider } from "./shell/PropertySlider";
 import type { ColorWheelValues } from "@openreel/core";
-
-export const DEFAULT_COLOR_WHEEL_VALUES: ColorWheelValues = {
-  shadows: { r: 0, g: 0, b: 0 },
-  midtones: { r: 0, g: 0, b: 0 },
-  highlights: { r: 0, g: 0, b: 0 },
-  shadowsLift: 0,
-  midtonesGamma: 1,
-  highlightsGain: 1,
-};
 
 interface ColorWheelsControlProps {
   values: ColorWheelValues;
@@ -79,8 +70,8 @@ const ColorWheel: React.FC<ColorWheelProps> = ({
     const angle = Math.atan2(y, x);
 
     return {
-      x: Math.cos(angle) * saturation * 44,
-      y: Math.sin(angle) * saturation * 44,
+      x: Math.cos(angle) * saturation * 46,
+      y: Math.sin(angle) * saturation * 46,
       saturation: Math.min(saturation, 1),
     };
   }, [color.r, color.b]);
@@ -139,13 +130,13 @@ const ColorWheel: React.FC<ColorWheelProps> = ({
   }, [onReset]);
 
   return (
-    <div className="flex flex-col items-center gap-2">
-      <Text type="supporting" color="secondary" className="text-[10px] uppercase tracking-wider font-medium">
+    <div className="flex min-w-0 flex-col items-center gap-2">
+      <span className="max-w-full truncate text-fg-2 text-[10px] uppercase tracking-wider font-medium">
         {label}
-      </Text>
+      </span>
       <div
         ref={wheelRef}
-        className="w-24 h-24 rounded-full relative cursor-crosshair shadow-inner"
+        className="aspect-square w-full max-w-24 rounded-full relative cursor-crosshair shadow-inner"
         style={{
           background: `conic-gradient(
  from 90deg,
@@ -174,8 +165,8 @@ const ColorWheel: React.FC<ColorWheelProps> = ({
         <div
           className="absolute w-4 h-4 border-2 border-white rounded-full shadow-md pointer-events-none z-10"
           style={{
-            left: `calc(50% + ${getPositionFromColor.x}px - 8px)`,
-            top: `calc(50% + ${getPositionFromColor.y}px - 8px)`,
+            left: `calc(${50 + getPositionFromColor.x}% - 8px)`,
+            top: `calc(${50 + getPositionFromColor.y}% - 8px)`,
             backgroundColor:
               getPositionFromColor.saturation > 0.1
                 ? `rgb(${128 + color.r * 127}, ${128 + color.g * 127}, ${
@@ -263,19 +254,15 @@ export const ColorWheelsControl: React.FC<ColorWheelsControlProps> = ({
       {/* Reset All Button */}
       {onReset && (
         <div className="flex justify-end">
-          <Button
-            label="Reset"
-            icon={<RotateCcw size={10} />}
-            variant="ghost"
-            size="sm"
-            onClick={onReset}
-            className="flex items-center gap-1 px-2 py-1 text-[10px] text-fg-3 hover:text-fg transition-colors"
-          />
+          <Button onClick={onReset} type="button" aria-label="Reset" className="min-w-0 justify-center rounded-[7px] font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 bg-transparent hover:bg-bg-2 flex items-center gap-1 px-2 py-1 text-[10px] text-fg-3 hover:text-fg transition-colors">
+            <span className="flex h-4 w-4 shrink-0 items-center justify-center">{<RotateCcw size={10} />}</span>
+            <span className="truncate">{"Reset"}</span>
+          </Button>
         </div>
       )}
 
       {/* Color Wheels Row */}
-      <div className="flex justify-around items-start">
+      <div className="grid grid-cols-3 items-start gap-2" data-testid="color-wheels-row">
         <ColorWheel
           label="Shadows"
           color={values.shadows}
@@ -327,4 +314,3 @@ export const ColorWheelsControl: React.FC<ColorWheelsControlProps> = ({
   );
 };
 
-export default ColorWheelsControl;

@@ -19,10 +19,10 @@ import type {
 import { DEFAULT_MOTION_TRANSFORM } from "./types";
 import { getMotionLayerVisualBounds } from "./motion-masks";
 
-export type MotionUiFillType = "solid" | "gradient" | "none";
-export type MotionUiGradientType = "linear" | "radial";
+type MotionUiFillType = "solid" | "gradient" | "none";
+type MotionUiGradientType = "linear" | "radial";
 
-export interface MotionUiGradientSpec {
+interface MotionUiGradientSpec {
   readonly type?: MotionUiGradientType;
   readonly angle?: number;
   readonly stops: readonly { readonly offset: number; readonly color: string }[];
@@ -69,7 +69,7 @@ const finiteOr = (value: unknown, fallback: number): number =>
 const clamp = (value: number, min: number, max: number): number =>
   Math.min(max, Math.max(min, value));
 
-export function buildMotionGradientStops(
+function buildMotionGradientStops(
   stops: readonly { readonly offset: number; readonly color: string }[] | undefined,
 ): GradientStop[] {
   const normalized = (stops ?? [])
@@ -130,7 +130,7 @@ export function buildMotionFillStyle(
   };
 }
 
-export function buildMotionStrokeStyle(
+function buildMotionStrokeStyle(
   spec: MotionUiStrokeSpec | undefined,
   fallback: StrokeStyle = DEFAULT_SHAPE_STYLE.stroke,
 ): StrokeStyle {
@@ -201,7 +201,7 @@ export interface MotionUiTextStyleSpec {
   readonly letterSpacing?: number;
 }
 
-export function buildMotionTextStyle(
+function buildMotionTextStyle(
   spec: MotionUiTextStyleSpec | undefined,
 ): MotionTextLayer["style"] {
   return {
@@ -271,7 +271,7 @@ function buildBaseTransform(
   };
 }
 
-export function buildMotionUiLayer(
+function buildMotionUiLayer(
   spec: MotionUiLayerSpec,
   context: BuildMotionUiLayerContext,
 ): MotionLayer {
@@ -345,7 +345,7 @@ export function buildMotionUiLayer(
   }
 }
 
-export interface BuildMotionUiLayersResult {
+interface BuildMotionUiLayersResult {
   readonly layers: readonly MotionLayer[];
   readonly keyToId: Readonly<Record<string, string>>;
 }
@@ -382,10 +382,10 @@ export function buildMotionUiLayers(
   return { layers, keyToId };
 }
 
-export type MotionUiStackDirection = "vertical" | "horizontal";
-export type MotionUiStackAlign = "start" | "center" | "end";
+type MotionUiStackDirection = "vertical" | "horizontal";
+type MotionUiStackAlign = "start" | "center" | "end";
 
-export interface ArrangeMotionStackOptions {
+interface ArrangeMotionStackOptions {
   readonly direction: MotionUiStackDirection;
   readonly gap?: number;
   readonly align?: MotionUiStackAlign;
@@ -393,7 +393,7 @@ export interface ArrangeMotionStackOptions {
   readonly originY?: number;
 }
 
-export interface ArrangeMotionGridOptions {
+interface ArrangeMotionGridOptions {
   readonly columns: number;
   readonly gap?: number;
   readonly rowGap?: number;
@@ -737,7 +737,7 @@ export interface MotionUiComponentProps {
   readonly duration?: number;
 }
 
-export interface BuildMotionUiComponentResult {
+interface BuildMotionUiComponentResult {
   readonly layers: readonly MotionLayer[];
   readonly groupId: string;
   readonly childIds: readonly string[];

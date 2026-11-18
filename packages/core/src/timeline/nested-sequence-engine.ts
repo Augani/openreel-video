@@ -1,9 +1,14 @@
-import type { Clip, Track, Transform } from "../types/timeline";
+import type { AudioBus, Clip, Subtitle, Track, Transform } from "../types/timeline";
+import type { ProjectSettings } from "../types/project";
 
-export interface CompoundClipContent {
+interface CompoundClipContent {
   clips: Clip[];
   tracks: Track[];
   duration: number;
+  /** Captions of the nested sequence (its own clock). Optional: absent on legacy compounds. */
+  subtitles?: Subtitle[];
+  /** The nested sequence's submix buses (its Audio Track Mixer), when it has any. */
+  audioBuses?: AudioBus[];
 }
 
 export interface CompoundClip {
@@ -13,6 +18,8 @@ export interface CompoundClip {
   createdAt: number;
   modifiedAt: number;
   color: string;
+  /** The nested sequence's own size / frame rate / sample rate. Absent on legacy compounds (parent settings apply). */
+  settings?: ProjectSettings;
 }
 
 export interface CompoundClipInstance {
@@ -27,12 +34,12 @@ export interface CompoundClipInstance {
   volume: number;
 }
 
-export interface CreateCompoundClipOptions {
+interface CreateCompoundClipOptions {
   name?: string;
   color?: string;
 }
 
-export interface FlattenResult {
+interface FlattenResult {
   clips: Clip[];
   trackId: string;
   startTime: number;
@@ -316,8 +323,4 @@ export function getNestedSequenceEngine(): NestedSequenceEngine {
     nestedSequenceEngineInstance = new NestedSequenceEngine();
   }
   return nestedSequenceEngineInstance;
-}
-
-export function resetNestedSequenceEngine(): void {
-  nestedSequenceEngineInstance = null;
 }

@@ -14,7 +14,7 @@ import { blenderCandidates, isExecutable } from "./blender-path";
 const execFileAsync = promisify(execFile);
 const RIG_JOB_TIMEOUT_MS = 180_000;
 
-export function parseBlenderVersion(output: string): string | null {
+function parseBlenderVersion(output: string): string | null {
   const match = output.match(/Blender\s+([0-9]+(?:\.[0-9]+){1,2})/i);
   return match?.[1] ?? null;
 }

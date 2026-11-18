@@ -8,6 +8,8 @@ import React, {
 import { useTimelineTouchGesture, listenTimelineGesture } from "./touch-gestures";
 import { formatTimecode } from "./utils";
 import { TimelineRange } from "./TimelineRange";
+import { MarkerIndicator } from "./MarkerIndicator";
+import type { Marker } from "@openreel/core";
 import {
   getBeatSyncBridge,
   type BeatSyncState,
@@ -24,6 +26,15 @@ interface TimeRulerProps {
   snapPoints?: number[];
   rangeDuration?: number;
   frameRate?: number;
+  phone?: boolean;
+  markers?: readonly Marker[];
+  selectedMarkerId?: string | null;
+  /** Alt-drag on the ruler: a range from `start` to `end` seconds (a click without dragging gives start === end). */
+  onCreateRangeMarker?: (start: number, end: number) => void;
+  onMarkerSelect?: (markerId: string) => void;
+  onMarkerEdit?: (markerId: string) => void;
+  onMarkerRemove?: (markerId: string) => void;
+  onMarkerUpdate?: (markerId: string, updates: Partial<Marker>) => void;
 }
 
 export const TimeRuler: React.FC<TimeRulerProps> = ({
@@ -36,10 +47,19 @@ export const TimeRuler: React.FC<TimeRulerProps> = ({
   snapPoints,
   rangeDuration = 0,
   frameRate = 30,
+  phone = false,
+  markers,
+  selectedMarkerId,
+  onCreateRangeMarker,
+  onMarkerSelect,
+  onMarkerEdit,
+  onMarkerRemove,
+  onMarkerUpdate,
 }) => {
   const touchGesture = useTimelineTouchGesture();
   const rulerRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [rangeDraft, setRangeDraft] = useState<{ start: number; end: number } | null>(null);
   const [beatState, setBeatState] = useState<BeatSyncState>(() =>
     getBeatSyncBridge().getState(),
   );
@@ -65,6 +85,7 @@ export const TimeRuler: React.FC<TimeRulerProps> = ({
   }, [beatState.beatMarkers, visibleStart, visibleEnd]);
 
   const getTickConfig = () => {
+    if (phone && safePixelsPerSecond <= 40 && safePixelsPerSecond > 15) return { minor: 2, major: 2, labelEvery: 2 };
     if (safePixelsPerSecond > 500) {
       return { minor: 0.01, major: 0.1, labelEvery: 0.5 };
     }
@@ -103,15 +124,11 @@ export const TimeRuler: React.FC<TimeRulerProps> = ({
     ticks.push({ time: roundedTime, isMajor, showLabel });
   }
 
-  const scrollXRef = useRef(scrollX);
-  scrollXRef.current = scrollX;
-
   const getTimeFromEvent = useCallback(
     (e: MouseEvent | React.MouseEvent) => {
-      const grandparent = rulerRef.current?.parentElement?.parentElement;
-      if (!grandparent) return 0;
-      const rect = grandparent.getBoundingClientRect();
-      const x = e.clientX - rect.left + scrollXRef.current;
+      const ruler = rulerRef.current;
+      if (!ruler) return 0;
+      const x = e.clientX - ruler.getBoundingClientRect().left;
       return Math.max(0, x / safePixelsPerSecond);
     },
     [safePixelsPerSecond],
@@ -122,12 +139,35 @@ export const TimeRuler: React.FC<TimeRulerProps> = ({
       if (touchGesture.shouldIgnoreMouse(e) || e.button !== 0) return false;
       e.preventDefault();
       e.stopPropagation();
+      if (e.altKey && onCreateRangeMarker) {
+        const start = getTimeFromEvent(e);
+        const frame = 1 / Math.max(1, frameRate);
+        const snap = (t: number) => Math.max(0, Math.round(t / frame) * frame);
+        let end = start;
+        setRangeDraft({ start: snap(start), end: snap(end) });
+        const onMove = (move: MouseEvent) => {
+          end = getTimeFromEvent(move);
+          setRangeDraft({ start: snap(start), end: snap(end) });
+        };
+        const onUp = () => {
+          window.removeEventListener("mousemove", onMove);
+          window.removeEventListener("mouseup", onUp);
+          setRangeDraft(null);
+          const a = snap(Math.min(start, end));
+          const b = snap(Math.max(start, end));
+          const tooSmall = (b - a) * safePixelsPerSecond < 3;
+          onCreateRangeMarker(a, tooSmall ? a : b);
+        };
+        window.addEventListener("mousemove", onMove);
+        window.addEventListener("mouseup", onUp);
+        return;
+      }
       setIsDragging(true);
       onScrubStart?.();
       const time = getTimeFromEvent(e);
       onSeek(time);
     },
-    [getTimeFromEvent, onSeek, onScrubStart, touchGesture],
+    [getTimeFromEvent, onSeek, onScrubStart, touchGesture, onCreateRangeMarker, frameRate, safePixelsPerSecond],
   );
 
   const snapPointsRef = useRef(snapPoints);
@@ -211,7 +251,7 @@ export const TimeRuler: React.FC<TimeRulerProps> = ({
       ref={rulerRef}
       data-timeline-ruler
       onPointerDown={(event) => touchGesture.start(event, handleMouseDown)}
-      className={`h-[44px] border-b border-border relative bg-bg-1 select-none ${
+      className={`workspace-time-ruler h-[26px] border-b border-border relative bg-bg-1 select-none ${
         isDragging ? "cursor-grabbing" : "cursor-pointer"
       }`}
       onMouseDown={handleMouseDown}
@@ -222,12 +262,41 @@ export const TimeRuler: React.FC<TimeRulerProps> = ({
         tick.showLabel && tick.time >= 0 ? (
           <span
             key={`tick-${tick.time}`}
-            className="absolute top-[9px] text-[11px] font-medium text-fg-muted whitespace-nowrap pointer-events-none"
-            style={{ left: `${tick.time * safePixelsPerSecond + 6}px` }}
+            className="absolute top-[4px] text-[10px] font-medium text-fg-muted whitespace-nowrap pointer-events-none"
+            style={{ left: `${tick.time * safePixelsPerSecond + (phone ? -12 : 6)}px` }}
           >
-            {formatTimecode(Math.max(0, tick.time)).slice(3, 8)}
+            {phone ? `${Math.floor(tick.time / 60)}:${String(Math.floor(tick.time % 60)).padStart(2, "0")}` : formatTimecode(Math.max(0, tick.time), frameRate)}
           </span>
         ) : null,
+      )}
+
+      {markers?.map((marker) => (
+        <MarkerIndicator
+          key={marker.id}
+          variant="ruler"
+          marker={marker}
+          pixelsPerSecond={safePixelsPerSecond}
+          scrollX={0}
+          frameRate={frameRate}
+          selected={selectedMarkerId === marker.id}
+          onSeek={onSeek}
+          onSelect={onMarkerSelect}
+          onEdit={onMarkerEdit}
+          onRemove={onMarkerRemove}
+          onUpdate={onMarkerUpdate}
+        />
+      ))}
+
+      {rangeDraft && (
+        <div
+          aria-hidden="true"
+          data-testid="marker-range-draft"
+          className="pointer-events-none absolute bottom-0 z-10 h-[10px] rounded-[2px] bg-accent/70"
+          style={{
+            left: `${Math.min(rangeDraft.start, rangeDraft.end) * safePixelsPerSecond}px`,
+            width: `${Math.abs(rangeDraft.end - rangeDraft.start) * safePixelsPerSecond}px`,
+          }}
+        />
       )}
 
       {visibleBeatMarkers.map((marker) => (

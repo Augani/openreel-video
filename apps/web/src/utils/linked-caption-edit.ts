@@ -16,18 +16,21 @@ export function getLinkedCaptions(
   store: Pick<LinkedCaptionEditStore, "project" | "getAllTextClips">,
   sourceClip: Clip,
 ): TextClip[] {
-  const sourceTrack = store.project.timeline.tracks.find(
-    (track) => track.id === sourceClip.trackId,
-  );
+  const tracks = new Map(store.project.timeline.tracks.map(track => [track.id, track]));
+  const sourceTrack = tracks.get(sourceClip.trackId);
+  const root = typeof sourceClip.metadata?.splitSourceClipId === "string" ? sourceClip.metadata.splitSourceClipId : sourceClip.id;
+  const split = root !== sourceClip.id || store.project.timeline.tracks.some(track => (track.clips ?? []).some(clip => clip.id !== sourceClip.id && clip.metadata?.splitSourceClipId === root));
   const start = sourceClip.startTime;
   const end = sourceClip.startTime + sourceClip.duration;
 
   return store.getAllTextClips().filter((caption) => {
-    const captionTrack = store.project.timeline.tracks.find(
-      (track) => track.id === caption.trackId,
-    );
+    const captionTrack = tracks.get(caption.trackId);
     if (captionTrack?.locked) return false;
-    if (caption.metadata?.captionSourceClipId === sourceClip.id) return true;
+    const source = caption.metadata?.captionSourceClipId;
+    if (typeof source === "string") {
+      if (source !== sourceClip.id && source !== root) return false;
+      return !split || (caption.startTime < end - EPSILON && caption.startTime + caption.duration > start + EPSILON);
+    }
     if (!sourceTrack?.groupId) return false;
     if (captionTrack?.groupId !== sourceTrack.groupId) return false;
     const captionEnd = caption.startTime + caption.duration;

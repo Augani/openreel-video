@@ -1,6 +1,6 @@
 import type { EasingType } from "../types/timeline";
 
-export interface SpeedCurvePreset {
+interface SpeedCurvePreset {
   readonly id: string;
   readonly name: string;
   readonly description: string;

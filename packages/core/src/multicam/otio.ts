@@ -1,7 +1,7 @@
 import type { MulticamManifest } from "./manifest";
 import type { MulticamShotPlan } from "./shot-planner";
 
-export interface OtioSerializable {
+interface OtioSerializable {
   OTIO_SCHEMA: string;
   [key: string]: unknown;
 }

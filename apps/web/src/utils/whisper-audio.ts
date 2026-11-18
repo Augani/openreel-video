@@ -46,4 +46,3 @@ export function audioBufferToWhisperSamples(
   return output;
 }
 
-export { WHISPER_SAMPLE_RATE };

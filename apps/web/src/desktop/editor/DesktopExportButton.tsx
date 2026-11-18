@@ -1,14 +1,23 @@
 import type { JSX } from "react";
-import React, { useCallback, useEffect, useState } from "react";
-import { ToolcraftButton as Button } from "@openreel/ui";
+import React, { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import type { VideoExportSettings } from "@openreel/core";
-import { setEncoderBackendFactory, WebCodecsBackend } from "@openreel/core";
+import { desktopExportRequiresNativeEncoder, setEncoderBackendFactory, WebCodecsBackend } from "@openreel/core";
+import { useUIStore } from "../../stores/ui-store";
 import { useProjectStore } from "../../stores/project-store";
-import { ExportDialog } from "../../components/editor/ExportDialog";
+import { addDialogExportToQueue, isExportQueueBusy } from "../../stores/export-queue-store";
+import { getUseExportPreviews } from "../../services/export-queue/export-queue-activity";
 import { deriveSourceExportMatch } from "../../services/export-source-match";
-import { useExportRunner, extForFormat, exportFilename } from "../../services/export-runner";
+import {
+  useExportRunner,
+  extForFormat,
+  exportFilename,
+} from "../../services/export-runner";
 import { NativeFFmpegBackend } from "../../services/native-ffmpeg-backend";
-import { Icon } from "@/icons/Icon";
+import { EditorExportControl } from "../../components/editor/EditorExportControl";
+import { getQuickExportPresets, type QuickVideoExportSettings } from "../../services/quick-export-presets";
+import { useTimelineStore } from "../../stores/timeline-store";
+
+const ExportDialog = lazy(() => import("../../components/editor/ExportDialog").then((m) => ({ default: m.ExportDialog })));
 
 const NO_DRAG = { WebkitAppRegion: "no-drag" } as React.CSSProperties;
 
@@ -27,26 +36,32 @@ const NOOP_WRITABLE = {
 
 // WebCodecs hardware encoding (no per-frame GPU->CPU readback) is the fast path
 // for the common H.264/HEVC fast/balanced case. ProRes, AV1, and the
-// software-CRF "Smallest" mode stay on the native ffmpeg backend.
-function shouldUseWebCodecs(settings: VideoExportSettings): boolean {
+// software-CRF "Smallest" mode stay on the native ffmpeg backend, and so do
+// HDR, MXF, DNxHR and >8-bit exports (see desktopExportRequiresNativeEncoder).
+function shouldUseWebCodecs(settings: QuickVideoExportSettings): boolean {
   const hasWebCodecs =
     typeof (globalThis as { VideoEncoder?: unknown }).VideoEncoder !==
     "undefined";
   const mode = settings.encodeMode ?? "balanced";
   return (
     hasWebCodecs &&
+    !desktopExportRequiresNativeEncoder(settings) &&
     (settings.codec === "h264" || settings.codec === "h265") &&
     (mode === "fast" || mode === "balanced")
   );
 }
 
-export function DesktopExportButton(): JSX.Element {
+export function DesktopExportButton({ compact = false }: { compact?: boolean } = {}): JSX.Element {
   const project = useProjectStore((state) => state.project);
+  const loopStart = useTimelineStore((s) => s.loopStart);
+  const loopEnd = useTimelineStore((s) => s.loopEnd);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
   const {
     state,
     runExport,
+    runAudioExport,
+    markComplete,
     showSavePicker,
     beginExport,
     finishExportSoon,
@@ -56,14 +71,29 @@ export function DesktopExportButton(): JSX.Element {
   } = useExportRunner({ project });
 
   useEffect(() => {
-    const open = () => setIsDialogOpen(true);
+    useUIStore
+      .getState()
+      .setExportState({
+        isExporting: state.isExporting,
+        progress: state.progress,
+        phase: state.phase,
+      });
+  }, [state.isExporting, state.progress, state.phase]);
+
+  useEffect(() => {
+    const open = () => { if (!useUIStore.getState().exportState.isExporting) setIsDialogOpen(true); };
     window.addEventListener("openreel:menu:export", open);
     return () => window.removeEventListener("openreel:menu:export", open);
   }, []);
 
   const handleExport = useCallback(
-    async (settings: VideoExportSettings) => {
+    async (settings: QuickVideoExportSettings) => {
       setIsDialogOpen(false);
+      if (project.timeline.duration <= 0 || useUIStore.getState().exportState.isExporting) return;
+      if (isExportQueueBusy()) {
+        addDialogExportToQueue(settings as VideoExportSettings, { presetLabel: "Custom", usePreviews: getUseExportPreviews() });
+        return;
+      }
 
       try {
         const ext = extForFormat(settings.format, settings.codec);
@@ -83,7 +113,9 @@ export function DesktopExportButton(): JSX.Element {
         const exportSettings: Partial<VideoExportSettings> = {
           ...settings,
           upscaling:
-            settings.upscaling?.enabled && needsUpscaling ? settings.upscaling : undefined,
+            settings.upscaling?.enabled && needsUpscaling
+              ? settings.upscaling
+              : undefined,
         };
 
         if (useWebCodecs) {
@@ -126,72 +158,65 @@ export function DesktopExportButton(): JSX.Element {
         failExport(error);
       }
     },
-    [project, runExport, showSavePicker, beginExport, finishExportSoon, failExport],
+    [
+      project,
+      runExport,
+      showSavePicker,
+      beginExport,
+      finishExportSoon,
+      failExport,
+    ],
   );
 
-  if (state.isExporting) {
-    return (
-      <Button
-        label={`${Math.round(state.progress)}%`}
-        variant="secondary"
-        size="sm"
-        style={NO_DRAG}
-        onClick={cancel}
-        className="mr-2"
-        aria-label="Cancel export"
-      />
-    );
-  }
-
-  if (state.error) {
-    return (
-      <Button
-        label={state.error}
-        variant="destructive"
-        size="sm"
-        style={NO_DRAG}
-        onClick={resetError}
-        className="mr-2 max-w-[200px] truncate"
-        aria-label="Dismiss export error"
-      />
-    );
-  }
-
-  if (state.complete) {
-    return (
-      <Button
-        label="Saved!"
-        variant="secondary"
-        size="sm"
-        style={NO_DRAG}
-        className="mr-2"
-        isDisabled
-      />
-    );
-  }
+  useEffect(() => {
+    const quickExport = (event: Event) => {
+      const id: unknown = (event as CustomEvent<{ preset?: unknown }>).detail?.preset;
+      if (project.timeline.duration <= 0 || state.isExporting || useUIStore.getState().exportState.isExporting) return;
+      const preset = getQuickExportPresets(project.settings).find(entry => entry.id === id);
+      if (!preset) return;
+      if (preset.kind === "video") {
+        void handleExport(preset.settings);
+      } else {
+        void (async () => {
+          try {
+            const writable = await showSavePicker(exportFilename(project.name, "wav"), "wav");
+            beginExport(writable);
+            await runAudioExport(preset.settings, writable);
+            markComplete();
+            finishExportSoon();
+          } catch (error) {
+            failExport(error);
+          }
+        })();
+      }
+    };
+    window.addEventListener("openreel:menu:quick-export", quickExport);
+    return () => window.removeEventListener("openreel:menu:quick-export", quickExport);
+  }, [project, state.isExporting, handleExport, showSavePicker, beginExport, runAudioExport, markComplete, finishExportSoon, failExport]);
 
   return (
     <>
-      <Button
-        label="Export"
-        variant="primary"
-        size="sm"
-        icon={<Icon name="square.and.arrow.up" size={15} ariaHidden />}
-        style={NO_DRAG}
-        onClick={() => setIsDialogOpen(true)}
-        className="mr-2"
-      />
+      <EditorExportControl state={state} disabled={false} compact={compact}
+        style={NO_DRAG} onOpen={() => setIsDialogOpen(true)} onCancel={cancel} onDismissError={resetError} />
 
+      <Suspense fallback={null}>
       <ExportDialog
         isOpen={isDialogOpen}
         onClose={() => setIsDialogOpen(false)}
         onExport={handleExport}
+        onAddToQueue={addDialogExportToQueue}
         duration={project?.timeline?.duration ?? 0}
         projectWidth={project?.settings?.width ?? 1920}
         projectHeight={project?.settings?.height ?? 1080}
         frameRate={project?.settings?.frameRate ?? 30}
         sourceMatch={deriveSourceExportMatch(project)}
+        markedRange={
+          loopEnd > loopStart
+            ? { startTime: loopStart, endTime: loopEnd }
+            : null
+        }
       />
+      </Suspense>
     </>
   );
 }

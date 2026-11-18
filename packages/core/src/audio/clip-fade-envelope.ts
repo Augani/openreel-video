@@ -1,39 +1,134 @@
-export interface ClipFadePoint {
+import type { ClipFade } from "../types/timeline";
+
+interface ClipFadePoint {
   readonly time: number;
   readonly value: number;
 }
 
-function fadeValueAtTime(time: number, clipDuration: number, fadeIn: number, fadeOut: number): number {
-  const inValue = fadeIn > 0 ? Math.min(1, Math.max(0, time / fadeIn)) : 1;
-  const outValue = fadeOut > 0 ? Math.min(1, Math.max(0, (clipDuration - time) / fadeOut)) : 1;
-  return Math.min(inValue, outValue);
-}
-
-export function getClipFadeEnvelopePoints({ clipOffset, rangeDuration, clipDuration, fadeIn = 0, fadeOut = 0 }: {
+interface FadeEnvelopeOptions {
   clipOffset: number;
   rangeDuration: number;
   clipDuration: number;
   fadeIn?: number;
   fadeOut?: number;
-}): ClipFadePoint[] {
-  if (rangeDuration <= 0 || (fadeIn <= 0 && fadeOut <= 0)) return [];
+  fadeOrigin?: ClipFade["origin"];
+  transitionFadeIn?: number;
+  transitionFadeOut?: number;
+}
+
+const positive = (value: number | undefined) =>
+  typeof value === "number" && Number.isFinite(value) && value > 0 ? value : 0;
+
+/** Exact piecewise-linear minimum of the user and transition fade ramps.
+ * Original-clock fades survive internal cuts; transitions stay on the current
+ * piece's edges. Ramp intersections matter when fade-in and fade-out overlap. */
+export function getClipFadeEnvelopePoints(
+  options: FadeEnvelopeOptions,
+): ClipFadePoint[] {
+  const { clipOffset, rangeDuration, clipDuration, fadeOrigin } = options;
+  if (
+    !Number.isFinite(clipOffset) ||
+    !Number.isFinite(rangeDuration) ||
+    !Number.isFinite(clipDuration) ||
+    rangeDuration <= 0 ||
+    clipDuration <= 0
+  )
+    return [];
   const rangeStart = Math.max(0, clipOffset);
   const rangeEnd = Math.min(clipDuration, rangeStart + rangeDuration);
-  const boundaries = [rangeStart, rangeEnd];
-  if (fadeIn > rangeStart && fadeIn < rangeEnd) boundaries.push(fadeIn);
-  const fadeOutStart = clipDuration - fadeOut;
-  if (fadeOutStart > rangeStart && fadeOutStart < rangeEnd) boundaries.push(fadeOutStart);
-  return Array.from(new Set(boundaries))
-    .sort((left, right) => left - right)
+  if (rangeEnd <= rangeStart) return [];
+  const fadeIn = positive(options.fadeIn),
+    fadeOut = positive(options.fadeOut);
+  const transitionIn = positive(options.transitionFadeIn),
+    transitionOut = positive(options.transitionFadeOut);
+  if (!fadeIn && !fadeOut && !transitionIn && !transitionOut) return [];
+  const origin: NonNullable<ClipFade["origin"]> =
+    fadeOrigin &&
+    Number.isFinite(fadeOrigin.offset) &&
+    Number.isFinite(fadeOrigin.duration) &&
+    fadeOrigin.duration > 0
+      ? fadeOrigin
+      : { offset: 0, duration: clipDuration };
+  const ramps: Array<{
+    length: number;
+    offset: number;
+    duration: number;
+    out: boolean;
+  }> = [];
+  const outOrigin = origin.out && Number.isFinite(origin.out.offset) &&
+    Number.isFinite(origin.out.duration) && origin.out.duration > 0 ? origin.out : origin;
+  const add = (
+    length: number,
+    offset: number,
+    duration: number,
+    out: boolean,
+  ) => {
+    if (length) ramps.push({ length, offset, duration, out });
+  };
+  add(
+    fadeIn,
+    origin.fadeIn === false ? 0 : origin.offset,
+    origin.duration,
+    false,
+  );
+  add(
+    fadeOut,
+    origin.fadeOut === false ? 0 : outOrigin.offset,
+    origin.fadeOut === false ? clipDuration : outOrigin.duration,
+    true,
+  );
+  add(transitionIn, 0, clipDuration, false);
+  add(transitionOut, 0, clipDuration, true);
+  const value = (ramp: (typeof ramps)[number], time: number) => {
+    const clock = time + ramp.offset;
+    return Math.min(
+      1,
+      Math.max(0, (ramp.out ? ramp.duration - clock : clock) / ramp.length),
+    );
+  };
+  const boundaries = new Set([rangeStart, rangeEnd]);
+  const include = (time: number) => {
+    if (time > rangeStart && time < rangeEnd) boundaries.add(time);
+  };
+  for (const ramp of ramps) {
+    const zero = ramp.out ? ramp.duration - ramp.offset : -ramp.offset;
+    let full = ramp.out
+      ? ramp.duration - ramp.length - ramp.offset
+      : ramp.length - ramp.offset;
+    // An extremely short fade can be smaller than one representable step at
+    // its clip edge. Keep its corner next to that edge, never across the clip.
+    if (full === zero && Number.isFinite(zero)) {
+      const step = Math.max(Number.MIN_VALUE, Math.abs(zero) * Number.EPSILON);
+      full += ramp.out ? -step : step;
+    }
+    include(zero);
+    include(full);
+  }
+  const corners = [...boundaries].sort((a, b) => a - b);
+  // Between clamp boundaries every ramp is linear. Include every pair's
+  // crossing so linearRampToValueAtTime cannot cut underneath a fade's peak.
+  for (let i = 1; i < corners.length; i++) {
+    const start = corners[i - 1],
+      end = corners[i];
+    for (let a = 0; a < ramps.length; a++)
+      for (let b = a + 1; b < ramps.length; b++) {
+        const first = value(ramps[a], start) - value(ramps[b], start);
+        const last = value(ramps[a], end) - value(ramps[b], end);
+        if ((first < 0 && last > 0) || (first > 0 && last < 0))
+          include(start + (end - start) * (first / (first - last)));
+      }
+  }
+  return [...boundaries]
+    .sort((a, b) => a - b)
     .map((time) => ({
       time: time - rangeStart,
-      value: fadeValueAtTime(time, clipDuration, fadeIn, fadeOut),
+      value: Math.min(...ramps.map((ramp) => value(ramp, time))),
     }));
 }
 
 export function scheduleClipFadeEnvelope(
   gain: AudioParam,
-  options: Parameters<typeof getClipFadeEnvelopePoints>[0] & { startTime: number },
+  options: FadeEnvelopeOptions & { startTime: number },
 ): void {
   const points = getClipFadeEnvelopePoints(options);
   gain.cancelScheduledValues(options.startTime);

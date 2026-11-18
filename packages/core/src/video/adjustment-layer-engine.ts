@@ -1,4 +1,4 @@
-import type { Effect, Transform } from "../types/timeline";
+import type { Effect, Track, Transform } from "../types/timeline";
 import type { BlendMode } from "./types";
 
 export type { BlendMode };
@@ -17,7 +17,7 @@ export interface AdjustmentLayer {
   transform: Transform;
 }
 
-export interface CreateAdjustmentLayerOptions {
+interface CreateAdjustmentLayerOptions {
   name?: string;
   duration?: number;
   opacity?: number;
@@ -25,7 +25,7 @@ export interface CreateAdjustmentLayerOptions {
   effects?: Effect[];
 }
 
-export interface AdjustmentLayerEffect {
+interface AdjustmentLayerEffect {
   layerId: string;
   effect: Effect;
   opacity: number;
@@ -271,7 +271,8 @@ export class AdjustmentLayerEngine {
       const layerTrackIndex = trackIndices.get(layer.trackId);
       if (layerTrackIndex === undefined) continue;
 
-      if (layerTrackIndex < clipTrackIndex) {
+      // Index 0 is the front-most track: only tracks strictly below the layer are affected.
+      if (clipTrackIndex <= layerTrackIndex) {
         continue;
       }
 
@@ -338,6 +339,114 @@ export class AdjustmentLayerEngine {
   }
 }
 
+export interface AdjustmentLayerPlacement {
+  readonly layer: AdjustmentLayer;
+  /** Index of the layer's track in the stack (0 = front-most); -1 when the track is unknown (treated as top). */
+  readonly stackIndex: number;
+  /** Track ids the layer is restricted to (already limited to tracks below it); null means every track below. */
+  readonly affectedTrackIds: ReadonlySet<string> | null;
+}
+
+/**
+ * Plans which adjustment layers apply at `time` and to which tracks, with Premiere semantics: a layer only
+ * affects tracks BELOW its own track in the stack (never the track it sits on, nor anything above), and
+ * `affectedTracks`, when a list, narrows that further. Placements come back lowest-in-stack first so that
+ * layers apply in painter order. Shared by the export renderer and the live preview.
+ */
+export function planAdjustmentLayers(
+  layers: readonly AdjustmentLayer[],
+  tracks: readonly Pick<Track, "id">[],
+  time: number,
+): AdjustmentLayerPlacement[] {
+  const indexById = new Map<string, number>();
+  tracks.forEach((track, index) => indexById.set(track.id, index));
+  const placements: AdjustmentLayerPlacement[] = [];
+  for (const layer of layers) {
+    if (
+      !layer.enabled ||
+      layer.opacity <= 0 ||
+      time < layer.startTime ||
+      time >= layer.startTime + layer.duration ||
+      !layer.effects.some((effect) => effect.enabled !== false)
+    ) continue;
+    const stackIndex = indexById.get(layer.trackId) ?? -1;
+    let affectedTrackIds: Set<string> | null = null;
+    if (layer.affectedTracks !== "all") {
+      affectedTrackIds = new Set();
+      for (const id of layer.affectedTracks) {
+        const idx = indexById.get(id);
+        if (idx !== undefined && idx > stackIndex) affectedTrackIds.add(id);
+      }
+      if (affectedTrackIds.size === 0) continue;
+    }
+    placements.push({ layer, stackIndex, affectedTrackIds });
+  }
+  return placements
+    .map((placement, order) => ({ placement, order }))
+    .sort((a, b) => b.placement.stackIndex - a.placement.stackIndex || a.order - b.order)
+    .map(({ placement }) => placement);
+}
+
+export interface AdjustableTrackContent {
+  /** True when the track has a visible media clip at the time being rendered. */
+  readonly hasMedia: boolean;
+  /** Active shape, SVG, sticker and text items (each with its track id) at the time being rendered. */
+  readonly overlays: ReadonlyArray<ReadonlyArray<{ readonly trackId: string }>>;
+  readonly motionInstances: ReadonlyArray<{ readonly trackId?: string; readonly startTime: number; readonly duration: number }>;
+}
+
+/**
+ * Single definition of "this track paints something an adjustment layer could act on", shared by the export
+ * renderer and the live preview so a track-restricted layer is isolated (or skipped) identically in both.
+ */
+export function trackHasAdjustableContent(trackId: string, time: number, content: AdjustableTrackContent): boolean {
+  return (
+    content.hasMedia ||
+    content.overlays.some((items) => items.some((item) => item.trackId === trackId)) ||
+    content.motionInstances.some(
+      (instance) => instance.trackId === trackId && time >= instance.startTime && time < instance.startTime + instance.duration,
+    )
+  );
+}
+
+/**
+ * Walks a plan alongside the painter's-order track loop (highest stack index first). Whole-composite layers
+ * run just before their own track paints, so everything below is adjusted and the layer's own track and
+ * everything above is not; track-restricted layers are applied to each affected track in isolation.
+ */
+export class AdjustmentLayerSchedule {
+  private readonly composite: AdjustmentLayerPlacement[];
+  private readonly scoped: AdjustmentLayerPlacement[];
+
+  constructor(plan: readonly AdjustmentLayerPlacement[]) {
+    this.composite = plan.filter((p) => p.affectedTrackIds === null);
+    this.scoped = plan.filter((p) => p.affectedTrackIds !== null);
+  }
+
+  get isEmpty(): boolean {
+    return this.composite.length === 0 && this.scoped.length === 0;
+  }
+
+  /** Consumes whole-composite layers sitting at or below `trackStackIndex`; call before painting that track. */
+  takeCompositeBefore(trackStackIndex: number): AdjustmentLayerPlacement[] {
+    const taken: AdjustmentLayerPlacement[] = [];
+    while (this.composite.length > 0 && this.composite[0].stackIndex >= trackStackIndex) {
+      taken.push(this.composite.shift()!);
+    }
+    return taken;
+  }
+
+  /** Consumes every remaining whole-composite layer (those above all rendered tracks). */
+  takeRemainingComposite(): AdjustmentLayerPlacement[] {
+    return this.composite.splice(0);
+  }
+
+  /** Track-restricted layers whose effects apply to this track alone, lowest first. */
+  scopedFor(trackId: string): AdjustmentLayerPlacement[] {
+    return this.scoped.filter((p) => p.affectedTrackIds!.has(trackId));
+  }
+}
+
 let adjustmentLayerEngineInstance: AdjustmentLayerEngine | null = null;
 
 export function getAdjustmentLayerEngine(): AdjustmentLayerEngine {
@@ -345,8 +454,4 @@ export function getAdjustmentLayerEngine(): AdjustmentLayerEngine {
     adjustmentLayerEngineInstance = new AdjustmentLayerEngine();
   }
   return adjustmentLayerEngineInstance;
-}
-
-export function resetAdjustmentLayerEngine(): void {
-  adjustmentLayerEngineInstance = null;
 }

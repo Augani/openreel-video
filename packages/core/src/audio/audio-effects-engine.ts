@@ -9,21 +9,13 @@ import {
   SpectralNoiseReducer,
   type NoiseProfile,
 } from "./noise-reduction";
+import { createRepairChainNode, ensureRepairWorklet } from "./repair/repair-node";
+import { isRepairEffectType, type RepairParams } from "./repair/repair-dsp";
+import { sanitizeRepairParams } from "./repair/repair-definitions";
+import { effectChainLatencySamples } from "./effect-latency";
+import { createLinkedCompressorStage, createMultichannelConvolver, needsMultichannelNodes, pinChannels } from "./multichannel-fx";
 
-export interface AudioEffectChainConfig {
-  readonly effects: Effect[];
-  readonly sampleRate?: number;
-}
-
-export interface ReverbConfig {
-  readonly roomSize: number; // 0 to 1
-  readonly damping: number; // 0 to 1
-  readonly wetLevel: number; // 0 to 1
-  readonly dryLevel: number; // 0 to 1
-  readonly preDelay: number; // 0 to 100 ms
-}
-
-export interface SimpleNoiseProfile {
+interface SimpleNoiseProfile {
   readonly frequencyBins: Float32Array;
   readonly magnitudes: Float32Array;
   readonly standardDeviations?: Float32Array;
@@ -31,7 +23,7 @@ export interface SimpleNoiseProfile {
   readonly fftSize?: number;
 }
 
-export interface EffectProcessingResult {
+interface EffectProcessingResult {
   readonly buffer: AudioBuffer;
   readonly appliedEffects: string[];
 }
@@ -137,7 +129,7 @@ const NOISE_REDUCTION_FOCUS_PROFILES: Record<
   },
 };
 
-export interface NoiseReductionNodeChain {
+interface NoiseReductionNodeChain {
   input: AudioNode;
   output: AudioNode;
   nodes: AudioNode[];
@@ -253,7 +245,7 @@ const calculateRangeEnergy = (
   return energy / (endBin - startBin + 1);
 };
 
-export const createProfileBasedNoiseReductionFilters = (
+const createProfileBasedNoiseReductionFilters = (
   context: BaseAudioContext,
   profile: SimpleNoiseProfile,
   reduction: number,
@@ -707,9 +699,13 @@ export class AudioEffectsEngine {
     if (enabledEffects.length === 0) {
       return { buffer, appliedEffects: [] };
     }
+    // Lookahead/FFT effects (compressor, DeClick, DeReverb, ...) output late.
+    // Render that much longer and drop the leading samples so the result sits on
+    // the input's samples exactly.
+    const latency = effectChainLatencySamples(enabledEffects, buffer.sampleRate);
     const offlineContext = new OfflineAudioContext(
       buffer.numberOfChannels,
-      buffer.length,
+      buffer.length + latency,
       buffer.sampleRate,
     );
     const source = offlineContext.createBufferSource();
@@ -717,6 +713,7 @@ export class AudioEffectsEngine {
     const { firstNode, lastNode, appliedEffects } = await this.buildEffectChain(
       offlineContext,
       enabledEffects,
+      buffer.numberOfChannels,
     );
     if (firstNode && lastNode) {
       source.connect(firstNode);
@@ -727,7 +724,14 @@ export class AudioEffectsEngine {
 
     source.start(0);
 
-    const processedBuffer = await offlineContext.startRendering();
+    const rendered = await offlineContext.startRendering();
+    let processedBuffer = rendered;
+    if (latency > 0) {
+      processedBuffer = offlineContext.createBuffer(buffer.numberOfChannels, buffer.length, buffer.sampleRate);
+      for (let channel = 0; channel < buffer.numberOfChannels; channel += 1) {
+        processedBuffer.getChannelData(channel).set(rendered.getChannelData(channel).subarray(latency, latency + buffer.length));
+      }
+    }
 
     return {
       buffer: processedBuffer,
@@ -735,9 +739,11 @@ export class AudioEffectsEngine {
     };
   }
 
+  /** `channels`: what flows through the chain (the clip's channels). Above 2 the stereo-only nodes give way to linked ones. */
   private async buildEffectChain(
     context: BaseAudioContext,
     effects: Effect[],
+    channels = 2,
   ): Promise<{
     firstNode: AudioNode | null;
     lastNode: AudioNode | null;
@@ -752,7 +758,7 @@ export class AudioEffectsEngine {
         continue;
       }
 
-      const nodePair = await this.createEffectNode(context, effect);
+      const nodePair = await this.createEffectNode(context, effect, channels);
       if (!nodePair) {
         continue;
       }
@@ -776,21 +782,37 @@ export class AudioEffectsEngine {
   private async createEffectNode(
     context: BaseAudioContext,
     effect: Effect,
+    channels = 2,
   ): Promise<EffectNodePair | null> {
     switch (effect.type) {
       case "eq":
         return this.createEQNodePair(context, effect);
       case "compressor":
+        if (needsMultichannelNodes(channels)) {
+          await ensureRepairWorklet(context);
+          const stage = createLinkedCompressorStage(context, effect.params as Record<string, number>, { channels });
+          return { input: stage.input, output: stage.output };
+        }
         return this.createCompressorNodePair(context, effect);
       case "reverb":
-        return await this.createReverbNode(context, effect);
+        return await this.createReverbNode(context, effect, channels);
       case "delay":
-        return this.createDelayNode(context, effect);
+        return this.createDelayNode(context, effect, channels);
       case "noiseReduction":
         return this.createNoiseReductionNodePair(context, effect);
       case "gain":
         return this.createGainNodePair(context, effect);
       default:
+        if (isRepairEffectType(effect.type)) {
+          await ensureRepairWorklet(context);
+          const chain = createRepairChainNode(
+            context,
+            effect.type,
+            sanitizeRepairParams(effect.type, effect.params) as RepairParams,
+            { channels },
+          );
+          return { input: chain.input, output: chain.output };
+        }
         return null;
     }
   }
@@ -884,14 +906,15 @@ export class AudioEffectsEngine {
   async createReverbNode(
     context: BaseAudioContext,
     effect: Effect,
+    channels = 2,
   ): Promise<EffectNodePair> {
     const params = effect.params as AudioEffectParams["reverb"];
 
-    const inputGain = context.createGain();
+    const inputGain = pinChannels(context.createGain(), channels);
     const dryGain = context.createGain();
     const wetGain = context.createGain();
     const outputGain = context.createGain();
-    const convolver = context.createConvolver();
+    const multi = needsMultichannelNodes(channels);
 
     dryGain.gain.value = params?.dryLevel ?? 0.7;
     wetGain.gain.value = params?.wetLevel ?? 0.5;
@@ -901,11 +924,16 @@ export class AudioEffectsEngine {
       params?.roomSize ?? 0.5,
       params?.damping ?? 0.5,
     );
-    convolver.buffer = impulseResponse;
+    // A ConvolverNode carries two channels; above that one mono convolver per channel keeps them all.
+    const multiConvolver = multi ? createMultichannelConvolver(context, impulseResponse, channels) : null;
+    const convolver = multiConvolver ? null : context.createConvolver();
+    if (convolver) convolver.buffer = impulseResponse;
+    const wetIn: AudioNode = multiConvolver ? multiConvolver.input : convolver!;
+    const wetOut: AudioNode = multiConvolver ? multiConvolver.output : convolver!;
 
     let preDelayNode: DelayNode | null = null;
     if (params?.preDelay && params.preDelay > 0) {
-      preDelayNode = context.createDelay(0.1);
+      preDelayNode = pinChannels(context.createDelay(0.1), channels);
       preDelayNode.delayTime.value = Math.min(0.1, params.preDelay / 1000);
     }
 
@@ -914,11 +942,11 @@ export class AudioEffectsEngine {
 
     if (preDelayNode) {
       inputGain.connect(preDelayNode);
-      preDelayNode.connect(convolver);
+      preDelayNode.connect(wetIn);
     } else {
-      inputGain.connect(convolver);
+      inputGain.connect(wetIn);
     }
-    convolver.connect(wetGain);
+    wetOut.connect(wetGain);
     wetGain.connect(outputGain);
 
     return { input: inputGain, output: outputGain };
@@ -975,11 +1003,11 @@ export class AudioEffectsEngine {
     return impulseBuffer;
   }
 
-  createDelayNode(context: BaseAudioContext, effect: Effect): EffectNodePair {
+  createDelayNode(context: BaseAudioContext, effect: Effect, channels = 2): EffectNodePair {
     const params = effect.params as AudioEffectParams["delay"];
 
-    const inputGain = context.createGain();
-    const delayNode = context.createDelay(2);
+    const inputGain = pinChannels(context.createGain(), channels);
+    const delayNode = pinChannels(context.createDelay(2), channels);
     const feedbackGain = context.createGain();
     const wetGain = context.createGain();
     const dryGain = context.createGain();

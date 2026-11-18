@@ -1,3 +1,5 @@
+import { isParticleEffect } from "../../effects/particle-sampling";
+import type { ParticleEffect } from "../../effects/particle-types";
 import type { Project } from "../../types/project";
 import type { Action, ValidationResult } from "../../types/actions";
 import type { Effect, Subtitle } from "../../types/timeline";
@@ -226,6 +228,22 @@ const maskSetAll: ActionHandler = {
   },
 };
 
+const particleSetAll: ActionHandler = {
+  type: "particle/setAll",
+  validate(action: Action): ValidationResult {
+    const effects = action.params.effects;
+    const valid = Array.isArray(effects) && effects.every(isParticleEffect) && new Set(effects.map(effect => effect.id)).size === effects.length;
+    return { valid, errors: valid ? [] : [{ code: "INVALID_PARAMS", message: "Particle effects must have unique IDs and finite valid configurations" }] };
+  },
+  apply(action: Action, project: Project): void {
+    (project as { particleEffects: ParticleEffect[] }).particleEffects = structuredClone(action.params.effects as ParticleEffect[]);
+    (project as { modifiedAt: number }).modifiedAt = Date.now();
+  },
+  invert(action: Action, projectBefore: Project): Action {
+    return { type: "particle/setAll", id: `inverse-${action.id}`, timestamp: Date.now(), params: { effects: structuredClone(projectBefore.particleEffects ?? []) } };
+  },
+};
+
 const multicamSetAll: ActionHandler = {
   type: "multicam/setAll",
   validate(): ValidationResult {
@@ -289,6 +307,7 @@ for (const handler of [
   subtitleSetAll,
   adjustmentSetAll,
   maskSetAll,
+  particleSetAll,
   multicamSetAll,
   nestedSetAll,
 ]) {

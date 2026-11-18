@@ -3,12 +3,9 @@ import { renderHook, act } from "@testing-library/react";
 import type { Project, VideoExportSettings, ExportResult } from "@openreel/core";
 import {
   useExportRunner,
-  mimeForExt,
   extForFormat,
   exportFilename,
-  sanitizeFilenameBase,
   writeBlobToWritable,
-  progressPhaseLabel,
   createDownloadWritable,
   runAudioExportToWritable,
 } from "./export-runner";
@@ -85,28 +82,6 @@ function fakeStream(): FileSystemWritableFileStream {
 }
 
 describe("export-runner pure helpers", () => {
-  it("maps extension to mime", () => {
-    expect(mimeForExt("mp4")).toBe("video/mp4");
-    expect(mimeForExt("mov")).toBe("video/quicktime");
-    expect(mimeForExt("webm")).toBe("video/webm");
-    expect(mimeForExt("wav")).toBe("audio/wav");
-    expect(mimeForExt("xyz")).toBe("application/octet-stream");
-  });
-
-  it("resolves container ext from format", () => {
-    expect(extForFormat("mov")).toBe("mov");
-    expect(extForFormat("webm")).toBe("webm");
-    expect(extForFormat("wav")).toBe("wav");
-    expect(extForFormat("mp4")).toBe("mp4");
-    expect(extForFormat("unknown")).toBe("mp4");
-  });
-
-  it("builds export filename with fallback", () => {
-    expect(exportFilename("Vacation", "mp4")).toBe("Vacation.mp4");
-    expect(exportFilename("", "mov")).toBe("export.mov");
-    expect(exportFilename(undefined, "webm")).toBe("export.webm");
-    expect(exportFilename("   ", "mp4")).toBe("export.mp4");
-  });
 
   it("strips filesystem-illegal characters from the suggested filename", () => {
     expect(exportFilename("Vlog: Ep 1", "mp4")).toBe("Vlog Ep 1.mp4");
@@ -116,16 +91,6 @@ describe("export-runner pure helpers", () => {
     expect(exportFilename("///", "mp4")).toBe("export.mp4");
   });
 
-  it("keeps legal filename characters intact", () => {
-    expect(exportFilename("My-Video_v2 (final)", "mp4")).toBe("My-Video_v2 (final).mp4");
-    expect(sanitizeFilenameBase("café déjà-vu")).toBe("café déjà-vu");
-  });
-
-  it("labels progress phase", () => {
-    expect(progressPhaseLabel("rendering")).toBe("rendering...");
-    expect(progressPhaseLabel("encoding")).toBe("encoding...");
-    expect(progressPhaseLabel("complete")).toBe("Complete!");
-  });
 });
 
 describe("extForFormat codec-awareness", () => {

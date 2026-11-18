@@ -5,7 +5,7 @@ const CRASH_ENDPOINT =
   process.env.OPENREEL_CRASH_ENDPOINT ?? "https://api.openreel.video/crash";
 const REPORT_TIMEOUT_MS = 4000;
 
-export interface CrashReportInput {
+interface CrashReportInput {
   type: string;
   source: string;
   message: string;
@@ -21,7 +21,7 @@ function appVersionSafe(): string {
   }
 }
 
-export function describeError(value: unknown): { message: string; stack?: string } {
+function describeError(value: unknown): { message: string; stack?: string } {
   if (value instanceof Error) {
     return { message: value.message || value.name || "Error", stack: value.stack };
   }

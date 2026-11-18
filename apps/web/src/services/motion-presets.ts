@@ -1,8 +1,6 @@
-import { v4 as uuid } from "uuid";
-
 export type PresetCategory = "entrance" | "exit" | "emphasis" | "transition";
 
-export type AnimatableProperty =
+type AnimatableProperty =
   | "position"
   | "position.x"
   | "position.y"
@@ -12,7 +10,7 @@ export type AnimatableProperty =
   | "rotation"
   | "opacity";
 
-export type EasingFunction =
+type EasingFunction =
   | "linear"
   | "ease"
   | "ease-in"
@@ -24,7 +22,7 @@ export type EasingFunction =
   | "ease-out-back"
   | "ease-in-back";
 
-export interface PresetKeyframe {
+interface PresetKeyframe {
   time: number;
   value: number;
   easing?: EasingFunction;
@@ -44,15 +42,6 @@ export interface MotionPreset {
   duration: number;
   tracks: PresetPropertyTrack[];
   tags?: string[];
-}
-
-export interface AppliedMotionPreset {
-  id: string;
-  presetId: string;
-  clipId: string;
-  startTime: number;
-  duration: number;
-  type: "in" | "out" | "emphasis";
 }
 
 const DB_NAME = "openreel-motion-presets";
@@ -85,36 +74,6 @@ async function loadUserPresetsFromDB(): Promise<MotionPreset[]> {
     });
   } catch {
     return [];
-  }
-}
-
-async function savePresetToDB(preset: MotionPreset): Promise<void> {
-  try {
-    const db = await openPresetDB();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction(STORE_NAME, "readwrite");
-      const store = tx.objectStore(STORE_NAME);
-      const request = store.put(preset);
-      request.onsuccess = () => resolve();
-      request.onerror = () => reject(request.error);
-    });
-  } catch {
-    console.error("Failed to save preset to IndexedDB");
-  }
-}
-
-async function deletePresetFromDB(presetId: string): Promise<void> {
-  try {
-    const db = await openPresetDB();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction(STORE_NAME, "readwrite");
-      const store = tx.objectStore(STORE_NAME);
-      const request = store.delete(presetId);
-      request.onsuccess = () => resolve();
-      request.onerror = () => reject(request.error);
-    });
-  } catch {
-    console.error("Failed to delete preset from IndexedDB");
   }
 }
 
@@ -766,7 +725,7 @@ const builtInPresets: MotionPreset[] = [
 let userPresets: MotionPreset[] = [];
 let presetsInitialized = false;
 
-export async function initializeUserPresets(): Promise<void> {
+async function initializeUserPresets(): Promise<void> {
   if (presetsInitialized) return;
   try {
     userPresets = await loadUserPresetsFromDB();
@@ -779,69 +738,8 @@ export async function initializeUserPresets(): Promise<void> {
 
 initializeUserPresets();
 
-export function loadMotionPreset(presetId: string): MotionPreset | null {
-  const allPresets = [...builtInPresets, ...userPresets];
-  return allPresets.find((p) => p.id === presetId) ?? null;
-}
-
 export function listAvailablePresets(): MotionPreset[] {
   return [...builtInPresets, ...userPresets];
-}
-
-export function listPresetsByCategory(
-  category: PresetCategory,
-): MotionPreset[] {
-  return listAvailablePresets().filter((p) => p.category === category);
-}
-
-export function createUserPreset(
-  name: string,
-  category: PresetCategory,
-  tracks: PresetPropertyTrack[],
-  description?: string,
-): MotionPreset {
-  const preset: MotionPreset = {
-    id: uuid(),
-    name,
-    category,
-    description,
-    duration: calculatePresetDuration(tracks),
-    tracks,
-    tags: ["custom"],
-  };
-
-  userPresets.push(preset);
-  savePresetToDB(preset);
-  return preset;
-}
-
-export function deleteUserPreset(presetId: string): boolean {
-  const index = userPresets.findIndex((p) => p.id === presetId);
-  if (index === -1) return false;
-  userPresets.splice(index, 1);
-  deletePresetFromDB(presetId);
-  return true;
-}
-
-function calculatePresetDuration(tracks: PresetPropertyTrack[]): number {
-  let maxDuration = 0;
-  for (const track of tracks) {
-    for (const kf of track.keyframes) {
-      if (kf.time > maxDuration) maxDuration = kf.time;
-    }
-  }
-  return maxDuration;
-}
-
-export function searchPresets(query: string): MotionPreset[] {
-  const lowerQuery = query.toLowerCase();
-  return listAvailablePresets().filter((preset) => {
-    if (preset.name.toLowerCase().includes(lowerQuery)) return true;
-    if (preset.description?.toLowerCase().includes(lowerQuery)) return true;
-    if (preset.tags?.some((tag) => tag.toLowerCase().includes(lowerQuery)))
-      return true;
-    return false;
-  });
 }
 
 export function getPresetLibrary(): {

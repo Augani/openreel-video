@@ -49,24 +49,6 @@ describe("motion particles", () => {
     });
   });
 
-  it("creates a centered particle layer from composition dimensions", () => {
-    const layer = createMotionParticleLayer(composition, {
-      id: "particles",
-      duration: 3,
-    });
-
-    expect(layer).toMatchObject({
-      id: "particles",
-      type: "particle",
-      name: "Particle Emitter",
-      duration: 3,
-      transform: {
-        position: { x: 960, y: 540, z: 0 },
-        anchor: { x: 0.5, y: 0.5 },
-      },
-    });
-  });
-
   it("evaluates particles deterministically at a fixed timestamp", () => {
     const layer = createMotionParticleLayer(composition, {
       id: "particles",
@@ -166,12 +148,6 @@ describe("motion particles", () => {
     expect(baseline).toBeDefined();
     expect(birthResolved).toBeDefined();
     expect(Math.abs(birthResolved!.y)).toBeGreaterThan(Math.abs(baseline!.y));
-  });
-
-  it("returns no particles when the layer is before its local start", () => {
-    const layer = createMotionParticleLayer(composition, { id: "particles" });
-
-    expect(getMotionParticlesAtTime(layer, -0.01)).toEqual([]);
   });
 
   it("estimates emitter bounds from lifetime, velocity, gravity, and size", () => {

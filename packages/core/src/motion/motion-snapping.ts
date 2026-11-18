@@ -2,10 +2,10 @@ import type { MotionComposition, MotionLayer, MotionVector2 } from "./types";
 import { getMotionLayerLayoutBounds, type MotionLayerLayoutBounds } from "./motion-layout";
 import { getMotionGuideSnapPosition } from "./motion-guides";
 
-export type MotionSnapAxis = "x" | "y";
-export type MotionSnapGuideKind = "composition" | "guide" | "layer" | "grid";
+type MotionSnapAxis = "x" | "y";
+type MotionSnapGuideKind = "composition" | "guide" | "layer" | "grid";
 
-export interface MotionSnapGuide {
+interface MotionSnapGuide {
   readonly axis: MotionSnapAxis;
   readonly position: number;
   readonly kind: MotionSnapGuideKind;
@@ -13,7 +13,7 @@ export interface MotionSnapGuide {
   readonly sourceGuideId?: string;
 }
 
-export interface MotionSnapOptions {
+interface MotionSnapOptions {
   readonly threshold?: number;
   readonly gridSize?: number;
   readonly snapToComposition?: boolean;
@@ -24,7 +24,7 @@ export interface MotionSnapOptions {
   readonly ignoredLayerIds?: readonly string[];
 }
 
-export interface MotionSnapResult {
+interface MotionSnapResult {
   readonly position: MotionVector2;
   readonly guides: MotionSnapGuide[];
   readonly snapped: boolean;

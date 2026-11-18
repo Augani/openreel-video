@@ -1,7 +1,7 @@
 import React from "react";
-import { ToolcraftButton as Button } from "@openreel/ui";
-import { ToolcraftCard as Card } from "@openreel/ui";
-import { ToolcraftText as Text } from "@openreel/ui";
+import { Button } from "@openreel/ui";
+import { Card } from "@openreel/ui";
+
 import { Crop, RotateCcw } from "@/icons/lucide-compat";
 import { useProjectStore } from "../../../stores/project-store";
 import { useUIStore } from "../../../stores/ui-store";
@@ -31,43 +31,35 @@ export const CropSection: React.FC<CropSectionProps> = ({ clip }) => {
 
   return (
     <div className="space-y-3">
-      <Button
-        label={isCropped ? "Adjust Crop" : "Crop Video"}
-        icon={<Crop size={14} />}
-        variant="primary"
-        size="sm"
-        onClick={handleEnableCropMode}
-        className="w-full justify-center"
-      />
+      <Button onClick={handleEnableCropMode} type="button" aria-label={(isCropped ? "Adjust Crop" : "Crop Video").trim() || undefined} className="inline-flex min-w-0 items-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] bg-accent text-accent-fg hover:bg-accent/90 w-full justify-center">
+        <span className="flex h-4 w-4 shrink-0 items-center justify-center">{<Crop size={14} />}</span>
+        <span className="truncate">{isCropped ? "Adjust Crop" : "Crop Video"}</span>
+      </Button>
 
       {isCropped && (
         <>
-          <Card variant="muted" padding={2} className="space-y-0.5 border border-border">
+          <Card className="min-w-0 rounded-[7px] shadow-none bg-bg-2 text-fg p-2 space-y-0.5 border border-border">
             <div className="flex justify-between">
-              <Text type="supporting" color="secondary" className="text-[9px]">
+              <span className="text-fg-2 font-normal text-[9px]">
                 Crop Region:
-              </Text>
-              <Text type="supporting" color="secondary" className="text-[9px]">
+              </span>
+              <span className="text-fg-2 font-normal text-[9px]">
                 {Math.round(crop.width * 100)}% × {Math.round(crop.height * 100)}%
-              </Text>
+              </span>
             </div>
             <div className="flex justify-between">
-              <Text type="supporting" color="secondary" className="text-[9px]">
+              <span className="text-fg-2 font-normal text-[9px]">
                 Position:
-              </Text>
-              <Text type="supporting" color="secondary" className="text-[9px]">
+              </span>
+              <span className="text-fg-2 font-normal text-[9px]">
                 ({Math.round(crop.x * 100)}%, {Math.round(crop.y * 100)}%)
-              </Text>
+              </span>
             </div>
           </Card>
-          <Button
-            label="Reset Crop"
-            icon={<RotateCcw size={12} />}
-            variant="secondary"
-            size="sm"
-            onClick={handleReset}
-            className="w-full justify-center"
-          />
+          <Button onClick={handleReset} type="button" aria-label="Reset Crop" className="inline-flex min-w-0 items-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg w-full justify-center">
+            <span className="flex h-4 w-4 shrink-0 items-center justify-center">{<RotateCcw size={12} />}</span>
+            <span className="truncate">{"Reset Crop"}</span>
+          </Button>
         </>
       )}
     </div>

@@ -116,5 +116,3 @@ export const KeyframeMarker: React.FC<KeyframeMarkerProps> = ({
     </div>
   );
 };
-
-export default KeyframeMarker;

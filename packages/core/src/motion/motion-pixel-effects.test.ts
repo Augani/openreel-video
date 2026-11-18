@@ -1,14 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
-  applyMotionDirectionalBlur,
   applyMotionChromaticAberration,
-  applyMotionDisplace,
   applyMotionLevels,
   applyMotionNoise,
   applyMotionMosaic,
   applyMotionPosterize,
-  applyMotionRadialBlur,
-  applyMotionSharpen,
   applyMotionThreshold,
   applyMotionVignette,
   buildMotionLevelsLut,
@@ -71,30 +67,6 @@ describe("motion pixel effects", () => {
     applyMotionNoise(b, 0.5, 7);
     expect(Array.from(a.data)).toEqual(Array.from(b.data));
     expect(a.data[0]).not.toBe(128);
-  });
-
-  it("sharpen and directional blur preserve buffer size and run without error", () => {
-    const sharp = solidBuffer(4, 4, 128);
-    applyMotionSharpen(sharp, 1);
-    expect(sharp.data.length).toBe(4 * 4 * 4);
-
-    const blurred = solidBuffer(8, 1, 128);
-    blurred.data[0] = 255;
-    applyMotionDirectionalBlur(blurred, 0, 3);
-    expect(blurred.data.length).toBe(8 * 1 * 4);
-    expect(blurred.data[0]).toBeLessThan(255);
-  });
-
-  it("radial blur and turbulent displace preserve buffer size", () => {
-    const radial = solidBuffer(8, 8, 100);
-    radial.data[(4 * 8 + 4) * 4] = 255;
-    applyMotionRadialBlur(radial, 0.5, 0.5, 0.8);
-    expect(radial.data.length).toBe(8 * 8 * 4);
-
-    const displaced = solidBuffer(8, 8, 100);
-    applyMotionDisplace(displaced, 4, 20, 3);
-    expect(displaced.data.length).toBe(8 * 8 * 4);
-    expect(displaced.data[3]).toBe(255);
   });
 
   it("applies threshold and mosaic as deterministic graphic treatments", () => {

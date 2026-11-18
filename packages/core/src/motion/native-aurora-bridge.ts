@@ -1,6 +1,6 @@
 import type { CreationAssetRecipe, CreationScene } from "../creation";
 
-export interface NativeAuroraPreviewArgs {
+interface NativeAuroraPreviewArgs {
   readonly scene: CreationScene;
   readonly assets: readonly CreationAssetRecipe[];
   readonly width: number;
@@ -10,7 +10,7 @@ export interface NativeAuroraPreviewArgs {
   readonly quality?: "preview" | "final";
 }
 
-export interface NativeAuroraPreviewResult {
+interface NativeAuroraPreviewResult {
   readonly backend: "native" | "cpu";
   readonly pngBase64: string;
   readonly dataUri: string;
@@ -21,7 +21,7 @@ export interface NativeAuroraPreviewResult {
   readonly renderMs: number;
 }
 
-export interface NativeAuroraBridge {
+interface NativeAuroraBridge {
   readonly platform?: string;
   readonly aurora?: {
     renderPreview(args: NativeAuroraPreviewArgs): Promise<NativeAuroraPreviewResult>;
@@ -35,10 +35,6 @@ function getBridge(): NativeAuroraBridge | undefined {
     return openreel as NativeAuroraBridge;
   }
   return undefined;
-}
-
-export function nativeAuroraAvailable(): boolean {
-  return getBridge() !== undefined && typeof createImageBitmap === "function";
 }
 
 function base64ToUint8Array(base64: string): Uint8Array<ArrayBuffer> {

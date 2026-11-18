@@ -762,9 +762,78 @@ const AUDIO_PRESETS: PlatformExportPreset[] = [
   },
 ];
 
-export const ALL_EXPORT_PRESETS: PlatformExportPreset[] = [
+/**
+ * Delivery masters (desktop only: the ffmpeg sidecar encodes them): 24-bit PCM audio, 1080p24 defaults.
+ * Pick another size or rate in the dialog's controls; the codec and wrapper stay.
+ */
+const PCM_AUDIO: AudioExportSettings = { format: "wav", sampleRate: 48000, bitDepth: 24, bitrate: 0, channels: 2 };
+const deliveryPreset = (
+  id: string,
+  name: string,
+  description: string,
+  settings: Record<string, unknown>,
+): PlatformExportPreset => ({
+  id,
+  name,
+  description,
+  platform: "Delivery",
+  category: "broadcast",
+  aspectRatio: "16:9",
+  settings: {
+    width: 1920,
+    height: 1080,
+    frameRate: 24,
+    bitrate: 0,
+    bitrateMode: "cbr",
+    quality: 100,
+    keyframeInterval: 1,
+    audioSettings: PCM_AUDIO,
+    ...settings,
+  } as unknown as PlatformExportPreset["settings"],
+});
+
+const DELIVERY_PRESETS: PlatformExportPreset[] = [
+  deliveryPreset("delivery-prores-422hq", "ProRes 422 HQ (MOV)", "Apple ProRes 422 HQ, 10-bit 4:2:2, PCM audio", { format: "mov", codec: "prores", proresProfile: "hq" }),
+  deliveryPreset("delivery-prores-4444", "ProRes 4444 + alpha (MOV)", "Apple ProRes 4444 with the alpha channel, 10-bit 4:4:4, PCM audio", { format: "mov", codec: "prores", proresProfile: "4444", alpha: true }),
+  deliveryPreset("delivery-dnxhr-hq-mxf", "DNxHR HQ (MXF)", "Avid DNxHR HQ in an MXF OP1a wrapper, 8-bit 4:2:2, PCM audio", { format: "mxf", codec: "dnxhr", dnxhrProfile: "hq" }),
+  deliveryPreset("delivery-dnxhr-hqx-mxf", "DNxHR HQX (MXF)", "Avid DNxHR HQX in an MXF OP1a wrapper, 10-bit 4:2:2, PCM audio", { format: "mxf", codec: "dnxhr", dnxhrProfile: "hqx" }),
+  deliveryPreset("delivery-dnxhr-hq-mov", "DNxHR HQ (MOV)", "Avid DNxHR HQ in a QuickTime MOV, 8-bit 4:2:2, PCM audio", { format: "mov", codec: "dnxhr", dnxhrProfile: "hq" }),
+  deliveryPreset("delivery-dnxhr-hqx-mov", "DNxHR HQX (MOV)", "Avid DNxHR HQX in a QuickTime MOV, 10-bit 4:2:2, PCM audio", { format: "mov", codec: "dnxhr", dnxhrProfile: "hqx" }),
+  // Broadcast delivery (desktop): fixed-format mezzanine codecs, 8 mono PCM tracks (stereo mix on 1-2, silence after) and a 10:00:00:00 start.
+  deliveryPreset("delivery-xdcam-1080i25-mxf", "XDCAM HD422 1080i25 (MXF OP1a)", "MPEG-2 4:2:2 50 Mb/s, top field first, MXF OP1a, 8 mono PCM tracks, start 10:00:00:00", {
+    format: "mxf", codec: "xdcamhd422", frameRate: 25,
+    broadcast: { scan: "interlaced-tff", audioTracks: 8, startTimecode: "10:00:00:00" },
+  }),
+  deliveryPreset("delivery-xdcam-1080i2997-mxf", "XDCAM HD422 1080i29.97 (MXF OP1a)", "MPEG-2 4:2:2 50 Mb/s, top field first, drop frame, MXF OP1a, 8 mono PCM tracks, start 10:00:00;00", {
+    format: "mxf", codec: "xdcamhd422", frameRate: 29.97,
+    broadcast: { scan: "interlaced-tff", audioTracks: 8, startTimecode: "10:00:00;00" },
+  }),
+  deliveryPreset("delivery-xdcam-1080p25-mxf", "XDCAM HD422 1080p25 (MXF OP1a)", "MPEG-2 4:2:2 50 Mb/s progressive, MXF OP1a, 8 mono PCM tracks, start 10:00:00:00", {
+    format: "mxf", codec: "xdcamhd422", frameRate: 25,
+    broadcast: { audioTracks: 8, startTimecode: "10:00:00:00" },
+  }),
+  deliveryPreset("delivery-xdcam-1080i25-opatom", "XDCAM HD422 1080i25 (MXF OP-Atom)", "MPEG-2 4:2:2 50 Mb/s, top field first, one MXF OP-Atom file per track (picture + 8 mono audio), start 10:00:00:00", {
+    format: "mxf", codec: "xdcamhd422", frameRate: 25,
+    broadcast: { scan: "interlaced-tff", mxfPattern: "opatom", audioTracks: 8, startTimecode: "10:00:00:00" },
+  }),
+  deliveryPreset("delivery-avcintra100-1080i25-mxf", "AVC-Intra 100 1080i25 (MXF OP1a)", "H.264 High 4:2:2 Intra 10-bit (AVC-Intra class 100), top field first, MXF OP1a, 8 mono PCM tracks, start 10:00:00:00", {
+    format: "mxf", codec: "avcintra100", frameRate: 25,
+    broadcast: { scan: "interlaced-tff", audioTracks: 8, startTimecode: "10:00:00:00" },
+  }),
+  deliveryPreset("delivery-avcintra100-1080p25-mxf", "AVC-Intra 100 1080p25 (MXF OP1a)", "H.264 High 4:2:2 Intra 10-bit (AVC-Intra class 100) progressive, MXF OP1a, 8 mono PCM tracks, start 10:00:00:00", {
+    format: "mxf", codec: "avcintra100", frameRate: 25,
+    broadcast: { audioTracks: 8, startTimecode: "10:00:00:00" },
+  }),
+  deliveryPreset("delivery-prores-422hq-8ch-mov", "ProRes 422 HQ, 8 mono tracks (MOV)", "Apple ProRes 422 HQ in a QuickTime MOV with 8 mono PCM tracks and a 10:00:00:00 timecode track", {
+    format: "mov", codec: "prores", proresProfile: "hq",
+    broadcast: { audioTracks: 8, startTimecode: "10:00:00:00" },
+  }),
+];
+
+const ALL_EXPORT_PRESETS: PlatformExportPreset[] = [
   ...SOCIAL_MEDIA_PRESETS,
   ...BROADCAST_PRESETS,
+  ...DELIVERY_PRESETS,
   ...WEB_PRESETS,
   ...ARCHIVE_PRESETS,
   ...AUDIO_PRESETS,
@@ -772,7 +841,11 @@ export const ALL_EXPORT_PRESETS: PlatformExportPreset[] = [
 
 const CUSTOM_PRESETS_KEY = "openreel-custom-export-presets";
 
-class ExportPresetsManager {
+let customIdCounter = 0;
+
+export const CUSTOM_PRESET_FILE_VERSION = 1;
+
+export class ExportPresetsManager {
   private customPresets: PlatformExportPreset[] = [];
   private listeners: Set<() => void> = new Set();
 
@@ -784,7 +857,17 @@ class ExportPresetsManager {
     try {
       const stored = localStorage.getItem(CUSTOM_PRESETS_KEY);
       if (stored) {
-        this.customPresets = JSON.parse(stored);
+        const parsed: unknown = JSON.parse(stored);
+        if (Array.isArray(parsed)) {
+          const seen = new Set<string>();
+          for (const entry of parsed) {
+            const valid = parseStoredPreset(entry);
+            if (valid && !seen.has(valid.id)) {
+              seen.add(valid.id);
+              this.customPresets.push(valid);
+            }
+          }
+        }
       }
     } catch (error) {
       console.error("[ExportPresets] Failed to load custom presets:", error);
@@ -834,13 +917,21 @@ class ExportPresetsManager {
   ): PlatformExportPreset {
     const newPreset: PlatformExportPreset = {
       ...preset,
-      id: `custom-${Date.now()}`,
+      id: this.nextCustomId(),
       category: "custom",
     };
     this.customPresets.push(newPreset);
     this.saveCustomPresets();
     this.notify();
     return newPreset;
+  }
+
+  private nextCustomId(): string {
+    let id: string;
+    do {
+      id = `custom-${Date.now()}-${(customIdCounter += 1)}`;
+    } while (this.customPresets.some((p) => p.id === id));
+    return id;
   }
 
   updateCustomPreset(
@@ -885,6 +976,66 @@ class ExportPresetsManager {
     });
   }
 
+  renameCustomPreset(id: string, name: string): boolean {
+    const trimmed = name.trim();
+    if (!trimmed) return false;
+    return this.updateCustomPreset(id, { name: trimmed });
+  }
+
+  /** Serializes custom presets (all, or only the given ids) to a JSON string. */
+  exportCustomPresets(ids?: string[]): string {
+    const presets = this.customPresets.filter(
+      (p) => !ids || ids.includes(p.id),
+    );
+    return JSON.stringify(
+      { openreelExportPresets: CUSTOM_PRESET_FILE_VERSION, presets },
+      null,
+      2,
+    );
+  }
+
+  /**
+   * Imports presets from JSON produced by exportCustomPresets (a bare array is
+   * also accepted). Invalid entries are skipped. Imported presets always get
+   * fresh ids so they can never overwrite built-ins or existing presets.
+   */
+  importCustomPresets(json: string): {
+    imported: PlatformExportPreset[];
+    skipped: number;
+    /** Entries not added because a preset with the same name and settings exists. */
+    duplicates: number;
+  } {
+    let data: unknown;
+    try {
+      data = JSON.parse(json);
+    } catch {
+      throw new Error("The file is not valid JSON.");
+    }
+    const list = Array.isArray(data)
+      ? data
+      : isRecord(data) && Array.isArray(data.presets)
+        ? data.presets
+        : null;
+    if (!list) throw new Error("The file does not contain export presets.");
+    const imported: PlatformExportPreset[] = [];
+    let skipped = 0;
+    let duplicates = 0;
+    for (const entry of list) {
+      const valid = parseImportedPreset(entry);
+      if (!valid) {
+        skipped += 1;
+        continue;
+      }
+      const signature = presetSignature(valid);
+      if (this.customPresets.some((p) => presetSignature(p) === signature)) {
+        duplicates += 1;
+        continue;
+      }
+      imported.push(this.addCustomPreset(valid));
+    }
+    return { imported, skipped, duplicates };
+  }
+
   subscribe(listener: () => void): () => void {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
@@ -893,6 +1044,132 @@ class ExportPresetsManager {
   private notify(): void {
     this.listeners.forEach((cb) => cb());
   }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+const VIDEO_FORMATS = ["mp4", "webm", "mov", "mxf"] as const;
+const BITRATE_MODES = ["cbr", "vbr", "vbr1", "vbr2"] as const;
+const RATE_CONTROLS = ["quality", "vbr", "vbr2"] as const;
+const VIDEO_CODECS = [
+  "h264", "h265", "vp8", "vp9", "av1", "prores", "dnxhr", "xdcamhd422", "avcintra100",
+] as const;
+const AUDIO_FORMATS = ["mp3", "wav", "aac", "flac", "ogg"] as const;
+
+const FALLBACK_AUDIO_SETTINGS: AudioExportSettings = {
+  format: "aac",
+  sampleRate: 48000,
+  bitDepth: 16,
+  bitrate: 192,
+  channels: 2,
+};
+
+function isPositiveFinite(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value > 0;
+}
+
+function oneOf<T extends string>(list: readonly T[], value: unknown): value is T {
+  return typeof value === "string" && (list as readonly string[]).includes(value);
+}
+
+function parseAudioSettings(value: unknown): AudioExportSettings | null {
+  if (!isRecord(value)) return null;
+  if (!oneOf(AUDIO_FORMATS, value.format)) return null;
+  if (![44100, 48000, 96000].includes(value.sampleRate as number)) return null;
+  if (![16, 24, 32].includes(value.bitDepth as number)) return null;
+  // Uncompressed audio (PCM/WAV with ProRes/DNxHR) legitimately has bitrate 0.
+  if (
+    typeof value.bitrate !== "number" ||
+    !Number.isFinite(value.bitrate) ||
+    value.bitrate < 0
+  ) {
+    return null;
+  }
+  if (![1, 2, 6].includes(value.channels as number)) return null;
+  return value as unknown as AudioExportSettings;
+}
+
+/**
+ * Validates a full video export settings object (as found in imported files or
+ * localStorage). A missing audioSettings falls back to AAC 48 kHz stereo; an
+ * invalid one rejects the settings.
+ */
+export function parseVideoExportSettings(
+  value: unknown,
+): PlatformExportPreset["settings"] | null {
+  if (!isRecord(value)) return null;
+  if (!oneOf(VIDEO_FORMATS, value.format)) return null;
+  if (!oneOf(VIDEO_CODECS, value.codec)) return null;
+  if (
+    !isPositiveFinite(value.width) ||
+    !isPositiveFinite(value.height) ||
+    !isPositiveFinite(value.frameRate) ||
+    !isPositiveFinite(value.bitrate) ||
+    !isPositiveFinite(value.keyframeInterval)
+  ) {
+    return null;
+  }
+  if (!oneOf(BITRATE_MODES, value.bitrateMode)) return null;
+  if (value.rateControl !== undefined && !oneOf(RATE_CONTROLS, value.rateControl)) return null;
+  if (value.maxBitrate !== undefined && !isPositiveFinite(value.maxBitrate)) return null;
+  if (
+    typeof value.quality !== "number" ||
+    !Number.isFinite(value.quality) ||
+    value.quality < 0 ||
+    value.quality > 100
+  ) {
+    return null;
+  }
+  let audioSettings = FALLBACK_AUDIO_SETTINGS;
+  if (value.audioSettings !== undefined) {
+    const parsed = parseAudioSettings(value.audioSettings);
+    if (!parsed) return null;
+    audioSettings = parsed;
+  }
+  return {
+    ...value,
+    audioSettings,
+  } as unknown as PlatformExportPreset["settings"];
+}
+
+/** Whether settings are a complete, usable video export configuration. */
+export function isValidVideoExportSettings(value: unknown): boolean {
+  return parseVideoExportSettings(value) !== null;
+}
+
+function presetSignature(preset: {
+  name: string;
+  settings: PlatformExportPreset["settings"];
+}): string {
+  return `${preset.name.trim().toLowerCase()}\u0000${JSON.stringify(preset.settings)}`;
+}
+
+function parseImportedPreset(
+  entry: unknown,
+): Omit<PlatformExportPreset, "id"> | null {
+  if (!isRecord(entry)) return null;
+  const { name } = entry;
+  if (typeof name !== "string" || !name.trim()) return null;
+  const settings = parseVideoExportSettings(entry.settings);
+  if (!settings) return null;
+  return {
+    name: name.trim(),
+    description:
+      typeof entry.description === "string" ? entry.description : "",
+    platform: "Custom",
+    category: "custom",
+    settings,
+  };
+}
+
+function parseStoredPreset(entry: unknown): PlatformExportPreset | null {
+  if (!isRecord(entry)) return null;
+  if (typeof entry.id !== "string" || !entry.id.startsWith("custom-")) return null;
+  const parsed = parseImportedPreset(entry);
+  if (!parsed) return null;
+  return { ...parsed, id: entry.id };
 }
 
 export const exportPresetsManager = new ExportPresetsManager();

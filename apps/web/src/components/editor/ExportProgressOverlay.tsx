@@ -1,3 +1,5 @@
+import { useEffect, useRef, useState } from "react";
+import { ProgressEstimator, formatEta } from "@openreel/core";
 import { Loader2 } from "@/icons/lucide-compat";
 
 interface Props {
@@ -5,10 +7,29 @@ interface Props {
   phase: string;
   width: number;
   height: number;
+  /** Test seam: the estimator's clock (defaults to Date.now). */
+  now?: () => number;
 }
 
 /** Sized to the preview workspace, independently of project aspect ratio/zoom. */
-export function ExportProgressOverlay({ progress, phase, width, height }: Props) {
+export function ExportProgressOverlay({ progress, phase, width, height, now }: Props) {
+  // Honest ETA: hidden until there is signal, counts down between updates and converges.
+  const estimator = useRef<ProgressEstimator | null>(null);
+  const [eta, setEta] = useState<number | null>(null);
+  useEffect(() => {
+    if (!estimator.current) {
+      estimator.current = new ProgressEstimator(now);
+      estimator.current.start();
+    }
+    setEta(estimator.current.update(progress / 100).etaSeconds);
+  }, [progress, now]);
+  // Between progress reports the displayed time still ticks down.
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (estimator.current) setEta(estimator.current.tick().etaSeconds);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [progress]);
   const percent = Math.round(Number.isFinite(progress) ? Math.min(100, Math.max(0, progress)) : 0);
   const minimal = height < 96 || width < 240;
   const compact = minimal || height < 180 || width < 320;
@@ -20,7 +41,7 @@ export function ExportProgressOverlay({ progress, phase, width, height }: Props)
           {!minimal && <span className={`flex shrink-0 items-center justify-center rounded-full bg-accent-soft text-accent ${compact ? "h-7 w-7" : "h-9 w-9"}`}><Loader2 size={compact ? 16 : 19} className="animate-spin" aria-hidden /></span>}
           <div className="min-w-0 flex-1">
             <p className={`${minimal ? "text-[10px] leading-3" : compact ? "text-xs leading-5" : "text-sm leading-5"} truncate font-semibold`}>{minimal ? "Exporting" : "Exporting video"}</p>
-            {!minimal && <p className="truncate text-[11px] leading-4 text-fg-muted">{stage}</p>}
+            {!minimal && <p className="truncate text-[11px] leading-4 text-fg-muted" data-export-eta={eta === null ? "" : Math.round(eta)}>{stage} · {formatEta(eta)}</p>}
             {minimal && <span className="sr-only">{stage}</span>}
           </div>
           <span aria-hidden="true" className={`shrink-0 font-mono font-semibold tabular-nums ${minimal ? "text-[10px] leading-3" : compact ? "text-xs" : "text-base"}`}>{percent}%</span>

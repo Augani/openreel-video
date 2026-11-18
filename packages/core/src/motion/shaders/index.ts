@@ -9,22 +9,13 @@ export type {
   MotionShaderParamType,
   MotionShaderParamDef,
   MotionShaderCategory,
-  MotionShaderColorArrayParams,
   MotionShaderDef,
 } from "./types";
-export { EFFECT_SHADERS } from "./effect-shaders";
-export { FILL_SHADERS } from "./fill-shaders";
-export { TEXT_SHADERS } from "./text-shaders";
 export {
-  registerMotionShader,
-  unregisterMotionShader,
   clearGeneratedMotionShaders,
   listGeneratedMotionShaders,
-  generatedShaderById,
-  isBuiltinMotionShaderId,
 } from "./registry";
 export { registerProjectGeneratedShaders } from "./project-shaders";
-export { PAPER_SHADER_DEFS, PAPER_VERTEX_SHADER } from "./paper-shaders";
 
 export const MOTION_SHADER_LIBRARY: readonly MotionShaderDef[] = [
   ...EFFECT_SHADERS,

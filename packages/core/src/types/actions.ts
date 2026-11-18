@@ -1,3 +1,4 @@
+import type { ParticleEffect } from "../effects/particle-types";
 import type { ProjectSettings } from "./project";
 import type {
   Transform,
@@ -5,7 +6,13 @@ import type {
   SubtitleStyle,
   Subtitle,
   AutomationPoint,
+  AudioType,
+  EssentialSoundState,
+  LiveDuckingConfig,
   Marker,
+  MarkerKind,
+  ReviewReply,
+  ReviewStatus,
   Effect,
   Clip,
   Track,
@@ -49,7 +56,7 @@ export interface ActionResult {
 }
 
 // Error codes for action validation and execution
-export type ActionErrorCode =
+type ActionErrorCode =
   | "INVALID_PARAMS" // Missing or malformed parameters
   | "CLIP_NOT_FOUND" // Referenced clip doesn't exist
   | "TRACK_NOT_FOUND" // Referenced track doesn't exist
@@ -66,7 +73,8 @@ export type ActionErrorCode =
   | "OUT_OF_BOUNDS" // Time or position outside valid range
   | "CIRCULAR_REFERENCE" // Nested sequence references itself
   | "EFFECT_NOT_FOUND" // Referenced effect doesn't exist
-  | "KEYFRAME_CONFLICT"; // Keyframe already exists at time
+  | "KEYFRAME_CONFLICT" // Keyframe already exists at time
+  | "READ_ONLY"; // Project is open read-only (locked by another window)
 
 // Action error with detailed information
 export interface ActionError {
@@ -149,6 +157,7 @@ export type TrackAction =
   | { type: "track/rename"; params: { trackId: string; name: string } }
   | { type: "track/reorder"; params: { trackId: string; newPosition: number } }
   | { type: "track/lock"; params: { trackId: string; locked: boolean } }
+  | { type: "track/setSyncLock"; params: { trackId: string; syncLock: boolean } }
   | { type: "track/hide"; params: { trackId: string; hidden: boolean } }
   | { type: "track/mute"; params: { trackId: string; muted: boolean } }
   | { type: "track/solo"; params: { trackId: string; solo: boolean } };
@@ -278,6 +287,7 @@ export type EffectAction =
         index?: number;
         /** Preserve disabled state when cloning an authored effect. */
         enabled?: boolean;
+        metadata?: Effect["metadata"];
       };
     }
   | { type: "effect/remove"; params: { clipId: string; effectId: string } }
@@ -301,7 +311,10 @@ export type EffectAction =
   | { type: "effect/setStack"; params: { clipId: string; effects: Effect[] } };
 export type TransformAction = {
   type: "transform/update";
-  params: { clipId: string; transform: Partial<Transform> };
+  params: { clipId: string } & (
+    | { transform: Partial<Transform>; replace?: false }
+    | { transform: Transform; replace: true }
+  );
 };
 
 // Keyframe actions
@@ -366,10 +379,19 @@ export type AudioAction =
       params: { clipId: string; fadeIn?: number; fadeOut?: number };
     }
   | {
+      type: "audio/restoreFade";
+      params: { clipId: string; fade: Clip["fade"] | null };
+    }
+  | {
       type: "audio/addAutomation";
-      params: { clipId: string; points: AutomationPoint[] };
+      /** Replaces the clip's volume lane in one step. `null` (or the legacy `clear: true`) removes the lane, which is how undo restores a clip that had none. */
+      params: { clipId: string; points: AutomationPoint[] | null; clear?: boolean };
     }
   | { type: "audio/addEffect"; params: { clipId: string; effect: Effect } }
+  | {
+      type: "audio/replaceEffect";
+      params: { clipId: string; effectId: string; effect: Effect };
+    }
   | {
       type: "audio/removeEffect";
       params: { clipId: string; effectId: string };
@@ -385,6 +407,20 @@ export type AudioAction =
   | {
       type: "audio/toggleEffect";
       params: { clipId: string; effectId: string; enabled: boolean };
+    }
+  | {
+      /** Tag a clip for the Essential Sound panel and store what it replaced (null clears). */
+      type: "audio/setEssentialSound";
+      params: {
+        clipId: string;
+        audioType: AudioType | null;
+        state: EssentialSoundState | null;
+      };
+    }
+  | {
+      /** Turn live ducking on a clip on (config) or off (null). The dip follows the dialogue clips. */
+      type: "audio/setLiveDucking";
+      params: { clipId: string; config: LiveDuckingConfig | null };
     };
 
 // Subtitle actions
@@ -412,7 +448,18 @@ export type SubtitleAction =
 export type MarkerAction =
   | {
       type: "marker/add";
-      params: { time: number; label: string; color: string };
+      params: {
+        time: number;
+        label: string;
+        color: string;
+        duration?: number;
+        comment?: string;
+        kind?: MarkerKind;
+        author?: string;
+        status?: ReviewStatus;
+        replies?: ReviewReply[];
+        createdAt?: number;
+      };
     }
   | { type: "marker/remove"; params: { markerId: string } }
   | {
@@ -460,6 +507,7 @@ export type MotionAction =
 export type AdjustmentAction =
   | { type: "adjustment/setAll"; params: { layers: AdjustmentLayer[] } }
   | { type: "mask/setAll"; params: { masks: Mask[] } }
+  | { type: "particle/setAll"; params: { effects: ParticleEffect[] } }
   | { type: "multicam/setAll"; params: { groups: MultiCamGroup[] } }
   | {
       type: "multicam/applyEdit";

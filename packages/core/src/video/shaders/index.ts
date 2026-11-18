@@ -1,3 +1,5 @@
+import { displayLayoutWidth, normalizeSequencePar } from "../sequence-par";
+
 export const compositeShaderSource = /* wgsl */ `
 struct VertexOutput {
  @builtin(position) position: vec4<f32>,
@@ -132,25 +134,6 @@ fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
 }
 `;
 
-export interface LayerUniforms {
-  opacity: number;
-  // 12 bytes padding
-}
-
-export interface TransformUniforms {
-  matrix: Float32Array;
-  opacity: number; // 4 bytes
-  borderRadius: number; // 4 bytes
-  // 8 bytes padding
-}
-
-export interface BorderRadiusUniforms {
-  radius: number; // 4 bytes
-  width: number; // 4 bytes
-  height: number; // 4 bytes
-  // 4 bytes padding
-}
-
 export function createLayerUniformsBuffer(opacity: number): Float32Array {
   const buffer = new Float32Array(8); // 32 bytes aligned
   buffer[0] = opacity;
@@ -177,23 +160,20 @@ export function createTransformUniformsBuffer(
   return buffer;
 }
 
-export function createBorderRadiusUniformsBuffer(
-  radius: number,
-  width: number,
-  height: number,
-): Float32Array {
-  const buffer = new Float32Array(4); // 16 bytes aligned
-  buffer[0] = radius;
-  buffer[1] = width;
-  buffer[2] = height;
-  // buffer[3] is padding
-  return buffer;
-}
-
-export function createIdentityMatrix(): Float32Array {
-  return new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
-}
-
+/**
+ * Clip-space matrix for a layer quad (corners (+-1, +-1), texture (0,0) at the top left), matching what the Canvas2D
+ * preview and the export compositor draw:
+ *
+ *   ctx.scale(1 / par, 1);                              // display -> stored
+ *   ctx.translate(L / 2 + x * par, H / 2 + y);          // L = display width = stored width * par
+ *   ctx.rotate(rotation); ctx.scale(sx, sy);            // rotation and scale in DISPLAY space
+ *   ctx.drawImage(img, -anchor.x * w, -anchor.y * h, w, h)   // w x h = sx-independent fit size, `scale` = fit * user scale
+ *
+ * so a rotated layer stays a rigid, un-sheared rectangle where it is looked at, then is squeezed by 1/PAR into
+ * stored pixels. `scale` is the layer size as a fraction of the display frame (L x H); `position` is in stored
+ * canvas pixels (y down) and `rotation` in degrees (clockwise), like every other renderer. With a square PAR it is
+ * the aspect-correct rotation about the anchor.
+ */
 export function createTransformMatrix(
   position: { x: number; y: number },
   scale: { x: number; y: number },
@@ -201,95 +181,38 @@ export function createTransformMatrix(
   anchor: { x: number; y: number },
   canvasWidth: number,
   canvasHeight: number,
+  pixelAspect = 1,
 ): Float32Array {
   const matrix = new Float32Array(16);
-  const normalizedX = (position.x / canvasWidth) * 2;
-  const normalizedY = (position.y / canvasHeight) * 2;
+  const par = normalizeSequencePar(pixelAspect);
+  // Same rounding the preview and export use for the display width, so the fit scale and this agree to the pixel.
+  const layoutWidth = displayLayoutWidth(canvasWidth, par);
+  const squeeze = canvasWidth / layoutWidth; // display x -> stored x
+  const theta = (rotation * Math.PI) / 180;
+  const cos = Math.cos(theta);
+  const sin = Math.sin(theta);
 
-  // Pre-compute trig values
-  const cos = Math.cos(rotation);
-  const sin = Math.sin(rotation);
+  // Layer-local offset of the quad centre from the anchor, in display pixels before rotation.
+  const halfW = (scale.x * layoutWidth) / 2;
+  const halfH = (scale.y * canvasHeight) / 2;
+  const offX = (1 - 2 * anchor.x) * halfW;
+  const offY = (1 - 2 * anchor.y) * halfH;
 
-  // Anchor offset in normalized coordinates
-  const anchorOffsetX = (anchor.x - 0.5) * 2;
-  const anchorOffsetY = (anchor.y - 0.5) * 2;
-  // This combines: translate(-anchor) * rotate * scale * translate(position + anchor)
+  // clip.x = 2 * stored.x / W - 1, clip.y = 1 - 2 * stored.y / H (stored y grows downward).
+  const toClipX = (2 * squeeze) / canvasWidth;
+  const toClipY = 2 / canvasHeight;
 
-  // Column 0
-  matrix[0] = scale.x * cos;
-  matrix[1] = scale.x * sin;
-  matrix[2] = 0;
-  matrix[3] = 0;
-
-  // Column 1
-  matrix[4] = -scale.y * sin;
-  matrix[5] = scale.y * cos;
-  matrix[6] = 0;
-  matrix[7] = 0;
-
-  // Column 2
-  matrix[8] = 0;
-  matrix[9] = 0;
+  // Column 0: where quad x goes. Column 1: where quad y goes (quad y is up, layer y is down).
+  matrix[0] = toClipX * halfW * cos;
+  matrix[1] = -toClipY * halfW * sin;
+  matrix[4] = toClipX * halfH * sin;
+  matrix[5] = toClipY * halfH * cos;
   matrix[10] = 1;
-  matrix[11] = 0;
-
-  // Column 3 (translation)
-  const tx =
-    normalizedX +
-    anchorOffsetX * (1 - scale.x * cos) +
-    anchorOffsetY * scale.y * sin;
-  const ty =
-    normalizedY +
-    anchorOffsetY * (1 - scale.y * cos) -
-    anchorOffsetX * scale.x * sin;
-  matrix[12] = tx;
-  matrix[13] = ty;
-  matrix[14] = 0;
+  matrix[12] = (2 * position.x) / canvasWidth + toClipX * (cos * offX - sin * offY);
+  matrix[13] = (-2 * position.y) / canvasHeight - toClipY * (sin * offX + cos * offY);
   matrix[15] = 1;
 
   return matrix;
-}
-
-export function multiplyMatrices(
-  a: Float32Array,
-  b: Float32Array,
-): Float32Array {
-  const result = new Float32Array(16);
-
-  for (let col = 0; col < 4; col++) {
-    for (let row = 0; row < 4; row++) {
-      let sum = 0;
-      for (let k = 0; k < 4; k++) {
-        sum += a[row + k * 4] * b[k + col * 4];
-      }
-      result[row + col * 4] = sum;
-    }
-  }
-
-  return result;
-}
-
-export function calculateBorderRadiusAlpha(
-  x: number,
-  y: number,
-  radius: number,
-  smoothness: number = 0.01,
-): number {
-  const clampedRadius = Math.max(0, Math.min(0.5, radius));
-  const halfSize = 1.0;
-  const r = clampedRadius * 2.0;
-
-  // SDF for rounded rectangle
-  const qx = Math.abs(x) - halfSize + r;
-  const qy = Math.abs(y) - halfSize + r;
-  const dist =
-    Math.min(Math.max(qx, qy), 0) +
-    Math.sqrt(Math.max(qx, 0) ** 2 + Math.max(qy, 0) ** 2) -
-    r;
-
-  // Smoothstep for anti-aliasing
-  const t = Math.max(0, Math.min(1, (dist + smoothness) / (2 * smoothness)));
-  return 1 - t * t * (3 - 2 * t);
 }
 
 export const effectsComputeShaderSource = /* wgsl */ `
@@ -523,24 +446,6 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
  textureStore(outputTexture, coords, finalColor);
 }
 `;
-
-export interface EffectUniforms {
-  brightness: number; // 4 bytes
-  contrast: number; // 4 bytes
-  saturation: number; // 4 bytes
-  hue: number; // 4 bytes
-  temperature: number; // 4 bytes
-  tint: number; // 4 bytes
-  shadows: number; // 4 bytes
-  highlights: number; // 4 bytes
-}
-
-export interface BlurUniforms {
-  radius: number; // 4 bytes
-  sigma: number; // 4 bytes
-  directionX: number; // 4 bytes
-  directionY: number; // 4 bytes
-}
 
 export function createEffectUniformsBuffer(
   brightness: number = 0,

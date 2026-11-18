@@ -7,7 +7,7 @@ export interface LLMToolUse {
 /** Informational only — the loop drives control flow off toolUses, not this. */
 export type LLMStopReason = "end_turn" | "tool_use" | "max_tokens";
 
-export type LlmProviderName = "anthropic" | "openai";
+type LlmProviderName = "anthropic" | "openai";
 
 export interface LLMUsage {
   readonly inputTokens: number;
@@ -125,7 +125,7 @@ export function llmHttpError(
   return new LLMHttpError(`${provider} ${status}: ${body.slice(0, 500)}`, status, retryAfterMs);
 }
 
-export interface RetryOptions {
+interface RetryOptions {
   readonly retries?: number;
   readonly baseDelayMs?: number;
   readonly maxDelayMs?: number;
@@ -281,7 +281,7 @@ export function parseAnthropicResponse(raw: unknown): LLMResponse {
   return { text, toolUses, stopReason, usage };
 }
 
-export interface AdapterOptions {
+interface AdapterOptions {
   readonly model: string;
   readonly maxTokens?: number;
   readonly send: LLMSend;
@@ -432,7 +432,7 @@ export class OpenAIClient implements LLMClient {
   }
 }
 
-export interface ClientFromSendOptions {
+interface ClientFromSendOptions {
   readonly provider: LlmProviderName;
   readonly model: string;
   readonly maxTokens?: number;

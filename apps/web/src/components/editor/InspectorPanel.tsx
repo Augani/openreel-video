@@ -1,17 +1,24 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { formatFrameTimecode } from "../../utils/frame-timecode";
+import { clipSourceTimecodeRange } from "../../services/source-timecode";
+import { WorkspaceTabs, workspaceTabPanel } from "./WorkspacePrimitives";
+import React, {
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useShallow } from "zustand/react/shallow";
-import { Captions, Shuffle } from "@/icons/lucide-compat";
 import { useProjectStore } from "../../stores/project-store";
 import { useTimelineStore } from "../../stores/timeline-store";
-import { useUIStore } from "../../stores/ui-store";
+import { useUIStore, type SelectionItem } from "../../stores/ui-store";
+import { InspectorSelectionProvider } from "./inspector/shell/InspectorSelection";
 import { useEngineStore } from "../../stores/engine-store";
 import type { Transform, EditingTemplatePrimitive } from "@openreel/core";
 import {
   ChromaKeyEngine,
-  getMediaItemCapabilities,
-  type CaptionAnimationStyle,
-  CAPTION_ANIMATION_STYLES,
-  getAnimationStyleDisplayName,
+  getProjectClipCapabilities,
 } from "@openreel/core";
 import { mergeEditingTemplateControlValues } from "./panels/EditingTemplateControls";
 import {
@@ -20,24 +27,15 @@ import {
   DEFAULT_NOISE_REDUCTION,
 } from "../../bridges/audio-bridge-effects";
 import { toast } from "../../stores/notification-store";
-import {
-  FONT_CATEGORIES,
-  FONT_FILE_ACCEPT,
-  registerCustomFont,
-  useCustomFonts,
-} from "./inspector/font-options";
 import { getNoiseReductionPreset } from "./inspector/noise-reduction-presets";
-import { ToolcraftButton as Button } from "@openreel/ui";
-import { ToolcraftCard as Card } from "@openreel/ui";
-import { ToolcraftFileDropControl as FileInput } from "@openreel/ui";
-import { ToolcraftNumberInputControl } from "@openreel/ui";
-import { ToolcraftSelectableCard as SelectableCard } from "@openreel/ui";
-import { ToolcraftSelectControl as Selector } from "@openreel/ui";
-import { ToolcraftText as Text } from "@openreel/ui";
-import { ToolcraftTextAreaControl } from "@openreel/ui";
-import { ColorSelector } from "../../motion/components/primitives";
+import { ScrollArea } from "@openreel/ui";
+import { SubtitleInspector } from "./inspector/SubtitleInspector";
 import {
   getTabIdsForClipType,
+  getInspectorTabOptions,
+  getInspectorTabForSection,
+  ANIMATION_SECTION_IDS,
+  EFFECT_SECTION_IDS,
   type InspectorClipType,
 } from "./inspector/clip-tabs.config";
 import { InspectorClipHeader } from "./inspector/shell/InspectorClipHeader";
@@ -55,71 +53,50 @@ import { TransitionInspector } from "./inspector/TransitionInspector";
 import { MultiClipInspector } from "./inspector/MultiClipInspector";
 import { QuickEditBar } from "./QuickEditBar";
 import { useInspectorNavigationStore } from "../../stores/inspector-navigation-store";
+import { getTrackBadge } from "./timeline/track-badge";
+import { resetClipTransform } from "../../services/reset-clip-transform";
+import { GraphicInspector } from "./graphics/GraphicInspector";
+import { selectedGraphicInstance } from "../../services/graphic-commands";
+import { linkedInstanceOfBakedClip } from "@openreel/core";
 
-const MultiCameraPanel = React.lazy(() => import("./inspector/MultiCameraPanel"));
+const MultiCameraPanel = React.lazy(
+  () => import("./inspector/MultiCameraPanel"),
+);
 
 // Initialize engines as singletons
 const chromaKeyEngine = new ChromaKeyEngine({ width: 1920, height: 1080 });
 
 const Section = InspectorSection;
 
-const componentToHex = (value: number): string =>
-  Math.max(0, Math.min(255, Math.round(value)))
-    .toString(16)
-    .padStart(2, "0");
-
-const cssColorToHex = (value: string | undefined, fallback: string): string => {
-  if (!value) return fallback;
-  const trimmed = value.trim();
-  if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(trimmed)) {
-    if (trimmed.length === 4) {
-      const [, r, g, b] = trimmed;
-      return `#${r}${r}${g}${g}${b}${b}`.toLowerCase();
-    }
-    return trimmed.toLowerCase();
-  }
-
-  const rgba = trimmed.match(
-    /^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)(?:\s*,\s*([\d.]+))?\s*\)$/i,
-  );
-  if (!rgba) return fallback;
-
-  return `#${componentToHex(Number(rgba[1]))}${componentToHex(
-    Number(rgba[2]),
-  )}${componentToHex(Number(rgba[3]))}`;
-};
-
-const cssColorAlpha = (
-  value: string | undefined,
-  fallback: "0" | "0.5" | "0.7" | "1" = "0.7",
-): "0" | "0.5" | "0.7" | "1" => {
-  const alpha = value?.match(/rgba?\([^,]+,[^,]+,[^,]+,\s*([\d.]+)\s*\)/i)?.[1];
-  if (alpha === "0" || alpha === "0.5" || alpha === "0.7" || alpha === "1") {
-    return alpha;
-  }
-  return fallback;
-};
-
-const rgbaFromHex = (hex: string, alpha: string): string => {
-  const value = cssColorToHex(hex, "#000000");
-  const r = parseInt(value.slice(1, 3), 16);
-  const g = parseInt(value.slice(3, 5), 16);
-  const b = parseInt(value.slice(5, 7), 16);
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-};
-
 const EmptyState: React.FC = () => (
-  <div className="flex-1 flex flex-col items-center justify-center p-10 text-center">
-    <Text type="body" weight="semibold" display="block" className="mb-1.5 text-sm text-fg">
-      No selection
-    </Text>
-    <Text type="supporting" display="block" className="text-xs text-fg-muted">
-      Select a clip to view its properties
-    </Text>
+  <div className="workspace-inspector-empty">
+    <h2>Nothing selected</h2>
+    <p>Select a clip, title or transition to edit it here.</p>
+    <div className="workspace-shortcuts">
+      <h3>KEYBOARD SHORTCUTS</h3>
+      {[
+        ["Play / pause", "Space"],
+        ["Shuttle", "J K L"],
+        ["Mark in / out", "I O"],
+        ["Blade tool", "B"],
+        ["Selection tool", "V"],
+        ["Add marker", "M"],
+        ["Undo", "⌘ Z"],
+      ].map(([label, key]) => (
+        <div key={label}>
+          <span>{label}</span>
+          <kbd>{key}</kbd>
+        </div>
+      ))}
+    </div>
   </div>
 );
 
-export const InspectorPanel: React.FC = () => {
+interface InspectorPanelBodyProps {
+  selectedItems: SelectionItem[];
+}
+
+const InspectorPanelBody = React.memo(function InspectorPanelBody({ selectedItems }: InspectorPanelBodyProps) {
   // Stores
   const {
     getClip,
@@ -127,26 +104,25 @@ export const InspectorPanel: React.FC = () => {
     updateClipTransition,
     removeClipTransition,
     importSRT,
-    updateSubtitle,
     getSubtitle,
     getEditingTemplate,
     updateEditingTemplateApplication,
     removeEditingTemplateApplication,
-  } = useProjectStore(useShallow((state) => ({
-    getClip: state.getClip,
-    getClipTransition: state.getClipTransition,
-    updateClipTransition: state.updateClipTransition,
-    removeClipTransition: state.removeClipTransition,
-    importSRT: state.importSRT,
-    updateSubtitle: state.updateSubtitle,
-    getSubtitle: state.getSubtitle,
-    getEditingTemplate: state.getEditingTemplate,
-    updateEditingTemplateApplication: state.updateEditingTemplateApplication,
-    removeEditingTemplateApplication: state.removeEditingTemplateApplication,
-  })));
+  } = useProjectStore(
+    useShallow((state) => ({
+      getClip: state.getClip,
+      getClipTransition: state.getClipTransition,
+      updateClipTransition: state.updateClipTransition,
+      removeClipTransition: state.removeClipTransition,
+      importSRT: state.importSRT,
+      getSubtitle: state.getSubtitle,
+      getEditingTemplate: state.getEditingTemplate,
+      updateEditingTemplateApplication: state.updateEditingTemplateApplication,
+      removeEditingTemplateApplication: state.removeEditingTemplateApplication,
+    })),
+  );
   const project = useProjectStore((state) => state.project);
   const clearSelection = useUIStore((state) => state.clearSelection);
-  const selectedItems = useUIStore((state) => state.selectedItems);
   const effectApplicationClipId = useUIStore(
     (state) => state.effectApplicationClipId,
   );
@@ -156,9 +132,18 @@ export const InspectorPanel: React.FC = () => {
   const finishEffectApplication = useUIStore(
     (state) => state.finishEffectApplication,
   );
-  const selectedClipIds = useMemo(() => selectedItems.filter((item) =>
-    item.type === "clip" || item.type === "text-clip" || item.type === "shape-clip",
-  ).map((item) => item.id), [selectedItems]);
+  const selectedClipIds = useMemo(
+    () =>
+      selectedItems
+        .filter(
+          (item) =>
+            item.type === "clip" ||
+            item.type === "text-clip" ||
+            item.type === "shape-clip",
+        )
+        .map((item) => item.id),
+    [selectedItems],
+  );
   const pausePlayback = useTimelineStore((state) => state.pause);
   const lockPlayback = useTimelineStore((state) => state.lockPlayback);
   const unlockPlayback = useTimelineStore((state) => state.unlockPlayback);
@@ -172,12 +157,16 @@ export const InspectorPanel: React.FC = () => {
     Record<string, Record<string, EditingTemplatePrimitive>>
   >({});
   const srtInputRef = useRef<HTMLInputElement>(null);
-  const customFonts = useCustomFonts();
+  const selectionScope = JSON.stringify([project.id, selectedClipIds]);
+  const navigationOwner = useRef(selectionScope);
 
   useEffect(() => {
     setExpandedRecipeApplicationId(null);
-    useInspectorNavigationStore.getState().clearRequest();
-  }, [selectedClipIds, project.id]);
+    if (navigationOwner.current !== selectionScope) {
+      navigationOwner.current = selectionScope;
+      useInspectorNavigationStore.getState().clearRequest();
+    }
+  }, [selectionScope]);
 
   // Check if a subtitle is selected
   const selectedSubtitleId = useMemo(() => {
@@ -202,13 +191,14 @@ export const InspectorPanel: React.FC = () => {
   }, [selectedTransitionId, getClipTransition, project.modifiedAt]);
 
   const transitionClipA = useMemo(
-    () => (selectedTransition ? getClip(selectedTransition.clipAId) ?? null : null),
+    () =>
+      selectedTransition ? (getClip(selectedTransition.clipAId) ?? null) : null,
     [selectedTransition, getClip, project.modifiedAt],
   );
   const transitionClipB = useMemo(
     () =>
       selectedTransition?.clipBId
-        ? getClip(selectedTransition.clipBId) ?? null
+        ? (getClip(selectedTransition.clipBId) ?? null)
         : null,
     [selectedTransition, getClip, project.modifiedAt],
   );
@@ -216,14 +206,14 @@ export const InspectorPanel: React.FC = () => {
   const selectedTimelineClip = useMemo(() => {
     if (selectedClipIds.length !== 1) return null;
     return getClip(selectedClipIds[0]) || null;
-  }, [getClip, project.modifiedAt, selectedClipIds]);
+  }, [getClip, project, selectedClipIds]);
 
   // Get selected clip (check regular clips, text clips, and shape clips)
   const selectedClip = useMemo(() => {
     if (selectedClipIds.length !== 1) return null;
     const clipId = selectedClipIds[0];
     const titleEngine = getTitleEngine();
-    const textClip = titleEngine?.getTextClip(clipId);
+    const textClip = project.textClips?.find(clip => clip.id === clipId) ?? titleEngine?.getTextClip(clipId);
     if (textClip) {
       return {
         id: textClip.id,
@@ -239,13 +229,13 @@ export const InspectorPanel: React.FC = () => {
           anchor: { x: 0.5, y: 0.5 },
           opacity: 1,
         },
-        effects: [],
+        effects: textClip.effects ?? [],
         text: textClip.text,
         trackId: textClip.trackId,
       };
     }
     const graphicsEngine = getGraphicsEngine();
-    const shapeClip = graphicsEngine?.getShapeClip(clipId);
+    const shapeClip = project.shapeClips?.find(clip => clip.id === clipId) ?? graphicsEngine?.getShapeClip(clipId);
     if (shapeClip) {
       return {
         id: shapeClip.id,
@@ -261,12 +251,12 @@ export const InspectorPanel: React.FC = () => {
           anchor: { x: 0.5, y: 0.5 },
           opacity: 1,
         },
-        effects: [],
+        effects: shapeClip.effects ?? [],
         shapeType: shapeClip.shapeType,
         trackId: shapeClip.trackId,
       };
     }
-    const svgClip = graphicsEngine?.getSVGClip(clipId);
+    const svgClip = project.svgClips?.find(clip => clip.id === clipId) ?? graphicsEngine?.getSVGClip(clipId);
     if (svgClip) {
       return {
         id: svgClip.id,
@@ -282,12 +272,12 @@ export const InspectorPanel: React.FC = () => {
           anchor: { x: 0.5, y: 0.5 },
           opacity: 1,
         },
-        effects: [],
+        effects: svgClip.effects ?? [],
         svgContent: svgClip.svgContent,
         trackId: svgClip.trackId,
       };
     }
-    const stickerClip = graphicsEngine?.getStickerClip(clipId);
+    const stickerClip = project.stickerClips?.find(clip => clip.id === clipId) ?? graphicsEngine?.getStickerClip(clipId);
     if (stickerClip) {
       return {
         id: stickerClip.id,
@@ -303,7 +293,7 @@ export const InspectorPanel: React.FC = () => {
           anchor: { x: 0.5, y: 0.5 },
           opacity: 1,
         },
-        effects: [],
+        effects: stickerClip.effects ?? [],
         imageUrl: stickerClip.imageUrl,
         trackId: stickerClip.trackId,
       };
@@ -314,7 +304,7 @@ export const InspectorPanel: React.FC = () => {
     getClip,
     getTitleEngine,
     getGraphicsEngine,
-    project.modifiedAt,
+    project,
   ]);
 
   // Force re-render trigger - increment to force recalculation of engine values
@@ -411,18 +401,21 @@ export const InspectorPanel: React.FC = () => {
     getAudioEffects,
     updateAudioEffect,
     toggleAudioEffect,
-  } = useProjectStore(useShallow((state) => ({
-    addVideoEffect: state.addVideoEffect,
-    updateVideoEffect: state.updateVideoEffect,
-    getAudioEffects: state.getAudioEffects,
-    updateAudioEffect: state.updateAudioEffect,
-    toggleAudioEffect: state.toggleAudioEffect,
-  })));
+  } = useProjectStore(
+    useShallow((state) => ({
+      addVideoEffect: state.addVideoEffect,
+      updateVideoEffect: state.updateVideoEffect,
+      getAudioEffects: state.getAudioEffects,
+      updateAudioEffect: state.updateAudioEffect,
+      toggleAudioEffect: state.toggleAudioEffect,
+    })),
+  );
 
   const [isEnhancingAudio, setIsEnhancingAudio] = useState(false);
   const [audioEnhanced, setAudioEnhanced] = useState(false);
   const isApplyingSelectedClipEffect =
-    effectApplicationClipId !== null && effectApplicationClipId === selectedClip?.id;
+    effectApplicationClipId !== null &&
+    effectApplicationClipId === selectedClip?.id;
 
   const waitForEffectApplicationPaint = useCallback(
     () =>
@@ -439,15 +432,30 @@ export const InspectorPanel: React.FC = () => {
       clipId: string,
       label: string,
       apply: () => void | Promise<void>,
+      // "project": the edit is a tracked project change (the render cache already
+      // invalidated exactly its frames); "audio": no pixels change.
+      // Default "engine": pixel state lives outside the project, flush render files.
+      pixelScope: "engine" | "project" | "audio" = "engine",
     ) => {
       const store = useProjectStore.getState();
-      const currentClip = store.getClip(clipId) ?? store.getTextClip(clipId) ??
-        store.getShapeClip(clipId) ?? store.getSVGClip(clipId) ?? store.getStickerClip(clipId);
-      const track = store.project.timeline.tracks.find((candidate) => candidate.id === currentClip?.trackId);
-      if (!currentClip || !track || track.locked ||
+      const currentClip =
+        store.getClip(clipId) ??
+        store.getTextClip(clipId) ??
+        store.getShapeClip(clipId) ??
+        store.getSVGClip(clipId) ??
+        store.getStickerClip(clipId);
+      const track = store.project.timeline.tracks.find(
+        (candidate) => candidate.id === currentClip?.trackId,
+      );
+      if (
+        !currentClip ||
+        !track ||
+        track.locked ||
         useUIStore.getState().exportState.isExporting ||
         useUIStore.getState().effectApplicationClipId !== null ||
-        useTimelineStore.getState().playbackLockedReason) return;
+        useTimelineStore.getState().playbackLockedReason
+      )
+        return;
       const projectId = store.project.id;
       pausePlayback();
       lockPlayback(label);
@@ -457,12 +465,18 @@ export const InspectorPanel: React.FC = () => {
         await waitForEffectApplicationPaint();
         if (useProjectStore.getState().project.id !== projectId) return;
         await apply();
-        window.dispatchEvent(new CustomEvent("openreel:preview-invalidate"));
+        window.dispatchEvent(
+          new CustomEvent(
+            "openreel:preview-invalidate",
+            pixelScope === "engine" ? undefined : { detail: { audioOnly: true } },
+          ),
+        );
         await waitForEffectApplicationPaint();
       } finally {
         if (useUIStore.getState().effectApplicationClipId === clipId) {
           finishEffectApplication();
-          if (useTimelineStore.getState().playbackLockedReason === label) unlockPlayback();
+          if (useTimelineStore.getState().playbackLockedReason === label)
+            unlockPlayback();
         }
       }
     },
@@ -540,6 +554,7 @@ export const InspectorPanel: React.FC = () => {
 
           forceUpdate();
         },
+        "audio",
       );
     } catch (error) {
       console.error("Failed to enhance audio:", error);
@@ -589,6 +604,7 @@ export const InspectorPanel: React.FC = () => {
           });
         }
       },
+      "project",
     );
   }, [
     addVideoEffect,
@@ -622,35 +638,21 @@ export const InspectorPanel: React.FC = () => {
             );
           }
         } else {
-          toast.error("Caption import failed", result.errors[0] || "No valid captions found.");
+          toast.error(
+            "Caption import failed",
+            result.errors[0] || "No valid captions found.",
+          );
         }
       } catch {
-        toast.error("Caption import failed", "Could not read the selected subtitle file.");
+        toast.error(
+          "Caption import failed",
+          "Could not read the selected subtitle file.",
+        );
       } finally {
         event.target.value = "";
       }
     },
     [captionWordsPerLine, importSRT, selectedTimelineClip?.id],
-  );
-
-  const handleSubtitleFontUpload = useCallback(
-    async (file: File) => {
-      if (!file || !selectedSubtitle) return;
-
-      const result = await registerCustomFont(file);
-      if (!result.success) {
-        toast.error("Font upload failed", result.error ?? "Unknown error.");
-      } else {
-        updateSubtitle(selectedSubtitle.id, {
-          style: {
-            ...(selectedSubtitle.style || {}),
-            fontFamily: result.fontFamily,
-          } as typeof selectedSubtitle.style,
-        });
-        toast.success("Custom font uploaded", `${result.fontFamily} is ready to use.`);
-      }
-    },
-    [selectedSubtitle, updateSubtitle],
   );
 
   // Default transform
@@ -675,7 +677,7 @@ export const InspectorPanel: React.FC = () => {
         .toString(16)
         .padStart(2, "0")}`
     : "#00ff00";
-  const tolerance = (chromaKeySettings?.tolerance || 0.3) * 100;
+  const tolerance = (chromaKeySettings?.tolerance ?? 0.3) * 100;
 
   /** Detect clip type from the selected item itself, not its owning track. */
   const clipType = useMemo(() => {
@@ -727,13 +729,8 @@ export const InspectorPanel: React.FC = () => {
     clipType === "svg" ||
     clipType === "sticker";
   const showColorGrading = clipType === "video" || clipType === "image";
-  const selectedMediaCapabilities = getMediaItemCapabilities(
-    selectedTimelineClip
-      ? project.mediaLibrary.items.find(
-          (item) => item.id === selectedTimelineClip.mediaId,
-        )
-      : undefined,
-  );
+  const selectedMediaCapabilities = selectedTimelineClip
+    ? getProjectClipCapabilities(project, selectedTimelineClip) : { visual: false, audio: false };
   const showAudioEffects =
     clipType === "audio" || selectedMediaCapabilities.audio;
   const showTextSection = clipType === "text";
@@ -766,7 +763,11 @@ export const InspectorPanel: React.FC = () => {
     [],
   );
   const handleToggleRecipeControls = useCallback(
-    (applicationId: string, templateId: string, controlValues?: Record<string, unknown>) => {
+    (
+      applicationId: string,
+      templateId: string,
+      controlValues?: Record<string, unknown>,
+    ) => {
       const template = getEditingTemplate(templateId);
       if (!template || !template.controls || template.controls.length === 0) {
         return;
@@ -790,7 +791,11 @@ export const InspectorPanel: React.FC = () => {
     [getEditingTemplate],
   );
   const handleResetRecipeControls = useCallback(
-    (applicationId: string, templateId: string, controlValues?: Record<string, unknown>) => {
+    (
+      applicationId: string,
+      templateId: string,
+      controlValues?: Record<string, unknown>,
+    ) => {
       const template = getEditingTemplate(templateId);
       if (!template) {
         return;
@@ -798,20 +803,30 @@ export const InspectorPanel: React.FC = () => {
 
       setRecipeControlValues((current) => ({
         ...current,
-        [applicationId]: mergeEditingTemplateControlValues(template, controlValues),
+        [applicationId]: mergeEditingTemplateControlValues(
+          template,
+          controlValues,
+        ),
       }));
     },
     [getEditingTemplate],
   );
   const handleUpdateRecipeControls = useCallback(
-    (applicationId: string, templateId: string, controlValues?: Record<string, unknown>) => {
+    (
+      applicationId: string,
+      templateId: string,
+      controlValues?: Record<string, unknown>,
+    ) => {
       if (!selectedTimelineClip) {
         return;
       }
 
       const template = getEditingTemplate(templateId);
       if (!template) {
-        toast.error("Recipe unavailable", "This recipe definition is no longer available.");
+        toast.error(
+          "Recipe unavailable",
+          "This recipe definition is no longer available.",
+        );
         return;
       }
 
@@ -825,11 +840,17 @@ export const InspectorPanel: React.FC = () => {
       );
 
       if (!updated) {
-        toast.error("Could not update recipe", "The recipe controls could not be saved for this clip.");
+        toast.error(
+          "Could not update recipe",
+          "The recipe controls could not be saved for this clip.",
+        );
         return;
       }
 
-      toast.success("Recipe updated", `${template.name} was updated on this clip.`);
+      toast.success(
+        "Recipe updated",
+        `${template.name} was updated on this clip.`,
+      );
     },
     [
       getEditingTemplate,
@@ -852,166 +873,293 @@ export const InspectorPanel: React.FC = () => {
     [clipType],
   );
 
+  const requestedSection = useInspectorNavigationStore((s) => s.request);
+  const inspectorTabs = useMemo(() => getInspectorTabOptions(clipType as InspectorClipType | null), [clipType]);
+  const inspectorScope = `${project.id}:${clipType ?? "none"}:${clipId}`;
+  const [inspectorTabState, setInspectorTabState] = useState({ scope: "", value: "transform", effectsVisited: false });
+  const selectInspectorTab = useCallback((value: string) => {
+    setInspectorTabState(previous => ({ scope: inspectorScope, value,
+      effectsVisited: value === "effects" || (previous.scope === inspectorScope && previous.effectsVisited) }));
+  }, [inspectorScope]);
+  useEffect(() => {
+    setInspectorTabState(previous => previous.scope === inspectorScope ? previous
+      : { scope: inspectorScope, value: inspectorTabs[0]?.value ?? "transform", effectsVisited: false });
+  }, [inspectorScope, inspectorTabs]);
+  useEffect(() => {
+    if (!requestedSection || requestedSection.clipId !== clipId
+      || useInspectorNavigationStore.getState().request !== requestedSection) return;
+    const tab = getInspectorTabForSection(clipType as InspectorClipType | null, requestedSection.sectionId);
+    if (tab) selectInspectorTab(tab);
+  }, [requestedSection, clipId, clipType, selectInspectorTab]);
+  const visibleInspectorTab = inspectorTabState.scope === inspectorScope && inspectorTabs.some(tab => tab.value === inspectorTabState.value)
+    ? inspectorTabState.value : inspectorTabs[0]?.value ?? "transform";
+  const hasEffectsTab = inspectorTabs.some(tab => tab.value === "effects");
+  const mountGraphicEffects = !hasEffectsTab || visibleInspectorTab === "effects"
+    || (inspectorTabState.scope === inspectorScope && inspectorTabState.effectsVisited);
+
+  const effectsControls = tabIds.includes("effects") ? (
+    <div
+      className="workspace-inspector-effects-group"
+      hidden={visibleInspectorTab !== (hasEffectsTab ? "effects" : "transform")}
+    >
+      <InspectorSection
+        defaultOpen={hasEffectsTab}
+        title={`Effects · ${(selectedClip?.effects?.length ?? 0) + (selectedTimelineClip?.colorGrading?.lut ? 1 : 0)}`}
+        sectionId="effects-overview"
+        sectionIds={[...EFFECT_SECTION_IDS, ...(showVideoControls ? ANIMATION_SECTION_IDS : [])]}
+      >
+        <EffectsTab
+          clipId={clipId}
+          clipType={clipType}
+          selectedClip={selectedClip}
+          selectedTimelineClip={selectedTimelineClip}
+          showVideoControls={showVideoControls}
+          showVideoEffects={showVideoEffects}
+          showTextSection={showTextSection}
+          appliedEditingTemplates={appliedEditingTemplates}
+          getEditingTemplate={getEditingTemplate}
+          removeEditingTemplateApplication={
+            removeEditingTemplateApplication
+          }
+          expandedRecipeApplicationId={
+            expandedRecipeApplicationId
+          }
+          setExpandedRecipeApplicationId={
+            setExpandedRecipeApplicationId
+          }
+          recipeControlValues={recipeControlValues}
+          setRecipeControlValues={setRecipeControlValues}
+          handleRecipeControlChange={handleRecipeControlChange}
+          handleToggleRecipeControls={handleToggleRecipeControls}
+          handleResetRecipeControls={handleResetRecipeControls}
+          handleUpdateRecipeControls={handleUpdateRecipeControls}
+          chromaKeyEnabled={chromaKeyEnabled}
+          keyColor={keyColor}
+          tolerance={tolerance}
+          handleChromaKeyToggle={handleChromaKeyToggle}
+          handleKeyColorChange={handleKeyColorChange}
+          handleToleranceChange={handleToleranceChange}
+        />
+        {showVideoControls && tabIds.includes("animate") && (
+          <div
+            hidden={
+              !(
+                visibleInspectorTab === "animate" ||
+                visibleInspectorTab === "transform"
+              )
+            }
+          >
+            <AnimateTab
+              clipId={clipId}
+              clipType={clipType}
+              showTextSection={showTextSection}
+            />
+          </div>
+        )}
+      </InspectorSection>
+    </div>
+  ) : null;
+
+  // Essential Graphics: a selected graphic shows only the controls its author exposed.
+  const graphicInstance =
+    project.graphicInstances?.length && selectedClipIds.length > 0
+      ? selectedGraphicInstance(project, selectedClipIds) ??
+        // A rendered linked composition is an ordinary media clip; its inspector offers Restore Unrendered.
+        selectedClipIds.map((id) => linkedInstanceOfBakedClip(project, id)).find((instance) => instance !== undefined)
+      : undefined;
+  if (graphicInstance) {
+    return (
+      <div data-tour="inspector" data-clip-type="graphic" className="w-full min-w-0 bg-bg-1 flex flex-col h-full overflow-hidden">
+        <ScrollArea className="flex-1 min-h-0">
+          <GraphicInspector key={graphicInstance.id} instance={graphicInstance} />
+        </ScrollArea>
+      </div>
+    );
+  }
+
   return (
     <div
       data-tour="inspector"
+      data-clip-type={clipType ?? undefined}
       className="w-full min-w-0 bg-bg-1 flex flex-col h-full overflow-hidden"
     >
+      {selectedTransition ? <h2 className="workspace-transition-heading">Transition</h2> : selectedClip && (
+        <WorkspaceTabs
+          label="Inspector sections"
+          value={visibleInspectorTab}
+          onChange={selectInspectorTab}
+          options={inspectorTabs}
+        />
+      )}
       {selectedClip && tabIds.length > 0 && (
         <InspectorClipHeader
           name={
             project.mediaLibrary.items.find(
               (m) => m.id === selectedClip.mediaId,
             )?.name ??
-            (clipType
-              ? clipType.charAt(0).toUpperCase() + clipType.slice(1)
-              : "Clip")
+            (typeof selectedTimelineClip?.metadata?.compoundClipName === "string" ? selectedTimelineClip.metadata.compoundClipName : undefined) ??
+            (clipType === "text"
+              ? `Title · ${useProjectStore.getState().getTextClip(clipId)?.text ?? "Text"}`
+              : clipType
+                ? clipType.charAt(0).toUpperCase() + clipType.slice(1)
+                : "Clip")
           }
           durationSeconds={selectedClip.duration}
           typeLabel={clipType ?? "clip"}
+          trackBadge={getTrackBadge(project.timeline.tracks, selectedClip.trackId)}
+          thumbnailUrl={
+            project.mediaLibrary.items.find(
+              (m) => m.id === selectedClip.mediaId,
+            )?.thumbnailUrl
+          }
+          timeRange={`${formatFrameTimecode(selectedClip.startTime ?? 0, project.settings.frameRate)} → ${formatFrameTimecode((selectedClip.startTime ?? 0) + selectedClip.duration, project.settings.frameRate)}`}
+          sourceRange={clipSourceTimecodeRange(project.mediaLibrary.items.find((m) => m.id === selectedClip.mediaId), selectedClip)}
+          onReset={clipType === "text" || clipType === "audio" ? undefined : () => { void resetClipTransform(selectedClip.id); }}
         />
       )}
 
-      <div className="overflow-y-auto flex-1 min-h-0 custom-scrollbar">
-      <div className="py-[18px] px-5">
-        {selectedTimelineClip && selectedClipIds.length === 1 && (
-          <QuickEditBar clipId={selectedTimelineClip.id} onCleanAudio={handleEnhanceAudio} isCleaningAudio={isEnhancingAudio} />
-        )}
-        <Section title="Multi-Camera Editing" sectionId="multicam">
-          <InspectorTabErrorBoundary>
-            <React.Suspense fallback={<p role="status">Loading camera tools…</p>}>
-              <MultiCameraPanel key={project.id} />
-            </React.Suspense>
-          </InspectorTabErrorBoundary>
-        </Section>
-        {selectedClipIds.length > 1 ? (
-          <MultiClipInspector clipIds={selectedClipIds} />
-        ) : selectedClip ? (
-          <InspectorTabErrorBoundary key={clipId}>
-            <div className="space-y-4">
-              {tabIds.includes("transform") && (
-                <TransformTab
-                  clipId={clipId}
-                  clipType={clipType}
-                  selectedClip={selectedClip}
-                  showTransformControls={showTransformControls}
-                  showVideoControls={showVideoControls}
-                  transform={transform}
-                  canvasWidth={project.settings.width}
-                  canvasHeight={project.settings.height}
-                  handleTransformChange={handleTransformChange}
-                />
-              )}
+      <ScrollArea className={`flex-1 min-h-0 ${selectedTransition ? "workspace-transition-scroll" : ""}`}>
+        <div
+          {...(selectedClip
+            ? workspaceTabPanel("Inspector sections", visibleInspectorTab)
+            : {})}
+          className="workspace-inspector-content"
+        >
+          {visibleInspectorTab === "ai" &&
+            selectedTimelineClip &&
+            selectedClipIds.length === 1 && (
+              <QuickEditBar
+                clipId={selectedTimelineClip.id}
+                onCleanAudio={handleEnhanceAudio}
+                isCleaningAudio={isEnhancingAudio}
+              />
+            )}
+          <div hidden={!selectedClip || visibleInspectorTab !== "ai"}>
+            <Section title="Multi-Camera Editing" sectionId="multicam">
+              <InspectorTabErrorBoundary>
+                <React.Suspense
+                  fallback={<p role="status">Loading camera tools…</p>}
+                >
+                  <MultiCameraPanel key={project.id} />
+                </React.Suspense>
+              </InspectorTabErrorBoundary>
+            </Section>
+          </div>
+          {selectedClipIds.length > 1 ? (
+            <MultiClipInspector clipIds={selectedClipIds} />
+          ) : selectedClip ? (
+            <InspectorTabErrorBoundary key={`${project.id}:${clipId}`}>
+              <div className="workspace-inspector-tab-stack" data-clip-type={clipType}>
+                {tabIds.includes("transform") && (
+                  <div
+                    className="workspace-inspector-transform-group"
+                    hidden={!(visibleInspectorTab === "transform")}
+                  >
+                    <TransformTab
+                      clipId={clipId}
+                      clipType={clipType}
+                      selectedClip={selectedClip}
+                      showTransformControls={showTransformControls}
+                      showVideoControls={showVideoControls}
+                      transform={transform}
+                      canvasWidth={project.settings.width}
+                      canvasHeight={project.settings.height}
+                      handleTransformChange={handleTransformChange}
+                      afterPrimary={effectsControls}
+                    />
+                  </div>
+                )}
 
-              {tabIds.includes("style") && (
-                <StyleTab
-                  clipId={clipId}
-                  showTextSection={showTextSection}
-                  showShapeSection={showShapeSection}
-                  showSVGSection={showSVGSection}
-                />
-              )}
+                {tabIds.includes("style") && (
+                  <div
+                    hidden={
+                      visibleInspectorTab !== "style"
+                    }
+                  >
+                    <StyleTab
+                      clipId={clipId}
+                      showTextSection={showTextSection}
+                      showShapeSection={showShapeSection}
+                      showSVGSection={showSVGSection}
+                    />
+                  </div>
+                )}
 
-              {tabIds.includes("color") && (
-                <ColorTab clipId={clipId} showColorGrading={showColorGrading} />
-              )}
+                {tabIds.includes("color") && (
+                  <div hidden={!(visibleInspectorTab === "color")}>
+                    <ColorTab
+                      clipId={clipId}
+                      showColorGrading={showColorGrading}
+                    />
+                  </div>
+                )}
 
-              {tabIds.includes("effects") && (
-                <EffectsTab
-                  clipId={clipId}
-                  clipType={clipType}
-                  selectedClip={selectedClip}
-                  selectedTimelineClip={selectedTimelineClip}
-                  showVideoControls={showVideoControls}
-                  showVideoEffects={showVideoEffects}
-                  showTextSection={showTextSection}
-                  appliedEditingTemplates={appliedEditingTemplates}
-                  getEditingTemplate={getEditingTemplate}
-                  removeEditingTemplateApplication={removeEditingTemplateApplication}
-                  expandedRecipeApplicationId={expandedRecipeApplicationId}
-                  setExpandedRecipeApplicationId={setExpandedRecipeApplicationId}
-                  recipeControlValues={recipeControlValues}
-                  setRecipeControlValues={setRecipeControlValues}
-                  handleRecipeControlChange={handleRecipeControlChange}
-                  handleToggleRecipeControls={handleToggleRecipeControls}
-                  handleResetRecipeControls={handleResetRecipeControls}
-                  handleUpdateRecipeControls={handleUpdateRecipeControls}
-                  chromaKeyEnabled={chromaKeyEnabled}
-                  keyColor={keyColor}
-                  tolerance={tolerance}
-                  handleChromaKeyToggle={handleChromaKeyToggle}
-                  handleKeyColorChange={handleKeyColorChange}
-                  handleToleranceChange={handleToleranceChange}
-                />
-              )}
+                {!showVideoControls && mountGraphicEffects && effectsControls}
 
-              {tabIds.includes("audio") && (
-                <AudioTab
-                  clipId={clipId}
-                  clipType={clipType}
-                  showAudioEffects={showAudioEffects}
-                  noiseReductionSectionTitle={noiseReductionSectionTitle}
-                  selectedNoiseReductionEffect={selectedNoiseReductionEffect}
-                />
-              )}
+                {tabIds.includes("audio") && (
+                  <div hidden={!(visibleInspectorTab === "audio")}>
+                    <AudioTab
+                      clipId={clipId}
+                      clipType={clipType}
+                      showAudioEffects={showAudioEffects}
+                      noiseReductionSectionTitle={noiseReductionSectionTitle}
+                      selectedNoiseReductionEffect={
+                        selectedNoiseReductionEffect
+                      }
+                    />
+                  </div>
+                )}
 
-              {tabIds.includes("speed") && (
-                <SpeedTab
-                  showVideoControls={showVideoControls}
-                  selectedClip={selectedClip}
-                />
-              )}
+                {tabIds.includes("speed") && (
+                  <div hidden={!(visibleInspectorTab === "speed")}>
+                    <SpeedTab
+                      showVideoControls={showVideoControls}
+                      showSpeedControls={showVideoControls || clipType === "audio"}
+                      selectedClip={selectedClip}
+                    />
+                  </div>
+                )}
 
-              {tabIds.includes("animate") && (
-                <AnimateTab
-                  clipId={clipId}
-                  clipType={clipType}
-                  showTextSection={showTextSection}
-                />
-              )}
+                {!showVideoControls && tabIds.includes("animate") && (
+                  <div
+                    hidden={
+                      visibleInspectorTab !== "animate"
+                    }
+                  >
+                    <AnimateTab
+                      clipId={clipId}
+                      clipType={clipType}
+                      showTextSection={showTextSection}
+                    />
+                  </div>
+                )}
 
-              {tabIds.includes("ai") && (
-                <AiTab
-                  clipId={clipId}
-                  clipType={clipType}
-                  showVideoControls={showVideoControls}
-                  showAudioEffects={showAudioEffects}
-                  showVideoEffects={showVideoEffects}
-                  handleSRTImport={handleSRTImport}
-                  srtInputRef={srtInputRef}
-                  handleRemoveBackground={handleRemoveBackground}
-                  handleEnhanceAudio={handleEnhanceAudio}
-                  handleAutoColor={handleAutoColor}
-                  isEnhancingAudio={isEnhancingAudio}
-                  audioEnhanced={audioEnhanced}
-                  isApplyingSelectedClipEffect={isApplyingSelectedClipEffect}
-                  captionWordsPerLine={captionWordsPerLine}
-                  onCaptionWordsPerLineChange={setCaptionWordsPerLine}
-                />
-              )}
-            </div>
-          </InspectorTabErrorBoundary>
-        ) : selectedTransition && transitionClipA ? (
-          <div className="space-y-3">
-            <Card variant="green" padding={3} className="rounded-lg border border-accent/30 bg-accent-soft">
-              <div className="flex items-center gap-2">
-                <Shuffle size={14} className="text-accent" aria-hidden />
-                <Text type="supporting" weight="bold" className="text-fg">
-                  {selectedTransition.edge === "in"
-                    ? "Intro Transition"
-                    : selectedTransition.edge === "out"
-                      ? "Outro Transition"
-                      : "Transition"}
-                </Text>
+                {tabIds.includes("ai") && (
+                  <div hidden={!(visibleInspectorTab === "ai")}>
+                    <AiTab
+                      clipId={clipId}
+                      clipType={clipType}
+                      showVideoControls={showVideoControls}
+                      showAudioEffects={showAudioEffects}
+                      showVideoEffects={showVideoEffects}
+                      handleSRTImport={handleSRTImport}
+                      srtInputRef={srtInputRef}
+                      handleRemoveBackground={handleRemoveBackground}
+                      handleEnhanceAudio={handleEnhanceAudio}
+                      handleAutoColor={handleAutoColor}
+                      isEnhancingAudio={isEnhancingAudio}
+                      audioEnhanced={audioEnhanced}
+                      isApplyingSelectedClipEffect={
+                        isApplyingSelectedClipEffect
+                      }
+                      captionWordsPerLine={captionWordsPerLine}
+                      onCaptionWordsPerLineChange={setCaptionWordsPerLine}
+                    />
+                  </div>
+                )}
               </div>
-              <Text type="supporting" display="block" className="mt-1 text-[10px] text-fg-3">
-                {selectedTransition.edge === "in"
-                  ? "From the project background into this clip"
-                  : selectedTransition.edge === "out"
-                    ? "From this clip into the project background"
-                    : "Between two clips - centered on the cut"}
-              </Text>
-            </Card>
+            </InspectorTabErrorBoundary>
+          ) : selectedTransition && transitionClipA ? (
             <TransitionInspector
               clipA={transitionClipA}
               clipB={transitionClipB ?? undefined}
@@ -1025,400 +1173,27 @@ export const InspectorPanel: React.FC = () => {
                 clearSelection();
               }}
             />
-          </div>
-        ) : selectedSubtitle ? (
-          <>
-            {/* Subtitle Info */}
-            <Card variant="green" padding={3} className="mb-4 rounded-lg border border-accent/30 bg-accent-soft">
-              <div className="flex items-center gap-2 mb-1">
-                <Captions size={14} className="text-accent" aria-hidden />
-                <Text type="supporting" weight="bold" className="text-accent">
-                  Subtitle
-                </Text>
-              </div>
-              <Text type="supporting" display="block" className="text-[10px] text-fg-3">
-                {selectedSubtitle.startTime.toFixed(2)}s -{" "}
-                {selectedSubtitle.endTime.toFixed(2)}s
-              </Text>
-            </Card>
-
-            {/* Subtitle Text Editor */}
-            <Section title="Text Content">
-              <div className="space-y-3">
-                <ToolcraftTextAreaControl
-                  label="Subtitle text"
-                  isLabelHidden
-                  value={selectedSubtitle.text}
-                  onChange={(text) =>
-                    updateSubtitle(selectedSubtitle.id, {
-                      text,
-                    })
-                  }
-                  rows={4}
-                  placeholder="Enter subtitle text..."
-                  width="100%"
-                />
-              </div>
-            </Section>
-
-            {/* Subtitle Timing */}
-            <Section title="Timing">
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <Text type="supporting" color="secondary" className="text-[10px]">
-                    Start Time
-                  </Text>
-                  <ToolcraftNumberInputControl
-                    label="Start Time"
-                    isLabelHidden
-                    step={0.1}
-                    value={selectedSubtitle.startTime}
-                    onChange={(value) =>
-                      updateSubtitle(selectedSubtitle.id, {
-                        startTime: value || 0,
-                      })
-                    }
-                    size="sm"
-                    width={80}
-                  />
-                </div>
-                <div className="flex items-center justify-between">
-                  <Text type="supporting" color="secondary" className="text-[10px]">
-                    End Time
-                  </Text>
-                  <ToolcraftNumberInputControl
-                    label="End Time"
-                    isLabelHidden
-                    step={0.1}
-                    value={selectedSubtitle.endTime}
-                    onChange={(value) =>
-                      updateSubtitle(selectedSubtitle.id, {
-                        endTime: value || 0,
-                      })
-                    }
-                    size="sm"
-                    width={80}
-                  />
-                </div>
-              </div>
-            </Section>
-
-            {/* Subtitle Position */}
-            <Section title="Position">
-              <div className="grid grid-cols-3 gap-2">
-                {(["top", "center", "bottom"] as const).map((pos) => (
-                  <SelectableCard
-                    key={pos}
-                    label={pos}
-                    isSelected={(selectedSubtitle.style?.position || "bottom") === pos}
-                    onChange={() =>
-                      updateSubtitle(selectedSubtitle.id, {
-                        style: {
-                          ...(selectedSubtitle.style || {}),
-                          position: pos,
-                        } as typeof selectedSubtitle.style,
-                      })
-                    }
-                    padding={2}
-                    variant={(selectedSubtitle.style?.position || "bottom") === pos ? "green" : "muted"}
-                    className="text-center capitalize"
-                  >
-                    {pos}
-                  </SelectableCard>
-                ))}
-              </div>
-            </Section>
-
-            {/* Subtitle Animation Style */}
-            <Section title="Animation">
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <Text type="supporting" color="secondary" className="text-[10px]">
-                    Style
-                  </Text>
-                  <Selector
-                    label="Animation style"
-                    isLabelHidden
-                    value={selectedSubtitle.animationStyle || "none"}
-                    onChange={(v) =>
-                      updateSubtitle(selectedSubtitle.id, {
-                        animationStyle: v as CaptionAnimationStyle,
-                      })
-                    }
-                    options={CAPTION_ANIMATION_STYLES.map((style) => ({
-                      value: style,
-                      label: getAnimationStyleDisplayName(style),
-                    }))}
-                    size="sm"
-                    width={140}
-                  />
-                </div>
-                <Text type="supporting" color="secondary" display="block" className="text-[9px]">
-                  {selectedSubtitle.animationStyle === "karaoke" &&
-                    "Words fill with color as they're spoken"}
-                  {selectedSubtitle.animationStyle === "word-highlight" &&
-                    "Current word is highlighted and scaled"}
-                  {selectedSubtitle.animationStyle === "word-by-word" &&
-                    "Shows one word at a time"}
-                  {selectedSubtitle.animationStyle === "bounce" &&
-                    "Words bounce in as they appear"}
-                  {selectedSubtitle.animationStyle === "typewriter" &&
-                    "Words appear progressively like typing"}
-                  {(!selectedSubtitle.animationStyle ||
-                    selectedSubtitle.animationStyle === "none") &&
-                    "Static text, no animation"}
-                </Text>
-                {selectedSubtitle.animationStyle &&
-                  selectedSubtitle.animationStyle !== "none" &&
-                  !selectedSubtitle.words?.length && (
-                    <Card variant="muted" padding={2} className="bg-amber-400/10">
-                      <Text type="supporting" display="block" className="text-[9px] text-amber-400">
-                      No word-level timing data. Re-generate captions to
-                      enable animation.
-                      </Text>
-                    </Card>
-                  )}
-                {selectedSubtitle.animationStyle &&
-                  selectedSubtitle.animationStyle !== "none" &&
-                  selectedSubtitle.animationStyle !== "typewriter" &&
-                  selectedSubtitle.animationStyle !== "word-by-word" && (
-                    <div className="pt-2 border-t border-border space-y-2">
-                      <div className="flex items-center justify-between">
-                        <Text type="supporting" color="secondary" className="text-[10px]">
-                          Highlight Color
-                        </Text>
-                        <div className="flex items-center gap-2">
-                          <ColorSelector
-                            value={
-                              selectedSubtitle.style?.highlightColor ||
-                              "#ffff00"
-                            }
-                            label="Select highlight color"
-                            onChange={(highlightColor) =>
-                              updateSubtitle(selectedSubtitle.id, {
-                                style: {
-                                  ...(selectedSubtitle.style || {}),
-                                  highlightColor,
-                                } as typeof selectedSubtitle.style,
-                              })
-                            }
-                          />
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-6 gap-1">
-                        {[
-                          "#ffff00",
-                          "#00ff00",
-                          "#ff6b6b",
-                          "#4ecdc4",
-                          "#ff9f43",
-                          "#a55eea",
-                        ].map((color) => (
-                          <Button
-                            key={color}
-                            label={color}
-                            onClick={() =>
-                              updateSubtitle(selectedSubtitle.id, {
-                                style: {
-                                  ...(selectedSubtitle.style || {}),
-                                  highlightColor: color,
-                                } as typeof selectedSubtitle.style,
-                              })
-                            }
-                            variant="ghost"
-                            size="sm"
-                            className={`h-6 w-6 rounded border-2 p-0 transition-transform hover:scale-110 ${
-                              (selectedSubtitle.style?.highlightColor ||
-                                "#ffff00") === color
-                                ? "border-white"
-                                : "border-transparent"
-                            }`}
-                            style={{ backgroundColor: color }}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  )}
-              </div>
-            </Section>
-
-            {/* Subtitle Font Settings */}
-            <Section title="Font">
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <Text type="supporting" color="secondary" className="text-[10px]">
-                    Font Family
-                  </Text>
-                  <Selector
-                    label="Font family"
-                    isLabelHidden
-                    value={selectedSubtitle.style?.fontFamily || "Inter"}
-                    onChange={(v) =>
-                      updateSubtitle(selectedSubtitle.id, {
-                        style: {
-                          ...(selectedSubtitle.style || {}),
-                          fontFamily: v,
-                        } as typeof selectedSubtitle.style,
-                      })
-                    }
-                    options={[
-                      ...Object.entries(FONT_CATEGORIES).flatMap(([category, fonts]) =>
-                        fonts.map((font) => ({
-                          value: font,
-                          label: `${font} (${category})`,
-                        })),
-                      ),
-                      ...customFonts.map((font) => ({
-                        value: font,
-                        label: `${font} (Custom)`,
-                      })),
-                    ]}
-                    size="sm"
-                    width={160}
-                  />
-                </div>
-                <FileInput
-                  label="Upload Custom Font"
-                  isLabelHidden
-                  value={null}
-                  onChange={(picked) => {
-                    if (picked instanceof File) {
-                      void handleSubtitleFontUpload(picked);
-                    }
-                  }}
-                  accept={FONT_FILE_ACCEPT}
-                  mode="input"
-                  placeholder="Upload Custom Font"
-                  width="100%"
-                />
-                <div className="flex items-center justify-between">
-                  <Text type="supporting" color="secondary" className="text-[10px]">
-                    Font Size
-                  </Text>
-                  <ToolcraftNumberInputControl
-                    label="Font Size"
-                    isLabelHidden
-                    min={12}
-                    max={72}
-                    value={selectedSubtitle.style?.fontSize || 24}
-                    onChange={(value) =>
-                      updateSubtitle(selectedSubtitle.id, {
-                        style: {
-                          ...(selectedSubtitle.style || {}),
-                          fontSize: value || 24,
-                        } as typeof selectedSubtitle.style,
-                      })
-                    }
-                    size="sm"
-                    width={80}
-                  />
-                </div>
-              </div>
-            </Section>
-
-            {/* Subtitle Colors */}
-            <Section title="Colors">
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <Text type="supporting" color="secondary" className="text-[10px]">
-                    Text Color
-                  </Text>
-                  <div className="flex items-center gap-2">
-                    <ColorSelector
-                      value={selectedSubtitle.style?.color || "#ffffff"}
-                      label="Select subtitle text color"
-                      onChange={(color) =>
-                        updateSubtitle(selectedSubtitle.id, {
-                          style: {
-                            ...(selectedSubtitle.style || {}),
-                            color,
-                          } as typeof selectedSubtitle.style,
-                        })
-                      }
-                    />
-                  </div>
-                </div>
-                <div className="flex items-center justify-between">
-                  <Text type="supporting" color="secondary" className="text-[10px]">
-                    Background
-                  </Text>
-                  <div className="flex items-center gap-2">
-                    <ColorSelector
-                      value={cssColorToHex(
-                        selectedSubtitle.style?.backgroundColor,
-                        "#000000",
-                      )}
-                      label="Select subtitle background color"
-                      onChange={(hex) => {
-                        updateSubtitle(selectedSubtitle.id, {
-                          style: {
-                            ...(selectedSubtitle.style || {}),
-                            backgroundColor: rgbaFromHex(
-                              hex,
-                              cssColorAlpha(
-                                selectedSubtitle.style?.backgroundColor,
-                              ),
-                            ),
-                          } as typeof selectedSubtitle.style,
-                        });
-                      }}
-                    />
-                    <Selector
-                      label="Background opacity"
-                      isLabelHidden
-                      value={
-                        cssColorAlpha(selectedSubtitle.style?.backgroundColor)
-                      }
-                      onChange={(v) => {
-                        const nextAlpha = v as "0" | "0.5" | "0.7" | "1";
-                        const newBg = rgbaFromHex(
-                          cssColorToHex(
-                            selectedSubtitle.style?.backgroundColor,
-                            "#000000",
-                          ),
-                          nextAlpha,
-                        );
-                        updateSubtitle(selectedSubtitle.id, {
-                          style: {
-                            ...(selectedSubtitle.style || {}),
-                            backgroundColor: newBg,
-                          } as typeof selectedSubtitle.style,
-                        });
-                      }}
-                      options={[
-                        { value: "0", label: "None" },
-                        { value: "0.5", label: "50%" },
-                        { value: "0.7", label: "70%" },
-                        { value: "1", label: "100%" },
-                      ]}
-                      size="sm"
-                      width={80}
-                    />
-                  </div>
-                </div>
-              </div>
-            </Section>
-
-            {/* Delete Subtitle */}
-            <div className="pt-4 border-t border-border">
-              <Button
-                label="Delete Subtitle"
-                onClick={() => {
-                  const { removeSubtitle } = useProjectStore.getState();
-                  removeSubtitle(selectedSubtitle.id);
-                }}
-                variant="destructive"
-                className="w-full border border-red-500/30 bg-red-500/20 text-red-400 hover:bg-red-500/30"
-              />
-            </div>
-          </>
-        ) : (
-          <EmptyState />
-        )}
-      </div>
-      </div>
+          ) : selectedSubtitle ? (
+            <SubtitleInspector key={selectedSubtitle.id} subtitle={selectedSubtitle} />
+          ) : (
+            <EmptyState />
+          )}
+        </div>
+      </ScrollArea>
     </div>
+  );
+});
+
+export const InspectorPanel: React.FC = () => {
+  // Deferred: the timeline paints the new selection first, the (large) inspector tree follows
+  // in a low-priority pass that React can interrupt if another click arrives. The tree lives in a
+  // memoised body fed the deferred value, so the urgent selection render stops at this shell
+  // instead of re-running the whole inspector against the previous selection.
+  const selectedItems = useDeferredValue(useUIStore((state) => state.selectedItems));
+  return (
+    <InspectorSelectionProvider value={selectedItems}>
+      <InspectorPanelBody selectedItems={selectedItems} />
+    </InspectorSelectionProvider>
   );
 };
 
-export default InspectorPanel;

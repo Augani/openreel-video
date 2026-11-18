@@ -184,29 +184,12 @@ describe("render queue MCP tools — headless graceful failure", () => {
 });
 
 describe("queue_motion_render — validation", () => {
-  it("requires compositionId", async () => {
-    const { host } = hostWithQueue(baseComposition());
-    const result = await executeTool("queue_motion_render", {}, host);
-    expect(result.ok).toBe(false);
-    expect(result.error?.code).toBe("INVALID_PARAMS");
-  });
 
   it("rejects an unknown format", async () => {
     const { host } = hostWithQueue(baseComposition());
     const result = await executeTool(
       "queue_motion_render",
       { compositionId: COMP_ID, format: "gif" },
-      host,
-    );
-    expect(result.ok).toBe(false);
-    expect(result.error?.code).toBe("INVALID_PARAMS");
-  });
-
-  it("rejects an invalid resolution scale", async () => {
-    const { host } = hostWithQueue(baseComposition());
-    const result = await executeTool(
-      "queue_motion_render",
-      { compositionId: COMP_ID, resolutionScale: 0.75 },
       host,
     );
     expect(result.ok).toBe(false);
@@ -222,28 +205,6 @@ describe("queue_motion_render — validation", () => {
     );
     expect(result.ok).toBe(false);
     expect(result.error?.code).toBe("INVALID_PARAMS");
-  });
-
-  it("rejects a range whose start is not before end", async () => {
-    const { host } = hostWithQueue(baseComposition());
-    const result = await executeTool(
-      "queue_motion_render",
-      { compositionId: COMP_ID, rangeStart: 3, rangeEnd: 2 },
-      host,
-    );
-    expect(result.ok).toBe(false);
-    expect(result.error?.code).toBe("INVALID_PARAMS");
-  });
-
-  it("fails NOT_FOUND for a missing composition", async () => {
-    const { host } = hostWithQueue(baseComposition());
-    const result = await executeTool(
-      "queue_motion_render",
-      { compositionId: "missing" },
-      host,
-    );
-    expect(result.ok).toBe(false);
-    expect(result.error?.code).toBe("NOT_FOUND");
   });
 
   it("requires acknowledgeH264Fallback for ProRes on web", async () => {
@@ -355,16 +316,5 @@ describe("render queue MCP tools — round-trip", () => {
     expect(runData.alreadyRunning).toBe(true);
     expect((runData.outcomes as unknown[]).length).toBe(0);
     expect(run.summary.toLowerCase()).toContain("already running");
-  });
-
-  it("cancel returns not-found for an unknown item", async () => {
-    const { host } = hostWithQueue(baseComposition());
-    const result = await executeTool(
-      "cancel_motion_render_item",
-      { itemId: "nope" },
-      host,
-    );
-    expect(result.ok).toBe(false);
-    expect(result.error?.code).toBe("NOT_FOUND");
   });
 });

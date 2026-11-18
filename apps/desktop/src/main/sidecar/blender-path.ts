@@ -3,12 +3,12 @@ import path from "node:path";
 import { app } from "electron";
 import type { RiggingBackendMode } from "../../shared/ipc-contract";
 
-export interface BlenderCandidate {
+interface BlenderCandidate {
   readonly path: string;
   readonly mode: RiggingBackendMode;
 }
 
-export function blenderRelativePath(platform: NodeJS.Platform, arch: string): string {
+function blenderRelativePath(platform: NodeJS.Platform, arch: string): string {
   const slot = `${platform}-${arch}`;
   if (platform === "darwin") {
     return `blender/${slot}/Blender.app/Contents/MacOS/Blender`;
@@ -16,13 +16,13 @@ export function blenderRelativePath(platform: NodeJS.Platform, arch: string): st
   return `blender/${slot}/${platform === "win32" ? "blender.exe" : "blender"}`;
 }
 
-export function riggingResourceRoot(): string {
+function riggingResourceRoot(): string {
   return app.isPackaged
     ? path.join(process.resourcesPath, "rigging")
     : path.join(__dirname, "../../resources/rigging");
 }
 
-export function bundledBlenderPath(): string {
+function bundledBlenderPath(): string {
   return path.join(riggingResourceRoot(), blenderRelativePath(process.platform, process.arch));
 }
 

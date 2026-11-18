@@ -8,6 +8,9 @@ export function ffmpegRelativePath(platform: NodeJS.Platform, arch: string): str
 }
 
 export function resolveFfmpegPath(): string {
+  // Development and test override (never honoured in a packaged build): run against another ffmpeg.
+  const override = process.env.OPENREEL_FFMPEG_PATH;
+  if (override && !app.isPackaged) return override;
   const rel = ffmpegRelativePath(process.platform, process.arch);
   const base = app.isPackaged
     ? path.join(process.resourcesPath, "bin")

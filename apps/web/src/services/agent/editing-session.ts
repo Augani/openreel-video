@@ -1,3 +1,4 @@
+import type { ActionExecutorLike } from "../lazy-action-executor";
 import { ActionExecutor } from "@openreel/core";
 import { CAPABILITY_MANIFEST } from "@openreel/core/capabilities/manifest";
 import { editSnapshot, type EditSnapshot } from "@openreel/core/actions/handlers/edit-snapshot";
@@ -9,13 +10,13 @@ import { useProjectStore } from "../../stores/project-store";
 import { useUIStore } from "../../stores/ui-store";
 import { getMediaBridge, initializeMediaBridge } from "../../bridges/media-bridge";
 
-export function cloneEditSnapshot(snapshot: EditSnapshot): EditSnapshot {
+function cloneEditSnapshot(snapshot: EditSnapshot): EditSnapshot {
   return { ...JSON.parse(JSON.stringify({ ...snapshot, mediaLibrary: undefined })), mediaLibrary: { items: snapshot.mediaLibrary.items.map((m) => ({ ...m })) } } as EditSnapshot;
 }
 const blobRevisions = new WeakMap<Blob, number>();
 let nextBlobRevision = 0;
 const blobRevision = (blob: Blob | null): number => { if (!blob) return 0; if (!blobRevisions.has(blob)) blobRevisions.set(blob, ++nextBlobRevision); return blobRevisions.get(blob)!; };
-export function projectRevision(project: Project): string {
+function projectRevision(project: Project): string {
   return JSON.stringify({ ...editSnapshot(project), mediaLibrary: { items: project.mediaLibrary.items.map((m) => ({ id: m.id, name: m.name, metadata: m.metadata, sourceFile: m.sourceFile, blobRevision: blobRevision(m.blob) })) }, id: project.id, modifiedAt: project.modifiedAt });
 }
 
@@ -24,6 +25,7 @@ export class EditingSession implements EditingHost {
   private draft!: Project;
   private revision = "";
   private original!: Project;
+  private owner?: ActionExecutorLike;
   private executor = new ActionExecutor();
   private hasChanges = false;
   private exportRequested = false;
@@ -35,6 +37,7 @@ export class EditingSession implements EditingHost {
   capabilities() { return CAPABILITY_MANIFEST; }
   beginTransaction(): TxnHandle {
     this.requireOpenProject();
+    this.owner = useProjectStore.getState().actionExecutor;
     this.original = useProjectStore.getState().getFullProject();
     this.revision = projectRevision(this.original);
     this.draft = { ...this.original, ...cloneEditSnapshot(editSnapshot(this.original)) };
@@ -52,7 +55,8 @@ export class EditingSession implements EditingHost {
   }
   async commitTransaction(_handle: TxnHandle, label: string): Promise<void> {
     if (this.signal?.aborted) throw new Error("Edit cancelled");
-    if (projectRevision(useProjectStore.getState().getFullProject()) !== this.revision) throw new Error("The project changed while the AI was working. No AI changes were applied; try again.");
+    const current = useProjectStore.getState();
+    if (!current.hasOpenProject || current.actionExecutor !== this.owner || projectRevision(current.getFullProject()) !== this.revision) throw new Error("The project changed while the edit was being prepared. No changes were applied; try again.");
     if (this.hasChanges) {
       const store = useProjectStore.getState();
       store.beginHistoryGroup(label);

@@ -167,6 +167,69 @@ describe("ActionExecutor grouped generated IDs", () => {
 });
 
 describe("ActionExecutor transform/update", () => {
+  it("does not serialize unrelated media while capturing transform history", async () => {
+    const executor = new ActionExecutor();
+    const project = makeProjectWithClip();
+    const media = { id: "m1", toJSON() { throw new Error("Unrelated media must not be serialized during a transform edit"); } };
+    project.mediaLibrary.items.push(media as unknown as Project["mediaLibrary"]["items"][number]);
+    const original = structuredClone(project.timeline.tracks[0].clips[0].transform);
+    expect((await executor.execute({ id: "rotation", type: "transform/update", timestamp: 0,
+      params: { clipId: "c1", transform: { rotate3d: { x: 12, y: -24, z: 7 } } } }, project)).success).toBe(true);
+    expect((await executor.undo(project)).success).toBe(true);
+    expect(project.timeline.tracks[0].clips[0].transform).toEqual(original);
+    expect((await executor.redo(project)).success).toBe(true);
+    expect(project.mediaLibrary.items[0]).toBe(media);
+  });
+
+  it("removes newly introduced optional properties on Undo and restores them on Redo", async () => {
+    const executor = new ActionExecutor();
+    const project = makeProjectWithClip();
+    const original = structuredClone(project.timeline.tracks[0].clips[0].transform);
+    const result = await executor.execute({ id: "3d", type: "transform/update", timestamp: 0,
+      params: { clipId: "c1", transform: { rotate3d: { x: 12, y: -24, z: 7 }, perspective: 640, transformStyle: "preserve-3d" } } }, project);
+    expect(result.success).toBe(true);
+    const updated = structuredClone(project.timeline.tracks[0].clips[0].transform);
+    expect((await executor.undo(project)).success).toBe(true);
+    expect(project.timeline.tracks[0].clips[0].transform).toEqual(original);
+    expect((await executor.redo(project)).success).toBe(true);
+    expect(project.timeline.tracks[0].clips[0].transform).toEqual(updated);
+  });
+
+  it("retains the invocation's gesture group when completion follows pointer release", async () => {
+    const executor = new ActionExecutor();
+    const project = makeProjectWithClip();
+    const history = executor.getHistory();
+    const group = history.beginGroup("Canvas move");
+    const pending = executor.execute({ id: "move", type: "transform/update", timestamp: 0,
+      params: { clipId: "c1", transform: { position: { x: 12, y: 34 } } } }, project);
+    history.endGroup();
+    expect((await pending).success).toBe(true);
+    expect(history.getHistoryEntries()[0].groupId).toBe(group);
+    await executor.undo(project);
+    expect(project.timeline.tracks[0].clips[0].transform.position).toEqual({ x: 0, y: 0 });
+  });
+
+  it.each([true, false])("does not borrow a later gesture group (first edit grouped: %s)", async firstGrouped => {
+    const executor = new ActionExecutor();
+    const project = makeProjectWithClip();
+    const history = executor.getHistory();
+    history.setAutoGroupWindow(0);
+    const firstGroup = firstGrouped ? history.beginGroup("First adjustment") : undefined;
+    const first = executor.execute({ id: "x", type: "transform/update", timestamp: 0,
+      params: { clipId: "c1", transform: { position: { x: 12 } } } }, project);
+    if (firstGrouped) history.endGroup();
+    const secondGroup = history.beginGroup("Second adjustment");
+    const second = executor.execute({ id: "y", type: "transform/update", timestamp: 0,
+      params: { clipId: "c1", transform: { position: { y: 34 } } } }, project);
+    expect((await first).success).toBe(true);
+    expect((await second).success).toBe(true);
+    history.endGroup();
+    expect(history.getHistoryEntries().map(entry => entry.groupId)).toEqual([firstGroup, secondGroup]);
+    await executor.undo(project);
+    expect(project.timeline.tracks[0].clips[0].transform.position).toEqual({ x: 12, y: 0 });
+    await executor.undo(project);
+    expect(project.timeline.tracks[0].clips[0].transform.position).toEqual({ x: 0, y: 0 });
+  });
   it("deep-merges a partial axis (does not drop the other) and round-trips", async () => {
     const executor = new ActionExecutor();
     const project = makeProjectWithClip();
@@ -798,6 +861,20 @@ describe("ActionExecutor transition/set", () => {
 });
 
 describe("ActionExecutor transition/update", () => {
+  it("restores absent parameters, transition metadata and order exactly on undo, retaining merge behavior on redo", async () => {
+    const executor = new ActionExecutor();
+    const original = { id: "tr1", clipAId: "c1", clipBId: "c2", type: "dipToBlack", duration: 1, params: { holdDuration: 0, center: { x: 0.25, y: 0.5 } } };
+    const neighbor = { id: "neighbor", clipAId: "c2", edge: "out", type: "crossfade", duration: 0.5, params: {} };
+    const project = makeProjectWithTransitions([original, neighbor]);
+    const action = { id: "update-params", type: "transition/update", timestamp: Date.now(), params: { transitionId: "tr1", type: "crossfade", duration: 0.8, params: { audioFade: true, curve: "ease" } } } as unknown as Action;
+    expect((await executor.execute(action, project)).success).toBe(true);
+    const applied = structuredClone(project.timeline.tracks[0].transitions);
+    expect(applied[0].params).toEqual({ ...original.params, audioFade: true, curve: "ease" });
+    expect((await executor.undo(project)).success).toBe(true);
+    expect(project.timeline.tracks[0].transitions).toEqual([original, neighbor]);
+    expect((await executor.redo(project)).success).toBe(true);
+    expect(project.timeline.tracks[0].transitions).toEqual(applied);
+  });
   it("reverts type and duration on undo", async () => {
     const executor = new ActionExecutor();
     const project = makeProjectWithTransitions([
@@ -1311,5 +1388,26 @@ describe("ActionExecutor project/registerGeneratedShader", () => {
         (d) => d.id,
       ),
     ).toEqual(["ai-example-abcd1234"]);
+  });
+
+  it("clip/move rebuilds only the source and target tracks and undoes exactly", async () => {
+    const executor = new ActionExecutor();
+    const project = makeProjectWithClip();
+    const lane = (id: string, clips: unknown[] = []) => ({ id, name: id, type: "video", clips, transitions: [], locked: false, hidden: false, muted: false, solo: false });
+    const base = project.timeline.tracks[0] as unknown as { id: string; clips: unknown[] };
+    const untouched = lane("t-untouched", [{ ...(base.clips[0] as object), id: "other", trackId: "t-untouched" }]);
+    const target = lane("t-target");
+    (project.timeline.tracks as unknown[]).push(untouched, target);
+    const before = JSON.stringify(project.timeline);
+
+    const sourceBefore = project.timeline.tracks[0];
+    const move = await executor.execute({ id: "m1", type: "clip/move", params: { clipId: "c1", startTime: 3, trackId: "t-target" }, timestamp: Date.now() } as Action, project);
+    expect(move.success).toBe(true);
+    expect(project.timeline.tracks[1], "an unrelated track keeps its identity").toBe(untouched);
+    expect(project.timeline.tracks[0]).not.toBe(sourceBefore);
+    expect(project.timeline.tracks[2].clips.map((clip) => [clip.id, clip.startTime, clip.trackId])).toEqual([["c1", 3, "t-target"]]);
+
+    await executor.undo(project);
+    expect(JSON.stringify(project.timeline)).toBe(before.replace(/"startTime":0/, '"startTime":0'));
   });
 });

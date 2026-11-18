@@ -8,7 +8,7 @@ import {
   upsertMotionLayerKeyframe,
 } from "./motion-keyframes";
 
-export interface DuplicateMotionLayersOptions {
+interface DuplicateMotionLayersOptions {
   readonly idFactory?: (layer: MotionLayer, index: number) => string;
   readonly keyframeIdFactory?: (
     keyframeId: string,
@@ -18,22 +18,22 @@ export interface DuplicateMotionLayersOptions {
   readonly offset?: MotionVector2;
 }
 
-export interface DuplicateMotionLayersResult {
+interface DuplicateMotionLayersResult {
   readonly composition: MotionComposition;
   readonly duplicatedLayerIds: string[];
 }
 
-export interface MotionLayerClipboard {
+interface MotionLayerClipboard {
   readonly layers: MotionLayer[];
   readonly rootLayerIds: string[];
   readonly sourceStartTime: number;
 }
 
-export interface PasteMotionLayersOptions extends DuplicateMotionLayersOptions {
+interface PasteMotionLayersOptions extends DuplicateMotionLayersOptions {
   readonly targetTime: number;
 }
 
-export interface NudgeMotionLayersOptions {
+interface NudgeMotionLayersOptions {
   readonly time?: number;
   readonly includeLocked?: boolean;
 }

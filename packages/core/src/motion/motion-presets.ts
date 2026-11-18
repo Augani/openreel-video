@@ -10,7 +10,7 @@ import type {
 } from "./types";
 import { DEFAULT_MOTION_TRANSFORM } from "./types";
 
-export interface MotionPreset {
+interface MotionPreset {
   readonly id: string;
   readonly name: string;
   readonly category: MotionTemplateCategory;

@@ -1,7 +1,7 @@
 import type { OrmaArtifact } from "./orma";
 import type { MulticamReactionCue } from "./reaction-analysis";
 
-export interface MulticamSocialClipCandidate {
+interface MulticamSocialClipCandidate {
   startMs: number;
   endMs: number;
   score: number;

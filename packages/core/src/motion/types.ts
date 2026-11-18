@@ -17,7 +17,7 @@ import type {
 } from "../graphics/types";
 import type { MotionShapePathPoint } from "./motion-shape-path";
 
-export type MotionLayerType =
+type MotionLayerType =
   | "text"
   | "shape"
   | "image"
@@ -96,8 +96,8 @@ export type MotionShapeMergeMode =
   | "subtract"
   | "intersect"
   | "exclude";
-export type MotionTextAnimatorBasedOn = "characters" | "words";
-export type MotionTextAnimatorDirection = "forward" | "reverse" | "center";
+type MotionTextAnimatorBasedOn = "characters" | "words";
+type MotionTextAnimatorDirection = "forward" | "reverse" | "center";
 export type MotionTextAnimatorEasing = "linear" | "ease" | "ease-in" | "ease-out";
 export type MotionLightType = "ambient" | "point" | "directional";
 export type MotionParticleShape = "circle" | "square";
@@ -298,7 +298,7 @@ export interface MotionTransform {
   readonly transformStyle?: "flat" | "preserve-3d";
 }
 
-export interface MotionEffectBase {
+interface MotionEffectBase {
   readonly id: string;
   readonly type: MotionEffectType;
   readonly name: string;
@@ -747,7 +747,7 @@ export interface MotionVariableBinding {
   readonly target: MotionVariableBindingTarget;
 }
 
-export interface MotionLayerBase {
+interface MotionLayerBase {
   readonly id: string;
   readonly type: MotionLayerType;
   readonly name: string;

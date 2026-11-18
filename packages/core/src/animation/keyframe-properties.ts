@@ -1,5 +1,3 @@
-import { EFFECT_DEFINITIONS } from "../types/effects";
-
 export type KeyframePropertyFamily =
   | "transform"
   | "crop"
@@ -224,52 +222,122 @@ const staticDescriptors: Record<string, KeyframePropertyDescriptor> = {
     step: 1,
     defaultValue: 0,
   },
+  "colorGrade.tone.exposure": {
+    property: "colorGrade.tone.exposure",
+    label: "Exposure",
+    family: "colorGrade",
+    min: -1,
+    max: 1,
+    step: 0.01,
+    defaultValue: 0,
+  },
+  "colorGrade.tone.contrast": {
+    property: "colorGrade.tone.contrast",
+    label: "Contrast",
+    family: "colorGrade",
+    min: -1,
+    max: 1,
+    step: 0.01,
+    defaultValue: 0,
+  },
+  "colorGrade.tone.highlights": {
+    property: "colorGrade.tone.highlights",
+    label: "Highlights",
+    family: "colorGrade",
+    min: -1,
+    max: 1,
+    step: 0.01,
+    defaultValue: 0,
+  },
+  "colorGrade.tone.shadows": {
+    property: "colorGrade.tone.shadows",
+    label: "Shadows",
+    family: "colorGrade",
+    min: -1,
+    max: 1,
+    step: 0.01,
+    defaultValue: 0,
+  },
+  "colorGrade.tone.whites": {
+    property: "colorGrade.tone.whites",
+    label: "Whites",
+    family: "colorGrade",
+    min: -1,
+    max: 1,
+    step: 0.01,
+    defaultValue: 0,
+  },
+  "colorGrade.tone.blacks": {
+    property: "colorGrade.tone.blacks",
+    label: "Blacks",
+    family: "colorGrade",
+    min: -1,
+    max: 1,
+    step: 0.01,
+    defaultValue: 0,
+  },
+  "colorGrade.vignette.amount": {
+    property: "colorGrade.vignette.amount",
+    label: "Vignette Amount",
+    family: "colorGrade",
+    min: -1,
+    max: 1,
+    step: 0.01,
+    defaultValue: 0,
+  },
+  "colorGrade.vignette.midpoint": {
+    property: "colorGrade.vignette.midpoint",
+    label: "Vignette Midpoint",
+    family: "colorGrade",
+    min: 0,
+    max: 1,
+    step: 0.01,
+    defaultValue: 0.5,
+  },
+  "colorGrade.vignette.roundness": {
+    property: "colorGrade.vignette.roundness",
+    label: "Vignette Roundness",
+    family: "colorGrade",
+    min: -1,
+    max: 1,
+    step: 0.01,
+    defaultValue: 0,
+  },
+  "colorGrade.vignette.feather": {
+    property: "colorGrade.vignette.feather",
+    label: "Vignette Feather",
+    family: "colorGrade",
+    min: 0,
+    max: 1,
+    step: 0.01,
+    defaultValue: 0.5,
+  },
 };
-
-export const COLOR_GRADE_SCALAR_PROPS = [
-  "colorGrade.temperature",
-  "colorGrade.tint",
-] as const;
 
 export function getStaticDescriptor(
   property: string,
 ): KeyframePropertyDescriptor | undefined {
-  return staticDescriptors[property];
-}
-
-export function listStaticDescriptors(): KeyframePropertyDescriptor[] {
-  return Object.values(staticDescriptors);
-}
-
-export function deriveEffectDescriptor(
-  effectId: string,
-  effectType: string,
-  paramKey: string,
-): KeyframePropertyDescriptor | undefined {
-  const effect = EFFECT_DEFINITIONS.find((definition) => definition.type === effectType);
-  const param = effect?.params.find((definition) => definition.key === paramKey);
-  if (!param || param.type !== "number") {
-    return undefined;
+  const known = staticDescriptors[property];
+  if (known) return known;
+  const hue = HUE_CURVE_PROPERTY.exec(property);
+  if (hue) {
+    return {
+      property,
+      label: `${HUE_CURVE_LABELS[hue[1]]} point ${Number(hue[2]) + 1}`,
+      family: "colorGrade",
+      min: 0,
+      max: 1,
+      step: 0.01,
+      defaultValue: 0.5,
+    };
   }
-
-  return {
-    property: `effect.${effectId}.${paramKey}`,
-    label: param.label,
-    family: "effect",
-    min: param.min ?? 0,
-    max: param.max ?? 1,
-    step: param.step ?? 0.01,
-    unit: param.unit,
-    defaultValue: typeof param.default === "number" ? param.default : 0,
-  };
+  return undefined;
 }
 
-export function parseEffectKeyframeProperty(
-  property: string,
-): { effectId: string; paramKey: string } | null {
-  const match = /^effect\.([^.]+)\.(.+)$/.exec(property);
-  if (!match) {
-    return null;
-  }
-  return { effectId: match[1], paramKey: match[2] };
-}
+const HUE_CURVE_PROPERTY = /^colorGrade\.hueCurve\.(hueVsSat|hueVsHue|hueVsLuma|lumaVsSat)\.(\d+)$/;
+const HUE_CURVE_LABELS: Record<string, string> = {
+  hueVsSat: "Hue vs Sat",
+  hueVsHue: "Hue vs Hue",
+  hueVsLuma: "Hue vs Luma",
+  lumaVsSat: "Luma vs Sat",
+};

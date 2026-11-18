@@ -10,6 +10,12 @@ import { SHAPE_TYPES } from "../graphics/types";
 import { EASING_TYPES } from "../types/timeline";
 import { FILTER_PRESETS } from "../video/filter-presets";
 import { SPEED_MIN, SPEED_MAX } from "../video/speed-engine";
+import { PRO_EFFECT_SPECS, PRO_EFFECT_TYPES } from "../video/pro-effects";
+import { legacyEffectsSupersededBy } from "../video/effect-defaults";
+import {
+  SCOPE_BLACK_CLIP_LEVEL,
+  SCOPE_WHITE_CLIP_LEVEL,
+} from "../video/scope-stats";
 import { SPEED_CURVE_PRESETS } from "../video/speed-presets";
 import { TEXT_ANIMATION_PRESETS } from "../text/text-animation-presets";
 import { MOTION_PRESETS } from "../motion/motion-presets";
@@ -47,7 +53,7 @@ export interface PresetSummary {
   readonly category?: string;
 }
 
-export interface MotionAnimatablePropertySummary {
+interface MotionAnimatablePropertySummary {
   readonly property: string;
   readonly label: string;
   readonly group: string;
@@ -112,7 +118,128 @@ export interface CapabilityManifest {
   readonly effects: readonly EffectDefinition[];
   readonly motion: MotionCapabilities;
   readonly creation: CreationCapabilities;
+  readonly proEffects: readonly ProEffectCapability[];
+  readonly premiere: PremiereCapabilities;
 }
+
+export interface ProEffectCapability {
+  readonly type: string;
+  readonly label: string;
+  readonly category: string;
+  /**
+   * Legacy effects this one replaces in the effects browser (`blur`,
+   * `shader:pixelate`, ...). Those keep rendering in existing projects; use
+   * this pro type for new edits.
+   */
+  readonly supersedes?: readonly string[];
+  readonly params: readonly {
+    readonly key: string;
+    readonly kind: "number" | "toggle" | "select";
+    readonly min?: number;
+    readonly max?: number;
+    readonly step?: number;
+    readonly default: number | boolean | string;
+    readonly neutral: number | boolean | string;
+    readonly options?: readonly string[];
+  }[];
+}
+
+/** Premiere-style editing, scene detection and scopes the agent can drive. */
+export interface PremiereCapabilities {
+  /** Trim tools taking a clip id and a delta in seconds or frames. */
+  readonly trimTools: readonly { readonly tool: string; readonly mode: string; readonly edges: readonly string[] }[];
+  /** Range / placement edits, each exactly one undo step. */
+  readonly rangeEdits: readonly string[];
+  readonly sceneDetection: {
+    readonly sensitivity: NumericRange;
+    readonly minSceneLengthSeconds: NumericRange;
+    readonly tools: readonly string[];
+  };
+  readonly scopes: {
+    readonly kinds: readonly string[];
+    readonly tools: readonly string[];
+    /** Statistics returned by get_scope_stats. */
+    readonly statistics: readonly string[];
+    readonly blackClipLevel: number;
+    readonly whiteClipLevel: number;
+  };
+}
+
+const PRO_EFFECT_CAPABILITIES: readonly ProEffectCapability[] = PRO_EFFECT_TYPES.map(
+  (type) => {
+    const spec = PRO_EFFECT_SPECS[type];
+    const supersedes = legacyEffectsSupersededBy(type);
+    return {
+      type,
+      label: spec.label,
+      category: spec.category,
+      ...(supersedes.length ? { supersedes } : {}),
+      params: spec.params.map((p) => ({
+        key: p.key,
+        kind: p.kind,
+        ...(p.min !== undefined ? { min: p.min } : {}),
+        ...(p.max !== undefined ? { max: p.max } : {}),
+        ...(p.step !== undefined ? { step: p.step } : {}),
+        default: p.default,
+        neutral: p.neutral,
+        ...(p.options ? { options: p.options.map((o) => o.value) } : {}),
+      })),
+    };
+  },
+);
+
+const PREMIERE_CAPABILITIES: PremiereCapabilities = {
+  trimTools: [
+    { tool: "roll_trim", mode: "roll", edges: ["left", "right"] },
+    { tool: "slide_trim", mode: "slide", edges: [] },
+    { tool: "rate_stretch", mode: "stretch", edges: ["left", "right"] },
+  ],
+  rangeEdits: [
+    "insert_media",
+    "overwrite_media",
+    "lift_range",
+    "extract_range",
+    "add_edit_all_tracks",
+    "add_edit",
+    "ripple_delete_clip",
+    "set_track_sync_lock",
+    "set_track_target",
+    "set_source_patch",
+    "match_frame",
+    "make_split_edit",
+    "extend_edit",
+    "trim_edit_point",
+    "delete_gap",
+  ],
+  sceneDetection: {
+    sensitivity: { min: 0, max: 1, step: 0.05, default: 0.5 },
+    minSceneLengthSeconds: { min: 0, max: 60, step: 0.1, default: 1 },
+    tools: ["detect_scenes", "apply_scene_cuts"],
+  },
+  scopes: {
+    kinds: ["waveform", "parade", "vectorscope", "histogram"],
+    tools: ["open_scopes", "close_scopes", "get_scope_stats"],
+    statistics: [
+      "luma.min",
+      "luma.max",
+      "luma.average",
+      "luma.median",
+      "luma.p1",
+      "luma.p99",
+      "luma.blackClipPct",
+      "luma.whiteClipPct",
+      "red|green|blue.{min,max,average,blackClipPct,whiteClipPct}",
+      "saturation.average",
+      "saturation.max",
+      "dominantHue.{degrees,name,share}",
+      "cast.{cb,cr}",
+      "skinToneOffsetDegrees",
+      "warnings",
+    ],
+    blackClipLevel: SCOPE_BLACK_CLIP_LEVEL,
+    whiteClipLevel: SCOPE_WHITE_CLIP_LEVEL,
+  },
+};
 
 const MOTION_LAYER_TYPES: readonly string[] = [
   "text",
@@ -357,4 +484,6 @@ export const CAPABILITY_MANIFEST: CapabilityManifest = {
   effects: EFFECT_DEFINITIONS,
   motion: MOTION_CAPABILITIES,
   creation: CREATION_CAPABILITIES,
+  proEffects: PRO_EFFECT_CAPABILITIES,
+  premiere: PREMIERE_CAPABILITIES,
 };

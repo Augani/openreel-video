@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
-import { ToolcraftButton as Button } from "@openreel/ui";
-import { ToolcraftIconButton as IconButton } from "@openreel/ui";
+import { Button, cn } from "@openreel/ui";
+
 import { Check, X, Maximize2 } from "@/icons/lucide-compat";
 import type { Clip } from "@openreel/core";
 
@@ -364,53 +364,32 @@ export const CropModeView: React.FC<CropModeViewProps> = ({
           </span>
           <div className="flex items-center gap-1">
             {ASPECT_RATIOS.map((ratio) => (
-              <Button
-                key={ratio.label}
-                label={ratio.label}
-                variant={lockedAspect === ratio.value ? "primary" : "secondary"}
-                size="sm"
-                onClick={() => handleAspectRatio(ratio.value)}
-                isDisabled={isLoading}
-                className={`px-2.5 py-1 text-xs rounded transition-colors ${
+              <Button key={ratio.label} onClick={() => handleAspectRatio(ratio.value)} type="button" aria-label={(ratio.label).trim() || undefined} disabled={(isLoading)} className={cn("inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50", "h-7 px-2.5 text-[12px]", (lockedAspect === ratio.value ? "bg-accent text-accent-fg hover:bg-accent/90" : "border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg"), `px-2.5 py-1 text-xs rounded transition-colors ${
                   lockedAspect === ratio.value
                     ? "bg-primary text-white font-medium"
                     : "bg-background-tertiary text-text-secondary hover:bg-background-secondary"
-                }`}
-              />
+                }`)}>
+                {(ratio.label) ? <span className="truncate">{ratio.label}</span> : null}
+              </Button>
             ))}
           </div>
-          <IconButton
-            label="Reset crop"
-            icon={<Maximize2 size={14} aria-hidden />}
-            variant="ghost"
-            size="sm"
-            onClick={handleReset}
-            isDisabled={isLoading}
-            className="p-1 text-text-muted hover:bg-background-secondary rounded transition-colors"
-          />
+          <Button variant="ghost" size="icon-sm" onClick={handleReset} type="button" aria-label="Reset crop" title="Reset crop" disabled={(isLoading)} className="inline-flex shrink-0 items-center justify-center outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 w-7 bg-transparent hover:text-fg p-1 text-text-muted hover:bg-background-secondary rounded transition-colors">
+            {<Maximize2 size={14} aria-hidden />}
+          </Button>
         </div>
 
         <div className="flex items-center gap-2">
-          <Button
-            label="Cancel"
-            icon={<X size={14} aria-hidden />}
-            variant="secondary"
-            size="sm"
-            onClick={onCancel}
-            className="px-3 py-1.5 text-xs bg-background-tertiary hover:bg-background-secondary text-text-primary rounded transition-colors flex items-center gap-1.5"
-          />
-          <Button
-            label="Apply"
-            icon={<Check size={14} aria-hidden />}
-            variant="primary"
-            size="sm"
-            onClick={() => {
+          <Button onClick={onCancel} type="button" aria-label="Cancel" className="min-w-0 justify-center font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 border border-border hover:text-fg px-3 py-1.5 text-xs bg-background-tertiary hover:bg-background-secondary text-text-primary rounded transition-colors flex items-center gap-1.5">
+            <span className="flex h-4 w-4 shrink-0 items-center justify-center">{<X size={14} aria-hidden />}</span>
+            <span className="truncate">{"Cancel"}</span>
+          </Button>
+          <Button onClick={() => {
               onCropChange(crop);
               onComplete();
-            }}
-            isDisabled={isLoading}
-            className="px-3 py-1.5 text-xs bg-primary hover:bg-primary/90 text-black font-medium rounded transition-colors flex items-center gap-1.5"
-          />
+            }} type="button" aria-label="Apply" disabled={(isLoading)} className="min-w-0 justify-center outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-3 py-1.5 text-xs bg-primary hover:bg-primary/90 text-black font-medium rounded transition-colors flex items-center gap-1.5">
+            <span className="flex h-4 w-4 shrink-0 items-center justify-center">{<Check size={14} aria-hidden />}</span>
+            <span className="truncate">{"Apply"}</span>
+          </Button>
         </div>
       </div>
 

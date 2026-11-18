@@ -290,7 +290,103 @@ what's covered.
 - Subtitles bake into the export with their configured style and time window
 
 ## Status
-CapCut parity complete for the local editing surface — every documented
-gap has shipped. Remaining work would be catalog expansion (more filter
-presets, more transition presets, more fonts) and additional on-device
-models that can be bundled without compromising the offline requirement.
+
+The [Android reliability review](ANDROID_RELIABILITY_REVIEW.md), dated 18 October
+2026, records fixes for import crashes, movie-length editing, reverse/animated
+export memory, full custom LUT data, durable local projects and playback timing.
+The final build passed 382 tests across 78 suites without failures, errors or
+skips; debug app/test APKs compiled and lint 9.4.1 reported zero issues, without
+a baseline or blanket suppression. Evidence is in
+`/tmp/openreel-prerelease-final-validation.log` (1 minute 9 seconds).
+
+The build pins AGP 9.4.1, Gradle 9.8.1, Kotlin 2.4.21, Compose BOM 2026.09.00,
+Media3 1.11.1, CameraX 1.6.2 and Robolectric 4.17. Compile/target SDK are 37,
+minimum SDK 29 and Java toolchain/bytecode 17. Release code 19 / name 1.0.18 and
+the upload-key guard are unchanged. APK alignment passed for 16 KiB; all six
+arm64 libraries have 16,384-byte ELF `LOAD` alignment (24 libraries inspected
+across ABIs).
+
+API 33 core passed all 21 actual offline cases in
+`/tmp/openreel-prerelease-api33-core/`: nine exports in 252.684 s, two nonlinear
+LUTs in 39.947 s, plus editor, real 2 GiB import/cancellation, geometry, recovery,
+actual reboot and physical low storage. Movie editing took 5,951 ms with a
+157 ms maximum sampled main-thread gap and PSS 232,401 KiB. The real
+2,147,484,671-byte copy took 2,928 ms; sampled Java heap was 3,806,144 → 7,496,720
+bytes with PSS 44,559 KiB. The cancelled copy left no partial file. A 120-second
+stereo reverse prepass verified exact trimmed frames with sampled Java-plus-native
+growth 18,184,368 bytes for 23,040,000 bytes of PCM.
+
+Both 17³ domain/intensity LUT paths stayed within seven decoded code values of
+the exact decoded-source CPU reference (tolerance 15). All four corner colors
+survived 640×360 → 480×270 export. Cold restart/reboot restored three projects
+with exact document/media/LUT hashes, including interrupted first-save/backup
+recovery. At about 32 MiB free, 64 MiB audio/video inputs were refused before
+copy in 28 ms with saved bytes intact; filler cleanup left 15,324,492 KiB free.
+Missing installed speech returned a recoverable message in 264 ms with no voice
+installation request. These emulator observations are not physical-phone budgets.
+
+The complete final API 37.2 run (`/tmp/openreel-prerelease-api37-final/`) also
+passed all 21 core cases, exit 0, on actual 16,384-byte pages. Nine exports
+passed in 205.261 s. The real 2 GiB copy took 2,932 ms with sampled Java heap
+4,194,944 → 7,946,880 bytes and PSS 132,881 KiB; movie editing took 5,243 ms
+with maximum sampled main-thread gap 145 ms. LUT error was at most three code
+values, geometry passed, and actual reboot restored all three hash-identical
+projects. At about 32 MiB free, import refusal took 20 ms with saved bytes
+unchanged; filler removal left 15,174,900 KiB free. Installed offline speech
+produced 128,444 bytes in 900 ms without an installation request.
+
+HDR results are separate: API 33 final HDR and API 37.2 each had one
+capability-probe pass plus four `UNSUPPORTED_NOT_HDR_PASS` assumption skips.
+Both lack `EXT_YUV_target`, an HDR editing encoder and a compatible input
+decoder. All four actual attempts on each runtime returned the clean unsupported
+message and removed scratch. Neither HDR preservation nor HDR-to-SDR/display
+quality is qualified. Final API 33 HDR evidence is in
+`/tmp/openreel-prerelease-api33-hdr-final/`; the API 37.2 HDR class took 3.635 s.
+
+Per-run `apk-sha256.txt` files preserve artifact provenance. API 33 core used app
+`bfb5fd557e35…`; final API 33 HDR and complete API 37.2 used app `cbba0ec9f983…`
+and test `c03ae4a01425…` (full hashes in the reliability review). The intervening
+production change only normalizes recognized unsupported-HDR graphics errors,
+covered by four unit tests and final HDR checks on both runtimes.
+
+Native inputs now use canvas pixels and final presentation honors export size;
+a bounded local still supplies SDR cadence. Preview mutations return to Main,
+ignore stale work and preserve view-lifetime surface bindings. Archive export
+sets its Deflater level before the first entry, avoiding Android ZIP corruption.
+The real restore/hash and host CRC checks passed. VFR trim boundaries hold the
+actual preceding visible picture while excluding samples at the outpoint;
+eleven unit regressions and the actual PIP dissolve passed.
+
+HDR enabled now preserves compatible source HDR and disabled requests SDR;
+saved booleans/defaults are unchanged. Pure HDR outputs are inspected before
+MediaStore publication, rejecting silent SDR fallback. Recognized missing-GL
+errors return a recoverable message without retry or a GLSL dump in the UI;
+generic errors are not normalized. Genuine local Main10 PQ/HLG fixtures force
+resize, SPS bit-depth/profile inspection and decoded grayscale checks. Neither
+capability probes nor unsupported skips count as HDR passes.
+
+All footage, LUTs, rendering, reverse processing, archives and installed-voice
+speech stay local. Automatic EmojiCompat font download was removed; installed
+system emoji fonts are used. Caption model download remains user-initiated.
+No physical Android device was connected, and the user does not have the
+reported Vivo V2055. Vivo reproduction and HDR-screen qualification remain
+unverified pending hardware access, with no Vivo HDR capability assumed.
+HDR release signoff still requires known HDR-capable hardware. Installed caption
+packs, OEM providers/decoders and a correctly signed release remain qualification
+items. Emulator results do not establish mature-editor parity or physical-device
+performance.
+
+## Local Android release candidate — 18 October 2026
+
+Prepared signed, minified **1.0.19 (20)** AAB/APK locally. Release lint has zero
+issues; certificate, manifest, 16 KB alignment and bundletool validation passed.
+The exact APK passed an offline API 33 UI smoke for local video import, UTF-16
+captions, save, background H.264 export and force-stop/reopen. Earlier debug
+checklist results remain distinct. The R8 mapping is preserved; no native debug
+symbols were emitted. No upload or publication occurred.
+
+The [release handoff](ANDROID_RELEASE_1.0.19.md) records artifact hashes,
+verification limits and local evidence. Release notes are prepared. The
+[hardware checklist](ANDROID_HARDWARE_RELEASE_CHECKLIST.md) keeps Vivo/customer
+file reproduction, known-capable HDR encoding/display, installed caption packs
+and the expanded signed-device matrix PENDING. No Vivo HDR support is assumed.

@@ -4,7 +4,7 @@ import { OpticalFlowGPU } from "./optical-flow-gpu";
 import { OpticalFlowCPU } from "./optical-flow-cpu";
 import { FlowFieldCache } from "./flow-field-cache";
 
-export class FrameInterpolationEngine {
+class FrameInterpolationEngine {
   private gpuFlow: OpticalFlowGPU | null = null;
   private cpuFlow: OpticalFlowCPU;
   private cache: FlowFieldCache;
@@ -217,9 +217,4 @@ export function getFrameInterpolationEngine(): FrameInterpolationEngine {
     interpolationEngineInstance.initialize();
   }
   return interpolationEngineInstance;
-}
-
-export function disposeFrameInterpolationEngine(): void {
-  interpolationEngineInstance?.dispose();
-  interpolationEngineInstance = null;
 }

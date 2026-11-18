@@ -4,17 +4,17 @@ export interface OpticalFlowFrame {
   readonly data: Uint8ClampedArray | Uint8Array | readonly number[];
 }
 
-export interface OpticalFlowPoint {
+interface OpticalFlowPoint {
   readonly x: number;
   readonly y: number;
 }
 
-export interface OpticalFlowOptions {
+interface OpticalFlowOptions {
   readonly blockRadius?: number;
   readonly searchRadius?: number;
 }
 
-export interface OpticalFlowSample extends OpticalFlowPoint {
+interface OpticalFlowSample extends OpticalFlowPoint {
   readonly confidence: number;
 }
 

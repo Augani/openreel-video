@@ -1,4 +1,5 @@
 import { getShaderNoiseTexture } from "@paper-design/shaders";
+import { releaseGLContext, trackGLContext } from "../video/gl-context";
 import type { MotionShaderDef, MotionShaderParamDef, MotionShaderParamType } from "./shaders";
 
 function getNoiseTextureSource(): HTMLImageElement | null {
@@ -18,6 +19,12 @@ export interface MotionShaderRenderInput {
   readonly progress?: number;
   readonly params: Record<string, number | string>;
   readonly inputCanvas?: CanvasImageSource;
+  /**
+   * When true a failed GPU render returns null instead of the decorative 2D
+   * fallback. Used by effects that have a faithful CPU implementation and must
+   * never substitute a gradient for the real picture.
+   */
+  readonly strict?: boolean;
 }
 
 interface ActiveUniformInfo {
@@ -86,7 +93,7 @@ function colorLuminance(
   return clamp01(0.2126 * color[0] + 0.7152 * color[1] + 0.0722 * color[2]);
 }
 
-export type ShaderParamUpload =
+type ShaderParamUpload =
   | { readonly kind: "vec4"; readonly value: readonly [number, number, number, number] }
   | { readonly kind: "float"; readonly value: number };
 
@@ -191,7 +198,7 @@ function shaderFallbackColors(
  * alpha, so text/effect previews remain useful instead of silently reverting
  * to a solid color.
  */
-export function renderMotionShaderFallbackCanvas(
+function renderMotionShaderFallbackCanvas(
   def: MotionShaderDef,
   input: MotionShaderRenderInput,
 ): MotionShaderCanvas | null {
@@ -275,26 +282,37 @@ export class MotionShaderRenderer {
   private contextLostHandler: ((event: Event) => void) | null = null;
   private unavailable = false;
 
+  private static supported: boolean | null = null;
+
   static isSupported(): boolean {
+    // Probed once per page; the probe context is released at once (it used to stay alive until garbage collection).
+    if (MotionShaderRenderer.supported !== null) return MotionShaderRenderer.supported;
     try {
       const canvas = createMotionShaderCanvas(1, 1);
-      if (!canvas) return false;
-      const context = getWebGL2Context(canvas);
-      return context !== null;
+      if (!canvas) {
+        MotionShaderRenderer.supported = false;
+      } else {
+        const context = getWebGL2Context(canvas);
+        releaseGLContext(context);
+        MotionShaderRenderer.supported = context !== null;
+      }
     } catch {
-      return false;
+      MotionShaderRenderer.supported = false;
     }
+    return MotionShaderRenderer.supported;
   }
 
   render(
     def: MotionShaderDef,
     input: MotionShaderRenderInput,
   ): MotionShaderCanvas | null {
+    const fallback = (): MotionShaderCanvas | null =>
+      input.strict ? null : renderMotionShaderFallbackCanvas(def, input);
     const gl = this.ensureContext();
-    if (!gl || !this.canvas) return renderMotionShaderFallbackCanvas(def, input);
+    if (!gl || !this.canvas) return fallback();
 
     const compiled = this.ensureProgram(gl, def);
-    if (!compiled) return renderMotionShaderFallbackCanvas(def, input);
+    if (!compiled) return fallback();
 
     const width = Math.max(1, Math.floor(input.width));
     const height = Math.max(1, Math.floor(input.height));
@@ -323,6 +341,8 @@ export class MotionShaderRenderer {
         gl.activeTexture(gl.TEXTURE0);
         gl.bindTexture(gl.TEXTURE_2D, this.inputTexture);
         if (inputLocation) gl.uniform1i(inputLocation, 0);
+      } else if (input.strict) {
+        return null;
       }
 
       if (def.needsNoiseTexture) {
@@ -350,7 +370,7 @@ export class MotionShaderRenderer {
       return this.canvas;
     } catch (error) {
       console.warn(`[MotionShaderRenderer] Render failed for ${def.id}:`, error);
-      return renderMotionShaderFallbackCanvas(def, input);
+      return fallback();
     }
   }
 
@@ -405,6 +425,7 @@ export class MotionShaderRenderer {
         // Removal is best-effort.
       }
     }
+    releaseGLContext(gl);
     this.programs.clear();
     this.contextLostHandler = null;
     this.vertexShader = null;
@@ -434,6 +455,13 @@ export class MotionShaderRenderer {
         return null;
       }
       const handler = (): void => {
+        // The context is gone (device loss, or Chrome evicted it): forget it so the next render builds a fresh one.
+        if (this.gl === context) {
+          this.gl = null;
+          this.canvas = null;
+          this.vertexBuffer = null;
+          this.vertexShader = null;
+        }
         for (const compiled of this.programs.values()) {
           if (compiled) {
             try {
@@ -461,7 +489,7 @@ export class MotionShaderRenderer {
       context.bufferData(context.ARRAY_BUFFER, QUAD_VERTICES, context.STATIC_DRAW);
 
       this.canvas = canvas;
-      this.gl = context;
+      this.gl = trackGLContext(context);
       this.vertexBuffer = buffer;
       this.contextLostHandler = handler;
       return context;

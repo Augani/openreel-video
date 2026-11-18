@@ -22,4 +22,19 @@ describe("editor effect drag payload", () => {
       effectType: "blur",
     });
   });
+  it("preserves the LUT preset for drop and supports the type-only fallback", () => {
+    const payload = {
+      effectType: "lut" as const,
+      effectParams: { preset: "warm" },
+    };
+    expect(
+      parseEditorEffectDropPayload(
+        serializeEditorEffectDropPayload(payload),
+        "effect:lut",
+      ),
+    ).toEqual(payload);
+    expect(parseEditorEffectDropPayload(null, "effect:lut")).toEqual({
+      effectType: "lut",
+    });
+  });
 });

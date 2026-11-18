@@ -4,7 +4,7 @@ import { useEngineStore } from "../stores/engine-store";
 import { useProjectStore } from "../stores/project-store";
 import { resolvePlaybackLoop, resolvePlaybackStart, type PlaybackLoopRange } from "../utils/playback-loop";
 
-export interface TrackAudibility {
+interface TrackAudibility {
   trackId: string;
   isAudible: boolean;
   isMuted: boolean;
@@ -40,6 +40,10 @@ export class PlaybackBridge {
     if (!this.playbackController) {
       throw new Error("PlaybackController not available in EngineStore");
     }
+
+    // The Preview draws its own paused frames and nothing reads the controller's, so seek/scrub only move the
+    // clock and audio: rendering a 4K composition per seek cost a keyframe-to-target decode and ~66 MB of bitmaps.
+    this.playbackController.setRenderStillFrames(false);
 
     // Set up the project in the playback controller
     const projectState = useProjectStore.getState();

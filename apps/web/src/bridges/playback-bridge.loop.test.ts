@@ -24,6 +24,7 @@ beforeEach(async () => {
   audio = { seekTo: vi.fn() };
   const controller = {
     setProject: vi.fn(),
+    setRenderStillFrames: vi.fn(),
     addEventListener: vi.fn(), removeEventListener: vi.fn(),
     getMasterClock: () => clock,
     getRealtimeAudioGraph: () => audio,

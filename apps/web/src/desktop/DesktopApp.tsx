@@ -1,42 +1,114 @@
+import { useCollabStore } from "../services/collab/collab-store";
 import type { JSX } from "react";
-import { useEffect } from "react";
-import { DesktopTitleBar } from "./shell/DesktopTitleBar";
-import { Workspace } from "./shell/Workspace";
-import { DesktopStartScreen } from "./start/DesktopStartScreen";
-import { DesktopExportButton } from "./editor/DesktopExportButton";
-import { EditorBootstrapGate } from "./editor/EditorBootstrapGate";
+import { Suspense, lazy, useEffect, useState } from "react";
+import { WindowControls } from "./shell/WindowControls";
+import App from "../App";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { useProjectStore } from "../stores/project-store";
+import { useEngineStore } from "../stores/engine-store";
+import { openEditorProject } from "../services/project-replacement";
 import { autoSaveManager } from "../services/auto-save";
 import { UpdateBanner } from "./UpdateBanner";
-import { installRendererCrashHandlers, reportRendererCrash } from "./crash-reporting";
-import { installMcpListener } from "../services/agent/mcp-listener";
-import { getLiveEditorHost } from "../services/agent/host-singleton";
-import { createExportJobRunner } from "../services/agent/export-job-runner";
-import { useUIStore } from "../stores/ui-store";
+import {
+  installRendererCrashHandlers,
+  reportRendererCrash,
+} from "./crash-reporting";
 import { useSettingsStore } from "../stores/settings-store";
-import { SettingsDialog } from "../components/editor/settings/SettingsDialog";
-import { ToolcraftButton as Button } from "@openreel/ui";
-import { Settings, Sparkles } from "@/icons/lucide-compat";
-import "./theme/desktop-theme.css";
+import { usePluginManagerStore } from "../stores/plugin-manager-store";
+import { keyboardShortcuts } from "../services/keyboard-shortcuts";
+import { loadEditorModule } from "../editor-loader";
+import { useOnboardingStore } from "../stores/onboarding-store";
+import { installOnboardingSync } from "../components/onboarding/shell/onboarding-sync";
+import { handleProjectOpenedOnWelcomeRoute, isWelcomeRoute } from "../components/onboarding/shell/agent-flip";
+import { withUserProjectCreation } from "../components/onboarding/shell/project-intent";
 
-function detectPlatform(): string {
-  if (typeof navigator !== "undefined" && /Mac/i.test(navigator.platform)) return "darwin";
-  if (typeof navigator !== "undefined" && /Win/i.test(navigator.platform)) return "win32";
-  return "linux";
+const loadOnboardingHost = () => import("../components/onboarding/shell/OnboardingHost");
+// Sheets (and their chunks) only load once something asks for one; the host is just a router.
+const OnboardingHost = lazy(loadOnboardingHost);
+
+function mark(name: string): void {
+  try {
+    performance.mark(name);
+  } catch {
+    // Marks are diagnostics only.
+  }
+}
+
+/**
+ * Settles when the editor warm-up (editor chunk, engine init, effects bridge) has finished or
+ * failed. The agent/MCP stack (an ~860 KB chunk plus its registry) waits for it: it used to load on
+ * the first animation frame, i.e. in the middle of the warm-up, and its compile + evaluate time
+ * (measured with the perf-trace metrics) landed on the cold-start path.
+ */
+let resolveWarmupSettled: () => void = () => {};
+const warmupSettled = new Promise<void>((resolve) => {
+  resolveWarmupSettled = resolve;
+});
+const AGENT_STACK_MAX_WAIT_MS = 6000;
+
+function whenIdle(callback: () => void, timeout: number): () => void {
+  if (typeof window.requestIdleCallback === "function") {
+    const handle = window.requestIdleCallback(callback, { timeout });
+    return () => window.cancelIdleCallback(handle);
+  }
+  const handle = window.setTimeout(callback, 0);
+  return () => window.clearTimeout(handle);
 }
 
 export function DesktopApp(): JSX.Element {
-  const platform = detectPlatform();
-  const hasProject = useProjectStore((state) => state.hasOpenProject);
-  const agentChatVisible = useUIStore(
-    (state) => state.panels.agentChat?.visible ?? false,
+  const [editorRoute, setEditorRoute] = useState(() =>
+    window.location.hash.startsWith("#/editor"),
   );
-  const togglePanel = useUIStore((state) => state.togglePanel);
-
+  useEffect(() => {
+    mark("openreel:desktop-app-mounted");
+    // Warm the editor chunk and the engines (WebGPU adapter/device, audio,
+    // playback, export: ~1.1 s measured in the real app) while the welcome
+    // screen is showing, so "New project" does not wait for them. initialize()
+    // is idempotent and the editor hook awaits an in-flight init.
+    const warm = () => {
+      void loadEditorModule()
+        .then(() => useEngineStore.getState().initialize())
+        // The effects bridge (GPU context + shader compile, ~40 ms of main-thread work) is
+        // otherwise the slowest step of editor init, after the click. The effects engine
+        // resizes itself to the frames it processes, so the default 1920x1080 start size is
+        // safe for every project format. A failure just leaves the editor to init it later.
+        .then(() => import("../bridges/effects-bridge"))
+        .then((bridge) => bridge.initializeEffectsBridge())
+        .catch((error) => {
+          console.warn("[desktop] editor warm-up failed", error);
+        })
+        .finally(resolveWarmupSettled);
+    };
+    const useIdle = typeof window.requestIdleCallback === "function";
+    const idle = useIdle
+      ? window.requestIdleCallback(warm, { timeout: 300 })
+      : window.setTimeout(warm, 1500);
+    return () => {
+      if (useIdle) window.cancelIdleCallback(idle);
+      else window.clearTimeout(idle);
+    };
+  }, []);
+  useEffect(() => {
+    mark(editorRoute ? "openreel:editor-mounted" : "openreel:welcome-visible");
+  }, [editorRoute]);
+  // Onboarding: warm the host chunk at idle (after welcome-visible; skipped once the user is in the
+  // editor), keep the main-process mirror in step, and mount the host only when a sheet is requested.
+  const sheetRequested = useOnboardingStore((state) => Boolean(state.openSheet));
+  useEffect(() => {
+    if (editorRoute) return;
+    return whenIdle(() => {
+      if (!window.location.hash.startsWith("#/editor")) void loadOnboardingHost().catch(() => undefined);
+    }, 2500);
+  }, [editorRoute]);
+  useEffect(() => installOnboardingSync(), []);
+  useEffect(() => {
+    const update = () =>
+      setEditorRoute(window.location.hash.startsWith("#/editor"));
+    window.addEventListener("hashchange", update);
+    return () => window.removeEventListener("hashchange", update);
+  }, []);
   // Drive native-menu actions into the app: undo/redo hit the project store
-  // directly; new/open/export are broadcast as events for the relevant UI to
-  // pick up (e.g. the export button opens its dialog on "export").
+  // directly; new/open use the same project flow as the shared editor.
   useEffect(() => {
     const bridge = window.openreel;
     if (!bridge?.onMenuAction) return;
@@ -48,17 +120,87 @@ export function DesktopApp(): JSX.Element {
         case "redo":
           void useProjectStore.getState().redo();
           break;
+        case "selectAll": {
+          const active = document.activeElement;
+          const editable = active instanceof HTMLElement
+            ? active.closest('[contenteditable]:not([contenteditable="false"])')
+            : null;
+          if (active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement) {
+            active.select();
+          } else if (editable) {
+            window.getSelection()?.selectAllChildren(editable);
+          } else {
+            keyboardShortcuts.runCommand("selection.selectAll");
+          }
+          break;
+        }
         case "newProject":
+          // Onboarding is retired by the #/new flow once the project exists, so a cancel keeps it.
+          window.location.hash = "#/new";
+          break;
+        case "showWelcomeSetup": {
+          useOnboardingStore.getState().reopenBand();
+          const route = window.location.hash.split("?")[0];
+          if (route !== "#/welcome") window.location.hash = "#/welcome";
+          break;
+        }
+        case "openLessons":
+          useOnboardingStore.getState().showSheet("lessons");
+          break;
+        case "connectAgent":
+          useOnboardingStore.getState().showSheet("agent");
+          break;
         case "open":
+          void withUserProjectCreation(() => openEditorProject())
+            .then((opened) => {
+              if (!opened) return;
+              useOnboardingStore.getState().skip("user");
+              window.location.hash = "#/editor";
+            })
+            .catch((error: unknown) => {
+              reportRendererCrash({
+                type: "project-open-error",
+                message: error instanceof Error ? error.message : String(error),
+              });
+              useProjectStore.setState({
+                error: "Could not open the project. Please try again.",
+              });
+            });
+          break;
         case "export":
           window.dispatchEvent(new CustomEvent(`openreel:menu:${id}`));
           break;
         case "settings":
           useSettingsStore.getState().openSettings();
           break;
+        case "collaborate":
+          useCollabStore.getState().openDialog();
+          break;
+        case "managePlugins":
+          usePluginManagerStore.getState().setOpen(true);
+          break;
       }
     });
   }, []);
+
+  // MCP clients can create or open a project while the start screen is shown.
+  useEffect(
+    () =>
+      useProjectStore.subscribe((state, previous) => {
+        if (
+          !state.hasOpenProject ||
+          (previous.hasOpenProject && state.project.id === previous.project.id)
+        )
+          return;
+        if (isWelcomeRoute(window.location.hash)) {
+          // An MCP client created or opened a project while the welcome UI (band or a sheet) was up:
+          // retire onboarding quietly (skippedBy "agent") and flip to the editor.
+          handleProjectOpenedOnWelcomeRoute();
+          window.location.hash = "#/editor";
+        }
+      }),
+    [],
+  );
 
   // Forward uncaught renderer errors + unhandled rejections to the native crash
   // collector so editor-side faults are captured alongside main-process crashes.
@@ -67,10 +209,50 @@ export function DesktopApp(): JSX.Element {
   // Serve main-process MCP tool calls against the live editor so external MCP
   // clients drive the open project through the same tool layer as the chat panel.
   // Also back the export_* job tools with a runner that renders via the export
-  // engine and uploads the artifact to R2, returning a presigned download URL.
+  // engine to a local file (the app's export folder, or the agent's outputPath inside the allowed
+  // roots) and returns its path, size and SHA-256. Nothing is uploaded.
+  // Loaded once the editor warm-up has settled and the main thread is idle, so the agent stack
+  // stays off both the startup path and the enter-editor path.
   useEffect(() => {
-    getLiveEditorHost().setJobRunner(createExportJobRunner());
-    return installMcpListener();
+    let cancelled = false;
+    let cancelIdle: (() => void) | undefined;
+    type Listener = typeof import("../services/agent/mcp-listener");
+    let loading: Promise<Listener> | undefined;
+    // Memoised: the idle path and an early MCP request share one load.
+    const loadAgentStack = (): Promise<Listener> => {
+      loading ??= Promise.all([
+        import("../services/agent/host-singleton"),
+        import("../services/agent/export-job-runner"),
+        import("../services/agent/mcp-listener"),
+      ]).then(([host, jobs, listener]) => {
+        host.getLiveEditorHost().setJobRunner(jobs.createExportJobRunner());
+        return listener;
+      });
+      return loading;
+    };
+    // The IPC handler is registered immediately (it is tiny); a request that arrives before the
+    // deferred stack has loaded triggers the load and waits for it instead of being dropped by the
+    // main process (webContents.send has no queue, so a late listener would time the call out).
+    const mcp = window.openreel?.mcp;
+    const uninstall = mcp?.onRequest(async (req) => {
+      const listener = await loadAgentStack();
+      return listener.handleMcpBridgeRequest(req);
+    });
+    const maxWait = window.setTimeout(resolveWarmupSettled, AGENT_STACK_MAX_WAIT_MS);
+    void warmupSettled.then(() => {
+      if (cancelled) return;
+      cancelIdle = whenIdle(() => {
+        loadAgentStack().catch((error) => {
+          console.warn("[desktop] agent/MCP bridge failed to load", error);
+        });
+      }, 1500);
+    });
+    return () => {
+      cancelled = true;
+      window.clearTimeout(maxWait);
+      cancelIdle?.();
+      uninstall?.();
+    };
   }, []);
 
   // Answer the native unsaved-changes guard on window close / quit: report
@@ -79,7 +261,9 @@ export function DesktopApp(): JSX.Element {
     const lifecycle = window.openreel?.lifecycle;
     if (!lifecycle) return;
     const offQuery = lifecycle.onQueryUnsaved(() =>
-      autoSaveManager.hasUnsavedChanges(useProjectStore.getState().getFullProject()),
+      autoSaveManager.hasUnsavedChanges(
+        useProjectStore.getState().getFullProject(),
+      ),
     );
     const offFlush = lifecycle.onFlush(() =>
       useProjectStore.getState().forceSave(),
@@ -91,29 +275,26 @@ export function DesktopApp(): JSX.Element {
   }, []);
 
   return (
-    <div className="openreel-desktop isolate flex h-screen w-screen flex-col overflow-hidden bg-bg text-fg">
-      <DesktopTitleBar platform={platform}>
-        {hasProject ? (
-          <Button
-            label="AI Editor"
-            variant={agentChatVisible ? "primary" : "secondary"}
-            size="sm"
-            icon={<Sparkles size={15} aria-hidden />}
-            onClick={() => togglePanel("agentChat")}
-            className="mr-2"
-            aria-pressed={agentChatVisible}
+    <div
+      className="isolate flex h-screen w-screen flex-col overflow-hidden bg-bg text-fg"
+      data-testid="desktop-app"
+    >
+      {!editorRoute && (
+        <div
+          className="flex h-11 shrink-0 items-center justify-end border-b border-border bg-bg-1"
+          style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
+        >
+          <WindowControls
+            platform={
+              /Mac/i.test(navigator.platform)
+                ? "darwin"
+                : /Win/i.test(navigator.platform)
+                  ? "win32"
+                  : "linux"
+            }
           />
-        ) : null}
-        {hasProject ? <DesktopExportButton /> : null}
-        <Button
-          label="Settings"
-          variant="secondary"
-          size="sm"
-          icon={<Settings size={15} aria-hidden />}
-          onClick={() => useSettingsStore.getState().openSettings()}
-          className="mr-2"
-        />
-      </DesktopTitleBar>
+        </div>
+      )}
       <div className="min-h-0 flex-1">
         <ErrorBoundary
           onError={(error, info) =>
@@ -125,17 +306,15 @@ export function DesktopApp(): JSX.Element {
             })
           }
         >
-          {hasProject ? (
-            <EditorBootstrapGate>
-              <Workspace />
-            </EditorBootstrapGate>
-          ) : (
-            <DesktopStartScreen />
-          )}
+          <App />
         </ErrorBoundary>
       </div>
       <UpdateBanner />
-      <SettingsDialog />
+      {sheetRequested && (
+        <Suspense fallback={null}>
+          <OnboardingHost />
+        </Suspense>
+      )}
     </div>
   );
 }

@@ -9,7 +9,7 @@ export interface NoiseProfile {
   readonly fftSize: number;
 }
 
-export interface NoiseReductionConfig {
+interface NoiseReductionConfig {
   threshold: number;
   reduction: number;
   attack: number;
@@ -17,7 +17,7 @@ export interface NoiseReductionConfig {
   smoothing: number;
 }
 
-export const DEFAULT_NOISE_REDUCTION_CONFIG: NoiseReductionConfig = {
+const DEFAULT_NOISE_REDUCTION_CONFIG: NoiseReductionConfig = {
   threshold: -40,
   reduction: 0.5,
   attack: 10,
@@ -259,7 +259,7 @@ export class SpectralNoiseReducer {
   }
 }
 
-export function detectNoiseSegments(
+function detectNoiseSegments(
   buffer: AudioBuffer,
   threshold: number = -50,
   minDuration: number = 0.5,

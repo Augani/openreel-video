@@ -5,7 +5,6 @@ import {
   render,
   screen,
   waitFor,
-  within,
 } from "@testing-library/react";
 import { createEmptyProject } from "../../../stores/project/project-helpers";
 import { useEngineStore } from "../../../stores/engine-store";
@@ -55,6 +54,7 @@ describe("ShapeSection shader fill controls", () => {
       hasOpenProject: true,
       project: {
         ...createEmptyProject("Shape shader"),
+        timeline: { tracks: [{ id: "track-shape", name: "Shape", type: "video", clips: [], transitions: [], hidden: false, locked: false, muted: false, solo: false }], duration: 5, markers: [], subtitles: [] },
         shapeClips: [shapeClip],
         modifiedAt: Date.now(),
       },
@@ -92,17 +92,9 @@ describe("ShapeSection shader fill controls", () => {
     fireEvent.click(picker);
     expect(await screen.findByText("Built-in")).toBeInTheDocument();
     expect(await screen.findByText("Paper")).toBeInTheDocument();
+    fireEvent.keyDown(screen.getByRole("listbox"), { key: "Escape" });
 
-    const scaleField = screen
-      .getAllByText("Scale")
-      .map((node) => node.closest(".astryx-field") as HTMLElement | null)
-      .find(
-        (field): field is HTMLElement =>
-          field !== null && within(field).queryByRole("spinbutton") !== null,
-      );
-    expect(scaleField).toBeDefined();
-
-    fireEvent.change(within(scaleField!).getByRole("spinbutton"), {
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Scale" }), {
       target: { value: "12" },
     });
 

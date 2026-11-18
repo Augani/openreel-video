@@ -1,8 +1,15 @@
-import { ToolcraftButton as Button } from "@openreel/ui";
-import { ToolcraftCard as Card } from "@openreel/ui";
-import { ToolcraftSelectControl as Selector } from "@openreel/ui";
-import { ToolcraftText as Text } from "@openreel/ui";
-import { ToolcraftTextAreaControl } from "@openreel/ui";
+import { useId } from "react";
+import {
+  Button,
+  Card,
+  Label,
+  Textarea,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@openreel/ui";
 import type { ZImageInput } from "../../../../services/kieai/image-generation";
 import { ASPECT_RATIO_OPTIONS_BASIC } from "./shared";
 
@@ -14,44 +21,85 @@ interface Props {
 }
 
 export function ZImageForm({ value, onChange, onSubmit, isLoading }: Props) {
+  const id = useId();
   return (
-    <div className="space-y-4">
-      <Card variant="yellow" padding={2} className="border border-yellow-500/30">
-        <Text type="supporting" className="text-xs text-yellow-400">
-          Z-Image is text-to-image. The source image is used as inspiration
-          only, not as a direct reference.
-        </Text>
+    <fieldset disabled={isLoading} className="min-w-0 space-y-4 border-0 p-0">
+      <Card className="min-w-0 rounded-[7px] shadow-none bg-bg-2 text-fg p-3 border border-border">
+        <span className="font-normal text-[12px] leading-5 text-fg-2">
+          Z-Image generates from text. Describe any details from the source that
+          you want to keep.
+        </span>
       </Card>
 
-      <ToolcraftTextAreaControl
-        label="Prompt"
-        isRequired
-        value={value.prompt}
-        onChange={(prompt) => onChange({ ...value, prompt })}
-        placeholder="Describe the image you want to generate..."
-        maxLength={1000}
-        rows={4}
-        width="100%"
-      />
+      <div className="space-y-1.5">
+        <Label
+          htmlFor={`${id}-prompt`}
+          className="text-[12px] font-medium text-fg-2"
+        >
+          Prompt
+        </Label>
+        <Textarea
+          id={`${id}-prompt`}
+          value={value.prompt}
+          onChange={(event) =>
+            onChange({ ...value, prompt: event.target.value })
+          }
+          required
+          disabled={isLoading}
+          placeholder="Describe the image you want to generate..."
+          maxLength={1000}
+          rows={4}
+          className="resize-y border-border bg-bg-2 text-[12px] leading-5 text-fg placeholder:text-fg-3"
+        />
+      </div>
 
-      <Selector
-        label="Aspect Ratio"
-        value={value.aspect_ratio}
-        onChange={(aspect_ratio) =>
-          onChange({ ...value, aspect_ratio: aspect_ratio as ZImageInput["aspect_ratio"] })
-        }
-        options={[...ASPECT_RATIO_OPTIONS_BASIC]}
-        size="sm"
-        width="100%"
-      />
+      <div className="min-w-0 space-y-1.5">
+        <Label
+          htmlFor={`${id}-aspect-ratio`}
+          className="text-[12px] font-medium text-fg-2"
+        >
+          Aspect Ratio
+        </Label>
+        <Select
+          value={value.aspect_ratio}
+          onValueChange={(aspect_ratio) =>
+            onChange({
+              ...value,
+              aspect_ratio: aspect_ratio as ZImageInput["aspect_ratio"],
+            })
+          }
+          disabled={isLoading}
+        >
+          <SelectTrigger
+            id={`${id}-aspect-ratio`}
+            className="h-8 min-w-0 border-border bg-bg-2 text-[12px]"
+          >
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {[...ASPECT_RATIO_OPTIONS_BASIC].map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
 
       <Button
-        label={isLoading ? "Generating..." : "Generate with Z-Image"}
         onClick={onSubmit}
-        isDisabled={isLoading || !value.prompt.trim()}
-        variant="primary"
-        className="w-full"
-      />
-    </div>
+        type="button"
+        aria-label={
+          (isLoading ? "Generating..." : "Generate with Z-Image").trim() ||
+          undefined
+        }
+        disabled={isLoading || !value.prompt.trim()}
+        className="h-8 w-full bg-accent text-[12px] text-accent-fg hover:bg-accent/90"
+      >
+        <span className="truncate">
+          {isLoading ? "Generating..." : "Generate with Z-Image"}
+        </span>
+      </Button>
+    </fieldset>
   );
 }

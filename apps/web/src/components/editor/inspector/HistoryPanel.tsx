@@ -1,3 +1,4 @@
+import { Input as ShadcnInput, Button, cn, Card } from "@openreel/ui";
 import React, { useState, useEffect, useCallback } from "react";
 import {
   History,
@@ -13,12 +14,12 @@ import {
   FileCode,
   Smile,
 } from "@/icons/lucide-compat";
-import { ToolcraftButton as Button } from "@openreel/ui";
-import { ToolcraftCard as Card } from "@openreel/ui";
-import { ToolcraftClickableCard as ClickableCard } from "@openreel/ui";
-import { ToolcraftIconButton as IconButton } from "@openreel/ui";
-import { ToolcraftText as Text } from "@openreel/ui";
-import { ToolcraftTextInputControl } from "@openreel/ui";
+
+
+
+
+
+
 import { useProjectStore } from "../../../stores/project-store";
 import type { HistorySnapshot } from "@openreel/core";
 
@@ -134,38 +135,22 @@ export const HistoryPanel: React.FC = () => {
       <div className="flex items-center justify-between p-3 border-b border-border">
         <div className="flex items-center gap-2">
           <History size={14} className="text-primary" aria-hidden />
-          <Text type="body" color="primary" weight="bold" className="text-sm">
+          <span className="text-fg font-bold text-sm">
             History
-          </Text>
+          </span>
         </div>
         <div className="flex items-center gap-1">
-          <IconButton
-            label={`Undo (${undoCount})`}
-            icon={<Undo2 size={14} aria-hidden />}
-            variant="ghost"
-            size="sm"
-            onClick={handleUndo}
-            isDisabled={!canUndo()}
-          />
-          <IconButton
-            label={`Redo (${redoCount})`}
-            icon={<Redo2 size={14} aria-hidden />}
-            variant="ghost"
-            size="sm"
-            onClick={handleRedo}
-            isDisabled={!canRedo()}
-          />
+          <Button variant="ghost" size="icon-sm" onClick={handleUndo} type="button" aria-label={`Undo (${undoCount})`} title={`Undo (${undoCount})`} disabled={(!canUndo())} className="inline-flex shrink-0 items-center justify-center rounded-[7px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 w-7 bg-transparent text-fg-muted hover:bg-bg-2 hover:text-fg">
+            {<Undo2 size={14} aria-hidden />}
+          </Button>
+          <Button variant="ghost" size="icon-sm" onClick={handleRedo} type="button" aria-label={`Redo (${redoCount})`} title={`Redo (${redoCount})`} disabled={(!canRedo())} className="inline-flex shrink-0 items-center justify-center rounded-[7px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 w-7 bg-transparent text-fg-muted hover:bg-bg-2 hover:text-fg">
+            {<Redo2 size={14} aria-hidden />}
+          </Button>
         </div>
       </div>
 
       <div className="border-b border-border">
-        <ClickableCard
-          label={`${showSnapshots ? "Hide" : "Show"} snapshots`}
-          onClick={() => setShowSnapshots(!showSnapshots)}
-          padding={2}
-          variant="transparent"
-          className="w-full"
-        >
+        <Button variant="ghost" onClick={() => setShowSnapshots(!showSnapshots)} type="button" aria-label={`${showSnapshots ? "Hide" : "Show"} snapshots`} className="group/card block h-auto min-w-0 whitespace-normal rounded-[7px] border text-left transition-[background-color,border-color,box-shadow,transform] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 border-transparent bg-transparent hover:bg-bg-2 p-2 w-full">
           <div className="flex items-center gap-2">
             {showSnapshots ? (
               <ChevronDown size={12} aria-hidden />
@@ -173,81 +158,67 @@ export const HistoryPanel: React.FC = () => {
               <ChevronRight size={12} aria-hidden />
             )}
             <Bookmark size={12} className="text-yellow-500" aria-hidden />
-            <Text type="supporting" color="secondary" className="text-xs">
+            <span className="text-fg-2 font-normal text-xs">
               Snapshots ({snapshots.length})
-            </Text>
+            </span>
           </div>
-        </ClickableCard>
+        </Button>
 
         {showSnapshots && (
           <div className="px-2 pb-2">
             {snapshots.length === 0 && !isCreatingSnapshot && (
-              <Text type="supporting" color="secondary" className="block text-[10px] py-2 text-center">
+              <span className="text-fg-2 font-normal block text-[10px] py-2 text-center">
                 No snapshots saved
-              </Text>
+              </span>
             )}
 
             {snapshots.map((snapshot) => (
-              <Card
-                key={snapshot.id}
-                variant="transparent"
-                padding={2}
-                className="group flex items-center justify-between gap-2"
+              <Card key={snapshot.id} className="min-w-0 rounded-[7px] border shadow-none border-transparent bg-transparent text-fg p-2 group flex items-center justify-between gap-2"
               >
                 <div className="flex items-center gap-2">
                   <Bookmark size={10} className="text-yellow-500" aria-hidden />
                   <div className="flex flex-col gap-0.5">
-                    <Text type="supporting" color="primary" display="block" className="text-xs">
+                    <span className="text-fg font-normal block text-xs">
                       {snapshot.name}
-                    </Text>
-                    <Text type="supporting" color="secondary" display="block" className="text-[10px]">
+                    </span>
+                    <span className="text-fg-2 font-normal block text-[10px]">
                       {formatTime(snapshot.timestamp)}
-                    </Text>
+                    </span>
                   </div>
                 </div>
-                <IconButton
-                  label={`Delete snapshot ${snapshot.name}`}
-                  icon={<Trash2 size={10} aria-hidden />}
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => handleDeleteSnapshot(snapshot.id)}
-                  className="text-fg-3 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all"
-                />
+                <Button variant="ghost" size="icon-sm" onClick={() => handleDeleteSnapshot(snapshot.id)} type="button" aria-label={`Delete snapshot ${snapshot.name}`} title={`Delete snapshot ${snapshot.name}`} className="inline-flex shrink-0 items-center justify-center rounded-[7px] outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 w-7 bg-transparent hover:bg-bg-2 text-fg-3 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all">
+                  {<Trash2 size={10} aria-hidden />}
+                </Button>
               </Card>
             ))}
 
             {isCreatingSnapshot ? (
               <div className="flex items-center gap-2 p-2">
-                <ToolcraftTextInputControl
-                  label="Snapshot name"
-                  isLabelHidden
-                  size="sm"
-                  width="100%"
+                <ShadcnInput
                   value={newSnapshotName}
-                  onChange={setNewSnapshotName}
                   onKeyDown={(e) => {
                     if (e.key === "Enter") handleCreateSnapshot();
                     if (e.key === "Escape") setIsCreatingSnapshot(false);
                   }}
                   placeholder="Snapshot name..."
-                  hasAutoFocus
+                  aria-label={"Snapshot name"}
+                  onChange={(event) => setNewSnapshotName(event.currentTarget.value)}
+                  autoFocus={true}
+                  style={{ width: "100%" }}
+                  className={cn(
+                    "flex h-8 w-full min-w-0 rounded-[7px] border border-border bg-bg-1 px-2.5 py-1.5 text-[13px] font-medium text-fg-2 outline-none transition-colors placeholder:text-fg-muted focus:border-accent disabled:cursor-not-allowed disabled:opacity-50 md:text-[13px]",
+                    "h-7 text-[12px] md:text-[12px]",
+                  )}
                 />
-                <Button
-                  label="Save"
-                  variant="primary"
-                  size="sm"
-                  onClick={handleCreateSnapshot}
-                />
+                <Button onClick={handleCreateSnapshot} type="button" aria-label="Save" className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] bg-accent text-accent-fg hover:bg-accent/90">
+                  <span className="truncate">{"Save"}</span>
+                </Button>
               </div>
             ) : (
-              <Button
-                label="Create Snapshot"
-                icon={<BookmarkPlus size={12} aria-hidden />}
-                variant="secondary"
-                size="sm"
-                onClick={() => setIsCreatingSnapshot(true)}
-                className="w-full border border-dashed border-border"
-              />
+              <Button onClick={() => setIsCreatingSnapshot(true)} type="button" aria-label="Create Snapshot" className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg w-full border border-dashed border-border">
+                <span className="flex h-4 w-4 shrink-0 items-center justify-center">{<BookmarkPlus size={12} aria-hidden />}</span>
+                <span className="truncate">{"Create Snapshot"}</span>
+              </Button>
             )}
           </div>
         )}
@@ -257,24 +228,20 @@ export const HistoryPanel: React.FC = () => {
         {combinedHistory.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-fg-3">
             <History size={24} className="mb-2 opacity-30" aria-hidden />
-            <Text type="supporting" color="secondary" className="text-xs">
+            <span className="text-fg-2 font-normal text-xs">
               No actions yet
-            </Text>
+            </span>
           </div>
         ) : (
           <div className="p-2 space-y-0.5">
             {combinedHistory.map((item) => {
               const ClipIcon = item.isClipEntry ? getClipIcon(item.clipType) : null;
               return (
-                <Card
-                  key={item.id}
-                  variant={item.isCurrent ? "green" : "transparent"}
-                  padding={2}
-                  className={`flex items-center gap-2 p-2 rounded transition-colors ${
+                <Card key={item.id} className={cn("min-w-0 rounded-[7px] border shadow-none", (item.isCurrent ? "border-status-success/25 bg-status-success/10 text-fg" : "border-transparent bg-transparent text-fg"), "p-2", `flex items-center gap-2 p-2 rounded transition-colors ${
                     item.isCurrent
                       ? "bg-primary/20 border border-primary/30"
                       : "hover:bg-bg-2"
-                  }`}
+                  }`)}
                 >
                   {item.isClipEntry && ClipIcon ? (
                     <ClipIcon
@@ -290,31 +257,27 @@ export const HistoryPanel: React.FC = () => {
                     />
                   )}
                   <div className="flex flex-col gap-0.5 flex-1 min-w-0">
-                    <Text
-                      type="supporting"
-                      color={item.isCurrent ? "primary" : "secondary"}
-                      display="block"
-                      className={`text-xs truncate ${
+                    <span className={cn("text-[12px] leading-5", (item.isCurrent ? "text-fg" : "text-fg-2"), "font-normal", "block", `text-xs truncate ${
                         item.isCurrent
                           ? "text-fg"
                           : "text-fg-2"
-                      }`}
+                      }`)}
                     >
                       {item.description}
-                    </Text>
-                    <Text type="supporting" color="secondary" display="block" className="text-[10px]">
+                    </span>
+                    <span className="text-fg-2 font-normal block text-[10px]">
                       {formatTime(item.timestamp)}
-                    </Text>
+                    </span>
                   </div>
                   {item.groupId && (
-                    <Text type="supporting" color="secondary" className="px-1 py-0.5 bg-bg-2 rounded text-[8px]">
+                    <span className="text-fg-2 font-normal px-1 py-0.5 bg-bg-2 rounded text-[8px]">
                       grouped
-                    </Text>
+                    </span>
                   )}
                   {item.isClipEntry && (
-                    <Text type="supporting" className="px-1 py-0.5 bg-amber-500/20 rounded text-[8px] text-amber-400">
+                    <span className="font-normal px-1 py-0.5 bg-amber-500/20 rounded text-[8px] text-amber-400">
                       clip
-                    </Text>
+                    </span>
                   )}
                 </Card>
               );
@@ -325,16 +288,15 @@ export const HistoryPanel: React.FC = () => {
 
       <div className="p-2 border-t border-border bg-bg-2">
         <div className="flex items-center justify-between text-[10px] text-fg-3">
-          <Text type="supporting" color="secondary" className="text-[10px]">
+          <span className="text-fg-2 font-normal text-[10px]">
             {undoCount} actions
-          </Text>
-          <Text type="supporting" color="secondary" className="text-[10px]">
+          </span>
+          <span className="text-fg-2 font-normal text-[10px]">
             {redoCount} redoable
-          </Text>
+          </span>
         </div>
       </div>
     </div>
   );
 };
 
-export default HistoryPanel;

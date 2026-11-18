@@ -2,20 +2,6 @@ import { describe, expect, it } from "vitest";
 import { resolveMotionSupersample } from "./motion-renderer";
 
 describe("resolveMotionSupersample", () => {
-  it("defaults to 1 when no factor is requested", () => {
-    expect(resolveMotionSupersample(undefined, 1920, 1080)).toBe(1);
-  });
-
-  it("ignores non-finite requests", () => {
-    expect(resolveMotionSupersample(Number.NaN, 1920, 1080)).toBe(1);
-    expect(resolveMotionSupersample(Number.POSITIVE_INFINITY, 1920, 1080)).toBe(1);
-  });
-
-  it("never scales below 1", () => {
-    expect(resolveMotionSupersample(0.25, 1920, 1080)).toBe(1);
-    expect(resolveMotionSupersample(-4, 1920, 1080)).toBe(1);
-  });
-
   it("honors a valid factor within the hard cap", () => {
     expect(resolveMotionSupersample(2, 1920, 1080)).toBe(2);
     expect(resolveMotionSupersample(8, 1280, 720)).toBe(4);

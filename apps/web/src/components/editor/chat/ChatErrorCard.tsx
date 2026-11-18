@@ -1,11 +1,11 @@
 import type { JSX } from "react";
-import { ToolcraftButton as Button } from "@openreel/ui";
-import { ToolcraftIconButton as IconButton } from "@openreel/ui";
+import { Button, Collapsible, CollapsibleTrigger, CollapsibleContent } from "@openreel/ui";
+import { ChevronRight } from "lucide-react";
 import { CircleAlert, X } from "@/icons/lucide-compat";
 
-export type ChatErrorAction = "ai-editor" | "new-chat" | null;
+type ChatErrorAction = "ai-editor" | "new-chat" | null;
 
-export interface ChatErrorPresentation {
+interface ChatErrorPresentation {
   readonly title: string;
   readonly message: string;
   readonly action: ChatErrorAction;
@@ -34,7 +34,7 @@ function extractUpstreamMessage(raw: string): string | null {
   }
 }
 
-export function formatChatError(rawError: string): ChatErrorPresentation {
+function formatChatError(rawError: string): ChatErrorPresentation {
   const raw = rawError.trim() || "The AI request failed.";
   const upstream = extractUpstreamMessage(raw);
   const status = Number(raw.match(/\b([45]\d{2})\b/)?.[1] ?? 0);
@@ -101,7 +101,10 @@ export function formatChatError(rawError: string): ChatErrorPresentation {
     };
   }
 
-  if (status === 404 || /model.+not found|unknown model|does not exist/.test(searchable)) {
+  if (
+    status === 404 ||
+    /model.+not found|unknown model|does not exist/.test(searchable)
+  ) {
     return {
       title: "Model or route not found",
       message:
@@ -152,7 +155,7 @@ export function ChatErrorCard({
   return (
     <div
       role="alert"
-      className="rounded-xl border border-status-error/35 bg-bg-1 p-3 shadow-sm"
+      className="workspace-chat-error rounded-xl border border-status-error/35 bg-bg-1 p-3 shadow-sm"
     >
       <div className="flex items-start gap-2.5">
         <div className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-status-error/10 text-status-error">
@@ -166,30 +169,31 @@ export function ChatErrorCard({
             {presentation.message}
           </div>
         </div>
-        <IconButton
-          label="Dismiss error"
-          icon={<X size={13} aria-hidden />}
-          size="sm"
+        <Button
+          type="button"
+          aria-label="Dismiss error"
+          title="Dismiss error"
+          size="icon-sm"
           variant="ghost"
           onClick={onDismiss}
-          className="-mr-1 -mt-1 shrink-0 text-fg-muted transition-colors hover:text-fg"
-        />
+          className="-mr-1 -mt-1 h-7 w-7 shrink-0 p-0 text-fg-muted transition-colors hover:text-fg"
+        ><X size={13} aria-hidden /></Button>
       </div>
 
       {presentation.details && (
-        <details className="group mt-2 rounded-lg bg-bg-2/70 px-2.5 py-2">
-          <summary className="cursor-pointer select-none text-[10px] font-medium text-fg-muted hover:text-fg-2">
-            Technical details
-          </summary>
-          <pre className="mt-2 max-h-28 overflow-auto whitespace-pre-wrap break-words font-mono text-[10px] leading-relaxed text-fg-muted">
+        <Collapsible className="mt-2 rounded-lg bg-bg-2/70 px-2.5 py-2">
+          <CollapsibleTrigger asChild><Button type="button" variant="ghost" size="sm" className="group flex h-auto w-full select-none items-center justify-between gap-2 whitespace-normal p-0 text-left text-[10px] font-medium leading-[inherit] text-fg-muted hover:bg-transparent hover:text-fg-2 [&_svg]:size-3">
+            <span className="min-w-0">Technical details</span><ChevronRight size={12} aria-hidden className="shrink-0 transition-transform group-data-[state=open]:rotate-90" />
+          </Button></CollapsibleTrigger>
+          <CollapsibleContent><pre className="mt-2 max-h-28 overflow-auto whitespace-pre-wrap break-words font-mono text-[10px] leading-relaxed text-fg-muted">
             {presentation.details}
-          </pre>
-        </details>
+          </pre></CollapsibleContent>
+        </Collapsible>
       )}
 
       {presentation.action && (
         <Button
-          label={presentation.actionLabel ?? "Fix issue"}
+          type="button"
           variant="secondary"
           size="sm"
           onClick={() => {
@@ -197,8 +201,8 @@ export function ChatErrorCard({
             if (action === "new-chat") onNewChat();
             else if (action) onOpenSettings(action);
           }}
-          className="mt-2.5 w-full"
-        />
+          className="mt-2.5 h-7 w-full rounded-[7px] border border-border bg-bg-2 px-2.5 text-[12px] font-semibold text-fg-2 hover:bg-bg-3 hover:text-fg"
+        >{presentation.actionLabel ?? "Fix issue"}</Button>
       )}
     </div>
   );

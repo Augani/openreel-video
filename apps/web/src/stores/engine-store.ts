@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
-import {
+import type {
   VideoEngine,
   AudioEngine,
   PlaybackController,
@@ -14,18 +14,11 @@ import {
   SoundLibraryEngine,
   ChromaKeyEngine,
   MultiCamEngine,
-  multicamEngine,
   MaskEngine,
   NestedSequenceEngine,
   AdjustmentLayerEngine,
-  getVideoEngine,
-  getAudioEngine,
-  getPlaybackController,
-  getPhotoEngine,
-  getExportEngine,
-  titleEngine as coreTitleEngine,
-  graphicsEngine as coreGraphicsEngine,
 } from "@openreel/core";
+import { loadEngineModules, onEngineModulesLoaded } from "../services/lazy-engines";
 import type { RenderedFrame } from "@openreel/core";
 
 const lazyEngineCache = new Map<string, unknown>();
@@ -40,7 +33,7 @@ async function getOrCreateEngine<T>(
   return lazyEngineCache.get(key) as Promise<T>;
 }
 
-export interface AudioLevelData {
+interface AudioLevelData {
   peaks: Map<string, number>;
   rms: Map<string, number>;
   masterPeak: number;
@@ -49,7 +42,7 @@ export interface AudioLevelData {
   isWarning: boolean;
 }
 
-export interface PlaybackStats {
+interface PlaybackStats {
   currentTime: number;
   duration: number;
   state: "stopped" | "playing" | "paused";
@@ -60,7 +53,7 @@ export interface PlaybackStats {
   avgFrameRenderTime: number;
 }
 
-export interface EngineState {
+interface EngineState {
   initialized: boolean;
   initializing: boolean;
   initError: string | null;
@@ -115,7 +108,7 @@ export interface EngineState {
  * Warning and clipping thresholds
  * Feature: core-ui-integration, Property 20: Audio Level Threshold Detection
  */
-export const AUDIO_THRESHOLDS = {
+const AUDIO_THRESHOLDS = {
   /** Warning threshold: -6dB = 10^(-6/20) ≈ 0.501 */
   WARNING_DB: -6,
   WARNING_LINEAR: Math.pow(10, -6 / 20), // ~0.501
@@ -124,25 +117,6 @@ export const AUDIO_THRESHOLDS = {
   CLIPPING_DB: 0,
   CLIPPING_LINEAR: 1.0,
 } as const;
-
-/**
- * Convert linear amplitude to decibels
- * @param linear - Linear amplitude value (0-1+)
- * @returns Decibel value
- */
-export function linearToDb(linear: number): number {
-  if (linear <= 0) return -Infinity;
-  return 20 * Math.log10(linear);
-}
-
-/**
- * Convert decibels to linear amplitude
- * @param db - Decibel value
- * @returns Linear amplitude value
- */
-export function dbToLinear(db: number): number {
-  return Math.pow(10, db / 20);
-}
 
 /**
  * Detect audio level threshold violations
@@ -154,7 +128,7 @@ export function dbToLinear(db: number): number {
  * @param level - Audio level in linear scale (0-1+)
  * @returns Object with isWarning and isClipping flags
  */
-export function detectThresholds(level: number): {
+function detectThresholds(level: number): {
   isWarning: boolean;
   isClipping: boolean;
 } {
@@ -184,8 +158,6 @@ const DEFAULT_PLAYBACK_STATS: PlaybackStats = {
   avgFrameRenderTime: 0,
 };
 
-coreTitleEngine.initialize(1920, 1080);
-
 export const useEngineStore = create<EngineState>()(
   subscribeWithSelector((set, get) => ({
     initialized: false,
@@ -195,9 +167,11 @@ export const useEngineStore = create<EngineState>()(
     videoEngine: null,
     audioEngine: null,
     playbackController: null,
-    titleEngine: coreTitleEngine,
+    // The title/graphics singletons live in the lazily loaded engine modules;
+    // they are hydrated below as soon as that import resolves.
+    titleEngine: null,
     subtitleEngine: null,
-    graphicsEngine: coreGraphicsEngine,
+    graphicsEngine: null,
     photoEngine: null,
     exportEngine: null,
     speechToTextEngine: null,
@@ -223,18 +197,74 @@ export const useEngineStore = create<EngineState>()(
       set({ initializing: true, initError: null });
 
       try {
-        const videoEngine = getVideoEngine();
-        const audioEngine = getAudioEngine();
-        const playbackController = getPlaybackController();
-        const photoEngine = getPhotoEngine();
-        const exportEngine = getExportEngine();
+        const engines = await loadEngineModules();
+        const videoEngine = engines.getVideoEngine();
+        const audioEngine = engines.getAudioEngine();
+        const playbackController = engines.getPlaybackController();
+        const photoEngine = engines.getPhotoEngine();
+        const exportEngine = engines.getExportEngine();
+        const coreTitleEngine = engines.titleEngine;
+        const coreGraphicsEngine = engines.graphicsEngine;
 
         coreTitleEngine.initialize(1920, 1080);
 
+        const initMark = (name: string): void => {
+          try {
+            performance.mark(`openreel:engine:${name}`);
+          } catch {
+            // Marks are diagnostics only.
+          }
+        };
+        initMark("start");
         await videoEngine.initialize();
+        initMark("video");
+        // Decoded-frame cache: never above the shared media memory budget (scaled from device
+        // memory, refined by the desktop hardware probe), and on desktop never above the RAM-scaled
+        // frame-cache budget either. Frames are budgeted in bytes, so 4K holds fewer than 1080p.
+        const applyFrameBudget = (maxSizeBytes: number, maxFrames?: number): void => {
+          videoEngine.setCacheConfig(
+            maxFrames === undefined ? { maxSizeBytes } : { maxSizeBytes, maxFrames },
+          );
+        };
+        let desktopFrameBytes = Number.POSITIVE_INFINITY;
+        let desktopFrames: number | undefined;
+        const applyCombined = (): void => {
+          applyFrameBudget(
+            Math.min(desktopFrameBytes, engines.getMediaMemoryBudget().videoFrameBytes),
+            desktopFrames,
+          );
+        };
+        applyCombined();
+        engines.subscribeMediaMemoryBudget(applyCombined);
+        // Memory governor: counts the frame cache and the open decoders, and under pressure shrinks every
+        // media cache (through the shared budget above) and lowers the number of decoder elements.
+        const governor = engines.getMemoryGovernor();
+        governor.registerConsumer("video-frames", { bytes: () => videoEngine.getCacheStats().sizeBytes });
+        governor.subscribe((policy) => videoEngine.setMaxVideoElements(policy.maxDecoderElements));
+        videoEngine.setMaxVideoElements(governor.policy.maxDecoderElements);
+        governor.start();
+        if (window.openreel?.platform === "desktop") {
+          const heap = (performance as unknown as {
+            memory?: { usedJSHeapSize?: number };
+          }).memory?.usedJSHeapSize;
+          // The hardware probe can take seconds on some machines; apply the
+          // budget when it arrives instead of holding up editor init.
+          void engines.getRecommendedCacheBudget(heap ?? 0)
+            .then((budget) => {
+              desktopFrameBytes = budget.maxSizeBytes;
+              desktopFrames = budget.maxFrames;
+              applyCombined();
+            })
+            .catch((error) => {
+              console.warn("[EngineStore] Cache budget unavailable:", error);
+            });
+        }
         await audioEngine.initialize();
+        initMark("audio");
         await playbackController.initialize(videoEngine, audioEngine);
+        initMark("playback");
         await exportEngine.initialize();
+        initMark("export");
 
         set({
           initialized: true,
@@ -374,31 +404,41 @@ export const useEngineStore = create<EngineState>()(
     getPlaybackController: () => get().playbackController,
     getTitleEngine: () => get().titleEngine,
     getSubtitleEngine: () =>
-      getOrCreateEngine("subtitle", () => new SubtitleEngine()),
+      getOrCreateEngine("subtitle", async () => new (await loadEngineModules()).SubtitleEngine()),
     getGraphicsEngine: () => get().graphicsEngine,
     getPhotoEngine: () => get().photoEngine,
     getExportEngine: () => get().exportEngine,
     getSpeechToTextEngine: () =>
-      getOrCreateEngine("speechToText", () => new SpeechToTextEngine()),
+      getOrCreateEngine("speechToText", async () => new (await loadEngineModules()).SpeechToTextEngine()),
     getTemplateEngine: () =>
-      getOrCreateEngine("template", () => new TemplateEngine()),
+      getOrCreateEngine("template", async () => new (await loadEngineModules()).TemplateEngine()),
     getSoundLibraryEngine: () =>
-      getOrCreateEngine("soundLibrary", () => new SoundLibraryEngine()),
+      getOrCreateEngine("soundLibrary", async () => new (await loadEngineModules()).SoundLibraryEngine()),
     getChromaKeyEngine: () =>
       getOrCreateEngine(
         "chromaKey",
-        () => new ChromaKeyEngine({ width: 1920, height: 1080 })
+        async () => new (await loadEngineModules()).ChromaKeyEngine({ width: 1920, height: 1080 })
       ),
     getMultiCamEngine: () =>
-      getOrCreateEngine("multiCam", () => multicamEngine),
+      getOrCreateEngine("multiCam", async () => (await loadEngineModules()).multicamEngine),
     getMaskEngine: () =>
       getOrCreateEngine(
         "mask",
-        () => new MaskEngine({ width: 1920, height: 1080 })
+        async () => new (await loadEngineModules()).MaskEngine({ width: 1920, height: 1080 })
       ),
     getNestedSequenceEngine: () =>
-      getOrCreateEngine("nestedSequence", () => new NestedSequenceEngine()),
+      getOrCreateEngine("nestedSequence", async () => new (await loadEngineModules()).NestedSequenceEngine()),
     getAdjustmentLayerEngine: () =>
-      getOrCreateEngine("adjustmentLayer", () => new AdjustmentLayerEngine()),
+      getOrCreateEngine("adjustmentLayer", async () => new (await loadEngineModules()).AdjustmentLayerEngine()),
   })),
 );
+
+// Hydrate the overlay engines as soon as the engine modules resolve (they are
+// not a static import: see services/lazy-engines). Does not start the load.
+onEngineModulesLoaded((engines) => {
+  engines.titleEngine.initialize(1920, 1080);
+  useEngineStore.setState((state) => ({
+    titleEngine: state.titleEngine ?? engines.titleEngine,
+    graphicsEngine: state.graphicsEngine ?? engines.graphicsEngine,
+  }));
+});

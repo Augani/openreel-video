@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-export interface InspectorSectionRequest {
+interface InspectorSectionRequest {
   sectionId: string;
   clipId: string;
   sequence: number;

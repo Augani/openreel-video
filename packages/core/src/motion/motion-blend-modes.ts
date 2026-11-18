@@ -1,6 +1,6 @@
 import { BLEND_MODES, type BlendMode } from "../video/types";
 
-export interface MotionBlendModeOption {
+interface MotionBlendModeOption {
   readonly id: BlendMode;
   readonly name: string;
 }
@@ -38,7 +38,7 @@ export function getMotionCanvasBlendMode(
   return modeMap[mode] ?? "source-over";
 }
 
-export type MotionCssBlendMode =
+type MotionCssBlendMode =
   | Exclude<BlendMode, "normal" | "add" | "linear-dodge">
   | "plus-lighter";
 

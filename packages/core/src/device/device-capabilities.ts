@@ -252,7 +252,7 @@ export function calculateOverallTier(
   return "low";
 }
 
-export async function detectDeviceCapabilities(): Promise<DeviceProfile> {
+async function detectDeviceCapabilities(): Promise<DeviceProfile> {
   const cores = navigator.hardwareConcurrency || 4;
   const memory = (navigator as unknown as { deviceMemory?: number }).deviceMemory || 4;
 
@@ -345,52 +345,6 @@ export function getCodecRecommendations(
   });
 }
 
-export function getResolutionRecommendations(
-  profile: DeviceProfile
-): Array<{ width: number; height: number; label: string; recommended: boolean; warning?: string }> {
-  const recommendations = [];
-
-  recommendations.push({
-    width: 1280,
-    height: 720,
-    label: "720p HD",
-    recommended: profile.overallTier === "low",
-  });
-
-  recommendations.push({
-    width: 1920,
-    height: 1080,
-    label: "1080p Full HD",
-    recommended: profile.overallTier === "mid" || profile.overallTier === "high",
-  });
-
-  if (profile.memory.gb >= 4) {
-    recommendations.push({
-      width: 2560,
-      height: 1440,
-      label: "1440p QHD",
-      recommended: profile.overallTier === "high",
-      warning:
-        profile.overallTier !== "high" ? "May be slow on this device" : undefined,
-    });
-  }
-
-  if (profile.memory.gb >= 8 && profile.overallTier !== "low") {
-    recommendations.push({
-      width: 3840,
-      height: 2160,
-      label: "4K UHD",
-      recommended: false,
-      warning:
-        profile.overallTier !== "high"
-          ? "Requires significant processing time"
-          : "High memory usage",
-    });
-  }
-
-  return recommendations;
-}
-
 function loadCachedBenchmark(): BenchmarkResult | undefined {
   try {
     const cached = localStorage.getItem(STORAGE_KEY);
@@ -415,14 +369,6 @@ export function saveBenchmarkResult(result: BenchmarkResult): void {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
   } catch {
     // Ignore storage errors
-  }
-}
-
-export function clearBenchmarkCache(): void {
-  try {
-    localStorage.removeItem(STORAGE_KEY);
-  } catch {
-    // Ignore
   }
 }
 
@@ -465,4 +411,81 @@ export function formatDeviceSummary(profile: DeviceProfile): string {
   parts.push(`${profile.cpu.cores} cores`);
 
   return parts.join(" · ");
+}
+
+export type WorkerKind = "decode";
+
+function isDesktopRuntime(): boolean {
+  return (
+    (globalThis as unknown as { openreel?: { platform?: string } }).openreel
+      ?.platform === "desktop"
+  );
+}
+
+/**
+ * Worker count for a pool. Web keeps min(4, cores); desktop scales with the
+ * logical core count (half of it, between 4 and 8).
+ */
+export function getRecommendedWorkerCount(
+  _kind: WorkerKind,
+  logicalCores: number = (typeof navigator !== "undefined" &&
+    navigator.hardwareConcurrency) ||
+    4,
+  desktop: boolean = isDesktopRuntime(),
+): number {
+  const cores = Math.max(1, Math.floor(logicalCores));
+  if (!desktop) return Math.min(4, cores);
+  return Math.max(4, Math.min(Math.floor(cores / 2), 8));
+}
+
+export interface CacheBudget {
+  maxSizeBytes: number;
+  maxFrames: number;
+}
+
+const WEB_CACHE_BYTES = 500 * 1024 * 1024;
+const MIN_DESKTOP_CACHE_BYTES = 500 * 1024 * 1024;
+const MAX_DESKTOP_CACHE_BYTES = 2 * 1024 * 1024 * 1024;
+// The V8 heap is capped near 30% of RAM on desktop; decoded frames must leave room for it.
+const MAX_DESKTOP_CACHE_RAM_FRACTION = 0.15;
+// A cached 1080p RGBA frame; maxFrames follows the byte budget at this size.
+const REFERENCE_FRAME_BYTES = 1920 * 1080 * 4;
+
+/**
+ * Frame cache budget. Web keeps 500 MB / 100 frames. Desktop uses ~12% of total
+ * RAM (500 MB to 2 GB, never above 15% of RAM), minus the heap already in use.
+ */
+export function computeCacheBudget(
+  totalMemoryBytes: number | null,
+  desktop: boolean,
+  usedHeapBytes = 0,
+): CacheBudget {
+  if (!desktop || !totalMemoryBytes || totalMemoryBytes <= 0) {
+    return { maxSizeBytes: WEB_CACHE_BYTES, maxFrames: 100 };
+  }
+  const ceiling = Math.min(
+    MAX_DESKTOP_CACHE_BYTES,
+    totalMemoryBytes * MAX_DESKTOP_CACHE_RAM_FRACTION,
+  );
+  const floor = Math.min(MIN_DESKTOP_CACHE_BYTES, ceiling);
+  const target = Math.min(
+    ceiling,
+    Math.max(MIN_DESKTOP_CACHE_BYTES, totalMemoryBytes * 0.12),
+  );
+  const maxSizeBytes = Math.max(floor, target - Math.max(0, usedHeapBytes));
+  const maxFrames = Math.max(
+    100,
+    Math.floor(maxSizeBytes / REFERENCE_FRAME_BYTES),
+  );
+  return { maxSizeBytes: Math.floor(maxSizeBytes), maxFrames };
+}
+
+/** Cache budget for the running platform, derived from the device profile. */
+export async function getRecommendedCacheBudget(
+  usedHeapBytes = 0,
+): Promise<CacheBudget> {
+  const desktop = isDesktopRuntime();
+  if (!desktop) return computeCacheBudget(null, false);
+  const profile = await getDeviceProfile();
+  return computeCacheBudget(profile.memory.gb * 1024 ** 3, true, usedHeapBytes);
 }

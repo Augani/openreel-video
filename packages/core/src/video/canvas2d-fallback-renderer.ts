@@ -1,5 +1,6 @@
 import type { Effect } from "../types/timeline";
 import type { Renderer, RendererConfig, RenderLayer } from "./renderer-factory";
+import { VideoEffectsEngine } from "./video-effects-engine";
 
 export class Canvas2DFallbackRenderer implements Renderer {
   readonly type = "canvas2d" as const;
@@ -11,6 +12,11 @@ export class Canvas2DFallbackRenderer implements Renderer {
   private deviceLostCallbacks: Array<() => void> = [];
   private layers: RenderLayer[] = [];
   private pendingEffects = new WeakMap<ImageBitmap, Effect[]>();
+  // Shared pixel path: Glow, Vignette, Sharpen, Film grain, opaque-frame Drop
+  // Shadow and the pro effects live in VideoEffectsEngine, so the fallback
+  // reuses it instead of a CSS-filter subset that silently dropped them.
+  // Never initialize()d: applyEffectsToCanvas needs no renderer of its own.
+  private effectsEngine: VideoEffectsEngine | null = null;
 
   constructor(config: RendererConfig) {
     this.width = config.width;
@@ -35,6 +41,8 @@ export class Canvas2DFallbackRenderer implements Renderer {
     this.ctx = null;
     this.deviceLostCallbacks = [];
     this.layers = [];
+    this.effectsEngine?.dispose();
+    this.effectsEngine = null;
   }
 
   beginFrame(): void {
@@ -75,8 +83,29 @@ export class Canvas2DFallbackRenderer implements Renderer {
     ctx.save();
     ctx.globalAlpha = opacity * transform.opacity;
     const effects = this.pendingEffects.get(image) ?? layer.effects;
-    ctx.filter = buildCanvasFilter(effects);
     ctx.globalCompositeOperation = resolveCompositeOperation(effects);
+    let source: ImageBitmap | OffscreenCanvas = image;
+    const processable = effects.filter(
+      (effect) => effect.enabled && effect.type !== "blend",
+    );
+    if (processable.length > 0) {
+      try {
+        this.effectsEngine ??= new VideoEffectsEngine({
+          width: image.width,
+          height: image.height,
+          useGPU: true,
+          preferWebGPU: false,
+        });
+        const processed = await this.effectsEngine.applyEffectsToCanvas(
+          image,
+          processable,
+        );
+        if (processed) source = processed;
+      } catch (error) {
+        console.warn("[Canvas2DFallbackRenderer] effects failed:", error);
+        ctx.filter = buildCanvasFilter(processable);
+      }
+    }
 
     // Translate to position
     const centerX = this.width / 2 + transform.position.x;
@@ -100,7 +129,7 @@ export class Canvas2DFallbackRenderer implements Renderer {
     }
 
     // Draw the image
-    ctx.drawImage(image, drawX, drawY);
+    ctx.drawImage(source, drawX, drawY);
 
     ctx.restore();
   }

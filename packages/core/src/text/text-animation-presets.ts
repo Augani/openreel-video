@@ -8,6 +8,7 @@ import {
   EASING_FUNCTIONS,
   type EasingName,
 } from "../animation/easing-functions";
+import { resolveTextAnimationPhase } from "./text-animation-phase";
 
 export interface AnimatedUnit {
   text: string;
@@ -627,12 +628,14 @@ const ANIMATION_MAP: Record<TextAnimationPreset, AnimationFn> = {
 export function calculateUnitAnimationState(
   ctx: TextAnimationContext,
 ): UnitAnimationState {
+  const animation = resolveTextAnimationPhase(ctx.animation, ctx.isIn);
+  if (animation !== ctx.animation) ctx = { ...ctx, animation };
   const animationFn = ANIMATION_MAP[ctx.animation.preset];
   if (!animationFn) return DEFAULT_STATE;
   return animationFn(ctx);
 }
 
-export interface TextAnimationPresetInfo {
+interface TextAnimationPresetInfo {
   id: TextAnimationPreset;
   name: string;
   description: string;
@@ -922,7 +925,7 @@ export const TEXT_ANIMATION_PRESETS: TextAnimationPresetInfo[] = [
   },
 ];
 
-export function getPresetInfo(
+function getPresetInfo(
   preset: TextAnimationPreset,
 ): TextAnimationPresetInfo | undefined {
   return TEXT_ANIMATION_PRESETS.find((p) => p.id === preset);

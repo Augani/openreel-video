@@ -105,4 +105,5 @@ describe("AdjustmentLayerSection workflow", () => {
     expect(screen.getByTestId("adjustment-effect-preview-sepia")).toBeInTheDocument();
     expect(screen.getByTestId("adjustment-effect-preview-invert")).toBeInTheDocument();
   });
+
 });

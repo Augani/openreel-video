@@ -1,7 +1,7 @@
 import { MotionShaderRenderer } from "./motion-shader-renderer";
 import type { MotionShaderCategory } from "./shaders";
 
-export type MotionShaderValidationResult =
+type MotionShaderValidationResult =
   | { readonly ok: true }
   | { readonly ok: false; readonly error: string };
 

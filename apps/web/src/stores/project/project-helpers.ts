@@ -7,7 +7,7 @@ import {
 } from "@openreel/core";
 import { generateProjectName } from "../../utils/project-names";
 
-export const DEFAULT_PROJECT_SETTINGS: ProjectSettings = {
+const DEFAULT_PROJECT_SETTINGS: ProjectSettings = {
   width: 1920,
   height: 1080,
   frameRate: 30,
@@ -15,9 +15,15 @@ export const DEFAULT_PROJECT_SETTINGS: ProjectSettings = {
   channels: 2,
 };
 
-export function createDefaultTimeline(): Timeline {
+function createDefaultTimeline(withEditingTracks = false): Timeline {
   return {
-    tracks: [],
+    tracks: withEditingTracks ? ([
+      ["text", "Titles", "general"], ["video", "B-roll", "general"], ["video", "Main", "general"],
+      ["audio", "Dialogue", "dialogue"], ["audio", "Music", "music"],
+    ] as const).map(([type, name, role]) => ({
+      id: uuidv4(), name, type, role, mode: "standard" as const, clips: [], transitions: [],
+      locked: false, hidden: false, muted: false, solo: false,
+    })) : [],
     subtitles: [],
     duration: 0,
     markers: [],
@@ -27,6 +33,7 @@ export function createDefaultTimeline(): Timeline {
 export function createEmptyProject(
   name?: string,
   settings?: Partial<ProjectSettings>,
+  withEditingTracks = false,
 ): Project {
   const now = Date.now();
   const projectName = name || generateProjectName();
@@ -37,7 +44,7 @@ export function createEmptyProject(
     modifiedAt: now,
     settings: { ...DEFAULT_PROJECT_SETTINGS, ...settings },
     mediaLibrary: { items: [] },
-    timeline: createDefaultTimeline(),
+    timeline: createDefaultTimeline(withEditingTracks),
     motionCompositions: [],
     motionInstances: [],
   };

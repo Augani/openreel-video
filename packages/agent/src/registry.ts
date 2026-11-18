@@ -315,6 +315,22 @@ import type { BlendMode } from "@openreel/core/video/types";
 import type { LottieAnimation } from "@openreel/core/types/lottie";
 import type { MediaItem } from "@openreel/core/types/project";
 import { EASING_TYPES, type EasingType } from "@openreel/core/types/timeline";
+import {
+  EFFECT_KEYFRAME_INPUT_ALTERNATIVES,
+  parseEffectInstanceKeyframeProperty,
+  toInstanceKeyframeProperty,
+  legacyEffectKeyframeType,
+} from "@openreel/core/video/effect-instance-keyframes";
+import type { Project } from "@openreel/core/types/project";
+import {
+  PRO_EFFECT_TYPES,
+  describeProEffectsForAgent,
+  isProEffectType,
+  proEffectParamJsonSchemas,
+  validateProEffectParams,
+  withProEffectDefaults,
+} from "@openreel/core/video/pro-effects";
+import { getDefaultEffectParams } from "@openreel/core/video/effect-defaults";
 import type {
   EditingHost,
   JobKind,
@@ -333,6 +349,27 @@ import {
   type ClipFilter,
 } from "./serialize";
 import { createProductCinematicMotionComposition } from "./creation-product-motion";
+import { PRO_EDIT_TOOLS, proEffectParamError } from "./pro-edit-tools";
+import { INTERCHANGE_TOOLS } from "./interchange-tools";
+import { BIN_TOOLS } from "./bin-tools";
+import { SEQUENCE_TOOLS } from "./sequence-tools";
+import { MULTICAM_SOURCE_TOOLS } from "./multicam-source-tools";
+import { GRAPHIC_TOOLS } from "./graphic-tools";
+import { RENDER_CACHE_TOOLS } from "./render-cache-tools";
+import { EFFECT_INSTANCE_TOOLS } from "./effect-instance-tools";
+import { EXPORT_QUEUE_TOOLS, EXPORT_VIDEO_TOOL } from "./export-queue-tools";
+import { STILL_EXPORT_TOOLS } from "./still-export-tools";
+import { PATH_TOOLS } from "./path-tools";
+import { APP_STATE_TOOLS } from "./app-state-tools";
+import { PROXY_TOOLS } from "./proxy-tools";
+import { MOTION_TRACKING_TOOLS } from "./motion-tracking-tools";
+import { AUDIO_REPAIR_TOOLS } from "./audio-repair-tools";
+import { TRACK_AUDIO_RACK_TOOLS } from "./track-audio-rack-tools";
+import { AUDIO_ROUTING_TOOLS } from "./audio-routing-tools";
+import { LOUDNESS_TOOLS } from "./loudness-tools";
+import { COLOR_LIBRARY_TOOLS } from "./color-library-tools";
+import { CAPTION_TOOLS } from "./caption-tools";
+import { TEXT_STYLE_TOOLS } from "./text-style-tools";
 import {
   summarizeCreationState,
   validateCreationState,
@@ -418,19 +455,48 @@ const obj = (
 
 const timelineKeyframePropertySchema: JSONSchema = {
   type: "string",
-  enum: [
-    "opacity",
-    "position.x",
-    "position.y",
-    "scale.x",
-    "scale.y",
-    "rotation",
-    "effect.brightness",
-    "effect.contrast",
-    "effect.saturation",
-    "effect.blur",
-  ],
+  pattern: `^(?:opacity|position\\.x|position\\.y|scale\\.x|scale\\.y|rotation|${EFFECT_KEYFRAME_INPUT_ALTERNATIVES})$`,
+  description:
+    "Transform property (opacity, position.x/y, scale.x/y, rotation) or an effect parameter keyed by effect INSTANCE: fx:<effectId>:<param> (preferred; see list_effect_params). Legacy type-keyed ids (effect.brightness/contrast/saturation/temperature/blur, effect.<proEffectType>.<param>) are still accepted and are mapped onto the first effect of that type on the clip.",
 };
+
+/**
+ * Parameter schemas for every pro effect, merged by key for the generic params
+ * object. Keys shared by several effects (amount, angle, ...) carry different
+ * ranges, so the merged schema publishes the type and the per-effect ranges in
+ * the description; exact ranges are enforced per effect type by the handler.
+ */
+const proEffectParamsSchema: JSONSchema = (() => {
+  const byKey = new Map<string, { types: Set<string>; notes: string[] }>();
+  for (const type of PRO_EFFECT_TYPES) {
+    for (const [key, schema] of Object.entries(proEffectParamJsonSchemas(type))) {
+      const entry = byKey.get(key) ?? { types: new Set<string>(), notes: [] };
+      entry.types.add(schema.type);
+      const range =
+        schema.type === "number"
+          ? " " + schema.minimum + ".." + schema.maximum
+          : schema.enum
+            ? " " + schema.enum.join("|")
+            : "";
+      entry.notes.push(type + range);
+      byKey.set(key, entry);
+    }
+  }
+  const properties: Record<string, JSONSchema> = {};
+  for (const [key, { types, notes }] of byKey) {
+    properties[key] = {
+      ...(types.size === 1 ? { type: [...types][0] } : {}),
+      description: notes.join("; "),
+    } as JSONSchema;
+  }
+  return {
+    type: "object",
+    description:
+      "Effect parameters. Pro effect params by type: " + describeProEffectsForAgent() + ".",
+    properties,
+    additionalProperties: true,
+  };
+})();
 
 const easingSchema: JSONSchema = { type: "string", enum: [...EASING_TYPES] };
 
@@ -490,6 +556,18 @@ function hashStringToSeed(value: string): number {
     hash = Math.imul(hash, 16777619);
   }
   return (hash >>> 0) % 100000;
+}
+
+function parseShapePoints(value: unknown): Array<{ x: number; y: number }> | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const out: Array<{ x: number; y: number }> = [];
+  for (const entry of value) {
+    const rec = asRecord(entry);
+    if (!rec || typeof rec.x !== "number" || typeof rec.y !== "number") return undefined;
+    if (!Number.isFinite(rec.x) || !Number.isFinite(rec.y)) return undefined;
+    out.push({ x: rec.x, y: rec.y });
+  }
+  return out.length >= 2 ? out : undefined;
 }
 
 function optionalString(value: unknown): string | undefined {
@@ -1983,7 +2061,47 @@ interface ActionToolSpec {
   destructive?: boolean;
   expensive?: boolean;
   /** Transform tool args → action params (default: identity). */
-  mapParams?: (args: Record<string, unknown>) => Record<string, unknown>;
+  mapParams?: (args: Record<string, unknown>, project: Project) => Record<string, unknown>;
+}
+
+/**
+ * Canonical clip keyframe property. Effect parameters are keyed by instance
+ * (fx:<effectId>:<param>). A legacy type-keyed id (effect.blur, effect.<pro>.<param>)
+ * resolves to the effect of that type on the clip only when exactly one exists;
+ * with several instances it is rejected and the caller must name an fx id
+ * (ambiguity is never resolved by guessing). With `strict` (add), an fx id
+ * naming an effect not on the clip, and a legacy id with no effect of that type
+ * on the clip, are rejected instead of silently animating nothing. Removal
+ * stays lenient for those two cases so orphaned keyframes can be cleaned up.
+ */
+function canonicalKeyframeProperty(
+  project: Project,
+  clipId: unknown,
+  property: unknown,
+  strict: boolean,
+): unknown {
+  if (typeof property !== "string") return property;
+  const effects =
+    project.timeline.tracks.flatMap((track) => track.clips).find((clip) => clip.id === clipId)?.effects ?? [];
+  const ref = parseEffectInstanceKeyframeProperty(property);
+  if (ref) {
+    if (strict && !effects.some((effect) => effect.id === ref.effectId)) {
+      throw new Error(`Effect "${ref.effectId}" is not on clip "${String(clipId)}"; use list_effect_params to find effect ids`);
+    }
+    return property;
+  }
+  const legacyType = legacyEffectKeyframeType(property);
+  if (legacyType === null) return property;
+  const matches = effects.filter((effect) => effect.type === legacyType);
+  if (matches.length > 1) {
+    throw new Error(
+      `Clip "${String(clipId)}" has ${matches.length} "${legacyType}" effects, so "${property}" is ambiguous; use fx:<effectId>:<param> with one of: ${matches.map((effect) => effect.id).join(", ")}`,
+    );
+  }
+  if (matches.length === 0 && strict) {
+    throw new Error(`Clip "${String(clipId)}" has no "${legacyType}" effect; add the effect first, then key fx:<effectId>:<param>`);
+  }
+  return toInstanceKeyframeProperty(effects, property);
 }
 
 function actionTool(spec: ActionToolSpec): RegisteredTool {
@@ -1998,7 +2116,7 @@ function actionTool(spec: ActionToolSpec): RegisteredTool {
     expensive: spec.expensive ?? false,
     handler: async (args, host) => {
       host.requireOpenProject();
-      const params = spec.mapParams ? spec.mapParams(args) : args;
+      const params = spec.mapParams ? spec.mapParams(args, host.getProject()) : args;
       const action: Action = {
         type: spec.actionType,
         id: genId(),
@@ -15470,7 +15588,7 @@ const TOOLS: RegisteredTool[] = [
     name: "list_projects",
     domain: "project",
     title: "List projects",
-    description: "List saved projects (id + name + modifiedAt). Use an id with open_project.",
+    description: "List saved projects (id + name + modifiedAt). Use an id with open_project. Recent project files on disk also appear with their `path`: open those with open_project_file.",
     inputSchema: obj({}),
     readOnly: true,
     destructive: false,
@@ -15517,7 +15635,7 @@ const TOOLS: RegisteredTool[] = [
       return ok(`Saved project "${ref.name}"`, ref);
     },
   },
-  actionTool({ name: "update_project_settings", domain: "project", actionType: "project/updateSettings", title: "Update settings", description: "Update resolution/fps/etc.", inputSchema: obj({ width: num, height: num, frameRate: num }) }),
+  actionTool({ name: "update_project_settings", domain: "project", actionType: "project/updateSettings", title: "Update settings", description: "Update resolution/fps/etc. pixelAspectRatio (0.25-4, 1 = square) is the sequence pixel aspect: clips are squeezed by it so they keep their display shape. fieldOrder (progressive, upper, lower) is the sequence field order; a Bob deinterlace of interlaced footage keeps the field that matches it.", inputSchema: obj({ width: num, height: num, frameRate: num, pixelAspectRatio: num, fieldOrder: { ...str, enum: ["progressive", "upper", "lower"] } }) }),
   actionTool({ name: "rename_project", domain: "project", actionType: "project/rename", title: "Rename project", description: "Rename the project.", inputSchema: obj({ name: str }, ["name"]) }),
   actionTool({ name: "set_canvas_background", domain: "project", actionType: "project/setCanvasBackground", title: "Canvas background", description: "Set background fill mode/color.", inputSchema: obj({ backgroundFillMode: str, layoutBackgroundColor: str }) }),
 
@@ -15528,6 +15646,7 @@ const TOOLS: RegisteredTool[] = [
   actionTool({ name: "rename_track", domain: "track", actionType: "track/rename", title: "Rename track", description: "Rename a track.", inputSchema: obj({ trackId: str, name: str }, ["trackId", "name"]) }),
   actionTool({ name: "reorder_track", domain: "track", actionType: "track/reorder", title: "Reorder track", description: "Move a track to a new stacking position (0 = top of the timeline / front-most).", inputSchema: obj({ trackId: str, newPosition: num }, ["trackId", "newPosition"]) }),
   actionTool({ name: "lock_track", domain: "track", actionType: "track/lock", title: "Lock track", description: "Lock/unlock a track.", inputSchema: obj({ trackId: str, locked: bool }, ["trackId", "locked"]) }),
+  actionTool({ name: "set_track_sync_lock", domain: "track", actionType: "track/setSyncLock", title: "Set track sync lock", description: "Turn a track's Sync Lock on or off (default on). Ripple-type edits (ripple delete, ripple trim, insert, extract, paste-insert, close gap) keep sync-locked tracks in sync by shifting them with the edit, or are blocked (naming the track) when the removed range is not empty there; tracks with Sync Lock off are never touched by edits to other tracks. One undo step.", inputSchema: obj({ trackId: str, syncLock: bool }, ["trackId", "syncLock"]) }),
   actionTool({ name: "hide_track", domain: "track", actionType: "track/hide", title: "Hide track", description: "Show/hide a track.", inputSchema: obj({ trackId: str, hidden: bool }, ["trackId", "hidden"]) }),
   actionTool({ name: "mute_track", domain: "track", actionType: "track/mute", title: "Mute track", description: "Mute/unmute a track.", inputSchema: obj({ trackId: str, muted: bool }, ["trackId", "muted"]) }),
   actionTool({ name: "solo_track", domain: "track", actionType: "track/solo", title: "Solo track", description: "Solo/unsolo a track.", inputSchema: obj({ trackId: str, solo: bool }, ["trackId", "solo"]) }),
@@ -15563,7 +15682,6 @@ const TOOLS: RegisteredTool[] = [
   actionTool({ name: "move_clip", domain: "clip", actionType: "clip/move", title: "Move clip", description: "Move a clip to a new start time / track.", inputSchema: obj({ clipId: str, startTime: num, trackId: str }, ["clipId", "startTime"]) }),
   actionTool({ name: "trim_clip", domain: "clip", actionType: "clip/trim", title: "Trim clip", description: "Trim an existing main-timeline clip by setting either or both source-media inPoint/outPoint values in seconds. Read the current values with get_clip first.", inputSchema: obj({ clipId: str, inPoint: num, outPoint: num }, ["clipId"]) }),
   actionTool({ name: "split_clip", domain: "clip", actionType: "clip/split", title: "Split clip", description: "Split an existing main-timeline clip at an absolute timeline time in seconds. The time must fall strictly inside the clip's startTime..startTime+duration range.", inputSchema: obj({ clipId: str, time: num }, ["clipId", "time"]) }),
-  actionTool({ name: "ripple_delete_clip", domain: "clip", actionType: "clip/rippleDelete", title: "Ripple delete", description: "Delete a clip and close the gap.", inputSchema: obj({ clipId: str }, ["clipId"]), destructive: true }),
   actionTool({ name: "slip_clip", domain: "clip", actionType: "clip/slip", title: "Slip clip", description: "Slip a clip's source by delta.", inputSchema: obj({ clipId: str, delta: num }, ["clipId", "delta"]) }),
   actionTool({ name: "slide_clip", domain: "clip", actionType: "clip/slide", title: "Slide clip", description: "Slide a clip by delta.", inputSchema: obj({ clipId: str, delta: num, prevClipId: str, nextClipId: str }, ["clipId", "delta"]) }),
   actionTool({ name: "roll_edit", domain: "clip", actionType: "clip/roll", title: "Roll edit", description: "Roll the edit point between two clips.", inputSchema: obj({ leftClipId: str, rightClipId: str, delta: num }, ["leftClipId", "rightClipId", "delta"]) }),
@@ -15587,9 +15705,11 @@ const TOOLS: RegisteredTool[] = [
     domain: "effect",
     title: "Add effect",
     description:
-      "Add a video effect to a clip. Standard effectType values include brightness, contrast, saturation, blur, sharpen, vignette, grain, temperature, tint, shadow, glow, motion-blur, radial-blur, chromatic-aberration. Set effectType to 'shader' to run a GPU shader effect from the Motion shader library (only category 'effect' shaders, e.g. the Paper Design catalog like paper-halftone-dots or paper-liquid-metal — use list_motion_shaders with category 'effect' to discover ids); for shader effects, params MUST include a valid shaderId plus optional numeric params (name/value pairs from the shader's params) and an optional numeric time. Shader effects no-op gracefully when WebGL2 is unavailable.",
+      "Add a video effect to a clip. Standard effectType values include brightness, contrast, saturation, blur, sharpen, vignette, grain, temperature, tint, shadow, glow, motion-blur, radial-blur, chromatic-aberration. Pro effect types (params validated against their ranges; omitted params take the same defaults as adding the effect in the editor UI): " +
+      describeProEffectsForAgent() +
+      ". Prefer the pro type where one supersedes a legacy effect (gaussian-blur over blur, mosaic over shader pixelate, mirror over shader mirror, lens-distortion over shader fisheye, posterize over shader posterize, vhs-glitch over shader vhs); the legacy types still render in existing projects. Omitted legacy params also take the editor's visible defaults. Pro effect params can be keyframed with add_keyframe property fx:<effectId>:<param> (effectId from get_clip or list_effect_params). Set effectType to 'shader' to run a GPU shader effect from the Motion shader library (only category 'effect' shaders, e.g. the Paper Design catalog like paper-halftone-dots or paper-liquid-metal — use list_motion_shaders with category 'effect' to discover ids); for shader effects, params MUST include a valid shaderId plus optional numeric params (name/value pairs from the shader's params) and an optional numeric time. Shader effects no-op gracefully when WebGL2 is unavailable.",
     inputSchema: obj(
-      { clipId: str, effectType: str, params: { type: "object" } },
+      { clipId: str, effectType: str, params: proEffectParamsSchema },
       ["clipId", "effectType"],
     ),
     readOnly: false,
@@ -15619,11 +15739,25 @@ const TOOLS: RegisteredTool[] = [
           );
         }
       }
+      let actionParams: Record<string, unknown> = args;
+      if (isProEffectType(effectType)) {
+        const invalid = validateProEffectParams(effectType, params);
+        if (invalid) return fail(invalid, "INVALID_PARAMS");
+        // A pro effect stored with {} resolves to neutral (a no-op): seed the
+        // same defaults the editor UI does, explicit params win.
+        actionParams = { ...args, params: withProEffectDefaults(effectType, params) };
+      } else if (Object.keys(params).length === 0) {
+        // Legacy effects (blur, sharpen, vignette, glow, ...) also resolve a
+        // missing param to neutral, which is a silent no-op: seed visible
+        // defaults, same as adding the effect from the editor.
+        const defaults = getDefaultEffectParams(effectType);
+        if (defaults) actionParams = { ...args, params: defaults };
+      }
       const action: Action = {
         type: "effect/add",
         id: genId(),
         timestamp: Date.now(),
-        params: args,
+        params: actionParams,
       };
       const result = await host.applyAction(action);
       if (result.success) return ok("add_video_effect applied", { actionId: action.id });
@@ -15634,7 +15768,48 @@ const TOOLS: RegisteredTool[] = [
     },
   },
   actionTool({ name: "remove_video_effect", domain: "effect", actionType: "effect/remove", title: "Remove effect", description: "Remove a clip's video effect.", inputSchema: obj({ clipId: str, effectId: str }, ["clipId", "effectId"]) }),
-  actionTool({ name: "update_video_effect", domain: "effect", actionType: "effect/update", title: "Update effect", description: "Update a video effect's params.", inputSchema: obj({ clipId: str, effectId: str, params: { type: "object" } }, ["clipId", "effectId", "params"]) }),
+  {
+    name: "update_video_effect",
+    domain: "effect",
+    title: "Update effect",
+    description:
+      "Update a video effect's params. Pro effect params (see list_pro_effects) are range-checked.",
+    inputSchema: obj(
+      { clipId: str, effectId: str, params: { type: "object" } },
+      ["clipId", "effectId", "params"],
+    ),
+    readOnly: false,
+    destructive: false,
+    expensive: false,
+    handler: async (args, host) => {
+      host.requireOpenProject();
+      const params =
+        typeof args.params === "object" && args.params !== null
+          ? (args.params as Record<string, unknown>)
+          : {};
+      const existing = host
+        .getProject()
+        .timeline.tracks.flatMap((track) => track.clips)
+        .find((clip) => clip.id === args.clipId)
+        ?.effects.find((effect) => effect.id === args.effectId);
+      if (existing) {
+        const proError = proEffectParamError(existing.type, params);
+        if (proError) return fail(proError, "INVALID_PARAMS");
+      }
+      const action: Action = {
+        type: "effect/update",
+        id: genId(),
+        timestamp: Date.now(),
+        params: args,
+      };
+      const result = await host.applyAction(action);
+      if (result.success) return ok("update_video_effect applied", { actionId: action.id });
+      return fail(
+        result.error?.message ?? "update_video_effect failed",
+        result.error?.code ?? "ACTION_FAILED",
+      );
+    },
+  },
   actionTool({ name: "toggle_video_effect", domain: "effect", actionType: "effect/toggle", title: "Toggle effect", description: "Enable/disable a video effect.", inputSchema: obj({ clipId: str, effectId: str, enabled: bool }, ["clipId", "effectId", "enabled"]) }),
   actionTool({ name: "set_effect_order", domain: "effect", actionType: "effect/setOrder", title: "Reorder effects", description: "Set the full effect order for a clip.", inputSchema: obj({ clipId: str, effectIds: { type: "array" } }, ["clipId", "effectIds"]) }),
 
@@ -15683,8 +15858,8 @@ const TOOLS: RegisteredTool[] = [
   actionTool({ name: "set_subtitle_style", domain: "subtitle", actionType: "subtitle/setStyle", title: "Subtitle style", description: "Set the global subtitle style.", inputSchema: obj({ style: { type: "object" } }, ["style"]) }),
 
   // keyframe
-  actionTool({ name: "add_keyframe", domain: "keyframe", actionType: "keyframe/add", title: "Add keyframe", description: "Animate an existing main-timeline clip by adding a property keyframe at clip-local time in seconds. Supported transform properties are opacity, position.x/y, scale.x/y, and rotation; supported effect properties are effect.brightness/contrast/saturation/blur. Add at least two keyframes for interpolation.", inputSchema: obj({ clipId: str, property: timelineKeyframePropertySchema, time: num, value: {}, easing: easingSchema }, ["clipId", "property", "time", "value"]) }),
-  actionTool({ name: "remove_keyframe", domain: "keyframe", actionType: "keyframe/remove", title: "Remove keyframe", description: "Remove a keyframe.", inputSchema: obj({ clipId: str, property: str, time: num }, ["clipId", "property", "time"]) }),
+  actionTool({ name: "add_keyframe", domain: "keyframe", actionType: "keyframe/add", title: "Add keyframe", description: "Animate an existing main-timeline clip by adding a property keyframe at clip-local time in seconds. Supported transform properties are opacity, position.x/y, scale.x/y, and rotation; effect parameters are keyed by effect INSTANCE as fx:<effectId>:<param> (effectId from get_clip / list_effect_params; two copies of an effect animate independently). Legacy type-keyed ids (effect.brightness/contrast/saturation/temperature/blur, effect.<proEffectType>.<param>) are still accepted only when the clip has exactly one effect of that type (it is rewritten onto that instance); no such effect, or several instances, is rejected, so prefer the fx id. Add at least two keyframes for interpolation.", inputSchema: obj({ clipId: str, property: timelineKeyframePropertySchema, time: num, value: {}, easing: easingSchema }, ["clipId", "property", "time", "value"]), mapParams: (args, project) => ({ ...args, property: canonicalKeyframeProperty(project, args.clipId, args.property, true) }) }),
+  actionTool({ name: "remove_keyframe", domain: "keyframe", actionType: "keyframe/remove", title: "Remove keyframe", description: "Remove a keyframe. Effect keyframes are keyed fx:<effectId>:<param>; legacy type-keyed ids resolve to the single matching effect and are rejected when the clip has several of that type (use the fx id).", inputSchema: obj({ clipId: str, property: str, time: num }, ["clipId", "property", "time"]), mapParams: (args, project) => ({ ...args, property: canonicalKeyframeProperty(project, args.clipId, args.property, false) }) }),
   actionTool({
     name: "set_clip_keyframes",
     domain: "keyframe",
@@ -15692,13 +15867,14 @@ const TOOLS: RegisteredTool[] = [
     title: "Set keyframes",
     description: "Replace all animation keyframes on an existing main-timeline clip. Times are clip-local seconds. Each item needs property, time, and value; id and easing default automatically.",
     inputSchema: obj({ clipId: str, keyframes: { type: "array", items: timelineKeyframeInputSchema } }, ["clipId", "keyframes"]),
-    mapParams: (args) => ({
+    mapParams: (args, project) => ({
       clipId: args.clipId,
       keyframes: Array.isArray(args.keyframes)
         ? args.keyframes.map((value) => {
             const keyframe = asRecord(value) ?? {};
             return {
               ...keyframe,
+              property: canonicalKeyframeProperty(project, args.clipId, keyframe.property, true),
               id: optionalString(keyframe.id) ?? genId(),
               easing: optionalString(keyframe.easing) ?? "linear",
             };
@@ -15810,7 +15986,7 @@ const TOOLS: RegisteredTool[] = [
     name: "create_shape_clip",
     domain: "graphics",
     title: "Create shape",
-    description: "Create a graphic/shape overlay that renders above the video and image tracks (e.g. a full-frame black scrim). Pass { clip: { shapeType?, startTime, duration, color?, opacity?, fullFrame?, trackId? } }.",
+    description: "Create a graphic/shape overlay that renders above the video and image tracks (e.g. a full-frame black scrim). Pass { clip: { shapeType?, startTime, duration, color?, opacity?, fullFrame?, trackId?, pathData?, points?, closed? } }. For shapeType path supply pathData (SVG path string) or points ([{x,y}] normalized 0..1) and optional closed.",
     inputSchema: obj({ clip: { type: "object" } }, ["clip"]),
     readOnly: false,
     destructive: false,
@@ -15827,6 +16003,9 @@ const TOOLS: RegisteredTool[] = [
           color: typeof clip.color === "string" ? clip.color : undefined,
           opacity: typeof clip.opacity === "number" ? clip.opacity : undefined,
           fullFrame: clip.fullFrame === true,
+          ...(typeof clip.pathData === "string" && clip.pathData.trim() ? { pathData: clip.pathData } : {}),
+          ...(parseShapePoints(clip.points) ? { points: parseShapePoints(clip.points) } : {}),
+          ...(typeof clip.closed === "boolean" ? { closed: clip.closed } : {}),
         });
         return ok("Created shape overlay", ref);
       }
@@ -32143,22 +32322,49 @@ const TOOLS: RegisteredTool[] = [
   },
 
   // Local render jobs delegated to the app host and gated as expensive.
-  jobTool(
-    "export_video",
-    "export",
-    "Export video",
-    "Render the whole project to a local video file (format: mp4|webm|mov, default mp4) and return its local result metadata. Expensive — requires confirmation.",
-    "exportVideo",
-    obj({ format: str }),
-  ),
+  EXPORT_VIDEO_TOOL,
   jobTool(
     "export_audio",
     "export",
     "Export audio",
-    "Render the project audio to a local file (format: mp3|wav|aac|flac|ogg, default wav) and return its local result metadata. Expensive — requires confirmation.",
+    "Render the project audio to a local file (format: mp3|wav|aac|flac|ogg, default wav) and return its local result metadata. Optional targetLufs (-40..-5) normalizes the mix to that integrated loudness with a true-peak ceiling (truePeakCeilingDb, default -1). Expensive — requires confirmation.",
     "exportAudio",
-    obj({ format: str }),
+    obj({ format: str, targetLufs: num, truePeakCeilingDb: num }),
   ),
+
+  // Premiere-parity tools: roll/slide/rate-stretch, insert/overwrite/lift/
+  // extract/add-edit/match-frame, scene detection, scopes, pro effects.
+  ...PRO_EDIT_TOOLS,
+
+  // Timeline interchange (Premiere/Resolve xmeml, FCPXML, EDL).
+  ...INTERCHANGE_TOOLS,
+  ...TRACK_AUDIO_RACK_TOOLS,
+  ...AUDIO_ROUTING_TOOLS,
+  ...LOUDNESS_TOOLS,
+  ...COLOR_LIBRARY_TOOLS,
+  ...CAPTION_TOOLS,
+  ...TEXT_STYLE_TOOLS,
+
+  // Project-panel organisation: bins, label colours, subclips.
+  ...BIN_TOOLS,
+
+  // Multi-sequence projects: list, create, open sequences; nest clips.
+  ...SEQUENCE_TOOLS,
+  ...GRAPHIC_TOOLS,
+
+  // Premiere-style multi-camera: create a synced source, switch angles, record cuts, flatten.
+  ...MULTICAM_SOURCE_TOOLS,
+
+  // Preview render cache: Render In to Out, delete render files, render status.
+  ...RENDER_CACHE_TOOLS,
+  ...EXPORT_QUEUE_TOOLS,
+  ...STILL_EXPORT_TOOLS,
+  ...PATH_TOOLS,
+  ...APP_STATE_TOOLS,
+  ...PROXY_TOOLS,
+  ...MOTION_TRACKING_TOOLS,
+  ...AUDIO_REPAIR_TOOLS,
+  ...EFFECT_INSTANCE_TOOLS,
 ];
 
 // ---- Registry --------------------------------------------------------------

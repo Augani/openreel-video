@@ -11,7 +11,7 @@ import {
 } from "./motion-expressions";
 import { resolveMotionLayerVariableBindings } from "./motion-variable-bindings";
 
-export interface MotionRenderOrderOptions {
+interface MotionRenderOrderOptions {
   readonly variableOverrides?: Record<string, string | number | boolean>;
 }
 

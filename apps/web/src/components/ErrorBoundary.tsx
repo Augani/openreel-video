@@ -1,6 +1,6 @@
 import React from "react";
-import { ToolcraftButton as Button } from "@openreel/ui";
-import { ToolcraftText as Text } from "@openreel/ui";
+import { Button } from "@openreel/ui";
+
 
 interface ErrorBoundaryProps {
   children: React.ReactNode;
@@ -43,19 +43,15 @@ export class ErrorBoundary extends React.Component<
 
       return (
         <div className="flex flex-col items-center justify-center p-8 text-center bg-background-secondary/50 rounded-lg m-2">
-          <Text type="supporting" weight="medium" className="text-red-400 text-sm mb-2">
+          <span className="font-medium text-red-400 text-sm mb-2">
             Something went wrong
-          </Text>
-          <Text type="supporting" color="secondary" className="text-text-muted text-xs mb-4 max-w-xs">
+          </span>
+          <span className="font-normal text-text-muted text-xs mb-4 max-w-xs">
             {this.state.error?.message || "An unexpected error occurred"}
-          </Text>
-          <Button
-            label="Retry"
-            variant="ghost"
-            size="sm"
-            onClick={this.handleRetry}
-            className="px-4 py-2 bg-primary/20 hover:bg-primary/30 text-primary text-xs rounded transition-colors"
-          />
+          </span>
+          <Button onClick={this.handleRetry} type="button" aria-label="Retry" className="inline-flex min-w-0 items-center justify-center gap-1.5 font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 hover:text-fg px-4 py-2 bg-primary/20 hover:bg-primary/30 text-primary text-xs rounded transition-colors">
+            <span className="truncate">{"Retry"}</span>
+          </Button>
         </div>
       );
     }
@@ -67,18 +63,21 @@ export class ErrorBoundary extends React.Component<
 interface PanelErrorBoundaryProps {
   name: string;
   children: React.ReactNode;
+  /** For overlays mounted outside a panel slot, where the message would disturb layout. */
+  silent?: boolean;
 }
 
 export const PanelErrorBoundary: React.FC<PanelErrorBoundaryProps> = ({
   name,
   children,
+  silent,
 }) => (
   <ErrorBoundary
     fallback={
-      <div className="flex-1 flex items-center justify-center p-4 text-center">
-        <Text type="supporting" color="secondary" className="text-text-muted text-xs">
+      silent ? <></> : <div className="flex-1 flex items-center justify-center p-4 text-center">
+        <span className="font-normal text-text-muted text-xs">
           {name} failed to load. Please refresh the page.
-        </Text>
+        </span>
       </div>
     }
   >

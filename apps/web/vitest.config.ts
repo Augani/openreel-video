@@ -33,6 +33,9 @@ export default defineConfig({
       "vite-plugins/**/*.test.ts",
     ],
     setupFiles: ["./src/test/setup.ts"],
+    // Full-editor UI tests render the real editor; under a parallel full run
+    // they can exceed the 5s default even though they pass in isolation.
+    testTimeout: 30_000,
     coverage: {
       provider: "v8",
       reporter: ["text", "json", "html"],
@@ -45,6 +48,7 @@ export default defineConfig({
       "react-dom": path.resolve(__dirname, "./node_modules/react-dom"),
       "@": path.resolve(__dirname, "./src"),
       "@openreel/core": path.resolve(__dirname, "../../packages/core/src"),
+      "@openreel/collab": path.resolve(__dirname, "../../packages/collab/src"),
       "@openreel/agent": path.resolve(__dirname, "../../packages/agent/src"),
     },
   },

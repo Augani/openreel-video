@@ -9,7 +9,6 @@ import {
   evaluateMotionPropertyValueAtTime,
   getMotionExpressionError,
   getMotionLayerExpression,
-  MOTION_EXPRESSION_SCOPE_KEYS,
   removeMotionLayerExpression,
   toggleMotionLayerExpression,
   updateMotionLayerExpression,
@@ -905,24 +904,6 @@ describe("motion expressions", () => {
     });
 
     expect(value).toBeCloseTo(42, 5);
-  });
-
-  it("drives Function params and call args from the canonical scope key list", () => {
-    expect(MOTION_EXPRESSION_SCOPE_KEYS).toContain("clamp");
-    const value = evaluateMotionPropertyValueAtTime({
-      keyframes: [],
-      expressions: [
-        {
-          ...createMotionExpression("expression", "transform.opacity", "expr-clamp"),
-          code: "clamp(value, 0, 5)",
-        },
-      ],
-      property: "transform.opacity",
-      localTime: 0,
-      fallback: 100,
-      duration: 5,
-    });
-    expect(value).toBeCloseTo(5, 5);
   });
 
   it("resolves a cross-layer property at distinct times within one expression", () => {

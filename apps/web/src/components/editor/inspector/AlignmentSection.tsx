@@ -1,7 +1,7 @@
 import React, { useCallback } from "react";
-import { ToolcraftButton as Button } from "@openreel/ui";
-import { ToolcraftIconButton as IconButton } from "@openreel/ui";
-import { ToolcraftText as Text } from "@openreel/ui";
+import { Button } from "@openreel/ui";
+
+
 import {
   AlignHorizontalJustifyStart,
   AlignHorizontalJustifyCenter,
@@ -61,73 +61,45 @@ export const AlignmentSection: React.FC<AlignmentSectionProps> = ({
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2">
-        <Text type="supporting" color="secondary" className="w-16">
+        <span className="text-[12px] leading-5 text-fg-2 font-normal w-16">
           Horizontal
-        </Text>
+        </span>
         <div className="flex gap-1">
-          <IconButton
-            label="Align Left"
-            icon={<AlignHorizontalJustifyStart size={14} aria-hidden />}
-            size="sm"
-            variant="ghost"
-            onClick={() => handleAlign("x", 0)}
-          />
-          <IconButton
-            label="Center Horizontally"
-            icon={<AlignHorizontalJustifyCenter size={14} aria-hidden />}
-            size="sm"
-            variant="ghost"
-            onClick={() => handleAlign("x", 0.5)}
-          />
-          <IconButton
-            label="Align Right"
-            icon={<AlignHorizontalJustifyEnd size={14} aria-hidden />}
-            size="sm"
-            variant="ghost"
-            onClick={() => handleAlign("x", 1)}
-          />
+          <Button variant="ghost" size="icon-sm" onClick={() => handleAlign("x", 0)} type="button" aria-label="Align Left" title="Align Left" className="inline-flex shrink-0 items-center justify-center rounded-[7px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 w-7 bg-transparent text-fg-muted hover:bg-bg-2 hover:text-fg">
+            {<AlignHorizontalJustifyStart size={14} aria-hidden />}
+          </Button>
+          <Button variant="ghost" size="icon-sm" onClick={() => handleAlign("x", 0.5)} type="button" aria-label="Center Horizontally" title="Center Horizontally" className="inline-flex shrink-0 items-center justify-center rounded-[7px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 w-7 bg-transparent text-fg-muted hover:bg-bg-2 hover:text-fg">
+            {<AlignHorizontalJustifyCenter size={14} aria-hidden />}
+          </Button>
+          <Button variant="ghost" size="icon-sm" onClick={() => handleAlign("x", 1)} type="button" aria-label="Align Right" title="Align Right" className="inline-flex shrink-0 items-center justify-center rounded-[7px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 w-7 bg-transparent text-fg-muted hover:bg-bg-2 hover:text-fg">
+            {<AlignHorizontalJustifyEnd size={14} aria-hidden />}
+          </Button>
         </div>
       </div>
       <div className="flex items-center gap-2">
-        <Text type="supporting" color="secondary" className="w-16">
+        <span className="text-[12px] leading-5 text-fg-2 font-normal w-16">
           Vertical
-        </Text>
+        </span>
         <div className="flex gap-1">
-          <IconButton
-            label="Align Top"
-            icon={<AlignVerticalJustifyStart size={14} aria-hidden />}
-            size="sm"
-            variant="ghost"
-            onClick={() => handleAlign("y", 0)}
-          />
-          <IconButton
-            label="Center Vertically"
-            icon={<AlignVerticalJustifyCenter size={14} aria-hidden />}
-            size="sm"
-            variant="ghost"
-            onClick={() => handleAlign("y", 0.5)}
-          />
-          <IconButton
-            label="Align Bottom"
-            icon={<AlignVerticalJustifyEnd size={14} aria-hidden />}
-            size="sm"
-            variant="ghost"
-            onClick={() => handleAlign("y", 1)}
-          />
+          <Button variant="ghost" size="icon-sm" onClick={() => handleAlign("y", 0)} type="button" aria-label="Align Top" title="Align Top" className="inline-flex shrink-0 items-center justify-center rounded-[7px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 w-7 bg-transparent text-fg-muted hover:bg-bg-2 hover:text-fg">
+            {<AlignVerticalJustifyStart size={14} aria-hidden />}
+          </Button>
+          <Button variant="ghost" size="icon-sm" onClick={() => handleAlign("y", 0.5)} type="button" aria-label="Center Vertically" title="Center Vertically" className="inline-flex shrink-0 items-center justify-center rounded-[7px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 w-7 bg-transparent text-fg-muted hover:bg-bg-2 hover:text-fg">
+            {<AlignVerticalJustifyCenter size={14} aria-hidden />}
+          </Button>
+          <Button variant="ghost" size="icon-sm" onClick={() => handleAlign("y", 1)} type="button" aria-label="Align Bottom" title="Align Bottom" className="inline-flex shrink-0 items-center justify-center rounded-[7px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 w-7 bg-transparent text-fg-muted hover:bg-bg-2 hover:text-fg">
+            {<AlignVerticalJustifyEnd size={14} aria-hidden />}
+          </Button>
         </div>
       </div>
-      <Button
-        label="Center on Canvas"
-        variant="secondary"
-        size="sm"
-        onClick={handleCenterBoth}
-        className="w-full"
-      />
-      <Text type="supporting" color="secondary" className="block text-center text-[9px] text-fg-muted">
+      <Button onClick={handleCenterBoth} type="button" aria-label="Center on Canvas" className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg w-full">
+        <span className="truncate">{"Center on Canvas"}</span>
+      </Button>
+      <span className="font-normal block text-center text-[9px] text-fg-muted">
         {usesNormalizedPosition
           ? "Aligns the overlay anchor in canvas space"
           : "Aligns the media anchor using pixel offsets from center"}
-      </Text>
+      </span>
     </div>
   );
 };

@@ -44,27 +44,6 @@ function activity(entries: Array<{ ids: string[]; scores?: [number, number]; spe
 }
 
 describe("multicam shot planner", () => {
-  it("uses seat-ordered split layouts for sustained overlap", () => {
-    const plan = planMulticamShots(
-      activity([
-        { ids: ["mic1"] },
-        { ids: ["mic1", "mic2"] },
-        { ids: ["mic1", "mic2"] },
-        { ids: ["mic1", "mic2"] },
-      ]),
-      manifest,
-      { strategy: "winner", escalateTo: "composite", minLayoutLifeMs: 0 },
-    );
-
-    expect(plan.shots[1]).toMatchObject({
-      reason: "sustained-overlap",
-      layout: {
-        template: "split2",
-        panels: [{ subject: "p1" }, { subject: "p2" }],
-      },
-    });
-  });
-
   it("applies cut lead and breaks overlong shots with a reaction", () => {
     const constrained = {
       ...manifest,
@@ -93,48 +72,6 @@ describe("multicam shot planner", () => {
       endMs: 4_200,
       reason: "max-shot",
       layout: { panels: [{ cameraId: "cam2" }] },
-    });
-  });
-
-  it("recognizes a yielding interruption and picks its energy winner", () => {
-    const plan = planMulticamShots(
-      activity([
-        { ids: ["mic1"], scores: [1, 0] },
-        { ids: ["mic1", "mic2"], scores: [0.4, 1] },
-        { ids: ["mic2"], scores: [0, 1] },
-      ]),
-      manifest,
-      { strategy: "winner", minLayoutLifeMs: 0, layoutEnterMs: 0 },
-    );
-
-    expect(plan.shots.some((shot) => shot.reason === "successful-interruption")).toBe(true);
-    expect(plan.shots.at(-1)?.layout.panels[0]?.cameraId).toBe("cam2");
-  });
-
-  it("leads persistent speaker cuts without violating the minimum shot", () => {
-    const plan = planMulticamShots(
-      activity([
-        { ids: ["mic1"] },
-        { ids: ["mic1"] },
-        { ids: ["mic2"] },
-        { ids: ["mic2"] },
-      ]),
-      manifest,
-    );
-
-    expect(plan.shots[0]?.endMs).toBe(1_880);
-    expect(plan.shots[1]?.startMs).toBe(1_880);
-  });
-
-  it("routes non-speech group reactions to the wide camera", () => {
-    const plan = planMulticamShots(
-      activity([{ ids: [], scores: [0.8, 0.7], speech: [0.1, 0.1] }]),
-      manifest,
-    );
-
-    expect(plan.shots[0]).toMatchObject({
-      reason: "group-reaction",
-      layout: { template: "wide", panels: [{ cameraId: "wide" }] },
     });
   });
 

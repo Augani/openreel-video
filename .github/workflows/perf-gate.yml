@@ -1,0 +1,67 @@
+name: Perf Gate
+
+# Scheduled / manual only. NOT a required check: the desktop budgets measure real
+# input-to-paint timings on a real Electron window, which a shared runner moves by 2x.
+# One failure means "re-run"; two failures in a row on the same ref means a regression.
+# See apps/desktop/PERF.md ("Perf gate") for how budgets are set and how to run this locally.
+
+on:
+  schedule:
+    - cron: '17 5 * * 1'
+  workflow_dispatch:
+    inputs:
+      runs:
+        description: 'Harness runs (the median across runs is checked against the budget)'
+        default: '5'
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web-bench:
+    name: Web bench gate (vitest *.performance.test.*)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build:wasm
+      - run: pnpm --filter @openreel/web perf:gate
+
+  desktop-budget:
+    name: Desktop perf budgets (macOS)
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build:wasm
+      - run: pnpm --filter @openreel/desktop build
+      - name: Check budgets
+        run: |
+          mkdir -p perf-out
+          pnpm --filter @openreel/desktop perf:budget -- --runs "${{ inputs.runs || '5' }}" --save "$PWD/perf-out" | tee perf-out/budget.txt
+      - name: Job summary
+        if: always()
+        run: |
+          { echo '### Desktop perf budgets'; echo '```'; cat perf-out/budget.txt 2>/dev/null; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: desktop-perf
+          path: perf-out

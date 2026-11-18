@@ -5,7 +5,6 @@ import {
   render,
   screen,
   waitFor,
-  within,
 } from "@testing-library/react";
 import type { TextClip } from "@openreel/core";
 import { createEmptyProject } from "../../../stores/project/project-helpers";
@@ -111,16 +110,7 @@ describe("TextSection shader controls", () => {
     cleanup();
     render(<TextSection clipId={CLIP_ID} />);
 
-    const scaleField = screen
-      .getAllByText("Scale")
-      .map((node) => node.closest(".astryx-field") as HTMLElement | null)
-      .find(
-        (field): field is HTMLElement =>
-          field !== null && within(field).queryByRole("spinbutton") !== null,
-      );
-    expect(scaleField).toBeDefined();
-
-    fireEvent.change(within(scaleField!).getByRole("spinbutton"), {
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Scale" }), {
       target: { value: "20" },
     });
 
@@ -134,25 +124,4 @@ describe("TextSection shader controls", () => {
     });
   });
 
-  it("offers Paper materials and stores their default fill parameters", async () => {
-    render(<TextSection clipId={CLIP_ID} />);
-
-    expect(screen.getAllByText("Paper").length).toBeGreaterThan(0);
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: "Preview and select Mesh Gradient",
-      }),
-    );
-
-    await waitFor(() => {
-      const shader = useEngineStore
-        .getState()
-        .getTitleEngine()
-        ?.getTextClip(CLIP_ID)?.style.shader;
-      expect(shader?.shaderId).toBe("paper-mesh-gradient");
-      expect(shader?.progress).toBe(0.5);
-      expect(shader?.params.distortion).toBe(0.8);
-      expect(shader?.params.color1).toBe("#e0eaff");
-    });
-  });
 });

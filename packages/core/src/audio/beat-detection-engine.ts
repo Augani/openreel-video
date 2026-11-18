@@ -18,7 +18,7 @@ export interface BeatAnalysisResult {
   readonly downbeats: number[];
 }
 
-export interface BeatDetectionConfig {
+interface BeatDetectionConfig {
   readonly minBpm: number;
   readonly maxBpm: number;
   readonly sensitivity: number;
@@ -26,7 +26,7 @@ export interface BeatDetectionConfig {
   readonly hopSize: number;
 }
 
-export const DEFAULT_BEAT_DETECTION_CONFIG: BeatDetectionConfig = {
+const DEFAULT_BEAT_DETECTION_CONFIG: BeatDetectionConfig = {
   minBpm: 60,
   maxBpm: 200,
   sensitivity: 0.5,
@@ -387,11 +387,4 @@ export function getBeatDetectionEngine(): BeatDetectionEngine {
     beatDetectionEngineInstance = new BeatDetectionEngine();
   }
   return beatDetectionEngineInstance;
-}
-
-export function disposeBeatDetectionEngine(): void {
-  if (beatDetectionEngineInstance) {
-    beatDetectionEngineInstance.dispose();
-    beatDetectionEngineInstance = null;
-  }
 }

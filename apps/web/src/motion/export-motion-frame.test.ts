@@ -1,9 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { MotionComposition, Project } from "@openreel/core";
 import {
-  exportMotionCompositionSceneMp4,
-  motionFrameExportFilename,
-  motionSceneExportFilename,
+  exportMotionCompositionScene,
 } from "./export-motion-frame";
 
 const {
@@ -277,12 +275,6 @@ describe("motion frame export helpers", () => {
     delete (window as { __openreelExportPath?: string }).__openreelExportPath;
   });
 
-  it("builds stable filenames", () => {
-    expect(motionFrameExportFilename(composition, 1.25)).toBe(
-      "launch-scene-frame-00038.png",
-    );
-    expect(motionSceneExportFilename(composition)).toBe("launch-scene.mp4");
-  });
 
   it("exports a temporary motion-instance project through the core export engine", async () => {
     let exportedProject: unknown = null;
@@ -312,7 +304,7 @@ describe("motion frame export helpers", () => {
     });
     const onProgress = vi.fn();
 
-    const result = await exportMotionCompositionSceneMp4({
+    const result = await exportMotionCompositionScene({
       project: makeProject(),
       composition,
       onProgress,
@@ -453,7 +445,7 @@ describe("motion frame export helpers", () => {
     });
 
     const onProgress = vi.fn();
-    const result = await exportMotionCompositionSceneMp4({
+    const result = await exportMotionCompositionScene({
       project: makeProject(),
       composition: nativeComposition,
       onProgress,

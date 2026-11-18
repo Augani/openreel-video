@@ -1,7 +1,7 @@
 export const MULTICAM_BLEED_CALIBRATION_SPEC =
   "openreel-bleed-calibration/v1" as const;
 
-export interface MulticamCalibrationSource {
+interface MulticamCalibrationSource {
   angleId: string;
   samples: Float32Array;
   sampleRate: number;

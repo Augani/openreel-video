@@ -1,4 +1,4 @@
-export type WasmBeatDetectionExports = {
+type WasmBeatDetectionExports = {
   computeRMSEnergies(
     samples: Float32Array,
     windowSize: number,
@@ -64,10 +64,6 @@ export async function initWasmBeatDetection(): Promise<boolean> {
   }
 
   wasmModule = await loadPromise;
-  return wasmModule !== null;
-}
-
-export function isWasmBeatDetectionAvailable(): boolean {
   return wasmModule !== null;
 }
 
@@ -264,10 +260,4 @@ export function getBeatDetectionProcessor(): BeatDetectionProcessor {
     cachedProcessor = new BeatDetectionProcessor();
   }
   return cachedProcessor;
-}
-
-export async function preloadWasmBeatDetection(): Promise<BeatDetectionProcessor> {
-  const processor = getBeatDetectionProcessor();
-  await processor.ensureWasm();
-  return processor;
 }

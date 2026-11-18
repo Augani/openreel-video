@@ -1,4 +1,13 @@
 import "@testing-library/jest-dom/vitest";
+import { configure } from "@testing-library/react";
+
+configure({ asyncUtilTimeout: 5_000 });
+
+// The stores reach the engines through a memoised dynamic import (see
+// services/lazy-engines). Resolve it once up front so tests keep the editor's
+// steady state: engines available synchronously.
+const { loadEngineModules } = await import("../services/lazy-engines");
+await loadEngineModules();
 
 class LocalStorageMock {
   private store = new Map<string, string>();
@@ -46,6 +55,14 @@ Object.defineProperty(globalThis, "localStorage", {
 Object.defineProperty(globalThis, "sessionStorage", {
   writable: true,
   value: window.sessionStorage,
+});
+
+// JSDOM lacks the browser scrolling methods used by Radix focus management.
+Object.defineProperty(Element.prototype, "scrollIntoView", {
+  configurable: true, writable: true, value: () => {},
+});
+Object.defineProperty(window, "scrollTo", {
+  configurable: true, writable: true, value: () => {},
 });
 
 // Mock matchMedia for tests
@@ -112,6 +129,7 @@ global.ResizeObserver = ResizeObserverMock as unknown as typeof ResizeObserver;
     clip: () => {},
     fillText: () => {},
     strokeText: () => {},
+    strokeRect: () => {},
     createLinearGradient: () => ({
       addColorStop: () => {},
     }),
@@ -145,6 +163,8 @@ const indexedDBMock = {
 
 Object.defineProperty(window, "indexedDB", {
   writable: true,
+  // configurable so a suite can install fake-indexeddb/auto over the stub.
+  configurable: true,
   value: indexedDBMock,
 });
 
@@ -343,6 +363,7 @@ class OffscreenCanvasMock {
         clip: () => {},
         fillText: () => {},
         strokeText: () => {},
+        strokeRect: () => {},
         canvas: this,
       };
     }

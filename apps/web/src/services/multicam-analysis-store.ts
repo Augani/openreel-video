@@ -1,4 +1,4 @@
-import { createStore, del, get, set } from "idb-keyval";
+import { createStore, get, set } from "idb-keyval";
 import {
   deserializeOrma,
   serializeOrma,
@@ -7,7 +7,7 @@ import {
 
 const store = createStore("openreel-multicam-analysis", "orma-artifacts");
 
-export const multicamArtifactId = (projectId: string, groupId: string): string =>
+const multicamArtifactId = (projectId: string, groupId: string): string =>
   `${projectId}/${groupId}.orma`;
 
 export async function saveMulticamArtifact(
@@ -26,11 +26,4 @@ export async function loadMulticamArtifact(
 ): Promise<OrmaArtifact | undefined> {
   const serialized = await get<string>(multicamArtifactId(projectId, groupId), store);
   return serialized ? deserializeOrma(serialized) : undefined;
-}
-
-export async function removeMulticamArtifact(
-  projectId: string,
-  groupId: string,
-): Promise<void> {
-  await del(multicamArtifactId(projectId, groupId), store);
 }

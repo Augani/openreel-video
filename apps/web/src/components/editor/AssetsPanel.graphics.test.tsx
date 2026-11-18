@@ -6,10 +6,13 @@ import { createEmptyProject } from "../../stores/project/project-helpers";
 import { useProjectStore } from "../../stores/project-store";
 import { useTimelineStore } from "../../stores/timeline-store";
 import { useUIStore } from "../../stores/ui-store";
+import { EditorActionRail } from "./EditorActionRail";
+import { useEditorWorkspaceStore } from "../../stores/editor-workspace-store";
 import { AssetsPanel } from "./AssetsPanel";
 
 describe("AssetsPanel graphics workflow", () => {
   beforeEach(() => {
+    useEditorWorkspaceStore.getState().setSection("media");
     useEngineStore.getState().getGraphicsEngine()?.clearCache();
     useProjectStore.setState({
       hasOpenProject: true,
@@ -30,7 +33,7 @@ describe("AssetsPanel graphics workflow", () => {
   });
 
   it("places a new shape at the playhead and opens it in the inspector", async () => {
-    render(<AssetsPanel />);
+    render(<><EditorActionRail /><AssetsPanel /></>);
     fireEvent.click(screen.getByRole("button", { name: "Graphics" }));
 
     expect(

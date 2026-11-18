@@ -29,24 +29,7 @@ import { createWebMotionAssetResolver } from "./motion-asset-resolver";
 import { NativeFFmpegBackend } from "../services/native-ffmpeg-backend";
 import { createStoredZip, type ZipStoreEntry } from "./zip-store";
 
-export interface ExportMotionCompositionFrameOptions {
-  readonly composition: MotionComposition;
-  readonly time: number;
-  readonly compositionLibrary?: readonly MotionComposition[];
-  readonly mediaItems?: readonly MediaItem[];
-  readonly creation?: CreationProjectState;
-  readonly filename?: string;
-}
-
-export interface ExportMotionCompositionFrameResult {
-  readonly filename: string;
-  readonly blob: Blob;
-  readonly width: number;
-  readonly height: number;
-  readonly time: number;
-}
-
-export interface RenderMotionCompositionFrameToDataUrlOptions {
+interface RenderMotionCompositionFrameToDataUrlOptions {
   readonly composition: MotionComposition;
   readonly time: number;
   readonly compositionLibrary?: readonly MotionComposition[];
@@ -55,7 +38,7 @@ export interface RenderMotionCompositionFrameToDataUrlOptions {
   readonly scale?: number;
 }
 
-export interface RenderMotionCompositionFrameToDataUrlResult {
+interface RenderMotionCompositionFrameToDataUrlResult {
   readonly dataUrl: string;
   readonly width: number;
   readonly height: number;
@@ -67,7 +50,7 @@ export type MotionExportFormat =
   | "mov-prores4444"
   | "png-sequence";
 
-export interface MotionExportFormatDescriptor {
+interface MotionExportFormatDescriptor {
   readonly id: MotionExportFormat;
   readonly label: string;
   readonly extension: "mp4" | "webm" | "mov" | "zip";
@@ -103,7 +86,7 @@ export interface MotionExportRange {
   readonly endTime: number;
 }
 
-export interface ResolvedMotionExportRange {
+interface ResolvedMotionExportRange {
   readonly startTime: number;
   readonly endTime: number;
   readonly startFrame: number;
@@ -111,7 +94,7 @@ export interface ResolvedMotionExportRange {
   readonly frameCount: number;
 }
 
-export function resolveMotionExportRange(
+function resolveMotionExportRange(
   composition: MotionComposition,
   range: MotionExportRange | undefined,
 ): ResolvedMotionExportRange {
@@ -155,7 +138,7 @@ function scaleEncoderDimension(value: number, scale: number): number {
   return scaled % 2 === 0 ? scaled : scaled + 1;
 }
 
-export interface ExportMotionCompositionSceneOptions {
+interface ExportMotionCompositionSceneOptions {
   readonly project: Project;
   readonly composition: MotionComposition;
   readonly compositionLibrary?: readonly MotionComposition[];
@@ -169,7 +152,7 @@ export interface ExportMotionCompositionSceneOptions {
   readonly onProgress?: (progress: ExportProgress) => void;
 }
 
-export interface ExportMotionCompositionSceneResult {
+interface ExportMotionCompositionSceneResult {
   readonly filename: string;
   readonly width: number;
   readonly height: number;
@@ -188,44 +171,6 @@ function getMotionFrameRenderer(): MotionHighQualityRenderer {
     motionFrameRenderer = new MotionHighQualityRenderer(motionRenderer);
   }
   return motionFrameRenderer;
-}
-
-export async function exportMotionCompositionFramePng({
-  composition,
-  time,
-  compositionLibrary = [composition],
-  mediaItems = [],
-  creation,
-  filename,
-}: ExportMotionCompositionFrameOptions): Promise<ExportMotionCompositionFrameResult> {
-  const safeTime = clampTime(time, composition.duration);
-  const library = compositionLibrary.some(
-    (candidate) => candidate.id === composition.id,
-  )
-    ? compositionLibrary
-    : [composition, ...compositionLibrary];
-
-  const bitmap = await getMotionFrameRenderer().render(composition, safeTime, {
-    compositionLibrary: library,
-    assetResolver: createWebMotionAssetResolver(mediaItems, { creation }),
-    supersample: 2,
-  });
-
-  try {
-    const blob = await imageBitmapToPngBlob(bitmap);
-    const resolvedFilename =
-      filename ?? motionFrameExportFilename(composition, safeTime);
-    triggerDownload(blob, resolvedFilename);
-    return {
-      filename: resolvedFilename,
-      blob,
-      width: composition.width,
-      height: composition.height,
-      time: safeTime,
-    };
-  } finally {
-    bitmap.close();
-  }
 }
 
 export async function renderMotionCompositionFrameToDataUrl({
@@ -925,19 +870,7 @@ async function exportMotionCompositionScenePngSequence({
   };
 }
 
-export const exportMotionCompositionSceneMp4 = exportMotionCompositionScene;
-
-export function motionFrameExportFilename(
-  composition: MotionComposition,
-  time: number,
-): string {
-  const frame = Math.round(Math.max(0, time) * composition.frameRate)
-    .toString()
-    .padStart(5, "0");
-  return `${sanitizeFilenamePart(composition.name)}-frame-${frame}.png`;
-}
-
-export function motionSceneExportFilename(
+function motionSceneExportFilename(
   composition: MotionComposition,
   ext: MotionExportFormatDescriptor["extension"] = "mp4",
 ): string {
@@ -1065,18 +998,6 @@ async function imageBitmapToPngBlob(
       }
     }, "image/png");
   });
-}
-
-function triggerDownload(blob: Blob, filename: string): void {
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = filename;
-  anchor.rel = "noopener";
-  document.body.append(anchor);
-  anchor.click();
-  anchor.remove();
-  window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
 }
 
 function sanitizeFilenamePart(value: string): string {

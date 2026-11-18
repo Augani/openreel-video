@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE fcpxml>
+<fcpxml version="1.10">
+  <resources>
+    <format id="r1" frameDuration="1001/30000s" width="1920" height="1080" colorSpace="1-1-1 (Rec. 709)"/>
+    <asset id="r2" name="interview.mp4" start="0s" duration="2999997/5000s" hasVideo="1" hasAudio="1" format="r1" videoSources="1" audioSources="1" audioChannels="2" audioRate="48000">
+      <media-rep kind="original-media" src="file://localhost/interview.mp4"/>
+    </asset>
+    <asset id="r3" name="broll clip.mov" start="0s" duration="2999997/5000s" hasVideo="1" hasAudio="0" format="r1" videoSources="1">
+      <media-rep kind="original-media" src="file://localhost/broll%20clip.mov"/>
+    </asset>
+    <asset id="r4" name="music.wav" start="0s" duration="2999997/10000s" hasVideo="0" hasAudio="1" audioSources="1" audioChannels="2" audioRate="48000">
+      <media-rep kind="original-media" src="file://localhost/music.wav"/>
+    </asset>
+    <effect id="r5" name="Cross Dissolve" uid="FxPlug:4731E73A-8DAC-4113-9A30-AE85B1761265"/>
+  </resources>
+  <library>
+    <event name="Interchange Test">
+      <project name="Interchange Test">
+        <sequence format="r1" duration="29029/5000s" tcStart="0s" tcFormat="NDF" audioLayout="stereo" audioRate="48k">
+          <spine>
+            <asset-clip ref="r2" offset="0s" start="1001/1000s" duration="1001/500s" name="interview.mp4" tcFormat="NDF">
+              <asset-clip ref="r3" lane="1" offset="1001/600s" start="1001/3000s" duration="1001/1000s" name="broll clip.mov" tcFormat="NDF">
+                <adjust-blend amount="0.5"/>
+              </asset-clip>
+              <asset-clip ref="r4" lane="-1" offset="1001/1000s" start="0s" duration="1001/200s" name="music.wav" tcFormat="NDF">
+                <adjust-volume amount="-1.9382dB"/>
+              </asset-clip>
+              <marker start="1001/500s" duration="1001/30000s" value="Intro"/>
+            </asset-clip>
+            <transition name="Cross Dissolve" offset="1001/600s" duration="1001/1500s">
+              <filter-video ref="r5" name="Cross Dissolve"/>
+            </transition>
+            <asset-clip ref="r3" offset="1001/500s" start="1001/300s" duration="1001/750s" name="broll clip.mov" tcFormat="NDF">
+              <timeMap>
+                <timept time="0s" value="1001/300s" interp="linear"/>
+                <timept time="1001/750s" value="3003/500s" interp="linear"/>
+              </timeMap>
+            </asset-clip>
+            <asset-clip ref="r2" offset="1001/300s" start="0s" duration="1001/600s" name="interview.mp4" tcFormat="NDF">
+              <adjust-volume amount="-6.0206dB"/>
+              <marker start="1001/1200s" duration="1001/30000s" value="Beat &amp; Drop &lt;b&gt;"/>
+            </asset-clip>
+            <asset-clip ref="r3" offset="1001/200s" start="14014/1875s" duration="1001/1250s" name="broll clip.mov" tcFormat="NDF">
+              <timeMap>
+                <timept time="0s" value="14014/1875s" interp="linear"/>
+                <timept time="1001/1250s" value="1001/150s" interp="linear"/>
+              </timeMap>
+            </asset-clip>
+          </spine>
+        </sequence>
+      </project>
+    </event>
+  </library>
+</fcpxml>

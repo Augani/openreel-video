@@ -31,7 +31,7 @@ interface TimelineItemBase<TKind extends TimelineItemKind, TItem> {
 }
 
 export type ResolvedTimelineItem =
-  | (TimelineItemBase<"media", Clip> & { readonly mediaItem?: MediaItem })
+  | (TimelineItemBase<"media", Clip> & { readonly mediaItem?: MediaItem; readonly compoundCapabilities?: Pick<TimelineItemCapabilities, "visual" | "audio"> })
   | TimelineItemBase<"text", TextClip>
   | TimelineItemBase<"shape", ShapeClip>
   | TimelineItemBase<"svg", SVGClip>
@@ -49,7 +49,7 @@ export interface TimelineItemCapabilities {
   readonly graphicEditable: boolean;
 }
 
-export interface TimelineTrackRenderEntry {
+interface TimelineTrackRenderEntry {
   readonly track: Track;
   readonly originalIndex: number;
 }
@@ -108,6 +108,86 @@ export function getMediaItemCapabilities(
   };
 }
 
+export function getCompoundClipId(clip: Pick<Clip, "mediaId" | "metadata">): string | null {
+  return typeof clip.metadata?.compoundClipId === "string"
+    ? clip.metadata.compoundClipId
+    : clip.mediaId.startsWith("compound:") ? clip.mediaId.slice("compound:".length) : null;
+}
+
+/** Resolve real source capabilities, including nested definitions, once per project revision. */
+export function createTimelineClipCapabilityResolver(
+  mediaLibrary: Project["mediaLibrary"],
+  definitions: Project["compoundClips"],
+): (clip: Pick<Clip, "mediaId" | "metadata">) => Pick<TimelineItemCapabilities, "visual" | "audio"> {
+  const media = new Map(mediaLibrary.items.map((item) => [item.id, getMediaItemCapabilities(item)]));
+  const compounds = new Map((definitions ?? []).map((definition) => [definition.id, definition]));
+  const memo = new Map<string, Pick<TimelineItemCapabilities, "visual" | "audio">>();
+  const missing = { visual: false, audio: false };
+  const resolve = (clip: Pick<Clip, "mediaId" | "metadata">, ancestors: Set<string>): Pick<TimelineItemCapabilities, "visual" | "audio"> => {
+    const id = getCompoundClipId(clip);
+    if (!id) return media.get(clip.mediaId) ?? missing;
+    if (ancestors.has(id) || ancestors.size >= 32) return missing;
+    const cached = memo.get(id);
+    if (cached) return cached;
+    const definition = compounds.get(id);
+    if (!definition) return missing;
+    const path = new Set(ancestors).add(id);
+    let visual = false, audio = false;
+    for (const track of definition.content.tracks) {
+      for (const child of track.clips) {
+        const capability = resolve(child, path);
+        visual ||= capability.visual;
+        audio ||= capability.audio;
+      }
+    }
+    const result = { visual, audio };
+    // A cyclic result can depend on its path; do not reuse it in another branch.
+    if (ancestors.size === 0) memo.set(id, result);
+    return result;
+  };
+  return (clip) => resolve(clip, new Set());
+}
+
+const projectClipCapabilities = new WeakMap<Project, {
+  media: Project["mediaLibrary"]["items"]; mediaCount: number;
+  definitions: Project["compoundClips"]; definitionCount: number; modifiedAt: number;
+  resolve: ReturnType<typeof createTimelineClipCapabilityResolver>;
+}>();
+export function getProjectClipCapabilities(project: Project, clip: Pick<Clip, "mediaId" | "metadata">) {
+  let cached = projectClipCapabilities.get(project);
+  if (!cached || cached.media !== project.mediaLibrary.items || cached.mediaCount !== project.mediaLibrary.items.length
+    || cached.definitions !== project.compoundClips || cached.definitionCount !== (project.compoundClips?.length ?? 0)
+    || cached.modifiedAt !== project.modifiedAt) {
+    cached = { media: project.mediaLibrary.items, mediaCount: project.mediaLibrary.items.length,
+      definitions: project.compoundClips, definitionCount: project.compoundClips?.length ?? 0, modifiedAt: project.modifiedAt,
+      resolve: createTimelineClipCapabilityResolver(project.mediaLibrary, project.compoundClips) };
+    projectClipCapabilities.set(project, cached);
+  }
+  return cached.resolve(clip);
+}
+
+type MediaIndexEntry = { item: Project["mediaLibrary"]["items"][number]; index: number };
+const mediaIndexes = new WeakMap<Project["mediaLibrary"]["items"], Map<string, MediaIndexEntry>>();
+
+/**
+ * Media lookup by id in O(1) per call instead of a linear scan per clip (400 clips x
+ * 400 media items was ~160k comparisons per getTimelineItems call, and the editor calls
+ * it per track on every render). Each hit is verified against the live array, so an
+ * in-place replacement or reorder falls back to a scan; a miss always scans.
+ */
+function findMediaItem(project: Project, mediaId: string): Project["mediaLibrary"]["items"][number] | undefined {
+  const items = project.mediaLibrary.items;
+  let index = mediaIndexes.get(items);
+  if (!index || index.size !== items.length) {
+    index = new Map();
+    items.forEach((item, i) => { if (!index!.has(item.id)) index!.set(item.id, { item, index: i }); });
+    mediaIndexes.set(items, index);
+  }
+  const hit = index.get(mediaId);
+  if (hit && items[hit.index] === hit.item) return hit.item;
+  return items.find((candidate) => candidate.id === mediaId);
+}
+
 function mediaItemRef(
   project: Project,
   trackId: string,
@@ -120,22 +200,29 @@ function mediaItemRef(
     startTime: clip.startTime,
     duration: clip.duration,
     item: clip,
-    mediaItem: project.mediaLibrary.items.find(
-      (candidate) => candidate.id === clip.mediaId,
-    ),
+    ...(getCompoundClipId(clip) ? { compoundCapabilities: getProjectClipCapabilities(project, clip) } : {}),
+    mediaItem: findMediaItem(project, clip.mediaId),
   };
 }
 
 export function getTimelineItems(project: Project): ResolvedTimelineItem[] {
+  return collectTimelineItems(project);
+}
+
+/** All items (or just those on `onlyTrackId`), sorted by start time then id. */
+function collectTimelineItems(project: Project, onlyTrackId?: string): ResolvedTimelineItem[] {
   const items: ResolvedTimelineItem[] = [];
+  const wanted = (trackId: string | undefined): boolean => onlyTrackId === undefined || trackId === onlyTrackId;
 
   for (const track of project.timeline.tracks) {
+    if (!wanted(track.id)) continue;
     for (const clip of track.clips) {
       items.push(mediaItemRef(project, track.id, clip));
     }
   }
 
   for (const clip of project.textClips ?? []) {
+    if (!wanted(clip.trackId)) continue;
     items.push({
       id: clip.id,
       trackId: clip.trackId,
@@ -147,6 +234,7 @@ export function getTimelineItems(project: Project): ResolvedTimelineItem[] {
   }
 
   for (const clip of project.shapeClips ?? []) {
+    if (!wanted(clip.trackId)) continue;
     items.push({
       id: clip.id,
       trackId: clip.trackId,
@@ -158,6 +246,7 @@ export function getTimelineItems(project: Project): ResolvedTimelineItem[] {
   }
 
   for (const clip of project.svgClips ?? []) {
+    if (!wanted(clip.trackId)) continue;
     items.push({
       id: clip.id,
       trackId: clip.trackId,
@@ -169,6 +258,7 @@ export function getTimelineItems(project: Project): ResolvedTimelineItem[] {
   }
 
   for (const clip of project.stickerClips ?? []) {
+    if (!wanted(clip.trackId)) continue;
     items.push({
       id: clip.id,
       trackId: clip.trackId,
@@ -180,6 +270,7 @@ export function getTimelineItems(project: Project): ResolvedTimelineItem[] {
   }
 
   for (const layer of project.adjustmentLayers ?? []) {
+    if (!wanted(layer.trackId)) continue;
     items.push({
       id: layer.id,
       trackId: layer.trackId,
@@ -191,7 +282,7 @@ export function getTimelineItems(project: Project): ResolvedTimelineItem[] {
   }
 
   for (const instance of project.motionInstances ?? []) {
-    if (!instance.trackId) continue;
+    if (!instance.trackId || !wanted(instance.trackId)) continue;
     items.push({
       id: instance.id,
       trackId: instance.trackId,
@@ -212,7 +303,7 @@ export function getTrackItems(
   project: Project,
   trackId: string,
 ): ResolvedTimelineItem[] {
-  return getTimelineItems(project).filter((item) => item.trackId === trackId);
+  return collectTimelineItems(project, trackId);
 }
 
 export function resolveTimelineItem(
@@ -226,7 +317,7 @@ export function getTimelineItemCapabilities(
   item: ResolvedTimelineItem,
 ): TimelineItemCapabilities {
   if (item.kind === "media") {
-    const { visual, audio } = getMediaItemCapabilities(item.mediaItem);
+    const { visual, audio } = item.compoundCapabilities ?? getMediaItemCapabilities(item.mediaItem);
     return {
       visual,
       audio,

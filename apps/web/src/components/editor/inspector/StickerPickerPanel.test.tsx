@@ -87,4 +87,27 @@ describe("StickerPickerPanel custom sticker workflow", () => {
       useProjectStore.getState().project.timeline.tracks,
     ).toHaveLength(0);
   });
+
+  it("ships a populated vector sticker pack with icon category chips and no text-initial fallbacks", () => {
+    render(<StickerPickerPanel />);
+    fireEvent.click(screen.getByRole("button", { name: "Stickers" }));
+    expect(screen.queryByText(/No stickers yet/)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add Starburst" })).toBeInTheDocument();
+    // Category chips are icon-only: named for assistive tech, never a truncated text label.
+    const arrows = screen.getByRole("button", { name: "Arrows" });
+    expect(arrows).toHaveAttribute("title", "Arrows");
+    expect(arrows).toHaveTextContent("");
+    fireEvent.click(arrows);
+    expect(screen.queryByRole("button", { name: "Add Starburst" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add Chevrons" })).toBeInTheDocument();
+  });
+
+  it("separates the empty search message into two lines", () => {
+    render(<StickerPickerPanel />);
+    fireEvent.click(screen.getByRole("button", { name: "Stickers" }));
+    fireEvent.change(screen.getByLabelText("Search stickers"), { target: { value: "zzzz-nothing" } });
+    const title = screen.getByText("No stickers found");
+    expect(title.tagName).toBe("SPAN");
+    expect(title.className).toContain("block");
+  });
 });

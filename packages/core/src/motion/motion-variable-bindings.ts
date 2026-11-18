@@ -6,19 +6,19 @@ import type {
   MotionVariableBindingTarget,
 } from "./types";
 
-export interface MotionVariableBindingTargetDefinition {
+interface MotionVariableBindingTargetDefinition {
   readonly target: MotionVariableBindingTarget;
   readonly label: string;
   readonly variableTypes: readonly MotionVariable["type"][];
   readonly layerTypes: readonly MotionLayer["type"][];
 }
 
-export type MotionVariableOverrideMap = Record<
+type MotionVariableOverrideMap = Record<
   string,
   string | number | boolean
 >;
 
-export const MOTION_VARIABLE_BINDING_TARGETS: readonly MotionVariableBindingTargetDefinition[] =
+const MOTION_VARIABLE_BINDING_TARGETS: readonly MotionVariableBindingTargetDefinition[] =
   [
     {
       target: "layer.visible",
@@ -97,7 +97,7 @@ export const MOTION_VARIABLE_BINDING_TARGETS: readonly MotionVariableBindingTarg
 const uid = (prefix: string): string =>
   `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 
-export function getMotionVariableBindingTargetDefinition(
+function getMotionVariableBindingTargetDefinition(
   target: MotionVariableBindingTarget,
 ): MotionVariableBindingTargetDefinition | undefined {
   return MOTION_VARIABLE_BINDING_TARGETS.find(

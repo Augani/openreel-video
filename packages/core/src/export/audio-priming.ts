@@ -1,6 +1,6 @@
 type MediaBunnyModule = typeof import("mediabunny");
 
-export interface AudioPrimingConfig {
+interface AudioPrimingConfig {
   sampleRate: number;
   channels: number;
   bitrate: number;

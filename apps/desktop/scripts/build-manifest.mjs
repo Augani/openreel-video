@@ -35,8 +35,16 @@ function walk(dir) {
   return out;
 }
 
+// Match the exact version: the arch token must directly follow `OpenReel-<version>-`.
+// A bare startsWith would also match prerelease artifacts that share the prefix
+// (OpenReel-1.0.0-alpha.17-arm64.dmg starts with OpenReel-1.0.0-) and could publish
+// an old alpha installer as the 1.0.0 download.
+const escapedVersion = version.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const artifactName = new RegExp(
+  `^OpenReel-${escapedVersion}-(arm64|x64|x86_64|amd64|universal)\\.`,
+);
 const files = walk(artifactsDir).filter((f) =>
-  path.basename(f).startsWith(`OpenReel-${version}-`),
+  artifactName.test(path.basename(f)),
 );
 
 function find(predicate) {

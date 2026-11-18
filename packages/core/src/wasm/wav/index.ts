@@ -1,4 +1,4 @@
-export type WasmWavExports = {
+type WasmWavExports = {
   encodeWav16Mono(
     samples: Float32Array,
     output: Uint8Array,
@@ -58,7 +58,7 @@ async function loadWasmModule(): Promise<WasmWavExports | null> {
   }
 }
 
-export async function initWasmWav(): Promise<boolean> {
+async function initWasmWav(): Promise<boolean> {
   if (wasmModule) {
     return true;
   }
@@ -68,10 +68,6 @@ export async function initWasmWav(): Promise<boolean> {
   }
 
   wasmModule = await loadPromise;
-  return wasmModule !== null;
-}
-
-export function isWasmWavAvailable(): boolean {
   return wasmModule !== null;
 }
 
@@ -206,7 +202,7 @@ function jsWriteWavHeader(
   output[43] = (dataSize >> 24) & 0xff;
 }
 
-export class WavEncoder {
+class WavEncoder {
   private useWasm: boolean;
 
   constructor() {
@@ -333,10 +329,4 @@ export function getWavEncoder(): WavEncoder {
     cachedEncoder = new WavEncoder();
   }
   return cachedEncoder;
-}
-
-export async function preloadWasmWav(): Promise<WavEncoder> {
-  const encoder = getWavEncoder();
-  await encoder.ensureWasm();
-  return encoder;
 }

@@ -5,20 +5,17 @@ import marketplace from './marketplace/marketplace';
 import studio from './marketplace/studio';
 import events from './marketplace/events';
 import crash from './crash/routes';
+import collab from './collab/routes';
+import { isAllowedOrigin } from './collab/origin';
+
+export { ProjectRoom } from './collab/room-do';
 
 const app = new Hono<{ Bindings: Bindings }>();
 
 app.use('/*', cors({
   origin: (origin) => {
     if (!origin) return origin;
-    const ok =
-      /^http:\/\/localhost:\d+$/.test(origin) ||
-      /\.openreel-studio\.pages\.dev$/.test(origin) ||
-      origin === 'https://openreel-studio.pages.dev' ||
-      /\.openreel\.video$/.test(origin) ||
-      origin === 'https://app.openreel.video' ||
-      origin === 'https://studio.openreel.video';
-    return ok ? origin : undefined;
+    return isAllowedOrigin(origin) ? origin : undefined;
   },
   allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowHeaders: ['Content-Type', 'Authorization', 'Accept', 'X-Bundle-ID', 'X-User-Id', 'X-Creator-Id', 'X-Creator-Handle'],
@@ -29,6 +26,9 @@ app.use('/*', cors({
 app.route('/v1', marketplace);
 app.route('/v1', studio);
 app.route('/v1', events);
+
+// Real-time collaboration rooms (Durable Object per project).
+app.route('/v1', collab);
 
 // Desktop/app crash + error collection (POST /crash; guarded GET /crash).
 app.route('/', crash);
@@ -53,6 +53,10 @@ app.get('/', (c) => {
         review: 'POST /v1/submissions/:id/review',
       },
       events: 'POST /v1/events',
+      collab: {
+        create: 'POST /v1/collab/rooms',
+        connect: 'GET /v1/collab/rooms/:id/ws (WebSocket)',
+      },
       crash: 'POST /crash',
       templates: {
         list: 'GET /templates',

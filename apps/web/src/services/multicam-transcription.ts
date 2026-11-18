@@ -1,6 +1,7 @@
 import type { MulticamTranscriptSegment } from "@openreel/core";
 import { audioBufferToWhisperSamples } from "../utils/whisper-audio";
 import type { WhisperModelKey } from "../workers/whisper-models";
+import { isDesktopRenderer } from "../workers/whisper-threads";
 
 interface WorkerChunk {
   text: string;
@@ -63,6 +64,7 @@ export async function transcribeMulticamChannels(
           audio: audioBufferToWhisperSamples(buffer),
           model: options.model ?? "fast",
           language: options.language,
+          desktop: isDesktopRenderer(),
         });
       });
       transcripts[angleId] = whisperChunksToMulticamTranscript(result.chunks);

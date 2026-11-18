@@ -1,9 +1,9 @@
 import type { MulticamVadTrack } from "./automatic-edit";
 
-export const SILERO_VAD_SAMPLE_RATE = 16_000;
+const SILERO_VAD_SAMPLE_RATE = 16_000;
 export const SILERO_VAD_CHUNK_SAMPLES = 512;
 export const SILERO_VAD_CONTEXT_SAMPLES = 64;
-export const DEFAULT_SILERO_VAD_MODEL_URL =
+const DEFAULT_SILERO_VAD_MODEL_URL =
   "https://cdn.jsdelivr.net/gh/snakers4/silero-vad@v6.2.1/src/silero_vad/data/silero_vad.onnx";
 
 interface VadTensorLike {
@@ -28,7 +28,7 @@ interface VadRuntimeLike {
   };
 }
 
-export interface SileroVadOptions {
+interface SileroVadOptions {
   model?: string | ArrayBuffer | Uint8Array;
   runtime?: VadRuntimeLike;
   session?: VadSessionLike;

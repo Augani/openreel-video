@@ -1,6 +1,6 @@
-import type { GraphicAnimation, GraphicAnimationType } from "./types";
+import type { GraphicAnimationType } from "./types";
 
-export interface SVGAnimationPresetInfo {
+interface SVGAnimationPresetInfo {
   id: GraphicAnimationType;
   name: string;
   description: string;
@@ -171,28 +171,3 @@ export const SVG_ANIMATION_PRESETS: SVGAnimationPresetInfo[] = [
     defaultEasing: "ease-out",
   },
 ];
-
-export function getSVGPresetInfo(
-  preset: GraphicAnimationType,
-): SVGAnimationPresetInfo | undefined {
-  return SVG_ANIMATION_PRESETS.find((p) => p.id === preset);
-}
-
-export function createDefaultSVGAnimation(
-  preset: GraphicAnimationType,
-): GraphicAnimation {
-  const info = getSVGPresetInfo(preset);
-  if (!info) {
-    return {
-      type: "none",
-      duration: 0,
-      easing: "linear",
-    };
-  }
-
-  return {
-    type: preset,
-    duration: info.defaultDuration,
-    easing: info.defaultEasing,
-  };
-}

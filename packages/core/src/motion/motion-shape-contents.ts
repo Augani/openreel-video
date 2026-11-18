@@ -315,7 +315,7 @@ export function createShapeGroupItem(name: string): MotionShapeGroupItem {
   };
 }
 
-export interface CreateShapePathItemInit {
+interface CreateShapePathItemInit {
   readonly name?: string;
   readonly shapeType?: MotionShapePathItem["shapeType"];
   readonly width?: number;
@@ -365,7 +365,7 @@ export function materializeShapeContents(
   return { ...layer, contents: [group] };
 }
 
-export type ShapeAffineMatrix = readonly [
+type ShapeAffineMatrix = readonly [
   number,
   number,
   number,
@@ -376,7 +376,7 @@ export type ShapeAffineMatrix = readonly [
 
 export const SHAPE_IDENTITY_MATRIX: ShapeAffineMatrix = [1, 0, 0, 1, 0, 0];
 
-export function multiplyShapeMatrices(
+function multiplyShapeMatrices(
   left: ShapeAffineMatrix,
   right: ShapeAffineMatrix,
 ): ShapeAffineMatrix {
@@ -430,7 +430,7 @@ export function shapeGroupTransformToMatrix(
   return multiplyShapeMatrices(rotationScale, anchor);
 }
 
-export function shapePathItemTranslationMatrix(
+function shapePathItemTranslationMatrix(
   item: MotionShapePathItem,
 ): ShapeAffineMatrix {
   return [1, 0, 0, 1, item.position.x, item.position.y];

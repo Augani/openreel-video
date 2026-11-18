@@ -1,4 +1,19 @@
-import React, { useState, useCallback, useMemo, useEffect } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import {
+  Badge,
+  Button,
+  Card,
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+  Input,
+} from "@openreel/ui";
 import {
   Layers,
   FolderOpen,
@@ -11,519 +26,461 @@ import {
   Check,
   X,
 } from "@/icons/lucide-compat";
-import { ToolcraftButton as Button } from "@openreel/ui";
-import { ToolcraftIconButton as IconButton } from "@openreel/ui";
-import { ToolcraftText as Text } from "@openreel/ui";
-import { ToolcraftTextInputControl } from "@openreel/ui";
-import { useEngineStore } from "../../../stores/engine-store";
 import { useProjectStore } from "../../../stores/project-store";
 import { useUIStore } from "../../../stores/ui-store";
-import type { Clip, CompoundClip } from "@openreel/core";
+import { useTimelineStore } from "../../../stores/timeline-store";
+import { toast } from "../../../stores/notification-store";
+import {
+  createEditorCompound,
+  editEditorCompound,
+  flattenEditorCompound,
+  ownsAdvancedLayerScope,
+  type AdvancedLayerScope,
+} from "../../../services/advanced-layer-edit";
+import type { CompoundClip, CompoundClipInstance } from "@openreel/core";
 
+const EMPTY_COMPOUNDS: CompoundClip[] = [],
+  EMPTY_INSTANCES: CompoundClipInstance[] = [];
 interface NestedSequenceSectionProps {
   clipId: string;
 }
-
 export const NestedSequenceSection: React.FC<NestedSequenceSectionProps> = ({
   clipId,
 }) => {
-  const getNestedSequenceEngine = useEngineStore(
-    (state) => state.getNestedSequenceEngine,
+  const compounds = useProjectStore(
+    (state) => state.project.compoundClips ?? EMPTY_COMPOUNDS,
   );
-  const project = useProjectStore((state) => state.project);
-  const selectedClipIds = useUIStore((state) => state.getSelectedClipIds());
-
-  const [expandedCompound, setExpandedCompound] = useState<string | null>(null);
-  const [renamingId, setRenamingId] = useState<string | null>(null);
-  const [renameValue, setRenameValue] = useState("");
-  const [nestedSequenceEngine, setNestedSequenceEngine] =
-    useState<import("@openreel/core").NestedSequenceEngine | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    const loadEngine = async () => {
-      const engine = await getNestedSequenceEngine();
-      if (!cancelled) {
-        setNestedSequenceEngine(engine);
-      }
-    };
-    loadEngine();
-    return () => {
-      cancelled = true;
-    };
-  }, [getNestedSequenceEngine]);
-
-  useEffect(() => {
-    nestedSequenceEngine?.loadState(
-      project.compoundClips ?? [],
-      project.nestedInstances ?? [],
-    );
-  }, [nestedSequenceEngine, project.compoundClips, project.nestedInstances]);
-
-  const allCompoundClips = project.compoundClips ?? [];
-
-  const currentInstance = useMemo(() => {
-    return (project.nestedInstances ?? []).find((instance) => instance.id === clipId) ?? null;
-  }, [project.nestedInstances, clipId]);
-
-  const currentCompound = useMemo(() => {
-    if (!currentInstance) return null;
-    return allCompoundClips.find((compound) => compound.id === currentInstance.compoundClipId) ?? null;
-  }, [allCompoundClips, currentInstance]);
-
-  const selectedClips = useMemo(() => {
-    const clips: Array<{
-      id: string;
-      trackId: string;
-      startTime: number;
-      duration: number;
-    }> = [];
-    for (const track of project.timeline.tracks) {
-      for (const clip of track.clips) {
-        if (selectedClipIds.includes(clip.id)) {
-          clips.push({
-            id: clip.id,
-            trackId: track.id,
-            startTime: clip.startTime,
-            duration: clip.duration,
-          });
-        }
-      }
-    }
-    return clips;
-  }, [project.timeline.tracks, selectedClipIds]);
-
-  const handleCreateCompound = useCallback(async () => {
-    if (!nestedSequenceEngine || selectedClips.length < 2) return;
-
-    const fullClips = [];
-    for (const track of project.timeline.tracks) {
-      for (const clip of track.clips) {
-        if (selectedClipIds.includes(clip.id)) {
-          fullClips.push(clip);
-        }
-      }
-    }
-
-    if (fullClips.length < 2) return;
-
-    const compound = nestedSequenceEngine.createCompoundClip(
-      fullClips,
-      project.timeline.tracks,
-    );
-    const firstClip = [...fullClips].sort(
-      (left, right) => left.startTime - right.startTime,
-    )[0];
-    const instance = nestedSequenceEngine.createInstance(
-      compound.id,
-      firstClip.trackId,
-      firstClip.startTime,
-    );
-    if (!instance) return;
-    const instanceClip: Clip = {
-      id: instance.id,
-      mediaId: `compound:${compound.id}`,
-      trackId: instance.trackId,
-      startTime: instance.startTime,
-      duration: instance.duration,
-      inPoint: instance.inPoint,
-      outPoint: instance.outPoint,
-      transform: instance.transform,
-      volume: instance.volume,
-      effects: [],
-      audioEffects: [],
-      keyframes: [],
-      metadata: {
-        compoundClipId: compound.id,
-        compoundClipName: compound.name,
-        compoundClipColor: compound.color,
-      },
-    };
-
-    const store = useProjectStore.getState();
-    store.beginHistoryGroup("Create compound clip");
-    try {
-      for (const selectedId of selectedClipIds) {
-        await useProjectStore.getState().executeAction({
-          type: "clip/remove",
-          id: crypto.randomUUID(),
-          timestamp: Date.now(),
-          params: { clipId: selectedId },
-        });
-      }
-      await useProjectStore.getState().executeAction({
-        type: "nested/setAll",
-        id: crypto.randomUUID(),
-        timestamp: Date.now(),
-        params: {
-          compoundClips: nestedSequenceEngine.getAllCompoundClips(),
-          instances: nestedSequenceEngine.getAllInstances(),
-        },
-      });
-      await useProjectStore.getState().executeAction({
-        type: "clip/restore",
-        id: crypto.randomUUID(),
-        timestamp: Date.now(),
-        params: { clip: instanceClip },
-      });
-    } finally {
-      useProjectStore.getState().endHistoryGroup();
-    }
-
-    setExpandedCompound(compound.id);
-    useUIStore.getState().select({ id: instance.id, type: "clip" });
-  }, [
-    nestedSequenceEngine,
-    selectedClips,
-    selectedClipIds,
-    project.timeline.tracks,
-  ]);
-
-  const handleFlatten = useCallback(async () => {
-    if (!nestedSequenceEngine || !clipId) return;
-
-    const result = nestedSequenceEngine.flattenInstance(clipId);
-    if (result) {
-      useProjectStore.getState().beginHistoryGroup("Flatten compound clip");
-      try {
-        await useProjectStore.getState().executeAction({
-          type: "clip/remove",
-          id: crypto.randomUUID(),
-          timestamp: Date.now(),
-          params: { clipId },
-        });
-        for (const flattened of result.clips) {
-          await useProjectStore.getState().executeAction({
-            type: "clip/add",
-            id: crypto.randomUUID(),
-            timestamp: Date.now(),
-            params: {
-              trackId: flattened.trackId,
-              mediaId: flattened.mediaId,
-              startTime: flattened.startTime,
-              sourceClip: flattened,
-            },
-          });
-        }
-        await useProjectStore.getState().executeAction({
-          type: "nested/setAll",
-          id: crypto.randomUUID(),
-          timestamp: Date.now(),
-          params: {
-            compoundClips: nestedSequenceEngine.getAllCompoundClips(),
-            instances: nestedSequenceEngine.getAllInstances(),
-          },
-        });
-      } finally {
-        useProjectStore.getState().endHistoryGroup();
-      }
-    }
-  }, [nestedSequenceEngine, clipId]);
-
-  const handleDuplicate = useCallback(
-    (compoundId: string) => {
-      if (!nestedSequenceEngine) return;
-
-      nestedSequenceEngine.duplicateCompoundClip(compoundId);
-      void useProjectStore.getState().executeAction({
-        type: "nested/setAll",
-        id: crypto.randomUUID(),
-        timestamp: Date.now(),
-        params: {
-          compoundClips: nestedSequenceEngine.getAllCompoundClips(),
-          instances: nestedSequenceEngine.getAllInstances(),
-        },
-      });
-    },
-    [nestedSequenceEngine],
+  const instances = useProjectStore(
+    (state) => state.project.nestedInstances ?? EMPTY_INSTANCES,
   );
-
-  const handleDelete = useCallback(
-    (compoundId: string) => {
-      if (!nestedSequenceEngine) return;
-
-      const success = nestedSequenceEngine.deleteCompoundClip(compoundId);
-      if (success) {
-        void useProjectStore.getState().executeAction({
-          type: "nested/setAll",
-          id: crypto.randomUUID(),
-          timestamp: Date.now(),
-          params: {
-            compoundClips: nestedSequenceEngine.getAllCompoundClips(),
-            instances: nestedSequenceEngine.getAllInstances(),
-          },
-        });
-        if (expandedCompound === compoundId) {
-          setExpandedCompound(null);
-        }
-      }
-    },
-    [nestedSequenceEngine, expandedCompound],
+  const tracks = useProjectStore((state) => state.project.timeline.tracks);
+  const projectId = useProjectStore((state) => state.project.id),
+    executor = useProjectStore((state) => state.actionExecutor);
+  const hasProject = useProjectStore((state) => state.hasOpenProject);
+  const selection = useUIStore((state) =>
+    JSON.stringify(state.getSelectedClipIds()),
   );
-
-  const handleStartRename = useCallback((compound: CompoundClip) => {
-    setRenamingId(compound.id);
-    setRenameValue(compound.name);
-  }, []);
-
-  const handleConfirmRename = useCallback(() => {
-    if (!nestedSequenceEngine || !renamingId) return;
-
-    nestedSequenceEngine.renameCompoundClip(renamingId, renameValue.trim());
-    void useProjectStore.getState().executeAction({
-      type: "nested/setAll",
-      id: crypto.randomUUID(),
-      timestamp: Date.now(),
-      params: {
-        compoundClips: nestedSequenceEngine?.getAllCompoundClips() ?? [],
-        instances: nestedSequenceEngine?.getAllInstances() ?? [],
-      },
-    });
-    setRenamingId(null);
-    setRenameValue("");
-  }, [nestedSequenceEngine, renamingId, renameValue]);
-
-  const handleCancelRename = useCallback(() => {
-    setRenamingId(null);
-    setRenameValue("");
-  }, []);
-
-  const formatDuration = (seconds: number): string => {
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    return `${mins}:${secs.toString().padStart(2, "0")}`;
-  };
-
+  const selected = useMemo(
+    () => new Set(JSON.parse(selection) as string[]),
+    [selection],
+  );
+  const clips = useMemo(
+    () =>
+      tracks
+        .flatMap((track) => track.clips)
+        .filter((clip) => selected.has(clip.id)),
+    [tracks, selected],
+  );
+  const locked = useMemo(
+    () =>
+      new Set(tracks.filter((track) => track.locked).map((track) => track.id)),
+    [tracks],
+  );
+  const exporting = useUIStore((state) => state.exportState.isExporting),
+    processing = useUIStore((state) => state.effectApplicationClipId !== null);
+  const playbackLocked = useTimelineStore(
+    (state) => !!state.playbackLockedReason,
+  );
+  const session = useMemo(
+    () => ({ key: crypto.randomUUID(), scope: { projectId, executor } }),
+    [projectId, executor],
+  );
   return (
-    <div className="space-y-3">
-      <div className="flex items-center gap-2 p-2 bg-gradient-to-r bg-primary/10 rounded-lg border border-primary/30">
-        <Layers size={16} className="text-primary" />
-        <div className="flex-1 flex flex-col gap-0.5">
-          <span className="text-[11px] font-medium text-fg">
+    <NestedControls
+      key={`${session.key}:${clipId}`}
+      scope={session.scope}
+      clipId={clipId}
+      compounds={compounds}
+      instances={instances}
+      selectedClipIds={clips.map((clip) => clip.id)}
+      selection={selection}
+      selectionLocked={clips.some((clip) => locked.has(clip.trackId))}
+      lockedTracks={locked}
+      disabled={!hasProject || exporting || processing || playbackLocked}
+    />
+  );
+};
+
+function NestedControls({
+  scope,
+  clipId,
+  compounds,
+  instances,
+  selectedClipIds,
+  selection,
+  selectionLocked,
+  lockedTracks,
+  disabled,
+}: {
+  scope: AdvancedLayerScope;
+  clipId: string;
+  compounds: CompoundClip[];
+  instances: CompoundClipInstance[];
+  selectedClipIds: string[];
+  selection: string;
+  selectionLocked: boolean;
+  lockedTracks: Set<string>;
+  disabled: boolean;
+}) {
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const [renaming, setRenaming] = useState<string | null>(null),
+    [name, setName] = useState("");
+  const [busy, setBusy] = useState(false),
+    busyRef = useRef(false),
+    mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+  const current = instances.find((instance) => instance.id === clipId),
+    compound = compounds.find((item) => item.id === current?.compoundClipId);
+  const counts = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const instance of instances)
+      map.set(
+        instance.compoundClipId,
+        (map.get(instance.compoundClipId) ?? 0) + 1,
+      );
+    return map;
+  }, [instances]);
+  const unavailable = disabled || busy;
+  const run = useCallback(
+    async (operation: () => Promise<void>) => {
+      if (busyRef.current || disabled || !ownsAdvancedLayerScope(scope)) return;
+      busyRef.current = true;
+      setBusy(true);
+      try {
+        await operation();
+      } catch (error) {
+        if (mounted.current && ownsAdvancedLayerScope(scope))
+          toast.error(
+            "Compound edit failed",
+            error instanceof Error
+              ? error.message
+              : "The edit could not be applied.",
+          );
+      } finally {
+        busyRef.current = false;
+        if (mounted.current && ownsAdvancedLayerScope(scope)) setBusy(false);
+      }
+    },
+    [disabled, scope],
+  );
+  const visible = () => mounted.current && ownsAdvancedLayerScope(scope);
+  const create = () =>
+    void run(async () => {
+      const result = await createEditorCompound(scope, selectedClipIds);
+      if (!result || !ownsAdvancedLayerScope(scope)) return;
+      if (visible()) setExpanded(result.compoundId);
+      if (
+        JSON.stringify(useUIStore.getState().getSelectedClipIds()) === selection
+      )
+        useUIStore.getState().select({ id: result.instanceId, type: "clip" });
+    });
+  const duplicate = (id: string) =>
+    void run(async () => {
+      const copied = await editEditorCompound(scope, id, { type: "duplicate" });
+      if (copied && visible()) setExpanded(copied);
+    });
+  const confirm = () => {
+    if (!renaming || !name.trim()) return;
+    const id = renaming;
+    void run(async () => {
+      await editEditorCompound(scope, id, { type: "rename", name });
+      if (visible()) {
+        setRenaming(null);
+        setName("");
+      }
+    });
+  };
+  const duration = (seconds: number) =>
+    `${Math.floor(seconds / 60)}:${Math.floor(seconds % 60)
+      .toString()
+      .padStart(2, "0")}`;
+  return (
+    <div className="space-y-3" aria-busy={busy}>
+      <Card className="flex items-center gap-2 rounded-[7px] border-primary/30 bg-primary/10 p-2 shadow-none">
+        <Layers size={16} aria-hidden className="text-primary" />
+        <div>
+          <span className="block text-[11px] font-medium text-fg">
             Nested Sequences
           </span>
-          <Text type="supporting" color="secondary" className="text-[9px] text-fg-3">
+          <span className="block text-[9px] text-fg-3">
             Create compound clips from selections
-          </Text>
+          </span>
         </div>
-      </div>
-
-      {currentCompound && (
-        <div className="p-3 bg-primary/10 border border-primary/20 rounded-lg space-y-2">
+      </Card>
+      {compound && (
+        <Card className="space-y-2 rounded-[7px] border-primary/20 bg-primary/10 p-3 shadow-none">
           <div className="flex items-center gap-2">
-            <FolderOpen size={14} className="text-primary" />
+            <FolderOpen size={14} aria-hidden className="text-primary" />
             <span className="text-[11px] font-medium text-fg">
-              {currentCompound.name}
+              {compound.name}
             </span>
           </div>
-          <div className="flex gap-2 text-[9px] text-fg-3">
-            <span>{currentCompound.content.clips.length} clips</span>
-            <span>•</span>
-            <span>{formatDuration(currentCompound.content.duration)}</span>
-          </div>
-          <div className="flex gap-2 pt-1">
+          <p className="text-[9px] text-fg-3">
+            {compound.content.clips.length} clips ·{" "}
+            {duration(compound.content.duration)}
+          </p>
+          <div className="flex gap-2">
             <Button
-              label="Flatten"
-              variant="ghost"
-              icon={<Maximize2 size={10} />}
-              onClick={handleFlatten}
-              className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-bg-2 rounded text-[10px] text-fg-2 hover:text-fg transition-colors"
-            />
+              type="button"
+              variant="outline"
+              size="sm"
+              className="flex-1"
+              disabled={
+                unavailable || (!!current && lockedTracks.has(current.trackId))
+              }
+              onClick={() =>
+                void run(async () => {
+                  const before = new Set(
+                    useProjectStore
+                      .getState()
+                      .project.timeline.tracks.flatMap((track) =>
+                        track.clips.map((clip) => clip.id),
+                      ),
+                  );
+                  const selected = JSON.stringify(
+                    useUIStore.getState().getSelectedClipIds(),
+                  );
+                  const applied = await flattenEditorCompound(scope, clipId);
+                  if (
+                    applied &&
+                    ownsAdvancedLayerScope(scope) &&
+                    JSON.stringify(
+                      useUIStore.getState().getSelectedClipIds(),
+                    ) === selected
+                  ) {
+                    const clips = useProjectStore
+                      .getState()
+                      .project.timeline.tracks.flatMap((track) => track.clips)
+                      .filter((clip) => !before.has(clip.id));
+                    useUIStore.getState().selectMultiple(
+                      clips.map((clip) => ({
+                        type: "clip",
+                        id: clip.id,
+                        trackId: clip.trackId,
+                      })),
+                    );
+                  }
+                })
+              }
+            >
+              <Maximize2 size={10} aria-hidden />
+              Flatten
+            </Button>
             <Button
-              label="Duplicate"
-              variant="ghost"
-              icon={<Copy size={10} />}
-              onClick={() => handleDuplicate(currentCompound.id)}
-              className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-bg-2 rounded text-[10px] text-fg-2 hover:text-fg transition-colors"
-            />
+              type="button"
+              variant="outline"
+              size="sm"
+              className="flex-1"
+              aria-label="Duplicate current compound"
+              disabled={unavailable}
+              onClick={() => duplicate(compound.id)}
+            >
+              <Copy size={10} aria-hidden />
+              Duplicate
+            </Button>
           </div>
-        </div>
+        </Card>
       )}
-
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <span className="text-[10px] font-medium text-fg-2">
             Create Compound Clip
           </span>
-          <span className="text-[9px] text-fg-3">
-            {selectedClips.length} clips selected
-          </span>
+          <Badge variant="secondary" className="text-[9px] font-normal">
+            {selectedClipIds.length} clips selected
+          </Badge>
         </div>
         <Button
-          label="Create Compound Clip"
-          variant="ghost"
-          icon={<Plus size={14} />}
-          onClick={handleCreateCompound}
-          isDisabled={selectedClips.length < 2}
-          className={`w-full py-2.5 rounded-lg text-[11px] font-medium flex items-center justify-center gap-2 transition-colors ${
-            selectedClips.length >= 2
-              ? "bg-primary/20 border border-primary/30 text-primary hover:bg-primary/20"
-              : "bg-bg-2 text-fg-3 cursor-not-allowed"
-          }`}
-        />
-        {selectedClips.length < 2 && (
-          <Text type="supporting" color="secondary" className="text-[9px] text-fg-3 text-center">
+          type="button"
+          size="sm"
+          className="w-full"
+          disabled={
+            unavailable || selectionLocked || selectedClipIds.length < 2
+          }
+          onClick={create}
+        >
+          <Plus size={14} aria-hidden />
+          Create Compound Clip
+        </Button>
+        {selectedClipIds.length < 2 && (
+          <p className="text-center text-[9px] text-fg-3">
             Select 2+ clips to create a compound clip
-          </Text>
+          </p>
         )}
       </div>
-
-      {allCompoundClips.length > 0 && (
+      {compounds.length > 0 && (
         <div className="space-y-2">
           <span className="text-[10px] font-medium text-fg-2">
             Compound Clips Library
           </span>
           <div className="space-y-1.5">
-            {allCompoundClips.map((compound) => {
-              const instanceCount =
-                nestedSequenceEngine?.getInstanceCount(compound.id) || 0;
-              const isExpanded = expandedCompound === compound.id;
-              const isRenaming = renamingId === compound.id;
-
+            {compounds.map((item) => {
+              const count = counts.get(item.id) ?? 0,
+                open = expanded === item.id,
+                editing = renaming === item.id;
               return (
-                <div
-                  key={compound.id}
-                  className="bg-bg-2 rounded-lg overflow-hidden"
+                <Collapsible
+                  key={item.id}
+                  open={open}
+                  onOpenChange={(value) => setExpanded(value ? item.id : null)}
                 >
-                  <div
-                    className="flex items-center gap-2 p-2 cursor-pointer hover:bg-bg-1 transition-colors"
-                    onClick={() =>
-                      setExpandedCompound(isExpanded ? null : compound.id)
-                    }
-                  >
-                    <ChevronRight
-                      size={12}
-                      className={`text-fg-3 transition-transform ${
-                        isExpanded ? "rotate-90" : ""
-                      }`}
-                    />
-                    <div
-                      className="w-3 h-3 rounded"
-                      style={{ backgroundColor: compound.color }}
-                    />
-                    {isRenaming ? (
-                      <ToolcraftTextInputControl
-                        label="Compound clip name"
-                        isLabelHidden
-                        value={renameValue}
-                        onChange={setRenameValue}
-                        onClick={(e) => e.stopPropagation()}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") handleConfirmRename();
-                          if (e.key === "Escape") handleCancelRename();
-                        }}
-                        className="flex-1 bg-bg-1 px-1.5 py-0.5 rounded text-[10px] text-fg outline-none border border-primary"
-                        hasAutoFocus
-                      />
-                    ) : (
-                      <span className="flex-1 text-[10px] text-fg truncate">
-                        {compound.name}
+                  <Card className="overflow-hidden rounded-[7px] border-transparent bg-bg-2 p-0 shadow-none">
+                    <div className="flex items-center gap-2 p-2">
+                      <CollapsibleTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size={editing ? "icon-sm" : "sm"}
+                          aria-label={`${open ? "Collapse" : "Expand"} ${item.name}`}
+                          className={
+                            editing
+                              ? "shrink-0"
+                              : "h-auto min-w-0 flex-1 justify-start gap-2 p-0 text-[10px] font-normal"
+                          }
+                        >
+                          <ChevronRight
+                            size={12}
+                            aria-hidden
+                            className={open ? "rotate-90" : ""}
+                          />
+                          {!editing && (
+                            <>
+                              <span
+                                aria-hidden
+                                className="h-3 w-3 shrink-0 rounded"
+                                style={{ backgroundColor: item.color }}
+                              />
+                              <span className="truncate">{item.name}</span>
+                            </>
+                          )}
+                        </Button>
+                      </CollapsibleTrigger>
+                      {editing && (
+                        <Input
+                          autoFocus
+                          aria-label="Compound clip name"
+                          value={name}
+                          disabled={busy}
+                          onChange={(event) => setName(event.target.value)}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter") {
+                              event.preventDefault();
+                              confirm();
+                            } else if (event.key === "Escape") {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              setRenaming(null);
+                              setName("");
+                            }
+                          }}
+                          className="h-7 min-w-0 flex-1 text-[10px] md:text-[10px]"
+                        />
+                      )}
+                      <span className="shrink-0 text-[9px] text-fg-3">
+                        {count} instance{count !== 1 ? "s" : ""}
                       </span>
-                    )}
-                    <span className="text-[9px] text-fg-3">
-                      {instanceCount} instance{instanceCount !== 1 ? "s" : ""}
-                    </span>
-                  </div>
-
-                  {isExpanded && (
-                    <div className="px-2 pb-2 space-y-2">
-                      <div className="flex gap-2 text-[9px] text-fg-3 pl-5">
-                        <span>{compound.content.clips.length} clips</span>
-                        <span>•</span>
-                        <span>{formatDuration(compound.content.duration)}</span>
-                        <span>•</span>
-                        <span>{compound.content.tracks.length} tracks</span>
-                      </div>
-
+                    </div>
+                    <CollapsibleContent className="space-y-2 px-2 pb-2">
+                      <p className="pl-5 text-[9px] text-fg-3">
+                        {item.content.clips.length} clips ·{" "}
+                        {duration(item.content.duration)} ·{" "}
+                        {item.content.tracks.length} tracks
+                      </p>
                       <div className="flex gap-1 pl-5">
-                        {isRenaming ? (
+                        {editing ? (
                           <>
-                            <IconButton
-                              label="Confirm rename"
-                              icon={<Check size={10} />}
+                            <Button
+                              type="button"
                               variant="ghost"
-                              size="sm"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleConfirmRename();
-                              }}
-                              className="p-1.5 bg-green-500/20 rounded text-green-400 hover:bg-green-500/30 transition-colors"
-                            />
-                            <IconButton
-                              label="Cancel rename"
-                              icon={<X size={10} />}
+                              size="icon-sm"
+                              aria-label="Confirm rename"
+                              disabled={unavailable || !name.trim()}
+                              onClick={confirm}
+                            >
+                              <Check size={10} aria-hidden />
+                            </Button>
+                            <Button
+                              type="button"
                               variant="ghost"
-                              size="sm"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleCancelRename();
+                              size="icon-sm"
+                              aria-label="Cancel rename"
+                              disabled={busy}
+                              onClick={() => {
+                                setRenaming(null);
+                                setName("");
                               }}
-                              className="p-1.5 bg-red-500/20 rounded text-red-400 hover:bg-red-500/30 transition-colors"
-                            />
+                            >
+                              <X size={10} aria-hidden />
+                            </Button>
                           </>
                         ) : (
                           <>
-                            <IconButton
-                              label="Rename"
-                              icon={<Edit3 size={10} />}
+                            <Button
+                              type="button"
                               variant="ghost"
-                              size="sm"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleStartRename(compound);
+                              size="icon-sm"
+                              aria-label={`Rename ${item.name}`}
+                              disabled={unavailable}
+                              onClick={() => {
+                                setRenaming(item.id);
+                                setName(item.name);
                               }}
-                              className="p-1.5 bg-bg-1 rounded text-fg-3 hover:text-fg transition-colors"
-                            />
-                            <IconButton
-                              label="Duplicate"
-                              icon={<Copy size={10} />}
+                            >
+                              <Edit3 size={10} aria-hidden />
+                            </Button>
+                            <Button
+                              type="button"
                               variant="ghost"
-                              size="sm"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDuplicate(compound.id);
-                              }}
-                              className="p-1.5 bg-bg-1 rounded text-fg-3 hover:text-fg transition-colors"
-                            />
-                            <IconButton
-                              label={
-                                instanceCount > 0
+                              size="icon-sm"
+                              aria-label={`Duplicate ${item.name}`}
+                              disabled={unavailable}
+                              onClick={() => duplicate(item.id)}
+                            >
+                              <Copy size={10} aria-hidden />
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon-sm"
+                              aria-label={
+                                count > 0
                                   ? "Cannot delete - has instances"
-                                  : "Delete"
+                                  : `Delete ${item.name}`
                               }
-                              icon={<Trash2 size={10} />}
-                              variant="ghost"
-                              size="sm"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDelete(compound.id);
-                              }}
-                              isDisabled={instanceCount > 0}
-                              className={`p-1.5 rounded transition-colors ${
-                                instanceCount > 0
-                                  ? "bg-bg-1 text-fg-3 cursor-not-allowed opacity-50"
-                                  : "bg-red-500/20 text-red-400 hover:bg-red-500/30"
-                              }`}
-                            />
+                              disabled={unavailable || count > 0}
+                              className="text-red-400"
+                              onClick={() =>
+                                void run(async () => {
+                                  const deleted = await editEditorCompound(
+                                    scope,
+                                    item.id,
+                                    { type: "delete" },
+                                  );
+                                  if (deleted && visible()) setExpanded(null);
+                                })
+                              }
+                            >
+                              <Trash2 size={10} aria-hidden />
+                            </Button>
                           </>
                         )}
                       </div>
-                    </div>
-                  )}
-                </div>
+                    </CollapsibleContent>
+                  </Card>
+                </Collapsible>
               );
             })}
           </div>
         </div>
       )}
-
-      <div className="pt-2 border-t border-border">
-        <Text type="supporting" color="secondary" className="text-[9px] text-fg-3 text-center">
-          Group clips into reusable compound clips
-        </Text>
-      </div>
+      <p className="border-t border-border pt-2 text-center text-[9px] text-fg-3">
+        Group clips into reusable compound clips
+      </p>
     </div>
   );
-};
-
-export default NestedSequenceSection;
+}

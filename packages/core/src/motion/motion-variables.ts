@@ -1,8 +1,8 @@
 import type { MotionComposition, MotionVariable } from "./types";
 
-export type MotionVariableType = MotionVariable["type"];
+type MotionVariableType = MotionVariable["type"];
 
-export interface CreateMotionVariableOptions {
+interface CreateMotionVariableOptions {
   readonly id?: string;
   readonly name?: string;
   readonly value?: MotionVariable["value"];
@@ -23,7 +23,7 @@ export function createMotionVariable(
   });
 }
 
-export function sanitizeMotionVariable(variable: MotionVariable): MotionVariable {
+function sanitizeMotionVariable(variable: MotionVariable): MotionVariable {
   return {
     ...variable,
     name: variable.name.trim() || defaultVariableName(variable.type),

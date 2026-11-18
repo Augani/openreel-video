@@ -13,6 +13,8 @@ interface StoredFontRecord {
 }
 
 const customFonts: string[] = [];
+/** Fonts from packages whose license is preview & print: rendered, never listed, edited with or persisted. */
+const readOnlyFonts = new Map<string, ArrayBuffer>();
 
 export const FONT_CATEGORIES = {
   Popular: [
@@ -41,6 +43,7 @@ export const FONT_CATEGORIES = {
     "Bungee",
   ],
   "Elegant & Serif": [
+    "Fraunces",
     "Playfair Display",
     "Cinzel",
     "Lora",
@@ -147,24 +150,6 @@ async function loadStoredFonts(): Promise<StoredFontRecord[]> {
   return records;
 }
 
-export async function removeCustomFont(family: string): Promise<void> {
-  const idx = customFonts.indexOf(family);
-  if (idx >= 0) {
-    customFonts.splice(idx, 1);
-    notifyCustomFontChange();
-  }
-  const db = await openFontsDB();
-  if (!db) return;
-  await new Promise<void>((resolve) => {
-    const tx = db.transaction(STORE_FONTS, "readwrite");
-    tx.objectStore(STORE_FONTS).delete(family);
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => resolve();
-    tx.onabort = () => resolve();
-  });
-  db.close();
-}
-
 let initPromise: Promise<void> | null = null;
 
 export function initCustomFonts(): Promise<void> {
@@ -190,7 +175,7 @@ export function initCustomFonts(): Promise<void> {
   return initPromise;
 }
 
-export function getCustomFonts() {
+function getCustomFonts() {
   return [...customFonts];
 }
 
@@ -239,4 +224,75 @@ export async function registerCustomFont(
   } catch {
     return { success: false, error: "Could not load this font file." };
   }
+}
+
+export interface CustomFontReader {
+  /** Bytes of an uploaded/local font by exact family, or null when it has none. */
+  read: (family: string) => Promise<ArrayBuffer | null>;
+  /** True for any registered user font, including read-only package fonts. */
+  isUserFont: (family: string) => boolean;
+}
+
+/** Loads the font store once and serves every family from that snapshot. */
+export async function createCustomFontReader(): Promise<CustomFontReader> {
+  const records = await loadStoredFonts();
+  const byFamily = new Map(records.map((record) => [record.family, record.data]));
+  return {
+    read: async (family) => byFamily.get(family) ?? readOnlyFonts.get(family) ?? null,
+    isUserFont: (family) => customFonts.includes(family) || readOnlyFonts.has(family),
+  };
+}
+
+/** Bytes of an uploaded/local font by exact family, or null when it is not a user font. */
+export async function readCustomFontData(family: string): Promise<ArrayBuffer | null> {
+  return (await createCustomFontReader()).read(family);
+}
+
+export function isCustomFontRegistered(family: string): boolean {
+  return customFonts.includes(family) || readOnlyFonts.has(family);
+}
+
+function sameBytes(a: ArrayBuffer, b: ArrayBuffer): boolean {
+  if (a.byteLength !== b.byteLength) return false;
+  const x = new Uint8Array(a);
+  const y = new Uint8Array(b);
+  for (let i = 0; i < x.length; i++) if (x[i] !== y[i]) return false;
+  return true;
+}
+
+/** Is this family already registered, and is it the same font file? */
+export async function compareRegisteredFont(family: string, data: ArrayBuffer): Promise<"absent" | "same" | "different"> {
+  if (!isCustomFontRegistered(family)) return "absent";
+  const existing = readOnlyFonts.get(family) ?? (await readCustomFontData(family));
+  // Registered but no stored bytes to compare (persistence failed): cannot prove it is the same font.
+  return existing && sameBytes(existing, data) ? "same" : "different";
+}
+
+/**
+ * Register a font carried by a project package under its exact family name
+ * (no renaming, unlike user uploads). Editable fonts become custom fonts that
+ * persist across sessions. Read-only fonts (license: preview & print) are
+ * registered with the browser for rendering only: not listed in the picker and
+ * not persisted, so they are only available while the package is in use.
+ */
+export async function registerEmbeddedFont(
+  family: string,
+  data: ArrayBuffer,
+  options: { readOnly?: boolean } = {},
+): Promise<void> {
+  if (typeof FontFace === "undefined" || typeof document === "undefined") {
+    throw new Error("Fonts cannot be registered in this environment.");
+  }
+  const face = new FontFace(family, data);
+  await face.load();
+  document.fonts.add(face);
+  if (options.readOnly) {
+    readOnlyFonts.set(family, data);
+    return;
+  }
+  if (!customFonts.includes(family)) {
+    customFonts.push(family);
+    notifyCustomFontChange();
+  }
+  await persistFont(family, data).catch(() => {});
 }

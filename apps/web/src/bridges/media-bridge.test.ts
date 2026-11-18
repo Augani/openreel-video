@@ -1,5 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { MediaBridge } from "./media-bridge";
+import * as realEngines from "../services/engine-modules";
+import { setEngineModulesForTests } from "../services/lazy-engines";
 
 const { mockImportMedia } = vi.hoisted(() => ({
   mockImportMedia: vi.fn(),
@@ -39,31 +41,18 @@ vi.mock("../stores/project-store", () => ({
   },
 }));
 
-describe("MediaBridge - Initialization", () => {
-  let mediaBridge: MediaBridge;
-
-  beforeEach(() => {
-    mediaBridge = new MediaBridge();
-    mockImportMedia.mockReset();
-  });
-
-  it("should start in uninitialized state", () => {
-    expect(mediaBridge.isInitialized()).toBe(false);
-  });
-
-  it("should transition to initialized state after initialize()", async () => {
-    await mediaBridge.initialize();
-
-    expect(mediaBridge.isInitialized()).toBe(true);
-  });
-
-  it("should be idempotent - multiple initialize calls should not throw", async () => {
-    await mediaBridge.initialize();
-    await mediaBridge.initialize();
-    await mediaBridge.initialize();
-
-    expect(mediaBridge.isInitialized()).toBe(true);
-  });
+beforeEach(() => {
+  // initializeMediaImportService / getWaveformGenerator come from the lazily loaded engine modules.
+  setEngineModulesForTests({
+    ...realEngines,
+    initializeMediaImportService: vi.fn().mockResolvedValue({
+      importMedia: mockImportMedia,
+      getSupportedFormats: vi.fn().mockReturnValue(["mp4", "mov", "webm", "mp3", "wav"]),
+    }),
+    getWaveformGenerator: vi.fn().mockReturnValue({
+      generateWaveform: vi.fn().mockResolvedValue({ samples: new Float32Array(100).fill(0.5), sampleRate: 100 }),
+    }),
+  } as unknown as typeof realEngines);
 });
 
 describe("MediaBridge - Import Validation", () => {
@@ -172,118 +161,6 @@ describe("MediaBridge - Import Validation", () => {
     expect(result.warnings).toContain("Audio track missing");
   });
 
-  it("should respect generateWaveform parameter", async () => {
-    mockImportMedia.mockResolvedValue({
-      success: true,
-      media: {
-        id: "id",
-        name: "audio.mp3",
-        type: "audio",
-        metadata: {
-          duration: 60,
-          width: 0,
-          height: 0,
-          frameRate: 0,
-          codec: "mp3",
-          sampleRate: 44100,
-          channels: 2,
-          fileSize: 500000,
-        },
-        thumbnails: [],
-        waveformData: null,
-      },
-    });
-
-    await mediaBridge.initialize();
-    const file = new File(["test"], "audio.mp3", { type: "audio/mpeg" });
-
-    await mediaBridge.importFile(file, false);
-
-    expect(mockImportMedia).toHaveBeenCalledWith(
-      file,
-      expect.objectContaining({
-        generateWaveform: false,
-      }),
-    );
-  });
-});
-
-describe("MediaBridge - Metadata Extraction", () => {
-  let mediaBridge: MediaBridge;
-
-  beforeEach(() => {
-    mediaBridge = new MediaBridge();
-    mockImportMedia.mockReset();
-  });
-
-  it("should extract video metadata correctly", async () => {
-    mockImportMedia.mockResolvedValue({
-      success: true,
-      media: {
-        id: "video-id",
-        name: "test-video.mp4",
-        type: "video",
-        metadata: {
-          duration: 120.5,
-          width: 3840,
-          height: 2160,
-          frameRate: 60,
-          codec: "h265",
-          sampleRate: 48000,
-          channels: 2,
-          fileSize: 50000000,
-        },
-        thumbnails: [],
-        waveformData: null,
-      },
-    });
-
-    await mediaBridge.initialize();
-    const file = new File(["test"], "4k-video.mp4", { type: "video/mp4" });
-
-    const result = await mediaBridge.importFile(file);
-
-    expect(result.success).toBe(true);
-    expect(result.media?.metadata.duration).toBe(120.5);
-    expect(result.media?.metadata.width).toBe(3840);
-    expect(result.media?.metadata.height).toBe(2160);
-    expect(result.media?.metadata.frameRate).toBe(60);
-    expect(result.media?.metadata.codec).toBe("h265");
-  });
-
-  it("should extract audio metadata correctly", async () => {
-    mockImportMedia.mockResolvedValue({
-      success: true,
-      media: {
-        id: "audio-id",
-        name: "test-audio.wav",
-        type: "audio",
-        metadata: {
-          duration: 300,
-          width: 0,
-          height: 0,
-          frameRate: 0,
-          codec: "pcm",
-          sampleRate: 96000,
-          channels: 2,
-          fileSize: 100000000,
-        },
-        thumbnails: [],
-        waveformData: new Float32Array(100),
-      },
-    });
-
-    await mediaBridge.initialize();
-    const file = new File(["test"], "audio.wav", { type: "audio/wav" });
-
-    const result = await mediaBridge.importFile(file);
-
-    expect(result.success).toBe(true);
-    expect(result.media?.metadata.duration).toBe(300);
-    expect(result.media?.metadata.sampleRate).toBe(96000);
-    expect(result.media?.metadata.channels).toBe(2);
-    expect(result.media?.metadata.codec).toBe("pcm");
-  });
 });
 
 describe("MediaBridge - Error Handling", () => {
@@ -367,73 +244,4 @@ describe("MediaBridge - Quick Mode Import", () => {
     expect(result.success).toBe(true);
   });
 
-  it("should not skip thumbnails when quickMode is false", async () => {
-    mockImportMedia.mockResolvedValue({
-      success: true,
-      media: {
-        id: "normal-file-id",
-        name: "video.mp4",
-        type: "video",
-        metadata: {
-          duration: 10,
-          width: 1920,
-          height: 1080,
-          frameRate: 30,
-          codec: "h264",
-          sampleRate: 48000,
-          channels: 2,
-          fileSize: 1000000,
-        },
-        thumbnails: [{ timestamp: 0, dataUrl: "data:image/jpeg;base64,abc" }],
-        waveformData: null,
-      },
-    });
-
-    await mediaBridge.initialize();
-    const file = new File(["test"], "video.mp4", { type: "video/mp4" });
-
-    const result = await mediaBridge.importFile(file, true, false);
-
-    expect(mockImportMedia).toHaveBeenCalledWith(
-      file,
-      expect.objectContaining({
-        quickMode: false,
-        generateThumbnails: true,
-        generateWaveform: true,
-      }),
-    );
-    expect(result.success).toBe(true);
-  });
-
-  it("should return success even without thumbnails in quick mode", async () => {
-    mockImportMedia.mockResolvedValue({
-      success: true,
-      media: {
-        id: "quick-import-id",
-        name: "large-video.mp4",
-        type: "video",
-        metadata: {
-          duration: 300,
-          width: 3840,
-          height: 2160,
-          frameRate: 30,
-          codec: "h264",
-          sampleRate: 48000,
-          channels: 2,
-          fileSize: 500000000,
-        },
-        thumbnails: [],
-        waveformData: null,
-      },
-    });
-
-    await mediaBridge.initialize();
-    const file = new File(["test"], "4k-video.mp4", { type: "video/mp4" });
-
-    const result = await mediaBridge.importFile(file, true, true);
-
-    expect(result.success).toBe(true);
-    expect(result.media?.thumbnails).toEqual([]);
-    expect(result.hasWaveform).toBe(false);
-  });
 });

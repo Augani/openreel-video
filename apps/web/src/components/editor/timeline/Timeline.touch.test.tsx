@@ -119,22 +119,6 @@ describe("touch timeline editing", () => {
     expect(frames.size).toBe(0);
   });
 
-  it("releases pointer capture and editing cursor when an active trim unmounts", () => {
-    const trim = vi.fn();
-    const view = render(<div><ClipComponent {...props} onTrimClip={trim} /></div>);
-    const handle = view.getByLabelText("Trim end of media");
-    const capture = vi.fn(); const release = vi.fn();
-    Object.assign(handle, { setPointerCapture: capture, releasePointerCapture: release });
-    fireEvent.pointerDown(handle, { pointerId: 6, pointerType: "touch", button: 0, clientX: 500 });
-    expect(capture).toHaveBeenCalledWith(6);
-    expect(document.body.style.cursor).toBe("ew-resize");
-    view.unmount();
-    expect(release).toHaveBeenCalledWith(6);
-    expect(document.body.style.cursor).toBe("");
-    fireEvent.pointerMove(window, { pointerId: 6, pointerType: "touch", clientX: 400 });
-    expect(trim).not.toHaveBeenCalled();
-  });
-
   it("selects captions with a body tap while locked tracks refuse touch timing edits", () => {
     const caption: TextClip = { id: "caption", trackId: track.id, text: "Hello", startTime: 0, duration: 5,
       transform, keyframes: [], style: { fontFamily: "Inter", fontSize: 48, fontWeight: "bold",

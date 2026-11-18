@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { MediaItem, Project } from "@openreel/core";
-import { PreviewProxyCache } from "./preview-proxy-cache";
+import { PreviewProxyCache, computeProxyCacheBytes, computeProxyConcurrency } from "./preview-proxy-cache";
 
 const deferred = <T,>() => {
   let resolve!: (value: T) => void;
@@ -133,3 +133,62 @@ describe("session preview proxies", () => {
     expect(cache.store.getState().entries).toEqual({});
   });
 });
+
+describe("proxy cache sizing and scheduling", () => {
+  it("scales the cap with RAM on desktop only and clamps it", () => {
+    const GB = 1024 ** 3;
+    expect(computeProxyCacheBytes(32 * GB, false)).toBe(256 * 1024 * 1024);
+    expect(computeProxyCacheBytes(16 * GB, true)).toBe(Math.floor(0.8 * GB));
+    expect(computeProxyCacheBytes(null, true)).toBe(256 * 1024 * 1024);
+  });
+
+  it("scales concurrency from cores, 1 to 3, and stays serial on web", () => {
+    expect(computeProxyConcurrency(16, false)).toBe(1);
+    expect(computeProxyConcurrency(8, true)).toBe(2);
+  });
+
+  it("runs jobs in parallel up to the limit and holds the queue while paused", async () => {
+    const items = [media("a"), media("b"), media("c")];
+    let paused = true;
+    let inFlight = 0;
+    let peak = 0;
+    const cache = new PreviewProxyCache({
+      loadOriginal: async (_p, item) => item.blob!,
+      generate: async () => { inFlight++; peak = Math.max(peak, inFlight); await new Promise((r) => setTimeout(r, 10)); inFlight--; return new Blob(["p"]); },
+      getConcurrency: () => 2,
+      isPaused: () => paused,
+    });
+    cache.syncProject(project(items));
+    for (const item of items) cache.request(item, "medium");
+    await new Promise((r) => setTimeout(r, 30));
+    expect(items.every((item) => cache.store.getState().entries[item.id].status === "queued")).toBe(true);
+    paused = false;
+    cache.resume();
+    for (const item of items) await ready(cache, item.id);
+    expect(peak).toBe(2);
+  });
+});
+
+describe("Toggle Proxies and persisted proxies", () => {
+  it("the global switch changes the decoded source, hydrated entries survive eviction and decodes are logged", async () => {
+    const item = media();
+    const p = project([item]);
+    const proxy = new Blob(["stored-proxy"]);
+    const cache = new PreviewProxyCache({ loadOriginal: async () => item.blob!, generate: async () => new Blob(["x"]) });
+    cache.syncProject(p);
+    cache.hydrate(item, proxy, { width: 960, height: 540 });
+    expect(cache.resolve(p.id, item).blob).toBe(proxy);
+    const revision = cache.store.getState().revision;
+    cache.setProxiesOn(false);
+    expect(cache.store.getState().revision).toBe(revision + 1);
+    expect(cache.resolve(p.id, item)).toBe(item);
+    cache.noteDecode(item.id, item.blob);
+    expect(cache.decodes[item.id]).toMatchObject({ source: "original", originalCount: 1, proxyCount: 0 });
+    cache.setProxiesOn(true);
+    cache.noteDecode(item.id, proxy);
+    expect(cache.decodes[item.id]).toMatchObject({ source: "proxy", proxyCount: 1 });
+    expect(cache.resolve(p.id, item, "export")).toBe(item);
+    expect(cache.store.getState().entries[item.id]?.persisted).toBe(true);
+  });
+});
+

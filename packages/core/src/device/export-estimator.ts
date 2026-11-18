@@ -195,39 +195,6 @@ export function estimateExportTime(
   };
 }
 
-export function compareCodecEstimates(
-  profile: DeviceProfile,
-  settings: Omit<ExportEstimateSettings, "codec">
-): Array<{ codec: string; estimate: TimeEstimate; speedLabel: string }> {
-  const codecs: Array<"h264" | "h265" | "vp9" | "av1"> = [
-    "h264",
-    "h265",
-    "vp9",
-    "av1",
-  ];
-
-  const results = codecs
-    .filter((codec) => profile.encoding[codec]?.supported)
-    .map((codec) => {
-      const estimate = estimateExportTime(profile, { ...settings, codec });
-      let speedLabel = "";
-
-      if (estimate.seconds < 60) {
-        speedLabel = "Fast";
-      } else if (estimate.seconds < 300) {
-        speedLabel = "Good";
-      } else if (estimate.seconds < 900) {
-        speedLabel = "Slow";
-      } else {
-        speedLabel = "Very slow";
-      }
-
-      return { codec, estimate, speedLabel };
-    });
-
-  return results.sort((a, b) => a.estimate.seconds - b.estimate.seconds);
-}
-
 export async function runBenchmark(
   onProgress?: (progress: BenchmarkProgress) => void
 ): Promise<BenchmarkResult> {

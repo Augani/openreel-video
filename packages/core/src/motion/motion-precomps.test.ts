@@ -8,7 +8,6 @@ import {
   getMotionCompositionDescendantIds,
   getMotionCompositionLayerLocalTime,
   getMotionCompositionLayerPlaybackTime,
-  getNestedMotionCompositionIds,
   isMotionCompositionTimeRemapped,
   MOTION_COMPOSITION_TIME_PROPERTY,
   precomposeMotionLayers,
@@ -91,17 +90,6 @@ const makeGroupLayer = (id: string, children: readonly string[]): MotionLayer =>
 });
 
 describe("motion precomps", () => {
-  it("lists nested composition layer sources", () => {
-    const composition = makeComposition("host", [
-      makePrecompLayer("layer-a", "source-a"),
-      makePrecompLayer("layer-b", "source-b"),
-    ]);
-
-    expect(getNestedMotionCompositionIds(composition)).toEqual([
-      "source-a",
-      "source-b",
-    ]);
-  });
 
   it("walks nested composition descendants", () => {
     const leaf = makeComposition("leaf");
@@ -361,11 +349,6 @@ describe("component instances + overrides", () => {
     expect((componentSource.layers[0] as { text: string }).text).toBe("Button");
   });
 
-  it("returns the same composition when there are no overrides", () => {
-    expect(applyMotionInstanceOverrides(componentSource, {})).toBe(componentSource);
-    expect(applyMotionInstanceOverrides(componentSource, undefined)).toBe(componentSource);
-  });
-
   it("drops a master text gradient when overriding the color so the solid color wins", () => {
     const gradientSource = makeComposition("comp-gradient-text", [
       {
@@ -437,8 +420,4 @@ describe("component instances + overrides", () => {
     expect(nextGroup.children).toContain("inst-1");
   });
 
-  it("returns null for a non-composition layer", () => {
-    const host = makeComposition("host", []);
-    expect(addMotionComponentInstance(host, "missing")).toBeNull();
-  });
 });

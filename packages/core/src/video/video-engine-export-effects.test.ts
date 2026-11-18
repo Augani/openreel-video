@@ -244,6 +244,35 @@ describe("VideoEngine export frame effects", () => {
     vi.unstubAllGlobals();
   });
 
+  it.each([
+    [false, false], [false, true], [true, false], [true, true],
+  ])("renders local temperature keyframes in exportMode=%s with base effect=%s", async (exportMode, hasBase) => {
+    const source = makeBitmap("source");
+    const final = makeBitmap("final");
+    mocks.effectsApply.mockImplementation(async (image: ImageBitmap) => ({ image, processingTime: 0, gpuAccelerated: false }));
+    vi.stubGlobal("createImageBitmap", vi.fn().mockResolvedValue(final));
+    const clip: Clip = {
+      ...makeClip(hasBase ? [{ id: "temperature", type: "temperature", enabled: true, params: { value: 50 } }] : [], {}),
+      startTime: 2,
+      keyframes: [
+      { id: "t0", time: 0, property: "effect.temperature", value: -6, easing: "linear" },
+      { id: "t4", time: 4, property: "effect.temperature", value: 14, easing: "linear" },
+      ],
+    };
+    const project = makeProject(clip);
+    const { VideoEngine } = await import("./video-engine");
+    const engine = new VideoEngine();
+    Object.assign(engine as unknown as Record<string, unknown>, { initialized: true, mediabunny: {} });
+    engine.exportMode = exportMode;
+    vi.spyOn(engine as unknown as { decodeFrameWithMediaBunny: () => Promise<ImageBitmap> }, "decodeFrameWithMediaBunny").mockResolvedValue(source);
+    await engine.renderFrame(project, 4, 640, 360);
+    expect(mocks.effectsApply).toHaveBeenCalledWith(source, [expect.objectContaining({
+      id: hasBase ? "temperature" : "kf-synth-clip-1-temperature", type: "temperature", params: { value: 4 },
+    })]);
+    expect(clip.effects).toEqual(hasBase ? [{ id: "temperature", type: "temperature", enabled: true, params: { value: 50 } }] : []);
+    engine.dispose();
+  });
+
   it("exports active clip effects and every color-grading stage", async () => {
     const sourceBitmap = makeBitmap("source");
     const effectsBitmap = makeBitmap("effects");
@@ -507,11 +536,17 @@ describe("VideoEngine export frame effects", () => {
         .mockResolvedValueOnce(finalBitmap),
     );
 
+    const base = makeProject(makeClip([], {} as ClipColorGrading));
+    // The layer sits on an empty track above the footage track, so the footage is below it.
     const project: Project = {
-      ...makeProject(makeClip([], {} as ClipColorGrading)),
+      ...base,
+      timeline: {
+        ...base.timeline,
+        tracks: [{ ...base.timeline.tracks[0], id: "track-0", clips: [] }, ...base.timeline.tracks],
+      },
       adjustmentLayers: [{
         id: "adjustment-1",
-        trackId: "track-1",
+        trackId: "track-0",
         name: "Section grade",
         startTime: 0,
         duration: 4,
@@ -543,5 +578,148 @@ describe("VideoEngine export frame effects", () => {
     expect(ctx.globalCompositeOperation).toBe("difference");
     expect(compositeSnapshot.close).toHaveBeenCalledTimes(1);
     expect(adjustedBitmap.close).toHaveBeenCalledTimes(1);
+  });
+
+  describe("adjustment-layer stacking", () => {
+    const adjustmentEffect: Effect = {
+      id: "adjustment-contrast",
+      type: "contrast",
+      enabled: true,
+      params: { value: 1.35 },
+    };
+
+    // Ordered log of the observable draw/effect events of one frame.
+    let log: string[] = [];
+
+    afterEach(() => {
+      ctx.clearRect.mockReset();
+      ctx.drawImage.mockReset();
+    });
+
+    const renderWithLayer = async (
+      layerTrackId: string,
+      affectedTracks: string[] | "all",
+      textTrackIds: string[] = [],
+    ): Promise<void> => {
+      log = [];
+      const adjustedBitmap = makeBitmap("adjustment-result");
+      mocks.effectsApply.mockImplementation(async () => {
+        log.push("effects");
+        return { image: adjustedBitmap, processingTime: 1, gpuAccelerated: false };
+      });
+      ctx.clearRect.mockImplementation(() => {
+        log.push("clearRect");
+      });
+      ctx.drawImage.mockImplementation((image: { id?: string }) => {
+        log.push(`drawImage:${image.id ?? "?"}:${ctx.globalCompositeOperation}`);
+      });
+      vi.stubGlobal(
+        "createImageBitmap",
+        vi.fn().mockImplementation(async () => {
+          log.push("snapshot");
+          return makeBitmap("snapshot");
+        }),
+      );
+      const base = makeProject(makeClip([], {} as ClipColorGrading));
+      // track-0 (front, empty) / track-1 (footage) / track-2 (back, empty)
+      const project: Project = {
+        ...base,
+        timeline: {
+          ...base.timeline,
+          tracks: [
+            { ...base.timeline.tracks[0], id: "track-0", clips: [] },
+            ...base.timeline.tracks,
+            { ...base.timeline.tracks[0], id: "track-2", clips: [] },
+          ],
+        },
+        adjustmentLayers: [{
+          id: "adjustment-1",
+          trackId: layerTrackId,
+          name: "Grade",
+          startTime: 0,
+          duration: 4,
+          effects: [adjustmentEffect],
+          opacity: 1,
+          blendMode: "normal",
+          enabled: true,
+          affectedTracks,
+          transform,
+        }],
+      };
+      const { VideoEngine } = await import("./video-engine");
+      const { titleEngine } = await import("../text/title-engine");
+      vi.spyOn(titleEngine, "getAllTextClips").mockReturnValue(
+        textTrackIds.map((trackId) => ({
+          id: `text-${trackId}`,
+          trackId,
+          startTime: 0,
+          duration: 4,
+        })) as unknown as ReturnType<typeof titleEngine.getAllTextClips>,
+      );
+      const engine = new VideoEngine();
+      Object.assign(engine as unknown as Record<string, unknown>, { initialized: true, mediabunny: {} });
+      vi.spyOn(
+        engine as unknown as { decodeFrameWithMediaBunny: () => Promise<ImageBitmap> },
+        "decodeFrameWithMediaBunny",
+      ).mockImplementation(async () => {
+        log.push("footage");
+        return makeBitmap("adjustment-clip");
+      });
+      vi.spyOn(
+        engine as unknown as { renderTextClipWithSubjectMask: () => Promise<void> },
+        "renderTextClipWithSubjectMask",
+      ).mockImplementation(async function (this: unknown, ...args: unknown[]) {
+        log.push(`text:${(args[1] as { trackId: string }).trackId}`);
+      });
+      await engine.renderFrame(project, 1, 640, 360);
+    };
+
+    it("adjusts only what is painted before the layer's own track (footage on that track is untouched)", async () => {
+      await renderWithLayer("track-1", "all");
+      expect(log.filter((e) => e === "effects")).toHaveLength(1);
+      expect(log.indexOf("effects")).toBeLessThan(log.indexOf("footage"));
+    });
+
+    it("adjusts footage and text on tracks below the layer, but not text above it", async () => {
+      await renderWithLayer("track-0", "all", ["track-0", "track-2"]);
+      const effects = log.indexOf("effects");
+      expect(log.filter((e) => e === "effects")).toHaveLength(1);
+      expect(log.indexOf("footage")).toBeLessThan(effects);
+      // Title below the layer is adjusted; the title on the layer's own track paints afterwards, untouched.
+      expect(log.indexOf("text:track-2")).toBeLessThan(effects);
+      expect(log.indexOf("text:track-0")).toBeGreaterThan(effects);
+      // Effects read a snapshot taken after the lower tracks were drawn.
+      const snapshot = log.lastIndexOf("snapshot", effects);
+      expect(snapshot).toBeGreaterThan(log.indexOf("footage"));
+      expect(snapshot).toBeGreaterThan(log.indexOf("text:track-2"));
+    });
+
+    it("honors affectedTracks: restricted away from the footage track means untouched", async () => {
+      await renderWithLayer("track-0", ["track-2"]);
+      expect(mocks.effectsApply).not.toHaveBeenCalled();
+    });
+
+    it("ignores affectedTracks entries that sit above the layer", async () => {
+      await renderWithLayer("track-1", ["track-0"], ["track-0"]);
+      expect(mocks.effectsApply).not.toHaveBeenCalled();
+    });
+
+    it("honors affectedTracks: isolates the listed track and leaves content above it untouched", async () => {
+      await renderWithLayer("track-0", ["track-1"], ["track-0"]);
+      expect(log.filter((e) => e === "effects")).toHaveLength(1);
+      const effects = log.indexOf("effects");
+      const snapshot = log.indexOf("snapshot");
+      const clear = log.indexOf("clearRect", snapshot);
+      // Backdrop snapshot, clear, then the track alone is painted...
+      expect(snapshot).toBeGreaterThanOrEqual(0);
+      expect(clear).toBeGreaterThan(snapshot);
+      expect(log.indexOf("footage")).toBeGreaterThan(clear);
+      // ...the effects run on that isolated track, and only then is the backdrop restored beneath it.
+      expect(effects).toBeGreaterThan(log.indexOf("footage"));
+      const restore = log.indexOf("drawImage:snapshot:destination-over");
+      expect(restore).toBeGreaterThan(effects);
+      // The title on the layer's own (higher) track paints after the whole adjusted stack is restored.
+      expect(log.indexOf("text:track-0")).toBeGreaterThan(restore);
+    });
   });
 });

@@ -1,4 +1,4 @@
-import type { ShapeStyle, ShapeType } from "../graphics/types";
+import type { ShapeClip, ShapeStyle, ShapeType } from "../graphics/types";
 import type { TextAnimation, TextStyle } from "../text/types";
 import type { LayerEffectType } from "../types/effects";
 import type { Clip, EasingType, Transform } from "../types/timeline";
@@ -64,7 +64,7 @@ export interface EditingTemplateKeyframe {
   readonly easing?: EasingType;
 }
 
-export interface EditingTemplateEffect {
+interface EditingTemplateEffect {
   readonly id?: string;
   readonly type: LayerEffectType | string;
   readonly enabled?: boolean;
@@ -72,12 +72,12 @@ export interface EditingTemplateEffect {
   readonly keyframes?: readonly EditingTemplateKeyframe[];
 }
 
-export interface EditingTemplateIntroTiming {
+interface EditingTemplateIntroTiming {
   readonly kind: "intro";
   readonly duration: number;
 }
 
-export interface EditingTemplateOutroTiming {
+interface EditingTemplateOutroTiming {
   readonly kind: "outro";
   readonly duration: number;
 }
@@ -89,7 +89,7 @@ export interface EditingTemplateRangeTiming {
   readonly unit?: "seconds" | "fraction";
 }
 
-export type EditingTemplateTiming =
+type EditingTemplateTiming =
   | "full"
   | EditingTemplateIntroTiming
   | EditingTemplateOutroTiming
@@ -108,7 +108,7 @@ export interface EditingTemplateTransform {
   readonly opacity?: EditingTemplateValue;
 }
 
-export interface EditingTemplateTextAnimation {
+interface EditingTemplateTextAnimation {
   readonly preset: TextAnimation["preset"];
   readonly inDuration: number;
   readonly outDuration: number;
@@ -129,13 +129,14 @@ export interface EditingTemplateEmphasisAnimation {
   readonly animationDuration?: EditingTemplateValue;
 }
 
-export interface EditingTemplateOverlayBase {
+interface EditingTemplateOverlayBase {
   readonly id?: string;
   readonly trackType: "text" | "graphics";
   readonly timing: EditingTemplateTiming;
   readonly transform?: EditingTemplateTransform;
   readonly keyframes?: readonly EditingTemplateKeyframe[];
   readonly blendMode?: BlendMode;
+  /** Authored 0..1 (1 = opaque); the resolver emits the project's 0..100 blendOpacity scale. */
   readonly blendOpacity?: EditingTemplateValue;
   readonly emphasisAnimation?: EditingTemplateEmphasisAnimation;
 }
@@ -158,6 +159,10 @@ export interface EditingTemplateShapeOverlay extends EditingTemplateOverlayBase 
     readonly width: EditingTemplateValue;
     readonly height: EditingTemplateValue;
     readonly style?: Readonly<Record<string, EditingTemplateValue>>;
+    /** Path-shape geometry; carried through unchanged (not templated). */
+    readonly pathData?: string;
+    readonly points?: ShapeClip["points"];
+    readonly closed?: boolean;
   };
 }
 
@@ -276,6 +281,9 @@ export interface ResolvedEditingTemplateShapeOverlay {
     readonly width: number;
     readonly height: number;
     readonly style: Partial<ShapeStyle>;
+    readonly pathData?: string;
+    readonly points?: ShapeClip["points"];
+    readonly closed?: boolean;
   };
 }
 

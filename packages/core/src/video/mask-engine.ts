@@ -13,9 +13,9 @@ export interface BezierPath {
   closed: boolean;
 }
 
-export type MaskShapeType = "rectangle" | "ellipse" | "polygon" | "bezier";
+type MaskShapeType = "rectangle" | "ellipse" | "polygon" | "bezier";
 
-export interface RectangleMaskShape {
+interface RectangleMaskShape {
   type: "rectangle";
   x: number;
   y: number;
@@ -24,7 +24,7 @@ export interface RectangleMaskShape {
   cornerRadius?: number;
 }
 
-export interface EllipseMaskShape {
+interface EllipseMaskShape {
   type: "ellipse";
   cx: number;
   cy: number;
@@ -32,12 +32,12 @@ export interface EllipseMaskShape {
   ry: number;
 }
 
-export interface PolygonMaskShape {
+interface PolygonMaskShape {
   type: "polygon";
   points: MaskPoint[];
 }
 
-export type MaskShape =
+type MaskShape =
   | RectangleMaskShape
   | EllipseMaskShape
   | PolygonMaskShape;
@@ -47,6 +47,37 @@ export interface MaskKeyframe {
   time: number;
   path: BezierPath;
   easing: "linear" | "ease-in" | "ease-out" | "ease-in-out";
+}
+
+/**
+ * How a mask combines with the masks listed before it on the same clip
+ * (After Effects / Premiere mask modes). The first mask ignores its mode.
+ * Missing means "intersect", the historical sequential behaviour.
+ */
+export type MaskCombineMode = "add" | "subtract" | "intersect" | "difference";
+
+export const MASK_COMBINE_MODES: readonly MaskCombineMode[] = [
+  "add",
+  "subtract",
+  "intersect",
+  "difference",
+];
+
+/** Canvas composite operation that merges a mask (source) into the accumulated matte (destination). */
+export function maskCombineCompositeOp(
+  mode: MaskCombineMode | undefined,
+): GlobalCompositeOperation {
+  switch (mode) {
+    case "add":
+      return "source-over";
+    case "subtract":
+      return "destination-out";
+    case "difference":
+      return "xor";
+    case "intersect":
+    default:
+      return "destination-in";
+  }
 }
 
 export interface Mask {
@@ -76,9 +107,11 @@ export interface Mask {
    * Default is "bounds" since it requires no GPU plumbing.
    */
   matteSource?: "alpha" | "luminance" | "bounds";
+  /** Combine mode against the previous masks on the clip. Default "intersect". */
+  combine?: MaskCombineMode;
 }
 
-export interface MaskDefinition {
+interface MaskDefinition {
   id: string;
   type: MaskShapeType;
   points: MaskPoint[];
@@ -89,13 +122,13 @@ export interface MaskDefinition {
   opacity: number;
 }
 
-export interface MaskResult {
+interface MaskResult {
   image: ImageBitmap;
   processingTime: number;
   gpuAccelerated: boolean;
 }
 
-export interface MaskEngineConfig {
+interface MaskEngineConfig {
   width: number;
   height: number;
   useGPU?: boolean;
@@ -162,46 +195,6 @@ export function shapeToPath(shape: MaskShape): BezierPath {
   }
 }
 
-export function createDefaultMask(
-  type: MaskShapeType,
-  id: string = generateId(),
-): MaskDefinition {
-  const basePoints: Record<MaskShapeType, MaskPoint[]> = {
-    rectangle: [
-      { x: 0.25, y: 0.25 },
-      { x: 0.75, y: 0.25 },
-      { x: 0.75, y: 0.75 },
-      { x: 0.25, y: 0.75 },
-    ],
-    ellipse: [
-      { x: 0.5, y: 0.5 }, // center
-      { x: 0.25, y: 0.25 }, // radius as width/height from center
-    ],
-    polygon: [
-      { x: 0.5, y: 0.2 },
-      { x: 0.8, y: 0.5 },
-      { x: 0.5, y: 0.8 },
-      { x: 0.2, y: 0.5 },
-    ],
-    bezier: [
-      { x: 0.25, y: 0.25 },
-      { x: 0.75, y: 0.25 },
-      { x: 0.75, y: 0.75 },
-      { x: 0.25, y: 0.75 },
-    ],
-  };
-
-  return {
-    id,
-    type,
-    points: basePoints[type],
-    feather: 0,
-    inverted: false,
-    expansion: 0,
-    opacity: 1,
-  };
-}
-
 export function createDefaultPath(): BezierPath {
   return {
     points: [
@@ -214,43 +207,7 @@ export function createDefaultPath(): BezierPath {
   };
 }
 
-/**
- * Derive a rectangular BezierPath that fits the bounding box of a
- * clip with the given normalized transform (position is the clip's
- * center in 0..1 space, scale is relative to a 1x1 frame).
- *
- * Used by the track-matte rendering path: the source clip's bounds
- * become the mask shape, so the mask animates as the source clip
- * moves / scales / has its keyframes interpolated.
- *
- * Width/Height are the source clip's natural aspect inside the canvas;
- * we approximate them with the scale factors. For a more accurate
- * track matte the caller can use the source clip's actual rendered
- * extent.
- */
-export function boundsPathFromTransform(transform: {
-  position: { x: number; y: number };
-  scale: { x: number; y: number };
-}): BezierPath {
-  // The clip occupies a normalized 0..1 box. A scale of 1,1 means it
-  // covers the full frame; smaller scales make the box smaller.
-  // Position is the box's center.
-  const halfW = 0.5 * Math.max(0.01, Math.abs(transform.scale.x));
-  const halfH = 0.5 * Math.max(0.01, Math.abs(transform.scale.y));
-  const cx = transform.position.x;
-  const cy = transform.position.y;
-  return {
-    points: [
-      { x: cx - halfW, y: cy - halfH },
-      { x: cx + halfW, y: cy - halfH },
-      { x: cx + halfW, y: cy + halfH },
-      { x: cx - halfW, y: cy + halfH },
-    ],
-    closed: true,
-  };
-}
-
-export function interpolatePaths(
+function interpolatePaths(
   pathA: BezierPath,
   pathB: BezierPath,
   t: number,
@@ -294,7 +251,7 @@ export function interpolatePaths(
   };
 }
 
-export function applyEasing(
+function applyEasing(
   t: number,
   easing: "linear" | "ease-in" | "ease-out" | "ease-in-out",
 ): number {
@@ -312,76 +269,34 @@ export function applyEasing(
   }
 }
 
-export function pointsToDrawnPath(
-  points: MaskPoint[],
-  smoothing: number = 0.3,
-  closed: boolean = true,
+/**
+ * The path a mask shows at `time` (timeline seconds): its static path without
+ * keyframes, otherwise the eased interpolation between the surrounding path
+ * keyframes (held before the first and after the last).
+ */
+export function maskPathAtTime(
+  mask: Pick<Mask, "path" | "keyframes">,
+  time: number,
 ): BezierPath {
-  if (points.length < 2) {
-    return { points: [], closed };
-  }
-
-  // Simplify points if there are too many (reduce noise from drawing)
-  const simplifiedPoints = simplifyPoints(points, 0.005);
-  const bezierPoints: BezierPoint[] = simplifiedPoints.map((point, i) => {
-    const prev =
-      simplifiedPoints[
-        (i - 1 + simplifiedPoints.length) % simplifiedPoints.length
-      ];
-    const next = simplifiedPoints[(i + 1) % simplifiedPoints.length];
-    const dx = next.x - prev.x;
-    const dy = next.y - prev.y;
-    const len = Math.sqrt(dx * dx + dy * dy);
-
-    if (len === 0) {
-      return { x: point.x, y: point.y };
-    }
-
-    // Normalize and scale by smoothing factor
-    const scale = smoothing * len * 0.5;
-    const tx = (dx / len) * scale;
-    const ty = (dy / len) * scale;
-
-    return {
-      x: point.x,
-      y: point.y,
-      handleIn: { x: point.x - tx, y: point.y - ty },
-      handleOut: { x: point.x + tx, y: point.y + ty },
-    };
-  });
-
-  return {
-    points: bezierPoints,
-    closed,
-  };
-}
-
-function simplifyPoints(points: MaskPoint[], tolerance: number): MaskPoint[] {
-  if (points.length <= 2) {
-    return points;
-  }
-
-  const result: MaskPoint[] = [points[0]];
-  let lastPoint = points[0];
-
-  for (let i = 1; i < points.length; i++) {
-    const point = points[i];
-    const dx = point.x - lastPoint.x;
-    const dy = point.y - lastPoint.y;
-    const dist = Math.sqrt(dx * dx + dy * dy);
-
-    if (dist >= tolerance) {
-      result.push(point);
-      lastPoint = point;
+  const keyframes = mask.keyframes;
+  if (keyframes.length === 0) return mask.path;
+  if (keyframes.length === 1) return keyframes[0].path;
+  let prevKeyframe: MaskKeyframe | null = null;
+  let nextKeyframe: MaskKeyframe | null = null;
+  for (const keyframe of keyframes) {
+    if (keyframe.time <= time) {
+      prevKeyframe = keyframe;
+    } else if (!nextKeyframe) {
+      nextKeyframe = keyframe;
+      break;
     }
   }
-
-  // Always include the last point
-  if (result[result.length - 1] !== points[points.length - 1]) {
-    result.push(points[points.length - 1]);
-  }
-
-  return result;
+  if (!prevKeyframe) return keyframes[0].path;
+  if (!nextKeyframe) return prevKeyframe.path;
+  const duration = nextKeyframe.time - prevKeyframe.time;
+  const elapsed = time - prevKeyframe.time;
+  const t = duration > 0 ? elapsed / duration : 0;
+  return interpolatePaths(prevKeyframe.path, nextKeyframe.path, applyEasing(t, prevKeyframe.easing));
 }
 
 export class MaskEngine {
@@ -645,35 +560,7 @@ export class MaskEngine {
   getMaskAtTime(maskId: string, time: number): BezierPath | null {
     const mask = this.masks.get(maskId);
     if (!mask) return null;
-    if (mask.keyframes.length === 0) {
-      return mask.path;
-    }
-    if (mask.keyframes.length === 1) {
-      return mask.keyframes[0].path;
-    }
-    let prevKeyframe: MaskKeyframe | null = null;
-    let nextKeyframe: MaskKeyframe | null = null;
-
-    for (const keyframe of mask.keyframes) {
-      if (keyframe.time <= time) {
-        prevKeyframe = keyframe;
-      } else if (!nextKeyframe) {
-        nextKeyframe = keyframe;
-        break;
-      }
-    }
-    if (!prevKeyframe) {
-      return mask.keyframes[0].path;
-    }
-    if (!nextKeyframe) {
-      return prevKeyframe.path;
-    }
-    const duration = nextKeyframe.time - prevKeyframe.time;
-    const elapsed = time - prevKeyframe.time;
-    const t = duration > 0 ? elapsed / duration : 0;
-    const easedT = applyEasing(t, prevKeyframe.easing);
-
-    return interpolatePaths(prevKeyframe.path, nextKeyframe.path, easedT);
+    return maskPathAtTime(mask, time);
   }
 
   deleteMask(maskId: string): void {
@@ -725,6 +612,49 @@ export class MaskEngine {
 
     const result = await createImageBitmap(this.canvas);
 
+    return {
+      image: result,
+      processingTime: performance.now() - startTime,
+      gpuAccelerated: false,
+    };
+  }
+
+  /**
+   * Applies several masks to one image, merging their mattes with each mask's
+   * combine mode. The single code path used for preview and export. With only
+   * "intersect" modes this equals applying the masks one after another.
+   */
+  async applyMasks(
+    image: ImageBitmap,
+    masks: readonly Mask[],
+    time?: number,
+  ): Promise<MaskResult> {
+    const startTime = performance.now();
+    this.resizeTo(image.width, image.height);
+    const matte = new OffscreenCanvas(this.width, this.height);
+    const matteCtx = matte.getContext("2d")!;
+    masks.forEach((mask, index) => {
+      const path =
+        time !== undefined
+          ? this.getMaskAtTime(mask.id, time) || mask.path
+          : mask.path;
+      this.maskCtx.clearRect(0, 0, this.width, this.height);
+      this.generateMaskFromPath(path, mask.inverted);
+      if (mask.feathering > 0) this.applyFeathering(mask.feathering);
+      if (mask.expansion !== 0) this.applyExpansion(mask.expansion);
+      matteCtx.globalCompositeOperation =
+        index === 0 ? "source-over" : maskCombineCompositeOp(mask.combine);
+      matteCtx.globalAlpha = mask.opacity;
+      matteCtx.drawImage(this.maskCanvas, 0, 0);
+      matteCtx.globalAlpha = 1;
+      matteCtx.globalCompositeOperation = "source-over";
+    });
+    this.ctx.clearRect(0, 0, this.width, this.height);
+    this.ctx.drawImage(image, 0, 0, this.width, this.height);
+    this.ctx.globalCompositeOperation = "destination-in";
+    this.ctx.drawImage(matte, 0, 0);
+    this.ctx.globalCompositeOperation = "source-over";
+    const result = await createImageBitmap(this.canvas);
     return {
       image: result,
       processingTime: performance.now() - startTime,

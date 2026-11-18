@@ -1,10 +1,10 @@
-export interface FrameData {
+interface FrameData {
   bitmap: ImageBitmap;
   timestamp: number;
   frameNumber: number;
 }
 
-export interface FrameRingBufferStats {
+interface FrameRingBufferStats {
   bufferSize: number;
   framesWritten: number;
   framesPresented: number;
@@ -13,7 +13,7 @@ export interface FrameRingBufferStats {
   averageLatency: number;
 }
 
-export class FrameRingBuffer {
+class FrameRingBuffer {
   private buffers: (FrameData | null)[];
   private writeIndex: number = 0;
   private presentIndex: number = 1;
@@ -297,30 +297,11 @@ export class CompositeFrameBuffer {
   }
 }
 
-let frameRingBufferInstance: FrameRingBuffer | null = null;
 let compositeBufferInstance: CompositeFrameBuffer | null = null;
-
-export function getFrameRingBuffer(): FrameRingBuffer {
-  if (!frameRingBufferInstance) {
-    frameRingBufferInstance = new FrameRingBuffer();
-  }
-  return frameRingBufferInstance;
-}
 
 export function getCompositeFrameBuffer(): CompositeFrameBuffer {
   if (!compositeBufferInstance) {
     compositeBufferInstance = new CompositeFrameBuffer();
   }
   return compositeBufferInstance;
-}
-
-export function disposeFrameBuffers(): void {
-  if (frameRingBufferInstance) {
-    frameRingBufferInstance.dispose();
-    frameRingBufferInstance = null;
-  }
-  if (compositeBufferInstance) {
-    compositeBufferInstance.dispose();
-    compositeBufferInstance = null;
-  }
 }

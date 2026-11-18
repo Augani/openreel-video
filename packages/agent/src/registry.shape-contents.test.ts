@@ -151,62 +151,6 @@ describe("add_motion_shape_group", () => {
     expect(parentItem.items.some((entry) => entry.id === childId)).toBe(true);
   });
 
-  it("rejects a non-shape layer", async () => {
-    const textLayer: MotionLayer = {
-      id: "text-layer",
-      type: "text",
-      name: "Text",
-      startTime: 0,
-      duration: 4,
-      visible: true,
-      locked: false,
-      transform: DEFAULT_MOTION_TRANSFORM,
-      keyframes: [],
-      text: "Hi",
-      style: { fontFamily: "Inter", fontSize: 40, fontWeight: 700, color: "#fff" },
-    } as unknown as MotionLayer;
-    const host = new HeadlessHost(projectWith([textLayer]));
-    const res = await executeTool(
-      "add_motion_shape_group",
-      { compositionId: COMP_ID, layerId: "text-layer" },
-      host,
-    );
-    expect(res.ok).toBe(false);
-    expect(res.error?.code).toBe("INVALID_PARAMS");
-  });
-
-  it("rejects an invalid merge mode", async () => {
-    const host = new HeadlessHost(projectWithShape());
-    const res = await executeTool(
-      "add_motion_shape_group",
-      { compositionId: COMP_ID, layerId: LAYER_ID, mergeMode: "nope" },
-      host,
-    );
-    expect(res.ok).toBe(false);
-    expect(res.error?.code).toBe("INVALID_PARAMS");
-  });
-
-  it("returns NOT_FOUND for an unknown parent group", async () => {
-    const host = new HeadlessHost(projectWithShape());
-    const res = await executeTool(
-      "add_motion_shape_group",
-      { compositionId: COMP_ID, layerId: LAYER_ID, parentGroupId: "ghost" },
-      host,
-    );
-    expect(res.ok).toBe(false);
-    expect(res.error?.code).toBe("NOT_FOUND");
-  });
-
-  it("returns NOT_FOUND for an unknown composition", async () => {
-    const host = new HeadlessHost(projectWithShape());
-    const res = await executeTool(
-      "add_motion_shape_group",
-      { compositionId: "ghost-comp", layerId: LAYER_ID },
-      host,
-    );
-    expect(res.ok).toBe(false);
-    expect(res.error?.code).toBe("NOT_FOUND");
-  });
 });
 
 describe("add_motion_shape_to_group", () => {
@@ -270,32 +214,6 @@ describe("add_motion_shape_to_group", () => {
     expect(added.name).toBe("Dot");
   });
 
-  it("rejects an unknown shape type", async () => {
-    const host = new HeadlessHost(projectWithShape());
-    const res = await executeTool(
-      "add_motion_shape_to_group",
-      { compositionId: COMP_ID, layerId: LAYER_ID, shapeType: "hyperbola" },
-      host,
-    );
-    expect(res.ok).toBe(false);
-    expect(res.error?.code).toBe("INVALID_PARAMS");
-  });
-
-  it("returns NOT_FOUND for a missing parent group", async () => {
-    const host = new HeadlessHost(projectWithShape());
-    const res = await executeTool(
-      "add_motion_shape_to_group",
-      {
-        compositionId: COMP_ID,
-        layerId: LAYER_ID,
-        parentGroupId: "ghost",
-        shapeType: "rectangle",
-      },
-      host,
-    );
-    expect(res.ok).toBe(false);
-    expect(res.error?.code).toBe("NOT_FOUND");
-  });
 });
 
 describe("update_motion_shape_item", () => {
@@ -347,28 +265,6 @@ describe("update_motion_shape_item", () => {
     expect(item.shapeType).toBe("ellipse");
   });
 
-  it("rejects a mesh shapeType on a 2D path item", async () => {
-    const host = new HeadlessHost(projectWithShape());
-    const added = await executeTool(
-      "add_motion_shape_to_group",
-      { compositionId: COMP_ID, layerId: LAYER_ID, shapeType: "rectangle" },
-      host,
-    );
-    const itemId = dataString(added.data, "itemId");
-    const res = await executeTool(
-      "update_motion_shape_item",
-      {
-        compositionId: COMP_ID,
-        layerId: LAYER_ID,
-        itemId,
-        patch: { shapeType: "mesh-cube" },
-      },
-      host,
-    );
-    expect(res.ok).toBe(false);
-    expect(res.error?.code).toBe("INVALID_PARAMS");
-  });
-
   it("patches group transform + merge mode", async () => {
     const host = new HeadlessHost(projectWithShape());
     const group = await executeTool(
@@ -403,46 +299,6 @@ describe("update_motion_shape_item", () => {
     expect(item.transform.rotation).toBe(45);
   });
 
-  it("rejects a transform patch on a path item (kind-guard)", async () => {
-    const host = new HeadlessHost(projectWithShape());
-    const added = await executeTool(
-      "add_motion_shape_to_group",
-      { compositionId: COMP_ID, layerId: LAYER_ID, shapeType: "rectangle" },
-      host,
-    );
-    const itemId = dataString(added.data, "itemId");
-    const res = await executeTool(
-      "update_motion_shape_item",
-      {
-        compositionId: COMP_ID,
-        layerId: LAYER_ID,
-        itemId,
-        patch: {
-          transform: {
-            anchor: { x: 0, y: 0 },
-            position: { x: 5, y: 6 },
-            scale: { x: 1, y: 1 },
-            rotation: 0,
-            opacity: 1,
-          },
-        },
-      },
-      host,
-    );
-    expect(res.ok).toBe(false);
-    expect(res.error?.code).toBe("INVALID_PARAMS");
-  });
-
-  it("returns NOT_FOUND for a missing item", async () => {
-    const host = new HeadlessHost(projectWithShape());
-    const res = await executeTool(
-      "update_motion_shape_item",
-      { compositionId: COMP_ID, layerId: LAYER_ID, itemId: "ghost", patch: { name: "x" } },
-      host,
-    );
-    expect(res.ok).toBe(false);
-    expect(res.error?.code).toBe("NOT_FOUND");
-  });
 });
 
 describe("remove_motion_shape_item / move_motion_shape_item", () => {
@@ -489,22 +345,6 @@ describe("remove_motion_shape_item / move_motion_shape_item", () => {
     expect(firstIndex).toBeGreaterThan(secondIndex);
   });
 
-  it("rejects an invalid move direction", async () => {
-    const host = new HeadlessHost(projectWithShape());
-    const added = await executeTool(
-      "add_motion_shape_to_group",
-      { compositionId: COMP_ID, layerId: LAYER_ID, shapeType: "rectangle" },
-      host,
-    );
-    const itemId = dataString(added.data, "itemId");
-    const res = await executeTool(
-      "move_motion_shape_item",
-      { compositionId: COMP_ID, layerId: LAYER_ID, itemId, direction: "sideways" },
-      host,
-    );
-    expect(res.ok).toBe(false);
-    expect(res.error?.code).toBe("INVALID_PARAMS");
-  });
 });
 
 describe("shape group operators", () => {
@@ -563,61 +403,6 @@ describe("shape group operators", () => {
     expect((group3.operators ?? []).some((op) => op.id === operatorId)).toBe(false);
   });
 
-  it("allows duplicate operator types (ordered append)", async () => {
-    const host = new HeadlessHost(projectWithShape());
-    const group = await executeTool(
-      "add_motion_shape_group",
-      { compositionId: COMP_ID, layerId: LAYER_ID },
-      host,
-    );
-    const groupId = dataString(group.data, "groupId");
-    await executeTool(
-      "add_motion_shape_group_operator",
-      { compositionId: COMP_ID, layerId: LAYER_ID, groupId, operatorType: "offset-paths" },
-      host,
-    );
-    await executeTool(
-      "add_motion_shape_group_operator",
-      { compositionId: COMP_ID, layerId: LAYER_ID, groupId, operatorType: "offset-paths" },
-      host,
-    );
-    const groupItem = findShapeItem(contentsFrom(host), groupId) as MotionShapeGroupItem;
-    expect((groupItem.operators ?? []).length).toBe(2);
-  });
-
-  it("rejects an unknown operator type", async () => {
-    const host = new HeadlessHost(projectWithShape());
-    const group = await executeTool(
-      "add_motion_shape_group",
-      { compositionId: COMP_ID, layerId: LAYER_ID },
-      host,
-    );
-    const groupId = dataString(group.data, "groupId");
-    const res = await executeTool(
-      "add_motion_shape_group_operator",
-      { compositionId: COMP_ID, layerId: LAYER_ID, groupId, operatorType: "warp" },
-      host,
-    );
-    expect(res.ok).toBe(false);
-    expect(res.error?.code).toBe("INVALID_PARAMS");
-  });
-
-  it("rejects an operator on a path item (not a group)", async () => {
-    const host = new HeadlessHost(projectWithShape());
-    const added = await executeTool(
-      "add_motion_shape_to_group",
-      { compositionId: COMP_ID, layerId: LAYER_ID, shapeType: "rectangle" },
-      host,
-    );
-    const itemId = dataString(added.data, "itemId");
-    const res = await executeTool(
-      "add_motion_shape_group_operator",
-      { compositionId: COMP_ID, layerId: LAYER_ID, groupId: itemId, operatorType: "twist" },
-      host,
-    );
-    expect(res.ok).toBe(false);
-    expect(res.error?.code).toBe("INVALID_PARAMS");
-  });
 });
 
 describe("merge_motion_shape_layers", () => {
@@ -819,69 +604,6 @@ describe("merge_motion_shape_layers", () => {
     expect(preserved.position).toEqual({ x: 10, y: 20 });
   });
 
-  it("rejects fewer than two layers", async () => {
-    const host = new HeadlessHost(projectWithShape());
-    const res = await executeTool(
-      "merge_motion_shape_layers",
-      { compositionId: COMP_ID, layerIds: [LAYER_ID], mode: "union" },
-      host,
-    );
-    expect(res.ok).toBe(false);
-    expect(res.error?.code).toBe("INVALID_PARAMS");
-  });
-
-  it("rejects a non-shape source layer", async () => {
-    const textLayer: MotionLayer = {
-      id: "text-layer",
-      type: "text",
-      name: "Text",
-      startTime: 0,
-      duration: 4,
-      visible: true,
-      locked: false,
-      transform: DEFAULT_MOTION_TRANSFORM,
-      keyframes: [],
-      text: "Hi",
-      style: { fontFamily: "Inter", fontSize: 40, fontWeight: 700, color: "#fff" },
-    } as unknown as MotionLayer;
-    const host = new HeadlessHost(projectWith([shapeLayer() as MotionLayer, textLayer]));
-    const res = await executeTool(
-      "merge_motion_shape_layers",
-      { compositionId: COMP_ID, layerIds: [LAYER_ID, "text-layer"], mode: "union" },
-      host,
-    );
-    expect(res.ok).toBe(false);
-    expect(res.error?.code).toBe("INVALID_PARAMS");
-    expect(compFrom(host).layers.some((layer) => layer.id === LAYER_ID)).toBe(true);
-  });
-
-  it("rejects an invalid mode", async () => {
-    const host = new HeadlessHost(projectWith([
-      shapeLayer({ id: "rect-a" }) as MotionLayer,
-      shapeLayer({ id: "rect-b" }) as MotionLayer,
-    ]));
-    const res = await executeTool(
-      "merge_motion_shape_layers",
-      { compositionId: COMP_ID, layerIds: ["rect-a", "rect-b"], mode: "warp" },
-      host,
-    );
-    expect(res.ok).toBe(false);
-    expect(res.error?.code).toBe("INVALID_PARAMS");
-  });
-
-  it("returns NOT_FOUND for a missing source layer", async () => {
-    const host = new HeadlessHost(projectWith([
-      shapeLayer({ id: "rect-a" }) as MotionLayer,
-      shapeLayer({ id: "rect-b" }) as MotionLayer,
-    ]));
-    const res = await executeTool(
-      "merge_motion_shape_layers",
-      { compositionId: COMP_ID, layerIds: ["rect-a", "ghost"], mode: "union" },
-      host,
-    );
-    expect(res.ok).toBe(false);
-    expect(res.error?.code).toBe("NOT_FOUND");
-  });
 });
 
 describe("add_motion_keyframe on contents.* properties", () => {

@@ -1,4 +1,5 @@
 import type { Project } from "@openreel/core/types/project";
+import { effectiveDeinterlace, effectiveFieldOrder, effectivePixelAspect, interpretedDisplaySize } from "@openreel/core/media/interpretation";
 
 /**
  * Compact, token-efficient, blob-free views of the project for the agent's read
@@ -20,6 +21,12 @@ export interface EditorStateView {
   readonly clipCount: number;
   readonly mediaCount: number;
   readonly overlayCount: number;
+  /** Present once the project has sequences. Every figure above describes the ACTIVE sequence. */
+  readonly sequences?: {
+    readonly count: number;
+    readonly activeSequenceId?: string;
+    readonly activeSequenceName?: string;
+  };
   readonly creation?: {
     readonly version: string;
     readonly assetCount: number;
@@ -29,21 +36,35 @@ export interface EditorStateView {
   };
 }
 
-export interface MediaView {
+interface MediaView {
   readonly id: string;
   readonly name: string;
   readonly type: string;
   readonly durationSec?: number;
   readonly width?: number;
   readonly height?: number;
+  /** Video only: how the footage is read (overrides merged over what the file reports). */
+  readonly interpretation?: {
+    readonly pixelAspectRatio: number;
+    readonly displayWidth: number;
+    readonly displayHeight: number;
+    readonly fieldOrder: string;
+    readonly deinterlace: string;
+    /** What the file itself reports, when the importer could read it. */
+    readonly detectedPixelAspectRatio?: number;
+    readonly detectedFieldOrder?: string;
+    readonly overridden: boolean;
+  };
 }
 
-export interface TrackView {
+interface TrackView {
   readonly index: number;
   readonly id: string;
   readonly type: string;
   readonly name: string;
   readonly locked: boolean;
+  /** Sync Lock (absent in saved projects means on). */
+  readonly syncLock: boolean;
   readonly hidden: boolean;
   readonly muted: boolean;
   readonly solo: boolean;
@@ -87,6 +108,7 @@ interface RawTrack {
   type: string;
   name: string;
   locked?: boolean;
+  syncLock?: boolean;
   hidden?: boolean;
   muted?: boolean;
   solo?: boolean;
@@ -125,6 +147,13 @@ export function serializeEditorState(project: Project): EditorStateView {
     clipCount: ts.reduce((sum, t) => sum + t.clips.length, 0),
     mediaCount: project.mediaLibrary.items.length,
     overlayCount: overlayCount(project),
+    sequences: project.sequences
+      ? {
+          count: project.sequences.length,
+          activeSequenceId: project.activeSequenceId,
+          activeSequenceName: project.sequences.find((s) => s.id === project.activeSequenceId)?.name,
+        }
+      : undefined,
     creation: creation
       ? {
           version: creation.version,
@@ -145,6 +174,20 @@ export function listMedia(project: Project): MediaView[] {
     durationSec: item.metadata?.duration,
     width: item.metadata?.width,
     height: item.metadata?.height,
+    ...(item.type === "video" && item.metadata
+      ? {
+          interpretation: {
+            pixelAspectRatio: effectivePixelAspect(item),
+            displayWidth: interpretedDisplaySize(item).width,
+            displayHeight: interpretedDisplaySize(item).height,
+            fieldOrder: effectiveFieldOrder(item),
+            deinterlace: effectiveDeinterlace(item),
+            ...(item.metadata.pixelAspectRatio !== undefined ? { detectedPixelAspectRatio: item.metadata.pixelAspectRatio } : {}),
+            ...(item.metadata.fieldOrder !== undefined ? { detectedFieldOrder: item.metadata.fieldOrder } : {}),
+            overridden: item.interpretation !== undefined,
+          },
+        }
+      : {}),
   }));
 }
 
@@ -155,6 +198,7 @@ export function listTracks(project: Project): TrackView[] {
     type: t.type,
     name: t.name,
     locked: t.locked ?? false,
+    syncLock: t.syncLock !== false,
     hidden: t.hidden ?? false,
     muted: t.muted ?? false,
     solo: t.solo ?? false,

@@ -10,8 +10,8 @@ export type MotionLayerAlignment =
   | "bottom";
 
 export type MotionLayerDistributionAxis = "horizontal" | "vertical";
-export type MotionLayerLayoutReference = "selection" | "composition";
-export type MotionLayerResizeHandle =
+type MotionLayerLayoutReference = "selection" | "composition";
+type MotionLayerResizeHandle =
   | "n"
   | "s"
   | "e"
@@ -33,22 +33,22 @@ export interface MotionLayerLayoutBounds {
   readonly height: number;
 }
 
-export interface MotionLayerAlignmentOptions {
+interface MotionLayerAlignmentOptions {
   readonly relativeTo?: MotionLayerLayoutReference;
   readonly includeLocked?: boolean;
 }
 
-export interface MotionLayerDistributionOptions {
+interface MotionLayerDistributionOptions {
   readonly includeLocked?: boolean;
 }
 
-export interface ResizeMotionLayerOptions {
+interface ResizeMotionLayerOptions {
   readonly minSize?: number;
   readonly preserveAspect?: boolean;
   readonly resizeFromCenter?: boolean;
 }
 
-export interface RotateMotionLayerOptions {
+interface RotateMotionLayerOptions {
   readonly snapDegrees?: number;
 }
 

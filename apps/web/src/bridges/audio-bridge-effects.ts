@@ -93,7 +93,7 @@ export interface NoiseProfileData {
 /**
  * Audio effect application result
  */
-export interface AudioEffectResult {
+interface AudioEffectResult {
   success: boolean;
   effectId?: string;
   error?: string;
@@ -109,37 +109,6 @@ export const DEFAULT_EQ_BANDS: EQBandConfig[] = [
   { type: "peaking", frequency: 4000, gain: 0, q: 1.4 },
   { type: "highshelf", frequency: 16000, gain: 0, q: 0.707 },
 ];
-
-/**
- * Default compressor settings
- */
-export const DEFAULT_COMPRESSOR: CompressorConfig = {
-  threshold: -20,
-  ratio: 4,
-  attack: 0.01,
-  release: 0.1,
-  knee: 6,
-};
-
-/**
- * Default reverb settings
- */
-export const DEFAULT_REVERB: ReverbConfig = {
-  roomSize: 0.5,
-  damping: 0.5,
-  wetLevel: 0.3,
-  dryLevel: 1,
-  preDelay: 0,
-};
-
-/**
- * Default delay settings
- */
-export const DEFAULT_DELAY: DelayConfig = {
-  time: 0.25,
-  feedback: 0.3,
-  wetLevel: 0.25,
-};
 
 /**
  * Default noise reduction settings
@@ -199,7 +168,7 @@ const isSerializedNoiseProfile = (
  * @param band - EQ band to validate
  * @returns Validated band with clamped values
  */
-export function validateEQBand(band: Partial<EQBandConfig>): EQBandConfig {
+function validateEQBand(band: Partial<EQBandConfig>): EQBandConfig {
   const validTypes: EQBand["type"][] = [
     "lowshelf",
     "highshelf",
@@ -228,7 +197,7 @@ export function validateEQBand(band: Partial<EQBandConfig>): EQBandConfig {
  * @param config - Compressor config to validate
  * @returns Validated config with clamped values
  */
-export function validateCompressor(
+function validateCompressor(
   config: Partial<CompressorConfig>,
 ): CompressorConfig {
   return {
@@ -248,7 +217,7 @@ export function validateCompressor(
  * @param config - Reverb config to validate
  * @returns Validated config with clamped values
  */
-export function validateReverb(config: Partial<ReverbConfig>): ReverbConfig {
+function validateReverb(config: Partial<ReverbConfig>): ReverbConfig {
   return {
     roomSize: Math.max(0, Math.min(1, config.roomSize ?? 0.5)),
     damping: Math.max(0, Math.min(1, config.damping ?? 0.5)),
@@ -266,7 +235,7 @@ export function validateReverb(config: Partial<ReverbConfig>): ReverbConfig {
  * @param config - Delay config to validate
  * @returns Validated config with clamped values
  */
-export function validateDelay(config: Partial<DelayConfig>): DelayConfig {
+function validateDelay(config: Partial<DelayConfig>): DelayConfig {
   return {
     time: Math.max(0, Math.min(2, config.time ?? 0.25)),
     feedback: Math.max(0, Math.min(0.95, config.feedback ?? 0.3)),
@@ -320,7 +289,7 @@ export function validateNoiseReduction(
  * @param bands - Array of EQ bands
  * @returns Effect object for EQ
  */
-export function createEQEffect(bands: EQBandConfig[]): Effect {
+function createEQEffect(bands: EQBandConfig[]): Effect {
   const validatedBands = bands.map(validateEQBand);
   return {
     id: `eq-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
@@ -338,7 +307,7 @@ export function createEQEffect(bands: EQBandConfig[]): Effect {
  * @param config - Compressor configuration
  * @returns Effect object for compressor
  */
-export function createCompressorEffect(config: CompressorConfig): Effect {
+function createCompressorEffect(config: CompressorConfig): Effect {
   const validated = validateCompressor(config);
   return {
     id: `compressor-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
@@ -356,7 +325,7 @@ export function createCompressorEffect(config: CompressorConfig): Effect {
  * @param config - Reverb configuration
  * @returns Effect object for reverb
  */
-export function createReverbEffect(config: ReverbConfig): Effect {
+function createReverbEffect(config: ReverbConfig): Effect {
   const validated = validateReverb(config);
   return {
     id: `reverb-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
@@ -374,7 +343,7 @@ export function createReverbEffect(config: ReverbConfig): Effect {
  * @param config - Delay configuration
  * @returns Effect object for delay
  */
-export function createDelayEffect(config: DelayConfig): Effect {
+function createDelayEffect(config: DelayConfig): Effect {
   const validated = validateDelay(config);
   return {
     id: `delay-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
@@ -413,7 +382,7 @@ export function createNoiseReductionEffect(
  * the AudioEffectsEngine.
  *
  */
-export class AudioBridgeEffects {
+class AudioBridgeEffects {
   private audioEffectsEngine: AudioEffectsEngine | null = null;
   private noiseProfiles: Map<string, NoiseProfileData> = new Map();
   private initialized = false;
@@ -929,14 +898,4 @@ export async function initializeAudioBridgeEffects(): Promise<AudioBridgeEffects
   const bridge = getAudioBridgeEffects();
   await bridge.initialize();
   return bridge;
-}
-
-/**
- * Dispose of the shared AudioBridgeEffects
- */
-export function disposeAudioBridgeEffects(): void {
-  if (audioBridgeEffectsInstance) {
-    audioBridgeEffectsInstance.dispose();
-    audioBridgeEffectsInstance = null;
-  }
 }

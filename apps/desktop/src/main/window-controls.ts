@@ -1,6 +1,6 @@
-export type WindowControlAction = "minimize" | "toggleMaximize" | "close";
+type WindowControlAction = "minimize" | "toggleMaximize" | "close";
 
-export interface ControllableWindow {
+interface ControllableWindow {
   minimize(): void;
   maximize(): void;
   unmaximize(): void;

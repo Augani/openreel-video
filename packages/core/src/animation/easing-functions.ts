@@ -50,21 +50,7 @@ export type EasingName =
   | "easeOutBounceSmall"
   | "easeInOutBounceSmall";
 
-export interface CubicBezierEasing {
-  type: "cubicBezier";
-  points: [number, number, number, number];
-}
-
-export interface SpringEasing {
-  type: "spring";
-  stiffness: number;
-  damping: number;
-  mass: number;
-}
-
-export type EasingFunction = EasingName | CubicBezierEasing | SpringEasing;
-
-export type EasingFn = (t: number) => number;
+type EasingFn = (t: number) => number;
 
 const PI = Math.PI;
 const c1 = 1.70158;
@@ -220,7 +206,7 @@ export const EASING_FUNCTIONS: Record<EasingName, EasingFn> = {
  * @param x2 Second control point X (0-1)
  * @param y2 Second control point Y
  */
-export function cubicBezier(
+function cubicBezier(
   x1: number,
   y1: number,
   x2: number,
@@ -271,135 +257,7 @@ export function cubicBezier(
   return (t: number) => sampleCurveY(solveCurveX(t));
 }
 
-/**
- * Spring easing using damped harmonic oscillator physics.
- * Simulates a mass-spring-damper system: stiffness controls oscillation speed,
- * damping controls how quickly oscillations decay.
- * zeta < 1: underdamped (bouncy), zeta = 1: critically damped (no overshoot),
- * zeta > 1: overdamped (sluggish)
- */
-export function springEasing(
-  stiffness: number = 100,
-  damping: number = 10,
-  mass: number = 1,
-): EasingFn {
-  // Natural frequency of oscillation
-  const w0 = Math.sqrt(stiffness / mass);
-  // Damping ratio: determines response behavior
-  const zeta = damping / (2 * Math.sqrt(stiffness * mass));
-
-  // Damped oscillation frequency (only when underdamped)
-  const wd = zeta < 1 ? w0 * Math.sqrt(1 - zeta * zeta) : 0;
-  const a = 1;
-  // Coefficient for sine component of oscillation
-  const b = zeta < 1 ? (zeta * w0) / wd : 0;
-
-  return (t: number) => {
-    let progress: number;
-    if (zeta < 1) {
-      // Underdamped: oscillation with exponential decay envelope
-      progress =
-        1 -
-        Math.exp(-zeta * w0 * t) *
-          (a * Math.cos(wd * t) + b * Math.sin(wd * t));
-    } else {
-      // Critically damped or overdamped: exponential approach without oscillation
-      progress = 1 - (1 + w0 * t) * Math.exp(-w0 * t);
-    }
-    return progress;
-  };
-}
-
-export function getEasingFunction(easing: EasingFunction): EasingFn {
-  if (typeof easing === "string") {
-    return EASING_FUNCTIONS[easing] || EASING_FUNCTIONS.linear;
-  }
-
-  if (easing.type === "cubicBezier") {
-    const [x1, y1, x2, y2] = easing.points;
-    return cubicBezier(x1, y1, x2, y2);
-  }
-
-  if (easing.type === "spring") {
-    return springEasing(easing.stiffness, easing.damping, easing.mass);
-  }
-
-  return EASING_FUNCTIONS.linear;
-}
-
-export function interpolate(
-  startValue: number,
-  endValue: number,
-  progress: number,
-  easing: EasingFunction = "linear",
-): number {
-  const easingFn = getEasingFunction(easing);
-  const easedProgress = easingFn(Math.max(0, Math.min(1, progress)));
-  return startValue + (endValue - startValue) * easedProgress;
-}
-
-export const EASING_PRESETS: Record<
-  string,
-  { name: string; easing: EasingFunction; description: string }
-> = {
-  linear: { name: "Linear", easing: "linear", description: "No acceleration" },
-  ease: {
-    name: "Ease",
-    easing: { type: "cubicBezier", points: [0.25, 0.1, 0.25, 1] },
-    description: "Smooth start and end",
-  },
-  easeIn: {
-    name: "Ease In",
-    easing: "easeInQuad",
-    description: "Slow start, fast end",
-  },
-  easeOut: {
-    name: "Ease Out",
-    easing: "easeOutQuad",
-    description: "Fast start, slow end",
-  },
-  easeInOut: {
-    name: "Ease In Out",
-    easing: "easeInOutQuad",
-    description: "Slow start and end",
-  },
-  bounce: {
-    name: "Bounce",
-    easing: "easeOutBounce",
-    description: "Bouncing effect",
-  },
-  elastic: {
-    name: "Elastic",
-    easing: "easeOutElastic",
-    description: "Springy overshoot",
-  },
-  back: {
-    name: "Back",
-    easing: "easeOutBack",
-    description: "Slight overshoot",
-  },
-  snappy: {
-    name: "Snappy",
-    easing: { type: "cubicBezier", points: [0.19, 1, 0.22, 1] },
-    description: "Quick and responsive",
-  },
-  smooth: {
-    name: "Smooth",
-    easing: { type: "cubicBezier", points: [0.4, 0, 0.2, 1] },
-    description: "Material design smooth",
-  },
-};
-
-export const ALL_EASING_NAMES: EasingName[] = Object.keys(
-  EASING_FUNCTIONS,
-) as EasingName[];
-
-export interface EasingCategory {
-  name: string;
-  easings: EasingName[];
-}
-
-export const EASING_CATEGORIES: EasingCategory[] = [
+export const EASING_CATEGORIES: { name: string; easings: EasingName[] }[] = [
   {
     name: "Basic",
     easings: [

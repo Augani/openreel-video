@@ -102,4 +102,17 @@ describe("resolveTimelinePlacement", () => {
       createdTrack: { id: "new-track", position: 1 },
     });
   });
+
+  it("overlap policy keeps an occupied destination track and still refuses a locked one", () => {
+    const occupied = projectWithTracks([
+      { id: "t", clips: [{ id: "a", startTime: 0, duration: 5 }] },
+    ]);
+    expect(
+      resolveTimelinePlacement(occupied, { targetTrackId: "t", startTime: 2, duration: 3, policy: "overlap" }),
+    ).toEqual({ ok: true, trackId: "t", startTime: 2 });
+    const locked = projectWithTracks([{ id: "t", locked: true }]);
+    expect(
+      resolveTimelinePlacement(locked, { targetTrackId: "t", startTime: 0, duration: 1, policy: "overlap" }),
+    ).toEqual({ ok: false, reason: "track-locked" });
+  });
 });

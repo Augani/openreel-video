@@ -1,0 +1,26 @@
+{
+  "assets": [
+    {
+      "path": "apps/web/public/fonts/fraunces-semibold-latin.woff2",
+      "family": "Fraunces",
+      "weight": 600,
+      "subset": "latin",
+      "bytes": 35180,
+      "sha256": "2c3287428a81fc670a67e56fd0d87f76ddc0b3ef4f25104c0adc600cf68fe24e",
+      "source": "new-screens/OpenReel Pro Editor components.html",
+      "sourceSha256": "16045eb1847c60290fec0b051086c11b93bbf8e6f9d4760b25f3928ee6c420eb",
+      "pageResource": "3f9113df-41e1-4c45-826a-2978003b4355",
+      "fontResource": "e237c578-94d6-45bf-9aaa-c3a2dad138cf",
+      "licensePath": "apps/web/public/fonts/fraunces-OFL.txt",
+      "licenseSource": "https://raw.githubusercontent.com/google/fonts/main/ofl/fraunces/OFL.txt"
+    },
+    {
+      "path": "apps/web/src/components/editor/panels/ReferenceTransitionPreview.tsx",
+      "kind": "original authored artwork declarations",
+      "source": "new-screens/OpenReel Pro Editor components.html",
+      "sourceSha256": "16045eb1847c60290fec0b051086c11b93bbf8e6f9d4760b25f3928ee6c420eb",
+      "pageResource": "d7557d96-b3ff-45f7-ab36-2fb02ef93780",
+      "note": "Exact CSS artwork from the supplied component source, whose manifest contains scripts and fonts, with no image resources. Source UI borders and used indicators remain live project state. Replaces 12 screenshot crops (14285 bytes)."
+    }
+  ]
+}

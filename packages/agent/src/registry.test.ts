@@ -4,7 +4,6 @@ import {
   toAnthropicTools,
   toOpenAITools,
   toMcpTools,
-  toCapabilityDoc,
   getTool,
 } from "./registry";
 import type { EditingHost, HumanoidRigRequest, ModelInspectionRequest } from "./host";
@@ -98,12 +97,6 @@ describe("tool registry", () => {
     expect(toAnthropicTools().map((t) => t.name).sort()).toEqual(base);
     expect(toOpenAITools().map((t) => t.function.name).sort()).toEqual(base);
     expect(toMcpTools().map((t) => t.name).sort()).toEqual(base);
-  });
-
-  it("generates a capability doc", () => {
-    const doc = toCapabilityDoc();
-    expect(doc).toContain("OpenReel Agent Tools");
-    expect(doc).toContain("execute_action");
   });
 
   it("reports rigging probe as unavailable when the host has no desktop backend", async () => {

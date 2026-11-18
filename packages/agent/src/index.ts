@@ -1,24 +1,19 @@
 export * from "./types";
 export * from "./host";
+export * from "./export-options";
 export { HeadlessHost } from "./headless-host";
-export type { HeadlessHostOptions } from "./headless-host";
 export * from "./serialize";
 export {
   getTool,
-  listTools,
-  toolDefs,
   toAnthropicTools,
   toOpenAITools,
   toMcpTools,
-  toCapabilityDoc,
 } from "./registry";
-export type { RegisteredTool, ToolHandler } from "./registry";
 export { executeTool, isDestructive, isExpensive } from "./executor";
+export { toMcpToolsAnnotated } from "./mcp-tools";
+export type { McpAnnotatedTool, McpToolAnnotations } from "./mcp-tools";
 export * from "./llm";
 export { runTurn } from "./loop";
-export type { RunTurnInput, RunTurnResult, StopReason } from "./loop";
+export type { RunTurnInput, RunTurnResult } from "./loop";
 export { buildSystemPrompt } from "./system-prompt";
-export { selectToolsForPrompt, DEFAULT_AGENT_TOOL_LIMIT } from "./tool-router";
-export { toLogRecord, createEventLogger, collectEvents } from "./observability";
-export type { AgentLogRecord } from "./observability";
-export { generateCapabilityMarkdown } from "./gen-docs";
+export { selectToolsForPrompt } from "./tool-router";

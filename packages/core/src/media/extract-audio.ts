@@ -1,9 +1,9 @@
 import { nativeMediaAvailable, extractAudioWavViaNative } from "./native-media-bridge";
 
-export { NoAudioStreamError } from "./native-media-bridge";
-
-export interface ExtractAudioProgressOptions {
+interface ExtractAudioProgressOptions {
   onProgress?: (progress: { phase?: string; progress: number }) => void;
+  /** Output channels (default 2). A 5.1 sequence asks for the source's own channels, up to 6. */
+  channels?: number;
 }
 
 // Desktop routes to the native FFmpeg sidecar; web uses the ffmpeg.wasm fallback.
@@ -14,7 +14,7 @@ export async function extractAudioWav(
   options?: ExtractAudioProgressOptions,
 ): Promise<Blob> {
   if (nativeMediaAvailable()) {
-    return extractAudioWavViaNative(file, audioTrackIndex);
+    return extractAudioWavViaNative(file, audioTrackIndex, options?.channels);
   }
   const { getFFmpegFallback } = await import("./ffmpeg-fallback");
   return getFFmpegFallback().extractAudioAsWav(

@@ -108,9 +108,3 @@ export function Icon({
     </span>
   );
 }
-
-export function hasIcon(name: string): boolean {
-  return name in ICONS;
-}
-
-export const iconNames: readonly string[] = Object.keys(ICONS);

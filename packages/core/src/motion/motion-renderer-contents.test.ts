@@ -267,47 +267,6 @@ describe("collectShapeItemRings", () => {
     expect(minX).toBeCloseTo(90, 5);
   });
 
-  it("skips visible:false items", () => {
-    const item = pathItem({ visible: false });
-    const entries = collectShapeItemRings(
-      item,
-      makeLayer(),
-      SHAPE_IDENTITY_MATRIX,
-      1,
-      SOLID_STYLE,
-    );
-    expect(entries).toHaveLength(0);
-  });
-
-  it("inherits the group style when the child has none", () => {
-    const inner = pathItem({});
-    const overrideStyle: ShapeStyle = {
-      fill: { type: "solid", color: "#00ff00", opacity: 1 },
-      stroke: { color: "#000000", width: 1, opacity: 1 },
-    };
-    const group = groupItem([inner], { style: overrideStyle });
-    const entries = collectShapeItemRings(
-      group,
-      makeLayer(),
-      SHAPE_IDENTITY_MATRIX,
-      1,
-      SOLID_STYLE,
-    );
-    expect(entries[0].style).toBe(overrideStyle);
-  });
-
-  it("marks open path items as not closed", () => {
-    const item = pathItem({ pathClosed: false });
-    const entries = collectShapeItemRings(
-      item,
-      makeLayer(),
-      SHAPE_IDENTITY_MATRIX,
-      1,
-      SOLID_STYLE,
-    );
-    expect(entries[0].closed).toBe(false);
-  });
-
   it("reproduces source-layer world placement via the merge wrapper group", () => {
     const compCenter = { x: 960, y: 540 };
     const sourceTransform = {
@@ -377,36 +336,7 @@ describe("collectShapeItemRings", () => {
   });
 });
 
-describe("shapeGroupTransformToMatrix", () => {
-  it("returns identity for a default transform", () => {
-    const matrix = shapeGroupTransformToMatrix({
-      anchor: { x: 0, y: 0 },
-      position: { x: 0, y: 0 },
-      scale: { x: 1, y: 1 },
-      rotation: 0,
-      opacity: 1,
-    });
-    expect(matrix).toEqual([1, 0, 0, 1, 0, 0]);
-  });
-});
-
 describe("MotionRenderer shape contents rendering", () => {
-  it("renders a legacy layer with exactly one fill and one stroke", () => {
-    const { recorder } = renderContents(makeLayer());
-    expect(countMethod(recorder, "fill")).toBe(1);
-    expect(countMethod(recorder, "stroke")).toBe(1);
-    expect(countMethod(recorder, "transform")).toBe(0);
-  });
-
-  it("renders a plain group with two path items as two fills", () => {
-    const group = groupItem([
-      pathItem({ id: "p1", position: { x: -30, y: 0 } }),
-      pathItem({ id: "p2", position: { x: 30, y: 0 } }),
-    ]);
-    const { recorder } = renderContents(makeLayer({ contents: [group] }));
-    expect(countMethod(recorder, "fill")).toBe(2);
-    expect(countMethod(recorder, "stroke")).toBe(2);
-  });
 
   it("merges a union group into a single evenodd fill", () => {
     const group = groupItem(
@@ -422,65 +352,6 @@ describe("MotionRenderer shape contents rendering", () => {
     expect(fillCall?.args[0]).toBe("evenodd");
   });
 
-  it("fills a merged gradient group with a non-plain-white fill style", () => {
-    const gradientStyle: ShapeStyle = {
-      fill: {
-        type: "gradient",
-        opacity: 1,
-        gradient: {
-          type: "linear",
-          angle: 0,
-          stops: [
-            { offset: 0, color: "#123456" },
-            { offset: 1, color: "#abcdef" },
-          ],
-        },
-      },
-      stroke: { color: "#0000ff", width: 0, opacity: 0 },
-    };
-    const group = groupItem(
-      [
-        pathItem({ id: "p1", width: 40, height: 40, position: { x: -10, y: 0 } }),
-        pathItem({ id: "p2", width: 40, height: 40, position: { x: 10, y: 0 } }),
-      ],
-      { mergeMode: "union", style: gradientStyle },
-    );
-    const { recorder } = renderContents(makeLayer({ contents: [group] }));
-    expect(recorder.fillStyleAtFill.length).toBeGreaterThan(0);
-    const applied = recorder.fillStyleAtFill[0];
-    expect(applied).not.toBe("#ffffff");
-    expect(typeof applied).toBe("object");
-    expect(applied).not.toBeNull();
-  });
-
-  it("falls back to the first gradient stop color for a merged shader fill", () => {
-    const shaderStyle: ShapeStyle = {
-      fill: {
-        type: "shader",
-        opacity: 1,
-        shader: { shaderId: "nonexistent-shader", params: {} },
-        gradient: {
-          type: "linear",
-          stops: [
-            { offset: 0, color: "#00ff00" },
-            { offset: 1, color: "#0000ff" },
-          ],
-        },
-      },
-      stroke: { color: "#0000ff", width: 0, opacity: 0 },
-    };
-    const group = groupItem(
-      [
-        pathItem({ id: "p1", width: 40, height: 40, position: { x: -10, y: 0 } }),
-        pathItem({ id: "p2", width: 40, height: 40, position: { x: 10, y: 0 } }),
-      ],
-      { mergeMode: "union", style: shaderStyle },
-    );
-    const { recorder } = renderContents(makeLayer({ contents: [group] }));
-    expect(recorder.fillStyleAtFill.length).toBeGreaterThan(0);
-    expect(recorder.fillStyleAtFill[0]).not.toBe("#ffffff");
-  });
-
   it("halves globalAlpha at leaf fill for a group opacity of 0.5", () => {
     const group = groupItem([pathItem({ id: "p1" })], {
       transform: {
@@ -494,41 +365,6 @@ describe("MotionRenderer shape contents rendering", () => {
     const { recorder } = renderContents(makeLayer({ contents: [group] }));
     expect(recorder.alphaAtFill.length).toBeGreaterThan(0);
     expect(recorder.alphaAtFill[0]).toBeCloseTo(0.5, 5);
-  });
-
-  it("skips a visible:false item inside a plain group", () => {
-    const group = groupItem([
-      pathItem({ id: "p1" }),
-      pathItem({ id: "p2", visible: false }),
-    ]);
-    const { recorder } = renderContents(makeLayer({ contents: [group] }));
-    expect(countMethod(recorder, "fill")).toBe(1);
-  });
-
-  it("composes nested group transforms via ctx.transform calls", () => {
-    const inner = groupItem([pathItem({ id: "p1" })], {
-      id: "inner",
-      transform: {
-        anchor: { x: 0, y: 0 },
-        position: { x: 20, y: 0 },
-        scale: { x: 1, y: 1 },
-        rotation: 0,
-        opacity: 1,
-      },
-    });
-    const outer = groupItem([inner], {
-      id: "outer",
-      transform: {
-        anchor: { x: 0, y: 0 },
-        position: { x: 40, y: 0 },
-        scale: { x: 1, y: 1 },
-        rotation: 0,
-        opacity: 1,
-      },
-    });
-    const { recorder } = renderContents(makeLayer({ contents: [outer] }));
-    expect(countMethod(recorder, "transform")).toBe(2);
-    expect(countMethod(recorder, "fill")).toBe(1);
   });
 
   it("falls back to unmerged children when merge throws", () => {

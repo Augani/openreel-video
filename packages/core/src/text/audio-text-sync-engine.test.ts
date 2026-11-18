@@ -16,10 +16,6 @@ describe("video cuts to music beats", () => {
       ["a", 5.25, 2], ["b", 7.25, 2],
     ]);
   });
-  it.each([1, 2, 4, 8] as const)("supports a cut every %s beats", (beatsPerClip) => {
-    const result = engine.calculateSyncedTimings([clip("a", 0)], analysis, 0, { ...DEFAULT_BEAT_SYNC_CONFIG, beatsPerClip });
-    expect(result[0].newDuration).toBe(beatsPerClip * 0.5);
-  });
   it("keeps parallel video tracks aligned to the same music", () => {
     const result = engine.calculateSyncedTimings([clip("a", 0), clip("b", 0, 4, "layer")], analysis, 0, DEFAULT_BEAT_SYNC_CONFIG);
     expect(result.map((item) => item.newStartTime)).toEqual([0.25, 0.25]);

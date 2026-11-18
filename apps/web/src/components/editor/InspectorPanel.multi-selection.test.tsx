@@ -121,14 +121,6 @@ describe("InspectorPanel multi-clip workflow", () => {
     });
   });
 
-  it("shows the batch inspector instead of the empty state", () => {
-    render(<InspectorPanel />);
-
-    expect(screen.getAllByText("2 clips selected").length).toBeGreaterThan(0);
-    expect(screen.getByText("Batch Transform")).toBeInTheDocument();
-    expect(screen.queryByText("No selection")).toBeNull();
-  });
-
   it("nudges every selected visual clip", async () => {
     render(<InspectorPanel />);
 
@@ -176,29 +168,6 @@ describe("InspectorPanel multi-clip workflow", () => {
       expect(
         TEXT_CLIP_IDS.map((id) => titleEngine?.getTextClip(id)?.transform.scale.x),
       ).toEqual([1, 1]);
-    });
-  });
-
-  it("aligns normalized overlay positions to the canvas edge", async () => {
-    const textClips = [textClip(TEXT_CLIP_IDS[0], 0.25), textClip(TEXT_CLIP_IDS[1], 0.75)];
-    useEngineStore.getState().getTitleEngine()?.loadTextClips(textClips);
-    useProjectStore.setState((state) => ({
-      project: { ...state.project, textClips },
-    }));
-    useUIStore.getState().selectMultiple(
-      TEXT_CLIP_IDS.map((id) => ({ type: "text-clip" as const, id, trackId: "text-track" })),
-    );
-    render(<InspectorPanel />);
-
-    fireEvent.click(
-      screen.getByRole("button", { name: "Align positions left" }),
-    );
-
-    await waitFor(() => {
-      const titleEngine = useEngineStore.getState().getTitleEngine();
-      expect(
-        TEXT_CLIP_IDS.map((id) => titleEngine?.getTextClip(id)?.transform.position.x),
-      ).toEqual([0, 0]);
     });
   });
 

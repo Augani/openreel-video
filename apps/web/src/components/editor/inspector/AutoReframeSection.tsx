@@ -1,10 +1,10 @@
 import React, { useState, useCallback, useEffect } from "react";
-import { ToolcraftButton as Button } from "@openreel/ui";
-import { ToolcraftCard as Card } from "@openreel/ui";
-import { ToolcraftClickableCard as ClickableCard } from "@openreel/ui";
-import { ToolcraftText as Text } from "@openreel/ui";
+import { Button } from "@openreel/ui";
+import { Card } from "@openreel/ui";
+import { cn } from "@openreel/ui";
+
 import { PropertySlider } from "./shell/PropertySlider";
-import { MockToggle } from "./shell/InspectorControls";
+import { InspectorToggle } from "./shell/InspectorControls";
 import {
   Smartphone,
   Monitor,
@@ -204,29 +204,24 @@ export const AutoReframeSection: React.FC<AutoReframeSectionProps> = ({
     <div className="space-y-3">
       <div className="space-y-3">
         <div>
-          <Text type="supporting" color="secondary" className="mb-2 block text-[10px]">
+          <span className="text-fg-2 font-normal mb-2 block text-[10px]">
             Platform Presets
-          </Text>
+          </span>
             <div className="grid grid-cols-3 gap-1">
               {(Object.keys(PLATFORM_PRESETS) as PlatformPreset[]).map(
                 (platform) => {
                   const PlatformIcon = PLATFORM_ICONS[platform];
                   return (
-                    <ClickableCard
-                      key={platform}
-                      label={`${PLATFORM_PRESETS[platform].name} platform preset`}
-                      onClick={() => handleSelectPlatform(platform)}
-                      className={`flex items-center gap-1 p-2 rounded text-[9px] transition-colors ${
+                    <Button variant="ghost" key={platform} onClick={() => handleSelectPlatform(platform)} type="button" aria-label={`${PLATFORM_PRESETS[platform].name} platform preset`} className={cn("group/card block h-auto min-w-0 whitespace-normal rounded-[7px] border text-left transition-[background-color,border-color,box-shadow,transform] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50", "border-border bg-bg-1 hover:bg-bg-2", "p-3", `flex items-center gap-1 p-2 rounded text-[9px] transition-colors ${
                         selectedPlatform === platform
                           ? "bg-primary/20 border border-primary text-fg"
                           : "bg-bg-1 hover:bg-background-primary border border-transparent text-fg-2"
-                      }`}
-                    >
+                      }`)}>
                       <PlatformIcon size={14} />
-                      <Text type="supporting" className="truncate text-[9px]">
+                      <span className="text-fg-2 font-normal truncate text-[9px]">
                         {PLATFORM_PRESETS[platform].name}
-                      </Text>
-                    </ClickableCard>
+                      </span>
+                    </Button>
                   );
                 },
             )}
@@ -234,26 +229,21 @@ export const AutoReframeSection: React.FC<AutoReframeSectionProps> = ({
         </div>
 
         <div>
-          <Text type="supporting" color="secondary" className="mb-2 block text-[10px]">
+          <span className="text-fg-2 font-normal mb-2 block text-[10px]">
             Aspect Ratio
-          </Text>
+          </span>
           <div className="grid grid-cols-3 gap-1">
             {(Object.keys(ASPECT_RATIO_PRESETS) as AspectRatioPreset[])
               .filter((r) => r !== "custom")
               .map((ratio) => (
-                <ClickableCard
-                  key={ratio}
-                  label={`${ratio} aspect ratio`}
-                  onClick={() => handleSelectAspectRatio(ratio)}
-                  className={`p-2 rounded text-[9px] transition-colors ${
+                <Button variant="ghost" key={ratio} onClick={() => handleSelectAspectRatio(ratio)} type="button" aria-label={`${ratio} aspect ratio`} className={cn("group/card block h-auto min-w-0 whitespace-normal rounded-[7px] border text-left transition-[background-color,border-color,box-shadow,transform] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50", "border-border bg-bg-1 hover:bg-bg-2", "p-3", `p-2 rounded text-[9px] transition-colors ${
                     reframeSettings.targetAspectRatio === ratio &&
                     !selectedPlatform
                       ? "bg-primary/20 border border-primary text-fg"
                       : "bg-bg-1 hover:bg-background-primary border border-transparent text-fg-2"
-                  }`}
-                >
+                  }`)}>
                   {ratio}
-                </ClickableCard>
+                </Button>
               ))}
           </div>
         </div>
@@ -297,10 +287,10 @@ export const AutoReframeSection: React.FC<AutoReframeSectionProps> = ({
         />
 
         <div className="flex items-center justify-between">
-          <Text type="supporting" color="secondary" className="text-[10px]">
+          <span className="text-fg-2 font-normal text-[10px]">
             Follow Subject
-          </Text>
-          <MockToggle
+          </span>
+          <InspectorToggle
             ariaLabel="Follow Subject"
             checked={reframeSettings.followSubject}
             onChange={() =>
@@ -312,14 +302,14 @@ export const AutoReframeSection: React.FC<AutoReframeSectionProps> = ({
         </div>
 
         {isProcessing && (
-          <Card variant="muted" padding={2} className="space-y-1">
+          <Card className="min-w-0 rounded-[7px] border shadow-none border-transparent bg-bg-2 text-fg p-2 space-y-1">
             <div className="flex items-center justify-between">
-              <Text type="supporting" color="secondary" className="text-[9px]">
+              <span className="text-fg-2 font-normal text-[9px]">
                 {progressMessage}
-              </Text>
-              <Text type="supporting" color="secondary" className="text-[9px]">
+              </span>
+              <span className="text-fg-2 font-normal text-[9px]">
                 {progress}%
-              </Text>
+              </span>
             </div>
             <div className="h-1 bg-bg-1 rounded-full overflow-hidden">
               <div
@@ -330,40 +320,36 @@ export const AutoReframeSection: React.FC<AutoReframeSectionProps> = ({
           </Card>
         )}
 
-        <Button
-          label={
-            isInitializing || isProcessing
+        <Button onClick={handleAnalyze} type="button" aria-label={(isInitializing || isProcessing
               ? isInitializing
                 ? "Initializing..."
                 : "Analyzing..."
               : isApplied
                 ? "Applied - Click to Reanalyze"
-                : "Analyze & Reframe"
-          }
-          icon={
-            isInitializing || isProcessing ? (
+                : "Analyze & Reframe").trim() || undefined} disabled={(isInitializing || isProcessing)} className="inline-flex min-w-0 items-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] bg-accent text-accent-fg hover:bg-accent/90 w-full justify-center">
+          <span className="flex h-4 w-4 shrink-0 items-center justify-center">{isInitializing || isProcessing ? (
               <Loader2 size={14} className="animate-spin" />
             ) : isApplied ? (
               <CheckCircle size={14} />
             ) : (
               <Play size={14} />
-            )
-          }
-          variant="primary"
-          size="sm"
-          onClick={handleAnalyze}
-          isDisabled={isInitializing || isProcessing}
-          className="w-full justify-center"
-        />
+            )}</span>
+          <span className="truncate">{isInitializing || isProcessing
+              ? isInitializing
+                ? "Initializing..."
+                : "Analyzing..."
+              : isApplied
+                ? "Applied - Click to Reanalyze"
+                : "Analyze & Reframe"}</span>
+        </Button>
 
-        <Text type="supporting" color="secondary" className="text-center text-[9px]">
+        <span className="text-fg-2 font-normal text-center text-[9px]">
           Output:{" "}
           {ASPECT_RATIO_PRESETS[reframeSettings.targetAspectRatio].width} x{" "}
           {ASPECT_RATIO_PRESETS[reframeSettings.targetAspectRatio].height}
-        </Text>
+        </span>
       </div>
     </div>
   );
 };
 
-export default AutoReframeSection;

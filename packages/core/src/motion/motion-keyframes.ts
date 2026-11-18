@@ -47,7 +47,7 @@ import {
   type MotionShapeModifierPropertyName,
 } from "./motion-shape-modifiers";
 
-export const MOTION_TRANSFORM_PROPERTY_IDS = [
+const MOTION_TRANSFORM_PROPERTY_IDS = [
   "transform.position.x",
   "transform.position.y",
   "transform.position.z",
@@ -63,7 +63,7 @@ export const MOTION_TRANSFORM_PROPERTY_IDS = [
   "transform.perspective",
 ] as const;
 
-export const MOTION_SHAPE_STYLE_PROPERTY_IDS = [
+const MOTION_SHAPE_STYLE_PROPERTY_IDS = [
   "shape.width",
   "shape.height",
   "shape.cornerRadius",
@@ -74,11 +74,11 @@ export const MOTION_SHAPE_STYLE_PROPERTY_IDS = [
   "shape.gradient.angle",
 ] as const;
 
-export const MOTION_COMPOSITION_PROPERTY_IDS = [
+const MOTION_COMPOSITION_PROPERTY_IDS = [
   "composition.time",
 ] as const;
 
-export const MOTION_PARTICLE_PROPERTY_IDS = [
+const MOTION_PARTICLE_PROPERTY_IDS = [
   "particle.emissionRate",
   "particle.maxParticles",
   "particle.lifetime",
@@ -102,14 +102,14 @@ export const MOTION_MASK_PROPERTY_NAMES = [
   "opacity",
 ] as const;
 
-export const MOTION_PUPPET_PROPERTY_NAMES = [
+const MOTION_PUPPET_PROPERTY_NAMES = [
   "position.x",
   "position.y",
   "radius",
   "strength",
 ] as const;
 
-export const MOTION_SCENE_CAMERA_PROPERTY_NAMES = [
+const MOTION_SCENE_CAMERA_PROPERTY_NAMES = [
   "position.x",
   "position.y",
   "position.z",
@@ -121,7 +121,7 @@ export const MOTION_SCENE_CAMERA_PROPERTY_NAMES = [
   "far",
 ] as const;
 
-export const MOTION_SCENE_OBJECT_PROPERTY_NAMES = [
+const MOTION_SCENE_OBJECT_PROPERTY_NAMES = [
   "position.x",
   "position.y",
   "position.z",
@@ -146,7 +146,7 @@ export type MotionParticleProperty =
 export type MotionMaskPropertyName = (typeof MOTION_MASK_PROPERTY_NAMES)[number];
 export type MotionMaskProperty = `mask.${string}.${MotionMaskPropertyName}`;
 export type MotionMaskPathProperty = `mask.${string}.path`;
-export type MotionPuppetPropertyName =
+type MotionPuppetPropertyName =
   (typeof MOTION_PUPPET_PROPERTY_NAMES)[number];
 export type MotionPuppetProperty =
   `puppet.${string}.${MotionPuppetPropertyName}`;
@@ -154,16 +154,16 @@ export type MotionEffectProperty = `effect.${string}.${string}`;
 export type MotionShaderFillProperty =
   | `shape.fill.shader.${string}`
   | `text.fillShader.${string}`;
-export type MotionSceneCameraPropertyName =
+type MotionSceneCameraPropertyName =
   (typeof MOTION_SCENE_CAMERA_PROPERTY_NAMES)[number];
 export type MotionSceneCameraProperty =
   `scene.camera.${MotionSceneCameraPropertyName}`;
-export type MotionSceneObjectPropertyName =
+type MotionSceneObjectPropertyName =
   (typeof MOTION_SCENE_OBJECT_PROPERTY_NAMES)[number];
 export type MotionSceneObjectProperty =
   `scene.object.${string}.${MotionSceneObjectPropertyName}`;
 
-export const MOTION_CONTENTS_TRANSFORM_FIELDS = [
+const MOTION_CONTENTS_TRANSFORM_FIELDS = [
   "positionX",
   "positionY",
   "scaleX",
@@ -172,7 +172,7 @@ export const MOTION_CONTENTS_TRANSFORM_FIELDS = [
   "opacity",
 ] as const;
 
-export type MotionContentsTransformField =
+type MotionContentsTransformField =
   (typeof MOTION_CONTENTS_TRANSFORM_FIELDS)[number];
 
 export type MotionContentsProperty =
@@ -180,7 +180,7 @@ export type MotionContentsProperty =
   | `contents.${string}.pathData`
   | `contents.${string}.operator.${string}.${string}`;
 
-export type MotionContentsChannel =
+type MotionContentsChannel =
   | { readonly type: "transform"; readonly field: MotionContentsTransformField }
   | { readonly type: "pathData" }
   | { readonly type: "operator"; readonly operatorId: string; readonly param: string };
@@ -200,7 +200,7 @@ export type MotionAnimatableProperty =
   | MotionSceneObjectProperty
   | MotionContentsProperty;
 
-export interface MotionAnimatablePropertyDescriptor
+interface MotionAnimatablePropertyDescriptor
   extends Omit<KeyframePropertyDescriptor, "property" | "family"> {
   readonly property: MotionAnimatableProperty;
   readonly family: "motion";
@@ -218,7 +218,7 @@ export interface MotionAnimatablePropertyDescriptor
     | "3D Scene";
 }
 
-export interface UpsertMotionKeyframeOptions {
+interface UpsertMotionKeyframeOptions {
   readonly value?: number;
   readonly easing?: EasingType;
   readonly bezierHandles?: Keyframe["bezierHandles"];
@@ -226,30 +226,30 @@ export interface UpsertMotionKeyframeOptions {
   readonly idFactory?: () => string;
 }
 
-export interface DuplicateMotionKeyframesOptions {
+interface DuplicateMotionKeyframesOptions {
   readonly duration?: number;
   readonly idFactory?: (source: Keyframe, index: number) => string;
 }
 
-export interface ScaleMotionKeyframesOptions {
+interface ScaleMotionKeyframesOptions {
   readonly anchorTime?: number;
   readonly duration?: number;
 }
 
-export interface MotionKeyframeClipboardEntry {
+interface MotionKeyframeClipboardEntry {
   readonly timeOffset: number;
   readonly value: Keyframe["value"];
   readonly easing: EasingType;
 }
 
-export interface MotionKeyframeClipboard {
+interface MotionKeyframeClipboard {
   readonly sourceProperty: string;
   readonly sourceStartTime: number;
   readonly span: number;
   readonly entries: readonly MotionKeyframeClipboardEntry[];
 }
 
-export interface PasteMotionKeyframesOptions {
+interface PasteMotionKeyframesOptions {
   readonly duration?: number;
   readonly idFactory?: (
     source: MotionKeyframeClipboardEntry,
@@ -2330,7 +2330,7 @@ export function getMotionLayerPropertyKeyframes(
     .sort((a, b) => a.time - b.time);
 }
 
-export function findMotionLayerKeyframeAtTime(
+function findMotionLayerKeyframeAtTime(
   layer: MotionLayer,
   property: string,
   time: number,
@@ -2478,7 +2478,7 @@ export function copyMotionPropertyKeyframes(
   };
 }
 
-export function pasteMotionPropertyKeyframes(
+function pasteMotionPropertyKeyframes(
   keyframes: readonly Keyframe[],
   property: string,
   clipboard: MotionKeyframeClipboard,
@@ -2523,7 +2523,7 @@ export function pasteMotionLayerPropertyKeyframes<T extends MotionLayer>(
   } as T;
 }
 
-export function duplicateMotionPropertyKeyframes(
+function duplicateMotionPropertyKeyframes(
   keyframes: readonly Keyframe[],
   property: string,
   offset: number,
@@ -2568,7 +2568,7 @@ export function duplicateMotionLayerPropertyKeyframes<T extends MotionLayer>(
   } as T;
 }
 
-export function reverseMotionPropertyKeyframes(
+function reverseMotionPropertyKeyframes(
   keyframes: readonly Keyframe[],
   property: string,
 ): Keyframe[] {
@@ -2598,7 +2598,7 @@ export function reverseMotionLayerPropertyKeyframes<T extends MotionLayer>(
   } as T;
 }
 
-export function scaleMotionPropertyKeyframeTimes(
+function scaleMotionPropertyKeyframeTimes(
   keyframes: readonly Keyframe[],
   property: string,
   scale: number,

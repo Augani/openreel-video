@@ -19,6 +19,8 @@ export type Bindings = {
   EVENT_HMAC_SECRET?: string;
   /** durable storage for desktop/app crash + error reports (POST /crash) */
   CRASHES_BUCKET?: R2Bucket;
+  /** one Durable Object per shared project (real-time collaboration) */
+  COLLAB_ROOMS?: DurableObjectNamespace;
   /** bearer token guarding the crash list/read endpoints (GET /crash) */
   CRASH_ADMIN_TOKEN?: string;
 };

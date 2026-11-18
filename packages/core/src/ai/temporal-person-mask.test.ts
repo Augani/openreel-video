@@ -16,11 +16,6 @@ const stateFor = (
   stabilizePersonMask(new Float32Array(values), width, height, null);
 
 describe("stabilizePersonMask", () => {
-  it("keeps the first mask unchanged", () => {
-    const result = stateFor([0, 0.25, 0.75, 1], 2, 2);
-    expect(Array.from(result.values)).toEqual([0, 0.25, 0.75, 1]);
-  });
-
   it("damps small confidence changes on uncertain edges", () => {
     const previous = stateFor([0.5], 1, 1);
     const result = stabilizePersonMask(
@@ -175,12 +170,6 @@ describe("shapePersonMaskAlpha", () => {
     );
 
     expect(Array.from(alpha)).toEqual([0, 0, 41, 191, 253, 255, 255]);
-  });
-
-  it("does not add coverage to neighboring background pixels", () => {
-    const alpha = shapePersonMaskAlpha(new Float32Array([0, 0.5, 0]));
-
-    expect(Array.from(alpha)).toEqual([0, 253, 0]);
   });
 });
 

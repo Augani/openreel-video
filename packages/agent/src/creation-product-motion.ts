@@ -37,7 +37,7 @@ import type {
   CreationSceneObject,
 } from "@openreel/core/creation/schema/types";
 
-export interface CreateProductCinematicMotionOptions {
+interface CreateProductCinematicMotionOptions {
   readonly compositionId: string;
   readonly layerId: string;
   readonly keyframeId: () => string;
@@ -54,7 +54,7 @@ export interface CreateProductCinematicMotionOptions {
   readonly includeCallouts?: boolean;
 }
 
-export interface ProductCinematicMotionResult {
+interface ProductCinematicMotionResult {
   readonly creationScene: GeneratedCreationScene;
   readonly coreCreationAsset: CreationAssetRecipe;
   readonly coreCreationScene: CreationScene;

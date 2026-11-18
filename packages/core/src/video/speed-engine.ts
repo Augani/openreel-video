@@ -2,12 +2,13 @@ import type {
   EasingType,
   SpeedKeyframe,
   FreezeFrame,
+  Clip,
 } from "../types/timeline";
 import { AnimationEngine } from "./animation-engine";
 
-export type { SpeedKeyframe, FreezeFrame };
+export type { SpeedKeyframe };
 
-export interface ClipSpeedData {
+interface ClipSpeedData {
   clipId: string;
   baseSpeed: number;
   reverse: boolean;
@@ -19,6 +20,16 @@ export interface ClipSpeedData {
 
 export const SPEED_MIN = 0.1;
 export const SPEED_MAX = 20;
+
+/** Generated images can loop past their intrinsic duration. Their playback
+ * clock follows retained source bounds rather than restarting at every cut. */
+export function getAnimatedImageSourceTime(
+  clip: Pick<Clip, "inPoint" | "duration" | "speed" | "reversed">,
+  localTime: number,
+): number {
+  const rate = Math.max(SPEED_MIN, Math.min(SPEED_MAX, Math.abs(clip.speed ?? 1)));
+  return clip.inPoint + (clip.reversed || (clip.speed ?? 1) < 0 ? clip.duration - localTime : localTime) * rate;
+}
 
 export class SpeedEngine {
   private clipSpeedData: Map<string, ClipSpeedData> = new Map();
@@ -440,12 +451,16 @@ export class SpeedEngine {
         originalDuration,
       };
       this.clipSpeedData.set(clipId, data);
+    } else {
+      // A trim, split or Undo can retain this ID with a different source span.
+      // Reverse sampling must use the current span rather than the first one.
+      data.originalDuration = originalDuration;
     }
     return data;
   }
 
   initializeClip(clipId: string, originalDuration: number): void {
-    this.getOrCreateSpeedData(clipId, originalDuration);
+    if (!this.clipSpeedData.has(clipId)) this.getOrCreateSpeedData(clipId, originalDuration);
   }
 
   removeClip(clipId: string): void {
@@ -470,12 +485,5 @@ export function getSpeedEngine(): SpeedEngine {
   if (!speedEngineInstance) {
     speedEngineInstance = new SpeedEngine();
   }
-  return speedEngineInstance;
-}
-
-export function initializeSpeedEngine(
-  animationEngine?: AnimationEngine,
-): SpeedEngine {
-  speedEngineInstance = new SpeedEngine(animationEngine);
   return speedEngineInstance;
 }

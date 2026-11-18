@@ -4,13 +4,13 @@ import type {
   MotionGuideOrientation,
 } from "./types";
 
-export interface CreateMotionGuideOptions {
+interface CreateMotionGuideOptions {
   readonly id?: string;
   readonly locked?: boolean;
   readonly color?: string;
 }
 
-export interface MoveMotionGuideOptions {
+interface MoveMotionGuideOptions {
   readonly includeLocked?: boolean;
   readonly clampToComposition?: boolean;
   readonly snapGridSize?: number;

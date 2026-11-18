@@ -1,7 +1,7 @@
 import React, { useCallback, useState, useEffect } from "react";
-import { ToolcraftText as Text } from "@openreel/ui";
+
 import { Loader2 } from "@/icons/lucide-compat";
-import { MockToggle } from "./shell/InspectorControls";
+import { InspectorToggle } from "./shell/InspectorControls";
 import { useEngineStore } from "../../../stores/engine-store";
 import { useProjectStore } from "../../../stores/project-store";
 import { getPersonSegmentationEngine } from "@openreel/core";
@@ -69,17 +69,17 @@ export const BehindSubjectSection: React.FC<BehindSubjectSectionProps> = ({
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <div className="flex flex-1 flex-col gap-0.5">
-          <Text type="supporting" color="primary" className="block">
+          <span className="text-[12px] leading-5 text-fg font-normal block">
             Place Behind Subject
-          </Text>
-          <Text type="supporting" color="secondary" className="block text-[9px]">
+          </span>
+          <span className="text-fg-2 font-normal block text-[9px]">
             Text appears behind people in the video
-          </Text>
+          </span>
         </div>
         {isLoading ? (
           <Loader2 size={14} className="animate-spin text-primary" />
         ) : (
-          <MockToggle
+          <InspectorToggle
             ariaLabel="Place Behind Subject"
             checked={enabled}
             onChange={handleToggle}
@@ -87,14 +87,14 @@ export const BehindSubjectSection: React.FC<BehindSubjectSectionProps> = ({
         )}
       </div>
       {isLoading && (
-        <Text type="supporting" color="secondary" className="text-[9px]">
+        <span className="text-fg-2 font-normal text-[9px]">
           Loading AI model...
-        </Text>
+        </span>
       )}
       {error && (
-        <Text type="supporting" className="text-[9px] text-red-400">
+        <span className="font-normal text-[9px] text-red-400">
           {error}
-        </Text>
+        </span>
       )}
     </div>
   );

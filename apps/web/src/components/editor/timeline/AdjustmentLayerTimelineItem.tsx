@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { Button } from "@openreel/ui";
 import { useTimelineTouchGesture, listenTimelineGesture } from "./touch-gestures";
 import { TimelineTouchMoveHandle } from "./TimelineTouchMoveHandle";
 import { Layers } from "@/icons/lucide-compat";
@@ -93,6 +94,7 @@ export const AdjustmentLayerTimelineItem: React.FC<AdjustmentLayerTimelineItemPr
       data-testid="adjustment-layer-timeline-item"
       data-timeline-adjustment
       data-timeline-clip
+          data-timeline-item-id={layer.id}
       aria-pressed={isSelected}
       onPointerDown={touchGesture.bodyPointerDown}
       aria-label={`${layer.name}, adjustment layer`}
@@ -109,22 +111,22 @@ export const AdjustmentLayerTimelineItem: React.FC<AdjustmentLayerTimelineItemPr
       onClick={(event) => { if (touchGesture.consumeTap()) onSelectOwner(); event.stopPropagation(); }}
     >
       {isSelected && <TimelineTouchMoveHandle label={`Move ${layer.name}`} onPointerDown={(event) => touchGesture.start(event, (e) => startGesture(e, "move"))} />}
-      <button
+      <Button variant="ghost" size="sm"
         data-timeline-trim="left"
         onPointerDown={(event) => touchGesture.start(event, (e) => startGesture(e, "left"))}
         type="button"
         aria-label={`Trim start of ${layer.name}`}
-        className="h-full w-1.5 shrink-0 cursor-ew-resize bg-white/20 hover:bg-white/50"
+        className="h-full w-1.5 shrink-0 rounded-none p-0 cursor-ew-resize bg-white/20 hover:bg-white/50"
         onMouseDown={(event) => startGesture(event, "left")}
       />
       <Layers size={10} className="ml-1 shrink-0" aria-hidden />
       <span className="truncate px-1">FX · {layer.name}</span>
-      <button
+      <Button variant="ghost" size="sm"
         data-timeline-trim="right"
         onPointerDown={(event) => touchGesture.start(event, (e) => startGesture(e, "right"))}
         type="button"
         aria-label={`Trim end of ${layer.name}`}
-        className="ml-auto h-full w-1.5 shrink-0 cursor-ew-resize bg-white/20 hover:bg-white/50"
+        className="ml-auto h-full w-1.5 shrink-0 rounded-none p-0 cursor-ew-resize bg-white/20 hover:bg-white/50"
         onMouseDown={(event) => startGesture(event, "right")}
       />
     </div>

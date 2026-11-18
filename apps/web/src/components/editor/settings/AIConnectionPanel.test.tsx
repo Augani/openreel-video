@@ -7,9 +7,10 @@ beforeEach(() => useAIConnectionStore.getState().configure({ provider: "openai",
 afterEach(() => { vi.restoreAllMocks(); });
 
 describe("AI settings session connections", () => {
-  it("accepts custom model IDs and localhost endpoints with a keyless compatible adapter", () => {
+  it("accepts custom model IDs and localhost endpoints with a keyless compatible adapter", async () => {
     render(<AIConnectionPanel />);
-    fireEvent.change(screen.getByLabelText("AI provider"), { target: { value: "compatible" } });
+    fireEvent.keyDown(screen.getByRole("combobox", { name: "AI provider" }), { key: "ArrowDown" });
+    fireEvent.click(await screen.findByRole("option", { name: "OpenAI compatible / local" }));
     fireEvent.change(screen.getByLabelText("AI base URL"), { target: { value: "http://localhost:11434/v1" } });
     fireEvent.change(screen.getByLabelText("AI model ID"), { target: { value: "my-custom/model" } });
     expect(useAIConnectionStore.getState()).toMatchObject({ provider: "compatible", baseUrl: "http://localhost:11434/v1", model: "my-custom/model", apiKey: "" });

@@ -13,7 +13,7 @@ export interface MulticamTranscriptSegment {
   confidence?: number;
 }
 
-export interface OrmaMediaFingerprint {
+interface OrmaMediaFingerprint {
   id: string;
   name: string;
   size: number;
@@ -52,11 +52,11 @@ function fnv1a(value: string): string {
   return (hash >>> 0).toString(16).padStart(8, "0");
 }
 
-export function fingerprintMulticamManifest(manifest: MulticamManifest): string {
+function fingerprintMulticamManifest(manifest: MulticamManifest): string {
   return `manifest-${fnv1a(JSON.stringify(stableValue(manifest)))}`;
 }
 
-export function fingerprintMulticamMedia(
+function fingerprintMulticamMedia(
   media: readonly OrmaMediaFingerprint[],
 ): string {
   const normalized = [...media].sort((left, right) => left.id.localeCompare(right.id));

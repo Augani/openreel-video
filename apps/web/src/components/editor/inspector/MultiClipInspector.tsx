@@ -1,3 +1,13 @@
+import {
+  Input as ShadcnNumericInput,
+  cn as numericCn,
+  Button as ShadcnButton,
+  Button,
+  Card,
+} from "@openreel/ui";
+import { useNumericDraft } from "./shell/useNumericDraft";
+import { PropertySlider } from "./shell/PropertySlider";
+
 import { useMemo, useRef, useState, type JSX } from "react";
 import {
   ArrowDown,
@@ -11,13 +21,7 @@ import {
   Trash2,
 } from "@/icons/lucide-compat";
 import type { Transform } from "@openreel/core";
-import {
-  ToolcraftButton as Button,
-  ToolcraftCard as Card,
-  ToolcraftNumberInputControl,
-  ToolcraftSliderControl,
-  ToolcraftText as Text,
-} from "@openreel/ui";
+
 import { useEngineStore } from "../../../stores/engine-store";
 import { useProjectStore } from "../../../stores/project-store";
 import { useTimelineStore } from "../../../stores/timeline-store";
@@ -25,6 +29,7 @@ import { useUIStore } from "../../../stores/ui-store";
 import { getTimelineSelectionItem } from "../../../utils/timeline-item-actions";
 import { InspectorSection } from "./shell/InspectorSection";
 import { NestedSequenceSection } from "./NestedSequenceSection";
+import { EssentialSoundSection } from "./EssentialSoundSection";
 import { TextSection } from "./TextSection";
 import {
   cloneVideoEffectStackWithFreshIds,
@@ -165,6 +170,16 @@ export function MultiClipInspector({ clipIds }: MultiClipInspectorProps): JSX.El
   }, [clipIds, getClip, getGraphicsEngine, getTitleEngine, project]);
 
   const visualEntries = selectedEntries.filter((entry) => entry.visual);
+  // Essential Sound applies to every selected timeline clip that has audio.
+  const audioClipIds = selectedEntries
+    .filter((entry) => {
+      if (entry.kind !== "timeline") return false;
+      const clip = getClip(entry.id);
+      const track = project.timeline.tracks.find((candidate) => candidate.id === clip?.trackId);
+      const media = project.mediaLibrary.items.find((item) => item.id === clip?.mediaId);
+      return track?.type === "audio" || media?.type === "audio" || (media?.type === "video" && (media.metadata?.channels ?? 0) > 0);
+    })
+    .map((entry) => entry.id);
   const timelineEntryCount = selectedEntries.filter(
     (entry) => entry.kind === "timeline",
   ).length;
@@ -380,27 +395,34 @@ export function MultiClipInspector({ clipIds }: MultiClipInspectorProps): JSX.El
       }
     });
 
+  const numericField0 = useNumericDraft({value: averageRotation, onChange: (value) =>
+                    void updateVisualEntries("Rotate selected clips", () => ({
+                      rotation: value,
+                    })), min: -180, max: 180, step: 1});
   return (
     <div className="space-y-4">
-      <Card
-        variant="green"
-        padding={3}
-        className="rounded-lg border border-accent/30 bg-accent-soft"
+      <Card className="min-w-0 shadow-none text-fg p-3 rounded-lg border border-accent/30 bg-accent-soft"
       >
         <div className="flex items-center gap-2">
           <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent/15 text-accent">
             <Layers size={16} aria-hidden />
           </span>
           <span className="min-w-0">
-            <Text type="body" weight="bold" display="block" className="text-fg">
+            <span className="text-[13px] leading-5 font-bold block text-fg">
               {clipIds.length} clip{clipIds.length === 1 ? "" : "s"} selected
-            </Text>
-            <Text type="supporting" display="block" className="text-[10px] text-fg-3">
+            </span>
+            <span className="font-normal block text-[10px] text-fg-3">
               Batch changes stay synchronized with the timeline
-            </Text>
+            </span>
           </span>
         </div>
       </Card>
+
+      {audioClipIds.length > 0 && (
+        <InspectorSection title="Essential Sound" sectionId="essential-sound" defaultOpen>
+          <EssentialSoundSection clipIds={audioClipIds} />
+        </InspectorSection>
+      )}
 
       {visualEntries.length > 0 ? (
         <InspectorSection
@@ -436,18 +458,12 @@ export function MultiClipInspector({ clipIds }: MultiClipInspectorProps): JSX.El
             </div>
 
             <div className="grid grid-cols-2 gap-2">
-              <Button
-                label="Distribute horizontally"
-                variant="outline"
-                disabled={isBusy || visualEntries.length < 3}
-                onClick={() => void distributeSelection("x")}
-              />
-              <Button
-                label="Distribute vertically"
-                variant="outline"
-                disabled={isBusy || visualEntries.length < 3}
-                onClick={() => void distributeSelection("y")}
-              />
+              <Button onClick={() => void distributeSelection("x")} type="button" aria-label="Distribute horizontally" disabled={(isBusy || visualEntries.length < 3)} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 px-3 text-[12px] border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg">
+                <span className="truncate">{"Distribute horizontally"}</span>
+              </Button>
+              <Button onClick={() => void distributeSelection("y")} type="button" aria-label="Distribute vertically" disabled={(isBusy || visualEntries.length < 3)} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 px-3 text-[12px] border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg">
+                <span className="truncate">{"Distribute vertically"}</span>
+              </Button>
             </div>
 
             <BatchSlider
@@ -468,20 +484,19 @@ export function MultiClipInspector({ clipIds }: MultiClipInspectorProps): JSX.El
                 Rotation
               </span>
               <div className="min-w-0 flex-1">
-                <ToolcraftNumberInputControl
-                  label="Selected clips rotation"
-                  isLabelHidden
-                  value={averageRotation}
+                <ShadcnNumericInput
+                  {...numericField0}
+                  type="number"
+                  inputMode="decimal"
+                  aria-label={"Selected clips rotation"}
                   min={-180}
                   max={180}
                   step={1}
                   disabled={false}
-                  onChange={(value) =>
-                    void updateVisualEntries("Rotate selected clips", () => ({
-                      rotation: value,
-                    }))
-                  }
-                  width="100%"
+                  style={{ width: "100%" }}
+                  className={numericCn(
+                    "h-8 w-full min-w-0 rounded-[7px] border border-border bg-bg-1 px-2.5 py-1.5 font-mono text-[13px] font-medium tabular-nums text-fg-2 md:text-[13px]",
+                  )}
                 />
               </div>
               {mixedRotation ? <MixedBadge /> : null}
@@ -523,48 +538,31 @@ export function MultiClipInspector({ clipIds }: MultiClipInspectorProps): JSX.El
           defaultOpen
         >
           <div className="space-y-2">
-            <Text
-              type="supporting"
-              display="block"
-              className="text-[10px] text-fg-3"
+            <span className="font-normal block text-[10px] text-fg-3"
             >
               Copy from the first selected visual layer, then apply the stack to
               all {visualEntries.length} selected visual layers.
-            </Text>
+            </span>
             <div className="grid grid-cols-2 gap-2">
-              <Button
-                label="Copy first effect stack"
-                icon={<Copy size={14} aria-hidden />}
-                variant="outline"
-                disabled={isBusy || sourceEffects.length === 0}
-                onClick={copyFirstEffectStack}
-              />
-              <Button
-                label="Append effects to selection"
-                icon={<ClipboardPaste size={14} aria-hidden />}
-                variant="outline"
-                disabled={isBusy || !hasEffectClipboard}
-                onClick={() => void pasteEffectsToSelection("append")}
-              />
-              <Button
-                label="Replace effects on selection"
-                icon={<ClipboardPaste size={14} aria-hidden />}
-                variant="outline"
-                disabled={isBusy || !hasEffectClipboard}
-                onClick={() => void pasteEffectsToSelection("replace")}
-              />
-              <Button
-                label="Clear effects from selection"
-                icon={<Trash2 size={14} aria-hidden />}
-                variant="outline"
-                disabled={
-                  isBusy ||
+              <Button onClick={copyFirstEffectStack} type="button" aria-label="Copy first effect stack" disabled={(isBusy || sourceEffects.length === 0)} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 px-3 text-[12px] border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg">
+                <span className="flex h-4 w-4 shrink-0 items-center justify-center">{<Copy size={14} aria-hidden />}</span>
+                <span className="truncate">{"Copy first effect stack"}</span>
+              </Button>
+              <Button onClick={() => void pasteEffectsToSelection("append")} type="button" aria-label="Append effects to selection" disabled={(isBusy || !hasEffectClipboard)} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 px-3 text-[12px] border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg">
+                <span className="flex h-4 w-4 shrink-0 items-center justify-center">{<ClipboardPaste size={14} aria-hidden />}</span>
+                <span className="truncate">{"Append effects to selection"}</span>
+              </Button>
+              <Button onClick={() => void pasteEffectsToSelection("replace")} type="button" aria-label="Replace effects on selection" disabled={(isBusy || !hasEffectClipboard)} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 px-3 text-[12px] border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg">
+                <span className="flex h-4 w-4 shrink-0 items-center justify-center">{<ClipboardPaste size={14} aria-hidden />}</span>
+                <span className="truncate">{"Replace effects on selection"}</span>
+              </Button>
+              <Button onClick={() => void clearSelectedEffectStacks()} type="button" aria-label="Clear effects from selection" disabled={(isBusy ||
                   !visualEntries.some(
                     (entry) => getVideoEffects(entry.id).length > 0,
-                  )
-                }
-                onClick={() => void clearSelectedEffectStacks()}
-              />
+                  ))} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 px-3 text-[12px] border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg">
+                <span className="flex h-4 w-4 shrink-0 items-center justify-center">{<Trash2 size={14} aria-hidden />}</span>
+                <span className="truncate">{"Clear effects from selection"}</span>
+              </Button>
             </div>
           </div>
         </InspectorSection>
@@ -576,12 +574,7 @@ export function MultiClipInspector({ clipIds }: MultiClipInspectorProps): JSX.El
         defaultOpen
       >
         <div className="grid grid-cols-2 gap-2">
-          <Button
-            label="Reset transforms"
-            icon={<RotateCcw size={14} aria-hidden />}
-            variant="outline"
-            disabled={isBusy || visualEntries.length === 0}
-            onClick={() =>
+          <Button onClick={() =>
               void updateVisualEntries("Reset selected clip transforms", (entry) => ({
                 position:
                   entry.kind === "timeline"
@@ -591,37 +584,26 @@ export function MultiClipInspector({ clipIds }: MultiClipInspectorProps): JSX.El
                 rotation: 0,
                 opacity: 1,
               }))
-            }
-          />
-          <Button
-            label={`Copy ${selectedEntries.length} selected clips`}
-            icon={<Copy size={14} aria-hidden />}
-            variant="outline"
-            disabled={isBusy || selectedEntries.length === 0}
-            onClick={copySelection}
-          />
-          <Button
-            label={`Paste clipboard at ${playheadPosition.toFixed(2)}s`}
-            icon={<ClipboardPaste size={14} aria-hidden />}
-            variant="outline"
-            disabled={isBusy || clipboardSize === 0}
-            onClick={() => void pasteClipboard()}
-          />
-          <Button
-            label={`Duplicate ${selectedEntries.length} selected clips`}
-            icon={<Copy size={14} aria-hidden />}
-            variant="outline"
-            disabled={isBusy || selectedEntries.length === 0}
-            onClick={() => void duplicateSelection()}
-          />
-          <Button
-            label="Delete selected clips"
-            icon={<Trash2 size={14} aria-hidden />}
-            variant="destructive"
-            disabled={false}
-            onClick={() => void deleteSelection()}
-            className="col-span-2"
-          />
+            } type="button" aria-label="Reset transforms" disabled={(isBusy || visualEntries.length === 0)} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 px-3 text-[12px] border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg">
+            <span className="flex h-4 w-4 shrink-0 items-center justify-center">{<RotateCcw size={14} aria-hidden />}</span>
+            <span className="truncate">{"Reset transforms"}</span>
+          </Button>
+          <Button onClick={copySelection} type="button" aria-label={(`Copy ${selectedEntries.length} selected clips`).trim() || undefined} disabled={(isBusy || selectedEntries.length === 0)} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 px-3 text-[12px] border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg">
+            <span className="flex h-4 w-4 shrink-0 items-center justify-center">{<Copy size={14} aria-hidden />}</span>
+            <span className="truncate">{`Copy ${selectedEntries.length} selected clips`}</span>
+          </Button>
+          <Button onClick={() => void pasteClipboard()} type="button" aria-label={(`Paste clipboard at ${playheadPosition.toFixed(2)}s`).trim() || undefined} disabled={(isBusy || clipboardSize === 0)} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 px-3 text-[12px] border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg">
+            <span className="flex h-4 w-4 shrink-0 items-center justify-center">{<ClipboardPaste size={14} aria-hidden />}</span>
+            <span className="truncate">{`Paste clipboard at ${playheadPosition.toFixed(2)}s`}</span>
+          </Button>
+          <Button onClick={() => void duplicateSelection()} type="button" aria-label={(`Duplicate ${selectedEntries.length} selected clips`).trim() || undefined} disabled={(isBusy || selectedEntries.length === 0)} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 px-3 text-[12px] border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg">
+            <span className="flex h-4 w-4 shrink-0 items-center justify-center">{<Copy size={14} aria-hidden />}</span>
+            <span className="truncate">{`Duplicate ${selectedEntries.length} selected clips`}</span>
+          </Button>
+          <Button onClick={() => void deleteSelection()} type="button" aria-label="Delete selected clips" disabled={(false)} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 px-3 text-[12px] bg-status-error text-white hover:bg-status-error/90 col-span-2">
+            <span className="flex h-4 w-4 shrink-0 items-center justify-center">{<Trash2 size={14} aria-hidden />}</span>
+            <span className="truncate">{"Delete selected clips"}</span>
+          </Button>
         </div>
       </InspectorSection>
 
@@ -658,18 +640,17 @@ function BatchSlider({
   return (
     <div className="flex items-center gap-3">
       <span className="w-[74px] text-[12px] font-medium text-fg-3">{label}</span>
-      <ToolcraftSliderControl
-        label={label}
-        value={value}
-        min={0}
-        max={max}
-        step={1}
-        disabled={disabled}
-        showValueLabel
-        formatValue={formatValue}
-        onChange={onChange}
-        className="min-w-0 flex-1"
-      />
+      <PropertySlider ariaLabel={label}
+value={value}
+min={0}
+max={max}
+step={1}
+onChange={onChange}
+isDisabled={disabled}
+label={label}
+showValueLabel
+className="min-w-0 flex-1"
+formatValue={formatValue} />
       {mixed ? <MixedBadge /> : null}
     </div>
   );
@@ -695,16 +676,18 @@ function BatchIconButton({
   disabled: boolean;
 }): JSX.Element {
   return (
-    <button
+    <ShadcnButton
+      variant="ghost"
+      size="sm"
       type="button"
       aria-label={label}
       title={label}
       disabled={disabled}
       onClick={onClick}
-      className="flex h-8 items-center justify-center rounded-[7px] border border-border bg-bg-2 text-fg-3 transition-colors hover:border-accent/50 hover:text-accent disabled:pointer-events-none disabled:opacity-40"
+      className="flex h-8 items-center justify-center rounded-[7px] border p-0 [&_svg]:size-3.5 border-border bg-bg-2 text-fg-3 transition-colors hover:border-accent/50 hover:text-accent disabled:pointer-events-none disabled:opacity-40"
     >
       <Icon size={14} aria-hidden />
-    </button>
+    </ShadcnButton>
   );
 }
 

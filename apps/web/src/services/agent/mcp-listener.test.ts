@@ -5,7 +5,7 @@ const h = vi.hoisted(() => ({
   getTool: vi.fn(),
   isDestructive: vi.fn(() => false),
   isExpensive: vi.fn(() => false),
-  toMcpTools: vi.fn(() => [
+  toMcpToolsAnnotated: vi.fn(() => [
     { name: "list_clips", description: "List", inputSchema: { type: "object" } },
   ]),
   autoAllow: false,
@@ -23,7 +23,7 @@ vi.mock("@openreel/agent", () => ({
   getTool: h.getTool,
   isDestructive: h.isDestructive,
   isExpensive: h.isExpensive,
-  toMcpTools: h.toMcpTools,
+  toMcpToolsAnnotated: h.toMcpToolsAnnotated,
 }));
 
 vi.mock("./host-singleton", () => ({
@@ -57,7 +57,7 @@ describe("handleMcpBridgeRequest", () => {
     h.isDestructive.mockReturnValue(false);
     h.isExpensive.mockReturnValue(false);
     h.getTool.mockReturnValue({ domain: "read" });
-    h.toMcpTools.mockReturnValue([
+    h.toMcpToolsAnnotated.mockReturnValue([
       { name: "list_clips", description: "List", inputSchema: { type: "object" } },
     ]);
     h.autoAllow = false;

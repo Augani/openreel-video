@@ -29,7 +29,7 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: write
+  contents: read
 
 env:
   R2_UPLOAD: ${{ (github.ref_type == 'tag' || inputs.publish) && 'true' || 'false' }}
@@ -47,48 +47,14 @@ jobs:
           node-version: "22"
           cache: "pnpm"
       - run: pnpm install --frozen-lockfile
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libxml2-utils
       - run: pnpm build:wasm
       - run: pnpm typecheck
       - run: pnpm test
 
-  release-setup:
-    name: Prepare public release
-    needs: quality
-    runs-on: ubuntu-latest
-    outputs:
-      r2_enabled: ${{ steps.config.outputs.r2_enabled }}
-    env:
-      R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
-      R2_BUCKET: ${{ secrets.R2_BUCKET }}
-      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-      GH_TOKEN: ${{ github.token }}
-      GH_REPO: ${{ github.repository }}
-    steps:
-      - name: Detect optional R2 publishing
-        id: config
-        shell: bash
-        run: |
-          if [ -n "$R2_ACCOUNT_ID" ] && [ -n "$R2_BUCKET" ] \
-            && [ -n "$R2_ACCESS_KEY_ID" ] && [ -n "$R2_SECRET_ACCESS_KEY" ]; then
-            echo "r2_enabled=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "r2_enabled=false" >> "$GITHUB_OUTPUT"
-          fi
-      - name: Create draft GitHub release
-        if: github.ref_type == 'tag'
-        shell: bash
-        run: |
-          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 || \
-            gh release create "$GITHUB_REF_NAME" \
-              --draft \
-              --prerelease \
-              --generate-notes \
-              --title "OpenReel Desktop $GITHUB_REF_NAME"
-
   build:
     name: Build (${{ matrix.os }})
-    needs: release-setup
+    needs: quality
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     env:
@@ -100,7 +66,6 @@ jobs:
       # R2 rejects the checksum trailers aws-cli v2 adds by default.
       AWS_REQUEST_CHECKSUM_CALCULATION: WHEN_REQUIRED
       AWS_RESPONSE_CHECKSUM_VALIDATION: WHEN_REQUIRED
-      R2_ENABLED: ${{ needs.release-setup.outputs.r2_enabled }}
     strategy:
       fail-fast: false
       matrix:
@@ -173,7 +138,7 @@ jobs:
               xcrun stapler validate "$dmg"
             done
           fi
-          if [ "$R2_UPLOAD" != "true" ] || [ "$R2_ENABLED" != "true" ]; then exit 0; fi
+          if [ "$R2_UPLOAD" != "true" ]; then exit 0; fi
           endpoint="https://$R2_ACCOUNT_ID.r2.cloudflarestorage.com"
           # Installers (for manual download from the landing) — always.
           aws s3 sync release "s3://$R2_BUCKET/" --endpoint-url "$endpoint" \
@@ -186,15 +151,6 @@ jobs:
           else
             echo "::warning::Unsigned mac — uploaded DMG only, no update feed."
           fi
-
-      - name: Upload macOS installers to GitHub release
-        if: runner.os == 'macOS' && github.ref_type == 'tag'
-        working-directory: apps/desktop
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-        run: gh release upload "$GITHUB_REF_NAME" release/OpenReel-*.dmg --clobber
 
       - name: Package + upload (Windows)
         if: runner.os == 'Windows'
@@ -212,20 +168,11 @@ jobs:
             unset CSC_LINK CSC_KEY_PASSWORD
           fi
           pnpm exec electron-builder --win --publish never
-          if [ "$R2_UPLOAD" != "true" ] || [ "$R2_ENABLED" != "true" ]; then exit 0; fi
+          if [ "$R2_UPLOAD" != "true" ]; then exit 0; fi
           endpoint="https://$R2_ACCOUNT_ID.r2.cloudflarestorage.com"
           aws s3 sync release "s3://$R2_BUCKET/" --endpoint-url "$endpoint" \
             --no-progress --exclude "*" --include "OpenReel-*.exe" \
             --include "latest.yml" --include "*.blockmap"
-
-      - name: Upload Windows installer to GitHub release
-        if: runner.os == 'Windows' && github.ref_type == 'tag'
-        working-directory: apps/desktop
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-        run: gh release upload "$GITHUB_REF_NAME" release/OpenReel-*.exe --clobber
 
       - name: Package + upload (Linux)
         if: runner.os == 'Linux'
@@ -234,44 +181,17 @@ jobs:
         run: |
           set -euo pipefail
           pnpm exec electron-builder --linux --publish never
-          if [ "$R2_UPLOAD" != "true" ] || [ "$R2_ENABLED" != "true" ]; then exit 0; fi
+          if [ "$R2_UPLOAD" != "true" ]; then exit 0; fi
           endpoint="https://$R2_ACCOUNT_ID.r2.cloudflarestorage.com"
           aws s3 sync release "s3://$R2_BUCKET/" --endpoint-url "$endpoint" \
             --no-progress --exclude "*" --include "OpenReel-*.AppImage" \
             --include "OpenReel-*.deb" --include "latest-linux.yml" \
             --include "*.blockmap"
 
-      - name: Upload Linux installers to GitHub release
-        if: runner.os == 'Linux' && github.ref_type == 'tag'
-        working-directory: apps/desktop
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-        run: |
-          gh release upload "$GITHUB_REF_NAME" \
-            release/OpenReel-*.AppImage \
-            release/OpenReel-*.deb \
-            --clobber
-
-  publish-github-release:
-    name: Publish GitHub release
-    needs: build
-    if: github.ref_type == 'tag'
-    runs-on: ubuntu-latest
-    env:
-      GH_TOKEN: ${{ github.token }}
-      GH_REPO: ${{ github.repository }}
-    steps:
-      - name: Publish completed release
-        run: gh release edit "$GITHUB_REF_NAME" --draft=false --prerelease
-
   manifest:
     name: Publish landing manifest.json
-    needs: [build, release-setup]
-    if: >-
-      (github.ref_type == 'tag' || inputs.publish)
-      && needs.release-setup.outputs.r2_enabled == 'true'
+    needs: build
+    if: github.ref_type == 'tag' || inputs.publish
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:

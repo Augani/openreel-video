@@ -1,4 +1,6 @@
 import type { Effect } from "../types/timeline";
+import { releaseGLContext, trackGLContext } from "./gl-context";
+import { applyIrisMaskToContext } from "./clip-iris";
 import {
   RendererFactory,
   type Renderer,
@@ -8,6 +10,17 @@ import {
 import { MotionShaderRenderer } from "../motion/motion-shader-renderer";
 import { getMotionShaderDef } from "../motion/shaders";
 import type { MotionShaderDef } from "../motion/shaders";
+import {
+  PRO_EFFECT_TYPES,
+  applyProEffect,
+  isProEffectNeutral,
+  isProEffectType,
+  proEffectGpuUniforms,
+  type ProEffectType,
+} from "./pro-effects";
+import { PRO_EFFECT_SHADER_DEFS } from "./pro-effect-shaders";
+import { isPluginEffectType } from "../plugins/manifest";
+import { getPluginHost } from "../plugins/plugin-host";
 
 interface ResolvedShaderEffect {
   readonly def: MotionShaderDef;
@@ -30,17 +43,13 @@ function readEffectNumber(raw: unknown, fallback: number): number {
   return typeof raw === "number" && Number.isFinite(raw) ? raw : fallback;
 }
 
-export interface FilterResult {
+interface FilterResult {
   image: ImageBitmap;
   processingTime: number;
   gpuAccelerated: boolean;
 }
 
-export interface OrderedEffect extends Effect {
-  orderIndex: number;
-}
-
-export interface VideoEffectsConfig {
+interface VideoEffectsConfig {
   width: number;
   height: number;
   useGPU?: boolean;
@@ -220,11 +229,23 @@ uniform sampler2D u_texture;
 uniform float u_amount;
 uniform float u_midpoint;
 uniform float u_feather;
+uniform float u_roundness;
+uniform float u_aspect;
 
 void main() {
  vec4 color = texture(u_texture, v_texCoord);
  vec2 center = vec2(0.5, 0.5);
  float dist = distance(v_texCoord, center);
+ // roundness 0.5 keeps the frame-following oval; 0 squares it off, 1 is a circle.
+ vec2 d = (v_texCoord - center) * 2.0;
+ float k = 0.70710678;
+ if (u_roundness < 0.5) {
+  float box = max(abs(d.x), abs(d.y)) * k;
+  dist = mix(box, dist, u_roundness / 0.5);
+ } else if (u_roundness > 0.5) {
+  vec2 c = d * vec2(min(1.0, u_aspect), min(1.0, 1.0 / u_aspect));
+  dist = mix(dist, length(c) * 0.5, (u_roundness - 0.5) / 0.5);
+ }
  float vignette = smoothstep(u_midpoint - u_feather, u_midpoint + u_feather, dist);
  vec3 rgb = color.rgb * (1.0 - vignette * u_amount);
  fragColor = vec4(rgb, color.a);
@@ -361,7 +382,7 @@ interface ShaderProgram {
   attributes: Map<string, number>;
 }
 
-export type FilterType =
+type FilterType =
   | "brightness"
   | "contrast"
   | "saturation"
@@ -378,7 +399,24 @@ export type FilterType =
   | "glow"
   | "motion-blur"
   | "radial-blur"
-  | "chromatic-aberration";
+  | "chromatic-aberration"
+  | ProEffectType;
+
+const GL_FRAGMENT_SOURCES: Partial<Record<FilterType | "passthrough", string>> = {
+  passthrough: PASSTHROUGH_SHADER,
+  brightness: BRIGHTNESS_SHADER,
+  contrast: CONTRAST_SHADER,
+  saturation: SATURATION_SHADER,
+  hue: HUE_SHADER,
+  blur: BLUR_SHADER,
+  sharpen: SHARPEN_SHADER,
+  vignette: VIGNETTE_SHADER,
+  grain: GRAIN_SHADER,
+  chromaKey: CHROMA_KEY_SHADER,
+  temperature: TEMPERATURE_SHADER,
+  tint: TINT_SHADER,
+  tonal: TONAL_SHADER,
+};
 
 export class VideoEffectsEngine {
   private canvas: OffscreenCanvas | null = null;
@@ -411,6 +449,9 @@ export class VideoEffectsEngine {
   private _shaderAlphaCtx: OffscreenCanvasRenderingContext2D | null = null;
 
   private _shaderRenderer: MotionShaderRenderer | null = null;
+  // Pro effect types whose GLSL path failed once; they stay on the CPU path.
+  private readonly _proGpuFailed = new Set<ProEffectType>();
+  private static _proGpuSupported: boolean | null = null;
 
   constructor(config: VideoEffectsConfig) {
     this.width = config.width;
@@ -502,7 +543,7 @@ export class VideoEffectsEngine {
       return;
     }
 
-    this.gl = gl;
+    this.gl = trackGLContext(gl);
     this.quadBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, this.quadBuffer);
     gl.bufferData(
@@ -524,21 +565,7 @@ export class VideoEffectsEngine {
       this.renderTextures.push(tex);
     }
 
-    // Compile all shaders
-    this.compileShader("passthrough", VERTEX_SHADER, PASSTHROUGH_SHADER);
-    this.compileShader("brightness", VERTEX_SHADER, BRIGHTNESS_SHADER);
-    this.compileShader("contrast", VERTEX_SHADER, CONTRAST_SHADER);
-    this.compileShader("saturation", VERTEX_SHADER, SATURATION_SHADER);
-    this.compileShader("hue", VERTEX_SHADER, HUE_SHADER);
-    this.compileShader("blur", VERTEX_SHADER, BLUR_SHADER);
-    this.compileShader("sharpen", VERTEX_SHADER, SHARPEN_SHADER);
-    this.compileShader("vignette", VERTEX_SHADER, VIGNETTE_SHADER);
-    this.compileShader("grain", VERTEX_SHADER, GRAIN_SHADER);
-    this.compileShader("chromaKey", VERTEX_SHADER, CHROMA_KEY_SHADER);
-    // Color grading shaders
-    this.compileShader("temperature", VERTEX_SHADER, TEMPERATURE_SHADER);
-    this.compileShader("tint", VERTEX_SHADER, TINT_SHADER);
-    this.compileShader("tonal", VERTEX_SHADER, TONAL_SHADER);
+    // Shader programs are compiled on first use (getShader), not here.
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
   }
@@ -565,6 +592,16 @@ export class VideoEffectsEngine {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 
     return texture;
+  }
+
+  /** Compiles (and caches) the WebGL2 program for a filter on first use; undefined for unknown filters. */
+  private getShader(name: FilterType | "passthrough"): ShaderProgram | undefined {
+    const cached = this.shaders.get(name);
+    if (cached) return cached;
+    const source = GL_FRAGMENT_SOURCES[name];
+    if (!source || !this.gl) return undefined;
+    this.compileShader(name, VERTEX_SHADER, source);
+    return this.shaders.get(name);
   }
 
   private compileShader(
@@ -761,7 +798,7 @@ export class VideoEffectsEngine {
       // Next effect uses that as input, avoiding read-write conflicts
       for (const effect of effects) {
         const filterType = effect.type as FilterType;
-        const shader = this.shaders.get(filterType);
+        const shader = this.getShader(filterType);
 
         if (!shader) {
           continue;
@@ -817,7 +854,7 @@ export class VideoEffectsEngine {
     params: Record<string, unknown>,
   ): void {
     const gl = this.gl!;
-    const shader = this.shaders.get(filterType);
+    const shader = this.getShader(filterType);
     if (!shader) return;
     gl.bindFramebuffer(
       gl.FRAMEBUFFER,
@@ -848,7 +885,7 @@ export class VideoEffectsEngine {
 
   private renderPassthrough(texture: WebGLTexture): void {
     const gl = this.gl!;
-    const shader = this.shaders.get("passthrough")!;
+    const shader = this.getShader("passthrough")!;
 
     gl.useProgram(shader.program);
 
@@ -927,6 +964,11 @@ export class VideoEffectsEngine {
         const amountLoc = shader.uniforms.get("u_amount");
         const midpointLoc = shader.uniforms.get("u_midpoint");
         const featherLoc = shader.uniforms.get("u_feather");
+        const roundLoc = shader.uniforms.get("u_roundness");
+        const aspectLoc = shader.uniforms.get("u_aspect");
+        if (roundLoc)
+          gl.uniform1f(roundLoc, Math.min(1, Math.max(0, readEffectNumber(params.roundness, 0.5))));
+        if (aspectLoc) gl.uniform1f(aspectLoc, this.width / Math.max(1, this.height));
         if (amountLoc)
           gl.uniform1f(amountLoc, readEffectNumber(params.amount, 0));
         if (midpointLoc)
@@ -1189,6 +1231,12 @@ export class VideoEffectsEngine {
     };
 
     for (const effect of effects) {
+      if (isPluginEffectType(effect.type)) {
+        // Third-party plugin: sandboxed host. Never throws; a failing plugin is bypassed.
+        flushCssFilters();
+        await getPluginHost().applyToContext(ctx, effect, width, height);
+        continue;
+      }
       const cssFilter = this.buildCSSFilter(effect);
       if (cssFilter) {
         pendingCssFilters.push(cssFilter);
@@ -1257,9 +1305,27 @@ export class VideoEffectsEngine {
     width: number,
     height: number,
   ): Promise<void> {
+    const params = effect.params as Record<string, unknown>;
+    if (effect.type === "mask" && applyIrisMaskToContext(ctx, params, width, height)) return;
+    if (isProEffectType(effect.type)) {
+      this.applyProEffectToContext(ctx, effect.type, params, width, height);
+      return;
+    }
+    if (effect.type === "glow") {
+      this.applyGlowToContext(ctx, params, width, height);
+      return;
+    }
+    if (effect.type === "shadow") {
+      this.applyShadowToContext(ctx, params, width, height);
+      return;
+    }
+    if (
+      (effect.type === "grain" || effect.type === "vignette" || effect.type === "sharpen") &&
+      readEffectNumber(params.amount, 0) === 0
+    ) return;
+
     const imageData = ctx.getImageData(0, 0, width, height);
     const data = imageData.data;
-    const params = effect.params as Record<string, unknown>;
 
     switch (effect.type) {
       case "sharpen": {
@@ -1271,7 +1337,8 @@ export class VideoEffectsEngine {
         const vigAmount = readEffectNumber(params.amount, 0);
         const midpoint = readEffectNumber(params.midpoint, 0.5);
         const feather = readEffectNumber(params.feather, 0.3);
-        this.applyVignette(data, width, height, vigAmount, midpoint, feather);
+        const roundness = readEffectNumber(params.roundness, 0.5);
+        this.applyVignette(data, width, height, vigAmount, midpoint, feather, roundness);
         break;
       }
       case "grain": {
@@ -1334,6 +1401,183 @@ export class VideoEffectsEngine {
     ctx.putImageData(imageData, 0, 0);
   }
 
+  /**
+   * Drop shadow. A shadow only exists where the layer's alpha does not cover,
+   * so on an opaque full-frame video the old CSS `drop-shadow` painted
+   * entirely outside the frame and changed nothing. When the frame is opaque
+   * the picture is inset as a card (just enough to fit the shadow) and the
+   * shadow is cast onto the margin; frames that already carry transparency
+   * (a feathered crop, a keyed clip, an image with alpha) are shadowed at
+   * full size.
+   */
+  private applyShadowToContext(
+    ctx: OffscreenCanvasRenderingContext2D,
+    params: Record<string, unknown>,
+    width: number,
+    height: number,
+  ): void {
+    const offsetX = readEffectNumber(params.offsetX, 0);
+    const offsetY = readEffectNumber(params.offsetY, 0);
+    const blur = Math.max(0, readEffectNumber(params.blur, 0));
+    const opacity = typeof params.opacity === "number" ? params.opacity : 0.8;
+    if (opacity <= 0 || (offsetX === 0 && offsetY === 0 && blur === 0)) return;
+    const color = this.toFilterColor(
+      typeof params.color === "string" ? params.color : undefined,
+      opacity,
+    );
+
+    const probes: ReadonlyArray<readonly [number, number]> = [
+      [0, 0],
+      [width - 1, 0],
+      [0, height - 1],
+      [width - 1, height - 1],
+      [Math.floor(width / 2), 0],
+      [Math.floor(width / 2), height - 1],
+      [0, Math.floor(height / 2)],
+      [width - 1, Math.floor(height / 2)],
+    ];
+    const opaque = probes.every(
+      ([x, y]) => ctx.getImageData(x, y, 1, 1).data[3] === 255,
+    );
+
+    const scratch = this.getFxScratchContext(width, height);
+    scratch.save();
+    scratch.setTransform(1, 0, 0, 1, 0, 0);
+    scratch.filter = "none";
+    scratch.globalCompositeOperation = "copy";
+    scratch.drawImage(ctx.canvas, 0, 0, width, height);
+    scratch.restore();
+
+    let margin = 0;
+    if (opaque) {
+      const cap = Math.floor(Math.min(width, height) * 0.15);
+      margin = Math.max(
+        4,
+        Math.min(cap, Math.ceil(blur + Math.max(Math.abs(offsetX), Math.abs(offsetY))) + 2),
+      );
+    }
+
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.filter = "none";
+    ctx.globalCompositeOperation = "source-over";
+    ctx.globalAlpha = 1;
+    ctx.clearRect(0, 0, width, height);
+    ctx.shadowColor = color;
+    ctx.shadowOffsetX = offsetX;
+    ctx.shadowOffsetY = offsetY;
+    ctx.shadowBlur = blur;
+    ctx.drawImage(
+      scratch.canvas,
+      margin,
+      margin,
+      width - margin * 2,
+      height - margin * 2,
+    );
+    ctx.restore();
+  }
+
+  /**
+   * In-frame bloom. The previous implementation was a CSS `drop-shadow` halo,
+   * which only paints outside the alpha silhouette and therefore changed
+   * nothing on an opaque video frame. This blurs a contrast-boosted copy
+   * (so highlights dominate), optionally tints it, and screen-blends it back,
+   * which brightens and softens highlights in-frame and still leaves a halo
+   * around transparent regions.
+   */
+  private applyGlowToContext(
+    ctx: OffscreenCanvasRenderingContext2D,
+    params: Record<string, unknown>,
+    width: number,
+    height: number,
+  ): void {
+    const radius = Math.max(0, Math.min(100, readEffectNumber(params.radius, 0)));
+    const intensity = Math.max(0, Math.min(3, readEffectNumber(params.intensity, 1)));
+    if (radius <= 0 || intensity <= 0) return;
+    const color = typeof params.color === "string" ? params.color : "#ffffff";
+    const tinted = !/^#?f{3}(f{3})?$/i.test(color.trim());
+
+    const scratch = this.getFxScratchContext(width, height);
+    scratch.save();
+    scratch.setTransform(1, 0, 0, 1, 0, 0);
+    scratch.globalCompositeOperation = "copy";
+    scratch.filter = `blur(${radius}px) brightness(1.25) contrast(1.5)`;
+    scratch.drawImage(ctx.canvas, 0, 0, width, height);
+    scratch.filter = "none";
+    if (tinted) {
+      scratch.globalCompositeOperation = "multiply";
+      scratch.fillStyle = color;
+      scratch.fillRect(0, 0, width, height);
+      // multiply over transparent pixels would paint opaque colour; restore
+      // the blurred silhouette.
+      scratch.globalCompositeOperation = "destination-in";
+      scratch.filter = `blur(${radius}px)`;
+      scratch.drawImage(ctx.canvas, 0, 0, width, height);
+    }
+    scratch.restore();
+
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.filter = "none";
+    ctx.globalCompositeOperation = "screen";
+    ctx.globalAlpha = Math.min(1, 0.6 * intensity);
+    ctx.drawImage(scratch.canvas, 0, 0, width, height);
+    ctx.restore();
+  }
+
+  /**
+   * Pro effects run as WebGL2 fragment shaders when available (real time) and
+   * fall back to the CPU reference implementation otherwise. Neutral params
+   * are an exact no-op with no readback or GPU work on either path.
+   */
+  private applyProEffectToContext(
+    ctx: OffscreenCanvasRenderingContext2D,
+    type: ProEffectType,
+    params: Record<string, unknown>,
+    width: number,
+    height: number,
+  ): void {
+    if (isProEffectNeutral(type, params)) return;
+    if (this.applyProEffectGpu(ctx, type, params, width, height)) return;
+    const imageData = ctx.getImageData(0, 0, width, height);
+    applyProEffect(type, params, imageData.data, width, height);
+    ctx.putImageData(imageData, 0, 0);
+  }
+
+  private applyProEffectGpu(
+    ctx: OffscreenCanvasRenderingContext2D,
+    type: ProEffectType,
+    params: Record<string, unknown>,
+    width: number,
+    height: number,
+  ): boolean {
+    if (!this.useGPU || this._proGpuFailed.has(type)) return false;
+    if (VideoEffectsEngine._proGpuSupported === null) {
+      VideoEffectsEngine._proGpuSupported = MotionShaderRenderer.isSupported();
+    }
+    if (!VideoEffectsEngine._proGpuSupported) return false;
+    if (!this._shaderRenderer) this._shaderRenderer = new MotionShaderRenderer();
+    const result = this._shaderRenderer.render(PRO_EFFECT_SHADER_DEFS[type], {
+      width,
+      height,
+      time: 0,
+      params: proEffectGpuUniforms(type, params, height),
+      inputCanvas: ctx.canvas,
+      strict: true,
+    });
+    if (!result) {
+      this._proGpuFailed.add(type);
+      return false;
+    }
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalCompositeOperation = "copy";
+    ctx.filter = "none";
+    ctx.drawImage(result, 0, 0, width, height);
+    ctx.restore();
+    return true;
+  }
+
   private applySharpenKernel(
     data: Uint8ClampedArray,
     width: number,
@@ -1377,16 +1621,30 @@ export class VideoEffectsEngine {
     amount: number,
     midpoint: number,
     feather: number,
+    roundness = 0.5,
   ): void {
     const normalizedAmount = amount / 100;
     const centerX = width / 2;
     const centerY = height / 2;
+    const half = Math.max(centerX, centerY);
+    const round = Math.min(1, Math.max(0, roundness));
 
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
         const dx = (x - centerX) / centerX;
         const dy = (y - centerY) / centerY;
-        const dist = Math.sqrt(dx * dx + dy * dy) / Math.SQRT2;
+        // 0.5 keeps the frame-following oval; 0 squares it off, 1 makes it a circle.
+        const oval = Math.sqrt(dx * dx + dy * dy) / Math.SQRT2;
+        let dist = oval;
+        if (round < 0.5) {
+          const box = Math.max(Math.abs(dx), Math.abs(dy));
+          dist = box + (oval - box) * (round / 0.5);
+        } else if (round > 0.5) {
+          const cx = (x - centerX) / half;
+          const cy = (y - centerY) / half;
+          const circle = Math.sqrt(cx * cx + cy * cy) / Math.SQRT2;
+          dist = oval + (circle - oval) * ((round - 0.5) / 0.5);
+        }
 
         const vignette = this.smoothstep(
           midpoint - feather,
@@ -1729,29 +1987,6 @@ export class VideoEffectsEngine {
         return `hue-rotate(${readEffectNumber(params.rotation, 0)}deg)`;
       case "blur":
         return `blur(${readEffectNumber(params.radius, 0)}px)`;
-      case "shadow": {
-        const color = this.toFilterColor(
-          typeof params.color === "string" ? params.color : undefined,
-          typeof params.opacity === "number" ? params.opacity : 0.8,
-        );
-        return `drop-shadow(${readEffectNumber(params.offsetX, 0)}px ${readEffectNumber(params.offsetY, 0)}px ${readEffectNumber(params.blur, 0)}px ${color})`;
-      }
-      case "glow": {
-        const radius = readEffectNumber(params.radius, 0);
-        const intensity =
-          typeof params.intensity === "number"
-            ? Math.max(0, Math.min(3, params.intensity))
-            : 1;
-        const primaryColor = this.toFilterColor(
-          typeof params.color === "string" ? params.color : undefined,
-          Math.min(1, 0.35 * intensity),
-        );
-        const secondaryColor = this.toFilterColor(
-          typeof params.color === "string" ? params.color : undefined,
-          Math.min(1, 0.2 * intensity),
-        );
-        return `drop-shadow(0 0 ${radius}px ${primaryColor}) drop-shadow(0 0 ${Math.max(1, radius / 2)}px ${secondaryColor})`;
-      }
       default:
         return "";
     }
@@ -1780,14 +2015,20 @@ export class VideoEffectsEngine {
     return effects.filter((e) => e.enabled).map((e) => e.id);
   }
 
+  private static webgl2Supported: boolean | null = null;
+
   static isWebGL2Supported(): boolean {
+    // Probed once per page, and the probe context is given back at once: it used to leak one live context per engine.
+    if (VideoEffectsEngine.webgl2Supported !== null) return VideoEffectsEngine.webgl2Supported;
     try {
       const canvas = new OffscreenCanvas(1, 1);
       const gl = canvas.getContext("webgl2");
-      return gl !== null;
+      releaseGLContext(gl);
+      VideoEffectsEngine.webgl2Supported = gl !== null;
     } catch {
-      return false;
+      VideoEffectsEngine.webgl2Supported = false;
     }
+    return VideoEffectsEngine.webgl2Supported;
   }
 
   resize(width: number, height: number): void {
@@ -1837,6 +2078,7 @@ export class VideoEffectsEngine {
       "motion-blur",
       "radial-blur",
       "chromatic-aberration",
+      ...PRO_EFFECT_TYPES,
     ];
   }
 
@@ -1870,6 +2112,7 @@ export class VideoEffectsEngine {
 
       this.framebuffers = [];
       this.renderTextures = [];
+      releaseGLContext(this.gl);
     }
 
     if (this._shaderRenderer) {
@@ -1907,34 +2150,6 @@ export class VideoEffectsEngine {
   }
 }
 let videoEffectsEngineInstance: VideoEffectsEngine | null = null;
-let initializationPromise: Promise<VideoEffectsEngine> | null = null;
-
-export async function getVideoEffectsEngineAsync(
-  width: number = 1920,
-  height: number = 1080,
-): Promise<VideoEffectsEngine> {
-  if (videoEffectsEngineInstance) {
-    if (
-      videoEffectsEngineInstance["width"] !== width ||
-      videoEffectsEngineInstance["height"] !== height
-    ) {
-      videoEffectsEngineInstance.resize(width, height);
-    }
-    return videoEffectsEngineInstance;
-  }
-
-  if (initializationPromise) {
-    return initializationPromise;
-  }
-
-  initializationPromise = (async () => {
-    videoEffectsEngineInstance = new VideoEffectsEngine({ width, height });
-    await videoEffectsEngineInstance.initialize();
-    return videoEffectsEngineInstance;
-  })();
-
-  return initializationPromise;
-}
 
 export function getVideoEffectsEngine(
   width: number = 1920,
@@ -1955,11 +2170,4 @@ export function getVideoEffectsEngine(
     videoEffectsEngineInstance.resize(width, height);
   }
   return videoEffectsEngineInstance;
-}
-
-export function disposeVideoEffectsEngine(): void {
-  if (videoEffectsEngineInstance) {
-    videoEffectsEngineInstance.dispose();
-    videoEffectsEngineInstance = null;
-  }
 }

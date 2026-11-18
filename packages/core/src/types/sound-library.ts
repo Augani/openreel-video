@@ -1,6 +1,10 @@
 export type SoundCategory = "music" | "sfx" | "ambient" | "vocals" | "foley";
 
 export type MusicGenre =
+  | "afrobeats"
+  | "afro-house"
+  | "afro-pop"
+  | "percussion"
   | "electronic"
   | "cinematic"
   | "pop"
@@ -84,6 +88,10 @@ export interface SoundAnalysis {
 }
 
 export const MUSIC_GENRES: { id: MusicGenre; name: string }[] = [
+  { id: "afrobeats", name: "Afrobeats" },
+  { id: "afro-house", name: "Afro-house" },
+  { id: "afro-pop", name: "Afro-pop" },
+  { id: "percussion", name: "Percussion" },
   { id: "electronic", name: "Electronic" },
   { id: "cinematic", name: "Cinematic" },
   { id: "pop", name: "Pop" },

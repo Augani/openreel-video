@@ -2,12 +2,12 @@ import { v4 as uuidv4 } from "uuid";
 import type { StoreApi } from "zustand";
 import type { ProjectState } from "../project-store";
 import { useEngineStore } from "../engine-store";
-import { splitCaptionIntoSingleLineCues } from "@openreel/core";
+import { loadEngineModules } from "../../services/lazy-engines";
 
 type Get = StoreApi<ProjectState>["getState"];
 type Set = StoreApi<ProjectState>["setState"];
 
-export type SubtitleSlice = Pick<
+type SubtitleSlice = Pick<
   ProjectState,
   | "addSubtitle"
   | "removeSubtitle"
@@ -72,13 +72,25 @@ export function createSubtitleSlice(_set: Set, get: Get): SubtitleSlice {
       );
       if (created) {
         get().updateTextTransform(created.id, { position: { x: 0.5, y: style?.position === "top" ? 0.15 : style?.position === "center" ? 0.5 : 0.85 } });
+        if (subtitle.animationStyle === "word-by-word") {
+          const wordTime = duration / Math.max(1, subtitle.text.trim().split(/\s+/).length);
+          get().updateTextAnimation(created.id, {
+            preset: "pop",
+            unit: "word",
+            stagger: wordTime,
+            inDuration: duration - wordTime + Math.min(0.12, wordTime),
+            outDuration: 0,
+            params: { popOvershoot: 1.12 },
+          });
+        }
       }
       if (typeof metadata?.captionSourceClipId === "string") {
         const sourceTrack = get().project.timeline.tracks.find((track) =>
           track.clips.some((clip) => clip.id === metadata.captionSourceClipId),
         );
-        if (sourceTrack) get().groupTracks(sourceTrack.id, captionsTrack.id);
+        if (created && sourceTrack) get().groupTracks(sourceTrack.id, captionsTrack.id);
       }
+      return created ?? undefined;
     },
 
     removeSubtitle: (subtitleId) => {
@@ -113,6 +125,7 @@ export function createSubtitleSlice(_set: Set, get: Get): SubtitleSlice {
       const subtitleEngine = await useEngineStore
         .getState()
         .getSubtitleEngine();
+      const { splitCaptionIntoSingleLineCues } = await loadEngineModules();
       const { project, addSubtitle } = get();
       const { result } = subtitleEngine.importSRT(project.timeline, srtContent);
       const errorMessages = result.errors.map(

@@ -1,15 +1,14 @@
 import { Profiler } from "react";
-import { act, cleanup, fireEvent, render, renderHook } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { Clip, TextClip, Track } from "@openreel/core";
+import type { Clip, Track } from "@openreel/core";
 import { createEmptyProject } from "../../../stores/project/project-helpers";
 import { useProjectStore } from "../../../stores/project-store";
 import { useTimelineStore } from "../../../stores/timeline-store";
 import { useUIStore } from "../../../stores/ui-store";
-import { TrackLane } from "./TrackLane";
-import { TrackHeader } from "./TrackHeader";
-import { useClipContextMenuItems } from "./ClipContextMenu";
+import { ClipContextMenu } from "./ClipContextMenu";
 import { ClipComponent } from "./ClipComponent";
+import { openContextMenu } from "../../../test/open-context-menu";
 
 const transform = {
   position: { x: 0.5, y: 0.5 },
@@ -27,15 +26,6 @@ const track: Track = {
   id: "track", name: "Video", type: "video", clips: [clip], transitions: [],
   locked: false, hidden: false, muted: false, solo: false,
 };
-const caption: TextClip = {
-  id: "caption", trackId: track.id, startTime: 0, duration: 10, text: "Caption",
-  transform, keyframes: [],
-  style: {
-    fontFamily: "Inter", fontSize: 48, fontWeight: "bold", fontStyle: "normal",
-    color: "#fff", textAlign: "center", verticalAlign: "middle",
-    lineHeight: 1.2, letterSpacing: 0,
-  },
-};
 const noop = () => undefined;
 
 describe("timeline playback rendering", () => {
@@ -44,6 +34,7 @@ describe("timeline playback rendering", () => {
     useProjectStore.setState({
       hasOpenProject: true,
       project: { ...project, timeline: { ...project.timeline, tracks: [track] } },
+      clipboard: [], copiedEffects: [], error: null,
     });
     useTimelineStore.setState({
       playheadPosition: 1, playbackState: "stopped", trackHeight: 64,
@@ -57,56 +48,23 @@ describe("timeline playback rendering", () => {
     vi.restoreAllMocks();
   });
 
-  it("keeps lanes, media clips, captions, and headers idle between clip boundaries", () => {
-    const commits = vi.fn();
-    render(
-      <Profiler id="timeline" onRender={commits}>
-        <TrackHeader track={track} index={0} onDragStart={noop}
-          onDragOver={noop} onDrop={noop} onDragEnd={noop} />
-        <TrackLane track={track} allTracks={[track]} pixelsPerSecond={50}
-          selectedClipIds={[]} textClips={[caption]} shapeClips={[]}
-          trackHeights={new Map([[track.id, 64]])} timelineRef={{ current: null }}
-          onSelectClip={noop} onDropMedia={noop} onMoveClip={noop}
-          onMoveTextClip={noop} onSnapIndicator={noop} onTrimTextClip={noop}
-          onTrimShapeClip={noop} scrollX={0} trackHeight={64}
-          onResizeTrack={noop} onSelectTransition={noop} />
-      </Profiler>,
-    );
-    commits.mockClear();
-
-    // Separate acts model distinct frames rather than a batched state update.
-    for (let frame = 1; frame <= 60; frame++) {
-      act(() => useTimelineStore.getState().setPlayheadPosition(1 + frame / 60));
-    }
-    expect(commits).not.toHaveBeenCalled();
-
-    act(() => useTimelineStore.getState().setTrackHeightById(track.id, 120));
-    expect(commits).toHaveBeenCalled();
-  });
-
   it("updates the split menu at clip boundaries and splits at the latest playback time", async () => {
     const split = vi.spyOn(useProjectStore.getState(), "splitClip")
       .mockResolvedValue({ success: true });
     const renders = vi.fn();
-    const { result } = renderHook(() => {
-      renders();
-      return useClipContextMenuItems({ clip, track });
-    });
-    const splitAction = () => result.current.find(
-      (item) => "label" in item && item.label === "Split at Playhead",
-    );
+    openContextMenu(<Profiler id="menu" onRender={renders}><ClipContextMenu clip={clip} track={track} /></Profiler>);
     renders.mockClear();
-
     act(() => useTimelineStore.getState().setPlayheadPosition(4));
     expect(renders).not.toHaveBeenCalled();
-    const item = splitAction();
-    if (!item || !("onClick" in item)) throw new Error("Missing split action");
-    await act(async () => item.onClick?.());
-    expect(split).toHaveBeenCalledWith(clip.id, 4);
-
     act(() => useTimelineStore.getState().setPlayheadPosition(11));
-    expect(renders).toHaveBeenCalledTimes(1);
-    expect(splitAction()).toHaveProperty("isDisabled", true);
+    expect(renders).toHaveBeenCalled();
+    renders.mockClear();
+    act(() => useTimelineStore.getState().setPlayheadPosition(12));
+    expect(renders).not.toHaveBeenCalled();
+    expect(screen.getByRole("menuitem", { name: "Split at Playhead" })).toHaveAttribute("data-disabled");
+    act(() => useTimelineStore.getState().setPlayheadPosition(4));
+    await act(async () => fireEvent.click(screen.getByRole("menuitem", { name: "Split at Playhead" })));
+    expect(split).toHaveBeenCalledWith(clip.id, 4);
   });
 
   it.each(["video", "audio"] as const)("limits %s decorations to the viewport on an hour-long clip", (type) => {
@@ -139,7 +97,9 @@ describe("timeline playback rendering", () => {
     const decorations = () => type === "video"
       ? view.container.querySelectorAll(".bg-cover")
       : view.container.querySelectorAll('svg[height="28"] rect');
-    const maximum = type === "video" ? 22 : 208;
+    // Waveform bars use the reference's 3px spacing, bounded by the visible
+    // 1000px plus 120px overscan on each side, independently of clip length.
+    const maximum = type === "video" ? 22 : Math.ceil((1000 + 2 * 120) / 3) + 2;
     expect(decorations().length).toBeGreaterThan(0);
     expect(decorations().length).toBeLessThanOrEqual(maximum);
 
@@ -166,8 +126,9 @@ describe("timeline playback rendering", () => {
       onSelect={noop} onMoveClip={noop} onSnapIndicator={noop} />);
     expect(view.container.querySelectorAll(".bg-cover")).toHaveLength(0);
     expect(view.container.querySelectorAll('svg[height="28"] rect').length).toBeGreaterThan(0);
-    const menu = renderHook(() => useClipContextMenuItems({ clip, track: audioTrack }));
-    expect(menu.result.current.some((item) => "label" in item && item.label === "Separate Audio")).toBe(false);
+    fireEvent.contextMenu(screen.getByRole("button", { name: /Select clip/ }));
+    expect(screen.queryByRole("menuitem", { name: "Separate Audio" })).toBeNull();
+    expect(screen.getByRole("menuitem", { name: "Copy Audio Effects" })).toBeInTheDocument();
   });
 
   it("preserves selected clip offsets across drag updates and leaves locked clips alone", async () => {

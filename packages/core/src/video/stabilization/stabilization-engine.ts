@@ -18,7 +18,7 @@ import {
   computeCorrections,
 } from "./motion-path";
 
-export class StabilizationEngine {
+class StabilizationEngine {
   private profiles: Map<string, StabilizationProfile> = new Map();
   private flowEngine: OpticalFlowCPU;
 
@@ -349,14 +349,9 @@ export function getStabilizedTransform(
 
 let stabilizationEngineInstance: StabilizationEngine | null = null;
 
-export function getStabilizationEngine(): StabilizationEngine {
+function getStabilizationEngine(): StabilizationEngine {
   if (!stabilizationEngineInstance) {
     stabilizationEngineInstance = new StabilizationEngine();
   }
   return stabilizationEngineInstance;
-}
-
-export function disposeStabilizationEngine(): void {
-  stabilizationEngineInstance?.dispose();
-  stabilizationEngineInstance = null;
 }

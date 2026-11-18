@@ -11,7 +11,6 @@ import {
   getMotionEffectParameterDescriptor,
   getMotionEffectParameterValue,
   getMotionEffectParameterValueAtTime,
-  isMotionExpressionControlEffect,
   layerNeedsBufferedEffects,
   setMotionEffectParameterValue,
 } from "./motion-effects";
@@ -54,16 +53,6 @@ const makeComposition = (layer: MotionLayer): MotionComposition => ({
 });
 
 describe("motion expression controls", () => {
-  it("creates slider, checkbox, and angle controls with default names and values", () => {
-    const slider = createMotionEffect("slider-control", "slider-1");
-    const checkbox = createMotionEffect("checkbox-control", "checkbox-1");
-    const angle = createMotionEffect("angle-control", "angle-1");
-
-    expect(slider).toMatchObject({ type: "slider-control", name: "Slider Control", value: 0 });
-    expect(checkbox).toMatchObject({ type: "checkbox-control", name: "Checkbox Control", value: 0 });
-    expect(angle).toMatchObject({ type: "angle-control", name: "Angle Control", value: 0 });
-  });
-
   it("exposes a value descriptor and immutable get/set for each control", () => {
     const slider = createMotionEffect("slider-control", "slider-1");
     expect(getMotionEffectParameterDescriptor(slider, "value")).toBeDefined();
@@ -107,13 +96,6 @@ describe("motion expression controls", () => {
       },
     ];
     expect(getMotionEffectParameterValueAtTime(slider, keyframes, "value", 0.5)).toBeCloseTo(50, 5);
-  });
-
-  it("flags controls via isMotionExpressionControlEffect and excludes non-controls", () => {
-    expect(isMotionExpressionControlEffect(createMotionEffect("slider-control", "s"))).toBe(true);
-    expect(isMotionExpressionControlEffect(createMotionEffect("checkbox-control", "c"))).toBe(true);
-    expect(isMotionExpressionControlEffect(createMotionEffect("angle-control", "a"))).toBe(true);
-    expect(isMotionExpressionControlEffect(createMotionEffect("blur", "b"))).toBe(false);
   });
 
   it("renders a controls-only layer as effect-less across render paths", () => {

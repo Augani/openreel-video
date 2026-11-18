@@ -33,6 +33,22 @@ export interface TextClip {
    * loaded.
    */
   readonly text3d?: Text3DSettings;
+  /** Roll (vertical) or crawl (horizontal) the text across the frame over the clip duration. */
+  readonly scroll?: TextScroll;
+}
+
+/**
+ * Title scrolling. `roll` moves up (credits) or down; `crawl` moves left
+ * (ticker) or right. With `startOffscreen` the text begins fully outside the
+ * frame, with `endOffscreen` it finishes fully outside; a side that is not
+ * off-screen rests at the clip's own position.
+ */
+export interface TextScroll {
+  readonly mode: "roll" | "crawl";
+  /** roll: "up" (default) or "down"; crawl: "left" (default) or "right". */
+  readonly direction?: "up" | "down" | "left" | "right";
+  readonly startOffscreen: boolean;
+  readonly endOffscreen: boolean;
 }
 
 export interface Text3DSettings {
@@ -104,13 +120,18 @@ export type VerticalAlign = "top" | "middle" | "bottom";
 
 export type TextDecoration = "none" | "underline" | "line-through" | "overline";
 
-export interface TextAnimation {
+export interface TextAnimationPhase {
   readonly preset: TextAnimationPreset;
   readonly params: TextAnimationParams;
-  readonly inDuration: number;
-  readonly outDuration: number;
   readonly stagger?: number; // Delay between characters/words
   readonly unit?: "character" | "word" | "line";
+}
+
+export interface TextAnimation extends TextAnimationPhase {
+  readonly inDuration: number;
+  readonly outDuration: number;
+  /** Independent exit. Omitted in legacy projects, which reuse the entry preset. */
+  readonly out?: TextAnimationPhase;
 }
 
 export type TextAnimationPreset =

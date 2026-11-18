@@ -1,5 +1,5 @@
 import type { StoreApi } from "zustand";
-import { textAnimationEngine } from "@openreel/core";
+import { getLoadedEngineModules } from "../../services/lazy-engines";
 import type {
   TextStyle,
   TextAnimation,
@@ -30,7 +30,7 @@ type OverlayTimingUpdates = {
   keyframes?: Keyframe[];
 };
 
-export type TextGraphicsSlice = Pick<
+type TextGraphicsSlice = Pick<
   ProjectState,
   | "createTextClip"
   | "updateTextContent"
@@ -323,14 +323,19 @@ export function createTextGraphicsSlice(
       params?: Partial<TextAnimationParams>,
     ) => {
       const titleEngine = useEngineStore.getState().getTitleEngine();
-      if (!titleEngine) return null;
-      const animation = textAnimationEngine.createAnimationPreset(
+      const textAnimationEngine = getLoadedEngineModules()?.textAnimationEngine;
+      if (!titleEngine || !textAnimationEngine) return null;
+      const before = titleEngine.getTextClip(clipId);
+      const previous = before?.animation;
+      const created = textAnimationEngine.createAnimationPreset(
         preset,
         inDuration,
         outDuration,
         params,
       );
-      const before = titleEngine.getTextClip(clipId);
+      const animation = previous?.preset === preset
+        ? { ...previous, ...created, params: { ...created.params, ...previous.params, ...params } }
+        : { ...created, ...(previous?.out ? { out: previous.out } : {}) };
       const beforeSnapshot = before ? cloneClipSnapshot(before) : undefined;
       const updatedClip = titleEngine.updateTextClip(clipId, { animation });
       if (updatedClip) {
@@ -340,9 +345,9 @@ export function createTextGraphicsSlice(
     },
 
     getAvailableAnimationPresets: () =>
-      textAnimationEngine.getAvailablePresets(),
+      getLoadedEngineModules()?.textAnimationEngine.getAvailablePresets() ?? [],
 
-    createShapeClip: (trackId, startTime, shapeType: ShapeType, duration = 5, style) => {
+    createShapeClip: (trackId, startTime, shapeType: ShapeType, duration = 5, style, geometry) => {
       const graphicsEngine = useEngineStore.getState().getGraphicsEngine();
       if (!graphicsEngine) {
         console.error("GraphicsEngine not initialized");
@@ -355,7 +360,15 @@ export function createTextGraphicsSlice(
         return null;
       }
       const shapeClip = graphicsEngine.createShape(
-        { shapeType, width: 200, height: 200, style },
+        {
+          shapeType,
+          width: 200,
+          height: 200,
+          style,
+          ...(geometry?.points !== undefined ? { points: geometry.points } : {}),
+          ...(geometry?.pathData !== undefined ? { pathData: geometry.pathData } : {}),
+          ...(geometry?.closed !== undefined ? { closed: geometry.closed } : {}),
+        },
         trackId,
         startTime,
         duration,

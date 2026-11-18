@@ -7,25 +7,25 @@ export interface RGB {
 import type { ChromaKeySettings } from "../types/timeline";
 export type { ChromaKeySettings };
 
-export interface ChromaKeyResult {
+interface ChromaKeyResult {
   image: ImageBitmap;
   processingTime: number;
   gpuAccelerated: boolean;
 }
 
-export interface ChromaKeyMatte {
+interface ChromaKeyMatte {
   matte: ImageData;
   transparentPixels: number;
   totalPixels: number;
 }
 
-export interface ChromaKeyEngineConfig {
+interface ChromaKeyEngineConfig {
   width: number;
   height: number;
   useGPU?: boolean;
 }
 
-export const DEFAULT_CHROMA_KEY_SETTINGS: ChromaKeySettings = {
+const DEFAULT_CHROMA_KEY_SETTINGS: ChromaKeySettings = {
   enabled: false,
   keyColor: { r: 0, g: 1, b: 0 }, // Pure green
   tolerance: 0.3,
@@ -33,7 +33,7 @@ export const DEFAULT_CHROMA_KEY_SETTINGS: ChromaKeySettings = {
   spillSuppression: 0.5,
 };
 
-export function createDefaultChromaKeySettings(): ChromaKeySettings {
+function createDefaultChromaKeySettings(): ChromaKeySettings {
   return { ...DEFAULT_CHROMA_KEY_SETTINGS };
 }
 

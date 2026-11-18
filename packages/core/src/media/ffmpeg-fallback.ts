@@ -23,7 +23,7 @@ type FFmpegInstance = {
   terminate(): void;
 };
 
-export interface AudioStreamInfo {
+interface AudioStreamInfo {
   index: number;
   codec: string;
   sampleRate: number;
@@ -31,13 +31,15 @@ export interface AudioStreamInfo {
   channelLayout: string;
 }
 
-export interface AudioProbeResult {
+interface AudioProbeResult {
   audioStreamCount: number;
   streams: AudioStreamInfo[];
 }
 
-export interface AudioExtractionOptions {
+interface AudioExtractionOptions {
   onProgress?: (progress: ExportProgress) => void;
+  /** Output channels (default 2). */
+  channels?: number;
 }
 
 export interface ProxySettings {
@@ -356,7 +358,7 @@ export class FFmpegFallback {
       args.push(
         "-acodec", "pcm_f32le",
         "-ar", "48000",
-        "-ac", "2",
+        "-ac", String(options.channels ?? 2),
         outputFilename,
       );
 
@@ -1247,20 +1249,4 @@ export function getFFmpegFallback(): FFmpegFallback {
     ffmpegInstance = new FFmpegFallback();
   }
   return ffmpegInstance;
-}
-
-export function shouldUseProxy(metadata: {
-  width: number;
-  height: number;
-  duration: number;
-  fileSize?: number;
-}): boolean {
-  return getFFmpegFallback().shouldUseProxy(metadata);
-}
-
-export function getRecommendedProxyPreset(metadata: {
-  width: number;
-  height: number;
-}): "low" | "medium" | "high" {
-  return getFFmpegFallback().getRecommendedProxyPreset(metadata);
 }

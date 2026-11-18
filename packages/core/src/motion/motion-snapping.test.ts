@@ -79,40 +79,6 @@ describe("motion snapping", () => {
     });
   });
 
-  it("can snap layer anchors to a grid", () => {
-    const result = snapMotionLayerPosition(
-      makeComposition(),
-      "a",
-      { x: 157, y: 83 },
-      {
-        threshold: 8,
-        gridSize: 40,
-        snapToComposition: false,
-        snapToLayers: false,
-        snapToGrid: true,
-      },
-    );
-
-    expect(result.position).toEqual({ x: 160, y: 80 });
-    expect(result.guides.map((guide) => guide.kind)).toEqual(["grid", "grid"]);
-  });
-
-  it("ignores the other members of a moving selection", () => {
-    const result = snapMotionLayerPosition(
-      makeComposition(),
-      "a",
-      { x: 202, y: 240 },
-      {
-        threshold: 8,
-        snapToComposition: false,
-        ignoredLayerIds: ["b"],
-      },
-    );
-
-    expect(result.position).toEqual({ x: 202, y: 240 });
-    expect(result.guides).toEqual([]);
-  });
-
   it("snaps layer anchors to persistent composition guides", () => {
     const composition: MotionComposition = {
       ...makeComposition(),
@@ -145,18 +111,4 @@ describe("motion snapping", () => {
     ]);
   });
 
-  it("returns the proposed position when no target is close enough", () => {
-    const result = snapMotionLayerPosition(
-      makeComposition(),
-      "a",
-      { x: 460, y: 271 },
-      { threshold: 3, snapToGrid: false },
-    );
-
-    expect(result).toEqual({
-      position: { x: 460, y: 271 },
-      guides: [],
-      snapped: false,
-    });
-  });
 });

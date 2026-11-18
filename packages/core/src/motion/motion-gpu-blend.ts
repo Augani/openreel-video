@@ -1,4 +1,4 @@
-import { BLEND_MODES, type BlendMode } from "../video/types";
+import type { BlendMode } from "../video/types";
 
 export interface MotionRgb {
   readonly r: number;
@@ -6,7 +6,7 @@ export interface MotionRgb {
   readonly b: number;
 }
 
-export interface MotionRgba extends MotionRgb {
+interface MotionRgba extends MotionRgb {
   readonly a: number;
 }
 
@@ -316,5 +316,3 @@ fn motionComposite(backdrop: vec4<f32>, source: vec4<f32>, mode: u32) -> vec4<f3
 }
 `;
 }
-
-export const MOTION_BLEND_MODE_COUNT = BLEND_MODES.length;

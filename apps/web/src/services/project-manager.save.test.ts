@@ -45,6 +45,31 @@ function mockDownload() {
 }
 
 describe("ProjectManager save outcomes", () => {
+  it("does not reattach an old browser save target after switching projects during its write", async () => {
+    const { writable } = browserWriter();
+    let finish!: () => void;
+    writable.close.mockImplementationOnce(() => new Promise<void>(resolve => { finish = resolve; }));
+    const saving = projectManager.saveProjectAs(project);
+    await vi.waitFor(() => expect(writable.close).toHaveBeenCalledOnce());
+    const nextHandle = { kind: "native" as const, path: "/next.oreel" };
+    projectManager.activatePickedProject({ project: createEmptyProject("Next"), fileHandle: nextHandle });
+    finish();
+    await expect(saving).resolves.toBe(true);
+    expect(projectManager.getCurrentFileHandle()).toBe(nextHandle);
+  });
+
+  it("does not reattach an old native save target after New releases it during a write", async () => {
+    let finish!: () => void;
+    const writeFile = vi.fn(() => new Promise<void>(resolve => { finish = resolve; }));
+    window.openreel = { fs: { showSaveDialog: vi.fn(async () => "/old.oreel"), writeFile } } as unknown as NonNullable<Window["openreel"]>;
+    const saving = projectManager.saveProjectAs(project);
+    await vi.waitFor(() => expect(writeFile).toHaveBeenCalledOnce());
+    projectManager.releaseCurrentFileHandle();
+    finish();
+    await expect(saving).resolves.toBe(true);
+    expect(projectManager.getCurrentFileHandle()).toBeNull();
+  });
+
   it("returns false for a cancelled picker without emitting a save", async () => {
     mockPicker(undefined, new DOMException("Cancelled", "AbortError"));
     const saved = vi.fn();

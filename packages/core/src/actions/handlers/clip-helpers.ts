@@ -32,10 +32,16 @@ export function patchClip(
       return clip;
     }),
   }));
+  if (found && (patch.startTime !== undefined || patch.duration !== undefined || patch.inPoint !== undefined || patch.outPoint !== undefined)) {
+    const clip = findClip(project, clipId)!;
+    if (project.nestedInstances?.some(instance => instance.id === clipId)) Object.assign(project, {
+      nestedInstances: project.nestedInstances.map(instance => instance.id === clipId ? { ...instance, startTime: clip.startTime, duration: clip.duration, inPoint: clip.inPoint, outPoint: clip.outPoint } : instance),
+    });
+  }
   return found;
 }
 
-export interface ClipFieldHandlerSpec {
+interface ClipFieldHandlerSpec {
   readonly type: string;
   readonly paramKey: string;
   readonly field: keyof MutableClip;

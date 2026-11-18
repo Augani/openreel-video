@@ -1,21 +1,20 @@
 import { useSyncExternalStore } from "react";
 
-export const COMPACT_EDITOR_QUERY = "(max-width: 1100px), (pointer: coarse) and (max-width: 1366px)";
+// A narrow desktop window still needs the desktop editing workspace.
+const COMPACT_EDITOR_QUERY = "(max-width: 1366px) and (hover: none) and (pointer: coarse)";
 
 function subscribe(onChange: () => void): () => void {
   const media = window.matchMedia(COMPACT_EDITOR_QUERY);
   media.addEventListener("change", onChange);
-  window.addEventListener("resize", onChange);
   return () => {
     media.removeEventListener("change", onChange);
-    window.removeEventListener("resize", onChange);
   };
 }
 
 export function useCompactEditor(): boolean {
   return useSyncExternalStore(
     subscribe,
-    () => window.innerWidth <= 1100 || window.matchMedia(COMPACT_EDITOR_QUERY).matches,
+    () => window.matchMedia(COMPACT_EDITOR_QUERY).matches,
     () => false,
   );
 }

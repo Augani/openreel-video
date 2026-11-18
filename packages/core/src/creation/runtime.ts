@@ -10,7 +10,7 @@ import type {
   CreationValidationIssue,
 } from "./schema/types";
 
-export const CREATION_STATE_VERSION = "0.1.0";
+const CREATION_STATE_VERSION = "0.1.0";
 
 export interface CreateEmptyCreationStateOptions {
   readonly version?: string;
@@ -121,7 +121,7 @@ function removeById<T extends { readonly id: string }>(
   return items.filter((item) => item.id !== id);
 }
 
-export function upsertCreationAsset(
+function upsertCreationAsset(
   state: CreationProjectState,
   asset: CreationAssetRecipe,
 ): CreationProjectState {
@@ -131,7 +131,7 @@ export function upsertCreationAsset(
   };
 }
 
-export function removeCreationAsset(
+function removeCreationAsset(
   state: CreationProjectState,
   assetId: string,
 ): CreationProjectState {
@@ -145,7 +145,7 @@ export function removeCreationAsset(
   };
 }
 
-export function upsertCreationScene(
+function upsertCreationScene(
   state: CreationProjectState,
   scene: CreationScene,
 ): CreationProjectState {
@@ -156,7 +156,7 @@ export function upsertCreationScene(
   };
 }
 
-export function setActiveCreationScene(
+function setActiveCreationScene(
   state: CreationProjectState,
   sceneId: string,
 ): CreationProjectState {
@@ -164,7 +164,7 @@ export function setActiveCreationScene(
   return { ...state, activeSceneId: sceneId };
 }
 
-export function upsertCreationCamera(
+function upsertCreationCamera(
   state: CreationProjectState,
   sceneId: string,
   camera: CreationCamera,
@@ -189,7 +189,7 @@ export function upsertCreationCamera(
   };
 }
 
-export function upsertCreationSceneObject(
+function upsertCreationSceneObject(
   state: CreationProjectState,
   sceneId: string,
   object: CreationSceneObject,
@@ -206,7 +206,7 @@ export function upsertCreationSceneObject(
   };
 }
 
-export function updateCreationSceneObjectTransform(
+function updateCreationSceneObjectTransform(
   state: CreationProjectState,
   sceneId: string,
   objectId: string,
@@ -235,7 +235,7 @@ export function updateCreationSceneObjectTransform(
   };
 }
 
-export function updateCreationSceneObjectMaterial(
+function updateCreationSceneObjectMaterial(
   state: CreationProjectState,
   sceneId: string,
   objectId: string,
@@ -264,7 +264,7 @@ export function updateCreationSceneObjectMaterial(
   };
 }
 
-export function removeCreationSceneObject(
+function removeCreationSceneObject(
   state: CreationProjectState,
   sceneId: string,
   objectId: string,
@@ -295,7 +295,7 @@ export function removeCreationSceneObject(
   };
 }
 
-export function upsertCreationAnimationClip(
+function upsertCreationAnimationClip(
   state: CreationProjectState,
   sceneId: string,
   clip: CreationAnimationClip,
@@ -390,14 +390,7 @@ export function applyCreationOperation(
   };
 }
 
-export function getCreationAsset(
-  state: CreationProjectState,
-  assetId: string,
-): CreationAssetRecipe | undefined {
-  return state.assets.find((asset) => asset.id === assetId);
-}
-
-export function getCreationScene(
+function getCreationScene(
   state: CreationProjectState,
   sceneId: string,
 ): CreationScene | undefined {

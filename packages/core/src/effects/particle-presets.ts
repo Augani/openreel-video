@@ -17,6 +17,7 @@ const CONFETTI_COLORS = ["#ff6b6b", "#ffd93d", "#6bcb77", "#4d96ff", "#ff6b9d", 
 const FIRE_COLORS = ["#ff4500", "#ff6b00", "#ffb700", "#ffd700"];
 const SPARKLE_COLORS = ["#ffffff", "#fffacd", "#fff8dc", "#ffffe0"];
 const DUST_COLORS = ["#a0a0a0", "#808080", "#606060", "#404040"];
+const DISSOLVE_COLORS = ["#ffffff", "#ececec", "#d4d4d4", "#bdbdbd"];
 const MAGIC_COLORS = ["#9b59b6", "#8e44ad", "#3498db", "#2980b9", "#e91e63"];
 
 export const PARTICLE_PRESETS: ParticlePreset[] = [
@@ -24,18 +25,20 @@ export const PARTICLE_PRESETS: ParticlePreset[] = [
     id: "dissolve-soft",
     name: "Soft Dissolve",
     type: "dissolve",
-    description: "Gentle dissolve effect with fading particles",
+    description: "Footage breaks up into soft particles that drift upward and fade",
     config: {
       ...DEFAULT_PARTICLE_CONFIG,
-      particleCount: 200,
-      speed: 30,
-      speedVariance: 20,
-      gravity: 10,
-      colors: DUST_COLORS,
-      size: { min: 2, max: 6 },
-      opacity: { start: 0.8, end: 0 },
-      lifetime: { min: 1, max: 3 },
-      emissionRate: 100,
+      particleCount: 600,
+      speed: 60,
+      speedVariance: 40,
+      gravity: 15,
+      colors: DISSOLVE_COLORS,
+      size: { min: 4, max: 12 },
+      opacity: { start: 0.9, end: 0 },
+      lifetime: { min: 1, max: 2.5 },
+      emissionRate: 300,
+      emissionShape: "rectangle",
+      emissionRadius: 480,
       fadeIn: 0.1,
       fadeOut: 0.5,
       blendMode: "normal",
@@ -302,12 +305,8 @@ export const PARTICLE_PRESETS: ParticlePreset[] = [
   },
 ];
 
-export function getParticlePresetById(id: string): ParticlePreset | undefined {
+function getParticlePresetById(id: string): ParticlePreset | undefined {
   return PARTICLE_PRESETS.find((p) => p.id === id);
-}
-
-export function getParticlePresetsByType(type: ParticleEffectType): ParticlePreset[] {
-  return PARTICLE_PRESETS.filter((p) => p.type === type);
 }
 
 export function createEffectFromPreset(
@@ -326,7 +325,7 @@ export function createEffectFromPreset(
     type: preset.type,
     startTime,
     duration,
-    config: { ...preset.config },
+    config: structuredClone(preset.config),
     enabled: true,
   };
 }

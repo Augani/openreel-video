@@ -6,7 +6,7 @@ import {
   type MotionRenderQueueItem,
 } from "./stores/motion-store";
 
-export interface RenderQueueRunOutcome {
+interface RenderQueueRunOutcome {
   readonly itemId: string;
   readonly status: MotionRenderQueueItem["status"];
   readonly encodedFormat?: MotionRenderQueueItem["format"];
@@ -14,23 +14,19 @@ export interface RenderQueueRunOutcome {
   readonly error?: string;
 }
 
-export interface RenderQueueRunResult {
+interface RenderQueueRunResult {
   readonly outcomes: RenderQueueRunOutcome[];
   readonly alreadyRunning: boolean;
 }
 
-export interface RunRenderQueueDeps {
+interface RunRenderQueueDeps {
   readonly project: Project;
   readonly compositions: readonly MotionComposition[];
 }
 
 let queueRunning = false;
 
-export function isRenderQueueRunning(): boolean {
-  return queueRunning;
-}
-
-export function isRunnableRenderQueueItem(item: MotionRenderQueueItem): boolean {
+function isRunnableRenderQueueItem(item: MotionRenderQueueItem): boolean {
   return item.status === "queued" || item.status === "failed";
 }
 

@@ -15,7 +15,7 @@ import type {
   MulticamCalibrationRange,
 } from "@openreel/core";
 
-export interface MulticamSyncAnalysis {
+interface MulticamSyncAnalysis {
   results: Map<string, SyncResult>;
   drift: Record<string, MulticamDriftModel>;
 }
@@ -273,76 +273,7 @@ interface TimelineActionOptions {
   now?: () => number;
 }
 
-/**
- * Returns the complete action batch for an automatic edit. Callers wrap the
- * batch in a history group so source-track muting, output replacement, and
- * multicam metadata all undo together.
- */
-export function createMulticamTimelineActions({
-  project,
-  group,
-  groups,
-  outputTrackId,
-  sequence,
-  createId = () => crypto.randomUUID(),
-  now = () => Date.now(),
-}: TimelineActionOptions): Action[] {
-  const actions: Action[] = [];
-  const action = (type: string, params: Record<string, unknown>): Action => ({
-    type,
-    id: createId(),
-    timestamp: now(),
-    params,
-  });
-  const existingOutputIndex = project.timeline.tracks.findIndex(
-    (track) => track.id === outputTrackId,
-  );
-  if (existingOutputIndex >= 0) {
-    actions.push(action("track/remove", { trackId: outputTrackId }));
-  }
-
-  const sourceTrackIds = new Set(
-    group.angles
-      .map((angle) => angle.trackId)
-      .filter((trackId) => trackId.length > 0 && trackId !== outputTrackId),
-  );
-  for (const trackId of sourceTrackIds) {
-    const track = project.timeline.tracks.find((candidate) => candidate.id === trackId);
-    if (!track) continue;
-    if (!track.hidden) {
-      actions.push(action("track/hide", { trackId, hidden: true }));
-    }
-    if (!track.muted) {
-      actions.push(action("track/mute", { trackId, muted: true }));
-    }
-  }
-
-  actions.push(
-    action("track/add", {
-      trackType: "video",
-      trackId: outputTrackId,
-      position: existingOutputIndex >= 0 ? existingOutputIndex : 0,
-    }),
-    action("track/rename", {
-      trackId: outputTrackId,
-      name: `${group.name} Auto Edit`,
-    }),
-  );
-  for (const segment of sequence) {
-    actions.push(
-      action("clip/add", {
-        trackId: outputTrackId,
-        mediaId: segment.clip.mediaId,
-        startTime: segment.clip.startTime,
-        sourceClip: segment.clip,
-      }),
-    );
-  }
-  actions.push(action("multicam/setAll", { groups }));
-  return actions;
-}
-
-export function createMulticamOutputTrack(
+function createMulticamOutputTrack(
   group: MultiCamGroup,
   outputTrackId: string,
   sequence: readonly MulticamSequenceClip[],

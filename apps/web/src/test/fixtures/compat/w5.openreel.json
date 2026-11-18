@@ -1,0 +1,370 @@
+{
+  "version": "1.2.0",
+  "project": {
+    "id": "7556558d-6277-4309-84d6-27ebecf175b3",
+    "name": "Compat w5",
+    "createdAt": 1794440859045,
+    "modifiedAt": 1794440859045,
+    "settings": {
+      "width": 1280,
+      "height": 720,
+      "frameRate": 30,
+      "sampleRate": 48000,
+      "channels": 2
+    },
+    "mediaLibrary": {
+      "items": [
+        {
+          "id": "media-scenes",
+          "name": "three-scenes.mp4",
+          "type": "video",
+          "fileHandle": null,
+          "blob": null,
+          "thumbnailUrl": null,
+          "waveformData": null,
+          "metadata": {
+            "duration": 6,
+            "width": 640,
+            "height": 360,
+            "frameRate": 30,
+            "codec": "h264",
+            "sampleRate": 48000,
+            "channels": 2,
+            "fileSize": 120000,
+            "hasVideo": true,
+            "hasAudio": true
+          },
+          "sourceFile": {
+            "name": "three-scenes.mp4",
+            "size": 120000,
+            "lastModified": 1700000000000
+          },
+          "binId": "bin-a",
+          "label": "forest",
+          "comment": "a comment",
+          "scene": "12A",
+          "shot": "2",
+          "take": "3",
+          "goodTake": true,
+          "importedAt": 1700000000000
+        },
+        {
+          "id": "media-tone",
+          "name": "tone-4s.wav",
+          "type": "audio",
+          "fileHandle": null,
+          "blob": null,
+          "thumbnailUrl": null,
+          "waveformData": null,
+          "metadata": {
+            "duration": 4,
+            "width": 0,
+            "height": 0,
+            "frameRate": 0,
+            "codec": "pcm",
+            "sampleRate": 48000,
+            "channels": 1,
+            "fileSize": 384000,
+            "hasAudio": true
+          }
+        }
+      ]
+    },
+    "timeline": {
+      "tracks": [
+        {
+          "id": "621225a8-74dd-49b8-85ec-db3b8037a8cc",
+          "name": "Titles",
+          "type": "text",
+          "role": "general",
+          "mode": "standard",
+          "clips": [],
+          "transitions": [],
+          "locked": false,
+          "hidden": false,
+          "muted": false,
+          "solo": false
+        },
+        {
+          "id": "0cd48cbe-c5a9-4b11-b15d-496f7ea4f27f",
+          "name": "B-roll",
+          "type": "video",
+          "role": "general",
+          "mode": "standard",
+          "clips": [],
+          "transitions": [],
+          "locked": false,
+          "hidden": false,
+          "muted": false,
+          "solo": false
+        },
+        {
+          "id": "d374e879-f6f3-41f4-9d82-1ada47fa20b2",
+          "name": "Main",
+          "type": "video",
+          "role": "general",
+          "mode": "standard",
+          "clips": [
+            {
+              "id": "clip-1",
+              "mediaId": "media-scenes",
+              "trackId": "d374e879-f6f3-41f4-9d82-1ada47fa20b2",
+              "startTime": 0,
+              "duration": 2,
+              "inPoint": 0,
+              "outPoint": 2,
+              "effects": [],
+              "audioEffects": [],
+              "transform": {
+                "position": {
+                  "x": 0,
+                  "y": 0
+                },
+                "scale": {
+                  "x": 1,
+                  "y": 1
+                },
+                "rotation": 0,
+                "anchor": {
+                  "x": 0.5,
+                  "y": 0.5
+                },
+                "opacity": 1
+              },
+              "volume": 1,
+              "keyframes": []
+            },
+            {
+              "id": "clip-2",
+              "mediaId": "media-scenes",
+              "trackId": "d374e879-f6f3-41f4-9d82-1ada47fa20b2",
+              "startTime": 2,
+              "duration": 2,
+              "inPoint": 2,
+              "outPoint": 4,
+              "effects": [
+                {
+                  "id": "fx-1",
+                  "type": "brightness",
+                  "params": {
+                    "value": 0.1
+                  },
+                  "enabled": true
+                }
+              ],
+              "audioEffects": [],
+              "transform": {
+                "position": {
+                  "x": 0,
+                  "y": 0
+                },
+                "scale": {
+                  "x": 1.1,
+                  "y": 1.1
+                },
+                "rotation": 0,
+                "anchor": {
+                  "x": 0.5,
+                  "y": 0.5
+                },
+                "opacity": 1
+              },
+              "volume": 1,
+              "keyframes": []
+            },
+            {
+              "id": "clip-3",
+              "mediaId": "media-scenes",
+              "trackId": "d374e879-f6f3-41f4-9d82-1ada47fa20b2",
+              "startTime": 4,
+              "duration": 2,
+              "inPoint": 4,
+              "outPoint": 6,
+              "effects": [],
+              "audioEffects": [],
+              "transform": {
+                "position": {
+                  "x": 0,
+                  "y": 0
+                },
+                "scale": {
+                  "x": 1,
+                  "y": 1
+                },
+                "rotation": 0,
+                "anchor": {
+                  "x": 0.5,
+                  "y": 0.5
+                },
+                "opacity": 1
+              },
+              "volume": 1,
+              "keyframes": [],
+              "speed": 1,
+              "label": "rose"
+            }
+          ],
+          "transitions": [
+            {
+              "id": "tr-1",
+              "clipAId": "clip-1",
+              "clipBId": "clip-2",
+              "type": "crossfade",
+              "duration": 0.5,
+              "params": {}
+            }
+          ],
+          "locked": false,
+          "hidden": false,
+          "muted": false,
+          "solo": false
+        },
+        {
+          "id": "a5fecd59-779e-4631-940f-01c81655c8f7",
+          "name": "Dialogue",
+          "type": "audio",
+          "role": "dialogue",
+          "mode": "standard",
+          "clips": [],
+          "transitions": [],
+          "locked": false,
+          "hidden": false,
+          "muted": false,
+          "solo": false
+        },
+        {
+          "id": "6c95968b-9105-41ad-b1f4-e99669b2393f",
+          "name": "Music",
+          "type": "audio",
+          "role": "music",
+          "mode": "standard",
+          "clips": [
+            {
+              "id": "clip-tone",
+              "mediaId": "media-tone",
+              "trackId": "6c95968b-9105-41ad-b1f4-e99669b2393f",
+              "startTime": 0,
+              "duration": 4,
+              "inPoint": 0,
+              "outPoint": 4,
+              "effects": [],
+              "audioEffects": [],
+              "transform": {
+                "position": {
+                  "x": 0,
+                  "y": 0
+                },
+                "scale": {
+                  "x": 1,
+                  "y": 1
+                },
+                "rotation": 0,
+                "anchor": {
+                  "x": 0.5,
+                  "y": 0.5
+                },
+                "opacity": 1
+              },
+              "volume": 0.8,
+              "keyframes": [],
+              "fade": {
+                "fadeIn": 0.5,
+                "fadeOut": 0.5
+              }
+            }
+          ],
+          "transitions": [],
+          "locked": false,
+          "hidden": false,
+          "muted": false,
+          "solo": false,
+          "audioRack": {
+            "effects": [
+              {
+                "id": "rack-eq",
+                "type": "eq",
+                "params": {
+                  "lowGain": 2
+                },
+                "bypassed": false
+              }
+            ],
+            "volume": 0.9,
+            "pan": 0
+          },
+          "syncLock": false
+        }
+      ],
+      "subtitles": [],
+      "duration": 6,
+      "markers": [
+        {
+          "id": "mk-1",
+          "time": 1,
+          "label": "Marker A",
+          "color": "#ff0000"
+        }
+      ]
+    },
+    "motionCompositions": [],
+    "motionInstances": [],
+    "textClips": [
+      {
+        "id": "text-1",
+        "trackId": "621225a8-74dd-49b8-85ec-db3b8037a8cc",
+        "startTime": 1,
+        "duration": 3,
+        "text": "Compat title",
+        "style": {
+          "fontFamily": "Inter",
+          "fontSize": 64,
+          "fontWeight": "bold",
+          "fontStyle": "normal",
+          "color": "#ffffff",
+          "strokeColor": "#111827",
+          "strokeWidth": 2,
+          "textAlign": "center",
+          "verticalAlign": "middle",
+          "lineHeight": 1.2,
+          "letterSpacing": 0
+        },
+        "transform": {
+          "position": {
+            "x": 0.5,
+            "y": 0.8
+          },
+          "scale": {
+            "x": 1,
+            "y": 1
+          },
+          "rotation": 0,
+          "anchor": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "opacity": 1
+        },
+        "keyframes": []
+      }
+    ],
+    "bins": [
+      {
+        "id": "bin-a",
+        "name": "Interviews"
+      },
+      {
+        "id": "bin-b",
+        "name": "B-roll",
+        "parentId": "bin-a"
+      }
+    ],
+    "smartBins": [
+      {
+        "id": "sb-1",
+        "name": "Good takes",
+        "query": "good",
+        "column": "description"
+      }
+    ]
+  }
+}

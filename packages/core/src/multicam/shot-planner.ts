@@ -16,21 +16,21 @@ export type MulticamDecisionStrategy =
   | "composite"
   | "progressive";
 
-export type MulticamLayoutTemplate =
+type MulticamLayoutTemplate =
   | "solo"
   | "split2"
   | "split3"
   | "pip"
   | "wide";
 
-export interface MulticamPanelRect {
+interface MulticamPanelRect {
   x: number;
   y: number;
   width: number;
   height: number;
 }
 
-export interface MulticamPanel {
+interface MulticamPanel {
   cameraId: string;
   subject: string;
   rect: MulticamPanelRect;
@@ -538,7 +538,7 @@ export function planMulticamShots(
   };
 }
 
-export interface MulticamEditDirective {
+interface MulticamEditDirective {
   id: string;
   startMs: number;
   endMs: number;

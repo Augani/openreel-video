@@ -4,7 +4,7 @@ export interface MotionPixelBuffer {
   readonly data: Uint8ClampedArray;
 }
 
-export interface MotionLevelsOptions {
+interface MotionLevelsOptions {
   readonly inputBlack: number;
   readonly inputWhite: number;
   readonly gamma: number;

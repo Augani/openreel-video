@@ -33,12 +33,22 @@ export interface PendingKieAITask {
   retries: number;
   /** Set to true when retries >= MAX_POLL_RETRIES — poller stops, UI shows retry button */
   failed: boolean;
+  /** A response accepted while its originating project was closed. */
+  needsPlaceholder?: boolean;
+  sourcePreviewUrl?: string | null;
+  /** Recreate a missing unsaved placeholder when its project reopens. */
+  restorePlaceholder?: boolean;
+  /** Preserve the receipt while a user-deleted/replaced target stays absent. */
+  detached?: boolean;
 }
 
 interface KieAIStore {
   tasks: PendingKieAITask[];
   addTask: (task: Omit<PendingKieAITask, "retries" | "failed">) => void;
   removeTask: (taskId: string) => void;
+  markPlaceholderAttached: (taskId: string, previewUrl?: string | null) => void;
+  setTaskDetached: (taskId: string, detached: boolean) => void;
+  resetRetry: (taskId: string) => void;
   incrementRetry: (taskId: string) => void;
   markFailed: (taskId: string) => void;
   retryTask: (taskId: string) => void;
@@ -52,8 +62,59 @@ export const useKieAIStore = create<KieAIStore>()(
 
       addTask: (task) =>
         set((s) => ({
-          tasks: [...s.tasks, { ...task, retries: 0, failed: false }],
+          tasks: s.tasks.some((current) => current.taskId === task.taskId)
+            ? s.tasks
+            : [...s.tasks, { ...task, retries: 0, failed: false }],
         })),
+
+      markPlaceholderAttached: (taskId, previewUrl) =>
+        set((state) => {
+          const task = state.tasks.find((task) => task.taskId === taskId);
+          if (!task) return state;
+          const sourcePreviewUrl = task.sourcePreviewUrl ?? previewUrl ?? null;
+          if (
+            task.restorePlaceholder &&
+            !task.needsPlaceholder &&
+            !task.detached &&
+            task.sourcePreviewUrl === sourcePreviewUrl
+          )
+            return state;
+          return {
+            tasks: state.tasks.map((task) =>
+              task.taskId === taskId
+                ? {
+                    ...task,
+                    needsPlaceholder: false,
+                    restorePlaceholder: true,
+                    detached: false,
+                    sourcePreviewUrl,
+                  }
+                : task,
+            ),
+          };
+        }),
+      setTaskDetached: (taskId, detached) =>
+        set((state) =>
+          state.tasks.some(
+            (task) => task.taskId === taskId && task.detached !== detached,
+          )
+            ? {
+                tasks: state.tasks.map((task) =>
+                  task.taskId === taskId ? { ...task, detached } : task,
+                ),
+              }
+            : state,
+        ),
+      resetRetry: (taskId) =>
+        set((state) =>
+          state.tasks.some((task) => task.taskId === taskId && task.retries > 0)
+            ? {
+                tasks: state.tasks.map((task) =>
+                  task.taskId === taskId ? { ...task, retries: 0 } : task,
+                ),
+              }
+            : state,
+        ),
 
       removeTask: (taskId) =>
         set((s) => ({ tasks: s.tasks.filter((t) => t.taskId !== taskId) })),

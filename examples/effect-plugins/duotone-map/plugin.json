@@ -1,0 +1,27 @@
+{
+  "apiVersion": 1,
+  "id": "duotone-map",
+  "name": "Duotone Map",
+  "version": "1.0.0",
+  "category": "Color",
+  "author": "OpenReel",
+  "description": "CPU-only plugin: maps luminance onto a shadow-to-highlight colour ramp. Runs in a sandboxed Worker.",
+  "parameters": [
+    { "key": "shadows", "label": "Shadows", "type": "color", "default": "#1b1b3a" },
+    { "key": "highlights", "label": "Highlights", "type": "color", "default": "#ffb86b" },
+    { "key": "intensity", "label": "Intensity", "type": "float", "min": 0, "max": 1, "step": 0.01, "default": 1 },
+    { "key": "contrast", "label": "Contrast", "type": "float", "min": 0.5, "max": 2, "step": 0.01, "default": 1 },
+    { "key": "invert", "label": "Invert ramp", "type": "bool", "default": false },
+    {
+      "key": "mode",
+      "label": "Luminance",
+      "type": "choice",
+      "default": "luma",
+      "choices": [
+        { "value": "luma", "label": "Rec.709 luma" },
+        { "value": "average", "label": "RGB average" }
+      ]
+    }
+  ],
+  "cpu": { "file": "cpu.js", "timeoutMs": 4000 }
+}

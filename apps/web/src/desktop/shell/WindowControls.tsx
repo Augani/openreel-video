@@ -1,6 +1,6 @@
 import type { JSX } from "react";
 import type React from "react";
-import { ToolcraftIconButton as IconButton } from "@openreel/ui";
+import { Button } from "@openreel/ui";
 import { Icon } from "@/icons/Icon";
 
 export function WindowControls({ platform }: { platform: string }): JSX.Element | null {
@@ -9,30 +9,15 @@ export function WindowControls({ platform }: { platform: string }): JSX.Element 
   if (!api) return null;
   return (
     <div className="flex items-center" style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}>
-      <IconButton
-        label="Minimize"
-        icon={<Icon name="minus" size={14} />}
-        variant="ghost"
-        size="lg"
-        className="grid h-10 w-11 place-items-center text-fg-2 hover:bg-hover"
-        onClick={() => void api.minimize()}
-      />
-      <IconButton
-        label="Maximize"
-        icon={<Icon name="square.on.square" size={13} />}
-        variant="ghost"
-        size="lg"
-        className="grid h-10 w-11 place-items-center text-fg-2 hover:bg-hover"
-        onClick={() => void api.toggleMaximize()}
-      />
-      <IconButton
-        label="Close"
-        icon={<Icon name="xmark" size={14} />}
-        variant="ghost"
-        size="lg"
-        className="grid h-10 w-11 place-items-center text-fg-2 hover:bg-red-600 hover:text-white"
-        onClick={() => void api.close()}
-      />
+      <Button variant="ghost" size="icon-sm" onClick={() => void api.minimize()} type="button" aria-label="Minimize" title="Minimize" className="shrink-0 items-center justify-center rounded-[7px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 bg-transparent hover:text-fg grid h-10 w-11 place-items-center text-fg-2 hover:bg-hover">
+        {<Icon name="minus" size={14} />}
+      </Button>
+      <Button variant="ghost" size="icon-sm" onClick={() => void api.toggleMaximize()} type="button" aria-label="Maximize" title="Maximize" className="shrink-0 items-center justify-center rounded-[7px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 bg-transparent hover:text-fg grid h-10 w-11 place-items-center text-fg-2 hover:bg-hover">
+        {<Icon name="square.on.square" size={13} />}
+      </Button>
+      <Button variant="ghost" size="icon-sm" onClick={() => void api.close()} type="button" aria-label="Close" title="Close" className="shrink-0 items-center justify-center rounded-[7px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 bg-transparent grid h-10 w-11 place-items-center text-fg-2 hover:bg-red-600 hover:text-white">
+        {<Icon name="xmark" size={14} />}
+      </Button>
     </div>
   );
 }

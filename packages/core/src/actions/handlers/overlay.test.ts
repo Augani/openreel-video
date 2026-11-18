@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { ActionExecutor } from "../action-executor";
 import type { Project } from "../../types/project";
 import type { Action } from "../../types/actions";
+import { makeOverlayHandlers } from "./overlay";
 
 function makeProject(): Project {
   return {
@@ -66,15 +67,19 @@ describe("overlay handlers (project-authoritative)", () => {
     expect(textClips(project)[0].text).toBe("hi");
   });
 
-  it("text/remove deletes and undo restores the clip", async () => {
+  it("removes newly introduced optional fields on Undo and restores them on Redo", async () => {
     const executor = new ActionExecutor();
     const project = makeProject();
     await executor.execute(act("text/create", { clip: textClip("x1", "hi") }), project);
-    await executor.execute(act("text/remove", { clipId: "x1" }), project);
-    expect(textClips(project)).toHaveLength(0);
+    const prior = structuredClone(textClips(project)[0]);
+    const text3d = { enabled: true, depth: 12 };
+    await executor.execute(act("text/update", { clipId: "x1", updates: { text3d } }), project);
+    expect(textClips(project)[0]).toHaveProperty("text3d", text3d);
     await executor.undo(project);
-    expect(textClips(project)).toHaveLength(1);
-    expect(textClips(project)[0].id).toBe("x1");
+    expect(textClips(project)[0]).toEqual(prior);
+    expect(textClips(project)[0]).not.toHaveProperty("text3d");
+    await executor.redo(project);
+    expect(textClips(project)[0]).toHaveProperty("text3d", text3d);
   });
 
   it("text/update rejects an unknown clip", async () => {
@@ -84,14 +89,28 @@ describe("overlay handlers (project-authoritative)", () => {
     expect(res.success).toBe(false);
   });
 
-  it("shape/create works through the same factory", async () => {
+  it.each([
+    ["text", "textClips"], ["shape", "shapeClips"], ["svg", "svgClips"], ["sticker", "stickerClips"],
+  ] as const)("%s inverse preserves field removal through JSON serialization", (prefix, field) => {
+    const [create, update] = makeOverlayHandlers(prefix, field);
+    const project = makeProject();
+    const prior = textClip("overlay", "Original");
+    const context = { lastAddedIds: new Map<string, string>() };
+    create.apply(act(`${prefix}/create`, { clip: prior }), project, context);
+    const action = act(`${prefix}/update`, { clipId: prior.id, updates: { metadata: { source: "new" } } });
+    const inverse = JSON.parse(JSON.stringify(update.invert(action, project)));
+    update.apply(action, project, context);
+    expect(update.validate(inverse, project).valid).toBe(true);
+    update.apply(inverse, project, context);
+    expect((project as unknown as Record<string, unknown>)[field]).toEqual([prior]);
+  });
+
+  it("rejects removal of the stable clip id", async () => {
     const executor = new ActionExecutor();
     const project = makeProject();
-    await executor.execute(
-      act("shape/create", { clip: { id: "s1", type: "shape", trackId: "tt", startTime: 0, duration: 2, transform: {}, keyframes: [], shapeType: "rectangle", style: {} } }),
-      project,
-    );
-    const shapes = (project as unknown as { shapeClips?: unknown[] }).shapeClips ?? [];
-    expect(shapes).toHaveLength(1);
+    await executor.execute(act("text/create", { clip: textClip("x1", "hi") }), project);
+    const result = await executor.execute(act("text/update", { clipId: "x1", updates: {}, unset: ["id"] }), project);
+    expect(result.success).toBe(false);
+    expect(textClips(project)[0].id).toBe("x1");
   });
 });

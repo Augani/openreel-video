@@ -1,6 +1,6 @@
 import type { BrushStroke, BrushPoint, CloneSource } from "./types";
 
-export interface BrushConfig {
+interface BrushConfig {
   size: number;
   hardness: number;
   opacity: number;
@@ -8,7 +8,7 @@ export interface BrushConfig {
   spacing: number;
 }
 
-export const DEFAULT_BRUSH_CONFIG: BrushConfig = {
+const DEFAULT_BRUSH_CONFIG: BrushConfig = {
   size: 20,
   hardness: 0.5,
   opacity: 1,

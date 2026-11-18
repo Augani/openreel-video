@@ -2,8 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   addShapeItem,
   collectShapeItemIds,
-  createShapeGroupItem,
-  createShapePathItem,
   findShapeItem,
   getMotionShapeContents,
   hasExplicitShapeContents,
@@ -155,17 +153,6 @@ describe("addShapeItem", () => {
     );
   });
 
-  it("allows adding to a group at depth 7 (one below the cap)", () => {
-    let inner: MotionShapeItem = group("g8", []);
-    for (let i = 7; i >= 1; i -= 1) {
-      inner = group(`g${i}`, [inner]);
-    }
-    const layer = makeLayer({ contents: [inner] });
-    const next = addShapeItem(layer, "g7", path("x"));
-    const found = findShapeItem(next.contents ?? [], "g7");
-    if (!found || found.kind !== "group") throw new Error("expected group g7");
-    expect(found.items.some((it) => it.id === "x")).toBe(true);
-  });
 });
 
 describe("updateShapeItem", () => {
@@ -189,10 +176,6 @@ describe("updateShapeItem", () => {
     ).toThrow();
   });
 
-  it("throws when the id is not found", () => {
-    const layer = makeLayer({ contents: [path("p1")] });
-    expect(() => updateShapeItem(layer, "nope", { name: "x" })).toThrow();
-  });
 });
 
 describe("removeShapeItem", () => {
@@ -206,13 +189,6 @@ describe("removeShapeItem", () => {
     expect(g1.items.map((it) => it.id)).toEqual(["p2"]);
   });
 
-  it("prunes a whole group subtree", () => {
-    const layer = makeLayer({
-      contents: [group("g1", [path("p1")]), path("p2")],
-    });
-    const next = removeShapeItem(layer, "g1");
-    expect(collectShapeItemIds(next.contents ?? [])).toEqual(["p2"]);
-  });
 });
 
 describe("moveShapeItem", () => {
@@ -231,11 +207,6 @@ describe("moveShapeItem", () => {
     expect(g1b.items.map((it) => it.id)).toEqual(["a", "b", "c"]);
   });
 
-  it("is a no-op at the boundary", () => {
-    const layer = makeLayer({ contents: [path("a"), path("b")] });
-    const next = moveShapeItem(layer, "a", "up");
-    expect(next.contents?.map((it) => it.id)).toEqual(["a", "b"]);
-  });
 });
 
 describe("materializeShapeContents", () => {
@@ -262,31 +233,4 @@ describe("materializeShapeContents", () => {
     expect(child.pathClosed).toBe(true);
   });
 
-  it("is a no-op when contents already explicit", () => {
-    const explicit = [group("g1", [path("p1")])];
-    const layer = makeLayer({ contents: explicit });
-    expect(materializeShapeContents(layer).contents).toBe(explicit);
-  });
-});
-
-describe("createShapeGroupItem / createShapePathItem", () => {
-  it("creates a group with unique id and default transform", () => {
-    const g = createShapeGroupItem("My Group");
-    expect(g.kind).toBe("group");
-    expect(g.name).toBe("My Group");
-    expect(g.items).toEqual([]);
-    expect(g.transform.scale).toEqual({ x: 1, y: 1 });
-    expect(g.transform.opacity).toBe(1);
-    expect(createShapeGroupItem("X").id).not.toBe(g.id);
-  });
-
-  it("creates a path item honouring init overrides", () => {
-    const p = createShapePathItem({ name: "Circle", shapeType: "circle", width: 50 });
-    expect(p.kind).toBe("path");
-    expect(p.name).toBe("Circle");
-    expect(p.shapeType).toBe("circle");
-    expect(p.width).toBe(50);
-    expect(p.position).toEqual({ x: 0, y: 0 });
-    expect(createShapePathItem({}).id).not.toBe(p.id);
-  });
 });

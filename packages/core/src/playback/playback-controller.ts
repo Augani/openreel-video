@@ -11,6 +11,7 @@ import type {
   FrameRenderResult,
 } from "./types";
 import { DEFAULT_PLAYBACK_CONFIG } from "./types";
+import { sharedDroppedFrames, type DroppedFrameListener } from "./dropped-frame-counter";
 import {
   MasterTimelineClock,
   initializeMasterClock,
@@ -31,6 +32,9 @@ import {
   trackHasAudioItems,
 } from "../timeline/timeline-items";
 
+import { getTrackTransitionAudioFades } from "../audio/transition-audio-fades";
+import { resolveClipPlaybackAudioParams, resolveClipVolumeAutomation } from "../audio/clip-audio-resolution";
+
 export class PlaybackController {
   private videoEngine: VideoEngine | null = null;
   private audioEngine: AudioEngine | null = null;
@@ -47,7 +51,7 @@ export class PlaybackController {
 
   private currentFrame: RenderedFrame | null = null;
   private frameRenderTimes: number[] = [];
-  private droppedFrames: number = 0;
+  private readonly droppedFrameCounter = sharedDroppedFrames;
 
   private scrubDebounceTimer: ReturnType<typeof setTimeout> | null = null;
   private isScrubbing: boolean = false;
@@ -106,7 +110,7 @@ export class PlaybackController {
     }
 
     if (this.masterClock.shouldSkipFrame()) {
-      this.droppedFrames++;
+      this.droppedFrameCounter.increment();
       return;
     }
 
@@ -150,6 +154,20 @@ export class PlaybackController {
     }
   }
 
+  /** Calls the listener with the running dropped-frame count on every change. Returns an unsubscribe. */
+  subscribeDroppedFrames(listener: DroppedFrameListener): () => void {
+    return this.droppedFrameCounter.subscribe(listener);
+  }
+
+  getDroppedFrames(): number {
+    return this.droppedFrameCounter.count;
+  }
+
+  /** Zeroes the count (and tells subscribers). play() does this when a run starts. */
+  resetDroppedFrames(): void {
+    this.droppedFrameCounter.reset();
+  }
+
   getMasterClock(): MasterTimelineClock {
     return this.masterClock;
   }
@@ -159,6 +177,16 @@ export class PlaybackController {
     this.state = "stopped";
     this.masterClock.setDuration(project.timeline.duration);
     this.pruneAudioBuffers(project);
+  }
+
+  /** A frame is built for seek()/scrubTo() only when something can show it. */
+  private shouldRenderStillFrames(): boolean {
+    return this.config.renderStillFrames || Boolean(this.displayCanvas);
+  }
+
+  /** See PlaybackConfig.renderStillFrames. */
+  setRenderStillFrames(enabled: boolean): void {
+    this.config = { ...this.config, renderStillFrames: enabled };
   }
 
   setDisplayCanvas(canvas: HTMLCanvasElement | OffscreenCanvas): void {
@@ -201,7 +229,11 @@ export class PlaybackController {
     }
 
     this.state = "playing";
+    this.droppedFrameCounter.reset();
 
+    // A decode that failed earlier (transient: memory pressure, a file still being written) is tried
+    // again on every play instead of silencing the source until reload.
+    this.audioDecodeFailedAt.clear();
     await this.preloadAudioBuffers();
     await this.masterClock.play();
     await this.startAudioPlayback();
@@ -290,7 +322,11 @@ export class PlaybackController {
       await this.startAudioPlayback();
     }
 
-    await this.renderFrameAtTime(clampedTime);
+    if (this.shouldRenderStillFrames()) {
+      await this.renderFrameAtTime(clampedTime);
+    } else {
+      this.masterClock.reportVideoTime(clampedTime);
+    }
 
     this.emitEvent({
       type: "seek",
@@ -330,6 +366,10 @@ export class PlaybackController {
       state: this.state,
     });
 
+    if (!this.shouldRenderStillFrames()) {
+      return { frame: null, renderTime: 0, fromCache: false, timedOut: false };
+    }
+
     return this.renderFrameWithTimeout(clampedTime);
   }
 
@@ -363,7 +403,7 @@ export class PlaybackController {
       duration: this.project?.timeline.duration ?? 0,
       state: this.state,
       fps: this.calculateFPS(),
-      droppedFrames: this.droppedFrames,
+      droppedFrames: this.droppedFrameCounter.count,
       audioBufferHealth: this.calculateAudioBufferHealth(),
       videoBufferHealth: 1.0,
       avgFrameRenderTime: avgRenderTime,
@@ -437,7 +477,7 @@ export class PlaybackController {
       });
     } catch (error) {
       console.error("Frame render error:", error);
-      this.droppedFrames++;
+      this.droppedFrameCounter.increment();
     } finally {
       this.isRenderingFrame = false;
     }
@@ -614,6 +654,7 @@ export class PlaybackController {
         const cachedBuffer = this.getOrDecodeAudioBuffer(mediaItem);
         if (!cachedBuffer) continue;
 
+        const transitionFades = getTrackTransitionAudioFades(track, clip.id);
         schedules.push({
           clipId: clip.id,
           trackId: track.id,
@@ -622,10 +663,16 @@ export class PlaybackController {
           endTime: clipEnd,
           mediaOffset: clip.inPoint,
           volume: clip.volume,
-          volumeAutomation: clip.automation?.volume ?? [],
+          volumeAutomation: resolveClipVolumeAutomation(clip, timeline),
           pan: getPanFromAudioEffects(clip.audioEffects || []),
           effects: getPreviewAudioEffects(clip.audioEffects || []),
           speed: clip.speed ?? 1,
+          ...resolveClipPlaybackAudioParams(clip, timeline),
+          fadeIn: clip.fade?.fadeIn,
+          fadeOut: clip.fade?.fadeOut,
+          fadeOrigin: clip.fade?.origin,
+          transitionFadeIn: transitionFades.fadeIn,
+          transitionFadeOut: transitionFades.fadeOut,
         });
       }
     }
@@ -636,6 +683,9 @@ export class PlaybackController {
   private audioBufferCache: Map<string, AudioBuffer> = new Map();
   private audioDecodePromises: Map<string, Promise<AudioBuffer | null>> =
     new Map();
+  /** media id -> time of its last failed decode; suppresses a retry every tick, cleared by play(). */
+  private audioDecodeFailedAt: Map<string, number> = new Map();
+  private static readonly AUDIO_DECODE_RETRY_COOLDOWN_MS = 2000;
 
   private async preloadAudioBuffers(): Promise<void> {
     if (!this.project) return;
@@ -682,6 +732,14 @@ export class PlaybackController {
 
     if (!mediaItem.blob) return null;
 
+    const failedAt = this.audioDecodeFailedAt.get(mediaItem.id);
+    if (
+      failedAt !== undefined &&
+      Date.now() - failedAt < PlaybackController.AUDIO_DECODE_RETRY_COOLDOWN_MS
+    ) {
+      return null;
+    }
+
     const audioContext = this.masterClock.getAudioContext();
 
     const decodePromise = mediaItem.blob
@@ -694,6 +752,7 @@ export class PlaybackController {
       })
       .catch(() => {
         this.audioDecodePromises.delete(mediaItem.id);
+        this.audioDecodeFailedAt.set(mediaItem.id, Date.now());
         return null;
       });
 
@@ -725,6 +784,7 @@ export class PlaybackController {
     this.stopAudioPlayback();
     this.audioBufferCache.clear();
     this.audioDecodePromises.clear();
+    this.audioDecodeFailedAt.clear();
   }
 
   private pruneAudioBuffers(project: Project): void {
@@ -809,13 +869,4 @@ export function getPlaybackController(): PlaybackController {
     playbackControllerInstance = new PlaybackController();
   }
   return playbackControllerInstance;
-}
-
-export async function initializePlaybackController(
-  videoEngine: VideoEngine,
-  audioEngine: AudioEngine,
-): Promise<PlaybackController> {
-  const controller = getPlaybackController();
-  await controller.initialize(videoEngine, audioEngine);
-  return controller;
 }

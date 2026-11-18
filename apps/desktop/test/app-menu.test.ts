@@ -1,33 +1,44 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("electron", () => ({
+  Menu: { sendActionToFirstResponder: vi.fn(), setApplicationMenu: vi.fn(), buildFromTemplate: vi.fn() },
+  BrowserWindow: {},
+  shell: {},
+}));
+
 import { buildMenuTemplate } from "../src/main/app-menu";
 
-describe("buildMenuTemplate", () => {
-  it("includes the app menu first on mac and not on others", () => {
-    const mac = buildMenuTemplate("darwin");
-    expect(mac[0].label).toBe("OpenReel");
-    const win = buildMenuTemplate("win32");
-    expect(win[0].label).toBe("File");
-  });
-  it("has File/Edit/View/Window/Help groups", () => {
-    const labels = buildMenuTemplate("win32").map((m) => m.label);
-    for (const l of ["File", "Edit", "View", "Window", "Help"]) expect(labels).toContain(l);
-  });
-  it("File>New uses CmdOrCtrl+N", () => {
-    const file = buildMenuTemplate("win32").find((m) => m.label === "File");
-    const item = file?.submenu?.find((s) => s.label === "New Project");
-    expect(item?.accelerator).toBe("CmdOrCtrl+N");
-  });
-  it("exposes settings with the platform shortcut", () => {
-    const macApp = buildMenuTemplate("darwin")[0];
-    expect(macApp.submenu?.find((item) => item.actionId === "settings")?.accelerator)
-      .toBe("Cmd+,");
+interface Node {
+  label: string;
+  actionId?: string;
+  role?: string;
+  submenu?: Node[];
+}
 
-    const windowsEdit = buildMenuTemplate("win32").find(
-      (menu) => menu.label === "Edit",
-    );
-    expect(
-      windowsEdit?.submenu?.find((item) => item.actionId === "settings")
-        ?.accelerator,
-    ).toBe("Ctrl+,");
-  });
+function walk(nodes: Node[], out: Node[] = []): Node[] {
+  for (const n of nodes) {
+    out.push(n);
+    if (n.submenu) walk(n.submenu, out);
+  }
+  return out;
+}
+
+describe("application menu Help items", () => {
+  for (const platform of ["darwin", "win32", "linux"]) {
+    it(`has onboarding re-entry items on ${platform}`, () => {
+      const help = buildMenuTemplate(platform).find((m) => m.label === "Help");
+      expect(help).toBeDefined();
+      const ids = help!.submenu!.map((i) => i.actionId);
+      expect(ids).toEqual(expect.arrayContaining(["showWelcomeSetup", "openLessons", "connectAgent", "openLicenses"]));
+      const setup = help!.submenu!.find((i) => i.actionId === "showWelcomeSetup");
+      expect(setup?.label).toBe("Welcome & Setup…");
+    });
+
+    it(`has no dead items (no actionId and no role) on ${platform}`, () => {
+      const dead = walk(buildMenuTemplate(platform)).filter(
+        (n) => !n.submenu && !n.actionId && !n.role,
+      );
+      expect(dead.map((n) => n.label)).toEqual([]);
+    });
+  }
 });

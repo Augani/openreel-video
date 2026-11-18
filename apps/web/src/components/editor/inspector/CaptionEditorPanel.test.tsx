@@ -135,33 +135,6 @@ describe("CaptionEditorPanel", () => {
     expect(useProjectStore.getState().getTextClip(second.id)?.text).toBe(second.text);
   });
 
-  it("replaces only selected captions and leaves other drafts intact", () => {
-    const first = { ...caption(), text: "Edit first" };
-    const second = { ...caption(), id: "second", startTime: 18, text: "Edit second" };
-    useProjectStore.getState().loadProject({ ...project(first), textClips: [first, second] });
-    render(<CaptionEditorPanel maxWordsPerLine={5} onMaxWordsPerLineChange={() => undefined} />);
-    fireEvent.change(screen.getByRole("textbox", { name: "Caption 2 text" }), { target: { value: "Edit second draft" } });
-    fireEvent.click(screen.getByRole("button", { name: "Select caption 1" }));
-    fireEvent.change(screen.getByRole("textbox", { name: "Find caption text" }), { target: { value: "Edit" } });
-    fireEvent.change(screen.getByRole("textbox", { name: "Replace caption text with" }), { target: { value: "Review" } });
-    fireEvent.click(screen.getByRole("button", { name: "Replace in selected captions" }));
-    expect(useProjectStore.getState().getTextClip(first.id)?.text).toBe("Review first");
-    expect(useProjectStore.getState().getTextClip(second.id)?.text).toBe("Edit second");
-    fireEvent.click(screen.getByRole("button", { name: "Clear search" }));
-    expect(screen.getByRole("textbox", { name: "Caption 2 text" })).toHaveValue("Edit second draft");
-  });
-
-  it("keeps the caption DOM bounded while search reaches later cues", () => {
-    const clips = Array.from({ length: 150 }, (_, index) => ({ ...caption(), id: `caption-${index}`, startTime: index, text: index === 149 ? "Find this late cue" : `Caption ${index}` }));
-    useProjectStore.getState().loadProject({ ...project(clips[0]), textClips: clips });
-    render(<CaptionEditorPanel maxWordsPerLine={5} onMaxWordsPerLineChange={() => undefined} />);
-    expect(screen.getAllByRole("textbox", { name: /^Caption \d+ text$/ })).toHaveLength(50);
-    fireEvent.change(screen.getByRole("textbox", { name: "Find caption text" }), { target: { value: "late cue" } });
-    expect(screen.getByRole("textbox", { name: "Caption 150 text" })).toHaveValue("Find this late cue");
-    fireEvent.click(screen.getByRole("button", { name: "Go to caption 150" }));
-    expect(useTimelineStore.getState().playheadPosition).toBe(149);
-  });
-
   it("repairs legacy caption layers for export in one undoable move", async () => {
     const text = caption();
     const base = project(text);

@@ -1,9 +1,15 @@
-import { app, BrowserWindow, ipcMain, shell } from "electron";
+import { cleanupTempOnQuit, sweepStaleTemp } from "./temp-dir";
+import { warmEncoderProbe } from "./sidecar/encoder-probe";
+import { nativeDecodeService } from "./decode/native-decode";
+import { app, BrowserWindow, ipcMain, shell, type IpcMainInvokeEvent } from "electron";
 import path from "node:path";
+import { tmpdir } from "node:os";
 import { z } from "zod";
 import { registerAppSchemePrivileges, handleAppScheme, APP_INDEX } from "./protocol";
 import { installNavigationGuard } from "./nav-guard";
 import { handle } from "./ipc";
+import { ProjectLocks } from "./project-lock";
+import fsSync from "node:fs";
 import { CHANNELS } from "../shared/ipc-contract";
 import { collectHardwareInfo } from "./ipc/hardware";
 import {
@@ -13,6 +19,7 @@ import {
   finishAudio,
   cancelExport,
   cancelAllExports,
+  copyExportRun,
 } from "./ipc/export";
 import {
   cancelAuroraPreviewSession,
@@ -21,14 +28,26 @@ import {
   startAuroraPreviewSession,
   startAuroraSequenceSession,
 } from "./ipc/aurora";
+import { probeSource } from "./sidecar/probe-source";
 import { getKeyStore } from "./ipc/keychain";
+import { getPluginFolderStore } from "./ipc/plugins";
 import { cloudFetch } from "./ipc/cloud";
 import { applyWindowControl, windowIsMaximized } from "./window-controls";
+import { registerLinkedCompIpc } from "./linked-comp-windows";
+import { registerOnboardingIpc } from "./ipc/onboarding";
+import { registerOllamaIpc } from "./ipc/ollama";
+import { registerSamplesIpc } from "./ipc/samples";
+import { registerFontsIpc } from "./ipc/fonts";
+import { registerMcpFilesIpc } from "./ipc/mcp-files";
+import { noteOpenProjectFile } from "./mcp/policy";
+import { getEditorWindow, registerEditorWindow, setEditorWindowFactory } from "./mcp/editor-window";
+import { getMcpClientStatus } from "./mcp/client-tracker";
 import { installApplicationMenu, sendMenuAction } from "./app-menu";
 import { attachUnsavedGuard, markQuitting } from "./lifecycle";
 import { initAutoUpdater } from "./updater";
 import { initCrashReporter, reportError } from "./crash-reporter";
 import { migrateGpuCacheOnUpgrade } from "./gpu-cache-migration";
+import { applyPerformanceSwitches, consumeGpuFallbackLaunch } from "./gpu/switches";
 import {
   startMcpServer,
   stopMcpServer,
@@ -38,6 +57,7 @@ import {
 } from "./mcp/server";
 import {
   fileWriters,
+  sweepPartFiles,
   showSaveDialog,
   showOpenDialog,
   readTextFile,
@@ -45,14 +65,17 @@ import {
   writeTextFile,
   revealInFolder,
   tempFilePath,
+  releaseTempFile,
 } from "./ipc/fs";
 import {
   generateProxy,
   transcode,
   extractAudioWav,
   probeAudioStreams,
+  developRawStill,
 } from "./ipc/media";
 import { fetchUrl } from "./ipc/fetch-url";
+import { registerIngestIpc, startIngestQueue, stopIngestQueue } from "./ingest/ipc";
 import { probeRiggingBackend, rigHumanoidModel } from "./sidecar/rigging-backend";
 import { disposeAuroraClient } from "./aurora/client";
 import {
@@ -64,7 +87,10 @@ import {
   transcodeArgsSchema,
   extractAudioArgsSchema,
   probeAudioArgsSchema,
+  developRawStillArgsSchema,
   fetchUrlArgsSchema,
+  nativeProbeArgsSchema,
+  nativeFrameArgsSchema,
   auroraPreviewSessionCancelArgsSchema,
   auroraPreviewSessionStartArgsSchema,
   auroraPreviewSessionStartResultSchema,
@@ -85,7 +111,22 @@ import type {
   AuroraSequenceSessionStartArgs,
 } from "../shared/ipc-contract";
 
+const mark = (label: string): void => {
+  const ms = Number(process.hrtime.bigint() / 1_000_000n);
+  const cpu = process.cpuUsage();
+  // cpu= is this process's own CPU time (user+system): it does not stretch when other processes
+  // compete for the cores, so it is the number to compare between builds on a busy machine.
+  console.log(
+    `[startup] ${label} t=${ms}ms uptime=${Math.round(process.uptime() * 1000)}ms cpu=${Math.round((cpu.user + cpu.system) / 1000)}ms`,
+  );
+};
+mark("module-load");
+
 registerAppSchemePrivileges();
+
+// Must run before app is ready: switches and disableHardwareAcceleration are
+// ignored once the GPU process has started.
+applyPerformanceSwitches();
 
 // Register crash/error reporting as early as possible so main-process faults and
 // process-gone events during startup are captured (POST to the cloud worker).
@@ -99,9 +140,13 @@ migrateGpuCacheOnUpgrade();
 // Single-instance lock: a second launch focuses the existing window instead of
 // opening a duplicate. Two instances would share the same autosave/IndexedDB
 // (data races) and could clobber each other's GPU cache, so only one runs.
+const projectLocks = new ProjectLocks();
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
 if (!hasSingleInstanceLock) {
   app.quit();
+} else {
+  // Only the surviving instance uses up a software-rendering fallback launch.
+  consumeGpuFallbackLaunch();
 }
 
 function rendererRoot(): string {
@@ -110,13 +155,31 @@ function rendererRoot(): string {
     : path.join(__dirname, "../../../web/dist");
 }
 
-function createWindow(): void {
+async function logGpuStatus(): Promise<void> {
+  try {
+    console.log("[gpu] feature status:", JSON.stringify(app.getGPUFeatureStatus()));
+    console.log("[gpu] info:", JSON.stringify(await app.getGPUInfo("basic")));
+  } catch (error) {
+    console.warn("[gpu] status unavailable:", error);
+  }
+}
+
+/**
+ * `hidden` builds the on-demand editor window for MCP (macOS with every window closed): it
+ * stays hidden until the user brings the app forward, and is exempt from background throttling
+ * so the agent's tool calls are not starved. Throttling stays on for the normal visible window.
+ */
+function createWindow(options: { hidden?: boolean } = {}): BrowserWindow {
+  const hidden = options.hidden === true;
   const isMac = process.platform === "darwin";
   const win = new BrowserWindow({
     width: 1440,
     height: 900,
     minWidth: 1024,
     minHeight: 700,
+    show: false,
+    // Left unset on macOS so the vibrancy material shows through (a "#00000000"
+    // colour is only honoured with transparent:true); opaque dark elsewhere.
     backgroundColor: isMac ? undefined : "#1b1b20",
     titleBarStyle: isMac ? "hiddenInset" : "hidden",
     titleBarOverlay: false,
@@ -130,16 +193,70 @@ function createWindow(): void {
       nodeIntegration: false,
       sandbox: true,
       webSecurity: true,
+      spellcheck: false,
+      v8CacheOptions: "bypassHeatCheck",
+      ...(hidden ? { backgroundThrottling: false } : {}),
     },
   });
+  mark("createWindow");
+  // Show once the first paint is ready; fall back after 3 s so a missed event
+  // can never leave the app invisible.
+  let shown = false;
+  const showWindow = (): void => {
+    if (hidden || shown || win.isDestroyed()) return;
+    shown = true;
+    clearTimeout(showFallback);
+    win.show();
+    // Loaded after the first paint (packaged builds only; idempotent). Hooked here rather than on
+    // ready-to-show alone so the 3 s fallback path also wires the updater.
+    setTimeout(initAutoUpdater, 0);
+  };
+  const showFallback = setTimeout(showWindow, 3000);
+  win.once("ready-to-show", () => {
+    mark("ready-to-show");
+    showWindow();
+    // Off the startup path: the encoder smoke tests spawn ffmpeg, and electron-updater
+    // (packaged builds only) is loaded after the first paint instead of at module load.
+    warmEncoderProbe();
+  });
+  win.once("closed", () => clearTimeout(showFallback));
+  win.webContents.once("did-finish-load", () => mark("did-finish-load"));
+  registerEditorWindow(win);
   attachUnsavedGuard(win);
   installNavigationGuard(win, APP_INDEX);
   win.loadURL(APP_INDEX);
+  return win;
+}
+
+/** Brings the editor window forward, un-hiding the on-demand one an agent may have created. */
+/** Menu actions that open UI in the editor window rather than act on the focused field. */
+const WINDOW_LEVEL_MENU_ACTIONS = new Set(["showWelcomeSetup", "openLessons", "connectAgent"]);
+
+function showEditorWindow(): void {
+  const win = getEditorWindow() ?? BrowserWindow.getAllWindows().find((w) => !w.isDestroyed()) ?? null;
+  if (!win) {
+    createWindow();
+    return;
+  }
+  if (win.isMinimized()) win.restore();
+  if (!win.isVisible()) win.show();
+  win.focus();
 }
 
 app.whenReady().then(() => {
   if (!hasSingleInstanceLock) return;
+  mark("whenReady");
+  setEditorWindowFactory(() => createWindow({ hidden: true }));
+  // A previous run killed mid-export leaves `openreel-*.part` in the temp folder; they are never a finished file.
+  setTimeout(() => void sweepPartFiles(tmpdir(), 60_000, "openreel-").catch(() => undefined), 15_000);
   handleAppScheme(rendererRoot());
+  // Start the renderer load first: navigation, script fetch and parse run in the
+  // renderer process while the IPC handlers below are registered. Handlers only need
+  // to exist before the page issues its first invoke, which cannot happen until its
+  // scripts have loaded (this callback runs to completion before any IPC is delivered).
+  createWindow();
+  // Diagnostics only: keep the GPU info query off the window-creation path.
+  setTimeout(() => void logGpuStatus(), 1500);
   handle(CHANNELS.probeHardware, z.undefined(), () => collectHardwareInfo());
   handle(CHANNELS.fsShowSaveDialog, saveDialogArgsSchema, showSaveDialog);
   handle(CHANNELS.fsShowOpenDialog, openDialogArgsSchema, showOpenDialog);
@@ -163,12 +280,50 @@ app.whenReady().then(() => {
   );
   handle(CHANNELS.fsRevealInFolder, readFileArgsSchema, revealInFolder);
   handle(CHANNELS.fsReadFileBytes, readFileArgsSchema, readFileBytes);
-  handle(CHANNELS.fsTempFilePath, z.object({ ext: z.string() }), tempFilePath);
+  handle(CHANNELS.fsTempFilePath, z.object({ ext: z.string(), persist: z.boolean().optional() }), tempFilePath);
+  handle(CHANNELS.fsReleaseTemp, z.object({ path: z.string() }), releaseTempFile);
+  const lockOwners = new Set<number>();
+  const ownerOf = (event: IpcMainInvokeEvent): string => {
+    const id = event.sender.id;
+    if (!lockOwners.has(id)) {
+      lockOwners.add(id);
+      const release = () => void projectLocks.releaseOwner(`${projectLocks.instanceId}:${id}`);
+      // A reload (main-frame navigation, not an iframe load or a pushState) throws the open project
+      // away; a closed or crashed window takes its locks with it. Registered once per window.
+      event.sender.on("did-start-navigation", (details: { isMainFrame: boolean; isSameDocument: boolean }) => {
+        if (details.isMainFrame && !details.isSameDocument) release();
+      });
+      event.sender.on("render-process-gone", release);
+      event.sender.once("destroyed", () => {
+        lockOwners.delete(id);
+        release();
+      });
+    }
+    return `${projectLocks.instanceId}:${id}`;
+  };
+  handle(CHANNELS.fsLockProject, z.object({ path: z.string().min(1) }), ({ path: p }, event) => {
+    // The open project's folder is always readable/writable for MCP path tools.
+    noteOpenProjectFile(p);
+    return projectLocks.acquire(p, ownerOf(event));
+  });
+  handle(CHANNELS.fsUnlockProject, z.object({ path: z.string().min(1) }), ({ path: p }, event) => {
+    // The project is closed: its folder is no longer an implicit allowed root for agents.
+    noteOpenProjectFile(null);
+    return projectLocks.release(p, ownerOf(event));
+  });
+  mark("ipc-fs-registered");
+  registerIngestIpc();
   handle(CHANNELS.mediaGenerateProxy, proxyArgsSchema, generateProxy);
   handle(CHANNELS.mediaTranscode, transcodeArgsSchema, transcode);
   handle(CHANNELS.mediaExtractAudioWav, extractAudioArgsSchema, extractAudioWav);
   handle(CHANNELS.mediaProbeAudioStreams, probeAudioArgsSchema, probeAudioStreams);
+  handle(CHANNELS.mediaDevelopRawStill, developRawStillArgsSchema, developRawStill);
   handle(CHANNELS.mediaFetchUrl, fetchUrlArgsSchema, fetchUrl);
+  handle(CHANNELS.mediaNativeProbe, nativeProbeArgsSchema, ({ path: p }) => nativeDecodeService().probe(p));
+  handle(CHANNELS.mediaNativeFrame, nativeFrameArgsSchema, ({ path: p, time, width, quality, bitDepth }) =>
+    nativeDecodeService().getFrame(p, time, { width, quality, bitDepth }),
+  );
+  handle(CHANNELS.mediaNativeStats, z.undefined(), () => nativeDecodeService().getStats());
   handle(CHANNELS.auroraRenderPreview, auroraRenderPreviewArgsSchema, async (args) =>
     auroraRenderPreviewResultSchema.parse(
       await renderAuroraPreview(args as AuroraRenderPreviewArgs),
@@ -213,6 +368,18 @@ app.whenReady().then(() => {
     getKeyStore().set(id, value),
   );
   handle(CHANNELS.keychainDelete, z.object({ id: z.string() }), ({ id }) => getKeyStore().delete(id));
+  handle(CHANNELS.pluginsList, z.undefined(), () => getPluginFolderStore().list());
+  handle(
+    CHANNELS.pluginsPut,
+    z.object({ id: z.string(), files: z.record(z.string()) }),
+    ({ id, files }) => getPluginFolderStore().put(id, files),
+  );
+  handle(CHANNELS.pluginsRemove, z.object({ id: z.string() }), ({ id }) => getPluginFolderStore().remove(id));
+  handle(CHANNELS.pluginsRevealFolder, z.undefined(), async () => {
+    const root = getPluginFolderStore().root;
+    await fsSync.promises.mkdir(root, { recursive: true });
+    await shell.openPath(root);
+  });
   handle(CHANNELS.cloudFetch, cloudFetchArgsSchema, cloudFetch);
   ipcMain.handle(CHANNELS.exportStart, (e, raw) => startExport(e.sender, raw));
   handle(
@@ -231,6 +398,22 @@ app.whenReady().then(() => {
   );
   handle(CHANNELS.exportFinishAudio, z.object({ jobId: z.string() }), finishAudio);
   handle(CHANNELS.exportCancel, z.object({ jobId: z.string() }), cancelExport);
+  handle(CHANNELS.exportProbeSource, z.object({ path: z.string().min(1) }), ({ path: p }) => probeSource(p));
+  handle(
+    CHANNELS.exportCopyRun,
+    z.object({
+      jobId: z.string(),
+      sourcePath: z.string().min(1),
+      sourceStart: z.number().nonnegative(),
+      outputStartFrame: z.number().int().nonnegative(),
+      frames: z.number().int().positive(),
+      sourceSize: z.number().int().nonnegative().optional(),
+      sourceMtimeMs: z.number().nonnegative().optional(),
+      sourceContentHash: z.string().regex(/^[0-9a-f]{64}$/).optional(),
+    }),
+    copyExportRun,
+  );
+  registerLinkedCompIpc();
   ipcMain.handle(CHANNELS.windowControl, (e, raw) => {
     const parsed = windowControlArgsSchema.parse(raw);
     applyWindowControl(BrowserWindow.fromWebContents(e.sender), parsed.action);
@@ -255,11 +438,21 @@ app.whenReady().then(() => {
       context: payload.context,
     });
   });
+  registerOnboardingIpc();
+  registerOllamaIpc();
+  registerSamplesIpc();
+  registerFontsIpc();
+  registerMcpFilesIpc();
+  handle(CHANNELS.mcpGetClientStatus, z.undefined(), () => getMcpClientStatus());
   handle(CHANNELS.mcpGetStatus, z.undefined(), () => getMcpStatus());
   handle(CHANNELS.mcpRotateToken, z.undefined(), () => rotateMcpToken());
   handle(CHANNELS.mcpTestConnection, z.undefined(), () => testMcpConnection());
-  createWindow();
-  initAutoUpdater();
+  // Resume proxy jobs a previous session left queued (low priority, one at a time by default).
+  mark("ipc-registered");
+  startIngestQueue();
+  mark("ingest-queue");
+  // Drop temp files left by crashed sessions; never blocks startup.
+  void sweepStaleTemp().catch(() => undefined);
   startMcpServer().catch((error) =>
     reportError({
       type: "mcp-start-failed",
@@ -275,20 +468,25 @@ app.whenReady().then(() => {
       void shell.openPath(dir);
       return;
     }
-    sendMenuAction(BrowserWindow.getFocusedWindow(), id);
+    const focused = BrowserWindow.getFocusedWindow();
+    if (!focused && WINDOW_LEVEL_MENU_ACTIONS.has(id)) {
+      // Help > Welcome & Setup / Learn / Connect an Agent open UI in the editor window, so they must work
+      // when no window has focus (minimized or hidden window, app activated from the Dock menu).
+      showEditorWindow();
+      sendMenuAction(getEditorWindow() ?? BrowserWindow.getAllWindows().find((w) => !w.isDestroyed()) ?? null, id);
+      return;
+    }
+    sendMenuAction(focused, id);
   });
-  app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
-  });
+  mark("menu-installed");
+  app.on("activate", () => showEditorWindow());
 });
 
 // A second launch (blocked by the single-instance lock) surfaces the running
 // window rather than starting a duplicate process.
 app.on("second-instance", () => {
-  const [win] = BrowserWindow.getAllWindows();
-  if (!win) return;
-  if (win.isMinimized()) win.restore();
-  win.focus();
+  if (BrowserWindow.getAllWindows().length === 0) return;
+  showEditorWindow();
 });
 
 app.on("window-all-closed", () => {
@@ -306,7 +504,11 @@ app.on("before-quit", () => {
 // at will-quit (after the close guard has resolved) so a cancelled quit does
 // not kill exports.
 app.on("will-quit", () => {
+  projectLocks.releaseAllSync(fsSync);
   disposeAuroraClient();
+  nativeDecodeService().dispose();
   cancelAllExports();
+  stopIngestQueue();
+  cleanupTempOnQuit();
   void stopMcpServer();
 });

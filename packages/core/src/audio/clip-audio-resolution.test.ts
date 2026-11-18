@@ -102,6 +102,62 @@ describe("clip audio resolution", () => {
   it("uses the audible linked audio clip as the target for silent separated video", () => {
     const { timeline, videoClip, audioClip } = createSeparatedAudioTimeline();
 
-    expect(resolveAudibleAudioTarget(videoClip, timeline).id).toBe(audioClip.id);
+    expect(resolveAudibleAudioTarget(videoClip, timeline).id).toBe(
+      audioClip.id,
+    );
+  });
+  it("resolves extracted WAV assets by their explicit source relationship in both directions", () => {
+    const { timeline, videoClip, audioClip } = createSeparatedAudioTimeline();
+    const extracted = {
+      ...audioClip,
+      mediaId: "extracted-wav",
+      metadata: { separatedFromClipId: videoClip.id, sourceAudioTrackIndex: 0 },
+    };
+    const separated = {
+      ...timeline,
+      tracks: timeline.tracks.map((track) =>
+        track.id === extracted.trackId
+          ? { ...track, clips: [extracted] }
+          : track,
+      ),
+    };
+    expect(resolveAudibleAudioTarget(videoClip, separated).id).toBe(
+      extracted.id,
+    );
+    expect(resolveClipAudioEffects(extracted, separated)).toEqual(
+      videoClip.audioEffects,
+    );
+    expect(resolveClipVolumeAutomation(extracted, separated)).toEqual(
+      videoClip.automation?.volume,
+    );
+  });
+  it("keeps stream identity and alignment when resolving extracted assets", () => {
+    const { timeline, videoClip, audioClip } = createSeparatedAudioTimeline();
+    const extracted = {
+      ...audioClip,
+      mediaId: "second-stream-wav",
+      metadata: { separatedFromClipId: videoClip.id, sourceAudioTrackIndex: 1 },
+    };
+    const separated = {
+      ...timeline,
+      tracks: timeline.tracks.map((track) =>
+        track.id === extracted.trackId
+          ? { ...track, clips: [extracted] }
+          : track,
+      ),
+    };
+    expect(resolveAudibleAudioTarget(videoClip, separated).id).toBe(
+      videoClip.id,
+    );
+    expect(
+      resolveAudibleAudioTarget({ ...videoClip, audioTrackIndex: 1 }, separated)
+        .id,
+    ).toBe(extracted.id);
+    expect(
+      resolveAudibleAudioTarget(
+        { ...videoClip, audioTrackIndex: 1, startTime: 1 },
+        separated,
+      ).id,
+    ).toBe(videoClip.id);
   });
 });

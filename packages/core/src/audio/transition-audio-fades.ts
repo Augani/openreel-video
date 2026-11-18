@@ -1,6 +1,6 @@
 import type { Track } from "../types/timeline";
 
-export interface TransitionAudioFades {
+interface TransitionAudioFades {
   readonly fadeIn: number;
   readonly fadeOut: number;
 }

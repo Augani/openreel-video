@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 
 // No @openreel/agent mock here: exercises the real registry classification
-// (isDestructive/toMcpTools) so arg/host wiring drift is actually caught.
+// (isDestructive/toMcpToolsAnnotated) so arg/host wiring drift is actually caught.
 
 vi.mock("./host-singleton", () => ({
   getLiveEditorHost: () => ({

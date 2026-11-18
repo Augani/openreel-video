@@ -32,7 +32,7 @@ export type VidstabProgress = {
   progress: number;
 };
 
-export class VidstabEngine {
+class VidstabEngine {
   private ffmpeg: FFmpegInstance | null = null;
   private loaded = false;
   private loading: Promise<void> | null = null;
@@ -263,9 +263,4 @@ export function getVidstabEngine(): VidstabEngine {
     vidstabEngineInstance = new VidstabEngine();
   }
   return vidstabEngineInstance;
-}
-
-export function disposeVidstabEngine(): void {
-  vidstabEngineInstance?.dispose();
-  vidstabEngineInstance = null;
 }

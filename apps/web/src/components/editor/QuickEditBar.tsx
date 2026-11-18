@@ -1,6 +1,6 @@
 import React, { useRef, useState } from "react";
 import { Captions, Download, Scissors, Volume2, Proportions, Loader2 } from "@/icons/lucide-compat";
-import { ToolcraftButton as Button } from "@openreel/ui";
+import { Button } from "@openreel/ui";
 import { getMediaItemCapabilities } from "@openreel/core";
 import { useProjectStore } from "../../stores/project-store";
 import { useUIStore } from "../../stores/ui-store";
@@ -80,29 +80,32 @@ export const QuickEditBar: React.FC<QuickEditBarProps> = ({
           : "Move the playhead inside this clip to split or trim."}
       </p>
       <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 145px), 1fr))" }}>
-        <Button label="Split here" icon={<Scissors size={14} aria-hidden />} variant="secondary"
-          onClick={() => void runEdit("split")} isDisabled={disabled || !canEditHere}
-          className="min-h-11 w-full justify-center text-xs" />
-        <Button label="Trim start" title="Remove the part before the playhead" variant="secondary"
-          onClick={() => void runEdit("trimStart")} isDisabled={disabled || !canEditHere}
-          className="min-h-11 w-full justify-center text-xs" />
-        <Button label="Trim end" title="Remove the part after the playhead" variant="secondary"
-          onClick={() => void runEdit("trimEnd")} isDisabled={disabled || !canEditHere}
-          className="min-h-11 w-full justify-center text-xs" />
-        {capabilities.audio && <Button label="Add captions" icon={<Captions size={14} aria-hidden />} variant="secondary"
-          onClick={() => openSection("auto-captions")} isDisabled={disabled || unavailableSource}
-          className="min-h-11 w-full justify-center text-xs" />}
-        {capabilities.audio && <Button label={isCleaningAudio ? "Cleaning…" : "Clean audio"}
-          icon={isCleaningAudio ? <Loader2 size={14} className="animate-spin" aria-hidden /> : <Volume2 size={14} aria-hidden />}
-          variant="secondary" onClick={() => { if (!disabled) void onCleanAudio(); }}
-          isDisabled={disabled || isCleaningAudio || unavailableSource}
-          className="min-h-11 w-full justify-center text-xs" />}
-        {media?.type === "video" && <Button label="Reframe" icon={<Proportions size={14} aria-hidden />} variant="secondary"
-          onClick={() => openSection("auto-reframe")} isDisabled={disabled || unavailableSource}
-          className="min-h-11 w-full justify-center text-xs" />}
-        <Button label="Export video" icon={<Download size={14} aria-hidden />} variant="primary"
-          onClick={() => useUIStore.getState().openModal("export")} isDisabled={exporting || playbackLocked}
-          className="min-h-11 w-full justify-center text-xs" />
+        <Button onClick={() => void runEdit("split")} type="button" aria-label="Split here" disabled={(disabled || !canEditHere)} className="inline-flex min-w-0 items-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 px-3 border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg min-h-11 w-full justify-center text-xs">
+          <span className="flex h-4 w-4 shrink-0 items-center justify-center">{<Scissors size={14} aria-hidden />}</span>
+          <span className="truncate">{"Split here"}</span>
+        </Button>
+        <Button title="Remove the part before the playhead" onClick={() => void runEdit("trimStart")} type="button" aria-label="Trim start" disabled={(disabled || !canEditHere)} className="inline-flex min-w-0 items-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 px-3 border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg min-h-11 w-full justify-center text-xs">
+          <span className="truncate">{"Trim start"}</span>
+        </Button>
+        <Button title="Remove the part after the playhead" onClick={() => void runEdit("trimEnd")} type="button" aria-label="Trim end" disabled={(disabled || !canEditHere)} className="inline-flex min-w-0 items-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 px-3 border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg min-h-11 w-full justify-center text-xs">
+          <span className="truncate">{"Trim end"}</span>
+        </Button>
+        {capabilities.audio && <Button onClick={() => openSection("auto-captions")} type="button" aria-label="Add captions" disabled={(disabled || unavailableSource)} className="inline-flex min-w-0 items-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 px-3 border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg min-h-11 w-full justify-center text-xs">
+          <span className="flex h-4 w-4 shrink-0 items-center justify-center">{<Captions size={14} aria-hidden />}</span>
+          <span className="truncate">{"Add captions"}</span>
+        </Button>}
+        {capabilities.audio && <Button onClick={() => { if (!disabled) void onCleanAudio(); }} type="button" aria-label={(isCleaningAudio ? "Cleaning…" : "Clean audio").trim() || undefined} disabled={(disabled || isCleaningAudio || unavailableSource)} className="inline-flex min-w-0 items-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 px-3 border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg min-h-11 w-full justify-center text-xs">
+          <span className="flex h-4 w-4 shrink-0 items-center justify-center">{isCleaningAudio ? <Loader2 size={14} className="animate-spin" aria-hidden /> : <Volume2 size={14} aria-hidden />}</span>
+          <span className="truncate">{isCleaningAudio ? "Cleaning…" : "Clean audio"}</span>
+        </Button>}
+        {media?.type === "video" && <Button onClick={() => openSection("auto-reframe")} type="button" aria-label="Reframe" disabled={(disabled || unavailableSource)} className="inline-flex min-w-0 items-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 px-3 border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg min-h-11 w-full justify-center text-xs">
+          <span className="flex h-4 w-4 shrink-0 items-center justify-center">{<Proportions size={14} aria-hidden />}</span>
+          <span className="truncate">{"Reframe"}</span>
+        </Button>}
+        <Button onClick={() => useUIStore.getState().openModal("export")} type="button" aria-label="Export video" disabled={(exporting || playbackLocked)} className="inline-flex min-w-0 items-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 px-3 bg-accent text-accent-fg hover:bg-accent/90 min-h-11 w-full justify-center text-xs">
+          <span className="flex h-4 w-4 shrink-0 items-center justify-center">{<Download size={14} aria-hidden />}</span>
+          <span className="truncate">{"Export video"}</span>
+        </Button>
       </div>
       {busy && <p role="status" className="mt-2 text-xs text-fg-3">Applying edit…</p>}
     </section>

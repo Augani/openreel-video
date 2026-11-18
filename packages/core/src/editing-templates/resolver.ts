@@ -4,7 +4,6 @@ import type { Transform } from "../types/timeline";
 import type {
   EditingTemplate,
   EditingTemplateBinding,
-  EditingTemplateControlDefinition,
   EditingTemplateEmphasisAnimation,
   EditingTemplateKeyframe,
   EditingTemplatePrimitive,
@@ -29,13 +28,13 @@ const DEFAULT_TRANSFORM: Transform = {
 
 const VARIABLE_PATTERN = /\{([^}]+)\}/g;
 
-export function isEditingTemplateBinding(
+function isEditingTemplateBinding(
   value: EditingTemplateValue,
 ): value is EditingTemplateBinding {
   return typeof value === "object" && value !== null && "controlId" in value;
 }
 
-export function getEditingTemplateDefaultControlValues(
+function getEditingTemplateDefaultControlValues(
   template: EditingTemplate,
 ): Record<string, EditingTemplatePrimitive> {
   return (template.controls || []).reduce<Record<string, EditingTemplatePrimitive>>(
@@ -47,7 +46,7 @@ export function getEditingTemplateDefaultControlValues(
   );
 }
 
-export function resolveEditingTemplateControlValues(
+function resolveEditingTemplateControlValues(
   template: EditingTemplate,
   overrides: Readonly<Record<string, EditingTemplatePrimitive>> = {},
 ): Record<string, EditingTemplatePrimitive> {
@@ -79,7 +78,7 @@ export function resolveEditingTemplate(
   };
 }
 
-export function resolveTemplateVariables(
+function resolveTemplateVariables(
   value: string,
   context: EditingTemplateResolutionContext,
   controlValues: Readonly<Record<string, EditingTemplatePrimitive>>,
@@ -104,7 +103,7 @@ export function resolveTemplateVariables(
   });
 }
 
-export function resolveOverlayTiming(
+function resolveOverlayTiming(
   timing: EditingTemplate["recipe"]["overlays"][number]["timing"],
   context: EditingTemplateResolutionContext,
 ): ResolvedEditingTemplateTiming {
@@ -183,7 +182,9 @@ function resolveOverlay(
   const blendOpacity =
     overlay.blendOpacity === undefined
       ? undefined
-      : toNumber(resolveValue(overlay.blendOpacity, context, controlValues), 1);
+      : Math.round(
+          Math.max(0, Math.min(1, toNumber(resolveValue(overlay.blendOpacity, context, controlValues), 1))) * 10000,
+        ) / 100;
   const emphasisAnimation = resolveEmphasisAnimation(
     overlay.emphasisAnimation,
     context,
@@ -240,6 +241,9 @@ function resolveOverlay(
           context,
           controlValues,
         ) as Partial<ShapeStyle>,
+        ...(overlay.content.pathData !== undefined ? { pathData: overlay.content.pathData } : {}),
+        ...(overlay.content.points !== undefined ? { points: overlay.content.points } : {}),
+        ...(overlay.content.closed !== undefined ? { closed: overlay.content.closed } : {}),
       },
     };
   }
@@ -416,11 +420,4 @@ function toNumber(value: unknown, fallback: number): number {
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
-}
-
-export function getEditingTemplateControlDefinition(
-  template: EditingTemplate,
-  controlId: string,
-): EditingTemplateControlDefinition | undefined {
-  return template.controls?.find((control) => control.id === controlId);
 }

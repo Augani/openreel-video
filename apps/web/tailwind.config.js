@@ -1,3 +1,10 @@
+const token =
+  (name) =>
+  ({ opacityValue }) =>
+    opacityValue === undefined
+      ? `var(--${name})`
+      : `color-mix(in srgb, var(--${name}) calc(${opacityValue} * 100%), transparent)`;
+
 /** @type {import('tailwindcss').Config} */
 export default {
   content: [
@@ -10,126 +17,130 @@ export default {
     extend: {
       colors: {
         // ── v2 editor tokens (cinematic, emerald)
-        //   These read raw oklch via CSS variables. Opacity modifiers
-        //   are not supported on these — use the *-soft / *-glow
-        //   companion tokens (or arbitrary values) when you need a tint.
+        //   color-mix preserves alpha modifiers for raw CSS color tokens.
         bg: {
-          DEFAULT: "var(--bg)",
-          1: "var(--bg-1)",
-          2: "var(--bg-2)",
-          3: "var(--bg-3)",
-          elev: "var(--bg-elev)",
+          DEFAULT: token("bg"),
+          1: token("bg-1"),
+          2: token("bg-2"),
+          3: token("bg-3"),
+          elev: token("bg-elev"),
         },
         fg: {
-          DEFAULT: "var(--fg)",
-          2: "var(--fg-2)",
-          3: "var(--fg-3)",
-          muted: "var(--fg-muted)",
+          DEFAULT: token("fg"),
+          2: token("fg-2"),
+          3: token("fg-3"),
+          muted: token("fg-muted"),
         },
-        "border-strong": "var(--border-strong)",
-        hover: "var(--hover)",
-        selected: "var(--selected)",
-        "stage-bg": "var(--stage-bg)",
-        "tl-bg": "var(--tl-bg)",
-        "track-bg": "var(--track-bg)",
-        waveform: "var(--waveform)",
+        "border-strong": token("border-strong"),
+        hover: token("hover"),
+        selected: token("selected"),
+        "stage-bg": token("stage-bg"),
+        "tl-bg": token("tl-bg"),
+        "track-bg": token("track-bg"),
+        waveform: token("waveform"),
         accent: {
-          DEFAULT: "var(--accent)",
-          strong: "var(--accent-strong)",
-          soft: "var(--accent-soft)",
-          fg: "var(--accent-fg)",
+          DEFAULT: token("accent"),
+          strong: token("accent-strong"),
+          soft: token("accent-soft"),
+          fg: token("accent-fg"),
           // shadcn primitives (Select/DropdownMenu/ContextMenu/Button) hover
           // with `bg-accent text-accent-foreground`; without this mapping the
           // text color resolved to nothing and disappeared on the emerald
           // hover background. Maps to the on-accent text token.
-          foreground: "var(--accent-fg)",
-          glow: "var(--accent-glow)",
+          foreground: token("accent-fg"),
+          glow: token("accent-glow"),
         },
         clip: {
-          video: "var(--c-video)",
-          text: "var(--c-text)",
-          audio: "var(--c-audio)",
-          music: "var(--c-music)",
+          video: token("c-video"),
+          text: token("c-text"),
+          audio: token("c-audio"),
+          music: token("c-music"),
         },
 
         // ── shadcn / existing components (HSL with <alpha-value>) ──
         background: {
-          DEFAULT: "hsl(var(--background))",
-          secondary: "var(--bg-1)",
-          tertiary: "var(--bg-2)",
-          elevated: "var(--bg-elev)",
+          DEFAULT: "hsl(var(--background) / <alpha-value>)",
+          secondary: token("bg-1"),
+          tertiary: token("bg-2"),
+          elevated: token("bg-elev"),
         },
-        foreground: "hsl(var(--foreground))",
+        foreground: "hsl(var(--foreground) / <alpha-value>)",
         card: {
-          DEFAULT: "hsl(var(--card))",
-          foreground: "hsl(var(--card-foreground))",
+          DEFAULT: "hsl(var(--card) / <alpha-value>)",
+          foreground: "hsl(var(--card-foreground) / <alpha-value>)",
         },
         popover: {
-          DEFAULT: "hsl(var(--popover))",
-          foreground: "hsl(var(--popover-foreground))",
+          DEFAULT: "hsl(var(--popover) / <alpha-value>)",
+          foreground: "hsl(var(--popover-foreground) / <alpha-value>)",
         },
         primary: {
-          DEFAULT: "hsl(var(--primary))",
-          foreground: "hsl(var(--primary-foreground))",
-          hover: "var(--accent-strong)",
-          active: "var(--accent-strong)",
-          glow: "var(--accent-glow)",
+          DEFAULT: "hsl(var(--primary) / <alpha-value>)",
+          foreground: "hsl(var(--primary-foreground) / <alpha-value>)",
+          hover: token("accent-strong"),
+          active: token("accent-strong"),
+          glow: token("accent-glow"),
         },
         secondary: {
-          DEFAULT: "hsl(var(--secondary))",
-          foreground: "hsl(var(--secondary-foreground))",
+          DEFAULT: "hsl(var(--secondary) / <alpha-value>)",
+          foreground: "hsl(var(--secondary-foreground) / <alpha-value>)",
         },
         muted: {
-          DEFAULT: "hsl(var(--muted))",
-          foreground: "hsl(var(--muted-foreground))",
+          DEFAULT: "hsl(var(--muted) / <alpha-value>)",
+          foreground: "hsl(var(--muted-foreground) / <alpha-value>)",
         },
         destructive: {
-          DEFAULT: "hsl(var(--destructive))",
-          foreground: "hsl(var(--destructive-foreground))",
+          DEFAULT: "hsl(var(--destructive) / <alpha-value>)",
+          foreground: "hsl(var(--destructive-foreground) / <alpha-value>)",
         },
         border: {
-          DEFAULT: "var(--border)",
-          hover: "var(--border-strong)",
-          active: "var(--border-strong)",
+          DEFAULT: token("border"),
+          hover: token("border-strong"),
+          active: token("border-strong"),
         },
-        input: "hsl(var(--input))",
-        ring: "hsl(var(--ring))",
+        input: "hsl(var(--input) / <alpha-value>)",
+        ring: "hsl(var(--ring) / <alpha-value>)",
         text: {
-          primary: "var(--fg)",
-          secondary: "var(--fg-2)",
-          muted: "var(--fg-3)",
+          primary: token("fg"),
+          secondary: token("fg-2"),
+          muted: token("fg-3"),
         },
         status: {
-          success: "var(--accent)",
+          success: token("accent"),
           warning: "#eab308",
           error: "#ef4444",
           info: "#3b82f6",
         },
       },
       fontFamily: {
-        sans: ["Inter", "-apple-system", "BlinkMacSystemFont", "system-ui", "sans-serif"],
-        mono: ["Geist Mono", "monospace"],
+        sans: [
+          "Inter",
+          "-apple-system",
+          "BlinkMacSystemFont",
+          "system-ui",
+          "sans-serif",
+        ],
+        mono: ["JetBrains Mono", "Geist Mono", "monospace"],
       },
       boxShadow: {
-        sm: "var(--shadow-sm)",
-        md: "var(--shadow-md)",
-        lg: "var(--shadow-lg)",
+        sm: token("shadow-sm"),
+        md: token("shadow-md"),
+        lg: token("shadow-lg"),
         glow: "0 2px 8px var(--accent-glow)",
         "glow-lg": "0 4px 14px var(--accent-glow)",
-        panel: "var(--shadow-md)",
+        panel: token("shadow-md"),
       },
       borderRadius: {
-        lg: "var(--radius)",
+        lg: token("radius"),
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
         xl: "0.75rem",
         "2xl": "1rem",
       },
       spacing: {
-        topbar: "var(--topbar-h)",
-        toolnav: "var(--toolnav-h)",
-        "tl-track": "var(--tl-track)",
-        "tl-rail": "var(--tl-rail)",
+        topbar: token("topbar-h"),
+        toolnav: token("toolnav-h"),
+        "tl-track": token("tl-track"),
+        "tl-rail": token("tl-rail"),
       },
       fontSize: {
         "2xs": ["10px", { lineHeight: "1.3" }],
@@ -138,10 +149,10 @@ export default {
       keyframes: {
         "accordion-down": {
           from: { height: "0" },
-          to: { height: "var(--radix-accordion-content-height)" },
+          to: { height: token("radix-accordion-content-height") },
         },
         "accordion-up": {
-          from: { height: "var(--radix-accordion-content-height)" },
+          from: { height: token("radix-accordion-content-height") },
           to: { height: "0" },
         },
       },

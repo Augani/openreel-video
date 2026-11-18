@@ -7,21 +7,21 @@ import type { MotionAnimationPresetId } from "./motion-animation-presets";
 import { applyMotionAnimationPreset } from "./motion-animation-presets";
 import type { MotionComposition, MotionLayer } from "./types";
 
-export interface CreateMotionMarkerOptions {
+interface CreateMotionMarkerOptions {
   readonly id?: string;
   readonly time: number;
   readonly label?: string;
   readonly color?: string;
 }
 
-export interface GenerateMotionBeatMarkersOptions {
+interface GenerateMotionBeatMarkersOptions {
   readonly bpm: number;
   readonly duration: number;
   readonly startTime?: number;
   readonly beatsPerBar?: number;
 }
 
-export interface DetectMotionBeatMarkersOptions {
+interface DetectMotionBeatMarkersOptions {
   readonly duration: number;
   readonly startTime?: number;
   readonly compositionDuration?: number;
@@ -30,7 +30,7 @@ export interface DetectMotionBeatMarkersOptions {
   readonly sensitivity?: number;
 }
 
-export interface ApplyMotionPresetToBeatsOptions {
+interface ApplyMotionPresetToBeatsOptions {
   readonly duration?: number;
   readonly distance?: number;
   readonly intensity?: number;
@@ -40,7 +40,7 @@ export interface ApplyMotionPresetToBeatsOptions {
   readonly maxBeats?: number;
 }
 
-export interface SnapMotionTimeOptions {
+interface SnapMotionTimeOptions {
   readonly markers?: readonly Marker[];
   readonly beatMarkers?: readonly TimelineBeatMarker[];
   readonly threshold?: number;
@@ -179,29 +179,6 @@ export function setMotionBeatMarkers(
     beatAnalysis,
     modifiedAt: Date.now(),
   };
-}
-
-export function clearMotionBeatMarkers(
-  composition: MotionComposition,
-): MotionComposition {
-  return {
-    ...composition,
-    beatMarkers: [],
-    beatAnalysis: undefined,
-    modifiedAt: Date.now(),
-  };
-}
-
-export function getMotionBeatMarkersInRange(
-  beatMarkers: readonly TimelineBeatMarker[] | undefined,
-  startTime: number,
-  endTime: number,
-): TimelineBeatMarker[] {
-  const start = Math.min(startTime, endTime);
-  const end = Math.max(startTime, endTime);
-  return (beatMarkers ?? []).filter(
-    (marker) => marker.time >= start && marker.time <= end,
-  );
 }
 
 export function applyMotionAnimationPresetToBeats<T extends MotionLayer>(

@@ -26,7 +26,17 @@ export interface ShapeClip extends GraphicClip {
   readonly type: "shape";
   readonly shapeType: ShapeType;
   readonly style: ShapeStyle;
-  readonly points?: Point2D[]; // For polygon/path shapes
+  readonly points?: Point2D[]; // For polygon/path shapes (normalized 0..1)
+  /** SVG path data (M L H V C S Q T A Z) for "path" shapes; wins over `points`. */
+  readonly pathData?: string;
+  /** Close the path. Point lists default to open; `Z` in pathData always closes. */
+  readonly closed?: boolean;
+  /**
+   * Authored size of a rectangle, circle or ellipse, in pixels of a 1080-line frame (scaled with the frame's shorter
+   * side). Without it a shape draws as the default tile, 15% of that side, and is sized by `transform.scale`.
+   * `transform.anchor` is the point of the box that sits on `transform.position`.
+   */
+  readonly extent?: { readonly width: number; readonly height: number };
 }
 
 export interface SVGClip extends GraphicClip {
@@ -113,25 +123,6 @@ export interface EmphasisAnimation {
   readonly startTime?: number;
   readonly animationDuration?: number;
 }
-
-export const DEFAULT_EMPHASIS_ANIMATION: EmphasisAnimation = {
-  type: "none",
-  speed: 1,
-  intensity: 1,
-  loop: true,
-};
-
-export const DEFAULT_SVG_COLOR_STYLE: SVGColorStyle = {
-  colorMode: "none",
-  tintColor: "#ffffff",
-  tintOpacity: 1,
-};
-
-export const DEFAULT_GRAPHIC_ANIMATION: GraphicAnimation = {
-  type: "none",
-  duration: 0.5,
-  easing: "ease-out",
-};
 
 export interface StickerClip extends GraphicClip {
   readonly type: "sticker" | "emoji";
@@ -320,6 +311,10 @@ export interface CreateShapeParams {
   readonly style?: Partial<ShapeStyle>;
   readonly arrowProps?: ArrowProperties;
   readonly points?: Point2D[];
+  readonly pathData?: string;
+  readonly closed?: boolean;
+  /** Stored on the clip as `extent`; omit to keep the default tile (the width and height above are not drawn). */
+  readonly extent?: { readonly width: number; readonly height: number };
   readonly metadata?: ClipMetadata;
 }
 

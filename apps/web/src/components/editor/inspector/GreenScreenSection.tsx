@@ -1,10 +1,10 @@
 import React, { useState, useCallback, useMemo, useEffect } from "react";
 import { Video, Pipette, RefreshCw, Eye, EyeOff, Layers } from "@/icons/lucide-compat";
-import { ToolcraftButton as Button } from "@openreel/ui";
-import { ToolcraftIconButton as IconButton } from "@openreel/ui";
-import { ToolcraftSelectableCard as SelectableCard } from "@openreel/ui";
-import { ToolcraftText as Text } from "@openreel/ui";
-import { MockSlider } from "./shell/InspectorControls";
+import { Button } from "@openreel/ui";
+import { cn } from "@openreel/ui";
+
+
+import { InlineSlider } from "./shell/InspectorControls";
 import { useProjectStore } from "../../../stores/project-store";
 import { useEngineStore } from "../../../stores/engine-store";
 import type { RGB, ChromaKeySettings } from "@openreel/core";
@@ -17,15 +17,11 @@ const ColorPreview: React.FC<{ color: RGB; onClick?: () => void }> = ({
   color,
   onClick,
 }) => (
-  <Button
-    label="Pick color from video"
-    variant="ghost"
-    onClick={onClick}
-    className="w-8 h-8 rounded-lg border-2 border-border hover:border-primary transition-colors"
-    style={{
+  <Button onClick={onClick} style={{
       backgroundColor: `rgb(${Math.round(color.r * 255)}, ${Math.round(color.g * 255)}, ${Math.round(color.b * 255)})`,
-    }}
-  />
+    }} type="button" aria-label="Pick color from video" className="inline-flex min-w-0 items-center justify-center gap-1.5 font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 px-3 text-[12px] bg-transparent text-fg-2 hover:bg-bg-2 hover:text-fg w-8 h-8 rounded-lg border-2 border-border hover:border-primary transition-colors">
+    <span className="truncate">{"Pick color from video"}</span>
+  </Button>
 );
 
 const ControlSlider: React.FC<{
@@ -44,7 +40,8 @@ const ControlSlider: React.FC<{
           {Math.round(value * 100)}%
         </span>
       </div>
-      <MockSlider
+      <InlineSlider
+        ariaLabel={label}
         min={min}
         max={max}
         step={step}
@@ -61,19 +58,11 @@ const ColorPresetButton: React.FC<{
   isActive: boolean;
   onClick: () => void;
 }> = ({ color, label, isActive, onClick }) => (
-  <SelectableCard
-    label={label}
-    isSelected={isActive}
-    onChange={onClick}
-    onClick={onClick}
-    padding={1}
-    variant={isActive ? "green" : "muted"}
-    className={`flex items-center gap-1.5 px-2 py-1 rounded text-[9px] transition-colors ${
+  <Button variant="ghost" type="button" aria-label={label} onClick={onClick} role="checkbox" aria-checked={isActive} data-selected={(isActive) ? "true" : undefined} className={cn("group/card block h-auto min-w-0 whitespace-normal rounded-[7px] border text-left transition-[background-color,border-color,box-shadow,transform] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50", (isActive ? "border-status-success/25 bg-status-success/10 text-fg hover:bg-status-success/15" : "border-transparent bg-bg-2 text-fg hover:bg-bg-3"), (isActive) && "border-accent bg-selected shadow-[0_0_0_1px_var(--accent)]", "p-1", `flex items-center gap-1.5 px-2 py-1 rounded text-[9px] transition-colors ${
       isActive
         ? "bg-primary text-white"
         : "bg-bg-2 text-fg-3 hover:text-fg"
-    }`}
-  >
+    }`)}>
     <div
       className="w-3 h-3 rounded-sm border border-border"
       style={{
@@ -81,7 +70,7 @@ const ColorPresetButton: React.FC<{
       }}
     />
     {label}
-  </SelectableCard>
+  </Button>
 );
 
 const COLOR_PRESETS: { color: RGB; label: string }[] = [
@@ -233,22 +222,17 @@ export const GreenScreenSection: React.FC<GreenScreenSectionProps> = ({
           <span className="block text-[11px] font-medium text-fg">
             Green Screen
           </span>
-          <Text type="supporting" color="secondary" display="block" className="text-[9px] text-fg-3">
+          <span className="font-normal block text-[9px] text-fg-3">
             Remove background color from video
-          </Text>
+          </span>
         </div>
-        <IconButton
-          label={settings.enabled ? "Disable chroma key" : "Enable chroma key"}
-          icon={settings.enabled ? <Eye size={14} /> : <EyeOff size={14} />}
-          variant="ghost"
-          size="sm"
-          onClick={handleToggleEnabled}
-          className={`p-1.5 rounded transition-colors ${
+        <Button variant="ghost" size="icon-sm" onClick={handleToggleEnabled} type="button" aria-label={settings.enabled ? "Disable chroma key" : "Enable chroma key"} title={settings.enabled ? "Disable chroma key" : "Enable chroma key"} className={cn("inline-flex shrink-0 items-center justify-center rounded-[7px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50", "h-7 w-7", "bg-transparent text-fg-muted hover:bg-bg-2 hover:text-fg", `p-1.5 rounded transition-colors ${
             settings.enabled
               ? "bg-green-500/30 text-green-400"
               : "bg-bg-2 text-fg-3 hover:text-fg"
-          }`}
-        />
+          }`)}>
+          {settings.enabled ? <Eye size={14} /> : <EyeOff size={14} />}
+        </Button>
       </div>
 
       {settings.enabled && (
@@ -259,27 +243,22 @@ export const GreenScreenSection: React.FC<GreenScreenSectionProps> = ({
                 Key Color
               </span>
               <div className="flex items-center gap-2">
-                <IconButton
-                  label="Pick color from video"
-                  icon={<Pipette size={12} />}
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setIsPickingColor(!isPickingColor)}
-                  className={`p-1.5 rounded transition-colors ${
+                <Button variant="ghost" size="icon-sm" onClick={() => setIsPickingColor(!isPickingColor)} type="button" aria-label="Pick color from video" title="Pick color from video" className={cn("inline-flex shrink-0 items-center justify-center rounded-[7px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50", "h-7 w-7", "bg-transparent text-fg-muted hover:bg-bg-2 hover:text-fg", `p-1.5 rounded transition-colors ${
                     isPickingColor
                       ? "bg-primary text-white"
                       : "bg-bg-2 text-fg-3 hover:text-fg"
-                  }`}
-                />
+                  }`)}>
+                  {<Pipette size={12} />}
+                </Button>
                 <ColorPreview color={settings.keyColor} />
               </div>
             </div>
 
             {isPickingColor && (
               <div className="p-2 bg-primary/10 border border-primary/30 rounded-lg">
-                <Text type="supporting" color="primary" className="text-[9px] text-primary text-center">
+                <span className="font-normal text-[9px] text-primary text-center">
                   Click on the video preview to pick a color
-                </Text>
+                </span>
               </div>
             )}
 
@@ -317,20 +296,17 @@ export const GreenScreenSection: React.FC<GreenScreenSectionProps> = ({
           </div>
 
           <div className="flex items-center gap-2 pt-2 border-t border-border">
-            <Button
-              label="Reset to Defaults"
-              variant="ghost"
-              icon={<RefreshCw size={12} />}
-              onClick={handleResetToDefaults}
-              className="flex-1 flex items-center justify-center gap-1.5 py-2 text-[10px] text-fg-2 hover:text-fg bg-bg-2 rounded-lg transition-colors"
-            />
+            <Button onClick={handleResetToDefaults} type="button" aria-label="Reset to Defaults" className="min-w-0 font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 px-3 hover:bg-bg-2 flex-1 flex items-center justify-center gap-1.5 py-2 text-[10px] text-fg-2 hover:text-fg bg-bg-2 rounded-lg transition-colors">
+              <span className="flex h-4 w-4 shrink-0 items-center justify-center">{<RefreshCw size={12} />}</span>
+              <span className="truncate">{"Reset to Defaults"}</span>
+            </Button>
           </div>
 
           <div className="flex items-center gap-2 p-2 bg-bg-2 rounded-lg">
             <Layers size={12} className="text-fg-3" />
-            <Text type="supporting" color="secondary" className="text-[9px] text-fg-3 flex-1">
+            <span className="font-normal text-[9px] text-fg-3 flex-1">
               Place video clips below this one to use as background
-            </Text>
+            </span>
           </div>
         </>
       )}
@@ -341,19 +317,15 @@ export const GreenScreenSection: React.FC<GreenScreenSectionProps> = ({
             size={24}
             className="mx-auto mb-2 text-fg-3 opacity-50"
           />
-          <Text type="supporting" color="secondary" display="block" className="text-[10px] text-fg-3">
+          <span className="font-normal block text-[10px] text-fg-3">
             Enable to remove background color
-          </Text>
-          <Button
-            label="Enable Green Screen"
-            variant="primary"
-            onClick={handleToggleEnabled}
-            className="mt-2 px-4 py-1.5 text-[10px] bg-green-500/20 text-green-400 hover:bg-green-500/30 rounded-lg transition-colors"
-          />
+          </span>
+          <Button onClick={handleToggleEnabled} type="button" aria-label="Enable Green Screen" className="inline-flex min-w-0 items-center justify-center gap-1.5 font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 mt-2 px-4 py-1.5 text-[10px] bg-green-500/20 text-green-400 hover:bg-green-500/30 rounded-lg transition-colors">
+            <span className="truncate">{"Enable Green Screen"}</span>
+          </Button>
         </div>
       )}
     </div>
   );
 };
 
-export default GreenScreenSection;

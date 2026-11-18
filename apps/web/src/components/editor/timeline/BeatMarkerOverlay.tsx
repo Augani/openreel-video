@@ -9,6 +9,7 @@ interface BeatMarkerOverlayProps {
   scrollX: number;
   viewportWidth: number;
   totalHeight: number;
+  originX?: number;
 }
 
 export const BeatMarkerOverlay: React.FC<BeatMarkerOverlayProps> = ({
@@ -16,6 +17,7 @@ export const BeatMarkerOverlay: React.FC<BeatMarkerOverlayProps> = ({
   scrollX,
   viewportWidth,
   totalHeight,
+  originX = 0,
 }) => {
   const [beatState, setBeatState] = useState<BeatSyncState>(() =>
     getBeatSyncBridge().getState(),
@@ -45,7 +47,7 @@ export const BeatMarkerOverlay: React.FC<BeatMarkerOverlayProps> = ({
   return (
     <div className="absolute inset-0 pointer-events-none z-5">
       {visibleMarkers.map((marker) => {
-        const xPos = marker.time * pixelsPerSecond;
+        const xPos = marker.time * pixelsPerSecond + originX;
         const isDownbeat = marker.isDownbeat;
 
         return (
@@ -76,5 +78,3 @@ export const BeatMarkerOverlay: React.FC<BeatMarkerOverlayProps> = ({
     </div>
   );
 };
-
-export default BeatMarkerOverlay;

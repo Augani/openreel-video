@@ -75,4 +75,14 @@ describe("chat history store", () => {
 
     expect(useChatHistoryStore.getState().conversations).toEqual([]);
   });
+  it("keeps compact navigation metadata while removing large result data", () => {
+    const timelineTarget = { projectId: "project-a", id: "title-1", trackId: "titles", kind: "text" as const, startTime: 4, duration: 3 };
+    useChatHistoryStore.getState().saveConversation({ id: "saved-target", projectId: "project-a", title: "Title edit", createdAt: 1, updatedAt: 2,
+      messages: [{ id: "assistant", role: "assistant", text: "Done", toolCalls: [{ id: "create", name: "create_text_clip", args: {}, status: "done", timelineTarget,
+        result: { ok: true, summary: "Created title", data: { id: "title-1", large: "x".repeat(50000) } } }] }], usage: { inputTokens: 1, outputTokens: 1 } });
+    const saved = useChatHistoryStore.getState().conversations[0].messages[0].toolCalls[0];
+    expect(saved.result?.data).toBeUndefined();
+    expect(saved.timelineTarget).toEqual(timelineTarget);
+  });
+
 });

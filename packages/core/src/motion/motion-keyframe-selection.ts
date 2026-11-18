@@ -2,13 +2,13 @@ import type { Keyframe } from "../types/timeline";
 import type { MotionComposition, MotionLayer } from "./types";
 import { sortMotionKeyframes } from "./motion-keyframes";
 
-export interface OffsetMotionKeyframesResult {
+interface OffsetMotionKeyframesResult {
   readonly composition: MotionComposition;
   readonly appliedDelta: number;
   readonly movedKeyframeIds: readonly string[];
 }
 
-export interface DuplicateMotionKeyframesResult {
+interface DuplicateMotionKeyframesResult {
   readonly composition: MotionComposition;
   readonly appliedDelta: number;
   readonly duplicatedKeyframeIds: readonly string[];

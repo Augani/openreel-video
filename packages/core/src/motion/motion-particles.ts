@@ -6,7 +6,7 @@ import type {
 } from "./types";
 import { DEFAULT_MOTION_TRANSFORM } from "./types";
 
-export interface MotionParticle {
+interface MotionParticle {
   readonly x: number;
   readonly y: number;
   readonly size: number;
@@ -17,30 +17,13 @@ export interface MotionParticle {
   readonly progress: number;
 }
 
-export interface CreateMotionParticleLayerOptions {
+interface CreateMotionParticleLayerOptions {
   readonly id?: string;
   readonly name?: string;
   readonly duration?: number;
   readonly position?: { readonly x: number; readonly y: number };
   readonly emitter?: Partial<MotionParticleEmitter>;
 }
-
-export const DEFAULT_MOTION_PARTICLE_EMITTER: MotionParticleEmitter = {
-  emissionRate: 48,
-  maxParticles: 240,
-  lifetime: 2.4,
-  speed: 220,
-  spread: 120,
-  gravity: 120,
-  size: 10,
-  sizeRandomness: 0.55,
-  opacityStart: 1,
-  opacityEnd: 0,
-  colorStart: "#ffffff",
-  colorEnd: "#14b8a6",
-  seed: 1337,
-  shape: "circle",
-};
 
 export function createMotionParticleLayer(
   composition: Pick<MotionComposition, "width" | "height" | "duration">,
@@ -89,7 +72,7 @@ export function normalizeMotionParticleEmitter(
   };
 }
 
-export type MotionParticleEmitterResolver = (
+type MotionParticleEmitterResolver = (
   time: number,
 ) => Partial<MotionParticleEmitter> | undefined;
 

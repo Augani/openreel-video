@@ -1,6 +1,6 @@
 import type { FitMode } from "../types/timeline";
 
-export interface CanvasFitDimensions {
+interface CanvasFitDimensions {
   width: number;
   height: number;
 }

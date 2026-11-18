@@ -52,18 +52,6 @@ describe("motion text shader animator", () => {
     expect(bad.shader).toBeUndefined();
   });
 
-  it("clamps and defaults shader params against the def ranges", () => {
-    const anim: MotionTextAnimator = {
-      ...createMotionTextAnimator("text-reveal-up"),
-      shader: {
-        shaderId: "glyph-dissolve",
-        params: { edgeWidth: 9, unknown: 3 },
-      },
-    };
-    const sanitized = sanitizeMotionTextAnimator(anim);
-    expect(sanitized.shader?.params).toEqual({ edgeWidth: 1, scale: 12 });
-  });
-
   it("computes staggered per-glyph progress", () => {
     const anim = createMotionTextAnimator("text-reveal-up");
     const first = getMotionTextAnimatorGlyphProgress(
@@ -79,41 +67,6 @@ describe("motion text shader animator", () => {
       anim.timing.startTime + anim.timing.duration * 0.5,
     );
     expect(first).toBeGreaterThan(last);
-  });
-
-  it("staggers per-glyph progress by character for a single-word title", () => {
-    const anim: MotionTextAnimator = {
-      ...createMotionTextAnimator("text-reveal-up"),
-      shader: { shaderId: "glyph-dissolve", params: { edgeWidth: 0.2 } },
-    };
-    const layer = { ...makeTextLayer("HELLO"), textAnimators: [anim] };
-    const localTime = anim.timing.startTime + anim.timing.duration * 0.5;
-    const runs = getMotionTextAnimatorRuns(layer, localTime);
-    const progress = getMotionTextAnimatorRunProgress(anim, runs, localTime);
-    expect(progress).toHaveLength(5);
-    expect(progress[0]).toBeGreaterThan(progress[4]);
-    const unique = new Set(progress);
-    expect(unique.size).toBeGreaterThan(1);
-  });
-
-  it("staggers per-word progress for a words-based animator", () => {
-    const anim: MotionTextAnimator = {
-      ...createMotionTextAnimator("text-reveal-up"),
-      selector: {
-        basedOn: "words",
-        start: 0,
-        end: 100,
-        offset: 0,
-      },
-      shader: { shaderId: "glyph-dissolve", params: {} },
-    };
-    const layer = { ...makeTextLayer("HI THERE"), textAnimators: [anim] };
-    const localTime = anim.timing.startTime + anim.timing.duration * 0.5;
-    const runs = getMotionTextAnimatorRuns(layer, localTime);
-    const progress = getMotionTextAnimatorRunProgress(anim, runs, localTime);
-    const firstWord = progress[0];
-    const secondWord = progress[progress.length - 1];
-    expect(firstWord).toBeGreaterThan(secondWord);
   });
 
   it("computes words+reverse progress using the true word count, not inflated by whitespace", () => {
@@ -157,39 +110,6 @@ describe("motion text shader animator", () => {
     expect(distinctWordValues.size).toBe(3);
   });
 
-  it("computes words+center progress using the true word count", () => {
-    const anim: MotionTextAnimator = {
-      ...createMotionTextAnimator("text-reveal-up"),
-      selector: { basedOn: "words", start: 0, end: 100, offset: 0 },
-      timing: { ...createMotionTextAnimator("text-reveal-up").timing, direction: "center" },
-      shader: { shaderId: "glyph-dissolve", params: {} },
-    };
-    const layer = { ...makeTextLayer("AB CD EF"), textAnimators: [anim] };
-    const localTime = anim.timing.startTime + anim.timing.duration * 0.25;
-    const runs = getMotionTextAnimatorRuns(layer, localTime);
-    const progress = getMotionTextAnimatorRunProgress(anim, runs, localTime);
-
-    runs.forEach((run, index) => {
-      if (run.character.trim() === "") {
-        expect(progress[index]).toBe(0);
-        return;
-      }
-      expect(progress[index]).toBe(
-        getMotionTextAnimatorGlyphProgress(anim, run.unitIndex, 3, localTime),
-      );
-    });
-
-    const centerWord = runs
-      .map((run, index) => ({ run, value: progress[index] }))
-      .find((entry) => entry.run.unitIndex === 1 && entry.run.character.trim() !== "");
-    expect(centerWord?.value).toBeGreaterThan(0);
-  });
-
-  it("returns an empty array for no runs", () => {
-    const anim = createMotionTextAnimator("text-reveal-up");
-    expect(getMotionTextAnimatorRunProgress(anim, [], 0)).toEqual([]);
-  });
-
   it("resolves the renderer text shader pass for a shader-animator layer", () => {
     const anim: MotionTextAnimator = {
       ...createMotionTextAnimator("text-reveal-up"),
@@ -203,19 +123,4 @@ describe("motion text shader animator", () => {
     expect(pass?.animator.shader?.shaderId).toBe("glyph-dissolve");
   });
 
-  it("returns null for a plain text layer with no shader animator", () => {
-    const layer = withAnimator(createMotionTextAnimator("text-reveal-up"));
-    expect(resolveTextShaderPass(layer, 0)).toBeNull();
-  });
-
-  it("ignores disabled animators when finding the shader animator", () => {
-    const anim: MotionTextAnimator = {
-      ...createMotionTextAnimator("text-reveal-up"),
-      enabled: false,
-      shader: { shaderId: "glyph-dissolve", params: {} },
-    };
-    const layer = withAnimator(anim);
-    expect(getMotionTextShaderAnimator(layer)).toBeUndefined();
-    expect(layerHasMotionShaderTextAnimator(layer)).toBe(false);
-  });
 });

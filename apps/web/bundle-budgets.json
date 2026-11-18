@@ -1,0 +1,25 @@
+{
+  "_comment": "Budgets for scripts/check-bundle-size.mjs (KB = 1000 bytes), measured on the web build (pnpm --filter @openreel/web build). Set a few percent above the measured size so an accidental import that drags a registry or engine into the startup path fails CI, while normal feature growth in lazy chunks does not.",
+  "budgets": {
+    "entry": {
+      "rawKb": 640,
+      "gzipKb": 190,
+      "note": "startup entry chunk: everything the first paint compiles and evaluates. w9: video/motion/audio engines, action handlers, export engine and schema normalizers are behind services/lazy-engines (1988 KB / 568.8 KB gzip before; 608.5 / 179.0 after)"
+    },
+    "initialJs": {
+      "rawKb": 1230,
+      "gzipKb": 375,
+      "note": "entry + static imports + modulepreloads"
+    },
+    "editor": {
+      "rawKb": 1850,
+      "gzipKb": 505,
+      "note": "lazy editor chunk (background warm-up on desktop)"
+    },
+    "agent": {
+      "rawKb": 925,
+      "gzipKb": 250,
+      "note": "lazy agent/MCP executor chunk, must stay lazy (w9: +25 KB for FCPXML compound clips and multicam interchange, frame-scale tool)"
+    }
+  }
+}

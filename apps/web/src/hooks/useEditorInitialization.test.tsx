@@ -11,6 +11,7 @@ const bridges = vi.hoisted(() => ({
   effects: vi.fn(async () => undefined),
   transition: vi.fn(),
   dispose: vi.fn(),
+  restoreProcessing: vi.fn(),
 }));
 
 vi.mock("../bridges/media-bridge", () => ({ initializeMediaBridge: bridges.media, disposeMediaBridge: bridges.dispose }));
@@ -18,7 +19,10 @@ vi.mock("../bridges/playback-bridge", () => ({ initializePlaybackBridge: bridges
 vi.mock("../bridges/render-bridge", () => ({ initializeRenderBridge: bridges.render, disposeRenderBridge: bridges.dispose }));
 vi.mock("../bridges/effects-bridge", () => ({ initializeEffectsBridge: bridges.effects, disposeEffectsBridge: bridges.dispose }));
 vi.mock("../bridges/transition-bridge", () => ({ initializeTransitionBridge: bridges.transition, disposeTransitionBridge: bridges.dispose }));
-vi.mock("../stores/project-store", () => ({ useProjectStore: { getState: () => ({ project: { settings: { width: 1080, height: 1920 } } }) } }));
+vi.mock("../stores/project-store", () => ({ useProjectStore: { getState: () => ({
+  project: { settings: { width: 1080, height: 1920 } },
+  syncProjectProcessing: bridges.restoreProcessing,
+}) } }));
 vi.mock("../stores/engine-store", async () => {
   const { create } = await import("zustand");
   const store = create(() => ({
@@ -64,6 +68,23 @@ describe("editor initialization lifetime", () => {
     expect(useEngineStore.getState().initialize).toHaveBeenCalledOnce();
     expect(bridges.media).toHaveBeenCalledOnce();
     expect(bridges.playback).toHaveBeenCalledOnce();
+  });
+
+  it("restores saved processing only after pending bridges are ready", async () => {
+    let finishEffects!: () => void;
+    bridges.effects.mockImplementationOnce(() => new Promise<undefined>(resolve => {
+      finishEffects = () => resolve(undefined);
+    }));
+    const { result } = renderHook(useEditorInitialization);
+    await waitFor(() => expect(bridges.effects).toHaveBeenCalledOnce());
+    expect(bridges.restoreProcessing).not.toHaveBeenCalled();
+    expect(result.current.initialized).toBe(false);
+    bridges.restoreProcessing.mockImplementationOnce(() => {
+      expect(bridges.transition).toHaveBeenCalledOnce();
+    });
+    await act(async () => finishEffects());
+    await waitFor(() => expect(result.current.initialized).toBe(true));
+    expect(bridges.restoreProcessing).toHaveBeenCalledOnce();
   });
 
   it("stops waiting on an in-progress engine when the editor unmounts", async () => {

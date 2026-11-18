@@ -31,6 +31,92 @@ const shapeOverlay = (overlay: EditingTemplate["recipe"]["overlays"][number]): E
 
 export const BUILT_IN_EDITING_TEMPLATES: readonly EditingTemplate[] = [
   {
+    id: "overlay-progress-bar",
+    name: "Progress bar",
+    description: "An animated progress bar spanning the selected clip.",
+    category: "overlay",
+    thumbnailUrl: null,
+    previewUrl: null,
+    tags: ["progress", "timeline"],
+    supportedTargets: ["video", "image"],
+    controls: [
+      {
+        id: "barColor",
+        label: "Bar color",
+        type: "color",
+        defaultValue: "#2bd49a",
+      },
+    ],
+    recipe: {
+      effects: [],
+      audioEffects: [],
+      overlays: [
+        shapeOverlay({
+          type: "shape",
+          trackType: "graphics",
+          timing: full,
+          transform: transform(0, 0.99, 1, 1, 0, 0, 0.5),
+          keyframes: [
+            { time: 0, property: "scale.x", value: 0 },
+            { time: 1, property: "scale.x", value: 1 },
+          ],
+          content: {
+            shapeType: "rectangle",
+            width: 1920,
+            height: 12,
+            style: {
+              fill: { type: "solid", color: bind("barColor"), opacity: 1 },
+              stroke: { color: "#000000", width: 0, opacity: 0 },
+            },
+          },
+        }),
+      ],
+    },
+  },
+  {
+    id: "overlay-follow-callout",
+    name: "Follow callout",
+    description: "An editable follow label over your video.",
+    category: "social",
+    thumbnailUrl: null,
+    previewUrl: null,
+    tags: ["follow", "social", "callout"],
+    supportedTargets: ["video", "image"],
+    controls: [
+      { id: "label", label: "Label", type: "text", defaultValue: "Follow +" },
+      {
+        id: "labelColor",
+        label: "Background",
+        type: "color",
+        defaultValue: "#ec4c60",
+      },
+    ],
+    recipe: {
+      effects: [],
+      audioEffects: [],
+      overlays: [
+        textOverlay({
+          type: "text",
+          trackType: "text",
+          timing: full,
+          transform: transform(0.78, 0.82),
+          content: {
+            text: "{control.label}",
+            style: {
+              fontFamily: "Inter",
+              fontSize: 32,
+              fontWeight: 700,
+              color: "#ffffff",
+              backgroundColor: bind("labelColor"),
+              textAlign: "center",
+              verticalAlign: "middle",
+            },
+          },
+        }),
+      ],
+    },
+  },
+  {
     id: "cinema-letterbox",
     name: "Cinematic Letterbox",
     description: "Wide-screen bars with grain and vignette.",
@@ -91,7 +177,7 @@ export const BUILT_IN_EDITING_TEMPLATES: readonly EditingTemplate[] = [
     ],
     recipe: {
       effects: [
-        { type: "contrast", params: { value: 0.08 } },
+        { type: "contrast", params: { value: 1.08 } },
         { type: "brightness", params: { value: 0.03 } },
       ],
       overlays: [
@@ -130,7 +216,7 @@ export const BUILT_IN_EDITING_TEMPLATES: readonly EditingTemplate[] = [
     recipe: {
       effects: [
         { type: "brightness", params: { value: 0.02 } },
-        { type: "contrast", params: { value: 0.1 } },
+        { type: "contrast", params: { value: 1.1 } },
         { type: "saturation", params: { value: bind("warmth") } },
       ],
       overlays: [],
@@ -192,7 +278,7 @@ export const BUILT_IN_EDITING_TEMPLATES: readonly EditingTemplate[] = [
     recipe: {
       effects: [
         { type: "chromatic-aberration", params: { intensity: 6 } },
-        { type: "contrast", params: { value: 0.08 } },
+        { type: "contrast", params: { value: 1.08 } },
       ],
       overlays: [
         shapeOverlay({
@@ -226,7 +312,7 @@ export const BUILT_IN_EDITING_TEMPLATES: readonly EditingTemplate[] = [
     recipe: {
       effects: [
         { type: "film-grain", params: { intensity: 0.45, size: 2.3 } },
-        { type: "contrast", params: { value: 0.15 } },
+        { type: "contrast", params: { value: 1.15 } },
       ],
       overlays: [
         shapeOverlay({
@@ -300,7 +386,7 @@ export const BUILT_IN_EDITING_TEMPLATES: readonly EditingTemplate[] = [
     supportedTargets: ["video", "image"],
     recipe: {
       effects: [
-        { type: "contrast", params: { value: 0.12 } },
+        { type: "contrast", params: { value: 1.12 } },
         { type: "brightness", params: { value: -0.04 } },
       ],
       overlays: [
@@ -336,7 +422,7 @@ export const BUILT_IN_EDITING_TEMPLATES: readonly EditingTemplate[] = [
     recipe: {
       effects: [
         { type: "film-grain", params: { intensity: 0.75, size: 2.8 } },
-        { type: "contrast", params: { value: 0.22 } },
+        { type: "contrast", params: { value: 1.22 } },
         { type: "brightness", params: { value: -0.08 } },
       ],
       overlays: [
@@ -366,7 +452,7 @@ export const BUILT_IN_EDITING_TEMPLATES: readonly EditingTemplate[] = [
     recipe: {
       effects: [
         { type: "brightness", params: { value: 0.04 } },
-        { type: "contrast", params: { value: 0.06 } },
+        { type: "contrast", params: { value: 1.06 } },
         { type: "saturation", params: { value: -0.08 } },
       ],
       overlays: [
@@ -742,7 +828,7 @@ export const BUILT_IN_EDITING_TEMPLATES: readonly EditingTemplate[] = [
     recipe: {
       effects: [
         { type: "brightness", params: { value: 0.05 } },
-        { type: "contrast", params: { value: 0.12 } },
+        { type: "contrast", params: { value: 1.12 } },
         { type: "saturation", params: { value: 0.14 } },
       ],
       overlays: [],
@@ -761,7 +847,7 @@ export const BUILT_IN_EDITING_TEMPLATES: readonly EditingTemplate[] = [
     recipe: {
       effects: [
         { type: "brightness", params: { value: -0.02 } },
-        { type: "contrast", params: { value: 0.08 } },
+        { type: "contrast", params: { value: 1.08 } },
         { type: "saturation", params: { value: -0.08 } },
       ],
       overlays: [],
@@ -779,7 +865,7 @@ export const BUILT_IN_EDITING_TEMPLATES: readonly EditingTemplate[] = [
     supportedTargets: ["video", "image"],
     recipe: {
       effects: [
-        { type: "contrast", params: { value: 0.2 } },
+        { type: "contrast", params: { value: 1.2 } },
         { type: "brightness", params: { value: -0.08 } },
         { type: "vignette", params: { intensity: 0.55, radius: 0.72 } },
       ],
@@ -799,7 +885,7 @@ export const BUILT_IN_EDITING_TEMPLATES: readonly EditingTemplate[] = [
     recipe: {
       effects: [
         { type: "brightness", params: { value: 0.08 } },
-        { type: "contrast", params: { value: -0.05 } },
+        { type: "contrast", params: { value: 0.95 } },
         { type: "saturation", params: { value: -0.12 } },
       ],
       overlays: [],
@@ -1118,7 +1204,7 @@ export const BUILT_IN_EDITING_TEMPLATES: readonly EditingTemplate[] = [
     supportedTargets: ["video", "image"],
     recipe: {
       effects: [
-        { type: "contrast", params: { value: 0.06 } },
+        { type: "contrast", params: { value: 1.06 } },
         { type: "vignette", params: { intensity: 0.3, radius: 0.85 } },
       ],
       overlays: [
@@ -1187,7 +1273,7 @@ export const BUILT_IN_EDITING_TEMPLATES: readonly EditingTemplate[] = [
     supportedTargets: ["video", "image"],
     recipe: {
       effects: [
-        { type: "contrast", params: { value: 0.18 } },
+        { type: "contrast", params: { value: 1.18 } },
         { type: "brightness", params: { value: -0.06 } },
         { type: "vignette", params: { intensity: 0.6, radius: 0.65 } },
         { type: "saturation", params: { value: -0.15 } },
@@ -1478,7 +1564,7 @@ export const BUILT_IN_EDITING_TEMPLATES: readonly EditingTemplate[] = [
     supportedTargets: ["video", "image"],
     recipe: {
       effects: [
-        { type: "contrast", params: { value: 0.1 } },
+        { type: "contrast", params: { value: 1.1 } },
         { type: "saturation", params: { value: 0.12 } },
         { type: "brightness", params: { value: 0.02 } },
       ],
@@ -1498,7 +1584,7 @@ export const BUILT_IN_EDITING_TEMPLATES: readonly EditingTemplate[] = [
     recipe: {
       effects: [
         { type: "saturation", params: { value: -1 } },
-        { type: "contrast", params: { value: 0.15 } },
+        { type: "contrast", params: { value: 1.15 } },
         { type: "brightness", params: { value: 0.04 } },
       ],
       overlays: [],
@@ -1518,7 +1604,7 @@ export const BUILT_IN_EDITING_TEMPLATES: readonly EditingTemplate[] = [
       effects: [
         { type: "chromatic-aberration", params: { intensity: 8 } },
         { type: "film-grain", params: { intensity: 0.55, size: 3 } },
-        { type: "contrast", params: { value: 0.2 } },
+        { type: "contrast", params: { value: 1.2 } },
       ],
       overlays: [
         shapeOverlay({
@@ -1664,7 +1750,7 @@ export const BUILT_IN_EDITING_TEMPLATES: readonly EditingTemplate[] = [
       effects: [
         { type: "brightness", params: { value: 0.03 } },
         { type: "saturation", params: { value: -0.06 } },
-        { type: "contrast", params: { value: 0.05 } },
+        { type: "contrast", params: { value: 1.05 } },
       ],
       overlays: [
         shapeOverlay({

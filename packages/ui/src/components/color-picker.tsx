@@ -6,6 +6,8 @@ import { Check, Slash } from "lucide-react"
 import { cn } from "@openreel/ui/lib/utils"
 import { Popover, PopoverContent, PopoverTrigger } from "./popover"
 import { Slider } from "./slider"
+import { Button } from "./button"
+import { Input } from "./input"
 
 interface ParsedColor {
   hex: string
@@ -13,11 +15,12 @@ interface ParsedColor {
   isTransparent: boolean
 }
 
-export interface ColorPickerProps {
+interface ColorPickerProps {
   value: string
   onChange: (value: string) => void
   label?: string
   showAlpha?: boolean
+  showValue?: boolean
   allowTransparent?: boolean
   disabled?: boolean
   className?: string
@@ -183,6 +186,7 @@ export const ColorPicker = React.forwardRef<HTMLButtonElement, ColorPickerProps>
       onChange,
       label = "Select color",
       showAlpha = false,
+      showValue = true,
       allowTransparent = false,
       disabled = false,
       className,
@@ -255,19 +259,25 @@ export const ColorPicker = React.forwardRef<HTMLButtonElement, ColorPickerProps>
     return (
       <Popover open={isOpen} onOpenChange={setIsOpen}>
         <PopoverTrigger asChild>
-          <button
+          <Button
+            variant="ghost"
+            size="sm"
             ref={ref}
             type="button"
             disabled={disabled}
             aria-label={label}
-            title={label}
+            title={showValue ? label : `${label}: ${parsed.isTransparent ? TRANSPARENT : committedValue}`}
             className={cn(
-              "flex h-8 w-full items-center gap-2 rounded-md border border-border bg-background-tertiary px-2 text-left text-[10px] text-text-primary transition-colors hover:border-primary/60 disabled:cursor-not-allowed disabled:opacity-50",
+              "flex h-8 w-full items-center justify-start gap-2 rounded-md border border-border bg-background-tertiary px-2 py-0 text-left text-[10px] font-normal leading-[inherit] text-text-primary transition-colors hover:border-primary/60 disabled:cursor-not-allowed disabled:opacity-50 [&_svg]:size-3",
+              !showValue && "h-[26px] w-[26px] shrink-0 justify-center rounded-md p-0",
               className,
             )}
           >
             <span
-              className="relative h-4 w-4 shrink-0 overflow-hidden rounded border border-border"
+              className={cn(
+                "relative h-4 w-4 shrink-0 overflow-hidden rounded border border-border",
+                !showValue && "h-full w-full rounded-[inherit] border-0",
+              )}
               style={CHECKERBOARD_STYLE}
             >
               {!parsed.isTransparent && (
@@ -283,10 +293,12 @@ export const ColorPicker = React.forwardRef<HTMLButtonElement, ColorPickerProps>
                 <Slash className="absolute inset-0 m-auto h-3 w-3 text-text-muted" />
               )}
             </span>
-            <span className="min-w-0 flex-1 truncate font-mono uppercase text-text-muted">
-              {parsed.isTransparent ? TRANSPARENT : committedValue}
-            </span>
-          </button>
+            {showValue && (
+              <span className="min-w-0 flex-1 truncate font-mono uppercase text-text-muted">
+                {parsed.isTransparent ? TRANSPARENT : committedValue}
+              </span>
+            )}
+          </Button>
         </PopoverTrigger>
 
         <PopoverContent align="end" className="w-64 space-y-3">
@@ -296,13 +308,15 @@ export const ColorPicker = React.forwardRef<HTMLButtonElement, ColorPickerProps>
                 Color
               </span>
               {allowTransparent && (
-                <button
+                <Button
+                  variant="ghost"
+                  size="sm"
                   type="button"
                   onClick={() => commit(parsed.hex, 0, true)}
-                  className="text-[10px] text-text-muted transition-colors hover:text-text-primary"
+                  className="h-auto p-0 text-[10px] font-normal leading-[inherit] text-text-muted transition-colors hover:bg-transparent hover:text-text-primary"
                 >
                   Clear
-                </button>
+                </Button>
               )}
             </div>
 
@@ -322,11 +336,12 @@ export const ColorPicker = React.forwardRef<HTMLButtonElement, ColorPickerProps>
                 )}
               </span>
 
-              <input
+              <Input
+                aria-label={`${label} color`}
                 type="color"
                 value={parsed.hex}
                 onChange={handleColorChange}
-                className="h-10 w-full cursor-pointer rounded-md border border-border bg-background"
+                className="h-10 w-full cursor-pointer rounded-md border border-border bg-background p-0"
               />
             </div>
           </div>
@@ -340,6 +355,7 @@ export const ColorPicker = React.forwardRef<HTMLButtonElement, ColorPickerProps>
                 </span>
               </div>
               <Slider
+                aria-label={`${label} opacity`}
                 value={[parsed.alpha]}
                 onValueChange={handleAlphaChange}
                 min={0}
@@ -353,12 +369,13 @@ export const ColorPicker = React.forwardRef<HTMLButtonElement, ColorPickerProps>
             <label className="block text-[10px] font-medium uppercase tracking-wide text-text-secondary">
               Value
             </label>
-            <input
+            <Input
+              aria-label={`${label} value`}
               type="text"
               value={textValue}
               onChange={handleTextChange}
               placeholder={allowTransparent ? "#000000 or transparent" : "#000000"}
-              className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-[11px] font-mono text-text-primary outline-none transition-colors focus:border-primary"
+              className="h-auto w-full rounded-md border border-border bg-background px-2 py-1.5 text-[11px] font-mono leading-[inherit] text-text-primary outline-none transition-colors focus:border-primary md:text-[11px]"
             />
           </div>
 

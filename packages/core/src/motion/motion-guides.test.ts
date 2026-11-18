@@ -4,7 +4,6 @@ import {
   addMotionCompositionGuide,
   clearMotionCompositionGuides,
   createMotionGuide,
-  getMotionGuideSnapPosition,
   moveMotionCompositionGuide,
   removeMotionCompositionGuide,
   updateMotionCompositionGuide,
@@ -73,19 +72,6 @@ describe("motion guides", () => {
     });
     expect(removed.guides?.map((guide) => guide.id)).toEqual(["guide-1"]);
     expect(cleared.guides).toEqual([]);
-  });
-
-  it("maps guide orientation to snap axes", () => {
-    expect(
-      getMotionGuideSnapPosition(
-        createMotionGuide("vertical", 100, { id: "v" }),
-      ),
-    ).toEqual({ axis: "x", position: 100 });
-    expect(
-      getMotionGuideSnapPosition(
-        createMotionGuide("horizontal", 200, { id: "h" }),
-      ),
-    ).toEqual({ axis: "y", position: 200 });
   });
 
   it("moves guides with clamping, grid snapping, and lock protection", () => {

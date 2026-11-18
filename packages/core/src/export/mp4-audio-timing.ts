@@ -80,3 +80,51 @@ export function applyMp4AudioTiming(moov: Uint8Array, primingSamples: number, sa
   setDuration(movieHeader.bytes, movieDuration);
   return box("moov", movieChildren.map((child) => child.bytes));
 }
+
+function rebuildChild(parent: Uint8Array, type: string, change: (child: Uint8Array) => Uint8Array): Uint8Array {
+  const kind = decoder.decode(parent.subarray(4, 8));
+  return box(kind, children(parent).map((child) => (child.type === type ? change(child.bytes) : child.bytes)));
+}
+
+/** Apple `chan` atom: version/flags, layout tag, empty channel bitmap, no channel descriptions. */
+export function channelLayoutAtom(layoutTag: number): Uint8Array {
+  const payload = new Uint8Array(16);
+  new DataView(payload.buffer).setUint32(4, layoutTag >>> 0);
+  return box("chan", [payload]);
+}
+
+/**
+ * Adds the `chan` (channel layout) atom to the audio sample entry of a QuickTime
+ * movie so players read the speaker layout (e.g. L R C LFE Ls Rs) instead of
+ * guessing it from the channel count. Encoded samples and offsets are untouched:
+ * like `applyMp4AudioTiming` only the (trailing) moov grows.
+ */
+export function applyMovChannelLayout(moov: Uint8Array, layoutTag: number): Uint8Array {
+  const atom = channelLayoutAtom(layoutTag);
+  let changed = 0;
+  const movieChildren = children(moov).map((track) => {
+    if (track.type !== "trak") return track.bytes;
+    const media = children(track.bytes).find((child) => child.type === "mdia");
+    const handler = media && children(media.bytes).find((child) => child.type === "hdlr");
+    if (!handler || decoder.decode(handler.bytes.subarray(16, 20)) !== "soun") return track.bytes;
+    const addToStsd = (stsd: Uint8Array): Uint8Array => {
+      const head = stsd.slice(8, 16); // version/flags + entry count
+      const entries: Uint8Array[] = [];
+      for (let offset = 16; offset < stsd.length;) {
+        const size = view(stsd).getUint32(offset);
+        if (size < 8 || offset + size > stsd.length) throw new Error("Invalid MP4 sample description.");
+        const entry = stsd.slice(offset, offset + size);
+        entries.push(box(decoder.decode(entry.subarray(4, 8)), [entry.subarray(8), atom]));
+        offset += size;
+      }
+      changed++;
+      return box("stsd", [head, ...entries]);
+    };
+    const inStbl = (stbl: Uint8Array) => rebuildChild(stbl, "stsd", addToStsd);
+    const inMinf = (minf: Uint8Array) => rebuildChild(minf, "stbl", inStbl);
+    const inMdia = (mdia: Uint8Array) => rebuildChild(mdia, "minf", inMinf);
+    return rebuildChild(track.bytes, "mdia", inMdia);
+  });
+  if (changed === 0) throw new Error("No audio sample description to tag with a channel layout.");
+  return box("moov", movieChildren);
+}

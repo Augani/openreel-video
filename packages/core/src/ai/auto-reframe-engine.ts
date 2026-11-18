@@ -18,7 +18,7 @@ export type PlatformPreset =
   | "twitter"
   | "linkedin";
 
-export interface AspectRatioConfig {
+interface AspectRatioConfig {
   name: string;
   ratio: number;
   width: number;
@@ -115,7 +115,7 @@ export const PLATFORM_PRESETS: Record<PlatformPreset, AspectRatioConfig> = {
   },
 };
 
-export interface DetectedFace {
+interface DetectedFace {
   x: number;
   y: number;
   width: number;
@@ -161,7 +161,7 @@ export interface ReframeResult {
 
 type ProgressCallback = (progress: number, message: string) => void;
 
-export class AutoReframeEngine {
+class AutoReframeEngine {
   private canvas: OffscreenCanvas | null = null;
   private ctx: OffscreenCanvasRenderingContext2D | null = null;
   private initialized = false;
@@ -647,11 +647,4 @@ export function initializeAutoReframeEngine(): AutoReframeEngine {
     autoReframeEngineInstance = new AutoReframeEngine();
   }
   return autoReframeEngineInstance;
-}
-
-export function disposeAutoReframeEngine(): void {
-  if (autoReframeEngineInstance) {
-    autoReframeEngineInstance.dispose();
-    autoReframeEngineInstance = null;
-  }
 }

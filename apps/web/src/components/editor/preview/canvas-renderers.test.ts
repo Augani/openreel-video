@@ -2,10 +2,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   drawFrameWithTransform,
   getAnimatedTransform,
+  renderShapeClipToCanvas,
   renderTextClipToCanvas,
 } from "./canvas-renderers";
 import { DEFAULT_TRANSFORM, type ClipTransform } from "./types";
-import { titleEngine, type Keyframe, type TextClip } from "@openreel/core";
+import { titleEngine, type Keyframe, type SVGClip, type TextClip } from "@openreel/core";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -64,36 +65,6 @@ describe("getAnimatedTransform", () => {
       expect(result.position.x).toBe(200);
       expect(result.position.y).toBe(150);
     }
-  });
-});
-
-describe("Transform Coordinate System", () => {
-  it("DEFAULT_TRANSFORM position should be at center (0, 0)", () => {
-    expect(DEFAULT_TRANSFORM.position.x).toBe(0);
-    expect(DEFAULT_TRANSFORM.position.y).toBe(0);
-  });
-
-  it("DEFAULT_TRANSFORM anchor should be centered (0.5, 0.5)", () => {
-    expect(DEFAULT_TRANSFORM.anchor.x).toBe(0.5);
-    expect(DEFAULT_TRANSFORM.anchor.y).toBe(0.5);
-  });
-
-  describe("Position coordinates should be in pixels (offset from center)", () => {
-    it("position (0, 0) should represent center of canvas", () => {
-      const transform = { ...DEFAULT_TRANSFORM, position: { x: 0, y: 0 } };
-      expect(transform.position.x).toBe(0);
-      expect(transform.position.y).toBe(0);
-    });
-
-    it("position (100, 0) should represent 100px right of center", () => {
-      const transform = { ...DEFAULT_TRANSFORM, position: { x: 100, y: 0 } };
-      expect(transform.position.x).toBe(100);
-    });
-
-    it("position (-100, 0) should represent 100px left of center", () => {
-      const transform = { ...DEFAULT_TRANSFORM, position: { x: -100, y: 0 } };
-      expect(transform.position.x).toBe(-100);
-    });
   });
 });
 
@@ -196,102 +167,6 @@ describe("drawFrameWithTransform crop fitting", () => {
   });
 });
 
-describe("GPU Transform Normalization", () => {
-  it("should NOT add 0.5 offset to normalized coordinates", () => {
-    const canvasWidth = 1920;
-    const canvasHeight = 1080;
-    const position = { x: 0, y: 0 };
-
-    const incorrectNormalization = {
-      x: 0.5 + position.x / canvasWidth,
-      y: 0.5 + position.y / canvasHeight,
-    };
-
-    const correctPassthrough = position;
-
-    expect(incorrectNormalization.x).toBe(0.5);
-    expect(incorrectNormalization.y).toBe(0.5);
-
-    expect(correctPassthrough.x).toBe(0);
-    expect(correctPassthrough.y).toBe(0);
-
-    expect(correctPassthrough.x).not.toBe(incorrectNormalization.x);
-  });
-
-  it("GPU expects pixel coordinates that it normalizes internally", () => {
-    const canvasWidth = 1920;
-    const canvasHeight = 1080;
-
-    const simulateShaderNormalization = (pixelX: number, pixelY: number) => ({
-      x: (pixelX / canvasWidth) * 2,
-      y: (pixelY / canvasHeight) * 2,
-    });
-
-    const center = simulateShaderNormalization(0, 0);
-    expect(center.x).toBe(0);
-    expect(center.y).toBe(0);
-
-    const halfRight = simulateShaderNormalization(canvasWidth / 2, 0);
-    expect(halfRight.x).toBe(1);
-    expect(halfRight.y).toBe(0);
-
-    const topRight = simulateShaderNormalization(canvasWidth / 2, canvasHeight / 2);
-    expect(topRight.x).toBe(1);
-    expect(topRight.y).toBe(1);
-  });
-});
-
-describe("Playback Transform Consistency", () => {
-  it("transform should be identical during playback regardless of speed", () => {
-    const clipTransform: ClipTransform = {
-      position: { x: 100, y: -50 },
-      scale: { x: 1.5, y: 1.5 },
-      rotation: 45,
-      opacity: 0.8,
-      anchor: { x: 0.5, y: 0.5 },
-      borderRadius: 10,
-    };
-
-    const speed1xTransform = getAnimatedTransform(clipTransform, [], 2.5);
-    const speed2xTransform = getAnimatedTransform(clipTransform, [], 2.5);
-
-    expect(speed1xTransform).toEqual(speed2xTransform);
-    expect(speed1xTransform.position).toEqual(clipTransform.position);
-  });
-
-  it("clipLocalTime for transforms should be based on timeline time, not media time", () => {
-    const clipStartTime = 10;
-    const speed = 2;
-
-    const simulateCorrectClipLocalTime = (
-      currentPlayheadTime: number,
-      _speed: number
-    ) => {
-      return currentPlayheadTime - clipStartTime;
-    };
-
-    const simulateIncorrectClipLocalTime = (
-      currentMediaTime: number,
-      inPoint: number,
-      _clipStartTime: number
-    ) => {
-      const currentPlayhead = _clipStartTime + (currentMediaTime - inPoint);
-      return currentPlayhead - _clipStartTime;
-    };
-
-    const realTimeElapsed = 1;
-    const playheadTime = clipStartTime + realTimeElapsed;
-    const mediaTime = realTimeElapsed * speed;
-
-    const correctClipLocalTime = simulateCorrectClipLocalTime(playheadTime, speed);
-    const incorrectClipLocalTime = simulateIncorrectClipLocalTime(mediaTime, 0, clipStartTime);
-
-    expect(correctClipLocalTime).toBe(1);
-    expect(incorrectClipLocalTime).toBe(2);
-    expect(correctClipLocalTime).not.toBe(incorrectClipLocalTime);
-  });
-});
-
 describe("text preview/export renderer parity", () => {
   it("routes Paper-shader text through the shared title renderer", () => {
     const renderedCanvas = document.createElement("canvas");
@@ -352,5 +227,47 @@ describe("text preview/export renderer parity", () => {
       1920,
       1080,
     );
+  });
+});
+
+describe("SVG graphic preview placement", () => {
+  it("places an SVG clip at its exact sub-pixel position, as the export renderer does", () => {
+    (URL as unknown as { createObjectURL: () => string }).createObjectURL = () => "blob:stub";
+    const translate = vi.fn();
+    const ctx = {
+      save: vi.fn(),
+      restore: vi.fn(),
+      translate,
+      rotate: vi.fn(),
+      scale: vi.fn(),
+      drawImage: vi.fn(),
+      globalAlpha: 1,
+    } as unknown as CanvasRenderingContext2D;
+    const clip: SVGClip = {
+      id: "subpixel-svg",
+      trackId: "t",
+      startTime: 0,
+      duration: 4,
+      type: "svg",
+      svgContent: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><rect width="10" height="10"/></svg>',
+      viewBox: { minX: 0, minY: 0, width: 10, height: 10 },
+      transform: {
+        position: { x: 0.5, y: 520 / 1080 },
+        scale: { x: 1, y: 1 },
+        rotation: 0,
+        anchor: { x: 0.5, y: 0.5 },
+        opacity: 1,
+      },
+      keyframes: [],
+    } as unknown as SVGClip;
+
+    renderShapeClipToCanvas(ctx, clip, 1920, 1080, 1);
+
+    expect(translate).toHaveBeenCalledTimes(1);
+    const [x, y] = translate.mock.calls[0];
+    expect(x).toBeCloseTo(960, 10);
+    expect(y).toBeCloseTo(520, 10);
+    renderShapeClipToCanvas(ctx, clip, 640, 360, 1);
+    expect(translate.mock.calls[1][1]).toBeCloseTo(173.3333, 3);
   });
 });

@@ -1,8 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { shareBaseOrigin } from "../services/share-origin";
 import { MOTION_CREATOR_ENABLED } from "../config/features";
 
-export type AppRoute =
+type AppRoute =
   | "welcome"
   | "editor"
   | "new"
@@ -11,7 +10,7 @@ export type AppRoute =
   | "share"
   | "motion";
 
-export interface RouteParams {
+interface RouteParams {
   dimensions?: string;
   preset?: string;
   width?: string;
@@ -22,7 +21,7 @@ export interface RouteParams {
   compositionId?: string;
 }
 
-export interface RouterState {
+interface RouterState {
   route: AppRoute;
   params: RouteParams;
 }
@@ -163,32 +162,4 @@ export function useRouter() {
     parsedDimensions,
     fps,
   };
-}
-
-export function generateShareableLink(
-  route: AppRoute,
-  params?: RouteParams,
-): string {
-  return `${shareBaseOrigin()}${buildHash(route, params)}`;
-}
-
-export function generateNewProjectLink(options: {
-  width?: number;
-  height?: number;
-  preset?: string;
-  fps?: number;
-}): string {
-  const params: RouteParams = {};
-
-  if (options.preset) {
-    params.preset = options.preset;
-  } else if (options.width && options.height) {
-    params.dimensions = `${options.width}x${options.height}`;
-  }
-
-  if (options.fps && options.fps !== 30) {
-    params.fps = String(options.fps);
-  }
-
-  return generateShareableLink("new", params);
 }

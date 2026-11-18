@@ -6,7 +6,7 @@ import {
   type MotionAnimatableProperty,
 } from "./motion-keyframes";
 
-export type MotionAnimationPresetCategory =
+type MotionAnimationPresetCategory =
   | "entrance"
   | "exit"
   | "emphasis"
@@ -30,7 +30,7 @@ export type MotionAnimationPresetId =
   | "flip-in-3d"
   | "click-press";
 
-export interface ApplyMotionAnimationPresetOptions {
+interface ApplyMotionAnimationPresetOptions {
   readonly startTime?: number;
   readonly duration?: number;
   readonly distance?: number;
@@ -43,7 +43,7 @@ export interface ApplyMotionAnimationPresetOptions {
   ) => string;
 }
 
-export interface MotionAnimationPreset {
+interface MotionAnimationPreset {
   readonly id: MotionAnimationPresetId;
   readonly name: string;
   readonly category: MotionAnimationPresetCategory;

@@ -12,6 +12,8 @@ import type {
 import { runExclusive } from "../services/agent/host-singleton";
 import { makeDirectBYOKClient, validateAIEndpoint } from "../services/agent/direct-llm-transport";
 import { EditingSession } from "../services/agent/editing-session";
+import { resolveAIEditTarget, type AIEditTarget } from "../services/agent/edit-target";
+import { aiUndoCheckpoint } from "../services/agent/undo-checkpoint";
 import { editingToolDefs, editingToolReadOnly, executeEditingTool, EDITING_SYSTEM } from "../services/agent/editing-tools";
 import { useAIConnectionStore } from "./ai-connection-store";
 import {
@@ -21,7 +23,11 @@ import {
 import { useSettingsStore } from "./settings-store";
 import { useProjectStore } from "./project-store";
 
-export type ChatStatus = "idle" | "running" | "awaiting_confirm" | "error";
+/** Every "I stopped early" notice contains this phrase; the chat panel matches it to offer "Keep going". */
+export const CONTINUE_NOTICE_PHRASE = "Ask me to continue";
+export const CONTINUE_NOTICE_PATTERN = new RegExp(CONTINUE_NOTICE_PHRASE, "i");
+
+type ChatStatus = "idle" | "running" | "awaiting_confirm" | "error";
 
 export type ToolCallStatus = "running" | "done" | "error" | "rejected" | "retrying" | "corrected";
 
@@ -31,14 +37,22 @@ export interface ToolCallView {
   readonly args: Record<string, unknown>;
   readonly status: ToolCallStatus;
   readonly result?: ToolResult;
+  readonly timelineTarget?: AIEditTarget;
 }
 
 export interface ChatMessage {
   readonly id: string;
+  readonly createdAt?: number;
   readonly role: "user" | "assistant";
   readonly text: string;
   readonly toolCalls: ToolCallView[];
   readonly notice?: string;
+  readonly editSummary?: {
+    readonly beforeDuration: number;
+    readonly afterDuration: number;
+    readonly undone?: boolean;
+    readonly checkpoint?: { readonly projectId: string; readonly actionId: string; readonly undoSize: number };
+  };
 }
 
 interface PendingConfirm {
@@ -70,6 +84,7 @@ interface ChatState {
   resolveConfirm: (decision: ConfirmDecision) => void;
   stop: () => void;
   undoLastTurn: () => Promise<void>;
+  syncHistory: () => void;
   clearError: () => void;
   setProjectContext: (projectId: string | null) => void;
   newChat: () => void;
@@ -88,7 +103,7 @@ let activeSeq = 0;
 
 function undoStackSize(): number | null {
   try {
-    return useProjectStore.getState().actionExecutor.getHistory().getUndoStackSize();
+    return aiUndoCheckpoint(useProjectStore.getState()).size;
   } catch {
     return null;
   }
@@ -152,6 +167,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     const projectState = useProjectStore.getState();
     const currentProjectId = projectState.project?.id ?? null;
+    const beforeDuration = projectState.project?.timeline?.duration;
     if (current.projectId && currentProjectId && current.projectId !== currentProjectId) {
       get().setProjectContext(currentProjectId);
     }
@@ -171,14 +187,17 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const active = get();
     const conversationId = active.currentConversationId ?? genId();
     const conversationStartedAt = active.conversationStartedAt ?? Date.now();
+    const createdAt = Date.now();
     const userMessage: ChatMessage = {
       id: genId(),
+      createdAt,
       role: "user",
       text: trimmed,
       toolCalls: [],
     };
     const assistantMessage: ChatMessage = {
       id: genId(),
+      createdAt,
       role: "assistant",
       text: "",
       toolCalls: [],
@@ -222,6 +241,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
                 name: event.call.name,
                 args: event.call.args,
                 status: "running",
+                timelineTarget: editingToolReadOnly(event.call.name) ? undefined : resolveAIEditTarget(host.getProject(), event.call),
               },
             ],
           }));
@@ -234,6 +254,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
                 ? {
                     ...tc,
                     result: event.result,
+                    timelineTarget: editingToolReadOnly(tc.name) ? undefined : resolveAIEditTarget(host.getProject(), { ...tc, result: event.result }),
                     status: event.result.ok
                       ? "done"
                       : event.result.error?.code === "REJECTED"
@@ -308,12 +329,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const wasAborted = controller.signal.aborted;
     const stopNotice =
       result.stoppedReason === "max_steps"
-        ? "I stopped after reaching this turn's step limit. Ask me to continue if more work is needed."
+        ? `I stopped after reaching this turn's step limit. ${CONTINUE_NOTICE_PHRASE} if more work is needed.`
         : result.stoppedReason === "max_tool_calls"
-          ? "I stopped after reaching this turn's tool-call limit. Ask me to continue if more work is needed."
+          ? `I stopped after reaching this turn's tool-call limit. ${CONTINUE_NOTICE_PHRASE} if more work is needed.`
           : result.stoppedReason === "budget"
-            ? "The model stopped at its response or token limit. Ask me to continue, or increase the model's output limit."
+            ? `The model stopped at its response or token limit. ${CONTINUE_NOTICE_PHRASE}, or increase the model's output limit.`
             : undefined;
+    const committedCheckpoint = result.committed && host.committed ? aiUndoCheckpoint(useProjectStore.getState()) : null;
     set((state) => ({
       messages: state.messages.map((message) => {
         if (message.id !== assistantId) return message;
@@ -328,6 +350,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
           ...message,
           text: finalText,
           notice: stopNotice ?? emptyNotice,
+          ...(result.committed && host.committed && Number.isFinite(beforeDuration) && Number.isFinite(useProjectStore.getState().project.timeline?.duration)
+            ? { editSummary: { beforeDuration, afterDuration: useProjectStore.getState().project.timeline.duration,
+                ...(committedCheckpoint?.actionId && currentProjectId ? { checkpoint: { projectId: currentProjectId, actionId: committedCheckpoint.actionId, undoSize: committedCheckpoint.size } } : {}) } } : {}),
           toolCalls: message.toolCalls.map((tc) => !result.committed && tc.status === "retrying" ? { ...tc, status: "error" } : tc),
         };
       }),
@@ -380,8 +405,46 @@ export const useChatStore = create<ChatState>((set, get) => ({
       set({ lastTurnCommitted: false, lastTurnUndoSize: null });
       return;
     }
-    await useProjectStore.getState().undo();
-    set({ lastTurnCommitted: false, lastTurnUndoSize: null });
+    const result = await useProjectStore.getState().undo();
+    if (!result.success) {
+      set({ error: result.error?.message ?? "The AI edit could not be undone. Try again." });
+      return;
+    }
+    set(state => ({ lastTurnCommitted: false, lastTurnUndoSize: null,
+      messages: result.success ? state.messages.map((message, index) =>
+        index === state.messages.length - 1 && message.editSummary ? { ...message, editSummary: { ...message.editSummary, undone: true } } : message) : state.messages,
+    }));
+    saveConversationSnapshot(get());
+  },
+
+  syncHistory: () => {
+    const state = get();
+    const project = useProjectStore.getState();
+    const tracked = state.messages.filter(message => message.editSummary?.checkpoint?.projectId === project.project.id);
+    if (!tracked.length) return;
+    const history = project.actionExecutor.getHistory();
+    const applied = new Set(history.getHistoryEntries().map(entry => entry.action.id));
+    const undone = new Set(history.getRedoEntries().map(entry => entry.action.id));
+    let changed = false;
+    const messages = state.messages.map(message => {
+      const checkpoint = message.editSummary?.checkpoint;
+      if (!checkpoint || checkpoint.projectId !== project.project.id) return message;
+      const isUndone = undone.has(checkpoint.actionId) ? true : applied.has(checkpoint.actionId) ? false : undefined;
+      // Cleared/expired journals cannot establish the state of a saved turn.
+      if (isUndone === undefined || isUndone === Boolean(message.editSummary?.undone)) return message;
+      changed = true;
+      return { ...message, editSummary: { ...message.editSummary!, undone: isUndone } };
+    });
+    const latest = messages.at(-1)?.editSummary?.checkpoint;
+    const knownLatest = latest?.projectId === project.project.id && (applied.has(latest.actionId) || undone.has(latest.actionId));
+    const updateLatest = knownLatest && state.status !== "running" && state.status !== "awaiting_confirm";
+    const committed = updateLatest ? applied.has(latest.actionId) : state.lastTurnCommitted;
+    const undoSize = updateLatest ? latest.undoSize : state.lastTurnUndoSize;
+    const actionId = updateLatest ? latest.actionId : state.lastTurnActionId;
+    if (changed || committed !== state.lastTurnCommitted || undoSize !== state.lastTurnUndoSize || actionId !== state.lastTurnActionId) {
+      set({ messages: changed ? messages : state.messages, lastTurnCommitted: committed, lastTurnUndoSize: undoSize, lastTurnActionId: actionId });
+      if (changed) saveConversationSnapshot(get());
+    }
   },
 
   clearError: () => set({ error: null }),
@@ -456,6 +519,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       currentConversationId: saved.id,
       conversationStartedAt: saved.createdAt,
     });
+    get().syncHistory();
   },
 
   deleteConversation: (conversationId: string) => {

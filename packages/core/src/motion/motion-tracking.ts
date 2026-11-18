@@ -10,7 +10,7 @@ import type {
 } from "./types";
 import { sortMotionKeyframes } from "./motion-keyframes";
 
-export interface CreateMotionTrackOptions {
+interface CreateMotionTrackOptions {
   readonly id?: string;
   readonly name?: string;
   readonly sourceAssetId?: string;
@@ -19,12 +19,12 @@ export interface CreateMotionTrackOptions {
   readonly smoothing?: number;
 }
 
-export interface AddMotionTrackPointFrameOptions {
+interface AddMotionTrackPointFrameOptions {
   readonly pointId: string;
   readonly frame: MotionTrackPointFrame;
 }
 
-export interface ApplyMotionTrackToLayerOptions {
+interface ApplyMotionTrackToLayerOptions {
   readonly primaryPointId?: string;
   readonly secondaryPointId?: string;
   readonly mode?: MotionTrackingApplyMode;
@@ -41,7 +41,7 @@ export interface ApplyMotionTrackToLayerOptions {
   ) => string;
 }
 
-export const DEFAULT_MOTION_TRACK_POINT_COLOR = "#22d3ee";
+const DEFAULT_MOTION_TRACK_POINT_COLOR = "#22d3ee";
 
 const uid = (prefix: string): string =>
   `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;

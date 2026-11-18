@@ -1,6 +1,6 @@
 import type { Subtitle, SubtitleStyle, Timeline } from "../types/timeline";
 
-export const DEFAULT_SUBTITLE_STYLE: SubtitleStyle = {
+const DEFAULT_SUBTITLE_STYLE: SubtitleStyle = {
   fontFamily: "Arial",
   fontSize: 24,
   color: "#ffffff",
@@ -61,13 +61,13 @@ export const SUBTITLE_STYLE_PRESETS: Record<string, SubtitleStyle> = {
   },
 };
 
-export interface SRTParseResult {
+interface SRTParseResult {
   readonly success: boolean;
   readonly subtitles: Subtitle[];
   readonly errors: SRTParseError[];
 }
 
-export interface SRTParseError {
+interface SRTParseError {
   readonly line: number;
   readonly message: string;
   readonly segment?: number;
@@ -107,7 +107,7 @@ export function parseSRTTimestamp(timestamp: string): number | null {
 }
 
 /** Convert caption markup to the plain text used by editable TextClips. */
-export function subtitleMarkupToText(value: string): string {
+function subtitleMarkupToText(value: string): string {
   return value
     .replace(/<br\s*\/?>/gi, "\n")
     .replace(/<[^>]+>/g, "")
@@ -131,7 +131,7 @@ export function reflowCaptionText(value: string, maxWordsPerLine: number): strin
   return lines.join("\n");
 }
 
-export interface SingleLineCaptionCue {
+interface SingleLineCaptionCue {
   readonly text: string;
   readonly startTime: number;
   readonly endTime: number;
@@ -170,7 +170,7 @@ export function splitCaptionIntoSingleLineCues(
   return cues;
 }
 
-export function formatSRTTimestamp(seconds: number): string {
+function formatSRTTimestamp(seconds: number): string {
   if (seconds < 0 || !isFinite(seconds)) {
     seconds = 0;
   }
@@ -327,7 +327,7 @@ export function parseSRT(srtContent: string): SRTParseResult {
   };
 }
 
-export function exportSRT(subtitles: readonly Subtitle[]): string {
+function exportSRT(subtitles: readonly Subtitle[]): string {
   const sorted = [...subtitles].sort((a, b) => a.startTime - b.startTime);
 
   const blocks: string[] = [];
@@ -344,16 +344,6 @@ export function exportSRT(subtitles: readonly Subtitle[]): string {
   }
 
   return blocks.join("\n\n");
-}
-
-export function normalizeSRT(srtContent: string): string {
-  const parseResult = parseSRT(srtContent);
-
-  if (parseResult.subtitles.length === 0) {
-    return "";
-  }
-
-  return exportSRT(parseResult.subtitles);
 }
 
 export class SubtitleEngine {

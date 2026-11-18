@@ -90,5 +90,3 @@ export const EasingCurve: React.FC<EasingCurveProps> = ({
     </svg>
   );
 };
-
-export default EasingCurve;

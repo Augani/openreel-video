@@ -1,0 +1,1068 @@
+{
+  "version": "1.2.0",
+  "minimumReaderVersion": "1.4.0",
+  "capabilities": [
+    "multi-sequence-v1"
+  ],
+  "project": {
+    "id": "dda069f1-16ad-4b31-bf18-4d5a61516e44",
+    "name": "Compat w12 lumetri",
+    "createdAt": 1794440990145,
+    "modifiedAt": 1794440990148,
+    "settings": {
+      "width": 1280,
+      "height": 720,
+      "frameRate": 30,
+      "sampleRate": 48000,
+      "channels": 2
+    },
+    "mediaLibrary": {
+      "items": [
+        {
+          "id": "media-scenes",
+          "name": "three-scenes.mp4",
+          "type": "video",
+          "fileHandle": null,
+          "blob": null,
+          "thumbnailUrl": null,
+          "waveformData": null,
+          "metadata": {
+            "duration": 6,
+            "width": 640,
+            "height": 360,
+            "frameRate": 30,
+            "codec": "h264",
+            "sampleRate": 48000,
+            "channels": 2,
+            "fileSize": 120000,
+            "hasVideo": true,
+            "hasAudio": true
+          },
+          "sourceFile": {
+            "name": "three-scenes.mp4",
+            "size": 120000,
+            "lastModified": 1700000000000,
+            "path": "/Volumes/Edit/Film/Media/three-scenes.mp4",
+            "folder": "Media"
+          },
+          "binId": "bin-a",
+          "label": "forest",
+          "comment": "a comment",
+          "scene": "12A",
+          "shot": "2",
+          "take": "3",
+          "goodTake": true,
+          "importedAt": 1700000000000,
+          "isPlaceholder": true,
+          "copiedFrom": {
+            "path": "/Volumes/Cards/A001/three-scenes.mp4",
+            "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+            "copiedAt": 1700000000000
+          },
+          "proxy": {
+            "storage": "path",
+            "path": "/Volumes/Edit/Film/Proxies/three-scenes-media-sc_half_proxy.mov",
+            "width": 640,
+            "height": 360,
+            "codec": "prores",
+            "frameRate": 30,
+            "duration": 6,
+            "fileSize": 123456,
+            "status": "ready",
+            "profile": {
+              "codec": "prores-proxy",
+              "size": "half"
+            },
+            "previewPath": "/Volumes/Edit/Film/Proxies/three-scenes-media-sc_half_proxy.preview.mp4",
+            "source": "generated",
+            "createdAt": 1700000000000
+          }
+        },
+        {
+          "id": "media-tone",
+          "name": "tone-4s.wav",
+          "type": "audio",
+          "fileHandle": null,
+          "blob": null,
+          "thumbnailUrl": null,
+          "waveformData": null,
+          "metadata": {
+            "duration": 4,
+            "width": 0,
+            "height": 0,
+            "frameRate": 0,
+            "codec": "pcm",
+            "sampleRate": 48000,
+            "channels": 1,
+            "fileSize": 384000,
+            "hasAudio": true
+          },
+          "isPlaceholder": true
+        }
+      ],
+      "ingestPreset": "copy",
+      "desktopIngest": {
+        "proxyProfile": {
+          "codec": "prores-proxy",
+          "size": "half"
+        },
+        "proxyFolder": "/Volumes/Edit/Film/Proxies",
+        "mediaFolder": "Media",
+        "concurrency": 2,
+        "proxiesWithCopy": true
+      }
+    },
+    "timeline": {
+      "tracks": [
+        {
+          "id": "b043e1d4-7307-4b33-a5a2-43561c52a0fa",
+          "name": "Titles",
+          "type": "text",
+          "role": "general",
+          "mode": "standard",
+          "clips": [],
+          "transitions": [],
+          "locked": false,
+          "hidden": false,
+          "muted": false,
+          "solo": false
+        },
+        {
+          "id": "e8fe45d4-394f-400c-b0cb-699cfe52438a",
+          "name": "B-roll",
+          "type": "video",
+          "role": "general",
+          "mode": "standard",
+          "clips": [],
+          "transitions": [],
+          "locked": false,
+          "hidden": false,
+          "muted": false,
+          "solo": false
+        },
+        {
+          "id": "3fbac82c-a245-40d1-8c0f-6512c456c9ef",
+          "name": "Main",
+          "type": "video",
+          "role": "general",
+          "mode": "standard",
+          "clips": [
+            {
+              "id": "clip-3",
+              "mediaId": "media-scenes",
+              "trackId": "3fbac82c-a245-40d1-8c0f-6512c456c9ef",
+              "startTime": 4,
+              "duration": 2,
+              "inPoint": 4,
+              "outPoint": 6,
+              "effects": [],
+              "audioEffects": [],
+              "transform": {
+                "position": {
+                  "x": 0,
+                  "y": 0
+                },
+                "scale": {
+                  "x": 1,
+                  "y": 1
+                },
+                "rotation": 0,
+                "anchor": {
+                  "x": 0.5,
+                  "y": 0.5
+                },
+                "opacity": 1
+              },
+              "volume": 1,
+              "keyframes": [
+                {
+                  "id": "k-shadows-0",
+                  "time": 0,
+                  "property": "colorGrade.tone.shadows",
+                  "value": 0,
+                  "easing": "linear"
+                },
+                {
+                  "id": "k-shadows-1",
+                  "time": 1,
+                  "property": "colorGrade.tone.shadows",
+                  "value": 0.5,
+                  "easing": "linear"
+                }
+              ],
+              "speed": 1,
+              "label": "rose",
+              "colorGrading": {
+                "temperature": 6,
+                "tone": {
+                  "exposure": 0,
+                  "contrast": 0,
+                  "highlights": -0.2,
+                  "shadows": 0.35,
+                  "whites": 0,
+                  "blacks": -0.1
+                },
+                "vignette": {
+                  "amount": -0.45,
+                  "midpoint": 0.55,
+                  "roundness": 0.2,
+                  "feather": 0.6
+                }
+              }
+            },
+            {
+              "id": "nest_6207a7f6-3b12-4704-a884-811a72b4271e",
+              "mediaId": "compound:seq_ad6aa8c8-a0f3-401d-bf3e-cce6c588971b",
+              "trackId": "3fbac82c-a245-40d1-8c0f-6512c456c9ef",
+              "startTime": 0,
+              "duration": 4,
+              "inPoint": 0,
+              "outPoint": 4,
+              "effects": [],
+              "audioEffects": [],
+              "transform": {
+                "position": {
+                  "x": 0,
+                  "y": 0
+                },
+                "scale": {
+                  "x": 1,
+                  "y": 1
+                },
+                "rotation": 0,
+                "anchor": {
+                  "x": 0.5,
+                  "y": 0.5
+                },
+                "opacity": 1
+              },
+              "volume": 1,
+              "keyframes": [],
+              "metadata": {
+                "compoundClipId": "seq_ad6aa8c8-a0f3-401d-bf3e-cce6c588971b",
+                "compoundClipName": "Nest 1",
+                "compoundClipColor": "#ec4899"
+              }
+            }
+          ],
+          "transitions": [],
+          "locked": false,
+          "hidden": false,
+          "muted": false,
+          "solo": false
+        },
+        {
+          "id": "bc19dc25-2de5-474a-8e80-bcd6c165d9c5",
+          "name": "Dialogue",
+          "type": "audio",
+          "role": "dialogue",
+          "mode": "standard",
+          "clips": [],
+          "transitions": [],
+          "locked": false,
+          "hidden": false,
+          "muted": false,
+          "solo": false
+        },
+        {
+          "id": "d70f6ce8-e020-44bb-8676-f3a0cf126a51",
+          "name": "Music",
+          "type": "audio",
+          "role": "music",
+          "mode": "standard",
+          "clips": [
+            {
+              "id": "clip-tone",
+              "mediaId": "media-tone",
+              "trackId": "d70f6ce8-e020-44bb-8676-f3a0cf126a51",
+              "startTime": 0,
+              "duration": 4,
+              "inPoint": 0,
+              "outPoint": 4,
+              "effects": [],
+              "audioEffects": [],
+              "transform": {
+                "position": {
+                  "x": 0,
+                  "y": 0
+                },
+                "scale": {
+                  "x": 1,
+                  "y": 1
+                },
+                "rotation": 0,
+                "anchor": {
+                  "x": 0.5,
+                  "y": 0.5
+                },
+                "opacity": 1
+              },
+              "volume": 0.8,
+              "keyframes": [],
+              "fade": {
+                "fadeIn": 0.5,
+                "fadeOut": 0.5
+              }
+            }
+          ],
+          "transitions": [],
+          "locked": false,
+          "hidden": false,
+          "muted": false,
+          "solo": false,
+          "syncLock": false,
+          "audioRack": {
+            "effects": [
+              {
+                "id": "rack-eq",
+                "type": "eq",
+                "params": {
+                  "lowGain": 2,
+                  "midGain": 0,
+                  "midFreq": 1000,
+                  "midQ": 1,
+                  "highGain": 0
+                },
+                "bypassed": false
+              }
+            ],
+            "volume": 0.9
+          }
+        }
+      ],
+      "subtitles": [],
+      "duration": 6,
+      "markers": [
+        {
+          "id": "mk-1",
+          "time": 1,
+          "label": "Marker A",
+          "color": "#ff0000"
+        }
+      ]
+    },
+    "motionCompositions": [],
+    "motionInstances": [],
+    "textClips": [
+      {
+        "id": "text-1",
+        "trackId": "b043e1d4-7307-4b33-a5a2-43561c52a0fa",
+        "startTime": 1,
+        "duration": 3,
+        "text": "Compat title",
+        "style": {
+          "fontFamily": "Inter",
+          "fontSize": 64,
+          "fontWeight": "bold",
+          "fontStyle": "normal",
+          "color": "#ffffff",
+          "strokeColor": "#111827",
+          "strokeWidth": 2,
+          "textAlign": "center",
+          "verticalAlign": "middle",
+          "lineHeight": 1.2,
+          "letterSpacing": 0
+        },
+        "transform": {
+          "position": {
+            "x": 0.5,
+            "y": 0.8
+          },
+          "scale": {
+            "x": 1,
+            "y": 1
+          },
+          "rotation": 0,
+          "anchor": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "opacity": 1
+        },
+        "keyframes": []
+      }
+    ],
+    "sequences": [
+      {
+        "id": "seq_main",
+        "name": "Sequence 1",
+        "settings": {
+          "width": 1280,
+          "height": 720,
+          "frameRate": 30,
+          "sampleRate": 48000,
+          "channels": 2
+        },
+        "timeline": {
+          "tracks": [
+            {
+              "id": "b043e1d4-7307-4b33-a5a2-43561c52a0fa",
+              "name": "Titles",
+              "type": "text",
+              "role": "general",
+              "mode": "standard",
+              "clips": [],
+              "transitions": [],
+              "locked": false,
+              "hidden": false,
+              "muted": false,
+              "solo": false
+            },
+            {
+              "id": "e8fe45d4-394f-400c-b0cb-699cfe52438a",
+              "name": "B-roll",
+              "type": "video",
+              "role": "general",
+              "mode": "standard",
+              "clips": [],
+              "transitions": [],
+              "locked": false,
+              "hidden": false,
+              "muted": false,
+              "solo": false
+            },
+            {
+              "id": "3fbac82c-a245-40d1-8c0f-6512c456c9ef",
+              "name": "Main",
+              "type": "video",
+              "role": "general",
+              "mode": "standard",
+              "clips": [
+                {
+                  "id": "clip-3",
+                  "mediaId": "media-scenes",
+                  "trackId": "3fbac82c-a245-40d1-8c0f-6512c456c9ef",
+                  "startTime": 4,
+                  "duration": 2,
+                  "inPoint": 4,
+                  "outPoint": 6,
+                  "effects": [],
+                  "audioEffects": [],
+                  "transform": {
+                    "position": {
+                      "x": 0,
+                      "y": 0
+                    },
+                    "scale": {
+                      "x": 1,
+                      "y": 1
+                    },
+                    "rotation": 0,
+                    "anchor": {
+                      "x": 0.5,
+                      "y": 0.5
+                    },
+                    "opacity": 1
+                  },
+                  "volume": 1,
+                  "keyframes": [
+                    {
+                      "id": "k-shadows-0",
+                      "time": 0,
+                      "property": "colorGrade.tone.shadows",
+                      "value": 0,
+                      "easing": "linear"
+                    },
+                    {
+                      "id": "k-shadows-1",
+                      "time": 1,
+                      "property": "colorGrade.tone.shadows",
+                      "value": 0.5,
+                      "easing": "linear"
+                    }
+                  ],
+                  "speed": 1,
+                  "label": "rose",
+                  "colorGrading": {
+                    "temperature": 6,
+                    "tone": {
+                      "exposure": 0,
+                      "contrast": 0,
+                      "highlights": -0.2,
+                      "shadows": 0.35,
+                      "whites": 0,
+                      "blacks": -0.1
+                    },
+                    "vignette": {
+                      "amount": -0.45,
+                      "midpoint": 0.55,
+                      "roundness": 0.2,
+                      "feather": 0.6
+                    }
+                  }
+                },
+                {
+                  "id": "nest_6207a7f6-3b12-4704-a884-811a72b4271e",
+                  "mediaId": "compound:seq_ad6aa8c8-a0f3-401d-bf3e-cce6c588971b",
+                  "trackId": "3fbac82c-a245-40d1-8c0f-6512c456c9ef",
+                  "startTime": 0,
+                  "duration": 4,
+                  "inPoint": 0,
+                  "outPoint": 4,
+                  "effects": [],
+                  "audioEffects": [],
+                  "transform": {
+                    "position": {
+                      "x": 0,
+                      "y": 0
+                    },
+                    "scale": {
+                      "x": 1,
+                      "y": 1
+                    },
+                    "rotation": 0,
+                    "anchor": {
+                      "x": 0.5,
+                      "y": 0.5
+                    },
+                    "opacity": 1
+                  },
+                  "volume": 1,
+                  "keyframes": [],
+                  "metadata": {
+                    "compoundClipId": "seq_ad6aa8c8-a0f3-401d-bf3e-cce6c588971b",
+                    "compoundClipName": "Nest 1",
+                    "compoundClipColor": "#ec4899"
+                  }
+                }
+              ],
+              "transitions": [],
+              "locked": false,
+              "hidden": false,
+              "muted": false,
+              "solo": false
+            },
+            {
+              "id": "bc19dc25-2de5-474a-8e80-bcd6c165d9c5",
+              "name": "Dialogue",
+              "type": "audio",
+              "role": "dialogue",
+              "mode": "standard",
+              "clips": [],
+              "transitions": [],
+              "locked": false,
+              "hidden": false,
+              "muted": false,
+              "solo": false
+            },
+            {
+              "id": "d70f6ce8-e020-44bb-8676-f3a0cf126a51",
+              "name": "Music",
+              "type": "audio",
+              "role": "music",
+              "mode": "standard",
+              "clips": [
+                {
+                  "id": "clip-tone",
+                  "mediaId": "media-tone",
+                  "trackId": "d70f6ce8-e020-44bb-8676-f3a0cf126a51",
+                  "startTime": 0,
+                  "duration": 4,
+                  "inPoint": 0,
+                  "outPoint": 4,
+                  "effects": [],
+                  "audioEffects": [],
+                  "transform": {
+                    "position": {
+                      "x": 0,
+                      "y": 0
+                    },
+                    "scale": {
+                      "x": 1,
+                      "y": 1
+                    },
+                    "rotation": 0,
+                    "anchor": {
+                      "x": 0.5,
+                      "y": 0.5
+                    },
+                    "opacity": 1
+                  },
+                  "volume": 0.8,
+                  "keyframes": [],
+                  "fade": {
+                    "fadeIn": 0.5,
+                    "fadeOut": 0.5
+                  }
+                }
+              ],
+              "transitions": [],
+              "locked": false,
+              "hidden": false,
+              "muted": false,
+              "solo": false,
+              "syncLock": false,
+              "audioRack": {
+                "effects": [
+                  {
+                    "id": "rack-eq",
+                    "type": "eq",
+                    "params": {
+                      "lowGain": 2,
+                      "midGain": 0,
+                      "midFreq": 1000,
+                      "midQ": 1,
+                      "highGain": 0
+                    },
+                    "bypassed": false
+                  }
+                ],
+                "volume": 0.9
+              }
+            }
+          ],
+          "subtitles": [],
+          "duration": 6,
+          "markers": [
+            {
+              "id": "mk-1",
+              "time": 1,
+              "label": "Marker A",
+              "color": "#ff0000"
+            }
+          ]
+        },
+        "createdAt": 1794440990145,
+        "modifiedAt": 1794440990145
+      },
+      {
+        "id": "seq_ad6aa8c8-a0f3-401d-bf3e-cce6c588971b",
+        "name": "Nest 1",
+        "settings": {
+          "width": 1280,
+          "height": 720,
+          "frameRate": 30,
+          "sampleRate": 48000,
+          "channels": 2
+        },
+        "timeline": {
+          "tracks": [
+            {
+              "id": "track_90d92094-de57-4baa-9e0b-dcd0eb356942",
+              "name": "Main",
+              "type": "video",
+              "role": "general",
+              "mode": "standard",
+              "clips": [
+                {
+                  "id": "clip-1",
+                  "mediaId": "media-scenes",
+                  "trackId": "track_90d92094-de57-4baa-9e0b-dcd0eb356942",
+                  "startTime": 0,
+                  "duration": 2,
+                  "inPoint": 0,
+                  "outPoint": 2,
+                  "effects": [],
+                  "audioEffects": [],
+                  "transform": {
+                    "position": {
+                      "x": 0,
+                      "y": 0
+                    },
+                    "scale": {
+                      "x": 1,
+                      "y": 1
+                    },
+                    "rotation": 0,
+                    "anchor": {
+                      "x": 0.5,
+                      "y": 0.5
+                    },
+                    "opacity": 1
+                  },
+                  "volume": 1,
+                  "keyframes": []
+                },
+                {
+                  "id": "clip-2",
+                  "mediaId": "media-scenes",
+                  "trackId": "track_90d92094-de57-4baa-9e0b-dcd0eb356942",
+                  "startTime": 2,
+                  "duration": 2,
+                  "inPoint": 2,
+                  "outPoint": 4,
+                  "effects": [
+                    {
+                      "id": "fx-1",
+                      "type": "brightness",
+                      "params": {
+                        "value": 0.1
+                      },
+                      "enabled": true
+                    }
+                  ],
+                  "audioEffects": [],
+                  "transform": {
+                    "position": {
+                      "x": 0,
+                      "y": 0
+                    },
+                    "scale": {
+                      "x": 1.1,
+                      "y": 1.1
+                    },
+                    "rotation": 0,
+                    "anchor": {
+                      "x": 0.5,
+                      "y": 0.5
+                    },
+                    "opacity": 1
+                  },
+                  "volume": 1,
+                  "keyframes": []
+                }
+              ],
+              "transitions": [
+                {
+                  "id": "tr-1",
+                  "clipAId": "clip-1",
+                  "clipBId": "clip-2",
+                  "type": "crossfade",
+                  "duration": 0.5,
+                  "params": {}
+                }
+              ],
+              "locked": false,
+              "hidden": false,
+              "muted": false,
+              "solo": false
+            }
+          ],
+          "subtitles": [],
+          "duration": 4,
+          "markers": []
+        },
+        "color": "#ec4899",
+        "sourceTrackIds": {
+          "track_90d92094-de57-4baa-9e0b-dcd0eb356942": "3fbac82c-a245-40d1-8c0f-6512c456c9ef"
+        },
+        "createdAt": 1794440990147,
+        "modifiedAt": 1794440990147
+      },
+      {
+        "id": "seq_df06de9d-4446-4819-aa5f-0bbda6f3453a",
+        "name": "Sequence 2",
+        "settings": {
+          "width": 1280,
+          "height": 720,
+          "frameRate": 30,
+          "sampleRate": 48000,
+          "channels": 2
+        },
+        "timeline": {
+          "tracks": [
+            {
+              "id": "track_a1167b8b-36a8-4e57-80b6-4505bfdf7570",
+              "type": "video",
+              "name": "Video 1",
+              "role": "general",
+              "mode": "standard",
+              "clips": [],
+              "transitions": [],
+              "locked": false,
+              "hidden": false,
+              "muted": false,
+              "solo": false
+            },
+            {
+              "id": "track_29714c40-f0b5-4754-8056-800b7bceeedd",
+              "type": "audio",
+              "name": "Audio 1",
+              "role": "dialogue",
+              "mode": "standard",
+              "clips": [],
+              "transitions": [],
+              "locked": false,
+              "hidden": false,
+              "muted": false,
+              "solo": false
+            }
+          ],
+          "subtitles": [],
+          "duration": 0,
+          "markers": []
+        },
+        "createdAt": 1794440990148,
+        "modifiedAt": 1794440990148
+      }
+    ],
+    "activeSequenceId": "seq_main",
+    "openSequenceIds": [
+      "seq_main"
+    ],
+    "nestedInstances": [
+      {
+        "id": "nest_6207a7f6-3b12-4704-a884-811a72b4271e",
+        "compoundClipId": "seq_ad6aa8c8-a0f3-401d-bf3e-cce6c588971b",
+        "trackId": "3fbac82c-a245-40d1-8c0f-6512c456c9ef",
+        "startTime": 0,
+        "duration": 4,
+        "inPoint": 0,
+        "outPoint": 4,
+        "transform": {
+          "position": {
+            "x": 0,
+            "y": 0
+          },
+          "scale": {
+            "x": 1,
+            "y": 1
+          },
+          "rotation": 0,
+          "anchor": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "opacity": 1
+        },
+        "volume": 1
+      }
+    ],
+    "compoundClips": [
+      {
+        "id": "seq_ad6aa8c8-a0f3-401d-bf3e-cce6c588971b",
+        "name": "Nest 1",
+        "content": {
+          "clips": [
+            {
+              "id": "clip-1",
+              "mediaId": "media-scenes",
+              "trackId": "track_90d92094-de57-4baa-9e0b-dcd0eb356942",
+              "startTime": 0,
+              "duration": 2,
+              "inPoint": 0,
+              "outPoint": 2,
+              "effects": [],
+              "audioEffects": [],
+              "transform": {
+                "position": {
+                  "x": 0,
+                  "y": 0
+                },
+                "scale": {
+                  "x": 1,
+                  "y": 1
+                },
+                "rotation": 0,
+                "anchor": {
+                  "x": 0.5,
+                  "y": 0.5
+                },
+                "opacity": 1
+              },
+              "volume": 1,
+              "keyframes": []
+            },
+            {
+              "id": "clip-2",
+              "mediaId": "media-scenes",
+              "trackId": "track_90d92094-de57-4baa-9e0b-dcd0eb356942",
+              "startTime": 2,
+              "duration": 2,
+              "inPoint": 2,
+              "outPoint": 4,
+              "effects": [
+                {
+                  "id": "fx-1",
+                  "type": "brightness",
+                  "params": {
+                    "value": 0.1
+                  },
+                  "enabled": true
+                }
+              ],
+              "audioEffects": [],
+              "transform": {
+                "position": {
+                  "x": 0,
+                  "y": 0
+                },
+                "scale": {
+                  "x": 1.1,
+                  "y": 1.1
+                },
+                "rotation": 0,
+                "anchor": {
+                  "x": 0.5,
+                  "y": 0.5
+                },
+                "opacity": 1
+              },
+              "volume": 1,
+              "keyframes": []
+            }
+          ],
+          "tracks": [
+            {
+              "id": "track_90d92094-de57-4baa-9e0b-dcd0eb356942",
+              "name": "Main",
+              "type": "video",
+              "role": "general",
+              "mode": "standard",
+              "clips": [
+                {
+                  "id": "clip-1",
+                  "mediaId": "media-scenes",
+                  "trackId": "track_90d92094-de57-4baa-9e0b-dcd0eb356942",
+                  "startTime": 0,
+                  "duration": 2,
+                  "inPoint": 0,
+                  "outPoint": 2,
+                  "effects": [],
+                  "audioEffects": [],
+                  "transform": {
+                    "position": {
+                      "x": 0,
+                      "y": 0
+                    },
+                    "scale": {
+                      "x": 1,
+                      "y": 1
+                    },
+                    "rotation": 0,
+                    "anchor": {
+                      "x": 0.5,
+                      "y": 0.5
+                    },
+                    "opacity": 1
+                  },
+                  "volume": 1,
+                  "keyframes": []
+                },
+                {
+                  "id": "clip-2",
+                  "mediaId": "media-scenes",
+                  "trackId": "track_90d92094-de57-4baa-9e0b-dcd0eb356942",
+                  "startTime": 2,
+                  "duration": 2,
+                  "inPoint": 2,
+                  "outPoint": 4,
+                  "effects": [
+                    {
+                      "id": "fx-1",
+                      "type": "brightness",
+                      "params": {
+                        "value": 0.1
+                      },
+                      "enabled": true
+                    }
+                  ],
+                  "audioEffects": [],
+                  "transform": {
+                    "position": {
+                      "x": 0,
+                      "y": 0
+                    },
+                    "scale": {
+                      "x": 1.1,
+                      "y": 1.1
+                    },
+                    "rotation": 0,
+                    "anchor": {
+                      "x": 0.5,
+                      "y": 0.5
+                    },
+                    "opacity": 1
+                  },
+                  "volume": 1,
+                  "keyframes": []
+                }
+              ],
+              "transitions": [
+                {
+                  "id": "tr-1",
+                  "clipAId": "clip-1",
+                  "clipBId": "clip-2",
+                  "type": "crossfade",
+                  "duration": 0.5,
+                  "params": {}
+                }
+              ],
+              "locked": false,
+              "hidden": false,
+              "muted": false,
+              "solo": false
+            }
+          ],
+          "duration": 4
+        },
+        "createdAt": 1794440990147,
+        "modifiedAt": 1794440990147,
+        "color": "#ec4899",
+        "settings": {
+          "width": 1280,
+          "height": 720,
+          "frameRate": 30,
+          "sampleRate": 48000,
+          "channels": 2
+        }
+      },
+      {
+        "id": "seq_df06de9d-4446-4819-aa5f-0bbda6f3453a",
+        "name": "Sequence 2",
+        "content": {
+          "clips": [],
+          "tracks": [
+            {
+              "id": "track_a1167b8b-36a8-4e57-80b6-4505bfdf7570",
+              "type": "video",
+              "name": "Video 1",
+              "role": "general",
+              "mode": "standard",
+              "clips": [],
+              "transitions": [],
+              "locked": false,
+              "hidden": false,
+              "muted": false,
+              "solo": false
+            },
+            {
+              "id": "track_29714c40-f0b5-4754-8056-800b7bceeedd",
+              "type": "audio",
+              "name": "Audio 1",
+              "role": "dialogue",
+              "mode": "standard",
+              "clips": [],
+              "transitions": [],
+              "locked": false,
+              "hidden": false,
+              "muted": false,
+              "solo": false
+            }
+          ],
+          "duration": 0
+        },
+        "createdAt": 1794440990148,
+        "modifiedAt": 1794440990148,
+        "color": "#f97316",
+        "settings": {
+          "width": 1280,
+          "height": 720,
+          "frameRate": 30,
+          "sampleRate": 48000,
+          "channels": 2
+        }
+      }
+    ],
+    "generatedShaders": [],
+    "bins": [
+      {
+        "id": "bin-a",
+        "name": "Interviews"
+      },
+      {
+        "id": "bin-b",
+        "name": "B-roll",
+        "parentId": "bin-a"
+      }
+    ],
+    "smartBins": [
+      {
+        "id": "sb-1",
+        "name": "Good takes",
+        "query": "good",
+        "column": "description"
+      }
+    ]
+  }
+}

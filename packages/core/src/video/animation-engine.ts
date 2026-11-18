@@ -3,6 +3,7 @@ import {
   EASING_FUNCTIONS,
   type EasingName,
 } from "../animation/easing-functions";
+import { solveBezierEase } from "../animation/keyframe-bezier";
 
 export interface BezierControlPoints {
   x1: number;
@@ -11,7 +12,7 @@ export interface BezierControlPoints {
   y2: number;
 }
 
-export interface InterpolationResult {
+interface InterpolationResult {
   value: unknown;
   keyframeA: Keyframe | null;
   keyframeB: Keyframe | null;
@@ -19,8 +20,6 @@ export interface InterpolationResult {
 }
 
 export class AnimationEngine {
-  private bezierCache: Map<string, (t: number) => number> = new Map();
-
   getValueAtTime(keyframes: Keyframe[], time: number): InterpolationResult {
     if (keyframes.length === 0) {
       return {
@@ -69,7 +68,7 @@ export class AnimationEngine {
     const duration = keyframeB.time - keyframeA.time;
     const elapsed = time - keyframeA.time;
     const linearProgress = duration > 0 ? elapsed / duration : 0;
-    const easedProgress = this.applyEasing(linearProgress, keyframeA.easing);
+    const easedProgress = this.applyKeyframeEasing(linearProgress, keyframeA);
     const value = this.interpolateValue(
       keyframeA.value,
       keyframeB.value,
@@ -94,12 +93,26 @@ export class AnimationEngine {
     const duration = keyframeB.time - keyframeA.time;
     const elapsed = clampedTime - keyframeA.time;
     const linearProgress = duration > 0 ? elapsed / duration : 0;
-    const easedProgress = this.applyEasing(linearProgress, keyframeA.easing);
+    const easedProgress = this.applyKeyframeEasing(linearProgress, keyframeA);
     return this.interpolateValue(
       keyframeA.value,
       keyframeB.value,
       easedProgress,
     );
+  }
+
+  /** Easing for the segment leaving `keyframe`, honouring its saved Bezier handles. */
+  applyKeyframeEasing(t: number, keyframe: Keyframe): number {
+    const handles = keyframe.bezierHandles;
+    if (keyframe.easing === "bezier" && handles) {
+      return this.applyEasing(t, "bezier", {
+        x1: handles.in.x,
+        y1: handles.in.y,
+        x2: handles.out.x,
+        y2: handles.out.y,
+      });
+    }
+    return this.applyEasing(t, keyframe.easing);
   }
 
   applyEasing(
@@ -149,90 +162,9 @@ export class AnimationEngine {
     x2: number,
     y2: number,
   ): number {
-    const cacheKey = `${x1},${y1},${x2},${y2}`;
-
-    let bezierFn = this.bezierCache.get(cacheKey);
-    if (!bezierFn) {
-      bezierFn = this.createBezierFunction(x1, y1, x2, y2);
-      this.bezierCache.set(cacheKey, bezierFn);
-    }
-
-    return bezierFn(t);
-  }
-
-  /**
-   * Creates cubic bezier easing function using hybrid root-finding.
-   * Converts 2D bezier curve (x-based) into 1D easing (progress) by solving
-   * sampleCurveX(t) = x, then returning sampleCurveY(t).
-   *
-   * Optimization: First attempts Newton-Raphson (fast quadratic convergence),
-   * then falls back to bisection (slower but guaranteed convergence) for robustness.
-   */
-  private createBezierFunction(
-    x1: number,
-    y1: number,
-    x2: number,
-    y2: number,
-  ): (t: number) => number {
-    // Thresholds for numerical algorithms
-    const NEWTON_ITERATIONS = 4;
-    const NEWTON_MIN_SLOPE = 0.001;
-    const SUBDIVISION_PRECISION = 0.0000001;
-    const SUBDIVISION_MAX_ITERATIONS = 10;
-
-    // Cubic bezier polynomial coefficients for X: B(t) = ax*t^3 + bx*t^2 + cx*t
-    const ax = 3 * x1 - 3 * x2 + 1;
-    const bx = 3 * x2 - 6 * x1;
-    const cx = 3 * x1;
-
-    // Same for Y curve
-    const ay = 3 * y1 - 3 * y2 + 1;
-    const by = 3 * y2 - 6 * y1;
-    const cy = 3 * y1;
-
-    // Horner's form for O(1) polynomial evaluation
-    const sampleCurveX = (t: number) => ((ax * t + bx) * t + cx) * t;
-    const sampleCurveY = (t: number) => ((ay * t + by) * t + cy) * t;
-    // Derivative: dB/dt = 3*ax*t^2 + 2*bx*t + cx
-    const sampleCurveDerivativeX = (t: number) =>
-      (3 * ax * t + 2 * bx) * t + cx;
-
-    const solveCurveX = (x: number): number => {
-      let t2 = x;
-
-      // Newton-Raphson: fast convergence for well-behaved curves
-      // t_new = t - f(t)/f'(t) to find where sampleCurveX(t) = x
-      for (let i = 0; i < NEWTON_ITERATIONS; i++) {
-        const slope = sampleCurveDerivativeX(t2);
-        if (Math.abs(slope) < NEWTON_MIN_SLOPE) break; // Slope too flat, bisection more stable
-        const currentX = sampleCurveX(t2) - x;
-        t2 -= currentX / slope;
-      }
-
-      // Bisection fallback: guaranteed convergence but slower (O(log n))
-      let t0 = 0;
-      let t1 = 1;
-      t2 = x;
-
-      for (let i = 0; i < SUBDIVISION_MAX_ITERATIONS; i++) {
-        const currentX = sampleCurveX(t2) - x;
-        if (Math.abs(currentX) < SUBDIVISION_PRECISION) break;
-        if (currentX > 0) {
-          t1 = t2; // Root is in lower half
-        } else {
-          t0 = t2; // Root is in upper half
-        }
-        t2 = (t1 + t0) / 2;
-      }
-
-      return t2;
-    };
-
-    return (x: number) => {
-      if (x === 0) return 0;
-      if (x === 1) return 1;
-      return sampleCurveY(solveCurveX(x));
-    };
+    // Shared solver: handle time is clamped to [0,1] (monotonic), so preview,
+    // export and the graph editor evaluate the same curve.
+    return solveBezierEase(t, x1, y1, x2, y2);
   }
 
   interpolateValue(
@@ -322,7 +254,5 @@ export class AnimationEngine {
   }
 
   clearCache(): void {
-    this.bezierCache.clear();
   }
 }
-export const animationEngine = new AnimationEngine();

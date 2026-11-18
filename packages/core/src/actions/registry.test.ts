@@ -2,8 +2,6 @@ import { describe, it, expect } from "vitest";
 import { ActionExecutor } from "./action-executor";
 import {
   registerActionHandler,
-  getActionHandler,
-  listRegisteredActionTypes,
 } from "./registry";
 import type { Project } from "../types/project";
 
@@ -26,17 +24,6 @@ function makeProject(): Project {
 }
 
 describe("action registry", () => {
-  it("registers and resolves a handler", () => {
-    registerActionHandler({
-      type: "test/noop",
-      apply: () => {},
-      validate: () => ({ valid: true, errors: [] }),
-      invert: () => null,
-    });
-    expect(getActionHandler("test/noop")?.type).toBe("test/noop");
-    expect(listRegisteredActionTypes()).toContain("test/noop");
-  });
-
   it("routes a registered action through the executor", async () => {
     let applied = false;
     registerActionHandler({
