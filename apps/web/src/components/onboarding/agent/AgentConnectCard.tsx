@@ -16,7 +16,7 @@ interface AgentConnectCardProps {
  * the snippets use the real shim path, and the indicator follows the main-side initialize tracker.
  */
 export const AgentConnectCard: React.FC<AgentConnectCardProps> = ({ className, headingId }) => {
-  const { status, toolCount, clientStatus } = useMcpConnection();
+  const { status, toolCount, clientStatus, refresh } = useMcpConnection();
   const autoAllow = useSettingsStore((s) => s.mcpAutoAllowTrustedLocal);
   const setAutoAllow = useSettingsStore((s) => s.setMcpAutoAllowTrustedLocal);
   const running = status?.running === true;
@@ -90,7 +90,7 @@ export const AgentConnectCard: React.FC<AgentConnectCardProps> = ({ className, h
         </div>
       )}
 
-      <ConnectSnippets status={status} />
+      <ConnectSnippets status={status} onRetry={() => void refresh()} />
 
       <div className="flex items-start justify-between gap-4 rounded-lg border border-border bg-bg-1 px-4 py-3">
         <div className="space-y-0.5">

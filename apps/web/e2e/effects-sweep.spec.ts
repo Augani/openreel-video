@@ -10,6 +10,7 @@ import {
   seek,
   settle,
   snapStable,
+  waitForPresentedPlayhead,
   undo,
 } from "./helpers";
 
@@ -62,6 +63,9 @@ test(`every Effects-browser card visibly changes the program canvas and undo res
       await card.scrollIntoViewIfNeeded();
       await card.dblclick();
       await settle(page, 1200);
+      // Wait for the effect to be on the clip and the monitor to present it before capturing (a loaded machine lands both late).
+      await expect.poll(async () => clipsOf(await readState(page), "Main")[0].effects, { timeout: 15_000 }).toBeGreaterThan(0).catch(() => undefined);
+      await waitForPresentedPlayhead(page);
       const after = await readState(page);
       const applied = clipsOf(after, "Main")[0].effects;
       await snapStable(page, "after");
@@ -69,6 +73,8 @@ test(`every Effects-browser card visibly changes the program canvas and undo res
 
       await undo(page);
       await settle(page, 600);
+      await expect.poll(async () => clipsOf(await readState(page), "Main")[0].effects, { timeout: 15_000 }).toBe(0).catch(() => undefined);
+      await waitForPresentedPlayhead(page);
       await snapStable(page, "undone");
       const residual = await diffSnaps(page, "before", "undone");
       const restored = clipsOf(await readState(page), "Main")[0].effects;

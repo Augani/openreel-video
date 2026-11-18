@@ -42,7 +42,7 @@ import type {
   MutableClip,
 } from "../utils/immutable-updates";
 import { prepareClipSplit } from "../editing/clip-fragments";
-import { applyTimelineToolEdits, validateTimelineToolEdits, type TimelineToolItemEdit } from "../editing/timeline-tool-edit";
+import { applyTimelineToolEdits, rebaseSplitInverse, validateTimelineToolEdits, type TimelineToolItemEdit } from "../editing/timeline-tool-edit";
 import type { BlendMode } from "../video/types";
 import type { EmphasisAnimation } from "../graphics/types";
 import type { ShapeClip, StickerClip, SVGClip } from "../graphics/types";
@@ -313,7 +313,7 @@ export class ActionExecutor {
     const applied: Action[] = [];
     try {
       for (const inverseAction of inverseActions) {
-        const resolvedAction = this.resolveSpecialMarkers(inverseAction);
+        const resolvedAction = this.rebaseStaleInverse(this.resolveSpecialMarkers(inverseAction), project);
         await this.applyAction(resolvedAction as TimelineAction, project);
         applied.push(resolvedAction);
       }
@@ -371,6 +371,24 @@ export class ActionExecutor {
 
   getHistory(): ActionHistory {
     return this.history;
+  }
+
+  /**
+   * A collaborator may have changed an item since the recorded inverse was made.
+   * Applying it blindly would overwrite their work and diverge from every peer
+   * that validates the published op, so re-aim the inverse at the current state
+   * when it is a split-undo; anything else is applied as recorded.
+   */
+  private rebaseStaleInverse(action: Action, project: Project): Action {
+    if (action.type !== "timeline/toolEdit" || !Array.isArray(action.params.edits)) return action;
+    const edits = action.params.edits as TimelineToolItemEdit[];
+    try {
+      validateTimelineToolEdits(project, edits);
+      return action;
+    } catch {
+      const rebased = rebaseSplitInverse(project, edits);
+      return rebased ? { ...action, params: { ...action.params, edits: rebased } } : action;
+    }
   }
 
   private resolveSpecialMarkers(action: Action): Action {

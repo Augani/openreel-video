@@ -1,4 +1,5 @@
 export * from "./video-engine";
+export * from "./sequence-par";
 export * from "./animated-video-effects";
 export * from "./clip-iris";
 export * from "./canvas-fit";
@@ -65,3 +66,4 @@ export * from "./scope-stats";
 export * from "./motion-track-session";
 export * from "./motion-template-search";
 export * from "./motion-track-data";
+export * from "./gl-context";

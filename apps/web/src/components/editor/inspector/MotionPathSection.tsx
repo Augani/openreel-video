@@ -5,6 +5,7 @@ import { Card } from "@openreel/ui";
 
 
 import { InspectorToggle } from "./shell/InspectorControls";
+import { PathTypeGlyph } from "./motion-glyphs";
 import { Route, Trash2, Plus, Eye, EyeOff } from "@/icons/lucide-compat";
 import { useProjectStore } from "../../../stores/project-store";
 import { useUIStore } from "../../../stores/ui-store";
@@ -215,11 +216,12 @@ export const MotionPathSection: React.FC<MotionPathSectionProps> = ({
               </span>
               <div className="grid grid-cols-3 gap-1">
                 {(["linear", "bezier", "catmull-rom"] as const).map((type) => (
-                  <Button variant="ghost" key={type} onClick={() => handlePathTypeChange(type)} type="button" aria-label={`Set path type to ${type}`} className={cn("group/card block h-auto min-w-0 whitespace-normal rounded-[7px] border text-left transition-[background-color,border-color,box-shadow,transform] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50", "border-border bg-bg-1 hover:bg-bg-2", "p-3", `py-1.5 rounded text-[9px] capitalize transition-colors ${
+                  <Button variant="ghost" key={type} onClick={() => handlePathTypeChange(type)} type="button" aria-label={`Set path type to ${type}`} className={cn("group/card block h-auto min-w-0 whitespace-normal rounded-[7px] border text-left transition-[background-color,border-color,box-shadow,transform] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50", "border-border bg-bg-1 hover:bg-bg-2", "p-3", `py-1.5 px-1.5 rounded text-[9px] text-center capitalize transition-colors ${
                       pathType === type
                         ? "bg-primary text-white"
                         : "bg-bg-elev border border-border text-fg-2 hover:text-fg"
                     }`)}>
+                    <PathTypeGlyph type={type} className="mx-auto mb-1 !h-7 !w-full" />
                     {type === "catmull-rom" ? "Smooth" : type}
                   </Button>
                 ))}

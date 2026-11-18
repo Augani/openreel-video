@@ -23,6 +23,61 @@ const ACCEPT = "video/*,audio/*,image/*";
 
 const KIND_ICON = { video: Film, audio: Music, image: ImageIcon } as const;
 
+function formatClock(seconds: number): string {
+  const total = Math.max(0, Math.round(seconds));
+  const m = Math.floor(total / 60);
+  return `${m}:${String(total % 60).padStart(2, "0")}`;
+}
+
+/** Poster frame plus duration and resolution for a chosen clip, read from the file itself. */
+function ClipThumb({ file, kind }: { file: File; kind: "video" | "audio" | "image" }): JSX.Element {
+  const Icon = KIND_ICON[kind];
+  const [url, setUrl] = useState<string | null>(null);
+  const [meta, setMeta] = useState<string | null>(null);
+  useEffect(() => {
+    if (kind === "audio" || typeof URL.createObjectURL !== "function") return;
+    const objectUrl = URL.createObjectURL(file);
+    setUrl(objectUrl);
+    return () => URL.revokeObjectURL(objectUrl);
+  }, [file, kind]);
+  const frame = "h-9 w-14 shrink-0 rounded-md bg-bg-3 object-cover";
+  const readVideo = (el: HTMLVideoElement): void => {
+    const size = el.videoWidth && el.videoHeight ? `${el.videoWidth}×${el.videoHeight}` : null;
+    const parts = [Number.isFinite(el.duration) ? formatClock(el.duration) : null, size].filter(Boolean);
+    setMeta(parts.join(" · ") || null);
+  };
+  return (
+    <>
+      {kind === "video" && url ? (
+        <video
+          src={`${url}#t=0.1`}
+          preload="metadata"
+          muted
+          playsInline
+          aria-hidden="true"
+          className={frame}
+          onLoadedMetadata={(e) => readVideo(e.currentTarget)}
+        />
+      ) : kind === "image" && url ? (
+        <img
+          src={url}
+          alt=""
+          className={frame}
+          onLoad={(e) => setMeta(`${e.currentTarget.naturalWidth}×${e.currentTarget.naturalHeight}`)}
+        />
+      ) : (
+        <span className="grid h-9 w-14 shrink-0 place-items-center rounded-md bg-bg-3 text-fg-3">
+          <Icon size={15} aria-hidden="true" />
+        </span>
+      )}
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-xs text-fg">{file.name}</span>
+        {meta && <span className="block truncate text-[11px] text-fg-3">{meta}</span>}
+      </span>
+    </>
+  );
+}
+
 export default function DropClips({ onSubmit, onBack, progress, error }: DropClipsProps): JSX.Element {
   const uid = useId();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -158,17 +213,15 @@ export default function DropClips({ onSubmit, onBack, progress, error }: DropCli
       )}
 
       {files.length > 0 && (
-        <ul aria-label="Selected clips" className="flex max-h-44 flex-col gap-1.5 overflow-y-auto">
+        <ul aria-label="Selected clips" className="flex max-h-52 flex-col gap-1.5 overflow-y-auto">
           {files.map((file) => {
             const kind = clipKind(file) ?? "video";
-            const Icon = KIND_ICON[kind];
             return (
               <li
                 key={`${file.name}:${file.size}`}
-                className="flex items-center gap-2.5 rounded-lg border border-border bg-bg-2 px-3 py-2"
+                className="flex items-center gap-2.5 rounded-lg border border-border bg-bg-2 px-2 py-1.5"
               >
-                <Icon size={15} className="shrink-0 text-fg-3" aria-hidden="true" />
-                <span className="min-w-0 flex-1 truncate text-xs text-fg">{file.name}</span>
+                <ClipThumb file={file} kind={kind} />
                 <span className="shrink-0 text-xs text-fg-3">{formatBytes(file.size)}</span>
                 <button
                   type="button"

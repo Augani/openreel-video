@@ -59,6 +59,10 @@ export default defineConfig({
     minify: process.env.OPENREEL_NO_MINIFY === "1" ? false : undefined,
     rollupOptions: {
       output: {
+        // Desktop: every chunk is a request through the app:// protocol handler and a V8 compile unit, and the
+        // core barrel's small shared modules (executor, smart-bins, sequence-par, ...) were each split into a
+        // chunk of their own by the lazy dialogs. Fold chunks under this size into their neighbours.
+        ...(isDesktop ? { experimentalMinChunkSize: 50_000 } : {}),
         manualChunks: (id) => {
           if (id.includes("node_modules/react") || id.includes("node_modules/react-dom")) return "react";
           if (id.includes("node_modules/zustand")) return "zustand";

@@ -1,4 +1,7 @@
+import { TemplateThumb } from "../../welcome/TemplateThumb";
 import React, {
+  lazy,
+  Suspense,
   useState,
   useCallback,
   useMemo,
@@ -34,7 +37,8 @@ import {
   type TemplateReplacements,
 } from "@openreel/core";
 import { templateCloudService } from "../../../services/template-cloud-service";
-import { SaveTemplateDialog } from "../SaveTemplateDialog";
+// The save dialog is only fetched when it is first opened.
+const SaveTemplateDialog = lazy(() => import("../SaveTemplateDialog").then((m) => ({ default: m.SaveTemplateDialog })));
 import { TemplateVariablesPanel } from "./TemplateVariablesPanel";
 import {
   openTemplateProject,
@@ -70,7 +74,6 @@ const TemplateCard: React.FC<TemplateCardProps> = ({
   onApply,
   isApplying = false,
 }) => {
-  const Icon = CATEGORY_ICONS[template.category] || FolderOpen;
 
   return (
     <Card
@@ -91,11 +94,11 @@ const TemplateCard: React.FC<TemplateCardProps> = ({
       >
         <div className="flex items-start gap-3 w-full">
           <div
-            className={`w-10 h-10 shrink-0 rounded-lg flex items-center justify-center ${
-              isSelected ? "bg-primary text-white" : "bg-bg-1"
+            className={`aspect-video w-[72px] shrink-0 overflow-hidden rounded-md border ${
+              isSelected ? "border-primary" : "border-border"
             }`}
           >
-            <Icon size={18} />
+            <TemplateThumb template={template} />
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
@@ -184,6 +187,8 @@ export const TemplatesBrowserPanel: React.FC<TemplatesBrowserPanelProps> = ({
   );
   const [applyError, setApplyError] = useState<string | null>(null);
   const [isSaveDialogOpen, setIsSaveDialogOpen] = useState(false);
+  // One dialog instance per opening, kept mounted while it closes so its exit animation plays.
+  const [saveDialogSession, setSaveDialogSession] = useState(0);
   const [loadedTemplate, setLoadedTemplate] = useState<Template | null>(null);
   const [placeholderValues, setPlaceholderValues] =
     useState<TemplateReplacements>({});
@@ -477,7 +482,10 @@ export const TemplatesBrowserPanel: React.FC<TemplatesBrowserPanelProps> = ({
 
       <div className="pt-2 border-t border-border">
         <Button
-          onClick={() => setIsSaveDialogOpen(true)}
+          onClick={() => {
+            setSaveDialogSession((value) => value + 1);
+            setIsSaveDialogOpen(true);
+          }}
           type="button"
           aria-label="Save Current Project as Template"
           disabled={isApplying}
@@ -494,13 +502,18 @@ export const TemplatesBrowserPanel: React.FC<TemplatesBrowserPanelProps> = ({
         {templates.length} templates available
       </span>
 
-      <SaveTemplateDialog
-        isOpen={isSaveDialogOpen}
-        onClose={() => {
-          setIsSaveDialogOpen(false);
-          setRefresh((value) => value + 1);
-        }}
-      />
+      {saveDialogSession > 0 && (
+        <Suspense fallback={null}>
+          <SaveTemplateDialog
+            key={saveDialogSession}
+            isOpen={isSaveDialogOpen}
+            onClose={() => {
+              setIsSaveDialogOpen(false);
+              setRefresh((value) => value + 1);
+            }}
+          />
+        </Suspense>
+      )}
     </div>
   );
 };

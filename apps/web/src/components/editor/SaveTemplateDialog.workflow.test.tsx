@@ -285,6 +285,23 @@ describe("full shadcn template form and owned saves", () => {
     expect(screen.getByLabelText("Template Name")).toHaveValue("New session");
   });
 
+  it("stays in the document while it plays its exit animation after closing", () => {
+    const real = window.getComputedStyle.bind(window);
+    // jsdom runs no CSS animations: report one on the closed dialog the way the browser does.
+    vi.spyOn(window, "getComputedStyle").mockImplementation((element: Element, pseudo?: string | null) => {
+      const style = real(element, pseudo);
+      return element.getAttribute("data-state") === "closed"
+        ? new Proxy(style, { get: (target, key) => (key === "animationName" ? "dialog-out" : Reflect.get(target, key)) })
+        : style;
+    });
+    const close = vi.fn();
+    const view = render(<SaveTemplateDialog isOpen onClose={close} />);
+    expect(screen.getByRole("dialog")).toHaveAttribute("data-state", "open");
+    view.rerender(<SaveTemplateDialog isOpen={false} onClose={close} />);
+    // Not unmounted at once (that was the lost animation): it is closing.
+    expect(screen.getByRole("dialog")).toHaveAttribute("data-state", "closed");
+  });
+
   it("avoids form commits during sixty unrelated project revisions", () => {
     const commits = vi.fn();
     render(

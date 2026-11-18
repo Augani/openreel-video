@@ -1,4 +1,9 @@
 import { useProjectStore } from "./stores/project-store";
+import { getActiveEffectPreviewEngine } from "./components/editor/panels/effect-previews/active-engine";
+import { previewGpuStats } from "./components/editor/panels/effect-previews/effect-renderer";
+import { getProgramRenderer } from "./components/editor/preview/device-loss";
+import type { Renderer } from "@openreel/core";
+import { useInspectorNavigationStore } from "./stores/inspector-navigation-store";
 import { useTimelineStore } from "./stores/timeline-store";
 import { useEditorWorkspaceStore } from "./stores/editor-workspace-store";
 import { useUIStore } from "./stores/ui-store";
@@ -108,6 +113,24 @@ export function installE2EHook(): void {
     aiConnection: useAIConnectionStore,
     onboardingAi: { mount: mountAiOnboardingSheet },
     timeline: useTimelineStore,
+    /** Effects panel live previews: the mounted preview engine (stats, cache, source) or null. */
+    effectPreviews: getActiveEffectPreviewEngine,
+    /** Preview GPU budget: shared lanes / shader renderers / live engine-owned WebGL contexts (created, released, live). */
+    previewGpu: previewGpuStats,
+    /** Program monitor GPU: renderer type, and a forced device loss (optionally with recovery made to fail) for the recovery e2e. */
+    program: {
+      rendererType: () => getProgramRenderer()?.type ?? null,
+      loseDevice: (options?: { failRecovery?: boolean }): boolean => {
+        const renderer = getProgramRenderer() as (Renderer & { getDevice?: () => { destroy(): void } | null }) | null;
+        const device = renderer?.getDevice?.();
+        if (!renderer || !device) return false;
+        if (options?.failRecovery) renderer.recreateDevice = async () => false;
+        device.destroy();
+        return true;
+      },
+    },
+    /** Inspector previews: opens an inspector section (motion-presets, text-animation, emphasis-animation, particle-effects, video-effects). */
+    inspectorNav: useInspectorNavigationStore,
     workspace: useEditorWorkspaceStore,
     ui: useUIStore,
     source: useSourceMonitorStore,

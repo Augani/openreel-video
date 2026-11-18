@@ -1,6 +1,7 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button, Card } from "@openreel/ui";
 import { AlertCircle, Mic, Square } from "@/icons/lucide-compat";
+import { useUIStore } from "../../../stores/ui-store";
 import { useProjectStore } from "../../../stores/project-store";
 import { useTimelineStore } from "../../../stores/timeline-store";
 
@@ -23,6 +24,72 @@ function formatElapsed(milliseconds: number): string {
     .padStart(2, "0")}`;
 }
 
+/** Peak level 0..1 of 8-bit time-domain samples (128 is silence). */
+export function peakLevel(samples: ArrayLike<number>): number {
+  let peak = 0;
+  for (let i = 0; i < samples.length; i++) {
+    const v = Math.abs(samples[i] - 128) / 128;
+    if (v > peak) peak = v;
+  }
+  return Math.min(1, peak);
+}
+
+export interface VoiceOverTake {
+  clipId: string;
+  trackId: string;
+  startTime: number;
+  duration: number;
+}
+
+/** Clips on the "Voice Over" tracks, newest position last. */
+export function listVoiceOverTakes(
+  tracks: ReadonlyArray<{ id: string; name: string; clips: ReadonlyArray<{ id: string; startTime: number; duration: number }> }>,
+): VoiceOverTake[] {
+  return tracks
+    .filter((track) => track.name === "Voice Over")
+    .flatMap((track) =>
+      track.clips.map((clip) => ({
+        clipId: clip.id,
+        trackId: track.id,
+        startTime: clip.startTime,
+        duration: clip.duration,
+      })),
+    )
+    .sort((a, b) => a.startTime - b.startTime);
+}
+
+const INPUT_METER_BARS = 24;
+
+/** Segmented live input meter; `level` is 0..1. */
+export const VoiceOverMeter: React.FC<{ level: number; active: boolean }> = ({ level, active }) => {
+  const lit = Math.round(level * INPUT_METER_BARS);
+  return (
+    <div
+      className="flex h-3 items-stretch gap-[2px]"
+      role="meter"
+      aria-label="Microphone input level"
+      aria-valuemin={0}
+      aria-valuemax={1}
+      aria-valuenow={Number(level.toFixed(2))}
+      data-testid="voiceover-meter"
+    >
+      {Array.from({ length: INPUT_METER_BARS }, (_, i) => {
+        const on = active && i < lit;
+        const hot = i >= INPUT_METER_BARS - 3;
+        const warm = i >= INPUT_METER_BARS - 7;
+        return (
+          <span
+            key={i}
+            className={`flex-1 rounded-[1px] ${
+              on ? (hot ? "bg-status-error" : warm ? "bg-status-warning" : "bg-accent") : "bg-bg-3"
+            }`}
+          />
+        );
+      })}
+    </div>
+  );
+};
+
 export const VoiceOverPanel: React.FC = () => {
   const importMedia = useProjectStore((state) => state.importMedia);
   const addClipToNewTrack = useProjectStore((state) => state.addClipToNewTrack);
@@ -37,12 +104,71 @@ export const VoiceOverPanel: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [level, setLevel] = useState(0);
+  const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
+  const [deviceId, setDeviceId] = useState("");
+  const tracks = useProjectStore((state) => state.project.timeline.tracks);
+  const takes = useMemo(() => listVoiceOverTakes(tracks), [tracks]);
+  const meterRef = useRef<{ context: AudioContext; frame: number } | null>(null);
+
+  const stopMeter = useCallback(() => {
+    if (meterRef.current) {
+      cancelAnimationFrame(meterRef.current.frame);
+      void meterRef.current.context.close().catch(() => undefined);
+      meterRef.current = null;
+    }
+    setLevel(0);
+  }, []);
+
+  const startMeter = useCallback((stream: MediaStream) => {
+    try {
+      const context = new AudioContext();
+      const analyser = context.createAnalyser();
+      analyser.fftSize = 512;
+      context.createMediaStreamSource(stream).connect(analyser);
+      const data = new Uint8Array(analyser.fftSize);
+      const state = { context, frame: 0 };
+      const tick = () => {
+        analyser.getByteTimeDomainData(data);
+        setLevel((previous) => Math.max(peakLevel(data), previous * 0.85));
+        state.frame = requestAnimationFrame(tick);
+      };
+      state.frame = requestAnimationFrame(tick);
+      meterRef.current = state;
+    } catch {
+      // The meter is informational; recording works without it.
+    }
+  }, []);
+
+  useEffect(() => {
+    const media = navigator.mediaDevices;
+    if (!media?.enumerateDevices) return;
+    let active = true;
+    const refresh = () => {
+      media
+        .enumerateDevices()
+        .then((list) => {
+          if (!active) return;
+          const inputs = list.filter((device) => device.kind === "audioinput" && device.deviceId);
+          setDevices(inputs);
+          setDeviceId((current) => (inputs.some((device) => device.deviceId === current) ? current : ""));
+        })
+        .catch(() => undefined);
+    };
+    refresh();
+    media.addEventListener?.("devicechange", refresh);
+    return () => {
+      active = false;
+      media.removeEventListener?.("devicechange", refresh);
+    };
+  }, [isRecording]);
 
   const releaseStream = useCallback(() => {
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
     recorderRef.current = null;
-  }, []);
+    stopMeter();
+  }, [stopMeter]);
 
   useEffect(() => {
     if (!isRecording) return;
@@ -110,6 +236,7 @@ export const VoiceOverPanel: React.FC = () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
+          ...(deviceId ? { deviceId: { exact: deviceId } } : {}),
           echoCancellation: true,
           noiseSuppression: true,
           autoGainControl: true,
@@ -146,6 +273,7 @@ export const VoiceOverPanel: React.FC = () => {
       startedAtRef.current = Date.now();
       setElapsed(0);
       recorder.start(250);
+      startMeter(stream);
       setIsRecording(true);
     } catch (reason) {
       releaseStream();
@@ -157,7 +285,7 @@ export const VoiceOverPanel: React.FC = () => {
             : "Could not start microphone recording.",
       );
     }
-  }, [playheadPosition, releaseStream, saveVoiceOver]);
+  }, [deviceId, playheadPosition, releaseStream, saveVoiceOver, startMeter]);
 
   const stopRecording = () => {
     saveRecordingRef.current = true;
@@ -179,6 +307,32 @@ export const VoiceOverPanel: React.FC = () => {
           {formatElapsed(elapsed)}
         </span>
       </Card>
+      <div className="space-y-1.5 rounded-[7px] border border-border bg-bg-2 p-3">
+        <div className="flex items-center justify-between gap-2">
+          <label htmlFor="voiceover-input" className="text-[11px] font-semibold text-fg">
+            Input
+          </label>
+          <select
+            id="voiceover-input"
+            data-testid="voiceover-device"
+            value={deviceId}
+            disabled={isRecording}
+            onChange={(event) => setDeviceId(event.target.value)}
+            className="h-7 min-w-0 max-w-[190px] flex-1 truncate rounded-md border border-border bg-bg-1 px-2 text-[11px] text-fg disabled:opacity-60"
+          >
+            <option value="">System default microphone</option>
+            {devices.map((device, index) => (
+              <option key={device.deviceId} value={device.deviceId}>
+                {device.label || `Microphone ${index + 1}`}
+              </option>
+            ))}
+          </select>
+        </div>
+        <VoiceOverMeter level={level} active={isRecording} />
+        <p className="text-[9px] text-fg-muted">
+          {isRecording ? "Live input level. Keep peaks out of the red." : "The level meter moves while you record."}
+        </p>
+      </div>
       {error && (
         <Card className="min-w-0 rounded-[7px] shadow-none text-fg p-2 flex items-start gap-2 border border-red-500/30 bg-red-500/10">
           <AlertCircle size={14} className="mt-0.5 shrink-0 text-red-400" aria-hidden />
@@ -195,6 +349,29 @@ export const VoiceOverPanel: React.FC = () => {
           <span className="flex h-4 w-4 shrink-0 items-center justify-center">{<Mic size={14} aria-hidden />}</span>
           <span className="truncate">{isSaving ? "Adding Voice Over…" : "Record Voice Over"}</span>
         </Button>
+      )}
+      {takes.length > 0 && (
+        <section aria-label="Takes" data-testid="voiceover-takes" className="space-y-1">
+          <h4 className="text-[10px] font-semibold uppercase tracking-[0.12em] text-fg-muted">
+            Takes · {takes.length}
+          </h4>
+          {takes.map((take, index) => (
+            <button
+              key={take.clipId}
+              type="button"
+              onClick={() => {
+                useTimelineStore.getState().seekTo(take.startTime);
+                useUIStore.getState().select({ type: "clip", id: take.clipId, trackId: take.trackId });
+              }}
+              className="flex w-full items-center justify-between rounded-md border border-border bg-bg-2 px-2.5 py-1.5 text-left text-[11px] text-fg hover:bg-bg-3 focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <span>Take {index + 1}</span>
+              <span className="font-mono text-fg-muted">
+                {formatElapsed(take.startTime * 1000)} · {formatElapsed(take.duration * 1000)} long
+              </span>
+            </button>
+          ))}
+        </section>
       )}
       <span className="text-fg-2 font-normal block text-center text-[9px]">
         Recorded audio stays in this project and exports with the rest of the mix.

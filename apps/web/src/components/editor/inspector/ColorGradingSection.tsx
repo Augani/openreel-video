@@ -1,7 +1,6 @@
-import React, { useCallback, useMemo } from "react";
+import React, { Suspense, lazy, useCallback, useMemo } from "react";
 import { Button } from "@openreel/ui";
 import { Card } from "@openreel/ui";
-import { cn } from "@openreel/ui";
 
 
 import { PropertySlider } from "./shell/PropertySlider";
@@ -9,13 +8,10 @@ import { ChevronDown, RotateCcw, Sparkles, Sun, Thermometer } from "@/icons/luci
 import { Switch } from "@openreel/ui";
 import { useUIStore } from "../../../stores/ui-store";
 import { useProjectStore } from "../../../stores/project-store";
-import { removeClipLut } from "../../../services/editor-effect-application";
-import { toast } from "../../../stores/notification-store";
 import type {
   ColorWheelValues,
   HSLValues,
   CurvesValues,
-  LUTData,
 } from "@openreel/core";
 import {
   DEFAULT_TONE,
@@ -31,14 +27,17 @@ import { ColorWheelsControl } from "./ColorWheelsControl";
 import { CurvesEditor } from "./CurvesEditor";
 import { HueCurvesEditor } from "./HueCurvesEditor";
 import { useHueCurveKeyframes } from "./useHueCurveKeyframes";
-import { LUTLoader } from "./LUTLoader";
 import { ColorLibrarySection } from "./ColorLibrarySection";
-import { useColorLibraryStore } from "../../../stores/color-library-store";
-import { createLutEntry, lutToJson } from "@openreel/core";
+import { toast } from "../../../stores/notification-store";
+import { EffectPreviewProvider } from "../panels/effect-previews/EffectLivePreview";
 import { HSLControls } from "./HSLControls";
 import { GradeSliders } from "./BasicCorrectionControls";
 import { MatchColorPopover } from "./MatchColorPopover";
 import { measureAutoTone } from "../../../services/color-sampling";
+import { useClipLookScene } from "./looks/useClipLookScene";
+import { LookCompareProvider } from "./looks/compare-context";
+
+const WhiteBalancePresets = lazy(() => import("./looks/WhiteBalancePresets"));
 
 const WHITE_BALANCE_PRESETS: Array<{
   label: string;
@@ -93,6 +92,8 @@ export const ColorGradingSection: React.FC<ColorGradingSectionProps> = ({
     [clipId, getColorGrading, modifiedAt],
   );
 
+  const clipScene = useClipLookScene(clipId);
+
   const colorWheelValues: ColorWheelValues = useMemo(() => {
     return colorGrading.colorWheels || { ...DEFAULT_COLOR_WHEELS };
   }, [colorGrading.colorWheels]);
@@ -139,6 +140,13 @@ export const ColorGradingSection: React.FC<ColorGradingSectionProps> = ({
 
   const temperatureValue = colorGrading.temperature ?? 0;
   const tintValue = colorGrading.tint ?? 0;
+  const isWhiteBalanceActive = useCallback(
+    (preset: { temperature: number; tint: number }) =>
+      !(Math.abs(temperatureValue) < 0.5 && Math.abs(tintValue) < 0.5) &&
+      Math.abs(preset.temperature - temperatureValue) < 0.5 &&
+      Math.abs(preset.tint - tintValue) < 0.5,
+    [temperatureValue, tintValue],
+  );
 
   const handleTemperatureChange = useCallback(
     (value: number) => {
@@ -190,19 +198,6 @@ export const ColorGradingSection: React.FC<ColorGradingSectionProps> = ({
     updateColorGrading(clipId, { curves: { ...DEFAULT_CURVES } });
   }, [clipId, updateColorGrading]);
 
-  const handleLUTChange = useCallback(
-    (lutData: LUTData | null) => {
-      if (lutData) {
-        void updateColorGrading(clipId, { lut: lutData });
-      } else {
-        void removeClipLut(clipId).then((removed) => {
-          if (!removed) toast.error("LUT could not be removed", "Unlock the clip's track and try again.");
-        });
-      }
-    },
-    [clipId, updateColorGrading],
-  );
-
   const handleHSLValuesChange = useCallback(
     (values: HSLValues) => {
       updateColorGrading(clipId, { hsl: values });
@@ -242,6 +237,8 @@ export const ColorGradingSection: React.FC<ColorGradingSectionProps> = ({
   }, [clipId, resetColorGrading]);
 
   return (
+    <EffectPreviewProvider>
+    <LookCompareProvider>
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-2">
         <label className="flex items-center gap-2 text-[10px] font-medium text-fg-2">
@@ -295,6 +292,10 @@ export const ColorGradingSection: React.FC<ColorGradingSectionProps> = ({
             : "This clip keeps the classic order (Color Wheels before Basic Correction) so its look is unchanged. Switch to Premiere to use Hue Curves and float processing."}
         </p>
       </div>
+
+      <SubSection title="Looks and LUTs" defaultOpen>
+        <ColorLibrarySection clipId={clipId} />
+      </SubSection>
 
       <SubSection title="Basic Correction" defaultOpen>
         <div className="space-y-3">
@@ -390,22 +391,24 @@ export const ColorGradingSection: React.FC<ColorGradingSectionProps> = ({
             <span className="text-fg-2 font-normal mb-1.5 block text-[10px]">
               Presets
             </span>
-            <div className="grid grid-cols-5 gap-1">
-              {WHITE_BALANCE_PRESETS.map((preset) => {
-                const isActive =
-                  Math.abs(preset.temperature - temperatureValue) < 0.5 &&
-                  Math.abs(preset.tint - tintValue) < 0.5;
-                return (
-                  <Button variant="ghost" key={preset.label} onClick={() => handleWhiteBalancePreset(preset)} type="button" aria-label={`Apply ${preset.label} white balance`} className={cn("group/card block h-auto min-w-0 whitespace-normal rounded-[7px] border text-left transition-[background-color,border-color,box-shadow,transform] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50", "border-border bg-bg-1 hover:bg-bg-2", "p-3", `py-1 rounded text-[9px] transition-colors ${
-                      isActive
-                        ? "bg-primary text-white"
-                        : "bg-bg-2 border border-border text-fg-2 hover:text-fg"
-                    }`)}>
+            <Suspense
+              fallback={
+              <div className="flex flex-wrap gap-1" aria-busy="true">
+                {WHITE_BALANCE_PRESETS.map((preset) => (
+                  <span key={preset.label} className="rounded border border-border bg-bg-2 px-2 py-1 text-[10px] text-fg-2">
                     {preset.label}
-                  </Button>
-                );
-              })}
-            </div>
+                  </span>
+                ))}
+              </div>
+            }>
+              <WhiteBalancePresets
+                presets={WHITE_BALANCE_PRESETS}
+                currentGrading={colorGrading}
+                clipEffects={clipScene.effects}
+                isActive={isWhiteBalanceActive}
+                onApply={handleWhiteBalancePreset}
+              />
+            </Suspense>
           </div>
         </div>
       </SubSection>
@@ -448,26 +451,6 @@ export const ColorGradingSection: React.FC<ColorGradingSectionProps> = ({
         />
       </SubSection>
 
-      <SubSection title="LUT">
-        <LUTLoader
-          lutData={colorGrading.lut as LUTData | null}
-          onChange={handleLUTChange}
-          onImported={(name, lut) => {
-            const store = useColorLibraryStore.getState();
-            const json = lutToJson(lut);
-            const size = json.curve1d ? json.curve1d.size : json.size;
-            void store.refresh().then(() => {
-              const dup = useColorLibraryStore.getState().luts.some((l) => l.name === name && l.size === size);
-              if (!dup) return store.addLut(createLutEntry(name, json));
-            });
-          }}
-        />
-      </SubSection>
-
-      <SubSection title="Input LUT, library and looks">
-        <ColorLibrarySection clipId={clipId} />
-      </SubSection>
-
       <SubSection title="HSL">
         <HSLControls
           values={hslValues}
@@ -476,6 +459,8 @@ export const ColorGradingSection: React.FC<ColorGradingSectionProps> = ({
         />
       </SubSection>
     </div>
+    </LookCompareProvider>
+    </EffectPreviewProvider>
   );
 };
 

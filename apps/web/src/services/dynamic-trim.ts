@@ -1,4 +1,11 @@
-import { isEditPointValid, planEditPointTrim } from "@openreel/core";
+import {
+  applyTimelineToolEdits,
+  isEditPointValid,
+  planEditPointTrim,
+  reconcileMulticamAudio,
+  type Project,
+  type TimelineToolPlan,
+} from "@openreel/core";
 import { useProjectStore } from "../stores/project-store";
 import { useTimelineStore } from "../stores/timeline-store";
 import { useUIStore } from "../stores/ui-store";
@@ -12,8 +19,10 @@ import type { CommandOutcome } from "./premiere-edit-commands";
  * Dynamic (JKL) trimming. With an edit point selected, J / L run the playhead
  * backward / forward from the edge, repeated presses shuttle faster, and the
  * edge follows the playhead. Nothing is written to the project while it runs:
- * the Program monitor shows the playhead frame of the timeline as it is now
- * (not the trimmed result; the Trim indicator says so). K or Space commits the trim
+ * the Program monitor shows the trimmed result live: the session carries a
+ * preview project (the planner's edits applied to a copy) that only the monitor
+ * reads, and the playhead sits on the trimmed clip's frame at the moving edge
+ * (a right edge shows the clip's last frame). K or Space commits the trim
  * through the same planner as `,` `.` and the agent's trim_edit_point, as one
  * undo step; Esc cancels and puts the playhead back. Source handles clamp the
  * move (the session reports `limited`), and snapping is off meanwhile.
@@ -47,10 +56,10 @@ function edgeTime(): number | null {
   return null;
 }
 
-/** Frames the planner would apply for a request; throws the planner's own error (locked track, sync lock). */
-function appliedFramesFor(requested: number): number {
+/** The planner's plan for a request; throws the planner's own error (locked track, sync lock). */
+function planFor(requested: number): { plan: TimelineToolPlan; project: Project } | null {
   const selection = selectedEdit();
-  if (!selection || requested === 0) return 0;
+  if (!selection || requested === 0) return null;
   const project = useProjectStore.getState().getFullProject();
   const plan = planEditPointTrim(project, {
     clipId: selection.clipId,
@@ -60,7 +69,97 @@ function appliedFramesFor(requested: number): number {
     linkedIds: getLinkedTimelineSelection(project, [selection.clipId], useEditorWorkspaceStore.getState().linkedSelection)
       .filter((id) => id !== selection.clipId),
   });
-  return plan.edits.length ? Math.round(plan.delta * frameRate()) : 0;
+  return { plan, project };
+}
+
+const framesOf = (plan: TimelineToolPlan | undefined): number =>
+  plan && plan.edits.length ? Math.round(plan.delta * frameRate()) : 0;
+
+/** Frames the planner would apply for a request. */
+function appliedFramesFor(requested: number): number {
+  return framesOf(planFor(requested)?.plan);
+}
+
+/**
+ * The project with the planned trim applied, for the Program monitor only. Edits go onto the
+ * stored project (what the monitor normally renders) from a clone, so nothing shared is mutated.
+ */
+function buildPreviewProject(plan: TimelineToolPlan | undefined, full: Project | undefined): Project | null {
+  if (!plan || !plan.edits.length) return null;
+  try {
+    const stored = useProjectStore.getState().project;
+    // The plan is made on the full project (overlay collections owned by the title / graphics engines),
+    // but the monitor renders the stored one and falls back to the engines only for a collection the
+    // stored project lacks. Fill exactly those, so the edits land on the collection the monitor reads
+    // instead of replacing an engine-owned one with an empty list.
+    const base: Project = {
+      ...stored,
+      textClips: stored.textClips ?? full?.textClips,
+      shapeClips: stored.shapeClips ?? full?.shapeClips,
+      svgClips: stored.svgClips ?? full?.svgClips,
+      stickerClips: stored.stickerClips ?? full?.stickerClips,
+    };
+    // applyTimelineToolEdits is copy-on-write (only touched tracks / collections are rebuilt) and the
+    // edits are never mutated afterwards, so no deep clone: the cost is O(touched tracks), not O(project).
+    return reconcileMulticamAudio(applyTimelineToolEdits(base, plan.edits));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The frame the monitor shows for a trim: the trimmed clip's first frame for a left edge and
+ * its last frame for a right edge, read from the preview project so a ripple that keeps the
+ * clip's start in place still lands on the clip's real first frame. Without a preview it falls
+ * back to the edge time.
+ */
+export function dynamicTrimMonitorTime(
+  edge: "left" | "right",
+  clipId: string,
+  preview: Project | null,
+  fallbackEdge: number,
+): number {
+  let edgeTimeSeconds = fallbackEdge;
+  for (const track of preview?.timeline.tracks ?? []) {
+    const clip = track.clips.find((c) => c.id === clipId);
+    if (clip) edgeTimeSeconds = edge === "left" ? clip.startTime : clip.startTime + clip.duration;
+  }
+  return Math.max(0, edge === "right" ? edgeTimeSeconds - 1 / frameRate() : edgeTimeSeconds);
+}
+
+/**
+ * The two frames of a two-up at a cut: the outgoing clip's last frame and the incoming clip's first
+ * frame, read from `project` (the live trimmed preview during a trim). Null when either clip is gone.
+ */
+export function dynamicTrimTwoUpTimes(
+  project: Project,
+  clipId: string,
+  neighborId: string,
+  edge: "left" | "right",
+): { outgoing: number; incoming: number } | null {
+  let trimmed: { startTime: number; duration: number } | null = null;
+  let neighbor: { startTime: number; duration: number } | null = null;
+  for (const track of project.timeline.tracks) {
+    for (const clip of track.clips) {
+      if (clip.id === clipId) trimmed = clip;
+      else if (clip.id === neighborId) neighbor = clip;
+    }
+  }
+  if (!trimmed || !neighbor) return null;
+  const outgoing = edge === "right" ? trimmed : neighbor;
+  const incoming = edge === "right" ? neighbor : trimmed;
+  return {
+    outgoing: Math.max(0, outgoing.startTime + outgoing.duration - 1 / frameRate()),
+    incoming: Math.max(0, incoming.startTime),
+  };
+}
+
+/**
+ * The project the Program monitor should render: the live trimmed preview while a dynamic
+ * trim runs, otherwise the stored project.
+ */
+export function getMonitorProject(): Project {
+  return useEditPointStore.getState().dynamicTrim?.previewProject ?? useProjectStore.getState().project;
 }
 
 /**
@@ -93,6 +192,51 @@ function stopTimer(): void {
   timer = null;
 }
 
+/**
+ * The monitor (preview project + the playhead frame it shows) is published at most once per
+ * MONITOR_INTERVAL_MS. A paused-frame render that every newer request aborts never presents, and a
+ * seek into a long-GOP clip outlasts one shuttle tick, so publishing every tick would starve the
+ * monitor until the trim stopped. The session's numbers (frames, limit) still update every tick; the
+ * first move, a limit and the end of the trim publish immediately.
+ */
+export const MONITOR_INTERVAL_MS = 100;
+let monitorTimer: ReturnType<typeof setTimeout> | null = null;
+let queuedMonitor: (() => void) | null = null;
+let lastMonitorAt = Number.NEGATIVE_INFINITY;
+
+function clearMonitorQueue(): void {
+  if (monitorTimer) clearTimeout(monitorTimer);
+  monitorTimer = null;
+  queuedMonitor = null;
+  lastMonitorAt = Number.NEGATIVE_INFINITY;
+}
+
+/** Publish any queued monitor update now (tests, and the limit / stop paths). */
+export function flushDynamicTrimMonitor(): void {
+  const run = queuedMonitor;
+  if (monitorTimer) clearTimeout(monitorTimer);
+  monitorTimer = null;
+  queuedMonitor = null;
+  if (run) {
+    lastMonitorAt = Date.now();
+    run();
+  }
+}
+
+function publishMonitor(run: () => void, immediate: boolean): void {
+  const now = Date.now();
+  if (immediate || now - lastMonitorAt >= MONITOR_INTERVAL_MS) {
+    if (monitorTimer) clearTimeout(monitorTimer);
+    monitorTimer = null;
+    queuedMonitor = null;
+    lastMonitorAt = now;
+    run();
+    return;
+  }
+  queuedMonitor = run;
+  if (!monitorTimer) monitorTimer = setTimeout(flushDynamicTrimMonitor, MONITOR_INTERVAL_MS - (now - lastMonitorAt));
+}
+
 function update(patch: Partial<DynamicTrimSession>): void {
   const session = useEditPointStore.getState().dynamicTrim;
   if (session) useEditPointStore.getState().setDynamicTrim({ ...session, ...patch });
@@ -100,6 +244,7 @@ function update(patch: Partial<DynamicTrimSession>): void {
 
 function endSession(): DynamicTrimSession | null {
   stopTimer();
+  clearMonitorQueue();
   const session = useEditPointStore.getState().dynamicTrim;
   if (!session) return null;
   useEditPointStore.getState().setDynamicTrim(null);
@@ -113,20 +258,30 @@ function moveTo(requested: number, direction: -1 | 0 | 1): void {
   if (cancelIfStale()) return;
   const session = useEditPointStore.getState().dynamicTrim;
   if (!session) return;
-  let applied: number;
+  let planned: ReturnType<typeof planFor> = null;
   try {
-    applied = appliedFramesFor(requested);
+    planned = planFor(requested);
   } catch {
-    applied = 0;
+    planned = null;
   }
+  const plan = planned?.plan;
+  const applied = framesOf(plan);
   const limited = applied !== requested;
-  useTimelineStore.getState().seekTo(Math.max(0, session.anchorTime + applied / frameRate()));
   update({
     requestedFrames: limited ? applied : requested,
     appliedFrames: applied,
     limited,
     direction: limited ? 0 : direction,
   });
+  publishMonitor(() => {
+    const live = useEditPointStore.getState().dynamicTrim;
+    if (!live) return;
+    const previewProject = buildPreviewProject(plan, planned?.project);
+    useTimelineStore.getState().seekTo(
+      dynamicTrimMonitorTime(live.edge, live.clipId, previewProject, live.anchorTime + applied / frameRate()),
+    );
+    useEditPointStore.getState().setDynamicTrim({ ...live, previewProject });
+  }, limited || session.previewProject === null);
   if (limited) stopTimer();
 }
 
@@ -205,8 +360,9 @@ export function dynamicTrimShuttle(direction: -1 | 1): CommandOutcome {
     requestedFrames: 0,
     appliedFrames: 0,
     limited: false,
+    previewProject: null,
   });
-  timeline.seekTo(anchor);
+  timeline.seekTo(dynamicTrimMonitorTime(selection.edge, selection.clipId, null, anchor));
   moveTo(direction, direction);
   if (useEditPointStore.getState().dynamicTrim?.direction !== 0) startTimer();
   return { success: true };

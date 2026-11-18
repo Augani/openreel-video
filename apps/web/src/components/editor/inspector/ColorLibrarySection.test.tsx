@@ -72,7 +72,7 @@ afterEach(cleanup);
 describe("ColorLibrarySection", () => {
   it("saves the inspected clip's grade as a look and applies it to the selected clip", async () => {
     render(<ColorLibrarySection clipId="a" />);
-    fireEvent.change(screen.getByLabelText("Look name"), { target: { value: "Sunset" } });
+    fireEvent.change(await screen.findByLabelText("Look name"), { target: { value: "Sunset" } });
     fireEvent.click(screen.getByLabelText("Save grade as look"));
     const apply = await screen.findByLabelText("Apply look Sunset to selected clips");
     fireEvent.click(apply);

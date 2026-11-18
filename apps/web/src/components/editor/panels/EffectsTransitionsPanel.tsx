@@ -1,7 +1,6 @@
 import { TransitionDurationField } from "../inspector/TransitionInspector";
 import { Button, Input, Switch, ScrollArea } from "@openreel/ui";
 import { useEditorWorkspaceStore } from "../../../stores/editor-workspace-store";
-import { WandSparkles } from "lucide-react";
 import React, { useCallback, useMemo, useState } from "react";
 import { Search } from "@/icons/lucide-compat";
 
@@ -11,8 +10,8 @@ import { useUIStore } from "../../../stores/ui-store";
 import { useTimelineStore } from "../../../stores/timeline-store";
 import { useInspectorNavigationStore } from "../../../stores/inspector-navigation-store";
 import { AudioEffectsSection } from "../inspector/AudioEffectsSection";
-import { hasReferenceEffectPreview, ReferenceEffectPreview } from "./ReferenceEffectPreview";
-import { hasReferenceTransitionPreview, ReferenceTransitionPreview } from "./ReferenceTransitionPreview";
+import { EffectLivePreview, EffectPreviewProvider } from "./effect-previews/EffectLivePreview";
+import type { PreviewEffectDef } from "./effect-previews/preview-engine";
 import { toast } from "../../../stores/notification-store";
 import type { VideoEffect, VideoEffectType } from "../../../bridges/effects-bridge";
 import { getDefaultTransitionParams, getMotionShaderDef, getPluginRegistry, isPluginEffectType, pluginEffectType, pluginIdFromEffectType, type Clip, type Track, type TransitionType, type Project, type LoadedPlugin } from "@openreel/core";
@@ -295,7 +294,7 @@ const ALL_EFFECT_PREVIEWS: EditorEffectPreviewDef[] = [
     type: "chromaKey",
     label: "Chroma key",
     description: "Remove green or blue screen backgrounds",
-    category: "Stylize",
+    category: "Keying",
     previewStyle: (p) => ({
       filter: `hue-rotate(${lerp(0, 18, p)}deg) saturate(${lerp(1, 1.35, p)})`,
       boxShadow: `inset 0 0 0 ${lerp(0, 5, p)}px rgba(34,197,94,.75)`,
@@ -518,9 +517,6 @@ interface TransitionDef {
   label: string;
   description: string;
   params?: Record<string, unknown>;
-  /** Render the preview as two colored panels animated according to
-   *  this transition's progress p in [0, 1]. */
-  renderPreview: (p: number, thumbUrl: string | null) => React.ReactElement;
 }
 
 function matchesPresetParams(actual: unknown, expected: unknown): boolean {
@@ -571,101 +567,26 @@ const transitionCategory = (type: TransitionType): TransitionCategory => {
   return type === "zoom" ? "Zoom" : "Glitch";
 };
 
-const renderThumb = (
-  thumbUrl: string | null,
-  style: React.CSSProperties,
-  tint: string,
-): React.ReactElement => (
-  <div className="absolute inset-0 overflow-hidden" style={style}>
-    {thumbUrl ? (
-      <img src={thumbUrl} alt="" className="w-full h-full object-cover" />
-    ) : (
-      <div
-        className="w-full h-full"
-        style={{
-          background: `linear-gradient(135deg, ${tint}, oklch(0.45 0.12 200))`,
-        }}
-      />
-    )}
-  </div>
-);
-
 const TRANSITIONS: TransitionDef[] = [
   {
     type: "crossfade",
     label: "Cross dissolve",
     description: "Smooth opacity blend",
-    renderPreview: (p, thumb) => (
-      <>
-        {renderThumb(thumb, { opacity: 1 - p }, "oklch(0.55 0.14 295)")}
-        {renderThumb(thumb, { opacity: p }, "oklch(0.72 0.16 162)")}
-      </>
-    ),
   },
   {
     type: "dipToBlack",
     label: "Dip to black",
     description: "Fade through black",
-    renderPreview: (p, thumb) => (
-      <>
-        {renderThumb(
-          thumb,
-          { opacity: p < 0.5 ? 1 - p * 2 : 0 },
-          "oklch(0.55 0.14 295)",
-        )}
-        {renderThumb(
-          thumb,
-          { opacity: p >= 0.5 ? (p - 0.5) * 2 : 0 },
-          "oklch(0.72 0.16 162)",
-        )}
-        <div
-          className="absolute inset-0 bg-black pointer-events-none"
-          style={{ opacity: p < 0.5 ? p * 2 : (1 - p) * 2 }}
-        />
-      </>
-    ),
   },
   {
     type: "dipToWhite",
     label: "Dip to white",
     description: "Fade through white",
-    renderPreview: (p, thumb) => (
-      <>
-        {renderThumb(
-          thumb,
-          { opacity: p < 0.5 ? 1 - p * 2 : 0 },
-          "oklch(0.55 0.14 295)",
-        )}
-        {renderThumb(
-          thumb,
-          { opacity: p >= 0.5 ? (p - 0.5) * 2 : 0 },
-          "oklch(0.72 0.16 162)",
-        )}
-        <div
-          className="absolute inset-0 bg-white pointer-events-none"
-          style={{ opacity: p < 0.5 ? p * 2 : (1 - p) * 2 }}
-        />
-      </>
-    ),
   },
   {
     type: "wipe",
     label: "Wipe",
     description: "Hard edge sweeps across",
-    renderPreview: (p, thumb) => (
-      <>
-        {renderThumb(
-          thumb,
-          { clipPath: `inset(0 ${p * 100}% 0 0)` },
-          "oklch(0.55 0.14 295)",
-        )}
-        {renderThumb(
-          thumb,
-          { clipPath: `inset(0 0 0 ${(1 - p) * 100}%)` },
-          "oklch(0.72 0.16 162)",
-        )}
-      </>
-    ),
   },
   ...(
     [
@@ -680,45 +601,11 @@ const TRANSITIONS: TransitionDef[] = [
     label,
     description: `Directional ${direction} reveal`,
     params: { direction, softness: 0 },
-    renderPreview: (p, thumb) => {
-      const incomingClip =
-        direction === "left"
-          ? `inset(0 ${(1 - p) * 100}% 0 0)`
-          : direction === "right"
-            ? `inset(0 0 0 ${(1 - p) * 100}%)`
-            : direction === "up"
-              ? `inset(0 0 ${(1 - p) * 100}% 0)`
-              : `inset(${(1 - p) * 100}% 0 0 0)`;
-      return (
-        <>
-          {renderThumb(thumb, {}, "oklch(0.55 0.14 295)")}
-          {renderThumb(
-            thumb,
-            { clipPath: incomingClip },
-            "oklch(0.72 0.16 162)",
-          )}
-        </>
-      );
-    },
   })),
   {
     type: "slide",
     label: "Slide",
     description: "New clip slides in",
-    renderPreview: (p, thumb) => (
-      <>
-        {renderThumb(
-          thumb,
-          { transform: `translateX(${-p * 100}%)` },
-          "oklch(0.55 0.14 295)",
-        )}
-        {renderThumb(
-          thumb,
-          { transform: `translateX(${(1 - p) * 100}%)` },
-          "oklch(0.72 0.16 162)",
-        )}
-      </>
-    ),
   },
   ...(
     [
@@ -733,232 +620,59 @@ const TRANSITIONS: TransitionDef[] = [
     label,
     description: `Slide the next clip ${direction}`,
     params: { direction },
-    renderPreview: (p, thumb) => {
-      const transform =
-        direction === "left"
-          ? `translateX(${(1 - p) * 100}%)`
-          : direction === "right"
-            ? `translateX(${-(1 - p) * 100}%)`
-            : direction === "up"
-              ? `translateY(${(1 - p) * 100}%)`
-              : `translateY(${-(1 - p) * 100}%)`;
-      return (
-        <>
-          {renderThumb(thumb, {}, "oklch(0.55 0.14 295)")}
-          {renderThumb(thumb, { transform }, "oklch(0.72 0.16 162)")}
-        </>
-      );
-    },
   })),
   {
     type: "push",
     label: "Push",
     description: "Outgoing clip is shoved off",
-    renderPreview: (p, thumb) => (
-      <>
-        {renderThumb(
-          thumb,
-          { transform: `translateX(${-p * 100}%)` },
-          "oklch(0.55 0.14 295)",
-        )}
-        {renderThumb(
-          thumb,
-          { transform: `translateX(${(1 - p) * 100}%)` },
-          "oklch(0.72 0.16 162)",
-        )}
-      </>
-    ),
   },
   {
     type: "zoom",
     label: "Zoom in",
     description: "Scale up and dissolve",
-    renderPreview: (p, thumb) => (
-      <>
-        {renderThumb(
-          thumb,
-          { transform: `scale(${1 + p * 1.5})`, opacity: 1 - p },
-          "oklch(0.55 0.14 295)",
-        )}
-        {renderThumb(
-          thumb,
-          { transform: `scale(${1.5 - p * 0.5})`, opacity: p },
-          "oklch(0.72 0.16 162)",
-        )}
-      </>
-    ),
   },
   {
     type: "circleReveal",
     label: "Iris",
     description: "Iris reveal from the center",
-    renderPreview: (p, thumb) => (
-      <>
-        {renderThumb(thumb, {}, "oklch(0.55 0.14 295)")}
-        {renderThumb(
-          thumb,
-          { clipPath: `circle(${p * 75}% at 50% 50%)` },
-          "oklch(0.72 0.16 162)",
-        )}
-      </>
-    ),
   },
   {
     type: "blur",
     label: "Blur",
     description: "Blur out and into the next clip",
-    renderPreview: (p, thumb) => {
-      const b = Math.sin(p * Math.PI) * 6;
-      return (
-        <>
-          {renderThumb(
-            thumb,
-            { opacity: 1 - p, filter: `blur(${b}px)` },
-            "oklch(0.55 0.14 295)",
-          )}
-          {renderThumb(
-            thumb,
-            { opacity: p, filter: `blur(${b}px)` },
-            "oklch(0.72 0.16 162)",
-          )}
-        </>
-      );
-    },
   },
   {
     type: "whipPan",
     label: "Whip pan",
     description: "Fast motion-blurred pan",
-    renderPreview: (p, thumb) => {
-      const b = Math.sin(p * Math.PI) * 8;
-      return (
-        <>
-          {renderThumb(
-            thumb,
-            { transform: `translateX(${-p * 100}%)`, filter: `blur(${b}px)` },
-            "oklch(0.55 0.14 295)",
-          )}
-          {renderThumb(
-            thumb,
-            {
-              transform: `translateX(${(1 - p) * 100}%)`,
-              filter: `blur(${b}px)`,
-            },
-            "oklch(0.72 0.16 162)",
-          )}
-        </>
-      );
-    },
   },
   {
     type: "radialWipe",
     label: "Radial Wipe",
     description: "Clock-style angular sweep",
-    renderPreview: (p, thumb) => (
-      <>
-        {renderThumb(thumb, {}, "oklch(0.55 0.14 295)")}
-        {renderThumb(
-          thumb,
-          {
-            maskImage: `conic-gradient(from -90deg, #000 ${p * 360}deg, transparent 0deg)`,
-            WebkitMaskImage: `conic-gradient(from -90deg, #000 ${p * 360}deg, transparent 0deg)`,
-          },
-          "oklch(0.72 0.16 162)",
-        )}
-      </>
-    ),
   },
   {
     type: "pixelate",
     label: "Pixelate",
     description: "Break the cut into a chunky pixel mosaic",
     params: { maxPixelSize: 48 },
-    renderPreview: (p, thumb) => {
-      const block = 2 + Math.round(Math.sin(p * Math.PI) * 12);
-      return (
-        <>
-          {renderThumb(thumb, { opacity: 1 - p }, "oklch(0.55 0.14 295)")}
-          {renderThumb(thumb, { opacity: p }, "oklch(0.72 0.16 162)")}
-          <div
-            className="pointer-events-none absolute inset-0 opacity-35 mix-blend-overlay"
-            style={{
-              backgroundImage:
-                "linear-gradient(to right, #000 1px, transparent 1px), linear-gradient(to bottom, #000 1px, transparent 1px)",
-              backgroundSize: `${block}px ${block}px`,
-            }}
-          />
-        </>
-      );
-    },
   },
   {
     type: "glitch",
     label: "Glitch",
     description: "Digital slice displacement at the cut",
     params: { intensity: 0.08, slices: 12 },
-    renderPreview: (p, thumb) => {
-      const amount = Math.sin(p * Math.PI) * 12;
-      return (
-        <>
-          {renderThumb(
-            thumb,
-            {
-              opacity: 1 - p * 0.65,
-              transform: `translateX(${-amount}px)`,
-              filter: `hue-rotate(${-amount * 2}deg)`,
-            },
-            "oklch(0.55 0.14 295)",
-          )}
-          {renderThumb(
-            thumb,
-            {
-              opacity: p,
-              transform: `translateX(${amount}px)`,
-              clipPath:
-                "polygon(0 0,100% 0,100% 18%,0 18%,0 30%,100% 30%,100% 48%,0 48%,0 62%,100% 62%,100% 82%,0 82%)",
-            },
-            "oklch(0.72 0.16 162)",
-          )}
-        </>
-      );
-    },
   },
   {
     type: "blinds",
     label: "Venetian Blinds",
     description: "Reveal the next shot through repeating slats",
     params: { count: 8, direction: "vertical" },
-    renderPreview: (p, thumb) => {
-      const open = Math.max(0.5, p * 12);
-      const mask = `repeating-linear-gradient(90deg,#000 0 ${open}px,transparent ${open}px 12px)`;
-      return (
-        <>
-          {renderThumb(thumb, {}, "oklch(0.55 0.14 295)")}
-          {renderThumb(
-            thumb,
-            { maskImage: mask, WebkitMaskImage: mask },
-            "oklch(0.72 0.16 162)",
-          )}
-        </>
-      );
-    },
   },
   {
     type: "diamondReveal",
     label: "Diamond Reveal",
     description: "Geometric iris expanding from the center",
-    renderPreview: (p, thumb) => (
-      <>
-        {renderThumb(thumb, {}, "oklch(0.55 0.14 295)")}
-        {renderThumb(
-          thumb,
-          {
-            clipPath: `polygon(50% ${50 - p * 70}%, ${50 + p * 70}% 50%, 50% ${50 + p * 70}%, ${50 - p * 70}% 50%)`,
-          },
-          "oklch(0.72 0.16 162)",
-        )}
-      </>
-    ),
   },
   ...(
     [
@@ -971,26 +685,6 @@ const TRANSITIONS: TransitionDef[] = [
     label,
     description: "Rotating scale transition with a smooth handoff",
     params: { rotations },
-    renderPreview: (p, thumb) => (
-      <>
-        {renderThumb(
-          thumb,
-          {
-            opacity: 1 - p,
-            transform: `rotate(${rotations * p * 360}deg) scale(${1 - p * 0.75})`,
-          },
-          "oklch(0.55 0.14 295)",
-        )}
-        {renderThumb(
-          thumb,
-          {
-            opacity: p,
-            transform: `rotate(${rotations * (p - 1) * 360}deg) scale(${0.25 + p * 0.75})`,
-          },
-          "oklch(0.72 0.16 162)",
-        )}
-      </>
-    ),
   })),
   ...(
     [
@@ -1003,17 +697,6 @@ const TRANSITIONS: TransitionDef[] = [
     label,
     description: `Card-style ${axis} flip between shots`,
     params: { axis },
-    renderPreview: (p, thumb) => {
-      const firstHalf = p < 0.5;
-      const phase = firstHalf ? 1 - p * 2 : (p - 0.5) * 2;
-      const transform =
-        axis === "horizontal" ? `scaleX(${phase})` : `scaleY(${phase})`;
-      return renderThumb(
-        thumb,
-        { transform },
-        firstHalf ? "oklch(0.55 0.14 295)" : "oklch(0.72 0.16 162)",
-      );
-    },
   })),
   ...(
     [
@@ -1034,21 +717,6 @@ const TRANSITIONS: TransitionDef[] = [
     label,
     description: `Reveal the next shot outward from the ${orientation === "horizontal" ? "center line" : "middle"}`,
     params: { orientation },
-    renderPreview: (p, thumb) => (
-      <>
-        {renderThumb(thumb, {}, "oklch(0.55 0.14 295)")}
-        {renderThumb(
-          thumb,
-          {
-            clipPath:
-              orientation === "horizontal"
-                ? `inset(0 ${50 - p * 50}% 0 ${50 - p * 50}%)`
-                : `inset(${50 - p * 50}% 0 ${50 - p * 50}% 0)`,
-          },
-          "oklch(0.72 0.16 162)",
-        )}
-      </>
-    ),
   })),
   {
     id: "flash-cut",
@@ -1056,16 +724,6 @@ const TRANSITIONS: TransitionDef[] = [
     label: "Flash Cut",
     description: "High-energy white flash through the edit",
     params: { intensity: 1 },
-    renderPreview: (p, thumb) => (
-      <>
-        {renderThumb(thumb, { opacity: 1 - p }, "oklch(0.55 0.14 295)")}
-        {renderThumb(thumb, { opacity: p }, "oklch(0.72 0.16 162)")}
-        <div
-          className="pointer-events-none absolute inset-0 bg-white"
-          style={{ opacity: Math.sin(p * Math.PI) }}
-        />
-      </>
-    ),
   },
   ...(
     [
@@ -1075,8 +733,6 @@ const TRANSITIONS: TransitionDef[] = [
         description: "Warm analog light leak through the edit",
         intensity: 1,
         warmth: 0.75,
-        gradient:
-          "linear-gradient(110deg, rgb(255 40 0), rgb(255 170 20) 48%, rgb(255 245 210))",
       },
       {
         id: "film-burn-red",
@@ -1084,8 +740,6 @@ const TRANSITIONS: TransitionDef[] = [
         description: "Dense red-orange flare for dramatic cuts",
         intensity: 1.3,
         warmth: 1,
-        gradient:
-          "linear-gradient(105deg, rgb(125 0 0), rgb(255 35 0) 45%, rgb(255 210 80))",
       },
       {
         id: "light-leak-cool",
@@ -1093,34 +747,15 @@ const TRANSITIONS: TransitionDef[] = [
         description: "Blue-white optical flare through the edit",
         intensity: 0.9,
         warmth: 0,
-        gradient:
-          "linear-gradient(110deg, rgb(15 65 255), rgb(65 220 255) 48%, rgb(245 250 255))",
       },
     ] as const
   ).map<TransitionDef>(
-    ({ id, label, description, intensity, warmth, gradient }) => ({
+    ({ id, label, description, intensity, warmth }) => ({
       id,
       type: "filmBurn",
       label,
       description,
       params: { intensity, warmth },
-      renderPreview: (p, thumb) => {
-        const burn = Math.sin(p * Math.PI);
-        return (
-          <>
-            {renderThumb(thumb, { opacity: 1 - p }, "oklch(0.55 0.14 295)")}
-            {renderThumb(thumb, { opacity: p }, "oklch(0.72 0.16 162)")}
-            <div
-              className="pointer-events-none absolute inset-0"
-              style={{
-                opacity: burn,
-                background: gradient,
-                mixBlendMode: "screen",
-              }}
-            />
-          </>
-        );
-      },
     }),
   ),
   {
@@ -1128,55 +763,12 @@ const TRANSITIONS: TransitionDef[] = [
     label: "Mosaic Reveal",
     description: "Tiles assemble the next shot in a shuffled pattern",
     params: { tiles: 8, randomness: 0.85 },
-    renderPreview: (p, thumb) => {
-      const tileSize = 12;
-      const cutoff = Math.round(p * 100);
-      const mask = `linear-gradient(135deg, #000 ${cutoff}%, transparent ${cutoff + 18}%)`;
-      return (
-        <>
-          {renderThumb(thumb, {}, "oklch(0.55 0.14 295)")}
-          {renderThumb(
-            thumb,
-            {
-              maskImage: mask,
-              WebkitMaskImage: mask,
-              backgroundSize: `${tileSize}px ${tileSize}px`,
-              imageRendering: "pixelated",
-            },
-            "oklch(0.72 0.16 162)",
-          )}
-        </>
-      );
-    },
   },
   {
     type: "ripple",
     label: "Ripple",
     description: "A fluid wave distorts both shots through the cut",
     params: { amplitude: 0.04, waves: 3 },
-    renderPreview: (p, thumb) => {
-      const wave = Math.sin(p * Math.PI) * 6;
-      return (
-        <>
-          {renderThumb(
-            thumb,
-            {
-              opacity: 1 - p,
-              transform: `translateX(${-wave}px) skewY(${wave * 0.25}deg)`,
-            },
-            "oklch(0.55 0.14 295)",
-          )}
-          {renderThumb(
-            thumb,
-            {
-              opacity: p,
-              transform: `translateX(${wave}px) skewY(${-wave * 0.25}deg)`,
-            },
-            "oklch(0.72 0.16 162)",
-          )}
-        </>
-      );
-    },
   },
   ...(
     [
@@ -1189,45 +781,12 @@ const TRANSITIONS: TransitionDef[] = [
     label,
     description: `Fold the outgoing shot toward the ${direction}`,
     params: { direction, shadow: 0.55 },
-    renderPreview: (p, thumb) => (
-      <>
-        {renderThumb(thumb, {}, "oklch(0.72 0.16 162)")}
-        {renderThumb(
-          thumb,
-          {
-            transform: `scaleX(${1 - p})`,
-            transformOrigin:
-              direction === "left" ? "left center" : "right center",
-            filter: `brightness(${1 - Math.sin(p * Math.PI) * 0.25})`,
-          },
-          "oklch(0.55 0.14 295)",
-        )}
-      </>
-    ),
   })),
   {
     type: "colorSplit",
     label: "Color Split",
     description: "Prismatic channel ghosts collide at the edit",
     params: { maxOffset: 18, angle: 0 },
-    renderPreview: (p, thumb) => {
-      const offset = Math.sin(p * Math.PI) * 7;
-      return (
-        <>
-          {renderThumb(thumb, { opacity: 1 - p }, "oklch(0.55 0.14 295)")}
-          {renderThumb(thumb, { opacity: p }, "oklch(0.72 0.16 162)")}
-          <div
-            className="pointer-events-none absolute inset-0 mix-blend-screen"
-            style={{
-              transform: `translateX(${offset}px)`,
-              background:
-                "linear-gradient(90deg,rgba(255,0,80,.5),transparent 45%,rgba(0,220,255,.55))",
-              opacity: Math.sin(p * Math.PI) * 0.7,
-            }}
-          />
-        </>
-      );
-    },
   },
   ...(
     [
@@ -1256,16 +815,6 @@ const TRANSITIONS: TransitionDef[] = [
     label,
     description,
     params: { curve },
-    renderPreview: (p, thumb) => {
-      const eased =
-        curve === "ease-in" ? p * p : curve === "ease-out" ? p * (2 - p) : p;
-      return (
-        <>
-          {renderThumb(thumb, { opacity: 1 - eased }, "oklch(0.55 0.14 295)")}
-          {renderThumb(thumb, { opacity: eased }, "oklch(0.72 0.16 162)")}
-        </>
-      );
-    },
   })),
   ...(
     [
@@ -1297,27 +846,6 @@ const TRANSITIONS: TransitionDef[] = [
         ? "Angular reveal from the corner"
         : "Feathered directional reveal",
     params: { direction, softness },
-    renderPreview: (p, thumb) => {
-      const clipPath =
-        direction === "right"
-          ? `inset(0 0 0 ${(1 - p) * 100}%)`
-          : direction === "diagonal"
-            ? `polygon(0 0, ${p * 200}% 0, 0 ${p * 200}%)`
-            : `inset(0 ${(1 - p) * 100}% 0 0)`;
-      return (
-        <>
-          {renderThumb(thumb, {}, "oklch(0.55 0.14 295)")}
-          {renderThumb(
-            thumb,
-            {
-              clipPath,
-              filter: softness > 0 ? "blur(1.5px)" : undefined,
-            },
-            "oklch(0.72 0.16 162)",
-          )}
-        </>
-      );
-    },
   })),
   ...(
     [
@@ -1332,38 +860,6 @@ const TRANSITIONS: TransitionDef[] = [
     label,
     description: `Both clips travel ${direction}`,
     params: { direction },
-    renderPreview: (p, thumb) => {
-      const outgoingTransform =
-        direction === "left"
-          ? `translateX(${-p * 100}%)`
-          : direction === "right"
-            ? `translateX(${p * 100}%)`
-            : direction === "up"
-              ? `translateY(${-p * 100}%)`
-              : `translateY(${p * 100}%)`;
-      const incomingTransform =
-        direction === "left"
-          ? `translateX(${(1 - p) * 100}%)`
-          : direction === "right"
-            ? `translateX(${-(1 - p) * 100}%)`
-            : direction === "up"
-              ? `translateY(${(1 - p) * 100}%)`
-              : `translateY(${-(1 - p) * 100}%)`;
-      return (
-        <>
-          {renderThumb(
-            thumb,
-            { transform: outgoingTransform },
-            "oklch(0.55 0.14 295)",
-          )}
-          {renderThumb(
-            thumb,
-            { transform: incomingTransform },
-            "oklch(0.72 0.16 162)",
-          )}
-        </>
-      );
-    },
   })),
   ...(
     [
@@ -1389,20 +885,6 @@ const TRANSITIONS: TransitionDef[] = [
     label,
     description: "Focused scale-and-dissolve transition",
     params: { scale: id === "zoom-punch" ? 3 : 2, center },
-    renderPreview: (p, thumb) => (
-      <>
-        {renderThumb(
-          thumb,
-          {
-            opacity: 1 - p,
-            transform: `scale(${1 + p * (id === "zoom-punch" ? 2 : 1)})`,
-            transformOrigin: `${center.x * 100}% ${center.y * 100}%`,
-          },
-          "oklch(0.55 0.14 295)",
-        )}
-        {renderThumb(thumb, { opacity: p }, "oklch(0.72 0.16 162)")}
-      </>
-    ),
   })),
   ...(
     [
@@ -1417,31 +899,6 @@ const TRANSITIONS: TransitionDef[] = [
     label,
     description: `Motion-blurred whip ${direction}`,
     params: { direction },
-    renderPreview: (p, thumb) => {
-      const axis = direction === "left" || direction === "right" ? "X" : "Y";
-      const sign = direction === "left" || direction === "up" ? -1 : 1;
-      const blur = Math.sin(p * Math.PI) * 8;
-      return (
-        <>
-          {renderThumb(
-            thumb,
-            {
-              transform: `translate${axis}(${sign * p * 100}%)`,
-              filter: `blur(${blur}px)`,
-            },
-            "oklch(0.55 0.14 295)",
-          )}
-          {renderThumb(
-            thumb,
-            {
-              transform: `translate${axis}(${-sign * (1 - p) * 100}%)`,
-              filter: `blur(${blur}px)`,
-            },
-            "oklch(0.72 0.16 162)",
-          )}
-        </>
-      );
-    },
   })),
 ];
 
@@ -1449,7 +906,14 @@ const TRANSITIONS: TransitionDef[] = [
 export const EFFECT_DRAG_MIME = "application/x-openreel-effect";
 export const TRANSITION_DRAG_MIME = "application/x-openreel-transition";
 
-const PREVIEW_CYCLE_MS = 1800;
+/** Keyboard focus (not a mouse click's focus) starts a card's preview, like hover does. */
+function isKeyboardFocus(element: HTMLElement): boolean {
+  try {
+    return element.matches(":focus-visible");
+  } catch {
+    return true;
+  }
+}
 const referenceEffectOrder = new Map([
   "pro-gaussian-blur", "sharpen", "vignette", "grain", "grayscale", "lut",
   "chromaKey", "glow", "pro-mosaic", "pro-mirror", "pro-lens-distortion", "stabilize",
@@ -1486,37 +950,10 @@ function appliedEffectValue(effect: VideoEffect) {
 
 const EffectCard: React.FC<{
   def: EditorEffectPreviewDef;
-  thumbUrl: string | null;
   onApply: () => void;
-}> = ({ def, thumbUrl, onApply }) => {
-  const [progress, setProgress] = useState(0.72);
+}> = ({ def, onApply }) => {
   const [isHover, setIsHover] = useState(false);
-  const rafRef = React.useRef<number | null>(null);
-  const startRef = React.useRef<number>(0);
-
-  React.useEffect(() => {
-    if (!isHover) {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      setProgress(0.72);
-      return;
-    }
-    startRef.current = performance.now();
-    const tick = (now: number) => {
-      const elapsed = (now - startRef.current) % PREVIEW_CYCLE_MS;
-      const t = elapsed / PREVIEW_CYCLE_MS;
-      // Ping-pong so the effect intensifies then relaxes
-      const eased = t < 0.5 ? t * 2 : (1 - t) * 2;
-      setProgress(eased);
-      rafRef.current = requestAnimationFrame(tick);
-    };
-    rafRef.current = requestAnimationFrame(tick);
-    return () => {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    };
-  }, [isHover]);
-
-  const previewStyle = def.previewStyle(progress);
-  const previewId = def.id ?? def.type;
+  const [isFocus, setIsFocus] = useState(false);
 
   const handleDragStart = useCallback(
     (e: React.DragEvent<HTMLElement>) => {
@@ -1538,27 +975,12 @@ const EffectCard: React.FC<{
           e.preventDefault();
           onApply();
         }
-      }} onMouseEnter={() => setIsHover(true)} onMouseLeave={() => setIsHover(false)} type="button" aria-label={`${def.label}. Drag onto a clip to apply, or double-click to apply to selected clip.`} className="group/card h-auto min-w-0 whitespace-normal rounded-[7px] border transition-[background-color,border-color,box-shadow,transform] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 border-border bg-bg-1 hover:bg-bg-2 p-0 workspace-catalog-card group relative flex flex-col items-stretch text-left cursor-grab active:cursor-grabbing">
+      }} onMouseEnter={() => setIsHover(true)} onMouseLeave={() => setIsHover(false)} onFocus={(e) => setIsFocus(isKeyboardFocus(e.currentTarget))} onBlur={() => setIsFocus(false)} type="button" aria-label={`${def.label}. Drag onto a clip to apply, or double-click to apply to selected clip.`} className="group/card h-auto min-w-0 whitespace-normal rounded-[7px] border transition-[background-color,border-color,box-shadow,transform] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 border-border bg-bg-1 hover:bg-bg-2 p-0 workspace-catalog-card group relative flex flex-col items-stretch text-left cursor-grab active:cursor-grabbing">
       <div
         data-effect-preview={def.id ?? def.type}
-        data-preview-progress={progress.toFixed(2)}
         className="relative aspect-video bg-bg-3 overflow-hidden"
       >
-        {!isHover && hasReferenceEffectPreview(previewId) ? (
-          <ReferenceEffectPreview id={previewId} />
-        ) : thumbUrl ? (
-          <img
-            src={thumbUrl}
-            alt=""
-            className="absolute inset-0 w-full h-full object-cover"
-            style={previewStyle}
-            draggable={false}
-          />
-        ) : (
-          <div className="absolute inset-0 grid place-items-center bg-bg-2">
-            <WandSparkles size={24} className="text-fg-muted" />
-          </div>
-        )}
+        <EffectLivePreview def={def} active={isHover || isFocus} />
         <span className="font-normal absolute bottom-1 right-1 text-[8.5px] uppercase px-1.5 py-0.5 rounded bg-black/55 text-white/85 backdrop-blur-sm">
           {def.category}
         </span>
@@ -1579,34 +1001,18 @@ const EffectCard: React.FC<{
 
 const TransitionCard: React.FC<{
   def: TransitionDef;
-  thumbUrl: string | null;
   selected: boolean;
   used: boolean;
   onSelect: () => void;
   onApply: () => void;
-}> = ({ def, thumbUrl, selected, used, onSelect, onApply }) => {
-  const [progress, setProgress] = useState(0);
+}> = ({ def, selected, used, onSelect, onApply }) => {
   const [isHover, setIsHover] = useState(false);
-  const rafRef = React.useRef<number | null>(null);
-  const startRef = React.useRef<number>(0);
-
-  React.useEffect(() => {
-    if (!isHover) {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      setProgress(0);
-      return;
-    }
-    startRef.current = performance.now();
-    const tick = (now: number) => {
-      const elapsed = (now - startRef.current) % PREVIEW_CYCLE_MS;
-      setProgress(elapsed / PREVIEW_CYCLE_MS);
-      rafRef.current = requestAnimationFrame(tick);
-    };
-    rafRef.current = requestAnimationFrame(tick);
-    return () => {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    };
-  }, [isHover]);
+  const [isFocus, setIsFocus] = useState(false);
+  // Real footage under the playhead, blended by the TransitionEngine (see effect-previews/).
+  const previewDef = useMemo<PreviewEffectDef>(
+    () => ({ kind: "transition", id: def.id, type: def.type, params: def.params }),
+    [def.id, def.type, def.params],
+  );
 
   const handleDragStart = useCallback(
     (e: React.DragEvent<HTMLElement>) => {
@@ -1628,13 +1034,9 @@ const TransitionCard: React.FC<{
           onSelect();
           onApply();
         }
-      }} onMouseEnter={() => setIsHover(true)} onMouseLeave={() => setIsHover(false)} type="button" aria-label={`${def.label}. Drag onto a clip edge, or double-click to apply to the selected cut.`} className="group/card h-auto min-w-0 whitespace-normal rounded-[7px] border transition-[background-color,border-color,box-shadow,transform] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 border-border bg-bg-1 hover:bg-bg-2 p-0 workspace-catalog-card group relative flex flex-col items-stretch text-left cursor-grab active:cursor-grabbing">
+      }} onMouseEnter={() => setIsHover(true)} onMouseLeave={() => setIsHover(false)} onFocus={(e) => setIsFocus(isKeyboardFocus(e.currentTarget))} onBlur={() => setIsFocus(false)} type="button" aria-label={`${def.label}. Drag onto a clip edge, or double-click to apply to the selected cut.`} className="group/card h-auto min-w-0 whitespace-normal rounded-[7px] border transition-[background-color,border-color,box-shadow,transform] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 border-border bg-bg-1 hover:bg-bg-2 p-0 workspace-catalog-card group relative flex flex-col items-stretch text-left cursor-grab active:cursor-grabbing">
       <div className="workspace-transition-tile relative aspect-video overflow-hidden">
-        {!isHover && hasReferenceTransitionPreview(def.id ?? def.type) ? (
-          <ReferenceTransitionPreview id={def.id ?? def.type} />
-        ) : (
-          def.renderPreview(progress, thumbUrl)
-        )}
+        <EffectLivePreview def={previewDef} active={isHover || isFocus} />
         {used && <span className="workspace-transition-used" aria-label="Used in timeline" />}
       </div>
       <div className="px-2 py-1.5 border-t border-border">
@@ -1651,42 +1053,9 @@ const TransitionCard: React.FC<{
   );
 };
 
-// ─── Hook: thumbnail of the user's currently selected clip ────────
-
-/**
- * Resolve the best available thumbnail URL from the user's current
- * selection. Falls back to the first video clip in the project, then
- * the first imported video, otherwise null (cards show gradients).
- */
-const useCurrentClipThumbnail = (): string | null => {
-  const selectedItems = useUIStore((state) => state.selectedItems);
-  const selectThumbnail = useMemo(() => {
-    let previousProject: Project | undefined;
-    let thumbnail: string | null = null;
-    return ({ project }: { project: Project }) => {
-      if (previousProject === project) return thumbnail;
-      previousProject = project;
-      const media = new Map(project.mediaLibrary.items.map(item => [item.id, item]));
-      const clips = project.timeline.tracks.flatMap(track => track.clips);
-      for (const selected of selectedItems) {
-        const clip = clips.find(candidate => candidate.id === selected.id);
-        const url = clip && media.get(clip.mediaId)?.thumbnailUrl;
-        if (url) return thumbnail = url;
-      }
-      for (const clip of clips) {
-        const url = media.get(clip.mediaId)?.thumbnailUrl;
-        if (url) return thumbnail = url;
-      }
-      return thumbnail = project.mediaLibrary.items.find(item => item.thumbnailUrl)?.thumbnailUrl ?? null;
-    };
-  }, [selectedItems]);
-  return useProjectStore(selectThumbnail);
-};
-
 // ─── Main panel ───────────────────────────────────────────────────
 
 export const EffectsPanel: React.FC = () => {
-  const thumbUrl = useCurrentClipThumbnail();
   const getSelectedClipIds = useUIStore((s) => s.getSelectedClipIds);
   const project = useProjectStore((s) => s.project);
   const selectedItems = useUIStore((state) => state.selectedItems);
@@ -1726,6 +1095,13 @@ export const EffectsPanel: React.FC = () => {
       (referenceEffectOrder.get(a.id ?? a.type) ?? 99) -
       (referenceEffectOrder.get(b.id ?? b.type) ?? 99));
   }, [catalog, categoryFilter, query]);
+
+  const searchPlaceholder =
+    categoryFilter === "Audio"
+      ? "Audio effects apply to the selected clip"
+      : `Search ${catalog.filter((effect) => matchesEffectCategory(effect, categoryFilter)).length} ${
+          categoryFilter === "All" ? "" : categoryFilter === "Plugins" ? "plugin " : `${categoryFilter.toLowerCase()} `
+        }effects`;
 
   const applyToSelection = useCallback(
     async (def: EditorEffectPreviewDef) => {
@@ -1779,6 +1155,7 @@ export const EffectsPanel: React.FC = () => {
   );
 
   return (
+    <EffectPreviewProvider>
     <div className="workspace-effect-library flex flex-col h-full min-h-0">
       <div className="workspace-panel-heading">
         Effects<small>Drag onto a clip</small>
@@ -1790,7 +1167,8 @@ export const EffectsPanel: React.FC = () => {
           aria-label="Search effects"
           value={query}
           onChange={event => setQuery(event.target.value)}
-          placeholder={`Search ${catalog.length} effects`}
+          disabled={categoryFilter === "Audio"}
+          placeholder={searchPlaceholder}
           />
         </label>
         <div
@@ -1820,7 +1198,7 @@ export const EffectsPanel: React.FC = () => {
       </div>
       <ScrollArea className="flex-1 min-h-0">
         <div className="workspace-effects-content">
-          {categoryFilter === "Plugins" && (
+          {categoryFilter === "Plugins" && !query.trim() && (
             <div className="workspace-recipes-note">
               <strong>Effect plugins</strong>
               <p>
@@ -1834,27 +1212,6 @@ export const EffectsPanel: React.FC = () => {
               >
                 Manage plugins
               </Button>
-            </div>
-          )}
-          {categoryFilter === "Keying" && (
-            <div className="workspace-recipes-note">
-              <strong>Chroma key</strong>
-              <p>
-                Remove a sampled background color from a video or image clip.
-              </p>
-              <Button
-                variant="secondary"
-                disabled={!keyingClip}
-                onClick={() => {
-                  if (keyingClip)
-                    useInspectorNavigationStore
-                      .getState()
-                      .requestSection("chroma-key", keyingClip.id);
-                }}
-              >
-                Configure chroma key
-              </Button>
-              {!keyingClip && <p>Select a video or image clip first.</p>}
             </div>
           )}
           {categoryFilter === "Audio" &&
@@ -1871,8 +1228,7 @@ export const EffectsPanel: React.FC = () => {
             ))}
           {selectedClip &&
             (applied.length > 0 || appliedLut) &&
-            categoryFilter !== "Audio" &&
-            categoryFilter !== "Keying" && (
+            categoryFilter !== "Audio" && (
               <div className="workspace-applied-effects">
                 <div>
                   <strong>
@@ -1943,21 +1299,40 @@ export const EffectsPanel: React.FC = () => {
                 <EffectCard
                   key={def.id ?? def.type}
                   def={def}
-                  thumbUrl={thumbUrl}
                   onApply={() => applyToSelection(def)}
                 />
               ))}
           </div>
+          {categoryFilter === "Keying" && !query.trim() && (
+            <div className="workspace-recipes-note">
+              <p>Remove a sampled background color from the selected video or image clip.</p>
+              <Button
+                variant="secondary"
+                disabled={!keyingClip}
+                onClick={() => {
+                  if (keyingClip)
+                    useInspectorNavigationStore
+                      .getState()
+                      .requestSection("chroma-key", keyingClip.id);
+                }}
+              >
+                Configure chroma key
+              </Button>
+              {!keyingClip && <p>Select a video or image clip first.</p>}
+            </div>
+          )}
           {filtered.length === 0 &&
-            categoryFilter !== "Audio" && (
+            categoryFilter !== "Audio" &&
+            query.trim() !== "" && (
               <span className="text-fg-2 font-normal block text-center text-[10.5px] py-6"
               >
-                No effects match "{query}".
+                No effects match "{query.trim()}".
               </span>
             )}
         </div>
       </ScrollArea>
     </div>
+    </EffectPreviewProvider>
   );
 };
 
@@ -2003,7 +1378,6 @@ function createTransitionLibrarySelector() {
 }
 
 export const TransitionsPanel: React.FC = () => {
-  const thumbUrl = useCurrentClipThumbnail();
   const selectLibrary = useMemo(createTransitionLibrarySelector, []);
   const { frameRate, eligibleCutCount, usedTransitions } = useProjectStore(selectLibrary);
   const exporting = useUIStore(state => state.exportState.isExporting);
@@ -2139,6 +1513,7 @@ export const TransitionsPanel: React.FC = () => {
   );
 
   return (
+    <EffectPreviewProvider>
     <div className="workspace-transition-library flex flex-col h-full min-h-0">
       <div className="workspace-panel-heading">
         <Button
@@ -2246,7 +1621,6 @@ export const TransitionsPanel: React.FC = () => {
                 >
                   <TransitionCard
                     def={def}
-                    thumbUrl={thumbUrl}
                     selected={selectedTransition === def}
                     used={usedTransitions.has(def)}
                     onSelect={() => setSelectedTransition(def)}
@@ -2342,5 +1716,6 @@ export const TransitionsPanel: React.FC = () => {
         </Button>
       </div>
     </div>
+    </EffectPreviewProvider>
   );
 };

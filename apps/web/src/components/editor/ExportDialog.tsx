@@ -11,6 +11,8 @@ import { useProjectStore } from "../../stores/project-store";
 import { useUIStore } from "../../stores/ui-store";
 import { ExportStemsSection } from "./ExportStemsSection";
 import { ExportPresetManager } from "./ExportPresetManager";
+import { estimatePresetBytes, formatEstimatedSize } from "./export-preset-estimate";
+import { sampleProgramFrame } from "../../services/color-sampling";
 import {
   Download,
   Settings,
@@ -23,7 +25,11 @@ import {
   Clock,
   HardDrive,
   Video,
-  Share2,
+  Youtube,
+  Instagram,
+  Twitter,
+  Facebook,
+  Linkedin,
   Cpu,
   Gauge,
   Zap,
@@ -199,18 +205,83 @@ const getExportValidationError = getVideoExportValidationError;
 type PlatformIcon = typeof Video;
 
 const PLATFORM_ICONS: Record<string, PlatformIcon> = {
-  YouTube: Video,
-  Instagram: Share2,
-  Twitter: Share2,
+  YouTube: Youtube,
+  Instagram: Instagram,
+  Twitter: Twitter,
   TikTok: Music,
-  Facebook: Share2,
-  LinkedIn: Share2,
+  Facebook: Facebook,
+  LinkedIn: Linkedin,
   Broadcast: Monitor,
   Web: Globe,
   Archive: Archive,
   Audio: Music,
   Custom: Settings,
 };
+
+/** The preset's real aspect ratio with the current Program frame cropped (cover) into it. */
+const PresetAspectFrame: React.FC<{
+  width: number;
+  height: number;
+  fallbackIcon: PlatformIcon;
+  frameUrl?: string | null;
+}> = ({ width, height, fallbackIcon: Fallback, frameUrl }) => {
+  if (!(width > 0 && height > 0)) {
+    return (
+      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-bg-2 text-fg-2">
+        <Fallback size={16} />
+      </span>
+    );
+  }
+  const box = 40;
+  const ratio = width / height;
+  const w = ratio >= 1 ? box : Math.max(14, Math.round(box * ratio));
+  const h = ratio >= 1 ? Math.max(14, Math.round(box / ratio)) : box;
+  return (
+    <span
+      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-bg-2"
+      data-testid="preset-aspect-frame"
+      data-aspect={ratio.toFixed(3)}
+      aria-hidden
+    >
+      <span
+        className="overflow-hidden rounded-[3px] border border-fg-muted bg-bg-3"
+        style={{ width: w, height: h }}
+      >
+        {frameUrl ? (
+          <img src={frameUrl} alt="" draggable={false} className="h-full w-full object-cover" />
+        ) : null}
+      </span>
+    </span>
+  );
+};
+
+/** A small JPEG of the Program frame at the playhead, captured once when the dialog opens. */
+function useProgramFrameUrl(active: boolean): string | null {
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (!active) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const frame = await sampleProgramFrame();
+        if (!frame || cancelled) return;
+        const canvas = document.createElement("canvas");
+        canvas.width = frame.width;
+        canvas.height = frame.height;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return;
+        ctx.putImageData(new ImageData(new Uint8ClampedArray(frame.data), frame.width, frame.height), 0, 0);
+        if (!cancelled) setUrl(canvas.toDataURL("image/jpeg", 0.7));
+      } catch {
+        // No frame to show: the card keeps the plain outline.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [active]);
+  return url;
+}
 
 /** Which sequence to render; hidden while the project has a single sequence. */
 const ExportSequencePicker: React.FC = () => {
@@ -267,12 +338,12 @@ const UsePreviewsToggle: React.FC<{
       title={
         match
           ? "Frames already rendered with Render In to Out are reused instead of re-rendering. Cached frames are lossy-encoded previews, so output can differ slightly from a fresh render."
-          : "No rendered previews match this export's resolution and frame rate."
+          : "No frames rendered with Render In to Out match this export's resolution and frame rate, so everything renders fresh."
       }
     >
       <Switch checked={checked} onCheckedChange={onCheckedChange} aria-label="Use previews" />
       <span>Use previews</span>
-      <span className="text-fg-muted/70">{match ? "(matching cache)" : "(no match)"}</span>
+      <span className="text-fg-muted/70">{match ? "Rendered frames available" : "Nothing rendered yet"}</span>
     </label>
   );
 };
@@ -799,6 +870,11 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
     })
     .slice(0, 5);
 
+  const programFrameUrl = useProgramFrameUrl(isOpen);
+  const presetSize = (preset: PlatformExportPreset): string =>
+    "width" in preset.settings
+      ? formatEstimatedSize(estimatePresetBytes(preset.settings as VideoExportSettings, duration))
+      : "";
   const filteredPresets =
     selectedPlatform === "recommended"
       ? [projectPreset, ...recommendedForVideo]
@@ -1293,7 +1369,7 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
                   </p>
                 </div>
                 <span className="shrink-0 rounded-full bg-bg-2 px-2.5 py-1 text-[10px] font-medium text-fg-muted">
-                  {filteredPresets.length} options
+                  {filteredPresets.length} {filteredPresets.length === 1 ? "option" : "options"}
                 </span>
               </div>
               <ExportPresetManager
@@ -1332,7 +1408,7 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
                         "relative block cursor-pointer rounded-md border border-border bg-bg-1 text-fg transition-colors hover:bg-bg-2 focus-within:ring-2 focus-within:ring-ring",
                         selectedPreset?.id === preset.id &&
                           "border-accent bg-selected shadow-[0_0_0_1px_var(--accent)]",
-                        `min-h-[118px] rounded-[10px] p-4 text-left ${
+                        `rounded-[10px] p-2.5 text-left ${
                           isSelected
                             ? "border-accent bg-selected shadow-[0_0_0_1px_var(--accent)]"
                             : "border-border bg-bg-1 hover:border-accent/40 hover:bg-bg-2"
@@ -1346,11 +1422,14 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
                         aria-label={preset.name}
                         className="sr-only"
                       />
-                      <div className="mb-2.5 flex items-start justify-between gap-3">
+                      <div className="mb-1.5 flex items-start justify-between gap-3">
                         <div className="flex min-w-0 items-center gap-2.5">
-                          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-bg-2 text-fg-2">
-                            <PlatformIcon size={14} />
-                          </span>
+                          <PresetAspectFrame
+                            width={"width" in preset.settings ? (preset.settings as VideoExportSettings).width : 0}
+                            height={"height" in preset.settings ? (preset.settings as VideoExportSettings).height : 0}
+                            fallbackIcon={PlatformIcon}
+                            frameUrl={programFrameUrl}
+                          />
                           <span className="truncate text-[12px] font-semibold text-fg">
                             {preset.name}
                           </span>
@@ -1368,7 +1447,7 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
                           />
                         ) : null}
                       </div>
-                      <span className="text-fg-2 font-normal mb-3 line-clamp-2 min-h-8 text-[11px] leading-4">
+                      <span className="text-fg-2 font-normal mb-1.5 line-clamp-2 block text-[11px] leading-4">
                         {preset.description}
                       </span>
                       {"width" in preset.settings && (
@@ -1381,9 +1460,19 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
                             {(preset.settings as VideoExportSettings).frameRate}
                             {" fps"}
                           </span>
-                          <span className="rounded bg-bg-2 px-1.5 py-0.5">
-                            {preset.aspectRatio}
-                          </span>
+                          {preset.aspectRatio ? (
+                            <span className="rounded bg-bg-2 px-1.5 py-0.5">
+                              {preset.aspectRatio}
+                            </span>
+                          ) : null}
+                          {presetSize(preset) ? (
+                            <span
+                              className="rounded bg-bg-2 px-1.5 py-0.5 text-fg-2"
+                              data-testid="preset-size"
+                            >
+                              {presetSize(preset)}
+                            </span>
+                          ) : null}
                         </div>
                       )}
                       {preset.maxDuration && (
@@ -2813,10 +2902,10 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
             </Collapsible>
           )}
         </Tabs>
-        <DialogFooter className="export-dialog-footer flex-col items-stretch gap-3 border-t border-border px-5 py-3 sm:flex-col sm:items-stretch sm:space-x-0">
+        <DialogFooter className="export-dialog-footer flex-col items-stretch gap-2 border-t border-border px-5 py-3 sm:flex-col sm:items-stretch sm:space-x-0">
           {!isDesktop && (
-            <div className="space-y-1.5">
-              <div className="space-y-1.5">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <div className="flex items-center gap-2">
                 <Label
                   htmlFor="export-save-video"
                   className="text-[11px] text-fg-2"
@@ -2831,7 +2920,7 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
                 >
                   <SelectTrigger
                     id="export-save-video"
-                    className="h-8 w-full text-xs"
+                    className="h-8 w-[220px] text-xs"
                   >
                     <SelectValue />
                   </SelectTrigger>
@@ -2851,19 +2940,16 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
                   </SelectContent>
                 </Select>
               </div>
-              <p className="text-[11px] text-fg-muted">
-                Export uses your original media at the selected quality. Choose
-                a file location to stream large exports directly to disk.
+              <p className="min-w-0 flex-1 text-[11px] text-fg-muted">
+                Choose a file location to stream large exports straight to disk.
               </p>
             </div>
           )}
-          {!isDesktop && (
+          {!isDesktop && (checkingCapability || capabilityError) && (
             <p role="status" className="text-[11px] text-fg-muted">
               {checkingCapability
                 ? "Checking this browser’s encoder support…"
-                : capabilityError
-                  ? "Choose another format to export in this browser."
-                  : "Codec availability depends on this browser. Try H.264 / MP4 or VP9 / WebM with Opus audio."}
+                : "Choose another format to export in this browser."}
             </p>
           )}
           {capabilityError && (
@@ -2943,7 +3029,9 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
                     <HardDrive size={12} />~
                     {activeTab === "reduce" && reducePlan
                       ? formatBytes(reduceEstimatedBytes)
-                      : formatFileSize(
+                      : activeTab === "presets" && selectedPreset && "width" in selectedPreset.settings
+                        ? formatEstimatedSize(estimatePresetBytes(selectedPreset.settings as VideoExportSettings, duration)).replace("~", "")
+                        : formatFileSize(
                           activeTab === "presets" && selectedPreset
                             ? (selectedPreset.settings as VideoExportSettings)
                                 .bitrate || 8000

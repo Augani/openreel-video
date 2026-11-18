@@ -56,6 +56,8 @@ describe("ChatPanel empty state", () => {
     useAIConnectionStore.setState({ provider: "openai", baseUrl: "https://api.openai.com/v1", model: "gpt-4o", apiKey: "" });
     render(<ChatPanel />);
     expect(screen.getByRole("button", { name: "Connect a model" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "No model connected" })).toBeInTheDocument();
+    expect(screen.queryByText(/gpt-4o/i)).toBeNull();
   });
 });
 

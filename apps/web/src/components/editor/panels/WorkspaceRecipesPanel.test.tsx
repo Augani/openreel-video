@@ -20,6 +20,7 @@ import { useEditorWorkspaceStore } from "../../../stores/editor-workspace-store"
 const bridge = vi.hoisted(() => ({
   analyzeClip: vi.fn(),
   cutSilence: vi.fn(),
+  countSilences: vi.fn(),
 }));
 vi.mock("../../../bridges/silence-cut-bridge", () => ({
   getSilenceCutBridge: () => bridge,
@@ -102,6 +103,20 @@ afterEach(() => {
   useEditorWorkspaceStore.getState().setSection("media");
 });
 describe("recipe progress cards", () => {
+  it("shows how many silences the recipe would cut in the target clip", async () => {
+    bridge.countSilences.mockResolvedValue(3);
+    render(<WorkspaceRecipesPanel />);
+    expect(await screen.findByTestId("silence-preview")).toHaveTextContent("3 silences found");
+    expect(bridge.countSilences).toHaveBeenCalledWith("voice", expect.objectContaining({ minSilenceDuration: 0.6 }));
+  });
+
+  it("shows nothing when the clip cannot be scanned", async () => {
+    bridge.countSilences.mockResolvedValue(null);
+    render(<WorkspaceRecipesPanel />);
+    await act(async () => { await new Promise((r) => setTimeout(r, 600)); });
+    expect(screen.queryByTestId("silence-preview")).not.toBeInTheDocument();
+  });
+
   it("clears a previous project's activity and ignores its late analysis result after switching projects", async () => {
     let finish!: (result: SilenceAnalysisResult) => void;
     bridge.analyzeClip.mockImplementation(

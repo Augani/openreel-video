@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { PARTICLE_PRESETS, createEffectFromPreset } from "./particle-presets";
 import {
+  drawParticleEffects,
   drawProjectParticles,
   isParticleEffect,
   projectParticleEffects,
@@ -173,6 +174,21 @@ describe("absolute particle frames", () => {
     e.config.lifetime.min = 0;
     expect(isParticleEffect(e)).toBe(false);
     expect(sampleParticleEffect(e, 4, 640, 360)).toEqual([]);
+  });
+});
+describe("drawParticleEffects", () => {
+  it("draws the same particles drawProjectParticles does, in an explicit simulation space", () => {
+    const e = createEffectFromPreset("explode-burst", "preview", "preview", 0, 2)!;
+    const ctx = context();
+    const drawn = drawParticleEffects(ctx, [e], 0.8, 192, 108, 640, 360);
+    expect(drawn).toBeGreaterThan(0);
+    expect(ctx.scale).toHaveBeenCalledWith(0.3, 0.3);
+    expect(ctx.arc).toHaveBeenCalledTimes(drawn);
+    expect(sampleParticleEffect(e, 0.8, 640, 360).filter((p) => p.opacity > 0 && p.size > 0)).toHaveLength(drawn);
+  });
+  it("draws nothing outside the effect's own time", () => {
+    const e = createEffectFromPreset("explode-burst", "preview", "preview", 0, 2)!;
+    expect(drawParticleEffects(context(), [e], 5, 192, 108, 640, 360)).toBe(0);
   });
 });
 function context() {

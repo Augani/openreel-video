@@ -351,6 +351,8 @@ export interface MediaMetadata {
   readonly stockSource?: StockMediaSource;
   /** Stable provenance for sound-library imports; independent of the file name. */
   readonly soundLibraryId?: string;
+  /** Set when the file came straight from the in-app recorder; independent of the file name. */
+  readonly recordedTake?: "screen" | "webcam";
   readonly duration: number; // In seconds
   readonly width: number; // For video/image
   readonly height: number; // For video/image

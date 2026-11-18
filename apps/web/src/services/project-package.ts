@@ -5,6 +5,7 @@ import {
   type Project,
 } from "@openreel/core";
 import {
+  fontMimeType,
   planProjectFonts,
   type FontEmbedEntry,
   type FontEmbedStatus,
@@ -147,9 +148,10 @@ export async function createProjectPackage(
     };
     const data = plan.payloads.get(entry.family);
     if (data) {
-      fontBlobs.push(new Blob([data], { type: "font/sfnt" }));
+      const type = fontMimeType(data);
+      fontBlobs.push(new Blob([data], { type }));
       record.size = data.byteLength;
-      record.type = "font/sfnt";
+      record.type = type;
     }
     return record;
   });

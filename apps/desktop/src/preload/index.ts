@@ -24,6 +24,9 @@ contextBridge.exposeInMainWorld("openreel", {
     list: () => ipcRenderer.invoke(CHANNELS.samplesList, undefined),
     get: (id: string) => ipcRenderer.invoke(CHANNELS.samplesGet, { id }),
   },
+  fonts: {
+    brotliDecompress: (data: Uint8Array) => ipcRenderer.invoke(CHANNELS.fontsBrotliDecompress, { data }),
+  },
   probeHardware: () => ipcRenderer.invoke(CHANNELS.probeHardware, undefined),
   onMenuAction: (cb: (id: string) => void) => {
     const handler = (_event: unknown, id: string) => cb(id);

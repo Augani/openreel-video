@@ -1,5 +1,6 @@
 import type { ActionExecutorLike } from "../../services/lazy-action-executor";
 import { WorkspaceStockPanel } from "./WorkspaceStockPanel";
+import { RecordingsPanel } from "./RecordingsPanel";
 import { WorkspaceGraphicsPanel } from "./WorkspaceGraphicsPanel";
 import { AudioLibraryIcon } from "@/icons/audio-library";
 import { WorkspaceTextPanel } from "./WorkspaceTextPanel";
@@ -30,6 +31,7 @@ import { useProjectStore } from "../../stores/project-store";
 import { useUIStore } from "../../stores/ui-store";
 import { useTimelineStore } from "../../stores/timeline-store";
 import { RAW_FILE_ACCEPT, groupCinemaDng, interpretedDisplaySize, type MediaItem } from "@openreel/core";
+import { enqueueImportBatch, takeNextImportBatch, type PendingImportBatch } from "../../services/import-batch-queue";
 import { importCinemaDngSequence, looksLikeCinemaDngFrame } from "../../services/cinemadng-sequence";
 import { AspectRatioMatchDialog } from "./dialogs/AspectRatioMatchDialog";
 import { WorkspaceGeneratePanel } from "./WorkspaceGeneratePanel";
@@ -201,6 +203,78 @@ const PanelButton: React.FC<{
 
 
 
+const audioPeakCache = new Map<string, number[]>();
+const AUDIO_PEAK_BARS = 48;
+const AUDIO_PEAK_MAX_BYTES = 48 * 1024 * 1024;
+
+/** Lazily computes a coarse peak envelope for audio tiles (idle-time, cached, size-capped). */
+function useMediaAudioPeaks(item: MediaItem, enabled: boolean): number[] {
+  const given = item.waveformData;
+  const [peaks, setPeaks] = useState<number[]>(() => audioPeakCache.get(item.id) ?? []);
+  useEffect(() => {
+    if (!enabled || item.type !== "audio" || item.isPlaceholder) return;
+    if (given?.length) {
+      const step = given.length / AUDIO_PEAK_BARS;
+      setPeaks(Array.from({ length: AUDIO_PEAK_BARS }, (_, i) => Math.abs(given[Math.floor(i * step)] ?? 0)));
+      return;
+    }
+    const cached = audioPeakCache.get(item.id);
+    if (cached) { setPeaks(cached); return; }
+    const blob = item.blob;
+    if (!blob || blob.size > AUDIO_PEAK_MAX_BYTES) return;
+    let cancelled = false;
+    const run = async () => {
+      try {
+        const context = new OfflineAudioContext(1, 1, 44100);
+        const buffer = await context.decodeAudioData(await blob.arrayBuffer());
+        const data = buffer.getChannelData(0);
+        const block = Math.max(1, Math.floor(data.length / AUDIO_PEAK_BARS));
+        const result = Array.from({ length: AUDIO_PEAK_BARS }, (_, i) => {
+          let max = 0;
+          const end = Math.min(data.length, (i + 1) * block);
+          for (let j = i * block; j < end; j += 8) max = Math.max(max, Math.abs(data[j]));
+          return max;
+        });
+        const top = Math.max(...result, 0.001);
+        const normalized = result.map((v) => v / top);
+        audioPeakCache.set(item.id, normalized);
+        if (!cancelled) setPeaks(normalized);
+      } catch { /* undecodable audio keeps the icon tile */ }
+    };
+    const idle = (window as unknown as { requestIdleCallback?: (cb: () => void) => number }).requestIdleCallback;
+    const handle = idle ? idle(() => void run()) : window.setTimeout(() => void run(), 50);
+    return () => { cancelled = true; if (!idle) window.clearTimeout(handle); };
+  }, [enabled, item.id, item.type, item.isPlaceholder, item.blob, given]);
+  return peaks;
+}
+
+const THUMBNAIL_WAIT_MS = 8000;
+
+/**
+ * Shimmer only while a poster frame can still arrive. Images can show their own bytes at once;
+ * anything that never produced a thumbnail settles to the plain type tile instead of shimmering forever.
+ */
+function useThumbnailState(item: MediaItem): { waiting: boolean; imageUrl: string | null } {
+  const eligible = !item.thumbnailUrl && item.type !== "audio" && !item.isPlaceholder && !item.isPending && !item.kieaiError;
+  const [expired, setExpired] = useState(false);
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const blob = item.type === "image" ? item.blob : null;
+  useEffect(() => {
+    if (!eligible || !blob) { setImageUrl(null); return; }
+    let url: string;
+    try { url = URL.createObjectURL(blob); } catch { setImageUrl(null); return; }
+    setImageUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [eligible, blob]);
+  useEffect(() => {
+    setExpired(false);
+    if (!eligible) return;
+    const handle = window.setTimeout(() => setExpired(true), THUMBNAIL_WAIT_MS);
+    return () => window.clearTimeout(handle);
+  }, [eligible, item.id]);
+  return { waiting: eligible && !expired && !imageUrl, imageUrl };
+}
+
 const MediaThumbnail: React.FC<{
   item: MediaItem;
   isSelected: boolean;
@@ -230,6 +304,8 @@ const MediaThumbnail: React.FC<{
   onRetryKieAI,
 }) => {
   const [isHovered, setIsHovered] = useState(false);
+  const audioPeaks = useMediaAudioPeaks(item, viewMode !== "list");
+  const thumbnailState = useThumbnailState(item);
   const copyCredits = () => {
     if (!item.metadata.stockSource) return;
     void navigator.clipboard.writeText(stockCreditText(item.metadata.stockSource)).then(
@@ -428,24 +504,42 @@ const MediaThumbnail: React.FC<{
         {/* Thumbnail or placeholder */}
         {item.type === "video" && <PreviewProxyBadge mediaId={item.id} />}
         {item.type === "video" && <ProxyStateBadge mediaId={item.id} />}
-        {item.thumbnailUrl ? (
+        {item.type === "audio" && audioPeaks.length > 0 && !item.isPlaceholder ? (
+          <div className="workspace-media-audio-wave" data-testid="media-audio-wave" aria-hidden="true">
+            {audioPeaks.map((amplitude, i) => (
+              <i key={i} style={{ height: `${Math.max(6, Math.min(100, amplitude * 100))}%` }} />
+            ))}
+          </div>
+        ) : item.isPlaceholder && !item.isPending && !item.kieaiError ? (
+          <>
+            {(item.thumbnailUrl || thumbnailState.imageUrl) && (
+              <img
+                src={item.thumbnailUrl || thumbnailState.imageUrl || undefined}
+                alt=""
+                aria-hidden="true"
+                className="h-full w-full object-cover"
+              />
+            )}
+            <div
+              className={`workspace-media-offline${item.thumbnailUrl || thumbnailState.imageUrl ? " has-thumbnail" : ""}`}
+              data-testid="media-offline-tile"
+              aria-label={`${item.name}: media offline`}
+            >
+              <Icon size={thumbnailIconSize} />
+              <span>Media offline</span>
+            </div>
+          </>
+        ) : item.thumbnailUrl || thumbnailState.imageUrl ? (
           <img
-            src={item.thumbnailUrl}
+            src={item.thumbnailUrl || thumbnailState.imageUrl || undefined}
             alt={item.name}
             className="w-full h-full object-cover"
           />
+        ) : thumbnailState.waiting ? (
+          <div className="workspace-media-skeleton" data-testid="media-thumbnail-skeleton" aria-label="Generating thumbnail" role="img" />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center bg-bg-2">
             <Icon size={thumbnailIconSize} className={iconColor} />
-          </div>
-        )}
-
-        {/* Audio waveform placeholder */}
-        {item.type === "audio" && item.waveformData?.length && (
-          <div className="absolute top-1/2 left-0 right-0 h-4 flex items-center gap-px px-2 -translate-y-1/2">
-            {Array.from({length: 32}, (_,i) => Math.abs(item.waveformData![Math.floor(i * item.waveformData!.length / 32)])).map((amplitude, i) => (
-              <div key={i} className="flex-1 bg-primary/30 rounded-full" style={{ height: `${Math.max(5, amplitude * 100)}%` }} />
-            ))}
           </div>
         )}
 
@@ -743,14 +837,17 @@ export const AssetsPanel: React.FC = () => {
   }, [revealNonce, revealMediaId]);
   const mediaImportRequest = useRef<MediaOwner | null>(null);
   const backgroundRequest = useRef<MediaOwner | null>(null);
+  const pendingImportBatches = useRef<PendingImportBatch<MediaOwner>[]>([]);
   useEffect(() => {
     mediaImportRequest.current = null;
+    pendingImportBatches.current = [];
     backgroundRequest.current = null;
     setIsImporting(false);
     setImportProgress("");
     setGeneratingBackground(null);
     return () => {
       mediaImportRequest.current = null;
+      pendingImportBatches.current = [];
       backgroundRequest.current = null;
     };
   }, [projectId, actionExecutor]);
@@ -787,15 +884,21 @@ export const AssetsPanel: React.FC = () => {
 
   // A batch belongs to the editing session that opened the picker or accepted
   // the drop. Later files and progress cannot spill into a replacement project.
-  const handleFileImport = useCallback(
-    async (files: FileList | readonly File[] | null, dropOwner?: MediaOwner) => {
-      if (!files?.length || mediaImportRequest.current) return;
+  const handleFileImport: (files: FileList | readonly File[] | null, dropOwner?: MediaOwner) => Promise<void> = useCallback(
+    async (files: FileList | readonly File[] | null, dropOwner?: MediaOwner): Promise<void> => {
+      if (!files?.length) return;
+      // Snapshot now: the picker clears its FileList as soon as the change handler returns.
+      const picked = Array.from(files);
       const current = useProjectStore.getState();
       const owner = dropOwner ?? { projectId: current.project.id, executor: current.actionExecutor };
       if (!ownsMediaSession(owner)) return;
+      // A batch picked while another is importing waits its turn; it is not discarded.
+      if (mediaImportRequest.current) {
+        enqueueImportBatch(pendingImportBatches.current, owner, picked);
+        return;
+      }
       mediaImportRequest.current = owner;
       const owns = () => mediaImportRequest.current === owner && ownsMediaSession(owner);
-      const picked = Array.from(files);
       // Numbered .dng frames are a CinemaDNG sequence: baked into one video clip. Everything else imports one by one.
       const grouped = groupCinemaDng(picked);
       const sequences: typeof grouped.sequences = [];
@@ -832,6 +935,8 @@ export const AssetsPanel: React.FC = () => {
           mediaImportRequest.current = null;
           setIsImporting(false);
           setImportProgress("");
+          const next = takeNextImportBatch(pendingImportBatches.current, ownsMediaSession);
+          if (next) void handleFileImport(next.files, next.owner);
         }
       }
     },
@@ -1212,10 +1317,9 @@ export const AssetsPanel: React.FC = () => {
             }}
           >
             <WorkspaceTabs label="Media sources" value={mediaSource} onChange={(value) => {
-              if (value === "recordings") { openModal("recorder"); return; }
               setMediaSource(value);
             }} options={[{value:"project",label:<>Project {mediaItems.length > 0 && <span className="workspace-count">{mediaItems.length}</span>}</>},{value:"stock",label:"Stock"},{value:"recordings",label:"Recordings"}]} />
-            <div className="flex flex-col flex-1 min-h-0" {...workspaceTabPanel("Media sources",mediaSource)}>{mediaSource === "stock" ? <WorkspaceStockPanel backgrounds={BACKGROUND_PRESETS} onImportBackground={handleImportBackground} generatingBackground={generatingBackground} /> : <>
+            <div className="flex flex-col flex-1 min-h-0" {...workspaceTabPanel("Media sources",mediaSource)}>{mediaSource === "stock" ? <WorkspaceStockPanel backgrounds={BACKGROUND_PRESETS} onImportBackground={handleImportBackground} generatingBackground={generatingBackground} /> : mediaSource === "recordings" ? <RecordingsPanel items={mediaItems} onRecord={() => openModal("recorder")} onAddToTimeline={(item) => handleAddToTimeline(item)} onOpenInSource={(item) => openInSourceMonitor(item.id)} /> : <>
             <div className="workspace-media-browser flex flex-col shrink-0">
               <div className="workspace-media-toolbar flex gap-1.5">
                 <label className="workspace-search"><MediaLibraryIcon name="search" /><Input ref={searchInputRef} aria-label="Search media" placeholder="Search media" value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} /></label>
@@ -1226,36 +1330,34 @@ export const AssetsPanel: React.FC = () => {
             </div>
             <ProjectPanelBar data={panelData} selectionCount={mediaSelectionCount} />
             <ProxyIngestPanel />
-            <SequencesSection data={panelData} />
-            {missingAssetsCount > 0 && (
-              <div className="px-4 pb-3 space-y-2">
-                <PanelButton
-                  label="Show Only Missing Assets"
-                  onClick={() => setShowOnlyMissing(!showOnlyMissing)}
-                  className={`w-full px-3 py-2 rounded-lg border text-xs font-medium transition-all flex items-center justify-between ${
-                    showOnlyMissing
-                      ? "bg-yellow-500/10 border-yellow-500 text-yellow-500"
-                      : "bg-background-tertiary border-border text-text-secondary hover:border-yellow-500/50"
-                  }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <AlertTriangle size={14} />
-                    <span>Show Only Missing Assets</span>
-                  </div>
-                  <div className="px-2 py-0.5 rounded-full bg-yellow-500 text-black text-[10px] font-bold">
-                    {missingAssetsCount}
-                  </div>
-                </PanelButton>
-                <PanelButton
-                  label="Relink from Folder"
-                  onClick={desktopIngestAvailable() ? () => void relinkFromFolder("full") : handleRelinkFromFolder}
-                  className="w-full px-3 py-2 rounded-lg border border-yellow-500/40 bg-yellow-500/5 text-yellow-500 text-xs font-medium transition-all hover:bg-yellow-500/15 flex items-center gap-2"
-                >
-                  <RefreshCw size={14} />
-                  <span>{desktopIngestAvailable() ? "Search folder & relink…" : "Relink from Folder…"}</span>
-                </PanelButton>
-              </div>
-            )}
+            <SequencesSection
+              data={panelData}
+              trailing={missingAssetsCount > 0 ? (
+                <div className="flex min-w-0 items-center gap-1" data-testid="missing-assets-bar">
+                  <PanelButton
+                    label="Show Only Missing Assets"
+                    onClick={() => setShowOnlyMissing(!showOnlyMissing)}
+                    className={`flex h-5 min-w-0 items-center gap-1 rounded-[4px] border px-1.5 text-[10.5px] font-medium normal-case tracking-normal transition-all ${
+                      showOnlyMissing
+                        ? "bg-yellow-500/10 border-yellow-500 text-yellow-500"
+                        : "bg-background-tertiary border-border text-text-secondary hover:border-yellow-500/50"
+                    }`}
+                  >
+                    <AlertTriangle size={10} className="shrink-0" />
+                    <span>Missing</span>
+                    <span className="shrink-0 rounded-full bg-yellow-500 px-1 text-[9.5px] font-bold text-black">{missingAssetsCount}</span>
+                  </PanelButton>
+                  <PanelButton
+                    label="Relink from Folder"
+                    onClick={desktopIngestAvailable() ? () => void relinkFromFolder("full") : handleRelinkFromFolder}
+                    className="flex h-5 min-w-0 items-center gap-1 rounded-[4px] border border-yellow-500/40 bg-yellow-500/5 px-1.5 text-[10.5px] font-medium normal-case tracking-normal text-yellow-500 transition-all hover:bg-yellow-500/15"
+                  >
+                    <RefreshCw size={10} className="shrink-0" />
+                    <span>Relink</span>
+                  </PanelButton>
+                </div>
+              ) : null}
+            />
 
             {panelView === "list" && mediaItems.length > 0 ? (
               <div

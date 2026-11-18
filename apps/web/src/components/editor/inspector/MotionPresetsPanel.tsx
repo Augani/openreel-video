@@ -7,6 +7,12 @@ import React, {
   useState,
 } from "react";
 import {
+  EffectLivePreview,
+  EffectPreviewProvider,
+  useLivePreviewActivity,
+} from "../panels/effect-previews/EffectLivePreview";
+import { motionPreviewDef, type MotionPreviewTarget } from "../panels/effect-previews/kind-defs";
+import {
   Badge,
   Button,
   Card,
@@ -20,7 +26,6 @@ import {
   cn,
 } from "@openreel/ui";
 import {
-  Play,
   ArrowRight,
   ArrowLeft,
   Zap,
@@ -53,110 +58,23 @@ const CATEGORY_CONFIG = [
   { id: "transition", name: "Transition", icon: RefreshCw },
 ] as const;
 
-function buildPreviewCSSKeyframes(preset: MotionPreset): globalThis.Keyframe[] {
-  const keyframes: globalThis.Keyframe[] = [];
-  const steps = 10;
-
-  for (let i = 0; i <= steps; i++) {
-    const progress = i / steps;
-    const time = progress * preset.duration;
-
-    let opacity = 1;
-    let translateX = 0;
-    let translateY = 0;
-    let scaleX = 1;
-    let scaleY = 1;
-    let rotation = 0;
-
-    for (const track of preset.tracks) {
-      let value = 0;
-      const keyframesBefore = track.keyframes.filter((kf) => kf.time <= time);
-      const keyframesAfter = track.keyframes.filter((kf) => kf.time > time);
-
-      if (keyframesBefore.length > 0 && keyframesAfter.length > 0) {
-        const before = keyframesBefore[keyframesBefore.length - 1];
-        const after = keyframesAfter[0];
-        const localProgress = (time - before.time) / (after.time - before.time);
-        value = before.value + (after.value - before.value) * localProgress;
-      } else if (keyframesBefore.length > 0) {
-        value = keyframesBefore[keyframesBefore.length - 1].value;
-      } else if (keyframesAfter.length > 0) {
-        value = keyframesAfter[0].value;
-      }
-
-      switch (track.property) {
-        case "opacity":
-          opacity = value;
-          break;
-        case "position.x":
-          translateX = value * 0.3;
-          break;
-        case "position.y":
-          translateY = value * 0.3;
-          break;
-        case "scale":
-        case "scale.x":
-          scaleX = value;
-          break;
-        case "scale.y":
-          scaleY = value;
-          break;
-        case "rotation":
-          rotation = value;
-          break;
-      }
-    }
-
-    keyframes.push({
-      opacity,
-      transform: `translate(${translateX}px, ${translateY}px) scale(${scaleX}, ${scaleY}) rotate(${rotation}deg)`,
-      offset: progress,
-    });
-  }
-
-  return keyframes;
-}
-
 const PresetCard = memo(function PresetCard({
   preset,
   duration,
+  target,
   isApplied,
   disabled,
   onApply,
 }: {
   preset: MotionPreset;
   duration: number;
+  target: MotionPreviewTarget;
   isApplied: boolean;
   disabled: boolean;
   onApply: (preset: MotionPreset) => void;
 }) {
-  const previewRef = useRef<HTMLDivElement>(null);
-  const animationRef = useRef<Animation | null>(null);
-  const hovered = useRef(false);
-  const frames = useRef<{
-    preset: MotionPreset;
-    values: globalThis.Keyframe[];
-  } | null>(null);
-  const stop = useCallback(() => {
-    animationRef.current?.cancel();
-    animationRef.current = null;
-  }, []);
-  const start = useCallback(() => {
-    stop();
-    const element = previewRef.current;
-    if (!element || typeof element.animate !== "function") return;
-    if (frames.current?.preset !== preset)
-      frames.current = { preset, values: buildPreviewCSSKeyframes(preset) };
-    animationRef.current = element.animate(frames.current.values, {
-      duration: duration * 1000,
-      iterations: Infinity,
-      easing: "ease-in-out",
-    });
-  }, [duration, preset, stop]);
-  useEffect(() => {
-    if (hovered.current) start();
-    return stop;
-  }, [start, stop]);
+  const { active, handlers } = useLivePreviewActivity();
+  const def = useMemo(() => motionPreviewDef(preset, duration, target), [preset, duration, target]);
   return (
     <Button
       variant="ghost"
@@ -165,26 +83,17 @@ const PresetCard = memo(function PresetCard({
       aria-label={`Apply ${preset.name}`}
       aria-pressed={isApplied}
       onClick={() => onApply(preset)}
-      onMouseEnter={() => {
-        hovered.current = true;
-        start();
-      }}
-      onMouseLeave={() => {
-        hovered.current = false;
-        stop();
-      }}
+      {...handlers}
       className={cn(
         "group/card relative block h-auto min-w-0 overflow-hidden whitespace-normal rounded-[7px] border bg-bg-2 p-0 text-left hover:border-primary/50",
         isApplied ? "border-primary bg-primary/10" : "border-border",
       )}
     >
-      <div className="relative flex h-20 items-center justify-center overflow-hidden bg-gradient-to-br from-background-secondary to-background-tertiary">
-        <div
-          ref={previewRef}
-          className="flex h-10 w-10 items-center justify-center rounded bg-primary/80"
-        >
-          <Play size={16} className="text-white" aria-hidden />
-        </div>
+      <div
+        data-motion-preview={preset.id}
+        className="relative aspect-video overflow-hidden bg-bg-3"
+      >
+        <EffectLivePreview def={def} active={active} />
         {isApplied ? (
           <Check
             size={14}
@@ -192,10 +101,8 @@ const PresetCard = memo(function PresetCard({
             className="absolute right-2 top-2 text-primary"
           />
         ) : (
-          <span className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover/card:opacity-100">
-            <span className="rounded bg-primary px-2 py-1 text-[10px] font-medium text-white">
-              Apply
-            </span>
+          <span className="pointer-events-none absolute bottom-1 right-1 rounded bg-primary px-1.5 py-0.5 text-[9px] font-medium text-white opacity-0 group-hover/card:opacity-100">
+            Apply
           </span>
         )}
       </div>
@@ -296,6 +203,21 @@ function MotionPresetControls({
   disabled: boolean;
 }) {
   const library = useMemo(() => getPresetLibrary(), []);
+  // The clip the presets would be applied to, and the canvas their slide offsets are measured against: what "apply" uses.
+  const targetKind = useProjectStore(
+    (state) => resolveMotionPresetTarget(state.project, scope.clipId)?.kind ?? "regular",
+  );
+  const canvasWidth = useProjectStore((state) => state.project.settings.width);
+  const canvasHeight = useProjectStore((state) => state.project.settings.height);
+  const previewTarget = useMemo<MotionPreviewTarget>(
+    () => ({
+      transform: clip.transform,
+      clipDuration: clip.duration,
+      kind: targetKind,
+      canvas: { width: Math.max(1, canvasWidth), height: Math.max(1, canvasHeight) },
+    }),
+    [clip.transform, clip.duration, targetKind, canvasWidth, canvasHeight],
+  );
   const [category, setCategory] = useState<PresetCategory>("entrance");
   const [durations, setDurations] = useState<
     Partial<Record<PresetCategory, number>>
@@ -446,6 +368,7 @@ function MotionPresetControls({
     setEditing(false);
   };
   return (
+    <EffectPreviewProvider>
     <div className="space-y-4">
       {CATEGORY_CONFIG.some((item) => applied[item.id]) && (
         <Card className="space-y-1 rounded-[7px] border-border bg-bg-2 p-2 shadow-none">
@@ -581,7 +504,7 @@ function MotionPresetControls({
           </span>
         </Card>
         <TabsContent value={category} className="mt-3 space-y-3">
-          <div className="grid max-h-72 grid-cols-3 gap-2 overflow-y-auto">
+          <div className="grid max-h-80 grid-cols-2 gap-2 overflow-y-auto">
             {presets.map((preset) => (
               <PresetCard
                 key={preset.id}
@@ -591,6 +514,7 @@ function MotionPresetControls({
                   preset.duration,
                   clip.duration,
                 )}
+                target={previewTarget}
                 isApplied={
                   applied[preset.category] &&
                   lastApplied[preset.category] === preset.id
@@ -606,6 +530,7 @@ function MotionPresetControls({
         </TabsContent>
       </Tabs>
     </div>
+    </EffectPreviewProvider>
   );
 }
 

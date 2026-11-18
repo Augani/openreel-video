@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { Suspense, lazy, useMemo, useRef, useState } from "react";
 import { Button, Input, ColorPicker, ScrollArea, Collapsible, CollapsibleTrigger, CollapsibleContent, Label, Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@openreel/ui";
 import {
   Circle,
@@ -19,14 +19,33 @@ import { useUIStore } from "../../stores/ui-store";
 import { useTimelineStore } from "../../stores/timeline-store";
 import { insertTimelineOverlay } from "../../stores/project/insert-timeline-overlay";
 import { toast } from "../../stores/notification-store";
-import { StickerPickerPanel } from "./inspector/StickerPickerPanel";
+const StickerPickerPanel = lazy(() => import("./inspector/StickerPickerPanel").then((m) => ({ default: m.StickerPickerPanel })));
 import { EssentialGraphicsPanel } from "./graphics/EssentialGraphicsPanel";
+
+// The overlay catalog (and its preview compositor) is only fetched when the Overlays tab is first opened.
+const OverlayCards = lazy(() => import("./graphics/OverlayCards").then((m) => ({ default: m.OverlayCards })));
 import { WorkspaceTabs, workspaceTabPanel } from "./WorkspacePrimitives";
 import { FONT_CATEGORIES, useCustomFonts } from "./inspector/font-options";
 import { useTextFontEdit } from "./inspector/useTextFontEdit";
 import { ensureFontFamily } from "../../services/project-fonts";
 
+/** The overlay templates offered here, in order: each is a real editing template, drawn on the card by its own recipe. */
+export const OVERLAY_TEMPLATE_IDS = ["overlay-progress-bar", "cinema-letterbox", "overlay-follow-callout", "cinema-light-frame"] as const;
 const builtInFonts = Object.values(FONT_CATEGORIES).flat();
+const DEFAULT_BRAND_COLORS = ["#34D399", "#111318", "#FFFFFF", "#8A8F98"] as const;
+
+/** New shapes use the brand primary once a brand kit exists, otherwise white, never a stock blue. */
+function newShapeStyle(): { fill: { type: "solid"; color: string; opacity: number }; stroke: { color: string; width: number; opacity: number } } {
+  let color = "#FFFFFF";
+  try {
+    const saved: unknown = JSON.parse(localStorage.getItem("openreel-brand-colors") ?? "null");
+    if (Array.isArray(saved) && typeof saved[0] === "string" && /^#[0-9a-f]{6}$/i.test(saved[0])) color = saved[0];
+  } catch {
+    // Unreadable storage falls back to white.
+  }
+  return { fill: { type: "solid", color, opacity: 1 }, stroke: { color, width: 0, opacity: 0 } };
+}
+
 function readBrandValue(key: string, fallback: string) {
   try { return localStorage.getItem(key) || fallback; }
   catch { return fallback; }
@@ -72,7 +91,7 @@ export function WorkspaceGraphicsPanel({
   const [tab, setTab] = useState("shapes");
   const [category, setCategory] = useState("all");
   const [colors, setColors] = useState<string[]>(() => {
-    const fallback = ["#F0A43A", "#1A1411", "#FFF6E6", "#2C5287"];
+    const fallback = [...DEFAULT_BRAND_COLORS];
     try {
       const saved: unknown = JSON.parse(
         localStorage.getItem("openreel-brand-colors") ?? "null",
@@ -87,10 +106,17 @@ export function WorkspaceGraphicsPanel({
     }
   });
   const [brandName, setBrandName] = useState(
-    () => readBrandValue("openreel-brand-name", "My brand"),
+    () => readBrandValue("openreel-brand-name", ""),
   );
   const [brandFont, setBrandFont] = useState(() => readBrandValue("openreel-brand-font", "Inter"));
   const [applyingBrand, setApplyingBrand] = useState(false);
+  const [brandConfigured, setBrandConfigured] = useState(() => {
+    try {
+      return ["openreel-brand-name", "openreel-brand-colors", "openreel-brand-font"].some(key => localStorage.getItem(key) !== null);
+    } catch {
+      return false;
+    }
+  });
   const brandRevision = useRef(0);
   const applyRequest = useRef<object | null>(null);
   const project = useProjectStore(state => state.project);
@@ -152,7 +178,7 @@ export function WorkspaceGraphicsPanel({
         time,
         type,
         5,
-        rounded ? { cornerRadius: 24 } : undefined,
+        { ...newShapeStyle(), ...(rounded ? { cornerRadius: 24 } : {}) },
       );
       if (shape && type.startsWith("mesh-")) {
         return store.updateShapeTransform(shape.id, { rotate3d: { x: -18, y: 28, z: 0 } }) ?? shape;
@@ -195,12 +221,6 @@ export function WorkspaceGraphicsPanel({
     if (!state.applyEditingTemplate(id, target.id))
       toast.error("Could not add overlay", "Try selecting a different clip.");
   };
-  const overlayCards = [
-    { id: "overlay-progress-bar", name: "Progress bar", image: "progress" },
-    { id: "cinema-letterbox", name: "Letterbox 2.39", image: "letterbox" },
-    { id: "overlay-follow-callout", name: "Follow callout", image: "follow" },
-    { id: "cinema-light-frame", name: "Frame border", image: "frame" },
-  ];
   return (
     <div className="workspace-graphics-panel flex flex-col min-h-0 h-full">
       <WorkspaceTabs
@@ -212,7 +232,7 @@ export function WorkspaceGraphicsPanel({
           { value: "shapes", label: "Shapes" },
           { value: "overlays", label: "Overlays" },
           { value: "stickers", label: "Stickers" },
-          { value: "brand", label: "Brand kit" },
+          { value: "brand", label: "Brand" },
         ]}
       />
       <ScrollArea
@@ -221,23 +241,33 @@ export function WorkspaceGraphicsPanel({
       >
         <div className="px-2.5 py-3">
           {tab === "stickers" ? (
-            <StickerPickerPanel />
+            <Suspense fallback={null}>
+              <StickerPickerPanel />
+            </Suspense>
           ) : tab === "templates" ? (
             <EssentialGraphicsPanel />
           ) : tab === "brand" ? (
             <div className="workspace-brand-editor">
               <h3>BRAND KIT</h3>
+              {!brandConfigured && (
+                <p className="workspace-brand-empty" role="status">
+                  No brand kit yet. Name your brand and pick its colors and title font. New shapes use the first color, and one click restyles every title.
+                </p>
+              )}
               <label>
                 Brand name
                 <Input
+                  placeholder="Your brand"
                   value={brandName}
                   onChange={(e) => {
                     setBrandName(e.target.value);
+                    setBrandConfigured(true);
                     saveBrandValue("openreel-brand-name", e.target.value);
                   }}
                 />
               </label>
-              <div className="workspace-brand-colors">
+              <p className="text-[11px] text-fg-muted" id="brand-colors-label">Brand colors</p>
+              <div className="workspace-brand-colors" role="group" aria-labelledby="brand-colors-label">
                 {colors.map((color, i) => (
                   <ColorPicker
                     key={i}
@@ -248,6 +278,7 @@ export function WorkspaceGraphicsPanel({
                         i === j ? next : c,
                       );
                       brandRevision.current += 1;
+                      setBrandConfigured(true);
                       setColors(updated);
                       saveBrandValue(
                         "openreel-brand-colors",
@@ -261,6 +292,7 @@ export function WorkspaceGraphicsPanel({
                 <Label htmlFor="brand-title-font" className="text-[11px] text-fg-muted">Title font</Label>
                 <Select value={brandFont} onValueChange={family => {
                   brandRevision.current += 1;
+                  setBrandConfigured(true);
                   setBrandFont(family);
                   saveBrandValue("openreel-brand-font", family);
                 }}>
@@ -268,6 +300,19 @@ export function WorkspaceGraphicsPanel({
                   <SelectContent>{fonts.map(family => <SelectItem key={family} value={family}>{family}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
+              {brandConfigured && (
+                <div className="workspace-brand-summary">
+                  <strong>Apply your brand</strong>
+                  <p className="workspace-brand-fonts">
+                    {targets.length === 0
+                      ? "Add a title to the timeline, then restyle it with your title font and first color."
+                      : `Restyles ${targets.length} ${targets.length === 1 ? "title" : "titles"} with ${brandFont} and ${colors[0]}. Locked tracks are skipped.`}
+                  </p>
+                  <Button className="workspace-apply-brand" aria-label="Apply brand to all titles" aria-busy={applyingBrand} disabled={applyingBrand || targets.length === 0} onClick={() => { void applyBrand(); }}>
+                    {applyingBrand ? "Applying brand…" : "Apply brand to all titles"}
+                  </Button>
+                </div>
+              )}
               <p>
                 Saved on this device. Choose a color when styling your text and
                 graphics.
@@ -304,79 +349,9 @@ export function WorkspaceGraphicsPanel({
                   </div>
                 </>
               )}
-              <h3>OVERLAYS</h3>
-              <div className="workspace-graphic-overlays">
-                {overlayCards.map((overlay) => (
-                  <Button
-                    key={overlay.id}
-                    variant="ghost"
-                    onClick={() => applyOverlay(overlay.id)}
-                  >
-                    <div className={`workspace-graphic-preview workspace-graphic-preview-${overlay.image}`} aria-hidden="true">
-                      {overlay.image === "follow" && <span>Follow +</span>}
-                    </div>
-                    <span>{overlay.name}</span>
-                  </Button>
-                ))}
-              </div>
-              <div className="workspace-brand-summary">
-                <div className="flex items-center justify-between">
-                  <strong>Brand kit</strong>
-                  <Button variant="ghost" onClick={() => setTab("brand")}>
-                    Edit
-                  </Button>
-                </div>
-                <div className="workspace-brand-colors">
-                  <Button
-                    variant="outline"
-                    onClick={() => setTab("brand")}
-                    aria-label="Edit brand kit"
-                  >
-                    {brandName
-                      .split(/\s+/)
-                      .map((s) => s[0])
-                      .slice(0, 2)
-                      .join("")
-                      .toUpperCase()}
-                  </Button>
-                  {colors.map((color, i) => (
-                    <Button
-                      key={i}
-                      variant="ghost"
-                      aria-label={`Use brand color ${color}`}
-                      style={{ background: color }}
-                      onClick={() => {
-                        const state = useProjectStore.getState();
-                        const id = useUIStore
-                          .getState()
-                          .getSelectedClipIds()[0];
-                        if (!id) {
-                          toast.info(
-                            "Brand color",
-                            `${color} · Select a text or shape clip to apply it.`,
-                          );
-                          return;
-                        }
-                        if (state.getTextClip(id))
-                          state.updateTextStyle(id, { color });
-                        else if (state.getShapeClip(id))
-                          state.updateShapeStyle(id, {
-                            fill: { type: "solid", color, opacity: 1 },
-                          });
-                        else
-                          toast.info(
-                            "Select text or a shape",
-                            "This color can be applied to a text or shape clip.",
-                          );
-                      }}
-                    />
-                  ))}
-                </div>
-                <p className="workspace-brand-fonts">Fonts · {brandFont}</p>
-                <Button className="workspace-apply-brand" aria-label="Apply brand to all titles" aria-busy={applyingBrand} disabled={applyingBrand || targets.length === 0} onClick={() => { void applyBrand(); }}>
-                  {applyingBrand ? "Applying brand…" : "Apply brand to all titles"}
-                </Button>
-              </div>
+              {tab === "overlays" && <><h3>OVERLAYS</h3>
+              <Suspense fallback={null}><OverlayCards onApply={applyOverlay} /></Suspense>
+              </>}
               <Collapsible className="workspace-more-graphics">
                 <CollapsibleTrigger asChild>
                   <Button variant="ghost" size="sm" className="workspace-more-graphics-trigger group flex h-auto w-full items-center justify-between gap-2 whitespace-normal rounded-md px-2 py-1.5 text-left text-[length:inherit] font-normal leading-[inherit] hover:bg-bg-2 [&_svg]:size-3">

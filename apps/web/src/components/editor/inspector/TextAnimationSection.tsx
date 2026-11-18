@@ -1,5 +1,5 @@
 import { Button as ShadcnButton, ToggleGroup, ToggleGroupItem } from "@openreel/ui";
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import { Card } from "@openreel/ui";
 import { Label, Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@openreel/ui";
 
@@ -7,8 +7,19 @@ import { Type, Clock, Play } from "@/icons/lucide-compat";
 import { PropertySlider } from "./shell/PropertySlider";
 import { useProjectStore } from "../../../stores/project-store";
 import type { TextAnimationSide } from "../../../services/text-animation-phases";
-import { TextAnimationPhaseProvider, useTextAnimationPhaseActions } from "./text-animation-phase-context";
+import { TextAnimationPhaseProvider, useTextAnimationPhaseActions, useTextAnimationSide } from "./text-animation-phase-context";
 import {
+  EffectLivePreview,
+  EffectPreviewProvider,
+  useLivePreviewActivity,
+} from "../panels/effect-previews/EffectLivePreview";
+import {
+  DEFAULT_PREVIEW_TEXT,
+  textPreviewDef,
+  type PreviewTextSource,
+} from "../panels/effect-previews/kind-defs";
+import {
+  DEFAULT_TEXT_STYLE,
   TEXT_ANIMATION_PRESETS,
   type TextAnimationPreset,
   type TextAnimationParams,
@@ -53,7 +64,10 @@ const ParamSlider: React.FC<{
 const PresetSelector: React.FC<{
   value: TextAnimationPreset;
   onChange: (preset: TextAnimationPreset) => void;
-}> = ({ value, onChange }) => (
+  source: PreviewTextSource;
+  inDuration: number;
+  outDuration: number;
+}> = ({ value, onChange, source, inDuration, outDuration }) => (
   <div className="space-y-2">
     <Label className="block space-y-1.5 text-xs font-normal text-fg-2">
       <span>Animation Preset</span>
@@ -65,18 +79,23 @@ const PresetSelector: React.FC<{
     <span className="text-fg-2 font-normal text-[9px]">
       {ANIMATION_PRESETS.find((p) => p.value === value)?.description}
     </span>
-    <div className="grid grid-cols-2 gap-2" aria-label="Text animation previews">
-      {ANIMATION_PRESETS.filter((preset) => preset.value !== "none").map(
-        (preset) => (
-          <TextAnimationPresetCard
-            key={preset.value}
-            preset={preset}
-            selected={preset.value === value}
-            onSelect={() => onChange(preset.value)}
-          />
-        ),
-      )}
-    </div>
+    <EffectPreviewProvider>
+      <div className="grid grid-cols-2 gap-2" aria-label="Text animation previews">
+        {ANIMATION_PRESETS.filter((preset) => preset.value !== "none").map(
+          (preset) => (
+            <TextAnimationPresetCard
+              key={preset.value}
+              preset={preset}
+              selected={preset.value === value}
+              onSelect={() => onChange(preset.value)}
+              source={source}
+              inDuration={inDuration}
+              outDuration={outDuration}
+            />
+          ),
+        )}
+      </div>
+    </EffectPreviewProvider>
   </div>
 );
 
@@ -84,24 +103,16 @@ const TextAnimationPresetCard: React.FC<{
   preset: PresetInfo;
   selected: boolean;
   onSelect: () => void;
-}> = ({ preset, selected, onSelect }) => {
-  const [hovered, setHovered] = React.useState(false);
-  const [progress, setProgress] = React.useState(0.62);
-
-  React.useEffect(() => {
-    if (!hovered) {
-      setProgress(0.62);
-      return;
-    }
-    let frame = 0;
-    const startedAt = performance.now();
-    const animate = (now: number) => {
-      setProgress(((now - startedAt) % 1200) / 1200);
-      frame = requestAnimationFrame(animate);
-    };
-    frame = requestAnimationFrame(animate);
-    return () => cancelAnimationFrame(frame);
-  }, [hovered]);
+  source: PreviewTextSource;
+  inDuration: number;
+  outDuration: number;
+}> = ({ preset, selected, onSelect, source, inDuration, outDuration }) => {
+  const side = useTextAnimationSide();
+  const { active, handlers } = useLivePreviewActivity();
+  const def = useMemo(
+    () => textPreviewDef(source, preset.value, side, inDuration, outDuration),
+    [source, preset.value, side, inDuration, outDuration],
+  );
 
   return (
     <ShadcnButton variant="ghost" size="sm"
@@ -109,8 +120,7 @@ const TextAnimationPresetCard: React.FC<{
       aria-label={`Preview and apply ${preset.label}`}
       aria-pressed={selected}
       onClick={onSelect}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
+      {...handlers}
       className={`block h-auto w-full whitespace-normal overflow-hidden rounded-lg border p-1.5 text-left text-[length:inherit] font-normal leading-[inherit] transition-colors ${
         selected
           ? "border-primary bg-primary/10"
@@ -121,14 +131,9 @@ const TextAnimationPresetCard: React.FC<{
         data-testid="text-animation-preset-preview"
         data-preset={preset.value}
         aria-hidden="true"
-        className="relative mb-1.5 flex h-11 items-center justify-center overflow-hidden rounded-md bg-[radial-gradient(circle_at_50%_15%,rgba(139,92,246,.22),transparent_55%),#101521]"
+        className="relative mb-1.5 block aspect-video overflow-hidden rounded-md bg-bg-3"
       >
-        <span
-          className="text-[13px] font-black tracking-tight text-white"
-          style={textAnimationPreviewStyle(preset.value, progress)}
-        >
-          OpenReel
-        </span>
+        <EffectLivePreview def={def} active={active} />
       </span>
       <span className="block truncate text-[9px] font-semibold text-fg">
         {preset.label}
@@ -139,91 +144,6 @@ const TextAnimationPresetCard: React.FC<{
     </ShadcnButton>
   );
 };
-
-function textAnimationPreviewStyle(
-  preset: TextAnimationPreset,
-  progress: number,
-): React.CSSProperties {
-  const eased = 1 - Math.pow(1 - progress, 3);
-  const wave = Math.sin(progress * Math.PI * 2);
-  switch (preset) {
-    case "typewriter":
-    case "word-by-word":
-      return { clipPath: `inset(0 ${(1 - eased) * 100}% 0 0)` };
-    case "fade":
-      return { opacity: eased };
-    case "slide-left":
-      return { opacity: eased, transform: `translateX(${(1 - eased) * 34}px)` };
-    case "slide-right":
-      return { opacity: eased, transform: `translateX(${(eased - 1) * 34}px)` };
-    case "slide-up":
-      return { opacity: eased, transform: `translateY(${(1 - eased) * 22}px)` };
-    case "slide-down":
-      return { opacity: eased, transform: `translateY(${(eased - 1) * 22}px)` };
-    case "scale":
-      return { opacity: eased, transform: `scale(${0.3 + eased * 0.7})` };
-    case "blur":
-      return { opacity: eased, filter: `blur(${(1 - eased) * 7}px)` };
-    case "bounce":
-      return { transform: `translateY(${-Math.abs(wave) * 12}px)` };
-    case "rotate":
-      return { opacity: eased, transform: `rotate(${(1 - eased) * -120}deg) scale(${0.55 + eased * 0.45})` };
-    case "wave":
-      return { transform: `translateY(${wave * 6}px) rotate(${wave * 2}deg)` };
-    case "shake":
-      return { transform: `translateX(${wave * 5}px)` };
-    case "pop":
-      return { transform: `scale(${0.45 + eased * 0.55 + Math.max(0, wave) * 0.12})` };
-    case "glitch":
-      return { transform: `translateX(${wave * 4}px) skewX(${wave * 6}deg)`, textShadow: `${wave * 3}px 0 #22d3ee, ${wave * -3}px 0 #f43f5e` };
-    case "split":
-      return { letterSpacing: `${(1 - eased) * 10}px`, opacity: eased };
-    case "flip":
-      return { opacity: eased > 0.08 ? 1 : 0, transform: `perspective(100px) rotateY(${(1 - eased) * -90}deg)` };
-    case "rainbow":
-      return { filter: `hue-rotate(${progress * 360}deg)`, color: "#f472b6" };
-    case "rise":
-      return {
-        opacity: eased,
-        transform: `translateY(${(1 - eased) * 20}px) scale(${0.88 + eased * 0.12})`,
-        filter: `blur(${(1 - eased) * 6}px)`,
-      };
-    case "drop": {
-      const landing = 1 - Math.abs(Math.cos(progress * Math.PI * 2.5)) * (1 - progress);
-      return {
-        opacity: progress > 0.02 ? 1 : 0,
-        transform: `translateY(${(landing - 1) * 24}px) rotate(${(1 - landing) * -9}deg)`,
-      };
-    }
-    case "elastic": {
-      const elastic = progress === 1
-        ? 1
-        : 1 - Math.cos(progress * Math.PI * 3.5) * Math.exp(-progress * 5);
-      return { opacity: progress > 0.02 ? 1 : 0, transform: `scale(${Math.max(0.1, elastic)})` };
-    }
-    case "swing":
-      return {
-        opacity: eased,
-        transformOrigin: "50% 0%",
-        transform: `rotate(${Math.cos(progress * Math.PI * 3) * (1 - progress) * 26}deg)`,
-      };
-    case "zoom-blur":
-      return {
-        opacity: eased,
-        transform: `scale(${1.65 - eased * 0.65})`,
-        filter: `blur(${(1 - eased) * 8}px)`,
-      };
-    case "cascade":
-      return {
-        opacity: eased,
-        transform: `translate(${(1 - eased) * -12}px, ${(1 - eased) * 20}px) rotate(${(1 - eased) * -7}deg)`,
-        letterSpacing: `${(1 - eased) * 3}px`,
-      };
-    case "none":
-      return {};
-  }
-  return {};
-}
 
 const EasingSelector: React.FC<{
   value: string;
@@ -281,6 +201,15 @@ const TextAnimationEditor: React.FC<TextAnimationSectionProps> = ({ clipId }) =>
   const outDuration = textClip?.animation?.outDuration ?? 0.5;
   const easing = textClip?.animation?.params?.easing ?? "ease-out";
 
+  const previewSource = useMemo<PreviewTextSource>(
+    () => ({
+      text: textClip?.text || DEFAULT_PREVIEW_TEXT,
+      style: textClip?.style ?? DEFAULT_TEXT_STYLE,
+      transform: textClip?.transform,
+    }),
+    [textClip?.text, textClip?.style, textClip?.transform],
+  );
+
   const handlePresetChange = useCallback(
     (preset: TextAnimationPreset) => {
       applyTextAnimationPreset(clipId, preset, inDuration, outDuration);
@@ -334,7 +263,13 @@ const TextAnimationEditor: React.FC<TextAnimationSectionProps> = ({ clipId }) =>
 
   return (
     <div className="space-y-4">
-      <PresetSelector value={currentPreset} onChange={handlePresetChange} />
+      <PresetSelector
+        value={currentPreset}
+        onChange={handlePresetChange}
+        source={previewSource}
+        inDuration={inDuration}
+        outDuration={outDuration}
+      />
 
       {currentPreset !== "none" && (
         <>

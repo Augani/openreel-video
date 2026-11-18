@@ -9,6 +9,7 @@ import type {
   TextLineMetrics,
 } from "./types";
 import { DEFAULT_TEXT_STYLE, DEFAULT_TEXT_TRANSFORM } from "./types";
+import { overlayBlendAlpha } from "../graphics/blend-opacity";
 import { computeScrollAnchor, scrollProgress } from "./text-scroll";
 import { textAnimationEngine, type AnimatedTextState } from "./text-animation";
 import { MotionShaderRenderer } from "../motion/motion-shader-renderer";
@@ -50,9 +51,16 @@ export function getCaptionWrapWidth(
   canvasWidth: number,
   contentScaleX = 1,
 ): number | undefined {
-  if (typeof clip.metadata?.captionSource !== "string") return undefined;
+  // Captions wrap at 90% of the frame; template text opts in with a `wrapWidthRatio` (0..1 of the frame width).
+  const ratio =
+    typeof clip.metadata?.captionSource === "string"
+      ? 0.9
+      : typeof clip.metadata?.wrapWidthRatio === "number" && clip.metadata.wrapWidthRatio > 0
+        ? Math.min(1, clip.metadata.wrapWidthRatio)
+        : undefined;
+  if (ratio === undefined) return undefined;
   const scale = Math.max(0.001, Math.abs(clip.transform.scale.x * contentScaleX));
-  return Math.max(1, canvasWidth * 0.9 / scale - 20);
+  return Math.max(1, canvasWidth * ratio / scale - 20);
 }
 
 export class TitleEngine {
@@ -268,8 +276,9 @@ export class TitleEngine {
 
     ctx.clearRect(0, 0, width, height);
 
-    const { opacity, transform, style, visibleText, characterStates } =
+    const { opacity: stateOpacity, transform, style, visibleText, characterStates } =
       this.getAnimatedTextState(clip, time);
+    const opacity = stateOpacity * overlayBlendAlpha(clip);
 
     if (opacity <= 0 || visibleText.length === 0) {
       return {

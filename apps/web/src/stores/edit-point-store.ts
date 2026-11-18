@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { EditPointEdge, EditPointKind } from "@openreel/core";
+import type { EditPointEdge, EditPointKind, Project } from "@openreel/core";
 
 /**
  * Trim-mode selection: one edit point (a clip edge or the cut between two
@@ -43,6 +43,12 @@ export interface DynamicTrimSession {
   appliedFrames: number;
   /** True when the request is clamped by source handles or neighbours. */
   limited: boolean;
+  /**
+   * The project as it would be with the trim committed, for the Program monitor only.
+   * Never written to the project store or history; null while nothing moves (or if it
+   * could not be built).
+   */
+  previewProject: Project | null;
 }
 
 interface EditPointState {

@@ -155,4 +155,24 @@ describe("connectionLabel", () => {
     });
     expect(label).toEqual({ connected: true, text: "Connected: cursor +1" });
   });
+
+  it("shows Try again when the shim path is empty and re-reads status, then shows the real command", async () => {
+    const status = (shimPath: string) => ({
+      running: true,
+      url: "http://127.0.0.1:4400/mcp",
+      port: 4400,
+      token: "tok-123",
+      shimPath,
+      endpointFile: "/tmp/e.json",
+    });
+    const getStatus = vi.fn().mockResolvedValueOnce(status("")).mockResolvedValue(status(SHIM));
+    installBridge({ getStatus });
+    render(<AgentConnectCard />);
+    const retry = await screen.findByRole("button", { name: "Try again" });
+    expect(screen.queryByLabelText("Command")).toBeNull();
+    fireEvent.click(retry);
+    await waitFor(() => expect(screen.getByLabelText("Command").textContent).toBe(`claude mcp add openreel -- node ${SHIM}`));
+    expect(getStatus.mock.calls.length).toBeGreaterThanOrEqual(2);
+    expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
+  });
 });

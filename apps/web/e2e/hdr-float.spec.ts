@@ -290,12 +290,16 @@ test("VideoEngine: Rec.709 projects never touch the float path; Rec.2020 / HDR e
     };
 
     engine.setHdrExportTarget(null);
+    // Warm the Rec.709 path first: the first render of a project can resolve its footage frame late on a loaded
+    // machine, and a cold-vs-warm comparison measures that, not the colour handling.
+    for (let i = 0; i < 2; i++) await engine.renderFrame(project, 1.2, W, H);
     const sdr = await engine.renderFrame(project, 1.2, W, H);
     const sdrPixels = await readRgba(sdr.image);
     const floatTouchedBy709 = engine.hdrCompositor != null;
 
-    const wide = { ...project, settings: { ...project.settings, workingColorSpace: "rec2020" } };
-    const view = await engine.renderFrame(wide, 1.2, W, H);
+    const wideProject = { ...project, settings: { ...project.settings, workingColorSpace: "rec2020" } };
+    for (let i = 0; i < 2; i++) await engine.renderFrame(wideProject, 1.2, W, H);
+    const view = await engine.renderFrame(wideProject, 1.2, W, H);
     const viewPixels = await readRgba(view.image);
     const kind = engine.hdrCompositor?.kind ?? null;
     let viewDiff = 0;

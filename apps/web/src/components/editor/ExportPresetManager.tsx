@@ -130,9 +130,9 @@ export function ExportPresetManager({
     <section
       aria-label={full ? "Manage export presets" : "Save as preset"}
       data-testid="export-preset-manager"
-      className="mb-4 space-y-2 rounded-md border border-border bg-bg-2 p-3 text-[12px]"
+      className="mb-3 flex flex-wrap items-center gap-x-2 gap-y-1.5 rounded-md border border-border bg-bg-2 p-2 text-[12px]"
     >
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex min-w-[260px] flex-[4] flex-wrap items-center gap-2">
         <input
           aria-label="New preset name"
           value={name}
@@ -144,6 +144,7 @@ export function ExportPresetManager({
         />
         <Button
           size="sm"
+          className="h-7 px-2.5 text-[12px]"
           variant="secondary"
           disabled={!name.trim() || !settingsValid}
           onClick={save}
@@ -152,16 +153,17 @@ export function ExportPresetManager({
         </Button>
       </div>
       {!settingsValid && (
-        <p className="text-[11px] text-fg-muted">
+        <p className="w-full text-[11px] text-fg-muted">
           Complete the export settings (for example the bitrate) to save them.
         </p>
       )}
       {full && (
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="contents">
         {selectedCustom && !renaming && !confirmingDelete && (
           <>
             <Button
               size="sm"
+          className="h-7 px-2.5 text-[12px]"
               variant="ghost"
               onClick={() => {
                 setRenameDraft(selectedCustom.name);
@@ -172,6 +174,7 @@ export function ExportPresetManager({
             </Button>
             <Button
               size="sm"
+          className="h-7 px-2.5 text-[12px]"
               variant="ghost"
               onClick={() => setConfirmingDelete(true)}
             >
@@ -182,11 +185,13 @@ export function ExportPresetManager({
         {selectedCustom && confirmingDelete && (
           <>
             <span>Delete "{selectedCustom.name}"? This cannot be undone.</span>
-            <Button size="sm" variant="secondary" onClick={remove}>
+            <Button size="sm"
+          className="h-7 px-2.5 text-[12px]" variant="secondary" onClick={remove}>
               Confirm delete
             </Button>
             <Button
               size="sm"
+          className="h-7 px-2.5 text-[12px]"
               variant="ghost"
               onClick={() => setConfirmingDelete(false)}
             >
@@ -206,6 +211,7 @@ export function ExportPresetManager({
             />
             <Button
               size="sm"
+          className="h-7 px-2.5 text-[12px]"
               variant="secondary"
               disabled={!renameDraft.trim()}
               onClick={commitRename}
@@ -214,6 +220,7 @@ export function ExportPresetManager({
             </Button>
             <Button
               size="sm"
+          className="h-7 px-2.5 text-[12px]"
               variant="ghost"
               onClick={() => setRenaming(false)}
             >
@@ -224,12 +231,14 @@ export function ExportPresetManager({
         <span className="flex-1" />
         <Button
           size="sm"
+          className="h-7 px-2.5 text-[12px]"
           variant="ghost"
           onClick={() => fileInput.current?.click()}
         >
           Import presets
         </Button>
-        <Button size="sm" variant="ghost" onClick={exportAll}>
+        <Button size="sm"
+          className="h-7 px-2.5 text-[12px]" variant="ghost" onClick={exportAll}>
           Export presets
         </Button>
         <input
@@ -243,7 +252,7 @@ export function ExportPresetManager({
       </div>
       )}
       {message && (
-        <p role="status" className="text-[11px] text-fg-muted">
+        <p role="status" className="w-full text-[11px] text-fg-muted">
           {message}
         </p>
       )}

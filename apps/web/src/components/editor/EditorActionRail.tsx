@@ -77,6 +77,7 @@ export function EditorActionRail() {
         aria-label="Editor tools"
         className="workspace-rail"
       >
+        <div className="workspace-rail-scroll" data-testid="workspace-rail-scroll">
         {railButton(
           "AI Editor chat",
           chatVisible,
@@ -92,7 +93,7 @@ export function EditorActionRail() {
             <Icon />,
           ),
         )}
-        <div className="flex-1" />
+        </div>
         {railButton(
           "Project settings",
           !chatVisible && section === "settings",

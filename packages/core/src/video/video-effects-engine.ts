@@ -1,4 +1,5 @@
 import type { Effect } from "../types/timeline";
+import { releaseGLContext, trackGLContext } from "./gl-context";
 import { applyIrisMaskToContext } from "./clip-iris";
 import {
   RendererFactory,
@@ -542,7 +543,7 @@ export class VideoEffectsEngine {
       return;
     }
 
-    this.gl = gl;
+    this.gl = trackGLContext(gl);
     this.quadBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, this.quadBuffer);
     gl.bufferData(
@@ -2014,14 +2015,20 @@ export class VideoEffectsEngine {
     return effects.filter((e) => e.enabled).map((e) => e.id);
   }
 
+  private static webgl2Supported: boolean | null = null;
+
   static isWebGL2Supported(): boolean {
+    // Probed once per page, and the probe context is given back at once: it used to leak one live context per engine.
+    if (VideoEffectsEngine.webgl2Supported !== null) return VideoEffectsEngine.webgl2Supported;
     try {
       const canvas = new OffscreenCanvas(1, 1);
       const gl = canvas.getContext("webgl2");
-      return gl !== null;
+      releaseGLContext(gl);
+      VideoEffectsEngine.webgl2Supported = gl !== null;
     } catch {
-      return false;
+      VideoEffectsEngine.webgl2Supported = false;
     }
+    return VideoEffectsEngine.webgl2Supported;
   }
 
   resize(width: number, height: number): void {
@@ -2105,6 +2112,7 @@ export class VideoEffectsEngine {
 
       this.framebuffers = [];
       this.renderTextures = [];
+      releaseGLContext(this.gl);
     }
 
     if (this._shaderRenderer) {

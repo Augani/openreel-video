@@ -1,6 +1,6 @@
 import { expect, type Page } from "@playwright/test";
 import { writeFileSync } from "node:fs";
-import { openEditor, seek, settle } from "./helpers";
+import { openEditor, seek, settle, waitForPresentedPlayhead } from "./helpers";
 import { hideMain, insertFromBrowse, graphicState } from "./essential-graphics-lib";
 
 const PROGRAM = 'canvas[aria-label^="Program frame"]';
@@ -26,7 +26,7 @@ export async function previewExportParity(page: Page, templateName: string, time
   const rows: ParityRow[] = [];
   for (const [label, time] of times) {
     await seek(page, time);
-    await settle(page, 600);
+    await waitForPresentedPlayhead(page);
     const row = await page.evaluate(
       async ([sel, t] ) => {
         const e = (window as any).__openreelE2E;
@@ -56,8 +56,26 @@ export async function previewExportParity(page: Page, templateName: string, time
         }
         const engine = e.engine.getState().videoEngine;
         const project = e.project.getState().getFullProject();
-        const fresh = await engine.renderFrame(project, t as number, w, h);
-        const exported = read(fresh.image);
+        // The export renderer rasterises graphic layers asynchronously too: a render issued while they
+        // are still loading is a blank frame. Render until two consecutive renders agree and are not
+        // blank (bounded: a genuinely blank frame is returned and fails the caller's coverage check).
+        const litPixels = (d: Uint8ClampedArray) => {
+          let k = 0;
+          for (let i = 0; i < d.length; i += 4) if (d[i] + d[i + 1] + d[i + 2] > 24) k++;
+          return k;
+        };
+        let exported = new Uint8ClampedArray(0);
+        let prevExport: Uint8ClampedArray | null = null;
+        let exportStable = 0;
+        for (let i = 0; i < 40 && exportStable < 2; i++) {
+          const fresh = await engine.renderFrame(project, t as number, w, h);
+          exported = read(fresh.image);
+          let same = prevExport !== null && prevExport.length === exported.length;
+          for (let k = 0; same && k < exported.length; k++) if (exported[k] !== prevExport![k]) same = false;
+          exportStable = same && litPixels(exported) / (w * h) > 0.0005 ? exportStable + 1 : 0;
+          prevExport = exported;
+          if (exportStable < 2) await new Promise((r) => setTimeout(r, 200));
+        }
         // The export renderer paints on black, the preview on its stage colour: compare only
         // where the graphic is (the export frame is lit), plus the stage-colour constancy elsewhere.
         let sum = 0;

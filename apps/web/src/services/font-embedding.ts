@@ -116,10 +116,218 @@ async function readFsTypeFromWoff(data: ArrayBuffer): Promise<number | null> {
   return 0;
 }
 
+export type BrotliDecoder = (data: Uint8Array) => Promise<Uint8Array | null>;
+
+async function brotliViaDecompressionStream(bytes: Uint8Array): Promise<Uint8Array | null> {
+  // "brotli" is not a universally supported DecompressionStream format; a
+  // missing format throws a TypeError, which means "no decoder available".
+  if (typeof DecompressionStream === "undefined") return null;
+  try {
+    const stream = new DecompressionStream("brotli" as ConstructorParameters<typeof DecompressionStream>[0]);
+    const writer = stream.writable.getWriter();
+    void writer.write(bytes as BufferSource).then(() => writer.close()).catch(() => undefined);
+    return new Uint8Array(await new Response(stream.readable).arrayBuffer());
+  } catch {
+    return null;
+  }
+}
+
 /**
- * Read OS/2 fsType from a TTF/OTF/TTC/WOFF file. WOFF2 (Brotli-compressed
- * tables) cannot be read here and yields `unknown`, so WOFF2 fonts are never
- * embedded; convert them to TTF/OTF/WOFF to embed.
+ * The desktop shell's Chromium (Electron 33) has no Brotli DecompressionStream,
+ * so it decodes in the main process with Node's zlib (`window.openreel.fonts`).
+ */
+async function brotliViaDesktopBridge(bytes: Uint8Array): Promise<Uint8Array | null> {
+  const bridge = typeof window === "undefined" ? undefined : window.openreel?.fonts;
+  if (!bridge) return null;
+  try {
+    const out = await bridge.brotliDecompress(bytes);
+    return out ? new Uint8Array(out) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** The parts of `brotli-dec-wasm/web` the fallback decoder uses. */
+export interface BrotliWasmModule {
+  DecompressStream: new () => {
+    decompress(input: Uint8Array, outputSize: number): { buf: Uint8Array; code: number; input_offset: number; free(): void };
+    free(): void;
+  };
+  BrotliStreamResultCode: { ResultSuccess: number; NeedsMoreInput: number; NeedsMoreOutput: number };
+}
+
+/** Upper bound on decoded WOFF2 table data; matches the desktop bridge's cap. */
+export const BROTLI_MAX_OUTPUT_BYTES = 64 * 1024 * 1024;
+
+/**
+ * Loads the bundled Brotli decoder (MIT/Apache-2.0, ~200 KB wasm) on first use,
+ * as its own lazy chunk so it never weighs on startup.
+ */
+async function loadBundledBrotliWasm(): Promise<BrotliWasmModule> {
+  const [mod, wasm] = await Promise.all([import("brotli-dec-wasm/web"), import("brotli-dec-wasm/web/bg.wasm?url")]);
+  await mod.default({ module_or_path: wasm.default });
+  return mod as unknown as BrotliWasmModule;
+}
+
+let brotliWasmLoader: () => Promise<BrotliWasmModule> = loadBundledBrotliWasm;
+let brotliWasm: Promise<BrotliWasmModule> | null = null;
+
+/** Override how the bundled wasm decoder loads (tests). Pass null to restore the default. */
+export function setBrotliWasmLoader(loader: (() => Promise<BrotliWasmModule>) | null): void {
+  brotliWasmLoader = loader ?? loadBundledBrotliWasm;
+  brotliWasm = null;
+}
+
+/** Streams through the wasm decoder in 1 MB steps, giving up past `maxOutput` bytes or on truncated input. */
+export function brotliDecodeBounded(wasm: BrotliWasmModule, bytes: Uint8Array, maxOutput = BROTLI_MAX_OUTPUT_BYTES): Uint8Array | null {
+  const codes = wasm.BrotliStreamResultCode;
+  const stream = new wasm.DecompressStream();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  let input = bytes;
+  try {
+    for (;;) {
+      const result = stream.decompress(input, 1 << 20);
+      const { buf, code } = result;
+      const consumed = result.input_offset;
+      result.free();
+      total += buf.byteLength;
+      if (total > maxOutput) return null;
+      chunks.push(buf);
+      if (code === codes.ResultSuccess) break;
+      if (code !== codes.NeedsMoreOutput) return null;
+      input = input.subarray(consumed);
+    }
+  } catch {
+    return null;
+  } finally {
+    stream.free();
+  }
+  const out = new Uint8Array(total);
+  let at = 0;
+  for (const c of chunks) {
+    out.set(c, at);
+    at += c.byteLength;
+  }
+  return out;
+}
+
+async function brotliViaBundledWasm(bytes: Uint8Array): Promise<Uint8Array | null> {
+  try {
+    brotliWasm ??= brotliWasmLoader();
+    return brotliDecodeBounded(await brotliWasm, bytes);
+  } catch {
+    brotliWasm = null;
+    return null;
+  }
+}
+
+/**
+ * Default decoder: the platform's native Brotli when present, else the desktop
+ * bridge, else the bundled wasm decoder, so every browser can read WOFF2 licences.
+ */
+export async function defaultBrotliDecoder(bytes: Uint8Array): Promise<Uint8Array | null> {
+  return (
+    (await brotliViaDecompressionStream(bytes)) ??
+    (await brotliViaDesktopBridge(bytes)) ??
+    (await brotliViaBundledWasm(bytes))
+  );
+}
+
+let brotliDecoder: BrotliDecoder = defaultBrotliDecoder;
+
+/**
+ * Override the Brotli decoder (tests, or a host with its own). The default
+ * tries DecompressionStream("brotli"), then the desktop shell's Node zlib
+ * bridge, then the bundled wasm decoder. Returns the previous decoder. A decoder returns null when it cannot decode, which makes WOFF2 fonts report
+ * an unknown licence instead of being embedded unchecked.
+ */
+export function setBrotliDecoder(decoder: BrotliDecoder | null): BrotliDecoder {
+  const previous = brotliDecoder;
+  brotliDecoder = decoder ?? defaultBrotliDecoder;
+  return previous;
+}
+
+/** Registered table tags that a WOFF2 directory entry can name by index (spec section 5.1). */
+const WOFF2_OS2_INDEX = 6;
+const WOFF2_GLYF_INDEX = 10;
+const WOFF2_LOCA_INDEX = 11;
+const WOFF2_ARBITRARY_TAG = 63;
+
+function readBase128(bytes: Uint8Array, cursor: { pos: number }): number | null {
+  let value = 0;
+  for (let i = 0; i < 5; i++) {
+    if (cursor.pos >= bytes.length) return null;
+    const byte = bytes[cursor.pos++];
+    if (i === 0 && byte === 0x80) return null;
+    if (value > 0x01ffffff) return null;
+    value = value * 128 + (byte & 0x7f);
+    if ((byte & 0x80) === 0) return value;
+  }
+  return null;
+}
+
+/**
+ * OS/2 is never transformed in WOFF2, so its bytes are read straight from the
+ * Brotli-decompressed table stream at the table's offset (the sum of the
+ * preceding tables' stored lengths). Returns null when it cannot be read; an
+ * empty array when the font has no OS/2 table.
+ */
+export async function extractWoff2Os2Table(data: ArrayBuffer): Promise<Uint8Array | null> {
+  const bytes = new Uint8Array(data);
+  const view = new DataView(data);
+  if (view.byteLength < 48) return null;
+  const numTables = view.getUint16(12);
+  if (numTables === 0) return null;
+  const compressedSize = view.getUint32(20);
+  const cursor = { pos: 48 };
+  let streamOffset = 0;
+  let os2: { offset: number; length: number } | null = null;
+  for (let i = 0; i < numTables; i++) {
+    if (cursor.pos >= bytes.length) return null;
+    const flags = bytes[cursor.pos++];
+    const index = flags & 0x3f;
+    const version = flags >> 6;
+    let tagIsOs2 = index === WOFF2_OS2_INDEX;
+    if (index === WOFF2_ARBITRARY_TAG) {
+      if (cursor.pos + 4 > bytes.length) return null;
+      tagIsOs2 = view.getUint32(cursor.pos) === OS2_TAG;
+      cursor.pos += 4;
+    }
+    const origLength = readBase128(bytes, cursor);
+    if (origLength === null) return null;
+    const transformed = index === WOFF2_GLYF_INDEX || index === WOFF2_LOCA_INDEX ? version === 0 : version !== 0;
+    let length = origLength;
+    if (transformed) {
+      const transformLength = readBase128(bytes, cursor);
+      if (transformLength === null) return null;
+      length = transformLength;
+    }
+    if (tagIsOs2) {
+      if (transformed) return null;
+      os2 = { offset: streamOffset, length };
+    }
+    streamOffset += length;
+  }
+  if (!os2) return new Uint8Array(0);
+  if (os2.length < 10 || cursor.pos + compressedSize > bytes.length) return null;
+  const stream = await brotliDecoder(bytes.subarray(cursor.pos, cursor.pos + compressedSize));
+  if (!stream || stream.byteLength < os2.offset + os2.length) return null;
+  return stream.subarray(os2.offset, os2.offset + os2.length);
+}
+
+async function readFsTypeFromWoff2(data: ArrayBuffer): Promise<number | null> {
+  const table = await extractWoff2Os2Table(data);
+  if (!table) return null;
+  // A font without an OS/2 table carries no embedding bits: treat as installable.
+  if (table.byteLength === 0) return 0;
+  return new DataView(table.buffer, table.byteOffset, table.byteLength).getUint16(8);
+}
+
+
+/**
+ * Read OS/2 fsType from a TTF/OTF/TTC/WOFF/WOFF2 file. WOFF2 needs a Brotli
+ * decoder (see setBrotliDecoder); without one it yields `unknown`.
  */
 export async function readFontEmbeddingPermission(data: ArrayBuffer): Promise<FontPermissionInfo> {
   const format = detectFontFormat(data);
@@ -128,8 +336,22 @@ export async function readFontEmbeddingPermission(data: ArrayBuffer): Promise<Fo
     const view = new DataView(data);
     fsType = readFsTypeFromSfnt(view, view.getUint32(0) === TTC_SIGNATURE && data.byteLength >= 16 ? view.getUint32(12) : 0);
   } else if (format === "woff") fsType = await readFsTypeFromWoff(data);
+  else if (format === "woff2") fsType = await readFsTypeFromWoff2(data);
   if (fsType === null) return { fsType: null, permission: "unknown" };
   return { fsType, permission: classifyFsType(fsType) };
+}
+
+const FONT_MIME: Record<FontFormat, string> = {
+  ttf: "font/ttf",
+  otf: "font/otf",
+  woff: "font/woff",
+  woff2: "font/woff2",
+};
+
+/** MIME type recorded for an embedded font file; generic sfnt when the format is unrecognised. */
+export function fontMimeType(data: ArrayBuffer): string {
+  const format = detectFontFormat(data);
+  return format ? FONT_MIME[format] : "font/sfnt";
 }
 
 export interface FontPlanOptions {
@@ -164,7 +386,7 @@ export async function planProjectFonts(
       if (info.permission === "restricted") {
         entries.push({ ...base, status: "restricted", note: "License (fsType restricted) forbids embedding; install the font on the other machine." });
       } else if (info.permission === "unknown") {
-        entries.push({ ...base, status: "unknown-license", note: "Font license could not be read (WOFF2 files cannot be inspected), so the font was not embedded. Use a TTF/OTF/WOFF copy to embed it." });
+        entries.push({ ...base, status: "unknown-license", note: "Font license could not be read (unrecognised file, or a WOFF2 file this browser cannot Brotli-decode), so the font was not embedded. Use a TTF/OTF/WOFF copy to embed it." });
       } else if (info.permission === "preview-print") {
         payloads.set(family, data);
         entries.push({ ...base, status: "embedded-readonly", note: "Embedded for preview and export only; the license does not allow editing with this font." });

@@ -85,6 +85,10 @@ export function CategoryTabs({
       : (platforms.find((platform) =>
           platform.categories.includes(selectedCategory),
         )?.name ?? "all");
+  // A platform with no template (and not the one being viewed) is not offered: it would lead to an empty page.
+  const populated = platforms.filter(
+    (platform) => platform.name === selectedPlatform || platform.categories.some((category) => categoryStats[category]),
+  );
   return (
     <Tabs
       value={selectedPlatform}
@@ -115,7 +119,7 @@ export function CategoryTabs({
             All
             <span className="text-xs opacity-60">{categoryStats.all ?? 0}</span>
           </TabsTrigger>
-          {platforms.map((platform) => {
+          {populated.map((platform) => {
             const Icon = icons[platform.categories[0]],
               count = platform.categories.reduce(
                 (sum, category) => sum + (categoryStats[category] ?? 0),
@@ -138,7 +142,7 @@ export function CategoryTabs({
         </TabsList>
       </div>
       <TabsContent value="all" className="m-0" />
-      {platforms.map((platform) => (
+      {populated.map((platform) => (
         <TabsContent
           key={platform.name}
           value={platform.name}

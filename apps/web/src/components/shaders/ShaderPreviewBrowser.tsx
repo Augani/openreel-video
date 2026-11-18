@@ -1,12 +1,17 @@
-import { useEffect, useMemo, useRef, useState, type JSX } from "react";
+import { useMemo, useState, type JSX } from "react";
 import { Button, Input } from "@openreel/ui";
+import type { MotionShaderDef, TextStyle, Transform } from "@openreel/core";
 import {
-  defaultMotionShaderParams,
-  type MotionShaderDef,
-} from "@openreel/core";
-import { MotionShaderRenderer } from "@openreel/core/motion/motion-shader-renderer";
-
-type ShaderPreviewSample = "text" | "shape" | "effect";
+  EffectLivePreview,
+  EffectPreviewProvider,
+  useLivePreviewActivity,
+} from "../editor/panels/effect-previews/EffectLivePreview";
+import {
+  DEFAULT_PREVIEW_TEXT,
+  shaderPreviewDef,
+  type PreviewTextSource,
+  type ShaderPreviewSample,
+} from "../editor/panels/effect-previews/kind-defs";
 
 function shaderAccessibleName(
   def: MotionShaderDef,
@@ -20,183 +25,70 @@ function shaderAccessibleName(
   return `Preview and ${action} ${def.name}${suffix}`;
 }
 
-let sharedPreviewRenderer: MotionShaderRenderer | null = null;
-// Definitions are immutable registry entries; custom definitions can be collected.
-const previewCache = new WeakMap<
-  MotionShaderDef,
-  Map<string, HTMLCanvasElement>
->();
-
-function previewRenderer(): MotionShaderRenderer {
-  sharedPreviewRenderer ??= new MotionShaderRenderer();
-  return sharedPreviewRenderer;
-}
-
-function previewFallback(id: string): string {
-  let hash = 0;
-  for (let index = 0; index < id.length; index += 1) {
-    hash = (hash * 31 + id.charCodeAt(index)) >>> 0;
-  }
-  const hue = hash % 360;
-  return `linear-gradient(135deg, hsl(${hue} 75% 58%), hsl(${(hue + 95) % 360} 80% 42%))`;
-}
-
-function makePreviewInput(
-  width: number,
-  height: number,
-  sample: ShaderPreviewSample,
-): HTMLCanvasElement {
-  const canvas = document.createElement("canvas");
-  canvas.width = width;
-  canvas.height = height;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return canvas;
-
-  if (sample === "effect") {
-    if (typeof ctx.createLinearGradient === "function") {
-      const gradient = ctx.createLinearGradient(0, 0, width, height);
-      gradient.addColorStop(0, "#22d3ee");
-      gradient.addColorStop(0.5, "#8b5cf6");
-      gradient.addColorStop(1, "#fb7185");
-      ctx.fillStyle = gradient;
-    } else {
-      ctx.fillStyle = "#8b5cf6";
-    }
-    ctx.fillRect(0, 0, width, height);
-    ctx.fillStyle = "rgba(255,255,255,.9)";
-    ctx.font = "700 24px Inter, sans-serif";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText("FX", width / 2, height / 2);
-    return canvas;
-  }
-
-  ctx.fillStyle = "#ffffff";
-  if (sample === "shape") {
-    const inset = 10;
-    if (typeof ctx.roundRect === "function") {
-      ctx.beginPath();
-      ctx.roundRect(inset, inset, width - inset * 2, height - inset * 2, 12);
-      ctx.fill();
-    } else {
-      ctx.fillRect(inset, inset, width - inset * 2, height - inset * 2);
-    }
-  } else {
-    ctx.font = "800 34px Inter, sans-serif";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText("Aa", width / 2, height / 2 + 1);
-  }
-  return canvas;
-}
-
 function ShaderPreviewCanvas({
   def,
   sample,
+  text,
+  source,
+  active,
 }: {
   def: MotionShaderDef;
   sample: ShaderPreviewSample;
+  text: string;
+  source: PreviewTextSource | undefined;
+  active: boolean;
 }): JSX.Element {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    const ctx = canvas?.getContext("2d");
-    if (!canvas || !ctx) return;
-    canvas.dataset.previewState = "pending";
-    delete canvas.dataset.previewSource;
-    let disposed = false;
-    let scheduled = false;
-    let idleId: number | undefined;
-    let frameId: number | undefined;
-    const draw = () => {
-      if (disposed) return;
-      const key = `${sample}:${canvas.width}x${canvas.height}`;
-      const cached = previewCache.get(def)?.get(key);
-      if (cached) {
-        ctx.drawImage(cached, 0, 0);
-        canvas.dataset.previewState = "ready";
-        canvas.dataset.previewSource = "cache";
-        return;
-      }
-      try {
-        const input = makePreviewInput(canvas.width, canvas.height, sample);
-        const result = previewRenderer().render(def, {
-          width: canvas.width,
-          height: canvas.height,
-          time: 0.72,
-          progress: 0.65,
-          params: defaultMotionShaderParams(def),
-          inputCanvas: input,
-        });
-        if (!result) {
-          canvas.dataset.previewState = "fallback";
-          return;
-        }
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(result, 0, 0, canvas.width, canvas.height);
-        if (sample !== "effect" && def.category !== "text") {
-          ctx.globalCompositeOperation = "destination-in";
-          ctx.drawImage(input, 0, 0, canvas.width, canvas.height);
-          ctx.globalCompositeOperation = "source-over";
-        }
-        // Keep the painted thumbnail, not the renderer's shared mutable surface.
-        const copy = document.createElement("canvas");
-        copy.width = canvas.width;
-        copy.height = canvas.height;
-        const copyCtx = copy.getContext("2d");
-        if (copyCtx) {
-          copyCtx.drawImage(canvas, 0, 0);
-          const entries = previewCache.get(def) ?? new Map();
-          entries.set(key, copy);
-          previewCache.set(def, entries);
-        }
-        canvas.dataset.previewState = "ready";
-        canvas.dataset.previewSource = "render";
-      } catch {
-        canvas.dataset.previewState = "fallback";
-        // The CSS fallback remains visible when canvas APIs are unavailable.
-      } finally {
-        ctx.globalCompositeOperation = "source-over";
-      }
-    };
-    const schedule = () => {
-      if (scheduled || disposed) return;
-      scheduled = true;
-      if (typeof window.requestIdleCallback === "function")
-        idleId = window.requestIdleCallback(draw, { timeout: 250 });
-      else frameId = window.requestAnimationFrame(draw);
-    };
-    let observer: IntersectionObserver | undefined;
-    if (typeof IntersectionObserver === "undefined") draw();
-    else {
-      observer = new IntersectionObserver(
-        (entries) => {
-          if (!entries.some((entry) => entry.isIntersecting)) return;
-          observer?.disconnect();
-          schedule();
-        },
-        { rootMargin: "120px" },
-      );
-      observer.observe(canvas);
-    }
-    return () => {
-      disposed = true;
-      observer?.disconnect();
-      if (idleId !== undefined) window.cancelIdleCallback(idleId);
-      if (frameId !== undefined) window.cancelAnimationFrame(frameId);
-    };
-  }, [def, sample]);
-
+  const previewDef = useMemo(() => shaderPreviewDef(def, sample, text, source), [def, sample, text, source]);
   return (
-    <canvas
-      ref={canvasRef}
-      width={144}
-      height={72}
-      aria-hidden="true"
-      className="h-[56px] w-full rounded-[7px] bg-bg-3 object-cover"
-      style={{ backgroundImage: previewFallback(def.id) }}
-    />
+    <div className="relative aspect-video w-full overflow-hidden rounded-[7px] bg-bg-3">
+      <EffectLivePreview def={previewDef} active={active} />
+    </div>
+  );
+}
+
+function ShaderTile({
+  def,
+  sample,
+  text,
+  source,
+  name,
+  selected,
+  pressed,
+  onSelect,
+}: {
+  def: MotionShaderDef;
+  sample: ShaderPreviewSample;
+  text: string;
+  source: PreviewTextSource | undefined;
+  name: string;
+  selected: boolean;
+  pressed: boolean | undefined;
+  onSelect: (shaderId: string) => void;
+}): JSX.Element {
+  const { active, handlers } = useLivePreviewActivity();
+  return (
+    <Button
+      variant="ghost"
+      size="sm"
+      type="button"
+      aria-label={name}
+      aria-pressed={pressed}
+      onClick={() => onSelect(def.id)}
+      {...handlers}
+      className={`block h-auto w-full min-w-0 whitespace-normal rounded-[9px] border p-1.5 text-left text-[length:inherit] font-normal leading-[inherit] transition-colors ${
+        selected
+          ? "border-accent bg-accent/10"
+          : "border-border bg-bg-2 hover:border-accent/50 hover:bg-bg-3"
+      }`}
+    >
+      <ShaderPreviewCanvas def={def} sample={sample} text={text} source={source} active={active} />
+      <span className="mt-1.5 block truncate text-[11px] font-medium text-fg-2">
+        {def.name}
+      </span>
+      <span className="block truncate text-[9px] text-fg-4">
+        {def.collection ?? "Built-in"} · {def.category}
+      </span>
+    </Button>
   );
 }
 
@@ -206,13 +98,26 @@ export function ShaderPreviewBrowser({
   onSelect,
   sample = "text",
   label = "Material previews",
+  text = DEFAULT_PREVIEW_TEXT,
+  textStyle,
+  textTransform,
 }: {
   defs: readonly MotionShaderDef[];
   selectedId?: string;
   onSelect: (shaderId: string) => void;
   sample?: ShaderPreviewSample;
   label?: string;
+  /** Text a material is shown on (the selected text clip's own string). */
+  text?: string;
+  /** The selected text clip's style and transform: text materials are drawn on the clip as it is. */
+  textStyle?: TextStyle;
+  textTransform?: Transform;
 }): JSX.Element {
+  const textSource = useMemo<PreviewTextSource | undefined>(
+    // The shader already on the clip is left out so picking a material does not re-key every tile.
+    () => (textStyle ? { text, style: { ...textStyle, shader: undefined }, transform: textTransform } : undefined),
+    [text, textStyle, textTransform],
+  );
   const [query, setQuery] = useState("");
   const [collection, setCollection] = useState("All");
   const collections = useMemo(
@@ -298,35 +203,23 @@ export function ShaderPreviewBrowser({
           })}
         </div>
       ) : null}
-      <div className="grid max-h-[260px] grid-cols-2 gap-2 overflow-y-auto pr-1">
-        {visibleDefs.map((def) => {
-          const selected = def.id === selectedId;
-          return (
-            <Button
-              variant="ghost"
-              size="sm"
+      <EffectPreviewProvider>
+        <div className="grid max-h-[260px] grid-cols-2 gap-2 overflow-y-auto pr-1">
+          {visibleDefs.map((def) => (
+            <ShaderTile
               key={def.id}
-              type="button"
-              aria-label={shaderAccessibleName(def, duplicateNames, sample)}
-              aria-pressed={selectedId === undefined ? undefined : selected}
-              onClick={() => onSelect(def.id)}
-              className={`block h-auto w-full min-w-0 whitespace-normal rounded-[9px] border p-1.5 text-left text-[length:inherit] font-normal leading-[inherit] transition-colors ${
-                selected
-                  ? "border-accent bg-accent/10"
-                  : "border-border bg-bg-2 hover:border-accent/50 hover:bg-bg-3"
-              }`}
-            >
-              <ShaderPreviewCanvas def={def} sample={sample} />
-              <span className="mt-1.5 block truncate text-[11px] font-medium text-fg-2">
-                {def.name}
-              </span>
-              <span className="block truncate text-[9px] text-fg-4">
-                {def.collection ?? "Built-in"} · {def.category}
-              </span>
-            </Button>
-          );
-        })}
-      </div>
+              def={def}
+              sample={sample}
+              text={text}
+              source={textSource}
+              name={shaderAccessibleName(def, duplicateNames, sample)}
+              selected={def.id === selectedId}
+              pressed={selectedId === undefined ? undefined : def.id === selectedId}
+              onSelect={onSelect}
+            />
+          ))}
+        </div>
+      </EffectPreviewProvider>
       {visibleDefs.length === 0 ? (
         <div className="rounded-[8px] border border-dashed border-border px-3 py-5 text-center text-[11px] text-fg-4">
           No {sample === "effect" ? "effects" : "materials"} match “{query}”.

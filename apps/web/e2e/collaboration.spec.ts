@@ -70,8 +70,9 @@ async function mockRoomCreation(context: BrowserContext): Promise<void> {
   );
 }
 
+/** The toolbar button carries the connection state, so it can be read while the dialog is closed. */
 async function collabStatus(page: Page): Promise<string | null> {
-  return page.getByTestId("collab-status").getAttribute("data-connection");
+  return page.getByTestId("collab-button").getAttribute("data-connection");
 }
 
 async function startSession(page: Page, name: string): Promise<{ editor: string; viewer: string }> {

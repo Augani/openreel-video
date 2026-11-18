@@ -813,3 +813,40 @@ export function invertTimelineToolEdits(
     edits.map((edit) => ({ ...edit, before: edit.after, after: edit.before })),
   );
 }
+
+/**
+ * Undo of a split when a collaborator has since changed the right half (for
+ * example split it again). The recorded inverse no longer matches, so apply
+ * the same intent to what is there now: merge the left half with the right
+ * half's current extent and drop the right half. Returns null when the
+ * inverse is not a split-undo or the pieces are no longer adjacent.
+ */
+export function rebaseSplitInverse(
+  project: Project,
+  edits: readonly TimelineToolItemEdit[],
+): TimelineToolItemEdit[] | null {
+  if (edits.length !== 2 || edits.some((edit) => edit.kind !== "media")) return null;
+  const right = edits.find((edit) => edit.before && !edit.after);
+  const left = edits.find((edit) => edit.before && edit.after);
+  if (!left || !right || left.trackId !== right.trackId) return null;
+  const find = (edit: TimelineToolItemEdit) =>
+    collection(project, edit).find((item) => item.id === edit.id) as
+      | (EditData & { startTime: number; duration: number; outPoint?: number })
+      | undefined;
+  const leftNow = find(left);
+  const rightNow = find(right);
+  if (!leftNow || !rightNow) return null;
+  if (JSON.stringify(leftNow) !== JSON.stringify(left.before)) return null;
+  // Only a right half someone else changed is rebased; an unchanged one failed validation for another reason.
+  if (JSON.stringify(rightNow) === JSON.stringify(right.before)) return null;
+  if (Math.abs(leftNow.startTime + leftNow.duration - rightNow.startTime) > 1e-6) return null;
+  const merged = {
+    ...leftNow,
+    duration: rightNow.startTime + rightNow.duration - leftNow.startTime,
+    ...(rightNow.outPoint !== undefined ? { outPoint: rightNow.outPoint } : {}),
+  } as EditData;
+  return [
+    { ...left, before: leftNow, after: merged },
+    { ...right, before: rightNow, after: null },
+  ];
+}

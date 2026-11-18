@@ -18,3 +18,8 @@ export function aiProviderLabel(provider: AIProvider, baseUrl: string): string {
   } catch { /* An unfinished draft may not contain a URL yet. */ }
   return "Compatible";
 }
+
+/** True when the saved connection can actually serve a request. */
+export function isConnectionReady(c: { baseUrl: string; model: string; apiKey: string; provider: string }): boolean {
+  return !!c.baseUrl.trim() && !!c.model.trim() && (!!c.apiKey || c.provider === "compatible");
+}

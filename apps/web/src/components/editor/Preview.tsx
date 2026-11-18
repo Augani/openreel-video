@@ -6,7 +6,9 @@ import { Button as ShadcnButton, DropdownMenu, DropdownMenuTrigger, DropdownMenu
 import { EmptyProjectStart } from "./EmptyProjectStart";
 import { ScopesPanel } from "./scopes/ScopesPanel";
 import { registerPreviewCanvas } from "./scopes/preview-canvas-registry";
+import { notifyPreviewDeviceLoss, registerProgramRenderer } from "./preview/device-loss";
 import { ProgramMonitorOverlays } from "./preview/ProgramMonitorOverlays";
+import { DynamicTrimTwoUp } from "./preview/DynamicTrimTwoUp";
 import { MotionTrackingOverlay } from "./preview/MotionTrackingOverlay";
 import { registerProgramFrameControl } from "./preview/program-frame-control";
 import React, {
@@ -33,6 +35,8 @@ import {
 } from "@/icons/lucide-compat";
 import { cn } from "@openreel/ui";
 import { useProjectStore } from "../../stores/project-store";
+import { useEditPointStore } from "../../stores/edit-point-store";
+import { getMonitorProject } from "../../services/dynamic-trim";
 import { startLiveDuckingSync } from "../../services/live-ducking-sync";
 import { previewProxyCache, usePreviewProxyStore } from "../../stores/preview-proxy-store";
 import { useTimelineStore } from "../../stores/timeline-store";
@@ -108,6 +112,8 @@ import {
   renderShapeClipToCanvas,
   getActiveSubtitles,
   renderSubtitleToCanvas,
+  setPreviewSequencePar,
+  getPreviewSequencePar,
   drawFrameWithTransform,
   drawFrameWithMasks,
   applyEffectsToFrame,
@@ -126,6 +132,7 @@ import {
   previewQualityScale,
   PREVIEW_QUALITY_OPTIONS,
 } from "./preview/index";
+import { displayLayoutWidth, normalizeSequencePar, snapshotInDisplaySpace, withDisplaySpace } from "@openreel/core/video/sequence-par";
 import { snapCanvasPosition } from "./preview/canvas-snapping";
 import { textSelectionLayout } from "./preview/text-selection-layout";
 import { previewFrameSize as fitPreviewFrame, previewViewportSize } from "./preview/preview-frame-layout";
@@ -219,7 +226,8 @@ const applyPreviewAdjustmentLayers = async (
     let source: ImageBitmap | null = null;
     let processed: ImageBitmap | null = null;
     try {
-      source = await createImageBitmap(canvas);
+      // Effects see display space (stored width x PAR) so blur-like radii are isotropic where the frame is shown.
+      source = await snapshotInDisplaySpace(canvas, canvas.width, canvas.height, getPreviewSequencePar());
       processed = await effectsBridge.processEffectList(source, effects);
       if (processed.width <= 0 || processed.height <= 0) continue;
       ctx.save();
@@ -404,7 +412,7 @@ const renderFrameWithGPU = async (
       transform.fitMode,
       frame.width,
       frame.height,
-      canvasWidth,
+      displayLayoutWidth(canvasWidth, getPreviewSequencePar()),
       canvasHeight,
       transform.crop,
     );
@@ -427,6 +435,7 @@ const renderFrameWithGPU = async (
       effects: [],
       opacity: transform.opacity,
       borderRadius: transform.borderRadius || 0,
+      pixelAspect: getPreviewSequencePar(),
     });
 
     const result = await renderer.endFrame();
@@ -465,7 +474,7 @@ const renderAllLayersWithGPU = async (
         layer.transform.fitMode,
         layer.bitmap.width,
         layer.bitmap.height,
-        canvasWidth,
+        displayLayoutWidth(canvasWidth, getPreviewSequencePar()),
         canvasHeight,
         layer.transform.crop,
       );
@@ -488,6 +497,7 @@ const renderAllLayersWithGPU = async (
         effects: [],
         opacity: layer.transform.opacity,
         borderRadius: layer.transform.borderRadius || 0,
+        pixelAspect: getPreviewSequencePar(),
       });
     }
 
@@ -1061,6 +1071,10 @@ export const Preview: React.FC = () => {
   const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
   const [videoAreaSize, setVideoAreaSize] = useState({ width: 0, height: 0 });
   const [rendererType, setRendererType] = useState<string>("none");
+  // A canvas that has handed out a "webgpu" context can never give a 2d one: when GPU recovery fails the <canvas> element is
+  // replaced (new key) and the Canvas2D renderer is built on the fresh one.
+  const [canvasEpoch, setCanvasEpoch] = useState(0);
+  const [gpuUnavailable, setGpuUnavailable] = useState(false);
   const [isMaximized, setIsMaximized] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(1);
@@ -1265,7 +1279,7 @@ export const Preview: React.FC = () => {
 
     resizeObserver.observe(canvas);
     return () => resizeObserver.disconnect();
-  }, []);
+  }, [canvasEpoch]);
 
   useEffect(() => {
     const videoArea = videoAreaRef.current;
@@ -1287,7 +1301,10 @@ export const Preview: React.FC = () => {
   // when any part of the project changes (including clips)
   // Same identity while only waveforms/thumbnails change (they finish in the background mid-playback and would
   // otherwise restart the playback effect: see playback-project.ts).
-  const project = useStablePlaybackProject(useProjectStore((state) => state.project));
+  // While a dynamic (JKL) trim runs, the monitor renders the trimmed result (never saved): see services/dynamic-trim.ts.
+  const storedProject = useProjectStore((state) => state.project);
+  const trimPreviewProject = useEditPointStore((state) => state.dynamicTrim?.previewProject ?? null);
+  const project = useStablePlaybackProject(trimPreviewProject ?? storedProject);
   const fontRevision = useProjectFonts(project);
   const getOriginalMediaItem = useProjectStore((state) => state.getMediaItem);
   const proxySourceRevision = usePreviewProxyStore((state) => state.revision);
@@ -1479,6 +1496,10 @@ export const Preview: React.FC = () => {
   const updateSettings = useProjectStore((state) => state.updateSettings);
   const timelineTracks = project.timeline.tracks;
   const settings = project.settings;
+  // Sequence pixel aspect: the monitor lays out and shows the frame in display space (stored width x PAR).
+  const programPar = normalizeSequencePar(settings.pixelAspectRatio);
+  const programWidth = displayLayoutWidth(settings.width, programPar);
+  setPreviewSequencePar(programPar);
   const editingFrameDuration = editingFrameDurationMs(settings.frameRate);
 
   const canvasFillMode = project.timeline.backgroundFillMode;
@@ -1522,8 +1543,8 @@ export const Preview: React.FC = () => {
   );
 
   const previewFrameSize = useMemo(
-    () => fitPreviewFrame(videoAreaSize, { width: settings.width, height: settings.height }, zoomLevel, phone),
-    [settings.height, settings.width, videoAreaSize, zoomLevel, phone],
+    () => fitPreviewFrame(videoAreaSize, { width: programWidth, height: settings.height }, zoomLevel, phone),
+    [settings.height, programWidth, videoAreaSize, zoomLevel, phone],
   );
 
   // Keep a ref to timelineTracks for use in playback effect without causing re-runs
@@ -1756,14 +1777,14 @@ export const Preview: React.FC = () => {
       canvas.width = previewRes.width;
       canvas.height = previewRes.height;
     }
-  }, [previewRes.width, previewRes.height]);
+  }, [previewRes.width, previewRes.height, canvasEpoch]);
 
   useEffect(() => {
     if (isRenderBridgeReady && canvasRef.current) {
       const bridge = getRenderBridge();
       bridge.setCanvas(canvasRef.current);
     }
-  }, [isRenderBridgeReady]);
+  }, [isRenderBridgeReady, canvasEpoch]);
 
   /**
    * Select the preview backend from the shared editor preference.
@@ -1777,6 +1798,12 @@ export const Preview: React.FC = () => {
       if (factory.getCurrentRenderer() === renderer) factory.destroyRenderer();
       else renderer.destroy();
     };
+    // The WebGPU context cannot be given back, so the Canvas2D fallback needs a brand-new <canvas>: bumping the epoch
+    // remounts it and re-runs this effect with the GPU disabled, which then builds the 2D renderer and repaints.
+    const fallBackToCanvas2d = () => {
+      setGpuUnavailable(true);
+      setCanvasEpoch((epoch) => epoch + 1);
+    };
 
     const initializeRenderer = async () => {
       try {
@@ -1788,7 +1815,7 @@ export const Preview: React.FC = () => {
           width: canvas.width,
           height: canvas.height,
           preferredRenderer:
-            hardwareAcceleration && isWebGPUSupported() ? "webgpu" : "canvas2d",
+            hardwareAcceleration && !gpuUnavailable && isWebGPUSupported() ? "webgpu" : "canvas2d",
         });
         if (disposed) {
           release(renderer);
@@ -1799,21 +1826,31 @@ export const Preview: React.FC = () => {
         rendererRef.current = renderer;
         rendererInitializedRef.current = true;
         setRendererType(renderer.type);
+        registerProgramRenderer(() => rendererRef.current);
 
         renderer.onDeviceLost(() => {
           if (disposed) return;
           console.warn("[Preview] GPU device lost, attempting recovery...");
+          // The preview cards' engines may hold dead contexts too: rebuild them and re-render every card.
+          notifyPreviewDeviceLoss();
           renderer
             .recreateDevice()
             .then((success) => {
-              if (!success && !disposed) {
-                console.error("[Preview] Failed to recover GPU device");
-                setRendererType("canvas2d");
+              if (disposed) return;
+              if (success) {
+                // Same canvas, new device: paint the frame under the playhead again (it went black with the old device).
+                setRendererType(renderer.type);
+                requestPausedFrameRef.current(useTimelineStore.getState().playheadPosition);
+                notifyPreviewDeviceLoss();
+                return;
               }
+              console.error("[Preview] Failed to recover GPU device");
+              fallBackToCanvas2d();
             })
             .catch((error) => {
-              if (!disposed)
-                console.warn("[Preview] GPU recovery failed:", error);
+              if (disposed) return;
+              console.warn("[Preview] GPU recovery failed:", error);
+              fallBackToCanvas2d();
             });
         });
       } catch (error) {
@@ -1833,7 +1870,7 @@ export const Preview: React.FC = () => {
         rendererInitializedRef.current = false;
       }
     };
-  }, [hardwareAcceleration]);
+  }, [hardwareAcceleration, gpuUnavailable, canvasEpoch]);
 
   /**
    * Handle canvas resize events
@@ -2813,7 +2850,7 @@ export const Preview: React.FC = () => {
       const frameHeight = canvas.height;
       const canCommit = () => canvasRef.current === canvas
         && canvas.width === frameWidth && canvas.height === frameHeight
-        && sameProjectForPlayback(useProjectStore.getState().project, project)
+        && sameProjectForPlayback(getMonitorProject(), project)
         && previewProxyCache.store.getState().revision === proxySourceRevision
         && isPlaying === (useTimelineStore.getState().playbackState === "playing")
         && (!request || (!request.signal.aborted && request.isCurrent()
@@ -3375,7 +3412,11 @@ export const Preview: React.FC = () => {
       }
 
       // Particles and subtitles sit above every track, so no adjustment layer reaches them.
-      hasRenderedFrame = drawProjectParticles(ctx, project, time, canvas.width, canvas.height) > 0 || hasRenderedFrame;
+      let particlesDrawn = 0;
+      withDisplaySpace(ctx, canvas.width, getPreviewSequencePar(), (layoutWidth) => {
+        particlesDrawn = drawProjectParticles(ctx, project, time, layoutWidth, canvas.height);
+      });
+      hasRenderedFrame = particlesDrawn > 0 || hasRenderedFrame;
 
       const activeSubtitles = getActiveSubtitles(allSubtitles, time);
       if (activeSubtitles.length > 0 && ctx) {
@@ -3488,7 +3529,7 @@ export const Preview: React.FC = () => {
       if (!ctx) return false;
       const canCommit = () => canvasRef.current === canvas
         && canvas.width === frameCanvas.width && canvas.height === frameCanvas.height
-        && sameProjectForPlayback(useProjectStore.getState().project, project)
+        && sameProjectForPlayback(getMonitorProject(), project)
         && previewProxyCache.store.getState().revision === proxySourceRevision
         && (!request || (!request.signal.aborted && request.isCurrent()
           && useTimelineStore.getState().playbackState !== "playing"
@@ -3821,7 +3862,7 @@ export const Preview: React.FC = () => {
     let cancelled = false;
     const at = useTimelineStore.getState().playheadPosition;
     const blobs: Blob[] = [];
-    for (const track of useProjectStore.getState().project.timeline.tracks) {
+    for (const track of project.timeline.tracks) {
       for (const clip of track.clips) {
         if (at < clip.startTime || at >= clip.startTime + clip.duration) continue;
         const media = getMediaItem(clip.mediaId);
@@ -3841,7 +3882,7 @@ export const Preview: React.FC = () => {
     return () => {
       cancelled = true
     };
-  }, [previewFrameFailed, playheadPosition, getMediaItem]);
+  }, [previewFrameFailed, playheadPosition, getMediaItem, project]);
 
   // Check if we can use native video element playback (much faster, hardware-accelerated)
   const canUseNativeVideoPlayback = useCallback(
@@ -6892,7 +6933,8 @@ export const Preview: React.FC = () => {
     lastProxyRevisionForRenderRef.current = proxySourceRevision;
     lastPlayheadForRenderRef.current = playheadPosition;
 
-    if (surfaceChanged || playheadChanged || sourceChanged || textChanged) {
+    // A live dynamic-trim preview changes every tick; the usual 150 ms edit debounce would never fire mid-shuttle.
+    if (surfaceChanged || playheadChanged || sourceChanged || textChanged || (projectChanged && trimPreviewProject !== null)) {
       requestPausedFrame(playheadPosition);
     } else if (projectChanged) {
       pausedFrames.cancel();
@@ -6923,6 +6965,7 @@ export const Preview: React.FC = () => {
     hardwareAcceleration,
     rendererType,
     project,
+    trimPreviewProject,
     proxySourceRevision,
     isDark,
     previewRes.width,
@@ -7035,7 +7078,7 @@ export const Preview: React.FC = () => {
         }
       : clipTransform;
 
-    const canvasWidth = settings.width;
+    const canvasWidth = programWidth;
     const canvasHeight = settings.height;
 
     const canvasAspect = canvasWidth / canvasHeight;
@@ -7099,7 +7142,7 @@ export const Preview: React.FC = () => {
     const clipWidth = baseWidth * transform.scale.x * displayScale;
     const clipHeight = baseHeight * transform.scale.y * displayScale;
 
-    const offsetX = transform.position.x * displayScale;
+    const offsetX = transform.position.x * programPar * displayScale;
     const offsetY = transform.position.y * displayScale;
 
     const canvasOffsetX = canvasRect.left - overlayRect.left + letterboxOffsetX;
@@ -7120,7 +7163,8 @@ export const Preview: React.FC = () => {
   }, [
     selectedClip,
     clipAtPlayhead,
-    settings.width,
+    programWidth,
+    programPar,
     settings.height,
     canvasSize,
     liveTransform,
@@ -7128,6 +7172,15 @@ export const Preview: React.FC = () => {
     mediaClipHasVisual,
   ]);
 
+  // Web fonts finishing after the first measure would leave the selection box sized for the fallback face.
+  const [fontsRevision, setFontsRevision] = useState(0);
+  useEffect(() => {
+    const fonts = typeof document === "undefined" ? undefined : document.fonts;
+    if (!fonts?.addEventListener) return;
+    const bump = () => setFontsRevision((revision) => revision + 1);
+    fonts.addEventListener("loadingdone", bump);
+    return () => fonts.removeEventListener("loadingdone", bump);
+  }, []);
   const textClipBounds = useMemo(() => {
     if (!selectedTextClip || !canvasRef.current || !overlayRef.current)
       return null;
@@ -7139,7 +7192,7 @@ export const Preview: React.FC = () => {
 
     const { transform, style, text } = selectedTextClip;
 
-    const canvasWidth = settings.width;
+    const canvasWidth = programWidth;
     const canvasHeight = settings.height;
 
     const canvasAspect = canvasWidth / canvasHeight;
@@ -7194,7 +7247,7 @@ export const Preview: React.FC = () => {
       displayScale,
       isTextClip: true,
     };
-  }, [selectedTextClip, settings.width, settings.height, canvasSize, getTitleEngine]);
+  }, [selectedTextClip, programWidth, settings.height, canvasSize, getTitleEngine, fontsRevision]);
 
   const selectedShapeClipId = useMemo(() => {
     const shapeClipSelection = selectedItems.find(
@@ -7232,7 +7285,7 @@ export const Preview: React.FC = () => {
       const amount = event.shiftKey ? 10 : 1;
       const pixelX = direction.x * amount;
       const pixelY = direction.y * amount;
-      const normalizedX = pixelX / Math.max(1, settings.width);
+      const normalizedX = pixelX / Math.max(1, programWidth);
       const normalizedY = pixelY / Math.max(1, settings.height);
       const pending: Promise<unknown>[] = [];
       let changed = false;
@@ -7296,7 +7349,7 @@ export const Preview: React.FC = () => {
       endHistoryGroup,
       selectedItems,
       settings.height,
-      settings.width,
+      programWidth,
       timelineTracks,
       updateClipTransform,
       updateShapeTransform,
@@ -7322,7 +7375,7 @@ export const Preview: React.FC = () => {
 
     const { transform } = selectedShapeClip;
 
-    const canvasWidth = settings.width;
+    const canvasWidth = programWidth;
     const canvasHeight = settings.height;
 
     const canvasAspect = canvasWidth / canvasHeight;
@@ -7387,7 +7440,7 @@ export const Preview: React.FC = () => {
       displayScale,
       isShapeClip: true,
     };
-  }, [selectedShapeClip, settings.width, settings.height, canvasSize]);
+  }, [selectedShapeClip, programWidth, settings.height, canvasSize]);
 
   const getGraphicClipDisplayBounds = useCallback(
     (clip: ShapeClip | SVGClip | StickerClip) => {
@@ -7400,7 +7453,7 @@ export const Preview: React.FC = () => {
 
       const { transform } = clip;
 
-      const canvasWidth = settings.width;
+      const canvasWidth = programWidth;
       const canvasHeight = settings.height;
 
       const canvasAspect = canvasWidth / canvasHeight;
@@ -7464,7 +7517,7 @@ export const Preview: React.FC = () => {
         centerY,
       };
     },
-    [settings.width, settings.height],
+    [programWidth, settings.height],
   );
 
   const findGraphicClipAtPoint = useCallback(
@@ -7525,7 +7578,7 @@ export const Preview: React.FC = () => {
     const lineHeight = fontSize * 1.3;
     const totalHeight = lines.length * lineHeight;
 
-    const canvasWidth = settings.width;
+    const canvasWidth = programWidth;
     const canvasHeight = settings.height;
 
     const canvasAspect = canvasWidth / canvasHeight;
@@ -7577,7 +7630,7 @@ export const Preview: React.FC = () => {
     };
   }, [
     selectedSubtitleObj,
-    settings.width,
+    programWidth,
     settings.height,
     canvasSize,
     playheadPosition,
@@ -7811,13 +7864,13 @@ export const Preview: React.FC = () => {
         if (interactionMode === "move") {
           const rawX =
             interactionStartRef.current.transform.x +
-            deltaX / displayScale / settings.width;
+            deltaX / displayScale / programWidth;
           const rawY =
             interactionStartRef.current.transform.y +
             deltaY / displayScale / settings.height;
           const offsets = textClipBounds.rotatedOffsets;
-          const left = offsets.left / settings.width;
-          const right = offsets.right / settings.width;
+          const left = offsets.left / programWidth;
+          const right = offsets.right / programWidth;
           const top = offsets.top / settings.height;
           const bottom = offsets.bottom / settings.height;
           const snapped = snapCanvasPosition({
@@ -7833,7 +7886,7 @@ export const Preview: React.FC = () => {
               { value: 0.5 - (top + bottom) / 2, guide: 0.5 },
               { value: 1 - bottom, guide: 1 },
             ],
-            thresholdX: 8 / displayScale / settings.width,
+            thresholdX: 8 / displayScale / programWidth,
             thresholdY: 8 / displayScale / settings.height,
             enabled: canvasSnappingEnabled && !e.altKey,
           });
@@ -7911,12 +7964,12 @@ export const Preview: React.FC = () => {
         if (interactionMode === "move") {
           const rawX =
             interactionStartRef.current.transform.x +
-            deltaX / displayScale / settings.width;
+            deltaX / displayScale / programWidth;
           const rawY =
             interactionStartRef.current.transform.y +
             deltaY / displayScale / settings.height;
           const halfWidth =
-            shapeClipBounds.width / displayScale / settings.width / 2;
+            shapeClipBounds.width / displayScale / programWidth / 2;
           const halfHeight =
             shapeClipBounds.height / displayScale / settings.height / 2;
           const snapped = snapCanvasPosition({
@@ -7932,7 +7985,7 @@ export const Preview: React.FC = () => {
               { value: 0.5, guide: 0.5 },
               { value: 1 - halfHeight, guide: 1 },
             ],
-            thresholdX: 8 / displayScale / settings.width,
+            thresholdX: 8 / displayScale / programWidth,
             thresholdY: 8 / displayScale / settings.height,
             enabled: canvasSnappingEnabled && !e.altKey,
           });
@@ -8005,7 +8058,7 @@ export const Preview: React.FC = () => {
 
       if (interactionMode === "move") {
         const rawX =
-          interactionStartRef.current.transform.x + deltaX / displayScale;
+          interactionStartRef.current.transform.x + deltaX / displayScale / programPar;
         const rawY =
           interactionStartRef.current.transform.y + deltaY / displayScale;
         const halfWidth = clipBounds.width / displayScale / 2;
@@ -8014,16 +8067,16 @@ export const Preview: React.FC = () => {
           x: rawX,
           y: rawY,
           xCandidates: [
-            { value: -settings.width / 2 + halfWidth, guide: 0 },
+            { value: (-programWidth / 2 + halfWidth) / programPar, guide: 0 },
             { value: 0, guide: 0.5 },
-            { value: settings.width / 2 - halfWidth, guide: 1 },
+            { value: (programWidth / 2 - halfWidth) / programPar, guide: 1 },
           ],
           yCandidates: [
             { value: -settings.height / 2 + halfHeight, guide: 0 },
             { value: 0, guide: 0.5 },
             { value: settings.height / 2 - halfHeight, guide: 1 },
           ],
-          thresholdX: 8 / displayScale,
+          thresholdX: 8 / displayScale / programPar,
           thresholdY: 8 / displayScale,
           enabled: canvasSnappingEnabled && !e.altKey,
         });
@@ -8057,7 +8110,7 @@ export const Preview: React.FC = () => {
           case "w":
             newScaleX = Math.max(0.1, startTransform.scaleX - scaleDeltaX);
             if (lockAspectRatio) newScaleY = newScaleX;
-            newX = startTransform.x + deltaX / displayScale / 2;
+            newX = startTransform.x + deltaX / displayScale / programPar / 2;
             break;
           case "s":
             newScaleY = Math.max(0.1, startTransform.scaleY + scaleDeltaY);
@@ -8087,7 +8140,7 @@ export const Preview: React.FC = () => {
               newScaleX = Math.max(0.1, startTransform.scaleX - scaleDeltaX);
               newScaleY = Math.max(0.1, startTransform.scaleY + scaleDeltaY);
             }
-            newX = startTransform.x + deltaX / displayScale / 2;
+            newX = startTransform.x + deltaX / displayScale / programPar / 2;
             break;
           case "ne":
             if (lockAspectRatio) {
@@ -8109,7 +8162,7 @@ export const Preview: React.FC = () => {
               newScaleX = Math.max(0.1, startTransform.scaleX - scaleDeltaX);
               newScaleY = Math.max(0.1, startTransform.scaleY - scaleDeltaY);
             }
-            newX = startTransform.x + deltaX / displayScale / 2;
+            newX = startTransform.x + deltaX / displayScale / programPar / 2;
             newY = startTransform.y + deltaY / displayScale / 2;
             break;
         }
@@ -8158,7 +8211,8 @@ export const Preview: React.FC = () => {
       selectedClip,
       clipAtPlayhead,
       updateClipTransform,
-      settings.width,
+      programWidth,
+      programPar,
       settings.height,
       canvasSnappingEnabled,
       lockAspectRatio,
@@ -8549,7 +8603,7 @@ export const Preview: React.FC = () => {
         onMouseMove={interactionMode !== "none" ? handleMouseMove : undefined}
         onMouseUp={handleMouseUp}
       >
-        <div className="workspace-preview-meta"><span>{settings.width}×{settings.height} · {Math.round(previewFrameSize.width / settings.width * 100)}%</span><span>{previewLabelAt(previewLabelIndex, playheadPosition)}</span></div>
+        <div className="workspace-preview-meta"><span>{settings.width}×{settings.height} · {Math.round(previewFrameSize.width / programWidth * 100)}%</span><span>{previewLabelAt(previewLabelIndex, playheadPosition)}</span></div>
         <EmptyProjectStart />
         <ScopesPanel />
         <div
@@ -8574,6 +8628,7 @@ export const Preview: React.FC = () => {
           onMouseLeave={() => setHoveredGraphicClipId(null)}
         >
           <canvas
+            key={canvasEpoch}
             ref={canvasRef}
             role="img"
             aria-busy={previewFramePending}
@@ -8587,6 +8642,7 @@ export const Preview: React.FC = () => {
           />
 
           <ProgramMonitorOverlays />
+          <DynamicTrimTwoUp />
           <MotionTrackingOverlay clipId={(selectedClip || clipAtPlayhead)?.id ?? null} bounds={clipBounds} />
 
           {decoderLimitHit && (

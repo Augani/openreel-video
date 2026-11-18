@@ -36,6 +36,22 @@ async function sourceSeek(page: Page, seconds: number) {
   await settle(page, 300);
 }
 
+/** The Source <video> element's playback state: ready means decoded data for the current position and no seek pending. */
+async function mediaElementState(page: Page) {
+  return page.evaluate(() => {
+    const v = document.querySelector('[data-testid="source-video"]') as HTMLVideoElement | null;
+    if (!v) return { ready: false, readyState: -1, seeking: false, paused: true, currentTime: 0, error: null as string | null };
+    return {
+      ready: v.readyState >= 3 && !v.seeking,
+      readyState: v.readyState,
+      seeking: v.seeking,
+      paused: v.paused,
+      currentTime: v.currentTime,
+      error: v.error ? v.error.message || String(v.error.code) : null,
+    };
+  });
+}
+
 /** Real keyboard focus on the Source monitor (as a user clicking into it). */
 async function focusSource(page: Page) {
   await page.getByTestId("source-monitor").click({ position: { x: 20, y: 60 } });
@@ -97,11 +113,19 @@ test.describe("Source monitor", () => {
 
     // J/K/L shuttle: L plays forward, repeated L doubles, K stops, J reverses.
     const t0 = (await readSource(page)).position;
+    // Real readiness signal: the element has finished the frame-step seeks and holds enough data to play.
+    // Pressing L while it is still seeking or has no future data lets a loaded machine stall the first play().
+    await expect.poll(() => mediaElementState(page), { message: "Source video never became playable after the frame steps", timeout: 30_000 }).toMatchObject({ ready: true });
     await page.keyboard.press("l");
     await expect.poll(async () => (await readSource(page)).rate).toBe(1);
     // The element's first play() can take a while to start decoding on a busy machine, so wait for
     // the Source playhead to actually advance rather than for a fixed 700 ms.
-    await expect.poll(async () => (await readSource(page)).position, { timeout: 15_000 }).toBeGreaterThan(t0 + 0.3);
+    await expect
+      .poll(async () => (await readSource(page)).position, {
+        timeout: 15_000,
+        message: `Source playhead did not advance after L; element: ${JSON.stringify(await mediaElementState(page))}`,
+      })
+      .toBeGreaterThan(t0 + 0.3);
     await page.keyboard.press("l");
     expect((await readSource(page)).rate).toBe(2);
     await page.keyboard.press("k");
@@ -111,9 +135,11 @@ test.describe("Source monitor", () => {
     const t1 = s.position;
     await page.keyboard.press("j");
     expect((await readSource(page)).rate).toBe(-1);
-    await page.waitForTimeout(500);
+    // Reverse playback is stepped by the shuttle loop; on a busy machine it can lag, so wait for the Source
+    // playhead to actually move back rather than for a fixed 500 ms.
+    await expect.poll(async () => (await readSource(page)).position, { timeout: 15_000 }).toBeLessThan(t1 - 0.2);
     await page.keyboard.press("k");
-    expect((await readSource(page)).position).toBeLessThan(t1 - 0.2);
+    expect((await readSource(page)).rate).toBe(0);
     expect((await readState(page)).playhead).toBeCloseTo(3, 3);
 
     // I/O mark the SOURCE range, independent of the sequence In/Out.

@@ -19,10 +19,12 @@ import {
   UploadCloud,
 } from "@/icons/lucide-compat";
 import { useProjectStore } from "../../../stores/project-store";
+import { DEFAULT_TEXT_SHADER_PROGRESS } from "../panels/effect-previews/kind-defs";
 import type {
   MotionShaderParamValue,
   TextShaderStyle,
   TextStyle,
+  Transform,
   FontWeight,
 } from "@openreel/core";
 import {
@@ -662,6 +664,9 @@ export const TextSection: React.FC<TextSectionProps> = ({ clipId, clipIds }) => 
       <TextShaderControls
         historyKey={numericScope}
         shader={style.shader}
+        text={text}
+        previewStyle={style}
+        previewTransform={textClip?.transform}
         onChange={(shader) => handleStyleChange({ shader })}
       />
 
@@ -672,13 +677,15 @@ export const TextSection: React.FC<TextSectionProps> = ({ clipId, clipIds }) => 
 
 // ─── Text shader controls ────────────────────────────────────────
 
-const DEFAULT_TEXT_SHADER_PROGRESS = 0.5;
 
 const TextShaderControls: React.FC<{
   historyKey: string;
   shader: TextShaderStyle | undefined;
+  text: string;
+  previewStyle: TextStyle;
+  previewTransform: Transform | undefined;
   onChange: (shader: TextShaderStyle | undefined) => void;
-}> = ({ historyKey, shader, onChange }) => {
+}> = ({ historyKey, shader, text, previewStyle, previewTransform, onChange }) => {
   const materialDefs = useMemo(
     () => [
       ...getMotionShaderTextDefs(),
@@ -757,6 +764,9 @@ const TextShaderControls: React.FC<{
           onSelect={handleShaderSelect}
           sample="text"
           label="Text material previews"
+          text={text}
+          textStyle={previewStyle}
+          textTransform={previewTransform}
         />
         {shader && def ? (
           <>

@@ -251,12 +251,6 @@ export const AIGenTab: React.FC = () => {
             onClick={() => handleFeatureClick("multicam")}
           />
         </FeatureSection>
-
-        <div className="pt-2 border-t border-border">
-          <span className="text-fg-2 font-normal block text-center text-[9px]">
-            More AI features coming soon — image generation, auto-edit, and more
-          </span>
-        </div>
       </div>
     </div>
   );

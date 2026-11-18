@@ -298,8 +298,9 @@ export const EssentialSoundSection: React.FC<EssentialSoundSectionProps> = ({ cl
             )}
           </Group>
 
+          {audioType === "dialogue" && (
           <Group title="Repair" testId="essential-group-repair">
-            {audioType === "dialogue" ? (
+            {(
               <>
                 <Row label="Reduce noise">
                   <InspectorToggle
@@ -319,10 +320,9 @@ export const EssentialSoundSection: React.FC<EssentialSoundSectionProps> = ({ cl
                 </Row>
                 <p className="text-[10px] text-fg-3">For hum, clicks and sibilance use Audio repair below.</p>
               </>
-            ) : (
-              <p className="text-[10px] text-fg-3">Repair presets are for dialogue clips.</p>
             )}
           </Group>
+          )}
 
           <Group title="Clarity" testId="essential-group-clarity">
             <Row label={audioType === "sfx" ? "Limiter" : "EQ preset"}>

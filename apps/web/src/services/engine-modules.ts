@@ -42,6 +42,7 @@ export {
   registerProjectGeneratedShaders,
   VideoEffectsEngine,
   ColorGradingEngine,
+  lutFromJson,
   isWebGPUSupported,
   createTransitionEngine,
   initializeMediaImportService,

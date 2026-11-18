@@ -7,6 +7,7 @@ import {
   startPracticeProject,
   type PracticeProgress,
 } from "../../../services/onboarding/practice-project";
+import { PracticeClipStrip } from "./PracticeClipStrip";
 import { startLessons } from "./lesson-mount";
 import type { LessonId } from "./lessons";
 
@@ -108,6 +109,7 @@ export function PickFootage({ onStarted, fromLesson }: PickFootageProps): JSX.El
             <span className="mt-1 block text-xs leading-relaxed text-fg-2">
               Three short clips and a music track made for learning. Nothing to download.
             </span>
+            <PracticeClipStrip />
           </button>
         )}
 

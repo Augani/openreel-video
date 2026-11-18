@@ -99,6 +99,36 @@ describe("GraphicsEngine", () => {
       expect(updated?.transform.position).toEqual({ x: 0.25, y: 0.75 });
     });
 
+    it("keeps the default tile unless an extent is authored, and stores the extent when it is", () => {
+      expect(engine.createRectangle("t", 0, 5, 100, 50).extent).toBeUndefined();
+      const sized = engine.createShape(
+        { shapeType: "rectangle", width: 1920, height: 120, extent: { width: 1920, height: 120 } },
+        "t",
+        0,
+        5,
+      );
+      expect(sized.extent).toEqual({ width: 1920, height: 120 });
+    });
+
+    it("draws an authored rectangle at its size, offset by the anchor, in 1080-line units", async () => {
+      const bar = engine.createShape(
+        { shapeType: "rectangle", width: 1920, height: 12, extent: { width: 1920, height: 12 } },
+        "t",
+        0,
+        5,
+      );
+      const anchored = { ...bar, transform: { ...bar.transform, anchor: { x: 0, y: 0.5 } } };
+      const rendered = await engine.renderGraphic(anchored, 0, 960, 540);
+      const ctx = rendered.canvas.getContext("2d") as unknown as MockCanvasContext;
+      // A 540-line frame scales 1920x12 reference pixels to 960x6; an anchor on the left edge starts the box at x = 0.
+      expect(ctx.rect).toHaveBeenCalledTimes(1);
+      const [x, y, w, h] = ctx.rect.mock.calls[0] as number[];
+      expect(x).toBeCloseTo(0, 5);
+      expect(y).toBeCloseTo(-3, 5);
+      expect(w).toBeCloseTo(960, 5);
+      expect(h).toBeCloseTo(6, 5);
+    });
+
     it("should delete shape clip", () => {
       const clip = engine.createRectangle("track-1", 0, 5, 100, 50);
       const deleteResult = engine.deleteShapeClip(clip.id);

@@ -1,18 +1,8 @@
 import React, { memo } from "react";
-import {
-  Play,
-  Clock,
-  Layers,
-  Smartphone,
-  Monitor,
-  Square,
-  Star,
-  Crown,
-} from "@/icons/lucide-compat";
-import type { SocialMediaCategory } from "@openreel/core";
+import { Play, Clock, Layers, Star, Crown } from "@/icons/lucide-compat";
 import type { TemplateCatalogEntry } from "../../services/template-catalog";
-import { SOCIAL_MEDIA_PRESETS } from "@openreel/core";
 import { Button } from "@openreel/ui";
+import { TemplateThumb } from "./TemplateThumb";
 
 interface TemplateCardProps {
   template: TemplateCatalogEntry;
@@ -20,57 +10,12 @@ interface TemplateCardProps {
   isLoading?: boolean;
 }
 
-const CATEGORY_ICONS: Record<string, React.ElementType> = {
-  tiktok: Smartphone,
-  "instagram-reels": Smartphone,
-  "instagram-stories": Smartphone,
-  "instagram-post": Square,
-  "youtube-shorts": Smartphone,
-  "youtube-video": Monitor,
-  facebook: Square,
-  twitter: Monitor,
-  linkedin: Monitor,
-  pinterest: Smartphone,
-  intro: Play,
-  outro: Play,
-  promo: Star,
-  "lower-third": Monitor,
-  slideshow: Layers,
-  custom: Square,
-};
-
-const CATEGORY_GRADIENTS: Record<string, string> = {
-  tiktok: "from-emerald-500 to-cyan-500",
-  "instagram-reels": "from-emerald-500 to-teal-500",
-  "instagram-stories": "from-amber-500 to-emerald-500",
-  "instagram-post": "from-emerald-500 to-teal-500",
-  "youtube-shorts": "from-red-500 to-orange-500",
-  "youtube-video": "from-red-600 to-red-400",
-  facebook: "from-blue-600 to-blue-400",
-  twitter: "from-sky-500 to-blue-500",
-  linkedin: "from-blue-700 to-blue-500",
-  pinterest: "from-red-500 to-rose-400",
-  intro: "from-emerald-500 to-green-500",
-  outro: "from-green-500 to-emerald-500",
-  promo: "from-amber-500 to-orange-500",
-  "lower-third": "from-emerald-500 to-teal-500",
-  slideshow: "from-teal-500 to-cyan-500",
-  custom: "from-zinc-500 to-zinc-400",
-};
-
 export const TemplateCard: React.FC<TemplateCardProps> = memo(
   function TemplateCard({
     template,
     onClick,
     isLoading = false,
   }: TemplateCardProps) {
-    const category: SocialMediaCategory = template.socialCategory || "custom";
-    const preset = SOCIAL_MEDIA_PRESETS[category];
-    const isVertical = preset && preset.height > preset.width;
-    const Icon = CATEGORY_ICONS[category] || Square;
-    const gradient =
-      CATEGORY_GRADIENTS[category] || "from-primary to-emerald-500";
-
     const formatDuration = (seconds: number): string => {
       if (seconds < 60) return `${seconds}s`;
       const mins = Math.floor(seconds / 60);
@@ -86,30 +31,14 @@ export const TemplateCard: React.FC<TemplateCardProps> = memo(
         aria-busy={isLoading}
         type="button"
         aria-label={template.name}
-        className="group/card h-auto min-w-0 whitespace-normal text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 p-0 group relative flex flex-col rounded-xl bg-background-tertiary border border-border overflow-hidden transition-all duration-200 hover:bg-background-elevated hover:border-border-hover hover:shadow-lg hover:-translate-y-0.5"
+        className="group/card h-auto min-w-0 items-stretch justify-start whitespace-normal text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 p-0 group relative flex flex-col rounded-xl bg-background-tertiary border border-border overflow-hidden transition-all duration-200 hover:bg-background-elevated hover:border-border-hover hover:shadow-lg hover:-translate-y-0.5"
       >
-        <div
-          className={`relative flex items-center justify-center overflow-hidden ${
-            isVertical ? "aspect-[9/16] max-h-48" : "aspect-video"
-          }`}
-        >
-          {template.thumbnailUrl ? (
-            <img
-              src={template.thumbnailUrl}
-              alt={template.name}
-              className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-              loading="lazy"
-            />
-          ) : (
-            <div
-              className={`w-full h-full bg-gradient-to-br ${gradient} opacity-40 flex items-center justify-center`}
-            >
-              <Icon
-                size={32}
-                className="text-text-primary opacity-60 group-hover:opacity-80 transition-all duration-200"
-              />
-            </div>
-          )}
+        <div className="relative aspect-video w-full shrink-0 overflow-hidden">
+          <TemplateThumb
+            template={template}
+            alt={template.name}
+            className="transition-transform duration-300 group-hover:scale-105"
+          />
 
           <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-visible:opacity-100" />
 

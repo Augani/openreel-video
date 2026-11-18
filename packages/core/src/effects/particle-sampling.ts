@@ -307,6 +307,50 @@ export function projectParticleEffects(project: Project, time?: number): Particl
 type ParticleContext =
   | CanvasRenderingContext2D
   | OffscreenCanvasRenderingContext2D;
+/**
+ * Draws the sampled particles of `effects` at `time` into `ctx`. `projectWidth` x `projectHeight` is the
+ * space the emitters simulate in; the context is scaled from there to `width` x `height`. The one routine
+ * behind the program monitor, the export and the particle preset cards.
+ */
+export function drawParticleEffects(
+  ctx: ParticleContext,
+  effects: readonly ParticleEffect[],
+  time: number,
+  width: number,
+  height: number,
+  projectWidth: number,
+  projectHeight: number,
+): number {
+  let drawn = 0;
+  ctx.save();
+  ctx.scale(width / projectWidth, height / projectHeight);
+  for (const effect of effects) {
+    const particles = sampleParticleEffect(effect, time, projectWidth, projectHeight);
+    ctx.globalCompositeOperation =
+      effect.config.blendMode === "add"
+        ? "lighter"
+        : effect.config.blendMode === "normal"
+          ? "source-over"
+          : effect.config.blendMode;
+    for (const particle of particles) {
+      if (particle.opacity <= 0 || particle.size <= 0) continue;
+      ctx.globalAlpha = particle.opacity;
+      ctx.fillStyle = particle.color;
+      ctx.beginPath();
+      ctx.arc(
+        particle.position.x,
+        projectHeight - particle.position.y,
+        particle.size / 2,
+        0,
+        Math.PI * 2,
+      );
+      ctx.fill();
+      drawn++;
+    }
+  }
+  ctx.restore();
+  return drawn;
+}
 export function drawProjectParticles(
   ctx: ParticleContext,
   project: Project,
@@ -324,38 +368,13 @@ export function drawProjectParticles(
     project.settings.height <= 0
   )
     return 0;
-  let drawn = 0;
-  ctx.save();
-  ctx.scale(width / project.settings.width, height / project.settings.height);
-  for (const effect of projectParticleEffects(project, time)) {
-    const particles = sampleParticleEffect(
-      effect,
-      time,
-      project.settings.width,
-      project.settings.height,
-    );
-    ctx.globalCompositeOperation =
-      effect.config.blendMode === "add"
-        ? "lighter"
-        : effect.config.blendMode === "normal"
-          ? "source-over"
-          : effect.config.blendMode;
-    for (const particle of particles) {
-      if (particle.opacity <= 0 || particle.size <= 0) continue;
-      ctx.globalAlpha = particle.opacity;
-      ctx.fillStyle = particle.color;
-      ctx.beginPath();
-      ctx.arc(
-        particle.position.x,
-        project.settings.height - particle.position.y,
-        particle.size / 2,
-        0,
-        Math.PI * 2,
-      );
-      ctx.fill();
-      drawn++;
-    }
-  }
-  ctx.restore();
-  return drawn;
+  return drawParticleEffects(
+    ctx,
+    projectParticleEffects(project, time),
+    time,
+    width,
+    height,
+    project.settings.width,
+    project.settings.height,
+  );
 }

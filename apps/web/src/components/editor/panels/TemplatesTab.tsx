@@ -1,5 +1,6 @@
+import { TemplateThumb } from "../../welcome/TemplateThumb";
 import { useState, useEffect, useMemo, useRef } from "react";
-import { Search, Layout, Clock, Loader2 } from "@/icons/lucide-compat";
+import { Search, Clock, Loader2 } from "@/icons/lucide-compat";
 import {
   Button,
   Input,
@@ -190,17 +191,8 @@ export function TemplatesTab() {
               aria-label={template.name}
               className="group relative flex h-auto min-w-0 flex-col items-start whitespace-normal rounded-lg border border-border bg-bg-2 p-3 text-left hover:border-primary/50"
             >
-              <span className="mb-2 flex aspect-video w-full items-center justify-center overflow-hidden rounded bg-bg-1">
-                {template.thumbnailUrl ? (
-                  <img
-                    src={template.thumbnailUrl}
-                    alt=""
-                    loading="lazy"
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  <Layout size={20} aria-hidden className="text-fg-3" />
-                )}
+              <span className="mb-2 block aspect-video w-full overflow-hidden rounded bg-bg-1">
+                <TemplateThumb template={template} />
               </span>
               <span className="w-full truncate text-[10px] font-medium text-fg">
                 {template.name}

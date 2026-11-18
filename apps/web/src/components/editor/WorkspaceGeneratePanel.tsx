@@ -21,7 +21,12 @@ import {
   AlertCircle,
   Settings2,
   ChevronLeft,
+  Film,
+  Camera,
+  Newspaper,
+  PenTool,
 } from "lucide-react";
+import { ConnectionStatus, useServiceKeyStatus } from "./AIConnectionStatus";
 import { WorkspaceTabs, workspaceTabPanel } from "./WorkspacePrimitives";
 import { TextToSpeechPanel } from "./inspector/TextToSpeechPanel";
 import { MusicLibraryPanel } from "./inspector/MusicLibraryPanel";
@@ -37,6 +42,13 @@ import {
 import { kieaiPostJson } from "../../services/kieai/client";
 import { toast } from "../../stores/notification-store";
 
+const STYLE_CHIPS = [
+  ["Cinematic", Film],
+  ["Photo", Camera],
+  ["Documentary", Newspaper],
+  ["Illustration", PenTool],
+] as const;
+
 export function WorkspaceGeneratePanel() {
   const [tab, setTab] = useState("image");
   const [prompt, setPrompt] = useState("");
@@ -51,6 +63,8 @@ export function WorkspaceGeneratePanel() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const project = useProjectStore((s) => s.project);
   const tasks = useKieAIStore((s) => s.tasks);
+  const keyStatus = useServiceKeyStatus("kie-ai");
+  const keyConnected = keyStatus === "ready";
   const results = project.mediaLibrary.items.filter(
     (m) =>
       m.name.startsWith("AI_") &&
@@ -73,8 +87,18 @@ export function WorkspaceGeneratePanel() {
       : model === "nano-banana-2"
         ? "Nano Banana 2"
         : "Z-Image";
+  const disabledReason =
+    keyStatus === "missing"
+      ? "Add your KieAI API key to generate."
+      : keyStatus === "locked"
+        ? "Unlock your API keys to generate."
+        : keyStatus === "checking"
+          ? "Checking your KieAI key…"
+          : !prompt.trim()
+      ? "Describe what to generate."
+      : null;
   const generate = async () => {
-    if (!prompt.trim() || submitting) return;
+    if (!prompt.trim() || submitting || !keyConnected) return;
     setSubmitting(true);
     setError(null);
     const projectId = project.id;
@@ -227,14 +251,18 @@ export function WorkspaceGeneratePanel() {
                     className="workspace-generation-model"
                     aria-label="Generation model and settings"
                   >
-                    <span
-                      className="workspace-generation-model-dot"
-                      aria-hidden
+                    <ConnectionStatus
+                      ready={keyConnected}
+                      label={
+                        keyConnected
+                          ? `Model · ${modelName}`
+                          : keyStatus === "locked"
+                            ? "Unlock keys to generate"
+                            : keyStatus === "checking"
+                              ? "Checking key…"
+                              : "Add a key to generate"
+                      }
                     />
-                    <span>Model · {modelName}</span>
-                    <span className="workspace-generation-caret" aria-hidden>
-                      ▾
-                    </span>
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent
@@ -346,14 +374,15 @@ export function WorkspaceGeneratePanel() {
                 />
               </label>
               <div className="workspace-chips">
-                {["Cinematic", "Photo", "Documentary", "Illustration"].map(
-                  (s) => (
+                {STYLE_CHIPS.map(
+                  ([s, Icon]) => (
                     <Button
                       key={s}
                       variant="ghost"
                       aria-pressed={style === s}
                       onClick={() => setStyle(s)}
                     >
+                      <Icon aria-hidden="true" />
                       {s}
                     </Button>
                   ),
@@ -374,7 +403,8 @@ export function WorkspaceGeneratePanel() {
 
               <Button
                 className="workspace-ai-primary w-full h-8 text-xs"
-                disabled={!prompt.trim() || submitting}
+                disabled={!prompt.trim() || submitting || !keyConnected}
+                title={disabledReason ?? undefined}
                 onClick={() => void generate()}
               >
                 {submitting ? (
@@ -384,6 +414,21 @@ export function WorkspaceGeneratePanel() {
                 )}
                 Generate {count} {count === "1" ? "variation" : "variations"}
               </Button>
+              {disabledReason && (
+                <p className="workspace-generate-hint">
+                  {disabledReason}
+                  {(keyStatus === "missing" || keyStatus === "locked") && (
+                    <Button
+                      variant="link"
+                      onClick={() =>
+                        useSettingsStore.getState().openSettings("api-keys")
+                      }
+                    >
+                      {keyStatus === "locked" ? "Unlock" : "Connect"}
+                    </Button>
+                  )}
+                </p>
+              )}
               {error && (
                 <div role="alert" className="workspace-generate-error">
                   <AlertCircle size={13} />

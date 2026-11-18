@@ -8,7 +8,7 @@ export function textSelectionLayout(
   style: Pick<
     TextStyle,
     "textAlign" | "verticalAlign" | "backgroundColor" | "strokeWidth"
-  >,
+  > & Partial<Pick<TextStyle, "letterSpacing">>,
   transform: Pick<Transform, "scale" | "rotation">,
 ) {
   const height = Math.max(1, lineCount) * lineHeight;
@@ -25,8 +25,12 @@ export function textSelectionLayout(
         ? -height
         : -height / 2 + lineHeight / 2;
   const stroke = (style.strokeWidth ?? 0) / 2;
-  let left = textLeft - stroke;
-  let right = textLeft + measuredWidth + stroke;
+  // Canvas letter-spacing is added after every glyph, so negative tracking leaves the last glyph's ink hanging that far
+  // past the measured advance width. Cover it.
+  const tracking = Math.max(0, -(style.letterSpacing ?? 0));
+  const overhang = tracking;
+  let left = textLeft - stroke - overhang;
+  let right = textLeft + measuredWidth + stroke + overhang;
   let top = firstBaseline - lineHeight / 2 - stroke;
   let bottom = top + height + stroke * 2;
   if (style.backgroundColor && style.backgroundColor !== "transparent") {

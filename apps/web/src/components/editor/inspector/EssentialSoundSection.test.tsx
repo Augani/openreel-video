@@ -78,9 +78,9 @@ describe("EssentialSoundSection", () => {
     return waitFor(() => expect(hoisted.clear).toHaveBeenCalledWith(["clip-tone"]));
   });
 
-  it("hides ducking for dialogue and says repair is dialogue-only elsewhere", () => {
+  it("hides ducking for dialogue and hides the repair group for non-dialogue clips", () => {
     render(<EssentialSoundSection clipIds={["clip-tone"]} />);
-    expect(screen.getByText("Repair presets are for dialogue clips.")).toBeTruthy();
+    expect(screen.queryByTestId("essential-group-repair")).toBeNull();
     cleanup();
     act(() => {
       const tone = useProjectStore.getState().getClip("clip-tone")!;

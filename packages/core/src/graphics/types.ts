@@ -31,6 +31,12 @@ export interface ShapeClip extends GraphicClip {
   readonly pathData?: string;
   /** Close the path. Point lists default to open; `Z` in pathData always closes. */
   readonly closed?: boolean;
+  /**
+   * Authored size of a rectangle, circle or ellipse, in pixels of a 1080-line frame (scaled with the frame's shorter
+   * side). Without it a shape draws as the default tile, 15% of that side, and is sized by `transform.scale`.
+   * `transform.anchor` is the point of the box that sits on `transform.position`.
+   */
+  readonly extent?: { readonly width: number; readonly height: number };
 }
 
 export interface SVGClip extends GraphicClip {
@@ -307,6 +313,8 @@ export interface CreateShapeParams {
   readonly points?: Point2D[];
   readonly pathData?: string;
   readonly closed?: boolean;
+  /** Stored on the clip as `extent`; omit to keep the default tile (the width and height above are not drawn). */
+  readonly extent?: { readonly width: number; readonly height: number };
   readonly metadata?: ClipMetadata;
 }
 

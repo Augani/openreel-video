@@ -5,6 +5,8 @@ import { updateTextAnimationPhase, type TextAnimationSide } from "../../../servi
 
 const PhaseContext = createContext<TextAnimationSide>("entry");
 export const TextAnimationPhaseProvider = PhaseContext.Provider;
+/** The phase (entry / exit) the text animation inspector is editing. */
+export const useTextAnimationSide = (): TextAnimationSide => useContext(PhaseContext);
 
 /** Adapt the existing parameter forms to the selected phase without replacing the other phase. */
 export function useTextAnimationPhaseActions() {

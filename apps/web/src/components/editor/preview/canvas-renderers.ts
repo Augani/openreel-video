@@ -31,6 +31,8 @@ import {
   drawShapePathCentered,
 } from "@openreel/core";
 import type { SubtitleStyle } from "@openreel/core";
+import { overlayBlendAlpha } from "@openreel/core";
+import { displayLayoutWidth, normalizeSequencePar, withDisplaySpace } from "@openreel/core/video/sequence-par";
 import {
   DEFAULT_CAPTION_FONT_SIZE,
   drawCaption,
@@ -55,6 +57,19 @@ let threeJSModule: Promise<typeof import("./threejs-layer-renderer")> | null = n
 let threeJSGeneration = 0;
 let irisFallbackCanvas: OffscreenCanvas | null = null;
 const animationEngine = new AnimationEngine();
+
+let previewSequencePar = 1;
+
+/**
+ * Sequence pixel aspect ratio of the project the Program monitor is drawing. Overlays (titles, shapes, SVG,
+ * stickers, captions) are laid out in display space and squeezed into the stored-pixel canvas, exactly like the
+ * export compositor, while the monitor frame is shown at the display aspect, so a circle stays a circle.
+ */
+export const setPreviewSequencePar = (par: number | undefined | null): void => {
+  previewSequencePar = normalizeSequencePar(par);
+};
+
+export const getPreviewSequencePar = (): number => previewSequencePar;
 
 async function getThreeJSRenderer(
   width: number,
@@ -602,10 +617,12 @@ export const getAnimatedTransform = (
 export const renderTextClipToCanvas = (
   ctx: CanvasRenderingContext2D,
   textClip: TextClip,
-  canvasWidth: number,
+  storedWidth: number,
   canvasHeight: number,
   time: number,
 ): void | Promise<void> => {
+  // Lay out in display space (stored width x PAR), then squeeze into the stored canvas.
+  const canvasWidth = displayLayoutWidth(storedWidth, previewSequencePar);
   const clipLocalTime = time - textClip.startTime;
   const { opacity, transform, style, visibleText } = titleEngine.getAnimatedTextState(textClip, clipLocalTime);
   if (opacity <= 0 || visibleText.length === 0) return;
@@ -637,7 +654,7 @@ export const renderTextClipToCanvas = (
       const mesh = renderer.renderTextClip(animatedTextClip, canvasWidth, canvasHeight);
       if (mesh) {
         renderer.getScene().add(mesh);
-        ctx.drawImage(renderer.render(), 0, 0);
+        ctx.drawImage(renderer.render(), 0, 0, storedWidth, canvasHeight);
       }
     });
   }
@@ -652,7 +669,7 @@ export const renderTextClipToCanvas = (
     canvasHeight,
     clipLocalTime,
   );
-  ctx.drawImage(rendered.canvas, 0, 0, canvasWidth, canvasHeight);
+  ctx.drawImage(rendered.canvas, 0, 0, storedWidth, canvasHeight);
 };
 
 export const getActiveTextClips = (
@@ -708,7 +725,8 @@ const renderStickerClip = (
 
   ctx.translate(posX, posY);
   ctx.rotate((animatedTransform.rotation * Math.PI) / 180);
-  ctx.globalAlpha = animatedTransform.opacity;
+  // Blend opacity (0-100) like the export compositor; non-normal blend modes go through the three.js path instead.
+  ctx.globalAlpha = animatedTransform.opacity * overlayBlendAlpha(stickerClip);
 
   let img = stickerImageCache.get(imageUrl);
   if (!img) {
@@ -788,7 +806,7 @@ const renderSVGClip = (
   const posY = transform.position.y * canvasHeight;
 
   let animationScale = { x: transform.scale.x, y: transform.scale.y };
-  let animationOpacity = transform.opacity;
+  let animationOpacity = transform.opacity * overlayBlendAlpha(svgClip);
   let animationTranslateX = 0;
   let animationTranslateY = 0;
 
@@ -1206,7 +1224,8 @@ const renderShapeOnly = (
   ctx.translate(posX, posY);
   ctx.rotate((transform.rotation * Math.PI) / 180);
   ctx.scale(transform.scale.x, transform.scale.y);
-  ctx.globalAlpha = transform.opacity;
+  const alpha = transform.opacity * overlayBlendAlpha(shapeClip);
+  ctx.globalAlpha = alpha;
 
   if (style.shadow?.blur && style.shadow.blur > 0) {
     ctx.shadowColor = style.shadow.color || "#000000";
@@ -1218,6 +1237,13 @@ const renderShapeOnly = (
   const baseSize = Math.min(canvasWidth, canvasHeight);
   const shapeSize = baseSize * 0.15;
   const halfSize = shapeSize / 2;
+  // An authored extent (editing-template overlays) sizes the box in 1080-line units; the anchor sits on the position.
+  const box =
+    shapeClip.extent && (shapeType === "rectangle" || shapeType === "circle" || shapeType === "ellipse" || shapeType === "line")
+      ? { w: (shapeClip.extent.width * baseSize) / 1080, h: (shapeClip.extent.height * baseSize) / 1080 }
+      : null;
+  const boxX = box ? (0.5 - (transform.anchor?.x ?? 0.5)) * box.w : 0;
+  const boxY = box ? (0.5 - (transform.anchor?.y ?? 0.5)) * box.h : 0;
 
   const strokeScale = baseSize / 1080;
   ctx.fillStyle = style.fill?.color || "#3b82f6";
@@ -1233,14 +1259,11 @@ const renderShapeOnly = (
   switch (shapeType) {
     case "rectangle": {
       const radius = style.cornerRadius || 0;
-      if (radius > 0) {
-        ctx.roundRect(
-          -halfSize,
-          -halfSize,
-          shapeSize,
-          shapeSize,
-          Math.min(radius, halfSize),
-        );
+      if (box) {
+        if (radius > 0) ctx.roundRect(boxX - box.w / 2, boxY - box.h / 2, box.w, box.h, Math.min(radius, box.w / 2, box.h / 2));
+        else ctx.rect(boxX - box.w / 2, boxY - box.h / 2, box.w, box.h);
+      } else if (radius > 0) {
+        ctx.roundRect(-halfSize, -halfSize, shapeSize, shapeSize, Math.min(radius, halfSize));
       } else {
         ctx.rect(-halfSize, -halfSize, shapeSize, shapeSize);
       }
@@ -1248,7 +1271,8 @@ const renderShapeOnly = (
     }
     case "circle":
     case "ellipse": {
-      ctx.ellipse(0, 0, halfSize, halfSize, 0, 0, Math.PI * 2);
+      if (box) ctx.ellipse(boxX, boxY, box.w / 2, box.h / 2, 0, 0, Math.PI * 2);
+      else ctx.ellipse(0, 0, halfSize, halfSize, 0, 0, Math.PI * 2);
       break;
     }
     case "triangle": {
@@ -1283,8 +1307,13 @@ const renderShapeOnly = (
       break;
     }
     case "line": {
-      ctx.moveTo(-halfSize, 0);
-      ctx.lineTo(halfSize, 0);
+      if (box) {
+        ctx.moveTo(boxX - box.w / 2, boxY);
+        ctx.lineTo(boxX + box.w / 2, boxY);
+      } else {
+        ctx.moveTo(-halfSize, 0);
+        ctx.lineTo(halfSize, 0);
+      }
       break;
     }
     case "path": {
@@ -1296,11 +1325,11 @@ const renderShapeOnly = (
     }
   }
 
-  ctx.globalAlpha = transform.opacity * (style.fill?.opacity ?? 1);
+  ctx.globalAlpha = alpha * (style.fill?.opacity ?? 1);
   ctx.fill();
 
   if (style.stroke?.width && style.stroke.width > 0) {
-    ctx.globalAlpha = transform.opacity * (style.stroke?.opacity ?? 1);
+    ctx.globalAlpha = alpha * (style.stroke?.opacity ?? 1);
     ctx.stroke();
   }
 
@@ -1310,10 +1339,12 @@ const renderShapeOnly = (
 export const renderShapeClipToCanvas = (
   ctx: CanvasRenderingContext2D,
   clip: GraphicClipUnion,
-  canvasWidth: number,
+  storedWidth: number,
   canvasHeight: number,
   time: number,
 ): void | Promise<void> => {
+  // Lay out in display space (stored width x PAR), then squeeze into the stored canvas.
+  const canvasWidth = displayLayoutWidth(storedWidth, previewSequencePar);
   const clipLocalTime = time - clip.startTime;
 
   let baseTransform = clip.transform;
@@ -1389,38 +1420,40 @@ export const renderShapeClipToCanvas = (
       }
       if (mesh) {
         renderer.getScene().add(mesh);
-        ctx.drawImage(renderer.render(), 0, 0);
+        ctx.drawImage(renderer.render(), 0, 0, storedWidth, canvasHeight);
       }
     });
   }
 
-  if (transformedClip.type === "svg") {
-    renderSVGClip(
-      ctx,
-      transformedClip as SVGClip,
-      canvasWidth,
-      canvasHeight,
-      time,
-    );
-  } else if (
-    transformedClip.type === "sticker" ||
-    transformedClip.type === "emoji"
-  ) {
-    renderStickerClip(
-      ctx,
-      transformedClip as StickerClip,
-      canvasWidth,
-      canvasHeight,
-      time,
-    );
-  } else {
-    renderShapeOnly(
-      ctx,
-      transformedClip as ShapeClip,
-      canvasWidth,
-      canvasHeight,
-    );
-  }
+  withDisplaySpace(ctx, storedWidth, previewSequencePar, () => {
+    if (transformedClip.type === "svg") {
+      renderSVGClip(
+        ctx,
+        transformedClip as SVGClip,
+        canvasWidth,
+        canvasHeight,
+        time,
+      );
+    } else if (
+      transformedClip.type === "sticker" ||
+      transformedClip.type === "emoji"
+    ) {
+      renderStickerClip(
+        ctx,
+        transformedClip as StickerClip,
+        canvasWidth,
+        canvasHeight,
+        time,
+      );
+    } else {
+      renderShapeOnly(
+        ctx,
+        transformedClip as ShapeClip,
+        canvasWidth,
+        canvasHeight,
+      );
+    }
+  });
 };
 
 export const getActiveSubtitles = (
@@ -1433,6 +1466,18 @@ export const getActiveSubtitles = (
 };
 
 export const renderSubtitleToCanvas = (
+  ctx: CanvasRenderingContext2D,
+  subtitle: Subtitle,
+  storedWidth: number,
+  canvasHeight: number,
+  currentTime?: number,
+): void => {
+  withDisplaySpace(ctx, storedWidth, previewSequencePar, (canvasWidth) => {
+    renderSubtitleInDisplaySpace(ctx, subtitle, canvasWidth, canvasHeight, currentTime);
+  });
+};
+
+const renderSubtitleInDisplaySpace = (
   ctx: CanvasRenderingContext2D,
   subtitle: Subtitle,
   canvasWidth: number,
@@ -1579,16 +1624,76 @@ export const drawFrameWithTransform = (
     },
   };
 
+  // A non-square sequence pixel: lay out in display space, then squeeze back to stored pixels (as the export compositor does).
+  const layoutWidth = displayLayoutWidth(canvasWidth, previewSequencePar);
+  const sequencePar = layoutWidth / canvasWidth;
+
+  if (filter && sequencePar !== 1) {
+    // ctx.filter radii are device pixels and ignore the transform, so a blur set under the 1/PAR squeeze runs on stored
+    // pixels and is anisotropic once displayed. Draw (and filter) into a display-space layer, then squeeze it, which is
+    // what export does (effects run on the display-space frame, then layout squeezes).
+    const layer = createDisplayLayer(layoutWidth, canvasHeight);
+    if (layer) {
+      drawLaidOutFrame(layer.ctx, frame, t, canvasWidth, canvasHeight, layoutWidth, 1, filter);
+      ctx.save();
+      ctx.globalAlpha = t.opacity ?? 1;
+      ctx.drawImage(layer.canvas, 0, 0, canvasWidth, canvasHeight);
+      ctx.restore();
+      return;
+    }
+  }
+
   ctx.save();
   ctx.globalAlpha = t.opacity ?? 1;
+  drawLaidOutFrame(ctx, frame, t, canvasWidth, canvasHeight, layoutWidth, sequencePar, filter);
+  ctx.restore();
+};
+
+const createDisplayLayer = (
+  width: number,
+  height: number,
+): { canvas: OffscreenCanvas | HTMLCanvasElement; ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D } | null => {
+  const w = Math.max(1, Math.round(width));
+  const h = Math.max(1, Math.round(height));
+  try {
+    if (typeof OffscreenCanvas !== "undefined") {
+      const canvas = new OffscreenCanvas(w, h);
+      const ctx = canvas.getContext("2d");
+      return ctx ? { canvas, ctx } : null;
+    }
+    if (typeof document !== "undefined") {
+      const canvas = document.createElement("canvas");
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext("2d");
+      return ctx ? { canvas, ctx } : null;
+    }
+  } catch {
+    return null;
+  }
+  return null;
+};
+
+/** Draws `frame` laid out in a `layoutWidth` x `canvasHeight` space; `sequencePar` > 0 squeezes that space by 1/par into `ctx`. */
+const drawLaidOutFrame = (
+  ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+  frame: ImageBitmap | OffscreenCanvas | HTMLCanvasElement | HTMLVideoElement,
+  t: ClipTransform,
+  canvasWidth: number,
+  canvasHeight: number,
+  layoutWidth: number,
+  sequencePar: number,
+  filter?: string,
+): void => {
+  ctx.save();
   if (filter) {
     ctx.filter = filter;
   }
-
-  const centerX = canvasWidth / 2;
+  if (sequencePar !== 1) ctx.scale(1 / sequencePar, 1);
+  const centerX = layoutWidth / 2;
   const centerY = canvasHeight / 2;
 
-  ctx.translate(centerX + t.position.x, centerY + t.position.y);
+  ctx.translate(centerX + t.position.x * sequencePar, centerY + t.position.y);
   ctx.rotate((t.rotation * Math.PI) / 180);
   ctx.scale(t.scale.x, t.scale.y);
 
@@ -1610,7 +1715,7 @@ export const drawFrameWithTransform = (
       t.fitMode,
       visibleSourceWidth,
       visibleSourceHeight,
-      canvasWidth,
+      layoutWidth,
       canvasHeight,
     );
 

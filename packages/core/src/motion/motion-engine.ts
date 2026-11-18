@@ -267,7 +267,8 @@ function createMotionClip(instance: MotionCompositionInstance): Clip {
     audioEffects: [],
     transform: instance.transform,
     blendMode: instance.blendMode,
-    blendOpacity: instance.opacity,
+    // Clip.blendOpacity is the project's 0-100 scale (the Blend Opacity slider); a motion instance is 0..1.
+    blendOpacity: Math.round(Math.max(0, Math.min(1, instance.opacity)) * 100),
     volume: 1,
     keyframes: [],
     metadata: {

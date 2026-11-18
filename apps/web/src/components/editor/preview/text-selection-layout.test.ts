@@ -33,4 +33,10 @@ describe("text selection layout", () => {
     expect(box.rotated.top).toBeCloseTo(0);
     expect(box.rotated.bottom).toBeCloseTo(400);
   });
+  it("widens the box for negative tracking so the last glyph is not cut off", () => {
+    const tight = textSelectionLayout(300, 1, 40, { ...style, textAlign: "center", letterSpacing: -4 }, DEFAULT_TEXT_TRANSFORM);
+    const loose = textSelectionLayout(300, 1, 40, { ...style, textAlign: "center", letterSpacing: 0 }, DEFAULT_TEXT_TRANSFORM);
+    expect(tight.width).toBe(loose.width + 8);
+    expect(tight.left).toBe(loose.left - 4);
+  });
 });

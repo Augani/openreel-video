@@ -8,8 +8,9 @@ import {
   copyPackagedProject,
   readProjectPackageContents,
 } from "./project-package";
-import { registerPackagedFonts } from "./font-embedding";
-import { makeSfnt } from "./font-fixtures";
+import { registerPackagedFonts, setBrotliDecoder } from "./font-embedding";
+import { makeSfnt, makeWoff2 } from "./font-fixtures";
+import { brotliCompressSync, brotliDecompressSync } from "node:zlib";
 beforeEach(() => {
   vi.stubGlobal("Blob", NodeBlob);
 });
@@ -208,6 +209,34 @@ describe("portable project packages", () => {
       register: async (family) => void registered.push(family),
     });
     expect(registered).toEqual(["Brand Open"]);
+  });
+  it("round-trips WOFF2 fonts as-is and registers them on open", async () => {
+    const previous = setBrotliDecoder(async (data) => new Uint8Array(brotliDecompressSync(data)));
+    try {
+      const files: Record<string, ArrayBuffer> = {
+        "Web Open": makeWoff2(0, brotliCompressSync),
+        "Web Locked": makeWoff2(2, brotliCompressSync),
+      };
+      const project = {
+        ...fixture(),
+        textClips: Object.keys(files).map((family, index) => ({
+          id: "w" + index,
+          trackId: "x",
+          startTime: 0,
+          duration: 1,
+          text: "Hello",
+          style: { fontFamily: family, fontWeight: 400 },
+        })),
+      } as unknown as ReturnType<typeof fixture>;
+      const archive = await createProjectPackage(project, { resolveFont: async (family) => files[family] ?? null });
+      const restored = await readProjectPackageContents(archive);
+      expect(restored.fonts.map((f) => f.family)).toEqual(["Web Open"]);
+      expect(restored.fonts[0].data.type).toBe("font/woff2");
+      expect(new Uint8Array(await restored.fonts[0].data.arrayBuffer())).toEqual(new Uint8Array(files["Web Open"]));
+      expect(restored.fontRecords.find((r) => r.family === "Web Locked")?.status).toBe("restricted");
+    } finally {
+      setBrotliDecoder(previous);
+    }
   });
   it("still reads packages written without a font list", async () => {
     const archive = await createProjectPackage(fixture());

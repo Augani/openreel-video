@@ -37,7 +37,8 @@ import { ChatHistoryPanel } from "./ChatHistoryPanel";
 import { EditSharingPanel } from "./EditSharingPanel";
 import { useEditorWorkspaceStore } from "../../../stores/editor-workspace-store";
 import { useAIConnectionStore } from "../../../stores/ai-connection-store";
-import { aiModelLabel, aiProviderLabel } from "./ai-connection-labels";
+import { aiModelLabel, aiProviderLabel, isConnectionReady } from "./ai-connection-labels";
+import { ConnectionStatus } from "../AIConnectionStatus";
 import { CHAT_STARTER_PROMPTS } from "../../onboarding/ai/starter-prompts";
 
 const MobileAISheet = lazy(() => import("../mobile/MobileAISheet").then(module => ({ default: module.MobileAISheet })));
@@ -57,10 +58,7 @@ function EmptyState({
 }): JSX.Element {
   const send = useChatStore((s) => s.send);
   const connection = useAIConnectionStore();
-  const ready =
-    !!connection.baseUrl.trim() &&
-    !!connection.model.trim() &&
-    (!!connection.apiKey || connection.provider === "compatible");
+  const ready = isConnectionReady(connection);
 
   return (
     <div className="flex h-full flex-1 flex-col items-center justify-center px-2 text-center">
@@ -232,7 +230,7 @@ export function ChatPanel({ onClose }: { onClose?: () => void }): JSX.Element {
     <div hidden={!sharingOpen} className="max-h-[40%] shrink-0 overflow-y-auto"><EditSharingPanel disabled={busy}/></div>
     {historyOpen && <ChatHistoryPanel projectId={projectId} onClose={() => setHistoryOpen(false)}/>}
   </>;
-  const configured = !!connection.baseUrl.trim() && !!connection.model.trim() && (!!connection.apiKey || connection.provider === "compatible");
+  const configured = isConnectionReady(connection);
   const providerName = aiProviderLabel(connection.provider, connection.baseUrl);
   if (phone) return <Suspense fallback={null}><MobileAISheet open={open && !connectionOpen} onOpenChange={next => { if (!next) { if (onClose) onClose(); else useUIStore.getState().setPanelVisible("agentChat", false); } }}
     draft={draft} onDraftChange={setDraft} activity={messages} error={error} pendingConfirm={pendingConfirm}
@@ -247,21 +245,20 @@ export function ChatPanel({ onClose }: { onClose?: () => void }): JSX.Element {
           Assistant
         </span>
         <ShadcnButton
-          aria-label={`${connection.provider} · ${connection.model}`}
-          title={`${providerName} · ${connection.model}`}
+          aria-label={configured ? `${connection.provider} · ${connection.model}` : "No model connected"}
+          title={configured ? `${providerName} · ${connection.model}` : "No model connected. Open AI connection settings"}
           variant="secondary"
           className="workspace-provider-pill"
           onClick={() =>
             useEditorWorkspaceStore.getState().setAIConnectionOpen(true)
           }
         >
-          <span
-            className={`workspace-provider-dot ${connection.baseUrl.trim() && connection.model.trim() && (connection.apiKey || connection.provider === "compatible") ? "is-ready" : ""}`}
-            aria-hidden="true"
+          <ConnectionStatus
+            ready={configured}
+            label={configured ? `${providerName} · ${aiModelLabel(connection.provider, connection.model)}` : "No model connected"}
+            caret={false}
           />
-          <span className="min-w-0 truncate">
-            {providerName} · {aiModelLabel(connection.provider, connection.model)} <span aria-hidden="true">▾</span>
-          </span>
+          <span aria-hidden="true">▾</span>
         </ShadcnButton>
         <div className="workspace-chat-actions ml-auto flex items-center">
           <ShadcnButton

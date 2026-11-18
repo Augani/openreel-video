@@ -11,7 +11,9 @@ vi.mock("../../services/project-fonts", () => ({ ensureFontFamily: vi.fn().mockR
 const state = () => useProjectStore.getState();
 let titles: TextClip[];
 beforeEach(async () => {
-  for (const key of ["openreel-brand-colors", "openreel-brand-font"]) localStorage.removeItem(key);
+  for (const key of ["openreel-brand-colors", "openreel-brand-font", "openreel-brand-name"]) localStorage.removeItem(key);
+  // A saved brand kit: the apply card only exists once there is a kit to apply.
+  localStorage.setItem("openreel-brand-name", "Test brand");
   vi.mocked(ensureFontFamily).mockReset().mockResolvedValue(undefined);
   useEngineStore.setState({ titleEngine: new TitleEngine(), graphicsEngine: new GraphicsEngine() });
   state().createNewProject("Brand application ownership");
@@ -27,7 +29,10 @@ beforeEach(async () => {
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 function open() {
-  return render(<WorkspaceGraphicsPanel backgrounds={[]} onImportBackground={vi.fn()} generatingBackground={null} />);
+  const view = render(<WorkspaceGraphicsPanel backgrounds={[]} onImportBackground={vi.fn()} generatingBackground={null} />);
+  fireEvent.mouseDown(screen.getByRole("tab", { name: "Brand" }), { button: 0 });
+  fireEvent.click(screen.getByRole("tab", { name: "Brand" }));
+  return view;
 }
 function apply() { fireEvent.click(screen.getByRole("button", { name: "Apply brand to all titles" })); }
 function deferred() {
@@ -36,20 +41,29 @@ function deferred() {
   return { promise, resolve };
 }
 
+describe("brand tab without a kit", () => {
+  it("offers nothing to apply and shows no stand-in swatches or font line", () => {
+    localStorage.removeItem("openreel-brand-name");
+    open();
+    expect(screen.getByRole("status").textContent).toContain("No brand kit yet");
+    expect(screen.queryByText("Apply your brand")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Apply brand to all titles" })).toBeNull();
+    expect(screen.queryByText(/Fonts ·/)).toBeNull();
+  });
+});
+
 describe("source brand action", () => {
   it("offers the complete font catalog, applies font/color to unlocked titles together, and preserves all other settings with exact Undo/Redo", async () => {
     open();
-    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
     const font = screen.getByRole("combobox", { name: "Brand title font" });
     fireEvent.keyDown(font, { key: "ArrowDown" });
     expect(await screen.findAllByRole("option")).toHaveLength(59);
     fireEvent.click(screen.getByRole("option", { name: "Fraunces" }));
     expect(localStorage.getItem("openreel-brand-font")).toBe("Fraunces");
-    fireEvent.mouseDown(screen.getByRole("tab", { name: "Shapes" }), { button: 0, ctrlKey: false });
     apply();
     await waitFor(() => expect(state().getTextClip(titles[0].id)?.style.fontFamily).toBe("Fraunces"));
     for (const clip of titles.slice(0, 2)) {
-      expect(state().getTextClip(clip.id)).toEqual({ ...clip, style: { ...clip.style, fontFamily: "Fraunces", color: "#F0A43A" } });
+      expect(state().getTextClip(clip.id)).toEqual({ ...clip, style: { ...clip.style, fontFamily: "Fraunces", color: "#34D399" } });
     }
     expect(state().getTextClip(titles[2].id)).toEqual(titles[2]);
     expect(ensureFontFamily).toHaveBeenCalledTimes(2);

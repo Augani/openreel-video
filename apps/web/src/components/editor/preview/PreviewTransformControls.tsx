@@ -38,9 +38,10 @@ export function PreviewTransformControls({ kind, aspectLocked, onToggleAspect, o
     <Button variant="ghost" size="sm"
       aria-label={aspectLocked ? "Unlock aspect ratio" : "Lock aspect ratio"}
       aria-pressed={aspectLocked}
+      title={aspectLocked ? "Aspect ratio locked" : "Aspect ratio free"}
       className="workspace-transform-aspect absolute -top-8 left-1/2 -translate-x-1/2 pointer-events-auto"
       onClick={onToggleAspect}
-    ><AspectIcon aria-hidden="true" />{aspectLocked ? "Locked" : "Free"}</Button>
+    ><AspectIcon aria-hidden="true" /></Button>
     {handles.map(handle => <Button key={handle.position} variant="ghost" size="icon"
       // Pointer-only resize targets stay out of the tab sequence. The Move
       // control returns keyboard users to the canvas; inspector size fields

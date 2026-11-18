@@ -57,3 +57,25 @@ describe("resolveEditingTemplate path shapes", () => {
     });
   });
 });
+
+describe("built-in overlay templates", () => {
+  const context = { clip: { id: "c", startTime: 0, duration: 4, name: "Clip" }, assetUrls: {} };
+
+  it("never leaves a placeholder token in resolved text", async () => {
+    const { BUILT_IN_EDITING_TEMPLATES } = await import("./built-in-templates");
+    for (const template of BUILT_IN_EDITING_TEMPLATES) {
+      for (const overlay of resolveEditingTemplate(template, context).overlays) {
+        if (overlay.type === "text") expect(overlay.content.text, template.id).not.toMatch(/[{}]/);
+      }
+    }
+  });
+
+  it("resolves the follow callout label from its control", async () => {
+    const { getBuiltInEditingTemplate } = await import("./registry");
+    const template = getBuiltInEditingTemplate("overlay-follow-callout")!;
+    const [overlay] = resolveEditingTemplate(template, context, { label: "Subscribe" }).overlays;
+    expect(overlay.type === "text" && overlay.content.text).toBe("Subscribe");
+    const [defaulted] = resolveEditingTemplate(template, context).overlays;
+    expect(defaulted.type === "text" && defaulted.content.text).toBe("Follow +");
+  });
+});

@@ -1,4 +1,5 @@
 import { lutToJson, lutFromJson, applySequenceSettings, applyTimelineToolEdits, reconcileMulticamAudio, validateTimelineToolEdits, invertTimelineToolEdits, type TimelineToolPlan } from "@openreel/core";
+import { readOnlyReason } from "../services/project-lock";
 import { cloneProjectForEdit } from "./project/clone-project-for-edit";
 import { create } from "zustand";
 import { useTimelineStore } from "./timeline-store";
@@ -207,7 +208,7 @@ export interface ProjectState {
   ) => Promise<ActionResult>;
 
   // Media library actions
-  importMedia: (file: File, onProgress?: (stage: string) => void, source?: { soundLibraryId?: string; stockSource?: StockMediaSource }, options?: { signal?: AbortSignal; isCurrent?: () => boolean }) => Promise<ActionResult>;
+  importMedia: (file: File, onProgress?: (stage: string) => void, source?: { soundLibraryId?: string; stockSource?: StockMediaSource; recordedTake?: "screen" | "webcam" }, options?: { signal?: AbortSignal; isCurrent?: () => boolean }) => Promise<ActionResult>;
   deleteMedia: (mediaId: string) => Promise<ActionResult>;
   replaceMediaAsset: (mediaId: string, file: File, sourceFolder?: string, options?: { restorePlaceholder?: boolean; sourcePath?: string }) => Promise<ActionResult>;
   renameMedia: (mediaId: string, name: string) => Promise<ActionResult>;
@@ -1030,6 +1031,22 @@ export const useProjectStore = create<ProjectState>()(
       };
     };
 
+    /**
+     * Template overlays are created straight in the render engines. The preview draws the project's overlay lists,
+     * so they are re-read from the engines whenever a template application changes them.
+     */
+    const withEngineOverlays = (project: Project): Project => {
+      const titleEngine = useEngineStore.getState().getTitleEngine();
+      const graphicsEngine = useEngineStore.getState().getGraphicsEngine();
+      return {
+        ...project,
+        textClips: titleEngine?.getAllTextClips() ?? project.textClips,
+        shapeClips: graphicsEngine?.getAllShapeClips() ?? project.shapeClips,
+        svgClips: graphicsEngine?.getAllSVGClips() ?? project.svgClips,
+        stickerClips: graphicsEngine?.getAllStickerClips() ?? project.stickerClips,
+      };
+    };
+
     const trackHasAnyClips = (project: Project, trackId: string): boolean => {
       return getTrackItems(project, trackId).length > 0;
     };
@@ -1349,7 +1366,7 @@ export const useProjectStore = create<ProjectState>()(
 
       return {
         project: {
-          ...updatedProject,
+          ...withEngineOverlays(updatedProject),
           modifiedAt: Date.now(),
         },
         applicationState: {
@@ -1460,6 +1477,10 @@ export const useProjectStore = create<ProjectState>()(
             shapeType: placement.overlay.content.shapeType,
             width: placement.overlay.content.width,
             height: placement.overlay.content.height,
+            extent: {
+              width: placement.overlay.content.width,
+              height: placement.overlay.content.height,
+            },
             style: placement.overlay.content.style,
             points: placement.overlay.content.points as ShapeClip["points"],
             pathData: placement.overlay.content.pathData,
@@ -1643,6 +1664,8 @@ export const useProjectStore = create<ProjectState>()(
         }
       }
 
+      updatedProject = withEngineOverlays(updatedProject);
+
       for (const trackId of trackIdsToRemoveIfEmpty) {
         if (!trackHasAnyClips(updatedProject, trackId)) {
           updatedProject = removeTrackFromProjectState(updatedProject, trackId);
@@ -1652,7 +1675,7 @@ export const useProjectStore = create<ProjectState>()(
       syncClipEffectsBridge(updatedProject, ownerClipId);
 
       return {
-        ...updatedProject,
+        ...withEngineOverlays(updatedProject),
         modifiedAt: Date.now(),
       };
     };
@@ -1757,7 +1780,7 @@ export const useProjectStore = create<ProjectState>()(
       syncClipEffectsBridge(updatedProject, applicationState.ownerClipId);
 
       return {
-        ...updatedProject,
+        ...withEngineOverlays(updatedProject),
         modifiedAt: Date.now(),
       };
     };
@@ -2682,6 +2705,12 @@ export const useProjectStore = create<ProjectState>()(
             set({ project: { ...project, modifiedAt: Date.now() } });
             return { success: true };
           }
+          const stickerClip = graphicsEngine.getStickerClip(clipId);
+          if (stickerClip) {
+            graphicsEngine.updateStickerClip(clipId, { blendMode });
+            set({ project: { ...project, modifiedAt: Date.now() } });
+            return { success: true };
+          }
         }
 
         return {
@@ -2745,6 +2774,12 @@ export const useProjectStore = create<ProjectState>()(
           const svgClip = graphicsEngine.getSVGClip(clipId);
           if (svgClip) {
             graphicsEngine.updateSVGClip(clipId, { blendOpacity: opacity });
+            set({ project: { ...project, modifiedAt: Date.now() } });
+            return { success: true };
+          }
+          const stickerClip = graphicsEngine.getStickerClip(clipId);
+          if (stickerClip) {
+            graphicsEngine.updateStickerClip(clipId, { blendOpacity: opacity });
             set({ project: { ...project, modifiedAt: Date.now() } });
             return { success: true };
           }
@@ -2850,6 +2885,9 @@ export const useProjectStore = create<ProjectState>()(
         const state = get();
         if (!state.hasOpenProject) return { success: false, error: { code: "INVALID_PARAMS", message: "Open a project before editing." } };
         if (useTimelineStore.getState().playbackLockedReason || useUIStore.getState().exportState.isExporting) return { success: false, error: { code: "INVALID_PARAMS", message: "Editing is unavailable during export." } };
+        // Timeline-tool edits are published here, not through the executor, so honour read-only projects (a view-only invite, a project open in another window) as the executor does.
+        const readOnly = readOnlyReason();
+        if (readOnly) return { success: false, error: { code: "READ_ONLY", message: readOnly, suggestion: "Close the project in the other window, or use Save As to work on a copy." } };
         if (!plan.edits.length) return { success: true };
         try {
           const previous = state.getFullProject();

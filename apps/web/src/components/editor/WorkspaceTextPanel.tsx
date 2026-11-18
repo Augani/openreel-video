@@ -21,11 +21,13 @@ import {
   CAPTION_STYLE_PRESETS,
   WHISPER_LANGUAGES,
 } from "./inspector/AutoCaptionPanel";
+import { CaptionStyleCards } from "./inspector/CaptionStyleCards";
 import { CaptionWorkspace } from "./CaptionWorkspace";
 import { TranscriptPanel } from "./TranscriptPanel";
 import { CaptionQcPanel } from "./CaptionQcPanel";
 import { createCaptionSourceSummarySelector } from "../../services/caption-source";
 import { usePhoneEditor } from "../../hooks/usePhoneEditor";
+import { TextPresetPreview, type PreviewLine } from "./TextPresetPreview";
 import {
   addLowerThird,
   LOWER_THIRD_PRESETS,
@@ -35,8 +37,8 @@ import {
 type TitlePreset = { name: string; text: string; style: Partial<TextStyle> };
 const referenceTitles: TitlePreset[] = [
   {
-    name: "Golden Hour",
-    text: "Golden Hour",
+    name: "Bold Title",
+    text: "Your Title",
     style: {
       fontSize: 96,
       fontWeight: 800,
@@ -155,7 +157,7 @@ export function WorkspaceTextPanel({
       >
         <div className={tab === "saved" ? "px-2.5 pt-2.5 pb-1.5" : `workspace-text-gallery${showAll ? " is-expanded" : ""}`}>
           {tab === "saved" ? (
-            <SavedTextStyles onAdd={add} />
+            <SavedTextStyles onAdd={add} starters={presets} />
           ) : (
             <>
               <Button
@@ -191,17 +193,7 @@ export function WorkspaceTextPanel({
                     }}
                     className={`workspace-title-preset preset-${preset.name.toLowerCase().replaceAll(" ", "-")}`}
                   >
-                    <span
-                      style={{
-                        fontFamily: preset.style.fontFamily,
-                        fontWeight: preset.style.fontWeight,
-                        fontStyle: preset.style.fontStyle,
-                        letterSpacing:
-                          preset.name === "Minimal" ? ".32em" : undefined,
-                      }}
-                    >
-                      {preset.text}
-                    </span>
+                    <TitlePresetCard preset={preset} />
                   </Button>
                 ))}
               </div>
@@ -220,30 +212,7 @@ export function WorkspaceTextPanel({
                     }}
                     aria-label={preset.name}
                   >
-                    <span>
-                      <strong
-                        style={{
-                          background:
-                            "backgroundColor" in preset.style
-                              ? preset.style.backgroundColor
-                              : undefined,
-                          color: preset.style.color,
-                        }}
-                      >
-                        {preset.text}
-                      </strong>
-                      <small
-                        style={{
-                          color: preset.subtitleStyle.color,
-                          background:
-                            "backgroundColor" in preset.subtitleStyle
-                              ? preset.subtitleStyle.backgroundColor
-                              : undefined,
-                        }}
-                      >
-                        {preset.subtitle}
-                      </small>
-                    </span>
+                    <LowerThirdCard preset={preset} />
                   </Button>
                 ))}
               </div>
@@ -269,23 +238,8 @@ export function WorkspaceTextPanel({
                       ))}
                     </SelectContent>
                   </Select>
-                  <Select value={captionStyle} onValueChange={setCaptionStyle}>
-                    <SelectTrigger aria-label="Caption style">
-                      <SelectValue />
-                      <span className="workspace-caption-caret" aria-hidden="true">▾</span>
-                    </SelectTrigger>
-                    <SelectContent>
-                      {CAPTION_STYLE_PRESETS.map((item) => (
-                        <SelectItem key={item} value={item}>
-                          {(item[0].toUpperCase() + item.slice(1)).replaceAll(
-                            "-",
-                            " ",
-                          )}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
                 </div>
+                <CaptionStyleCards presets={CAPTION_STYLE_PRESETS} value={captionStyle} onChange={setCaptionStyle} referenceStyles />
                 <Button
                   className="workspace-caption-generate w-full h-8"
                   onClick={() => { setTab("captions"); if (phone) useEditorWorkspaceStore.getState().setMobileCaptionsOpen(true); }}
@@ -304,10 +258,39 @@ export function WorkspaceTextPanel({
   );
 }
 
+const TitlePresetCard = ({ preset }: { preset: TitlePreset }) => {
+  const lines = useMemo<PreviewLine[]>(
+    () => [{ text: preset.text, style: preset.style, x: 0.5, y: 0.5 }],
+    [preset],
+  );
+  return <TextPresetPreview lines={lines} />;
+};
+
+const LowerThirdCard = ({ preset }: { preset: (typeof LOWER_THIRD_PRESETS)[number] }) => {
+  const lines = useMemo<PreviewLine[]>(
+    () => [
+      { text: preset.text, style: { ...preset.style, fontFamily: "Inter", strokeWidth: 0, letterSpacing: 0 }, x: 0.08, y: 0.7, align: "left", boost: 5 },
+      { text: preset.subtitle, style: { ...preset.subtitleStyle, fontFamily: "Inter", strokeWidth: 0, letterSpacing: 0 }, x: 0.08, y: 0.84, align: "left", boost: 5 },
+    ],
+    [preset],
+  );
+  return <TextPresetPreview lines={lines} />;
+};
+/** True when a CSS hex colour is too dark to read on the dark panel. */
+function isDarkColor(color: string | undefined): boolean {
+  const match = /^#([0-9a-f]{6})$/i.exec(color ?? "");
+  if (!match) return false;
+  const value = parseInt(match[1], 16);
+  const luminance = 0.2126 * ((value >> 16) & 255) + 0.7152 * ((value >> 8) & 255) + 0.0722 * (value & 255);
+  return luminance < 70;
+}
+
 function SavedTextStyles({
   onAdd,
+  starters = [],
 }: {
   onAdd: (text: string, style: Partial<TextStyle>) => Promise<void>;
+  starters?: readonly TitlePreset[];
 }) {
   const selected = useUIStore((s) => s.selectedItems);
   const id = selected.find((s) => s.type === "text-clip")?.id;
@@ -368,6 +351,39 @@ function SavedTextStyles({
         <p className="text-[11px] text-fg-muted mt-2">
           Select a title on the timeline to save its style.
         </p>
+      )}
+      {styles.length === 0 && (
+        <div className="mt-3" data-testid="saved-styles-empty">
+          <p className="text-[11px] text-fg-muted">
+            Styles you save appear here. Until then, start from one of these.
+          </p>
+          <div className="workspace-library-label">
+            <span>STARTER STYLES</span>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            {starters.slice(0, 6).map((preset) => (
+              <Button
+                key={preset.name}
+                variant="outline"
+                aria-label={`Add ${preset.name}`}
+                className={`workspace-title-preset min-w-0 ${isDarkColor(preset.style.color) ? "bg-fg/90" : ""}`}
+                onClick={() => void onAdd(preset.text, preset.style)}
+              >
+                <span
+                  className="truncate"
+                  style={{
+                    fontFamily: preset.style.fontFamily,
+                    fontWeight: preset.style.fontWeight,
+                    fontStyle: preset.style.fontStyle,
+                    color: preset.style.color,
+                  }}
+                >
+                  {preset.name}
+                </span>
+              </Button>
+            ))}
+          </div>
+        </div>
       )}
       {styles.slice(-visibleCount).reverse().map((preset, i) => (
         <div key={styles.length - 1 - i} className="flex gap-1 mt-3">

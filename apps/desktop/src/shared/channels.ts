@@ -92,6 +92,7 @@ export const CHANNELS = {
   ollamaProbe: "openreel:ollama:probe",
   samplesList: "openreel:samples:list",
   samplesGet: "openreel:samples:get",
+  fontsBrotliDecompress: "openreel:fonts:brotliDecompress",
   fsPickFiles: "openreel:fs:pickFiles",
   fsPickProject: "openreel:fs:pickProject",
   mcpGetClientStatus: "openreel:mcp:getClientStatus",

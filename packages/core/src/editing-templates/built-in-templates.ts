@@ -101,7 +101,7 @@ export const BUILT_IN_EDITING_TEMPLATES: readonly EditingTemplate[] = [
           timing: full,
           transform: transform(0.78, 0.82),
           content: {
-            text: "{{label}}",
+            text: "{control.label}",
             style: {
               fontFamily: "Inter",
               fontSize: 32,
@@ -177,7 +177,7 @@ export const BUILT_IN_EDITING_TEMPLATES: readonly EditingTemplate[] = [
     ],
     recipe: {
       effects: [
-        { type: "contrast", params: { value: 0.08 } },
+        { type: "contrast", params: { value: 1.08 } },
         { type: "brightness", params: { value: 0.03 } },
       ],
       overlays: [
@@ -216,7 +216,7 @@ export const BUILT_IN_EDITING_TEMPLATES: readonly EditingTemplate[] = [
     recipe: {
       effects: [
         { type: "brightness", params: { value: 0.02 } },
-        { type: "contrast", params: { value: 0.1 } },
+        { type: "contrast", params: { value: 1.1 } },
         { type: "saturation", params: { value: bind("warmth") } },
       ],
       overlays: [],
@@ -278,7 +278,7 @@ export const BUILT_IN_EDITING_TEMPLATES: readonly EditingTemplate[] = [
     recipe: {
       effects: [
         { type: "chromatic-aberration", params: { intensity: 6 } },
-        { type: "contrast", params: { value: 0.08 } },
+        { type: "contrast", params: { value: 1.08 } },
       ],
       overlays: [
         shapeOverlay({
@@ -312,7 +312,7 @@ export const BUILT_IN_EDITING_TEMPLATES: readonly EditingTemplate[] = [
     recipe: {
       effects: [
         { type: "film-grain", params: { intensity: 0.45, size: 2.3 } },
-        { type: "contrast", params: { value: 0.15 } },
+        { type: "contrast", params: { value: 1.15 } },
       ],
       overlays: [
         shapeOverlay({
@@ -386,7 +386,7 @@ export const BUILT_IN_EDITING_TEMPLATES: readonly EditingTemplate[] = [
     supportedTargets: ["video", "image"],
     recipe: {
       effects: [
-        { type: "contrast", params: { value: 0.12 } },
+        { type: "contrast", params: { value: 1.12 } },
         { type: "brightness", params: { value: -0.04 } },
       ],
       overlays: [
@@ -422,7 +422,7 @@ export const BUILT_IN_EDITING_TEMPLATES: readonly EditingTemplate[] = [
     recipe: {
       effects: [
         { type: "film-grain", params: { intensity: 0.75, size: 2.8 } },
-        { type: "contrast", params: { value: 0.22 } },
+        { type: "contrast", params: { value: 1.22 } },
         { type: "brightness", params: { value: -0.08 } },
       ],
       overlays: [
@@ -452,7 +452,7 @@ export const BUILT_IN_EDITING_TEMPLATES: readonly EditingTemplate[] = [
     recipe: {
       effects: [
         { type: "brightness", params: { value: 0.04 } },
-        { type: "contrast", params: { value: 0.06 } },
+        { type: "contrast", params: { value: 1.06 } },
         { type: "saturation", params: { value: -0.08 } },
       ],
       overlays: [
@@ -828,7 +828,7 @@ export const BUILT_IN_EDITING_TEMPLATES: readonly EditingTemplate[] = [
     recipe: {
       effects: [
         { type: "brightness", params: { value: 0.05 } },
-        { type: "contrast", params: { value: 0.12 } },
+        { type: "contrast", params: { value: 1.12 } },
         { type: "saturation", params: { value: 0.14 } },
       ],
       overlays: [],
@@ -847,7 +847,7 @@ export const BUILT_IN_EDITING_TEMPLATES: readonly EditingTemplate[] = [
     recipe: {
       effects: [
         { type: "brightness", params: { value: -0.02 } },
-        { type: "contrast", params: { value: 0.08 } },
+        { type: "contrast", params: { value: 1.08 } },
         { type: "saturation", params: { value: -0.08 } },
       ],
       overlays: [],
@@ -865,7 +865,7 @@ export const BUILT_IN_EDITING_TEMPLATES: readonly EditingTemplate[] = [
     supportedTargets: ["video", "image"],
     recipe: {
       effects: [
-        { type: "contrast", params: { value: 0.2 } },
+        { type: "contrast", params: { value: 1.2 } },
         { type: "brightness", params: { value: -0.08 } },
         { type: "vignette", params: { intensity: 0.55, radius: 0.72 } },
       ],
@@ -885,7 +885,7 @@ export const BUILT_IN_EDITING_TEMPLATES: readonly EditingTemplate[] = [
     recipe: {
       effects: [
         { type: "brightness", params: { value: 0.08 } },
-        { type: "contrast", params: { value: -0.05 } },
+        { type: "contrast", params: { value: 0.95 } },
         { type: "saturation", params: { value: -0.12 } },
       ],
       overlays: [],
@@ -1204,7 +1204,7 @@ export const BUILT_IN_EDITING_TEMPLATES: readonly EditingTemplate[] = [
     supportedTargets: ["video", "image"],
     recipe: {
       effects: [
-        { type: "contrast", params: { value: 0.06 } },
+        { type: "contrast", params: { value: 1.06 } },
         { type: "vignette", params: { intensity: 0.3, radius: 0.85 } },
       ],
       overlays: [
@@ -1273,7 +1273,7 @@ export const BUILT_IN_EDITING_TEMPLATES: readonly EditingTemplate[] = [
     supportedTargets: ["video", "image"],
     recipe: {
       effects: [
-        { type: "contrast", params: { value: 0.18 } },
+        { type: "contrast", params: { value: 1.18 } },
         { type: "brightness", params: { value: -0.06 } },
         { type: "vignette", params: { intensity: 0.6, radius: 0.65 } },
         { type: "saturation", params: { value: -0.15 } },
@@ -1564,7 +1564,7 @@ export const BUILT_IN_EDITING_TEMPLATES: readonly EditingTemplate[] = [
     supportedTargets: ["video", "image"],
     recipe: {
       effects: [
-        { type: "contrast", params: { value: 0.1 } },
+        { type: "contrast", params: { value: 1.1 } },
         { type: "saturation", params: { value: 0.12 } },
         { type: "brightness", params: { value: 0.02 } },
       ],
@@ -1584,7 +1584,7 @@ export const BUILT_IN_EDITING_TEMPLATES: readonly EditingTemplate[] = [
     recipe: {
       effects: [
         { type: "saturation", params: { value: -1 } },
-        { type: "contrast", params: { value: 0.15 } },
+        { type: "contrast", params: { value: 1.15 } },
         { type: "brightness", params: { value: 0.04 } },
       ],
       overlays: [],
@@ -1604,7 +1604,7 @@ export const BUILT_IN_EDITING_TEMPLATES: readonly EditingTemplate[] = [
       effects: [
         { type: "chromatic-aberration", params: { intensity: 8 } },
         { type: "film-grain", params: { intensity: 0.55, size: 3 } },
-        { type: "contrast", params: { value: 0.2 } },
+        { type: "contrast", params: { value: 1.2 } },
       ],
       overlays: [
         shapeOverlay({
@@ -1750,7 +1750,7 @@ export const BUILT_IN_EDITING_TEMPLATES: readonly EditingTemplate[] = [
       effects: [
         { type: "brightness", params: { value: 0.03 } },
         { type: "saturation", params: { value: -0.06 } },
-        { type: "contrast", params: { value: 0.05 } },
+        { type: "contrast", params: { value: 1.05 } },
       ],
       overlays: [
         shapeOverlay({

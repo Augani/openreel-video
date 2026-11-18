@@ -22,6 +22,7 @@ import { createEmptyProject } from "../../stores/project/project-helpers";
 import type { MediaItem } from "@openreel/core";
 import { useTimelineStore } from "../../stores/timeline-store";
 import { useKieAIStore } from "../../stores/kieai-store";
+import { useSettingsStore } from "../../stores/settings-store";
 const { createImageTask, post } = vi.hoisted(() => ({
   createImageTask: vi.fn(),
   post: vi.fn(),
@@ -31,6 +32,12 @@ vi.mock("../../services/kieai/image-generation", () => ({
   IMAGE_MODELS: { Z_IMAGE: "z-image", NANO_BANANA2: "nano-banana-2" },
 }));
 vi.mock("../../services/kieai/client", () => ({ kieaiPostJson: post }));
+const vault = vi.hoisted(() => ({ stored: true, unlocked: true }));
+vi.mock("../../services/secure-storage", () => ({
+  hasSecret: async () => vault.stored,
+  isSessionUnlocked: () => vault.unlocked,
+  onSessionLock: () => () => {},
+}));
 vi.mock("./inspector/TextToSpeechPanel", () => ({
   TextToSpeechPanel: () => null,
 }));
@@ -62,6 +69,9 @@ beforeEach(() => {
     project: createEmptyProject("Generation verification"),
   });
   useKieAIStore.setState({ tasks: [] });
+  vault.stored = true;
+  vault.unlocked = true;
+  useSettingsStore.setState({ configuredServices: ["kie-ai"] });
   createImageTask.mockReset();
   post.mockReset();
 });
@@ -72,12 +82,58 @@ function prompt() {
   });
 }
 describe("Generation workflow", () => {
+  it("is honest when no key is connected", async () => {
+    vault.stored = false;
+    useSettingsStore.setState({ configuredServices: [] });
+    render(<WorkspaceGeneratePanel />);
+    prompt();
+    expect(await screen.findByText("Add a key to generate")).toBeTruthy();
+    expect(screen.queryByText(/Model · /)).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Generate 4 variations" }),
+    ).toHaveProperty("disabled", true);
+    expect(screen.getByText(/Add your KieAI API key/)).toBeTruthy();
+  });
+  it("does not trust a stale configured list when the key is gone", async () => {
+    vault.stored = false;
+    render(<WorkspaceGeneratePanel />);
+    prompt();
+    expect(await screen.findByText("Add a key to generate")).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Generate 4 variations" }),
+    ).toHaveProperty("disabled", true);
+  });
+  it("asks to unlock when the key exists but the session is locked", async () => {
+    vault.unlocked = false;
+    render(<WorkspaceGeneratePanel />);
+    prompt();
+    expect(await screen.findByText("Unlock keys to generate")).toBeTruthy();
+    expect(screen.queryByText(/Model · /)).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Generate 4 variations" }),
+    ).toHaveProperty("disabled", true);
+    expect(screen.getByRole("button", { name: "Unlock" })).toBeTruthy();
+  });
+  it("shows the model and enables Generate only when the key is usable", async () => {
+    render(<WorkspaceGeneratePanel />);
+    prompt();
+    expect(await screen.findByText("Model · Z-Image")).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Generate 4 variations" }),
+    ).toHaveProperty("disabled", false);
+  });
+  it("gives every style chip an icon", () => {
+    render(<WorkspaceGeneratePanel />);
+    for (const name of ["Cinematic", "Photo", "Documentary", "Illustration"])
+      expect(screen.getByRole("button", { name }).querySelector("svg")).toBeTruthy();
+  });
   it("tracks four submitted images as real pending media without fabricated progress", async () => {
     createImageTask.mockImplementation(
       async () => `task-${createImageTask.mock.calls.length}`,
     );
     render(<WorkspaceGeneratePanel />);
     prompt();
+    await screen.findByText(/Model · /);
     fireEvent.click(
       screen.getByRole("button", { name: "Generate 4 variations" }),
     );
@@ -99,6 +155,7 @@ describe("Generation workflow", () => {
       .mockRejectedValueOnce(new Error("Provider unavailable"));
     render(<WorkspaceGeneratePanel />);
     prompt();
+    await screen.findByText(/Model · /);
     fireEvent.click(
       screen.getByRole("button", { name: "Generate 4 variations" }),
     );
@@ -118,6 +175,7 @@ describe("Generation workflow", () => {
       ctrlKey: false,
     });
     prompt();
+    await screen.findByText(/Model · /);
     fireEvent.click(
       screen.getByRole("button", { name: "Generate 4 variations" }),
     );

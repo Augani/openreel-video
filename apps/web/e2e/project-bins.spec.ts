@@ -185,7 +185,12 @@ test.describe("Project panel", () => {
     await page.keyboard.press("Escape");
     await expect(page.getByRole("columnheader", { name: /Codec/ })).toBeVisible();
     await expect(page.locator(`[data-testid="media-row"][data-media-id="${sub.id}"] [data-col="codec"]`)).not.toHaveText("");
-    // Usage count column: the placed clip uses three-scenes once.
+    // Usage count column (hidden by default since the compact list): turn it on, the placed clip uses three-scenes once.
+    await expect(page.getByRole("columnheader", { name: /Usage/ })).toHaveCount(0);
+    await page.getByRole("button", { name: "Columns" }).click();
+    await page.getByTestId("column-toggle-usage").click();
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("columnheader", { name: /Usage/ })).toBeVisible();
     await expect(page.locator('[data-testid="media-row"]', { hasText: "three-scenes.mp4" }).locator('[data-col="usage"]')).toHaveText("1");
 
     // Comment field (inline edit, one undo step).

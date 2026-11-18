@@ -66,7 +66,7 @@ const RowNameEditor: React.FC<{ sequence: Sequence; onDone: () => void }> = ({ s
  * opens one in a tab; dragging one onto a timeline lane nests it; dragging
  * onto a bin files it.
  */
-export const SequencesSection: React.FC<{ data: ProjectPanelData }> = ({ data }) => {
+export const SequencesSection: React.FC<{ data: ProjectPanelData; trailing?: React.ReactNode }> = ({ data, trailing }) => {
   const { sequences: storedSequences, activeSequenceId, openSequenceIds, timeline, settings, compounds } = useProjectStore(
     useShallow((s) => ({
       sequences: s.project.sequences,
@@ -79,7 +79,7 @@ export const SequencesSection: React.FC<{ data: ProjectPanelData }> = ({ data })
   );
   const query = useProjectPanelStore((s) => s.query);
   const [renamingId, setRenamingId] = useState<string | null>(null);
-  const [collapsed, setCollapsed] = useState(false);
+  const [userCollapsed, setUserCollapsed] = useState<boolean | null>(null);
   const bins = useMemo(() => new Set(data.bins.map((bin) => bin.id)), [data.bins]);
   const project = useMemo(
     () => ensureSequences({ sequences: storedSequences, activeSequenceId, openSequenceIds, timeline, settings, compoundClips: compounds } as never),
@@ -94,6 +94,10 @@ export const SequencesSection: React.FC<{ data: ProjectPanelData }> = ({ data })
     });
   }, [project, bins, data.currentBinId, data.searching, query]);
 
+  // A lone sequence is already open in the timeline, so its row stays folded and
+  // the media grid keeps the height; with two or more the list opens by itself.
+  const collapsed = userCollapsed ?? rows.length <= 1;
+
   return (
     <section data-testid="sequences-section" className="shrink-0 border-b border-border/60 px-2 py-1.5">
       <div className="flex h-5 items-center gap-1 text-[10.5px] font-medium uppercase tracking-wide text-fg-muted">
@@ -101,19 +105,20 @@ export const SequencesSection: React.FC<{ data: ProjectPanelData }> = ({ data })
           type="button"
           aria-expanded={!collapsed}
           aria-label={collapsed ? "Expand sequences" : "Collapse sequences"}
-          onClick={() => setCollapsed((value) => !value)}
+          onClick={() => setUserCollapsed(!collapsed)}
           className="flex items-center gap-1 hover:text-fg"
         >
           <ChevronRight size={11} aria-hidden className={collapsed ? "" : "rotate-90"} />
           Sequences
           <span className="font-normal normal-case text-fg-3">{rows.length}</span>
         </button>
+        {trailing && <div className="ml-auto min-w-0">{trailing}</div>}
         <button
           type="button"
           aria-label="New sequence"
           data-testid="sequence-panel-new"
           onClick={() => void newSequence()}
-          className="ml-auto flex h-4 w-4 items-center justify-center rounded-[3px] hover:bg-bg-2 hover:text-fg"
+          className={`${trailing ? "" : "ml-auto "}flex h-4 w-4 shrink-0 items-center justify-center rounded-[3px] hover:bg-bg-2 hover:text-fg`}
         >
           <Plus size={11} aria-hidden />
         </button>

@@ -64,15 +64,27 @@ export const GPU_LAUNCH: LaunchOptions = { channel: E2E_CHANNEL, headless: true,
  * skipped on null; the fallback assertions always run.
  */
 export async function launchGpuBrowserIfAvailable(baseURL: string | undefined): Promise<Browser | null> {
-  const browser = await chromium.launch(GPU_LAUNCH);
+  const browser = await chromium.launch({ ...GPU_LAUNCH, timeout: 60_000 });
   try {
     const ctx = await browser.newContext({ baseURL });
     const page = await ctx.newPage();
-    await page.goto("/");
-    const ok = await page.evaluate(async () => {
-      const gpu = (navigator as unknown as { gpu?: { requestAdapter(): Promise<unknown> } }).gpu;
-      return !!gpu && (await gpu.requestAdapter()) !== null;
-    });
+    await page.goto("/", { timeout: 60_000 });
+    // requestAdapter() can return null for a moment while many GPU clients start at once, and can also
+    // never settle when the GPU process is starved: ask a few times, each bounded, before concluding
+    // there is no adapter (an unbounded await here used to hold a test for its whole 15 minute timeout).
+    let ok = false;
+    for (let attempt = 0; attempt < 6 && !ok; attempt++) {
+      ok = await page.evaluate(async () => {
+        const gpu = (navigator as unknown as { gpu?: { requestAdapter(): Promise<unknown> } }).gpu;
+        if (!gpu) return false;
+        const adapter = await Promise.race([
+          gpu.requestAdapter().catch(() => null),
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), 8_000)),
+        ]);
+        return adapter !== null;
+      });
+      if (!ok) await page.waitForTimeout(500);
+    }
     await ctx.close();
     if (ok) return browser;
   } catch {

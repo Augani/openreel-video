@@ -1,4 +1,5 @@
 import { getShaderNoiseTexture } from "@paper-design/shaders";
+import { releaseGLContext, trackGLContext } from "../video/gl-context";
 import type { MotionShaderDef, MotionShaderParamDef, MotionShaderParamType } from "./shaders";
 
 function getNoiseTextureSource(): HTMLImageElement | null {
@@ -281,15 +282,24 @@ export class MotionShaderRenderer {
   private contextLostHandler: ((event: Event) => void) | null = null;
   private unavailable = false;
 
+  private static supported: boolean | null = null;
+
   static isSupported(): boolean {
+    // Probed once per page; the probe context is released at once (it used to stay alive until garbage collection).
+    if (MotionShaderRenderer.supported !== null) return MotionShaderRenderer.supported;
     try {
       const canvas = createMotionShaderCanvas(1, 1);
-      if (!canvas) return false;
-      const context = getWebGL2Context(canvas);
-      return context !== null;
+      if (!canvas) {
+        MotionShaderRenderer.supported = false;
+      } else {
+        const context = getWebGL2Context(canvas);
+        releaseGLContext(context);
+        MotionShaderRenderer.supported = context !== null;
+      }
     } catch {
-      return false;
+      MotionShaderRenderer.supported = false;
     }
+    return MotionShaderRenderer.supported;
   }
 
   render(
@@ -415,6 +425,7 @@ export class MotionShaderRenderer {
         // Removal is best-effort.
       }
     }
+    releaseGLContext(gl);
     this.programs.clear();
     this.contextLostHandler = null;
     this.vertexShader = null;
@@ -444,6 +455,13 @@ export class MotionShaderRenderer {
         return null;
       }
       const handler = (): void => {
+        // The context is gone (device loss, or Chrome evicted it): forget it so the next render builds a fresh one.
+        if (this.gl === context) {
+          this.gl = null;
+          this.canvas = null;
+          this.vertexBuffer = null;
+          this.vertexShader = null;
+        }
         for (const compiled of this.programs.values()) {
           if (compiled) {
             try {
@@ -471,7 +489,7 @@ export class MotionShaderRenderer {
       context.bufferData(context.ARRAY_BUFFER, QUAD_VERTICES, context.STATIC_DRAW);
 
       this.canvas = canvas;
-      this.gl = context;
+      this.gl = trackGLContext(context);
       this.vertexBuffer = buffer;
       this.contextLostHandler = handler;
       return context;

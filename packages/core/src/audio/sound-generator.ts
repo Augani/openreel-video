@@ -1,6 +1,6 @@
 import type { SoundItem, MusicGenre, MoodTag } from "../types/sound-library";
 
-interface GeneratedSound {
+export interface GeneratedSound {
   item: SoundItem;
   blob: Blob;
   dataUrl: string;
@@ -181,6 +181,30 @@ const SCALES = {
   pentatonic: [0, 2, 4, 7, 9],
   blues: [0, 3, 5, 6, 7, 10],
   dorian: [0, 2, 3, 5, 7, 9, 10],
+};
+
+interface BeatPattern {
+  bars: number;
+  kick: number[];
+  snare: number[];
+  hat: number[];
+  openHat?: boolean;
+  swing?: number;
+  fill?: boolean;
+  bass: { steps: number[]; notes: number[]; wave: OscillatorType; hold: number };
+}
+
+const EVERY_EIGHTH = [0, 2, 4, 6, 8, 10, 12, 14];
+const EVERY_SIXTEENTH = Array.from({ length: 16 }, (_, i) => i);
+
+/** One groove per genre: different kick, backbeat, hat and bass figures give each loop its own envelope. */
+const BEAT_PATTERNS: Record<string, BeatPattern> = {
+  electronic: { bars: 4, kick: [0, 4, 8, 12], snare: [4, 12], hat: [2, 6, 10, 14], openHat: true, bass: { steps: [2, 6, 10, 14], notes: [55, 55, 65.4, 73.4], wave: "sawtooth", hold: 1.5 } },
+  "hip-hop": { bars: 4, kick: [0, 7, 10], snare: [4, 12], hat: EVERY_EIGHTH, swing: 0.28, bass: { steps: [0, 7, 10], notes: [49, 49, 58.3, 41.2], wave: "sine", hold: 3 } },
+  pop: { bars: 4, kick: [0, 6, 8, 14], snare: [4, 12], hat: EVERY_EIGHTH, fill: true, bass: { steps: [0, 8], notes: [65.4, 49, 55, 73.4], wave: "triangle", hold: 6 } },
+  lofi: { bars: 4, kick: [0, 9], snare: [4, 12], hat: [0, 4, 8, 12], swing: 0.4, bass: { steps: [0, 10], notes: [43.7, 49, 41.2, 55], wave: "sine", hold: 7 } },
+  upbeat: { bars: 4, kick: [0, 4, 8, 12], snare: [4, 12], hat: EVERY_SIXTEENTH, fill: true, bass: { steps: [0, 3, 6, 8, 11, 14], notes: [65.4, 82.4, 73.4, 98], wave: "square", hold: 2 } },
+  corporate: { bars: 2, kick: [0, 8], snare: [4, 12], hat: [0, 4, 8, 12], bass: { steps: [0, 8], notes: [65.4, 73.4, 55, 49], wave: "triangle", hold: 7 } },
 };
 
 class SoundGenerator {
@@ -1121,56 +1145,71 @@ class SoundGenerator {
     const cached = this.cache.get(id);
     if (cached) return cached;
 
-    const duration = 8;
+    const pattern = BEAT_PATTERNS[genre] ?? BEAT_PATTERNS.electronic;
+    // Whole bars at the tempo, so a loop is as long as its groove, not a fixed 8 s.
+    const bars = pattern.bars;
+    const stepDuration = 60 / bpm / 4;
+    const duration = bars * 16 * stepDuration;
     const sampleRate = 44100;
-    const ctx = new OfflineAudioContext(2, sampleRate * duration, sampleRate);
+    const ctx = new OfflineAudioContext(2, Math.ceil(sampleRate * duration), sampleRate);
 
-    const beatInterval = 60 / bpm;
-    const numBeats = Math.floor(duration / beatInterval);
+    const noiseBuffer = ctx.createBuffer(1, Math.floor(sampleRate * 0.2), sampleRate);
+    const noiseData = noiseBuffer.getChannelData(0);
+    for (let j = 0; j < noiseData.length; j++) noiseData[j] = Math.random() * 2 - 1;
 
-    for (let i = 0; i < numBeats; i++) {
-      const beatTime = i * beatInterval;
-      const isDownbeat = i % 4 === 0;
-      const isSnare = i % 4 === 2;
+    const hit = (time: number, kind: "snare" | "hat" | "openhat", gainValue: number) => {
+      const noise = ctx.createBufferSource();
+      noise.buffer = noiseBuffer;
+      const filter = ctx.createBiquadFilter();
+      filter.type = kind === "snare" ? "bandpass" : "highpass";
+      filter.frequency.value = kind === "snare" ? 1800 : 7000;
+      const gain = ctx.createGain();
+      const tail = kind === "snare" ? 0.16 : kind === "openhat" ? 0.12 : 0.04;
+      gain.gain.setValueAtTime(gainValue, time);
+      gain.gain.exponentialRampToValueAtTime(0.001, time + tail);
+      noise.connect(filter);
+      filter.connect(gain);
+      gain.connect(ctx.destination);
+      noise.start(time);
+      noise.stop(time + tail + 0.02);
+    };
 
-      const kickOsc = ctx.createOscillator();
-      kickOsc.type = "sine";
-      kickOsc.frequency.setValueAtTime(isDownbeat ? 150 : 100, beatTime);
-      kickOsc.frequency.exponentialRampToValueAtTime(40, beatTime + 0.1);
-
-      const kickGain = ctx.createGain();
-      kickGain.gain.setValueAtTime(isDownbeat ? 0.8 : 0.5, beatTime);
-      kickGain.gain.exponentialRampToValueAtTime(0.01, beatTime + 0.15);
-
-      kickOsc.connect(kickGain);
-      kickGain.connect(ctx.destination);
-
-      kickOsc.start(beatTime);
-      kickOsc.stop(beatTime + 0.15);
-
-      if (isSnare || i % 4 === 2) {
-        const noiseBuffer = ctx.createBuffer(1, sampleRate * 0.1, sampleRate);
-        const noiseData = noiseBuffer.getChannelData(0);
-        for (let j = 0; j < noiseData.length; j++) {
-          noiseData[j] = Math.random() * 2 - 1;
+    for (let bar = 0; bar < bars; bar++) {
+      const fill = pattern.fill && bar === bars - 1;
+      for (let step = 0; step < 16; step++) {
+        const swing = pattern.swing && step % 2 === 1 ? stepDuration * pattern.swing : 0;
+        const time = (bar * 16 + step) * stepDuration + swing;
+        if (pattern.kick.includes(step) && !(fill && step > 8)) {
+          const osc = ctx.createOscillator();
+          osc.type = "sine";
+          osc.frequency.setValueAtTime(step === 0 ? 150 : 110, time);
+          osc.frequency.exponentialRampToValueAtTime(42, time + 0.12);
+          const gain = ctx.createGain();
+          gain.gain.setValueAtTime(step === 0 ? 0.85 : 0.6, time);
+          gain.gain.exponentialRampToValueAtTime(0.01, time + 0.2);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(time);
+          osc.stop(time + 0.22);
         }
-
-        const noise = ctx.createBufferSource();
-        noise.buffer = noiseBuffer;
-
-        const hihatFilter = ctx.createBiquadFilter();
-        hihatFilter.type = "highpass";
-        hihatFilter.frequency.value = 7000;
-
-        const hihatGain = ctx.createGain();
-        hihatGain.gain.setValueAtTime(0.3, beatTime);
-        hihatGain.gain.exponentialRampToValueAtTime(0.01, beatTime + 0.05);
-
-        noise.connect(hihatFilter);
-        hihatFilter.connect(hihatGain);
-        hihatGain.connect(ctx.destination);
-
-        noise.start(beatTime);
+        if (pattern.snare.includes(step) || (fill && step >= 12)) hit(time, "snare", 0.4);
+        if (pattern.hat.includes(step)) hit(time, step % 4 === 2 && pattern.openHat ? "openhat" : "hat", step % 4 === 0 ? 0.22 : 0.14);
+        const bassIndex = pattern.bass.steps.indexOf(step);
+        if (bassIndex >= 0) {
+          const note = pattern.bass.notes[(bar * pattern.bass.steps.length + bassIndex) % pattern.bass.notes.length];
+          const osc = ctx.createOscillator();
+          osc.type = pattern.bass.wave;
+          osc.frequency.setValueAtTime(note, time);
+          const gain = ctx.createGain();
+          const hold = stepDuration * pattern.bass.hold;
+          gain.gain.setValueAtTime(0.0001, time);
+          gain.gain.exponentialRampToValueAtTime(0.38, time + 0.01);
+          gain.gain.exponentialRampToValueAtTime(0.001, time + hold);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(time);
+          osc.stop(time + hold + 0.02);
+        }
       }
     }
 

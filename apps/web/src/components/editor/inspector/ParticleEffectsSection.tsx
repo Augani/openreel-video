@@ -1,4 +1,10 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
+import {
+  EffectLivePreview,
+  EffectPreviewProvider,
+  useLivePreviewActivity,
+} from "../panels/effect-previews/EffectLivePreview";
+import { particlePreviewDef } from "../panels/effect-previews/kind-defs";
 import {
   PARTICLE_PRESETS,
   createEffectFromPreset,
@@ -124,19 +130,21 @@ export function ParticleEffectsSection({
           Add
         </Button>
       </div>
-      <div
-        className="grid grid-cols-2 gap-2"
-        aria-label="Particle preset previews"
-      >
-        {PARTICLE_PRESETS.map((preset) => (
-          <ParticlePresetCard
-            key={preset.id}
-            preset={preset}
-            selected={selectedPreset === preset.id}
-            onSelect={() => setSelectedPreset(preset.id)}
-          />
-        ))}
-      </div>
+      <EffectPreviewProvider>
+        <div
+          className="grid grid-cols-2 gap-2"
+          aria-label="Particle preset previews"
+        >
+          {PARTICLE_PRESETS.map((preset) => (
+            <ParticlePresetCard
+              key={preset.id}
+              preset={preset}
+              selected={selectedPreset === preset.id}
+              onSelect={() => setSelectedPreset(preset.id)}
+            />
+          ))}
+        </div>
+      </EffectPreviewProvider>
       {effects.length === 0 ? (
         <div className="py-6 text-center text-xs text-fg-3">
           <Sparkles size={24} className="mx-auto mb-2 opacity-50" aria-hidden />
@@ -518,23 +526,8 @@ const ParticlePresetCard: React.FC<{
   selected: boolean;
   onSelect: () => void;
 }> = ({ preset, selected, onSelect }) => {
-  const [hovered, setHovered] = useState(false);
-  const [progress, setProgress] = useState(0.58);
-
-  React.useEffect(() => {
-    if (!hovered) {
-      setProgress(0.58);
-      return;
-    }
-    let frame = 0;
-    const startedAt = performance.now();
-    const animate = (now: number) => {
-      setProgress(((now - startedAt) % 1400) / 1400);
-      frame = requestAnimationFrame(animate);
-    };
-    frame = requestAnimationFrame(animate);
-    return () => cancelAnimationFrame(frame);
-  }, [hovered]);
+  const { active, handlers } = useLivePreviewActivity();
+  const def = useMemo(() => particlePreviewDef(preset), [preset]);
 
   return (
     <Button
@@ -544,8 +537,7 @@ const ParticlePresetCard: React.FC<{
       aria-label={`Preview ${preset.name}`}
       aria-pressed={selected}
       onClick={onSelect}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
+      {...handlers}
       className={`block h-auto w-full whitespace-normal overflow-hidden rounded-lg border p-1.5 text-left text-[length:inherit] font-normal leading-[inherit] transition-colors ${
         selected
           ? "border-primary bg-primary/10"
@@ -556,66 +548,19 @@ const ParticlePresetCard: React.FC<{
         data-testid="particle-preset-preview"
         data-preset-id={preset.id}
         aria-hidden="true"
-        className="relative mb-1.5 block h-14 overflow-hidden rounded-md bg-[radial-gradient(circle_at_50%_50%,rgba(124,58,237,.18),transparent_60%),#0f1420]"
+        className="relative mb-1.5 block aspect-video overflow-hidden rounded-md bg-bg-3"
       >
-        {Array.from({ length: 16 }, (_, index) => {
-          const style = particlePreviewStyle(preset, index, progress);
-          return <span key={index} className="absolute block" style={style} />;
-        })}
+        <EffectLivePreview def={def} active={active} />
       </span>
       <span className="block truncate text-[9px] font-semibold text-fg">
         {preset.name}
       </span>
-      <span className="block truncate text-[8px] capitalize text-fg-4">
-        {preset.type} · {preset.config.particleCount} particles
+      <span className="block truncate text-[8px] text-fg-4">
+        {preset.description}
       </span>
     </Button>
   );
 };
-
-function particlePreviewStyle(
-  preset: ParticlePreset,
-  index: number,
-  progress: number,
-): React.CSSProperties {
-  const angle = (index / 16) * Math.PI * 2;
-  const phase = (progress + index * 0.071) % 1;
-  const outward = preset.type === "explode" || preset.type === "shatter";
-  const inward = preset.type === "implode" || preset.type === "morph";
-  const falling =
-    preset.type === "confetti" ||
-    preset.id === "snow-fall" ||
-    preset.type === "pixelate";
-  const radius = outward
-    ? phase * 36
-    : inward
-      ? (1 - phase) * 34
-      : 10 + ((index * 7) % 22);
-  const x = falling ? 8 + ((index * 17) % 86) : 50 + Math.cos(angle) * radius;
-  const y = falling
-    ? -10 + phase * 76
-    : 50 +
-      Math.sin(angle) * radius +
-      (preset.id === "fire-trail" ? phase * -22 : 0);
-  const size = Math.max(2, Math.min(9, preset.config.size.min + (index % 4)));
-  const color =
-    preset.config.colors[index % preset.config.colors.length] ?? "#ffffff";
-  const square = preset.type === "pixelate" || preset.type === "confetti";
-  return {
-    left: `${x}%`,
-    top: `${y}%`,
-    width: size,
-    height: square ? Math.max(2, size * 0.65) : size,
-    borderRadius: square ? 1 : "50%",
-    background: color,
-    opacity: Math.max(0.18, 1 - phase * 0.72),
-    boxShadow:
-      preset.config.blendMode === "add"
-        ? `0 0 ${size + 3}px ${color}`
-        : undefined,
-    transform: `translate(-50%, -50%) rotate(${phase * 240 + index * 13}deg)`,
-  };
-}
 
 interface ColorSwatchProps {
   disabled?: boolean;

@@ -240,6 +240,22 @@ describe("export queue store", () => {
     expect(status()).toEqual(["B:completed", "A:running"]);
   });
 
+  it("runs a job again once when the encoder fails transiently, and only then shows a failure", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const store = useExportQueueStore.getState();
+    store.enqueue({ settings, presetLabel: "A" });
+    useExportQueueStore.getState().start();
+    await flush();
+    expect(hoisted.runs).toHaveLength(1);
+    hoisted.runs[0].reject(new DOMException("Encoding error.", "EncodingError"));
+    await new Promise((resolve) => setTimeout(resolve, 700));
+    expect(status()).toEqual(["A:running"]);
+    expect(hoisted.runs).toHaveLength(2);
+    hoisted.runs[1].resolve(done);
+    await flush();
+    expect(status()).toEqual(["A:completed"]);
+  });
+
   it("cancels a running job (the runner sees it and the engine is told) and moves on", async () => {
     const store = useExportQueueStore.getState();
     store.enqueue({ settings, presetLabel: "A" });

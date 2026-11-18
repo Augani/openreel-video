@@ -1,5 +1,6 @@
 import {
   useCallback,
+  useEffect,
   useLayoutEffect,
   useRef,
   useState,
@@ -30,6 +31,10 @@ import {
   Mic,
   SlidersHorizontal,
 } from "lucide-react";
+import {
+  DEFAULT_SILENCE_SETTINGS,
+  getSilenceCutBridge,
+} from "../../../bridges/silence-cut-bridge";
 import { WorkspaceTabs, workspaceTabPanel } from "../WorkspacePrimitives";
 import { RecipesTab } from "./RecipesTab";
 import {
@@ -88,6 +93,37 @@ const recipes = [
     steps: "3 steps · On device",
   },
 ] as const;
+/** Pauses a Remove silences run would cut in the target clip, counted quietly once the panel is idle. */
+export function useSilencePreview(clipId: string | undefined): number | null {
+  const [count, setCount] = useState<number | null>(null);
+  useEffect(() => {
+    setCount(null);
+    if (!clipId) return;
+    let alive = true;
+    const run = () => {
+      void Promise.resolve()
+        .then(() =>
+          getSilenceCutBridge().countSilences(clipId, {
+            ...DEFAULT_SILENCE_SETTINGS,
+            minSilenceDuration: 0.6,
+          }),
+        )
+        .then((n) => {
+          if (alive && typeof n === "number") setCount(n);
+        })
+        .catch(() => undefined);
+    };
+    const hasIdle = typeof window.requestIdleCallback === "function";
+    const handle = hasIdle ? window.requestIdleCallback(run) : window.setTimeout(run, 400);
+    return () => {
+      alive = false;
+      if (hasIdle) window.cancelIdleCallback(handle);
+      else window.clearTimeout(handle);
+    };
+  }, [clipId]);
+  return count;
+}
+
 export function WorkspaceRecipesPanel() {
   const [tab, setTab] = useState("featured");
   const [active, setActive] = useState<string | null>(null);
@@ -125,6 +161,11 @@ export function WorkspaceRecipesPanel() {
     selected.find((s) => s.type === "clip")?.id ?? "",
   );
   const clipId = clips.some((c) => c.id === target) ? target : clips[0]?.id;
+  const silenceCount = useSilencePreview(clipId);
+  const silenceClipName =
+    project.mediaLibrary.items.find(
+      (m) => m.id === clips.find((c) => c.id === clipId)?.mediaId,
+    )?.name ?? "this clip";
   const run = (id: string) => {
     if (id === "shorts") {
       const c = useAIConnectionStore.getState();
@@ -340,6 +381,16 @@ export function WorkspaceRecipesPanel() {
                         <div>
                           <h3>{r.name}</h3>
                           <p>{r.description}</p>
+                          {r.id === "silence" && silenceCount !== null && (
+                            <p
+                              className="mt-1.5 text-[11px] font-medium text-accent"
+                              data-testid="silence-preview"
+                            >
+                              {silenceCount === 0
+                                ? `No pauses found in ${silenceClipName}`
+                                : `${silenceCount} ${silenceCount === 1 ? "silence" : "silences"} found in ${silenceClipName}`}
+                            </p>
+                          )}
                         </div>
                       </div>
                       <footer>

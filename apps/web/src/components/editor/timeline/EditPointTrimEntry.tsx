@@ -53,7 +53,7 @@ export function EditPointTrimEntry() {
         <span
           data-testid="dynamic-trim-indicator"
           role="status"
-          title="The Program monitor shows the timeline as it is now, not the trimmed result. K or Space commits, Esc cancels."
+          title="The Program monitor shows the trimmed result live. K or Space commits, Esc cancels."
           className={dynamic.limited ? "text-warning" : undefined}
         >
           {dynamic.appliedFrames > 0 ? "+" : ""}

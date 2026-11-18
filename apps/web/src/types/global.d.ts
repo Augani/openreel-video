@@ -447,6 +447,10 @@ declare global {
       ollama?: {
         probe(): Promise<OpenReelOllamaProbeResult>;
       };
+      /** Main-process helpers for fonts; Brotli for WOFF2 licence checks (Electron's Chromium has no Brotli DecompressionStream). */
+      fonts?: {
+        brotliDecompress(data: Uint8Array): Promise<Uint8Array | null>;
+      };
       samples?: {
         list(): Promise<OpenReelSampleClipInfo[]>;
         get(id: string): Promise<OpenReelSampleClipData | null>;

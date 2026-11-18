@@ -1,7 +1,8 @@
 import { Switch, Button, Card, Progress, Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@openreel/ui";
 import { useEffect, useState } from "react";
-import { AlertCircle, Check, Download, Languages, Loader2, Sparkles } from "@/icons/lucide-compat";
+import { AlertCircle, Check, ChevronDown, Download, Languages, Loader2, Sparkles } from "@/icons/lucide-compat";
 import { WHISPER_MODELS, isWhisperModelKey } from "../../../workers/whisper-models";
+import { CaptionStyleCards } from "./CaptionStyleCards";
 import { useAutoCaptions, CAPTION_STYLE_PRESETS, WHISPER_LANGUAGES, type AutoCaptionControls, type AutoCaptionOptions } from "./useAutoCaptions";
 export { CAPTION_STYLE_PRESETS, WHISPER_LANGUAGES } from "./useAutoCaptions";
 
@@ -14,6 +15,8 @@ export function AutoCaptionControlsPanel({ controls }: { controls: AutoCaptionCo
   const { workerState, isTranscribing, isAdding, mutationBlocked, progress, progressMessage, selectedLanguage, setSelectedLanguage,
     selectedStyle, setSelectedStyle, selectedModel, handleModelChange, handlePrepareModel, handleTranscribe,
     handleAddToTimeline, modelStatus, segments, error, canTranscribe } = controls;
+  const [modelOpen, setModelOpen] = useState(false);
+  const modelExpanded = modelOpen || workerState === "loading";
   const [segmentPage, setSegmentPage] = useState(1);
   useEffect(() => { setSegmentPage(1); }, [segments]);
   const segmentPageCount = Math.max(1, Math.ceil(segments.length / 50));
@@ -22,8 +25,16 @@ export function AutoCaptionControlsPanel({ controls }: { controls: AutoCaptionCo
 
   return (
     <div className="w-full min-w-0 space-y-3">
-      <Card className="min-w-0 rounded-[7px] shadow-none text-fg p-3 space-y-2 border border-primary/30 bg-primary/5"
-      >
+      <Card className="min-w-0 rounded-[7px] shadow-none text-fg p-0 border border-border bg-bg-2">
+        <button type="button" aria-expanded={modelExpanded} aria-controls="caption-model-settings" disabled={workerState === "loading"} onClick={() => setModelOpen(open => !open)} className="flex w-full min-w-0 items-center gap-2 rounded-[7px] px-3 py-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring">
+          {workerState === "ready" ? <Check size={14} className="shrink-0 text-primary" aria-hidden /> : <Download size={14} className="shrink-0 text-fg-2" aria-hidden />}
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-[11px] font-semibold text-fg">Speech model: {WHISPER_MODELS[selectedModel].shortLabel}</span>
+            <span className="block truncate text-[9px] text-fg-2">{workerState === "ready" ? "Ready on this device" : workerState === "loading" ? "Downloading" : "Not downloaded yet"}</span>
+          </span>
+          <ChevronDown size={14} className={`shrink-0 text-fg-2 transition-transform ${modelExpanded ? "rotate-180" : ""}`} aria-hidden />
+        </button>
+        <div id="caption-model-settings" hidden={!modelExpanded} className="space-y-2 border-t border-border p-3">
         <div className="flex items-center justify-between gap-2">
           <span className="text-fg-2 font-normal text-[10px]">
             Model quality
@@ -64,6 +75,7 @@ export function AutoCaptionControlsPanel({ controls }: { controls: AutoCaptionCo
           Stored in this browser after the first download. Media never leaves
           your device.
         </span>
+        </div>
       </Card>
 
       <Card className="min-w-0 rounded-[7px] border shadow-none border-transparent bg-bg-2 text-fg p-3 space-y-3">
@@ -79,14 +91,9 @@ export function AutoCaptionControlsPanel({ controls }: { controls: AutoCaptionCo
             <SelectContent>{WHISPER_LANGUAGES.map(language => <SelectItem key={language.code} value={language.code}>{language.name}</SelectItem>)}</SelectContent>
           </Select>
         </div>
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-fg-2 font-normal text-[10px]">
-            Caption style
-          </span>
-          <Select value={selectedStyle} onValueChange={setSelectedStyle} disabled={isTranscribing || isAdding}>
-            <SelectTrigger aria-label="Caption style" className="h-7 w-[132px] min-w-0 rounded-[7px] border-border bg-bg-1 px-2.5 text-[12px] font-medium text-fg-2"><SelectValue/></SelectTrigger>
-            <SelectContent>{CAPTION_STYLE_PRESETS.map(preset => <SelectItem key={preset} value={preset}>{(preset[0].toUpperCase() + preset.slice(1)).replaceAll("-", " ")}</SelectItem>)}</SelectContent>
-          </Select>
+        <div className="space-y-1.5">
+          <span className="text-fg-2 font-normal text-[10px]">Caption style</span>
+          <CaptionStyleCards presets={CAPTION_STYLE_PRESETS} value={selectedStyle} onChange={setSelectedStyle} referenceStyles={controls.referenceStyles} disabled={isTranscribing || isAdding} />
         </div>
         <label className="flex items-center justify-between gap-3 text-[10px] text-fg-2"><span>Highlight each word</span><Switch aria-label="Highlight each word" checked={controls.highlightWords} onCheckedChange={controls.setHighlightWords} disabled={isTranscribing || isAdding}/></label>
         <label className="flex items-center justify-between gap-3 text-[10px] text-fg-2"><span>Remove filler words (um, uh)</span><Switch aria-label="Remove filler words from captions" checked={controls.removeFillers} onCheckedChange={controls.setRemoveFillers} disabled={isTranscribing || isAdding}/></label>

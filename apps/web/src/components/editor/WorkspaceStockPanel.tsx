@@ -3,10 +3,16 @@ import { Button, Input } from "@openreel/ui";
 import { Search } from "lucide-react";
 import { useUIStore } from "../../stores/ui-store";
 import { useTimelineStore } from "../../stores/timeline-store";
-import { MusicLibraryPanel } from "./inspector/MusicLibraryPanel";
 import type { BackgroundPreset } from "../../services/background-generator";
 import { StockFootagePanel } from "./StockFootagePanel";
 import { WorkspaceTabs, workspaceTabPanel } from "./WorkspacePrimitives";
+const BACKGROUND_GROUPS: { category: BackgroundPreset["category"]; title: string }[] = [
+  { category: "solid", title: "Solid colours" },
+  { category: "gradient", title: "Gradients" },
+  { category: "pattern", title: "Patterns" },
+  { category: "mesh", title: "Mesh" },
+];
+
 export function WorkspaceStockPanel({
   backgrounds,
   onImportBackground,
@@ -29,8 +35,6 @@ export function WorkspaceStockPanel({
         options={[
           { value: "footage", label: "Footage" },
           { value: "backgrounds", label: "Backgrounds" },
-          { value: "music", label: "Music" },
-          { value: "sfx", label: "Sound FX" },
         ]}
       />
       <div
@@ -50,44 +54,50 @@ export function WorkspaceStockPanel({
                 onChange={(e) => setQuery(e.target.value)}
               />
             </div>
-            <div className="workspace-stock-grid">
-              {backgrounds
-                .filter(
-                  (p) =>
-                    !query.trim() ||
-                    p.name.toLowerCase().includes(query.trim().toLowerCase()),
-                )
-                .map((p) => (
-                  <Button
-                    key={p.id}
-                    variant="ghost"
-                    disabled={
-                      generatingBackground !== null ||
-                      exporting ||
-                      Boolean(lockedReason)
-                    }
-                    title={
-                      exporting
-                        ? "Wait for export to finish"
-                        : lockedReason || undefined
-                    }
-                    onClick={() => onImportBackground(p)}
-                  >
-                    <span style={{ background: p.thumbnail }} />
-                    <small>{p.name}</small>
-                  </Button>
-                ))}
-            </div>
+            {BACKGROUND_GROUPS.map(({ category, title }) => {
+              const needle = query.trim().toLowerCase();
+              const group = backgrounds.filter(
+                (p) =>
+                  p.category === category &&
+                  (!needle || p.name.toLowerCase().includes(needle)),
+              );
+              if (!group.length) return null;
+              return (
+                <section key={category} aria-label={title} className="mb-3">
+                  <h4 className="mb-1.5 text-[10.5px] font-semibold uppercase tracking-wide text-fg-muted">
+                    {title}
+                  </h4>
+                  <div className="workspace-stock-grid is-compact">
+                    {group.map((p) => (
+                      <Button
+                        key={p.id}
+                        variant="ghost"
+                        disabled={
+                          generatingBackground !== null ||
+                          exporting ||
+                          Boolean(lockedReason)
+                        }
+                        title={
+                          exporting
+                            ? "Wait for export to finish"
+                            : lockedReason || undefined
+                        }
+                        onClick={() => onImportBackground(p)}
+                      >
+                        <span style={{ background: p.thumbnail }} />
+                        <small>{p.name}</small>
+                      </Button>
+                    ))}
+                  </div>
+                </section>
+              );
+            })}
             <p className="text-[10px] text-fg-muted mt-3">
-              Built-in backgrounds, music and sound effects. Add a background to
-              your project with one click.
+              Generated backgrounds. Add one to your project with a click.
+              Music and sound effects are in the Audio panel.
             </p>
           </div>
-        ) : (
-          <div className="flex-1 min-h-0 overflow-auto">
-            <MusicLibraryPanel source={tab === "sfx" ? "sfx" : "music"} />
-          </div>
-        )}
+        ) : null}
       </div>
     </div>
   );

@@ -182,7 +182,9 @@ function resolveOverlay(
   const blendOpacity =
     overlay.blendOpacity === undefined
       ? undefined
-      : toNumber(resolveValue(overlay.blendOpacity, context, controlValues), 1);
+      : Math.round(
+          Math.max(0, Math.min(1, toNumber(resolveValue(overlay.blendOpacity, context, controlValues), 1))) * 10000,
+        ) / 100;
   const emphasisAnimation = resolveEmphasisAnimation(
     overlay.emphasisAnimation,
     context,

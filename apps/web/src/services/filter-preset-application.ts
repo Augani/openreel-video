@@ -24,6 +24,12 @@ function runtimeParams(preset: FilterPreset, intensity: number): Record<string, 
   });
 }
 
+/** The effects `applyFilterPreset` writes to a clip (same units, same order). Look previews render exactly these. */
+export function filterPresetEffectsForPreview(preset: FilterPreset): Array<{ type: string; params: Record<string, unknown> }> {
+  const params = runtimeParams(preset, 100);
+  return preset.effects.map((effect, index) => ({ type: effect.type, params: params[index] }));
+}
+
 /** Read the intensity from authored effects so history/reload never leaves a
  * stale local percentage. Secondary parameters retain their original units. */
 function measureIntensity(preset: FilterPreset, effects: readonly VideoEffect[]): number | null {

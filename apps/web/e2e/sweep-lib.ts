@@ -1,4 +1,4 @@
-import type { Page } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
 import {
   clickClip,
   clipsOf,
@@ -8,8 +8,9 @@ import {
   readState,
   seek,
   settle,
-  snap,
+  snapStable,
   undo,
+  waitForPresentedPlayhead,
 } from "./helpers";
 
 /** Stabilize opens the inspector's analysis flow instead of adding a pixel effect. */
@@ -87,7 +88,7 @@ export async function sweepOne(page: Page, clipId: string, label: string): Promi
     await seek(page, frame);
     await clickClip(page, clipId);
     const pre = await readState(page);
-    await snap(page, "before");
+    await snapStable(page, "before");
     const baseSmall = await smallOf(page, "before");
     const card = page.locator(`button[aria-label="${label}${CARD_SUFFIX}"]`).first();
     await card.scrollIntoViewIfNeeded();
@@ -107,13 +108,17 @@ export async function sweepOne(page: Page, clipId: string, label: string): Promi
         `"${label}" (frame ${frame}s): double-click did not apply the effect within 20s (history ${pre.historyLength} -> ${after.historyLength}, selected ${JSON.stringify(after.selected)})`,
       );
     }
+    // Wait for the effect to be on the clip and the monitor to present it before capturing (a loaded machine lands both late).
+    await expect.poll(async () => clipsOf(await readState(page), "Main")[0].effects, { timeout: 15_000 }).toBeGreaterThan(0).catch(() => undefined);
+    await waitForPresentedPlayhead(page);
     const applied = clipsOf(after, "Main")[0].effects;
-    await snap(page, "after");
+    await snapStable(page, "after");
     const changed = await diffSnaps(page, "before", "after");
     const small = await smallOf(page, "after");
     await undo(page);
     await settle(page, 600);
-    await snap(page, "undone");
+    await expect.poll(async () => clipsOf(await readState(page), "Main")[0]?.effects, { timeout: 15_000 }).toBe(0).catch(() => undefined);
+    await snapStable(page, "undone");
     const residual = await diffSnaps(page, "before", "undone");
     const afterUndo = clipsOf(await readState(page), "Main");
     if (afterUndo.length === 0) {

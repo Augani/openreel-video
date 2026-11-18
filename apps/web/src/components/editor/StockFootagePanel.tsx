@@ -7,7 +7,7 @@ import {
   Progress,
   Slider,
 } from "@openreel/ui";
-import { Search, Play, Pause, Volume2, VolumeX, X } from "lucide-react";
+import { Search, Play, Pause, Volume2, VolumeX, X, ExternalLink, Copy } from "lucide-react";
 import { useProjectStore } from "../../stores/project-store";
 import { useUIStore } from "../../stores/ui-store";
 import { useTimelineStore } from "../../stores/timeline-store";
@@ -18,6 +18,11 @@ import {
   stockCreditText,
   type StockFootage,
 } from "../../services/stock-footage";
+
+function formatClipDuration(seconds: number): string {
+  const total = Math.max(0, Math.round(seconds));
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
+}
 
 function FootagePreview({
   item,
@@ -152,6 +157,7 @@ export function StockFootagePanel() {
   const [progress, setProgress] = useState<number>();
   const [importing, setImporting] = useState<string | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
+  const [hovered, setHovered] = useState<string | null>(null);
   const searchRequest = useRef<AbortController | null>(null);
   const importRequest = useRef<AbortController | null>(null);
   const exporting = useUIStore((state) => state.exportState.isExporting);
@@ -333,7 +339,7 @@ export function StockFootagePanel() {
   return (
     <div className="stock-footage-panel flex min-h-0 flex-1 flex-col gap-3 overflow-auto px-2.5 pb-3">
       <form
-        className="flex gap-1.5"
+        className="flex"
         onSubmit={(event) => {
           event.preventDefault();
           void runSearch(query);
@@ -348,14 +354,6 @@ export function StockFootagePanel() {
             onChange={(event) => setQuery(event.target.value)}
           />
         </div>
-        <Button
-          type="submit"
-          variant="secondary"
-          size="icon-sm"
-          aria-label="Search footage"
-        >
-          <Search />
-        </Button>
       </form>
       <p className="text-[11px] text-fg-muted">
         Free clips from Wikimedia Commons. Check each clip’s licence and
@@ -393,25 +391,32 @@ export function StockFootagePanel() {
         </div>
       )}
       <div
-        className="space-y-3"
+        className="workspace-footage-grid"
         aria-busy={loading}
         aria-label="Stock footage results"
       >
         {results.map((item) => {
           const source = preferredFootageSource(item);
+          const hoverSource = item.sources.reduce((best, candidate) =>
+            candidate.height < best.height ? candidate : best,
+          );
           return (
             <article
               key={item.id}
-              className="overflow-hidden rounded-[7px] border border-border bg-bg-2"
+              className={`workspace-footage-card${preview === item.id ? " col-span-2" : ""}`}
             >
               {preview === item.id ? (
                 <FootagePreview item={item} onClose={() => setPreview(null)} />
               ) : (
                 <Button
                   variant="ghost"
-                  className="relative block aspect-video h-auto w-full overflow-hidden rounded-none p-0"
+                  className="workspace-footage-poster"
                   aria-label={`Preview ${item.title}`}
                   onClick={() => setPreview(item.id)}
+                  onMouseEnter={() => setHovered(item.id)}
+                  onMouseLeave={() => setHovered(null)}
+                  onFocus={() => setHovered(item.id)}
+                  onBlur={() => setHovered(null)}
                 >
                   {item.thumbnailUrl ? (
                     <img
@@ -419,74 +424,85 @@ export function StockFootagePanel() {
                       src={item.thumbnailUrl}
                       alt={item.title}
                       loading="lazy"
-                      className="h-full w-full object-cover"
                     />
-                  ) : (
-                    <span className="text-[11px]">Preview clip</span>
+                  ) : null}
+                  {hovered === item.id && (
+                    <video
+                      src={hoverSource.url}
+                      crossOrigin="anonymous"
+                      muted
+                      loop
+                      autoPlay
+                      playsInline
+                      aria-hidden="true"
+                      className="absolute inset-0"
+                    />
                   )}
+                  <span className="workspace-footage-duration">
+                    {formatClipDuration(item.duration)}
+                  </span>
                 </Button>
               )}
-              <div className="space-y-1.5 p-2">
-                <p
-                  title={item.title}
-                  className="truncate text-[12px] font-medium text-fg"
-                >
-                  {item.title}
-                </p>
-                <p className="text-[10px] text-fg-muted">
-                  {Math.round(item.duration)}s · {source.width}×{source.height}{" "}
-                  · {item.credit.license}
-                </p>
-                <p
-                  className="truncate text-[10px] text-fg-muted"
-                  title={item.credit.creator}
-                >
+              <div className="workspace-footage-meta">
+                <strong title={item.title}>{item.title}</strong>
+                <small className="workspace-footage-creator" title={`By ${item.credit.creator}`}>
                   {item.credit.creator}
-                </p>
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    disabled={
-                      Boolean(importing) || exporting || Boolean(lockedReason)
-                    }
-                    title={
-                      exporting
-                        ? "Wait for export to finish"
-                        : lockedReason || undefined
-                    }
-                    onClick={() => void importFootage(item)}
-                    aria-label={`Add footage ${item.title}`}
+                </small>
+                <small>
+                  {source.width}×{source.height} · {item.credit.license}
+                </small>
+              </div>
+              <div className="workspace-footage-actions">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={
+                    Boolean(importing) || exporting || Boolean(lockedReason)
+                  }
+                  title={
+                    exporting
+                      ? "Wait for export to finish"
+                      : lockedReason || undefined
+                  }
+                  onClick={() => void importFootage(item)}
+                  aria-label={`Add footage ${item.title}`}
+                >
+                  {importing === item.id ? "Adding…" : "Add"}
+                </Button>
+                <Button
+                  size="icon-sm"
+                  variant="secondary"
+                  asChild
+                  title="Source & licence"
+                >
+                  <a
+                    href={item.credit.pageUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={`Source & licence for ${item.title}`}
                   >
-                    {importing === item.id ? "Importing…" : "Add to timeline"}
-                  </Button>
-                  <Button size="sm" variant="link" asChild>
-                    <a
-                      href={item.credit.pageUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      Source & licence
-                    </a>
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => {
-                      void navigator.clipboard
-                        .writeText(stockCreditText(item.credit))
-                        .then(
-                          () => setStatus("Credits copied."),
-                          () =>
-                            setError(
-                              "Could not copy credits. Open Source & licence to view them.",
-                            ),
-                        );
-                    }}
-                  >
-                    Copy credits
-                  </Button>
-                </div>
+                    <ExternalLink size={13} />
+                  </a>
+                </Button>
+                <Button
+                  size="icon-sm"
+                  variant="secondary"
+                  title="Copy credits"
+                  aria-label={`Copy credits for ${item.title}`}
+                  onClick={() => {
+                    void navigator.clipboard
+                      .writeText(stockCreditText(item.credit))
+                      .then(
+                        () => setStatus("Credits copied."),
+                        () =>
+                          setError(
+                            "Could not copy credits. Open Source & licence to view them.",
+                          ),
+                      );
+                  }}
+                >
+                  <Copy size={13} />
+                </Button>
               </div>
             </article>
           );

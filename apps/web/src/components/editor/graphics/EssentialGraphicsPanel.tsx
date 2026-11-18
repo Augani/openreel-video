@@ -63,7 +63,7 @@ import {
   insertGraphic,
   selectedGraphicInstance,
 } from "../../../services/graphic-commands";
-import { GraphicTemplateThumb } from "./GraphicTemplateThumb";
+import { GraphicTemplateThumb, templateCaption } from "./GraphicTemplateThumb";
 
 const KIND_PROPERTIES: Record<GraphicLayer["kind"], Array<{ property: GraphicParamProperty; label: string }>> = {
   text: [
@@ -184,7 +184,7 @@ const BrowseTab: React.FC = () => {
         {shown.map((template) => {
           const isUser = userTemplates.some((item) => item.id === template.id);
           return (
-            <div key={template.id} className="group relative flex flex-col gap-1 min-w-0" data-graphic-template={template.id}>
+            <div key={template.id} className={`group relative flex flex-col gap-1 min-w-0${template.category === "lower-third" ? " col-span-2" : ""}`} data-graphic-template={template.id}>
               <button
                 type="button"
                 aria-label={`Insert ${template.name}`}
@@ -192,10 +192,10 @@ const BrowseTab: React.FC = () => {
                 onClick={() => { void insertGraphic(template); }}
                 className="rounded-[4px] border border-border/60 bg-bg-2 p-1 text-left transition hover:border-accent focus-visible:border-accent disabled:opacity-50"
               >
-                <GraphicTemplateThumb template={template} />
+                <GraphicTemplateThumb template={template} wide={template.category === "lower-third"} />
                 <span className="mt-1 block truncate text-[11px] font-medium text-fg">{template.name}</span>
                 <span className="block truncate text-[10px] text-fg-muted">
-                  {template.parameters.length} controls · {template.layers.length} layers
+                  {templateCaption(template)}
                 </span>
               </button>
               {isUser && (

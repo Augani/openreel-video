@@ -179,6 +179,16 @@ export class PlaybackController {
     this.pruneAudioBuffers(project);
   }
 
+  /** A frame is built for seek()/scrubTo() only when something can show it. */
+  private shouldRenderStillFrames(): boolean {
+    return this.config.renderStillFrames || Boolean(this.displayCanvas);
+  }
+
+  /** See PlaybackConfig.renderStillFrames. */
+  setRenderStillFrames(enabled: boolean): void {
+    this.config = { ...this.config, renderStillFrames: enabled };
+  }
+
   setDisplayCanvas(canvas: HTMLCanvasElement | OffscreenCanvas): void {
     this.displayCanvas = canvas;
     this.displayCtx = canvas.getContext("2d") as
@@ -312,7 +322,11 @@ export class PlaybackController {
       await this.startAudioPlayback();
     }
 
-    await this.renderFrameAtTime(clampedTime);
+    if (this.shouldRenderStillFrames()) {
+      await this.renderFrameAtTime(clampedTime);
+    } else {
+      this.masterClock.reportVideoTime(clampedTime);
+    }
 
     this.emitEvent({
       type: "seek",
@@ -351,6 +365,10 @@ export class PlaybackController {
       time: clampedTime,
       state: this.state,
     });
+
+    if (!this.shouldRenderStillFrames()) {
+      return { frame: null, renderTime: 0, fromCache: false, timedOut: false };
+    }
 
     return this.renderFrameWithTimeout(clampedTime);
   }

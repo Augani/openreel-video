@@ -57,4 +57,36 @@ describe("WebGPURenderer lifecycle", () => {
     expect(callback).not.toHaveBeenCalled();
     expect(internal.attemptDeviceRecreation).not.toHaveBeenCalled();
   });
+
+  it("keeps the owner's loss callbacks across a recreation and coalesces concurrent recreations", async () => {
+    vi.stubGlobal("OffscreenCanvas", TestOffscreenCanvas);
+    const renderer = new WebGPURenderer({ canvas: {} as HTMLCanvasElement, width: 64, height: 64 });
+    const internal = renderer as unknown as { initialize: () => Promise<boolean> };
+    let release!: (ok: boolean) => void;
+    internal.initialize = vi.fn(() => new Promise<boolean>((resolve) => (release = resolve)));
+    const callback = vi.fn();
+    renderer.onDeviceLost(callback);
+
+    // the owner's handler and the renderer's own retry loop both ask: one initialize, shared result
+    const first = renderer.recreateDevice();
+    const second = renderer.recreateDevice();
+    expect(second).toBe(first);
+    release(true);
+    await expect(first).resolves.toBe(true);
+    expect(internal.initialize).toHaveBeenCalledTimes(1);
+
+    // a second loss must still reach the owner
+    const callbacks = (renderer as unknown as { deviceLostCallbacks: Array<() => void> }).deviceLostCallbacks;
+    expect(callbacks).toEqual([callback]);
+
+    // a failed recreation leaves the renderer lost (not alive) and can be retried
+    const failed = renderer.recreateDevice();
+    release(false);
+    await expect(failed).resolves.toBe(false);
+    expect(renderer.isLost()).toBe(true);
+    const retry = renderer.recreateDevice();
+    release(true);
+    await expect(retry).resolves.toBe(true);
+    expect(internal.initialize).toHaveBeenCalledTimes(3);
+  });
 });

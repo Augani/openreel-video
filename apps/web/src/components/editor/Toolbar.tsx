@@ -1,4 +1,4 @@
-import { AIConnectionDialog } from "./chat/AIConnectionDialog";
+import { useLatch } from "./use-latch";
 import { usePhoneEditor } from "../../hooks/usePhoneEditor";
 import { MobileEditorHeader } from "./mobile/MobileEditorHeader";
 import "./mobile/mobile-editor.css";
@@ -25,12 +25,10 @@ import {
 import { ExportQueueButton, ExportQueuePanel } from "./ExportQueuePanel";
 import { addDialogExportToQueue, isExportQueueBusy } from "../../stores/export-queue-store";
 import { getUseExportPreviews } from "../../services/export-queue/export-queue-activity";
-import { CompressDialog } from "./CompressDialog";
 import { deriveSourceExportMatch } from "../../services/export-source-match";
 import { useExportRunner, extForFormat, exportFilename, type ExportDeliveryMode } from "../../services/export-runner";
 import { HistoryPanel } from "./inspector/HistoryPanel";
 import { ProjectSwitcher } from "./ProjectSwitcher";
-import { CollaborationDialog } from "./CollaborationDialog";
 import { CollaboratorAvatars } from "./CollaboratorAvatars";
 import { connectionOf, useCollabStore } from "../../services/collab/collab-store";
 import { SettingsDialog } from "./settings/SettingsDialog";
@@ -38,6 +36,9 @@ import { toast } from "../../stores/notification-store";
 import { useAnalytics, AnalyticsEvents } from "../../hooks/useAnalytics";
 
 // Dialogs that only open on demand stay out of the editor chunk (bundle-budgets.json).
+const AIConnectionDialog = lazy(() => import("./chat/AIConnectionDialog").then((m) => ({ default: m.AIConnectionDialog })));
+const CompressDialog = lazy(() => import("./CompressDialog").then((m) => ({ default: m.CompressDialog })));
+const CollaborationDialog = lazy(() => import("./CollaborationDialog").then((m) => ({ default: m.CollaborationDialog })));
 const ExportDialog = lazy(() => import("./ExportDialog").then((m) => ({ default: m.ExportDialog })));
 const ScreenRecorder = lazy(() => import("./ScreenRecorder").then((m) => ({ default: m.ScreenRecorder })));
 const ProjectPackageDialog = lazy(() => import("./ProjectPackageDialog").then((m) => ({ default: m.ProjectPackageDialog })));
@@ -62,6 +63,12 @@ export const Toolbar: React.FC = () => {
   }, []);
   const aiMode = useUIStore((s) => s.panels.agentChat?.visible ?? false);
   const [isCompressOpen, setIsCompressOpen] = useState(false);
+  // Dialogs are fetched the first time they open and then stay mounted so their close animation still plays.
+  const aiConnectionOpen = useEditorWorkspaceStore((s) => s.aiConnectionOpen);
+  const collabOpen = useCollabStore((s) => s.dialogOpen);
+  const aiConnectionLatched = useLatch(aiConnectionOpen);
+  const compressLatched = useLatch(isCompressOpen);
+  const collabLatched = useLatch(collabOpen);
   const [isShareOpen, setIsShareOpen] = useState(false);
   const collabConnection = useCollabStore((state) => connectionOf(state.snapshot));
   const openCollabDialog = useCollabStore((state) => state.openDialog);
@@ -239,7 +246,7 @@ export const Toolbar: React.FC = () => {
       const screenFile = new File([screenBlob], `Screen_${timestamp}.webm`, {
         type: screenBlob.type || "video/webm",
       });
-      const screenResult = await importMedia(screenFile);
+      const screenResult = await importMedia(screenFile, undefined, { recordedTake: "screen" });
       if (screenResult.success) {
         importCount++;
       } else {
@@ -252,7 +259,7 @@ export const Toolbar: React.FC = () => {
         const webcamFile = new File([webcamBlob], `Webcam_${timestamp}.webm`, {
           type: webcamBlob.type || "video/webm",
         });
-        const webcamResult = await importMedia(webcamFile);
+        const webcamResult = await importMedia(webcamFile, undefined, { recordedTake: "webcam" });
         if (webcamResult.success) {
           importCount++;
         } else {
@@ -278,7 +285,11 @@ export const Toolbar: React.FC = () => {
 
   return (
     <header className={`${phone ? "mobile-editor-header" : "workspace-topbar flex items-center border-b border-border"} shrink-0 z-30 relative ${isDesktop ? `workspace-native-${nativePlatform}` : ""}`} style={isDesktop ? { WebkitAppRegion: "drag" } as React.CSSProperties : undefined}>
-      <AIConnectionDialog />
+      {aiConnectionLatched && (
+        <Suspense fallback={null}>
+          <AIConnectionDialog />
+        </Suspense>
+      )}
       {phone ? <MobileEditorHeader
         onAI={() => useUIStore.getState().setPanelVisible("agentChat", true)}
         onExport={() => { if (exportState.isExporting) handleCancelExport(); else { if (exportState.error) resetError(); openExportDialog(); } }}
@@ -312,7 +323,7 @@ export const Toolbar: React.FC = () => {
         <ShadcnButton variant="ghost" className="workspace-collab" data-testid="collab-button" data-connection={collabConnection} aria-label="Collaborate" title="Edit this project with other people" onClick={openCollabDialog}>
           {collabConnection === "off" ? "Collaborate" : collabConnection === "live" ? "Live" : collabConnection === "offline" ? "Offline" : "Joining…"}
         </ShadcnButton>
-        <ShadcnButton variant="secondary" className="workspace-share" onClick={() => setIsShareOpen(true)}>Share</ShadcnButton>
+        <ShadcnButton variant="secondary" className="workspace-share" title="Back up or package this project" aria-label="Project backup" onClick={() => setIsShareOpen(true)}>Backup</ShadcnButton>
         {/* Export */}
         {isDesktop ? <DesktopExportButton /> : <EditorExportControl
           state={exportState} disabled={false} onOpen={openExportDialog}
@@ -322,10 +333,14 @@ export const Toolbar: React.FC = () => {
       {isDesktop && <WindowControls platform={nativePlatform} />}
       </>}
       {/* ─── Auxiliary popups & dialogs ───────────────────────── */}
-      <CompressDialog
-        isOpen={isCompressOpen}
-        onClose={() => setIsCompressOpen(false)}
-      />
+      {compressLatched && (
+        <Suspense fallback={null}>
+          <CompressDialog
+            isOpen={isCompressOpen}
+            onClose={() => setIsCompressOpen(false)}
+          />
+        </Suspense>
+      )}
       <Suspense fallback={null}>
       <ExportDialog
         isOpen={isExportDialogOpen}
@@ -353,7 +368,11 @@ export const Toolbar: React.FC = () => {
       </Suspense>
 
       <SettingsDialog />
-      <CollaborationDialog />
+      {collabLatched && (
+        <Suspense fallback={null}>
+          <CollaborationDialog />
+        </Suspense>
+      )}
       {isShareOpen && (
         <Suspense fallback={null}>
           <ProjectPackageDialog onClose={() => setIsShareOpen(false)} />

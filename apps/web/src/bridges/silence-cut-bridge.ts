@@ -123,6 +123,27 @@ export class SilenceCutBridge {
     };
   }
 
+  /** Largest media file the passive preview scan will decode. */
+  static readonly PREVIEW_MAX_BYTES = 48 * 1024 * 1024;
+  private previewCache = new Map<string, number>();
+
+  /**
+   * Number of silent sections the Remove silences recipe would cut, for a quiet preview on its card.
+   * Null when the clip is too large to scan in the background.
+   */
+  async countSilences(clipId: string, settings: SilenceSettings): Promise<number | null> {
+    const store = useProjectStore.getState();
+    const clip = store.getClip(clipId);
+    const blob = clip ? store.getMediaItem(clip.mediaId)?.blob : undefined;
+    if (!clip || !blob || blob.size > SilenceCutBridge.PREVIEW_MAX_BYTES) return null;
+    const key = `${clipId}:${blob.size}:${clip.inPoint ?? 0}:${clip.outPoint ?? ""}:${settings.threshold}:${settings.minSilenceDuration}`;
+    const cached = this.previewCache.get(key);
+    if (cached !== undefined) return cached;
+    const result = await this.analyzeClip(clipId, settings);
+    this.previewCache.set(key, result.silentRegions.length);
+    return result.silentRegions.length;
+  }
+
   async cutSilence(
     clipId: string,
     silentRegions: SilentRegion[],

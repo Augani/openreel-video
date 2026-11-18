@@ -7,7 +7,10 @@ import type {
   MusicGenre,
   SFXCategory,
 } from "../types/sound-library";
-import { getSoundGenerator } from "./sound-generator";
+import { getSoundGenerator, type GeneratedSound } from "./sound-generator";
+
+type SoundJob = () => Promise<GeneratedSound>;
+const LOAD_CONCURRENCY = 3;
 
 export class SoundLibraryEngine {
   private sounds: Map<string, SoundItem> = new Map();
@@ -20,10 +23,28 @@ export class SoundLibraryEngine {
   private previewBuffer: AudioBuffer | null = null;
   private previewEnded: (() => void) | undefined;
   private initialized = false;
+  private loadTotals = { music: 0, sfx: 0 };
+  private loadDone = { music: 0, sfx: 0 };
+  private loadListeners = new Set<() => void>();
   private initPromise: Promise<void> | null = null;
 
   constructor() {
     this.initPromise = this.loadBuiltinSounds();
+  }
+
+  /** How many built-in sounds of a category are generated so far. */
+  getLoadProgress(category: "music" | "sfx"): { done: number; total: number } {
+    return { done: this.loadDone[category], total: this.loadTotals[category] };
+  }
+
+  /** Called after every sound is generated; returns an unsubscribe function. */
+  onLoadProgress(listener: () => void): () => void {
+    this.loadListeners.add(listener);
+    return () => this.loadListeners.delete(listener);
+  }
+
+  private notifyLoad(): void {
+    for (const listener of [...this.loadListeners]) listener();
   }
 
   async ensureInitialized(): Promise<void> {
@@ -38,177 +59,177 @@ export class SoundLibraryEngine {
     const generator = getSoundGenerator();
 
     try {
-      const sfxGenerators = [
-        generator.generateWhoosh("sfx-whoosh-fast-1", "Fast Whoosh", 0.5, true),
-        generator.generateWhoosh(
+      const sfxGenerators: SoundJob[] = [
+        () => generator.generateWhoosh("sfx-whoosh-fast-1", "Fast Whoosh", 0.5, true),
+        () => generator.generateWhoosh(
           "sfx-whoosh-slow-1",
           "Slow Whoosh",
           1.2,
           false,
         ),
-        generator.generateWhoosh(
+        () => generator.generateWhoosh(
           "sfx-whoosh-medium-1",
           "Medium Swoosh",
           0.8,
           true,
         ),
-        generator.generateImpact("sfx-impact-heavy-1", "Heavy Impact", true),
-        generator.generateImpact("sfx-impact-light-1", "Light Hit", false),
-        generator.generateImpact("sfx-impact-punch-1", "Punch", true),
-        generator.generateClick("sfx-ui-click-1", "Click"),
-        generator.generateClick("sfx-ui-tap-1", "Tap"),
-        generator.generateNotification("sfx-ui-notification-1", "Notification"),
-        generator.generateNotification("sfx-ui-alert-1", "Alert Ding"),
-        generator.generateSuccess("sfx-ui-success-1", "Success Chime"),
-        generator.generateSuccess("sfx-ui-complete-1", "Complete"),
-        generator.generatePop("sfx-cartoon-pop-1", "Pop"),
-        generator.generatePop("sfx-cartoon-bubble-1", "Bubble"),
-        generator.generateBoing("sfx-cartoon-boing-1", "Boing"),
-        generator.generateBoing("sfx-cartoon-spring-1", "Spring"),
-        generator.generateGlitch("sfx-transition-glitch-1", "Glitch"),
-        generator.generateGlitch("sfx-transition-digital-1", "Digital Error"),
-        generator.generateRiser("sfx-transition-riser-1", "Riser"),
-        generator.generateRiser("sfx-transition-buildup-1", "Build Up"),
-        generator.generateLaser("sfx-scifi-laser-1", "Laser Blast"),
-        generator.generateLaser("sfx-scifi-zap-1", "Zap"),
-        generator.generatePowerUp("sfx-scifi-powerup-1", "Power Up"),
-        generator.generatePowerUp("sfx-scifi-charge-1", "Charge"),
-        generator.generateStinger("sfx-musical-stinger-1", "Logo Stinger", [
+        () => generator.generateImpact("sfx-impact-heavy-1", "Heavy Impact", true),
+        () => generator.generateImpact("sfx-impact-light-1", "Light Hit", false),
+        () => generator.generateImpact("sfx-impact-punch-1", "Punch", true),
+        () => generator.generateClick("sfx-ui-click-1", "Click"),
+        () => generator.generateClick("sfx-ui-tap-1", "Tap"),
+        () => generator.generateNotification("sfx-ui-notification-1", "Notification"),
+        () => generator.generateNotification("sfx-ui-alert-1", "Alert Ding"),
+        () => generator.generateSuccess("sfx-ui-success-1", "Success Chime"),
+        () => generator.generateSuccess("sfx-ui-complete-1", "Complete"),
+        () => generator.generatePop("sfx-cartoon-pop-1", "Pop"),
+        () => generator.generatePop("sfx-cartoon-bubble-1", "Bubble"),
+        () => generator.generateBoing("sfx-cartoon-boing-1", "Boing"),
+        () => generator.generateBoing("sfx-cartoon-spring-1", "Spring"),
+        () => generator.generateGlitch("sfx-transition-glitch-1", "Glitch"),
+        () => generator.generateGlitch("sfx-transition-digital-1", "Digital Error"),
+        () => generator.generateRiser("sfx-transition-riser-1", "Riser"),
+        () => generator.generateRiser("sfx-transition-buildup-1", "Build Up"),
+        () => generator.generateLaser("sfx-scifi-laser-1", "Laser Blast"),
+        () => generator.generateLaser("sfx-scifi-zap-1", "Zap"),
+        () => generator.generatePowerUp("sfx-scifi-powerup-1", "Power Up"),
+        () => generator.generatePowerUp("sfx-scifi-charge-1", "Charge"),
+        () => generator.generateStinger("sfx-musical-stinger-1", "Logo Stinger", [
           "inspiring",
           "bright",
         ]),
-        generator.generateStinger("sfx-musical-stinger-2", "Intro Sting", [
+        () => generator.generateStinger("sfx-musical-stinger-2", "Intro Sting", [
           "happy",
           "playful",
         ]),
-        generator.generateCinematicHit("sfx-cinematic-hit-1", "Epic Hit"),
-        generator.generateCinematicHit("sfx-cinematic-hit-2", "Trailer Impact"),
-        generator.generateTypingSound("sfx-ui-typing-1", "Key Press"),
-        generator.generateTypingSound("sfx-ui-typing-2", "Keyboard Click"),
-        generator.generateErrorSound("sfx-ui-error-1", "Error Beep"),
-        generator.generateErrorSound("sfx-ui-error-2", "Warning Tone"),
-        generator.generateCountdown("sfx-ui-countdown-1", "Countdown Beeps"),
-        generator.generateCountdown("sfx-ui-countdown-2", "Timer Beeps"),
+        () => generator.generateCinematicHit("sfx-cinematic-hit-1", "Epic Hit"),
+        () => generator.generateCinematicHit("sfx-cinematic-hit-2", "Trailer Impact"),
+        () => generator.generateTypingSound("sfx-ui-typing-1", "Key Press"),
+        () => generator.generateTypingSound("sfx-ui-typing-2", "Keyboard Click"),
+        () => generator.generateErrorSound("sfx-ui-error-1", "Error Beep"),
+        () => generator.generateErrorSound("sfx-ui-error-2", "Warning Tone"),
+        () => generator.generateCountdown("sfx-ui-countdown-1", "Countdown Beeps"),
+        () => generator.generateCountdown("sfx-ui-countdown-2", "Timer Beeps"),
       ];
 
-      const musicGenerators = [
-        generator.generateSimpleBeat(
+      const musicGenerators: SoundJob[] = [
+        () => generator.generateSimpleBeat(
           "music-electronic-beat-1",
           "Electronic Beat",
           128,
           "electronic",
           ["energetic", "happy"],
         ),
-        generator.generateSimpleBeat(
+        () => generator.generateSimpleBeat(
           "music-hiphop-beat-1",
           "Hip-Hop Groove",
           90,
           "hip-hop",
           ["energetic"],
         ),
-        generator.generateSimpleBeat(
+        () => generator.generateSimpleBeat(
           "music-pop-beat-1",
           "Pop Rhythm",
           110,
           "pop",
           ["happy", "playful"],
         ),
-        generator.generateSimpleBeat(
+        () => generator.generateSimpleBeat(
           "music-lofi-beat-1",
           "Lo-Fi Chill",
           85,
           "lofi",
           ["calm", "nostalgic"],
         ),
-        generator.generateSimpleBeat(
+        () => generator.generateSimpleBeat(
           "music-upbeat-beat-1",
           "Upbeat Energy",
           120,
           "upbeat",
           ["energetic", "inspiring"],
         ),
-        generator.generateSimpleBeat(
+        () => generator.generateSimpleBeat(
           "music-corporate-beat-1",
           "Corporate",
           100,
           "corporate",
           ["inspiring", "bright"],
         ),
-        generator.generateSimpleBeat(
+        () => generator.generateSimpleBeat(
           "music-trap-beat-1",
           "Trap Banger",
           140,
           "hip-hop",
           ["energetic", "dark"],
         ),
-        generator.generateSimpleBeat(
+        () => generator.generateSimpleBeat(
           "music-house-beat-1",
           "House Groove",
           124,
           "electronic",
           ["energetic", "happy"],
         ),
-        generator.generateSimpleBeat(
+        () => generator.generateSimpleBeat(
           "music-dance-beat-1",
           "Dance Floor",
           130,
           "electronic",
           ["energetic", "playful"],
         ),
-        generator.generateSimpleBeat(
+        () => generator.generateSimpleBeat(
           "music-funk-beat-1",
           "Funky Fresh",
           105,
           "upbeat",
           ["happy", "playful"],
         ),
-        generator.generateSimpleBeat(
+        () => generator.generateSimpleBeat(
           "music-edm-beat-1",
           "EDM Drop",
           150,
           "electronic",
           ["energetic"],
         ),
-        generator.generateSimpleBeat(
+        () => generator.generateSimpleBeat(
           "music-party-beat-1",
           "Party Mode",
           128,
           "upbeat",
           ["energetic", "happy"],
         ),
-        generator.generateSimpleBeat(
+        () => generator.generateSimpleBeat(
           "music-summer-beat-1",
           "Summer Vibes",
           115,
           "pop",
           ["happy", "bright"],
         ),
-        generator.generateSimpleBeat(
+        () => generator.generateSimpleBeat(
           "music-club-beat-1",
           "Club Night",
           126,
           "electronic",
           ["energetic", "dark"],
         ),
-        generator.generateAmbientPad(
+        () => generator.generateAmbientPad(
           "music-ambient-pad-1",
           "Ambient Pad",
           "ambient",
           ["calm", "mysterious"],
         ),
-        generator.generateAmbientPad(
+        () => generator.generateAmbientPad(
           "music-cinematic-pad-1",
           "Cinematic Atmosphere",
           "cinematic",
           ["tense", "inspiring"],
         ),
-        generator.generateAmbientPad(
+        () => generator.generateAmbientPad(
           "music-dramatic-pad-1",
           "Dramatic Tension",
           "dramatic",
           ["tense", "dark"],
         ),
-        generator.generateChordProgression(
+        () => generator.generateChordProgression(
           "music-pop-chords-1",
           "Pop Chord Progression",
           120,
@@ -216,7 +237,7 @@ export class SoundLibraryEngine {
           ["happy", "bright"],
           "pop",
         ),
-        generator.generateChordProgression(
+        () => generator.generateChordProgression(
           "music-jazz-chords-1",
           "Jazz Chords",
           100,
@@ -224,7 +245,7 @@ export class SoundLibraryEngine {
           ["calm", "nostalgic"],
           "jazz",
         ),
-        generator.generateChordProgression(
+        () => generator.generateChordProgression(
           "music-lofi-chords-1",
           "Lo-Fi Chords",
           80,
@@ -232,7 +253,7 @@ export class SoundLibraryEngine {
           ["calm", "nostalgic"],
           "lofi",
         ),
-        generator.generateChordProgression(
+        () => generator.generateChordProgression(
           "music-cinematic-chords-1",
           "Cinematic Chords",
           90,
@@ -240,7 +261,7 @@ export class SoundLibraryEngine {
           ["tense", "inspiring"],
           "cinematic",
         ),
-        generator.generateChordProgression(
+        () => generator.generateChordProgression(
           "music-electronic-chords-1",
           "Electronic Chords",
           128,
@@ -248,7 +269,7 @@ export class SoundLibraryEngine {
           ["energetic", "dark"],
           "electronic",
         ),
-        generator.generateChordProgression(
+        () => generator.generateChordProgression(
           "music-ambient-chords-1",
           "Ambient Chords",
           70,
@@ -256,7 +277,7 @@ export class SoundLibraryEngine {
           ["calm", "mysterious"],
           "ambient",
         ),
-        generator.generateChordProgression(
+        () => generator.generateChordProgression(
           "music-uplifting-chords-1",
           "Uplifting Anthem",
           138,
@@ -264,7 +285,7 @@ export class SoundLibraryEngine {
           ["energetic", "inspiring"],
           "pop",
         ),
-        generator.generateChordProgression(
+        () => generator.generateChordProgression(
           "music-future-chords-1",
           "Future Bass Chords",
           150,
@@ -272,7 +293,7 @@ export class SoundLibraryEngine {
           ["energetic", "happy"],
           "electronic",
         ),
-        generator.generateMelody(
+        () => generator.generateMelody(
           "music-pop-melody-1",
           "Pop Melody",
           120,
@@ -280,7 +301,7 @@ export class SoundLibraryEngine {
           ["happy", "playful"],
           "major",
         ),
-        generator.generateMelody(
+        () => generator.generateMelody(
           "music-lofi-melody-1",
           "Lo-Fi Melody",
           85,
@@ -288,7 +309,7 @@ export class SoundLibraryEngine {
           ["calm", "nostalgic"],
           "pentatonic",
         ),
-        generator.generateMelody(
+        () => generator.generateMelody(
           "music-electronic-melody-1",
           "Synth Lead",
           128,
@@ -296,7 +317,7 @@ export class SoundLibraryEngine {
           ["energetic"],
           "minor",
         ),
-        generator.generateMelody(
+        () => generator.generateMelody(
           "music-blues-melody-1",
           "Blues Melody",
           95,
@@ -304,7 +325,7 @@ export class SoundLibraryEngine {
           ["nostalgic"],
           "blues",
         ),
-        generator.generateMelody(
+        () => generator.generateMelody(
           "music-euphoric-melody-1",
           "Euphoric Lead",
           140,
@@ -312,7 +333,7 @@ export class SoundLibraryEngine {
           ["energetic", "inspiring"],
           "major",
         ),
-        generator.generateMelody(
+        () => generator.generateMelody(
           "music-catchy-melody-1",
           "Catchy Hook",
           118,
@@ -320,7 +341,7 @@ export class SoundLibraryEngine {
           ["happy", "playful"],
           "pentatonic",
         ),
-        generator.generateMelody(
+        () => generator.generateMelody(
           "music-tropical-melody-1",
           "Tropical Vibes",
           100,
@@ -328,70 +349,70 @@ export class SoundLibraryEngine {
           ["happy", "bright"],
           "major",
         ),
-        generator.generateArpeggio(
+        () => generator.generateArpeggio(
           "music-electronic-arp-1",
           "Synth Arpeggio",
           128,
           "electronic",
           ["energetic", "dark"],
         ),
-        generator.generateArpeggio(
+        () => generator.generateArpeggio(
           "music-ambient-arp-1",
           "Ambient Arpeggio",
           100,
           "ambient",
           ["calm", "mysterious"],
         ),
-        generator.generateArpeggio(
+        () => generator.generateArpeggio(
           "music-trance-arp-1",
           "Trance Arpeggio",
           140,
           "electronic",
           ["energetic", "inspiring"],
         ),
-        generator.generateArpeggio(
+        () => generator.generateArpeggio(
           "music-edm-arp-1",
           "EDM Pluck",
           150,
           "electronic",
           ["energetic", "happy"],
         ),
-        generator.generateBassline(
+        () => generator.generateBassline(
           "music-electronic-bass-1",
           "Electronic Bass",
           128,
           "electronic",
           ["energetic", "dark"],
         ),
-        generator.generateBassline(
+        () => generator.generateBassline(
           "music-hiphop-bass-1",
           "Hip-Hop Bass",
           90,
           "hip-hop",
           ["energetic"],
         ),
-        generator.generateBassline(
+        () => generator.generateBassline(
           "music-lofi-bass-1",
           "Lo-Fi Bass",
           85,
           "lofi",
           ["calm"],
         ),
-        generator.generateBassline(
+        () => generator.generateBassline(
           "music-dubstep-bass-1",
           "Wobble Bass",
           140,
           "electronic",
           ["energetic", "dark"],
         ),
-        generator.generateBassline(
+        () => generator.generateBassline(
           "music-funk-bass-1",
           "Funky Slap Bass",
           110,
           "upbeat",
           ["happy", "playful"],
         ),
-        generator.generateDrumLoop(
+        () => generator.generateDrumLoop(
           "music-electronic-drums-1",
           "Electronic Drums",
           128,
@@ -399,7 +420,7 @@ export class SoundLibraryEngine {
           ["energetic"],
           "complex",
         ),
-        generator.generateDrumLoop(
+        () => generator.generateDrumLoop(
           "music-hiphop-drums-1",
           "Hip-Hop Drums",
           90,
@@ -407,7 +428,7 @@ export class SoundLibraryEngine {
           ["energetic"],
           "basic",
         ),
-        generator.generateDrumLoop(
+        () => generator.generateDrumLoop(
           "music-lofi-drums-1",
           "Lo-Fi Drums",
           85,
@@ -415,7 +436,7 @@ export class SoundLibraryEngine {
           ["calm"],
           "minimal",
         ),
-        generator.generateDrumLoop(
+        () => generator.generateDrumLoop(
           "music-pop-drums-1",
           "Pop Drums",
           120,
@@ -423,7 +444,7 @@ export class SoundLibraryEngine {
           ["happy"],
           "basic",
         ),
-        generator.generateDrumLoop(
+        () => generator.generateDrumLoop(
           "music-cinematic-drums-1",
           "Cinematic Drums",
           100,
@@ -431,7 +452,7 @@ export class SoundLibraryEngine {
           ["tense"],
           "complex",
         ),
-        generator.generateDrumLoop(
+        () => generator.generateDrumLoop(
           "music-trap-drums-1",
           "Trap Hi-Hats",
           145,
@@ -439,7 +460,7 @@ export class SoundLibraryEngine {
           ["energetic", "dark"],
           "complex",
         ),
-        generator.generateDrumLoop(
+        () => generator.generateDrumLoop(
           "music-house-drums-1",
           "Four on Floor",
           125,
@@ -447,7 +468,7 @@ export class SoundLibraryEngine {
           ["energetic", "happy"],
           "basic",
         ),
-        generator.generateDrumLoop(
+        () => generator.generateDrumLoop(
           "music-breakbeat-drums-1",
           "Breakbeat",
           135,
@@ -455,173 +476,173 @@ export class SoundLibraryEngine {
           ["energetic"],
           "complex",
         ),
-        generator.generateFullTrack(
+        () => generator.generateFullTrack(
           "music-summer-vibes",
           "Summer Vibes",
           118,
           "pop",
           ["happy", "bright"],
         ),
-        generator.generateFullTrack(
+        () => generator.generateFullTrack(
           "music-golden-hour",
           "Golden Hour",
           110,
           "pop",
           ["happy", "nostalgic"],
         ),
-        generator.generateFullTrack(
+        () => generator.generateFullTrack(
           "music-feel-good",
           "Feel Good",
           120,
           "upbeat",
           ["happy", "energetic"],
         ),
-        generator.generateFullTrack(
+        () => generator.generateFullTrack(
           "music-good-times",
           "Good Times",
           124,
           "upbeat",
           ["happy", "playful"],
         ),
-        generator.generateFullTrack(
+        () => generator.generateFullTrack(
           "music-sunshine",
           "Sunshine",
           116,
           "upbeat",
           ["happy", "bright"],
         ),
-        generator.generateFullTrack(
+        () => generator.generateFullTrack(
           "music-celebration",
           "Celebration",
           128,
           "upbeat",
           ["energetic", "happy"],
         ),
-        generator.generateFullTrack(
+        () => generator.generateFullTrack(
           "music-victory-lap",
           "Victory Lap",
           130,
           "upbeat",
           ["energetic", "inspiring"],
         ),
-        generator.generateFullTrack("music-on-top", "On Top", 126, "upbeat", [
+        () => generator.generateFullTrack("music-on-top", "On Top", 126, "upbeat", [
           "inspiring",
           "energetic",
         ]),
-        generator.generateFullTrack("music-rise-up", "Rise Up", 122, "upbeat", [
+        () => generator.generateFullTrack("music-rise-up", "Rise Up", 122, "upbeat", [
           "happy",
           "inspiring",
         ]),
-        generator.generateFullTrack(
+        () => generator.generateFullTrack(
           "music-lets-go",
           "Let's Go",
           132,
           "upbeat",
           ["energetic"],
         ),
-        generator.generateFullTrack(
+        () => generator.generateFullTrack(
           "music-party-time",
           "Party Time",
           128,
           "electronic",
           ["energetic", "happy"],
         ),
-        generator.generateFullTrack(
+        () => generator.generateFullTrack(
           "music-dance-floor",
           "Dance Floor",
           126,
           "electronic",
           ["energetic", "playful"],
         ),
-        generator.generateFullTrack(
+        () => generator.generateFullTrack(
           "music-electric-nights",
           "Electric Nights",
           130,
           "electronic",
           ["energetic"],
         ),
-        generator.generateFullTrack(
+        () => generator.generateFullTrack(
           "music-neon-dreams",
           "Neon Dreams",
           125,
           "electronic",
           ["energetic", "dark"],
         ),
-        generator.generateFullTrack(
+        () => generator.generateFullTrack(
           "music-future-wave",
           "Future Wave",
           135,
           "electronic",
           ["energetic", "inspiring"],
         ),
-        generator.generateFullTrack(
+        () => generator.generateFullTrack(
           "music-beat-drop",
           "Beat Drop",
           140,
           "electronic",
           ["energetic"],
         ),
-        generator.generateFullTrack("music-bounce", "Bounce", 95, "hip-hop", [
+        () => generator.generateFullTrack("music-bounce", "Bounce", 95, "hip-hop", [
           "energetic",
           "playful",
         ]),
-        generator.generateFullTrack(
+        () => generator.generateFullTrack(
           "music-smooth-flow",
           "Smooth Flow",
           90,
           "hip-hop",
           ["calm", "playful"],
         ),
-        generator.generateFullTrack(
+        () => generator.generateFullTrack(
           "music-fresh-start",
           "Fresh Start",
           98,
           "hip-hop",
           ["happy", "energetic"],
         ),
-        generator.generateFullTrack(
+        () => generator.generateFullTrack(
           "music-street-groove",
           "Street Groove",
           92,
           "hip-hop",
           ["energetic"],
         ),
-        generator.generateFullTrack(
+        () => generator.generateFullTrack(
           "music-hype-mode",
           "Hype Mode",
           105,
           "hip-hop",
           ["energetic", "happy"],
         ),
-        generator.generateFullTrack(
+        () => generator.generateFullTrack(
           "music-chill-wave",
           "Chill Wave",
           85,
           "lofi",
           ["calm", "nostalgic"],
         ),
-        generator.generateFullTrack(
+        () => generator.generateFullTrack(
           "music-peaceful-mind",
           "Peaceful Mind",
           80,
           "lofi",
           ["calm"],
         ),
-        generator.generateFullTrack(
+        () => generator.generateFullTrack(
           "music-cozy-vibes",
           "Cozy Vibes",
           82,
           "lofi",
           ["calm", "happy"],
         ),
-        generator.generateFullTrack(
+        () => generator.generateFullTrack(
           "music-epic-moment",
           "Epic Moment",
           90,
           "cinematic",
           ["inspiring", "tense"],
         ),
-        generator.generateFullTrack(
+        () => generator.generateFullTrack(
           "music-new-beginning",
           "New Beginning",
           95,
@@ -630,12 +651,42 @@ export class SoundLibraryEngine {
         ),
       ];
 
-      const results = await Promise.all([...sfxGenerators, ...musicGenerators]);
-
-      for (const result of results) {
-        this.sounds.set(result.item.id, result.item);
-        this.soundBlobs.set(result.item.id, result.blob);
-      }
+      // Music first (it is the tab people open), then effects. A small pool keeps
+      // the first rows appearing within a second or two instead of everything
+      // finishing together after ~13 s.
+      const jobs = [
+        ...musicGenerators.map((run) => ({ run, category: "music" as const })),
+        ...sfxGenerators.map((run) => ({ run, category: "sfx" as const })),
+      ];
+      this.loadTotals = {
+        music: musicGenerators.length,
+        sfx: sfxGenerators.length,
+      };
+      this.notifyLoad();
+      const slots: Array<GeneratedSound | undefined> = new Array(jobs.length);
+      let next = 0;
+      const worker = async () => {
+        while (next < jobs.length) {
+          const index = next++;
+          const job = jobs[index];
+          try {
+            slots[index] = await job.run();
+          } catch (error) {
+            console.error("[SoundLibrary] Failed to generate a sound:", error);
+          }
+          this.loadDone[job.category]++;
+          // Keep definition order no matter which finishes first.
+          this.sounds.clear();
+          this.soundBlobs.clear();
+          for (const result of slots) {
+            if (!result) continue;
+            this.sounds.set(result.item.id, result.item);
+            this.soundBlobs.set(result.item.id, result.blob);
+          }
+          this.notifyLoad();
+        }
+      };
+      await Promise.all(Array.from({ length: LOAD_CONCURRENCY }, worker));
 
       this.initialized = true;
     } catch (error) {

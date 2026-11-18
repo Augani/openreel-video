@@ -217,6 +217,7 @@ export function createMediaSlice(set: Set, get: Get): MediaSlice {
           metadata: {
             ...(source?.stockSource ? { stockSource: { ...source.stockSource } } : {}),
             ...(mediaType === "audio" && source ? { soundLibraryId: source.soundLibraryId } : {}),
+            ...(mediaType === "video" && source?.recordedTake ? { recordedTake: source.recordedTake } : {}),
             duration: processedMedia.metadata.duration || 0,
             width: processedMedia.metadata.width || 0,
             height: processedMedia.metadata.height || 0,

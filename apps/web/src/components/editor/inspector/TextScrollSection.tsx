@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from "uuid";
 import type { TextScroll } from "@openreel/core";
 import { Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Switch } from "@openreel/ui";
+import { ScrollModeGlyph } from "./motion-glyphs";
 import { useProjectStore } from "../../../stores/project-store";
 
 type Mode = "none" | "roll" | "crawl";
@@ -25,20 +26,33 @@ export function TextScrollSection({ clipId }: { clipId: string }) {
 
   return (
     <div className="space-y-3" data-text-scroll>
-      <Label className="flex items-center justify-between gap-2 text-xs font-normal text-fg-2">
-        <span>Scroll</span>
-        <Select value={mode} onValueChange={(value) => {
-          if (value === "none") void commit(null);
-          else void commit({ mode: value as "roll" | "crawl", startOffscreen: scroll?.startOffscreen ?? true, endOffscreen: scroll?.endOffscreen ?? true });
-        }}>
-          <SelectTrigger aria-label="Scroll mode" className="h-7 w-32 rounded-[5px] bg-bg-2 px-2 py-1 text-xs"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="none">None</SelectItem>
-            <SelectItem value="roll">Roll</SelectItem>
-            <SelectItem value="crawl">Crawl</SelectItem>
-          </SelectContent>
-        </Select>
-      </Label>
+      <div role="radiogroup" aria-label="Scroll mode" className="grid grid-cols-3 gap-1.5">
+        {(["none", "roll", "crawl"] as const).map((value) => (
+          <button
+            key={value}
+            type="button"
+            role="radio"
+            aria-checked={mode === value}
+            aria-label={value === "none" ? "No scroll" : value === "roll" ? "Roll" : "Crawl"}
+            onClick={() => {
+              if (value === "none") void commit(null);
+              else if (mode !== value) {
+                void commit({ mode: value, startOffscreen: scroll?.startOffscreen ?? true, endOffscreen: scroll?.endOffscreen ?? true });
+              }
+            }}
+            className={`flex flex-col items-center gap-1 rounded-[7px] border px-1.5 py-2 text-[11px] transition-colors focus-visible:ring-2 focus-visible:ring-ring ${
+              mode === value ? "border-accent bg-selected text-fg" : "border-border bg-bg-1 text-fg-2 hover:bg-bg-2 hover:text-fg"
+            }`}
+          >
+            <ScrollModeGlyph
+              mode={value}
+              direction={mode === value ? scroll?.direction ?? DIRECTIONS[value === "none" ? "roll" : value][0].value : undefined}
+              className={`!h-8 !w-full ${mode === value ? "text-accent" : ""}`}
+            />
+            {value === "none" ? "None" : value === "roll" ? "Roll" : "Crawl"}
+          </button>
+        ))}
+      </div>
       {scroll && (
         <>
           <Label className="flex items-center justify-between gap-2 text-xs font-normal text-fg-2">

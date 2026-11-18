@@ -175,9 +175,8 @@ export function materializeTemplateText(
       },
       keyframes: structuredClone(source?.keyframes ?? []),
       ...(source?.effects ? { effects: structuredClone(source.effects) } : {}),
-      ...(source?.metadata
-        ? { metadata: structuredClone(source.metadata) }
-        : {}),
+      // Template text wraps inside the frame instead of running off its edges (a long quote is clipped otherwise).
+      metadata: { ...(source?.metadata ? structuredClone(source.metadata) : {}), wrapWidthRatio: 0.84 },
     };
     clips.set(clip.id, clip);
   }

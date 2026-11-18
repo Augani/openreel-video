@@ -163,11 +163,11 @@ export function SaveTemplateDialog({
     }
   };
 
-  if (!isOpen) return null;
+  // Stays mounted while closed so the dialog plays its exit animation (the owner remounts it, keyed, per opening).
   const busy = phase !== "idle";
   return (
     <Dialog
-      open
+      open={isOpen}
       onOpenChange={(open) => {
         if (!open) close();
       }}

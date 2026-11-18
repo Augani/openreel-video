@@ -20,12 +20,12 @@
 | 9 | LUT parser mis-loads LUTs | Closed. Pure float `.cube` parser with 1D/3D, domain and strict validation (`cube-lut.test.ts`). |
 | 10 | Export presets cannot be saved from the UI | Closed. Presets can be saved, imported, deleted and managed (`ExportPresetManager.test.tsx`). |
 | 11 | Interchange never opened in a real host | **Open.** The UI and docs label it unverified. Files were checked with independent libraries only. |
-| 12 | Fonts not embedded or reported | Closed for TTF/OTF: missing-font report on open and licence-aware embedding (`missing-fonts.test.ts`, `font-embedding.test.ts`). WOFF2 is not embedded. |
+| 12 | Fonts not embedded or reported | Closed for TTF/OTF/WOFF/WOFF2: missing-font report on open and licence-aware embedding (`missing-fonts.test.ts`, `font-embedding.test.ts`). WOFF2 is read via `DecompressionStream("brotli")` or, in the desktop app, the main-process Node zlib bridge (`fonts:brotliDecompress`), or else the bundled `brotli-dec-wasm` decoder (lazy chunk), so every browser can embed it. |
 | 13 | `path` shape draws nothing | Closed. Path shapes render from SVG path data or point lists (`shape-path.test.ts`). |
 
 ### Work packages (section 3)
 
-- **WP1 Trim and edit points:** closed except that dynamic JKL trim does not preview the trimmed result live. Edit-point selection, `,`/`.` trim, numeric trim, ripple/roll toggle, gap select/delete, Go to In/Out and Mark Clip are in (`edit-point-commands.test.ts`, `dynamic-trim.test.ts`, `e2e/trim-tools.spec.ts`).
+- **WP1 Trim and edit points:** closed. Dynamic JKL trim previews the trimmed result live on the Program monitor, with a two-up (outgoing | incoming) view at a cut. Edit-point selection, `,`/`.` trim, numeric trim, ripple/roll toggle, gap select/delete, Go to In/Out and Mark Clip are in (`edit-point-commands.test.ts`, `dynamic-trim.test.ts`, `e2e/trim-tools.spec.ts`).
 - **WP2 Effects and keyframes:** closed. Instance-keyed keyframes with migration on load, a stopwatch per parameter, mask combine modes and effect presets (`effect-instance-keyframes.test.ts`, `mask-engine.combine.test.ts`, `effect-presets.test.ts`).
 - **WP3 Audio depth:** audible scrubbing and automation lanes are closed. **Open:** voice-over record upgrade (pre-roll, input select), solo-safe and output-device picker, source-channel mapping.
 - **WP4 Colour fidelity:** closed for the LUT parser, 1D LUTs, LUT library, `.cube` export, Input LUT, scope modes, false colour, nit scale and saved looks. **Open:** white-balance eyedropper parity and a camera-log preset set.

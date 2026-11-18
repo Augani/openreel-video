@@ -151,6 +151,8 @@ export const ProxyIngestPanel: React.FC = () => {
   const attention = rows.filter((row) => (row.state !== "none" && row.state !== "ready") || row.external);
   const summary = formatProxyCounts(counts);
   const copyingCount = Object.keys(copying).length;
+  // Nothing to report: shrink to a quiet one-line entry point so it never crowds the media grid.
+  const quiet = !summary && attention.length === 0 && offlineCount === 0 && preset === "none" && copyingCount === 0;
 
   const create = () => {
     const result = queueProxies(createTargets.map((row) => row.item.id), quality, true);
@@ -191,7 +193,7 @@ export const ProxyIngestPanel: React.FC = () => {
   };
 
   return (
-    <section aria-label="Proxies and ingest" data-testid="proxy-panel" className="mx-3 mb-2 min-w-0 rounded-md border border-border bg-bg-2 text-[11px]">
+    <section aria-label="Proxies and ingest" data-testid="proxy-panel" className={`min-w-0 text-[11px] ${quiet ? "mx-2 mb-0.5" : "mx-3 mb-2 rounded-md border border-border bg-bg-2"}`}>
       <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
       <button
@@ -199,11 +201,12 @@ export const ProxyIngestPanel: React.FC = () => {
         aria-expanded={open}
         aria-haspopup="dialog"
         title="Proxy and ingest settings"
-        className="flex h-7 w-full min-w-0 items-center gap-1.5 px-2 text-left text-fg-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+        className={`flex w-full min-w-0 items-center gap-1.5 px-2 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent ${quiet ? "h-5 text-fg-muted hover:text-fg-2" : "h-7 text-fg-2"}`}
+        data-quiet={quiet || undefined}
       >
         <ChevronRight size={12} aria-hidden />
         <span className="font-semibold">Proxies</span>
-        <span className="min-w-0 flex-1 truncate text-fg-muted" data-testid="proxy-summary">{summary || "No proxies yet"}</span>
+        <span className="min-w-0 flex-1 truncate text-fg-muted" data-testid="proxy-summary">{summary}</span>
         {attention.length > 0 && <span className="shrink-0 rounded bg-yellow-500/20 px-1 text-[10px] text-yellow-500" data-testid="proxy-attention">{attention.length} need attention</span>}
         {offlineCount > 0 && <span className="shrink-0 rounded bg-yellow-500/20 px-1 text-[10px] text-yellow-500" data-testid="offline-count">{offlineCount} offline</span>}
         {preset === "proxies" && <span className="shrink-0 rounded bg-accent-soft px-1 text-[10px] text-accent">Ingest on</span>}

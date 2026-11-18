@@ -1,6 +1,6 @@
 import { expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
-import { boxOf, clipsOf, drag, openEditor, press, readState, seek, settle } from "./helpers";
+import { boxOf, clipsOf, drag, openEditor, press, readState, seek, settle, waitForPresentedPlayhead } from "./helpers";
 
 /**
  * Essential Graphics flow shared by the GPU spec and the fallback specs: insert a
@@ -67,11 +67,27 @@ export const coverage = (frame: FrameSig, empty: FrameSig): number => {
   return n / (frame.small.length / 3);
 };
 
-/** Frame at an exact time, after the preview has had time to paint it. */
-export async function frameAt(page: Page, time: number): Promise<FrameSig> {
+/**
+ * Frame at an exact time, once the preview has actually painted it: the monitor reports the playhead
+ * frame as presented, and two consecutive captures are identical. When `differFrom` is given (the empty
+ * canvas, for a frame that must show a graphic) a capture that still equals it is a frame painted
+ * before the graphic rasterised, so it keeps waiting. Bounded: after `timeoutMs` the last capture is
+ * returned and the caller's assertion reports the real difference.
+ */
+export async function frameAt(page: Page, time: number, opts: { differFrom?: FrameSig; timeoutMs?: number } = {}): Promise<FrameSig> {
   await seek(page, time);
-  await settle(page, 500);
-  return frameSig(page);
+  await waitForPresentedPlayhead(page);
+  const deadline = Date.now() + (opts.timeoutMs ?? 30_000);
+  let prev = await frameSig(page);
+  let stable = 0;
+  for (;;) {
+    await settle(page, 150);
+    const next = await frameSig(page);
+    const empty = opts.differFrom !== undefined && next.hash === opts.differFrom.hash;
+    stable = next.hash === prev.hash && !empty ? stable + 1 : 0;
+    prev = next;
+    if (stable >= 2 || Date.now() > deadline) return next;
+  }
 }
 
 interface GraphicState {
@@ -207,9 +223,9 @@ export async function runAuthoringFlow(page: Page, savePath: string): Promise<Fl
   const start = afterColor.instances[0].startTime;
   const duration0 = afterColor.instances[0].duration;
   const frames: Record<string, FrameSig> = {};
-  frames.inBefore = await frameAt(page, start + 0.25);
-  frames.outBefore = await frameAt(page, start + duration0 - 0.25);
-  frames.holdBefore = await frameAt(page, start + duration0 / 2);
+  frames.inBefore = await frameAt(page, start + 0.25, { differFrom: empty });
+  frames.outBefore = await frameAt(page, start + duration0 - 0.25, { differFrom: empty });
+  frames.holdBefore = await frameAt(page, start + duration0 / 2, { differFrom: empty });
   expect(coverage(frames.inBefore, empty), "intro frame shows graphics").toBeGreaterThan(0.002);
   expect(coverage(frames.outBefore, empty), "outro frame shows graphics").toBeGreaterThan(0.002);
   expect(coverage(frames.holdBefore, empty), "hold frame shows more graphic than the intro").toBeGreaterThan(coverage(frames.inBefore, empty));
@@ -230,11 +246,11 @@ export async function runAuthoringFlow(page: Page, savePath: string): Promise<Fl
   const serialStretch = await graphicSerial(page);
 
   // 5. Intro and outro animation timing is preserved after the stretch.
-  frames.inAfter = await frameAt(page, start + 0.25);
-  frames.outAfter = await frameAt(page, start + finalDuration - 0.25);
+  frames.inAfter = await frameAt(page, start + 0.25, { differFrom: empty });
+  frames.outAfter = await frameAt(page, start + finalDuration - 0.25, { differFrom: empty });
   expect(frames.inAfter.hash, "frame at in+0.25s identical after stretching").toBe(frames.inBefore.hash);
   expect(frames.outAfter.hash, "frame at out-0.25s identical after stretching").toBe(frames.outBefore.hash);
-  frames.holdAfter = await frameAt(page, start + finalDuration / 2);
+  frames.holdAfter = await frameAt(page, start + finalDuration / 2, { differFrom: empty });
   expect(coverage(frames.holdAfter, empty)).toBeGreaterThan(0.002);
 
   // 6. Save as template and export the file.
@@ -294,6 +310,7 @@ export async function runImportFlow(page: Page, templatePath: string, expected: 
   await openEditor(page);
   await hideMain(page);
   await seek(page, 0);
+  const empty = await frameAt(page, 0.25);
   await openTemplatesTab(page);
   await page.getByTestId("graphic-template-import").setInputFiles(templatePath);
   await expect(page.getByRole("button", { name: "Insert E2E Lower Third" })).toBeVisible({ timeout: 10_000 });
@@ -307,9 +324,9 @@ export async function runImportFlow(page: Page, templatePath: string, expected: 
   expect(state.texts.some((t) => t.text === "JORDAN LEE")).toBe(true);
   const start = state.instances[0].startTime;
   const d = state.instances[0].duration;
-  const inFrame = await frameAt(page, start + 0.25);
-  const outFrame = await frameAt(page, start + d - 0.25);
-  const hold = await frameAt(page, start + d / 2);
+  const inFrame = await frameAt(page, start + 0.25, { differFrom: empty });
+  const outFrame = await frameAt(page, start + d - 0.25, { differFrom: empty });
+  const hold = await frameAt(page, start + d / 2, { differFrom: empty });
   expect(inFrame.hash, "imported template renders the identical in+0.25s frame").toBe(expected.frames.inAfter.hash);
   expect(outFrame.hash, "imported template renders the identical out-0.25s frame").toBe(expected.frames.outAfter.hash);
   expect(hold.hash, "imported template renders the identical hold frame").toBe(expected.frames.holdAfter.hash);

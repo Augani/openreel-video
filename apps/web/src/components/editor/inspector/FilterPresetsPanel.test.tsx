@@ -5,7 +5,7 @@ import { FILTER_PRESETS, type Clip } from "@openreel/core";
 import { useProjectStore } from "../../../stores/project-store";
 import { useUIStore } from "../../../stores/ui-store";
 import { toast } from "../../../stores/notification-store";
-import { applyFilterPreset, clearFilterEffects, resolveFilterPreset, setFilterPresetIntensity } from "../../../services/filter-preset-application";
+import { applyFilterPreset, clearFilterEffects, filterPresetEffectsForPreview, resolveFilterPreset, setFilterPresetIntensity } from "../../../services/filter-preset-application";
 import { FilterPresetsPanel } from "./FilterPresetsPanel";
 import { createEditPreset, parseEditPreset } from "@openreel/core/editing/portable-project";
 import { EditingSession } from "../../../services/agent/editing-session";
@@ -48,8 +48,70 @@ async function enterIntensity(value: number) {
   fireEvent.blur(input);
   await waitFor(() => expect(screen.getByRole("button", { name: "Edit Intensity value" })).toHaveTextContent(`${value}%`));
 }
+async function renderPanel() {
+  render(<FilterPresetsPanel clipId="clip" />);
+  await screen.findByRole("button", { name: "Apply Film Noir filter preset" });
+}
 beforeEach(() => seedProject());
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
+
+describe("looks grid presentation", () => {
+  it("labels the category tabs, shows no raw effect ids, and marks a look selected only once applied", async () => {
+    await renderPanel();
+    for (const name of ["Cinematic", "Vintage", "Mood", "Color", "Stylized"]) {
+      expect(screen.getByRole("tab", { name })).toHaveTextContent(name);
+    }
+    expect(screen.getByRole("tab", { name: "Cinematic" })).toHaveAttribute("aria-selected", "true");
+    const group = screen.getByRole("tabpanel", { name: "Cinematic" });
+    expect(group.textContent).not.toMatch(/\b(vignette|color-grade|saturation|brightness)\b/);
+    expect(group.textContent).not.toMatch(/\+\d/);
+    expect(group.textContent).toContain("Contrast, Saturation, Vignette");
+    expect(screen.queryAllByRole("button", { pressed: true })).toHaveLength(0);
+    await applyNoir();
+    const pressed = screen.getAllByRole("button", { pressed: true });
+    expect(pressed).toHaveLength(1);
+    expect(pressed[0]).toHaveAccessibleName("Apply Film Noir filter preset");
+    fireEvent.click(screen.getByRole("tab", { name: "Vintage" }));
+    expect(screen.queryAllByRole("button", { pressed: true })).toHaveLength(0);
+  });
+
+  it("follows the ARIA tabs pattern: roving tabindex, arrow keys, controlled tabpanel", async () => {
+    await renderPanel();
+    const cinematic = screen.getByRole("tab", { name: "Cinematic" });
+    const vintage = screen.getByRole("tab", { name: "Vintage" });
+    expect(cinematic).toHaveAttribute("tabindex", "0");
+    expect(vintage).toHaveAttribute("tabindex", "-1");
+    expect(cinematic.getAttribute("aria-controls")).toBe(screen.getByRole("tabpanel").id);
+    fireEvent.keyDown(cinematic, { key: "ArrowRight" });
+    expect(vintage).toHaveAttribute("aria-selected", "true");
+    expect(document.activeElement).toBe(vintage);
+    expect(screen.getByRole("tabpanel")).toHaveAccessibleName("Vintage");
+    fireEvent.keyDown(vintage, { key: "ArrowLeft" });
+    expect(cinematic).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("keeps locked-track cards focusable (so they can still preview) but does not apply", async () => {
+    useProjectStore.setState((state) => ({
+      project: { ...state.project, timeline: { ...state.project.timeline, tracks: state.project.timeline.tracks.map((t) => ({ ...t, locked: true })) } },
+    }));
+    await renderPanel();
+    const card = screen.getByRole("button", { name: "Apply Film Noir filter preset" });
+    expect(card).toHaveAttribute("aria-disabled", "true");
+    expect(card).not.toBeDisabled();
+    fireEvent.click(card);
+    expect(effects().some((e) => e.type === "grain")).toBe(false);
+  });
+
+  it("previews exactly the effects a preset applies", () => {
+    const preview = filterPresetEffectsForPreview(noir);
+    expect(preview.map((effect) => effect.type)).toEqual(noir.effects.map((effect) => effect.type));
+    expect(preview.map((effect) => effect.params)).toEqual([
+      { value: 0 }, { value: 1.4 }, { value: -5 },
+      { amount: 40, midpoint: 0.4, roundness: 0.5, feather: 0.6 },
+      { amount: 15, size: 1.5, roughness: 0.5, colored: false },
+    ]);
+  });
+});
 
 describe("filter preset workflows", () => {
   it.each([
@@ -68,7 +130,7 @@ describe("filter preset workflows", () => {
     const other = structuredClone(useProjectStore.getState().getClip("other"));
     const replace = vi.spyOn(useProjectStore.getState(), "replaceVideoEffects");
     const historySize = useProjectStore.getState().actionHistory.getHistoryEntries().length;
-    render(<FilterPresetsPanel clipId="clip" />);
+    await renderPanel();
     fireEvent.click(screen.getByRole("button", { name: `Apply ${name} filter preset` }));
     await waitFor(() => expect(effects()).toHaveLength(expected.length));
     expect(effects().map(effect => [effect.type, effect.params])).toEqual(expected);
@@ -86,7 +148,7 @@ describe("filter preset workflows", () => {
   });
 
   it("groups a held keyboard adjustment into one Undo step", async () => {
-    render(<FilterPresetsPanel clipId="clip" />); await applyNoir();
+    await renderPanel(); await applyNoir();
     const slider = screen.getByRole("slider", { name: "Intensity" });
     for (const value of [99, 98, 97]) {
       fireEvent.keyDown(slider, { key: "ArrowLeft" });
@@ -99,7 +161,7 @@ describe("filter preset workflows", () => {
   });
 
   it("removes the full effect stack in one reversible step", async () => {
-    render(<FilterPresetsPanel clipId="clip" />); await applyNoir(); await enterIntensity(50);
+    await renderPanel(); await applyNoir(); await enterIntensity(50);
     const before = structuredClone(effects());
     fireEvent.click(screen.getByRole("button", { name: "Remove All Effects" }));
     await waitFor(() => expect(effects()).toEqual([]));
@@ -111,7 +173,7 @@ describe("filter preset workflows", () => {
   it("reports a failed replacement without success or partial changes", async () => {
     vi.spyOn(useProjectStore.getState(), "replaceVideoEffects").mockResolvedValue(false);
     const success = vi.spyOn(toast, "success"); const error = vi.spyOn(toast, "error");
-    render(<FilterPresetsPanel clipId="clip" />);
+    await renderPanel();
     fireEvent.click(screen.getByRole("button", { name: "Apply Film Noir filter preset" }));
     await waitFor(() => expect(error).toHaveBeenCalled());
     expect(success).not.toHaveBeenCalled(); expect(effects()).toEqual(originalEffects);
@@ -120,8 +182,8 @@ describe("filter preset workflows", () => {
 
   it("disables filters on locked tracks and rejects a stale project target", async () => {
     useProjectStore.setState(state => ({ project: { ...state.project, timeline: { ...state.project.timeline, tracks: state.project.timeline.tracks.map(track => ({ ...track, locked: true })) } } }));
-    render(<FilterPresetsPanel clipId="clip" />);
-    expect(screen.getByRole("button", { name: "Apply Film Noir filter preset" })).toBeDisabled();
+    await renderPanel();
+    expect(screen.getByRole("button", { name: "Apply Film Noir filter preset" })).toHaveAttribute("aria-disabled", "true");
     await expect(applyFilterPreset(projectId(), "clip", noir)).rejects.toThrow(/Unlock/);
     await expect(clearFilterEffects(projectId(), "clip")).rejects.toThrow(/Unlock/);
     expect(effects()).toEqual(originalEffects);

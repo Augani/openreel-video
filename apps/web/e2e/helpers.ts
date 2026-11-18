@@ -106,12 +106,51 @@ export async function openEditor(page: Page): Promise<void> {
       /* storage unavailable; the tour just shows */
     }
   });
-  await page.goto("/");
-  await page.getByRole("button", { name: /Horizontal/ }).click();
+  // The dev server can reload the page under a test (Vite re-optimising a dependency it only discovers when a lazy
+  // chunk is first requested), which drops the editor back to the welcome screen mid-setup. That is not what any
+  // test is about: when a full page load happened after the editor was entered, set up once more from the start.
+  for (let attempt = 0; ; attempt++) {
+    let loadsAfterEntry = 0;
+    let entered = false;
+    const onLoad = () => {
+      if (entered) loadsAfterEntry++;
+    };
+    page.on("load", onLoad);
+    try {
+      await page.goto("/");
+      await page.getByRole("button", { name: /Horizontal/ }).click();
+      entered = true;
+      await openEditorBody(page);
+      return;
+    } catch (error) {
+      if (attempt >= 1 || loadsAfterEntry === 0) throw error;
+      console.warn(`[openEditor] the page reloaded during setup (${loadsAfterEntry} load(s)); setting up again`);
+    } finally {
+      page.off("load", onLoad);
+    }
+  }
+}
+
+async function openEditorBody(page: Page): Promise<void> {
   await page.locator('canvas[aria-label^="Program frame"]').waitFor({ timeout: 60_000 });
   await importInput(page).setInputFiles(FIXTURE_PATH);
   const card = page.getByLabel("Select media three-scenes.mp4");
-  await card.waitFor({ timeout: 30_000 });
+  // Import decodes the file's metadata in the page; on a starved machine (two GPU/software renderers plus an
+  // encoder running) that has taken longer than 30 s. The wait is bounded and a miss names what the page said.
+  const errors: string[] = [];
+  const onConsole = (m: { type(): string; text(): string }) => { if (m.type() === "error") errors.push(m.text().slice(0, 200)); };
+  const onPageError = (e: Error) => errors.push(`pageerror: ${e.message.slice(0, 200)}`);
+  page.on("console", onConsole);
+  page.on("pageerror", onPageError);
+  try {
+    await card.waitFor({ timeout: 90_000 });
+  } catch (error) {
+    const notices = await page.locator('[role="alert"], [role="status"]').allInnerTexts().catch(() => [] as string[]);
+    throw new Error(`the imported media card never appeared within 90 s (notices: ${JSON.stringify(notices)}; page errors: ${JSON.stringify(errors.slice(-5))}): ${(error as Error).message}`);
+  } finally {
+    page.off("console", onConsole);
+    page.off("pageerror", onPageError);
+  }
   // Double-click opens the Source monitor; the actions menu places on the timeline.
   await page.getByRole("button", { name: "Media actions for three-scenes.mp4" }).click();
   await page.getByRole("menuitem", { name: "Add to timeline" }).click();
@@ -260,12 +299,16 @@ export async function snap(page: Page, key: string): Promise<void> {
 export async function snapStable(page: Page, key: string, attempts = 12, gapMs = 150): Promise<void> {
   await waitForPresentedPlayhead(page);
   await snap(page, key);
+  // Two consecutive identical captures: one equal pair can be a frame that has not been replaced yet
+  // (a worker-backed effect, a decode that lands late on a loaded machine).
+  let stableRuns = 0;
   for (let i = 0; i < attempts; i++) {
     await page.waitForTimeout(gapMs);
     await snap(page, `${key}__next`);
     const { changed } = await diffSnaps(page, key, `${key}__next`);
     await snap(page, key);
-    if (changed === 0) return;
+    stableRuns = changed === 0 ? stableRuns + 1 : 0;
+    if (stableRuns >= 2) return;
   }
 }
 

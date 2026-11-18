@@ -8,7 +8,7 @@ import React, {
   useRef,
 } from "react";
 import { AudioLines, Volume2, Loader2 } from "lucide-react";
-import { wavPreviewPeaks } from "../../../services/wav-preview-peaks";
+import { wavPreviewEnvelope } from "../../../services/wav-preview-peaks";
 import {
   Button,
   Input,
@@ -39,6 +39,7 @@ import {
 import { toast } from "../../../stores/notification-store";
 import { WorkspaceTabs, workspaceTabPanel } from "../WorkspacePrimitives";
 import { AudioLibraryIcon } from "@/icons/audio-library";
+import { formatSoundDuration } from "./sound-library-format";
 
 type TabType = "music" | "sfx";
 type PreviewStatus = "loading" | "playing" | "paused" | "resuming";
@@ -72,10 +73,14 @@ function SoundCard({
 }: SoundCardProps) {
   const playButton = useRef<HTMLButtonElement>(null);
   const peaks = useMemo(() => {
+    // Resample to 60 bars covering the whole sound (the envelope arrives at 60 already).
     const data = sound.waveformData ?? [];
-    return data
-      .filter((_, i) => i % Math.max(1, Math.floor(data.length / 60)) === 0)
-      .slice(0, 60);
+    if (data.length <= 60) return data;
+    return Array.from({ length: 60 }, (_, bar) => {
+      const from = Math.floor((bar * data.length) / 60),
+        to = Math.max(from + 1, Math.floor(((bar + 1) * data.length) / 60));
+      return Math.max(...data.slice(from, to).map(Math.abs));
+    });
   }, [sound.waveformData]);
   const [playedBars, setPlayedBars] = useState(0);
   useEffect(() => {
@@ -160,11 +165,7 @@ function SoundCard({
           <div className="workspace-sound-details">
             <div className="workspace-sound-title">
               <strong>{sound.name}</strong>
-              <time>{`${Math.floor(sound.duration / 60)
-                .toString()
-                .padStart(2, "0")}:${Math.floor(sound.duration % 60)
-                .toString()
-                .padStart(2, "0")}`}</time>
+              <time>{formatSoundDuration(sound.duration)}</time>
             </div>
             <p>
               {isUsed ? "In timeline" : category}
@@ -181,7 +182,7 @@ function SoundCard({
                         : undefined
                     }
                     style={{
-                      height: `${Math.max(3, Math.min(14, Math.abs(v) * 14))}px`,
+                      height: `${Math.max(3, Math.min(20, Math.abs(v) * 20))}px`,
                     }}
                   />
                 ))}
@@ -294,15 +295,33 @@ export const MusicLibraryPanel: React.FC<{ source?: "music" | "sfx" }> = ({
     "loading" | "ready" | "error"
   >("loading");
 
+  const [loadProgress, setLoadProgress] = useState({
+    music: { done: 0, total: 0 },
+    sfx: { done: 0, total: 0 },
+  });
+
   useEffect(() => {
     let cancelled = false;
+    let unsubscribe: (() => void) | undefined;
     const loadSounds = async () => {
       const engine = await getSoundLibraryEngine();
-      await engine.ensureInitialized();
-      if (!cancelled) {
-        previewEngine.current = engine;
+      if (cancelled) return;
+      previewEngine.current = engine;
+      // Rows appear as each loop finishes instead of after the whole library.
+      const sync = () => {
+        if (cancelled) return;
         setAllMusic(engine.getMusic());
         setAllSfx(engine.getSFX());
+        setLoadProgress({
+          music: engine.getLoadProgress("music"),
+          sfx: engine.getLoadProgress("sfx"),
+        });
+      };
+      unsubscribe = engine.onLoadProgress(sync);
+      sync();
+      await engine.ensureInitialized();
+      if (!cancelled) {
+        sync();
         setLibraryStatus("ready");
       }
     };
@@ -317,9 +336,37 @@ export const MusicLibraryPanel: React.FC<{ source?: "music" | "sfx" }> = ({
     });
     return () => {
       cancelled = true;
+      unsubscribe?.();
       cancelPreview();
     };
   }, [getSoundLibraryEngine, cancelPreview]);
+
+  const presentMusicGenres = useMemo(
+    () =>
+      MUSIC_GENRES.filter((genre) =>
+        allMusic.some(
+          (s) =>
+            s.subcategory === genre.id ||
+            (genre.id === "afrobeats" &&
+              s.tags.some((tag) => tag.toLowerCase() === "afrobeats")),
+        ),
+      ),
+    [allMusic],
+  );
+  const presentSfxCategories = useMemo(
+    () => SFX_CATEGORIES.filter((c) => allSfx.some((s) => s.subcategory === c.id)),
+    [allSfx],
+  );
+  const presentMoods = useMemo(
+    () =>
+      MOOD_TAGS.filter((mood) =>
+        (activeTab === "music" ? allMusic : allSfx).some((s) =>
+          s.mood?.includes(mood.id),
+        ),
+      ),
+    [activeTab, allMusic, allSfx],
+  );
+  const hasCalmMusic = allMusic.some((s) => s.mood?.includes("calm"));
 
   const sounds = useMemo(() => {
     let results = activeTab === "music" ? allMusic : allSfx;
@@ -388,7 +435,7 @@ export const MusicLibraryPanel: React.FC<{ source?: "music" | "sfx" }> = ({
             const blob = engine.getSoundBlob(sound.id);
             return [
               sound.id,
-              blob ? wavPreviewPeaks(await blob.arrayBuffer()) : [],
+              blob ? wavPreviewEnvelope(await blob.arrayBuffer()) : [],
             ] as const;
           }),
       );
@@ -601,41 +648,29 @@ export const MusicLibraryPanel: React.FC<{ source?: "music" | "sfx" }> = ({
                 </Button>
                 {activeTab === "music" ? (
                   <>
-                    {(["afrobeats", "upbeat", "cinematic"] as const)
-                      .map(
-                        (id) => MUSIC_GENRES.find((genre) => genre.id === id)!,
-                      )
-                      .map((genre) => (
-                        <Button
-                          key={genre.id}
-                          variant="ghost"
-                          aria-pressed={selectedGenre === genre.id}
-                          onClick={() => setSelectedGenre(genre.id)}
-                        >
-                          {genre.name}
-                        </Button>
-                      ))}
-                    <Button
-                      variant="ghost"
-                      aria-pressed={selectedMoods.includes("calm")}
-                      onClick={() => toggleMood("calm")}
-                    >
-                      Chill
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      aria-pressed={selectedGenre === "lofi"}
-                      onClick={() => setSelectedGenre("lofi")}
-                    >
-                      Lo-fi
-                    </Button>
-                    {![
-                      "all",
-                      "afrobeats",
-                      "upbeat",
-                      "cinematic",
-                      "lofi",
-                    ].includes(selectedGenre) && (
+                    {presentMusicGenres.slice(0, 4).map((genre) => (
+                      <Button
+                        key={genre.id}
+                        variant="ghost"
+                        aria-pressed={selectedGenre === genre.id}
+                        onClick={() => setSelectedGenre(genre.id)}
+                      >
+                        {genre.name}
+                      </Button>
+                    ))}
+                    {hasCalmMusic && (
+                      <Button
+                        variant="ghost"
+                        aria-pressed={selectedMoods.includes("calm")}
+                        onClick={() => toggleMood("calm")}
+                      >
+                        Chill
+                      </Button>
+                    )}
+                    {selectedGenre !== "all" &&
+                      !presentMusicGenres
+                        .slice(0, 4)
+                        .some((genre) => genre.id === selectedGenre) && (
                       <Button
                         variant="ghost"
                         aria-pressed
@@ -650,7 +685,7 @@ export const MusicLibraryPanel: React.FC<{ source?: "music" | "sfx" }> = ({
                     )}
                   </>
                 ) : (
-                  SFX_CATEGORIES.map((category) => (
+                  presentSfxCategories.map((category) => (
                     <Button
                       key={category.id}
                       variant="ghost"
@@ -697,7 +732,7 @@ export const MusicLibraryPanel: React.FC<{ source?: "music" | "sfx" }> = ({
                       <ContextMenuRadioItem value="all">
                         All genres
                       </ContextMenuRadioItem>
-                      {MUSIC_GENRES.map((genre) => (
+                      {presentMusicGenres.map((genre) => (
                         <ContextMenuRadioItem key={genre.id} value={genre.id}>
                           {genre.name}
                         </ContextMenuRadioItem>
@@ -709,7 +744,7 @@ export const MusicLibraryPanel: React.FC<{ source?: "music" | "sfx" }> = ({
               <ContextMenuSub>
                 <ContextMenuSubTrigger>Filter by mood</ContextMenuSubTrigger>
                 <ContextMenuSubContent>
-                  {MOOD_TAGS.map((mood) => (
+                  {presentMoods.map((mood) => (
                     <ContextMenuCheckboxItem
                       key={mood.id}
                       checked={selectedMoods.includes(mood.id)}
@@ -734,11 +769,35 @@ export const MusicLibraryPanel: React.FC<{ source?: "music" | "sfx" }> = ({
             </ContextMenuContent>
           </ContextMenu>
         </div>
+        <p className="workspace-sound-note">
+          {activeTab === "music"
+            ? "Generated demo loops, synthesised in your browser. Not licensed music."
+            : "Generated sound effects, synthesised in your browser."}
+        </p>
+        {libraryStatus === "loading" && loadProgress[activeTab].total > 0 && (
+          <div
+            className="workspace-sound-progress"
+            role="progressbar"
+            aria-label={`Generating ${activeTab === "music" ? "demo loops" : "sound effects"}`}
+            aria-valuemin={0}
+            aria-valuemax={loadProgress[activeTab].total}
+            aria-valuenow={loadProgress[activeTab].done}
+            data-testid="sound-library-progress"
+          >
+            <span>
+              Generating {activeTab === "music" ? "demo loops" : "sound effects"}{" "}
+              {loadProgress[activeTab].done} of {loadProgress[activeTab].total}
+            </span>
+            <i style={{ width: `${(100 * loadProgress[activeTab].done) / loadProgress[activeTab].total}%` }} />
+          </div>
+        )}
         <ScrollArea className="workspace-sound-list flex-1 min-h-0">
-          {libraryStatus === "loading" ? (
-            <p role="status" className="p-6 text-center text-xs text-fg-muted">
-              Loading sounds…
-            </p>
+          {libraryStatus === "loading" && sounds.length === 0 ? (
+            <div role="status" aria-label="Loading sounds" className="workspace-sound-skeletons">
+              {Array.from({ length: 6 }, (_, i) => (
+                <div key={i} className="workspace-sound-skeleton" aria-hidden="true" />
+              ))}
+            </div>
           ) : libraryStatus === "error" ? (
             <p role="alert" className="p-6 text-center text-xs text-fg-muted">
               Sound library unavailable. Reload the editor to try again.

@@ -259,10 +259,10 @@ export const CaptionEditorPanel: React.FC<CaptionEditorPanelProps> = ({
         <div className="flex items-center justify-between gap-3">
           <div>
             <span className="font-bold block text-[11px] text-fg">
-              Single-line captions
+              {captions.length > 0 ? "Single-line captions" : "Words per caption"}
             </span>
             <span className="text-fg-2 font-normal block text-[9px]">
-              Split each cue into timed clips for vertical video.
+              {captions.length > 0 ? "Split each cue into timed clips for vertical video." : "New captions break into timed clips of this length."}
             </span>
           </div>
           <Select value={String(maxWordsPerLine)} onValueChange={value => onMaxWordsPerLineChange(Number(value))}>
@@ -270,6 +270,7 @@ export const CaptionEditorPanel: React.FC<CaptionEditorPanelProps> = ({
             <SelectContent>{Array.from({ length: 10 }, (_, index) => <SelectItem key={index + 2} value={String(index + 2)}>{index + 2}</SelectItem>)}</SelectContent>
           </Select>
         </div>
+        {captions.length > 0 && (
         <Button onClick={splitSelectionIntoSingleLines} type="button" aria-label={(selectedCount > 0
               ? `Make ${selectedCount} selected single-line`
               : `Make all ${captions.length} single-line`).trim() || undefined} disabled={(targets.length === 0 || disabled)} className="inline-flex min-w-0 items-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg w-full justify-center">
@@ -278,6 +279,7 @@ export const CaptionEditorPanel: React.FC<CaptionEditorPanelProps> = ({
               ? `Make ${selectedCount} selected single-line`
               : `Make all ${captions.length} single-line`}</span>
         </Button>
+        )}
       </Card>
 
       {captions.length === 0 && subtitles.length === 0 ? (

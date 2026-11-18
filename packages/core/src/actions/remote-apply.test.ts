@@ -80,4 +80,39 @@ describe("remote action application", () => {
     expect(history.canUndo()).toBe(false);
     expect(history.discard("d1")).toBe(false);
   });
+  it("undoing a split after a collaborator split the right half merges what is there and replicates", async () => {
+    const mine = makeProject();
+    const peer = makeProject();
+    for (const p of [mine, peer]) (p.mediaLibrary.items as unknown[]).push({ id: "m1", type: "video", metadata: { duration: 5 } });
+    const executor = new ActionExecutor(new ActionHistory());
+    const events: AppliedActionEvent[] = [];
+    executor.getHistory().subscribeApplied((e) => events.push(e));
+    const peerExecutor = new ActionExecutor(new ActionHistory());
+
+    const mySplit = act("clip/split", "s1", { clipId: "c1", time: 2 });
+    expect((await executor.execute(mySplit, mine)).success).toBe(true);
+    for (const a of events[0].actions) expect((await peerExecutor.applyRemote(a as Action, peer)).success).toBe(true);
+    const rightId = mine.timeline.tracks[0].clips[1].id;
+
+    // A collaborator splits my right half at 4.
+    const theirSplit = act("clip/split", "s2", { clipId: rightId, time: 4 });
+    const theirs = new ActionExecutor(new ActionHistory());
+    const theirEvents: AppliedActionEvent[] = [];
+    theirs.getHistory().subscribeApplied((e) => theirEvents.push(e));
+    expect((await theirs.execute(theirSplit, peer)).success).toBe(true);
+    for (const a of theirEvents[0].actions) expect((await peerExecutor.applyRemote(a as Action, mine)).success).toBe(true);
+    expect(mine.timeline.tracks[0].clips).toHaveLength(3);
+
+    expect((await executor.undo(mine)).success).toBe(true);
+    const undo = events.at(-1)!;
+    expect(undo.kind).toBe("undo");
+    const shape = (p: Project) => p.timeline.tracks[0].clips.map((c) => [c.startTime, c.duration]);
+    expect(shape(mine)).toEqual([[0, 4], [4, 1]]);
+    // The published undo applies cleanly on the peer, which converges.
+    for (const a of undo.actions) {
+      const r = await peerExecutor.applyRemote(a as Action, peer);
+      expect(r.error?.message).toBeUndefined();
+    }
+    expect(shape(peer)).toEqual(shape(mine));
+  });
 });

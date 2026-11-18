@@ -1,3 +1,4 @@
+import { TemplateHero } from "./TemplateHero";
 import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { useShallow } from "zustand/react/shallow";
 import {
@@ -16,7 +17,6 @@ import {
   AlertDescription,
 } from "@openreel/ui";
 import {
-  Play,
   ChevronRight,
   Loader2,
   RotateCcw,
@@ -278,17 +278,7 @@ function TemplateCustomizationSession({
           >
             <div className="min-w-0 space-y-4">
               <Card className="aspect-video overflow-hidden rounded-xl border-border bg-bg-2 shadow-none">
-                {template.thumbnailUrl ? (
-                  <img
-                    src={template.thumbnailUrl}
-                    alt={template.name}
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-primary/20 to-emerald-500/20">
-                    <Play size={40} aria-hidden className="text-fg-3" />
-                  </div>
-                )}
+                <TemplateHero template={template} />
               </Card>
               {template.description && (
                 <p className="text-sm text-fg-2">{template.description}</p>

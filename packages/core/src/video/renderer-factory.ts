@@ -16,6 +16,8 @@ export interface RenderLayer {
   effects: Effect[];
   opacity: number;
   borderRadius: number;
+  /** Sequence pixel aspect ratio the layer transform is laid out in (display space, then squeezed). Default 1. */
+  pixelAspect?: number;
 }
 
 export interface Renderer {

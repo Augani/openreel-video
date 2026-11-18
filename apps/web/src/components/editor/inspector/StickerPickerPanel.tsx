@@ -1,6 +1,9 @@
 import React, { useState, useCallback, useMemo, useRef } from "react";
 import { Check, Smile, Sticker, Search, Plus } from "@/icons/lucide-compat";
-import { Button, cn, Card, Input } from "@openreel/ui";
+import { ArrowRight, BadgeCheck, Flag, Hand, ImageIcon, Layers, Leaf, Lightbulb, MessageSquare, Shapes, Upload } from "lucide-react";
+import { registerBuiltInStickers } from "./builtin-stickers";
+import { rasterizeTwemoji, twemojiUrl } from "./twemoji";
+import { Button, cn, Input } from "@openreel/ui";
 
 
 
@@ -17,7 +20,44 @@ import {
   type StickerItem,
 } from "@openreel/core";
 
+registerBuiltInStickers();
+
 type TabType = "emojis" | "stickers";
+
+const CATEGORY_ICONS: Record<string, React.ComponentType<{ size?: number; "aria-hidden"?: boolean }>> = {
+  all: Layers,
+  smileys: Smile,
+  gestures: Hand,
+  objects: Lightbulb,
+  symbols: Shapes,
+  nature: Leaf,
+  arrows: ArrowRight,
+  badges: BadgeCheck,
+  banners: Flag,
+  callouts: MessageSquare,
+  custom: Upload,
+};
+
+/** An icon-only category chip: the name is a tooltip and the accessible label, so nothing truncates in a narrow panel. */
+const CategoryChip: React.FC<{ id: string; name: string; selected: boolean; onSelect: () => void }> = ({ id, name, selected, onSelect }) => {
+  const Icon = CATEGORY_ICONS[id] ?? Sticker;
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      title={name}
+      aria-label={name}
+      aria-pressed={selected}
+      onClick={onSelect}
+      className={cn(
+        "inline-flex h-7 w-8 shrink-0 items-center justify-center rounded-[7px] p-0 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
+        selected ? "bg-accent text-accent-fg hover:bg-accent/90" : "border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg",
+      )}
+    >
+      <Icon size={14} aria-hidden />
+    </Button>
+  );
+};
 
 interface EmojiButtonProps {
   emoji: EmojiItem;
@@ -26,7 +66,21 @@ interface EmojiButtonProps {
 
 const EmojiButton: React.FC<EmojiButtonProps> = ({ emoji, onAdd }) => (
   <Button variant="ghost" onClick={onAdd} type="button" aria-label={`Add ${emoji.name}`} style={{ width: "40px", height: "40px" }} className="group/card h-auto min-w-0 whitespace-normal rounded-[7px] border text-left transition-[background-color,border-color,box-shadow,transform] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 border-transparent bg-transparent hover:bg-bg-2 p-0 flex items-center justify-center text-2xl">
-    {emoji.emoji}
+    <img
+      src={twemojiUrl(emoji.emoji)}
+      alt=""
+      aria-hidden
+      draggable={false}
+      loading="lazy"
+      className="h-6 w-6"
+      onError={(event) => {
+        // Artwork missing: fall back to the system glyph rather than a broken image.
+        const img = event.currentTarget;
+        const glyph = document.createElement("span");
+        glyph.textContent = emoji.emoji;
+        img.replaceWith(glyph);
+      }}
+    />
   </Button>
 );
 
@@ -41,14 +95,12 @@ const StickerCard: React.FC<StickerCardProps> = ({ sticker, onAdd }) => (
       <img
         src={sticker.imageUrl}
         alt={sticker.name}
-        className="w-8 h-8 object-contain"
+        className="h-10 w-10 object-contain"
       />
     ) : (
-      <span className="text-fg font-normal text-2xl">
-        {sticker.name.slice(0, 2)}
-      </span>
+      <ImageIcon size={24} className="text-fg-muted" aria-hidden />
     )}
-    <span className="text-fg-2 font-normal text-[8px] truncate max-w-full">
+    <span className="line-clamp-2 max-w-full text-center text-fg-2 font-normal text-[10px] leading-tight">
       {sticker.name}
     </span>
   </Button>
@@ -62,6 +114,7 @@ export const StickerPickerPanel: React.FC = () => {
 
   const [activeTab, setActiveTab] = useState<TabType>("emojis");
   const [selectedCategory, setSelectedCategory] = useState<string>("smileys");
+  const [stickerCategory, setStickerCategory] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [, setLibraryVersion] = useState(0);
   const [isImporting, setIsImporting] = useState(false);
@@ -80,26 +133,27 @@ export const StickerPickerPanel: React.FC = () => {
     return stickerLibrary.getEmojisByCategory(selectedCategory);
   }, [selectedCategory, searchQuery]);
 
+  const libraryStickers = stickerLibrary.getAllStickers();
+  const stickerCategories = stickerLibrary
+    .getCategories()
+    .filter((cat) => libraryStickers.some((sticker) => sticker.category === cat.id));
   const allStickers = searchQuery
     ? stickerLibrary.searchStickers(searchQuery)
-    : stickerLibrary.getAllStickers();
-  const stickerCategories = stickerLibrary.getCategories();
+    : stickerCategory === "all"
+      ? libraryStickers
+      : stickerLibrary.getStickersByCategory(stickerCategory);
 
   const handleAddEmoji = useCallback(
     async (emoji: EmojiItem) => {
       if (!project) return null;
+      const artwork = await rasterizeTwemoji(emoji.emoji);
       const created = await insertTimelineOverlay(
         playheadPosition,
         5,
-        (trackId) =>
-          createStickerClip(
-            stickerLibrary.createEmojiClip(
-              emoji,
-              trackId,
-              playheadPosition,
-              5,
-            ),
-          ),
+        (trackId) => {
+          const clip = stickerLibrary.createEmojiClip(emoji, trackId, playheadPosition, 5);
+          return createStickerClip(artwork ? { ...clip, imageUrl: artwork } : clip);
+        },
       );
       if (created) {
         select(
@@ -183,19 +237,6 @@ export const StickerPickerPanel: React.FC = () => {
 
   return (
     <div className="space-y-3">
-      <Card className="min-w-0 rounded-[7px] shadow-none bg-status-success/10 text-fg p-2 flex items-center gap-2 border border-primary/30"
-      >
-        <Smile size={16} className="text-primary" aria-hidden />
-        <div className="flex flex-col gap-0.5 min-w-0">
-          <span className="text-fg font-bold block text-[11px]">
-            Stickers & Emojis
-          </span>
-          <span className="text-fg-2 font-normal block text-[9px]">
-            Add fun elements to your video
-          </span>
-        </div>
-      </Card>
-
       <div className="flex gap-1">
         <Button onClick={() => setActiveTab("emojis")} type="button" aria-label="Emojis" className={cn("inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50", "h-7 px-2.5 text-[12px]", (activeTab === "emojis" ? "bg-accent text-accent-fg hover:bg-accent/90" : "border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg"), "flex-1")}>
           <span className="flex h-4 w-4 shrink-0 items-center justify-center">{<Smile size={12} aria-hidden />}</span>
@@ -219,29 +260,24 @@ className={cn("flex h-8 w-full min-w-0 rounded-[7px] border border-border bg-bg-
       </div>
 
       {activeTab === "emojis" && !searchQuery && (
-        <div className="flex gap-1 overflow-x-auto pb-1">
+        <div className="flex gap-1 overflow-x-auto pb-1" role="group" aria-label="Emoji categories">
           {emojiCategories.map((cat) => (
-            <Button key={cat.id} onClick={() => setSelectedCategory(cat.id)} type="button" aria-label={(`${cat.emojis[0]?.emoji || "😀"} ${cat.name}`).trim() || undefined} className={cn("inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50", "h-7 px-2.5 text-[12px]", (selectedCategory === cat.id ? "bg-accent text-accent-fg hover:bg-accent/90" : "border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg"), "whitespace-nowrap text-[9px]")}>
-              <span className="truncate">{`${cat.emojis[0]?.emoji || "😀"} ${cat.name}`}</span>
-            </Button>
+            <CategoryChip key={cat.id} id={cat.id} name={cat.name} selected={selectedCategory === cat.id} onSelect={() => setSelectedCategory(cat.id)} />
           ))}
         </div>
       )}
 
-      {activeTab === "stickers" &&
-        !searchQuery &&
-        stickerCategories.length > 0 && (
-          <div className="flex gap-1 overflow-x-auto pb-1">
-            {stickerCategories.map((cat) => (
-              <Button key={cat.id} onClick={() => setSelectedCategory(cat.id)} type="button" aria-label={(`${cat.icon ? `${cat.icon} ` : ""}${cat.name}`).trim() || undefined} className={cn("inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50", "h-7 px-2.5 text-[12px]", (selectedCategory === cat.id ? "bg-accent text-accent-fg hover:bg-accent/90" : "border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg"), "whitespace-nowrap text-[9px]")}>
-                {(`${cat.icon ? `${cat.icon} ` : ""}${cat.name}`) ? <span className="truncate">{`${cat.icon ? `${cat.icon} ` : ""}${cat.name}`}</span> : null}
-              </Button>
-            ))}
-          </div>
-        )}
+      {activeTab === "stickers" && !searchQuery && stickerCategories.length > 1 && (
+        <div className="flex gap-1 overflow-x-auto pb-1" role="group" aria-label="Sticker categories">
+          <CategoryChip id="all" name="All stickers" selected={stickerCategory === "all"} onSelect={() => setStickerCategory("all")} />
+          {stickerCategories.map((cat) => (
+            <CategoryChip key={cat.id} id={cat.id} name={cat.name} selected={stickerCategory === cat.id} onSelect={() => setStickerCategory(cat.id)} />
+          ))}
+        </div>
+      )}
 
       {activeTab === "emojis" && (
-        <div className="grid grid-cols-6 gap-1 max-h-48 overflow-y-auto">
+        <div className="grid grid-cols-6 gap-1">
           {currentEmojis.length === 0 ? (
             <div className="col-span-6 text-center py-4">
               <Smile
@@ -266,7 +302,7 @@ className={cn("flex h-8 w-full min-w-0 rounded-[7px] border border-border bg-bg-
       )}
 
       {activeTab === "stickers" && (
-        <div className="space-y-2 max-h-48 overflow-y-auto">
+        <div className="space-y-2">
           {allStickers.length === 0 ? (
             <div className="text-center py-4">
               <Sticker
@@ -274,15 +310,15 @@ className={cn("flex h-8 w-full min-w-0 rounded-[7px] border border-border bg-bg-
                 className="mx-auto mb-2 text-fg-3 opacity-50"
                 aria-hidden
               />
-              <span className="text-fg-2 font-normal text-[10px]">
-                No stickers yet
+              <span className="text-fg-2 font-normal block text-[10px]">
+                {searchQuery ? "No stickers found" : "No stickers yet"}
               </span>
-              <span className="text-fg-2 font-normal text-[9px] mt-1">
-                Import custom stickers below
+              <span className="text-fg-2 font-normal block text-[9px] mt-1">
+                {searchQuery ? "Try a different search." : "Import custom stickers below."}
               </span>
             </div>
           ) : (
-            <div className="grid grid-cols-4 gap-2">
+            <div className="grid grid-cols-3 gap-2">
               {allStickers.map((sticker) => (
                 <StickerCard
                   key={sticker.id}

@@ -2,6 +2,7 @@ import React, { memo, useCallback, useMemo } from "react";
 import type { ChannelStripState } from "./types";
 import { volumeToDb, formatDb, formatPan } from "./types";
 import { Button, Slider, cn } from "@openreel/ui";
+import { Film, Music } from "@/icons/lucide-compat";
 
 import { resolveSurroundPan, type AudioBus } from "@openreel/core";
 import { SurroundPanner } from "./SurroundPanner";
@@ -155,7 +156,7 @@ export const ChannelStrip = memo(
     }, [channel.muted, channel.solo, hasSoloedTracks]);
 
     // Track type icon
-    const trackTypeIcon = channel.trackType === "audio" ? "🎵" : "🎬";
+    const TrackTypeIcon = channel.trackType === "audio" ? Music : Film;
 
     return (
       <div
@@ -166,7 +167,7 @@ export const ChannelStrip = memo(
         {/* Track name */}
         <div title={channel.trackName} className="w-full">
           <span className="text-xs text-fg-2 font-medium truncate w-full text-center">
-            <span className="mr-1">{trackTypeIcon}</span>
+            <TrackTypeIcon size={11} className="mr-1 inline-block align-[-1px]" aria-hidden />
             {channel.trackName}
           </span>
         </div>

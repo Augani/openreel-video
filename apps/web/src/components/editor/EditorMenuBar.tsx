@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { Suspense, lazy, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { openEditorProject } from "../../services/project-replacement";
 import { openMediaImport } from "../../services/open-media-import";
 import { toast } from "../../stores/notification-store";
@@ -40,6 +40,7 @@ import { useSourceMonitorStore } from "../../stores/source-monitor-store";
 import { flattenMulticamCommand } from "../../services/multicam-controller";
 import { useRouter } from "../../hooks/use-router";
 import { startTour, startMoGraphTour } from "./tour";
+import { DOCS_URL, ISSUES_URL } from "./about-links";
 import { useOnboardingStore } from "../../stores/onboarding-store";
 import { canResetClipTransform, resetClipTransform } from "../../services/reset-clip-transform";
 
@@ -63,6 +64,8 @@ import { exportTimelineInterchange, openTimelineImport, useInterchangeExportPick
 import { useWorkspaceLayoutStore, layoutsEqual } from "../../stores/workspace-layout-store";
 import { getQuickExportPresets, type QuickExportPresetId } from "../../services/quick-export-presets";
 
+const AboutDialog = lazy(() => import("./AboutDialog").then((m) => ({ default: m.AboutDialog })));
+
 type MenuAction = { label: string; action: () => void; shortcut?: string; description?: string; disabled?: boolean };
 type Entry = MenuAction | { label: string; children: MenuAction[]; disabled?: boolean; heading?: string } | null;
 export function EditorMenuBar({
@@ -77,6 +80,7 @@ export function EditorMenuBar({
   const { navigate } = useRouter();
   const includeMarkers = useInterchangeExportPickerStore((s) => s.includeMarkers);
   const [compactPath, setCompactPath] = useState<string[]>([]);
+  const [aboutOpen, setAboutOpen] = useState(false);
   const compactContent = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (compactContent.current?.dataset.state === "open") {
@@ -368,6 +372,14 @@ export function EditorMenuBar({
       },
       { label: "Editor tour", action: startTour },
       { label: "Animation & effects tour", action: startMoGraphTour },
+      // The lessons sheet is hosted by the desktop shell only; the web build has no host for it.
+      ...(window.openreel?.platform === "desktop"
+        ? [{ label: "Learn OpenReel…", action: () => useOnboardingStore.getState().showSheet("lessons") }]
+        : []),
+      { label: "Documentation", action: () => { window.open(DOCS_URL, "_blank", "noopener,noreferrer"); } },
+      { label: "Report an issue", action: () => { window.open(ISSUES_URL, "_blank", "noopener,noreferrer"); } },
+      null,
+      { label: "About OpenReel", action: () => setAboutOpen(true) },
       ...(window.openreel?.platform === "desktop"
         ? [
             null,
@@ -378,7 +390,6 @@ export function EditorMenuBar({
                 window.location.hash = "#/welcome";
               },
             },
-            { label: "Learn OpenReel…", action: () => useOnboardingStore.getState().showSheet("lessons") },
             { label: "Connect an AI Agent…", action: () => useOnboardingStore.getState().showSheet("agent") },
             {
               label: "Reset onboarding",
@@ -474,6 +485,11 @@ export function EditorMenuBar({
           </>}
         </DropdownMenuContent>
       </DropdownMenu>
+      {aboutOpen && (
+        <Suspense fallback={null}>
+          <AboutDialog open={aboutOpen} onOpenChange={setAboutOpen} />
+        </Suspense>
+      )}
     </>
   );
 }

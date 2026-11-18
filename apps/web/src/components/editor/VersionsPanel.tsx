@@ -100,7 +100,7 @@ export function VersionsPanel() {
         <div className="flex gap-1.5">
           <Input
             aria-label="Version name"
-            placeholder="Name this version (optional)"
+            placeholder="Version name"
             data-testid="version-name-input"
             value={name}
             onChange={(event) => setName(event.target.value)}

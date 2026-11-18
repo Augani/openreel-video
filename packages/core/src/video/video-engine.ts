@@ -1,3 +1,10 @@
+import {
+  displayLayoutWidth,
+  normalizeSequencePar,
+  snapshotInDisplaySpace,
+  squeezeOverlayToStored,
+  withDisplaySpace,
+} from "./sequence-par";
 import { drawCaption } from "../captions/caption-layout";
 import { sampleToUprightBitmap } from "../media/rotation";
 import { estimateDecoderBytes, getMemoryGovernor } from "../device/memory-governor";
@@ -869,10 +876,7 @@ export class VideoEngine {
 
     const scaleX = width / settings.width;
     const scaleY = height / settings.height;
-    this.sequencePixelAspect =
-      settings.pixelAspectRatio !== undefined && settings.pixelAspectRatio >= 0.25 && settings.pixelAspectRatio <= 4
-        ? settings.pixelAspectRatio
-        : 1;
+    this.sequencePixelAspect = normalizeSequencePar(settings.pixelAspectRatio);
 
     const activeTextClips = this.getActiveTextClips(timeline, time);
     const activeShapeClips = this.getActiveShapeClips(timeline, time);
@@ -1487,7 +1491,9 @@ export class VideoEngine {
     }
 
     // Particles and subtitles sit above every track, so no adjustment layer reaches them.
-    drawProjectParticles(ctx, project, time, width, height);
+    withDisplaySpace(ctx, width, this.sequencePixelAspect, (layoutWidth) => {
+      drawProjectParticles(ctx, project, time, layoutWidth, height);
+    });
 
     for (const subtitle of activeSubtitles) {
       this.renderSubtitleToCanvasCtx(ctx, subtitle, width, height);
@@ -1731,7 +1737,8 @@ export class VideoEngine {
       let source: ImageBitmap | null = null;
       let processed: ImageBitmap | null = null;
       try {
-        source = await createImageBitmap(ctx.canvas, 0, 0, width, height);
+        // Effects see display space (stored width x PAR), so blur-like radii are isotropic where the frame is shown.
+        source = await snapshotInDisplaySpace(ctx.canvas, width, height, this.sequencePixelAspect);
         const effectsEngine = await this.ensureEffectsEngine(width, height);
         const result = await effectsEngine.applyEffects(source, effects);
         processed = result.image;
@@ -2423,21 +2430,28 @@ export class VideoEngine {
       };
       await renderer.prepareTextClip(animatedClip);
       if (generation !== this.overlay3DGeneration) return;
-      const sceneWidth = projectWidth > 0 ? projectWidth : width;
+      const par = this.sequencePixelAspect;
+      const layoutWidth = displayLayoutWidth(width, par);
+      const sceneWidth = displayLayoutWidth(projectWidth > 0 ? projectWidth : width, par);
       const sceneHeight = projectHeight > 0 ? projectHeight : height;
-      renderer.resize(width, height, sceneWidth, sceneHeight);
+      renderer.resize(layoutWidth, height, sceneWidth, sceneHeight);
       renderer.clear();
       const mesh = renderer.renderTextClip(animatedClip, sceneWidth, sceneHeight);
       if (!mesh) return;
       renderer.getScene().add(mesh);
       await this.drawOverlayCanvasWithEffects(
-        ctx, renderer.render(), getAnimatedVideoEffects(textClip, clipLocalTime), width, height,
+        ctx,
+        renderer.render(),
+        getAnimatedVideoEffects(textClip, clipLocalTime),
+        width,
+        height,
       );
       return;
     }
+    const par = this.sequencePixelAspect;
     const result = titleEngine.renderText(
       textClip,
-      width,
+      displayLayoutWidth(width, par),
       height,
       clipLocalTime,
       {
@@ -2463,10 +2477,11 @@ export class VideoEngine {
     height: number,
   ): Promise<void> {
     const clipLocalTime = time - shapeClip.startTime;
+    const par = this.sequencePixelAspect;
     const result = await graphicsEngine.renderGraphic(
       shapeClip,
       clipLocalTime,
-      width,
+      displayLayoutWidth(width, par),
       height,
     );
 
@@ -2487,10 +2502,11 @@ export class VideoEngine {
     height: number,
   ): Promise<void> {
     const clipLocalTime = time - svgClip.startTime;
+    const par = this.sequencePixelAspect;
     const result = await graphicsEngine.renderGraphic(
       svgClip,
       clipLocalTime,
-      width,
+      displayLayoutWidth(width, par),
       height,
     );
 
@@ -2511,10 +2527,11 @@ export class VideoEngine {
     height: number,
   ): Promise<void> {
     const clipLocalTime = time - stickerClip.startTime;
+    const par = this.sequencePixelAspect;
     const result = await graphicsEngine.renderGraphic(
       stickerClip,
       clipLocalTime,
-      width,
+      displayLayoutWidth(width, par),
       height,
     );
 
@@ -2527,6 +2544,11 @@ export class VideoEngine {
     );
   }
 
+  /**
+   * Draws an overlay canvas laid out in display space (stored width x PAR). Effects run on that display-space canvas,
+   * so blur, glow and shadow radii are isotropic where the frame is shown; the result is then squeezed into stored
+   * pixels, like the overlay itself.
+   */
   private async drawOverlayCanvasWithEffects(
     ctx: OffscreenCanvasRenderingContext2D,
     source: OffscreenCanvas | HTMLCanvasElement,
@@ -2534,9 +2556,10 @@ export class VideoEngine {
     width: number,
     height: number,
   ): Promise<void> {
+    const par = this.sequencePixelAspect;
     const enabledEffects = effects.filter(isRenderableVideoEffect);
     if (enabledEffects.length === 0) {
-      ctx.drawImage(source, 0, 0);
+      ctx.drawImage(squeezeOverlayToStored(source, width, height, par), 0, 0);
       return;
     }
 
@@ -2550,10 +2573,11 @@ export class VideoEngine {
         enabledEffects as Effect[],
       );
       processedBitmap = result.image;
+      // drawImage to the stored size squeezes the display-space result by 1/PAR.
       ctx.drawImage(processedBitmap, 0, 0, width, height);
     } catch (error) {
       console.warn("[VideoEngine] Overlay effect render failed:", error);
-      ctx.drawImage(source, 0, 0);
+      ctx.drawImage(squeezeOverlayToStored(source, width, height, par), 0, 0);
     } finally {
       if (processedBitmap && processedBitmap !== sourceBitmap) {
         processedBitmap.close();
@@ -2579,7 +2603,9 @@ export class VideoEngine {
     canvasWidth: number,
     canvasHeight: number,
   ): void {
-    drawCaption(ctx, subtitle, canvasWidth, canvasHeight);
+    withDisplaySpace(ctx, canvasWidth, this.sequencePixelAspect, (layoutWidth) => {
+      drawCaption(ctx, subtitle, layoutWidth, canvasHeight);
+    });
   }
 
   private getClipsAtTime(track: Track, time: number): Clip[] {
@@ -2968,6 +2994,25 @@ export class VideoEngine {
 
       return image;
     }
+  }
+
+  /**
+   * Runs a clip colour grade (input LUT, white balance, wheels, curves, LUT, HSL, vignette) over a still with the
+   * very routine the renderer applies to clips, so a look or LUT preview shows what applying it will render.
+   * `image` is never closed or consumed; the result is a new bitmap (or `image` itself for a neutral grade).
+   */
+  async gradeBitmap(
+    image: ImageBitmap,
+    colorGrading: ClipColorGrading,
+  ): Promise<ImageBitmap> {
+    return this.applyClipColorGrading(
+      "look-preview",
+      image,
+      image,
+      colorGrading,
+      image.width,
+      image.height,
+    );
   }
 
   private async applyClipColorGrading(

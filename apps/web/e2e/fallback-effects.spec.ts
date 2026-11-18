@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { launchGpuBrowserIfAvailable } from "./env";
@@ -34,6 +34,55 @@ test("browser really has no WebGPU adapter", async ({ page }) => {
   expect(probe.adapter, JSON.stringify(probe)).toBeNull();
 });
 
+/**
+ * One card is a handful of seconds of work. Playwright's own action/navigation timeouts are off by default and a
+ * page.evaluate has none at all, so a starved GPU/renderer process used to hold a test until its 15 minute
+ * limit with no hint of where. Each card gets a deadline; on expiry the page is closed (which releases whatever
+ * evaluate was pending) and the failure names the card, the browser and the time.
+ */
+const CARD_DEADLINE_MS = 240_000;
+async function sweepBounded(page: Page, which: string, clipId: string, label: string): Promise<SweepRow> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const stalled = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      void page.context().close().catch(() => undefined);
+      reject(new Error(`${which} browser stalled: effect card "${label}" made no progress for ${CARD_DEADLINE_MS / 1000}s (a page call never returned)`));
+    }, CARD_DEADLINE_MS);
+  });
+  const work = sweepOne(page, clipId, label);
+  work.catch(() => undefined); // the race below reports it; closing the context makes the loser reject
+  try {
+    return await Promise.race([work, stalled]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * Bound one phase of a chunk (launching the comparison browser, opening its editor, closing it). Playwright has no
+ * default timeout on page.evaluate, a launch handshake or browser.close(), so a wedged GPU process held a chunk for
+ * its whole 15 minute test limit with no hint of the phase. On expiry `onExpire` releases the stuck resource and the
+ * failure names the phase and the time spent.
+ */
+async function phase<T>(name: string, ms: number, work: () => Promise<T>, onExpire?: () => Promise<unknown>): Promise<T> {
+  const started = Date.now();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const stalled = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      void Promise.resolve(onExpire?.()).catch(() => undefined);
+      reject(new Error(`phase "${name}" made no progress for ${Math.round(ms / 1000)}s`));
+    }, ms);
+  });
+  const run = work();
+  run.catch(() => undefined);
+  try {
+    return await Promise.race([run, stalled]);
+  } finally {
+    clearTimeout(timer);
+    console.log(`[phase] ${name} ${Math.round((Date.now() - started) / 1000)}s`);
+  }
+}
+
 // The ~70 cards are swept in CHUNKS independent tests (card i belongs to chunk i % CHUNKS) instead of one
 // 25-minute test: on a CPU-only runner a single sweep needs 12+ minutes per browser, and one test is the
 // unit CI shards by, so it could never be spread over machines. "parallel" mode makes each chunk its own
@@ -47,30 +96,42 @@ test(`fallback: every card visibly changes the program canvas, undo exact, and c
   baseURL,
 }, testInfo) => {
   test.setTimeout(900_000);
-  const fallback = await prepareSweep(page);
+  page.setDefaultTimeout(60_000);
+  page.setDefaultNavigationTimeout(60_000);
+  const fallback = await phase("fallback editor setup", 240_000, () => prepareSweep(page), () => page.context().close());
   if (!process.env.OPENREEL_E2E_ONLY) expect(fallback.labels.length).toBeGreaterThanOrEqual(65);
   // Interleaved, so the chunks cost about the same whatever order the cards are listed in.
   const mine = fallback.labels.filter((_, i) => i % CHUNKS === chunk);
   if (mine.length === 0) return;
 
   const fbRows: SweepRow[] = [];
-  for (const label of mine) fbRows.push(await sweepOne(page, fallback.clipId, label));
+  for (const label of mine) fbRows.push(await sweepBounded(page, "fallback", fallback.clipId, label));
 
   // Same effects, same frames, in Chrome with WebGPU enabled.
   // The comparison is informational: when this machine has no WebGPU adapter
   // (e.g. a GPU-less CI runner) only it is skipped, annotated; the fallback
   // assertions below always run.
   const gpuRows: SweepRow[] = [];
-  const browser = await launchGpuBrowserIfAvailable(baseURL ?? undefined);
+  const browser = await phase("launch WebGPU comparison browser", 240_000, () => launchGpuBrowserIfAvailable(baseURL ?? undefined));
   if (browser) {
     try {
-      const ctx = await browser.newContext({ baseURL: baseURL ?? undefined, viewport: { width: 1600, height: 900 } });
-      const gpuPage = await ctx.newPage();
-      await gpuPage.goto("/");
-      const gpu = await prepareSweep(gpuPage);
-      for (const label of mine) gpuRows.push(await sweepOne(gpuPage, gpu.clipId, label));
+      await phase("WebGPU comparison sweep", 600_000, async () => {
+        const ctx = await browser.newContext({ baseURL: baseURL ?? undefined, viewport: { width: 1600, height: 900 } });
+        const gpuPage = await ctx.newPage();
+        gpuPage.setDefaultTimeout(60_000);
+        gpuPage.setDefaultNavigationTimeout(60_000);
+        await gpuPage.goto("/");
+        const gpu = await prepareSweep(gpuPage);
+        for (const label of mine) gpuRows.push(await sweepBounded(gpuPage, "WebGPU", gpu.clipId, label));
+      }, () => browser.close());
     } finally {
-      await browser.close();
+      // The comparison is complete here. Close the page's context first so its GPU resources are released while
+      // the browser is still healthy, then the browser; a teardown that still does not return inside the bound is
+      // killed (named in the log) rather than held for the test's 15 minute limit.
+      await phase("close WebGPU comparison contexts", 30_000, async () => { for (const c of browser.contexts()) await c.close(); }, async () => undefined)
+        .catch((e: unknown) => console.warn(`[teardown] ${(e as Error).message}`));
+      await phase("close WebGPU comparison browser", 30_000, () => browser.close(), async () => { browser.process()?.kill("SIGKILL"); })
+        .catch((e: unknown) => console.warn(`[teardown] ${(e as Error).message}; the browser process was killed`));
     }
   } else {
     testInfo.annotations.push({

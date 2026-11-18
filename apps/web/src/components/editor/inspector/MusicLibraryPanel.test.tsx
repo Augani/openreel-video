@@ -21,6 +21,8 @@ const engine = vi.hoisted(() => ({
   pausePreview: vi.fn(() => true),
   resumePreview: vi.fn(async () => true),
   getPreviewProgress: vi.fn(() => 0),
+  getLoadProgress: vi.fn(() => ({ done: 1, total: 1 })),
+  onLoadProgress: vi.fn((_listener: () => void) => () => {}),
 }));
 const getEngine = vi.hoisted(() => vi.fn(async () => engine));
 vi.mock("../../../stores/engine-store", () => ({
@@ -66,6 +68,36 @@ beforeEach(() => {
   engine.previewSound.mockResolvedValue(undefined);
 });
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.unstubAllGlobals(); });
+describe("sound library loading", () => {
+  it("lists rows as they are generated and reports real progress until the library is ready", async () => {
+    let listener: () => void = () => {};
+    engine.onLoadProgress.mockImplementation((cb: () => void) => { listener = cb; return () => {}; });
+    let finish!: () => void;
+    engine.ensureInitialized.mockImplementation(() => new Promise<void>((resolve) => { finish = resolve; }));
+    engine.getMusic.mockReturnValue([]);
+    engine.getLoadProgress.mockReturnValue({ done: 0, total: 3 });
+    render(<MusicLibraryPanel source="music" />);
+    const bar = await screen.findByTestId("sound-library-progress");
+    expect(bar).toHaveTextContent("Generating demo loops 0 of 3");
+    engine.getMusic.mockReturnValue([sound]);
+    engine.getLoadProgress.mockReturnValue({ done: 1, total: 3 });
+    act(() => listener());
+    expect(await screen.findByRole("button", { name: "Preview Cinematic Bed" })).toBeInTheDocument();
+    expect(screen.getByTestId("sound-library-progress")).toHaveAttribute("aria-valuenow", "1");
+    engine.getLoadProgress.mockReturnValue({ done: 3, total: 3 });
+    await act(async () => finish());
+    expect(screen.queryByTestId("sound-library-progress")).toBeNull();
+  });
+
+  it("shows every duration in one format", async () => {
+    engine.getMusic.mockReturnValue([sound, { ...sound, id: "b", name: "Short Loop", duration: 7.5 }, { ...sound, id: "c", name: "Mid Loop", duration: 10.8 }]);
+    render(<MusicLibraryPanel source="music" />);
+    await screen.findByRole("button", { name: "Preview Mid Loop" });
+    const times = Array.from(document.querySelectorAll(".workspace-sound-title time")).map((n) => n.textContent);
+    expect(times).toEqual(["30.0s", "7.5s", "10.8s"]);
+  });
+});
+
 describe("sound library workflow", () => {
   it("imports source identity once and disables repeated placement while the import is pending", async () => {
     engine.getSoundBlob.mockReturnValue(new Blob(["sound"], { type: "audio/wav" }));

@@ -6,7 +6,42 @@ import {
   SlidersHorizontal,
   Sparkles,
   Wand2,
+  Film,
+  Zap,
+  Clock,
+  Share2,
+  Palette,
+  Layers,
+  Type,
+  ArrowRightLeft,
+  Megaphone,
+  MonitorSmartphone,
+  PanelBottom,
+  Package,
+  Flag,
+  Sticker,
+  type LucideIcon,
 } from "@/icons/lucide-compat";
+
+const CATEGORY_ICONS: Record<string, LucideIcon> = {
+  cinema: Film,
+  glitch: Zap,
+  retro: Clock,
+  social: Share2,
+  branding: Sticker,
+  color: Palette,
+  overlay: Layers,
+  "text-effects": Type,
+  transitions: ArrowRightLeft,
+  ads: Megaphone,
+  "app-ui-demos": MonitorSmartphone,
+  "lower-thirds": PanelBottom,
+  "product-shots": Package,
+  "social-hooks": Share2,
+  "kinetic-typography": Type,
+  "logo-reveals": Sticker,
+  "end-screens": Flag,
+};
 
 
 
@@ -287,6 +322,7 @@ export const RecipesTab: React.FC = () => {
                 (at) => at.templateId === template.id,
               ).length;
               const isExpanded = expandedTemplateId === template.id;
+              const CategoryIcon = CATEGORY_ICONS[template.category] ?? Wand2;
 
               return (
                 <div
@@ -295,9 +331,8 @@ export const RecipesTab: React.FC = () => {
                 >
                   <div className="p-3">
                     <div className="flex gap-3">
-                      {/* Icon dummy area */}
                       <div className="w-12 h-12 rounded-lg bg-background-elevated border border-border/60 flex items-center justify-center shrink-0 shadow-inner group-hover:border-primary/30 transition-colors">
-                        <Wand2 size={18} className={`${appliedCount > 0 ? 'text-primary' : 'text-text-muted'}`} />
+                        <CategoryIcon size={18} className={`${appliedCount > 0 ? 'text-primary' : 'text-text-muted'}`} />
                       </div>
                       
                       <div className="flex-1 min-w-0 flex flex-col justify-between">

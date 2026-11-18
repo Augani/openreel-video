@@ -37,6 +37,7 @@ import { registerLinkedCompIpc } from "./linked-comp-windows";
 import { registerOnboardingIpc } from "./ipc/onboarding";
 import { registerOllamaIpc } from "./ipc/ollama";
 import { registerSamplesIpc } from "./ipc/samples";
+import { registerFontsIpc } from "./ipc/fonts";
 import { registerMcpFilesIpc } from "./ipc/mcp-files";
 import { noteOpenProjectFile } from "./mcp/policy";
 import { getEditorWindow, registerEditorWindow, setEditorWindowFactory } from "./mcp/editor-window";
@@ -440,6 +441,7 @@ app.whenReady().then(() => {
   registerOnboardingIpc();
   registerOllamaIpc();
   registerSamplesIpc();
+  registerFontsIpc();
   registerMcpFilesIpc();
   handle(CHANNELS.mcpGetClientStatus, z.undefined(), () => getMcpClientStatus());
   handle(CHANNELS.mcpGetStatus, z.undefined(), () => getMcpStatus());

@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo } from "react";
+import React, { memo, useCallback, useMemo } from "react";
 import { Button, cn } from "@openreel/ui";
 
 
@@ -6,7 +6,13 @@ import { RotateCcw, Target, Zap, Clock } from "@/icons/lucide-compat";
 import { InlineSlider, InspectorToggle } from "./shell/InspectorControls";
 import { useProjectStore } from "../../../stores/project-store";
 import { useEngineStore } from "../../../stores/engine-store";
-import type { EmphasisAnimation, EmphasisAnimationType } from "@openreel/core";
+import { DEFAULT_TEXT_STYLE, type EmphasisAnimation, type EmphasisAnimationType } from "@openreel/core";
+import {
+  EffectLivePreview,
+  EffectPreviewProvider,
+  useLivePreviewActivity,
+} from "../panels/effect-previews/EffectLivePreview";
+import { emphasisPreviewDef, type PreviewTextSource } from "../panels/effect-previews/kind-defs";
 
 const formatTime = (seconds: number): string => {
   const mins = Math.floor(seconds / 60);
@@ -141,6 +147,52 @@ const DEFAULT_EMPHASIS: EmphasisAnimation = {
   loop: true,
 };
 
+/** The animation a tile shows: its own type with the speed / intensity the clip uses, and the defaults "apply" sets. */
+function tileAnimation(type: EmphasisAnimationType, current: EmphasisAnimation): EmphasisAnimation {
+  const base = { ...current, type };
+  if (type === "focus-zoom") return { ...base, focusPoint: { x: 0.5, y: 0.5 }, zoomScale: 1.5, holdDuration: 0.3, loop: false };
+  if (type === "ken-burns") return { ...base, loop: false };
+  return base;
+}
+
+const EmphasisTile = memo(function EmphasisTile({
+  label,
+  type,
+  current,
+  selected,
+  source,
+  onSelect,
+}: {
+  label: string;
+  type: EmphasisAnimationType;
+  current: EmphasisAnimation;
+  selected: boolean;
+  source: PreviewTextSource | null;
+  onSelect: (type: EmphasisAnimationType) => void;
+}) {
+  const { active, handlers } = useLivePreviewActivity();
+  const def = useMemo(() => emphasisPreviewDef(tileAnimation(type, current), source), [type, current, source]);
+  return (
+    <Button
+      variant="ghost"
+      onClick={() => onSelect(type)}
+      type="button"
+      aria-label={label}
+      aria-pressed={selected}
+      {...handlers}
+      className={cn(
+        "block h-auto min-w-0 overflow-hidden whitespace-normal rounded-lg border p-1.5 text-left text-[10px] font-normal transition-colors",
+        selected ? "border-primary bg-primary/10 text-fg" : "border-border bg-bg-2 text-fg-2 hover:border-primary/50 hover:text-fg",
+      )}
+    >
+      <span data-emphasis-preview={type} aria-hidden="true" className="relative mb-1.5 block aspect-video overflow-hidden rounded-md bg-bg-3">
+        <EffectLivePreview def={def} active={active} />
+      </span>
+      <span className="block truncate font-semibold">{label}</span>
+    </Button>
+  );
+});
+
 const Slider: React.FC<{
   ariaLabel: string;
   min: number;
@@ -172,6 +224,16 @@ export const EmphasisAnimationSection: React.FC<
   const { project, updateClipEmphasisAnimation } = useProjectStore();
   const getTitleEngine = useEngineStore((state) => state.getTitleEngine);
   const getGraphicsEngine = useEngineStore((state) => state.getGraphicsEngine);
+  const previewText = useProjectStore((state) => state.project.textClips?.find((clip) => clip.id === clipId)?.text);
+  const previewStyle = useProjectStore((state) => state.project.textClips?.find((clip) => clip.id === clipId)?.style);
+  const previewTransform = useProjectStore((state) => state.project.textClips?.find((clip) => clip.id === clipId)?.transform);
+  const previewSource = useMemo<PreviewTextSource | null>(
+    () =>
+      previewText !== undefined
+        ? { text: previewText, style: previewStyle ?? DEFAULT_TEXT_STYLE, transform: previewTransform }
+        : null,
+    [previewText, previewStyle, previewTransform],
+  );
 
   const clipDuration = useMemo((): number => {
     const clip = project.timeline.tracks
@@ -293,24 +355,28 @@ export const EmphasisAnimationSection: React.FC<
         </Button>
       </div>
 
-      {EMPHASIS_ANIMATIONS.map((category) => (
-        <div key={category.category}>
-          <span className="text-fg-2 mb-2 block text-[10px] font-medium">
-            {category.category}
-          </span>
-          <div className="grid grid-cols-2 gap-1.5">
-            {category.animations.map((anim) => (
-              <Button variant="ghost" key={anim.type} onClick={() => handleTypeChange(anim.type)} type="button" aria-label={anim.label} className={cn("group/card block h-auto min-w-0 whitespace-normal rounded-[7px] border text-left transition-[background-color,border-color,box-shadow,transform] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50", "border-border bg-bg-1 hover:bg-bg-2", "p-3", `py-2 px-2 rounded-lg text-[10px] transition-all text-left ${
-                  currentAnimation.type === anim.type
-                    ? "bg-primary text-white"
-                    : "bg-bg-2 border border-border text-fg-2 hover:text-fg hover:border-primary/50"
-                  }`)}>
-                {anim.label}
-              </Button>
-            ))}
+      <EffectPreviewProvider>
+        {EMPHASIS_ANIMATIONS.map((category) => (
+          <div key={category.category}>
+            <span className="text-fg-2 mb-2 block text-[10px] font-medium">
+              {category.category}
+            </span>
+            <div className="grid grid-cols-2 gap-1.5">
+              {category.animations.map((anim) => (
+                <EmphasisTile
+                  key={anim.type}
+                  label={anim.label}
+                  type={anim.type}
+                  current={currentAnimation}
+                  selected={currentAnimation.type === anim.type}
+                  source={previewSource}
+                  onSelect={handleTypeChange}
+                />
+              ))}
+            </div>
           </div>
-        </div>
-      ))}
+        ))}
+      </EffectPreviewProvider>
 
       {currentAnimation.type !== "none" && (
         <>

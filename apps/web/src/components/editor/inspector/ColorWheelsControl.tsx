@@ -70,8 +70,8 @@ const ColorWheel: React.FC<ColorWheelProps> = ({
     const angle = Math.atan2(y, x);
 
     return {
-      x: Math.cos(angle) * saturation * 44,
-      y: Math.sin(angle) * saturation * 44,
+      x: Math.cos(angle) * saturation * 46,
+      y: Math.sin(angle) * saturation * 46,
       saturation: Math.min(saturation, 1),
     };
   }, [color.r, color.b]);
@@ -130,13 +130,13 @@ const ColorWheel: React.FC<ColorWheelProps> = ({
   }, [onReset]);
 
   return (
-    <div className="flex flex-col items-center gap-2">
-      <span className="text-fg-2 text-[10px] uppercase tracking-wider font-medium">
+    <div className="flex min-w-0 flex-col items-center gap-2">
+      <span className="max-w-full truncate text-fg-2 text-[10px] uppercase tracking-wider font-medium">
         {label}
       </span>
       <div
         ref={wheelRef}
-        className="w-24 h-24 rounded-full relative cursor-crosshair shadow-inner"
+        className="aspect-square w-full max-w-24 rounded-full relative cursor-crosshair shadow-inner"
         style={{
           background: `conic-gradient(
  from 90deg,
@@ -165,8 +165,8 @@ const ColorWheel: React.FC<ColorWheelProps> = ({
         <div
           className="absolute w-4 h-4 border-2 border-white rounded-full shadow-md pointer-events-none z-10"
           style={{
-            left: `calc(50% + ${getPositionFromColor.x}px - 8px)`,
-            top: `calc(50% + ${getPositionFromColor.y}px - 8px)`,
+            left: `calc(${50 + getPositionFromColor.x}% - 8px)`,
+            top: `calc(${50 + getPositionFromColor.y}% - 8px)`,
             backgroundColor:
               getPositionFromColor.saturation > 0.1
                 ? `rgb(${128 + color.r * 127}, ${128 + color.g * 127}, ${
@@ -262,7 +262,7 @@ export const ColorWheelsControl: React.FC<ColorWheelsControlProps> = ({
       )}
 
       {/* Color Wheels Row */}
-      <div className="flex justify-around items-start">
+      <div className="grid grid-cols-3 items-start gap-2" data-testid="color-wheels-row">
         <ColorWheel
           label="Shadows"
           color={values.shadows}

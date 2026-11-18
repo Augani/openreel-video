@@ -32,6 +32,7 @@ import { extForFormat } from "../services/export-runner";
 import { renderCacheService } from "../services/render-cache-service";
 import { ExportJobCancelled, cancelRunningExportJob, runExportJob } from "../services/export-queue/export-queue-runner";
 import { cancelRunningStemsJob, runStemsJob } from "../services/export-queue/stems-job-runner";
+import { runWithEncoderRetry } from "../services/export-queue/transient-encoder-error";
 import { isExportQueueRunning, setExportQueueRunning } from "../services/export-queue/export-queue-activity";
 import {
   deleteBrowserOutput,
@@ -197,7 +198,11 @@ export const useExportQueueStore = create<ExportQueueStore>((set, get) => {
       };
       const result = isStemsJob(fresh)
         ? { ...(await runStemsJob(fresh, project, hooks)), framesFromCache: undefined, smartRender: undefined, sourceMedia: undefined }
-        : { ...(await runExportJob(fresh, project, hooks)), stemOutputs: undefined };
+        : {
+            // A transient encoder failure (reclaimed/failed session under load) is retried once before it is shown.
+            ...(await runWithEncoderRetry(() => runExportJob(fresh, project!, hooks), { shouldRetry: () => !hooks.isCancelled() })),
+            stemOutputs: undefined,
+          };
       if (!ownsJob()) {
         // Cancelled (or cancelled and retried) while the last frames were encoding: the file is not wanted.
         if (result.output.storage === "browser") {

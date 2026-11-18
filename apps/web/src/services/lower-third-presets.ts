@@ -9,16 +9,16 @@ export const LOWER_THIRD_PRESETS = [
   {
     id: "simple",
     name: "Simple lower third",
-    text: "Ama Mensah",
-    subtitle: "Founder, Golden Hour",
+    text: "Your Name",
+    subtitle: "Title, Company",
     style: { fontSize: 32, fontWeight: 700, color: "#ffffff", strokeWidth: 0 },
     subtitleStyle: { fontSize: 22, fontWeight: 400, color: "#c4c6cc", strokeWidth: 0 },
   },
   {
     id: "label",
     name: "Label lower third",
-    text: "KOFI ADJEI",
-    subtitle: "Market trader",
+    text: "YOUR NAME",
+    subtitle: "Title, Company",
     style: {
       fontSize: 32,
       fontWeight: 700,

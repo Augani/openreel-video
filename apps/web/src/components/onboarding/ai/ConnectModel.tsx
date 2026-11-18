@@ -354,6 +354,7 @@ export default function ConnectModel({ onContinue, onLearn, onLater }: ConnectMo
           </div>
         )}
 
+        {choice.id !== "ollama" && (
         <div>
           <button
             type="button"
@@ -370,6 +371,7 @@ export default function ConnectModel({ onContinue, onLearn, onLater }: ConnectMo
             </p>
           )}
         </div>
+        )}
 
         {rememberAvailable && choice.id !== "ollama" && (
           <label className="flex items-start gap-2 text-xs text-fg-2">

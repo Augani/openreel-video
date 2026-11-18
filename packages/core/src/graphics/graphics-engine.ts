@@ -28,6 +28,7 @@ import {
 } from "../motion/motion-shader-renderer";
 import { getMotionShaderDef } from "../motion/shaders";
 import { padSvgForRaster, planSvgRaster } from "./svg-raster";
+import { overlayBlendAlpha } from "./blend-opacity";
 import { drawShapePathCentered } from "./shape-path";
 
 interface AnimatedGraphicState {
@@ -108,6 +109,7 @@ export class GraphicsEngine {
       points: params.points,
       ...(params.pathData !== undefined ? { pathData: params.pathData } : {}),
       ...(params.closed !== undefined ? { closed: params.closed } : {}),
+      ...(params.extent ? { extent: params.extent } : {}),
       metadata: params.metadata,
     };
 
@@ -462,7 +464,7 @@ export class GraphicsEngine {
 
     switch (graphic.type) {
       case "shape":
-        this.renderShape(ctx, graphic as ShapeClip, width, height, time);
+        this.renderShape(ctx, graphic as ShapeClip, width, height, time, animatedState.transform.anchor);
         break;
       case "svg":
         await this.renderSVG(
@@ -488,11 +490,22 @@ export class GraphicsEngine {
     width: number,
     height: number,
     time: number,
+    anchor?: { x: number; y: number },
   ): void {
     const { style, shapeType } = shape;
+    // applyTransform set the clip's animated opacity (incl. blend opacity); fill and stroke opacity multiply it.
+    const baseAlpha = ctx.globalAlpha;
     const baseSize = Math.min(width, height);
     const shapeSize = baseSize * 0.15;
     const halfSize = shapeSize / 2;
+    const box =
+      shape.extent &&
+      (shapeType === "rectangle" || shapeType === "circle" || shapeType === "ellipse" || shapeType === "line")
+        ? {
+            w: (shape.extent.width * baseSize) / 1080,
+            h: (shape.extent.height * baseSize) / 1080,
+          }
+        : null;
 
     ctx.save();
 
@@ -507,13 +520,29 @@ export class GraphicsEngine {
 
     switch (shapeType) {
       case "rectangle":
-        this.drawRectangle(ctx, 0, 0, shapeSize, shapeSize, style.cornerRadius);
+        if (box) {
+          const cx = (0.5 - (anchor?.x ?? 0.5)) * box.w;
+          const cy = (0.5 - (anchor?.y ?? 0.5)) * box.h;
+          this.drawRectangle(ctx, cx, cy, box.w, box.h, style.cornerRadius);
+        } else {
+          this.drawRectangle(ctx, 0, 0, shapeSize, shapeSize, style.cornerRadius);
+        }
         break;
       case "circle":
-        this.drawCircle(ctx, 0, 0, halfSize);
-        break;
       case "ellipse":
-        this.drawEllipse(ctx, 0, 0, halfSize, halfSize);
+        if (box) {
+          this.drawEllipse(
+            ctx,
+            (0.5 - (anchor?.x ?? 0.5)) * box.w,
+            (0.5 - (anchor?.y ?? 0.5)) * box.h,
+            box.w / 2,
+            box.h / 2,
+          );
+        } else if (shapeType === "circle") {
+          this.drawCircle(ctx, 0, 0, halfSize);
+        } else {
+          this.drawEllipse(ctx, 0, 0, halfSize, halfSize);
+        }
         break;
       case "triangle":
         this.drawTriangle(ctx, 0, 0, shapeSize, shapeSize);
@@ -522,7 +551,13 @@ export class GraphicsEngine {
         this.drawArrow(ctx, 0, 0, shapeSize, shapeSize);
         break;
       case "line":
-        this.drawLine(ctx, -halfSize, 0, halfSize, 0);
+        if (box) {
+          const cx = (0.5 - (anchor?.x ?? 0.5)) * box.w;
+          const cy = (0.5 - (anchor?.y ?? 0.5)) * box.h;
+          this.drawLine(ctx, cx - box.w / 2, cy, cx + box.w / 2, cy);
+        } else {
+          this.drawLine(ctx, -halfSize, 0, halfSize, 0);
+        }
         break;
       case "star":
         this.drawStar(
@@ -554,7 +589,7 @@ export class GraphicsEngine {
         );
         if (shaderCanvas) {
           ctx.save();
-          ctx.globalAlpha = style.fill.opacity;
+          ctx.globalAlpha = baseAlpha * style.fill.opacity;
           ctx.clip();
           ctx.drawImage(
             shaderCanvas,
@@ -565,12 +600,12 @@ export class GraphicsEngine {
           );
           ctx.restore();
         } else {
-          ctx.globalAlpha = style.fill.opacity;
+          ctx.globalAlpha = baseAlpha * style.fill.opacity;
           ctx.fillStyle = style.fill.color || "#000000";
           ctx.fill();
         }
       } else {
-        ctx.globalAlpha = style.fill.opacity;
+        ctx.globalAlpha = baseAlpha * style.fill.opacity;
         if (style.fill.type === "gradient" && style.fill.gradient) {
           ctx.fillStyle = this.createGradient(
             ctx,
@@ -586,7 +621,7 @@ export class GraphicsEngine {
     }
 
     if (style.stroke.width > 0) {
-      ctx.globalAlpha = style.stroke.opacity;
+      ctx.globalAlpha = baseAlpha * style.stroke.opacity;
       ctx.strokeStyle = style.stroke.color;
       ctx.lineWidth = style.stroke.width;
       ctx.lineCap = style.stroke.lineCap || "butt";
@@ -980,6 +1015,7 @@ export class GraphicsEngine {
       rotation += emphasisState.rotation;
       opacity *= emphasisState.opacity;
     }
+    opacity *= overlayBlendAlpha(graphic);
 
     return {
       transform: {

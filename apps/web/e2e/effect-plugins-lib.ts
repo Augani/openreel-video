@@ -60,9 +60,20 @@ export async function closeManager(page: Page): Promise<void> {
  */
 export async function runWgslPluginFlow(page: Page): Promise<{ hasAdapter: boolean }> {
   await openHookPage(page);
+  // requestAdapter can return null for a moment while many GPU clients start at once (a loaded multi-worker
+  // run): ask a few times, each bounded, before concluding there is none.
   const hasAdapter = await page.evaluate(async () => {
     const gpu = (navigator as any).gpu;
-    return !!gpu && (await gpu.requestAdapter()) !== null;
+    if (!gpu) return false;
+    for (let attempt = 0; attempt < 6; attempt++) {
+      const adapter = await Promise.race([
+        gpu.requestAdapter().catch(() => null),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 8_000)),
+      ]);
+      if (adapter) return true;
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+    return false;
   });
   console.log(`[plugins] WebGPU adapter available: ${hasAdapter}`);
   await openManagerFromHook(page);

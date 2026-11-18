@@ -158,6 +158,7 @@ export function parsePortableEdit(json: string): PortableEdit {
 function portableMediaMetadata(metadata: MediaMetadata): MediaMetadata {
   const result = { ...metadata };
   delete result.soundLibraryId;
+  delete result.recordedTake;
   return result;
 }
 

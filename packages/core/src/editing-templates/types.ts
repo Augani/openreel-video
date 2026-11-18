@@ -136,6 +136,7 @@ interface EditingTemplateOverlayBase {
   readonly transform?: EditingTemplateTransform;
   readonly keyframes?: readonly EditingTemplateKeyframe[];
   readonly blendMode?: BlendMode;
+  /** Authored 0..1 (1 = opaque); the resolver emits the project's 0..100 blendOpacity scale. */
   readonly blendOpacity?: EditingTemplateValue;
   readonly emphasisAnimation?: EditingTemplateEmphasisAnimation;
 }

@@ -8,7 +8,7 @@ import { useEditPointStore } from "../stores/edit-point-store";
 import { createEmptyProject } from "../stores/project/project-helpers";
 import { endNudgeBurst } from "./timeline-tool-nudge";
 import { selectEditPoint, toggleSelectedEditPointKind } from "./edit-point-commands";
-import { advanceDynamicTrim, cancelDynamicTrim, commitDynamicTrim, dynamicTrimFrameStep, dynamicTrimShuttle } from "./dynamic-trim";
+import { advanceDynamicTrim, cancelDynamicTrim, commitDynamicTrim, dynamicTrimFrameStep, dynamicTrimShuttle, dynamicTrimTwoUpTimes, flushDynamicTrimMonitor, getMonitorProject, MONITOR_INTERVAL_MS } from "./dynamic-trim";
 
 const makeClip = (id: string, startTime: number, inPoint: number, duration: number, trackId = "main"): Clip => ({
   id,
@@ -109,10 +109,12 @@ describe("dynamic JKL trimming", () => {
     selectEditPoint("b", "right");
     expect(dynamicTrimShuttle(1).success).toBe(true);
     advanceDynamicTrim(0.5);
+    flushDynamicTrimMonitor();
     expect(clips()).toEqual(ORIGINAL);
     const frames = session()!.appliedFrames;
     expect(frames).toBeGreaterThan(10);
-    expect(useTimelineStore.getState().playheadPosition).toBeCloseTo(8 + frames / 30, 3);
+    // A right edge shows the trimmed clip's last frame, one frame before the moving edge.
+    expect(useTimelineStore.getState().playheadPosition).toBeCloseTo(8 + (frames - 1) / 30, 3);
     expect(commitDynamicTrim()?.success).toBe(true);
     expect(session()).toBeNull();
     expect(clips()[1][2]).toBeCloseTo(8 + frames / 30, 3);
@@ -351,5 +353,215 @@ describe("dynamic JKL trimming", () => {
       expect(clips()).toEqual(ORIGINAL);
       expect(clips()).not.toEqual(afterStep);
     });
+  });
+});
+
+describe("dynamic trim live monitor preview", () => {
+  const monitorClips = (id = "main") =>
+    getMonitorProject().timeline.tracks.find((t) => t.id === id)!.clips
+      .slice().sort((x, y) => x.startTime - y.startTime)
+      .map((c) => [c.id, +c.startTime.toFixed(4), +(c.startTime + c.duration).toFixed(4), +c.inPoint.toFixed(4)]);
+
+  it("shows the trimmed result on the monitor while the stored project stays untouched", () => {
+    setup();
+    selectEditPoint("b", "right");
+    const stored = useProjectStore.getState().project;
+    expect(getMonitorProject()).toBe(stored);
+    dynamicTrimShuttle(1);
+    advanceDynamicTrim(0.5);
+    flushDynamicTrimMonitor();
+    const frames = session()!.appliedFrames;
+    expect(frames).toBeGreaterThan(0);
+    expect(getMonitorProject()).not.toBe(stored);
+    expect(useProjectStore.getState().project).toBe(stored);
+    expect(clips()).toEqual(ORIGINAL);
+    const preview = monitorClips();
+    expect(preview[1][2]).toBeCloseTo(8 + frames / 30, 3);
+    expect(preview[2][1]).toBeCloseTo(10 + frames / 30, 3);
+  });
+
+  it("the previewed result equals what K commits", () => {
+    setup();
+    selectEditPoint("b", "right");
+    dynamicTrimShuttle(1);
+    advanceDynamicTrim(0.4);
+    flushDynamicTrimMonitor();
+    const preview = monitorClips();
+    commitDynamicTrim();
+    expect(getMonitorProject()).toBe(useProjectStore.getState().project);
+    expect(monitorClips()).toEqual(preview);
+  });
+
+  it("the preview follows a left-edge trim and the monitor frame moves with the edge", () => {
+    setup();
+    selectEditPoint("b", "left");
+    dynamicTrimShuttle(-1);
+    advanceDynamicTrim(0.3);
+    flushDynamicTrimMonitor();
+    const frames = session()!.appliedFrames;
+    expect(frames).toBeLessThan(0);
+    const b = monitorClips().find((c) => c[0] === "b")!;
+    expect(b[1]).toBeCloseTo(4 + frames / 30, 3);
+    expect(useTimelineStore.getState().playheadPosition).toBeCloseTo(4 + frames / 30, 3);
+  });
+
+  it("each tick changes the preview; a limited trim keeps the clamped preview", () => {
+    setup();
+    selectEditPoint("b", "right");
+    dynamicTrimShuttle(-1);
+    const first = getMonitorProject();
+    advanceDynamicTrim(0.1);
+    flushDynamicTrimMonitor();
+    expect(getMonitorProject()).not.toBe(first);
+    advanceDynamicTrim(30);
+    flushDynamicTrimMonitor();
+    expect(session()!.limited).toBe(true);
+    expect(getMonitorProject()).toBe(session()!.previewProject);
+  });
+
+  it("Esc drops the preview and restores the project and playhead exactly", () => {
+    setup();
+    useTimelineStore.setState({ playheadPosition: 2 });
+    selectEditPoint("b", "right");
+    const stored = useProjectStore.getState().project;
+    dynamicTrimShuttle(1);
+    advanceDynamicTrim(0.5);
+    flushDynamicTrimMonitor();
+    expect(cancelDynamicTrim()).toBe(true);
+    expect(session()).toBeNull();
+    expect(getMonitorProject()).toBe(stored);
+    expect(useProjectStore.getState().project).toBe(stored);
+    expect(clips()).toEqual(ORIGINAL);
+    expect(useTimelineStore.getState().playheadPosition).toBe(2);
+  });
+
+  it("a left-edge ripple keeps the clip start and the monitor shows its first (trimmed) frame", () => {
+    setup();
+    useTimelineStore.setState({ playheadPosition: 7 });
+    selectEditPoint("a", "left");
+    dynamicTrimShuttle(1);
+    advanceDynamicTrim(0.3);
+    flushDynamicTrimMonitor();
+    const frames = session()!.appliedFrames;
+    expect(frames).toBeGreaterThan(0);
+    const a = monitorClips().find((c) => c[0] === "a")!;
+    expect(a[1]).toBe(0);
+    expect(a[3]).toBeCloseTo(10 + frames / 30, 3);
+    expect(useTimelineStore.getState().playheadPosition).toBe(0);
+    cancelDynamicTrim();
+    expect(useTimelineStore.getState().playheadPosition).toBe(7);
+  });
+
+  it("a roll preview moves the cut but not later clips", () => {
+    setup();
+    selectEditPoint("a", "right");
+    const sel = useEditPointStore.getState().selection;
+    if (sel?.type !== "edit") throw new Error("expected an edit selection");
+    useEditPointStore.getState().set({ ...sel, kind: "roll" });
+    dynamicTrimShuttle(1);
+    advanceDynamicTrim(0.2);
+    flushDynamicTrimMonitor();
+    const roll = monitorClips();
+    expect(roll.find((c) => c[0] === "c")![1]).toBe(10);
+    expect(roll.find((c) => c[0] === "b")![1]).toBeGreaterThan(4);
+  });
+});
+
+describe("dynamic trim monitor preview pacing and sources", () => {
+  const textClip = (id: string, startTime: number) =>
+    ({ id, trackId: "text", startTime, duration: 2, text: id }) as unknown as NonNullable<ReturnType<typeof useProjectStore.getState>["project"]["textClips"]>[number];
+
+  it("the session numbers follow every tick but the monitor publishes at most once per interval", () => {
+    setup();
+    selectEditPoint("b", "right");
+    dynamicTrimShuttle(1);
+    const published = session()!.previewProject;
+    const seeks: number[] = [];
+    const unsubscribe = useTimelineStore.subscribe((s) => seeks.push(s.playheadPosition));
+    for (let i = 0; i < 5; i++) advanceDynamicTrim(1 / 30);
+    expect(session()!.appliedFrames).toBeGreaterThan(5);
+    expect(session()!.previewProject, "throttled within one interval").toBe(published);
+    expect(seeks).toEqual([]);
+    vi.advanceTimersByTime(MONITOR_INTERVAL_MS);
+    expect(session()!.previewProject).not.toBe(published);
+    expect(seeks).toHaveLength(1);
+    unsubscribe();
+  });
+
+  it("a limit and the end of the trim publish without waiting", () => {
+    setup();
+    selectEditPoint("b", "right");
+    dynamicTrimShuttle(-1);
+    advanceDynamicTrim(1 / 30);
+    advanceDynamicTrim(60);
+    expect(session()!.limited).toBe(true);
+    expect(getMonitorProject()).toBe(session()!.previewProject);
+    expect(cancelDynamicTrim()).toBe(true);
+    vi.advanceTimersByTime(MONITOR_INTERVAL_MS * 3);
+    expect(session()).toBeNull();
+  });
+
+  it("overlays the stored project lacks come from the full project the plan was made on", () => {
+    setup();
+    const full = { ...useProjectStore.getState().project, textClips: [textClip("t1", 9)] };
+    useProjectStore.setState({ getFullProject: () => full });
+    expect(useProjectStore.getState().project.textClips).toBeUndefined();
+    selectEditPoint("b", "right");
+    dynamicTrimShuttle(1);
+    flushDynamicTrimMonitor();
+    expect(getMonitorProject().textClips?.map((t) => t.id)).toEqual(["t1"]);
+    cancelDynamicTrim();
+  });
+
+  it("overlays the stored project holds are the ones previewed", () => {
+    setup();
+    useProjectStore.setState({ project: { ...useProjectStore.getState().project, textClips: [textClip("stored", 9)] } });
+    const stored = useProjectStore.getState().project;
+    useProjectStore.setState({ getFullProject: () => ({ ...stored, textClips: [textClip("engine", 9)] }) });
+    selectEditPoint("b", "right");
+    dynamicTrimShuttle(1);
+    flushDynamicTrimMonitor();
+    expect(getMonitorProject().textClips?.map((t) => t.id)).toEqual(["stored"]);
+    cancelDynamicTrim();
+  });
+
+  it("two-up times: outgoing last frame and incoming first frame, from the previewed cut", () => {
+    setup();
+    selectEditPoint("a", "right");
+    const sel = useEditPointStore.getState().selection;
+    if (sel?.type !== "edit") throw new Error("expected an edit selection");
+    expect(sel.neighborId).toBe("b");
+    useEditPointStore.getState().set({ ...sel, kind: "roll" });
+    expect(dynamicTrimTwoUpTimes(useProjectStore.getState().project, "a", "b", "right")).toEqual({ outgoing: 4 - 1 / 30, incoming: 4 });
+    dynamicTrimShuttle(1);
+    flushDynamicTrimMonitor();
+    const frames = session()!.appliedFrames;
+    const times = dynamicTrimTwoUpTimes(getMonitorProject(), "a", "b", "right")!;
+    expect(times.incoming).toBeCloseTo(4 + frames / 30, 3);
+    expect(times.outgoing).toBeCloseTo(4 + (frames - 1) / 30, 3);
+    // Seen from the incoming clip's left edge it is the same pair.
+    expect(dynamicTrimTwoUpTimes(getMonitorProject(), "b", "a", "left")).toEqual(times);
+    expect(dynamicTrimTwoUpTimes(getMonitorProject(), "a", "missing", "right")).toBeNull();
+  });
+
+  it("a long timeline previews cheaply: structure is shared, only the touched track is rebuilt", () => {
+    setup();
+    const bigClips = Array.from({ length: 4000 }, (_, i) => makeClip(`x${i}`, 100 + i * 2, 0, 2, "big"));
+    const base = useProjectStore.getState().project;
+    useProjectStore.setState({ project: { ...base, timeline: { ...base.timeline, tracks: [...base.timeline.tracks, track("big", bigClips)] } } });
+    selectEditPoint("b", "right");
+    dynamicTrimShuttle(1);
+    flushDynamicTrimMonitor();
+    const preview = getMonitorProject();
+    const storedTracks = useProjectStore.getState().project.timeline.tracks;
+    // The untouched 4000-clip track keeps its identity (no per-tick copy of it).
+    expect(preview.timeline.tracks.find((t) => t.id === "big")).toBe(storedTracks.find((t) => t.id === "big"));
+    const started = performance.now();
+    for (let i = 0; i < 20; i++) {
+      advanceDynamicTrim(1 / 30);
+      flushDynamicTrimMonitor();
+    }
+    const perTick = (performance.now() - started) / 20;
+    expect(perTick).toBeLessThan(33);
   });
 });

@@ -34,8 +34,8 @@ describe("lower-third presets", () => {
       ({ id }) => result.textClips!.find((clip) => clip.id === id)!,
     );
     expect(lines.map((clip) => clip.text)).toEqual([
-      "Ama Mensah",
-      "Founder, Golden Hour",
+      "Your Name",
+      "Title, Company",
     ]);
     expect(
       new Set([existing.trackId, ...lines.map((clip) => clip.trackId)]).size,
@@ -86,8 +86,8 @@ describe("lower-third presets", () => {
       ({ id }) => project.textClips!.find((clip) => clip.id === id)!,
     );
     expect(lines.map((clip) => clip.text)).toEqual([
-      "KOFI ADJEI",
-      "Market trader",
+      "YOUR NAME",
+      "Title, Company",
     ]);
     expect(lines[0].style.backgroundColor).toBe("#2bd49a");
     expect(lines[1].style.backgroundColor).toBe("#ffffff");

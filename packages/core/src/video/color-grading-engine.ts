@@ -1,4 +1,5 @@
 import type { CurvePoint } from "../types/effects";
+import { releaseGLContext, trackGLContext } from "./gl-context";
 import { applyToneToData, applyVignetteToData } from "./tone-curve";
 import { hasCurve1d, isLutUsable, packCurve1dRgba, packRgbToRgba, resolveLut3dRgb } from "../color/lut-tables";
 import { HUE_CURVES_GLSL, HUE_CURVE_LUT_SIZE, packHueCurveLuts, type HueCurvesValues } from "./hue-curves";
@@ -469,7 +470,7 @@ export class ColorGradingEngine {
       throw new Error("WebGL2 not supported");
     }
 
-    this.gl = gl;
+    this.gl = trackGLContext(gl);
     this.quadBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, this.quadBuffer);
     gl.bufferData(
@@ -1272,6 +1273,7 @@ export class ColorGradingEngine {
       if (this.quadBuffer) this.gl.deleteBuffer(this.quadBuffer);
       if (this.texCoordBuffer) this.gl.deleteBuffer(this.texCoordBuffer);
       if (this.curveLUTTexture) this.gl.deleteTexture(this.curveLUTTexture);
+      releaseGLContext(this.gl);
     }
 
     this.canvas = null;

@@ -1,4 +1,5 @@
 import { useRef } from "react";
+import { setExternalReadOnly } from "../../../services/project-lock";
 import {
   ActionExecutor,
   TitleEngine,
@@ -402,6 +403,23 @@ describe("owned timeline tool gestures", () => {
       useProjectStore.getState().commitTimelineToolEdit(plan).success,
     ).toBe(false);
     expect(useProjectStore.getState().project).toBe(changed);
+    expect(historySize()).toBe(0);
+  });
+  it("refuses direct commits on a read-only project (a view-only collaboration invite)", () => {
+    const project = useProjectStore.getState().project;
+    const plan = prepareTimelineToolEdit(project, {
+      itemId: "clip",
+      mode: "slip",
+    }).plan(1);
+    setExternalReadOnly("You joined as a viewer: this shared project is view-only.");
+    try {
+      const result = useProjectStore.getState().commitTimelineToolEdit(plan);
+      expect(result.success).toBe(false);
+      expect(result.error?.code).toBe("READ_ONLY");
+    } finally {
+      setExternalReadOnly(null);
+    }
+    expect(useProjectStore.getState().project).toBe(project);
     expect(historySize()).toBe(0);
   });
   it("does not add history when synchronizing a derived cache fails", () => {

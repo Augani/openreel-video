@@ -36,6 +36,14 @@ function appliedTitle(recorded = false) {
 }
 
 describe("AI change navigation and history affordances", () => {
+  it("disables footer actions and uses icons, not typed glyphs, before the first AI turn", () => {
+    const { container } = render(<ChangesPanel />);
+    expect(screen.getByRole("button", { name: "Undo all edits in the last AI turn" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Keep all" })).toBeDisabled();
+    const footer = container.querySelector("footer")!;
+    expect(footer.textContent).not.toMatch(/[✓?]/);
+    expect(footer.querySelectorAll("p > svg").length).toBe(3);
+  });
   it("disables turn Undo after a later manual edit", () => {
     appliedTitle(); render(<ChangesPanel />);
     act(() => { const store = useProjectStore.getState(); store.createTextClip(store.project.timeline.tracks[0].id, 8, "Manual title", 2); });

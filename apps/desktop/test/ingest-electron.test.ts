@@ -262,7 +262,7 @@ d("desktop ingest in real Electron", () => {
 
     // Preview: place the clip, look through the proxy, toggle, look at the original.
     const clip = await placeClip(page, "clip4k.mp4");
-    await page.waitForFunction((mid: string) => (window as any).__openreelE2E.proxy.cache.store.getState().entries[mid]?.status === "ready", id, { timeout: 60_000 });
+    await page.waitForFunction((mid: string) => (window as any).__openreelE2E.proxy.cache.store.getState().entries[mid]?.status === "ready", id, { timeout: 120_000 });
     await seekTo(page, clip.start + 1.2);
     await sleep(2000);
     const viaProxy = await decodeLog(page, id);
@@ -436,8 +436,11 @@ d("desktop ingest in real Electron", () => {
     // Two more clips, queued then killed mid-way.
     const clipA = path.join(work, "src", "resumeA.mp4");
     const clipB = path.join(work, "src", "resumeB.mp4");
-    makeClip(clipA, 6);
-    makeClip(clipB, 6);
+    // Long enough that a job is still in flight when the second import returns: B's job is only queued once
+    // B's own import has finished, and on an idle machine a 6 s clip's proxy can be done before that, which
+    // leaves no running job to observe (the all-done state never matches the wait below).
+    makeClip(clipA, 24);
+    makeClip(clipB, 24);
     const resumeProfile = path.join(work, "profile-resume");
     const first = await launch(resumeProfile);
     await openEditor(first.page);
@@ -447,18 +450,51 @@ d("desktop ingest in real Electron", () => {
     const idA = await importClip(first.page, clipA, "resumeA.mp4");
     const idB = await importClip(first.page, clipB, "resumeB.mp4");
     const queueFile = path.join(resumeProfile, "proxy-queue.json");
-    const start = Date.now();
-    // Wait until the first job is running, then kill the app hard (no graceful shutdown).
-    while (Date.now() - start < 60_000) {
-      const state = fs.existsSync(queueFile) ? (JSON.parse(fs.readFileSync(queueFile, "utf8")).jobs as any[]) : [];
-      if (state.some((j) => j.status === "running")) break;
-      await sleep(100);
-    }
+    const readQueue = (): any[] => {
+      try {
+        return fs.existsSync(queueFile) ? (JSON.parse(fs.readFileSync(queueFile, "utf8")).jobs as any[]) : [];
+      } catch {
+        return []; // caught mid-write
+      }
+    };
+    // Wait until both jobs are persisted and one is running, then kill the app hard (no graceful shutdown).
+    // On a loaded machine the first job can already be done by the time the second import returns; what the
+    // test needs is a job in flight at the kill and the other(s) not finished, not a particular split.
+    const seen: string[] = [];
+    const deadlineNote = Date.now() + 85_000;
+    await until(
+      "both jobs persisted with one running",
+      () => {
+        const jobs = readQueue();
+        const line = jobs.map((j) => j.status).join(",");
+        if (seen[seen.length - 1] !== line) seen.push(line);
+        if (jobs.length === 2 && jobs.some((j) => j.status === "running")) return true;
+        if (Date.now() > deadlineNote) throw new Error(`queue states seen: ${seen.join(" -> ") || "none"}`);
+        return false;
+      },
+      90_000,
+    );
     const queued = JSON.parse(fs.readFileSync(queueFile, "utf8")).jobs as any[];
     console.log(`[desktop-ingest] queue file before the kill: ${queued.map((j) => `${j.mediaId.slice(0, 6)}:${j.status}`).join(", ")}`);
     expect(queued.length).toBe(2);
-    expect(queued.map((j) => j.status).sort()).toEqual(["queued", "running"]);
+    expect(queued.some((j) => j.status === "running"), "a job was running when the app was killed").toBe(true);
+    expect(queued.every((j) => j.status === "running" || j.status === "queued" || j.status === "done")).toBe(true);
     await closeApp(first, false);
+    // A hard kill leaves the first app's ffmpeg running as an orphan. It must be gone before the relaunch,
+    // or it can keep writing the very proxy the resumed job is about to produce.
+    const orphans = () => {
+      try {
+        return execFileSync("pgrep", ["-f", path.join(work, "src", "resume")], { encoding: "utf8" }).trim();
+      } catch {
+        return ""; // pgrep exits 1 when nothing matches
+      }
+    };
+    const orphanDeadline = Date.now() + 15_000;
+    while (orphans() && Date.now() < orphanDeadline) await sleep(200);
+    if (orphans()) {
+      try { execFileSync("pkill", ["-9", "-f", path.join(work, "src", "resume")]); } catch { /* already gone */ }
+      await until("the killed app's ffmpeg to exit", () => !orphans(), 15_000);
+    }
     // Nothing finished yet (or at most the first), and no partial proxy is left behind as a final file.
     const proxiesDir = path.join(projectDir, "Proxies");
     const partial = () => fs.readdirSync(proxiesDir).filter((f) => f.startsWith("resume") && f.endsWith(".mp4"));
@@ -466,12 +502,18 @@ d("desktop ingest in real Electron", () => {
 
     // Relaunch with the same profile: the main process resumes the queue on its own.
     const second = await launch(resumeProfile);
-    const resumed = Date.now();
-    while (Date.now() - resumed < 180_000) {
-      const jobs = fs.existsSync(queueFile) ? (JSON.parse(fs.readFileSync(queueFile, "utf8")).jobs as any[]) : [];
-      if (jobs.length === 2 && jobs.every((j) => j.status === "done")) break;
-      await sleep(300);
-    }
+    // Ready signal, not a fixed delay: the main process has finished starting (which is what resumes the
+    // queue) and the window has loaded.
+    await second.app.evaluate(async ({ app }: any) => { await app.whenReady(); return true; });
+    await second.page.waitForLoadState("load");
+    await until(
+      "the resumed queue to finish both jobs",
+      () => {
+        const jobs = readQueue();
+        return jobs.length === 2 && jobs.every((j) => j.status === "done");
+      },
+      240_000,
+    );
     const done = JSON.parse(fs.readFileSync(queueFile, "utf8")).jobs as any[];
     console.log(`[desktop-ingest] after restart: ${done.map((j) => `${j.mediaId.slice(0, 6)}:${j.status}`).join(", ")}; proxy files ${partial().length} (before ${finishedBefore})`);
     expect(done.map((j) => j.status)).toEqual(["done", "done"]);

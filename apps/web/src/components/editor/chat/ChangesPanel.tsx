@@ -1,7 +1,7 @@
 import { useEffect, useId, useMemo, useState } from "react";
 import { Button, ScrollArea } from "@openreel/ui";
 import { getTimelineItems } from "@openreel/core";
-import { Sparkles } from "lucide-react";
+import { Check, Eye, Sparkles } from "lucide-react";
 import { editingToolReadOnly } from "../../../services/agent/editing-tools";
 import { resolveAIEditTarget } from "../../../services/agent/edit-target";
 import { jumpToAIEdit } from "../../../services/agent/edit-navigation";
@@ -97,14 +97,14 @@ export function ChangesPanel() {
       </ScrollArea>
       <footer>
         <strong>The assistant can</strong>
-        <p><span aria-hidden="true">✓</span>{dryRun ? "Preview timeline edits" : "Edit the timeline"}</p>
-        <p><span aria-hidden="true">✓</span>Use your imported media</p>
-        <p><span className="is-review" aria-hidden="true">?</span>Open export for your review</p>
+        <p><Check size={14} aria-hidden="true" />{dryRun ? "Preview timeline edits" : "Edit the timeline"}</p>
+        <p><Check size={14} aria-hidden="true" />Use your imported media</p>
+        <p><Eye size={14} className="is-review" aria-hidden="true" />Open export for your review</p>
         <div className="workspace-changes-actions flex gap-2">
-          <Button variant="secondary" className="flex-1" disabled={!undoAvailable}
+          <Button variant="secondary" className="flex-1" disabled={!undoAvailable || count === 0}
             aria-label="Undo all edits in the last AI turn" aria-describedby={undoHintId}
             title="Undo every edit in the last AI turn" onClick={() => void undo()}>Undo all</Button>
-          <Button className="flex-1" disabled={!committed || busy || keptTurn === latest}
+          <Button className="flex-1" disabled={!committed || count === 0 || busy || keptTurn === latest}
             onClick={() => setKeptTurn(latest ?? null)}>{keptTurn === latest && latest ? "Kept" : "Keep all"}</Button>
         </div>
         <span id={undoHintId} className="sr-only">Each AI turn is one undoable edit.</span>

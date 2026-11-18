@@ -14,7 +14,7 @@ import { SourceMonitor } from "./SourceMonitor";
 import { useSourceMonitorStore } from "../../stores/source-monitor-store";
 import { InspectorPanel } from "./InspectorPanel";
 import { Timeline } from "./Timeline";
-import { KeyboardShortcutsOverlay } from "./KeyboardShortcutsOverlay";
+import { useLatch } from "./use-latch";
 import { PanelErrorBoundary } from "../ErrorBoundary";
 import { SpotlightTour, MoGraphTour } from "./tour";
 import { useProjectStore } from "../../stores/project-store";
@@ -41,6 +41,9 @@ import { startAudioRackSync } from "../../services/audio-rack-sync";
 import { startLinkedCompHost } from "../../services/linked-comp-host";
 import "./editor-responsive.css";
 
+const KeyboardShortcutsOverlay = React.lazy(() =>
+  import("./KeyboardShortcutsOverlay").then((module) => ({ default: module.KeyboardShortcutsOverlay })),
+);
 const ChatPanel = React.lazy(() =>
   import("./chat/ChatPanel").then((module) => ({ default: module.ChatPanel })),
 );
@@ -155,6 +158,7 @@ export const EditorInterface: React.FC = () => {
 
   const { showShortcutsOverlay, setShowShortcutsOverlay } =
     useKeyboardShortcuts();
+  const shortcutsOverlayLatched = useLatch(showShortcutsOverlay);
   useAutoSave();
   // Onboarding Pro row: apply the workspace picked on the welcome screen, once.
   useEffect(() => { applyPendingWorkspace(); }, []);
@@ -668,10 +672,14 @@ export const EditorInterface: React.FC = () => {
         </nav>
       )}
 
-      <KeyboardShortcutsOverlay
-        isOpen={showShortcutsOverlay}
-        onClose={() => setShowShortcutsOverlay(false)}
-      />
+      {shortcutsOverlayLatched && (
+        <React.Suspense fallback={null}>
+          <KeyboardShortcutsOverlay
+            isOpen={showShortcutsOverlay}
+            onClose={() => setShowShortcutsOverlay(false)}
+          />
+        </React.Suspense>
+      )}
       <PanelErrorBoundary name="Multicam" silent>
         <React.Suspense fallback={null}>
           <MultiCameraDialog />

@@ -497,7 +497,7 @@ export function useAutoCaptions({ clipId, clipIds, sourceTrackId, sourceLabel, m
     setSelectedLanguage: (value: string) => { if (!busyRef.current) { setSelectedLanguage(value); onLanguageChange?.(value); } },
     selectedStyle, setSelectedStyle: (value: string) => { if (!busyRef.current) { setSelectedStyle(value); onStyleChange?.(value); } },
     selectedModel, handleModelChange, handlePrepareModel, handleTranscribe, handleAddToTimeline,
-    modelStatus, segments, error, canTranscribe, referenceTextStyle, highlightWords, setHighlightWords, removeFillers, setRemoveFillers, cancel,
+    modelStatus, segments, error, canTranscribe, referenceTextStyle, referenceStyles, highlightWords, setHighlightWords, removeFillers, setRemoveFillers, cancel,
     sourceCount: sources.length,
     sourceName: ownerRef.current
       ? ownerRef.current.sourceLabel ?? (ownerRef.current.sources.length === 1 ? ownerRef.current.sources[0].media.name : `${ownerRef.current.sources.length} audio clips`)

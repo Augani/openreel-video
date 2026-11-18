@@ -1164,6 +1164,23 @@ describe("ProjectStore", () => {
       ).toHaveLength(2);
     });
 
+    it("keeps the project's overlay lists (what the preview draws) in step with applied template overlays", () => {
+      useProjectStore.getState().loadProject(createProjectWithEditableClip());
+      const applicationId = useProjectStore.getState().applyEditingTemplate("branding-lower-third", "video-clip-1");
+      expect(applicationId).toBeTruthy();
+      const applied = useProjectStore.getState().project;
+      expect(applied.shapeClips).toHaveLength(1);
+      expect(applied.textClips).toHaveLength(2);
+      // The template's width and height survive onto the clip, so the preview and export draw it at its authored size.
+      expect(applied.shapeClips?.[0].extent).toEqual({
+        width: expect.any(Number),
+        height: expect.any(Number),
+      });
+      useProjectStore.getState().removeEditingTemplateApplication("video-clip-1", applicationId!);
+      expect(useProjectStore.getState().project.shapeClips).toHaveLength(0);
+      expect(useProjectStore.getState().project.textClips).toHaveLength(0);
+    });
+
     it("removes a clip-scoped recipe and cleans up its generated tracks", () => {
       useProjectStore.getState().loadProject(createProjectWithEditableClip());
 
